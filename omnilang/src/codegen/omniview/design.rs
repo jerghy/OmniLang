@@ -9,8 +9,7 @@
 //! to resolve which class names and additional CSS a variant binding produces.
 
 use crate::ir::design::*;
-use std::collections::HashMap;
-
+use rustc_hash::FxHashMap;
 /// Emit CSS for all classes and variants in a design block.
 ///
 /// Returns a single CSS string containing:
@@ -105,7 +104,7 @@ fn emit_variant_css(variant: &VariantIR) -> String {
 pub fn expand_variant(
     design: &DesignIR,
     variant_name: &str,
-    dimension_values: &HashMap<String, String>,
+    dimension_values: &FxHashMap<String, String>,
 ) -> Result<(Vec<String>, String), String> {
     let variant = design
         .variants
@@ -134,7 +133,7 @@ mod tests {
     use super::*;
 
     fn make_test_design() -> DesignIR {
-        let mut tokens = HashMap::new();
+        let mut tokens = FxHashMap::default();
         tokens.insert(
             "surface".to_string(),
             TokenIR {
@@ -273,7 +272,7 @@ mod tests {
     #[test]
     fn expand_variant_not_found() {
         let design = make_test_design();
-        let dim_values = HashMap::new();
+        let dim_values = FxHashMap::default();
         let result = expand_variant(&design, "NonExistent", &dim_values);
         assert!(result.is_err(), "should error on unknown variant");
     }
@@ -282,7 +281,7 @@ mod tests {
     fn emit_empty_design() {
         let design = DesignIR {
             name: "Empty".to_string(),
-            tokens: HashMap::new(),
+            tokens: FxHashMap::default(),
             classes: vec![],
             variants: vec![],
         };

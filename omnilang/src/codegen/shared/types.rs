@@ -57,7 +57,7 @@ impl FormatType for JsTypeFormatter {
                     "any[]".into()
                 }
             }
-            "HashMap" | "Map" | "Dict" => {
+            "FxHashMap" | "Map" | "Dict" => {
                 if type_args.len() >= 2 {
                     format!(
                         "Record<{}, {}>",
@@ -117,7 +117,7 @@ impl FormatType for DartTypeFormatter {
                     "List".into()
                 }
             }
-            "HashMap" | "Map" | "Dict" => {
+            "FxHashMap" | "Map" | "Dict" => {
                 if type_args.len() >= 2 {
                     format!(
                         "Map<{}, {}>",
@@ -181,15 +181,15 @@ impl FormatType for RustTypeFormatter {
                     "Vec<()>".into()
                 }
             }
-            "HashMap" | "Map" | "Dict" => {
+            "FxHashMap" | "Map" | "Dict" => {
                 if type_args.len() >= 2 {
                     format!(
-                        "HashMap<{}, {}>",
+                        "FxHashMap<{}, {}>",
                         self.format_type(type_args[0].kind.as_str(), &type_args[0].type_args),
                         self.format_type(type_args[1].kind.as_str(), &type_args[1].type_args)
                     )
                 } else {
-                    "HashMap<String, ()>".into()
+                    "FxHashMap<String, ()>".into()
                 }
             }
             "Option" => {
@@ -241,7 +241,7 @@ impl FormatType for PythonTypeFormatter {
                     "list".into()
                 }
             }
-            "HashMap" | "Map" | "Dict" => {
+            "FxHashMap" | "Map" | "Dict" => {
                 if type_args.len() >= 2 {
                     format!(
                         "dict[{}]",

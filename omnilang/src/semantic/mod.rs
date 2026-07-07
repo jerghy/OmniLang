@@ -15,8 +15,7 @@ mod validate_motion_triggers;
 mod validate_store_access;
 mod validate_types;
 
-use std::collections::HashMap;
-
+use rustc_hash::FxHashMap;
 use crate::error::Diagnostic;
 use crate::parser::ast::Program;
 use symbols::*;
@@ -25,7 +24,7 @@ use symbols::*;
 #[derive(Debug)]
 pub struct SemanticResult {
     pub symbols: SymbolTable,
-    pub dependencies: HashMap<String, Vec<String>>,
+    pub dependencies: FxHashMap<String, Vec<String>>,
     pub diagnostics: Vec<Diagnostic>,
 }
 
@@ -40,7 +39,7 @@ pub fn analyze(program: &Program) -> SemanticResult {
 pub struct SemanticAnalyzer {
     symbols: SymbolTable,
     diagnostics: Vec<Diagnostic>,
-    dependencies: HashMap<String, Vec<String>>,
+    dependencies: FxHashMap<String, Vec<String>>,
     /// True when resolving a view template interpolation {expr}
     resolving_interpolation: bool,
 }
@@ -56,7 +55,7 @@ impl SemanticAnalyzer {
         SemanticAnalyzer {
             symbols: SymbolTable::new(),
             diagnostics: Vec::new(),
-            dependencies: HashMap::new(),
+            dependencies: FxHashMap::default(),
             resolving_interpolation: false,
         }
     }

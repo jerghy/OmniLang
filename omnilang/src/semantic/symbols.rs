@@ -1,7 +1,6 @@
 //! Symbol table and scope types for semantic analysis.
 
-use std::collections::HashMap;
-
+use rustc_hash::FxHashMap;
 /// A single symbol (variable, function, signal, etc.)
 #[derive(Debug, Clone)]
 pub struct Symbol {
@@ -34,7 +33,7 @@ pub enum SymbolKind {
 pub struct Scope {
     pub name: String,
     pub parent: Option<usize>, // index into SymbolTable.scopes
-    pub symbols: HashMap<String, Symbol>,
+    pub symbols: FxHashMap<String, Symbol>,
     pub children: Vec<usize>,
 }
 
@@ -43,7 +42,7 @@ pub struct Scope {
 pub struct SymbolTable {
     pub scopes: Vec<Scope>,
     pub current_scope: usize, // index into scopes
-    pub scope_by_name: HashMap<String, usize>,
+    pub scope_by_name: FxHashMap<String, usize>,
 }
 
 impl SymbolTable {
@@ -51,10 +50,10 @@ impl SymbolTable {
         let global = Scope {
             name: "global".into(),
             parent: None,
-            symbols: HashMap::new(),
+            symbols: FxHashMap::default(),
             children: vec![],
         };
-        let mut scope_by_name = HashMap::new();
+        let mut scope_by_name = FxHashMap::default();
         scope_by_name.insert("global".to_string(), 0);
         SymbolTable {
             scopes: vec![global],
@@ -70,7 +69,7 @@ impl SymbolTable {
         self.scopes.push(Scope {
             name: name.to_string(),
             parent: Some(parent),
-            symbols: HashMap::new(),
+            symbols: FxHashMap::default(),
             children: vec![],
         });
         self.scopes[parent].children.push(idx);

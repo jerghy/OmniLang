@@ -3,7 +3,7 @@
 
 use crate::sourcemap::SourceMapEntry;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use strum::IntoStaticStr;
 
 // Cross-reference: ComponentIR, StoreIR, Enums need logic types
@@ -131,6 +131,9 @@ pub enum ExprIR {
     ArrayExpr {
         elements: Vec<ExprIR>,
     },
+    SpreadExpr {
+        operand: Box<ExprIR>,
+    },
     StructExpr {
         type_name: String,
         fields: Vec<(String, ExprIR)>,
@@ -177,6 +180,12 @@ pub enum ExprIR {
     MatchExpr {
         matched: Box<ExprIR>,
         arms: Vec<MatchArmIR>,
+    },
+    /// Map/Object literal expression: { key: expr, key2: expr2, ... }
+    /// Unlike StructExpr, keys are runtime ExprIR (not compile-time strings),
+    /// and there is no associated struct type name.
+    MapExpr {
+        entries: Vec<(ExprIR, ExprIR)>,
     },
 }
 
@@ -808,9 +817,9 @@ pub enum ConstructionKind {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ElementIR {
     pub tag: String,
-    pub props: HashMap<String, ExprIR>,
-    pub bindings: HashMap<String, SignalRefIR>,
-    pub events: HashMap<String, EventHandlerIR>,
+    pub props: FxHashMap<String, ExprIR>,
+    pub bindings: FxHashMap<String, SignalRefIR>,
+    pub events: FxHashMap<String, EventHandlerIR>,
     pub style_classes: Option<serde_json::Value>,
     pub inline_style: Option<serde_json::Value>,
     pub children: Vec<ViewTree>,
@@ -821,7 +830,7 @@ pub struct ElementIR {
     /// e.g. "visible" → IR for `isOpen` signal. Codegen emits
     /// __omni_effect(() => el.classList.toggle(name, signal.value))
     #[serde(default)]
-    pub class_map_bindings: HashMap<String, ExprIR>,
+    pub class_map_bindings: FxHashMap<String, ExprIR>,
     /// Source location in .omni file
     #[serde(default)]
     pub source_line: u32,
@@ -879,7 +888,7 @@ pub enum ViewTree {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StyleRuleIR {
     pub class_name: String,
-    pub properties: HashMap<String, ExprIR>,
+    pub properties: FxHashMap<String, ExprIR>,
     pub output_mode: String,
     #[serde(default)]
     pub is_tag_selector: bool,
@@ -905,11 +914,11 @@ pub struct ComponentIR {
     pub source_file: Option<String>,
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub generic_params: Vec<String>,
-    pub props: HashMap<String, TypeIR>,
+    pub props: FxHashMap<String, TypeIR>,
     /// Default values for props (keyed by prop name).
     /// Props without defaults must be provided by the parent.
     #[serde(default)]
-    pub prop_defaults: HashMap<String, ExprIR>,
+    pub prop_defaults: FxHashMap<String, ExprIR>,
     pub states: Vec<StateIntent>,
     pub computeds: Vec<ComputedIntent>,
     pub effects: Vec<EffectIntent>,
@@ -943,17 +952,17 @@ pub struct StoreIR {
     /// Populated during multi-file compilation; used by codegen for output directory structure.
     #[serde(default)]
     pub source_file: Option<String>,
-    pub signals: HashMap<String, TypeIR>,
-    pub signal_defaults: HashMap<String, serde_json::Value>,
-    pub getters: HashMap<String, ExprIR>,
+    pub signals: FxHashMap<String, TypeIR>,
+    pub signal_defaults: FxHashMap<String, serde_json::Value>,
+    pub getters: FxHashMap<String, ExprIR>,
     pub actions: Vec<FunctionIR>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IRProgram {
     pub version: String,
-    pub modules: HashMap<String, ModuleIR>,
-    pub source_map: HashMap<String, SourceMapEntry>,
+    pub modules: FxHashMap<String, ModuleIR>,
+    pub source_map: FxHashMap<String, SourceMapEntry>,
     /// Stdlib modules imported via `import { ... } from "std/<module>"`
     #[serde(default)]
     pub stdlib_imports: Vec<String>,
@@ -963,8 +972,8 @@ impl Default for IRProgram {
     fn default() -> Self {
         IRProgram {
             version: "0.1".to_string(),
-            modules: HashMap::new(),
-            source_map: HashMap::new(),
+            modules: FxHashMap::default(),
+            source_map: FxHashMap::default(),
             stdlib_imports: Vec::new(),
         }
     }
@@ -973,7 +982,7 @@ impl Default for IRProgram {
 impl IRProgram {
     /// Collect all components across all modules.
     #[must_use]
-    pub fn all_components(&self) -> HashMap<&str, &ComponentIR> {
+    pub fn all_components(&self) -> FxHashMap<&str, &ComponentIR> {
         self.modules
             .values()
             .flat_map(|m| m.components.iter())
@@ -993,7 +1002,7 @@ impl IRProgram {
 
     /// Collect all stores across all modules.
     #[must_use]
-    pub fn all_stores(&self) -> HashMap<&str, &StoreIR> {
+    pub fn all_stores(&self) -> FxHashMap<&str, &StoreIR> {
         self.modules
             .values()
             .flat_map(|m| m.stores.iter())

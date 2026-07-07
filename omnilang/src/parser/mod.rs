@@ -7,8 +7,7 @@ pub mod stmt;
 pub mod top_level;
 pub mod view;
 
-use std::collections::HashMap;
-
+use rustc_hash::FxHashMap;
 use crate::error::ParseError;
 use crate::lexer::{Token, TokenKind};
 use crate::parser::stmt::keyword_as_ident_name;
@@ -34,7 +33,7 @@ pub fn parse(tokens: &[Token], source: &str) -> Result<Program, ParseError> {
             span: err.span,
         });
     }
-    let mut modules = HashMap::new();
+    let mut modules = FxHashMap::default();
     modules.insert("input.omni".to_string(), module);
     Ok(Program { modules })
 }

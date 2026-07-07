@@ -164,7 +164,10 @@ pub(crate) fn emit_event_object(
 ) -> String {
     let kind = match event_data {
         Some(k) => k,
-        None => return "{}".to_string(),
+        // Custom events (not in the known DOM event list) store their
+        // payload in CustomEvent.detail. Pass it directly so the handler
+        // receives the value (e.g. onAdd(text) → text = "value").
+        None => return format!("{}.detail", raw_var),
     };
 
     let schema = event_data_schema(kind);

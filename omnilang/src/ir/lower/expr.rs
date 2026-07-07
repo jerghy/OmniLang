@@ -5,8 +5,7 @@
 use crate::ir::types::*;
 use crate::parser::ast::*;
 use crate::semantic::SemanticResult;
-use std::collections::HashMap;
-
+use rustc_hash::FxHashMap;
 use super::stmt::lower_block;
 
 /// Convert an AST `BinaryOpKind` to its IR counterpart.
@@ -42,7 +41,7 @@ fn lower_binary_op(kind: &BinaryOpKind) -> BinaryOpIR {
 
 pub(crate) fn lower_expr(
     expr: &Expr,
-    variant_map: &HashMap<String, String>,
+    variant_map: &FxHashMap<String, String>,
     mut event_fields: Option<&mut Vec<String>>,
     semantics: &mut SemanticResult,
 ) -> ExprIR {
@@ -242,27 +241,20 @@ pub(crate) fn lower_expr(
                 .map(|e| lower_expr(e, variant_map, event_fields.as_deref_mut(), semantics))
                 .collect(),
         },
+        Expr::SpreadExpr { operand, .. } => ExprIR::SpreadExpr {
+            operand: Box::new(lower_expr(operand, variant_map, event_fields.as_deref_mut(), semantics)),
+        },
         Expr::MapLiteral { entries, .. } => {
-            let mut map: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
-            for (k, v) in entries {
-                let key = match lower_expr(k, variant_map, event_fields.as_deref_mut(), semantics) {
-                    ExprIR::LiteralExpr { value } => match value {
-                        serde_json::Value::String(s) => s,
-                        other => format!("{}", other),
-                    },
-                    other => {
-                        // For non-string literal keys, use the identifiers' name or Debug as fallback
-                        match other {
-                            ExprIR::IdentifierExpr { name, .. } => name,
-                            _ => format!("{:?}", other),
-                        }
-                    }
-                };
-                let val = lower_expr_to_json(v, semantics);
-                map.insert(key, val);
-            }
-            ExprIR::LiteralExpr {
-                value: serde_json::Value::Object(map),
+            let ir_entries: Vec<(ExprIR, ExprIR)> = entries
+                .iter()
+                .map(|(k, v)| {
+                    let key = lower_expr(k, variant_map, event_fields.as_deref_mut(), semantics);
+                    let val = lower_expr(v, variant_map, event_fields.as_deref_mut(), semantics);
+                    (key, val)
+                })
+                .collect();
+            ExprIR::MapExpr {
+                entries: ir_entries,
             }
         }
         Expr::StructLiteral {
@@ -492,6 +484,12 @@ pub(crate) fn lower_expr(
                 value: serde_json::Value::Null,
             }
         }
+        Expr::IsCheck { .. } => {
+            // Lower is-check to null (simplified; full codegen in next pass)
+            ExprIR::LiteralExpr {
+                value: serde_json::Value::Null,
+            }
+        }
         Expr::Error { .. } => {
             // Error nodes should be filtered upstream; emit null as fallback.
             ExprIR::LiteralExpr {
@@ -503,7 +501,7 @@ pub(crate) fn lower_expr(
 
 /// Lower an expression to a serde_json::Value (for literal extraction).
 pub(super) fn lower_expr_to_json(expr: &Expr, semantics: &mut SemanticResult) -> serde_json::Value {
-    match lower_expr(expr, &HashMap::new(), None, semantics) {
+    match lower_expr(expr, &FxHashMap::default(), None, semantics) {
         ExprIR::LiteralExpr { value } => value,
         ExprIR::IdentifierExpr { name, .. } => serde_json::Value::String(name),
         other => serde_json::Value::String(format!("{:?}", other)),
@@ -516,9 +514,9 @@ pub(super) fn lower_expr_to_json_from_ir(expr: &ExprIR) -> serde_json::Value {
         ExprIR::LiteralExpr { value } => value.clone(),
         ExprIR::IdentifierExpr { name, .. } => serde_json::json!({"$signal": name}),
         ExprIR::FieldAccessExpr { object, field } => {
-            // Resolve ThemeStore.currentBg → JS name ThemeStore.currentBg
+            // Resolve ThemeStore.currentBg → JS name ThemeStore_currentBg
             if let ExprIR::IdentifierExpr { name: obj_name, .. } = object.as_ref() {
-                serde_json::json!({"$signal": format!("{}.{}", obj_name, field)})
+                serde_json::json!({"$signal": format!("{}_{}", obj_name, field)})
             } else {
                 let obj = lower_expr_to_json_from_ir(object);
                 serde_json::json!({"$signal_concat": [obj, field.as_str()]})
@@ -545,7 +543,23 @@ pub(super) fn lower_expr_to_json_from_ir(expr: &ExprIR) -> serde_json::Value {
             field_name,
             ..
         } => {
-            serde_json::json!({"$signal": format!("{}.{}", store_alias, field_name)})
+            // Use underscore format that matches JS variable naming
+            serde_json::json!({"$signal": format!("{}_{}", store_alias, field_name)})
+        }
+        ExprIR::MapExpr { entries } => {
+            let mut map = serde_json::Map::new();
+            for (k, v) in entries {
+                let key = match k {
+                    ExprIR::LiteralExpr { value } => match value {
+                        serde_json::Value::String(s) => s.clone(),
+                        other => format!("{}", other),
+                    },
+                    ExprIR::IdentifierExpr { name, .. } => name.clone(),
+                    _ => format!("{:?}", k),
+                };
+                map.insert(key, lower_expr_to_json_from_ir(v));
+            }
+            serde_json::Value::Object(map)
         }
         other => serde_json::Value::String(format!("{:?}", other)),
     }

@@ -2,13 +2,12 @@
 //!
 //! Extracted from `helpers.rs` to keep that file below 800 lines.
 
-use std::collections::HashSet;
-
+use rustc_hash::FxHashSet;
 use crate::parser::ast::*;
 
 // ── AST name reference collectors ────────────────────
 
-pub(super) fn collect_used_names_in_block<'a>(block: &'a Block, used: &mut HashSet<&'a str>) {
+pub(super) fn collect_used_names_in_block<'a>(block: &'a Block, used: &mut FxHashSet<&'a str>) {
     for stmt in &block.stmts {
         match stmt {
             crate::parser::ast::Stmt::VarDecl { init, .. } => {
@@ -87,7 +86,7 @@ pub(super) fn collect_used_names_in_block<'a>(block: &'a Block, used: &mut HashS
     }
 }
 
-pub(super) fn collect_used_names_in_expr<'a>(expr: &'a Expr, used: &mut HashSet<&'a str>) {
+pub(super) fn collect_used_names_in_expr<'a>(expr: &'a Expr, used: &mut FxHashSet<&'a str>) {
     match expr {
         Expr::VarRef(name, _) => {
             used.insert(name.as_str());
@@ -172,18 +171,20 @@ pub(super) fn collect_used_names_in_expr<'a>(expr: &'a Expr, used: &mut HashSet<
             }
         }
         Expr::Block { .. } => {}
+        Expr::IsCheck { .. } => {}
+        Expr::SpreadExpr { operand, .. } => collect_used_names_in_expr(operand, used),
         Expr::NotYetImplemented { .. } => {}
         Expr::Error { .. } => {}
     }
 }
 
-pub(super) fn collect_used_names_in_view<'a>(view: &'a ViewBlock, used: &mut HashSet<&'a str>) {
+pub(super) fn collect_used_names_in_view<'a>(view: &'a ViewBlock, used: &mut FxHashSet<&'a str>) {
     for node in &view.children {
         collect_used_names_in_view_node(node, used);
     }
 }
 
-pub(super) fn collect_used_names_in_view_node<'a>(node: &'a ViewNode, used: &mut HashSet<&'a str>) {
+pub(super) fn collect_used_names_in_view_node<'a>(node: &'a ViewNode, used: &mut FxHashSet<&'a str>) {
     match node {
         ViewNode::Element(el) => {
             for prop in &el.props {

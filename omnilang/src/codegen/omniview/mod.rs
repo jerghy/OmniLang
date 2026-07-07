@@ -30,8 +30,8 @@ pub use utils::{compile_files, wrap_debug_html};
 use crate::ir::*;
 use crate::sourcemap::SourceMapEntry;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 /// Output of the OmniView codegen — standalone JS/HTML/CSS.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OmniViewOutput {
@@ -45,7 +45,7 @@ pub struct OmniViewOutput {
     pub source_map: Vec<SourceMapEntry>,
     /// Per-component output for hot-replace (keyed by component name)
     #[serde(default)]
-    pub components: HashMap<String, ComponentOutput>,
+    pub components: FxHashMap<String, ComponentOutput>,
 }
 
 /// Per-component compiled output for hot-replace.
@@ -67,13 +67,13 @@ pub fn generate(ir: &IRProgram, editor_mode: bool) -> OmniViewOutput {
         source_map: Vec::new(),
         node_counter: 0,
         current_nid_path: Vec::new(),
-        signal_names: std::collections::HashSet::new(),
-        store_signal_names: std::collections::HashSet::new(),
-        store_field_names: std::collections::HashSet::new(),
-        store_names: std::collections::HashSet::new(),
-        name_renames: std::collections::HashMap::new(),
-        global_renames: std::collections::HashMap::new(),
-        component_map: std::collections::HashMap::new(),
+        signal_names: FxHashSet::default(),
+        store_signal_names: FxHashSet::default(),
+        store_field_names: FxHashSet::default(),
+        store_names: FxHashSet::default(),
+        name_renames: FxHashMap::default(),
+        global_renames: FxHashMap::default(),
+        component_map: FxHashMap::default(),
         emitting_root_view: false,
         current_component: String::new(),
         in_for_template: false,
@@ -84,10 +84,10 @@ pub fn generate(ir: &IRProgram, editor_mode: bool) -> OmniViewOutput {
         mount_js: String::new(),
         editor_mode,
         comp_mount_js: String::new(),
-        component_js: HashMap::new(),
+        component_js: FxHashMap::default(),
         enter_trigger_nids: Vec::new(),
-        for_state_names: std::collections::HashMap::new(),
-        motion_names: std::collections::HashSet::new(),
+        for_state_names: FxHashMap::default(),
+        motion_names: FxHashSet::default(),
         warnings: Vec::new(),
         for_text_bindings: Vec::new(),
         for_class_bindings: Vec::new(),
@@ -186,7 +186,7 @@ pub fn generate(ir: &IRProgram, editor_mode: bool) -> OmniViewOutput {
     );
 
     // Build per-component output map for editor hot-replace
-    let mut components: HashMap<String, ComponentOutput> = HashMap::new();
+    let mut components: FxHashMap<String, ComponentOutput> = FxHashMap::default();
     for (name, js) in &gen.component_js {
         components.insert(
             name.clone(),
@@ -221,24 +221,24 @@ struct OmniViewGenerator {
     node_counter: u32,
     current_nid_path: Vec<String>,
     /// Set of signal names in the current component (for .value / .set() generation)
-    signal_names: std::collections::HashSet<String>,
+    signal_names: FxHashSet<String>,
     /// Store signal/getter names with prefix (e.g. "TodoStore_items") — need .value access
-    store_signal_names: std::collections::HashSet<String>,
+    store_signal_names: FxHashSet<String>,
     /// All store field names with prefix (e.g. "TodoStore_items", "TodoStore_add") — defined globally
-    store_field_names: std::collections::HashSet<String>,
+    store_field_names: FxHashSet<String>,
     /// Store names (without prefix) for recognizing store references like "TodoStore"
-    store_names: std::collections::HashSet<String>,
+    store_names: FxHashSet<String>,
     /// Map from store-local / component-local signal names to flat JS names.
     /// Cleared per component — only contains the CURRENT component's signals.
-    name_renames: std::collections::HashMap<String, String>,
+    name_renames: FxHashMap<String, String>,
     /// Global function/event renames — never cleared.
     /// All component functions/events are registered here so template calls
     /// like {getModStatus()} resolve to the correct prefixed name.
-    global_renames: std::collections::HashMap<String, String>,
+    global_renames: FxHashMap<String, String>,
     /// Cache of all component IRs for view inlining (keyed by component name)
-    component_map: std::collections::HashMap<String, ComponentIR>,
+    component_map: FxHashMap<String, ComponentIR>,
     /// Set of known motion names — used to detect @click={motionName} patterns
-    motion_names: std::collections::HashSet<String>,
+    motion_names: FxHashSet<String>,
     /// Whether we're currently emitting the root component's view
     emitting_root_view: bool,
     /// Current component name prefix for scoping function names
@@ -266,12 +266,12 @@ struct OmniViewGenerator {
     comp_mount_js: String,
     /// Per-component JS deltas for hot-replace (keyed by component name).
     /// Captured at the end of each `generate_component()` call.
-    component_js: HashMap<String, String>,
+    component_js: FxHashMap<String, String>,
     /// (nid, motion_name, trigger_kind) pairs for replay on signal change.
     /// trigger_kind is "enter" or "timeline" — used to build correct replay code.
     enter_trigger_nids: Vec<(String, String, String)>,
     /// @for template: maps child component state names -> (original_name, default_js)
-    for_state_names: std::collections::HashMap<String, (String, String)>,
+    for_state_names: FxHashMap<String, (String, String)>,
     /// Diagnostic warnings collected during codegen (e.g., missing animation params).
     warnings: Vec<String>,
     /// Pre-compiled text bindings for @for templates: (nid, js_expression)
@@ -304,13 +304,13 @@ impl OmniViewGenerator {
             source_map: Vec::new(),
             node_counter: 0,
             current_nid_path: Vec::new(),
-            signal_names: std::collections::HashSet::new(),
-            store_signal_names: std::collections::HashSet::new(),
-            store_field_names: std::collections::HashSet::new(),
-            store_names: std::collections::HashSet::new(),
-            name_renames: std::collections::HashMap::new(),
-            global_renames: std::collections::HashMap::new(),
-            component_map: std::collections::HashMap::new(),
+            signal_names: FxHashSet::default(),
+            store_signal_names: FxHashSet::default(),
+            store_field_names: FxHashSet::default(),
+            store_names: FxHashSet::default(),
+            name_renames: FxHashMap::default(),
+            global_renames: FxHashMap::default(),
+            component_map: FxHashMap::default(),
             emitting_root_view: false,
             current_component: String::new(),
             in_for_template: false,
@@ -321,10 +321,10 @@ impl OmniViewGenerator {
             mount_js: String::new(),
             editor_mode: false,
             comp_mount_js: String::new(),
-            component_js: HashMap::new(),
+            component_js: FxHashMap::default(),
             enter_trigger_nids: Vec::new(),
-            for_state_names: std::collections::HashMap::new(),
-            motion_names: std::collections::HashSet::new(),
+            for_state_names: FxHashMap::default(),
+            motion_names: FxHashSet::default(),
             warnings: Vec::new(),
             for_text_bindings: Vec::new(),
             for_class_bindings: Vec::new(),

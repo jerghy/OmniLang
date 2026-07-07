@@ -3,8 +3,8 @@
 //! Category: style
 //! Severity: warning
 
-use std::collections::{HashMap, HashSet};
-
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use super::ast_collectors::{
     collect_used_names_in_block, collect_used_names_in_expr, collect_used_names_in_view,
 };
@@ -28,7 +28,7 @@ impl LintRule for UnusedImport {
     fn check_ast(&self, program: &Program, file_path: &str) -> Vec<LintDiagnostic> {
         let mut diags = Vec::new();
 
-        let mut imported: HashMap<&str, (&ImportStmt, &[String])> = HashMap::new();
+        let mut imported: FxHashMap<&str, (&ImportStmt, &[String])> = FxHashMap::default();
         for module in program.modules.values() {
             for import in &module.imports {
                 match import {
@@ -51,7 +51,7 @@ impl LintRule for UnusedImport {
             return diags;
         }
 
-        let mut used: HashSet<&str> = HashSet::new();
+        let mut used: FxHashSet<&str> = FxHashSet::default();
         for module in program.modules.values() {
             for func in &module.functions {
                 collect_used_names_in_block(&func.body, &mut used);
@@ -120,8 +120,7 @@ impl LintRule for UnusedImport {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
+    use rustc_hash::FxHashMap;
     use crate::lexer::Span;
     use crate::parser::ast::{
         Block, Expr, FunctionDef, Module, NamedImport, Program, Stmt, Visibility,
@@ -131,7 +130,7 @@ mod tests {
 
     #[test]
     fn test_unused_import_detects_unused_named_import() {
-        let mut modules = HashMap::new();
+        let mut modules = FxHashMap::default();
         modules.insert(
             "test.omni".to_string(),
             Module {
@@ -172,7 +171,7 @@ mod tests {
 
     #[test]
     fn test_unused_import_skips_used_import() {
-        let mut modules = HashMap::new();
+        let mut modules = FxHashMap::default();
         modules.insert(
             "test.omni".to_string(),
             Module {

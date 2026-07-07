@@ -9,8 +9,7 @@ mod expr;
 mod tests;
 mod visitor;
 
-use std::collections::HashMap;
-
+use rustc_hash::FxHashMap;
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
 use crate::codegen::shared::expr::{FormatExpr, RustFormatExpr};
 use crate::codegen::shared::stmt::FormatStmt;
@@ -24,7 +23,7 @@ pub(crate) use expr::rs_type;
 pub struct RustCodegen;
 
 impl Codegen for RustCodegen {
-    fn generate(&self, ir: &IRProgram, _source_files: &HashMap<String, String>) -> CompileOutput {
+    fn generate(&self, ir: &IRProgram, _source_files: &FxHashMap<String, String>) -> CompileOutput {
         let mut files = Vec::new();
 
         for (module_key, module) in &ir.modules {

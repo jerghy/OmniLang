@@ -23,6 +23,7 @@ pub enum TokenKind {
     Async,
     Await,
     As,
+    Is,
     Throw,
     Try,
     Catch,

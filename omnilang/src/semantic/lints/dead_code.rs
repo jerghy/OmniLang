@@ -3,8 +3,8 @@
 //! Category: style
 //! Severity: warning
 
-use std::collections::{HashMap, HashSet};
-
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use super::ast_collectors::{
     collect_used_names_in_block, collect_used_names_in_expr, collect_used_names_in_view_node,
 };
@@ -30,13 +30,13 @@ impl LintRule for DeadCode {
 
         for module in program.modules.values() {
             for comp in &module.components {
-                let signal_names: HashSet<&str> =
+                let signal_names: FxHashSet<&str> =
                     comp.signals.iter().map(|s| s.name.as_str()).collect();
-                let computed_names: HashSet<&str> =
+                let computed_names: FxHashSet<&str> =
                     comp.computeds.iter().map(|c| c.name.as_str()).collect();
-                let fn_names: HashSet<&str> = comp.fns.iter().map(|f| f.name.as_str()).collect();
+                let fn_names: FxHashSet<&str> = comp.fns.iter().map(|f| f.name.as_str()).collect();
 
-                let mut used: HashSet<&str> = HashSet::new();
+                let mut used: FxHashSet<&str> = FxHashSet::default();
 
                 for func in &comp.fns {
                     collect_used_names_in_block(&func.body, &mut used);
@@ -120,10 +120,10 @@ impl LintRule for DeadCode {
         diags
     }
 
-    fn check_ir(&self, ir: &IRProgram, file_map: &HashMap<String, String>) -> Vec<LintDiagnostic> {
+    fn check_ir(&self, ir: &IRProgram, file_map: &FxHashMap<String, String>) -> Vec<LintDiagnostic> {
         let mut diags = Vec::new();
 
-        let mut used_stores: HashSet<&str> = HashSet::new();
+        let mut used_stores: FxHashSet<&str> = FxHashSet::default();
         for (_name, comp) in ir.all_components() {
             for store_ref in &comp.store_refs {
                 used_stores.insert(store_ref.as_str());
@@ -163,8 +163,7 @@ impl LintRule for DeadCode {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
+    use rustc_hash::FxHashMap;
     use crate::ir::{ComponentIR, StoreIR};
     use crate::lexer::Span;
     use crate::parser::ast::{
@@ -177,21 +176,21 @@ mod tests {
 
     #[test]
     fn test_dead_code_detects_unused_store() {
-        let mut stores = HashMap::new();
+        let mut stores = FxHashMap::default();
         stores.insert(
             "UnusedStore".into(),
             StoreIR {
                 name: "UnusedStore".into(),
-                signals: HashMap::new(),
-                signal_defaults: HashMap::new(),
-                getters: HashMap::new(),
+                signals: FxHashMap::default(),
+                signal_defaults: FxHashMap::default(),
+                getters: FxHashMap::default(),
                 actions: vec![],
                 ..Default::default()
             },
         );
-        let ir = make_test_ir(HashMap::new(), stores);
+        let ir = make_test_ir(FxHashMap::default(), stores);
 
-        let diags = DeadCode.check_ir(&ir, &HashMap::new());
+        let diags = DeadCode.check_ir(&ir, &FxHashMap::default());
         assert_eq!(diags.len(), 1, "expected 1 diagnostic for unused store");
         assert!(
             diags[0].message.contains("UnusedStore"),
@@ -202,26 +201,26 @@ mod tests {
 
     #[test]
     fn test_dead_code_skips_used_store() {
-        let mut stores = HashMap::new();
+        let mut stores = FxHashMap::default();
         stores.insert(
             "UsedStore".into(),
             StoreIR {
                 name: "UsedStore".into(),
-                signals: HashMap::new(),
-                signal_defaults: HashMap::new(),
-                getters: HashMap::new(),
+                signals: FxHashMap::default(),
+                signal_defaults: FxHashMap::default(),
+                getters: FxHashMap::default(),
                 actions: vec![],
                 ..Default::default()
             },
         );
-        let mut components = HashMap::new();
+        let mut components = FxHashMap::default();
         components.insert(
             "App".into(),
             ComponentIR {
                 name: "App".into(),
                 generic_params: vec![],
-                props: HashMap::new(),
-                prop_defaults: HashMap::new(),
+                props: FxHashMap::default(),
+                prop_defaults: FxHashMap::default(),
                 states: vec![],
                 computeds: vec![],
                 effects: vec![],
@@ -241,7 +240,7 @@ mod tests {
         );
         let ir = make_test_ir(components, stores);
 
-        let diags = DeadCode.check_ir(&ir, &HashMap::new());
+        let diags = DeadCode.check_ir(&ir, &FxHashMap::default());
         assert_eq!(diags.len(), 0, "used stores should not trigger dead-code");
     }
 
@@ -253,7 +252,7 @@ mod tests {
             line: 1,
             col: 1,
         };
-        let mut modules = HashMap::new();
+        let mut modules = FxHashMap::default();
         modules.insert(
             "test.omni".into(),
             Module {
@@ -324,7 +323,7 @@ mod tests {
             line: 1,
             col: 1,
         };
-        let mut modules = HashMap::new();
+        let mut modules = FxHashMap::default();
         modules.insert(
             "test.omni".into(),
             Module {

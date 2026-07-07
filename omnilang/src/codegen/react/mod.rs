@@ -4,8 +4,8 @@
 //! and a `.module.css` CSS module file. Each store generates a `useXxx.ts`
 //! custom hook file.
 
-use std::collections::{HashMap, HashSet};
-
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
 use crate::codegen::shared::generator::{generate_per_component, PerComponentCodegen};
 use crate::codegen::shared::types::FormatType;
@@ -49,7 +49,7 @@ impl PerComponentCodegen for ReactCodegen {
 }
 
 impl Codegen for ReactCodegen {
-    fn generate(&self, ir: &IRProgram, _source_files: &HashMap<String, String>) -> CompileOutput {
+    fn generate(&self, ir: &IRProgram, _source_files: &FxHashMap<String, String>) -> CompileOutput {
         generate_per_component(self, ir)
     }
 }
@@ -69,7 +69,7 @@ impl ReactCodegen {
         w.indent();
 
         // Build a set of signal setter names to detect conflicts
-        let signal_setter_names: std::collections::HashSet<String> = store
+        let signal_setter_names: FxHashSet<String> = store
             .signals
             .keys()
             .map(|s| format!("set{}", super::capitalize_first(s)))
@@ -109,10 +109,10 @@ impl ReactCodegen {
         }
 
         // Build set of store signal names so mutations use setter calls
-        let store_signal_names: HashSet<String> = store.signals.keys().cloned().collect();
+        let store_signal_names: FxHashSet<String> = store.signals.keys().cloned().collect();
 
         // Build all store names (signals + getters) for dependency analysis
-        let all_store_names: HashSet<String> = store
+        let all_store_names: FxHashSet<String> = store
             .signals
             .keys()
             .chain(store.getters.keys())

@@ -6,8 +6,7 @@
 //! TODO: Full type inference integration. Currently a placeholder
 //! that catches obvious mismatches in IR-level type annotations.
 
-use std::collections::HashMap;
-
+use rustc_hash::FxHashMap;
 use super::{LintDiagnostic, LintRule, LintSeverity};
 use crate::ir::{BlockIR, ExprIR, IRProgram, StatementIR};
 
@@ -24,7 +23,7 @@ impl LintRule for TypeMismatch {
         LintSeverity::Error
     }
 
-    fn check_ir(&self, ir: &IRProgram, file_map: &HashMap<String, String>) -> Vec<LintDiagnostic> {
+    fn check_ir(&self, ir: &IRProgram, file_map: &FxHashMap<String, String>) -> Vec<LintDiagnostic> {
         let mut diags = Vec::new();
 
         for (comp_name, comp) in ir.all_components() {
@@ -75,6 +74,10 @@ impl LintRule for TypeMismatch {
 impl TypeMismatch {
     fn types_compatible(type_ann: &str, value: &ExprIR) -> bool {
         let type_ann = type_ann.to_lowercase();
+        // auto accepts any value
+        if type_ann == "auto" {
+            return true;
+        }
         match value {
             ExprIR::LiteralExpr { value } => match value {
                 serde_json::Value::Number(_) => {
@@ -163,8 +166,7 @@ impl TypeMismatch {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
+    use rustc_hash::FxHashMap;
     use crate::ir::{BlockIR, ComponentIR, FunctionIR, StatementIR, TypeIR, Visibility};
 
     use super::super::helpers::test_helpers::make_test_ir;
@@ -172,14 +174,14 @@ mod tests {
 
     #[test]
     fn test_type_mismatch_void_return_with_value() {
-        let mut components = HashMap::new();
+        let mut components = FxHashMap::default();
         components.insert(
             "Test".into(),
             ComponentIR {
                 name: "Test".into(),
                 generic_params: vec![],
-                props: HashMap::new(),
-                prop_defaults: HashMap::new(),
+                props: FxHashMap::default(),
+                prop_defaults: FxHashMap::default(),
                 states: vec![],
                 computeds: vec![],
                 effects: vec![],
@@ -214,10 +216,10 @@ mod tests {
                 ..Default::default()
             },
         );
-        let ir = make_test_ir(components, HashMap::new());
+        let ir = make_test_ir(components, FxHashMap::default());
 
         let rule = TypeMismatch;
-        let diags = rule.check_ir(&ir, &HashMap::new());
+        let diags = rule.check_ir(&ir, &FxHashMap::default());
         assert!(
             !diags.is_empty(),
             "Should detect void function returning a value"

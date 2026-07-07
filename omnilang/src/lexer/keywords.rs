@@ -23,6 +23,7 @@ pub(super) fn ident_to_keyword(ident: &str) -> Option<TokenKind> {
         "print" => Some(TokenKind::Print),
         "println" => Some(TokenKind::Println),
         "as" => Some(TokenKind::As),
+        "is" => Some(TokenKind::Is),
         "async" => Some(TokenKind::Async),
         "await" => Some(TokenKind::Await),
         "throw" => Some(TokenKind::Throw),

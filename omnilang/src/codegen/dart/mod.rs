@@ -11,8 +11,7 @@ mod visitor;
 
 use crate::codegen::shared::visitor::CodegenVisitor;
 
-use std::collections::HashMap;
-
+use rustc_hash::FxHashMap;
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
 use crate::codegen::shared::expr::{DartFormatExpr, FormatExpr};
 use crate::codegen::shared::generator::{emit_constructor_init, emit_store_constructor_init};
@@ -27,7 +26,7 @@ pub(crate) use expr::format_expr_ir;
 pub struct DartCodegen;
 
 impl Codegen for DartCodegen {
-    fn generate(&self, ir: &IRProgram, _source_files: &HashMap<String, String>) -> CompileOutput {
+    fn generate(&self, ir: &IRProgram, _source_files: &FxHashMap<String, String>) -> CompileOutput {
         let mut files = Vec::new();
 
         for (module_key, module) in &ir.modules {

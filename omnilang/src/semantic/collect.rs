@@ -297,6 +297,30 @@ impl SemanticAnalyzer {
                 Stmt::While { body, .. } => {
                     self.collect_block_symbols(body);
                 }
+                Stmt::TryCatch {
+                    try_body,
+                    catch_var,
+                    catch_body,
+                    finally_body,
+                    ..
+                } => {
+                    self.collect_block_symbols(try_body);
+                    if let Some(ref var) = catch_var {
+                        self.declare_or_warn(Symbol {
+                            name: var.clone(),
+                            kind: SymbolKind::Variable,
+                            type_ann: None,
+                            mutable: false,
+                            declared_at: 0,
+                        });
+                    }
+                    if let Some(ref body) = catch_body {
+                        self.collect_block_symbols(body);
+                    }
+                    if let Some(ref body) = finally_body {
+                        self.collect_block_symbols(body);
+                    }
+                }
                 _ => {}
             }
         }

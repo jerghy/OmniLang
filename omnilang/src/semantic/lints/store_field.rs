@@ -4,8 +4,8 @@
 //! Category: correctness
 //! Severity: error
 
-use std::collections::{HashMap, HashSet};
-
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use super::helpers::{
     check_block_ir_for_store_mutations, check_view_tree_events_for_store_mutations,
     expr_ir_contains_store_mutation,
@@ -26,11 +26,11 @@ impl LintRule for StoreFieldDirectMutation {
         LintSeverity::Error
     }
 
-    fn check_ir(&self, ir: &IRProgram, file_map: &HashMap<String, String>) -> Vec<LintDiagnostic> {
+    fn check_ir(&self, ir: &IRProgram, file_map: &FxHashMap<String, String>) -> Vec<LintDiagnostic> {
         let mut diags = Vec::new();
 
         // Build map: store_name -> set of signal names
-        let store_signals: HashMap<&str, HashSet<&str>> = ir
+        let store_signals: FxHashMap<&str, FxHashSet<&str>> = ir
             .all_stores()
             .iter()
             .map(|(name, store)| (*name, store.signals.keys().map(|s| s.as_str()).collect()))
@@ -110,8 +110,7 @@ impl LintRule for StoreFieldDirectMutation {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
+    use rustc_hash::FxHashMap;
     use crate::ir::{BlockIR, ComponentIR, FunctionIR, StatementIR, StoreIR, TypeIR, Visibility};
 
     use super::super::helpers::test_helpers::make_test_ir;
@@ -119,7 +118,7 @@ mod tests {
 
     #[test]
     fn test_store_mutation_detects_direct_assign() {
-        let mut stores = HashMap::new();
+        let mut stores = FxHashMap::default();
         stores.insert(
             "MyStore".into(),
             StoreIR {
@@ -134,20 +133,20 @@ mod tests {
                 )]
                 .into_iter()
                 .collect(),
-                signal_defaults: HashMap::new(),
-                getters: HashMap::new(),
+                signal_defaults: FxHashMap::default(),
+                getters: FxHashMap::default(),
                 actions: vec![],
                 ..Default::default()
             },
         );
-        let mut components = HashMap::new();
+        let mut components = FxHashMap::default();
         components.insert(
             "App".into(),
             ComponentIR {
                 name: "App".into(),
                 generic_params: vec![],
-                props: HashMap::new(),
-                prop_defaults: HashMap::new(),
+                props: FxHashMap::default(),
+                prop_defaults: FxHashMap::default(),
                 states: vec![],
                 computeds: vec![],
                 effects: vec![],
@@ -188,7 +187,7 @@ mod tests {
         );
         let ir = make_test_ir(components, stores);
 
-        let diags = StoreFieldDirectMutation.check_ir(&ir, &HashMap::new());
+        let diags = StoreFieldDirectMutation.check_ir(&ir, &FxHashMap::default());
         assert!(
             !diags.is_empty(),
             "Should detect store field direct mutation"
@@ -202,26 +201,26 @@ mod tests {
 
     #[test]
     fn test_store_mutation_allows_non_store_mutations() {
-        let mut stores = HashMap::new();
+        let mut stores = FxHashMap::default();
         stores.insert(
             "MyStore".into(),
             StoreIR {
                 name: "MyStore".into(),
-                signals: HashMap::new(),
-                signal_defaults: HashMap::new(),
-                getters: HashMap::new(),
+                signals: FxHashMap::default(),
+                signal_defaults: FxHashMap::default(),
+                getters: FxHashMap::default(),
                 actions: vec![],
                 ..Default::default()
             },
         );
-        let mut components = HashMap::new();
+        let mut components = FxHashMap::default();
         components.insert(
             "App".into(),
             ComponentIR {
                 name: "App".into(),
                 generic_params: vec![],
-                props: HashMap::new(),
-                prop_defaults: HashMap::new(),
+                props: FxHashMap::default(),
+                prop_defaults: FxHashMap::default(),
                 states: vec![],
                 computeds: vec![],
                 effects: vec![],
@@ -262,7 +261,7 @@ mod tests {
         );
         let ir = make_test_ir(components, stores);
 
-        let diags = StoreFieldDirectMutation.check_ir(&ir, &HashMap::new());
+        let diags = StoreFieldDirectMutation.check_ir(&ir, &FxHashMap::default());
         assert!(
             diags.is_empty(),
             "Local signal mutations should not be flagged"

@@ -1,7 +1,7 @@
 //! Path mapping for cross-file import resolution.
 //! Shared between the omnic CLI, Poiesis Tauri backend, and WASM API.
 
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use std::path::Path;
 
 /// Derive import path mapping from source file paths.
@@ -11,8 +11,8 @@ use std::path::Path;
 /// directory chain to enumerate relative-path variants directly, avoiding pairwise
 /// comparison between every pair of files.
 #[must_use]
-pub fn derive_path_mapping(sources: &HashMap<String, String>) -> HashMap<String, String> {
-    let mut mapping = HashMap::new();
+pub fn derive_path_mapping(sources: &FxHashMap<String, String>) -> FxHashMap<String, String> {
+    let mut mapping = FxHashMap::default();
 
     for filepath in sources.keys() {
         // Direct path → self
@@ -72,6 +72,20 @@ pub fn derive_path_mapping(sources: &HashMap<String, String>) -> HashMap<String,
             }
             current = parent.parent();
         }
+    }
+
+    // Add normalized entries for `../`-prefixed lookups.
+    // E.g., if we have `lib.omni` we also add `../lib.omni` so
+    // that imports like `../lib` from subdirectories can resolve.
+    // Normalize by collapsing leading `../` where the corresponding
+    // ancestor-less path exists.
+    let extra: Vec<(String, String)> = mapping
+        .iter()
+        .filter(|(k, _)| !k.starts_with("./") && !k.starts_with("../") && !k.starts_with('.'))
+        .map(|(k, v)| (format!("../{k}"), v.clone()))
+        .collect();
+    for (k, v) in extra {
+        mapping.entry(k).or_insert(v);
     }
 
     mapping

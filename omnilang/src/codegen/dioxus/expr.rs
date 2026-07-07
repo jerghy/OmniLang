@@ -161,7 +161,7 @@ pub(super) fn field_extract_dioxus(kind: &EventDataKind, field: &str, raw: &str)
         (EventDataKind::ToggleEvent, "checked") => "false".to_string(),
 
         // SubmitEvent
-        (EventDataKind::SubmitEvent, "values") => "HashMap::new()".to_string(),
+        (EventDataKind::SubmitEvent, "values") => "FxHashMap::default()".to_string(),
 
         // FocusEvent
         (EventDataKind::FocusEvent, "value") => format!("{}.data().value()", raw),
@@ -242,7 +242,7 @@ pub(super) fn field_extract_dioxus(kind: &EventDataKind, field: &str, raw: &str)
     }
 }
 
-/// Emit a Rust HashMap literal for Dioxus event data extraction.
+/// Emit a Rust FxHashMap literal for Dioxus event data extraction.
 pub(super) fn emit_event_object_dioxus(
     event_data: &Option<EventDataKind>,
     used_fields: &Option<Vec<String>>,
@@ -250,7 +250,7 @@ pub(super) fn emit_event_object_dioxus(
 ) -> String {
     let kind = match event_data {
         Some(k) => k,
-        None => return "HashMap::new()".to_string(),
+        None => return "FxHashMap::default()".to_string(),
     };
 
     let schema = event_data_schema(kind);
@@ -263,7 +263,7 @@ pub(super) fn emit_event_object_dioxus(
                 format!("(\"{}\", {})", f.name, extract)
             })
             .collect(),
-        Some(_) => return "HashMap::new()".to_string(),
+        Some(_) => return "FxHashMap::default()".to_string(),
         None => schema
             .iter()
             .map(|f| {

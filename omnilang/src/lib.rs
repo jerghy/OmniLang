@@ -24,8 +24,7 @@ pub mod validate;
 pub mod wasm;
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-
+use rustc_hash::FxHashMap;
 #[cfg(feature = "codegen-omniview")]
 use crate::codegen::omniview::ComponentOutput;
 
@@ -99,7 +98,7 @@ pub struct OmniViewResult {
     pub files: Option<OmniViewFiles>,
     /// Per-component output for hot-replace (keyed by component name)
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub components: Option<HashMap<String, ComponentOutput>>,
+    pub components: Option<FxHashMap<String, ComponentOutput>>,
     #[serde(rename = "sourceMap")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_map: Option<Vec<sourcemap::SourceMapEntry>>,
@@ -164,7 +163,7 @@ pub struct OmniViewFullResult {
     pub files: Option<OmniViewFiles>,
     /// Per-component output for hot-replace (keyed by component name)
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub components: Option<HashMap<String, ComponentOutput>>,
+    pub components: Option<FxHashMap<String, ComponentOutput>>,
     #[serde(rename = "sourceMap")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_map: Option<Vec<sourcemap::SourceMapEntry>>,
@@ -217,10 +216,10 @@ pub fn compile_omniview_full(source: &str, editor_mode: bool) -> OmniViewFullRes
 pub fn compile_to_target_json(
     ir: &ir::IRProgram,
     target: codegen::Target,
-    source_files: &HashMap<String, String>,
+    source_files: &FxHashMap<String, String>,
 ) -> String {
     let output = codegen::compile(ir, target, source_files);
-    let files_map: HashMap<String, String> = output
+    let files_map: FxHashMap<String, String> = output
         .files
         .into_iter()
         .map(|f| (f.path, f.content))
@@ -265,7 +264,7 @@ fn extract_body_html(html: &str) -> String {
 /// Internal compile result struct (avoids JSON round-trip for native consumers).
 pub struct InternalCompileResult {
     pub success: bool,
-    pub files: HashMap<String, String>,
+    pub files: FxHashMap<String, String>,
     pub errors: Vec<crate::error::Diagnostic>,
     pub warnings: Vec<crate::error::Diagnostic>,
 }
@@ -275,9 +274,9 @@ pub struct InternalCompileResult {
 #[must_use]
 #[allow(unused_variables)]
 pub fn compile_multi_internal(
-    sources: HashMap<String, String>,
+    sources: FxHashMap<String, String>,
     target: codegen::Target,
-    path_mapping: HashMap<String, String>,
+    path_mapping: FxHashMap<String, String>,
     editor_mode: bool,
 ) -> InternalCompileResult {
     let analysis = crate::analyse::analyse_multi(&sources, &path_mapping);
@@ -292,9 +291,9 @@ pub fn compile_multi_internal(
 #[must_use]
 #[allow(unused_variables)]
 pub fn compile_multi_internal_cached(
-    sources: HashMap<String, String>,
+    sources: FxHashMap<String, String>,
     target: codegen::Target,
-    path_mapping: HashMap<String, String>,
+    path_mapping: FxHashMap<String, String>,
     editor_mode: bool,
     cache: &mut crate::analyse::IncrementalCache,
 ) -> InternalCompileResult {
@@ -307,7 +306,7 @@ pub fn compile_multi_internal_cached(
 #[allow(unused_variables)]
 fn compile_multi_internal_post(
     analysis: crate::analyse::AnalyseOutput,
-    sources: &HashMap<String, String>,
+    sources: &FxHashMap<String, String>,
     target: codegen::Target,
     editor_mode: bool,
 ) -> InternalCompileResult {
@@ -319,7 +318,7 @@ fn compile_multi_internal_post(
         None => {
             return InternalCompileResult {
                 success: false,
-                files: HashMap::new(),
+                files: FxHashMap::default(),
                 errors: diags,
                 warnings,
             };
@@ -329,7 +328,7 @@ fn compile_multi_internal_post(
     // Dispatch to target codegen
     let output = codegen::compile(&merged_ir, target, sources);
     #[allow(unused_mut)]
-    let mut files_map: HashMap<String, String> = output
+    let mut files_map: FxHashMap<String, String> = output
         .files
         .into_iter()
         .map(|f| (f.path, f.content))
@@ -391,9 +390,9 @@ fn compile_multi_internal_post(
 /// plus a flat `warnings` array from lint rules.
 #[must_use]
 pub fn compile_multi_to_target(
-    sources: HashMap<String, String>,
+    sources: FxHashMap<String, String>,
     target: codegen::Target,
-    path_mapping: HashMap<String, String>,
+    path_mapping: FxHashMap<String, String>,
     editor_mode: bool,
 ) -> String {
     let result = compile_multi_internal(sources, target, path_mapping, editor_mode);

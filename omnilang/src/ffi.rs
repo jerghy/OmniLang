@@ -2,7 +2,7 @@
 //!
 //! Functions: omni_free_string, omni_version, omni_analyse, omni_compile_multi_to_target.
 
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use std::ffi::CString;
 use std::os::raw::c_char;
 
@@ -89,9 +89,9 @@ pub unsafe extern "C" fn omni_analyse(
 
     #[derive(Deserialize)]
     struct AnalyseRequest {
-        sources: HashMap<String, String>,
+        sources: FxHashMap<String, String>,
         #[serde(default)]
-        path_mapping: HashMap<String, String>,
+        path_mapping: FxHashMap<String, String>,
     }
 
     let input: AnalyseRequest = match serde_json::from_str(request_str) {
@@ -246,7 +246,7 @@ pub unsafe extern "C" fn omni_compile_multi_to_target(
     };
 
     // Parse sources
-    let sources: HashMap<String, String> = match serde_json::from_str(sources_str) {
+    let sources: FxHashMap<String, String> = match serde_json::from_str(sources_str) {
         Ok(s) => s,
         Err(e) => {
             return rust_to_c_string(
@@ -280,11 +280,11 @@ pub unsafe extern "C" fn omni_compile_multi_to_target(
     let mut warnings: Vec<String> = Vec::new();
 
     // Parse path_mapping (optional — defaults to empty on parse failure)
-    let path_mapping: HashMap<String, String> = match serde_json::from_str(path_mapping_str) {
+    let path_mapping: FxHashMap<String, String> = match serde_json::from_str(path_mapping_str) {
         Ok(m) => m,
         Err(e) => {
             warnings.push(format!("Warning: failed to parse path_mapping JSON: {}", e));
-            HashMap::new()
+            FxHashMap::default()
         }
     };
 

@@ -3,7 +3,7 @@
 //! Validates cross-file imports, visibility, cycle detection, and
 //! per-file consistency (e.g., omniview marker matching UI declarations).
 
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
@@ -40,18 +40,18 @@ pub struct MultiFileResult {
 /// Validate multiple .omni source files with cross-file checks.
 ///
 /// The Rust-native `validate_multi` receives:
-///   - `sources`: HashMap<ResolvedAbsolutePath, SourceText>
-///   - `path_mapping`: HashMap<OriginalImportPath, ResolvedAbsolutePath>
+///   - `sources`: FxHashMap<ResolvedAbsolutePath, SourceText>
+///   - `path_mapping`: FxHashMap<OriginalImportPath, ResolvedAbsolutePath>
 ///
 /// It parses all files, resolves cross-file imports using the mapping,
 /// validates visibility and cycles, then returns results for downstream codegen.
 #[must_use]
 pub fn validate_multi(
-    sources: HashMap<String, String>,
-    path_mapping: HashMap<String, String>,
+    sources: FxHashMap<String, String>,
+    path_mapping: FxHashMap<String, String>,
 ) -> MultiFileResult {
     let mut errors: Vec<Diagnostic> = Vec::new();
-    let mut programs: HashMap<String, Arc<Program>> = HashMap::new();
+    let mut programs: FxHashMap<String, Arc<Program>> = FxHashMap::default();
 
     // Phase 1: Parse all sources
     for (path, source) in &sources {
@@ -81,8 +81,8 @@ pub fn validate_multi(
 /// Avoids re-parsing when callers already have parsed ASTs.
 #[must_use]
 pub fn validate_multi_ref(
-    programs: &HashMap<String, Arc<Program>>,
-    path_mapping: &HashMap<String, String>,
+    programs: &FxHashMap<String, Arc<Program>>,
+    path_mapping: &FxHashMap<String, String>,
 ) -> MultiFileResult {
     let mut errors: Vec<Diagnostic> = Vec::new();
 
@@ -171,12 +171,12 @@ enum CrossFileSymbolKind {
 
 /// Build pub-visible symbol tables for cross-file validation.
 fn build_pub_symbols(
-    programs: &HashMap<String, Arc<Program>>,
-) -> HashMap<String, HashMap<String, CrossFileSymbolKind>> {
-    let mut pub_symbols: HashMap<String, HashMap<String, CrossFileSymbolKind>> = HashMap::new();
+    programs: &FxHashMap<String, Arc<Program>>,
+) -> FxHashMap<String, FxHashMap<String, CrossFileSymbolKind>> {
+    let mut pub_symbols: FxHashMap<String, FxHashMap<String, CrossFileSymbolKind>> = FxHashMap::default();
 
     for (path, program) in programs {
-        let mut symbols: HashMap<String, CrossFileSymbolKind> = HashMap::new();
+        let mut symbols: FxHashMap<String, CrossFileSymbolKind> = FxHashMap::default();
 
         for module in program.modules.values() {
             for func in &module.functions {
@@ -218,8 +218,8 @@ fn build_pub_symbols(
 }
 
 fn validate_cross_file(
-    programs: &HashMap<String, Arc<Program>>,
-    path_mapping: &HashMap<String, String>,
+    programs: &FxHashMap<String, Arc<Program>>,
+    path_mapping: &FxHashMap<String, String>,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut errors: Vec<Diagnostic> = Vec::new();
     let pub_symbols = build_pub_symbols(programs);
@@ -347,7 +347,7 @@ fn validate_cross_file(
 mod tests {
     use super::*;
 
-    fn make_sources(files: Vec<(&str, &str)>) -> HashMap<String, String> {
+    fn make_sources(files: Vec<(&str, &str)>) -> FxHashMap<String, String> {
         files
             .into_iter()
             .map(|(path, content)| (path.to_string(), content.to_string()))
@@ -355,7 +355,7 @@ mod tests {
     }
 
     /// Helper: build sources and derive their path mapping, then validate.
-    fn validate_sources(sources: HashMap<String, String>) -> MultiFileResult {
+    fn validate_sources(sources: FxHashMap<String, String>) -> MultiFileResult {
         let path_mapping = crate::path_mapping::derive_path_mapping(&sources);
         validate_multi(sources, path_mapping)
     }
@@ -438,7 +438,7 @@ fn validate_named_import(
     importing_file: &str,
     names: &[String],
     target_path: &str,
-    pub_symbols: &HashMap<String, HashMap<String, CrossFileSymbolKind>>,
+    pub_symbols: &FxHashMap<String, FxHashMap<String, CrossFileSymbolKind>>,
 ) -> Vec<Diagnostic> {
     let mut errors = Vec::new();
 

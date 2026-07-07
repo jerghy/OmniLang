@@ -1,7 +1,6 @@
 //! View tree formatting for Flutter codegen.
 
-use std::collections::HashMap;
-
+use rustc_hash::FxHashMap;
 use crate::codegen::shared::inline_handler::{build_inline_handler, InlineHandlerConfig};
 use crate::codegen::CodeWriter;
 use crate::ir::*;
@@ -24,7 +23,7 @@ use super::utils::{
 pub(crate) fn format_view_tree(
     node: &ViewTree,
     motions: &[MotionIntent],
-    component_map: &HashMap<String, ComponentIR>,
+    component_map: &FxHashMap<String, ComponentIR>,
 ) -> String {
     match node {
         ViewTree::Element(el) => format_element(el, motions, component_map),
@@ -57,7 +56,7 @@ pub(crate) fn format_view_tree(
 fn format_element(
     el: &ElementIR,
     motions: &[MotionIntent],
-    component_map: &HashMap<String, ComponentIR>,
+    component_map: &FxHashMap<String, ComponentIR>,
 ) -> String {
     // Component composition: check if tag is a known component
     if let Some(_child_comp) = component_map.get(&el.tag) {
@@ -418,7 +417,7 @@ fn format_element(
 fn format_conditional(
     cond: &ConditionalIntent,
     motions: &[MotionIntent],
-    component_map: &HashMap<String, ComponentIR>,
+    component_map: &FxHashMap<String, ComponentIR>,
 ) -> String {
     if cond.branches.is_empty() {
         if let Some(ref fb) = cond.fallback {
@@ -470,7 +469,7 @@ fn format_conditional(
 fn format_list_rendering(
     list: &ListRenderingIntent,
     motions: &[MotionIntent],
-    component_map: &HashMap<String, ComponentIR>,
+    component_map: &FxHashMap<String, ComponentIR>,
 ) -> String {
     let iterable_str = format_expr_ir_flutter(&list.iterable);
     let item_name = &list.item_binding.name;

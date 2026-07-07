@@ -12,8 +12,7 @@ mod view;
 use expr::*;
 use view::*;
 
-use std::collections::HashMap;
-
+use rustc_hash::FxHashMap;
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
 use crate::codegen::shared::expr::{FormatExpr, RustFormatExpr};
 use crate::codegen::shared::generator::{generate_per_component, PerComponentCodegen};
@@ -44,7 +43,7 @@ impl PerComponentCodegen for DioxusCodegen {
 }
 
 impl Codegen for DioxusCodegen {
-    fn generate(&self, ir: &IRProgram, _source_files: &HashMap<String, String>) -> CompileOutput {
+    fn generate(&self, ir: &IRProgram, _source_files: &FxHashMap<String, String>) -> CompileOutput {
         generate_per_component(self, ir)
     }
 }

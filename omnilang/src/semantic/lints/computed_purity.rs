@@ -4,8 +4,7 @@
 //! Category: correctness
 //! Severity: error
 
-use std::collections::HashSet;
-
+use rustc_hash::FxHashSet;
 use super::helpers::expr_contains_side_effect;
 use super::{LintDiagnostic, LintRule, LintSeverity};
 use crate::parser::ast::Program;
@@ -28,7 +27,7 @@ impl LintRule for ComputedPurity {
 
         for module in program.modules.values() {
             for comp in &module.components {
-                let signal_names: HashSet<&str> =
+                let signal_names: FxHashSet<&str> =
                     comp.signals.iter().map(|s| s.name.as_str()).collect();
 
                 for computed in &comp.computeds {
@@ -49,7 +48,7 @@ impl LintRule for ComputedPurity {
                 }
 
                 for store in &module.stores {
-                    let store_signal_names: HashSet<&str> =
+                    let store_signal_names: FxHashSet<&str> =
                         store.signals.iter().map(|s| s.name.as_str()).collect();
 
                     for getter in &store.getters {
@@ -78,8 +77,7 @@ impl LintRule for ComputedPurity {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
+    use rustc_hash::FxHashMap;
     use crate::lexer::Span;
     use crate::parser::ast::{
         AssignTarget, BinaryOpKind, Block, ComponentDef, ComputedDecl, Expr, Literal, Module,
@@ -96,7 +94,7 @@ mod tests {
             line: 1,
             col: 1,
         };
-        let mut modules = HashMap::new();
+        let mut modules = FxHashMap::default();
         modules.insert(
             "test.omni".into(),
             Module {
@@ -184,7 +182,7 @@ mod tests {
             line: 1,
             col: 1,
         };
-        let mut modules = HashMap::new();
+        let mut modules = FxHashMap::default();
         modules.insert(
             "test.omni".into(),
             Module {

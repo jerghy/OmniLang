@@ -1,15 +1,14 @@
 //! AST → IR lowering for `design` blocks.
 //!
 //! Walks a parsed `DesignDef` AST and produces a `DesignIR` with:
-//! - Token collection into a `HashMap<String, TokenIR>` for O(1) lookup
+//! - Token collection into a `FxHashMap<String, TokenIR>` for O(1) lookup
 //! - Token reference resolution: `token(name)` → resolved value (or `var(--name)` fallback)
 //! - Class property resolution (token references replaced with values)
 //! - Variant lowering: base properties + branch properties with token resolution
 
 use crate::ir::design::*;
 use crate::parser::ast::design::*;
-use std::collections::HashMap;
-
+use rustc_hash::FxHashMap;
 /// Lower a parsed `design` block AST into a `DesignIR`.
 ///
 /// This function performs:
@@ -18,7 +17,7 @@ use std::collections::HashMap;
 /// 3. Variant lowering — resolves `token(...)` references in variant properties
 pub fn lower_design(ast: &DesignDef) -> DesignIR {
     // ── Step 1: Collect tokens ──
-    let tokens: HashMap<String, TokenIR> = ast
+    let tokens: FxHashMap<String, TokenIR> = ast
         .tokens
         .iter()
         .map(|t| {
@@ -69,7 +68,7 @@ pub fn lower_design(ast: &DesignDef) -> DesignIR {
 /// - `Literal(s)` → the literal string unchanged
 /// - `TokenRef(name)` → lookup `name` in `tokens`, return value or `var(--name)` fallback
 /// - `Mixed(parts)` → concatenate resolved parts (literal text + token values)
-fn resolve_value(value: &DesignValue, tokens: &HashMap<String, TokenIR>) -> String {
+fn resolve_value(value: &DesignValue, tokens: &FxHashMap<String, TokenIR>) -> String {
     match value {
         DesignValue::Literal(s) => s.clone(),
         DesignValue::TokenRef(name) => resolve_token_ref(name, tokens),
@@ -84,19 +83,19 @@ fn resolve_value(value: &DesignValue, tokens: &HashMap<String, TokenIR>) -> Stri
 }
 
 /// Resolve a token name: look up in the token map, or return `var(--name)` fallback.
-fn resolve_token_ref(name: &str, tokens: &HashMap<String, TokenIR>) -> String {
+fn resolve_token_ref(name: &str, tokens: &FxHashMap<String, TokenIR>) -> String {
     tokens
         .get(name)
         .map(|t| t.value.clone())
         .unwrap_or_else(|| format!("var(--{})", name))
 }
 
-/// Convert a `Vec<DesignProperty>` into a `HashMap<String, String>` with resolution.
+/// Convert a `Vec<DesignProperty>` into a `FxHashMap<String, String>` with resolution.
 fn resolve_properties(
     props: &[DesignProperty],
-    tokens: &HashMap<String, TokenIR>,
-) -> HashMap<String, String> {
-    let mut map = HashMap::with_capacity(props.len());
+    tokens: &FxHashMap<String, TokenIR>,
+) -> FxHashMap<String, String> {
+    let mut map = FxHashMap::with_capacity_and_hasher(props.len(), Default::default());
     for prop in props {
         map.insert(prop.name.clone(), resolve_value(&prop.value, tokens));
     }
@@ -107,7 +106,7 @@ fn resolve_properties(
 // Class lowering
 // ═══════════════════════════════════════════════════════════
 
-fn lower_class(class: &DesignClassDef, tokens: &HashMap<String, TokenIR>) -> ClassIR {
+fn lower_class(class: &DesignClassDef, tokens: &FxHashMap<String, TokenIR>) -> ClassIR {
     let properties = resolve_properties(&class.properties, tokens);
     let pseudo_states: Vec<PseudoStateIR> = class
         .pseudo_states
@@ -129,7 +128,7 @@ fn lower_class(class: &DesignClassDef, tokens: &HashMap<String, TokenIR>) -> Cla
 // Variant lowering
 // ═══════════════════════════════════════════════════════════
 
-fn lower_variant(variant: &VariantDef, tokens: &HashMap<String, TokenIR>) -> VariantIR {
+fn lower_variant(variant: &VariantDef, tokens: &FxHashMap<String, TokenIR>) -> VariantIR {
     let dimensions: Vec<VariantDimIR> = variant
         .dimensions
         .iter()
@@ -139,7 +138,7 @@ fn lower_variant(variant: &VariantDef, tokens: &HashMap<String, TokenIR>) -> Var
         })
         .collect();
 
-    let defaults: HashMap<String, String> = variant.defaults.iter().cloned().collect();
+    let defaults: FxHashMap<String, String> = variant.defaults.iter().cloned().collect();
     let base = resolve_properties(&variant.base, tokens);
 
     let branches: Vec<VariantBranchIR> = variant

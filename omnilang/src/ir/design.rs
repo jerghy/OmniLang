@@ -6,17 +6,16 @@
 //! JSON round-tripping in the IDE bridge and WASM bindings.
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-
+use rustc_hash::FxHashMap;
 /// A fully lowered design block.
 ///
-/// Tokens are resolved into a `HashMap<String, TokenIR>` for O(1) lookup.
+/// Tokens are resolved into a `FxHashMap<String, TokenIR>` for O(1) lookup.
 /// All `token(...)` references in class / variant properties have been
 /// replaced with their resolved CSS values.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DesignIR {
     pub name: String,
-    pub tokens: HashMap<String, TokenIR>,
+    pub tokens: FxHashMap<String, TokenIR>,
     pub classes: Vec<ClassIR>,
     pub variants: Vec<VariantIR>,
 }
@@ -42,7 +41,7 @@ pub enum TokenTypeIR {
 pub struct ClassIR {
     pub name: String,
     /// Resolved CSS property map: CSS property name → computed value string.
-    pub properties: HashMap<String, String>,
+    pub properties: FxHashMap<String, String>,
     /// Pseudo-state overrides (e.g. `:hover`, `:focus`).
     pub pseudo_states: Vec<PseudoStateIR>,
 }
@@ -51,7 +50,7 @@ pub struct ClassIR {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PseudoStateIR {
     pub pseudo: String,
-    pub properties: HashMap<String, String>,
+    pub properties: FxHashMap<String, String>,
 }
 
 /// A design variant — a parameterised group of CSS customisations
@@ -60,8 +59,8 @@ pub struct PseudoStateIR {
 pub struct VariantIR {
     pub name: String,
     pub dimensions: Vec<VariantDimIR>,
-    pub defaults: HashMap<String, String>,
-    pub base: HashMap<String, String>,
+    pub defaults: FxHashMap<String, String>,
+    pub base: FxHashMap<String, String>,
     pub branches: Vec<VariantBranchIR>,
 }
 
@@ -77,5 +76,5 @@ pub struct VariantDimIR {
 pub struct VariantBranchIR {
     pub dimension: String,
     pub value: String,
-    pub properties: HashMap<String, String>,
+    pub properties: FxHashMap<String, String>,
 }

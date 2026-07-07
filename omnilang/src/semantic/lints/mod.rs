@@ -21,8 +21,7 @@ mod type_mismatch;
 mod undefined_ref;
 mod unused_import;
 
-use std::collections::HashMap;
-
+use rustc_hash::FxHashMap;
 use crate::ir::IRProgram;
 use crate::parser::ast::Program;
 use std::sync::Arc;
@@ -61,7 +60,7 @@ pub trait LintRule {
     fn check_ir(
         &self,
         _ir: &IRProgram,
-        _file_map: &HashMap<String, String>,
+        _file_map: &FxHashMap<String, String>,
     ) -> Vec<LintDiagnostic> {
         vec![]
     }
@@ -72,11 +71,11 @@ pub trait LintRule {
 // ═══════════════════════════════════════════════════════════
 
 /// Run all registered lint rules against ASTs and merged IR.
-pub fn run_all(programs: &HashMap<String, Arc<Program>>, ir: &IRProgram) -> Vec<LintDiagnostic> {
+pub fn run_all(programs: &FxHashMap<String, Arc<Program>>, ir: &IRProgram) -> Vec<LintDiagnostic> {
     let rules: Vec<Box<dyn LintRule>> = all_rules();
     let mut diags = Vec::new();
 
-    let file_map: HashMap<String, String> = programs
+    let file_map: FxHashMap<String, String> = programs
         .keys()
         .map(|path| (path.clone(), path.clone()))
         .collect();
@@ -112,8 +111,7 @@ fn all_rules() -> Vec<Box<dyn LintRule>> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
+    use rustc_hash::FxHashMap;
     use crate::ir::IRProgram;
     use crate::parser::ast::Program;
     use std::sync::Arc;
@@ -122,11 +120,11 @@ mod tests {
 
     #[test]
     fn test_run_all_empty_programs() {
-        let programs: HashMap<String, Arc<Program>> = HashMap::new();
+        let programs: FxHashMap<String, Arc<Program>> = FxHashMap::default();
         let ir = IRProgram {
             version: "1.0".into(),
-            modules: HashMap::new(),
-            source_map: HashMap::new(),
+            modules: FxHashMap::default(),
+            source_map: FxHashMap::default(),
             stdlib_imports: Vec::new(),
         };
 

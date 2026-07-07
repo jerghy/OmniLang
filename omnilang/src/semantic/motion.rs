@@ -3,13 +3,12 @@
 //! These are free functions (not methods on `SemanticAnalyzer`) used by
 //! [`validate_motion`](super::validate_motion) and other passes.
 
-use std::collections::HashSet;
-
+use rustc_hash::FxHashSet;
 use crate::parser::ast::*;
 
 /// Collect all element `id` attributes from a view tree (for @timeline validation).
-pub(super) fn collect_element_ids(nodes: &[ViewNode]) -> HashSet<String> {
-    let mut ids = HashSet::new();
+pub(super) fn collect_element_ids(nodes: &[ViewNode]) -> FxHashSet<String> {
+    let mut ids = FxHashSet::default();
     for node in nodes {
         match node {
             ViewNode::Element(el) => {
@@ -187,9 +186,11 @@ pub(super) fn contains_velocity_ref(expr: &Expr) -> bool {
                     .iter()
                     .any(|arm| arm.body.stmts.iter().any(contains_velocity_stmt))
         }
+        Expr::SpreadExpr { operand, .. } => contains_velocity_ref(operand),
         Expr::Block { .. }
         | Expr::Literal(..)
         | Expr::NotYetImplemented { .. }
+        | Expr::IsCheck { .. }
         | Expr::StoreFieldAccess { .. }
         | Expr::StructLiteral { .. }
         | Expr::Error { .. } => false,

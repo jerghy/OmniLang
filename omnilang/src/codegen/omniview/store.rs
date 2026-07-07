@@ -2,6 +2,8 @@
 use super::utils::serde_value_to_js;
 use super::OmniViewGenerator;
 use crate::ir::*;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 
 impl OmniViewGenerator {
     pub(super) fn emit_store(&mut self, _store_name: &str, store: &StoreIR) {
@@ -11,7 +13,7 @@ impl OmniViewGenerator {
         // Set up rename mapping: store-local names → flat JS names
         // This ensures getter/action bodies reference the correct JS variables
         // Save and restore the rename map to prevent cross-store pollution
-        let saved_renames: std::collections::HashMap<String, String> =
+        let saved_renames: FxHashMap<String, String> =
             std::mem::take(&mut self.name_renames);
         // Also temporarily populate signal_names with flat names so .value is emitted
         let saved_signals: Vec<String> = self.signal_names.iter().cloned().collect();
@@ -127,6 +129,9 @@ impl OmniViewGenerator {
         // Add store signal/getter names so store field access uses .value
         for store_name in &comp.store_refs {
             if let Some(store) = ir.all_stores().get(store_name.as_str()) {
+                // Register the store name so FieldAccessExpr on store objects
+                // can resolve to {store}_{field}.value format
+                self.store_names.insert(store_name.clone());
                 for sig_name in store.signals.keys() {
                     let full_name = format!("{}_{}", store_name, sig_name);
                     self.signal_names.insert(full_name);
@@ -206,11 +211,17 @@ impl OmniViewGenerator {
         // Functions — prefix with component name to avoid global name collisions.
         // name_renames already has event→prefixed mappings, so function bodies will
         // correctly call AddTodo_onAdd() instead of onAdd().
+        // FIRST pass: register ALL function names so inline store actions are resolved
+        // when referencing functions (e.g. CartStore.addItem resolves to InlineStoreDemo_addItem)
+        // BEFORE any function body is emitted.
         for f in &comp.fns {
             let prefixed_name = format!("{}{}", fn_prefix, f.name);
-            // Add to rename map so expr_to_js can resolve bare fn calls in templates
             self.name_renames
                 .insert(f.name.clone(), prefixed_name.clone());
+        }
+        // SECOND pass: emit function bodies (name_renames is now fully populated)
+        for f in &comp.fns {
+            let prefixed_name = format!("{}{}", fn_prefix, f.name);
             self.emit_function_named(f, &prefixed_name);
         }
 
@@ -255,7 +266,7 @@ impl OmniViewGenerator {
             // Save component context for inline function name resolution
             let saved_component = self.current_component.clone();
             self.current_component = name.to_string();
-            let saved_signal_names: std::collections::HashSet<String> =
+            let saved_signal_names: FxHashSet<String> =
                 self.signal_names.iter().cloned().collect();
             // Merge component's signals for proper .value access in lifecycle bodies
             for state in &comp.states {
@@ -302,7 +313,7 @@ impl OmniViewGenerator {
         if !comp.effects.is_empty() {
             let saved_component = self.current_component.clone();
             self.current_component = name.to_string();
-            let saved_signal_names: std::collections::HashSet<String> =
+            let saved_signal_names: FxHashSet<String> =
                 self.signal_names.iter().cloned().collect();
             for state in &comp.states {
                 let prefixed = format!("{}_{}", name, state.name);

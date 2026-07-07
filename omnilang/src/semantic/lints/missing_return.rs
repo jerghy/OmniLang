@@ -4,8 +4,7 @@
 //! Category: correctness
 //! Severity: warning
 
-use std::collections::HashMap;
-
+use rustc_hash::FxHashMap;
 use super::helpers::statements_contain_return;
 use super::{LintDiagnostic, LintRule, LintSeverity};
 use crate::ir::IRProgram;
@@ -24,7 +23,7 @@ impl LintRule for MissingReturn {
         LintSeverity::Warning
     }
 
-    fn check_ir(&self, ir: &IRProgram, file_map: &HashMap<String, String>) -> Vec<LintDiagnostic> {
+    fn check_ir(&self, ir: &IRProgram, file_map: &FxHashMap<String, String>) -> Vec<LintDiagnostic> {
         let mut diags = Vec::new();
         for (comp_name, comp) in ir.all_components() {
             let comp_file = comp
@@ -62,8 +61,7 @@ impl LintRule for MissingReturn {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
+    use rustc_hash::FxHashMap;
     use crate::ir::{BlockIR, ComponentIR, FunctionIR, StatementIR, TypeIR, Visibility};
 
     use super::super::helpers::test_helpers::make_test_ir;
@@ -71,14 +69,14 @@ mod tests {
 
     #[test]
     fn test_missing_return_detects_missing_return() {
-        let mut components = HashMap::new();
+        let mut components = FxHashMap::default();
         components.insert(
             "App".into(),
             ComponentIR {
                 name: "App".into(),
                 generic_params: vec![],
-                props: HashMap::new(),
-                prop_defaults: HashMap::new(),
+                props: FxHashMap::default(),
+                prop_defaults: FxHashMap::default(),
                 states: vec![],
                 computeds: vec![],
                 effects: vec![],
@@ -113,9 +111,9 @@ mod tests {
                 ..Default::default()
             },
         );
-        let ir = make_test_ir(components, HashMap::new());
+        let ir = make_test_ir(components, FxHashMap::default());
 
-        let diags = MissingReturn.check_ir(&ir, &HashMap::new());
+        let diags = MissingReturn.check_ir(&ir, &FxHashMap::default());
         assert_eq!(diags.len(), 1, "expected 1 diagnostic for missing return");
         assert!(
             diags[0].message.contains("getCount"),
@@ -126,14 +124,14 @@ mod tests {
 
     #[test]
     fn test_missing_return_skips_void_functions() {
-        let mut components = HashMap::new();
+        let mut components = FxHashMap::default();
         components.insert(
             "App".into(),
             ComponentIR {
                 name: "App".into(),
                 generic_params: vec![],
-                props: HashMap::new(),
-                prop_defaults: HashMap::new(),
+                props: FxHashMap::default(),
+                prop_defaults: FxHashMap::default(),
                 states: vec![],
                 computeds: vec![],
                 effects: vec![],
@@ -162,9 +160,9 @@ mod tests {
                 ..Default::default()
             },
         );
-        let ir = make_test_ir(components, HashMap::new());
+        let ir = make_test_ir(components, FxHashMap::default());
 
-        let diags = MissingReturn.check_ir(&ir, &HashMap::new());
+        let diags = MissingReturn.check_ir(&ir, &FxHashMap::default());
         assert_eq!(
             diags.len(),
             0,
@@ -174,14 +172,14 @@ mod tests {
 
     #[test]
     fn test_missing_return_skips_when_return_present() {
-        let mut components = HashMap::new();
+        let mut components = FxHashMap::default();
         components.insert(
             "App".into(),
             ComponentIR {
                 name: "App".into(),
                 generic_params: vec![],
-                props: HashMap::new(),
-                prop_defaults: HashMap::new(),
+                props: FxHashMap::default(),
+                prop_defaults: FxHashMap::default(),
                 states: vec![],
                 computeds: vec![],
                 effects: vec![],
@@ -216,9 +214,9 @@ mod tests {
                 ..Default::default()
             },
         );
-        let ir = make_test_ir(components, HashMap::new());
+        let ir = make_test_ir(components, FxHashMap::default());
 
-        let diags = MissingReturn.check_ir(&ir, &HashMap::new());
+        let diags = MissingReturn.check_ir(&ir, &FxHashMap::default());
         assert_eq!(diags.len(), 0, "functions with return should not trigger");
     }
 }

@@ -4,8 +4,8 @@
 //! resolve pass (see `validate_inline.rs` and `resolve.rs`).  Motion validation
 //! lives in the sibling [`validate_motion`] module.
 
-use std::collections::{HashMap, HashSet};
-
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use super::walk_view::walk_view_nodes;
 use super::SemanticAnalyzer;
 use crate::error::{Diagnostic, DiagnosticKind};
@@ -17,7 +17,7 @@ use crate::parser::ast::*;
 impl SemanticAnalyzer {
     /// bind: must target a signal, not a store action or fn
     pub(super) fn validate_bind_targets(&mut self, comp: &ComponentDef) {
-        let signal_names: HashSet<&str> = comp.signals.iter().map(|s| s.name.as_str()).collect();
+        let signal_names: FxHashSet<&str> = comp.signals.iter().map(|s| s.name.as_str()).collect();
 
         if let Some(ref view) = comp.view {
             walk_view_nodes(&view.children, &mut |el| {
@@ -59,13 +59,13 @@ impl SemanticAnalyzer {
     /// Triggers: E0007
     pub(super) fn validate_store_action_refs(&mut self, comp: &ComponentDef, module: &Module) {
         // Build a map: store_name -> set of action names
-        let mut store_actions: HashMap<&str, HashSet<&str>> = HashMap::new();
+        let mut store_actions: FxHashMap<&str, FxHashSet<&str>> = FxHashMap::default();
         for store in &module.stores {
-            let actions: HashSet<&str> = store.actions.iter().map(|a| a.name.as_str()).collect();
+            let actions: FxHashSet<&str> = store.actions.iter().map(|a| a.name.as_str()).collect();
             store_actions.insert(store.name.as_str(), actions);
         }
 
-        let store_refs: HashSet<&str> = comp.store_refs.iter().map(|s| s.as_str()).collect();
+        let store_refs: FxHashSet<&str> = comp.store_refs.iter().map(|s| s.as_str()).collect();
 
         if let Some(ref view) = comp.view {
             walk_view_nodes(&view.children, &mut |el| {
@@ -116,7 +116,7 @@ impl SemanticAnalyzer {
 impl SemanticAnalyzer {
     /// Validate that component props are not assigned to within the component.
     pub(super) fn validate_prop_assignment_in_component(&mut self, comp: &ComponentDef) {
-        let prop_names: HashSet<&str> = comp.props.iter().map(|p| p.name.as_str()).collect();
+        let prop_names: FxHashSet<&str> = comp.props.iter().map(|p| p.name.as_str()).collect();
 
         if prop_names.is_empty() {
             return;
@@ -124,7 +124,7 @@ impl SemanticAnalyzer {
 
         fn check_block(
             block: &Block,
-            prop_names: &HashSet<&str>,
+            prop_names: &FxHashSet<&str>,
             diagnostics: &mut Vec<Diagnostic>,
         ) {
             for stmt in &block.stmts {

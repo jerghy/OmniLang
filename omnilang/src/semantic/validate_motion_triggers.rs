@@ -4,8 +4,8 @@
 //! motion triggers.  Extracted from `validate_motion` to keep that file below
 //! 800 lines.
 
-use std::collections::{HashMap, HashSet};
-
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use super::helpers::is_non_interpolatable;
 use super::motion::has_enter_leave_animation;
 use super::SemanticAnalyzer;
@@ -18,7 +18,7 @@ impl SemanticAnalyzer {
     pub(super) fn validate_timeline_def(
         &mut self,
         timeline: &TimelineDef,
-        all_motion_names: &HashSet<&str>,
+        all_motion_names: &FxHashSet<&str>,
     ) {
         for item in &timeline.items {
             match &item.kind {
@@ -72,19 +72,19 @@ impl SemanticAnalyzer {
 
     /// Detect circular motion references in timeline definitions.
     pub(super) fn detect_timeline_cycles(&mut self, refs: &[(&str, Vec<&str>)]) {
-        let graph: HashMap<&str, &[&str]> = refs
+        let graph: FxHashMap<&str, &[&str]> = refs
             .iter()
             .map(|(name, deps)| (*name, deps.as_slice()))
             .collect();
 
-        let mut reported: HashSet<&str> = HashSet::new();
+        let mut reported: FxHashSet<&str> = FxHashSet::default();
 
         for &(start_name, _) in refs {
             if reported.contains(start_name) {
                 continue;
             }
             // DFS from start, following only timeline nodes
-            let mut visited: HashSet<&str> = HashSet::new();
+            let mut visited: FxHashSet<&str> = FxHashSet::default();
             let mut stack: Vec<&str> = vec![start_name];
             visited.insert(start_name);
 
@@ -129,8 +129,8 @@ impl SemanticAnalyzer {
     pub(super) fn validate_view_motion_triggers(
         &mut self,
         nodes: &[ViewNode],
-        all_motion_names: &HashSet<&str>,
-        element_ids: &HashSet<String>,
+        all_motion_names: &FxHashSet<&str>,
+        element_ids: &FxHashSet<String>,
     ) {
         for node in nodes {
             match node {

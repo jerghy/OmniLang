@@ -8,8 +8,7 @@ use crate::ir::TriggerKind;
 use crate::parser::ast::*;
 use crate::semantic::SemanticResult;
 use std::cell::Cell;
-use std::collections::HashMap;
-
+use rustc_hash::FxHashMap;
 use super::expr::lower_expr;
 use super::stmt::lower_block;
 
@@ -20,7 +19,7 @@ use super::stmt::lower_block;
 pub(super) fn lower_view_block(
     view: &ViewBlock,
     string_signals: &[String],
-    variant_map: &HashMap<String, String>,
+    variant_map: &FxHashMap<String, String>,
     semantics: &mut SemanticResult,
 ) -> ViewTree {
     if let Some(first) = view.children.first() {
@@ -179,7 +178,7 @@ pub(super) fn lower_view_node(
     node: &ViewNode,
     string_signals: &[String],
     sig_idx: Option<&Cell<usize>>,
-    variant_map: &HashMap<String, String>,
+    variant_map: &FxHashMap<String, String>,
     semantics: &mut SemanticResult,
 ) -> ViewTree {
     match node {
@@ -211,17 +210,17 @@ fn lower_element(
     el: &Element,
     string_signals: &[String],
     sig_idx: Option<&Cell<usize>>,
-    variant_map: &HashMap<String, String>,
+    variant_map: &FxHashMap<String, String>,
     semantics: &mut SemanticResult,
 ) -> ViewTree {
-    let mut props: Option<HashMap<String, ExprIR>> = None;
-    let mut bindings: Option<HashMap<String, SignalRefIR>> = None;
-    let mut events: Option<HashMap<String, EventHandlerIR>> = None;
+    let mut props: Option<FxHashMap<String, ExprIR>> = None;
+    let mut bindings: Option<FxHashMap<String, SignalRefIR>> = None;
+    let mut events: Option<FxHashMap<String, EventHandlerIR>> = None;
     let mut inline_style: Option<serde_json::Value> = None;
     let mut has_value_binding = false;
-    let mut class_map_bindings_from_prop: Option<HashMap<String, ExprIR>> = None;
+    let mut class_map_bindings_from_prop: Option<FxHashMap<String, ExprIR>> = None;
     let mut motion_triggers: Vec<TriggerIntent> = Vec::new();
-    let mut states_map: Option<HashMap<String, StateTweenIR>> = None;
+    let mut states_map: Option<FxHashMap<String, StateTweenIR>> = None;
     let mut animate_signal: Option<ExprIR> = None;
     let mut paused_override: Option<ExprIR> = None;
     let mut hover_reverse: Option<String> = None;
@@ -244,7 +243,7 @@ fn lower_element(
     for prop in &el.props {
         match prop {
             ElementProp::Static { name, value } => {
-                props.get_or_insert_with(HashMap::new).insert(
+                props.get_or_insert_with(Default::default).insert(
                     name.clone(),
                     lower_expr(value, variant_map, None, semantics),
                 );
@@ -253,7 +252,7 @@ fn lower_element(
                 if name == "value" {
                     has_value_binding = true;
                 }
-                bindings.get_or_insert_with(HashMap::new).insert(
+                bindings.get_or_insert_with(Default::default).insert(
                     name.clone(),
                     SignalRefIR {
                         owner: None,
@@ -318,12 +317,12 @@ fn lower_element(
                     }
                 };
                 events
-                    .get_or_insert_with(HashMap::new)
+                    .get_or_insert_with(Default::default)
                     .insert(name.clone(), ir_handler);
             }
             ElementProp::Class { value } => {
                 // class: styleRef or class: "literal-class"
-                let mut class_map_bindings: HashMap<String, ExprIR> = HashMap::new();
+                let mut class_map_bindings: FxHashMap<String, ExprIR> = FxHashMap::default();
                 let class_str = match value {
                     ClassValue::StyleRef(s) => s.clone(),
                     ClassValue::StringLiteral(s) => s.clone(),
@@ -355,7 +354,7 @@ fn lower_element(
                         static_classes.join(" ")
                     }
                 };
-                props.get_or_insert_with(HashMap::new).insert(
+                props.get_or_insert_with(Default::default).insert(
                     "class".into(),
                     ExprIR::LiteralExpr {
                         value: serde_json::Value::String(class_str),
@@ -379,7 +378,7 @@ fn lower_element(
             }
             ElementProp::TestId(id) => {
                 // test-id="..." attribute
-                props.get_or_insert_with(HashMap::new).insert(
+                props.get_or_insert_with(Default::default).insert(
                     "data-testid".into(),
                     ExprIR::LiteralExpr {
                         value: serde_json::Value::String(id.clone()),
@@ -388,7 +387,7 @@ fn lower_element(
             }
             ElementProp::Ref(r) => {
                 // ref="..." attribute
-                props.get_or_insert_with(HashMap::new).insert(
+                props.get_or_insert_with(Default::default).insert(
                     "data-ref".into(),
                     ExprIR::LiteralExpr {
                         value: serde_json::Value::String(r.clone()),
@@ -424,9 +423,9 @@ fn lower_element(
             }
             // States map: states: { visible: { ... }, hidden: { ... } }
             ElementProp::StatesMap(states) => {
-                let mut states_hm: HashMap<String, StateTweenIR> = HashMap::new();
+                let mut states_hm: FxHashMap<String, StateTweenIR> = FxHashMap::default();
                 for (name, state_def) in states {
-                    let properties: HashMap<String, ExprIR> = state_def
+                    let properties: FxHashMap<String, ExprIR> = state_def
                         .properties
                         .iter()
                         .map(|(k, v)| (k.clone(), lower_expr(v, variant_map, None, semantics)))
@@ -526,7 +525,7 @@ fn lower_element(
         if el.tag == "input" && !has_value_binding && idx < string_signals.len() {
             let sig_name = string_signals[idx].clone();
             sig_counter.set(idx + 1);
-            bindings.get_or_insert_with(HashMap::new).insert(
+            bindings.get_or_insert_with(Default::default).insert(
                 "value".into(),
                 SignalRefIR {
                     owner: None,
@@ -635,7 +634,7 @@ fn lower_element(
 fn lower_if_directive(
     if_dir: &IfDirective,
     string_signals: &[String],
-    variant_map: &HashMap<String, String>,
+    variant_map: &FxHashMap<String, String>,
     semantics: &mut SemanticResult,
 ) -> ViewTree {
     let branches: Vec<ConditionalBranch> = std::iter::once(ConditionalBranch {
@@ -685,7 +684,7 @@ fn lower_if_directive(
 fn lower_for_directive(
     for_dir: &ForDirective,
     string_signals: &[String],
-    variant_map: &HashMap<String, String>,
+    variant_map: &FxHashMap<String, String>,
     semantics: &mut SemanticResult,
 ) -> ViewTree {
     let lower_body = |nodes: &[ViewNode], s: &mut SemanticResult| -> Option<ViewTree> {
@@ -727,16 +726,16 @@ fn lower_for_directive(
 fn make_fragment_element(children: Vec<ViewTree>, construction_kind: ConstructionKind) -> ViewTree {
     ViewTree::Element(ElementIR {
         tag: "fragment".into(),
-        props: HashMap::new(),
-        bindings: HashMap::new(),
-        events: HashMap::new(),
+        props: FxHashMap::default(),
+        bindings: FxHashMap::default(),
+        events: FxHashMap::default(),
         style_classes: None,
         inline_style: None,
         children,
         test_id: None,
         ref_name: None,
         construction_kind,
-        class_map_bindings: HashMap::new(),
+        class_map_bindings: FxHashMap::default(),
         source_line: 0,
         source_col: 0,
         motion: None,

@@ -2,8 +2,7 @@
 //! Extracted from types.rs to keep each file under 800 lines.
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-
+use rustc_hash::FxHashMap;
 use super::*;
 
 // ═══════════════════════════════════════════════════════
@@ -44,7 +43,7 @@ pub struct KeyframeIR {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KeyframeStopIR {
     pub position: f64,
-    pub properties: HashMap<String, ExprIR>,
+    pub properties: FxHashMap<String, ExprIR>,
     pub ease: Option<EasingIR>,
 }
 
@@ -65,7 +64,7 @@ pub struct TimelineItemIR {
 pub enum TimelineItemKindIR {
     Direction {
         dir: DirectionIR,
-        properties: HashMap<String, ExprIR>,
+        properties: FxHashMap<String, ExprIR>,
         over: ExprIR,
         ease: Option<EasingIR>,
         delay: Option<ExprIR>,
@@ -191,13 +190,13 @@ pub enum TriggerKind {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StatesIR {
-    pub states: HashMap<String, StateTweenIR>,
+    pub states: FxHashMap<String, StateTweenIR>,
     pub signal: Option<ExprIR>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StateTweenIR {
-    pub properties: HashMap<String, ExprIR>,
+    pub properties: FxHashMap<String, ExprIR>,
     pub over: Option<ExprIR>,
     pub ease: Option<EasingIR>,
 }

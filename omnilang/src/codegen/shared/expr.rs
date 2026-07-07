@@ -230,6 +230,7 @@ pub(crate) trait FormatExpr {
                 let items: Vec<String> = elements.iter().map(|e| self.format_expr(e)).collect();
                 self.format_array(&items.join(", "))
             }
+            ExprIR::SpreadExpr { operand } => format!("...{}", self.format_expr(operand)),
             ExprIR::StructExpr { type_name, fields } => {
                 let f: Vec<String> = fields
                     .iter()
@@ -264,6 +265,18 @@ pub(crate) trait FormatExpr {
             }
             ExprIR::MatchExpr { matched, arms } => {
                 self.format_match(&self.format_expr(matched), arms)
+            }
+            ExprIR::MapExpr { entries } => {
+                let fields: Vec<String> = entries
+                    .iter()
+                    .map(|(k, v)| {
+                        let key = self.format_expr(k);
+                        let val = self.format_expr(v);
+                        self.format_struct_field(&key, &val)
+                    })
+                    .collect();
+                // Use empty type_name since MapExpr has no struct type
+                self.format_struct("", &fields.join(", "))
             }
         }
     }

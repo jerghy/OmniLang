@@ -6,7 +6,8 @@
 //! instead of `validate_multi()`.
 
 use std::collections::hash_map::DefaultHasher;
-use std::collections::{HashMap, HashSet};
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
@@ -23,7 +24,7 @@ pub struct AnalyseOutput {
     pub ir: Option<IRProgram>,
     pub warnings: Vec<Diagnostic>,
     /// Pre-parsed programs (available to callers that need them for codegen).
-    pub programs: HashMap<String, Arc<Program>>,
+    pub programs: FxHashMap<String, Arc<Program>>,
 }
 
 /// Convert a lint diagnostic to a standard Diagnostic.
@@ -71,13 +72,13 @@ pub struct CachedFile {
 
 /// Incremental compilation cache that avoids re-parsing/re-analyzing unchanged files.
 pub struct IncrementalCache {
-    pub entries: HashMap<String, CachedFile>,
+    pub entries: FxHashMap<String, CachedFile>,
 }
 
 impl IncrementalCache {
     pub fn new() -> Self {
         Self {
-            entries: HashMap::new(),
+            entries: FxHashMap::default(),
         }
     }
 
@@ -163,11 +164,11 @@ fn merge_file_ir_into(merged: &mut IRProgram, path: &str, ir: &mut IRProgram) {
 /// Returns early on parse failure (ir = None, success = false).
 #[must_use]
 pub fn analyse_multi(
-    sources: &HashMap<String, String>,
-    path_mapping: &HashMap<String, String>,
+    sources: &FxHashMap<String, String>,
+    path_mapping: &FxHashMap<String, String>,
 ) -> AnalyseOutput {
     let mut diags: Vec<Diagnostic> = Vec::new();
-    let mut programs: HashMap<String, Arc<Program>> = HashMap::new();
+    let mut programs: FxHashMap<String, Arc<Program>> = FxHashMap::default();
 
     // Phase 1: Parallel parse all sources
     let parse_results: Vec<(String, Result<Program, Vec<Diagnostic>>)> = sources
@@ -231,8 +232,8 @@ pub fn analyse_multi(
     // Phase 3b: Sequential IR merge
     let mut merged_ir = IRProgram {
         version: "1.0".to_string(),
-        modules: HashMap::new(),
-        source_map: HashMap::new(),
+        modules: FxHashMap::default(),
+        source_map: FxHashMap::default(),
         stdlib_imports: Vec::new(),
     };
 
@@ -317,15 +318,15 @@ pub fn analyse_multi(
 /// transitive invalidation of their dependents (files that import them).
 #[must_use]
 pub fn analyse_multi_cached(
-    sources: &HashMap<String, String>,
-    path_mapping: &HashMap<String, String>,
+    sources: &FxHashMap<String, String>,
+    path_mapping: &FxHashMap<String, String>,
     cache: &mut IncrementalCache,
 ) -> AnalyseOutput {
     let mut diags: Vec<Diagnostic> = Vec::new();
-    let mut all_programs: HashMap<String, Arc<Program>> = HashMap::new();
+    let mut all_programs: FxHashMap<String, Arc<Program>> = FxHashMap::default();
 
     // Phase 0: Identify changed files via content hash
-    let mut changed: HashSet<String> = HashSet::new();
+    let mut changed: FxHashSet<String> = FxHashSet::default();
     for (path, source) in sources {
         let hash = fast_hash(source);
         if let Some(cached) = cache.entries.get(path) {
@@ -339,7 +340,7 @@ pub fn analyse_multi_cached(
     }
 
     // Phase 0.5: Transitively invalidate dependents of changed files
-    let mut to_reprocess: HashSet<String> = changed.clone();
+    let mut to_reprocess: FxHashSet<String> = changed.clone();
     let mut worklist: Vec<String> = changed.iter().cloned().collect();
     while let Some(file) = worklist.pop() {
         if let Some(cached) = cache.entries.get(&file) {
@@ -399,7 +400,7 @@ pub fn analyse_multi_cached(
     diags.extend(validation.errors);
 
     // Phase 3a: Parallel per-file semantic analysis + IR lowering for changed files only
-    let mut per_file_ir: HashMap<String, (IRProgram, Vec<Diagnostic>)> = to_reprocess
+    let mut per_file_ir: FxHashMap<String, (IRProgram, Vec<Diagnostic>)> = to_reprocess
         .par_iter()
         .map(|path| {
             let program: &Program = all_programs[path].as_ref();
@@ -418,7 +419,7 @@ pub fn analyse_multi_cached(
         .collect();
 
     // Collect import paths from newly parsed programs for cache update
-    let mut new_imports: HashMap<String, Vec<String>> = HashMap::new();
+    let mut new_imports: FxHashMap<String, Vec<String>> = FxHashMap::default();
     for path in &to_reprocess {
         if let Some(program) = all_programs.get(path) {
             new_imports.insert(path.clone(), collect_import_paths(program));
@@ -481,8 +482,8 @@ pub fn analyse_multi_cached(
     // Phase 3b: Sequential IR merge
     let mut merged_ir = IRProgram {
         version: "1.0".to_string(),
-        modules: HashMap::new(),
-        source_map: HashMap::new(),
+        modules: FxHashMap::default(),
+        source_map: FxHashMap::default(),
         stdlib_imports: Vec::new(),
     };
 

@@ -3,16 +3,16 @@
 //! Provides functions to format stdlib function calls and validate
 //! that required stdlib modules are available on the target platform.
 
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use std::sync::LazyLock;
 
 use crate::codegen::Target;
 use crate::error::{Diagnostic, DiagnosticKind, Severity};
 
 /// Pre-built O(1) lookup map: fn_name -> (module, fn_name_in_registry).
-static STDLIB_FN_MAP: LazyLock<HashMap<&'static str, (&'static str, &'static str)>> =
+static STDLIB_FN_MAP: LazyLock<FxHashMap<&'static str, (&'static str, &'static str)>> =
     LazyLock::new(|| {
-        let mut m = HashMap::new();
+        let mut m = FxHashMap::default();
         for f in crate::stdlib::registry() {
             // Insert under the full prefixed name (e.g., "http_get").
             m.insert(f.name, (f.module, f.name));
@@ -77,8 +77,7 @@ pub fn validate_stdlib_imports(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashMap;
-
+    use rustc_hash::FxHashMap;
     #[test]
     fn test_try_format_stdlib_call_http_get_js() {
         let result = try_format_stdlib_call("http_get", &["\"url\"".into()], Target::JavaScript);
@@ -127,8 +126,8 @@ mod tests {
     fn test_validate_stdlib_imports_storage_on_rust_fails() {
         let ir = crate::ir::IRProgram {
             version: "1.0".into(),
-            modules: HashMap::new(),
-            source_map: HashMap::new(),
+            modules: FxHashMap::default(),
+            source_map: FxHashMap::default(),
             stdlib_imports: vec!["storage".into()],
         };
         let result = validate_stdlib_imports(&ir, Target::Rust);
@@ -146,8 +145,8 @@ mod tests {
     fn test_validate_stdlib_imports_all_valid() {
         let ir = crate::ir::IRProgram {
             version: "1.0".into(),
-            modules: HashMap::new(),
-            source_map: HashMap::new(),
+            modules: FxHashMap::default(),
+            source_map: FxHashMap::default(),
             stdlib_imports: vec!["http".into(), "json".into()],
         };
         let result = validate_stdlib_imports(&ir, Target::JavaScript);
@@ -162,8 +161,8 @@ mod tests {
     fn test_validate_stdlib_imports_empty() {
         let ir = crate::ir::IRProgram {
             version: "1.0".into(),
-            modules: HashMap::new(),
-            source_map: HashMap::new(),
+            modules: FxHashMap::default(),
+            source_map: FxHashMap::default(),
             stdlib_imports: vec![],
         };
         let result = validate_stdlib_imports(&ir, Target::Rust);

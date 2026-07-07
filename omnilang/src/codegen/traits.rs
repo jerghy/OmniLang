@@ -1,7 +1,6 @@
 //! Codegen trait -- implement for each target.
 
-use std::collections::HashMap;
-
+use rustc_hash::FxHashMap;
 use crate::ir::IRProgram;
 
 use super::CompileOutput;
@@ -10,5 +9,5 @@ use super::CompileOutput;
 pub trait Codegen: Send + Sync {
     /// Generate output files for the given IR program and source files.
     #[must_use]
-    fn generate(&self, ir: &IRProgram, source_files: &HashMap<String, String>) -> CompileOutput;
+    fn generate(&self, ir: &IRProgram, source_files: &FxHashMap<String, String>) -> CompileOutput;
 }

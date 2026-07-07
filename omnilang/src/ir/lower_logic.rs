@@ -7,7 +7,7 @@ use crate::semantic::SemanticResult;
 
 pub fn lower_function(
     func: &FunctionDef,
-    variant_map: &HashMap<String, String>,
+    variant_map: &FxHashMap<String, String>,
     semantics: &mut SemanticResult,
 ) -> FunctionIR {
     FunctionIR {
@@ -106,8 +106,7 @@ pub fn lower_export(exp: &ExportFrom) -> ExportIR {
 mod tests {
     use crate::lexer::tokenize;
     use crate::parser;
-    use std::collections::HashMap;
-
+    use rustc_hash::FxHashMap;
     #[test]
     fn test_lower_fn_main_to_ir() {
         let source = "fn main() { return 42; }";
@@ -115,7 +114,7 @@ mod tests {
         let program = parser::parse(&tokens, source).unwrap();
         let mut semantics = crate::semantic::SemanticResult {
             symbols: crate::semantic::symbols::SymbolTable::new(),
-            dependencies: HashMap::new(),
+            dependencies: FxHashMap::default(),
             diagnostics: Vec::new(),
         };
         let ir = crate::ir::lower(&program, &mut semantics);
@@ -133,7 +132,7 @@ mod tests {
         let program = parser::parse(&tokens, source).unwrap();
         let mut semantics = crate::semantic::SemanticResult {
             symbols: crate::semantic::symbols::SymbolTable::new(),
-            dependencies: HashMap::new(),
+            dependencies: FxHashMap::default(),
             diagnostics: Vec::new(),
         };
         let ir = crate::ir::lower(&program, &mut semantics);

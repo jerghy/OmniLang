@@ -448,11 +448,10 @@ impl<'a> Parser<'a> {
             }
 
             TokenKind::DotDotDot => {
-                // Spread expression: ...expr (reserved for P2)
-                // Parse the spread target to avoid leaving unconsumed tokens
-                let _target = self.parse_expr()?;
-                Ok(Expr::NotYetImplemented {
-                    feature: "spread".into(),
+                // Spread expression: ...expr
+                let target = self.parse_expr()?;
+                Ok(Expr::SpreadExpr {
+                    operand: Box::new(target),
                     span,
                 })
             }
@@ -486,6 +485,7 @@ impl<'a> Parser<'a> {
             | TokenKind::GtEq => (7, 8),
             TokenKind::Plus | TokenKind::Minus => (9, 10),
             TokenKind::Star | TokenKind::Slash | TokenKind::Percent => (11, 12),
+            TokenKind::Is => (6, 7),
             TokenKind::Dot | TokenKind::QuestionDot | TokenKind::LParen | TokenKind::LBracket => {
                 (13, 14)
             }
@@ -511,6 +511,15 @@ impl<'a> Parser<'a> {
             TokenKind::GtEq => self.make_binary(left, BinaryOpKind::GtEq, bp),
             TokenKind::AndAnd => self.make_binary(left, BinaryOpKind::And, bp),
             TokenKind::OrOr => self.make_binary(left, BinaryOpKind::Or, bp),
+            TokenKind::Is => {
+                // Type check: value is TypeName
+                let type_name = self.expect_ident("expected type name after 'is'")?;
+                Ok(Expr::IsCheck {
+                    value: Box::new(left),
+                    type_name,
+                    span,
+                })
+            }
             TokenKind::QuestionQuestion => {
                 self.make_binary(left, BinaryOpKind::NullishCoalesce, bp)
             }
@@ -731,22 +740,47 @@ impl<'a> Parser<'a> {
         Ok(args)
     }
 
+    /// Convert an expression that is a VarRef or keyword ident to a string literal key.
+    fn key_to_string_literal(expr: &Expr) -> Expr {
+        match expr {
+            Expr::VarRef(name, span) => Expr::Literal(Literal::String(name.clone()), *span),
+            _ => expr.clone(),
+        }
+    }
+
     fn parse_map_entries(&mut self) -> Result<Vec<(Expr, Expr)>, ParseError> {
         let mut entries = Vec::new();
         if !self.at(&TokenKind::RBrace) {
+            // Parse first entry (may be shorthand: { key } or explicit: { key: val })
             let key = self.parse_expr()?;
-            self.expect_close(TokenKind::Colon, "expected ':'")?;
-            let val = self.parse_expr()?;
-            entries.push((key, val));
+            if self.at(&TokenKind::Colon) {
+                self.advance();
+                let val = self.parse_expr()?;
+                // Convert explicit key to string literal to avoid undeclared var errors
+                let key_lit = Self::key_to_string_literal(&key);
+                entries.push((key_lit, val));
+            } else {
+                // Shorthand: { key } → { key: key } with string literal key
+                let key_expr = Self::key_to_string_literal(&key);
+                entries.push((key_expr, key));
+            }
             while self.at(&TokenKind::Comma) {
                 self.advance();
                 if self.at(&TokenKind::RBrace) {
                     break;
                 }
                 let k = self.parse_expr()?;
-                self.expect_close(TokenKind::Colon, "expected ':'")?;
-                let v = self.parse_expr()?;
-                entries.push((k, v));
+                if self.at(&TokenKind::Colon) {
+                    self.advance();
+                    let v = self.parse_expr()?;
+                    // Convert explicit key to string literal
+                    let key_lit = Self::key_to_string_literal(&k);
+                    entries.push((key_lit, v));
+                } else {
+                    // Shorthand after comma: { a, b, c } or { a: 1, b, c: 3 }
+                    let key_expr = Self::key_to_string_literal(&k);
+                    entries.push((key_expr, k));
+                }
             }
         }
         self.expect_close(TokenKind::RBrace, "expected '}'")?;
@@ -789,6 +823,8 @@ pub fn span_of(expr: &Expr) -> &Span {
         Expr::ClosureExpr { span, .. } => span,
         Expr::AwaitExpr { span, .. } => span,
         Expr::MatchExpr { span, .. } => span,
+        Expr::IsCheck { span, .. } => span,
+        Expr::SpreadExpr { span, .. } => span,
         Expr::NotYetImplemented { span, .. } => span,
         Expr::Error { span, .. } => span,
     }

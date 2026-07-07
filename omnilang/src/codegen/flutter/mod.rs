@@ -23,8 +23,7 @@ pub(crate) use view::*;
 #[cfg(test)]
 mod tests;
 
-use std::collections::HashMap;
-
+use rustc_hash::FxHashMap;
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
 use crate::codegen::shared::generator::{generate_per_component, PerComponentCodegen};
 use crate::codegen::{format_json_value, JSON_FLUTTER};
@@ -53,7 +52,7 @@ impl PerComponentCodegen for FlutterCodegen {
 }
 
 impl Codegen for FlutterCodegen {
-    fn generate(&self, ir: &IRProgram, _source_files: &HashMap<String, String>) -> CompileOutput {
+    fn generate(&self, ir: &IRProgram, _source_files: &FxHashMap<String, String>) -> CompileOutput {
         generate_per_component(self, ir)
     }
 }
@@ -311,7 +310,7 @@ impl FlutterCodegen {
         w.indent();
 
         if let Some(view) = &comp.view {
-            let component_map: HashMap<String, ComponentIR> = ir
+            let component_map: FxHashMap<String, ComponentIR> = ir
                 .all_components()
                 .into_iter()
                 .map(|(n, c)| (n.to_string(), c.clone()))

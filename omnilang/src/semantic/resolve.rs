@@ -246,10 +246,20 @@ impl SemanticAnalyzer {
             }
             Stmt::TryCatch {
                 try_body,
+                catch_var,
                 catch_body,
                 finally_body,
                 ..
             } => {
+                if let Some(ref var) = catch_var {
+                    self.declare_or_warn(Symbol {
+                        name: var.clone(),
+                        kind: SymbolKind::Variable,
+                        type_ann: None,
+                        mutable: false,
+                        declared_at: 0,
+                    });
+                }
                 self.resolve_block_refs(try_body, vctx);
                 if let Some(ref b) = catch_body {
                     self.resolve_block_refs(b, vctx);

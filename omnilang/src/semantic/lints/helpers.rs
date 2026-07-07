@@ -1,7 +1,7 @@
 //! Shared helpers for lint rules: AST collectors, store/prop/computed validation.
 
-use std::collections::{HashMap, HashSet};
-
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use super::LintDiagnostic;
 use crate::ir::{BlockIR, EventHandlerIR, ExprIR, StatementIR, ViewTree};
 use crate::parser::ast::{
@@ -89,7 +89,7 @@ pub(super) fn import_span_line_col(import: &ImportStmt) -> (u32, u32) {
 /// Recursively walk a BlockIR looking for store signal mutations.
 pub(super) fn check_block_ir_for_store_mutations(
     block: &BlockIR,
-    store_signals: &HashMap<&str, HashSet<&str>>,
+    store_signals: &FxHashMap<&str, FxHashSet<&str>>,
     context_name: &str,
     file_path: &str,
     diags: &mut Vec<LintDiagnostic>,
@@ -224,7 +224,7 @@ pub(super) fn check_block_ir_for_store_mutations(
 /// Check if an ExprIR contains a store mutation (method calls like .set/.push on store fields).
 pub(super) fn expr_ir_contains_store_mutation(
     expr: &ExprIR,
-    store_signals: &HashMap<&str, HashSet<&str>>,
+    store_signals: &FxHashMap<&str, FxHashSet<&str>>,
 ) -> bool {
     match expr {
         ExprIR::StoreFieldAccessExpr {
@@ -330,6 +330,7 @@ pub(super) fn expr_ir_contains_store_mutation(
         ExprIR::VariantLiteral { fields, .. } => fields
             .iter()
             .any(|(_, v)| expr_ir_contains_store_mutation(v, store_signals)),
+        ExprIR::SpreadExpr { operand } => expr_ir_contains_store_mutation(operand, store_signals),
         _ => false,
     }
 }
@@ -337,7 +338,7 @@ pub(super) fn expr_ir_contains_store_mutation(
 /// Walk a ViewTree recursively and check event handler bodies for store mutations.
 pub(super) fn check_view_tree_events_for_store_mutations(
     tree: &ViewTree,
-    store_signals: &HashMap<&str, HashSet<&str>>,
+    store_signals: &FxHashMap<&str, FxHashSet<&str>>,
     file_path: &str,
     diags: &mut Vec<LintDiagnostic>,
 ) {
@@ -393,7 +394,7 @@ pub(super) fn check_view_tree_events_for_store_mutations(
 /// Check a Block for assignments to component props.
 pub(super) fn check_block_for_prop_assign(
     block: &Block,
-    prop_names: &HashSet<&str>,
+    prop_names: &FxHashSet<&str>,
     comp_name: &str,
     context_name: &str,
     file_path: &str,
@@ -522,7 +523,7 @@ pub(super) fn check_block_for_prop_assign(
 }
 
 /// Check if an expression assigns to a prop.
-pub(super) fn expr_contains_prop_assign(expr: &Expr, prop_names: &HashSet<&str>) -> bool {
+pub(super) fn expr_contains_prop_assign(expr: &Expr, prop_names: &FxHashSet<&str>) -> bool {
     match expr {
         Expr::BinaryOp {
             left, op, right, ..
@@ -560,7 +561,7 @@ pub(super) fn expr_contains_prop_assign(expr: &Expr, prop_names: &HashSet<&str>)
 /// Walk view nodes to find prop assignments in inline event handlers.
 pub(super) fn check_view_for_prop_assign(
     nodes: &[ViewNode],
-    prop_names: &HashSet<&str>,
+    prop_names: &FxHashSet<&str>,
     comp_name: &str,
     file_path: &str,
     diags: &mut Vec<LintDiagnostic>,
@@ -608,7 +609,7 @@ pub(super) fn check_view_for_prop_assign(
 
 /// Check if an AST expression contains side effects (mutations).
 /// Used by ComputedPurity to ensure computed values are pure.
-pub(super) fn expr_contains_side_effect(expr: &Expr, signal_names: &HashSet<&str>) -> bool {
+pub(super) fn expr_contains_side_effect(expr: &Expr, signal_names: &FxHashSet<&str>) -> bool {
     match expr {
         Expr::BinaryOp {
             left, op, right, ..
@@ -750,7 +751,9 @@ pub(super) fn expr_contains_side_effect(expr: &Expr, signal_names: &HashSet<&str
                 })
         }
         Expr::NotYetImplemented { .. } => false,
+        Expr::IsCheck { .. } => false,
         Expr::StoreFieldAccess { .. } => false,
+        Expr::SpreadExpr { operand, .. } => expr_contains_side_effect(operand, signal_names),
         Expr::Literal(..) | Expr::VarRef(..) => false,
         Expr::Error { .. } => false,
     }
@@ -760,16 +763,15 @@ pub(super) fn expr_contains_side_effect(expr: &Expr, signal_names: &HashSet<&str
 
 #[cfg(test)]
 pub(super) mod test_helpers {
-    use std::collections::HashMap;
-
+    use rustc_hash::FxHashMap;
     use crate::ir::{ComponentIR, IRProgram, ModuleIR, StoreIR};
 
     /// Helper to construct an IRProgram with a single module for testing.
     pub fn make_test_ir(
-        components: HashMap<String, ComponentIR>,
-        stores: HashMap<String, StoreIR>,
+        components: FxHashMap<String, ComponentIR>,
+        stores: FxHashMap<String, StoreIR>,
     ) -> IRProgram {
-        let mut modules = HashMap::new();
+        let mut modules = FxHashMap::default();
         modules.insert(
             "main".to_string(),
             ModuleIR {
@@ -782,7 +784,7 @@ pub(super) mod test_helpers {
         IRProgram {
             version: "1.0".into(),
             modules,
-            source_map: HashMap::new(),
+            source_map: FxHashMap::default(),
             stdlib_imports: Vec::new(),
         }
     }

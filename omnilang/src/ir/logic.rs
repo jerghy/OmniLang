@@ -2,8 +2,7 @@
 
 use super::*;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-
+use rustc_hash::FxHashMap;
 pub use super::visibility::Visibility;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -79,17 +78,17 @@ pub struct ExportIR {
 pub struct ModuleIR {
     pub name: String,
     #[serde(default)]
-    pub functions: HashMap<String, FunctionIR>,
+    pub functions: FxHashMap<String, FunctionIR>,
     #[serde(default)]
-    pub structs: HashMap<String, StructIR>,
+    pub structs: FxHashMap<String, StructIR>,
     #[serde(default)]
-    pub enums: HashMap<String, EnumIR>,
+    pub enums: FxHashMap<String, EnumIR>,
     #[serde(default)]
-    pub type_aliases: HashMap<String, TypeAliasIR>,
+    pub type_aliases: FxHashMap<String, TypeAliasIR>,
     #[serde(default)]
-    pub components: HashMap<String, super::ComponentIR>,
+    pub components: FxHashMap<String, super::ComponentIR>,
     #[serde(default)]
-    pub stores: HashMap<String, super::StoreIR>,
+    pub stores: FxHashMap<String, super::StoreIR>,
     #[serde(default)]
     pub themes: Vec<serde_json::Value>,
     #[serde(default)]

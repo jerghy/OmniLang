@@ -4,8 +4,8 @@
 //! Category: correctness
 //! Severity: error
 
-use std::collections::{HashMap, HashSet};
-
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use super::{LintDiagnostic, LintRule, LintSeverity};
 use crate::ir::{event_data_schema, IRProgram, ViewTree};
 
@@ -22,7 +22,7 @@ impl LintRule for InvalidEventField {
         LintSeverity::Error
     }
 
-    fn check_ir(&self, ir: &IRProgram, file_map: &HashMap<String, String>) -> Vec<LintDiagnostic> {
+    fn check_ir(&self, ir: &IRProgram, file_map: &FxHashMap<String, String>) -> Vec<LintDiagnostic> {
         let mut diags = Vec::new();
         for (_comp_name, comp) in ir.all_components() {
             if let Some(ref view) = comp.view {
@@ -49,7 +49,7 @@ fn check_view_invalid_fields(
             for handler in el.events.values() {
                 if let (Some(kind), Some(used)) = (handler.event_data(), handler.used_fields()) {
                     let schema = event_data_schema(kind);
-                    let valid: HashSet<&str> = schema.iter().map(|f| f.name.as_str()).collect();
+                    let valid: FxHashSet<&str> = schema.iter().map(|f| f.name.as_str()).collect();
                     for field in used {
                         if !valid.contains(field.as_str()) {
                             diags.push(LintDiagnostic {
@@ -97,8 +97,7 @@ fn check_view_invalid_fields(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
+    use rustc_hash::FxHashMap;
     use crate::ir::{
         BlockIR, ComponentIR, ConstructionKind, ElementIR, EventDataKind, EventHandlerIR,
         IRProgram, ModuleIR, ViewTree,
@@ -107,14 +106,14 @@ mod tests {
     use super::*;
 
     fn make_test_ir_with_view(comp_name: &str, view: Option<ViewTree>) -> IRProgram {
-        let mut components = HashMap::new();
+        let mut components = FxHashMap::default();
         components.insert(
             comp_name.to_string(),
             ComponentIR {
                 name: comp_name.to_string(),
                 generic_params: vec![],
-                props: HashMap::new(),
-                prop_defaults: HashMap::new(),
+                props: FxHashMap::default(),
+                prop_defaults: FxHashMap::default(),
                 states: vec![],
                 computeds: vec![],
                 effects: vec![],
@@ -132,20 +131,20 @@ mod tests {
                 ..Default::default()
             },
         );
-        let mut modules = HashMap::new();
+        let mut modules = FxHashMap::default();
         modules.insert(
             "main".to_string(),
             ModuleIR {
                 name: "main".to_string(),
                 components,
-                stores: HashMap::new(),
+                stores: FxHashMap::default(),
                 ..Default::default()
             },
         );
         IRProgram {
             version: "1.0".into(),
             modules,
-            source_map: HashMap::new(),
+            source_map: FxHashMap::default(),
             stdlib_imports: Vec::new(),
         }
     }
@@ -154,8 +153,8 @@ mod tests {
     fn test_invalid_event_field_detects_invalid_field() {
         let view = Some(ViewTree::Element(ElementIR {
             tag: "input".into(),
-            props: HashMap::new(),
-            bindings: HashMap::new(),
+            props: FxHashMap::default(),
+            bindings: FxHashMap::default(),
             events: [(
                 "onChange".into(),
                 EventHandlerIR::InlineFn {
@@ -175,7 +174,7 @@ mod tests {
             test_id: None,
             ref_name: None,
             construction_kind: ConstructionKind::Normal,
-            class_map_bindings: HashMap::new(),
+            class_map_bindings: FxHashMap::default(),
             source_line: 10,
             source_col: 5,
             motion: None,
@@ -185,7 +184,7 @@ mod tests {
         }));
         let ir = make_test_ir_with_view("Form", view);
 
-        let diags = InvalidEventField.check_ir(&ir, &HashMap::new());
+        let diags = InvalidEventField.check_ir(&ir, &FxHashMap::default());
         assert!(
             !diags.is_empty(),
             "Should detect invalid event field reference"
@@ -208,8 +207,8 @@ mod tests {
     fn test_invalid_event_field_allows_valid_field() {
         let view = Some(ViewTree::Element(ElementIR {
             tag: "input".into(),
-            props: HashMap::new(),
-            bindings: HashMap::new(),
+            props: FxHashMap::default(),
+            bindings: FxHashMap::default(),
             events: [(
                 "onChange".into(),
                 EventHandlerIR::InlineFn {
@@ -229,7 +228,7 @@ mod tests {
             test_id: None,
             ref_name: None,
             construction_kind: ConstructionKind::Normal,
-            class_map_bindings: HashMap::new(),
+            class_map_bindings: FxHashMap::default(),
             source_line: 0,
             source_col: 0,
             motion: None,
@@ -239,7 +238,7 @@ mod tests {
         }));
         let ir = make_test_ir_with_view("Form", view);
 
-        let diags = InvalidEventField.check_ir(&ir, &HashMap::new());
+        let diags = InvalidEventField.check_ir(&ir, &FxHashMap::default());
         assert!(
             diags.is_empty(),
             "Valid event field `value` should not trigger diagnostic"
@@ -250,8 +249,8 @@ mod tests {
     fn test_invalid_event_field_succeeds_on_missing_event_data() {
         let view = Some(ViewTree::Element(ElementIR {
             tag: "div".into(),
-            props: HashMap::new(),
-            bindings: HashMap::new(),
+            props: FxHashMap::default(),
+            bindings: FxHashMap::default(),
             events: [(
                 "onCustomEvent".into(),
                 EventHandlerIR::InlineFn {
@@ -271,7 +270,7 @@ mod tests {
             test_id: None,
             ref_name: None,
             construction_kind: ConstructionKind::Normal,
-            class_map_bindings: HashMap::new(),
+            class_map_bindings: FxHashMap::default(),
             source_line: 0,
             source_col: 0,
             motion: None,
@@ -281,7 +280,7 @@ mod tests {
         }));
         let ir = make_test_ir_with_view("Widget", view);
 
-        let diags = InvalidEventField.check_ir(&ir, &HashMap::new());
+        let diags = InvalidEventField.check_ir(&ir, &FxHashMap::default());
         assert!(
             diags.is_empty(),
             "Custom events without event_data should not trigger"

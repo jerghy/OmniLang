@@ -2,6 +2,8 @@ use super::utils::map_event;
 use super::OmniViewGenerator;
 use crate::codegen::emit_event_object;
 use crate::ir::*;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 
 impl OmniViewGenerator {
     /// Try to inline a known component's view HTML.
@@ -18,9 +20,9 @@ impl OmniViewGenerator {
                 // Save and update current component context
                 let saved_component = self.current_component.clone();
                 self.current_component = child_comp.name.clone();
-                let saved_signal_names: std::collections::HashSet<String> =
+                let saved_signal_names: FxHashSet<String> =
                     self.signal_names.iter().cloned().collect();
-                let saved_renames_child: std::collections::HashMap<String, String> = self
+                let saved_renames_child: FxHashMap<String, String> = self
                     .name_renames
                     .iter()
                     .map(|(k, v)| (k.clone(), v.clone()))

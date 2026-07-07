@@ -4,8 +4,7 @@
 //! Category: correctness
 //! Severity: error
 
-use std::collections::HashMap;
-
+use rustc_hash::FxHashMap;
 use super::{LintDiagnostic, LintRule, LintSeverity};
 use crate::ir::IRProgram;
 
@@ -22,7 +21,7 @@ impl LintRule for UndefinedRef {
         LintSeverity::Error
     }
 
-    fn check_ir(&self, ir: &IRProgram, file_map: &HashMap<String, String>) -> Vec<LintDiagnostic> {
+    fn check_ir(&self, ir: &IRProgram, file_map: &FxHashMap<String, String>) -> Vec<LintDiagnostic> {
         let mut diags = Vec::new();
         for (name, comp) in ir.all_components() {
             let comp_file = comp
@@ -52,8 +51,7 @@ impl LintRule for UndefinedRef {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
+    use rustc_hash::FxHashMap;
     use crate::ir::ComponentIR;
 
     use super::super::helpers::test_helpers::make_test_ir;
@@ -61,14 +59,14 @@ mod tests {
 
     #[test]
     fn test_undefined_ref_detects_missing_store() {
-        let mut components = HashMap::new();
+        let mut components = FxHashMap::default();
         components.insert(
             "App".into(),
             ComponentIR {
                 name: "App".into(),
                 generic_params: vec![],
-                props: HashMap::new(),
-                prop_defaults: HashMap::new(),
+                props: FxHashMap::default(),
+                prop_defaults: FxHashMap::default(),
                 states: vec![],
                 computeds: vec![],
                 effects: vec![],
@@ -86,9 +84,9 @@ mod tests {
                 ..Default::default()
             },
         );
-        let ir = make_test_ir(components, HashMap::new());
+        let ir = make_test_ir(components, FxHashMap::default());
 
-        let diags = UndefinedRef.check_ir(&ir, &HashMap::new());
+        let diags = UndefinedRef.check_ir(&ir, &FxHashMap::default());
         assert_eq!(diags.len(), 1, "expected 1 diagnostic for missing store");
         assert!(
             diags[0].message.contains("MissingStore"),
@@ -99,26 +97,26 @@ mod tests {
 
     #[test]
     fn test_undefined_ref_skips_existing_store() {
-        let mut stores = HashMap::new();
+        let mut stores = FxHashMap::default();
         stores.insert(
             "CounterStore".into(),
             crate::ir::StoreIR {
                 name: "CounterStore".into(),
-                signals: HashMap::new(),
-                signal_defaults: HashMap::new(),
-                getters: HashMap::new(),
+                signals: FxHashMap::default(),
+                signal_defaults: FxHashMap::default(),
+                getters: FxHashMap::default(),
                 actions: vec![],
                 ..Default::default()
             },
         );
-        let mut components = HashMap::new();
+        let mut components = FxHashMap::default();
         components.insert(
             "App".into(),
             ComponentIR {
                 name: "App".into(),
                 generic_params: vec![],
-                props: HashMap::new(),
-                prop_defaults: HashMap::new(),
+                props: FxHashMap::default(),
+                prop_defaults: FxHashMap::default(),
                 states: vec![],
                 computeds: vec![],
                 effects: vec![],
@@ -138,7 +136,7 @@ mod tests {
         );
         let ir = make_test_ir(components, stores);
 
-        let diags = UndefinedRef.check_ir(&ir, &HashMap::new());
+        let diags = UndefinedRef.check_ir(&ir, &FxHashMap::default());
         assert_eq!(diags.len(), 0, "no diagnostics expected when store exists");
     }
 }

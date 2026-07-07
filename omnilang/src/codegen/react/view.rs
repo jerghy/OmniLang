@@ -2,8 +2,8 @@
 // View tree generation (JSX)
 // ═══════════════════════════════════════════════════════════
 
-use std::collections::{HashMap, HashSet};
-
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use crate::codegen::shared::inline_handler::{build_inline_handler, InlineHandlerConfig};
 use crate::codegen::CodeWriter;
 use crate::ir::*;
@@ -15,9 +15,9 @@ use super::utils::{emit_event_object_react, to_jsx_attr, to_react_event, to_reac
 pub(super) fn gen_view_node_tsx(
     w: &mut CodeWriter,
     node: &ViewTree,
-    component_map: &HashMap<String, ComponentIR>,
-    signal_names: &HashSet<String>,
-    motion_names: &HashSet<String>,
+    component_map: &FxHashMap<String, ComponentIR>,
+    signal_names: &FxHashSet<String>,
+    motion_names: &FxHashSet<String>,
 ) {
     match node {
         ViewTree::Element(el) => {
@@ -77,14 +77,14 @@ pub(super) fn gen_view_node_tsx(
             let mut attrs: Vec<String> = Vec::new();
 
             // Collect binding attr names for dedup with static props
-            let bound_attr_names: HashSet<String> = el
+            let bound_attr_names: FxHashSet<String> = el
                 .bindings
                 .keys()
                 .map(|bind_name| to_jsx_attr(bind_name))
                 .collect();
 
             // Collect class_map_binding names so we can exclude them from static className
-            let binding_names: std::collections::HashSet<&str> = el
+            let binding_names: FxHashSet<&str> = el
                 .class_map_bindings
                 .keys()
                 .map(|cls| cls.as_str())
@@ -130,7 +130,7 @@ pub(super) fn gen_view_node_tsx(
             }
 
             // Two-way bindings: value={x}, collect binding event setters for dedup with user events
-            let mut binding_events_map: HashMap<String, String> = HashMap::new();
+            let mut binding_events_map: FxHashMap<String, String> = FxHashMap::default();
             for (bind_name, signal_ref) in &el.bindings {
                 let jsx_attr = to_jsx_attr(bind_name);
                 let setter = format!("set{}", capitalize_first(&signal_ref.name));
@@ -702,7 +702,7 @@ pub(crate) fn format_style_value_expr(val: &serde_json::Value) -> String {
 /// so that the handler body which references the parameter by name works correctly.
 fn format_inline_handler(
     body: &BlockIR,
-    signal_names: &HashSet<String>,
+    signal_names: &FxHashSet<String>,
     params: &[String],
 ) -> String {
     let param_str = if params.is_empty() {

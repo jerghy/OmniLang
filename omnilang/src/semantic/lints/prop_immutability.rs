@@ -4,8 +4,7 @@
 //! Category: correctness
 //! Severity: error
 
-use std::collections::HashSet;
-
+use rustc_hash::FxHashSet;
 use super::helpers::{check_block_for_prop_assign, check_view_for_prop_assign};
 use super::{LintDiagnostic, LintRule, LintSeverity};
 use crate::parser::ast::Program;
@@ -28,7 +27,7 @@ impl LintRule for PropImmutability {
 
         for module in program.modules.values() {
             for comp in &module.components {
-                let prop_names: HashSet<&str> =
+                let prop_names: FxHashSet<&str> =
                     comp.props.iter().map(|p| p.name.as_str()).collect();
 
                 if prop_names.is_empty() {
@@ -86,8 +85,7 @@ impl LintRule for PropImmutability {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
+    use rustc_hash::FxHashMap;
     use crate::lexer::Span;
     use crate::parser::ast::{
         AssignTarget, BinaryOpKind, Block, ComponentDef, Expr, FunctionDef, Literal, Module,
@@ -104,7 +102,7 @@ mod tests {
             line: 1,
             col: 1,
         };
-        let mut modules = HashMap::new();
+        let mut modules = FxHashMap::default();
         modules.insert(
             "test.omni".into(),
             Module {

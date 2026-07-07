@@ -2,8 +2,7 @@
 // Statement generation (TSX)
 // ═══════════════════════════════════════════════════════════
 
-use std::collections::HashSet;
-
+use rustc_hash::FxHashSet;
 use crate::codegen::shared::expr::FormatExpr;
 use crate::codegen::shared::stmt::FormatStmt;
 use crate::codegen::shared::types::{FormatType, JsTypeFormatter};
@@ -91,7 +90,7 @@ impl FormatExpr for ReactFormatExpr {
 /// Uses `signal_names` to determine mutation strategy (setter calls vs direct assignment).
 pub(super) struct ReactStmtFormatter {
     pub expr: ReactFormatExpr,
-    pub signal_names: HashSet<String>,
+    pub signal_names: FxHashSet<String>,
 }
 
 impl FormatStmt for ReactStmtFormatter {
@@ -207,7 +206,7 @@ impl FormatStmt for ReactStmtFormatter {
 pub(super) fn generate_statement_tsx(
     w: &mut CodeWriter,
     stmt: &StatementIR,
-    signal_names: &HashSet<String>,
+    signal_names: &FxHashSet<String>,
 ) {
     let fmt = ReactStmtFormatter {
         expr: ReactFormatExpr,

@@ -4,8 +4,7 @@
 //! declared the store with `@store`.  Extracted from `validate_types` to
 //! keep that file below 800 lines.
 
-use std::collections::HashSet;
-
+use rustc_hash::FxHashSet;
 use super::SemanticAnalyzer;
 use crate::error::{Diagnostic, DiagnosticKind};
 use crate::lexer::Span;
@@ -15,7 +14,7 @@ impl SemanticAnalyzer {
     /// Validate that store fields are only accessed with @store declaration.
     /// Triggers: E0008
     pub(super) fn validate_store_field_access(&mut self, comp: &ComponentDef) {
-        let store_refs: HashSet<&str> = comp.store_refs.iter().map(|s| s.as_str()).collect();
+        let store_refs: FxHashSet<&str> = comp.store_refs.iter().map(|s| s.as_str()).collect();
 
         // Collect all known store names from the module
         // (we check against store_refs since we're inside validate_module)
@@ -23,7 +22,7 @@ impl SemanticAnalyzer {
         // Walk function bodies looking for StoreFieldAccess or FieldAccess on store names
         fn check_expr_for_undeclared_store(
             expr: &Expr,
-            store_refs: &HashSet<&str>,
+            store_refs: &FxHashSet<&str>,
             diagnostics: &mut Vec<Diagnostic>,
         ) {
             match expr {
@@ -148,7 +147,7 @@ impl SemanticAnalyzer {
 
         fn check_stmt_for_undeclared_store(
             stmt: &Stmt,
-            store_refs: &HashSet<&str>,
+            store_refs: &FxHashSet<&str>,
             diagnostics: &mut Vec<Diagnostic>,
         ) {
             match stmt {
@@ -266,7 +265,7 @@ impl SemanticAnalyzer {
 
         fn check_view_node_for_undeclared_store(
             node: &ViewNode,
-            store_refs: &HashSet<&str>,
+            store_refs: &FxHashSet<&str>,
             diagnostics: &mut Vec<Diagnostic>,
         ) {
             match node {

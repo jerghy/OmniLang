@@ -1,8 +1,7 @@
 //! WASM bindings for OmniLang compiler.
 //! Compiled only when the `wasm` feature is enabled.
 
-use std::collections::HashMap;
-
+use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
@@ -159,7 +158,7 @@ pub fn compile_multi_to_omniview(sources_json: &str, options_json: &str) -> Stri
         Ok(o) => o,
         Err(error_json) => return error_json,
     };
-    let sources: HashMap<String, String> = match serde_json::from_str(sources_json) {
+    let sources: FxHashMap<String, String> = match serde_json::from_str(sources_json) {
         Ok(s) => s,
         Err(e) => {
             return serde_json::json!({
@@ -173,7 +172,7 @@ pub fn compile_multi_to_omniview(sources_json: &str, options_json: &str) -> Stri
     crate::compile_multi_to_target(
         sources,
         crate::codegen::Target::OmniView,
-        HashMap::new(),
+        FxHashMap::default(),
         opts.editor_mode,
     )
 }
@@ -181,7 +180,7 @@ pub fn compile_multi_to_omniview(sources_json: &str, options_json: &str) -> Stri
 /// Stateful compiler instance that caches sources and compilation results across calls.
 #[wasm_bindgen]
 pub struct OmniCompiler {
-    sources: HashMap<String, String>,
+    sources: FxHashMap<String, String>,
     cached_compile_result: Option<(String, String)>, // (options_json, result)
     cached_diags_result: Option<String>,
 }
@@ -192,7 +191,7 @@ impl OmniCompiler {
     #[wasm_bindgen(constructor)]
     pub fn new() -> Self {
         Self {
-            sources: HashMap::new(),
+            sources: FxHashMap::default(),
             cached_compile_result: None,
             cached_diags_result: None,
         }
@@ -255,7 +254,7 @@ impl OmniCompiler {
             crate::compile_multi_to_target(
                 self.sources.clone(),
                 crate::codegen::Target::OmniView,
-                HashMap::new(),
+                FxHashMap::default(),
                 opts.editor_mode,
             )
         };

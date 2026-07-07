@@ -165,6 +165,33 @@ impl<'a> Parser<'a> {
                     self.expect_token(TokenKind::RBrace, "expected '}'")?;
                     return Ok(ElementProp::AnimateSignal(signal));
                 }
+                // when: "value" — element-level children playback order
+                if name == "when" {
+                    self.advance(); // consume ':'
+                    let value = if matches!(self.peek_kind(), TokenKind::StringLiteral(_)) {
+                        let t = self.advance();
+                        if let TokenKind::StringLiteral(s) = &t.kind {
+                            s.clone()
+                        } else {
+                            String::new()
+                        }
+                    } else {
+                        self.expect_ident("expected when value")?
+                    };
+                    return Ok(ElementProp::When(value));
+                }
+                // delayChildren: expr — extra delay before children animate
+                if name == "delayChildren" {
+                    self.advance(); // consume ':'
+                    let value = self.parse_expr()?;
+                    return Ok(ElementProp::DelayChildren(value));
+                }
+                // staggerChildren: expr — auto-stagger shorthand
+                if name == "staggerChildren" {
+                    self.advance(); // consume ':'
+                    let value = self.parse_expr()?;
+                    return Ok(ElementProp::StaggerChildren(value));
+                }
                 // style: entries or class: name
                 self.advance();
                 match self.peek_kind() {

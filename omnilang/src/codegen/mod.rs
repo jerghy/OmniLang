@@ -34,8 +34,7 @@ pub mod vue;
 pub mod writer;
 
 use crate::ir::IRProgram;
-use std::collections::HashMap;
-
+use rustc_hash::FxHashMap;
 #[cfg(any(feature = "codegen-omniview", feature = "codegen-vue"))]
 pub(crate) use event::emit_event_object;
 #[cfg(any(feature = "codegen-react", feature = "codegen-vue"))]
@@ -64,7 +63,7 @@ pub use writer::{CodeWriter, CompileOutput, CompiledFile};
 pub fn compile(
     ir: &IRProgram,
     target: Target,
-    #[allow(unused_variables)] source_files: &HashMap<String, String>,
+    #[allow(unused_variables)] source_files: &FxHashMap<String, String>,
 ) -> CompileOutput {
     // Validate stdlib imports for the target
     if let Err(errors) = validate_stdlib_imports(ir, target) {

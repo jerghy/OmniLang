@@ -10,8 +10,7 @@ pub use design::*;
 pub use motion::*;
 pub use view::*;
 
-use std::collections::HashMap;
-
+use rustc_hash::FxHashMap;
 use crate::lexer::Span;
 
 // ── Base types ────────────────────────────────────────
@@ -143,6 +142,12 @@ pub enum Expr {
         span: Span,
     },
 
+    /// Spread expression: ...expr (array/object spread)
+    SpreadExpr {
+        operand: Box<Expr>,
+        span: Span,
+    },
+
     /// Reserved for P2 features; parser emits this instead of crashing
     NotYetImplemented {
         feature: String,
@@ -153,6 +158,13 @@ pub enum Expr {
     /// Downstream passes should skip or propagate this node.
     Error {
         message: String,
+        span: Span,
+    },
+
+    /// Type check: value is TypeName
+    IsCheck {
+        value: Box<Expr>,
+        type_name: String,
         span: Span,
     },
 }
@@ -469,5 +481,5 @@ pub struct Module {
 
 #[derive(Debug, Clone, Default)]
 pub struct Program {
-    pub modules: HashMap<String, Module>,
+    pub modules: FxHashMap<String, Module>,
 }

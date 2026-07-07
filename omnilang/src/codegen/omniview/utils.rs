@@ -1,8 +1,7 @@
 //! Standalone utility functions for OmniView codegen.
 use super::super::{CompileOutput, CompiledFile};
 use crate::ir::*;
-use std::collections::HashMap;
-
+use rustc_hash::FxHashMap;
 pub(super) fn serde_value_to_js(value: &serde_json::Value) -> String {
     crate::codegen::format_json_value(value, &crate::codegen::JSON_OMNIVIEW)
 }
@@ -192,7 +191,7 @@ body {{ margin: 0; padding: 8px; font-family: system-ui, sans-serif; }}
 /// Called by `super::compile()` when the target is `Target::OmniView`.
 pub fn compile_files(
     ir: &crate::ir::IRProgram,
-    _source_files: &HashMap<String, String>,
+    _source_files: &FxHashMap<String, String>,
 ) -> CompileOutput {
     let output = super::generate(ir, false);
     // Wrap body HTML in a proper document that references the separate JS/CSS files

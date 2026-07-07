@@ -4,8 +4,7 @@
 //! Category: correctness
 //! Severity: error
 
-use std::collections::HashMap;
-
+use rustc_hash::FxHashMap;
 use super::{LintDiagnostic, LintRule, LintSeverity};
 use crate::ir::{EventHandlerIR, IRProgram, ViewTree};
 
@@ -22,7 +21,7 @@ impl LintRule for StoreActionEventData {
         LintSeverity::Error
     }
 
-    fn check_ir(&self, ir: &IRProgram, file_map: &HashMap<String, String>) -> Vec<LintDiagnostic> {
+    fn check_ir(&self, ir: &IRProgram, file_map: &FxHashMap<String, String>) -> Vec<LintDiagnostic> {
         let mut diags = Vec::new();
         for (comp_name, comp) in ir.all_components() {
             if let Some(ref view) = comp.view {
@@ -74,8 +73,7 @@ fn check_view_store_actions(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
+    use rustc_hash::FxHashMap;
     use crate::ir::{
         BlockIR, ComponentIR, ConstructionKind, ElementIR, EventDataKind, EventHandlerIR,
         IRProgram, ModuleIR, ViewTree,
@@ -84,14 +82,14 @@ mod tests {
     use super::*;
 
     fn make_test_ir_with_view(comp_name: &str, view: Option<ViewTree>) -> IRProgram {
-        let mut components = HashMap::new();
+        let mut components = FxHashMap::default();
         components.insert(
             comp_name.to_string(),
             ComponentIR {
                 name: comp_name.to_string(),
                 generic_params: vec![],
-                props: HashMap::new(),
-                prop_defaults: HashMap::new(),
+                props: FxHashMap::default(),
+                prop_defaults: FxHashMap::default(),
                 states: vec![],
                 computeds: vec![],
                 effects: vec![],
@@ -109,20 +107,20 @@ mod tests {
                 ..Default::default()
             },
         );
-        let mut modules = HashMap::new();
+        let mut modules = FxHashMap::default();
         modules.insert(
             "main".to_string(),
             ModuleIR {
                 name: "main".to_string(),
                 components,
-                stores: HashMap::new(),
+                stores: FxHashMap::default(),
                 ..Default::default()
             },
         );
         IRProgram {
             version: "1.0".into(),
             modules,
-            source_map: HashMap::new(),
+            source_map: FxHashMap::default(),
             stdlib_imports: Vec::new(),
         }
     }
@@ -131,8 +129,8 @@ mod tests {
     fn test_store_action_detects_event_data_access() {
         let view = Some(ViewTree::Element(ElementIR {
             tag: "button".into(),
-            props: HashMap::new(),
-            bindings: HashMap::new(),
+            props: FxHashMap::default(),
+            bindings: FxHashMap::default(),
             events: [(
                 "onClick".into(),
                 EventHandlerIR::StoreAction {
@@ -148,7 +146,7 @@ mod tests {
             test_id: None,
             ref_name: None,
             construction_kind: ConstructionKind::Normal,
-            class_map_bindings: HashMap::new(),
+            class_map_bindings: FxHashMap::default(),
             source_line: 5,
             source_col: 3,
             motion: None,
@@ -158,7 +156,7 @@ mod tests {
         }));
         let ir = make_test_ir_with_view("App", view);
 
-        let diags = StoreActionEventData.check_ir(&ir, &HashMap::new());
+        let diags = StoreActionEventData.check_ir(&ir, &FxHashMap::default());
         assert!(
             !diags.is_empty(),
             "Store action with event data access should be detected"
@@ -176,8 +174,8 @@ mod tests {
     fn test_store_action_allows_no_event_data() {
         let view = Some(ViewTree::Element(ElementIR {
             tag: "button".into(),
-            props: HashMap::new(),
-            bindings: HashMap::new(),
+            props: FxHashMap::default(),
+            bindings: FxHashMap::default(),
             events: [(
                 "onClick".into(),
                 EventHandlerIR::StoreAction {
@@ -193,7 +191,7 @@ mod tests {
             test_id: None,
             ref_name: None,
             construction_kind: ConstructionKind::Normal,
-            class_map_bindings: HashMap::new(),
+            class_map_bindings: FxHashMap::default(),
             source_line: 0,
             source_col: 0,
             motion: None,
@@ -203,7 +201,7 @@ mod tests {
         }));
         let ir = make_test_ir_with_view("App", view);
 
-        let diags = StoreActionEventData.check_ir(&ir, &HashMap::new());
+        let diags = StoreActionEventData.check_ir(&ir, &FxHashMap::default());
         assert!(
             diags.is_empty(),
             "Store action without used_fields should not trigger"
@@ -214,8 +212,8 @@ mod tests {
     fn test_store_action_skips_inline_handlers() {
         let view = Some(ViewTree::Element(ElementIR {
             tag: "button".into(),
-            props: HashMap::new(),
-            bindings: HashMap::new(),
+            props: FxHashMap::default(),
+            bindings: FxHashMap::default(),
             events: [(
                 "onClick".into(),
                 EventHandlerIR::InlineFn {
@@ -235,7 +233,7 @@ mod tests {
             test_id: None,
             ref_name: None,
             construction_kind: ConstructionKind::Normal,
-            class_map_bindings: HashMap::new(),
+            class_map_bindings: FxHashMap::default(),
             source_line: 0,
             source_col: 0,
             motion: None,
@@ -245,7 +243,7 @@ mod tests {
         }));
         let ir = make_test_ir_with_view("App", view);
 
-        let diags = StoreActionEventData.check_ir(&ir, &HashMap::new());
+        let diags = StoreActionEventData.check_ir(&ir, &FxHashMap::default());
         assert!(
             diags.is_empty(),
             "Inline fn handlers with event data should not trigger"

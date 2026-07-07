@@ -12,8 +12,7 @@ mod tests;
 use expr::*;
 use template::*;
 
-use std::collections::HashMap;
-
+use rustc_hash::FxHashMap;
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
 use crate::codegen::format_json_value;
 use crate::codegen::shared::expr::FormatExpr;
@@ -45,7 +44,7 @@ impl PerComponentCodegen for VueCodegen {
 }
 
 impl Codegen for VueCodegen {
-    fn generate(&self, ir: &IRProgram, _source_files: &HashMap<String, String>) -> CompileOutput {
+    fn generate(&self, ir: &IRProgram, _source_files: &FxHashMap<String, String>) -> CompileOutput {
         generate_per_component(self, ir)
     }
 }

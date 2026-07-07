@@ -11,8 +11,7 @@ mod tests;
 mod utils;
 mod visitor;
 
-use std::collections::HashMap;
-
+use rustc_hash::FxHashMap;
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
 use crate::codegen::shared::expr::FormatExpr;
 use crate::codegen::shared::generator::{emit_constructor_init, emit_store_constructor_init};
@@ -36,7 +35,7 @@ impl JavaScriptCodegen {
 }
 
 impl Codegen for JavaScriptCodegen {
-    fn generate(&self, ir: &IRProgram, _source_files: &HashMap<String, String>) -> CompileOutput {
+    fn generate(&self, ir: &IRProgram, _source_files: &FxHashMap<String, String>) -> CompileOutput {
         let mut files = Vec::new();
         let ext = if self.ts_mode { ".ts" } else { ".js" };
         for (module_key, module) in &ir.modules {

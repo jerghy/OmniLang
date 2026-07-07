@@ -5,8 +5,7 @@
 use crate::ir::types::*;
 use crate::parser::ast::*;
 use crate::semantic::SemanticResult;
-use std::collections::HashMap;
-
+use rustc_hash::FxHashMap;
 use super::expr::lower_expr;
 
 // ═══════════════════════════════════════════════════════
@@ -15,7 +14,7 @@ use super::expr::lower_expr;
 
 pub(super) fn lower_stmt(
     stmt: &Stmt,
-    variant_map: &HashMap<String, String>,
+    variant_map: &FxHashMap<String, String>,
     mut event_fields: Option<&mut Vec<String>>,
     semantics: &mut SemanticResult,
 ) -> StatementIR {
@@ -179,7 +178,7 @@ pub(super) fn lower_stmt(
 /// Handles: MethodCall, FuncCall(FieldAccess), and Assignment to signals.
 pub(super) fn try_lower_mutation(
     expr: &Expr,
-    variant_map: &HashMap<String, String>,
+    variant_map: &FxHashMap<String, String>,
     mut event_fields: Option<&mut Vec<String>>,
     semantics: &mut SemanticResult,
 ) -> Option<MutationIntent> {
@@ -382,7 +381,7 @@ pub(super) fn mutation_for_method(
     target_name: &str,
     method: &str,
     amount: Option<&Expr>,
-    variant_map: &HashMap<String, String>,
+    variant_map: &FxHashMap<String, String>,
     event_fields: Option<&mut Vec<String>>,
     semantics: &mut SemanticResult,
 ) -> Option<MutationIntent> {
@@ -432,7 +431,7 @@ pub(super) fn mutation_for_method(
 
 pub(crate) fn lower_block(
     block: &Block,
-    variant_map: &HashMap<String, String>,
+    variant_map: &FxHashMap<String, String>,
     mut event_fields: Option<&mut Vec<String>>,
     semantics: &mut SemanticResult,
 ) -> BlockIR {

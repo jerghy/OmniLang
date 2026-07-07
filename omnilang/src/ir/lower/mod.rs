@@ -22,14 +22,13 @@ use super::types::*;
 use super::types_motion::*;
 use crate::parser::ast::*;
 use crate::semantic::SemanticResult;
-use std::collections::HashMap;
-
+use rustc_hash::FxHashMap;
 /// Lower AST -> IR.
 pub fn lower(program: &Program, semantics: &mut SemanticResult) -> IRProgram {
-    let mut modules = HashMap::new();
+    let mut modules = FxHashMap::default();
 
     // Build variant → union name lookup for tagged union construction
-    let mut variant_map: HashMap<String, String> = HashMap::new();
+    let mut variant_map: FxHashMap<String, String> = FxHashMap::default();
     for module in program.modules.values() {
         for tu in &module.tagged_unions {
             for variant in &tu.variants {
@@ -39,12 +38,12 @@ pub fn lower(program: &Program, semantics: &mut SemanticResult) -> IRProgram {
     }
 
     for (module_name, module) in &program.modules {
-        let mut components = HashMap::new();
-        let mut stores = HashMap::new();
-        let mut functions = HashMap::new();
-        let mut structs = HashMap::new();
-        let mut enums = HashMap::new();
-        let mut type_aliases = HashMap::new();
+        let mut components = FxHashMap::default();
+        let mut stores = FxHashMap::default();
+        let mut functions = FxHashMap::default();
+        let mut structs = FxHashMap::default();
+        let mut enums = FxHashMap::default();
+        let mut type_aliases = FxHashMap::default();
         let mut imports: Vec<ImportIR> = Vec::new();
         let mut exports: Vec<ExportIR> = Vec::new();
 
@@ -155,7 +154,7 @@ pub fn lower(program: &Program, semantics: &mut SemanticResult) -> IRProgram {
     IRProgram {
         version: "1.0".to_string(),
         modules,
-        source_map: HashMap::new(),
+        source_map: FxHashMap::default(),
         stdlib_imports,
     }
 }

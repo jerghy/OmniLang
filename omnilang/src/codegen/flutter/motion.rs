@@ -3,6 +3,7 @@
 use crate::ir::*;
 
 use super::expr::format_expr_ir_flutter;
+use rustc_hash::FxHashSet;
 
 // ═══════════════════════════════════════════════════════════════════
 // Motion / Animation codegen helpers
@@ -232,7 +233,7 @@ pub(crate) fn wrap_with_motion_widgets(
 
     // Collect unique motion references
     let motion_refs: Vec<String> = {
-        let mut seen = std::collections::HashSet::new();
+        let mut seen = FxHashSet::default();
         triggers
             .iter()
             .filter_map(|t| t.motion_ref.clone())
@@ -291,7 +292,7 @@ pub(crate) fn wrap_flutter_states(inner: String, states_ir: &StatesIR, _el: &Ele
     let mut result = inner;
 
     // Check if states are reserved (idle, hover, pressed) or custom
-    let reserved_names: std::collections::HashSet<&str> =
+    let reserved_names: FxHashSet<&str> =
         ["idle", "hover", "pressed"].iter().copied().collect();
     let state_names: Vec<&str> = states_ir.states.keys().map(|s| s.as_str()).collect();
     let is_reserved = state_names.iter().all(|n| reserved_names.contains(n));

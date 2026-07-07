@@ -4,8 +4,8 @@
 //! motion triggers, `states:` blocks, and related syntactic/semantic rules
 //! (easing names, keyframe types, clip-path shapes, etc.).
 
-use std::collections::{HashMap, HashSet};
-
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use super::helpers::{collect_timeline_refs, is_non_interpolatable};
 use super::motion::{
     collect_element_ids, contains_velocity_ref, is_keyword_value, is_valid_easing_name,
@@ -19,7 +19,7 @@ impl SemanticAnalyzer {
     /// Validate all motion definitions and timeline triggers in a module.
     pub(super) fn validate_motions_in_module(&mut self, module: &Module) {
         // Collect all module-level motion/timeline names for reference resolution
-        let module_motion_names: HashSet<&str> = module
+        let module_motion_names: FxHashSet<&str> = module
             .motions
             .iter()
             .map(|m| m.name.as_str())
@@ -44,7 +44,7 @@ impl SemanticAnalyzer {
 
         // Validate component-level motions and timelines
         for comp in &module.components {
-            let comp_motion_names: HashSet<&str> = module_motion_names
+            let comp_motion_names: FxHashSet<&str> = module_motion_names
                 .iter()
                 .copied()
                 .chain(comp.motions.iter().map(|m| m.name.as_str()))
@@ -79,7 +79,7 @@ impl SemanticAnalyzer {
     }
 
     /// Validate a single motion definition (expanded with all spec §20.1 checks).
-    fn validate_motion_def(&mut self, motion: &MotionDef, all_motion_names: &HashSet<&str>) {
+    fn validate_motion_def(&mut self, motion: &MotionDef, all_motion_names: &FxHashSet<&str>) {
         match &motion.body {
             MotionBody::Keyframe(kf) => {
                 // Check: from must be paired with to
@@ -368,7 +368,7 @@ impl SemanticAnalyzer {
     pub(super) fn validate_element_motion_props(
         &mut self,
         el: &Element,
-        all_motion_names: &HashSet<&str>,
+        all_motion_names: &FxHashSet<&str>,
     ) {
         let mut has_driven_by = false;
         let mut motion_count: u32 = 0;
@@ -487,7 +487,7 @@ impl SemanticAnalyzer {
         }
 
         // Check for duplicate state names
-        let mut seen: HashSet<&str> = HashSet::new();
+        let mut seen: FxHashSet<&str> = FxHashSet::default();
         for (name, _) in states {
             if !seen.insert(name.as_str()) {
                 self.diagnostics.push(Diagnostic::error(
@@ -512,7 +512,7 @@ impl SemanticAnalyzer {
 
     /// Check for type mismatches across keyframe stops for the same property.
     fn validate_keyframe_type_mismatch(&mut self, motion: &MotionDef, kf: &KeyframeBody) {
-        let mut prop_types: HashMap<&str, &str> = HashMap::new();
+        let mut prop_types: FxHashMap<&str, &str> = FxHashMap::default();
         for stop in &kf.stops {
             for (prop, expr) in &stop.properties {
                 let tag = match expr {

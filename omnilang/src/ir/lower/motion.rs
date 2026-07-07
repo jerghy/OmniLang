@@ -11,8 +11,7 @@ use crate::ir::{
 };
 use crate::parser::ast::*;
 use crate::semantic::SemanticResult;
-use std::collections::HashMap;
-
+use rustc_hash::FxHashMap;
 use super::expr::lower_expr;
 
 // ═══════════════════════════════════════════════════════
@@ -22,7 +21,7 @@ use super::expr::lower_expr;
 /// Lower a motion definition (MotionDef) to a MotionIntent.
 pub(super) fn lower_motion_def(
     def: &crate::parser::ast::MotionDef,
-    variant_map: &HashMap<String, String>,
+    variant_map: &FxHashMap<String, String>,
     semantics: &mut SemanticResult,
 ) -> MotionIntent {
     let body = match &def.body {
@@ -45,7 +44,7 @@ pub(super) fn lower_motion_def(
 /// Lower a timeline definition (TimelineDef) to a TimelineIntent.
 pub(super) fn lower_timeline_def(
     tl: &crate::parser::ast::TimelineDef,
-    variant_map: &HashMap<String, String>,
+    variant_map: &FxHashMap<String, String>,
     semantics: &mut SemanticResult,
 ) -> TimelineIntent {
     let items = lower_timeline_items(&tl.items, variant_map, semantics);
@@ -58,7 +57,7 @@ pub(super) fn lower_timeline_def(
 /// Lower a keyframe body (KeyframeBody) to a KeyframeIR.
 pub(super) fn lower_keyframe_body(
     kf: &crate::parser::ast::KeyframeBody,
-    variant_map: &HashMap<String, String>,
+    variant_map: &FxHashMap<String, String>,
     semantics: &mut SemanticResult,
 ) -> KeyframeIR {
     let stops: Vec<KeyframeStopIR> = kf
@@ -70,7 +69,7 @@ pub(super) fn lower_keyframe_body(
                 crate::parser::ast::StopPosition::To => 1.0,
                 crate::parser::ast::StopPosition::Percent(p) => p / 100.0,
             };
-            let properties: HashMap<String, ExprIR> = s
+            let properties: FxHashMap<String, ExprIR> = s
                 .properties
                 .iter()
                 .map(|(k, v)| (k.clone(), lower_expr(v, variant_map, None, semantics)))
@@ -127,7 +126,7 @@ pub(super) fn lower_keyframe_body(
 /// Lower a timeline body (TimelineBody) to a TimelineIR.
 pub(super) fn lower_timeline_body(
     tl: &crate::parser::ast::TimelineBody,
-    variant_map: &HashMap<String, String>,
+    variant_map: &FxHashMap<String, String>,
     semantics: &mut SemanticResult,
 ) -> TimelineIR {
     let items = lower_timeline_items(&tl.items, variant_map, semantics);
@@ -138,7 +137,7 @@ pub(super) fn lower_timeline_body(
 /// Lower timeline items (Vec<TimelineItem>) to Vec<TimelineItemIR>.
 pub(super) fn lower_timeline_items(
     items: &[crate::parser::ast::TimelineItem],
-    variant_map: &HashMap<String, String>,
+    variant_map: &FxHashMap<String, String>,
     semantics: &mut SemanticResult,
 ) -> Vec<TimelineItemIR> {
     let mut result: Vec<TimelineItemIR> = Vec::new();
@@ -223,7 +222,7 @@ pub(super) fn lower_timeline_items(
 /// Lower a single timeline item kind (without StartPos handling).
 pub(super) fn lower_timeline_item_kind_simple(
     kind: &crate::parser::ast::TimelineItemKind,
-    variant_map: &HashMap<String, String>,
+    variant_map: &FxHashMap<String, String>,
     semantics: &mut SemanticResult,
 ) -> TimelineItemKindIR {
     match kind {
@@ -286,7 +285,7 @@ pub(super) fn lower_timeline_item_kind_simple(
 /// Lower a callback body (CallbackBody) to a CallbackBodyIR.
 pub(super) fn lower_callback_body(
     cb: &crate::parser::ast::CallbackBody,
-    variant_map: &HashMap<String, String>,
+    variant_map: &FxHashMap<String, String>,
     semantics: &mut SemanticResult,
 ) -> CallbackBodyIR {
     let callbacks: Vec<(CallbackKindIR, ExprIR)> = cb
@@ -369,7 +368,7 @@ pub(super) fn lower_easing(e: &crate::parser::ast::EasingExpr) -> EasingIR {
 /// Lower playback property vector to a PlaybackIR.
 pub(super) fn lower_playback_props(
     props: &[crate::parser::ast::PlaybackProp],
-    variant_map: &HashMap<String, String>,
+    variant_map: &FxHashMap<String, String>,
     semantics: &mut SemanticResult,
 ) -> PlaybackIR {
     let mut pb = PlaybackIR::default();
@@ -449,7 +448,7 @@ pub(super) fn lower_playback_props(
 /// Lower a motion expression (Expr reference) to a MotionExprIR.
 pub(super) fn lower_motion_expr(
     expr: &Expr,
-    _variant_map: &HashMap<String, String>,
+    _variant_map: &FxHashMap<String, String>,
 ) -> MotionExprIR {
     match expr {
         Expr::VarRef(name, _) => MotionExprIR::Ref(name.clone()),

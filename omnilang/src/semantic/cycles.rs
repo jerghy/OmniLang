@@ -3,7 +3,7 @@
 //! Detects circular imports across files. Cycles are a compile error.
 
 use crate::parser::ast::{ImportStmt, Program};
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use std::sync::Arc;
 
 /// Detect circular imports using Tarjan's strongly connected components algorithm.
@@ -13,11 +13,11 @@ use std::sync::Arc;
 ///
 /// Returns list of cycles found (each cycle is a list of file paths).
 pub fn detect_cycles(
-    programs: &HashMap<String, Arc<Program>>,
-    path_mapping: &HashMap<String, String>,
+    programs: &FxHashMap<String, Arc<Program>>,
+    path_mapping: &FxHashMap<String, String>,
 ) -> Vec<Vec<String>> {
     let file_paths: Vec<&String> = programs.keys().collect();
-    let path_to_idx: HashMap<&String, usize> = file_paths
+    let path_to_idx: FxHashMap<&String, usize> = file_paths
         .iter()
         .enumerate()
         .map(|(i, p)| (*p, i))
@@ -144,7 +144,7 @@ mod tests {
     use crate::parser::ast::*;
 
     fn make_program(imports: Vec<ImportStmt>) -> Program {
-        let modules = HashMap::from([("input.omni".to_string(), {
+        let modules = FxHashMap::from_iter([("input.omni".to_string(), {
             Module {
                 imports,
                 ..Default::default()
@@ -171,11 +171,11 @@ mod tests {
         })]);
         let b = make_program(vec![]);
 
-        let mut programs: HashMap<String, Arc<Program>> = HashMap::new();
+        let mut programs: FxHashMap<String, Arc<Program>> = FxHashMap::default();
         programs.insert("/proj/a.omni".into(), Arc::new(a));
         programs.insert("/proj/b.omni".into(), Arc::new(b));
 
-        let mut path_mapping = HashMap::new();
+        let mut path_mapping = FxHashMap::default();
         path_mapping.insert("./b.omni".into(), "/proj/b.omni".into());
 
         let cycles = detect_cycles(&programs, &path_mapping);
@@ -195,11 +195,11 @@ mod tests {
             span: span(),
         })]);
 
-        let mut programs: HashMap<String, Arc<Program>> = HashMap::new();
+        let mut programs: FxHashMap<String, Arc<Program>> = FxHashMap::default();
         programs.insert("/proj/a.omni".into(), Arc::new(a));
         programs.insert("/proj/b.omni".into(), Arc::new(b));
 
-        let mut path_mapping = HashMap::new();
+        let mut path_mapping = FxHashMap::default();
         path_mapping.insert("./b.omni".into(), "/proj/b.omni".into());
         path_mapping.insert("./a.omni".into(), "/proj/a.omni".into());
 
@@ -226,12 +226,12 @@ mod tests {
             span: span(),
         })]);
 
-        let mut programs: HashMap<String, Arc<Program>> = HashMap::new();
+        let mut programs: FxHashMap<String, Arc<Program>> = FxHashMap::default();
         programs.insert("/proj/a.omni".into(), Arc::new(a));
         programs.insert("/proj/b.omni".into(), Arc::new(b));
         programs.insert("/proj/c.omni".into(), Arc::new(c));
 
-        let mut path_mapping = HashMap::new();
+        let mut path_mapping = FxHashMap::default();
         path_mapping.insert("./b.omni".into(), "/proj/b.omni".into());
         path_mapping.insert("./c.omni".into(), "/proj/c.omni".into());
         path_mapping.insert("./a.omni".into(), "/proj/a.omni".into());

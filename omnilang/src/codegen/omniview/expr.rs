@@ -114,7 +114,14 @@ impl OmniViewGenerator {
                 call_args,
                 ..
             } => {
-                let var_name = format!("{}_{}", store_alias, field_name);
+                // Resolve store alias through renames (supports inline stores
+                // where "CartStore" → "InlineStoreDemo")
+                let resolved_alias = self
+                    .name_renames
+                    .get(store_alias.as_str())
+                    .cloned()
+                    .unwrap_or_else(|| store_alias.clone());
+                let var_name = format!("{}_{}", resolved_alias, field_name);
                 if call_args.is_empty() {
                     if self.signal_names.contains(&var_name) {
                         format!("{}.value", var_name)
@@ -151,6 +158,14 @@ impl OmniViewGenerator {
                 };
                 let base = self.expr_to_js(object);
                 if self.store_names.contains(&raw_store_name) || self.store_names.contains(&base) {
+                    // First try: resolve the method through name_renames (handles inline stores
+                    // where the store action is merged as a component function, e.g.
+                    // CartStore.addItem → InlineStoreDemo_addItem)
+                    if let Some(resolved_fn) = self.name_renames.get(method.as_str()) {
+                        let arg_strs: Vec<String> = args.iter().map(|a| self.expr_to_js(a)).collect();
+                        return format!("{}({})", resolved_fn, arg_strs.join(", "));
+                    }
+                    // Fallback: resolve the store name through name_renames
                     let renamed_base = self
                         .name_renames
                         .get(raw_store_name.as_str())
@@ -200,6 +215,12 @@ impl OmniViewGenerator {
             ExprIR::ArrayExpr { elements } => {
                 let items: Vec<String> = elements.iter().map(|e| self.expr_to_js(e)).collect();
                 format!("[{}]", items.join(", "))
+            }
+            ExprIR::SpreadExpr { operand } => {
+                format!("...{}", self.expr_to_js(operand))
+            }
+            ExprIR::SpreadExpr { operand } => {
+                format!("...{}", self.expr_to_js(operand))
             }
             ExprIR::StructExpr { fields, .. } => {
                 let entries: Vec<String> = fields
@@ -285,6 +306,13 @@ impl OmniViewGenerator {
                 let body_js = self.expr_to_js(body);
                 let params_str = params.join(", ");
                 format!("(({}) => {})", params_str, body_js)
+            }
+            ExprIR::MapExpr { entries } => {
+                let items: Vec<String> = entries
+                    .iter()
+                    .map(|(k, v)| format!("{}: {}", self.expr_to_js(k), self.expr_to_js(v)))
+                    .collect();
+                format!("{{{}}}", items.join(", "))
             }
         }
     }

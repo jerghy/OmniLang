@@ -2,8 +2,8 @@
 // Component codegen: .tsx + .module.css generation
 // ═══════════════════════════════════════════════════════════
 
-use std::collections::{HashMap, HashSet};
-
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use super::{escape_js_ident, CodeWriter, ReactCodegen};
 use super::{expr, motion, utils, view};
 use crate::codegen::capitalize_first;
@@ -64,7 +64,7 @@ impl ReactCodegen {
         }
 
         // Component map for composition references
-        let component_map: HashMap<String, ComponentIR> = ir
+        let component_map: FxHashMap<String, ComponentIR> = ir
             .all_components()
             .into_iter()
             .map(|(n, c)| (n.to_string(), c.clone()))
@@ -72,11 +72,11 @@ impl ReactCodegen {
 
         // Build set of all signal names (component state + store signals + computeds)
         // so mutations use setter calls instead of direct assignment.
-        let mut signal_names: HashSet<String> =
+        let mut signal_names: FxHashSet<String> =
             comp.states.iter().map(|s| s.name.clone()).collect();
         // Also include store-ref aliases + their signal names
         // Build a map from bare store signal name → qualified StoreName.signalName
-        let mut store_signal_map: HashMap<String, String> = HashMap::new();
+        let mut store_signal_map: FxHashMap<String, String> = FxHashMap::default();
         for store_ref in &comp.store_refs {
             signal_names.insert(store_ref.clone());
             if let Some(store) = ir.all_stores().get(store_ref.as_str()) {
@@ -90,7 +90,7 @@ impl ReactCodegen {
 
         // Motion animation names — used to filter motion refs from event handlers
         // Include both component-level and module-level motions
-        let mut motion_names: HashSet<String> =
+        let mut motion_names: FxHashSet<String> =
             comp.motions.iter().map(|m| m.name.clone()).collect();
         for module in ir.modules.values() {
             for motion in &module.motions {
@@ -99,10 +99,10 @@ impl ReactCodegen {
         }
 
         // Child component imports
-        let child_comps: HashSet<String> = if let Some(ref view) = comp.view {
+        let child_comps: FxHashSet<String> = if let Some(ref view) = comp.view {
             collect_view_child_components(view, &component_map)
         } else {
-            HashSet::new()
+            FxHashSet::default()
         };
         let mut child_comp_names: Vec<&String> = child_comps.iter().collect();
         child_comp_names.sort();
@@ -144,7 +144,7 @@ impl ReactCodegen {
             let mut body_w = crate::codegen::CodeWriter::new();
             body_w.indent();
             for stmt in &fun.body.statements {
-                expr::generate_statement_tsx(&mut body_w, stmt, &HashSet::new());
+                expr::generate_statement_tsx(&mut body_w, stmt, &FxHashSet::default());
             }
             let mut body_str = body_w.into_string();
             // Rename reserved word identifiers in the body
@@ -203,7 +203,7 @@ impl ReactCodegen {
         }
 
         // Build set of function names for conflict detection with state setters
-        let fn_names: std::collections::HashSet<String> =
+        let fn_names: FxHashSet<String> =
             comp.fns.iter().map(|f| f.name.clone()).collect();
 
         // State hooks (useState) — rename setters that conflict with local function names
@@ -447,7 +447,7 @@ impl ReactCodegen {
         // Motion animation effects — emit hooks for @enter/@hover/@press/@focus triggers
         if let Some(ref view) = comp.view {
             // Build complete motion definition map (component-level + module-level)
-            let mut motion_map: HashMap<String, MotionBodyIR> = HashMap::new();
+            let mut motion_map: FxHashMap<String, MotionBodyIR> = FxHashMap::default();
             for m in &comp.motions {
                 motion_map.insert(m.name.clone(), m.body.clone());
             }
@@ -521,17 +521,17 @@ impl ReactCodegen {
 /// that match known components (used to generate import statements).
 fn collect_view_child_components(
     node: &ViewTree,
-    component_map: &HashMap<String, ComponentIR>,
-) -> HashSet<String> {
-    let mut result = HashSet::new();
+    component_map: &FxHashMap<String, ComponentIR>,
+) -> FxHashSet<String> {
+    let mut result = FxHashSet::default();
     collect_view_child_components_inner(node, component_map, &mut result);
     result
 }
 
 fn collect_view_child_components_inner(
     node: &ViewTree,
-    component_map: &HashMap<String, ComponentIR>,
-    acc: &mut HashSet<String>,
+    component_map: &FxHashMap<String, ComponentIR>,
+    acc: &mut FxHashSet<String>,
 ) {
     match node {
         ViewTree::Element(el) => {
@@ -656,6 +656,7 @@ fn expr_contains_await(expr: &ExprIR) -> bool {
         }
         ExprIR::StoreFieldAccessExpr { call_args, .. } => call_args.iter().any(expr_contains_await),
         ExprIR::ArrayExpr { elements } => elements.iter().any(expr_contains_await),
+        ExprIR::SpreadExpr { operand } => expr_contains_await(operand),
         ExprIR::BlockExpr { statements, tail } => {
             statements.iter().any(stmt_contains_await) || expr_contains_await(tail)
         }
@@ -673,5 +674,6 @@ fn expr_contains_await(expr: &ExprIR) -> bool {
         ExprIR::VariantLiteral { fields, .. } => fields.iter().any(|(_, v)| expr_contains_await(v)),
         ExprIR::StructExpr { fields, .. } => fields.iter().any(|(_, v)| expr_contains_await(v)),
         ExprIR::LiteralExpr { .. } | ExprIR::IdentifierExpr { .. } => false,
+        ExprIR::MapExpr { entries } => entries.iter().any(|(k, v)| expr_contains_await(k) || expr_contains_await(v)),
     }
 }

@@ -16,8 +16,7 @@ mod visitor;
 #[cfg(test)]
 mod tests;
 
-use std::collections::HashMap;
-
+use rustc_hash::FxHashMap;
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
 use crate::codegen::shared::types::{FormatType, PythonTypeFormatter};
 use crate::codegen::shared::visitor::CodegenVisitor;
@@ -26,7 +25,7 @@ use crate::ir::*;
 pub struct PythonCodegen;
 
 impl Codegen for PythonCodegen {
-    fn generate(&self, ir: &IRProgram, _source_files: &HashMap<String, String>) -> CompileOutput {
+    fn generate(&self, ir: &IRProgram, _source_files: &FxHashMap<String, String>) -> CompileOutput {
         let mut files = Vec::new();
 
         for (module_key, module) in &ir.modules {

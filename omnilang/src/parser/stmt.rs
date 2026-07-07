@@ -271,6 +271,12 @@ impl<'a> Parser<'a> {
 
     pub fn parse_type_annotation(&mut self) -> Result<TypeAnnotation, ParseError> {
         let start = self.peek_span();
+
+        // Check for fn type: fn(param_type) -> return_type
+        if self.peek_ident_value().is_some_and(|s| s == "fn") {
+            return self.parse_fn_type_annotation(start);
+        }
+
         let name = self.expect_ident("expected type name")?;
 
         // Check for generics: Array<String>, Map<String, i32>, etc.
@@ -293,29 +299,95 @@ impl<'a> Parser<'a> {
             self.advance();
         }
 
-        let span = Span {
-            start: start.start,
-            end: start.end,
-            line: start.line,
-            col: start.col,
+        let base = TypeAnnotation::Named {
+            name,
+            type_args,
+            span: Span {
+                start: start.start,
+                end: start.end,
+                line: start.line,
+                col: start.col,
+            },
         };
 
-        if is_optional {
-            Ok(TypeAnnotation::Optional {
-                base: Box::new(TypeAnnotation::Named {
-                    name,
-                    type_args,
-                    span,
-                }),
+        let base = if is_optional {
+            TypeAnnotation::Optional {
+                base: Box::new(base),
                 span: self.peek_span(),
+            }
+        } else {
+            base
+        };
+
+        // Check for array type: Type[]
+        if self.at(&TokenKind::LBracket) {
+            self.advance(); // consume '['
+            self.expect_token(TokenKind::RBracket, "expected ']'")?;
+            let array_span = self.peek_span();
+            return Ok(TypeAnnotation::Named {
+                name: "Array".into(),
+                type_args: vec![base],
+                span: Span {
+                    start: start.start,
+                    end: array_span.end,
+                    line: start.line,
+                    col: start.col,
+                },
+            });
+        }
+
+        // Check for inline union: Type1 | Type2 | Type3
+        if self.at(&TokenKind::Pipe) {
+            let union_start = start;
+            let mut types = vec![base];
+            while self.at(&TokenKind::Pipe) {
+                self.advance(); // consume '|'
+                types.push(self.parse_type_annotation()?);
+            }
+            let end = self.peek_span();
+            Ok(TypeAnnotation::Union {
+                types,
+                span: Span {
+                    start: union_start.start,
+                    end: end.end,
+                    line: union_start.line,
+                    col: union_start.col,
+                },
             })
         } else {
-            Ok(TypeAnnotation::Named {
-                name,
-                type_args,
-                span,
-            })
+            Ok(base)
         }
+    }
+
+    /// Parse fn type annotation: fn(param_type) -> return_type
+    fn parse_fn_type_annotation(&mut self, start: Span) -> Result<TypeAnnotation, ParseError> {
+        self.advance(); // 'fn'
+        self.expect_token(TokenKind::LParen, "expected '(' after 'fn'")?;
+        let mut params = Vec::new();
+        if !self.at(&TokenKind::RParen) {
+            params.push(self.parse_type_annotation()?);
+            while self.at(&TokenKind::Comma) {
+                self.advance();
+                if self.at(&TokenKind::RParen) {
+                    break;
+                }
+                params.push(self.parse_type_annotation()?);
+            }
+        }
+        self.expect_token(TokenKind::RParen, "expected ')'")?;
+        self.expect_token(TokenKind::Arrow, "expected '->'")?;
+        let return_type = self.parse_type_annotation()?;
+        let end = self.peek_span();
+        Ok(TypeAnnotation::Fn {
+            params,
+            return_type: Box::new(return_type),
+            span: Span {
+                start: start.start,
+                end: end.end,
+                line: start.line,
+                col: start.col,
+            },
+        })
     }
 
     // ── throw / try-catch ────────────────────────────
@@ -500,6 +572,7 @@ pub(crate) fn keyword_as_ident_name(kind: &TokenKind) -> Option<&'static str> {
         TokenKind::Return => Some("return"),
         TokenKind::Async => Some("async"),
         TokenKind::Await => Some("await"),
+        TokenKind::Is => Some("is"),
         TokenKind::Match => Some("match"),
         TokenKind::Struct => Some("struct"),
         TokenKind::Class => Some("class"),

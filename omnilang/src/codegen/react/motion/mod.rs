@@ -2,8 +2,8 @@
 // Motion / Animation Helpers (React) — module root
 // ═══════════════════════════════════════════════════════════
 
-use std::collections::{HashMap, HashSet};
-
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use crate::codegen::CodeWriter;
 use crate::ir::*;
 
@@ -28,8 +28,8 @@ pub(super) use transforms::{
 pub(super) fn emit_motion_effects_tsx(
     w: &mut CodeWriter,
     node: &ViewTree,
-    motion_bodies: &HashMap<String, MotionBodyIR>,
-    signal_names: &HashSet<String>,
+    motion_bodies: &FxHashMap<String, MotionBodyIR>,
+    signal_names: &FxHashSet<String>,
 ) {
     // Collect all unique motion names referenced by @enter triggers in this tree
     let motion_refs = collect_enter_motion_refs(node);
@@ -38,7 +38,7 @@ pub(super) fn emit_motion_effects_tsx(
     }
 
     // Filter to only those we have definitions for
-    let defined_refs: HashSet<&String> = motion_refs
+    let defined_refs: FxHashSet<&String> = motion_refs
         .iter()
         .filter(|name| motion_bodies.contains_key(name.as_str()))
         .collect();
@@ -99,13 +99,13 @@ pub(super) fn emit_motion_effects_tsx(
 
 /// ── Helpers ────────────────────────────────────────────────────────────
 /// Collect all unique motion names referenced by @enter triggers in a view tree.
-fn collect_enter_motion_refs(node: &ViewTree) -> HashSet<String> {
-    let mut refs = HashSet::new();
+fn collect_enter_motion_refs(node: &ViewTree) -> FxHashSet<String> {
+    let mut refs = FxHashSet::default();
     collect_enter_motion_refs_inner(node, &mut refs);
     refs
 }
 
-fn collect_enter_motion_refs_inner(node: &ViewTree, refs: &mut HashSet<String>) {
+fn collect_enter_motion_refs_inner(node: &ViewTree, refs: &mut FxHashSet<String>) {
     match node {
         ViewTree::Element(el) => {
             for trigger in el

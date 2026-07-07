@@ -615,6 +615,21 @@ impl<'a> Parser<'a> {
                     };
                     props.push(PlaybackProp::StaggerFrom(from));
                 }
+                Some(ref s) if s == "when" => {
+                    self.advance();
+                    let value = match self.expect_ident("expected when value")?.as_str() {
+                        "afterChildren" => WhenValue::AfterChildren,
+                        "beforeChildren" => WhenValue::BeforeChildren,
+                        "withChildren" => WhenValue::WithChildren,
+                        other => {
+                            return Err(self.error(format!(
+                                "expected afterChildren|beforeChildren|withChildren, got '{}'",
+                                other
+                            )))
+                        }
+                    };
+                    props.push(PlaybackProp::When(value));
+                }
                 _ => break,
             }
         }

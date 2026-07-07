@@ -8,8 +8,7 @@ use crate::ir::types::*;
 use crate::ir::types_motion::*;
 use crate::parser::ast::*;
 use crate::semantic::SemanticResult;
-use std::collections::HashMap;
-
+use rustc_hash::FxHashMap;
 use super::expr::lower_expr;
 use super::motion::{lower_easing, lower_motion_def, lower_timeline_def};
 use super::stmt::lower_block;
@@ -25,7 +24,7 @@ use crate::parser::ast::view::LifecycleKind as ParserLifecycleKind;
 
 pub(super) fn lower_component(
     comp: &ComponentDef,
-    variant_map: &HashMap<String, String>,
+    variant_map: &FxHashMap<String, String>,
     semantics: &mut SemanticResult,
 ) -> ComponentIR {
     let states: Vec<StateIntent> = comp
@@ -129,13 +128,13 @@ pub(super) fn lower_component(
         semantics.symbols.pop_scope();
     }
 
-    let props: HashMap<String, TypeIR> = comp
+    let props: FxHashMap<String, TypeIR> = comp
         .props
         .iter()
         .map(|p| (p.name.clone(), lower_type(&p.type_ann)))
         .collect();
 
-    let prop_defaults: HashMap<String, ExprIR> = comp
+    let prop_defaults: FxHashMap<String, ExprIR> = comp
         .props
         .iter()
         .filter_map(|p| {
@@ -175,7 +174,7 @@ pub(super) fn lower_component(
         .styles
         .iter()
         .map(|s| {
-            let properties: HashMap<String, ExprIR> = s
+            let properties: FxHashMap<String, ExprIR> = s
                 .properties
                 .iter()
                 .map(|(k, v)| {
@@ -504,6 +503,7 @@ pub(super) fn walk_expr_event_fields(expr: &ExprIR, fields: &mut Vec<String>) {
             walk_expr_event_fields(tail, fields);
         }
         ExprIR::AwaitExpr { operand } => walk_expr_event_fields(operand, fields),
+        ExprIR::SpreadExpr { operand } => walk_expr_event_fields(operand, fields),
         ExprIR::MatchExpr { matched, arms } => {
             walk_expr_event_fields(matched, fields);
             for arm in arms {
@@ -533,16 +533,16 @@ pub(super) fn walk_expr_event_fields(expr: &ExprIR, fields: &mut Vec<String>) {
 
 pub(super) fn lower_store(
     store: &StoreDef,
-    variant_map: &HashMap<String, String>,
+    variant_map: &FxHashMap<String, String>,
     semantics: &mut SemanticResult,
 ) -> StoreIR {
-    let signals: HashMap<String, TypeIR> = store
+    let signals: FxHashMap<String, TypeIR> = store
         .signals
         .iter()
         .map(|s| (s.name.clone(), lower_type(&s.type_ann)))
         .collect();
 
-    let signal_defaults: HashMap<String, serde_json::Value> = store
+    let signal_defaults: FxHashMap<String, serde_json::Value> = store
         .signals
         .iter()
         .map(|s| {
@@ -567,7 +567,7 @@ pub(super) fn lower_store(
         })
         .collect();
 
-    let getters: HashMap<String, ExprIR> = store
+    let getters: FxHashMap<String, ExprIR> = store
         .getters
         .iter()
         .map(|g| {
