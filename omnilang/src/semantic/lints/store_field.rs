@@ -26,7 +26,7 @@ impl LintRule for StoreFieldDirectMutation {
         LintSeverity::Error
     }
 
-    fn check_ir(&self, ir: &IRProgram, _file_map: &HashMap<String, String>) -> Vec<LintDiagnostic> {
+    fn check_ir(&self, ir: &IRProgram, file_map: &HashMap<String, String>) -> Vec<LintDiagnostic> {
         let mut diags = Vec::new();
 
         // Build map: store_name -> set of signal names
@@ -41,11 +41,19 @@ impl LintRule for StoreFieldDirectMutation {
         }
 
         for (_comp_name, comp) in ir.all_components() {
+            let comp_file = comp
+                .source_file
+                .as_deref()
+                .or_else(|| file_map.keys().next().map(|s| s.as_str()))
+                .unwrap_or("")
+                .to_string();
+
             for func in &comp.fns {
                 check_block_ir_for_store_mutations(
                     &func.body,
                     &store_signals,
                     &func.name,
+                    &comp_file,
                     &mut diags,
                 );
             }
@@ -55,6 +63,7 @@ impl LintRule for StoreFieldDirectMutation {
                     &lc.body,
                     &store_signals,
                     &format!("@{}", lc.kind),
+                    &comp_file,
                     &mut diags,
                 );
             }
@@ -64,12 +73,18 @@ impl LintRule for StoreFieldDirectMutation {
                     &effect.body,
                     &store_signals,
                     "@effect",
+                    &comp_file,
                     &mut diags,
                 );
             }
 
             if let Some(ref view) = comp.view {
-                check_view_tree_events_for_store_mutations(view, &store_signals, &mut diags);
+                check_view_tree_events_for_store_mutations(
+                    view,
+                    &store_signals,
+                    &comp_file,
+                    &mut diags,
+                );
             }
 
             for computed in &comp.computeds {
@@ -81,7 +96,7 @@ impl LintRule for StoreFieldDirectMutation {
                             "Computed '{}' mutates store data — computed values must be pure",
                             computed.name
                         ),
-                        file: String::new(),
+                        file: comp_file.clone(),
                         line: 0,
                         col: 0,
                     });

@@ -16,8 +16,7 @@ import { expandCustomComponents } from "./expand-custom-components";
 import { collectStylesFromEntries, applyStyles } from "./collect-styles";
 import type { ElementData, WireData, CodeTab } from "../../core/types";
 // import type { PidMap } from "../../core/types/pid";
-import { getComponentDefinitions } from "../../core/state/componentRegistry";
-import { useStyleRegistryStore } from "../../core/state/styleRegistry";
+import { getComponentDefinitions } from "../../store";
 import type {
   StageResult,
   PipelineError,
@@ -92,6 +91,8 @@ function defaultLoweredCode(): LoweredCode {
     getters: [],
   };
 }
+
+const EMPTY_REGISTRY = { variables: [], classes: [] };
 
 function defaultStyleCollection(): StyleCollection {
   return { componentStyle: {}, elementClassMap: new Map(), elementInlineMap: new Map() };
@@ -208,7 +209,7 @@ function runPhaseC(
     }
   }
 
-  const registry = useStyleRegistryStore.getRegistry(options.componentName);
+  const registry = EMPTY_REGISTRY;
   const styleCollection = c1.errors.length > 0
     ? defaultStyleCollection()
     : collectStylesFromEntries(expandedElements, registry, phaseA.roots);

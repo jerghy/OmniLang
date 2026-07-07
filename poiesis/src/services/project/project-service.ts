@@ -7,7 +7,7 @@ import { api } from "../../commands";
 import { extractComponentName } from "../../core/utils";
 import { usePoiesisStore } from "../../store";
 import { useCodeGraphStore } from "../../services/codegraph/store";
-import { useComponentRegistry } from "../../store/componentRegistry";
+import { getComponentDefinitions } from "../../store";
 import type { ElementData, WireData, CodeTab } from "../../core/types";
 import { saveComponentDefinitionsToServer } from "./component-service";
 import { createLogger } from "../../lib/utils/logger";
@@ -178,8 +178,8 @@ export async function saveProject(
   if (activeContent) store.setSourceCode(activeContent);
 
   // 2. Save component definitions (as omni DSL to src/components/*.omni)
-  const { definitions } = useComponentRegistry.getState();
-  saveComponentDefinitionsToServer(definitions).catch((e) => log.warn("Failed to save component definitions:", e));
+  const defs = getComponentDefinitions();
+  saveComponentDefinitionsToServer(defs).catch((e) => log.error("Failed to save component definitions:", e));
 
   await api.annotation.saveEditorToml({
     active_file: filePath,

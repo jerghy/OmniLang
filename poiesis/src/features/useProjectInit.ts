@@ -5,10 +5,8 @@ import { useCodeGraphStore } from "../services/codegraph/store";
 import { parseOmniSource } from "../services/codegen";
 import { api } from "../commands";
 import { loadComponentDefinitionsFromServer, saveComponentDefinitionsToServer } from "../services/project/component-service";
-import { useComponentRegistry } from "../store/componentRegistry";
 import { computeAutoLayout } from "../components/canvas/shared/layoutUtils";
 import type { ElementData, WireData } from "../core/types";
-import type { ComponentDefinition } from "../core/state/componentRegistry";
 import { createLogger } from "../lib/utils/logger";
 
 const log = createLogger("init");
@@ -28,11 +26,12 @@ export function useProjectInit(setShowWelcome: (v: boolean) => void) {
   // Component def auto-save
   useEffect(() => {
     let saveTimer: ReturnType<typeof setTimeout> | null = null;
-    const unsub = useComponentRegistry.subscribe((state) => {
+    const unsub = usePoiesisStore.subscribe((state) => {
       if (saveTimer) clearTimeout(saveTimer);
       saveTimer = setTimeout(() => {
         saveTimer = null;
-        saveComponentDefinitionsToServer(state.definitions).catch((e) => log.warn("Failed to save component defs:", e));
+        const defs = (state as Record<string, unknown>).definitions as Record<string, Record<string, unknown>> | undefined;
+        saveComponentDefinitionsToServer(defs ?? {}).catch((e) => log.error("Failed to save component defs:", e));
       }, 2000);
     });
     return () => {
@@ -167,7 +166,7 @@ export function useProjectInit(setShowWelcome: (v: boolean) => void) {
         try {
           const merged = await loadComponentDefinitionsFromServer();
           if (Object.keys(merged).length > 0) {
-            useComponentRegistry.setState({ definitions: merged as Record<string, ComponentDefinition> });
+            usePoiesisStore.setState({ definitions: merged as Record<string, Record<string, unknown>> });
           }
         } catch (e) {
           log.warn("Failed to load component definitions:", e);

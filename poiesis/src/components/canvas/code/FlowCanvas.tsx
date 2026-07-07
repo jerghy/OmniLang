@@ -11,6 +11,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { usePoiesisStore } from "../../../store";
+import { useCodeElements, useWires } from "../../../store/hooks";
 import { uid } from "../../../core/utils/id";
 import type { ElementData } from "../../../core/types/element";
 import { FunctionHeaderNode } from "./nodes/FunctionHeaderNode";
@@ -29,8 +30,8 @@ const nodeTypes = {
 };
 
 function FlowCanvasInner() {
-  const elements = usePoiesisStore((s) => s.elements);
-  const wires = usePoiesisStore((s) => s.wires);
+  const elements = useCodeElements();
+  const wires = useWires();
   const addElement = usePoiesisStore((s) => s.addElement);
   const codeFlowElementId = usePoiesisStore(
     (s) => s.designPage.codeFlowElementId,

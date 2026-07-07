@@ -4,6 +4,9 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { api } from "../../commands";
+import { createLogger } from "../../lib/utils/logger";
+
+const log = createLogger("FileTreePanel");
 
 interface FileTreeNode {
   name: string;
@@ -166,7 +169,7 @@ export function FileTreePanel({ tabs, onOpenFile, onNewFile, onClose, panelRef }
               });
             }
           }
-        } catch { /* dir may not exist */ }
+        } catch (e) { log.debug("Could not scan directory:", e); }
         return nodes;
       };
 

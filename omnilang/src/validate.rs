@@ -10,6 +10,9 @@ use serde::{Deserialize, Serialize};
 use crate::error::{Diagnostic, DiagnosticKind, Severity};
 use crate::parser::ast::{ImportStmt, Program, Visibility};
 
+/// The marker library import that identifies a file as an OmniView (view) file.
+const OMNIVIEW_MARKER: &str = "omniview";
+
 /// Build a file-level diagnostic (line/col = 0) for multi-file validation.
 fn make_diag(severity: Severity, kind: DiagnosticKind, file: &str, message: String) -> Diagnostic {
     Diagnostic {
@@ -125,7 +128,7 @@ fn validate_file_consistency(file_path: &str, program: &Program) -> Result<(), V
         module
             .imports
             .iter()
-            .any(|imp| matches!(imp, ImportStmt::Lib(name) if name == "omniview"))
+            .any(|imp| matches!(imp, ImportStmt::Lib(name) if name == OMNIVIEW_MARKER))
     });
 
     let has_ui_declarations = program.modules.values().any(|module| {
@@ -302,7 +305,7 @@ fn validate_cross_file(
             let is_logic = !module
                 .imports
                 .iter()
-                .any(|imp| matches!(imp, ImportStmt::Lib(name) if name == "omniview"));
+                .any(|imp| matches!(imp, ImportStmt::Lib(name) if name == OMNIVIEW_MARKER));
             if !is_logic {
                 continue;
             }
@@ -317,7 +320,7 @@ fn validate_cross_file(
                     if let Some(target_prog) = programs.get(target.as_str()) {
                         let target_is_view = target_prog.modules.values().any(|tm| {
                             tm.imports.iter().any(
-                                |imp| matches!(imp, ImportStmt::Lib(name) if name == "omniview"),
+                                |imp| matches!(imp, ImportStmt::Lib(name) if name == OMNIVIEW_MARKER),
                             )
                         });
                         if target_is_view {

@@ -2,6 +2,8 @@
 
 use std::fmt;
 
+use crate::error::{Diagnostic, DiagnosticKind, Severity};
+
 /// CodeWriter: tracks indentation and emits formatted lines.
 #[derive(Debug)]
 pub struct CodeWriter {
@@ -79,7 +81,7 @@ pub struct CompiledFile {
 #[derive(Debug, Clone)]
 pub struct CompileOutput {
     pub files: Vec<CompiledFile>,
-    pub errors: Vec<String>,
+    pub errors: Vec<Diagnostic>,
 }
 
 impl CompileOutput {
@@ -97,7 +99,17 @@ impl CompileOutput {
     pub fn error(msg: String) -> Self {
         Self {
             files: vec![],
-            errors: vec![msg],
+            errors: vec![Diagnostic {
+                severity: Severity::Error,
+                kind: DiagnosticKind::ECodegen,
+                message: msg,
+                file: None,
+                line: 0,
+                col: 0,
+                end_line: None,
+                end_col: None,
+                suggestion: None,
+            }],
         }
     }
 }

@@ -79,6 +79,8 @@ jobs:
           node-version: '22'
       - name: Install dependencies
         run: cd poiesis && npm ci
+      - name: npm audit
+        run: cd poiesis && npm audit --audit-level=high
       - name: Type check
         run: cd poiesis && npx tsc --noEmit
       - name: Build

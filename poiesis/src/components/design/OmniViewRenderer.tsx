@@ -5,6 +5,7 @@
 
 import React, { useMemo } from "react";
 import { usePoiesisStore } from "../../store";
+import { useElements, useRootOrder, useSelectedElementIds, useComponentDefs } from "../../store/hooks";
 import type { ElementData } from "../../core/types/element";
 import type { StyleValueSegment } from "../../core/types/style";
 
@@ -54,15 +55,15 @@ function getDefaultInlineStyles(el: ElementData): Record<string, string> {
 }
 
 export function OmniViewRenderer() {
-  const elements = usePoiesisStore((s) => s.elements);
-  const rootOrder = usePoiesisStore((s) => s.rootOrder);
-  const selectedIds = usePoiesisStore((s) => s.selectedElementIds);
+  const elements = useElements();
+  const rootOrder = useRootOrder();
+  const selectedIds = useSelectedElementIds();
   const selectElement = usePoiesisStore((s) => s.selectElement);
   const toggleCodeFlow = usePoiesisStore((s) => s.toggleCodeFlow);
   const codeFlowVisible = usePoiesisStore((s) => s.designPage.codeFlowVisible);
   // Subscribe to componentDefs so the renderer re-expands when a custom
   // component's definition changes (e.g. after editing and saving MyCard.omni).
-  const componentDefs = usePoiesisStore((s) => s.componentDefs);
+  const componentDefs = useComponentDefs();
 
   // Build expanded element map + track IDs that are inside custom components
   const { expandedElements, customChildIds } = useMemo(() => {

@@ -89,10 +89,20 @@ impl VueCodegen {
         {
             vue_imports.push("computed".into());
         }
-        if !comp.effects.is_empty()
-            || comp.lifecycles.iter().any(|lc| lc.kind == LifecycleKind::Effect)
-        {
+
+        // Check effects and lifecycles for watch vs watchEffect
+        let has_watch_effect_effects = comp.effects.iter().any(|e| e.deps.is_empty());
+        let has_watch_effects = comp.effects.iter().any(|e| !e.deps.is_empty());
+        let has_lifecycle_effects = comp
+            .lifecycles
+            .iter()
+            .any(|lc| lc.kind == LifecycleKind::Effect);
+
+        if has_watch_effect_effects || has_lifecycle_effects {
             vue_imports.push("watchEffect".into());
+        }
+        if has_watch_effects && !vue_imports.contains(&"watch".into()) {
+            vue_imports.push("watch".into());
         }
         let has_mount = comp
             .lifecycles
@@ -168,15 +178,28 @@ impl VueCodegen {
             }
         }
 
-        // Effects (watchEffect)
+        // Effects (watch or watchEffect)
         for effect in &comp.effects {
-            w.emit("watchEffect(() => {");
-            w.indent();
-            for stmt in &effect.body.statements {
-                generate_statement_vue(&mut w, stmt);
+            if effect.deps.is_empty() {
+                w.emit("watchEffect(() => {");
+                w.indent();
+                // Comment to warn about state mutation inside watchEffect
+                w.emit("// WARNING: Mutating state inside watchEffect may cause infinite loops");
+                for stmt in &effect.body.statements {
+                    generate_statement_vue(&mut w, stmt);
+                }
+                w.dedent();
+                w.emit("});");
+            } else {
+                let deps_str = effect.deps.join(", ");
+                w.emit_fmt(format_args!("watch([{}], () => {{", deps_str));
+                w.indent();
+                for stmt in &effect.body.statements {
+                    generate_statement_vue(&mut w, stmt);
+                }
+                w.dedent();
+                w.emit("});");
             }
-            w.dedent();
-            w.emit("});");
         }
 
         // Lifecycles (onMounted / onUnmounted)
@@ -201,6 +224,7 @@ impl VueCodegen {
                     w.emit("});");
                 }
                 LifecycleKind::Effect => {
+                    // @effect lifecycle — always uses watchEffect (no dep analysis on lifecycle effects)
                     w.emit("watchEffect(() => {");
                     w.indent();
                     for stmt in &lc.body.statements {
@@ -287,6 +311,34 @@ impl VueCodegen {
             w.emit("});");
         }
 
+        // Actions as plain functions (Vue has no stale closure problem with refs)
+        for action in &store.actions {
+            let mut param_strs = Vec::new();
+            for p in &action.params {
+                let mut s = p.name.clone();
+                if let Some(ref ty) = p.r#type {
+                    let ann = JsTypeFormatter.format_type(&ty.kind, &ty.type_args);
+                    if !ann.is_empty() {
+                        s.push_str(&format!(": {}", ann));
+                    }
+                }
+                param_strs.push(s);
+            }
+            let async_kw = if action.is_async { "async " } else { "" };
+            w.emit_fmt(format_args!(
+                "{}function {}({}) {{",
+                async_kw,
+                action.name,
+                param_strs.join(", ")
+            ));
+            w.indent();
+            for stmt in &action.body.statements {
+                generate_statement_vue(&mut w, stmt);
+            }
+            w.dedent();
+            w.emit("}");
+        }
+
         // Return value (refs are returned directly; templates auto-unwrap)
         let mut return_keys: Vec<String> = Vec::new();
         for sig_name in store.signals.keys() {
@@ -294,6 +346,9 @@ impl VueCodegen {
         }
         for getter_name in store.getters.keys() {
             return_keys.push(getter_name.clone());
+        }
+        for action in &store.actions {
+            return_keys.push(action.name.clone());
         }
         w.emit_fmt(format_args!("return {{ {} }};", return_keys.join(", ")));
 

@@ -22,11 +22,16 @@ impl LintRule for StoreActionEventData {
         LintSeverity::Error
     }
 
-    fn check_ir(&self, ir: &IRProgram, _file_map: &HashMap<String, String>) -> Vec<LintDiagnostic> {
+    fn check_ir(&self, ir: &IRProgram, file_map: &HashMap<String, String>) -> Vec<LintDiagnostic> {
         let mut diags = Vec::new();
         for (comp_name, comp) in ir.all_components() {
             if let Some(ref view) = comp.view {
-                check_view_store_actions(view, comp_name, self, &mut diags);
+                let comp_file = comp
+                    .source_file
+                    .as_deref()
+                    .or_else(|| file_map.keys().next().map(|s| s.as_str()))
+                    .unwrap_or(comp_name);
+                check_view_store_actions(view, comp_file, self, &mut diags);
             }
         }
         diags
@@ -35,7 +40,7 @@ impl LintRule for StoreActionEventData {
 
 fn check_view_store_actions(
     tree: &ViewTree,
-    comp_name: &str,
+    comp_file: &str,
     rule: &StoreActionEventData,
     diags: &mut Vec<LintDiagnostic>,
 ) {
@@ -58,14 +63,14 @@ fn check_view_store_actions(
                              Use an inline handler or fn_ref instead.",
                         handler.r#ref.as_deref().unwrap_or("?")
                     ),
-                    file: comp_name.to_string(),
+                    file: comp_file.to_string(),
                     line: el.source_line,
                     col: el.source_col,
                 });
             }
         }
         for child in &el.children {
-            check_view_store_actions(child, comp_name, rule, diags);
+            check_view_store_actions(child, comp_file, rule, diags);
         }
     }
 }

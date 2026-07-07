@@ -15,7 +15,7 @@ import type {
   StoreDef,
 } from "./types";
 import type { GenerateOmniSourceOptions } from "./pipeline-types";
-import { getComponentDefinitions } from "../../core/state/componentRegistry";
+import { getComponentDefinitions } from "../../store";
 
 // ── Shared types between component-builder and pipeline orchestration ──
 

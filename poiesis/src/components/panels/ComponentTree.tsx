@@ -3,9 +3,9 @@
  *  Also supports right-click context menu with "Add child component" picker. */
 
 import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
-import { usePoiesisStore } from "../../store";
+import { usePoiesisStore, getUnifiedComponentMeta } from "../../store";
+import { useElements, useRootOrder, useSelectedElementIds, useComponentDefs } from "../../store/hooks";
 import type { ElementData } from "../../core/types";
-import { getUnifiedComponentMeta, useComponentRegistry } from "../../store/componentRegistry";
 import styles from "./ComponentTree.module.css";
 import {
   getDefaultProps,
@@ -23,9 +23,9 @@ interface ComponentTreeProps {
 }
 
 export function ComponentTree({ treeDropState }: ComponentTreeProps) {
-  const elements = usePoiesisStore((s) => s.elements);
-  const rootOrder = usePoiesisStore((s) => s.rootOrder);
-  const selectedIds = usePoiesisStore((s) => s.selectedElementIds);
+  const elements = useElements();
+  const rootOrder = useRootOrder();
+  const selectedIds = useSelectedElementIds();
   const selectElement = usePoiesisStore((s) => s.selectElement);
   const enterCanvas = usePoiesisStore((s) => s.enterComponentCanvas);
 
@@ -202,8 +202,7 @@ function ContextMenu({
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const addChildTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const contextElement = elements.find((e) => e.id === elementId);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const registryDefs = useComponentRegistry((s: any) => s.componentDefs) ?? {};
+  const registryDefs = useComponentDefs() ?? {};
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => {

@@ -74,6 +74,7 @@ impl<'a> Parser<'a> {
     /// Parse style rules from `style { .class1 { ... } .class2 { ... } }` block.
     /// Returns a list of StyleRule — one per CSS class rule.
     pub fn parse_style_rules(&mut self) -> Result<Vec<StyleRule>, ParseError> {
+        self.enter_recursion()?;
         self.advance(); // 'style'
         self.expect_token(TokenKind::LBrace, "expected '{' after 'style'")?;
 
@@ -324,11 +325,13 @@ impl<'a> Parser<'a> {
         }
 
         self.expect_token(TokenKind::RBrace, "expected '}'")?;
+        self.leave_recursion();
         Ok(rules)
     }
 
     /// Parse a single style rule (legacy syntax): `style .className { ... }`
     pub fn parse_style_rule(&mut self) -> Result<StyleRule, ParseError> {
+        self.enter_recursion()?;
         self.advance(); // 'style'
         let is_tag_selector = self.peek_kind() != TokenKind::Dot;
         if self.peek_kind() == TokenKind::Dot {
@@ -431,6 +434,7 @@ impl<'a> Parser<'a> {
         }
 
         self.expect_token(TokenKind::RBrace, "expected '}'")?;
+        self.leave_recursion();
         Ok(StyleRule {
             class_name,
             properties,

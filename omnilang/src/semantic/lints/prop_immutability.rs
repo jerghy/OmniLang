@@ -23,7 +23,7 @@ impl LintRule for PropImmutability {
         LintSeverity::Error
     }
 
-    fn check_ast(&self, program: &Program, _file_path: &str) -> Vec<LintDiagnostic> {
+    fn check_ast(&self, program: &Program, file_path: &str) -> Vec<LintDiagnostic> {
         let mut diags = Vec::new();
 
         for module in program.modules.values() {
@@ -41,6 +41,7 @@ impl LintRule for PropImmutability {
                         &prop_names,
                         &comp.name,
                         &func.name,
+                        file_path,
                         &mut diags,
                     );
                 }
@@ -51,6 +52,7 @@ impl LintRule for PropImmutability {
                         &prop_names,
                         &comp.name,
                         &action.name,
+                        file_path,
                         &mut diags,
                     );
                 }
@@ -61,12 +63,13 @@ impl LintRule for PropImmutability {
                         &prop_names,
                         &comp.name,
                         &format!("@{:?}", lc.kind),
+                        file_path,
                         &mut diags,
                     );
                 }
 
                 if let Some(ref view) = comp.view {
-                    check_view_for_prop_assign(&view.children, &prop_names, &comp.name, &mut diags);
+                    check_view_for_prop_assign(&view.children, &prop_names, &comp.name, file_path, &mut diags);
                 }
             }
         }
