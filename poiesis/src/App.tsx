@@ -161,6 +161,15 @@ export default function App() {
       ? `${compileErrors.length} 个错误`
       : "就绪";
 
+  // ── Global unhandled promise rejection handler ──
+  useEffect(() => {
+    const handler = (event: PromiseRejectionEvent) => {
+      log.error("Unhandled promise rejection:", event.reason);
+    };
+    window.addEventListener("unhandledrejection", handler);
+    return () => window.removeEventListener("unhandledrejection", handler);
+  }, []);
+
   // ── On mount: if projectDir is set, load .omni files into canvas ──
   const loadedRef = useRef(false);
   useEffect(() => {

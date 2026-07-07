@@ -78,8 +78,8 @@ export class StateDriver {
     let data: Record<string, unknown>;
     try {
       data = JSON.parse(json);
-    } catch {
-      log.warn("importState: failed to parse JSON");
+    } catch (e) {
+      log.warn("importState: failed to parse JSON:", e);
       return;
     }
     if (!data.elements || !data.wires) {

@@ -239,7 +239,8 @@ class RustCompiler {
     if (!this.wasm) return 'unavailable';
     try {
       return this.wasm.version();
-    } catch {
+    } catch (e) {
+      log.error("WASM version() failed:", e);
       return 'unknown';
     }
   }

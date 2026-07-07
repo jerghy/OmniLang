@@ -179,7 +179,7 @@ export async function saveProject(
 
   // 2. Save component definitions (as omni DSL to src/components/*.omni)
   const { definitions } = useComponentRegistry.getState();
-  saveComponentDefinitionsToServer(definitions).catch((e) => log.warn("Failed to save component definitions:", e));
+  saveComponentDefinitionsToServer(definitions).catch((e) => log.error("Failed to save component definitions:", e));
 
   await api.annotation.saveEditorToml({
     active_file: filePath,

@@ -32,7 +32,7 @@ export function useProjectInit(setShowWelcome: (v: boolean) => void) {
       if (saveTimer) clearTimeout(saveTimer);
       saveTimer = setTimeout(() => {
         saveTimer = null;
-        saveComponentDefinitionsToServer(state.definitions).catch((e) => log.warn("Failed to save component defs:", e));
+        saveComponentDefinitionsToServer(state.definitions).catch((e) => log.error("Failed to save component defs:", e));
       }, 2000);
     });
     return () => {

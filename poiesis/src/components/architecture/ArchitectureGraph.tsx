@@ -12,6 +12,9 @@ import { ChildBubbleNode } from "./nodes/ChildBubbleNode";
 import { BubbleEdge } from "./edges/BubbleEdge";
 import { BubbleContextMenu } from "./context-menu/BubbleContextMenu";
 import { api } from "../../commands";
+import { createLogger } from "../../lib/utils/logger";
+
+const log = createLogger("ArchitectureGraph");
 
 // @xyflow/react v12 uses broad Node/Edge types; cast to our specific component types
 const nodeTypes = {
@@ -75,8 +78,8 @@ export function ArchitectureGraph() {
             }
           }
         }
-      } catch {
-        // Ignore read errors — buildBubbleGraph handles empty files
+      } catch (e) {
+        log.warn("Failed to read project files for architecture graph:", e);
       }
 
       const data = await buildBubbleGraph(projectDir, omniFiles);

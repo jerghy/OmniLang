@@ -123,8 +123,8 @@ export function createAnnotationApi() {
         try {
           const content = await readTextFile(path);
           defs = JSON.parse(content) as Record<string, unknown>;
-        } catch {
-          // File doesn't exist yet — nothing to clean up, still success
+        } catch (e) {
+          log.debug("Could not read component definitions file (expected on first use):", e);
         }
         for (const name of names) {
           delete defs[name];
