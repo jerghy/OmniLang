@@ -671,7 +671,6 @@ impl OmniViewGenerator {
                         ));
                     }
                 }
-            }
             return out;
         }
 

@@ -15,7 +15,7 @@ use view::*;
 use std::collections::HashMap;
 
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
-use crate::codegen::shared::expr::FormatExpr;
+use crate::codegen::shared::expr::{FormatExpr, RustFormatExpr};
 use crate::codegen::shared::generator::{generate_per_component, PerComponentCodegen};
 use crate::codegen::shared::stmt::FormatStmt;
 use crate::codegen::{format_json_value, JSON_DIOXUS};
@@ -265,11 +265,11 @@ impl DioxusCodegen {
 
 /// Dioxus statement formatter.
 struct DioxusStmtFormatter {
-    expr: DioxusFormatExpr,
+    expr: RustFormatExpr,
 }
 
 impl FormatStmt for DioxusStmtFormatter {
-    type ExprFormatter = DioxusFormatExpr;
+    type ExprFormatter = RustFormatExpr;
 
     fn expr_fmt(&self) -> &Self::ExprFormatter {
         &self.expr
@@ -365,7 +365,7 @@ impl FormatStmt for DioxusStmtFormatter {
 
 pub(super) fn generate_statement_dioxus(w: &mut CodeWriter, stmt: &StatementIR) {
     let fmt = DioxusStmtFormatter {
-        expr: DioxusFormatExpr,
+        expr: RustFormatExpr { move_closures: true },
     };
     fmt.format_stmt(w, stmt);
 }

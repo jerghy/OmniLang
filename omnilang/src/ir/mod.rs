@@ -32,7 +32,7 @@ pub use types_motion::{
     CallbackBodyIR, CallbackKindIR, ConnectorIR, DirectionIR, DirectionValue, DragBehavior,
     EasingIR, FillValue, HeroBehavior, HeroIntent, InterruptValue, KeyframeIR, KeyframeStopIR,
     LoopValue, MotionBehavior, MotionBodyIR, MotionExprIR, MotionIntent, PlaybackIR,
-    ScrollBehavior, StaggerDirection, StaggerTimingIR, StateTweenIR, StatesIR, TimelineIntent,
+    ScrollBehavior, StaggerDirection, StaggerTimingIR, StateTweenIR, StatesIR, TimelineIntent, TimelineIR,
     TimelineItemIR, TimelineItemKindIR, TriggerIntent, TriggerKind, WhenValue,
 };
 
