@@ -97,7 +97,11 @@ pub fn generate(ir: &IRProgram, editor_mode: bool) -> OmniViewOutput {
 
     gen.emit_js_header();
     gen.emit_signal_runtime();
-    gen.emit_animation_runtime();
+
+    // Only embed the 46KB motion runtime if the project actually uses motion features
+    if project_uses_motion(ir) {
+        gen.emit_animation_runtime();
+    }
 
     // Emit all stores as global JS variables (signals, getters, actions)
     for (store_name, store) in ir.all_stores() {
@@ -210,6 +214,65 @@ pub fn generate(ir: &IRProgram, editor_mode: bool) -> OmniViewOutput {
         css: gen.css,
         source_map: gen.source_map,
         components,
+    }
+}
+
+/// Returns true if any part of the IR program uses motion/animation features.
+/// Guards the 46KB motion runtime JS from being embedded unconditionally.
+fn project_uses_motion(ir: &IRProgram) -> bool {
+    for module in ir.modules.values() {
+        if !module.motions.is_empty() || !module.timelines.is_empty() {
+            return true;
+        }
+        for comp in module.components.values() {
+            if !comp.motions.is_empty() || !comp.timelines.is_empty() || !comp.hero_defs.is_empty() {
+                return true;
+            }
+            if let Some(ref view) = comp.view {
+                if view_tree_has_motion(view) {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
+/// Recursively scan a view tree for any motion/animation-related fields.
+fn view_tree_has_motion(view: &ViewTree) -> bool {
+    match view {
+        ViewTree::Element(el) => {
+            if el.motion.is_some()
+                || el.scroll.is_some()
+                || el.drag.is_some()
+                || el.hero.is_some()
+            {
+                return true;
+            }
+            el.children.iter().any(|c| view_tree_has_motion(c))
+        }
+        ViewTree::Conditional(cond) => {
+            if cond.transition_mode.is_some() {
+                return true;
+            }
+            cond.branches
+                .iter()
+                .any(|b| b.body.as_ref().is_some_and(|v| view_tree_has_motion(v)))
+                || cond
+                    .fallback
+                    .as_ref()
+                    .is_some_and(|f| view_tree_has_motion(f))
+        }
+        ViewTree::ListRendering(list) => {
+            list.body
+                .as_ref()
+                .is_some_and(|v| view_tree_has_motion(v))
+                || list
+                    .empty_body
+                    .as_ref()
+                    .is_some_and(|v| view_tree_has_motion(v))
+        }
+        _ => false,
     }
 }
 
