@@ -203,6 +203,34 @@ function createInitialDesignPageState(): DesignPageState {
   };
 }
 
+/** Shared clean state factory used by resetEditorState and newProject. */
+function createCleanState(): Partial<PoiesisState> {
+  return {
+    currentPage: "design",
+    architecture: createInitialArchitectureState(),
+    designPage: createInitialDesignPageState(),
+    elements: [],
+    wires: [],
+    rootOrder: [],
+    selectedElementIds: [],
+    tabData: {},
+    componentDefs: {},
+    pidIndex: {},
+    isDirty: false,
+    activeFilePath: null,
+    activeFileContent: null,
+    mode: "design",
+    compileTarget: "react",
+    compileErrors: [],
+    previewUrl: null,
+    nodeMeta: {},
+    wireMeta: {},
+    canvasStates: {},
+    panels: { ...DEFAULT_PANEL_LAYOUT },
+    undoStacks: {},
+  };
+}
+
 // ── Store Implementation ──
 
 export const usePoiesisStore = create<PoiesisState>((set, get) => ({
@@ -496,23 +524,59 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
     return { ...undoUpdate, elements, rootOrder, isDirty: true };
   }),
 
-  setElementClassRefs: (elementId, classRefs) => set((s) => ({
-    elements: s.elements.map(e => {
+  setElementClassRefs: (elementId, classRefs) => set((s) => {
+    const newElements = s.elements.map(e => {
       if (e.id !== elementId) return e;
       if (e.nodeType !== "view") return e;
       return { ...e, style: { ...(e.style ?? { classRefs: [], inlineProperties: [] }), classRefs } } as ElementData;
-    }),
-    isDirty: true,
-  })),
+    });
 
-  setElementInlineStyles: (elementId, properties) => set((s) => ({
-    elements: s.elements.map(e => {
+    // Sync updated element back to componentDef for cross-tab canvas preview
+    const updatedEl = newElements.find(e => e.id === elementId);
+    const activeTab = s.designPage.activeTabId
+      ? s.designPage.openTabs.find(t => t.id === s.designPage.activeTabId)
+      : undefined;
+    const compName = activeTab && activeTab.tabType === "component" ? activeTab.componentName : undefined;
+    let componentDefs = s.componentDefs;
+    if (compName && updatedEl && componentDefs[compName]) {
+      const def = componentDefs[compName];
+      const defEls = def.elements ?? [];
+      const idx = defEls.findIndex(e => e.id === elementId);
+      componentDefs = {
+        ...componentDefs,
+        [compName]: { ...def, elements: idx >= 0 ? defEls.map(e => e.id === elementId ? updatedEl : e) : [...defEls, updatedEl] },
+      };
+    }
+
+    return { elements: newElements, componentDefs, isDirty: true };
+  }),
+
+  setElementInlineStyles: (elementId, properties) => set((s) => {
+    const newElements = s.elements.map(e => {
       if (e.id !== elementId) return e;
       if (e.nodeType !== "view") return e;
       return { ...e, style: { ...(e.style ?? { classRefs: [], inlineProperties: [] }), inlineProperties: properties } } as ElementData;
-    }),
-    isDirty: true,
-  })),
+    });
+
+    // Sync updated element back to componentDef for cross-tab canvas preview
+    const updatedEl = newElements.find(e => e.id === elementId);
+    const activeTab = s.designPage.activeTabId
+      ? s.designPage.openTabs.find(t => t.id === s.designPage.activeTabId)
+      : undefined;
+    const compName = activeTab && activeTab.tabType === "component" ? activeTab.componentName : undefined;
+    let componentDefs = s.componentDefs;
+    if (compName && updatedEl && componentDefs[compName]) {
+      const def = componentDefs[compName];
+      const defEls = def.elements ?? [];
+      const idx = defEls.findIndex(e => e.id === elementId);
+      componentDefs = {
+        ...componentDefs,
+        [compName]: { ...def, elements: idx >= 0 ? defEls.map(e => e.id === elementId ? updatedEl : e) : [...defEls, updatedEl] },
+      };
+    }
+
+    return { elements: newElements, componentDefs, isDirty: true };
+  }),
 
   reorderElement: (elementId, targetSiblingId, position) => set((s) => {
     const el = s.elements.find(e => e.id === elementId);
@@ -675,58 +739,10 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
   navigateTo: (page) => set({ currentPage: page }),
 
   // ── Reset editor state (keep project dir/name) ──
-  resetEditorState: () => set({
-    currentPage: "design",
-    architecture: createInitialArchitectureState(),
-    designPage: createInitialDesignPageState(),
-    elements: [],
-    wires: [],
-    rootOrder: [],
-    selectedElementIds: [],
-    tabData: {},
-    componentDefs: {},
-    pidIndex: {},
-    isDirty: false,
-    activeFilePath: null,
-    activeFileContent: null,
-    mode: "design",
-    compileTarget: "react",
-    compileErrors: [],
-    previewUrl: null,
-    nodeMeta: {},
-    wireMeta: {},
-    canvasStates: {},
-    panels: { ...DEFAULT_PANEL_LAYOUT },
-    undoStacks: {},
-  }),
+  resetEditorState: () => set(createCleanState()),
 
   // ── New project ──
-  newProject: () => set({
-    currentPage: "design",
-    architecture: createInitialArchitectureState(),
-    designPage: createInitialDesignPageState(),
-    elements: [],
-    wires: [],
-    rootOrder: [],
-    selectedElementIds: [],
-    tabData: {},
-    componentDefs: {},
-    pidIndex: {},
-    projectDir: null,
-    projectName: DEFAULT_PROJECT_NAME,
-    isDirty: false,
-    activeFilePath: null,
-    activeFileContent: null,
-    mode: "design",
-    compileTarget: "react",
-    compileErrors: [],
-    previewUrl: null,
-    nodeMeta: {},
-    wireMeta: {},
-    canvasStates: {},
-    panels: { ...DEFAULT_PANEL_LAYOUT },
-    undoStacks: {},
-  }),
+  newProject: () => set({ ...createCleanState(), projectDir: null, projectName: DEFAULT_PROJECT_NAME }),
 
   // ── Project.json ──
   toProjectJson: (): ProjectJson => {
