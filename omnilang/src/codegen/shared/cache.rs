@@ -13,6 +13,7 @@
 use std::hash::{Hash, Hasher};
 
 use rustc_hash::FxHashMap;
+use rustc_hash::FxHasher;
 
 use crate::codegen::writer::CompiledFile;
 use crate::ir::{ComponentIR, StoreIR};
@@ -38,15 +39,17 @@ impl CodegenCache {
     /// Uses `format!("{:?}", …)` so that every field that participates in the
     /// codegen output is reflected in the hash.  This is safe (deterministic)
     /// because all IR types use derived [`Debug`].
+    #[inline]
     pub(crate) fn hash_component(comp: &ComponentIR) -> u64 {
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        let mut hasher = FxHasher::default();
         format!("{:?}", comp).hash(&mut hasher);
         hasher.finish()
     }
 
     /// Compute a content hash for a [`StoreIR`].
+    #[inline]
     pub(crate) fn hash_store(store: &StoreIR) -> u64 {
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        let mut hasher = FxHasher::default();
         format!("{:?}", store).hash(&mut hasher);
         hasher.finish()
     }

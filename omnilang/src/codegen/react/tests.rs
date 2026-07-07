@@ -4,10 +4,13 @@
 
 use std::collections::{HashMap, HashSet};
 
+use rustc_hash::FxHashMap;
+
 use super::expr::*;
 #[allow(unused_imports)]
 use super::utils::*;
 use super::ReactCodegen;
+use crate::codegen::shared::generator::build_component_map;
 use crate::codegen::{
     binary_op_to_str, camel_to_kebab, capitalize_first, format_json_value, CodeWriter, Codegen,
     JSON_REACT,
@@ -484,7 +487,8 @@ fn test_tsx_interpolation_renders_expr() {
         .components
         .get("Test")
         .unwrap();
-    let tsx = ReactCodegen.gen_component_tsx("Test", comp_ref, &ir);
+    let component_map = build_component_map(&ir);
+    let tsx = ReactCodegen.gen_component_tsx("Test", comp_ref, &ir, &component_map);
     assert!(
         !tsx.contains("/* interpolation */"),
         "Interpolation must NOT be a comment placeholder. Got: {}",
@@ -533,7 +537,7 @@ fn test_tsx_empty_component() {
         .components
         .get("App")
         .unwrap();
-    let tsx = codegen.gen_component_tsx("App", comp_ref, &ir);
+    let tsx = codegen.gen_component_tsx("App", comp_ref, &ir, &FxHashMap::default());
     assert!(tsx.contains("export function App() {"));
     assert!(tsx.contains("import styles from './App.module.css';"));
     assert!(tsx.contains(
@@ -589,7 +593,7 @@ fn test_tsx_component_with_state() {
         .components
         .get("Counter")
         .unwrap();
-    let tsx = codegen.gen_component_tsx("Counter", comp_ref, &ir);
+    let tsx = codegen.gen_component_tsx("Counter", comp_ref, &ir, &FxHashMap::default());
     assert!(tsx.contains("export function Counter() {"));
     assert!(tsx.contains("const [count, setCount] = useState(0);"));
 }
@@ -647,7 +651,7 @@ fn test_tsx_component_with_props() {
         .components
         .get("Greeting")
         .unwrap();
-    let tsx = codegen.gen_component_tsx("Greeting", comp_ref, &ir);
+    let tsx = codegen.gen_component_tsx("Greeting", comp_ref, &ir, &FxHashMap::default());
     assert!(tsx.contains("interface GreetingProps {"));
     assert!(tsx.contains("name: string;"));
     assert!(tsx.contains("age: number;"));
@@ -702,7 +706,7 @@ fn test_tsx_component_with_effect() {
         .components
         .get("Watcher")
         .unwrap();
-    let tsx = codegen.gen_component_tsx("Watcher", comp_ref, &ir);
+    let tsx = codegen.gen_component_tsx("Watcher", comp_ref, &ir, &FxHashMap::default());
     assert!(tsx.contains("useEffect(() => {"));
     assert!(tsx.contains("}, [count]);"));
 }
@@ -747,7 +751,7 @@ fn test_tsx_component_with_lifecycle_mount() {
         .components
         .get("App")
         .unwrap();
-    let tsx = codegen.gen_component_tsx("App", comp_ref, &ir);
+    let tsx = codegen.gen_component_tsx("App", comp_ref, &ir, &FxHashMap::default());
     assert!(tsx.contains("useEffect(() => {"));
     assert!(tsx.contains("}, []);"));
 }

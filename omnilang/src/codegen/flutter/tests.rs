@@ -1,6 +1,7 @@
 //! Unit tests for flutter codegen.
 
 use super::*;
+use crate::codegen::shared::generator::build_component_map;
 use crate::codegen::{format_json_value, JSON_FLUTTER};
 use std::collections::HashMap;
 
@@ -567,7 +568,8 @@ fn test_empty_component() {
         .components
         .get("App")
         .unwrap();
-    let dart = codegen.gen_component_dart("App", comp_ref, &ir);
+    let component_map = build_component_map(&ir);
+    let dart = codegen.gen_component_dart("App", comp_ref, &ir, &component_map);
     assert!(dart.contains("import 'package:flutter/material.dart';"));
     assert!(dart.contains("class App extends StatefulWidget {"));
     assert!(dart.contains("const App({super.key});"));
@@ -649,7 +651,8 @@ fn test_component_with_state() {
         .components
         .get("Counter")
         .unwrap();
-    let dart = codegen.gen_component_dart("Counter", comp_ref, &ir);
+    let component_map = build_component_map(&ir);
+    let dart = codegen.gen_component_dart("Counter", comp_ref, &ir, &component_map);
     assert!(dart.contains("int count = 0;"));
     assert!(dart.contains("increment() {"));
     assert!(dart.contains("setState(() {"));
@@ -711,7 +714,8 @@ fn test_component_with_props() {
         .components
         .get("Greeting")
         .unwrap();
-    let dart = codegen.gen_component_dart("Greeting", comp_ref, &ir);
+    let component_map = build_component_map(&ir);
+    let dart = codegen.gen_component_dart("Greeting", comp_ref, &ir, &component_map);
     assert!(dart.contains("required this.name,"));
     assert!(dart.contains("required this.age,"));
     assert!(dart.contains("final String name;"));
@@ -765,7 +769,8 @@ fn test_component_with_mount_lifecycle() {
         .components
         .get("App")
         .unwrap();
-    let dart = codegen.gen_component_dart("App", comp_ref, &ir);
+    let component_map = build_component_map(&ir);
+    let dart = codegen.gen_component_dart("App", comp_ref, &ir, &component_map);
     assert!(dart.contains("@override"));
     assert!(dart.contains("void initState() {"));
     assert!(dart.contains("super.initState();"));
@@ -819,7 +824,8 @@ fn test_component_with_unmount_lifecycle() {
         .components
         .get("App")
         .unwrap();
-    let dart = codegen.gen_component_dart("App", comp_ref, &ir);
+    let component_map = build_component_map(&ir);
+    let dart = codegen.gen_component_dart("App", comp_ref, &ir, &component_map);
     assert!(dart.contains("@override"));
     assert!(dart.contains("void dispose() {"));
     assert!(dart.contains("super.dispose();"));

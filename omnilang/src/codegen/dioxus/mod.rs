@@ -28,6 +28,7 @@ impl PerComponentCodegen for DioxusCodegen {
         name: &str,
         comp: &ComponentIR,
         ir: &IRProgram,
+        _component_map: &FxHashMap<String, ComponentIR>,
     ) -> Vec<CompiledFile> {
         vec![CompiledFile {
             path: format!("{}.rs", name),

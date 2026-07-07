@@ -28,11 +28,12 @@ impl PerComponentCodegen for ReactCodegen {
         name: &str,
         comp: &ComponentIR,
         ir: &IRProgram,
+        component_map: &FxHashMap<String, ComponentIR>,
     ) -> Vec<CompiledFile> {
         vec![
             CompiledFile {
                 path: format!("{}.tsx", name),
-                content: self.gen_component_tsx(name, comp, ir),
+                content: self.gen_component_tsx(name, comp, ir, component_map),
             },
             CompiledFile {
                 path: format!("{}.module.css", name),

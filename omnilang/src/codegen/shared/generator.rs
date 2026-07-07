@@ -3,6 +3,8 @@
 //! Unifies the "iterate all components/stores" pattern across Camp B
 //! codegen targets (React, Vue, Flutter, Dioxus).
 
+use rustc_hash::FxHashMap;
+
 use crate::codegen::shared::cache::CodegenCache;
 use crate::codegen::writer::{CodeWriter, CompileOutput, CompiledFile};
 use crate::ir::*;
@@ -11,15 +13,29 @@ use crate::ir::*;
 /// component or store.
 pub(crate) trait PerComponentCodegen {
     /// Generate output file(s) for a single component.
+    ///
+    /// `component_map` is a pre-built `FxHashMap<String, ComponentIR>` of all
+    /// components in the program, constructed once by [`generate_per_component`]
+    /// or [`generate_per_component_cached`] to avoid per-component cloning.
     fn gen_component_file(
         &self,
         name: &str,
         comp: &ComponentIR,
         ir: &IRProgram,
+        component_map: &FxHashMap<String, ComponentIR>,
     ) -> Vec<CompiledFile>;
 
     /// Generate output file(s) for a single store.
     fn gen_store_file(&self, name: &str, store: &StoreIR) -> Vec<CompiledFile>;
+}
+
+/// Build an owned component map once, to be shared across all per-component
+/// codegen calls.
+pub(crate) fn build_component_map(ir: &IRProgram) -> FxHashMap<String, ComponentIR> {
+    ir.all_components()
+        .into_iter()
+        .map(|(n, c)| (n.to_string(), c.clone()))
+        .collect()
 }
 
 /// Iterate all components and stores in the IR program, delegating to the
@@ -29,8 +45,9 @@ pub(crate) fn generate_per_component(
     ir: &IRProgram,
 ) -> CompileOutput {
     let mut files = Vec::new();
+    let component_map = build_component_map(ir);
     for (name, comp) in ir.all_components() {
-        files.extend(cg.gen_component_file(name, comp, ir));
+        files.extend(cg.gen_component_file(name, comp, ir, &component_map));
     }
     for (name, store) in ir.all_stores() {
         files.extend(cg.gen_store_file(name, store));
@@ -56,12 +73,13 @@ pub(crate) fn generate_per_component_cached(
     cache: &mut CodegenCache,
 ) -> CompileOutput {
     let mut files = Vec::new();
+    let component_map = build_component_map(ir);
     for (name, comp) in ir.all_components() {
         let hash = CodegenCache::hash_component(comp);
         if let Some(cached) = cache.get_component(name, hash) {
             files.extend(cached.iter().cloned());
         } else {
-            let generated = cg.gen_component_file(name, comp, ir);
+            let generated = cg.gen_component_file(name, comp, ir, &component_map);
             cache.put_component(name, hash, generated.clone());
             files.extend(generated);
         }
