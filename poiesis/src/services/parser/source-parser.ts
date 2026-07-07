@@ -46,7 +46,9 @@ export function parseAndPopulate(
     loadCodeTabs(parseResult.codeTabs);
 
     // ── If the parsed source contains design items, populate the design store ──
-    if (parseResult.designTokens && parseResult.designTokens.length > 0) {
+    if ((parseResult.designTokens?.length ?? 0) > 0
+        || (parseResult.designClasses?.length ?? 0) > 0
+        || (parseResult.designVariants?.length ?? 0) > 0) {
       const design: DesignDefinition = {
         name: parseResult.designName || "AppDesign",
         tokens: parseResult.designTokens.map((t) => ({
