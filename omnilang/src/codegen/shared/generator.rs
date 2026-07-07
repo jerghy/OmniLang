@@ -3,6 +3,7 @@
 //! Unifies the "iterate all components/stores" pattern across Camp B
 //! codegen targets (React, Vue, Flutter, Dioxus).
 
+use crate::codegen::shared::cache::CodegenCache;
 use crate::codegen::writer::{CodeWriter, CompileOutput, CompiledFile};
 use crate::ir::*;
 
@@ -33,6 +34,47 @@ pub(crate) fn generate_per_component(
     }
     for (name, store) in ir.all_stores() {
         files.extend(cg.gen_store_file(name, store));
+    }
+    CompileOutput::success(files)
+}
+
+/// Iterate all components and stores, using a [`CodegenCache`] to skip
+/// regeneration when the IR content has not changed.
+///
+/// The cache is purely optional — callers that do not need caching should
+/// continue using [`generate_per_component`].
+///
+/// # How it works
+///
+/// For each (name, IR) pair a content hash is computed.  If the cache
+/// contains an entry for that name with the same hash, the stored file list
+/// is reused.  Otherwise the codegen backend is invoked and the result is
+/// stored in the cache.
+pub(crate) fn generate_per_component_cached(
+    cg: &impl PerComponentCodegen,
+    ir: &IRProgram,
+    cache: &mut CodegenCache,
+) -> CompileOutput {
+    let mut files = Vec::new();
+    for (name, comp) in ir.all_components() {
+        let hash = CodegenCache::hash_component(comp);
+        if let Some(cached) = cache.get_component(name, hash) {
+            files.extend(cached.iter().cloned());
+        } else {
+            let generated = cg.gen_component_file(name, comp, ir);
+            cache.put_component(name, hash, generated.clone());
+            files.extend(generated);
+        }
+    }
+    for (name, store) in ir.all_stores() {
+        let hash = CodegenCache::hash_store(store);
+        if let Some(cached) = cache.get_store(name, hash) {
+            files.extend(cached.iter().cloned());
+        } else {
+            let generated = cg.gen_store_file(name, store);
+            cache.put_store(name, hash, generated.clone());
+            files.extend(generated);
+        }
     }
     CompileOutput::success(files)
 }
