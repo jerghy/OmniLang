@@ -54,18 +54,19 @@ export function parsePidAnnotations(source: string): PidMap {
   }
 
   // Build PidMap from entries
-  const pidMap: PidMap = { entries: {}, lineToPid: {} };
+  const entriesMap: Record<string, PidEntry> = {};
+  const lineToPid: Record<number, string> = {};
   for (const entry of entries) {
-    pidMap.entries[entry.pid] = entry;
+    entriesMap[entry.pid] = entry;
     for (let line = entry.startLine; line <= entry.endLine; line++) {
-      if (pidMap.lineToPid[line] && pidMap.lineToPid[line] !== entry.pid) {
-        log.warn(`Line ${line} has conflicting PID annotations: ${pidMap.lineToPid[line]} vs ${entry.pid}`);
+      if (lineToPid[line] && lineToPid[line] !== entry.pid) {
+        log.warn(`Line ${line} has conflicting PID annotations: ${lineToPid[line]} vs ${entry.pid}`);
       }
-      pidMap.lineToPid[line] = entry.pid;
+      lineToPid[line] = entry.pid;
     }
   }
 
-  return pidMap;
+  return { status: "ok", entries: entriesMap, lineToPid };
 }
 
 // ── Re-exports for convenience ──

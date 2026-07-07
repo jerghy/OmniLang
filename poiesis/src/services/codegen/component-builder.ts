@@ -89,21 +89,21 @@ export function buildComponentPart(
   const registryEvents: Record<string, unknown> = registryRecord && "events" in registryRecord
     ? (registryRecord.events as Record<string, unknown>)
     : {};
-  const componentProps: ComponentPart["props"] = Object.keys(registryProps).length > 0
+  const componentProps: import("./types").PropDef[] = Object.keys(registryProps).length > 0
     ? Object.entries(registryProps).map(([name, schema]) => ({
         name,
         type: (schema as { type: string }).type,
-        default: (schema as { default?: unknown }).default,
+        defaultValue: (schema as { defaultValue?: unknown }).defaultValue ?? (schema as { default?: unknown }).default,
       }))
-    : undefined;
-  const componentEvents: ComponentPart["events"] = Object.keys(registryEvents).length > 0
+    : [];
+  const componentEvents: import("./types").EventDef[] = Object.keys(registryEvents).length > 0
     ? Object.entries(registryEvents).map(([name]) => ({
         name,
       }))
-    : undefined;
+    : [];
 
   // Extract `const` declarations from codeblock elements with tag === "const"
-  const consts: ComponentPart["consts"] = [];
+  const consts: import("./types").ConstDef[] = [];
   for (const el of options.designElements) {
     if (el.nodeType === "codeblock" && el.tag === "const") {
       const name = el.props.name as string | undefined;
@@ -113,18 +113,8 @@ export function buildComponentPart(
     }
   }
 
-  return {
-    name: options.componentName,
-    signals: componentSignals,
-    computeds: componentComputeds,
-    props: componentProps,
-    events: componentEvents,
-    consts: consts.length > 0 ? consts : undefined,
-    storeRefs: [...phaseA.bindings.storeRefs.keys()],
-    fns: phaseB.lowered.functions,
-    // When there's exactly one root, use it directly — don't wrap it in an extra div.
-    // When there are multiple roots, wrap them in a container div for single-root view block.
-    view: phaseA.roots.length === 1
+  const view =
+    phaseA.roots.length === 1
       ? phaseA.roots[0]
       : phaseA.roots.length > 0
         ? {
@@ -145,9 +135,38 @@ export function buildComponentPart(
               usedClassNames: [],
             },
           } as ElementViewNode
-        : null,
+        : null;
+
+  if (view) {
+    return {
+      status: "valid",
+      name: options.componentName,
+      signals: componentSignals,
+      computeds: componentComputeds,
+      props: componentProps,
+      events: componentEvents,
+      consts,
+      storeRefs: [...phaseA.bindings.storeRefs.keys()],
+      fns: phaseB.lowered.functions,
+      view,
+      style: phaseC.styleCollection.componentStyle,
+    } satisfies import("./types").ValidComponentPart;
+  }
+
+  return {
+    status: "partial",
+    name: options.componentName,
+    signals: componentSignals,
+    storeRefs: [...phaseA.bindings.storeRefs.keys()],
+    computeds: componentComputeds,
+    fns: phaseB.lowered.functions,
     style: phaseC.styleCollection.componentStyle,
-  };
+    view: null,
+    consts: consts.length > 0 ? consts : undefined,
+    props: componentProps.length > 0 ? componentProps : undefined,
+    events: componentEvents.length > 0 ? componentEvents : undefined,
+    errors: [],
+  } satisfies import("./types").PartialComponentPart;
 }
 
 // ── Helper: Build ComponentMeta ─────────────────────────────────────

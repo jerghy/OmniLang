@@ -111,7 +111,7 @@ export class SourceEmitter {
       const def = sig.defaultValue !== undefined ? ` = ${JSON.stringify(sig.defaultValue)}` : "";
       w.emit(`signal ${name}: ${sig.type}${def};`);
     }
-    for (const [name, c] of Object.entries(comp.computeds)) {
+    for (const [name, c] of Object.entries(comp.computeds || {})) {
       w.emit(`computed ${name}: ${c.type} = ${c.body};`);
     }
 
@@ -126,7 +126,7 @@ export class SourceEmitter {
     }
 
     // Functions with chains
-    for (const fn of comp.fns) {
+    for (const fn of comp.fns || []) {
       // Event handler boundary marker (for round-trip tab reconstruction)
       if (input.codeTabType === "event") {
         w.emit(`// @omni-file type=event label=${fn.name}`);
@@ -152,10 +152,11 @@ export class SourceEmitter {
     }
 
     // Style — one property per line, matching hand-written .omni conventions
-    if (Object.keys(comp.style).length > 0) {
+    const style = comp.style || {};
+    if (Object.keys(style).length > 0) {
       w.emit(`style {`);
       w.indent();
-      for (const [cls, rules] of Object.entries(comp.style)) {
+      for (const [cls, rules] of Object.entries(style)) {
         if (Object.keys(rules).length === 0) continue;
         w.emit(`.${cls} {`);
         w.indent();

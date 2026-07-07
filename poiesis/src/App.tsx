@@ -124,8 +124,14 @@ async function loadOmniFiles(): Promise<void> {
         stateUpdate.activeFileContent = p.content;
         stateUpdate.activeFilePath = p.filePath;
       } else {
+        const existing = newComponentDefs[p.componentName];
         newComponentDefs[p.componentName] = {
-          ...newComponentDefs[p.componentName],
+          name: p.componentName,
+          filePath: p.filePath,
+          signals: existing?.signals ?? [],
+          props: existing?.props ?? [],
+          events: existing?.events ?? [],
+          fns: existing?.fns ?? [],
           elements: p.elements,
           wires: p.wires,
           rootOrder: p.rootOrder,

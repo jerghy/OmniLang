@@ -61,19 +61,25 @@ export interface PanelLayout {
   rightWidth: number;
 }
 
-/** Component definition — parsed from .omni source, cached here */
-export interface ComponentDef {
+/** Component source-level definition — parsed from .omni DSL declarations. */
+export interface ComponentSourceDef {
   name: string;
   filePath: string;
   signals: Array<DefEntry>;
   props: Array<DefEntry>;
   events: Array<{ pid: string; name: string; payloadType: string }>;
   fns: Array<FnDef>;
-  /** Runtime-only canvas data (set by useSaveProject, not persisted to project.json). */
-  elements?: import("../types/element").ElementData[];
-  wires?: import("../types/wire").WireData[];
-  rootOrder?: string[];
 }
+
+/** Runtime-only canvas state (not persisted to project.json). */
+export interface ComponentCanvasState {
+  elements: import("../types/element").ElementData[];
+  wires: import("../types/wire").WireData[];
+  rootOrder: string[];
+}
+
+/** Component definition — parsed from .omni source, cached here */
+export type ComponentDef = ComponentSourceDef & Partial<ComponentCanvasState>;
 
 export interface DefEntry {
   pid: string;

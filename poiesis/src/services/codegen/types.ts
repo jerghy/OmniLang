@@ -45,21 +45,70 @@ export interface StoreDef {
   actions: Array<{ name: string; params: Array<{ name: string; type: string }>; body: string }>;
 }
 
-export interface ComponentPart {
-  name: string;
-  signals: Record<string, { type: string; defaultValue?: unknown }>;
-  computeds: Record<string, { type: string; body: string }>;
-  storeRefs: string[];
-  /** Compile-time constant declarations (e.g. `const MAX_COUNT = 100;`) */
-  consts?: Array<{ name: string; value: unknown }>;
-  fns: Array<{ name: string; params: Array<{ name: string; type: string }>; returnType: string; body: string }>;
-  /** Component prop declarations (e.g. `prop title: String = ""`) */
-  props?: Array<{ name: string; type: string; defaultValue?: unknown }>;
-  /** Component event declarations (e.g. `event onAction`) */
-  events?: Array<{ name: string }>;
-  view: ViewNode | null;
-  style: Record<string, Record<string, string>>;
+// ── ComponentPart (discriminated union) ──
+
+export interface SignalDef {
+  type: string;
+  defaultValue?: unknown;
 }
+
+export interface ComputedDef {
+  type: string;
+  body: string;
+}
+
+export interface ConstDef {
+  name: string;
+  value: unknown;
+}
+
+export interface PropDef {
+  name: string;
+  type: string;
+  defaultValue?: unknown;
+}
+
+export interface EventDef {
+  name: string;
+}
+
+export interface FnDef {
+  name: string;
+  params: Array<{ name: string; type: string }>;
+  returnType: string;
+  body: string;
+}
+
+export interface ValidComponentPart {
+  status: "valid";
+  name: string;
+  signals: Record<string, SignalDef>;
+  computeds: Record<string, ComputedDef>;
+  storeRefs: string[];
+  fns: FnDef[];
+  style: Record<string, Record<string, string>>;
+  view: ViewNode;
+  consts: ConstDef[];
+  props: PropDef[];
+  events: EventDef[];
+}
+
+export interface PartialComponentPart {
+  status: "partial";
+  name: string;
+  signals: Record<string, SignalDef>;
+  storeRefs: string[];
+  computeds?: Record<string, ComputedDef>;
+  fns?: FnDef[];
+  style?: Record<string, Record<string, string>>;
+  view?: ViewNode | null;
+  consts?: ConstDef[];
+  props?: PropDef[];
+  events?: EventDef[];
+  errors: Diagnostic[];
+}
+
+export type ComponentPart = ValidComponentPart | PartialComponentPart;
 
 export interface ThemeDef {
   name: string;
@@ -202,7 +251,7 @@ export interface BindingResult {
 
 export interface LoweredCode {
   expressions: Map<string, string>;
-  functions: Array<{ name: string; params: Array<{ name: string; type: string }>; returnType: string; body: string }>;
+  functions: FnDef[];
   actions: Array<{ storeName: string; name: string; params: Array<{ name: string; type: string }>; body: string }>;
   getters: Array<{ name: string; returnType: string; body: string; deps: string[] }>;
 }

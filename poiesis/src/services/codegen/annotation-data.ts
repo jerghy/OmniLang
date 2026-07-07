@@ -58,7 +58,7 @@ export function buildPidAnnotations(
 
       // Check if we already have a PID for this node path in the existing map
       let finalPid = generatedPid;
-      if (existingPidMap) {
+      if (existingPidMap && existingPidMap.status === "ok") {
         for (const [existingPid, entry] of Object.entries(existingPidMap.entries)) {
           if (entry.blockName === node.path || entry.blockName === (node.kind === "element" ? node.tag : node.kind)) {
             // Reuse existing PID for same path to preserve stability

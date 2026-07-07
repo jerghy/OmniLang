@@ -49,13 +49,9 @@ export interface AnnotationFile {
   rawSource: string;
 }
 
-export interface AnnotatedLoadResponse {
-  success: boolean;
-  source?: string;
-  annotations?: Record<string, unknown>;
-  validationErrors?: Array<{ code: string; message: string; line: number }>;
-  error?: string;
-}
+export type AnnotatedLoadResponse =
+  | { success: true; source: string; annotations?: Record<string, unknown>; validationErrors?: Array<{ code: string; message: string; line: number }> }
+  | { success: false; error: string };
 
 export interface AnnotatedSaveResponse {
   ok: boolean;

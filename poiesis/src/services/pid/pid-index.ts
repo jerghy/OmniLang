@@ -61,50 +61,58 @@ function getBlockPrefix(blockType: PidBlockType): string {
  * Populates both the entries lookup and the line-to-pid reverse lookup.
  */
 export function buildPidMap(entries: PidEntry[]): PidMap {
-  const pidMap: PidMap = { entries: {}, lineToPid: {} };
+  const entriesMap: Record<string, PidEntry> = {};
+  const lineToPid: Record<number, string> = {};
   for (const entry of entries) {
-    pidMap.entries[entry.pid] = entry;
+    entriesMap[entry.pid] = entry;
     for (let line = entry.startLine; line <= entry.endLine; line++) {
-      pidMap.lineToPid[line] = entry.pid;
+      lineToPid[line] = entry.pid;
     }
   }
-  return pidMap;
+  return { status: "ok", entries: entriesMap, lineToPid };
 }
 
 /**
  * Resolve a PID to its entry in the map.
+ * Returns undefined for error pidMaps.
  */
 export function resolvePid(pidMap: PidMap, pid: string): PidEntry | undefined {
+  if (pidMap.status !== "ok") return undefined;
   return pidMap.entries[pid];
 }
 
 /**
  * Resolve a line number to its PidEntry.
+ * Returns undefined for error pidMaps.
  */
 export function resolvePidByLine(
   pidMap: PidMap,
   line: number,
 ): PidEntry | undefined {
+  if (pidMap.status !== "ok") return undefined;
   const pid = pidMap.lineToPid[line];
   return pid ? pidMap.entries[pid] : undefined;
 }
 
 /**
  * Merge multiple PidMaps into one.
- * Later maps overwrite earlier ones for the same key.
+ * Error pidMaps are skipped. Later maps overwrite earlier ones for the same key.
  */
 export function mergePidMaps(maps: PidMap[]): PidMap {
-  const merged: PidMap = { entries: {}, lineToPid: {} };
+  const entries: Record<string, PidEntry> = {};
+  const lineToPid: Record<number, string> = {};
   for (const map of maps) {
-    Object.assign(merged.entries, map.entries);
-    Object.assign(merged.lineToPid, map.lineToPid);
+    if (map.status !== "ok") continue;
+    Object.assign(entries, map.entries);
+    Object.assign(lineToPid, map.lineToPid);
   }
-  return merged;
+  return { status: "ok", entries, lineToPid };
 }
 
 /**
  * Detect duplicate PIDs across multiple PidMaps.
  * Returns an array of PID strings that appear more than once.
+ * Error pidMaps are skipped.
  */
 export function detectPidConflicts(
   sourcePidMaps: Record<string, PidMap>,
@@ -112,6 +120,7 @@ export function detectPidConflicts(
   const pidToSources: Record<string, string[]> = {};
 
   for (const [sourceName, pidMap] of Object.entries(sourcePidMaps)) {
+    if (pidMap.status !== "ok") continue;
     for (const pid of Object.keys(pidMap.entries)) {
       if (!pidToSources[pid]) {
         pidToSources[pid] = [];

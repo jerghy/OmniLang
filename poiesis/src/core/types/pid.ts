@@ -15,10 +15,6 @@ export interface PidEntry {
   endLine: number;
 }
 
-export interface PidMap {
-  entries: Record<string, PidEntry>;
-  /** line number → pid */
-  lineToPid: Record<number, string>;
-  /** error message if reading the file failed; undefined on success */
-  error?: string;
-}
+export type PidMap =
+  | { status: "ok"; entries: Record<string, PidEntry>; lineToPid: Record<number, string> }
+  | { status: "error"; error: string };

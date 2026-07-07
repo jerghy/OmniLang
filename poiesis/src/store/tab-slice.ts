@@ -50,7 +50,7 @@ export function createTabSlice(set: SetFn, _get?: GetFn) {
       const newTab: DesignTab = {
         id, filePath, componentName,
         isDirty: false,
-        pidMap: { entries: {}, lineToPid: {} },
+        pidMap: { status: "ok", entries: {}, lineToPid: {} },
         tabType,
       };
       // Save current tab's data before switching to new tab (including code flow view state)

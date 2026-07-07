@@ -71,15 +71,16 @@ function parsePidComments(source: string): PidMap {
     }
   }
 
-  const pidMap: PidMap = { entries: {}, lineToPid: {} };
+  const entriesMap: Record<string, PidEntry> = {};
+  const lineToPid: Record<number, string> = {};
   for (const entry of entries) {
-    pidMap.entries[entry.pid] = entry;
+    entriesMap[entry.pid] = entry;
     for (let line = entry.startLine; line <= entry.endLine; line++) {
-      pidMap.lineToPid[line] = entry.pid;
+      lineToPid[line] = entry.pid;
     }
   }
 
-  return pidMap;
+  return { status: "ok", entries: entriesMap, lineToPid };
 }
 
 export function createAnnotationApi() {
@@ -162,19 +163,19 @@ export function createAnnotationApi() {
      * Read a .omni file and extract its PID map from `// @pid:xxx` comments.
      *
      * @param filePath  Relative path from project root (e.g. "src/main.omni").
-     * @returns The parsed PidMap, or an empty PidMap if no pid comments found.
+     * @returns The parsed PidMap, or an error PidMap if reading failed.
      */
     async readPidMap(filePath: string): Promise<PidMap> {
       try {
         const dir = await resolveProjectDir();
-        if (!dir) return { entries: {}, lineToPid: {} };
+        if (!dir) return { status: "ok", entries: {}, lineToPid: {} };
 
         const fullPath = joinPath(dir, filePath);
         const source = await readTextFile(fullPath);
         return parsePidComments(source);
       } catch (e) {
         log.warn("Failed to read PID map:", e);
-        return { entries: {}, lineToPid: {}, error: String(e) };
+        return { status: "error", error: String(e) };
       }
     },
 

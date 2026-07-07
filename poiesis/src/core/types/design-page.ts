@@ -11,6 +11,9 @@ export interface Breadcrumb {
 
 export type TabType = "component" | "store" | "code" | "design";
 
+/** Explicit file-to-tab-type map for overriding the heuristic. */
+export type FileTypeMap = Record<string, TabType>;
+
 /** Detect editor tab type from file path. */
 export function detectTabType(filePath: string): TabType {
   const normalized = filePath.replace(/\\/g, "/");
@@ -18,6 +21,17 @@ export function detectTabType(filePath: string): TabType {
   if (normalized.includes("/stores/") || normalized.startsWith("stores/")) return "store";
   if (normalized.includes("/lib/") || normalized.startsWith("lib/")) return "code";
   return "component";
+}
+
+/**
+ * Get tab type for a file path, preferring explicit metadata when available.
+ * Falls back to the heuristic-based detectTabType.
+ */
+export function getTabType(filePath: string, fileTypeMap?: FileTypeMap): TabType {
+  if (fileTypeMap && filePath in fileTypeMap) {
+    return fileTypeMap[filePath];
+  }
+  return detectTabType(filePath);
 }
 
 export interface DesignTab {
