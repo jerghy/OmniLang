@@ -3,8 +3,10 @@
 //! All AST nodes defined per spec §3.3.1. The parser produces a Program from token stream.
 //! Types follow the Python AST structure with Rust idioms (Box for recursion, enum dispatch).
 
+pub mod design;
 pub mod motion;
 pub mod view;
+pub use design::*;
 pub use motion::*;
 pub use view::*;
 
