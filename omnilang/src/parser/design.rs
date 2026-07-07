@@ -17,7 +17,7 @@ fn err(msg: &str) -> String {
 pub fn parse_design_body(input: &str) -> ParseResult<DesignDef> {
     let mut tokens = Vec::new();
     let mut classes = Vec::new();
-    let variants = Vec::new();
+    let mut variants = Vec::new();
     let mut remaining = input.trim();
 
     while !remaining.is_empty() {
@@ -32,7 +32,9 @@ pub fn parse_design_body(input: &str) -> ParseResult<DesignDef> {
             classes.push(cls);
             remaining = rest;
         } else if remaining.starts_with("variant ") {
-            break; // Task A4
+            let (var, rest) = parse_variant(remaining)?;
+            variants.push(var);
+            remaining = rest;
         } else if remaining.starts_with("}") {
             break;
         } else if remaining.is_empty() {
@@ -259,6 +261,158 @@ fn parse_design_value(input: &str) -> ParseResult<(DesignValue, &str)> {
     }
 }
 
+fn parse_variant(input: &str) -> ParseResult<(VariantDef, &str)> {
+    let rest = input
+        .strip_prefix("variant ")
+        .ok_or_else(|| err("expected 'variant'"))?;
+    let (name, rest) = parse_ident(rest)?;
+    let rest = rest
+        .trim_start()
+        .strip_prefix("{")
+        .ok_or_else(|| err("expected '{'"))?
+        .trim_start();
+
+    let mut dimensions = Vec::new();
+    let mut defaults = Vec::new();
+    let mut base = Vec::new();
+    let mut branches = Vec::new();
+    let mut remaining = rest;
+
+    loop {
+        remaining = skip_ws_and_comments(remaining);
+        if remaining.starts_with("}") {
+            remaining = &remaining[1..];
+            break;
+        }
+        if remaining.starts_with("@dim ") {
+            let (dim, rest) = parse_variant_dimension(remaining)?;
+            dimensions.push(dim);
+            remaining = rest;
+        } else if remaining.starts_with("@default ") {
+            let (defs, rest) = parse_variant_defaults(remaining)?;
+            defaults = defs;
+            remaining = rest;
+        } else if remaining.starts_with("base ") {
+            let (props, rest) =
+                parse_variant_block_body(remaining.strip_prefix("base ").unwrap())?;
+            base = props;
+            remaining = rest;
+        } else {
+            // Try parsing as dimension.value { ... } branch
+            let dot_pos = remaining.find('.').unwrap_or(0);
+            let space_pos = remaining
+                .find(|c: char| c == ' ' || c == '{')
+                .unwrap_or(remaining.len());
+            if dot_pos > 0 && dot_pos < space_pos {
+                let (branch, rest) = parse_variant_branch(remaining)?;
+                branches.push(branch);
+                remaining = rest;
+            } else {
+                break;
+            }
+        }
+    }
+
+    Ok((VariantDef { name, dimensions, defaults, base, branches }, remaining))
+}
+
+fn parse_variant_dimension(input: &str) -> ParseResult<(VariantDimension, &str)> {
+    let rest = input
+        .strip_prefix("@dim ")
+        .ok_or_else(|| err("expected '@dim'"))?;
+    let (name, rest) = parse_ident(rest)?;
+    let rest = rest
+        .trim_start()
+        .strip_prefix(":")
+        .ok_or_else(|| err("expected ':'"))?
+        .trim_start();
+
+    let mut values = Vec::new();
+    let mut remaining = rest;
+    loop {
+        remaining = remaining.trim_start();
+        if remaining.starts_with(";") {
+            remaining = &remaining[1..];
+            break;
+        }
+        if remaining.starts_with("|") {
+            remaining = &remaining[1..].trim_start();
+            continue;
+        }
+        let (val, rest) = parse_ident(remaining)?;
+        values.push(val);
+        remaining = rest;
+    }
+
+    Ok((VariantDimension { name, values }, remaining))
+}
+
+fn parse_variant_defaults(input: &str) -> ParseResult<(Vec<(String, String)>, &str)> {
+    let rest = input
+        .strip_prefix("@default ")
+        .ok_or_else(|| err("expected '@default'"))?;
+    let rest = rest
+        .trim_start()
+        .strip_prefix("{")
+        .ok_or_else(|| err("expected '{'"))?
+        .trim_start();
+
+    let mut defaults = Vec::new();
+    let mut remaining = rest;
+    loop {
+        remaining = skip_ws_and_comments(remaining);
+        if remaining.starts_with("}") {
+            remaining = &remaining[1..];
+            break;
+        }
+        let (key, rest) = parse_ident(remaining)?;
+        let rest = rest
+            .trim_start()
+            .strip_prefix(":")
+            .ok_or_else(|| err("expected ':'"))?
+            .trim_start();
+        let (val, rest) = parse_ident(rest)?;
+        let rest = rest.trim_start().strip_prefix(";").unwrap_or(rest);
+        defaults.push((key, val));
+        remaining = rest;
+    }
+
+    Ok((defaults, remaining))
+}
+
+fn parse_variant_block_body(input: &str) -> ParseResult<(Vec<DesignProperty>, &str)> {
+    let rest = input
+        .trim_start()
+        .strip_prefix("{")
+        .ok_or_else(|| err("expected '{'"))?
+        .trim_start();
+    let mut properties = Vec::new();
+    let mut remaining = rest;
+    loop {
+        remaining = skip_ws_and_comments(remaining);
+        if remaining.starts_with("}") {
+            remaining = &remaining[1..];
+            break;
+        }
+        let (prop, rest) = parse_design_property(remaining)?;
+        properties.push(prop);
+        remaining = rest;
+    }
+    Ok((properties, remaining))
+}
+
+fn parse_variant_branch(input: &str) -> ParseResult<(VariantBranch, &str)> {
+    let dot_pos = input
+        .find('.')
+        .ok_or_else(|| err("expected 'dimension.value'"))?;
+    let dimension = input[..dot_pos].trim().to_string();
+    let rest = &input[dot_pos + 1..];
+    let (value, rest) = parse_ident(rest)?;
+    let (properties, rest) = parse_variant_block_body(rest)?;
+
+    Ok((VariantBranch { dimension, value, properties }, rest))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -326,5 +480,37 @@ mod tests {
         let result = parse_design_body(src).unwrap();
         let cls = &result.classes[0];
         assert_eq!(cls.properties.len(), 2);
+    }
+
+    #[test]
+    fn parse_variant_with_dimensions() {
+        let src = r#"
+            variant Button {
+                @dim color: primary | danger | ghost;
+                @dim size: sm | md | lg;
+                @default { color: primary; size: md; }
+                base {
+                    display: inline-flex;
+                    border-radius: token(radiusMd);
+                }
+                color.primary { background: token(primary); color: white; }
+                size.sm { padding: "4px 8px"; font-size: "12px"; }
+            }
+        "#;
+        let result = parse_design_body(src).unwrap();
+        assert_eq!(result.variants.len(), 1);
+        let v = &result.variants[0];
+        assert_eq!(v.name, "Button");
+        assert_eq!(v.dimensions.len(), 2);
+        assert_eq!(v.dimensions[0].name, "color");
+        assert_eq!(v.dimensions[0].values, vec!["primary", "danger", "ghost"]);
+        assert_eq!(v.base.len(), 2); // display, border-radius
+        assert_eq!(v.branches.len(), 2);
+        assert_eq!(v.branches[0].dimension, "color");
+        assert_eq!(v.branches[0].value, "primary");
+        assert_eq!(v.defaults, vec![
+            ("color".into(), "primary".into()),
+            ("size".into(), "md".into()),
+        ]);
     }
 }
