@@ -55,7 +55,7 @@ export function buildViewTree(
       props: { ...el.props },
       children,
       kind: "element",
-      isFolded: (el as any).isFolded as boolean | undefined,
+      isFolded: el.isFolded,
       renderMode: el.renderMode,
     } as ElementViewNode;
   }

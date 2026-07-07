@@ -2,7 +2,7 @@
 // View parsing functions extracted from the Parser class.
 
 import type { Token } from "./omni-tokenizer";
-import type { ElementData } from "../../core/types/element";
+import type { ElementData, ViewElementData } from "../../core/types/element";
 import type { ParserInternals } from "./parser";
 import type { ViewElementAttrs } from "./parser-types";
 import { isAttrBound } from "./parser-types";
@@ -147,8 +147,9 @@ export function parseViewElement(internals: ParserInternals): void {
 
   // @edit flags
   if (internals.ctx.pendingEditFlags) {
-    if (internals.ctx.pendingEditFlags.includes("folded")) (el as any).isFolded = true;
-    if (internals.ctx.pendingEditFlags.includes("render=canvas")) (el as any).renderMode = "canvas";
+    const viewEl = el as ViewElementData;
+    if (internals.ctx.pendingEditFlags.includes("folded")) viewEl.isFolded = true;
+    if (internals.ctx.pendingEditFlags.includes("render=canvas")) viewEl.renderMode = "canvas";
     internals.ctx.pendingEditFlags = null;
   }
 

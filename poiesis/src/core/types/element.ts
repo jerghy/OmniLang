@@ -26,6 +26,7 @@ export interface ViewElementData extends ElementDataBase {
   children: string[];
   ports?: PortData[];
   renderMode?: "dom" | "canvas";
+  isFolded?: boolean;
   typeAnnotation?: string;
   storeName?: string;
   position?: { x: number; y: number };

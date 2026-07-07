@@ -47,8 +47,7 @@ export function ComponentTree({ treeDropState }: ComponentTreeProps) {
       const p = parent as { children?: string[] };
       return (p.children || [])
         .map((cid: string) => elMap.get(cid))
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .filter((e: any): e is ElementData => e !== undefined);
+        .filter((e: unknown): e is ElementData => e !== undefined);
     };
 
     const buildNode = (el: ElementData): TreeNode => {
