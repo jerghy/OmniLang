@@ -71,7 +71,7 @@ struct PipelineOutput {
 /// output including all semantic diagnostics.
 fn run_pipeline(source: &str) -> Result<PipelineOutput, Vec<error::Diagnostic>> {
     let tokens = lexer::tokenize(source);
-    let program = parser::parse(&tokens, source).map_err(|e| vec![e.into()])?;
+    let program = parser::parse(tokens, source).map_err(|e| vec![e.into()])?;
     let mut semantics = semantic::analyze(&program);
     let has_errors = semantics
         .diagnostics

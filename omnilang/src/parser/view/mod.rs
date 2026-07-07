@@ -106,7 +106,7 @@ impl<'a> Parser<'a> {
                     // Create a temporary lexer + parser for the expression
                     use crate::lexer::tokenize;
                     let sub_tokens = tokenize(inner);
-                    let mut sub_parser = Parser::new(&sub_tokens, inner);
+                    let mut sub_parser = Parser::new(sub_tokens, inner);
                     match sub_parser.parse_expr() {
                         Ok(expr) => Ok(ViewNode::Interpolation(expr)),
                         Err(_) => Ok(ViewNode::Text(text)),

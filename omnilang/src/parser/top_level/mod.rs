@@ -110,38 +110,36 @@ impl<'a> Parser<'a> {
                         }
                     }
                     TokenKind::Type => {
-                        // Peek ahead to determine if tagged union or type alias.
-                        // Tagged unions have the form: type Name = Variant1 | Variant2 { ... }
-                        // Type aliases have the form: type Name = SomeTypeAnnotation;
-                        let saved = self.pos;
-                        self.advance(); // 'type'
-                        let name_ok = self.expect_ident("expected type name").is_ok();
-                        let eq_ok = self.expect_token(TokenKind::Eq, "expected '='").is_ok();
-                        self.pos = saved;
+                        // Look ahead to determine if this is a type alias or tagged union.
+                        // Both have the form: type Name = ...
+                        // After '=': tagged unions have `Ident {` or `Ident |`,
+                        //            type aliases have anything else.
+                        let after_type = self.tokens.get(self.pos + 1);
+                        let after_name = self.tokens.get(self.pos + 2);
+                        let looks_like_type_alias = matches!(
+                            (after_type.map(|t| &t.kind), after_name.map(|t| &t.kind)),
+                            (Some(TokenKind::Ident(_)), Some(TokenKind::Eq))
+                        );
 
-                        if !name_ok || !eq_ok {
-                            // Can't parse — try tagged union (original behavior)
+                        if !looks_like_type_alias {
+                            // Cannot be a type alias or standard tagged union — try tagged union
                             module.tagged_unions.push(self.parse_tagged_union_def()?);
                         } else {
-                            // Advance past 'type' Name '='
-                            self.advance(); // 'type'
-                            self.advance(); // name
-                            self.advance(); // '='
-
-                            // Check if next token starts a variant: Ident { ... } or Ident | ...
-                            let is_tagged = match self.peek_kind() {
-                                TokenKind::Ident(_) => {
-                                    self.tokens.get(self.pos + 1).is_some_and(|t| {
-                                        t.kind == TokenKind::LBrace || t.kind == TokenKind::Pipe
-                                    })
-                                }
-                                _ => false,
-                            };
-
-                            self.pos = saved; // reset to 'type'
+                            // Has `type Name =`. Check if the part after = is a variant list.
+                            let after_eq = self.tokens.get(self.pos + 3);
+                            let after_variant = self.tokens.get(self.pos + 4);
+                            let is_tagged = matches!(
+                                after_eq.map(|t| &t.kind),
+                                Some(TokenKind::Ident(_))
+                            ) && matches!(
+                                after_variant.map(|t| &t.kind),
+                                Some(TokenKind::LBrace | TokenKind::Pipe)
+                            );
 
                             if is_tagged {
-                                module.tagged_unions.push(self.parse_tagged_union_def()?);
+                                module
+                                    .tagged_unions
+                                    .push(self.parse_tagged_union_def()?);
                             } else {
                                 module
                                     .type_aliases

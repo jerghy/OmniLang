@@ -10,7 +10,7 @@ use crate::parser::Parser;
 
 impl<'a> Parser<'a> {
     pub(super) fn check_closing_tag(&self, tag: &str) -> bool {
-        let tokens = self.tokens;
+        let tokens = &self.tokens;
         let pos = self.pos;
         if pos + 2 >= tokens.len() {
             return false;

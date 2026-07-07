@@ -163,6 +163,9 @@ pub enum TokenKind {
     // Special
     Eof,
     Error(String),
+
+    // Internal parser use only — cheap placeholder for consumed tokens
+    PlaceholderDummy,
 }
 
 /// Source location span (byte offsets + line/col).

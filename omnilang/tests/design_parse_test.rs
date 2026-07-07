@@ -31,7 +31,7 @@ design AppDesign {
 }
 "##;
     let tokens = tokenize(src);
-    let result = parser::parse(&tokens, src);
+    let result = parser::parse(tokens, src);
     assert!(result.is_ok(), "Parse failed: {:?}", result.err());
 
     let program = result.unwrap();
@@ -49,7 +49,7 @@ design AppDesign {
 fn parse_minimal_design_block() {
     let src = "design Minimal { }";
     let tokens = tokenize(src);
-    let result = parser::parse(&tokens, src);
+    let result = parser::parse(tokens, src);
     assert!(
         result.is_ok(),
         "Minimal design parse failed: {:?}",

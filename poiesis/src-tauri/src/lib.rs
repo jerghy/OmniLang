@@ -374,7 +374,7 @@ pub struct Diagnostic {
 #[tauri::command]
 fn analyse_source(source: String, file_path: String) -> AnalyseResult {
     let tokens = omnilang::lexer::tokenize(&source);
-    let program = match omnilang::parser::parse(&tokens, &source) {
+    let program = match omnilang::parser::parse(tokens, &source) {
         Ok(p) => p,
         Err(e) => {
             return AnalyseResult {
@@ -796,7 +796,7 @@ fn verify_pid_roundtrip(
 
     // Parse using omnilang
     let tokens = omnilang::lexer::tokenize(&source);
-    let program = match omnilang::parser::parse(&tokens, &source) {
+    let program = match omnilang::parser::parse(tokens, &source) {
         Ok(p) => p,
         Err(e) => {
             return Ok(serde_json::json!({
@@ -861,7 +861,11 @@ pub fn run() {
             get_pid_index,
             verify_pid_roundtrip,
         ])
-        .plugin(victauri_plugin::init())
+        .plugin(
+            victauri_plugin::VictauriBuilder::new()
+                .auth_disabled()
+                .build(),
+        )
         .run(tauri::generate_context!())
         .expect("error while running Poiesis");
 }

@@ -106,7 +106,7 @@ mod tests {
 
     fn analyze_source(source: &str) -> SemanticResult {
         let tokens = tokenize(source);
-        let program = parse(&tokens, source).expect("parse should succeed");
+        let program = parse(tokens, source).expect("parse should succeed");
         analyze(&program)
     }
 

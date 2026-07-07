@@ -56,7 +56,7 @@ pub fn validate_multi(
     // Phase 1: Parse all sources
     for (path, source) in &sources {
         let tokens = crate::lexer::tokenize(source);
-        match crate::parser::parse(&tokens, source) {
+        match crate::parser::parse(tokens, source) {
             Ok(program) => {
                 programs.insert(path.clone(), Arc::new(program));
             }

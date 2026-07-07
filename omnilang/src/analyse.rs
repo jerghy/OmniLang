@@ -175,7 +175,7 @@ pub fn analyse_multi(
         .par_iter()
         .map(|(path, source)| {
             let tokens = crate::lexer::tokenize(source);
-            match crate::parser::parse(&tokens, source) {
+            match crate::parser::parse(tokens, source) {
                 Ok(program) => (path.clone(), Ok(program)),
                 Err(e) => {
                     let d: Diagnostic = e.into();
@@ -361,7 +361,7 @@ pub fn analyse_multi_cached(
             .map(|path| {
                 let source = &sources[path];
                 let tokens = crate::lexer::tokenize(source);
-                match crate::parser::parse(&tokens, source) {
+                match crate::parser::parse(tokens, source) {
                     Ok(program) => (path.clone(), Ok(program)),
                     Err(e) => {
                         let d: Diagnostic = e.into();

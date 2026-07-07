@@ -18,7 +18,7 @@ use ast::Visibility;
 /// Parse a token stream into an AST Program.
 /// Returns `Ok(program)` on success, or `Err(ParseError)` if any parse errors were
 /// collected during recovery. The first collected error is returned.
-pub fn parse(tokens: &[Token], source: &str) -> Result<Program, ParseError> {
+pub fn parse(tokens: Vec<Token>, source: &str) -> Result<Program, ParseError> {
     let mut parser = Parser::new(tokens, source);
     let module = parser.parse_module()?;
     // Return the first collected parse error (if any) so callers know the AST
@@ -43,7 +43,7 @@ const MAX_RECURSION_DEPTH: usize = 256;
 
 /// The recursive descent parser.
 pub struct Parser<'a> {
-    tokens: &'a [Token],
+    tokens: Vec<Token>,
     pos: usize,
     depth: usize,
     source: &'a str,
@@ -52,7 +52,7 @@ pub struct Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    pub fn new(tokens: &'a [Token], source: &'a str) -> Self {
+    pub fn new(tokens: Vec<Token>, source: &'a str) -> Self {
         Parser {
             tokens,
             pos: 0,
@@ -95,11 +95,15 @@ impl<'a> Parser<'a> {
     }
 
     fn advance(&mut self) -> Token {
-        let t = self.peek().clone();
-        if t.kind != TokenKind::Eof {
-            self.pos += 1;
+        if self.pos >= self.tokens.len() {
+            return Token::new(TokenKind::Eof, 0, 0, 0, 0);
         }
-        t
+        // Move the real token out, leave a cheap placeholder in its place.
+        // The placeholder is never accessed because positions < pos are retired.
+        let placeholder = Token::new(TokenKind::PlaceholderDummy, 0, 0, 0, 0);
+        let token = std::mem::replace(&mut self.tokens[self.pos], placeholder);
+        self.pos += 1;
+        token
     }
 
     /// Zero-clone variant check. Returns true if current token matches `kind`.
@@ -281,7 +285,7 @@ mod roundtrip_tests {
     fn roundtrip_function_def() {
         let source = "pub fn main() { return 42; }";
         let tokens = tokenize(source);
-        let program = parse(&tokens, source).unwrap();
+        let program = parse(tokens, source).unwrap();
         assert_eq!(program.modules.len(), 1);
         let module = program.modules.get("input.omni").unwrap();
         assert_eq!(module.functions.len(), 1);
@@ -294,7 +298,7 @@ mod roundtrip_tests {
     fn roundtrip_struct_def() {
         let source = "struct Point { x: i32, y: i32 }";
         let tokens = tokenize(source);
-        let program = parse(&tokens, source).unwrap();
+        let program = parse(tokens, source).unwrap();
         let module = program.modules.get("input.omni").unwrap();
         assert_eq!(module.structs.len(), 1);
         assert_eq!(module.structs[0].name, "Point");
@@ -305,7 +309,7 @@ mod roundtrip_tests {
     fn roundtrip_enum_def() {
         let source = "type Color = Red | Green | Blue";
         let tokens = tokenize(source);
-        let program = parse(&tokens, source).unwrap();
+        let program = parse(tokens, source).unwrap();
         let module = program.modules.get("input.omni").unwrap();
         assert_eq!(module.tagged_unions.len(), 1);
     }
@@ -314,7 +318,7 @@ mod roundtrip_tests {
     fn roundtrip_type_alias() {
         let source = "type UserId = i32;";
         let tokens = tokenize(source);
-        let program = parse(&tokens, source).unwrap();
+        let program = parse(tokens, source).unwrap();
         let module = program.modules.get("input.omni").unwrap();
         assert_eq!(module.type_aliases.len(), 1);
         assert_eq!(module.type_aliases[0].name, "UserId");
@@ -324,7 +328,7 @@ mod roundtrip_tests {
     fn roundtrip_import_export() {
         let source = "import { add } from \"./utils/math.omni\";\nexport { main } from \"./utils/math.omni\";";
         let tokens = tokenize(source);
-        let program = parse(&tokens, source).unwrap();
+        let program = parse(tokens, source).unwrap();
         let module = program.modules.get("input.omni").unwrap();
         assert_eq!(module.imports.len(), 1);
         assert_eq!(module.exports.len(), 1);
@@ -334,7 +338,7 @@ mod roundtrip_tests {
     fn test_reject_invalid_hex() {
         let source = "let x = 0xFFG;";
         let tokens = tokenize(source);
-        let result = parse(&tokens, source);
+        let result = parse(tokens, source);
         assert!(
             result.is_err(),
             "Invalid hex '0xFFG' should produce parse error"
@@ -345,7 +349,7 @@ mod roundtrip_tests {
     fn test_reject_invalid_float() {
         let source = "let x = 1.2.3;";
         let tokens = tokenize(source);
-        let result = parse(&tokens, source);
+        let result = parse(tokens, source);
         assert!(
             result.is_err(),
             "Invalid float '1.2.3' should produce parse error"
@@ -361,7 +365,7 @@ mod roundtrip_tests {
         // boundary so `let y = 42;` and `return y;` are still parsed.
         let source = "pub fn main() { let x = ; let y = 42; return y; }";
         let tokens = tokenize(source);
-        let mut parser = Parser::new(&tokens, source);
+        let mut parser = Parser::new(tokens, source);
         let module = parser.parse_module().unwrap();
         assert_eq!(
             parser.errors.len(),
@@ -382,7 +386,7 @@ mod roundtrip_tests {
         // allowing both adjacent functions to parse.
         let source = "pub fn foo() { return 1; } quux pub fn bar() { return 2; }";
         let tokens = tokenize(source);
-        let mut parser = Parser::new(&tokens, source);
+        let mut parser = Parser::new(tokens, source);
         let module = parser.parse_module().unwrap();
         assert_eq!(
             parser.errors.len(),
