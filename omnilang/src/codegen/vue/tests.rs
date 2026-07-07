@@ -73,11 +73,11 @@ mod tests {
 
     #[test]
     fn test_binary_op_to_vue() {
-        assert_eq!(crate::codegen::binary_op_to_str("add", true, false), "+");
-        assert_eq!(crate::codegen::binary_op_to_str("eq", true, false), "===");
-        assert_eq!(crate::codegen::binary_op_to_str("and", true, false), "&&");
-        assert_eq!(crate::codegen::binary_op_to_str("or", true, false), "||");
-        assert_eq!(crate::codegen::binary_op_to_str("neq", true, false), "!==");
+        assert_eq!(crate::codegen::binary_op_to_str(&BinaryOpIR::Add, true, false), "+");
+        assert_eq!(crate::codegen::binary_op_to_str(&BinaryOpIR::Eq, true, false), "===");
+        assert_eq!(crate::codegen::binary_op_to_str(&BinaryOpIR::And, true, false), "&&");
+        assert_eq!(crate::codegen::binary_op_to_str(&BinaryOpIR::Or, true, false), "||");
+        assert_eq!(crate::codegen::binary_op_to_str(&BinaryOpIR::Neq, true, false), "!==");
     }
 
     // ── format_expr_vue tests ───────────────────────────────
@@ -102,7 +102,7 @@ mod tests {
     #[test]
     fn test_format_expr_binary() {
         let expr = ExprIR::BinaryOpExpr {
-            op: "add".into(),
+            op: BinaryOpIR::Add,
             left: Box::new(ExprIR::IdentifierExpr {
                 name: "a".into(),
                 type_ann: None,
@@ -606,7 +606,7 @@ mod tests {
         getters.insert(
             "doubleCount".into(),
             ExprIR::BinaryOpExpr {
-                op: "mul".into(),
+                op: BinaryOpIR::Mul,
                 left: Box::new(ExprIR::IdentifierExpr {
                     name: "count".into(),
                     type_ann: None,

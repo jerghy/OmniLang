@@ -103,10 +103,10 @@ fn test_format_json_value() {
 
 #[test]
 fn test_binary_ops() {
-    assert_eq!(crate::codegen::binary_op_to_str("add", true, false), "+");
-    assert_eq!(crate::codegen::binary_op_to_str("eq", true, false), "===");
-    assert_eq!(crate::codegen::binary_op_to_str("and", true, false), "&&");
-    assert_eq!(crate::codegen::binary_op_to_str("or", true, false), "||");
+    assert_eq!(crate::codegen::binary_op_to_str(&BinaryOpIR::Add, true, false), "+");
+    assert_eq!(crate::codegen::binary_op_to_str(&BinaryOpIR::Eq, true, false), "===");
+    assert_eq!(crate::codegen::binary_op_to_str(&BinaryOpIR::And, true, false), "&&");
+    assert_eq!(crate::codegen::binary_op_to_str(&BinaryOpIR::Or, true, false), "||");
 }
 
 // ── format_expr_ir tests ─────────────────────────────
@@ -131,7 +131,7 @@ fn test_format_expr_identifier() {
 #[test]
 fn test_format_expr_binary() {
     let expr = ExprIR::BinaryOpExpr {
-        op: "add".into(),
+        op: BinaryOpIR::Add,
         left: Box::new(ExprIR::IdentifierExpr {
             name: "a".into(),
             type_ann: None,

@@ -52,11 +52,11 @@ fn test_prop_to_flutter_param_name() {
 
 #[test]
 fn test_binary_op_to_flutter() {
-    assert_eq!(crate::codegen::binary_op_to_str("add", false, false), "+");
-    assert_eq!(crate::codegen::binary_op_to_str("eq", false, false), "==");
-    assert_eq!(crate::codegen::binary_op_to_str("and", false, false), "&&");
-    assert_eq!(crate::codegen::binary_op_to_str("or", false, false), "||");
-    assert_eq!(crate::codegen::binary_op_to_str("neq", false, false), "!=");
+    assert_eq!(crate::codegen::binary_op_to_str(&BinaryOpIR::Add, false, false), "+");
+    assert_eq!(crate::codegen::binary_op_to_str(&BinaryOpIR::Eq, false, false), "==");
+    assert_eq!(crate::codegen::binary_op_to_str(&BinaryOpIR::And, false, false), "&&");
+    assert_eq!(crate::codegen::binary_op_to_str(&BinaryOpIR::Or, false, false), "||");
+    assert_eq!(crate::codegen::binary_op_to_str(&BinaryOpIR::Neq, false, false), "!=");
 }
 
 #[test]
@@ -109,7 +109,7 @@ fn test_format_expr_identifier() {
 #[test]
 fn test_format_expr_binary() {
     let expr = ExprIR::BinaryOpExpr {
-        op: "add".into(),
+        op: BinaryOpIR::Add,
         left: Box::new(ExprIR::IdentifierExpr {
             name: "a".into(),
             type_ann: None,
@@ -878,7 +878,7 @@ fn test_store_dart_with_getters() {
     getters.insert(
         "doubleCount".into(),
         ExprIR::BinaryOpExpr {
-            op: "mul".into(),
+            op: BinaryOpIR::Mul,
             left: Box::new(ExprIR::IdentifierExpr {
                 name: "count".into(),
                 type_ann: None,

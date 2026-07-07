@@ -33,11 +33,11 @@ mod tests {
 
     #[test]
     fn test_binary_op_to_dioxus() {
-        assert_eq!(crate::codegen::binary_op_to_str("add", false, false), "+");
-        assert_eq!(crate::codegen::binary_op_to_str("eq", false, false), "==");
-        assert_eq!(crate::codegen::binary_op_to_str("and", false, false), "&&");
-        assert_eq!(crate::codegen::binary_op_to_str("or", false, false), "||");
-        assert_eq!(crate::codegen::binary_op_to_str("neq", false, false), "!=");
+        assert_eq!(crate::codegen::binary_op_to_str(&BinaryOpIR::Add, false, false), "+");
+        assert_eq!(crate::codegen::binary_op_to_str(&BinaryOpIR::Eq, false, false), "==");
+        assert_eq!(crate::codegen::binary_op_to_str(&BinaryOpIR::And, false, false), "&&");
+        assert_eq!(crate::codegen::binary_op_to_str(&BinaryOpIR::Or, false, false), "||");
+        assert_eq!(crate::codegen::binary_op_to_str(&BinaryOpIR::Neq, false, false), "!=");
     }
 
     #[test]
@@ -98,7 +98,7 @@ mod tests {
     #[test]
     fn test_format_expr_binary() {
         let expr = ExprIR::BinaryOpExpr {
-            op: "add".into(),
+            op: BinaryOpIR::Add,
             left: Box::new(ExprIR::IdentifierExpr {
                 name: "a".into(),
                 type_ann: None,
@@ -538,7 +538,7 @@ mod tests {
                 is_nullable: false,
             },
             body: ExprIR::BinaryOpExpr {
-                op: "mul".into(),
+                op: BinaryOpIR::Mul,
                 left: Box::new(ExprIR::IdentifierExpr {
                     name: "count".into(),
                     type_ann: None,

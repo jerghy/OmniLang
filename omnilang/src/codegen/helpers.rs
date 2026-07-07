@@ -6,56 +6,57 @@
 use crate::codegen::sanitize_css_value;
 use crate::codegen::CodeWriter;
 
-/// Map an OMNI binary operator name to the target language's operator symbol.
+/// Map an OMNI binary operator IR to the target language's operator symbol.
 /// - `strict_eq`: if true, uses `===`/`!==` (JS-style); otherwise `==`/`!=`
 /// - `textual_bool`: if true, uses `and`/`or` (Python-style); otherwise `&&`/`||`
 #[must_use]
-pub fn binary_op_to_str(op: &str, strict_eq: bool, textual_bool: bool) -> &str {
+pub fn binary_op_to_str(op: &crate::ir::BinaryOpIR, strict_eq: bool, textual_bool: bool) -> &str {
+    use crate::ir::BinaryOpIR::*;
     match op {
-        "add" => "+",
-        "sub" => "-",
-        "mul" => "*",
-        "div" => "/",
-        "mod" => "%",
-        "eq" => {
+        Add => "+",
+        Sub => "-",
+        Mul => "*",
+        Div => "/",
+        Mod => "%",
+        Eq => {
             if strict_eq {
                 "==="
             } else {
                 "=="
             }
         }
-        "neq" => {
+        Neq => {
             if strict_eq {
                 "!=="
             } else {
                 "!="
             }
         }
-        "lt" => "<",
-        "gt" => ">",
-        "lteq" => "<=",
-        "gteq" => ">=",
-        "and" => {
+        Lt => "<",
+        Gt => ">",
+        LtEq => "<=",
+        GtEq => ">=",
+        And => {
             if textual_bool {
                 "and"
             } else {
                 "&&"
             }
         }
-        "or" => {
+        Or => {
             if textual_bool {
                 "or"
             } else {
                 "||"
             }
         }
-        "assign" => "=",
-        "addassign" => "+=",
-        "subassign" => "-=",
-        "mulassign" => "*=",
-        "divassign" => "/=",
-        "modassign" => "%=",
-        _ => op,
+        NullishCoalesce => "??",
+        Assign => "=",
+        AddAssign => "+=",
+        SubAssign => "-=",
+        MulAssign => "*=",
+        DivAssign => "/=",
+        ModAssign => "%=",
     }
 }
 

@@ -88,7 +88,7 @@ pub(crate) fn fixture_component() -> IRProgram {
                 is_nullable: false,
             },
             body: ExprIR::BinaryOpExpr {
-                op: "mul".into(),
+                op: BinaryOpIR::Mul,
                 left: Box::new(ExprIR::IdentifierExpr {
                     name: "count".into(),
                     type_ann: None,
@@ -168,7 +168,7 @@ pub(crate) fn fixture_store() -> IRProgram {
         getters: HashMap::from([(
             "doubleCount".into(),
             ExprIR::BinaryOpExpr {
-                op: "mul".into(),
+                op: BinaryOpIR::Mul,
                 left: Box::new(ExprIR::IdentifierExpr {
                     name: "count".into(),
                     type_ann: None,
@@ -370,7 +370,7 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                 StatementIR::LetStmtIR {
                     name: "add".into(),
                     value: Some(ExprIR::BinaryOpExpr {
-                        op: "add".into(),
+                        op: BinaryOpIR::Add,
                         left: Box::new(ExprIR::IdentifierExpr {
                             name: "a".into(),
                             type_ann: None,
@@ -385,7 +385,7 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                 StatementIR::LetStmtIR {
                     name: "sub".into(),
                     value: Some(ExprIR::BinaryOpExpr {
-                        op: "sub".into(),
+                        op: BinaryOpIR::Sub,
                         left: Box::new(ExprIR::IdentifierExpr {
                             name: "a".into(),
                             type_ann: None,
@@ -400,7 +400,7 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                 StatementIR::LetStmtIR {
                     name: "mul".into(),
                     value: Some(ExprIR::BinaryOpExpr {
-                        op: "mul".into(),
+                        op: BinaryOpIR::Mul,
                         left: Box::new(ExprIR::IdentifierExpr {
                             name: "a".into(),
                             type_ann: None,
@@ -415,7 +415,7 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                 StatementIR::LetStmtIR {
                     name: "div".into(),
                     value: Some(ExprIR::BinaryOpExpr {
-                        op: "div".into(),
+                        op: BinaryOpIR::Div,
                         left: Box::new(ExprIR::IdentifierExpr {
                             name: "a".into(),
                             type_ann: None,
@@ -430,7 +430,7 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                 StatementIR::LetStmtIR {
                     name: "eq".into(),
                     value: Some(ExprIR::BinaryOpExpr {
-                        op: "eq".into(),
+                        op: BinaryOpIR::Eq,
                         left: Box::new(ExprIR::IdentifierExpr {
                             name: "a".into(),
                             type_ann: None,
@@ -445,7 +445,7 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                 StatementIR::LetStmtIR {
                     name: "neq".into(),
                     value: Some(ExprIR::BinaryOpExpr {
-                        op: "neq".into(),
+                        op: BinaryOpIR::Neq,
                         left: Box::new(ExprIR::IdentifierExpr {
                             name: "a".into(),
                             type_ann: None,
@@ -460,7 +460,7 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                 StatementIR::LetStmtIR {
                     name: "and".into(),
                     value: Some(ExprIR::BinaryOpExpr {
-                        op: "and".into(),
+                        op: BinaryOpIR::And,
                         left: Box::new(ExprIR::IdentifierExpr {
                             name: "flag".into(),
                             type_ann: None,
@@ -474,7 +474,7 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                 StatementIR::LetStmtIR {
                     name: "or".into(),
                     value: Some(ExprIR::BinaryOpExpr {
-                        op: "or".into(),
+                        op: BinaryOpIR::Or,
                         left: Box::new(ExprIR::IdentifierExpr {
                             name: "flag".into(),
                             type_ann: None,
@@ -580,7 +580,7 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                     value: Some(ExprIR::ClosureExpr {
                         params: vec!["x".into(), "y".into()],
                         body: Box::new(ExprIR::BinaryOpExpr {
-                            op: "add".into(),
+                            op: BinaryOpIR::Add,
                             left: Box::new(ExprIR::IdentifierExpr {
                                 name: "x".into(),
                                 type_ann: None,

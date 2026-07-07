@@ -84,17 +84,17 @@ fn test_to_react_event() {
 
 #[test]
 fn test_binary_op_to_str() {
-    assert_eq!(binary_op_to_str("add", true, false), "+");
-    assert_eq!(binary_op_to_str("eq", true, false), "===");
-    assert_eq!(binary_op_to_str("and", true, false), "&&");
-    assert_eq!(binary_op_to_str("or", true, false), "||");
-    assert_eq!(binary_op_to_str("neq", true, false), "!==");
+    assert_eq!(binary_op_to_str(&BinaryOpIR::Add, true, false), "+");
+    assert_eq!(binary_op_to_str(&BinaryOpIR::Eq, true, false), "===");
+    assert_eq!(binary_op_to_str(&BinaryOpIR::And, true, false), "&&");
+    assert_eq!(binary_op_to_str(&BinaryOpIR::Or, true, false), "||");
+    assert_eq!(binary_op_to_str(&BinaryOpIR::Neq, true, false), "!==");
     // C-loose eq
-    assert_eq!(binary_op_to_str("eq", false, false), "==");
-    assert_eq!(binary_op_to_str("neq", false, false), "!=");
+    assert_eq!(binary_op_to_str(&BinaryOpIR::Eq, false, false), "==");
+    assert_eq!(binary_op_to_str(&BinaryOpIR::Neq, false, false), "!=");
     // Python textual bool
-    assert_eq!(binary_op_to_str("and", false, true), "and");
-    assert_eq!(binary_op_to_str("or", false, true), "or");
+    assert_eq!(binary_op_to_str(&BinaryOpIR::And, false, true), "and");
+    assert_eq!(binary_op_to_str(&BinaryOpIR::Or, false, true), "or");
 }
 
 // ── format_expr_ir_tsx tests ────────────────────────────
@@ -119,7 +119,7 @@ fn test_format_expr_identifier() {
 #[test]
 fn test_format_expr_binary() {
     let expr = ExprIR::BinaryOpExpr {
-        op: "add".into(),
+        op: BinaryOpIR::Add,
         left: Box::new(ExprIR::IdentifierExpr {
             name: "a".into(),
             type_ann: None,
@@ -818,7 +818,7 @@ fn test_store_hook_with_getters() {
     getters.insert(
         "doubleCount".into(),
         ExprIR::BinaryOpExpr {
-            op: "mul".into(),
+            op: BinaryOpIR::Mul,
             left: Box::new(ExprIR::IdentifierExpr {
                 name: "count".into(),
                 type_ann: None,

@@ -89,23 +89,29 @@ pub(super) fn collect_for_events(
 }
 
 /// Map omni binary operators to JS operators.
-pub(super) fn map_binary_op(op: &str) -> &str {
+pub(super) fn map_binary_op(op: &BinaryOpIR) -> &str {
+    use BinaryOpIR::*;
     match op {
-        "add" => "+",
-        "sub" => "-",
-        "mul" => "*",
-        "div" => "/",
-        "mod" => "%",
-        "eq" => "===",
-        "neq" => "!==",
-        "lt" => "<",
-        "gt" => ">",
-        "lteq" => "<=",
-        "gteq" => ">=",
-        "and" => "&&",
-        "or" => "||",
-        "assign" => "=",
-        _ => op,
+        Add => "+",
+        Sub => "-",
+        Mul => "*",
+        Div => "/",
+        Mod => "%",
+        Eq => "===",
+        Neq => "!==",
+        Lt => "<",
+        Gt => ">",
+        LtEq => "<=",
+        GtEq => ">=",
+        And => "&&",
+        Or => "||",
+        NullishCoalesce => "??",
+        Assign => "=",
+        AddAssign => "+=",
+        SubAssign => "-=",
+        MulAssign => "*=",
+        DivAssign => "/=",
+        ModAssign => "%=",
     }
 }
 

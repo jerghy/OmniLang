@@ -15,6 +15,90 @@ fn is_false(b: &bool) -> bool {
 }
 
 // ═══════════════════════════════════════════════════════
+// BinaryOpIR — strongly-typed binary operator
+// ═══════════════════════════════════════════════════════
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub enum BinaryOpIR {
+    #[serde(rename = "add")]
+    Add,
+    #[serde(rename = "sub")]
+    Sub,
+    #[serde(rename = "mul")]
+    Mul,
+    #[serde(rename = "div")]
+    Div,
+    #[serde(rename = "mod")]
+    Mod,
+    #[serde(rename = "eq")]
+    Eq,
+    #[serde(rename = "neq")]
+    Neq,
+    #[serde(rename = "lt")]
+    Lt,
+    #[serde(rename = "gt")]
+    Gt,
+    #[serde(rename = "lteq")]
+    LtEq,
+    #[serde(rename = "gteq")]
+    GtEq,
+    #[serde(rename = "and")]
+    And,
+    #[serde(rename = "or")]
+    Or,
+    #[serde(rename = "??")]
+    NullishCoalesce,
+    #[serde(rename = "assign")]
+    Assign,
+    #[serde(rename = "addassign")]
+    AddAssign,
+    #[serde(rename = "subassign")]
+    SubAssign,
+    #[serde(rename = "mulassign")]
+    MulAssign,
+    #[serde(rename = "divassign")]
+    DivAssign,
+    #[serde(rename = "modassign")]
+    ModAssign,
+}
+
+impl BinaryOpIR {
+    /// Return the string representation of this binary operator,
+    /// matching `BinaryOpKind::as_ir_str()` from the AST.
+    #[must_use]
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Add => "add",
+            Self::Sub => "sub",
+            Self::Mul => "mul",
+            Self::Div => "div",
+            Self::Mod => "mod",
+            Self::Eq => "eq",
+            Self::Neq => "neq",
+            Self::Lt => "lt",
+            Self::Gt => "gt",
+            Self::LtEq => "lteq",
+            Self::GtEq => "gteq",
+            Self::And => "and",
+            Self::Or => "or",
+            Self::NullishCoalesce => "??",
+            Self::Assign => "assign",
+            Self::AddAssign => "addassign",
+            Self::SubAssign => "subassign",
+            Self::MulAssign => "mulassign",
+            Self::DivAssign => "divassign",
+            Self::ModAssign => "modassign",
+        }
+    }
+}
+
+impl std::fmt::Display for BinaryOpIR {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+// ═══════════════════════════════════════════════════════
 // Expression IR
 // ═══════════════════════════════════════════════════════
 
@@ -38,7 +122,7 @@ pub enum ExprIR {
         field: String,
     },
     BinaryOpExpr {
-        op: String,
+        op: BinaryOpIR,
         left: Box<ExprIR>,
         right: Box<ExprIR>,
     },
@@ -1116,5 +1200,111 @@ mod tests {
         assert_eq!(json, "\"static\"");
         let back: ConstructionKind = serde_json::from_str(&json).unwrap();
         assert_eq!(back, ConstructionKind::Static);
+    }
+
+    // ── BinaryOpIR serde round-trip tests ──
+
+    #[test]
+    fn serde_roundtrip_binary_op_add() {
+        let v = BinaryOpIR::Add;
+        let json = serde_json::to_string(&v).unwrap();
+        assert_eq!(json, "\"add\"");
+        let back: BinaryOpIR = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, BinaryOpIR::Add);
+    }
+
+    #[test]
+    fn serde_roundtrip_binary_op_sub() {
+        let v = BinaryOpIR::Sub;
+        let json = serde_json::to_string(&v).unwrap();
+        assert_eq!(json, "\"sub\"");
+        let back: BinaryOpIR = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, BinaryOpIR::Sub);
+    }
+
+    #[test]
+    fn serde_roundtrip_binary_op_arithmetic() {
+        use BinaryOpIR::*;
+        for (op, expected_json) in &[
+            (Add, "\"add\""),
+            (Sub, "\"sub\""),
+            (Mul, "\"mul\""),
+            (Div, "\"div\""),
+            (Mod, "\"mod\""),
+        ] {
+            let json = serde_json::to_string(op).unwrap();
+            assert_eq!(&json, expected_json);
+            let back: BinaryOpIR = serde_json::from_str(&json).unwrap();
+            assert_eq!(&back, op);
+        }
+    }
+
+    #[test]
+    fn serde_roundtrip_binary_op_comparison() {
+        use BinaryOpIR::*;
+        for (op, expected_json) in &[
+            (Eq, "\"eq\""),
+            (Neq, "\"neq\""),
+            (Lt, "\"lt\""),
+            (Gt, "\"gt\""),
+            (LtEq, "\"lteq\""),
+            (GtEq, "\"gteq\""),
+        ] {
+            let json = serde_json::to_string(op).unwrap();
+            assert_eq!(&json, expected_json);
+            let back: BinaryOpIR = serde_json::from_str(&json).unwrap();
+            assert_eq!(&back, op);
+        }
+    }
+
+    #[test]
+    fn serde_roundtrip_binary_op_logical() {
+        use BinaryOpIR::*;
+        for (op, expected_json) in &[
+            (And, "\"and\""),
+            (Or, "\"or\""),
+            (NullishCoalesce, "\"\u{3f}\u{3f}\""),
+        ] {
+            let json = serde_json::to_string(op).unwrap();
+            assert_eq!(&json, expected_json);
+            let back: BinaryOpIR = serde_json::from_str(&json).unwrap();
+            assert_eq!(&back, op);
+        }
+    }
+
+    #[test]
+    fn serde_roundtrip_binary_op_assignment() {
+        use BinaryOpIR::*;
+        for (op, expected_json) in &[
+            (Assign, "\"assign\""),
+            (AddAssign, "\"addassign\""),
+            (SubAssign, "\"subassign\""),
+            (MulAssign, "\"mulassign\""),
+            (DivAssign, "\"divassign\""),
+            (ModAssign, "\"modassign\""),
+        ] {
+            let json = serde_json::to_string(op).unwrap();
+            assert_eq!(&json, expected_json);
+            let back: BinaryOpIR = serde_json::from_str(&json).unwrap();
+            assert_eq!(&back, op);
+        }
+    }
+
+    #[test]
+    fn serde_roundtrip_binary_op_expr_in_context() {
+        // Test BinaryOpIR serde within ExprIR::BinaryOpExpr
+        let expr = ExprIR::BinaryOpExpr {
+            op: BinaryOpIR::Add,
+            left: Box::new(ExprIR::ident("a")),
+            right: Box::new(ExprIR::ident("b")),
+        };
+        let json = serde_json::to_string(&expr).unwrap();
+        assert!(json.contains("\"_kind\":\"BinaryOpExpr\""));
+        assert!(json.contains("\"op\":\"add\""));
+        let back: ExprIR = serde_json::from_str(&json).unwrap();
+        match back {
+            ExprIR::BinaryOpExpr { op, .. } => assert_eq!(op, BinaryOpIR::Add),
+            _ => panic!("Expected BinaryOpExpr"),
+        }
     }
 }

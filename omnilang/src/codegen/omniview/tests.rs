@@ -161,7 +161,7 @@ fn test_store_getters() {
             getters: HashMap::from([(
                 "doubled".into(),
                 ExprIR::BinaryOpExpr {
-                    op: "mul".into(),
+                    op: BinaryOpIR::Mul,
                     left: Box::new(ExprIR::IdentifierExpr {
                         name: "x".into(),
                         type_ann: None,
@@ -278,7 +278,7 @@ fn test_expr_binary() {
     let gen = OmniViewGenerator::test_new();
     assert_eq!(
         gen.expr_to_js(&ExprIR::BinaryOpExpr {
-            op: "add".into(),
+            op: BinaryOpIR::Add,
             left: Box::new(ExprIR::IdentifierExpr {
                 name: "a".into(),
                 type_ann: None
@@ -292,7 +292,7 @@ fn test_expr_binary() {
     );
     assert_eq!(
         gen.expr_to_js(&ExprIR::BinaryOpExpr {
-            op: "eq".into(),
+            op: BinaryOpIR::Eq,
             left: Box::new(ExprIR::IdentifierExpr {
                 name: "x".into(),
                 type_ann: None
@@ -306,7 +306,7 @@ fn test_expr_binary() {
     );
     assert_eq!(
         gen.expr_to_js(&ExprIR::BinaryOpExpr {
-            op: "and".into(),
+            op: BinaryOpIR::And,
             left: Box::new(ExprIR::IdentifierExpr {
                 name: "a".into(),
                 type_ann: None
@@ -416,7 +416,7 @@ fn test_expr_closure() {
         gen.expr_to_js(&ExprIR::ClosureExpr {
             params: vec!["x".into()],
             body: Box::new(ExprIR::BinaryOpExpr {
-                op: "mul".into(),
+                op: BinaryOpIR::Mul,
                 left: Box::new(ExprIR::IdentifierExpr {
                     name: "x".into(),
                     type_ann: None
@@ -768,7 +768,7 @@ fn test_component_with_computed() {
                     is_nullable: false,
                 },
                 body: ExprIR::BinaryOpExpr {
-                    op: "mul".into(),
+                    op: BinaryOpIR::Mul,
                     left: Box::new(ExprIR::IdentifierExpr {
                         name: "x".into(),
                         type_ann: None,
@@ -807,7 +807,7 @@ fn test_component_with_functions() {
                         expr: ExprIR::CallExpr {
                             name: "println".into(),
                             args: vec![ExprIR::BinaryOpExpr {
-                                op: "add".into(),
+                                op: BinaryOpIR::Add,
                                 left: Box::new(ExprIR::LiteralExpr {
                                     value: serde_json::json!("Hello "),
                                 }),

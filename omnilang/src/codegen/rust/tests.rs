@@ -89,10 +89,10 @@ mod tests {
 
     #[test]
     fn test_binary_op_to_rust() {
-        assert_eq!(crate::codegen::binary_op_to_str("add", false, false), "+");
-        assert_eq!(crate::codegen::binary_op_to_str("eq", false, false), "==");
-        assert_eq!(crate::codegen::binary_op_to_str("and", false, false), "&&");
-        assert_eq!(crate::codegen::binary_op_to_str("or", false, false), "||");
+        assert_eq!(crate::codegen::binary_op_to_str(&BinaryOpIR::Add, false, false), "+");
+        assert_eq!(crate::codegen::binary_op_to_str(&BinaryOpIR::Eq, false, false), "==");
+        assert_eq!(crate::codegen::binary_op_to_str(&BinaryOpIR::And, false, false), "&&");
+        assert_eq!(crate::codegen::binary_op_to_str(&BinaryOpIR::Or, false, false), "||");
     }
 
     // ── format_expr_ir tests ─────────────────────────────
@@ -117,7 +117,7 @@ mod tests {
     #[test]
     fn test_format_expr_ir_binary() {
         let expr = ExprIR::BinaryOpExpr {
-            op: "add".into(),
+            op: BinaryOpIR::Add,
             left: Box::new(ExprIR::IdentifierExpr {
                 name: "a".into(),
                 type_ann: None,

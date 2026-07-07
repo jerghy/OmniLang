@@ -38,7 +38,7 @@ fn snapshot_closure_with_params() {
     let expr = ExprIR::ClosureExpr {
         params: vec!["x".into(), "y".into()],
         body: Box::new(ExprIR::BinaryOpExpr {
-            op: "add".into(),
+            op: BinaryOpIR::Add,
             left: Box::new(ExprIR::IdentifierExpr {
                 name: "x".into(),
                 type_ann: None,
@@ -70,7 +70,7 @@ fn snapshot_closure_no_params() {
 #[test]
 fn snapshot_binary_and() {
     let expr = ExprIR::BinaryOpExpr {
-        op: "and".into(),
+        op: BinaryOpIR::And,
         left: Box::new(ExprIR::IdentifierExpr {
             name: "a".into(),
             type_ann: None,
@@ -88,7 +88,7 @@ fn snapshot_binary_and() {
 #[test]
 fn snapshot_binary_or() {
     let expr = ExprIR::BinaryOpExpr {
-        op: "or".into(),
+        op: BinaryOpIR::Or,
         left: Box::new(ExprIR::IdentifierExpr {
             name: "a".into(),
             type_ann: None,

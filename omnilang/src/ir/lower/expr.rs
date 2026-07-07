@@ -9,6 +9,33 @@ use std::collections::HashMap;
 
 use super::stmt::lower_block;
 
+/// Convert an AST `BinaryOpKind` to its IR counterpart.
+fn lower_binary_op(kind: &BinaryOpKind) -> BinaryOpIR {
+    use BinaryOpKind::*;
+    match kind {
+        Add => BinaryOpIR::Add,
+        Sub => BinaryOpIR::Sub,
+        Mul => BinaryOpIR::Mul,
+        Div => BinaryOpIR::Div,
+        Mod => BinaryOpIR::Mod,
+        Eq => BinaryOpIR::Eq,
+        Neq => BinaryOpIR::Neq,
+        Lt => BinaryOpIR::Lt,
+        Gt => BinaryOpIR::Gt,
+        LtEq => BinaryOpIR::LtEq,
+        GtEq => BinaryOpIR::GtEq,
+        And => BinaryOpIR::And,
+        Or => BinaryOpIR::Or,
+        NullishCoalesce => BinaryOpIR::NullishCoalesce,
+        Assign => BinaryOpIR::Assign,
+        AddAssign => BinaryOpIR::AddAssign,
+        SubAssign => BinaryOpIR::SubAssign,
+        MulAssign => BinaryOpIR::MulAssign,
+        DivAssign => BinaryOpIR::DivAssign,
+        ModAssign => BinaryOpIR::ModAssign,
+    }
+}
+
 // ═══════════════════════════════════════════════════════
 // Expression lowering
 // ═══════════════════════════════════════════════════════
@@ -52,7 +79,7 @@ pub(crate) fn lower_expr(
         Expr::BinaryOp {
             left, op, right, ..
         } => ExprIR::BinaryOpExpr {
-            op: op.as_ir_str().into(),
+            op: lower_binary_op(op),
             left: Box::new(lower_expr(
                 left,
                 variant_map,
