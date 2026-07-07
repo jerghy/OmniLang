@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { usePoiesisStore } from "../../store";
+import { emitDesignSource } from "../../services/codegen/design-emitter";
 import { TokenEditor } from "./TokenEditor";
 import { ClassEditor } from "./ClassEditor";
 import { VariantEditor } from "./VariantEditor";
@@ -8,6 +10,9 @@ type DesignView = "tokens" | "classes" | "variants";
 export function DesignTabContent() {
   const [view, setView] = useState<DesignView>("tokens");
   const [showCode, setShowCode] = useState(false);
+  const activeDesign = usePoiesisStore((s) => s.activeDesign);
+
+  const designSource = useMemo(() => emitDesignSource(activeDesign), [activeDesign]);
 
   if (showCode) {
     return (
@@ -19,7 +24,7 @@ export function DesignTabContent() {
           ← 返回编辑器
         </button>
         <pre style={{ fontFamily: "monospace", fontSize: 12, color: "#1e293b", background: "#f8fafc", padding: 12, borderRadius: 6, overflow: "auto", whiteSpace: "pre-wrap" }}>
-          {"// design.omni source preview\n// (code generation TBD)"}
+          {designSource}
         </pre>
       </div>
     );

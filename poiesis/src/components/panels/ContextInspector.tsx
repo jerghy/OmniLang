@@ -6,6 +6,8 @@ import { useSelectedElementIds, useElements } from "../../store/hooks";
 import { PropsSection } from "./inspector/PropsSection";
 import { EventsSection } from "./inspector/EventsSection";
 import { StylesSection } from "./inspector/StylesSection";
+import { ClassesSection } from "./inspector/ClassesSection";
+import { VariantBindingSection } from "./inspector/VariantBindingSection";
 
 /** HTML-like tags that get PropsSection + StylesSection */
 const BASIC_TAGS = new Set([
@@ -87,6 +89,9 @@ export function ContextInspector() {
       </h3>
 
       <PropsSection element={el} />
+
+      {isBasic && <ClassesSection element={el} />}
+      {isBasic && <VariantBindingSection element={el} />}
 
       {isBasic && <StylesSection element={el} />}
 
