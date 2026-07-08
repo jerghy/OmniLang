@@ -4,11 +4,11 @@
 //! Category: correctness
 //! Severity: warning
 
-use rustc_hash::FxHashMap;
 use super::helpers::statements_contain_return;
 use super::{LintDiagnostic, LintRule, LintSeverity};
 use crate::ir::IRProgram;
 use crate::ir::TypeKind;
+use rustc_hash::FxHashMap;
 
 pub struct MissingReturn;
 
@@ -23,7 +23,11 @@ impl LintRule for MissingReturn {
         LintSeverity::Warning
     }
 
-    fn check_ir(&self, ir: &IRProgram, file_map: &FxHashMap<String, String>) -> Vec<LintDiagnostic> {
+    fn check_ir(
+        &self,
+        ir: &IRProgram,
+        file_map: &FxHashMap<String, String>,
+    ) -> Vec<LintDiagnostic> {
         let mut diags = Vec::new();
         for (comp_name, comp) in ir.all_components() {
             let comp_file = comp
@@ -61,8 +65,8 @@ impl LintRule for MissingReturn {
 
 #[cfg(test)]
 mod tests {
-    use rustc_hash::FxHashMap;
     use crate::ir::{BlockIR, ComponentIR, FunctionIR, StatementIR, TypeIR, Visibility};
+    use rustc_hash::FxHashMap;
 
     use super::super::helpers::test_helpers::make_test_ir;
     use super::*;

@@ -5,8 +5,8 @@
 //! All types derive Debug, Clone, Serialize, Deserialize for
 //! JSON round-tripping in the IDE bridge and WASM bindings.
 
-use serde::{Deserialize, Serialize};
 use rustc_hash::FxHashMap;
+use serde::{Deserialize, Serialize};
 /// A fully lowered design block.
 ///
 /// Tokens are resolved into a `FxHashMap<String, TokenIR>` for O(1) lookup.

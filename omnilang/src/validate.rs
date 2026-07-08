@@ -173,7 +173,8 @@ enum CrossFileSymbolKind {
 fn build_pub_symbols(
     programs: &FxHashMap<String, Arc<Program>>,
 ) -> FxHashMap<String, FxHashMap<String, CrossFileSymbolKind>> {
-    let mut pub_symbols: FxHashMap<String, FxHashMap<String, CrossFileSymbolKind>> = FxHashMap::default();
+    let mut pub_symbols: FxHashMap<String, FxHashMap<String, CrossFileSymbolKind>> =
+        FxHashMap::default();
 
     for (path, program) in programs {
         let mut symbols: FxHashMap<String, CrossFileSymbolKind> = FxHashMap::default();

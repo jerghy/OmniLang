@@ -47,12 +47,11 @@ impl<'a> Parser<'a> {
         let inner_text = &self.source[lbrace.span.end..rbrace.span.start];
 
         // Delegate to the string-based design body parser
-        let mut def = crate::parser::design::parse_design_body(inner_text).map_err(|e| {
-            ParseError {
+        let mut def =
+            crate::parser::design::parse_design_body(inner_text).map_err(|e| ParseError {
                 message: e,
                 span: start,
-            }
-        })?;
+            })?;
         def.name = name;
 
         // Advance the parser position past the closing '}'

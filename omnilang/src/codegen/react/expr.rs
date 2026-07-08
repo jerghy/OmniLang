@@ -2,7 +2,6 @@
 // Statement generation (TSX)
 // ═══════════════════════════════════════════════════════════
 
-use rustc_hash::FxHashSet;
 use crate::codegen::shared::expr::FormatExpr;
 use crate::codegen::shared::stmt::FormatStmt;
 use crate::codegen::shared::types::{FormatType, JsTypeFormatter};
@@ -11,6 +10,7 @@ use crate::codegen::{
     capitalize_first, try_format_stdlib_call, JsonFormatConfig, Target, JSON_REACT,
 };
 use crate::ir::*;
+use rustc_hash::FxHashSet;
 
 /// React TSX expression formatter.
 ///
@@ -140,7 +140,8 @@ impl FormatStmt for ReactStmtFormatter {
                     .map(|v| self.expr.format_expr(v))
                     .unwrap_or_else(|| "0".into());
                 let is_store_signal = target.owner.is_some();
-                let is_component_state = !is_store_signal && self.signal_names.contains(target_str.as_str());
+                let is_component_state =
+                    !is_store_signal && self.signal_names.contains(target_str.as_str());
                 let use_setter = is_store_signal || is_component_state;
                 let setter = format!("set{}", capitalize_first(target_str));
                 if use_setter {
@@ -156,7 +157,8 @@ impl FormatStmt for ReactStmtFormatter {
                     .map(|v| self.expr.format_expr(v))
                     .unwrap_or_else(|| "0".into());
                 let is_store_signal = target.owner.is_some();
-                let is_component_state = !is_store_signal && self.signal_names.contains(target_str.as_str());
+                let is_component_state =
+                    !is_store_signal && self.signal_names.contains(target_str.as_str());
                 let use_setter = is_store_signal || is_component_state;
                 let setter = format!("set{}", capitalize_first(target_str));
                 if use_setter {
@@ -172,7 +174,8 @@ impl FormatStmt for ReactStmtFormatter {
                     .map(|v| self.expr.format_expr(v))
                     .unwrap_or_else(|| "0".into());
                 let is_store_signal = target.owner.is_some();
-                let is_component_state = !is_store_signal && self.signal_names.contains(target_str.as_str());
+                let is_component_state =
+                    !is_store_signal && self.signal_names.contains(target_str.as_str());
                 let use_setter = is_store_signal || is_component_state;
                 let setter = format!("set{}", capitalize_first(target_str));
                 if use_setter {
@@ -188,7 +191,8 @@ impl FormatStmt for ReactStmtFormatter {
                     .map(|v| self.expr.format_expr(v))
                     .unwrap_or_else(|| "0".into());
                 let is_store_signal = target.owner.is_some();
-                let is_component_state = !is_store_signal && self.signal_names.contains(target_str.as_str());
+                let is_component_state =
+                    !is_store_signal && self.signal_names.contains(target_str.as_str());
                 let use_setter = is_store_signal || is_component_state;
                 let setter = format!("set{}", capitalize_first(target_str));
                 if use_setter {
@@ -204,7 +208,8 @@ impl FormatStmt for ReactStmtFormatter {
                     .map(|v| self.expr.format_expr(v))
                     .unwrap_or_else(|| "0".into());
                 let is_store_signal = target.owner.is_some();
-                let is_component_state = !is_store_signal && self.signal_names.contains(target_str.as_str());
+                let is_component_state =
+                    !is_store_signal && self.signal_names.contains(target_str.as_str());
                 let use_setter = is_store_signal || is_component_state;
                 let setter = format!("set{}", capitalize_first(target_str));
                 if use_setter {
@@ -220,7 +225,8 @@ impl FormatStmt for ReactStmtFormatter {
                     .map(|v| self.expr.format_expr(v))
                     .unwrap_or_else(|| "0".into());
                 let is_store_signal = target.owner.is_some();
-                let is_component_state = !is_store_signal && self.signal_names.contains(target_str.as_str());
+                let is_component_state =
+                    !is_store_signal && self.signal_names.contains(target_str.as_str());
                 let use_setter = is_store_signal || is_component_state;
                 let setter = format!("set{}", capitalize_first(target_str));
                 if use_setter {
@@ -236,7 +242,8 @@ impl FormatStmt for ReactStmtFormatter {
                     .map(|v| self.expr.format_expr(v))
                     .unwrap_or_else(|| "undefined".into());
                 let is_store_signal = target.owner.is_some();
-                let is_component_state = !is_store_signal && self.signal_names.contains(target_str.as_str());
+                let is_component_state =
+                    !is_store_signal && self.signal_names.contains(target_str.as_str());
                 let use_setter = is_store_signal || is_component_state;
                 let setter = format!("set{}", capitalize_first(target_str));
                 if use_setter {
@@ -248,7 +255,8 @@ impl FormatStmt for ReactStmtFormatter {
             MutationIntent::Pop { target } => {
                 let target_str = &target.name;
                 let is_store_signal = target.owner.is_some();
-                let is_component_state = !is_store_signal && self.signal_names.contains(target_str.as_str());
+                let is_component_state =
+                    !is_store_signal && self.signal_names.contains(target_str.as_str());
                 let use_setter = is_store_signal || is_component_state;
                 let setter = format!("set{}", capitalize_first(target_str));
                 if use_setter {

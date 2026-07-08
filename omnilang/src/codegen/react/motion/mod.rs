@@ -2,10 +2,10 @@
 // Motion / Animation Helpers (React) — module root
 // ═══════════════════════════════════════════════════════════
 
-use rustc_hash::FxHashMap;
-use rustc_hash::FxHashSet;
 use crate::codegen::CodeWriter;
 use crate::ir::*;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 
 mod keyframes;
 mod transforms;

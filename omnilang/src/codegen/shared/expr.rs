@@ -9,30 +9,36 @@
 //! | `DartFormatExpr` | Dart (Dart, Flutter) | `==`, `.`, `null` fallback |
 //! | `RustFormatExpr` | Rust (Rust, Dioxus) | `if/else`, `vec![]`, `.await`, `None` fallback |
 
-#[cfg_attr(not(any(
-    feature = "codegen-javascript",
-    feature = "codegen-react",
-    feature = "codegen-vue",
-    feature = "codegen-dart",
-    feature = "codegen-flutter",
-    feature = "codegen-rust",
-    feature = "codegen-dioxus",
-    feature = "codegen-python"
-)), allow(unused_imports))]
+#[cfg_attr(
+    not(any(
+        feature = "codegen-javascript",
+        feature = "codegen-react",
+        feature = "codegen-vue",
+        feature = "codegen-dart",
+        feature = "codegen-flutter",
+        feature = "codegen-rust",
+        feature = "codegen-dioxus",
+        feature = "codegen-python"
+    )),
+    allow(unused_imports)
+)]
 use crate::codegen::{
     binary_op_to_str, format_block_as_expr, format_json_value, try_format_stdlib_call,
     JsonFormatConfig, Target,
 };
-#[cfg_attr(not(any(
-    feature = "codegen-javascript",
-    feature = "codegen-react",
-    feature = "codegen-vue",
-    feature = "codegen-dart",
-    feature = "codegen-flutter",
-    feature = "codegen-rust",
-    feature = "codegen-dioxus",
-    feature = "codegen-python"
-)), allow(unused_imports))]
+#[cfg_attr(
+    not(any(
+        feature = "codegen-javascript",
+        feature = "codegen-react",
+        feature = "codegen-vue",
+        feature = "codegen-dart",
+        feature = "codegen-flutter",
+        feature = "codegen-rust",
+        feature = "codegen-dioxus",
+        feature = "codegen-python"
+    )),
+    allow(unused_imports)
+)]
 use crate::ir::*;
 
 // ═══════════════════════════════════════════════════════════

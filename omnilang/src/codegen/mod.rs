@@ -34,7 +34,6 @@ pub mod vue;
 pub mod writer;
 
 use crate::ir::IRProgram;
-use rustc_hash::FxHashMap;
 #[cfg(any(feature = "codegen-omniview", feature = "codegen-vue"))]
 pub(crate) use event::emit_event_object;
 #[cfg(any(feature = "codegen-react", feature = "codegen-vue"))]
@@ -48,6 +47,7 @@ pub use json::{
     JSON_DART, JSON_DIOXUS, JSON_FLUTTER, JSON_JS, JSON_OMNIVIEW, JSON_PYTHON, JSON_REACT,
     JSON_RUST, JSON_VUE,
 };
+use rustc_hash::FxHashMap;
 pub use sanitize::{sanitize_css_value, sanitize_js_ident, sanitize_module_name};
 pub use stdlib::{try_format_stdlib_call, validate_stdlib_imports};
 pub use target::Target;

@@ -2,12 +2,12 @@
 //!
 //! Includes: `lower_expr`, `lower_expr_to_json`, `lower_expr_to_json_from_ir`.
 
+use super::stmt::lower_block;
 use crate::ir::types::*;
 use crate::parser::ast::*;
 use crate::semantic::SemanticResult;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
-use super::stmt::lower_block;
 
 /// Convert an AST `BinaryOpKind` to its IR counterpart.
 fn lower_binary_op(kind: &BinaryOpKind) -> BinaryOpIR {
@@ -244,7 +244,12 @@ pub(crate) fn lower_expr(
                 .collect(),
         },
         Expr::SpreadExpr { operand, .. } => ExprIR::SpreadExpr {
-            operand: Box::new(lower_expr(operand, variant_map, event_fields.as_deref_mut(), semantics)),
+            operand: Box::new(lower_expr(
+                operand,
+                variant_map,
+                event_fields.as_deref_mut(),
+                semantics,
+            )),
         },
         Expr::MapLiteral { entries, .. } => {
             let ir_entries: Vec<(ExprIR, ExprIR)> = entries

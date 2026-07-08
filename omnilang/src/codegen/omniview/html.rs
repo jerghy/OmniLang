@@ -1,10 +1,10 @@
-use std::fmt::Write;
 use super::utils::{escape_html, map_event, map_tag};
 use super::OmniViewGenerator;
 use crate::codegen::emit_event_object;
 use crate::codegen::{camel_to_kebab, sanitize_css_value};
 use crate::ir::*;
 use crate::sourcemap::{SourceMapEntry, SourceSpan, TargetSpan, TargetSpanKind};
+use std::fmt::Write;
 
 impl OmniViewGenerator {
     pub(super) fn next_nid(&mut self, tag: &str) -> String {
@@ -83,10 +83,7 @@ impl OmniViewGenerator {
         for (name, value) in &el.props {
             match name.as_str() {
                 "testId" | "test_id" => {
-                    let _ = write!(attrs, 
-                        " data-testid=\"{}\"",
-                        self.expr_to_static_str(value)
-                    );
+                    let _ = write!(attrs, " data-testid=\"{}\"", self.expr_to_static_str(value));
                 }
                 // Real HTML attributes — emit as-is, not data-*
                 "class" | "id" | "placeholder" | "type" | "value" | "disabled" | "checked"
@@ -175,7 +172,8 @@ impl OmniViewGenerator {
         if let Some(transition) = el.hero_behavior().and_then(|h| h.transition.as_ref()) {
             let trans_str = self.expr_to_static_str(transition);
             if !trans_str.is_empty() {
-                let _ = write!(attrs, 
+                let _ = write!(
+                    attrs,
                     " data-hero-transition=\"{}\"",
                     escape_html(&trans_str)
                 );
@@ -199,7 +197,8 @@ impl OmniViewGenerator {
                                     .unwrap_or_else(|| sig_name.to_string());
                                 // Use camelCase for JS el.style, not kebab-case
                                 let js_prop = prop;
-                                let _ = write!(self.js, 
+                                let _ =
+                                    write!(self.js, 
                                     "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) ",
                                     nid
                                 );
@@ -228,7 +227,8 @@ impl OmniViewGenerator {
                                     }
                                 }
                                 let js_prop = prop; // camelCase for el.style
-                                let _ = write!(self.js, 
+                                let _ =
+                                    write!(self.js, 
                                     "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) ",
                                     nid
                                 );
@@ -288,7 +288,8 @@ impl OmniViewGenerator {
                     }
                 }
                 if !static_style_parts.is_empty() {
-                    let _ = write!(attrs, 
+                    let _ = write!(
+                        attrs,
                         " style=\"{}\"",
                         escape_html(&static_style_parts.join("; "))
                     );
@@ -356,10 +357,8 @@ impl OmniViewGenerator {
                             let wrapper_name =
                                 format!("__on{}_{}", event_name, nid.replace('-', "_"));
                             let params_str = params.join(", ");
-                            let _ = writeln!(self.js, 
-                                "function {}({}) {{",
-                                wrapper_name, params_str
-                            );
+                            let _ =
+                                writeln!(self.js, "function {}({}) {{", wrapper_name, params_str);
                             for stmt in &body.statements {
                                 self.emit_statement(stmt);
                             }
@@ -367,7 +366,8 @@ impl OmniViewGenerator {
                             format!("{}({})", wrapper_name, event_obj)
                         }
                     };
-                    let _ = writeln!(self.js, 
+                    let _ = writeln!(
+                        self.js,
                         "{{ window.addEventListener(\"resize\", (_e) => {{ {} }}); }}",
                         handler_call
                     );
@@ -525,17 +525,15 @@ impl OmniViewGenerator {
             }
             if let Some(repeat) = el.motion_behavior().and_then(|m| m.in_view_repeat.as_ref()) {
                 let js_val = self.expr_to_js(repeat);
-                let _ = write!(attrs, 
-                    " data-in-view-repeat=\"{}\"",
-                    escape_html(&js_val)
-                );
+                let _ = write!(attrs, " data-in-view-repeat=\"{}\"", escape_html(&js_val));
             }
             if let Some(threshold) = el
                 .motion_behavior()
                 .and_then(|m| m.in_view_threshold.as_ref())
             {
                 let js_val = self.expr_to_js(threshold);
-                let _ = write!(attrs, 
+                let _ = write!(
+                    attrs,
                     " data-in-view-threshold=\"{}\"",
                     escape_html(&js_val)
                 );
@@ -569,14 +567,12 @@ impl OmniViewGenerator {
             }
             if let Some(threshold) = el.drag_behavior().and_then(|db| db.threshold.as_ref()) {
                 let js_val = self.expr_to_js(threshold);
-                let _ = write!(attrs, 
-                    " data-drag-threshold=\"{}\"",
-                    escape_html(&js_val)
-                );
+                let _ = write!(attrs, " data-drag-threshold=\"{}\"", escape_html(&js_val));
             }
             if let Some(vel) = el.drag_behavior().and_then(|db| db.velocity_max.as_ref()) {
                 let js_val = self.expr_to_js(vel);
-                let _ = write!(attrs, 
+                let _ = write!(
+                    attrs,
                     " data-drag-velocity-max=\"{}\"",
                     escape_html(&js_val)
                 );
@@ -591,7 +587,8 @@ impl OmniViewGenerator {
             // When driven-by is set, the animation progress is bound to the signal value.
             // We seek ALL animations on this element whenever the signal changes.
             // The signal is auto-tracked by __omni_effect.
-            let _ = write!(self.mount_js, 
+            let _ = write!(
+                self.mount_js,
                 "// @driven-by binding\n\
                  __omni_effect(() => {{\n\
                  \x20 const progress = Math.max(0, Math.min(1, Number({driven})));\n\
@@ -612,7 +609,8 @@ impl OmniViewGenerator {
             .and_then(|m| m.paused_override.as_ref())
         {
             let paused_js = self.expr_to_js(paused);
-            let _ = write!(self.mount_js, 
+            let _ = write!(
+                self.mount_js,
                 "// @paused override\n\
                  (function() {{\n\
                  \x20 var _paused = Boolean({paused});\n\

@@ -4,11 +4,11 @@
 //! declared the store with `@store`.  Extracted from `validate_types` to
 //! keep that file below 800 lines.
 
-use rustc_hash::FxHashSet;
 use super::SemanticAnalyzer;
 use crate::error::{Diagnostic, DiagnosticKind};
 use crate::lexer::Span;
 use crate::parser::ast::*;
+use rustc_hash::FxHashSet;
 
 impl SemanticAnalyzer {
     /// Validate that store fields are only accessed with @store declaration.

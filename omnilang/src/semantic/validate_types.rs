@@ -4,13 +4,13 @@
 //! resolve pass (see `validate_inline.rs` and `resolve.rs`).  Motion validation
 //! lives in the sibling [`validate_motion`] module.
 
-use rustc_hash::FxHashMap;
-use rustc_hash::FxHashSet;
 use super::walk_view::walk_view_nodes;
 use super::SemanticAnalyzer;
 use crate::error::{Diagnostic, DiagnosticKind};
 use crate::lexer::Span;
 use crate::parser::ast::*;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 
 // ── Bind target validation ──────────────────────────
 

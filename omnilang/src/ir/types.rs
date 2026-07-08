@@ -2,9 +2,9 @@
 //! Mirrors Python omniview/ir_types.py. Serializes to/from JSON via serde.
 
 use crate::sourcemap::SourceMapEntry;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use strum::IntoStaticStr;
 
 // Cross-reference: ComponentIR, StoreIR, Enums need logic types
@@ -582,8 +582,13 @@ pub fn event_data_schema(kind: &EventDataKind) -> Vec<EventFieldDef> {
             f("shift", EventFieldType::Bool),
             f("meta", EventFieldType::Bool),
         ],
-        EventDataKind::ScrollEvent => vec![f("x", EventFieldType::Float), f("y", EventFieldType::Float)],
-        EventDataKind::InputEvent => vec![f("value", EventFieldType::String), f("checked", EventFieldType::Bool)],
+        EventDataKind::ScrollEvent => {
+            vec![f("x", EventFieldType::Float), f("y", EventFieldType::Float)]
+        }
+        EventDataKind::InputEvent => vec![
+            f("value", EventFieldType::String),
+            f("checked", EventFieldType::Bool),
+        ],
         EventDataKind::ToggleEvent => vec![f("checked", EventFieldType::Bool)],
         EventDataKind::SubmitEvent => vec![f("values", EventFieldType::StringMap)],
         EventDataKind::FocusEvent => vec![f("value", EventFieldType::String)],
@@ -614,18 +619,37 @@ pub fn event_data_schema(kind: &EventDataKind) -> Vec<EventFieldDef> {
             f("shift", EventFieldType::Bool),
             f("meta", EventFieldType::Bool),
         ],
-        EventDataKind::SelectEvent => vec![f("start", EventFieldType::Int), f("end", EventFieldType::Int), f("text", EventFieldType::String)],
-        EventDataKind::ResizeEvent => vec![f("width", EventFieldType::Float), f("height", EventFieldType::Float)],
-        EventDataKind::MediaEvent => vec![f("currentTime", EventFieldType::Float), f("duration", EventFieldType::Float)],
+        EventDataKind::SelectEvent => vec![
+            f("start", EventFieldType::Int),
+            f("end", EventFieldType::Int),
+            f("text", EventFieldType::String),
+        ],
+        EventDataKind::ResizeEvent => vec![
+            f("width", EventFieldType::Float),
+            f("height", EventFieldType::Float),
+        ],
+        EventDataKind::MediaEvent => vec![
+            f("currentTime", EventFieldType::Float),
+            f("duration", EventFieldType::Float),
+        ],
         EventDataKind::MediaLoadEvent => {
-            vec![f("naturalWidth", EventFieldType::Float), f("naturalHeight", EventFieldType::Float)]
+            vec![
+                f("naturalWidth", EventFieldType::Float),
+                f("naturalHeight", EventFieldType::Float),
+            ]
         }
         EventDataKind::MediaErrorEvent => vec![f("message", EventFieldType::String)],
         EventDataKind::AnimationEvent => {
-            vec![f("animationName", EventFieldType::String), f("elapsedTime", EventFieldType::Float)]
+            vec![
+                f("animationName", EventFieldType::String),
+                f("elapsedTime", EventFieldType::Float),
+            ]
         }
         EventDataKind::TransitionEvent => {
-            vec![f("propertyName", EventFieldType::String), f("elapsedTime", EventFieldType::Float)]
+            vec![
+                f("propertyName", EventFieldType::String),
+                f("elapsedTime", EventFieldType::Float),
+            ]
         }
     }
 }
@@ -833,9 +857,7 @@ pub enum MutationIntent {
         item: Option<Box<ExprIR>>,
     },
     #[serde(rename = "pop")]
-    Pop {
-        target: SignalRefIR,
-    },
+    Pop { target: SignalRefIR },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

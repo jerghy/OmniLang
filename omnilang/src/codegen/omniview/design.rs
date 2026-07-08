@@ -110,7 +110,12 @@ pub fn expand_variant(
         .variants
         .iter()
         .find(|v| v.name == variant_name)
-        .ok_or_else(|| format!("variant '{}' not found in design '{}'", variant_name, design.name))?;
+        .ok_or_else(|| {
+            format!(
+                "variant '{}' not found in design '{}'",
+                variant_name, design.name
+            )
+        })?;
 
     let mut classes = Vec::new();
     classes.push(variant_name.to_string());
@@ -166,9 +171,12 @@ mod tests {
             .collect(),
             pseudo_states: vec![PseudoStateIR {
                 pseudo: "hover".to_string(),
-                properties: vec![("box-shadow".to_string(), "0 4px 12px rgba(0,0,0,0.08)".to_string())]
-                    .into_iter()
-                    .collect(),
+                properties: vec![(
+                    "box-shadow".to_string(),
+                    "0 4px 12px rgba(0,0,0,0.08)".to_string(),
+                )]
+                .into_iter()
+                .collect(),
             }],
         }];
 
@@ -223,7 +231,10 @@ mod tests {
             css.contains("background: #ffffff;"),
             "should contain resolved property"
         );
-        assert!(css.contains(".Card:hover {"), "should contain hover pseudo-state");
+        assert!(
+            css.contains(".Card:hover {"),
+            "should contain hover pseudo-state"
+        );
         assert!(
             css.contains("box-shadow: 0 4px 12px rgba(0,0,0,0.08);"),
             "should contain pseudo-state property"
@@ -235,7 +246,10 @@ mod tests {
         let design = make_test_design();
         let css = emit_design_css(&design).expect("should emit CSS");
 
-        assert!(css.contains(".Button {"), "should contain variant base rule");
+        assert!(
+            css.contains(".Button {"),
+            "should contain variant base rule"
+        );
         assert!(
             css.contains("display: inline-flex;"),
             "should contain variant base property"
@@ -263,9 +277,18 @@ mod tests {
         let (classes, extra_css) =
             expand_variant(&design, "Button", &dim_values).expect("should expand");
 
-        assert!(classes.contains(&"Button".to_string()), "should include variant name");
-        assert!(classes.contains(&"primary".to_string()), "should include dimension value");
-        assert!(classes.contains(&"sm".to_string()), "should include dimension value");
+        assert!(
+            classes.contains(&"Button".to_string()),
+            "should include variant name"
+        );
+        assert!(
+            classes.contains(&"primary".to_string()),
+            "should include dimension value"
+        );
+        assert!(
+            classes.contains(&"sm".to_string()),
+            "should include dimension value"
+        );
         assert!(extra_css.is_empty(), "no additional CSS needed");
     }
 

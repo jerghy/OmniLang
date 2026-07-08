@@ -23,11 +23,11 @@ pub mod validate;
 #[cfg(feature = "wasm")]
 pub mod wasm;
 
-use serde::{Deserialize, Serialize};
-use rustc_hash::FxHashMap;
-use ts_rs::TS;
 #[cfg(feature = "codegen-omniview")]
 use crate::codegen::omniview::ComponentOutput;
+use rustc_hash::FxHashMap;
+use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
 /// Top-level compile result — returned as JSON by WASM/native bindings.
 #[derive(Debug, Serialize, Deserialize, TS)]
@@ -430,11 +430,9 @@ pub fn compile_multi_to_target(
 /// Run: `cargo test export_bindings --lib`
 #[cfg(test)]
 mod type_exports {
-    use crate::{
-        CompileResult, error,
-    };
+    use crate::{error, CompileResult};
     #[cfg(feature = "codegen-omniview")]
-    use crate::{OmniViewResult, OmniViewFullResult, OmniViewFiles};
+    use crate::{OmniViewFiles, OmniViewFullResult, OmniViewResult};
     use ts_rs::TS;
 
     #[test]

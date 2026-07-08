@@ -3,14 +3,14 @@
 //! Category: style
 //! Severity: warning
 
-use rustc_hash::FxHashMap;
-use rustc_hash::FxHashSet;
 use super::ast_collectors::{
     collect_used_names_in_block, collect_used_names_in_expr, collect_used_names_in_view,
 };
 use super::helpers::import_span_line_col;
 use super::{LintDiagnostic, LintRule, LintSeverity};
 use crate::parser::ast::{ImportStmt, Program};
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 
 pub struct UnusedImport;
 
@@ -120,11 +120,11 @@ impl LintRule for UnusedImport {
 
 #[cfg(test)]
 mod tests {
-    use rustc_hash::FxHashMap;
     use crate::lexer::Span;
     use crate::parser::ast::{
         Block, Expr, FunctionDef, Module, NamedImport, Program, Stmt, Visibility,
     };
+    use rustc_hash::FxHashMap;
 
     use super::*;
 

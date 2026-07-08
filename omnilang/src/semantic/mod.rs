@@ -15,9 +15,9 @@ mod validate_motion_triggers;
 mod validate_store_access;
 mod validate_types;
 
-use rustc_hash::FxHashMap;
 use crate::error::Diagnostic;
 use crate::parser::ast::Program;
+use rustc_hash::FxHashMap;
 use symbols::*;
 
 /// Result of semantic analysis — always returned (diagnostics may contain errors/warnings).

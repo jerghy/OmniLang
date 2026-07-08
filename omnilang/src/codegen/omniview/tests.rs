@@ -166,10 +166,10 @@ fn test_store_getters() {
                     left: Box::new(ExprIR::IdentifierExpr {
                         name: "x".into(),
                         type_ann: None,
-                    })),
+                    }),
                     right: Box::new(ExprIR::LiteralExpr {
                         value: serde_json::json!(2),
-                    })),
+                    }),
                 },
             )]),
             actions: vec![],
@@ -283,12 +283,12 @@ fn test_expr_binary() {
             left: Box::new(ExprIR::IdentifierExpr {
                 name: "a".into(),
                 type_ann: None
-            })),
+            }),
             right: Box::new(ExprIR::IdentifierExpr {
                 name: "b".into(),
                 type_ann: None
             })
-        })),
+        }),
         "a + b"
     );
     assert_eq!(
@@ -297,12 +297,12 @@ fn test_expr_binary() {
             left: Box::new(ExprIR::IdentifierExpr {
                 name: "x".into(),
                 type_ann: None
-            })),
+            }),
             right: Box::new(ExprIR::IdentifierExpr {
                 name: "y".into(),
                 type_ann: None
             })
-        })),
+        }),
         "x === y"
     );
     assert_eq!(
@@ -311,12 +311,12 @@ fn test_expr_binary() {
             left: Box::new(ExprIR::IdentifierExpr {
                 name: "a".into(),
                 type_ann: None
-            })),
+            }),
             right: Box::new(ExprIR::IdentifierExpr {
                 name: "b".into(),
                 type_ann: None
             })
-        })),
+        }),
         "a && b"
     );
 }
@@ -331,7 +331,7 @@ fn test_expr_unary() {
                 name: "flag".into(),
                 type_ann: None,
             })
-        })),
+        }),
         "!flag"
     );
     assert_eq!(
@@ -341,7 +341,7 @@ fn test_expr_unary() {
                 name: "x".into(),
                 type_ann: None
             })
-        })),
+        }),
         "-x"
     );
 }
@@ -354,14 +354,14 @@ fn test_expr_ternary() {
             cond: Box::new(ExprIR::IdentifierExpr {
                 name: "x".into(),
                 type_ann: None
-            })),
+            }),
             then_expr: Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!(1)
-            })),
+            }),
             else_expr: Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!(0)
-            })),
-        })),
+            }),
+        }),
         "x ? 1 : 0"
     );
 }
@@ -374,9 +374,9 @@ fn test_expr_field_access() {
             object: Box::new(ExprIR::IdentifierExpr {
                 name: "obj".into(),
                 type_ann: None
-            })),
+            }),
             field: "prop".into()
-        })),
+        }),
         "obj.prop"
     );
 }
@@ -389,11 +389,11 @@ fn test_expr_method_call() {
             object: Box::new(ExprIR::IdentifierExpr {
                 name: "arr".into(),
                 type_ann: None
-            })),
+            }),
             method: "len".into(),
             args: vec![],
             is_optional: false
-        })),
+        }),
         "(arr || []).length"
     );
     assert_eq!(
@@ -401,11 +401,11 @@ fn test_expr_method_call() {
             object: Box::new(ExprIR::IdentifierExpr {
                 name: "val".into(),
                 type_ann: None
-            })),
+            }),
             method: "to_string".into(),
             args: vec![],
             is_optional: false
-        })),
+        }),
         "String(val)"
     );
 }
@@ -421,12 +421,12 @@ fn test_expr_closure() {
                 left: Box::new(ExprIR::IdentifierExpr {
                     name: "x".into(),
                     type_ann: None
-                })),
+                }),
                 right: Box::new(ExprIR::LiteralExpr {
                     value: serde_json::json!(2)
-                })),
-            })),
-        })),
+                }),
+            }),
+        }),
         "((x) => x * 2)"
     );
 }
@@ -478,7 +478,7 @@ fn test_expr_block() {
         tail: Box::new(ExprIR::IdentifierExpr {
             name: "x".into(),
             type_ann: None,
-        })),
+        }),
     });
     assert!(js.contains("function"));
     assert!(js.contains("let x = 42"));
@@ -524,7 +524,7 @@ fn test_stmt_return() {
         value: Some(ExprIR::IdentifierExpr {
             name: "result".into(),
             type_ann: None,
-        })),
+        }),
     });
     assert!(gen.js.contains("return result"));
 }
@@ -555,7 +555,7 @@ fn test_stmt_if_else() {
                 })),
                 r#type: None,
             }],
-        })),
+        }),
     });
     assert!(gen.js.contains("if (cond)"));
     assert!(gen.js.contains("let x = 1"));
@@ -613,12 +613,12 @@ fn test_stmt_mutation_assign() {
                 owner: None,
                 name: "count".into(),
             },
-            
+
             value: Some(Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!(42),
             })),
             item: None,
-        })),
+        }),
     });
     assert!(gen.js.contains("count = 42"));
 }
@@ -632,12 +632,12 @@ fn test_stmt_mutation_increment() {
                 owner: None,
                 name: "count".into(),
             },
-            
+
             amount: Some(Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!(1),
             })),
             item: None,
-        })),
+        }),
     });
     assert!(gen.js.contains("count += 1"));
 }
@@ -653,12 +653,12 @@ fn test_stmt_mutation_signal_set() {
                 owner: None,
                 name: "count".into(),
             },
-            
+
             value: Some(Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!(99),
             })),
             item: None,
-        })),
+        }),
     });
     assert!(gen.js.contains(".set(99)"));
 }
@@ -773,10 +773,10 @@ fn test_component_with_computed() {
                     left: Box::new(ExprIR::IdentifierExpr {
                         name: "x".into(),
                         type_ann: None,
-                    })),
+                    }),
                     right: Box::new(ExprIR::LiteralExpr {
                         value: serde_json::json!(2),
-                    })),
+                    }),
                 },
                 deps: vec!["x".into()],
             }],
@@ -811,11 +811,11 @@ fn test_component_with_functions() {
                                 op: BinaryOpIR::Add,
                                 left: Box::new(ExprIR::LiteralExpr {
                                     value: serde_json::json!("Hello "),
-                                })),
+                                }),
                                 right: Box::new(ExprIR::IdentifierExpr {
                                     name: "name".into(),
                                     type_ann: None,
-                                })),
+                                }),
                             }],
                         },
                     }],
@@ -1284,9 +1284,20 @@ fn test_runtime_error_reporting() {
     );
     let ir = make_program(HashMap::from([("main".into(), module)]));
     let output = generate(&ir, true);
-    assert!(output.js.contains("__omni_reportError"), "runtime must include __omni_reportError");
-    assert!(output.js.contains("try { fn(); } finally"), "__omni_effect must use try/finally");
-    assert!(output.js.contains("__omni_reportError(\"interpolation:text\""), "interpolation uses __omni_reportError");
+    assert!(
+        output.js.contains("__omni_reportError"),
+        "runtime must include __omni_reportError"
+    );
+    assert!(
+        output.js.contains("try { fn(); } finally"),
+        "__omni_effect must use try/finally"
+    );
+    assert!(
+        output
+            .js
+            .contains("__omni_reportError(\"interpolation:text\""),
+        "interpolation uses __omni_reportError"
+    );
 }
 
 // ── Proptest: backtick escaping for innerHTML ───────

@@ -2,11 +2,11 @@
 // View tree generation (JSX)
 // ═══════════════════════════════════════════════════════════
 
-use rustc_hash::FxHashMap;
-use rustc_hash::FxHashSet;
 use crate::codegen::shared::inline_handler::{build_inline_handler, InlineHandlerConfig};
 use crate::codegen::CodeWriter;
 use crate::ir::*;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 
 use super::super::capitalize_first;
 use super::expr::{format_expr_ir_tsx, generate_statement_tsx};

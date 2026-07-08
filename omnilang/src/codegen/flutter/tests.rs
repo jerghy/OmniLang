@@ -129,11 +129,11 @@ fn test_format_expr_binary() {
         left: Box::new(ExprIR::IdentifierExpr {
             name: "a".into(),
             type_ann: None,
-        })),
+        }),
         right: Box::new(ExprIR::IdentifierExpr {
             name: "b".into(),
             type_ann: None,
-        })),
+        }),
     };
     assert_eq!(format_expr_ir_flutter(&expr), "a + b");
 }
@@ -144,13 +144,13 @@ fn test_format_expr_ternary() {
         cond: Box::new(ExprIR::IdentifierExpr {
             name: "x".into(),
             type_ann: None,
-        })),
+        }),
         then_expr: Box::new(ExprIR::LiteralExpr {
             value: serde_json::json!(1),
-        })),
+        }),
         else_expr: Box::new(ExprIR::LiteralExpr {
             value: serde_json::json!(0),
-        })),
+        }),
     };
     assert_eq!(format_expr_ir_flutter(&expr), "x ? 1 : 0");
 }
@@ -161,7 +161,7 @@ fn test_format_expr_field_access() {
         object: Box::new(ExprIR::IdentifierExpr {
             name: "obj".into(),
             type_ann: None,
-        })),
+        }),
         field: "prop".into(),
     };
     assert_eq!(format_expr_ir_flutter(&expr), "obj.prop");
@@ -174,7 +174,7 @@ fn test_format_expr_unary_not() {
         operand: Box::new(ExprIR::IdentifierExpr {
             name: "flag".into(),
             type_ann: None,
-        })),
+        }),
     };
     assert_eq!(format_expr_ir_flutter(&expr), "!flag");
 }
@@ -212,7 +212,7 @@ fn test_stmt_return() {
         value: Some(ExprIR::IdentifierExpr {
             name: "result".into(),
             type_ann: None,
-        })),
+        }),
     };
     generate_statement_flutter(&mut w, &stmt);
     assert_eq!(w.into_string(), "return result;\n");
@@ -227,12 +227,12 @@ fn test_stmt_mutation_increment() {
                 owner: None,
                 name: "count".into(),
             },
-            
+
             amount: Some(Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!(1),
             })),
             item: None,
-        })),
+        }),
     };
     generate_statement_flutter(&mut w, &stmt);
     let out = w.into_string();
@@ -250,12 +250,12 @@ fn test_stmt_mutation_assign() {
                 owner: None,
                 name: "name".into(),
             },
-            
+
             value: Some(Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!("hello"),
             })),
             item: None,
-        })),
+        }),
     };
     generate_statement_flutter(&mut w, &stmt);
     let out = w.into_string();
@@ -273,12 +273,12 @@ fn test_stmt_mutation_decrement() {
                 owner: None,
                 name: "count".into(),
             },
-            
+
             amount: Some(Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!(1),
             })),
             item: None,
-        })),
+        }),
     };
     generate_statement_flutter(&mut w, &stmt);
     let out = w.into_string();
@@ -313,7 +313,7 @@ fn test_stmt_if() {
                 })),
                 r#type: None,
             }],
-        })),
+        }),
     };
     generate_statement_flutter(&mut w, &stmt);
     let out = w.into_string();
@@ -495,12 +495,12 @@ fn test_generate_function_with_mutation() {
                         owner: None,
                         name: "count".into(),
                     },
-                    
+
                     amount: Some(Box::new(ExprIR::LiteralExpr {
                         value: serde_json::json!(1),
                     })),
                     item: None,
-                })),
+                }),
             }],
         },
         is_async: false,
@@ -621,12 +621,12 @@ fn test_component_with_state() {
                                 owner: None,
                                 name: "count".into(),
                             },
-                            
+
                             amount: Some(Box::new(ExprIR::LiteralExpr {
                                 value: serde_json::json!(1),
                             })),
                             item: None,
-                        })),
+                        }),
                     }],
                 },
                 is_async: false,
@@ -903,10 +903,10 @@ fn test_store_dart_with_getters() {
             left: Box::new(ExprIR::IdentifierExpr {
                 name: "count".into(),
                 type_ann: None,
-            })),
+            }),
             right: Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!(2),
-            })),
+            }),
         },
     );
     let mut signals = HashMap::new();

@@ -3,8 +3,8 @@
 //! Contains the `FormatExpr`, `FormatStmt`, `FormatType` traits and their
 //! language-family implementations.
 
-pub mod expr;
 pub(crate) mod cache;
+pub mod expr;
 pub(crate) mod generator;
 pub(crate) mod html;
 pub(crate) mod inline_handler;

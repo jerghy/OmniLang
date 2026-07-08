@@ -4,6 +4,7 @@
 //! timeline definitions, keyframes, callbacks, playback properties,
 //! easing, stagger, connectors, and position values.
 
+use super::expr::lower_expr;
 use crate::ir::types::*;
 use crate::ir::types_motion::*;
 use crate::ir::{
@@ -12,7 +13,6 @@ use crate::ir::{
 use crate::parser::ast::*;
 use crate::semantic::SemanticResult;
 use rustc_hash::FxHashMap;
-use super::expr::lower_expr;
 
 // ═══════════════════════════════════════════════════════
 // Motion Lowering: AST -> IR

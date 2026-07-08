@@ -1,9 +1,9 @@
 //! View tree formatting for Flutter codegen.
 
-use rustc_hash::FxHashMap;
 use crate::codegen::shared::inline_handler::{build_inline_handler, InlineHandlerConfig};
 use crate::codegen::CodeWriter;
 use crate::ir::*;
+use rustc_hash::FxHashMap;
 
 use super::capitalize_first;
 use super::expr::format_expr_ir_flutter;

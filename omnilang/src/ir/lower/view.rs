@@ -2,16 +2,16 @@
 //!
 //! Includes: `lower_view_block`, `lower_view_node`.
 
+use super::expr::lower_expr;
+use super::stmt::lower_block;
 use crate::ir::types::*;
 use crate::ir::types_motion::*;
 use crate::ir::TriggerKind;
 use crate::parser::ast::*;
 use crate::semantic::SemanticResult;
-use std::cell::Cell;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
-use super::expr::lower_expr;
-use super::stmt::lower_block;
+use std::cell::Cell;
 
 // ═══════════════════════════════════════════════════════
 // View lowering

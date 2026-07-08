@@ -4,10 +4,10 @@
 //! Category: correctness
 //! Severity: error
 
-use rustc_hash::FxHashMap;
-use rustc_hash::FxHashSet;
 use super::{LintDiagnostic, LintRule, LintSeverity};
 use crate::ir::{event_data_schema, IRProgram, ViewTree};
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 
 pub struct InvalidEventField;
 
@@ -22,7 +22,11 @@ impl LintRule for InvalidEventField {
         LintSeverity::Error
     }
 
-    fn check_ir(&self, ir: &IRProgram, file_map: &FxHashMap<String, String>) -> Vec<LintDiagnostic> {
+    fn check_ir(
+        &self,
+        ir: &IRProgram,
+        file_map: &FxHashMap<String, String>,
+    ) -> Vec<LintDiagnostic> {
         let mut diags = Vec::new();
         for (_comp_name, comp) in ir.all_components() {
             if let Some(ref view) = comp.view {
@@ -97,11 +101,11 @@ fn check_view_invalid_fields(
 
 #[cfg(test)]
 mod tests {
-    use rustc_hash::FxHashMap;
     use crate::ir::{
         BlockIR, ComponentIR, ConstructionKind, ElementIR, EventDataKind, EventHandlerIR,
         IRProgram, ModuleIR, ViewTree,
     };
+    use rustc_hash::FxHashMap;
 
     use super::*;
 

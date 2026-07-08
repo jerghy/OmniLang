@@ -133,11 +133,11 @@ mod tests {
             left: Box::new(ExprIR::IdentifierExpr {
                 name: "a".into(),
                 type_ann: None,
-            })),
+            }),
             right: Box::new(ExprIR::IdentifierExpr {
                 name: "b".into(),
                 type_ann: None,
-            })),
+            }),
         };
         assert_eq!(format_expr_ir(&expr), "a + b");
     }
@@ -148,13 +148,13 @@ mod tests {
             cond: Box::new(ExprIR::IdentifierExpr {
                 name: "x".into(),
                 type_ann: None,
-            })),
+            }),
             then_expr: Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!(1),
-            })),
+            }),
             else_expr: Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!(0),
-            })),
+            }),
         };
         assert_eq!(format_expr_ir(&expr), "if x { 1 } else { 0 }");
     }
@@ -165,7 +165,7 @@ mod tests {
             object: Box::new(ExprIR::IdentifierExpr {
                 name: "obj".into(),
                 type_ann: None,
-            })),
+            }),
             field: "prop".into(),
         };
         assert_eq!(format_expr_ir(&expr), "obj.prop");
@@ -178,7 +178,7 @@ mod tests {
             operand: Box::new(ExprIR::IdentifierExpr {
                 name: "flag".into(),
                 type_ann: None,
-            })),
+            }),
         };
         assert_eq!(format_expr_ir(&expr), "!flag");
     }
@@ -190,7 +190,7 @@ mod tests {
             operand: Box::new(ExprIR::IdentifierExpr {
                 name: "x".into(),
                 type_ann: None,
-            })),
+            }),
         };
         assert_eq!(format_expr_ir(&expr), "-x");
     }
@@ -211,7 +211,7 @@ mod tests {
             operand: Box::new(ExprIR::CallExpr {
                 name: "fetch_data".into(),
                 args: vec![],
-            })),
+            }),
         };
         let out = format_expr_ir(&expr);
         assert!(
@@ -492,7 +492,7 @@ mod tests {
                 kind: "string".into(),
                 type_args: vec![],
                 is_nullable: false,
-            })),
+            }),
         };
         generate_statement(&mut w, &stmt);
         assert_eq!(
@@ -531,12 +531,12 @@ mod tests {
                     owner: None,
                     name: "count".into(),
                 },
-                
+
                 amount: Some(Box::new(ExprIR::LiteralExpr {
                     value: serde_json::json!(1),
                 })),
                 item: None,
-            })),
+            }),
         };
         generate_statement(&mut w, &stmt);
         assert_eq!(w.into_string(), "self.count += 1;\n");
@@ -551,12 +551,12 @@ mod tests {
                     owner: None,
                     name: "name".into(),
                 },
-                
+
                 value: Some(Box::new(ExprIR::LiteralExpr {
                     value: serde_json::json!("hello"),
                 })),
                 item: None,
-            })),
+            }),
         };
         generate_statement(&mut w, &stmt);
         assert_eq!(w.into_string(), "self.name = \"hello\".to_string();\n");
@@ -571,12 +571,12 @@ mod tests {
                     owner: None,
                     name: "count".into(),
                 },
-                
+
                 amount: Some(Box::new(ExprIR::LiteralExpr {
                     value: serde_json::json!(1),
                 })),
                 item: None,
-            })),
+            }),
         };
         generate_statement(&mut w, &stmt);
         assert_eq!(w.into_string(), "self.count -= 1;\n");
@@ -608,7 +608,7 @@ mod tests {
                     })),
                     r#type: None,
                 }],
-            })),
+            }),
         };
         generate_statement(&mut w, &stmt);
         let out = w.into_string();

@@ -21,9 +21,9 @@ mod type_mismatch;
 mod undefined_ref;
 mod unused_import;
 
-use rustc_hash::FxHashMap;
 use crate::ir::IRProgram;
 use crate::parser::ast::Program;
+use rustc_hash::FxHashMap;
 use std::sync::Arc;
 
 /// Severity of a lint diagnostic.
@@ -111,9 +111,9 @@ fn all_rules() -> Vec<Box<dyn LintRule>> {
 
 #[cfg(test)]
 mod tests {
-    use rustc_hash::FxHashMap;
     use crate::ir::IRProgram;
     use crate::parser::ast::Program;
+    use rustc_hash::FxHashMap;
     use std::sync::Arc;
 
     use super::*;

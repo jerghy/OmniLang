@@ -63,9 +63,8 @@ impl SemanticAnalyzer {
                     loop_depth: 0,
                 };
                 self.resolve_block_refs(&f.body, &mut fn_vctx);
-                self.symbols.set_current_scope(
-                    self.symbols.current_scope().parent.unwrap_or(0),
-                );
+                self.symbols
+                    .set_current_scope(self.symbols.current_scope().parent.unwrap_or(0));
             }
             for a in &comp.actions {
                 let action_scope_name = format!("action:{}", a.name);

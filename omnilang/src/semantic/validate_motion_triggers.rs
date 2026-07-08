@@ -4,14 +4,14 @@
 //! motion triggers.  Extracted from `validate_motion` to keep that file below
 //! 800 lines.
 
-use rustc_hash::FxHashMap;
-use rustc_hash::FxHashSet;
 use super::helpers::is_non_interpolatable;
 use super::motion::has_enter_leave_animation;
 use super::SemanticAnalyzer;
 use crate::error::{Diagnostic, DiagnosticKind};
 use crate::lexer::Span;
 use crate::parser::ast::*;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 
 impl SemanticAnalyzer {
     /// Validate a single timeline definition (undefined refs, non-interpolatable props).

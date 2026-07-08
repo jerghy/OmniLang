@@ -4,13 +4,13 @@
 //! and a `.module.css` CSS module file. Each store generates a `useXxx.ts`
 //! custom hook file.
 
-use rustc_hash::FxHashMap;
-use rustc_hash::FxHashSet;
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
 use crate::codegen::shared::generator::build_component_map;
 use crate::codegen::shared::types::FormatType;
 use crate::codegen::{format_json_value, JSON_REACT};
 use crate::ir::*;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 
 pub(super) mod component;
 pub(super) mod expr;

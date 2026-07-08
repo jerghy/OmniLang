@@ -5,9 +5,9 @@
 //! Also avoids a redundant parse pass by calling `validate_multi_ref()`
 //! instead of `validate_multi()`.
 
-use std::collections::hash_map::DefaultHasher;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
+use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 

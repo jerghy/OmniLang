@@ -6,9 +6,9 @@
 //! TODO: Full type inference integration. Currently a placeholder
 //! that catches obvious mismatches in IR-level type annotations.
 
-use rustc_hash::FxHashMap;
 use super::{LintDiagnostic, LintRule, LintSeverity};
 use crate::ir::{BlockIR, ExprIR, IRProgram, StatementIR};
+use rustc_hash::FxHashMap;
 
 pub struct TypeMismatch;
 
@@ -23,7 +23,11 @@ impl LintRule for TypeMismatch {
         LintSeverity::Error
     }
 
-    fn check_ir(&self, ir: &IRProgram, file_map: &FxHashMap<String, String>) -> Vec<LintDiagnostic> {
+    fn check_ir(
+        &self,
+        ir: &IRProgram,
+        file_map: &FxHashMap<String, String>,
+    ) -> Vec<LintDiagnostic> {
         let mut diags = Vec::new();
 
         for (comp_name, comp) in ir.all_components() {
@@ -166,8 +170,8 @@ impl TypeMismatch {
 
 #[cfg(test)]
 mod tests {
-    use rustc_hash::FxHashMap;
     use crate::ir::{BlockIR, ComponentIR, FunctionIR, StatementIR, TypeIR, Visibility};
+    use rustc_hash::FxHashMap;
 
     use super::super::helpers::test_helpers::make_test_ir;
     use super::*;

@@ -3,8 +3,8 @@
 //! These are free functions (not methods on `SemanticAnalyzer`) used by
 //! [`validate_motion`](super::validate_motion) and other passes.
 
-use rustc_hash::FxHashSet;
 use crate::parser::ast::*;
+use rustc_hash::FxHashSet;
 
 /// Collect all element `id` attributes from a view tree (for @timeline validation).
 pub(super) fn collect_element_ids(nodes: &[ViewNode]) -> FxHashSet<String> {

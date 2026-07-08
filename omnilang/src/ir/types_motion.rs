@@ -1,9 +1,9 @@
 //! Motion / Animation IR type definitions.
 //! Extracted from types.rs to keep each file under 800 lines.
 
-use serde::{Deserialize, Serialize};
-use rustc_hash::FxHashMap;
 use super::*;
+use rustc_hash::FxHashMap;
+use serde::{Deserialize, Serialize};
 
 // ═══════════════════════════════════════════════════════
 // Motion / Animation IR

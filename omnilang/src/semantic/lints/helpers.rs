@@ -1,13 +1,15 @@
 //! Shared helpers for lint rules: AST collectors, store/prop/computed validation.
 
-use rustc_hash::FxHashMap;
-use rustc_hash::FxHashSet;
 use super::LintDiagnostic;
-use crate::ir::{BlockIR, EventHandlerIR, ExprIR, MutationIntent, SignalRefIR, StatementIR, ViewTree};
+use crate::ir::{
+    BlockIR, EventHandlerIR, ExprIR, MutationIntent, SignalRefIR, StatementIR, ViewTree,
+};
 use crate::parser::ast::{
     AssignTarget, BinaryOpKind, Block, ElementProp, EventHandler, Expr, ImportStmt, Stmt,
     TemplatePart, ViewNode,
 };
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 
 /// Recursively check if a block's statement tree contains a return.
 pub(super) fn statements_contain_return(stmts: &[StatementIR], _in_loop: bool) -> bool {
@@ -789,8 +791,8 @@ fn mutation_intent_target(intent: &MutationIntent) -> &SignalRefIR {
 
 #[cfg(test)]
 pub(super) mod test_helpers {
-    use rustc_hash::FxHashMap;
     use crate::ir::{ComponentIR, IRProgram, ModuleIR, StoreIR};
+    use rustc_hash::FxHashMap;
 
     /// Helper to construct an IRProgram with a single module for testing.
     pub fn make_test_ir(

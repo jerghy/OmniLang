@@ -170,7 +170,10 @@ mod tests {
     fn lower_design_source(source: &str) -> DesignIR {
         let tokens = tokenize(source);
         let program = parse(tokens, source).expect("parse should succeed");
-        let module = program.modules.get("input.omni").expect("should have module");
+        let module = program
+            .modules
+            .get("input.omni")
+            .expect("should have module");
         let ast = module
             .designs
             .first()

@@ -16,11 +16,11 @@ mod visitor;
 #[cfg(test)]
 mod tests;
 
-use rustc_hash::FxHashMap;
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
 use crate::codegen::shared::types::{FormatType, PythonTypeFormatter};
 use crate::codegen::shared::visitor::CodegenVisitor;
 use crate::ir::*;
+use rustc_hash::FxHashMap;
 
 pub struct PythonCodegen;
 

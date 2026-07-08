@@ -4,9 +4,9 @@
 //! Category: correctness
 //! Severity: error
 
-use rustc_hash::FxHashMap;
 use super::{LintDiagnostic, LintRule, LintSeverity};
 use crate::ir::IRProgram;
+use rustc_hash::FxHashMap;
 
 pub struct UndefinedRef;
 
@@ -21,7 +21,11 @@ impl LintRule for UndefinedRef {
         LintSeverity::Error
     }
 
-    fn check_ir(&self, ir: &IRProgram, file_map: &FxHashMap<String, String>) -> Vec<LintDiagnostic> {
+    fn check_ir(
+        &self,
+        ir: &IRProgram,
+        file_map: &FxHashMap<String, String>,
+    ) -> Vec<LintDiagnostic> {
         let mut diags = Vec::new();
         for (name, comp) in ir.all_components() {
             let comp_file = comp
@@ -51,8 +55,8 @@ impl LintRule for UndefinedRef {
 
 #[cfg(test)]
 mod tests {
-    use rustc_hash::FxHashMap;
     use crate::ir::ComponentIR;
+    use rustc_hash::FxHashMap;
 
     use super::super::helpers::test_helpers::make_test_ir;
     use super::*;

@@ -12,12 +12,12 @@ mod view;
 use expr::*;
 use view::*;
 
-use rustc_hash::FxHashMap;
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
 use crate::codegen::shared::expr::{FormatExpr, RustFormatExpr};
 use crate::codegen::shared::stmt::FormatStmt;
 use crate::codegen::{format_json_value, JSON_DIOXUS};
 use crate::ir::*;
+use rustc_hash::FxHashMap;
 
 pub struct DioxusCodegen;
 

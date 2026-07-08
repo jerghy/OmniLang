@@ -9,13 +9,13 @@ mod expr;
 mod tests;
 mod visitor;
 
-use rustc_hash::FxHashMap;
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
 use crate::codegen::shared::expr::{FormatExpr, RustFormatExpr};
 use crate::codegen::shared::stmt::FormatStmt;
 use crate::codegen::shared::visitor::CodegenVisitor;
 use crate::codegen::{format_json_value, JSON_RUST};
 use crate::ir::*;
+use rustc_hash::FxHashMap;
 
 pub(crate) use expr::format_expr_ir;
 pub(crate) use expr::rs_type;

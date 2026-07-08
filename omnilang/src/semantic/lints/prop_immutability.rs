@@ -4,10 +4,10 @@
 //! Category: correctness
 //! Severity: error
 
-use rustc_hash::FxHashSet;
 use super::helpers::{check_block_for_prop_assign, check_view_for_prop_assign};
 use super::{LintDiagnostic, LintRule, LintSeverity};
 use crate::parser::ast::Program;
+use rustc_hash::FxHashSet;
 
 pub struct PropImmutability;
 
@@ -85,12 +85,12 @@ impl LintRule for PropImmutability {
 
 #[cfg(test)]
 mod tests {
-    use rustc_hash::FxHashMap;
     use crate::lexer::Span;
     use crate::parser::ast::{
         AssignTarget, BinaryOpKind, Block, ComponentDef, Expr, FunctionDef, Literal, Module,
         PropDecl, Stmt, TypeAnnotation, Visibility,
     };
+    use rustc_hash::FxHashMap;
 
     use super::*;
 

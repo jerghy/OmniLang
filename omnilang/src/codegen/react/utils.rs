@@ -57,7 +57,7 @@ fn statement_contains_ident(stmt: &StatementIR, ident: &str) -> bool {
                 .as_ref()
                 .is_some_and(|i| getter_expr_contains_ident(i, ident)),
             MutationIntent::Pop { .. } => false,
-        }
+        },
         StatementIR::BlockStmtIR { body } => body
             .statements
             .iter()

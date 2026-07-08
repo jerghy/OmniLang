@@ -292,8 +292,7 @@ pub(crate) fn wrap_flutter_states(inner: String, states_ir: &StatesIR, _el: &Ele
     let mut result = inner;
 
     // Check if states are reserved (idle, hover, pressed) or custom
-    let reserved_names: FxHashSet<&str> =
-        ["idle", "hover", "pressed"].iter().copied().collect();
+    let reserved_names: FxHashSet<&str> = ["idle", "hover", "pressed"].iter().copied().collect();
     let state_names: Vec<&str> = states_ir.states.keys().map(|s| s.as_str()).collect();
     let is_reserved = state_names.iter().all(|n| reserved_names.contains(n));
 

@@ -1,10 +1,10 @@
 //! Store emission: signals, getters, actions, and component generation.
-use std::fmt::Write;
 use super::utils::serde_value_to_js;
 use super::OmniViewGenerator;
 use crate::ir::*;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
+use std::fmt::Write;
 
 impl OmniViewGenerator {
     pub(super) fn emit_store(&mut self, _store_name: &str, store: &StoreIR) {
@@ -14,8 +14,7 @@ impl OmniViewGenerator {
         // Set up rename mapping: store-local names → flat JS names
         // This ensures getter/action bodies reference the correct JS variables
         // Save and restore the rename map to prevent cross-store pollution
-        let saved_renames: FxHashMap<String, String> =
-            std::mem::take(&mut self.name_renames);
+        let saved_renames: FxHashMap<String, String> = std::mem::take(&mut self.name_renames);
         // Also temporarily populate signal_names with flat names so .value is emitted
         let saved_signals: Vec<String> = self.signal_names.iter().cloned().collect();
 
@@ -28,7 +27,8 @@ impl OmniViewGenerator {
                 .map(serde_value_to_js)
                 .unwrap_or_else(|| "undefined".into());
 
-            let _ = writeln!(self.js, 
+            let _ = writeln!(
+                self.js,
                 "const {} = __omni_signal(\"{}\", {});",
                 var_name, var_name, init_val
             );
@@ -44,7 +44,8 @@ impl OmniViewGenerator {
         for (getter_name, body) in &store.getters {
             let var_name = prefix(getter_name);
             let body_js = self.expr_to_js(body);
-            let _ = writeln!(self.js, 
+            let _ = writeln!(
+                self.js,
                 "const {} = __omni_computed(\"{}\", () => ({}));",
                 var_name, var_name, body_js
             );
@@ -61,11 +62,7 @@ impl OmniViewGenerator {
         for action in &store.actions {
             let func_name = prefix(&action.name);
             let params: Vec<String> = action.params.iter().map(|p| p.name.clone()).collect();
-            let _ = writeln!(self.js, 
-                "function {}({}) {{",
-                func_name,
-                params.join(", ")
-            );
+            let _ = writeln!(self.js, "function {}({}) {{", func_name, params.join(", "));
             for stmt in &action.body.statements {
                 self.emit_statement(stmt);
             }
@@ -110,7 +107,8 @@ impl OmniViewGenerator {
         // Editor mode: wrap component in a factory IIFE so it can be hot-replaced
         // via __omni_replaceComponent in the editor bridge.
         if self.editor_mode {
-            let _ = writeln!(self.js, 
+            let _ = writeln!(
+                self.js,
                 "window.__omni_components[\"{}\"] = (function() {{",
                 name
             );
@@ -169,7 +167,8 @@ impl OmniViewGenerator {
         for (prop_name, prop_default) in &comp.prop_defaults {
             let init_val = self.expr_to_js(prop_default);
             let prefixed = format!("{}_{}", name, prop_name);
-            let _ = writeln!(self.js, 
+            let _ = writeln!(
+                self.js,
                 "const {} = __omni_signal(\"{}\", {});",
                 prefixed, prefixed, init_val
             );
@@ -196,7 +195,8 @@ impl OmniViewGenerator {
                 event_name.to_lowercase()
             };
             let _ = writeln!(self.js, "function {}(...args) {{", prefixed_name);
-            let _ = writeln!(self.js,
+            let _ = writeln!(
+                self.js,
                 "  const el = document.querySelector('[data-component=\"{}\"]');",
                 name
             );
@@ -263,8 +263,7 @@ impl OmniViewGenerator {
             // Save component context for inline function name resolution
             let saved_component = self.current_component.clone();
             self.current_component = name.to_string();
-            let saved_signal_names: FxHashSet<String> =
-                self.signal_names.iter().cloned().collect();
+            let saved_signal_names: FxHashSet<String> = self.signal_names.iter().cloned().collect();
             // Merge component's signals for proper .value access in lifecycle bodies
             for state in &comp.states {
                 let prefixed = format!("{}_{}", name, state.name);
@@ -293,7 +292,8 @@ impl OmniViewGenerator {
                         }
                     }
                     LifecycleKind::Unmount => {
-                        let _ = write!(self.js, 
+                        let _ = write!(
+                            self.js,
                             "// @unmount {}\nwindow.__omni_unmount_{} = () => {{\n{}}};\n",
                             name, name, body_js
                         );
@@ -309,8 +309,7 @@ impl OmniViewGenerator {
         if !comp.effects.is_empty() {
             let saved_component = self.current_component.clone();
             self.current_component = name.to_string();
-            let saved_signal_names: FxHashSet<String> =
-                self.signal_names.iter().cloned().collect();
+            let saved_signal_names: FxHashSet<String> = self.signal_names.iter().cloned().collect();
             for state in &comp.states {
                 let prefixed = format!("{}_{}", name, state.name);
                 self.signal_names.insert(prefixed);
@@ -327,12 +326,14 @@ impl OmniViewGenerator {
                 // signal dependencies and re-runs when they change.
                 // Placed in mount_js so DOM elements are available.
                 if self.editor_mode {
-                    let _ = write!(self.comp_mount_js, 
+                    let _ = write!(
+                        self.comp_mount_js,
                         "// @effect {}\n__omni_effect(() => {{\n{}}});\n",
                         name, body_js
                     );
                 } else {
-                    let _ = write!(self.mount_js, 
+                    let _ = write!(
+                        self.mount_js,
                         "// @effect {}\n__omni_effect(() => {{\n{}}});\n",
                         name, body_js
                     );
@@ -426,7 +427,8 @@ impl OmniViewGenerator {
     /// and direct `el.style.prop = value` for standard properties.
     pub(super) fn emit_style_assignment(&mut self, prop: &str, value_expr: &str) {
         if prop.starts_with("--") {
-            let _ = write!(self.js, 
+            let _ = write!(
+                self.js,
                 "el.style.setProperty(\"{}\",{});",
                 prop, value_expr
             );
@@ -447,7 +449,8 @@ impl OmniViewGenerator {
     pub(super) fn emit_signal_decl(&mut self, state: &StateIntent) {
         let init_val = self.expr_to_js(&state.initial_value);
         let prefixed = format!("{}_{}", self.current_component, state.name);
-        let _ = writeln!(self.js, 
+        let _ = writeln!(
+            self.js,
             "const {} = __omni_signal(\"{}\", {});",
             prefixed, prefixed, init_val
         );
@@ -456,7 +459,8 @@ impl OmniViewGenerator {
     pub(super) fn emit_computed_decl(&mut self, computed: &ComputedIntent) {
         let body = self.expr_to_js(&computed.body);
         let prefixed = format!("{}_{}", self.current_component, computed.name);
-        let _ = writeln!(self.js, 
+        let _ = writeln!(
+            self.js,
             "const {} = __omni_computed(\"{}\", () => ({}));",
             prefixed, prefixed, body
         );
@@ -486,7 +490,8 @@ impl OmniViewGenerator {
         }
         let async_kw = if f.is_async { "async " } else { "" };
         let has_ret = f.return_type.is_some();
-        let _ = writeln!(self.js, 
+        let _ = writeln!(
+            self.js,
             "{}function {}({}) {{",
             async_kw,
             name,

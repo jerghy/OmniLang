@@ -147,11 +147,11 @@ fn test_format_expr_binary() {
         left: Box::new(ExprIR::IdentifierExpr {
             name: "a".into(),
             type_ann: None,
-        })),
+        }),
         right: Box::new(ExprIR::IdentifierExpr {
             name: "b".into(),
             type_ann: None,
-        })),
+        }),
     };
     assert_eq!(format_expr_ir(&expr, false), "a + b");
 }
@@ -162,13 +162,13 @@ fn test_format_expr_ternary() {
         cond: Box::new(ExprIR::IdentifierExpr {
             name: "x".into(),
             type_ann: None,
-        })),
+        }),
         then_expr: Box::new(ExprIR::LiteralExpr {
             value: serde_json::json!(1),
-        })),
+        }),
         else_expr: Box::new(ExprIR::LiteralExpr {
             value: serde_json::json!(0),
-        })),
+        }),
     };
     assert_eq!(format_expr_ir(&expr, false), "x ? 1 : 0");
 }
@@ -179,7 +179,7 @@ fn test_format_expr_field_access() {
         object: Box::new(ExprIR::IdentifierExpr {
             name: "obj".into(),
             type_ann: None,
-        })),
+        }),
         field: "prop".into(),
     };
     assert_eq!(format_expr_ir(&expr, false), "obj.prop");
@@ -192,7 +192,7 @@ fn test_format_expr_unary_not() {
         operand: Box::new(ExprIR::IdentifierExpr {
             name: "flag".into(),
             type_ann: None,
-        })),
+        }),
     };
     assert_eq!(format_expr_ir(&expr, false), "!flag");
 }
@@ -204,7 +204,7 @@ fn test_format_expr_unary_neg() {
         operand: Box::new(ExprIR::IdentifierExpr {
             name: "x".into(),
             type_ann: None,
-        })),
+        }),
     };
     assert_eq!(format_expr_ir(&expr, false), "-x");
 }
@@ -354,7 +354,7 @@ fn test_format_await_expr_js() {
             args: vec![ExprIR::LiteralExpr {
                 value: serde_json::json!("/api/data"),
             }],
-        })),
+        }),
     };
     let out = format_expr_ir(&expr, false);
     assert!(
@@ -641,7 +641,7 @@ fn test_js_generate_statement_return() {
         value: Some(ExprIR::IdentifierExpr {
             name: "result".into(),
             type_ann: None,
-        })),
+        }),
     };
     generate_statement(&mut w, &stmt, false);
     assert_eq!(w.into_string(), "return result;\n");
@@ -656,12 +656,12 @@ fn test_js_generate_statement_mutation() {
                 owner: None,
                 name: "count".into(),
             },
-            
+
             amount: Some(Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!(1),
             })),
             item: None,
-        })),
+        }),
     };
     generate_statement(&mut w, &stmt, false);
     assert_eq!(w.into_string(), "this.count += 1;\n");
@@ -676,12 +676,12 @@ fn test_js_generate_statement_mutation_assign() {
                 owner: None,
                 name: "name".into(),
             },
-            
+
             value: Some(Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!("hello"),
             })),
             item: None,
-        })),
+        }),
     };
     generate_statement(&mut w, &stmt, false);
     assert_eq!(w.into_string(), "this.name = \"hello\";\n");
@@ -1100,7 +1100,7 @@ fn test_match_expr_single_variant() {
         matched: Box::new(ExprIR::IdentifierExpr {
             name: "result".into(),
             type_ann: None,
-        })),
+        }),
         arms: vec![MatchArmIR {
             pattern: MatchPatternIR {
                 kind: MatchPatternKindIR::Variant {
@@ -1113,7 +1113,7 @@ fn test_match_expr_single_variant() {
                     value: Some(ExprIR::IdentifierExpr {
                         name: "value".into(),
                         type_ann: None,
-                    })),
+                    }),
                 }],
             },
             union_type: None,
@@ -1143,7 +1143,7 @@ fn test_match_expr_with_wildcard() {
         matched: Box::new(ExprIR::IdentifierExpr {
             name: "r".into(),
             type_ann: None,
-        })),
+        }),
         arms: vec![
             MatchArmIR {
                 pattern: MatchPatternIR {
@@ -1157,7 +1157,7 @@ fn test_match_expr_with_wildcard() {
                         value: Some(ExprIR::IdentifierExpr {
                             name: "v".into(),
                             type_ann: None,
-                        })),
+                        }),
                     }],
                 },
                 union_type: None,
@@ -1198,7 +1198,7 @@ fn test_match_expr_multiple_variants() {
         matched: Box::new(ExprIR::IdentifierExpr {
             name: "r".into(),
             type_ann: None,
-        })),
+        }),
         arms: vec![
             MatchArmIR {
                 pattern: MatchPatternIR {

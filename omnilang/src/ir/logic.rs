@@ -1,9 +1,9 @@
 //! IR nodes for logic constructs: functions, structs, enums, type aliases, imports, exports.
 
-use super::*;
-use serde::{Deserialize, Serialize};
-use rustc_hash::FxHashMap;
 pub use super::visibility::Visibility;
+use super::*;
+use rustc_hash::FxHashMap;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FunctionIR {

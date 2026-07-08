@@ -3,14 +3,14 @@
 //! Category: style
 //! Severity: warning
 
-use rustc_hash::FxHashMap;
-use rustc_hash::FxHashSet;
 use super::ast_collectors::{
     collect_used_names_in_block, collect_used_names_in_expr, collect_used_names_in_view_node,
 };
 use super::{LintDiagnostic, LintRule, LintSeverity};
 use crate::ir::IRProgram;
 use crate::parser::ast::Program;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 
 pub struct DeadCode;
 
@@ -120,7 +120,11 @@ impl LintRule for DeadCode {
         diags
     }
 
-    fn check_ir(&self, ir: &IRProgram, file_map: &FxHashMap<String, String>) -> Vec<LintDiagnostic> {
+    fn check_ir(
+        &self,
+        ir: &IRProgram,
+        file_map: &FxHashMap<String, String>,
+    ) -> Vec<LintDiagnostic> {
         let mut diags = Vec::new();
 
         let mut used_stores: FxHashSet<&str> = FxHashSet::default();
@@ -163,13 +167,13 @@ impl LintRule for DeadCode {
 
 #[cfg(test)]
 mod tests {
-    use rustc_hash::FxHashMap;
     use crate::ir::{ComponentIR, StoreIR};
     use crate::lexer::Span;
     use crate::parser::ast::{
         Block, ComponentDef, Expr, FunctionDef, Literal, Module, SignalDecl, TypeAnnotation,
         ViewBlock, ViewNode, Visibility,
     };
+    use rustc_hash::FxHashMap;
 
     use super::super::helpers::test_helpers::make_test_ir;
     use super::*;

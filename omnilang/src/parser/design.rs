@@ -234,9 +234,7 @@ fn parse_design_property(input: &str) -> ParseResult<(DesignProperty, &str)> {
 fn parse_design_value(input: &str) -> ParseResult<(DesignValue, &str)> {
     let input = input.trim_start();
     if let Some(rest) = input.strip_prefix("token(") {
-        let end = rest
-            .find(')')
-            .ok_or_else(|| err("expected ')'"))?;
+        let end = rest.find(')').ok_or_else(|| err("expected ')'"))?;
         let name = rest[..end].trim().to_string();
         Ok((DesignValue::TokenRef(name), &rest[end + 1..]))
     } else if input.starts_with('"') {
@@ -250,9 +248,7 @@ fn parse_design_value(input: &str) -> ParseResult<(DesignValue, &str)> {
         ))
     } else {
         // Unquoted literal until ; or }
-        let end = input
-            .find([';', '}'])
-            .unwrap_or(input.len());
+        let end = input.find([';', '}']).unwrap_or(input.len());
         Ok((
             DesignValue::Literal(input[..end].trim().to_string()),
             &input[end..],
@@ -301,9 +297,7 @@ fn parse_variant(input: &str) -> ParseResult<(VariantDef, &str)> {
         } else {
             // Try parsing as dimension.value { ... } branch
             let dot_pos = remaining.find('.').unwrap_or(0);
-            let space_pos = remaining
-                .find([' ', '{'])
-                .unwrap_or(remaining.len());
+            let space_pos = remaining.find([' ', '{']).unwrap_or(remaining.len());
             if dot_pos > 0 && dot_pos < space_pos {
                 let (branch, rest) = parse_variant_branch(remaining)?;
                 branches.push(branch);
@@ -314,7 +308,16 @@ fn parse_variant(input: &str) -> ParseResult<(VariantDef, &str)> {
         }
     }
 
-    Ok((VariantDef { name, dimensions, defaults, base, branches }, remaining))
+    Ok((
+        VariantDef {
+            name,
+            dimensions,
+            defaults,
+            base,
+            branches,
+        },
+        remaining,
+    ))
 }
 
 fn parse_variant_dimension(input: &str) -> ParseResult<(VariantDimension, &str)> {
@@ -411,7 +414,14 @@ fn parse_variant_branch(input: &str) -> ParseResult<(VariantBranch, &str)> {
     let (value, rest) = parse_ident(rest)?;
     let (properties, rest) = parse_variant_block_body(rest)?;
 
-    Ok((VariantBranch { dimension, value, properties }, rest))
+    Ok((
+        VariantBranch {
+            dimension,
+            value,
+            properties,
+        },
+        rest,
+    ))
 }
 
 #[cfg(test)]
@@ -509,9 +519,12 @@ mod tests {
         assert_eq!(v.branches.len(), 2);
         assert_eq!(v.branches[0].dimension, "color");
         assert_eq!(v.branches[0].value, "primary");
-        assert_eq!(v.defaults, vec![
-            ("color".into(), "primary".into()),
-            ("size".into(), "md".into()),
-        ]);
+        assert_eq!(
+            v.defaults,
+            vec![
+                ("color".into(), "primary".into()),
+                ("size".into(), "md".into()),
+            ]
+        );
     }
 }

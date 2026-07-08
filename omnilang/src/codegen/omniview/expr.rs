@@ -162,7 +162,8 @@ impl OmniViewGenerator {
                     // where the store action is merged as a component function, e.g.
                     // CartStore.addItem → InlineStoreDemo_addItem)
                     if let Some(resolved_fn) = self.name_renames.get(method.as_str()) {
-                        let arg_strs: Vec<String> = args.iter().map(|a| self.expr_to_js(a)).collect();
+                        let arg_strs: Vec<String> =
+                            args.iter().map(|a| self.expr_to_js(a)).collect();
                         return format!("{}({})", resolved_fn, arg_strs.join(", "));
                     }
                     // Fallback: resolve the store name through name_renames

@@ -92,10 +92,10 @@ pub(crate) fn fixture_component() -> IRProgram {
                 left: Box::new(ExprIR::IdentifierExpr {
                     name: "count".into(),
                     type_ann: None,
-                })),
+                }),
                 right: Box::new(ExprIR::LiteralExpr {
                     value: serde_json::json!(2),
-                })),
+                }),
             },
             deps: vec!["count".into()],
         }],
@@ -172,10 +172,10 @@ pub(crate) fn fixture_store() -> IRProgram {
                 left: Box::new(ExprIR::IdentifierExpr {
                     name: "count".into(),
                     type_ann: None,
-                })),
+                }),
                 right: Box::new(ExprIR::LiteralExpr {
                     value: serde_json::json!(2),
-                })),
+                }),
             },
         )]),
         actions: vec![FunctionIR {
@@ -190,12 +190,12 @@ pub(crate) fn fixture_store() -> IRProgram {
                             owner: None,
                             name: "count".into(),
                         },
-                        
+
                         amount: Some(Box::new(ExprIR::LiteralExpr {
                             value: serde_json::json!(1),
                         })),
                         item: None,
-                    })),
+                    }),
                 }],
             },
             is_async: false,
@@ -243,12 +243,12 @@ pub(crate) fn fixture_component_with_store() -> IRProgram {
                             owner: None,
                             name: "count".into(),
                         },
-                        
+
                         amount: Some(Box::new(ExprIR::LiteralExpr {
                             value: serde_json::json!(1),
                         })),
                         item: None,
-                    })),
+                    }),
                 }],
             },
             is_async: false,
@@ -374,12 +374,12 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                         left: Box::new(ExprIR::IdentifierExpr {
                             name: "a".into(),
                             type_ann: None,
-                        })),
+                        }),
                         right: Box::new(ExprIR::IdentifierExpr {
                             name: "b".into(),
                             type_ann: None,
-                        })),
-                    })),
+                        }),
+                    }),
                     r#type: None,
                 },
                 StatementIR::LetStmtIR {
@@ -389,12 +389,12 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                         left: Box::new(ExprIR::IdentifierExpr {
                             name: "a".into(),
                             type_ann: None,
-                        })),
+                        }),
                         right: Box::new(ExprIR::IdentifierExpr {
                             name: "b".into(),
                             type_ann: None,
-                        })),
-                    })),
+                        }),
+                    }),
                     r#type: None,
                 },
                 StatementIR::LetStmtIR {
@@ -404,12 +404,12 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                         left: Box::new(ExprIR::IdentifierExpr {
                             name: "a".into(),
                             type_ann: None,
-                        })),
+                        }),
                         right: Box::new(ExprIR::IdentifierExpr {
                             name: "b".into(),
                             type_ann: None,
-                        })),
-                    })),
+                        }),
+                    }),
                     r#type: None,
                 },
                 StatementIR::LetStmtIR {
@@ -419,12 +419,12 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                         left: Box::new(ExprIR::IdentifierExpr {
                             name: "a".into(),
                             type_ann: None,
-                        })),
+                        }),
                         right: Box::new(ExprIR::IdentifierExpr {
                             name: "b".into(),
                             type_ann: None,
-                        })),
-                    })),
+                        }),
+                    }),
                     r#type: None,
                 },
                 StatementIR::LetStmtIR {
@@ -434,12 +434,12 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                         left: Box::new(ExprIR::IdentifierExpr {
                             name: "a".into(),
                             type_ann: None,
-                        })),
+                        }),
                         right: Box::new(ExprIR::IdentifierExpr {
                             name: "b".into(),
                             type_ann: None,
-                        })),
-                    })),
+                        }),
+                    }),
                     r#type: None,
                 },
                 StatementIR::LetStmtIR {
@@ -449,12 +449,12 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                         left: Box::new(ExprIR::IdentifierExpr {
                             name: "a".into(),
                             type_ann: None,
-                        })),
+                        }),
                         right: Box::new(ExprIR::IdentifierExpr {
                             name: "b".into(),
                             type_ann: None,
-                        })),
-                    })),
+                        }),
+                    }),
                     r#type: None,
                 },
                 StatementIR::LetStmtIR {
@@ -464,11 +464,11 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                         left: Box::new(ExprIR::IdentifierExpr {
                             name: "flag".into(),
                             type_ann: None,
-                        })),
+                        }),
                         right: Box::new(ExprIR::LiteralExpr {
                             value: serde_json::json!(true),
-                        })),
-                    })),
+                        }),
+                    }),
                     r#type: None,
                 },
                 StatementIR::LetStmtIR {
@@ -478,11 +478,11 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                         left: Box::new(ExprIR::IdentifierExpr {
                             name: "flag".into(),
                             type_ann: None,
-                        })),
+                        }),
                         right: Box::new(ExprIR::LiteralExpr {
                             value: serde_json::json!(false),
-                        })),
-                    })),
+                        }),
+                    }),
                     r#type: None,
                 },
                 StatementIR::LetStmtIR {
@@ -492,8 +492,8 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                         operand: Box::new(ExprIR::IdentifierExpr {
                             name: "a".into(),
                             type_ann: None,
-                        })),
-                    })),
+                        }),
+                    }),
                     r#type: None,
                 },
                 StatementIR::LetStmtIR {
@@ -503,8 +503,8 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                         operand: Box::new(ExprIR::IdentifierExpr {
                             name: "flag".into(),
                             type_ann: None,
-                        })),
-                    })),
+                        }),
+                    }),
                     r#type: None,
                 },
                 StatementIR::LetStmtIR {
@@ -513,14 +513,14 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                         cond: Box::new(ExprIR::IdentifierExpr {
                             name: "flag".into(),
                             type_ann: None,
-                        })),
+                        }),
                         then_expr: Box::new(ExprIR::LiteralExpr {
                             value: serde_json::json!("yes"),
-                        })),
+                        }),
                         else_expr: Box::new(ExprIR::LiteralExpr {
                             value: serde_json::json!("no"),
-                        })),
-                    })),
+                        }),
+                    }),
                     r#type: None,
                 },
                 StatementIR::LetStmtIR {
@@ -537,7 +537,7 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                                 value: serde_json::json!(3),
                             },
                         ],
-                    })),
+                    }),
                     r#type: None,
                 },
                 StatementIR::LetStmtIR {
@@ -546,11 +546,11 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                         object: Box::new(ExprIR::IdentifierExpr {
                             name: "arr".into(),
                             type_ann: None,
-                        })),
+                        }),
                         index: Box::new(ExprIR::LiteralExpr {
                             value: serde_json::json!(0),
-                        })),
-                    })),
+                        }),
+                    }),
                     r#type: None,
                 },
                 StatementIR::LetStmtIR {
@@ -559,9 +559,9 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                         object: Box::new(ExprIR::IdentifierExpr {
                             name: "name".into(),
                             type_ann: None,
-                        })),
+                        }),
                         field: "length".into(),
-                    })),
+                    }),
                     r#type: None,
                 },
                 StatementIR::ExprStmtIR {
@@ -569,7 +569,7 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                         object: Box::new(ExprIR::IdentifierExpr {
                             name: "name".into(),
                             type_ann: None,
-                        })),
+                        }),
                         method: "toUpperCase".into(),
                         args: vec![],
                         is_optional: false,
@@ -584,13 +584,13 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                             left: Box::new(ExprIR::IdentifierExpr {
                                 name: "x".into(),
                                 type_ann: None,
-                            })),
+                            }),
                             right: Box::new(ExprIR::IdentifierExpr {
                                 name: "y".into(),
                                 type_ann: None,
-                            })),
-                        })),
-                    })),
+                            }),
+                        }),
+                    }),
                     r#type: None,
                 },
                 StatementIR::ExprStmtIR {
@@ -608,7 +608,7 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                         matched: Box::new(ExprIR::IdentifierExpr {
                             name: "a".into(),
                             type_ann: None,
-                        })),
+                        }),
                         arms: vec![
                             MatchArmIR {
                                 pattern: MatchPatternIR {

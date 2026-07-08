@@ -23,11 +23,11 @@ pub(crate) use view::*;
 #[cfg(test)]
 mod tests;
 
-use rustc_hash::FxHashMap;
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
 use crate::codegen::shared::generator::build_component_map;
 use crate::codegen::{format_json_value, JSON_FLUTTER};
 use crate::ir::*;
+use rustc_hash::FxHashMap;
 
 pub struct FlutterCodegen;
 

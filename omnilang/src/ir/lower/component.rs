@@ -3,16 +3,16 @@
 //! Includes: `lower_component`, `lower_store`, `lower_type`,
 //! and pass-2 helpers for fn_ref event field backfilling.
 
+use super::expr::lower_expr;
+use super::motion::{lower_easing, lower_motion_def, lower_timeline_def};
+use super::stmt::lower_block;
+use super::view::lower_view_block;
 use crate::ir::logic::*;
 use crate::ir::types::*;
 use crate::ir::types_motion::*;
 use crate::parser::ast::*;
 use crate::semantic::SemanticResult;
 use rustc_hash::FxHashMap;
-use super::expr::lower_expr;
-use super::motion::{lower_easing, lower_motion_def, lower_timeline_def};
-use super::stmt::lower_block;
-use super::view::lower_view_block;
 
 // Disambiguate conflicting names between parser AST and IR
 use crate::ir::types::LifecycleKind as IRLifecycleKind;

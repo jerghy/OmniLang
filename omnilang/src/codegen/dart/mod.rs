@@ -11,13 +11,13 @@ mod visitor;
 
 use crate::codegen::shared::visitor::CodegenVisitor;
 
-use rustc_hash::FxHashMap;
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
 use crate::codegen::shared::expr::{DartFormatExpr, FormatExpr};
 use crate::codegen::shared::generator::{emit_constructor_init, emit_store_constructor_init};
 use crate::codegen::shared::stmt::FormatStmt;
 use crate::codegen::{format_json_value, JSON_DART};
 use crate::ir::*;
+use rustc_hash::FxHashMap;
 
 // Bring expr helpers into scope for mod.rs internals and pub(crate) visibility for visitor/tests
 pub(crate) use expr::dart_type;

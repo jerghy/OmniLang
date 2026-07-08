@@ -29,9 +29,9 @@ pub use utils::{compile_files, wrap_debug_html};
 
 use crate::ir::*;
 use crate::sourcemap::SourceMapEntry;
-use serde::{Deserialize, Serialize};
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
+use serde::{Deserialize, Serialize};
 /// Output of the OmniView codegen — standalone JS/HTML/CSS.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OmniViewOutput {
@@ -225,7 +225,8 @@ fn project_uses_motion(ir: &IRProgram) -> bool {
             return true;
         }
         for comp in module.components.values() {
-            if !comp.motions.is_empty() || !comp.timelines.is_empty() || !comp.hero_defs.is_empty() {
+            if !comp.motions.is_empty() || !comp.timelines.is_empty() || !comp.hero_defs.is_empty()
+            {
                 return true;
             }
             if let Some(ref view) = comp.view {
@@ -242,10 +243,7 @@ fn project_uses_motion(ir: &IRProgram) -> bool {
 fn view_tree_has_motion(view: &ViewTree) -> bool {
     match view {
         ViewTree::Element(el) => {
-            if el.motion.is_some()
-                || el.scroll.is_some()
-                || el.drag.is_some()
-                || el.hero.is_some()
+            if el.motion.is_some() || el.scroll.is_some() || el.drag.is_some() || el.hero.is_some()
             {
                 return true;
             }
@@ -258,19 +256,11 @@ fn view_tree_has_motion(view: &ViewTree) -> bool {
             cond.branches
                 .iter()
                 .any(|b| b.body.as_ref().is_some_and(view_tree_has_motion))
-                || cond
-                    .fallback
-                    .as_ref()
-                    .is_some_and(view_tree_has_motion)
+                || cond.fallback.as_ref().is_some_and(view_tree_has_motion)
         }
         ViewTree::ListRendering(list) => {
-            list.body
-                .as_ref()
-                .is_some_and(view_tree_has_motion)
-                || list
-                    .empty_body
-                    .as_ref()
-                    .is_some_and(view_tree_has_motion)
+            list.body.as_ref().is_some_and(view_tree_has_motion)
+                || list.empty_body.as_ref().is_some_and(view_tree_has_motion)
         }
         _ => false,
     }

@@ -1,7 +1,7 @@
 //! Codegen trait -- implement for each target.
 
-use rustc_hash::FxHashMap;
 use crate::ir::{ComponentIR, FunctionIR, IRProgram, ModuleIR, StoreIR};
+use rustc_hash::FxHashMap;
 
 use super::writer::{CodeWriter, CompileOutput, CompiledFile};
 
@@ -66,7 +66,11 @@ pub trait Codegen: Send + Sync {
     /// [`generate_function`] for each function.
     /// All output is written to a single file.
     #[must_use]
-    fn generate_per_module(&self, ir: &IRProgram, _source_files: &FxHashMap<String, String>) -> CompileOutput {
+    fn generate_per_module(
+        &self,
+        ir: &IRProgram,
+        _source_files: &FxHashMap<String, String>,
+    ) -> CompileOutput {
         let mut files = Vec::new();
         for (module_name, module) in &ir.modules {
             let mut w = CodeWriter::default();
@@ -88,7 +92,11 @@ pub trait Codegen: Send + Sync {
     /// component and store, collecting all returned files into a single
     /// `CompileOutput`.
     #[must_use]
-    fn generate_per_component(&self, ir: &IRProgram, _source_files: &FxHashMap<String, String>) -> CompileOutput {
+    fn generate_per_component(
+        &self,
+        ir: &IRProgram,
+        _source_files: &FxHashMap<String, String>,
+    ) -> CompileOutput {
         let mut files = Vec::new();
         for (name, comp) in ir.all_components() {
             files.extend(self.gen_component_file(name, comp, ir));

@@ -12,13 +12,13 @@ mod tests;
 use expr::*;
 use template::*;
 
-use rustc_hash::FxHashMap;
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
 use crate::codegen::format_json_value;
 use crate::codegen::shared::expr::FormatExpr;
 use crate::codegen::shared::types::{FormatType, JsTypeFormatter};
 use crate::codegen::JSON_VUE;
 use crate::ir::*;
+use rustc_hash::FxHashMap;
 
 pub struct VueCodegen;
 

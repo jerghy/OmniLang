@@ -2,12 +2,12 @@
 //!
 //! Includes: `lower_stmt`, `lower_block`, `try_lower_mutation`, `mutation_for_method`.
 
+use super::expr::lower_expr;
 use crate::ir::types::*;
 use crate::parser::ast::*;
 use crate::semantic::SemanticResult;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
-use super::expr::lower_expr;
 
 // ═══════════════════════════════════════════════════════
 // Statement lowering
@@ -347,7 +347,12 @@ pub(super) fn try_lower_mutation(
                                 owner: Some(owner_name.clone()),
                                 name: field.clone(),
                             },
-                            amount: Some(Box::new(lower_expr(right, variant_map, event_fields, semantics))),
+                            amount: Some(Box::new(lower_expr(
+                                right,
+                                variant_map,
+                                event_fields,
+                                semantics,
+                            ))),
                         });
                     }
                     _ => {}
@@ -376,14 +381,8 @@ pub(super) fn mutation_for_method(
             target,
             value: amount,
         }),
-        "inc" | "increment" => Some(MutationIntent::Increment {
-            target,
-            amount,
-        }),
-        "dec" | "decrement" => Some(MutationIntent::Decrement {
-            target,
-            amount,
-        }),
+        "inc" | "increment" => Some(MutationIntent::Increment { target, amount }),
+        "dec" | "decrement" => Some(MutationIntent::Decrement { target, amount }),
         "push" => Some(MutationIntent::Push {
             target,
             item: amount,

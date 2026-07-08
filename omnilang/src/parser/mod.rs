@@ -7,13 +7,13 @@ pub mod stmt;
 pub mod top_level;
 pub mod view;
 
-use rustc_hash::FxHashMap;
 use crate::error::ParseError;
 use crate::lexer::{Token, TokenKind};
 use crate::parser::stmt::keyword_as_ident_name;
 use ast::Program;
 #[allow(unused_imports)]
 use ast::Visibility;
+use rustc_hash::FxHashMap;
 
 /// Parse a token stream into an AST Program.
 /// Returns `Ok(program)` on success, or `Err(ParseError)` if any parse errors were
@@ -460,7 +460,13 @@ mod roundtrip_tests {
             }
         ));
         if let Expr::BinaryOp { left, right, .. } = &expr {
-            assert!(matches!(**left, Expr::BinaryOp { op: BinaryOpKind::Mul, .. }));
+            assert!(matches!(
+                **left,
+                Expr::BinaryOp {
+                    op: BinaryOpKind::Mul,
+                    ..
+                }
+            ));
             assert!(matches!(**right, Expr::VarRef(_, _)));
             if let Expr::VarRef(name, _) = &**right {
                 assert_eq!(name, "c");
@@ -480,8 +486,20 @@ mod roundtrip_tests {
             }
         ));
         if let Expr::BinaryOp { left, right, .. } = &expr {
-            assert!(matches!(**left, Expr::BinaryOp { op: BinaryOpKind::Add, .. }));
-            assert!(matches!(**right, Expr::BinaryOp { op: BinaryOpKind::Add, .. }));
+            assert!(matches!(
+                **left,
+                Expr::BinaryOp {
+                    op: BinaryOpKind::Add,
+                    ..
+                }
+            ));
+            assert!(matches!(
+                **right,
+                Expr::BinaryOp {
+                    op: BinaryOpKind::Add,
+                    ..
+                }
+            ));
         }
     }
 
@@ -497,7 +515,13 @@ mod roundtrip_tests {
             }
         ));
         if let Expr::BinaryOp { left, .. } = &expr {
-            assert!(matches!(**left, Expr::BinaryOp { op: BinaryOpKind::Add, .. }));
+            assert!(matches!(
+                **left,
+                Expr::BinaryOp {
+                    op: BinaryOpKind::Add,
+                    ..
+                }
+            ));
         }
     }
 
@@ -627,10 +651,7 @@ mod roundtrip_tests {
     #[test]
     fn expr_index_int() {
         let expr = first_expr("arr[0]");
-        assert!(matches!(
-            expr,
-            Expr::IndexGet { .. }
-        ));
+        assert!(matches!(expr, Expr::IndexGet { .. }));
         if let Expr::IndexGet { object, index, .. } = &expr {
             assert!(matches!(**object, Expr::VarRef(_, _)));
             assert!(matches!(**index, Expr::Literal(Literal::Int(0), _)));
@@ -640,10 +661,7 @@ mod roundtrip_tests {
     #[test]
     fn expr_index_string() {
         let expr = first_expr("map[\"key\"]");
-        assert!(matches!(
-            expr,
-            Expr::IndexGet { .. }
-        ));
+        assert!(matches!(expr, Expr::IndexGet { .. }));
         if let Expr::IndexGet { index, .. } = &expr {
             assert!(matches!(&**index, Expr::Literal(Literal::String(s), _) if s == "key"));
         }
@@ -720,7 +738,10 @@ mod roundtrip_tests {
     fn expr_map_literal_simple() {
         // Use let binding to put {a: 1} in expression context (not statement context)
         let stmt = first_stmt("let _m = {a: 1}");
-        if let Stmt::VarDecl { init: Some(expr), .. } = &stmt {
+        if let Stmt::VarDecl {
+            init: Some(expr), ..
+        } = &stmt
+        {
             assert!(matches!(*expr, Expr::MapLiteral { .. }));
             if let Expr::MapLiteral { entries, .. } = expr {
                 assert!(!entries.is_empty());
@@ -733,7 +754,10 @@ mod roundtrip_tests {
     #[test]
     fn expr_map_literal_multi() {
         let stmt = first_stmt("let _m = {a: 1, b: 2}");
-        if let Stmt::VarDecl { init: Some(expr), .. } = &stmt {
+        if let Stmt::VarDecl {
+            init: Some(expr), ..
+        } = &stmt
+        {
             if let Expr::MapLiteral { entries, .. } = expr {
                 assert_eq!(entries.len(), 2);
             }
@@ -754,7 +778,10 @@ mod roundtrip_tests {
             let module = program.modules.get("input.omni").unwrap();
             module.functions[0].body.stmts[1].clone()
         };
-        if let Stmt::VarDecl { init: Some(expr), .. } = &body {
+        if let Stmt::VarDecl {
+            init: Some(expr), ..
+        } = &body
+        {
             assert!(matches!(*expr, Expr::MapLiteral { .. }));
         } else {
             panic!("expected VarDecl with map literal init");
@@ -811,9 +838,13 @@ mod roundtrip_tests {
             Stmt::ExprStmt { ref expr, .. }
         ));
         if let Stmt::ExprStmt { expr, .. } = &stmt {
-            assert!(matches!(*expr, Expr::BinaryOp {
-                op: BinaryOpKind::Assign, ..
-            }));
+            assert!(matches!(
+                *expr,
+                Expr::BinaryOp {
+                    op: BinaryOpKind::Assign,
+                    ..
+                }
+            ));
         }
     }
 
@@ -821,7 +852,13 @@ mod roundtrip_tests {
     fn stmt_compound_assign_add() {
         let stmt = first_stmt("x += 1");
         if let Stmt::ExprStmt { expr, .. } = &stmt {
-            assert!(matches!(*expr, Expr::BinaryOp { op: BinaryOpKind::AddAssign, .. }));
+            assert!(matches!(
+                *expr,
+                Expr::BinaryOp {
+                    op: BinaryOpKind::AddAssign,
+                    ..
+                }
+            ));
         }
     }
 
@@ -829,7 +866,13 @@ mod roundtrip_tests {
     fn stmt_compound_assign_sub() {
         let stmt = first_stmt("x -= 1");
         if let Stmt::ExprStmt { expr, .. } = &stmt {
-            assert!(matches!(*expr, Expr::BinaryOp { op: BinaryOpKind::SubAssign, .. }));
+            assert!(matches!(
+                *expr,
+                Expr::BinaryOp {
+                    op: BinaryOpKind::SubAssign,
+                    ..
+                }
+            ));
         }
     }
 
@@ -841,7 +884,12 @@ mod roundtrip_tests {
         assert!(matches!(stmt, Stmt::If { ref else_body, ref else_ifs, .. }
             if else_body.is_none() && else_ifs.is_empty()
         ));
-        if let Stmt::If { condition, then_body, .. } = &stmt {
+        if let Stmt::If {
+            condition,
+            then_body,
+            ..
+        } = &stmt
+        {
             assert!(matches!(condition, Expr::Literal(Literal::Bool(true), _)));
             assert_eq!(then_body.stmts.len(), 0);
             assert!(then_body.trailing_expr.is_some());
@@ -859,7 +907,12 @@ mod roundtrip_tests {
     #[test]
     fn stmt_if_else_if() {
         let stmt = first_stmt("if (a) { b } else if (c) { d } else { e }");
-        if let Stmt::If { else_ifs, else_body, .. } = &stmt {
+        if let Stmt::If {
+            else_ifs,
+            else_body,
+            ..
+        } = &stmt
+        {
             assert!(!else_ifs.is_empty());
             assert!(else_body.is_some());
         }
@@ -871,7 +924,10 @@ mod roundtrip_tests {
     fn stmt_while_loop() {
         let stmt = first_stmt("while (true) { break }");
         assert!(matches!(stmt, Stmt::While { .. }));
-        if let Stmt::While { condition, body, .. } = &stmt {
+        if let Stmt::While {
+            condition, body, ..
+        } = &stmt
+        {
             assert!(matches!(condition, Expr::Literal(Literal::Bool(true), _)));
             assert!(!body.stmts.is_empty());
         }
@@ -964,7 +1020,13 @@ mod roundtrip_tests {
     #[test]
     fn stmt_try_catch_finally() {
         let stmt = first_stmt("try { 1 } catch { 2 } finally { 3 }");
-        assert!(matches!(stmt, Stmt::TryCatch { finally_body: Some(..), .. }));
+        assert!(matches!(
+            stmt,
+            Stmt::TryCatch {
+                finally_body: Some(..),
+                ..
+            }
+        ));
     }
 
     // ── Emit ───────────────────────────────────────────────
@@ -992,9 +1054,7 @@ mod roundtrip_tests {
 
     #[test]
     fn view_simple_element_text() {
-        let children = view_children(
-            "component App { view { Text { \"hello\" } } }",
-        );
+        let children = view_children("component App { view { Text { \"hello\" } } }");
         assert_eq!(children.len(), 1);
         match &children[0] {
             ViewNode::Element(el) => {
@@ -1011,9 +1071,7 @@ mod roundtrip_tests {
     #[test]
     fn view_element_with_props() {
         // Component call syntax: Button(label: "Click") — props in parentheses
-        let children = view_children(
-            "component App { view { Button(label: \"Click\") } }",
-        );
+        let children = view_children("component App { view { Button(label: \"Click\") } }");
         assert_eq!(children.len(), 1);
         match &children[0] {
             ViewNode::Element(el) => {
@@ -1022,7 +1080,9 @@ mod roundtrip_tests {
                 match &el.props[0] {
                     ElementProp::Static { name, value } => {
                         assert_eq!(name, "label");
-                        assert!(matches!(value, Expr::Literal(Literal::String(s), _) if s == "Click"));
+                        assert!(
+                            matches!(value, Expr::Literal(Literal::String(s), _) if s == "Click")
+                        );
                     }
                     _ => panic!("expected Static prop"),
                 }
@@ -1033,9 +1093,8 @@ mod roundtrip_tests {
 
     #[test]
     fn view_nested_elements() {
-        let children = view_children(
-            "component App { view { View { Text { \"a\" } Text { \"b\" } } } }",
-        );
+        let children =
+            view_children("component App { view { View { Text { \"a\" } Text { \"b\" } } } }");
         assert_eq!(children.len(), 1);
         match &children[0] {
             ViewNode::Element(el) => {
@@ -1050,9 +1109,8 @@ mod roundtrip_tests {
 
     #[test]
     fn view_html_element() {
-        let children = view_children(
-            "component App { view { <div class=\"container\">Text content</div> } }",
-        );
+        let children =
+            view_children("component App { view { <div class=\"container\">Text content</div> } }");
         assert_eq!(children.len(), 1);
         match &children[0] {
             ViewNode::Element(el) => {
@@ -1065,9 +1123,7 @@ mod roundtrip_tests {
 
     #[test]
     fn view_self_closing_html_element() {
-        let children = view_children(
-            "component App { view { <br/> } }",
-        );
+        let children = view_children("component App { view { <br/> } }");
         assert_eq!(children.len(), 1);
         match &children[0] {
             ViewNode::Element(el) => {
@@ -1080,9 +1136,8 @@ mod roundtrip_tests {
 
     #[test]
     fn view_if_directive() {
-        let children = view_children(
-            "component App { view { @if (show) { Text { \"visible\" } } } }",
-        );
+        let children =
+            view_children("component App { view { @if (show) { Text { \"visible\" } } } }");
         assert_eq!(children.len(), 1);
         assert!(matches!(&children[0], ViewNode::IfDirective(_)));
         if let ViewNode::IfDirective(dir) = &children[0] {
@@ -1093,9 +1148,8 @@ mod roundtrip_tests {
     #[test]
     fn view_for_directive() {
         // @for does NOT use parentheses — syntax: @for item in items { body }
-        let children = view_children(
-            "component App { view { @for item in items { Text { item } } } }",
-        );
+        let children =
+            view_children("component App { view { @for item in items { Text { item } } } }");
         assert_eq!(children.len(), 1);
         assert!(matches!(&children[0], ViewNode::ForDirective(_)));
         if let ViewNode::ForDirective(dir) = &children[0] {
@@ -1106,9 +1160,7 @@ mod roundtrip_tests {
 
     #[test]
     fn view_interpolation() {
-        let children = view_children(
-            "component App { view { Text { {name} } } }",
-        );
+        let children = view_children("component App { view { Text { {name} } } }");
         assert_eq!(children.len(), 1);
         match &children[0] {
             ViewNode::Element(el) => {
@@ -1150,7 +1202,9 @@ mod roundtrip_tests {
                 match &el.props[0] {
                     ElementProp::Static { name, value } => {
                         assert_eq!(name, "id");
-                        assert!(matches!(value, Expr::Literal(Literal::String(s), _) if s == "btn"));
+                        assert!(
+                            matches!(value, Expr::Literal(Literal::String(s), _) if s == "btn")
+                        );
                     }
                     _ => panic!("expected Static prop"),
                 }
@@ -1169,9 +1223,7 @@ mod roundtrip_tests {
 
     #[test]
     fn view_text_only() {
-        let children = view_children(
-            "component App { view { Text { \"hello world\" } } }",
-        );
+        let children = view_children("component App { view { Text { \"hello world\" } } }");
         assert_eq!(children.len(), 1);
         match &children[0] {
             ViewNode::Element(el) => {
@@ -1185,9 +1237,8 @@ mod roundtrip_tests {
 
     #[test]
     fn view_string_literal_prop() {
-        let children = view_children(
-            "component App { view { Input(placeholder: \"Enter name\") } }",
-        );
+        let children =
+            view_children("component App { view { Input(placeholder: \"Enter name\") } }");
         assert_eq!(children.len(), 1);
         match &children[0] {
             ViewNode::Element(el) => {
@@ -1197,7 +1248,9 @@ mod roundtrip_tests {
                 match &el.props[0] {
                     ElementProp::Static { name, value } => {
                         assert_eq!(name, "placeholder");
-                        assert!(matches!(value, Expr::Literal(Literal::String(s), _) if s == "Enter name"));
+                        assert!(
+                            matches!(value, Expr::Literal(Literal::String(s), _) if s == "Enter name")
+                        );
                     }
                     _ => panic!("expected Static prop"),
                 }

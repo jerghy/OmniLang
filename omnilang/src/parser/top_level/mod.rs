@@ -128,18 +128,15 @@ impl<'a> Parser<'a> {
                             // Has `type Name =`. Check if the part after = is a variant list.
                             let after_eq = self.tokens.get(self.pos + 3);
                             let after_variant = self.tokens.get(self.pos + 4);
-                            let is_tagged = matches!(
-                                after_eq.map(|t| &t.kind),
-                                Some(TokenKind::Ident(_))
-                            ) && matches!(
-                                after_variant.map(|t| &t.kind),
-                                Some(TokenKind::LBrace | TokenKind::Pipe)
-                            );
+                            let is_tagged =
+                                matches!(after_eq.map(|t| &t.kind), Some(TokenKind::Ident(_)))
+                                    && matches!(
+                                        after_variant.map(|t| &t.kind),
+                                        Some(TokenKind::LBrace | TokenKind::Pipe)
+                                    );
 
                             if is_tagged {
-                                module
-                                    .tagged_unions
-                                    .push(self.parse_tagged_union_def()?);
+                                module.tagged_unions.push(self.parse_tagged_union_def()?);
                             } else {
                                 module
                                     .type_aliases

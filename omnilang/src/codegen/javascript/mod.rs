@@ -11,7 +11,6 @@ mod tests;
 mod utils;
 mod visitor;
 
-use rustc_hash::FxHashMap;
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
 use crate::codegen::shared::expr::FormatExpr;
 use crate::codegen::shared::generator::{emit_constructor_init, emit_store_constructor_init};
@@ -20,6 +19,7 @@ use crate::codegen::shared::types::{FormatType, JsTypeFormatter};
 use crate::codegen::shared::visitor::CodegenVisitor;
 use crate::codegen::{format_json_value, JSON_JS};
 use crate::ir::*;
+use rustc_hash::FxHashMap;
 
 use expr::*;
 pub use utils::*;

@@ -2,13 +2,13 @@
 // Component codegen: .tsx + .module.css generation
 // ═══════════════════════════════════════════════════════════
 
-use rustc_hash::FxHashMap;
-use rustc_hash::FxHashSet;
 use super::{escape_js_ident, CodeWriter, ReactCodegen};
 use super::{expr, motion, utils, view};
 use crate::codegen::capitalize_first;
 use crate::codegen::shared::types::{FormatType, JsTypeFormatter};
 use crate::ir::*;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 
 impl ReactCodegen {
     /// Generate a React functional component .tsx file.
@@ -197,8 +197,7 @@ impl ReactCodegen {
         }
 
         // Build set of function names for conflict detection with state setters
-        let fn_names: FxHashSet<String> =
-            comp.fns.iter().map(|f| f.name.clone()).collect();
+        let fn_names: FxHashSet<String> = comp.fns.iter().map(|f| f.name.clone()).collect();
 
         // State hooks (useState) — rename setters that conflict with local function names
         for state in &comp.states {
@@ -668,6 +667,8 @@ fn expr_contains_await(expr: &ExprIR) -> bool {
         ExprIR::VariantLiteral { fields, .. } => fields.iter().any(|(_, v)| expr_contains_await(v)),
         ExprIR::StructExpr { fields, .. } => fields.iter().any(|(_, v)| expr_contains_await(v)),
         ExprIR::LiteralExpr { .. } | ExprIR::IdentifierExpr { .. } => false,
-        ExprIR::MapExpr { entries } => entries.iter().any(|(k, v)| expr_contains_await(k) || expr_contains_await(v)),
+        ExprIR::MapExpr { entries } => entries
+            .iter()
+            .any(|(k, v)| expr_contains_await(k) || expr_contains_await(v)),
     }
 }

@@ -108,11 +108,7 @@ pub fn lower(program: &Program, semantics: &mut SemanticResult) -> IRProgram {
             .map(|t| lower_timeline_def(t, &variant_map, semantics))
             .collect();
 
-        let designs: Vec<super::DesignIR> = module
-            .designs
-            .iter()
-            .map(lower_design)
-            .collect();
+        let designs: Vec<super::DesignIR> = module.designs.iter().map(lower_design).collect();
 
         let module_ir = ModuleIR {
             name: module_name.clone(),
@@ -222,7 +218,11 @@ mod tests {
     fn lower_first_component(source: &str) -> ComponentIR {
         let ir = lower_source(source);
         let module = ir.modules.get("input.omni").expect("should have module");
-        let (_, comp) = module.components.iter().next().expect("should have a component");
+        let (_, comp) = module
+            .components
+            .iter()
+            .next()
+            .expect("should have a component");
         comp.clone()
     }
 
@@ -335,14 +335,15 @@ component Greet {
                     other => panic!("expected Text child, got {:?}", other),
                 }
                 match &el.children[1] {
-                    ViewTree::Interpolation(expr) => {
-                        match expr.as_ref() {
-                            ExprIR::IdentifierExpr { name, .. } => {
-                                assert_eq!(name, "name", "interpolation should reference 'name' signal");
-                            }
-                            other => panic!("expected IdentifierExpr, got {:?}", other),
+                    ViewTree::Interpolation(expr) => match expr.as_ref() {
+                        ExprIR::IdentifierExpr { name, .. } => {
+                            assert_eq!(
+                                name, "name",
+                                "interpolation should reference 'name' signal"
+                            );
                         }
-                    }
+                        other => panic!("expected IdentifierExpr, got {:?}", other),
+                    },
                     other => panic!("expected Interpolation child, got {:?}", other),
                 }
             }
@@ -371,13 +372,16 @@ component InputComp {
         match &view {
             ViewTree::Element(el) => {
                 assert_eq!(el.tag, "input");
-                assert!(
-                    el.bindings.contains_key("value"),
-                    "should have bind:value"
-                );
+                assert!(el.bindings.contains_key("value"), "should have bind:value");
                 let binding = el.bindings.get("value").unwrap();
-                assert_eq!(binding.name, "text", "binding should reference 'text' signal");
-                assert!(binding.owner.is_none(), "binding owner should be None for local signal");
+                assert_eq!(
+                    binding.name, "text",
+                    "binding should reference 'text' signal"
+                );
+                assert!(
+                    binding.owner.is_none(),
+                    "binding owner should be None for local signal"
+                );
             }
             other => panic!("expected Element, got {:?}", other),
         }
@@ -407,7 +411,9 @@ component FormField {
                 match &el.children[0] {
                     ViewTree::Element(input_el) => {
                         assert_eq!(input_el.tag, "input");
-                        let val_binding = input_el.bindings.get("value")
+                        let val_binding = input_el
+                            .bindings
+                            .get("value")
                             .expect("first input should have bind:value");
                         assert_eq!(val_binding.name, "val");
                     }
@@ -417,7 +423,9 @@ component FormField {
                 match &el.children[1] {
                     ViewTree::Element(chk_el) => {
                         assert_eq!(chk_el.tag, "input");
-                        let chk_binding = chk_el.bindings.get("checked")
+                        let chk_binding = chk_el
+                            .bindings
+                            .get("checked")
                             .expect("checkbox should have bind:checked");
                         assert_eq!(chk_binding.name, "checked");
                     }
@@ -447,10 +455,18 @@ component Clicker {
         let view = comp.view.expect("should have view");
         match &view {
             ViewTree::Element(el) => {
-                assert!(el.events.contains_key("onPress"), "should have onPress event");
+                assert!(
+                    el.events.contains_key("onPress"),
+                    "should have onPress event"
+                );
                 let handler = el.events.get("onPress").unwrap();
                 match handler {
-                    EventHandlerIR::InlineFn { params, event_data, body, .. } => {
+                    EventHandlerIR::InlineFn {
+                        params,
+                        event_data,
+                        body,
+                        ..
+                    } => {
                         assert!(params.is_empty(), "inline handler should have no params");
                         assert!(event_data.is_some(), "onPress should have event data");
                         // The mutation `count = count + 1` is lowered as DirectAssign
@@ -459,7 +475,10 @@ component Clicker {
                             matches!(s, StatementIR::MutationStmt { intent: Some(MutationIntent::DirectAssign { target, .. }) }
                                 if target.name == "count")
                         });
-                        assert!(has_direct_assign, "handler body should contain count assignment");
+                        assert!(
+                            has_direct_assign,
+                            "handler body should contain count assignment"
+                        );
                     }
                     other => panic!("expected InlineFn handler, got {:?}", other),
                 }
@@ -486,15 +505,26 @@ component FnRefDemo {
         let view = comp.view.expect("should have view");
         match &view {
             ViewTree::Element(el) => {
-                assert!(el.events.contains_key("onClick"), "should have onClick event");
+                assert!(
+                    el.events.contains_key("onClick"),
+                    "should have onClick event"
+                );
                 let handler = el.events.get("onClick").unwrap();
                 match handler {
-                    EventHandlerIR::FnRef { r#ref, event_data, used_fields, .. } => {
+                    EventHandlerIR::FnRef {
+                        r#ref,
+                        event_data,
+                        used_fields,
+                        ..
+                    } => {
                         assert_eq!(r#ref, "handleClick", "fn ref should be 'handleClick'");
                         assert!(event_data.is_some(), "onClick should have event data");
                         // used_fields should be backfilled (None initially, Some after Pass 2)
                         // In our case we expect Some(...) since backfill runs
-                        assert!(used_fields.is_some(), "used_fields should be backfilled (None -> Some)");
+                        assert!(
+                            used_fields.is_some(),
+                            "used_fields should be backfilled (None -> Some)"
+                        );
                     }
                     other => panic!("expected FnRef handler, got {:?}", other),
                 }
@@ -519,13 +549,18 @@ component StoreActionDemo {
         let view = comp.view.expect("should have view");
         match &view {
             ViewTree::Element(el) => {
-                assert!(el.events.contains_key("onPress"), "should have onPress event");
+                assert!(
+                    el.events.contains_key("onPress"),
+                    "should have onPress event"
+                );
                 let handler = el.events.get("onPress").unwrap();
                 // Note: TodoStore.remove(1) is parsed as InlineFn (not StoreAction),
                 // because the parser wraps method-call expressions as InlineFn.
                 // The body contains a method call expression.
                 match handler {
-                    EventHandlerIR::InlineFn { event_data, body, .. } => {
+                    EventHandlerIR::InlineFn {
+                        event_data, body, ..
+                    } => {
                         assert!(event_data.is_some(), "onPress should have event data");
                         let has_call = body.statements.iter().any(|s| {
                             if let StatementIR::ExprStmtIR { expr } = s {
@@ -539,9 +574,15 @@ component StoreActionDemo {
                                 false
                             }
                         });
-                        assert!(has_call, "handler body should contain TodoStore.remove(1) call");
+                        assert!(
+                            has_call,
+                            "handler body should contain TodoStore.remove(1) call"
+                        );
                     }
-                    other => panic!("expected InlineFn handler (store action call), got {:?}", other),
+                    other => panic!(
+                        "expected InlineFn handler (store action call), got {:?}",
+                        other
+                    ),
                 }
             }
             other => panic!("expected Element, got {:?}", other),
@@ -566,15 +607,22 @@ component EventFieldsDemo {
         let view = comp.view.expect("should have view");
         match &view {
             ViewTree::Element(el) => {
-                let handler = el.events.get("onInput")
-                    .expect("should have onInput event");
+                let handler = el.events.get("onInput").expect("should have onInput event");
                 match handler {
-                    EventHandlerIR::FnRef { r#ref, used_fields, event_data, .. } => {
+                    EventHandlerIR::FnRef {
+                        r#ref,
+                        used_fields,
+                        event_data,
+                        ..
+                    } => {
                         assert_eq!(r#ref, "handleInput");
-                        let fields = used_fields.as_ref()
+                        let fields = used_fields
+                            .as_ref()
                             .expect("used_fields should be backfilled after Pass 2");
-                        assert!(fields.contains(&"value".to_string()),
-                            "used_fields should contain 'value' (referenced as e.value)");
+                        assert!(
+                            fields.contains(&"value".to_string()),
+                            "used_fields should contain 'value' (referenced as e.value)"
+                        );
                         assert_eq!(event_data.as_ref().unwrap(), &EventDataKind::InputEvent);
                     }
                     other => panic!("expected FnRef handler, got {:?}", other),
@@ -600,11 +648,20 @@ component PreventDemo {
         let view = comp.view.expect("should have view");
         match &view {
             ViewTree::Element(el) => {
-                let handler = el.events.get("onSubmit")
+                let handler = el
+                    .events
+                    .get("onSubmit")
                     .expect("should have onSubmit event");
                 match handler {
-                    EventHandlerIR::InlineFn { needs_prevent_default, event_data, .. } => {
-                        assert!(needs_prevent_default, "should set needs_prevent_default for e.preventDefault()");
+                    EventHandlerIR::InlineFn {
+                        needs_prevent_default,
+                        event_data,
+                        ..
+                    } => {
+                        assert!(
+                            needs_prevent_default,
+                            "should set needs_prevent_default for e.preventDefault()"
+                        );
                         assert_eq!(event_data.as_ref().unwrap(), &EventDataKind::SubmitEvent);
                     }
                     other => panic!("expected InlineFn handler, got {:?}", other),
@@ -645,7 +702,9 @@ component ListDemo {
                             ExprIR::IdentifierExpr { name, .. } => {
                                 assert_eq!(name, "items", "iterable should be 'items'");
                             }
-                            other => panic!("expected IdentifierExpr for iterable, got {:?}", other),
+                            other => {
+                                panic!("expected IdentifierExpr for iterable, got {:?}", other)
+                            }
                         }
                         // Check item binding
                         assert_eq!(list.item_binding.name, "item");
@@ -654,7 +713,10 @@ component ListDemo {
                         if let Some(body) = &list.body {
                             match body {
                                 ViewTree::Element(frag) => {
-                                    assert_eq!(frag.tag, "fragment", "body wrapper should be fragment");
+                                    assert_eq!(
+                                        frag.tag, "fragment",
+                                        "body wrapper should be fragment"
+                                    );
                                     assert_eq!(frag.construction_kind, ConstructionKind::List);
                                     assert_eq!(frag.children.len(), 1);
                                     match &frag.children[0] {
@@ -666,10 +728,16 @@ component ListDemo {
                                                         ExprIR::IdentifierExpr { name, .. } => {
                                                             assert_eq!(name, "item");
                                                         }
-                                                        other => panic!("expected IdentifierExpr, got {:?}", other),
+                                                        other => panic!(
+                                                            "expected IdentifierExpr, got {:?}",
+                                                            other
+                                                        ),
                                                     }
                                                 }
-                                                other => panic!("expected Interpolation, got {:?}", other),
+                                                other => panic!(
+                                                    "expected Interpolation, got {:?}",
+                                                    other
+                                                ),
                                             }
                                         }
                                         other => panic!("expected Element child, got {:?}", other),
@@ -796,7 +864,10 @@ component ConditionalDemo {
                             match body {
                                 ViewTree::Element(frag) => {
                                     assert_eq!(frag.tag, "fragment");
-                                    assert_eq!(frag.construction_kind, ConstructionKind::Conditional);
+                                    assert_eq!(
+                                        frag.construction_kind,
+                                        ConstructionKind::Conditional
+                                    );
                                     assert_eq!(frag.children.len(), 1);
                                     match &frag.children[0] {
                                         ViewTree::Element(span_el) => {
@@ -813,9 +884,15 @@ component ConditionalDemo {
                             }
                         }
                         // Fallback should be None
-                        assert!(cond.fallback.is_none(), "fallback should be None for simple @if");
+                        assert!(
+                            cond.fallback.is_none(),
+                            "fallback should be None for simple @if"
+                        );
                         // Transition mode default
-                        assert!(cond.transition_mode.is_none(), "transition_mode should default to None");
+                        assert!(
+                            cond.transition_mode.is_none(),
+                            "transition_mode should default to None"
+                        );
                     }
                     other => panic!("expected Conditional, got {:?}", other),
                 }
@@ -904,7 +981,11 @@ component MultiCond {
             ViewTree::Element(el) => {
                 match &el.children[0] {
                     ViewTree::Conditional(cond) => {
-                        assert_eq!(cond.branches.len(), 3, "should have 3 branches (if + 2 else-if)");
+                        assert_eq!(
+                            cond.branches.len(),
+                            3,
+                            "should have 3 branches (if + 2 else-if)"
+                        );
                         assert!(cond.fallback.is_some(), "should have else fallback");
                         // Check each branch has a condition
                         for (i, branch) in cond.branches.iter().enumerate() {
@@ -917,14 +998,21 @@ component MultiCond {
                                         ExprIR::IdentifierExpr { name, .. } => {
                                             assert_eq!(name, "score");
                                         }
-                                        other => panic!("expected IdentifierExpr left, got {:?}", other),
+                                        other => {
+                                            panic!("expected IdentifierExpr left, got {:?}", other)
+                                        }
                                     }
                                     // right should be LiteralExpr with the threshold
                                     match right.as_ref() {
                                         ExprIR::LiteralExpr { value } => {
-                                            assert!(value.is_number(), "threshold should be a number");
+                                            assert!(
+                                                value.is_number(),
+                                                "threshold should be a number"
+                                            );
                                         }
-                                        other => panic!("expected LiteralExpr right, got {:?}", other),
+                                        other => {
+                                            panic!("expected LiteralExpr right, got {:?}", other)
+                                        }
                                     }
                                 }
                                 other => panic!("expected BinaryOpExpr condition, got {:?}", other),
@@ -955,20 +1043,28 @@ store CounterStore {
         assert_eq!(store.name, "CounterStore");
         // Check signals
         assert_eq!(store.signals.len(), 2);
-        let count_type = store.signals.get("count")
+        let count_type = store
+            .signals
+            .get("count")
             .expect("should have 'count' signal");
         // i32 is preserved as-is from the AST type annotation
         assert_eq!(count_type.kind.as_str(), "i32");
-        let name_type = store.signals.get("name")
+        let name_type = store
+            .signals
+            .get("name")
             .expect("should have 'name' signal");
         // String is preserved as-is from the AST type annotation
         assert_eq!(name_type.kind.as_str(), "String");
         // Check signal_defaults
         assert_eq!(store.signal_defaults.len(), 2);
-        let count_default = store.signal_defaults.get("count")
+        let count_default = store
+            .signal_defaults
+            .get("count")
             .expect("should have default for 'count'");
         assert_eq!(*count_default, serde_json::json!(0));
-        let name_default = store.signal_defaults.get("name")
+        let name_default = store
+            .signal_defaults
+            .get("name")
             .expect("should have default for 'name'");
         assert_eq!(*name_default, serde_json::json!("hello"));
         // No getters, no actions
@@ -999,16 +1095,31 @@ store TodoStore {
         assert_eq!(store.name, "TodoStore");
         // Check signals
         assert_eq!(store.signals.len(), 2);
-        assert!(store.signals.contains_key("items"), "should have 'items' signal");
-        assert!(store.signals.contains_key("status"), "should have 'status' signal");
+        assert!(
+            store.signals.contains_key("items"),
+            "should have 'items' signal"
+        );
+        assert!(
+            store.signals.contains_key("status"),
+            "should have 'status' signal"
+        );
         // Check signal_defaults
         assert_eq!(store.signal_defaults.len(), 2);
-        let items_default = store.signal_defaults.get("items")
+        let items_default = store
+            .signal_defaults
+            .get("items")
             .expect("should have default for 'items'");
-        assert_eq!(*items_default, serde_json::json!([]), "items default should be empty array");
+        assert_eq!(
+            *items_default,
+            serde_json::json!([]),
+            "items default should be empty array"
+        );
         // Check getters
         assert_eq!(store.getters.len(), 1);
-        assert!(store.getters.contains_key("itemCount"), "should have 'itemCount' getter");
+        assert!(
+            store.getters.contains_key("itemCount"),
+            "should have 'itemCount' getter"
+        );
         // Check getter body references items.len()
         let getter_body = store.getters.get("itemCount").unwrap();
         match getter_body {
@@ -1023,13 +1134,22 @@ store TodoStore {
         }
         // Check actions
         assert_eq!(store.actions.len(), 2);
-        let add_item = store.actions.iter().find(|a| a.name == "addItem")
+        let add_item = store
+            .actions
+            .iter()
+            .find(|a| a.name == "addItem")
             .expect("should have 'addItem' action");
         assert_eq!(add_item.params.len(), 1);
         assert_eq!(add_item.params[0].name, "text");
-        let clear_all = store.actions.iter().find(|a| a.name == "clearAll")
+        let clear_all = store
+            .actions
+            .iter()
+            .find(|a| a.name == "clearAll")
             .expect("should have 'clearAll' action");
-        assert!(clear_all.params.is_empty(), "clearAll should have no params");
+        assert!(
+            clear_all.params.is_empty(),
+            "clearAll should have no params"
+        );
     }
 
     #[test]
@@ -1097,11 +1217,13 @@ component Parent {
                 assert_eq!(el.tag, "div");
                 match &el.children[0] {
                     ViewTree::Element(child_el) => {
-                        assert_eq!(child_el.tag, "Child", "child component tag should be 'Child'");
+                        assert_eq!(
+                            child_el.tag, "Child",
+                            "child component tag should be 'Child'"
+                        );
                         assert_eq!(child_el.construction_kind, ConstructionKind::TagMapping);
                         // Check that props were passed correctly
-                        let prop = child_el.props.get("prop1")
-                            .expect("should have prop1");
+                        let prop = child_el.props.get("prop1").expect("should have prop1");
                         match prop {
                             ExprIR::LiteralExpr { value } => {
                                 assert_eq!(*value, serde_json::json!("hello"));
@@ -1143,7 +1265,11 @@ component Layout {
                         assert_eq!(header_el.children.len(), 1);
                         match &header_el.children[0] {
                             ViewTree::Slot(name) => {
-                                assert_eq!(name.as_deref(), Some("header"), "should be named slot 'header'");
+                                assert_eq!(
+                                    name.as_deref(),
+                                    Some("header"),
+                                    "should be named slot 'header'"
+                                );
                             }
                             other => panic!("expected Slot, got {:?}", other),
                         }
@@ -1235,8 +1361,10 @@ component TodoApp {
         assert_eq!(comp.store_refs, vec!["TodoStore"]);
 
         // Check event declarations
-        assert!(comp.event_names.contains(&"onNotify".to_string()),
-            "component should declare onNotify event");
+        assert!(
+            comp.event_names.contains(&"onNotify".to_string()),
+            "component should declare onNotify event"
+        );
 
         // Check signals (states)
         assert_eq!(comp.states.len(), 2, "should have 2 signals");
@@ -1323,7 +1451,9 @@ component TodoApp {
                                             ExprIR::IdentifierExpr { name, .. } => {
                                                 assert_eq!(name, "input");
                                             }
-                                            other => panic!("expected IdentifierExpr, got {:?}", other),
+                                            other => {
+                                                panic!("expected IdentifierExpr, got {:?}", other)
+                                            }
                                         }
                                     }
                                     other => panic!("expected MethodCallExpr, got {:?}", other),

@@ -4,14 +4,14 @@
 //! Category: correctness
 //! Severity: error
 
-use rustc_hash::FxHashMap;
-use rustc_hash::FxHashSet;
 use super::helpers::{
     check_block_ir_for_store_mutations, check_view_tree_events_for_store_mutations,
     expr_ir_contains_store_mutation,
 };
 use super::{LintDiagnostic, LintRule, LintSeverity};
 use crate::ir::IRProgram;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 
 pub struct StoreFieldDirectMutation;
 
@@ -26,7 +26,11 @@ impl LintRule for StoreFieldDirectMutation {
         LintSeverity::Error
     }
 
-    fn check_ir(&self, ir: &IRProgram, file_map: &FxHashMap<String, String>) -> Vec<LintDiagnostic> {
+    fn check_ir(
+        &self,
+        ir: &IRProgram,
+        file_map: &FxHashMap<String, String>,
+    ) -> Vec<LintDiagnostic> {
         let mut diags = Vec::new();
 
         // Build map: store_name -> set of signal names
@@ -110,8 +114,8 @@ impl LintRule for StoreFieldDirectMutation {
 
 #[cfg(test)]
 mod tests {
-    use rustc_hash::FxHashMap;
     use crate::ir::{BlockIR, ComponentIR, FunctionIR, StatementIR, StoreIR, TypeIR, Visibility};
+    use rustc_hash::FxHashMap;
 
     use super::super::helpers::test_helpers::make_test_ir;
     use super::*;

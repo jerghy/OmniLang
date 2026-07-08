@@ -10,16 +10,19 @@
 //! | `RustTypeFormatter` | Rust (Rust, Dioxus) | `i32`, `f64`, `String`, `()` |
 //! | `PythonTypeFormatter` | Python | `int`, `float`, `str`, `None` |
 
-#[cfg_attr(not(any(
-    feature = "codegen-javascript",
-    feature = "codegen-react",
-    feature = "codegen-vue",
-    feature = "codegen-dart",
-    feature = "codegen-flutter",
-    feature = "codegen-rust",
-    feature = "codegen-dioxus",
-    feature = "codegen-python"
-)), allow(unused_imports))]
+#[cfg_attr(
+    not(any(
+        feature = "codegen-javascript",
+        feature = "codegen-react",
+        feature = "codegen-vue",
+        feature = "codegen-dart",
+        feature = "codegen-flutter",
+        feature = "codegen-rust",
+        feature = "codegen-dioxus",
+        feature = "codegen-python"
+    )),
+    allow(unused_imports)
+)]
 use crate::ir::*;
 
 // ═══════════════════════════════════════════════════════════

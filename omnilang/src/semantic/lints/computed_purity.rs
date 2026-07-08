@@ -4,10 +4,10 @@
 //! Category: correctness
 //! Severity: error
 
-use rustc_hash::FxHashSet;
 use super::helpers::expr_contains_side_effect;
 use super::{LintDiagnostic, LintRule, LintSeverity};
 use crate::parser::ast::Program;
+use rustc_hash::FxHashSet;
 
 pub struct ComputedPurity;
 
@@ -77,12 +77,12 @@ impl LintRule for ComputedPurity {
 
 #[cfg(test)]
 mod tests {
-    use rustc_hash::FxHashMap;
     use crate::lexer::Span;
     use crate::parser::ast::{
         AssignTarget, BinaryOpKind, Block, ComponentDef, ComputedDecl, Expr, Literal, Module,
         SignalDecl, Stmt, TypeAnnotation,
     };
+    use rustc_hash::FxHashMap;
 
     use super::*;
 

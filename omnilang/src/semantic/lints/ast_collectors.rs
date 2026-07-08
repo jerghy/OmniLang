@@ -2,8 +2,8 @@
 //!
 //! Extracted from `helpers.rs` to keep that file below 800 lines.
 
-use rustc_hash::FxHashSet;
 use crate::parser::ast::*;
+use rustc_hash::FxHashSet;
 
 // ── AST name reference collectors ────────────────────
 
@@ -184,7 +184,10 @@ pub(super) fn collect_used_names_in_view<'a>(view: &'a ViewBlock, used: &mut FxH
     }
 }
 
-pub(super) fn collect_used_names_in_view_node<'a>(node: &'a ViewNode, used: &mut FxHashSet<&'a str>) {
+pub(super) fn collect_used_names_in_view_node<'a>(
+    node: &'a ViewNode,
+    used: &mut FxHashSet<&'a str>,
+) {
     match node {
         ViewNode::Element(el) => {
             for prop in &el.props {

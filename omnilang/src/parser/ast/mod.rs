@@ -10,8 +10,8 @@ pub use design::*;
 pub use motion::*;
 pub use view::*;
 
-use rustc_hash::FxHashMap;
 use crate::lexer::Span;
+use rustc_hash::FxHashMap;
 
 // ── Base types ────────────────────────────────────────
 

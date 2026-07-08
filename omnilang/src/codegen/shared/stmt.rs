@@ -26,27 +26,33 @@
     feature = "codegen-python"
 ))]
 use crate::codegen::shared::expr::FormatExpr;
-#[cfg_attr(not(any(
-    feature = "codegen-javascript",
-    feature = "codegen-react",
-    feature = "codegen-vue",
-    feature = "codegen-dart",
-    feature = "codegen-flutter",
-    feature = "codegen-rust",
-    feature = "codegen-dioxus",
-    feature = "codegen-python"
-)), allow(unused_imports))]
+#[cfg_attr(
+    not(any(
+        feature = "codegen-javascript",
+        feature = "codegen-react",
+        feature = "codegen-vue",
+        feature = "codegen-dart",
+        feature = "codegen-flutter",
+        feature = "codegen-rust",
+        feature = "codegen-dioxus",
+        feature = "codegen-python"
+    )),
+    allow(unused_imports)
+)]
 use crate::codegen::CodeWriter;
-#[cfg_attr(not(any(
-    feature = "codegen-javascript",
-    feature = "codegen-react",
-    feature = "codegen-vue",
-    feature = "codegen-dart",
-    feature = "codegen-flutter",
-    feature = "codegen-rust",
-    feature = "codegen-dioxus",
-    feature = "codegen-python"
-)), allow(unused_imports))]
+#[cfg_attr(
+    not(any(
+        feature = "codegen-javascript",
+        feature = "codegen-react",
+        feature = "codegen-vue",
+        feature = "codegen-dart",
+        feature = "codegen-flutter",
+        feature = "codegen-rust",
+        feature = "codegen-dioxus",
+        feature = "codegen-python"
+    )),
+    allow(unused_imports)
+)]
 use crate::ir::*;
 
 // ═══════════════════════════════════════════════════════════

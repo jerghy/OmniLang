@@ -4,8 +4,6 @@
 //! motion triggers, `states:` blocks, and related syntactic/semantic rules
 //! (easing names, keyframe types, clip-path shapes, etc.).
 
-use rustc_hash::FxHashMap;
-use rustc_hash::FxHashSet;
 use super::helpers::{collect_timeline_refs, is_non_interpolatable};
 use super::motion::{
     collect_element_ids, contains_velocity_ref, is_keyword_value, is_valid_easing_name,
@@ -14,6 +12,8 @@ use super::SemanticAnalyzer;
 use crate::error::{Diagnostic, DiagnosticKind};
 use crate::lexer::Span;
 use crate::parser::ast::*;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 
 impl SemanticAnalyzer {
     /// Validate all motion definitions and timeline triggers in a module.
