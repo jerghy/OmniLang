@@ -17,6 +17,7 @@ import { createNavigationSlice } from "./slices/navigation";
 import { createSerializationSlice } from "./slices/serialization";
 import { createTabSlice, createInitialDesignPageState } from "./operations/tab-lifecycle";
 import { createUndoSlice } from "./undo-slice";
+import { createThemeSlice } from "./slices/theme";
 
 export const usePoiesisStore = create<PoiesisState>((set, get) => ({
   // ── Initial state values ──
@@ -48,6 +49,7 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
   undoStacks: {},
 
   // ── Actions (composed from slice factories) ──
+  ...createThemeSlice(set, get),
   ...createArchitectureSlice(set, get),
   ...createTabSlice(set, get),
   ...createDesignSystemSlice(set, get),

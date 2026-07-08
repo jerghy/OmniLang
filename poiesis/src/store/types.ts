@@ -17,6 +17,10 @@ import type {
 import type { UndoStack } from "./undo-slice";
 
 export interface PoiesisState {
+  // ── Theme ──
+  theme: "light" | "dark" | "system";
+  resolvedTheme: "light" | "dark";
+  setTheme: (theme: "light" | "dark" | "system") => void;
   // ── Design system (was extends DesignSlice, now inlined) ──
   activeDesign: DesignDefinition;
   elementVariants: Record<string, ElementVariantBinding>;

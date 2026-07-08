@@ -5,6 +5,16 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Poiesis</title>
+    <script>
+      (function() {
+        var mode = localStorage.getItem('poiesis-theme');
+        var resolved;
+        if (mode === 'dark') resolved = 'dark';
+        else if (mode === 'light') resolved = 'light';
+        else resolved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', resolved);
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

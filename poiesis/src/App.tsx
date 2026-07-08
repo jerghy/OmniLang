@@ -10,6 +10,7 @@ import { detectTabType } from "./core/types/design-page";
 import { ErrorBoundary } from "./components/error/ErrorBoundary";
 import { createLogger } from "./lib/utils/logger";
 import "./styles/tokens.css";
+import "./styles/legacy-bridge.css";
 
 const DesignPage = lazy(() => import("./pages/DesignPage").then((m) => ({ default: m.DesignPage })));
 const ArchitecturePage = lazy(() => import("./pages/ArchitecturePage").then((m) => ({ default: m.ArchitecturePage })));
@@ -183,6 +184,32 @@ export default function App() {
     window.addEventListener("unhandledrejection", handler);
     return () => window.removeEventListener("unhandledrejection", handler);
   }, []);
+
+  // ── Theme initialization and system preference listener ──
+  const setTheme = usePoiesisStore((s) => s.setTheme);
+  useEffect(() => {
+    // Sync store with the data-theme already set by the anti-FOUC script
+    const stored = localStorage.getItem("poiesis-theme") as "light" | "dark" | "system" | null;
+    const theme = stored || "system";
+    const resolved = theme === "system"
+      ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+      : theme;
+    document.documentElement.setAttribute("data-theme", resolved);
+    setTheme(theme);
+
+    // Listen for system theme changes
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const handler = (e: MediaQueryListEvent) => {
+      const current = usePoiesisStore.getState().theme;
+      if (current === "system") {
+        const next = e.matches ? "dark" : "light";
+        document.documentElement.setAttribute("data-theme", next);
+        usePoiesisStore.setState({ resolvedTheme: next } as any);
+      }
+    };
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, [setTheme]);
 
   // ── On mount: if projectDir is set, load .omni files into canvas ──
   const loadedRef = useRef(false);
