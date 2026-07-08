@@ -6,6 +6,17 @@ import { usePoiesisStore } from "../../store";
 import { uid } from "../../core/utils";
 import type { StyleProperty, StyleValueSegment } from "../../core/types/style";
 import type { DesignClass, PseudoState } from "../../core/types/design";
+import { ClassPreview } from "./ClassPreview";
+import { SizeCard } from "./cards/SizeCard";
+import { BackgroundCard } from "./cards/BackgroundCard";
+import { BorderCard } from "./cards/BorderCard";
+import { RadiusCard } from "./cards/RadiusCard";
+import { SpacingCard } from "./cards/SpacingCard";
+import { FocusOverlay } from "./FocusOverlay";
+import { CollapsibleGroup } from "./CollapsibleGroup";
+import { IconButtonGroup } from "./IconButtonGroup";
+import { ScrubInput } from "./ScrubInput";
+import { PropertyRow } from "./PropertyRow";
 
 // ── Constants ──
 
@@ -137,6 +148,32 @@ function makeVarRefSegments(name: string): StyleValueSegment[] {
 
 function isEnumProperty(name: string): boolean {
   return name in ENUM_OPTIONS;
+}
+
+function getPropValue(props: StyleProperty[], name: string): string {
+  const prop = props.find((p) => p.name === name);
+  if (!prop || prop.segments.length === 0) return "";
+  const seg = prop.segments[0];
+  return seg.type === "text" ? seg.value : "";
+}
+
+function setPropValue(
+  props: StyleProperty[],
+  name: string,
+  value: string,
+): StyleProperty[] {
+  const existing = props.find((p) => p.name === name);
+  if (existing) {
+    return props.map((p) =>
+      p.name === name
+        ? { ...p, segments: [{ type: "text" as const, value }] }
+        : p,
+    );
+  }
+  return [
+    ...props,
+    { id: uid("prop"), name, segments: [{ type: "text", value }] },
+  ];
 }
 
 // ── Styles ──
@@ -307,6 +344,7 @@ export function ClassEditor() {
     propName: string;
   } | null>(null);
   const [editingClassName, setEditingClassName] = useState<string | null>(null);
+  const [focusMode, setFocusMode] = useState<string | null>(null);
 
   const pseudoMenuRef = useRef<HTMLDivElement>(null);
   const addPropRef = useRef<HTMLDivElement>(null);
@@ -323,6 +361,33 @@ export function ClassEditor() {
     if (!selectedClass || activePseudo === "base") return null;
     return selectedClass.pseudoStates.find((ps) => ps.pseudo === activePseudo) ?? null;
   }, [selectedClass, activePseudo]);
+
+  const currentProps = useMemo(() => {
+    if (!selectedClass) return [];
+    if (activePseudo === "base") return selectedClass.properties;
+    return pseudoState?.properties ?? [];
+  }, [selectedClass, activePseudo, pseudoState]);
+
+  const layoutPropNames = ["display", "position", "flexDirection", "justifyContent", "alignItems", "alignSelf", "gap", "overflow", "flexWrap"];
+  const typographyPropNames = ["color", "fontFamily", "fontSize", "fontWeight", "lineHeight", "textAlign", "textDecoration", "textTransform", "letterSpacing"];
+
+  const layoutSummary = useMemo(() => {
+    const parts = currentProps.filter(
+      (p) => layoutPropNames.includes(p.name) && segmentsToString(p.segments),
+    );
+    return parts.length > 0
+      ? parts.map((p) => `${p.name}:${segmentsToString(p.segments)}`).join(", ")
+      : "Not set";
+  }, [currentProps]);
+
+  const typographySummary = useMemo(() => {
+    const parts = currentProps.filter(
+      (p) => typographyPropNames.includes(p.name) && segmentsToString(p.segments),
+    );
+    return parts.length > 0
+      ? parts.map((p) => `${p.name}:${segmentsToString(p.segments)}`).join(", ")
+      : "Not set";
+  }, [currentProps]);
 
   // ── Close popups on outside click ──
 
@@ -528,6 +593,34 @@ export function ClassEditor() {
       setAddPropSearch("");
     },
     [selectedClass, handlePropChange],
+  );
+
+  /** Update properties array and save to store (for card-based editors). */
+  const handlePropsChange = useCallback(
+    (newProps: StyleProperty[]) => {
+      if (!selectedClass) return;
+      if (activePseudo === "base") {
+        updateDesignClass(selectedClass.id, { properties: newProps });
+      } else {
+        const { pseudoStates, psIdx } = ensurePseudoState(selectedClass);
+        pseudoStates[psIdx] = { ...pseudoStates[psIdx], properties: newProps };
+        updateDesignClass(selectedClass.id, { pseudoStates });
+      }
+    },
+    [selectedClass, activePseudo, updateDesignClass, ensurePseudoState],
+  );
+
+  /** Update a single property in the active properties array (for collapsed groups). */
+  const handleSinglePropChange = useCallback(
+    (name: string, value: string) => {
+      if (!selectedClass) return;
+      const props =
+        activePseudo === "base"
+          ? selectedClass.properties
+          : pseudoState?.properties ?? [];
+      handlePropsChange(setPropValue(props, name, value));
+    },
+    [selectedClass, activePseudo, pseudoState, handlePropsChange],
   );
 
   // ── Render helpers ──
@@ -1016,72 +1109,49 @@ export function ClassEditor() {
     );
   };
 
-  const renderPropertyGroups = () => {
-    if (!selectedClass) return null;
+  // renderPropertyGroups removed — replaced by card-based rendering above.
 
-    if (activePseudo === "base") {
-      // Base tab: show only properties that have been explicitly set
-      const currentProps = selectedClass.properties;
 
-      return (
-        <>
-          {PROPERTY_GROUPS.map((group) => {
-            const groupProps = group.properties.filter((gp) =>
-              currentProps.some((cp) => cp.name === gp),
-            );
-            if (groupProps.length === 0) return null;
-            return (
-              <div key={group.label} style={{ marginBottom: 8 }}>
-                <div style={GROUP_HEADER}>{group.label}</div>
-                {groupProps.map((name) => {
-                  const prop = currentProps.find((p) => p.name === name);
-                  return renderPropertyRow(name, prop, false);
-                })}
-              </div>
-            );
-          })}
-          {renderAddProperty()}
-        </>
-      );
+  const renderFocusCard = () => {
+    if (!focusMode) return null;
+    const sharedProps = {
+      properties: currentProps,
+      onChange: handlePropsChange,
+    };
+    switch (focusMode) {
+      case "size":
+        return (
+          <div style={{ width: 260, padding: 8 }}>
+            <SizeCard {...sharedProps} />
+          </div>
+        );
+      case "background":
+        return (
+          <div style={{ width: 260, padding: 8 }}>
+            <BackgroundCard {...sharedProps} tokens={tokens} />
+          </div>
+        );
+      case "border":
+        return (
+          <div style={{ width: 260, padding: 8 }}>
+            <BorderCard {...sharedProps} tokens={tokens} />
+          </div>
+        );
+      case "radius":
+        return (
+          <div style={{ width: 260, padding: 8 }}>
+            <RadiusCard {...sharedProps} />
+          </div>
+        );
+      case "spacing":
+        return (
+          <div style={{ width: 260, padding: 8 }}>
+            <SpacingCard {...sharedProps} />
+          </div>
+        );
+      default:
+        return null;
     }
-
-    // Pseudo tab: show inherited + overridden properties
-    const baseProps = selectedClass.properties;
-    const pseudoProps = pseudoState?.properties ?? [];
-
-    // Collect property names from base and pseudo
-    const displayedNames = new Set<string>();
-    for (const bp of baseProps) displayedNames.add(bp.name);
-    for (const pp of pseudoProps) displayedNames.add(pp.name);
-
-    return (
-      <>
-        {PROPERTY_GROUPS.map((group) => {
-          const groupNames = group.properties.filter((n) => displayedNames.has(n));
-          if (groupNames.length === 0) return null;
-          return (
-            <div key={group.label} style={{ marginBottom: 8 }}>
-              <div style={GROUP_HEADER}>{group.label}</div>
-              {groupNames.map((name) => {
-                const baseProp = baseProps.find((p) => p.name === name);
-                const pseudoProp = pseudoProps.find((p) => p.name === name);
-                const baseVal = baseProp ? segmentsToString(baseProp.segments) : "";
-                const pseudoVal = pseudoProp ? segmentsToString(pseudoProp.segments) : "";
-                const isOverridden = pseudoProp !== undefined && pseudoVal !== baseVal;
-                const isNew = pseudoProp !== undefined && !baseProp;
-                const editable = isOverridden || isNew;
-                return renderPropertyRow(
-                  name,
-                  editable ? pseudoProp : baseProp,
-                  !editable,
-                );
-              })}
-            </div>
-          );
-        })}
-        {renderAddProperty()}
-      </>
-    );
   };
 
   // ── Main render ──
@@ -1164,9 +1234,173 @@ export function ClassEditor() {
             {/* Pseudo tabs */}
             {renderPseudoTabs()}
 
-            {/* Property editor */}
-            <div style={{ flex: 1, overflow: "auto", padding: "8px 12px" }}>
-              {renderPropertyGroups()}
+            {/* Property editor + Preview */}
+            <div style={{ flex: 1, display: "flex", overflow: "hidden", minHeight: 0, position: "relative" }}>
+              {focusMode === null ? (
+                <>
+                  {/* Property editor: cards + collapsed groups */}
+                  <div style={{ flex: 1, overflow: "auto", padding: "0" }}>
+                    {/* Cards for common properties */}
+                    <SizeCard
+                      properties={currentProps}
+                      onChange={handlePropsChange}
+                      onFocus={() => setFocusMode("size")}
+                    />
+                    <BackgroundCard
+                      properties={currentProps}
+                      tokens={tokens}
+                      onChange={handlePropsChange}
+                    />
+                    <BorderCard
+                      properties={currentProps}
+                      tokens={tokens}
+                      onChange={handlePropsChange}
+                    />
+                    <RadiusCard
+                      properties={currentProps}
+                      onChange={handlePropsChange}
+                    />
+                    <SpacingCard
+                      properties={currentProps}
+                      onChange={handlePropsChange}
+                    />
+
+                    {/* Layout group for remaining layout properties */}
+                    <CollapsibleGroup title="布局 Layout" summary={layoutSummary} defaultOpen={false}>
+                      {layoutPropNames.map((name) => {
+                        const value = getPropValue(currentProps, name);
+                        const label = PROPERTY_LABELS[name] || name;
+                        if (name === "flexDirection") {
+                          return (
+                            <PropertyRow key={name} label={label}>
+                              <IconButtonGroup
+                                options={[
+                                  { value: "row", label: "→", title: "row" },
+                                  { value: "column", label: "↓", title: "column" },
+                                  { value: "row-reverse", label: "←", title: "row-reverse" },
+                                  { value: "column-reverse", label: "↑", title: "column-reverse" },
+                                ]}
+                                value={(value || "row") as "row" | "column" | "row-reverse" | "column-reverse"}
+                                onChange={(v) => handleSinglePropChange(name, v as string)}
+                              />
+                            </PropertyRow>
+                          );
+                        }
+                        if (name === "gap") {
+                          return (
+                            <PropertyRow key={name} label={label}>
+                              <ScrubInput
+                                value={parseFloat(value) || 0}
+                                unit="px"
+                                min={0}
+                                max={200}
+                                onChange={(v) => handleSinglePropChange(name, `${v}px`)}
+                              />
+                            </PropertyRow>
+                          );
+                        }
+                        if (isEnumProperty(name)) {
+                          return (
+                            <PropertyRow key={name} label={label}>
+                              <select
+                                value={value}
+                                onChange={(e) => handleSinglePropChange(name, e.target.value)}
+                                style={SELECT_STYLE}
+                              >
+                                <option value="">—</option>
+                                {ENUM_OPTIONS[name]?.map((opt) => (
+                                  <option key={opt} value={opt}>{opt}</option>
+                                )) ?? null}
+                              </select>
+                            </PropertyRow>
+                          );
+                        }
+                        return (
+                          <PropertyRow key={name} label={label}>
+                            <input
+                              value={value}
+                              onChange={(e) => handleSinglePropChange(name, e.target.value)}
+                              style={INPUT_STYLE}
+                              placeholder="value"
+                            />
+                          </PropertyRow>
+                        );
+                      })}
+                    </CollapsibleGroup>
+
+                    {/* Typography group */}
+                    <CollapsibleGroup title="文字 Typography" summary={typographySummary} defaultOpen={false}>
+                      {typographyPropNames.map((name) => {
+                        const value = getPropValue(currentProps, name);
+                        const label = PROPERTY_LABELS[name] || name;
+                        if (["fontSize", "lineHeight", "letterSpacing"].includes(name)) {
+                          const unit = name === "fontSize" ? "px" : (name === "letterSpacing" ? "px" : "");
+                          return (
+                            <PropertyRow key={name} label={label}>
+                              <ScrubInput
+                                value={parseFloat(value) || 0}
+                                unit={unit}
+                                min={0}
+                                max={999}
+                                onChange={(v) => handleSinglePropChange(name, unit ? `${v}${unit}` : `${v}`)}
+                              />
+                            </PropertyRow>
+                          );
+                        }
+                        if (isEnumProperty(name)) {
+                          return (
+                            <PropertyRow key={name} label={label}>
+                              <select
+                                value={value}
+                                onChange={(e) => handleSinglePropChange(name, e.target.value)}
+                                style={SELECT_STYLE}
+                              >
+                                <option value="">—</option>
+                                {ENUM_OPTIONS[name]?.map((opt) => (
+                                  <option key={opt} value={opt}>{opt}</option>
+                                )) ?? null}
+                              </select>
+                            </PropertyRow>
+                          );
+                        }
+                        return (
+                          <PropertyRow key={name} label={label}>
+                            <input
+                              value={value}
+                              onChange={(e) => handleSinglePropChange(name, e.target.value)}
+                              style={INPUT_STYLE}
+                              placeholder="value"
+                            />
+                          </PropertyRow>
+                        );
+                      })}
+                    </CollapsibleGroup>
+
+                    {renderAddProperty()}
+                  </div>
+
+                  {/* Live preview */}
+                  <ClassPreview
+                    baseProperties={selectedClass.properties}
+                    pseudoStates={selectedClass.pseudoStates}
+                    className={selectedClass.name}
+                    tokens={tokens}
+                  />
+                </>
+              ) : (
+                <FocusOverlay
+                  visible={true}
+                  onClose={() => setFocusMode(null)}
+                  floatingCard={renderFocusCard()}
+                >
+                  <ClassPreview
+                    baseProperties={selectedClass.properties}
+                    pseudoStates={selectedClass.pseudoStates}
+                    className={selectedClass.name}
+                    tokens={tokens}
+                  />
+                </FocusOverlay>
+              )}
             </div>
           </>
         ) : (
