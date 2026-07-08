@@ -1,3 +1,4 @@
+use std::fmt::Write;
 use super::utils::{escape_html, map_event, map_tag};
 use super::OmniViewGenerator;
 use crate::codegen::emit_event_object;
@@ -41,10 +42,10 @@ impl OmniViewGenerator {
                         js_expr
                     };
                     // Write to self.js (which is the deferred buffer after emit_view swap)
-                    self.js.push_str(&format!(
+                    let _ = write!(self.js, 
                         "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) try {{ el.textContent = String({}); }} catch(e) {{}} }});\n",
                         nid, value_access
-                    ));
+                    );
                     format!("{}<span data-nid=\"{}\"></span>\n", pad, nid)
                 }
             }
@@ -82,10 +83,10 @@ impl OmniViewGenerator {
         for (name, value) in &el.props {
             match name.as_str() {
                 "testId" | "test_id" => {
-                    attrs.push_str(&format!(
+                    let _ = write!(attrs, 
                         " data-testid=\"{}\"",
                         self.expr_to_static_str(value)
-                    ));
+                    );
                 }
                 // Real HTML attributes — emit as-is, not data-*
                 "class" | "id" | "placeholder" | "type" | "value" | "disabled" | "checked"
@@ -125,19 +126,19 @@ impl OmniViewGenerator {
                         } else {
                             js_val
                         };
-                        self.js.push_str(&format!(
+                        let _ = write!(self.js, 
                             "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) el.setAttribute('{}', {}); }});\n",
                             nid, name, js_access
-                        ));
+                        );
                     } else if is_boolean_attr && val_str == "true" {
                         // Boolean attribute: emit just the attribute name (no ="true")
-                        attrs.push_str(&format!(" {}", name));
+                        let _ = write!(attrs, " {}", name);
                     } else if is_boolean_attr && val_str == "false" {
                         // Boolean attribute with value "false": skip entirely (don't emit)
                     } else if !val_str.is_empty() {
-                        attrs.push_str(&format!(" {}=\"{}\"", name, escape_html(&val_str)));
+                        let _ = write!(attrs, " {}=\"{}\"", name, escape_html(&val_str));
                     } else {
-                        attrs.push_str(&format!(" {}", name));
+                        let _ = write!(attrs, " {}", name);
                     }
                 }
                 _ => {
@@ -158,9 +159,9 @@ impl OmniViewGenerator {
                         self.for_attr_bindings.push((nid.clone(), attr_name, parts));
                     } else if name.starts_with("aria-") || name.starts_with("data-") {
                         // Real HTML aria/data attributes — emit as-is
-                        attrs.push_str(&format!(" {}=\"{}\"", name, escape_html(&val_str)));
+                        let _ = write!(attrs, " {}=\"{}\"", name, escape_html(&val_str));
                     } else {
-                        attrs.push_str(&format!(" data-{}=\"{}\"", name, escape_html(&val_str)));
+                        let _ = write!(attrs, " data-{}=\"{}\"", name, escape_html(&val_str));
                     }
                 }
             }
@@ -168,16 +169,16 @@ impl OmniViewGenerator {
 
         // Hero shared element transition tag — emit as data attribute
         if let Some(hero) = el.hero_behavior().and_then(|h| h.tag.as_ref()) {
-            attrs.push_str(&format!(" data-hero=\"{}\"", escape_html(hero)));
+            let _ = write!(attrs, " data-hero=\"{}\"", escape_html(hero));
         }
         // Optional custom transition motion name
         if let Some(transition) = el.hero_behavior().and_then(|h| h.transition.as_ref()) {
             let trans_str = self.expr_to_static_str(transition);
             if !trans_str.is_empty() {
-                attrs.push_str(&format!(
+                let _ = write!(attrs, 
                     " data-hero-transition=\"{}\"",
                     escape_html(&trans_str)
-                ));
+                );
             }
         }
 
@@ -198,10 +199,10 @@ impl OmniViewGenerator {
                                     .unwrap_or_else(|| sig_name.to_string());
                                 // Use camelCase for JS el.style, not kebab-case
                                 let js_prop = prop;
-                                self.js.push_str(&format!(
+                                let _ = write!(self.js, 
                                     "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) ",
                                     nid
-                                ));
+                                );
                                 self.emit_style_assignment(js_prop, &format!("{}.value", prefixed));
                                 self.js.push_str(" });\n");
                             }
@@ -227,10 +228,10 @@ impl OmniViewGenerator {
                                     }
                                 }
                                 let js_prop = prop; // camelCase for el.style
-                                self.js.push_str(&format!(
+                                let _ = write!(self.js, 
                                     "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) ",
                                     nid
-                                ));
+                                );
                                 self.emit_style_assignment(js_prop, &js_parts.join(" + "));
                                 self.js.push_str(" });\n");
                             }
@@ -264,10 +265,10 @@ impl OmniViewGenerator {
                                         }
                                     }
                                     let js_prop = prop; // camelCase for el.style
-                                    self.js.push_str(&format!(
+                                    let _ = write!(self.js, 
                                         "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) ",
                                         nid
-                                    ));
+                                    );
                                     self.emit_style_assignment(
                                         js_prop,
                                         &format!("{}({})", prefixed, arg_strs.join(", ")),
@@ -287,10 +288,10 @@ impl OmniViewGenerator {
                     }
                 }
                 if !static_style_parts.is_empty() {
-                    attrs.push_str(&format!(
+                    let _ = write!(attrs, 
                         " style=\"{}\"",
                         escape_html(&static_style_parts.join("; "))
-                    ));
+                    );
                 }
             }
         }
@@ -322,7 +323,7 @@ impl OmniViewGenerator {
                         format!("fn:{}", escape_html(&wrapper_name))
                     }
                 };
-                attrs.push_str(&format!(" data-event-{}=\"{}\"", js_event, val));
+                let _ = write!(attrs, " data-event-{}=\"{}\"", js_event, val);
                 // Register handler in the global lookup so the delegated
                 // listener can find it (functions are IIFE-local, not on
                 // window).
@@ -357,10 +358,10 @@ impl OmniViewGenerator {
                             let wrapper_name =
                                 format!("__on{}_{}", event_name, nid.replace('-', "_"));
                             let params_str = params.join(", ");
-                            self.js.push_str(&format!(
+                            let _ = write!(self.js, 
                                 "function {}({}) {{\n",
                                 wrapper_name, params_str
-                            ));
+                            );
                             for stmt in &body.statements {
                                 self.emit_statement(stmt);
                             }
@@ -368,10 +369,10 @@ impl OmniViewGenerator {
                             format!("{}({})", wrapper_name, event_obj)
                         }
                     };
-                    self.js.push_str(&format!(
+                    let _ = write!(self.js, 
                         "{{ window.addEventListener(\"resize\", (_e) => {{ {} }}); }}\n",
                         handler_call
-                    ));
+                    );
                     continue;
                 }
                 let pd = if handler.needs_prevent_default() || js_event == "submit" {
@@ -388,28 +389,28 @@ impl OmniViewGenerator {
                     EventHandlerIR::FnRef { r#ref, .. } => {
                         if self.motion_names.contains(r#ref.as_str()) {
                             // Motion reference: create AnimationPlayer and play on event
-                            self.js.push_str(&format!(
+                            let _ = write!(self.js, 
                                 "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ if (el.offsetParent !== null) {{ var p = __omni_motion_{motion}(el, {{}}); __omni_animations.set(\"{nid}_{js_event}\", p); p.play(); }} }}); }}\n",
                                 nid = nid,
                                 js_event = js_event,
                                 motion = r#ref,
-                            ));
+                            );
                         } else {
                             let prefixed = format!("{}_{}", self.current_component, r#ref);
                             let event_obj =
                                 emit_event_object(handler.event_data(), handler.used_fields(), "e");
-                            self.js.push_str(&format!(
+                            let _ = write!(self.js, 
                                 "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ {sp} {pd} {prefixed}({event_obj}); }}); }}\n",
                                 nid = nid, js_event = js_event, sp = sp, pd = pd, prefixed = prefixed, event_obj = event_obj
-                            ));
+                            );
                         }
                     }
                     EventHandlerIR::StoreAction { r#ref, .. } => {
                         let var_name = r#ref.replace('.', "_");
-                        self.js.push_str(&format!(
+                        let _ = write!(self.js, 
                             "{{ const el = __omni_el(\"{}\"); if (el) el.addEventListener(\"{}\", (e) => {{ {} {} {}(); }}); }}\n",
                             nid, js_event, sp, pd, var_name
-                        ));
+                        );
                     }
                     EventHandlerIR::InlineFn { body, params, .. } => {
                         let wrapper_name = format!("__on{}_{}", event_name, nid.replace('-', "_"));
@@ -422,10 +423,10 @@ impl OmniViewGenerator {
                         self.js.push_str("}\n");
                         let event_obj =
                             emit_event_object(handler.event_data(), handler.used_fields(), "e");
-                        self.js.push_str(&format!(
+                        let _ = write!(self.js, 
                             "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ {sp} {pd} {wrapper_name}({event_obj}); }}); }}\n",
                             nid = nid, js_event = js_event, sp = sp, pd = pd, wrapper_name = wrapper_name, event_obj = event_obj
-                        ));
+                        );
                     }
                 }
             }
@@ -444,21 +445,21 @@ impl OmniViewGenerator {
                 // Prevent infinite loop: guard flag to stop the effect from re-triggering input event
                 self.guard_counter += 1;
                 let guard_name = format!("_guard_{}_{}", prop_name, nid.replace('-', "_"));
-                self.js.push_str(&format!("let {} = false;\n", guard_name));
+                let _ = write!(self.js, "let {} = false;\n", guard_name);
                 let (event_name, dom_prop) = if prop_name == "checked" {
                     ("change", "checked")
                 } else {
                     ("input", "value")
                 };
-                self.js.push_str(&format!(
+                let _ = write!(self.js, 
                     "{{ const el = __omni_el(\"{0}\"); if (el) el.addEventListener(\"{1}\", (e) => {{ if (!{2}) {{ {3}.set(e.target.{4}); }} }}); }}\n",
                     nid, event_name, guard_name, sig_name, dom_prop
-                ));
+                );
                 // Reactive binding: signal → DOM (guard against programmatic updates)
-                self.js.push_str(&format!(
+                let _ = write!(self.js, 
                     "__omni_effect(() => {{ const el = __omni_el(\"{0}\"); if (el) {{ {1} = true; el.{2} = {3}.value; {1} = false; }} }});\n",
                     nid, guard_name, prop_name, sig_name
-                ));
+                );
             }
         }
 
@@ -479,7 +480,7 @@ impl OmniViewGenerator {
                         .all(|c| c.is_alphanumeric() || c == '_' || c == '.');
                     if self.in_for_template {
                         // Inside @for template: use data-bind-text marker
-                        attrs.push_str(&format!(" data-bind-text=\"{}\"", escape_html(expr)));
+                        let _ = write!(attrs, " data-bind-text=\"{}\"", escape_html(expr));
                     } else if is_safe {
                         // Generate reactive text binding for signals after DOM insert
                         interp_effects.push(format!(
@@ -517,71 +518,71 @@ impl OmniViewGenerator {
                     TriggerKind::Timeline => "data-timeline",
                 };
                 if let Some(ref motion_name) = trigger.motion_ref {
-                    attrs.push_str(&format!(" {}=\"{}\"", data_attr, escape_html(motion_name)));
+                    let _ = write!(attrs, " {}=\"{}\"", data_attr, escape_html(motion_name));
                 }
             }
             // Sub-attributes for in-view
             if let Some(once) = el.motion_behavior().and_then(|m| m.in_view_once.as_ref()) {
                 let js_val = self.expr_to_js(once);
-                attrs.push_str(&format!(" data-in-view-once=\"{}\"", escape_html(&js_val)));
+                let _ = write!(attrs, " data-in-view-once=\"{}\"", escape_html(&js_val));
             }
             if let Some(repeat) = el.motion_behavior().and_then(|m| m.in_view_repeat.as_ref()) {
                 let js_val = self.expr_to_js(repeat);
-                attrs.push_str(&format!(
+                let _ = write!(attrs, 
                     " data-in-view-repeat=\"{}\"",
                     escape_html(&js_val)
-                ));
+                );
             }
             if let Some(threshold) = el
                 .motion_behavior()
                 .and_then(|m| m.in_view_threshold.as_ref())
             {
                 let js_val = self.expr_to_js(threshold);
-                attrs.push_str(&format!(
+                let _ = write!(attrs, 
                     " data-in-view-threshold=\"{}\"",
                     escape_html(&js_val)
-                ));
+                );
             }
             // Sub-attributes for scroll
             if let Some(s) = el.scroll_behavior().and_then(|sb| sb.start.as_ref()) {
-                attrs.push_str(&format!(" data-scroll-start=\"{}\"", escape_html(s)));
+                let _ = write!(attrs, " data-scroll-start=\"{}\"", escape_html(s));
             }
             if let Some(s) = el.scroll_behavior().and_then(|sb| sb.end.as_ref()) {
-                attrs.push_str(&format!(" data-scroll-end=\"{}\"", escape_html(s)));
+                let _ = write!(attrs, " data-scroll-end=\"{}\"", escape_html(s));
             }
             if let Some(scrub) = el.scroll_behavior().and_then(|sb| sb.scrub.as_ref()) {
                 let js_val = self.expr_to_js(scrub);
-                attrs.push_str(&format!(" data-scroll-scrub=\"{}\"", escape_html(&js_val)));
+                let _ = write!(attrs, " data-scroll-scrub=\"{}\"", escape_html(&js_val));
             }
             // Sub-attributes for drag
             if let Some(s) = el.drag_behavior().and_then(|db| db.constraints.as_ref()) {
-                attrs.push_str(&format!(" data-drag-constraints=\"{}\"", escape_html(s)));
+                let _ = write!(attrs, " data-drag-constraints=\"{}\"", escape_html(s));
             }
             if let Some(elastic) = el.drag_behavior().and_then(|db| db.elastic.as_ref()) {
                 let js_val = self.expr_to_js(elastic);
-                attrs.push_str(&format!(" data-drag-elastic=\"{}\"", escape_html(&js_val)));
+                let _ = write!(attrs, " data-drag-elastic=\"{}\"", escape_html(&js_val));
             }
             if let Some(scrub) = el.drag_behavior().and_then(|db| db.scrub.as_ref()) {
                 let js_val = self.expr_to_js(scrub);
-                attrs.push_str(&format!(" data-drag-scrub=\"{}\"", escape_html(&js_val)));
+                let _ = write!(attrs, " data-drag-scrub=\"{}\"", escape_html(&js_val));
             }
             if let Some(momentum) = el.drag_behavior().and_then(|db| db.momentum.as_ref()) {
                 let js_val = self.expr_to_js(momentum);
-                attrs.push_str(&format!(" data-drag-momentum=\"{}\"", escape_html(&js_val)));
+                let _ = write!(attrs, " data-drag-momentum=\"{}\"", escape_html(&js_val));
             }
             if let Some(threshold) = el.drag_behavior().and_then(|db| db.threshold.as_ref()) {
                 let js_val = self.expr_to_js(threshold);
-                attrs.push_str(&format!(
+                let _ = write!(attrs, 
                     " data-drag-threshold=\"{}\"",
                     escape_html(&js_val)
-                ));
+                );
             }
             if let Some(vel) = el.drag_behavior().and_then(|db| db.velocity_max.as_ref()) {
                 let js_val = self.expr_to_js(vel);
-                attrs.push_str(&format!(
+                let _ = write!(attrs, 
                     " data-drag-velocity-max=\"{}\"",
                     escape_html(&js_val)
-                ));
+                );
             }
 
             self.emit_motion_triggers_for_element(&nid, el);
@@ -593,7 +594,7 @@ impl OmniViewGenerator {
             // When driven-by is set, the animation progress is bound to the signal value.
             // We seek ALL animations on this element whenever the signal changes.
             // The signal is auto-tracked by __omni_effect.
-            self.mount_js.push_str(&format!(
+            let _ = write!(self.mount_js, 
                 "// @driven-by binding\n\
                  __omni_effect(() => {{\n\
                  \x20 const progress = Math.max(0, Math.min(1, Number({driven})));\n\
@@ -605,7 +606,7 @@ impl OmniViewGenerator {
                  }});\n",
                 nid = nid,
                 driven = driven_js
-            ));
+            );
         }
 
         // @paused override — per-element pause override for all animations
@@ -614,7 +615,7 @@ impl OmniViewGenerator {
             .and_then(|m| m.paused_override.as_ref())
         {
             let paused_js = self.expr_to_js(paused);
-            self.mount_js.push_str(&format!(
+            let _ = write!(self.mount_js, 
                 "// @paused override\n\
                  (function() {{\n\
                  \x20 var _paused = Boolean({paused});\n\
@@ -626,7 +627,7 @@ impl OmniViewGenerator {
                  }})();\n",
                 nid = nid,
                 paused = paused_js
-            ));
+            );
         }
 
         // states: — multi-state animation map (reserved or custom signal-driven)
@@ -649,7 +650,7 @@ impl OmniViewGenerator {
             "track", "wbr",
         ];
         if void_tags.contains(&html_tag.as_str()) {
-            out.push_str(&format!("{}<{}{} />\n", pad, html_tag, attrs));
+            let _ = write!(out, "{}<{}{} />\n", pad, html_tag, attrs);
             // Emit any interpolation _effect() calls
             for effect in &interp_effects {
                 self.js.push_str(effect);
@@ -665,10 +666,10 @@ impl OmniViewGenerator {
                     } else {
                         js_expr
                     };
-                    self.js.push_str(&format!(
+                    let _ = write!(self.js, 
                             "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) el.classList.toggle(\"{}\", !!({})); }});\n",
                             nid, class_name, js_access
-                        ));
+                        );
                 }
             }
             return out;
@@ -685,7 +686,7 @@ impl OmniViewGenerator {
             // Fragment attrs like data-class-expr are handled via data-* on inner elements
             // Skip the closing tag since we didn't emit an opening tag.
         } else {
-            out.push_str(&format!("{}<{}{}>\n", pad, html_tag, attrs));
+            let _ = write!(out, "{}<{}{}>\n", pad, html_tag, attrs);
 
             // Children
             for child in &el.children {
@@ -693,7 +694,7 @@ impl OmniViewGenerator {
                 out.push_str(&child_html);
             }
 
-            out.push_str(&format!("{}</{}>\n", pad, html_tag));
+            let _ = write!(out, "{}</{}>\n", pad, html_tag);
         }
 
         // Emit any interpolation _effect() calls
@@ -712,10 +713,10 @@ impl OmniViewGenerator {
                 } else {
                     js_expr
                 };
-                self.js.push_str(&format!(
+                let _ = write!(self.js, 
                     "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) el.classList.toggle(\"{}\", !!({})); }});\n",
                     nid, class_name, js_access
-                ));
+                );
             }
         }
 

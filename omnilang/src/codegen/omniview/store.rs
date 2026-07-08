@@ -1,4 +1,5 @@
 //! Store emission: signals, getters, actions, and component generation.
+use std::fmt::Write;
 use super::utils::serde_value_to_js;
 use super::OmniViewGenerator;
 use crate::ir::*;
@@ -27,10 +28,10 @@ impl OmniViewGenerator {
                 .map(serde_value_to_js)
                 .unwrap_or_else(|| "undefined".into());
 
-            self.js.push_str(&format!(
+            let _ = write!(self.js, 
                 "const {} = __omni_signal(\"{}\", {});\n",
                 var_name, var_name, init_val
-            ));
+            );
             // Map local name → flat name for getter/action bodies (must clone before moves)
             self.name_renames.insert(sig_name.clone(), var_name.clone());
             self.store_signal_names.insert(var_name.clone());
@@ -43,10 +44,10 @@ impl OmniViewGenerator {
         for (getter_name, body) in &store.getters {
             let var_name = prefix(getter_name);
             let body_js = self.expr_to_js(body);
-            self.js.push_str(&format!(
+            let _ = write!(self.js, 
                 "const {} = __omni_computed(\"{}\", () => ({}));\n",
                 var_name, var_name, body_js
-            ));
+            );
             // Map local getter name → flat name for action bodies
             self.name_renames
                 .insert(getter_name.clone(), var_name.clone());
@@ -60,11 +61,11 @@ impl OmniViewGenerator {
         for action in &store.actions {
             let func_name = prefix(&action.name);
             let params: Vec<String> = action.params.iter().map(|p| p.name.clone()).collect();
-            self.js.push_str(&format!(
+            let _ = write!(self.js, 
                 "function {}({}) {{\n",
                 func_name,
                 params.join(", ")
-            ));
+            );
             for stmt in &action.body.statements {
                 self.emit_statement(stmt);
             }
@@ -109,10 +110,10 @@ impl OmniViewGenerator {
         // Editor mode: wrap component in a factory IIFE so it can be hot-replaced
         // via __omni_replaceComponent in the editor bridge.
         if self.editor_mode {
-            self.js.push_str(&format!(
+            let _ = write!(self.js, 
                 "window.__omni_components[\"{}\"] = (function() {{\n",
                 name
-            ));
+            );
         }
         // Register THIS component's signal/computed names with component prefix.
         for state in &comp.states {
@@ -169,10 +170,10 @@ impl OmniViewGenerator {
         for (prop_name, prop_default) in &comp.prop_defaults {
             let init_val = self.expr_to_js(prop_default);
             let prefixed = format!("{}_{}", name, prop_name);
-            self.js.push_str(&format!(
+            let _ = write!(self.js, 
                 "const {} = __omni_signal(\"{}\", {});\n",
                 prefixed, prefixed, init_val
-            ));
+            );
             self.name_renames
                 .insert(prop_name.clone(), prefixed.clone());
             self.signal_names.insert(prefixed);
@@ -197,14 +198,14 @@ impl OmniViewGenerator {
             };
             self.js
                 .push_str(&format!("function {}(...args) {{\n", prefixed_name));
-            self.js.push_str(&format!(
+            let _ = write!(self.js, 
                 "  const el = document.querySelector('[data-component=\"{}\"]');\n",
                 name
-            ));
-            self.js.push_str(&format!(
+            );
+            let _ = write!(self.js, 
                 "  if (el) el.dispatchEvent(new CustomEvent('{}', {{ detail: args[0], bubbles: true }}));\n",
                 dom_event
-            ));
+            );
             self.js.push_str("}\n");
         }
 
@@ -292,15 +293,15 @@ impl OmniViewGenerator {
                                 .push_str(&format!("// @mount {}\n", name));
                             self.comp_mount_js.push_str(&body_js);
                         } else {
-                            self.mount_js.push_str(&format!("// @mount {}\n", name));
+                            let _ = write!(self.mount_js, "// @mount {}\n", name);
                             self.mount_js.push_str(&body_js);
                         }
                     }
                     LifecycleKind::Unmount => {
-                        self.js.push_str(&format!(
+                        let _ = write!(self.js, 
                             "// @unmount {}\nwindow.__omni_unmount_{} = () => {{\n{}}};\n",
                             name, name, body_js
-                        ));
+                        );
                     }
                     LifecycleKind::Effect => {}
                 }
@@ -331,15 +332,15 @@ impl OmniViewGenerator {
                 // signal dependencies and re-runs when they change.
                 // Placed in mount_js so DOM elements are available.
                 if self.editor_mode {
-                    self.comp_mount_js.push_str(&format!(
+                    let _ = write!(self.comp_mount_js, 
                         "// @effect {}\n__omni_effect(() => {{\n{}}});\n",
                         name, body_js
-                    ));
+                    );
                 } else {
-                    self.mount_js.push_str(&format!(
+                    let _ = write!(self.mount_js, 
                         "// @effect {}\n__omni_effect(() => {{\n{}}});\n",
                         name, body_js
-                    ));
+                    );
                 }
             }
             self.signal_names = saved_signal_names;
@@ -374,14 +375,14 @@ impl OmniViewGenerator {
                 ));
             }
             let replay_fns_str = replay_fns.join("; ");
-            self.mount_js.push_str(&format!(
+            let _ = write!(self.mount_js, 
                 "// @enter replay (watches all signals)\n__omni_effect(function __omni_enter_replay() {{\n\
                  \x20 {all_sig_reads}\n\
                  \x20 {replay_fns}\n\
                  }});\n",
                 all_sig_reads = all_sig_reads_str,
                 replay_fns = replay_fns_str,
-            ));
+            );
             self.enter_trigger_nids.clear();
         }
 
@@ -410,10 +411,10 @@ impl OmniViewGenerator {
 
             let signal_entries_str = signal_entries.join(", ");
 
-            self.js.push_str(&format!(
+            let _ = write!(self.js, 
                 "  return {{\n    signals: {{ {} }},\n    teardown: function() {{\n      var root = document.querySelector('[data-component=\"{}\"]');\n      if (root) root.remove();\n    }}\n  }};\n}})();\n",
                 signal_entries_str, name
-            ));
+            );
         }
 
         self.js.push('\n');
@@ -430,10 +431,10 @@ impl OmniViewGenerator {
     /// and direct `el.style.prop = value` for standard properties.
     pub(super) fn emit_style_assignment(&mut self, prop: &str, value_expr: &str) {
         if prop.starts_with("--") {
-            self.js.push_str(&format!(
+            let _ = write!(self.js, 
                 "el.style.setProperty(\"{}\",{});",
                 prop, value_expr
-            ));
+            );
         } else {
             self.js
                 .push_str(&format!("el.style.{}={};", prop, value_expr));
@@ -452,19 +453,19 @@ impl OmniViewGenerator {
     pub(super) fn emit_signal_decl(&mut self, state: &StateIntent) {
         let init_val = self.expr_to_js(&state.initial_value);
         let prefixed = format!("{}_{}", self.current_component, state.name);
-        self.js.push_str(&format!(
+        let _ = write!(self.js, 
             "const {} = __omni_signal(\"{}\", {});\n",
             prefixed, prefixed, init_val
-        ));
+        );
     }
 
     pub(super) fn emit_computed_decl(&mut self, computed: &ComputedIntent) {
         let body = self.expr_to_js(&computed.body);
         let prefixed = format!("{}_{}", self.current_component, computed.name);
-        self.js.push_str(&format!(
+        let _ = write!(self.js, 
             "const {} = __omni_computed(\"{}\", () => ({}));\n",
             prefixed, prefixed, body
-        ));
+        );
     }
 
     // ══════════════════════════════════════════════════════
@@ -491,12 +492,12 @@ impl OmniViewGenerator {
         }
         let async_kw = if f.is_async { "async " } else { "" };
         let has_ret = f.return_type.is_some();
-        self.js.push_str(&format!(
+        let _ = write!(self.js, 
             "{}function {}({}) {{\n",
             async_kw,
             name,
             params.join(", ")
-        ));
+        );
         for (i, stmt) in f.body.statements.iter().enumerate() {
             let is_last = i == f.body.statements.len() - 1;
             // Implicit return: if the function has a return type and the last
