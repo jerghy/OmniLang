@@ -133,15 +133,6 @@ function stringToSegments(value: string): StyleValueSegment[] {
   return value ? [{ type: "text" as const, value }] : [];
 }
 
-function hasTokenBinding(segments: StyleValueSegment[]): boolean {
-  return segments.some((s) => s.type === "var-ref");
-}
-
-function getTokenRef(segments: StyleValueSegment[]): string | null {
-  const ref = segments.find((s) => s.type === "var-ref");
-  return ref?.name ?? null;
-}
-
 function makeVarRefSegments(name: string): StyleValueSegment[] {
   return [{ type: "var-ref" as const, name }];
 }
@@ -239,54 +230,6 @@ const SELECT_STYLE: React.CSSProperties = {
   cursor: "pointer",
   flex: 1,
   minWidth: 0,
-};
-
-const PROP_ROW: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 6,
-  padding: "3px 0",
-};
-
-const PROP_LABEL: React.CSSProperties = {
-  fontSize: 11,
-  color: "#374151",
-  width: 80,
-  flexShrink: 0,
-  overflow: "hidden",
-  textOverflow: "ellipsis",
-  whiteSpace: "nowrap",
-};
-
-const INHERITED_LABEL: React.CSSProperties = {
-  ...PROP_LABEL,
-  color: "#94a3b8",
-};
-
-const GROUP_HEADER: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 600,
-  color: "#6b7280",
-  textTransform: "uppercase",
-  letterSpacing: "0.5px",
-  padding: "10px 0 4px",
-  marginBottom: 4,
-};
-
-const LINK_BTN: React.CSSProperties = {
-  border: "none",
-  background: "none",
-  cursor: "pointer",
-  fontSize: 12,
-  padding: "2px 4px",
-  lineHeight: 1,
-  flexShrink: 0,
-  color: "#94a3b8",
-};
-
-const LINK_BTN_ACTIVE: React.CSSProperties = {
-  ...LINK_BTN,
-  color: "#6366f1",
 };
 
 const REMOVE_BTN: React.CSSProperties = {
@@ -501,45 +444,6 @@ export function ClassEditor() {
       }
     },
     [selectedClass, activePseudo, updateDesignClass, updatePropsList, ensurePseudoState],
-  );
-
-  /** Remove a property from base or pseudo state. */
-  const handleRemoveProp = useCallback(
-    (propName: string) => {
-      if (!selectedClass) return;
-
-      if (activePseudo === "base") {
-        updateDesignClass(selectedClass.id, {
-          properties: removePropFromList(selectedClass.properties, propName),
-        });
-      } else {
-        const pseudoStates = selectedClass.pseudoStates.map((ps) => {
-          if (ps.pseudo !== activePseudo) return ps;
-          return { ...ps, properties: removePropFromList(ps.properties, propName) };
-        });
-        updateDesignClass(selectedClass.id, { pseudoStates });
-      }
-    },
-    [selectedClass, activePseudo, updateDesignClass, removePropFromList],
-  );
-
-  /** Toggle token picker for a property. */
-  const handleToggleTokenLink = useCallback(
-    (propName: string) => {
-      if (
-        tokenPickerProp?.propName === propName &&
-        tokenPickerProp?.pseudo === activePseudo
-      ) {
-        setTokenPickerProp(null);
-      } else {
-        setTokenPickerProp({
-          classId: selectedClass?.id ?? "",
-          pseudo: activePseudo,
-          propName,
-        });
-      }
-    },
-    [tokenPickerProp, activePseudo, selectedClass],
   );
 
   /** Bind a token to a property via var-ref segment. */
@@ -779,102 +683,7 @@ export function ClassEditor() {
     );
   };
 
-  const renderPropertyRow = (
-    propName: string,
-    prop: StyleProperty | undefined,
-    inherited: boolean,
-  ) => {
-    if (!selectedClass) return null;
-    const isEnum = isEnumProperty(propName);
-    const label = PROPERTY_LABELS[propName] || propName;
-    const displayValue = prop ? segmentsToString(prop.segments) : "";
-    const hasLink = prop ? hasTokenBinding(prop.segments) : false;
-
-    return (
-      <div
-        key={propName}
-        style={PROP_ROW}
-        title={inherited && activePseudo !== "base" ? "继承自 Base" : undefined}
-      >
-        {/* Override dot */}
-        {!inherited && activePseudo !== "base" && (
-          <div
-            style={{
-              width: 6,
-              height: 6,
-              borderRadius: "50%",
-              background: "#6366f1",
-              flexShrink: 0,
-            }}
-          />
-        )}
-        {inherited && <div style={{ width: 6, flexShrink: 0 }} />}
-
-        {/* Label */}
-        <span style={inherited ? INHERITED_LABEL : PROP_LABEL} title={label}>
-          {label}
-        </span>
-
-        {/* Value */}
-        {!inherited && isEnum && (
-          <select
-            value={displayValue}
-            onChange={(e) => handlePropChange(propName, e.target.value)}
-            style={SELECT_STYLE}
-          >
-            <option value="">—</option>
-            {ENUM_OPTIONS[propName].map((opt) => (
-              <option key={opt} value={opt}>
-                {opt}
-              </option>
-            ))}
-          </select>
-        )}
-        {!inherited && !isEnum && (
-          <input
-            value={displayValue}
-            onChange={(e) => handlePropChange(propName, e.target.value)}
-            style={INPUT_STYLE}
-            placeholder="value"
-          />
-        )}
-        {inherited && (
-          <div
-            style={{
-              ...INPUT_STYLE,
-              background: "#f8fafc",
-              color: "#94a3b8",
-              cursor: "not-allowed",
-              display: "flex",
-              alignItems: "center",
-            }}
-          >
-            {displayValue || "—"}
-          </div>
-        )}
-
-        {/* Token link */}
-        {!inherited && (
-          <button
-            onClick={() => handleToggleTokenLink(propName)}
-            style={hasLink ? LINK_BTN_ACTIVE : LINK_BTN}
-            title={hasLink ? `Token: ${getTokenRef(prop!.segments)}` : "Link token"}
-          >
-            &#128279;
-          </button>
-        )}
-
-        {/* Remove */}
-        {!inherited && (
-          <button onClick={() => handleRemoveProp(propName)} style={REMOVE_BTN} title="Remove property">
-            &times;
-          </button>
-        )}
-      </div>
-    );
-  };
-
-  const renderTokenPicker = () => {
+const renderTokenPicker = () => {
     if (!tokenPickerProp) return null;
 
     return (
