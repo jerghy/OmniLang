@@ -81,9 +81,25 @@ function __omni_effect(fn) {
   const e = { _deps: new Set(), run: fn };
   const prev = __omni_activeEffect;
   __omni_activeEffect = e;
-  fn();
-  __omni_activeEffect = prev;
+  try { fn(); } finally { __omni_activeEffect = prev; }
   return () => e._deps.forEach(d => d());
+}
+
+function __omni_reportError(context, error) {
+  var msg = "[OmniView] " + context + ": " + String(error);
+  console.error(msg);
+  if (!window.__omni_runtimeErrors) window.__omni_runtimeErrors = [];
+  window.__omni_runtimeErrors.push({ context: context, error: String(error), time: Date.now() });
+  try {
+    if (typeof parent !== 'undefined' && parent.postMessage) {
+      parent.postMessage({
+        type: 'omni-runtime-error',
+        context: context,
+        message: String(error),
+        timestamp: Date.now()
+      }, window.location.origin);
+    }
+  } catch(_) {}
 }
 
 function __omni_el(nid) {

@@ -1255,6 +1255,40 @@ fn test_source_map_entries() {
     assert_eq!(output.source_map[0].omni_span.col, 3);
 }
 
+#[test]
+fn test_runtime_error_reporting() {
+    let mut module = make_module("main");
+    let mut el = make_element("div");
+    el.children = vec![ViewTree::Interpolation(Box::new(ExprIR::IdentifierExpr {
+        name: "name".into(),
+        type_ann: None,
+    }))];
+    module.components.insert(
+        "App".to_string(),
+        ComponentIR {
+            states: vec![StateIntent {
+                name: "name".into(),
+                r#type: TypeIR {
+                    kind: "string".into(),
+                    type_args: vec![],
+                    is_nullable: false,
+                },
+                initial_value: ExprIR::LiteralExpr {
+                    value: serde_json::json!("World"),
+                },
+                is_copy: false,
+            }],
+            view: Some(ViewTree::Element(el)),
+            ..make_component("App")
+        },
+    );
+    let ir = make_program(HashMap::from([("main".into(), module)]));
+    let output = generate(&ir, true);
+    assert!(output.js.contains("__omni_reportError"), "runtime must include __omni_reportError");
+    assert!(output.js.contains("try { fn(); } finally"), "__omni_effect must use try/finally");
+    assert!(output.js.contains("__omni_reportError(\"interpolation:text\""), "interpolation uses __omni_reportError");
+}
+
 // ── Proptest: backtick escaping for innerHTML ───────
 
 #[cfg(test)]

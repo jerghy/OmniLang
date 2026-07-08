@@ -116,7 +116,7 @@ impl OmniViewGenerator {
             self.js
                 .push_str("  const keyFn = (item) => { try { return String(");
             self.js.push_str(&key_js);
-            self.js.push_str("); } catch(e) { return null; } };\n");
+            self.js.push_str("); } catch(e) { __omni_reportError(\"list:key\", e); return null; } };\n");
             self.js
                 .push_str("  const oldKeys = new Set(_forKeys.keys());\n");
             self.js.push_str("  const newKeys = new Set();\n");
