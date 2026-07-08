@@ -44,6 +44,10 @@ fn to_js_value<T: Serialize + ?Sized>(value: &T) -> JsValue {
 #[cfg(feature = "codegen-omniview")]
 #[wasm_bindgen]
 pub fn compile_to_omniview(source: &str, editor_mode: bool) -> JsValue {
+    const MAX_INPUT_SIZE: usize = 10 * 1024 * 1024; // 10MB
+    if source.len() > MAX_INPUT_SIZE {
+        return js_error_value("Input exceeds 10MB limit");
+    }
     to_js_value(&compile_omniview(source, editor_mode))
 }
 
@@ -57,6 +61,10 @@ pub fn compile_omniview_component(
     component_name: &str,
     editor_mode: bool,
 ) -> JsValue {
+    const MAX_INPUT_SIZE: usize = 10 * 1024 * 1024; // 10MB
+    if source.len() > MAX_INPUT_SIZE {
+        return js_error_value("Input exceeds 10MB limit");
+    }
     let result = compile_omniview(source, editor_mode);
     let component = result
         .components
@@ -82,6 +90,10 @@ pub fn version() -> String {
 /// Compile .omni source to IR JSON. Returns JsValue.
 #[wasm_bindgen]
 pub fn compile_to_ir(source: &str) -> JsValue {
+    const MAX_INPUT_SIZE: usize = 10 * 1024 * 1024; // 10MB
+    if source.len() > MAX_INPUT_SIZE {
+        return js_error_value("Input exceeds 10MB limit");
+    }
     to_js_value(&compile(source))
 }
 
@@ -91,6 +103,10 @@ pub fn compile_to_ir(source: &str) -> JsValue {
 #[cfg(feature = "codegen-omniview")]
 #[wasm_bindgen]
 pub fn compile_to_omniview_full(source: &str, editor_mode: bool) -> JsValue {
+    const MAX_INPUT_SIZE: usize = 10 * 1024 * 1024; // 10MB
+    if source.len() > MAX_INPUT_SIZE {
+        return js_error_value("Input exceeds 10MB limit");
+    }
     to_js_value(&crate::compile_omniview_full(source, editor_mode))
 }
 
@@ -120,7 +136,11 @@ pub fn compile_multi_to_omniview(sources: JsValue, editor_mode: bool) -> JsValue
             })).unwrap_or(JsValue::NULL);
         }
     };
-    let result = crate::compile_multi_internal(
+    const MAX_INPUT_SIZE: usize = 10 * 1024 * 1024; // 10MB
+    let total_size: usize = sources_map.values().map(|s| s.len()).sum();
+    if total_size > MAX_INPUT_SIZE {
+        return js_error_value("Input exceeds 10MB limit");
+    }    let result = crate::compile_multi_internal(
         sources_map,
         crate::codegen::Target::OmniView,
         FxHashMap::default(),
