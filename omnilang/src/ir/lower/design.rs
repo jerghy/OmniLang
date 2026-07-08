@@ -182,7 +182,7 @@ mod tests {
     }
 
     #[test]
-    fn lower_token_collects_values() {
+    fn lower_token_collects_values() -> Result<(), String> {
         let design = lower_design_source(
             r##"
             design App {
@@ -194,13 +194,17 @@ mod tests {
         assert_eq!(design.name, "App");
         assert_eq!(design.tokens.len(), 2);
 
-        let primary = design.tokens.get("primary").unwrap();
+        let primary = design.tokens.get("primary")
+            .ok_or_else(|| "missing token: primary".to_string())?;
         assert_eq!(primary.value, "#6366f1");
         assert_eq!(primary.token_type, TokenTypeIR::Color);
 
-        let spacing = design.tokens.get("spacingMd").unwrap();
+        let spacing = design.tokens.get("spacingMd")
+            .ok_or_else(|| "missing token: spacingMd".to_string())?;
         assert_eq!(spacing.value, "16px");
         assert_eq!(spacing.token_type, TokenTypeIR::Size);
+
+        Ok(())
     }
 
     #[test]

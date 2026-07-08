@@ -1,0 +1,5 @@
+---
+source: omnilang/src/codegen/python/tests.rs
+expression: fmt(&expr)
+---
+1 if x else 0

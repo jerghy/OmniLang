@@ -29,7 +29,7 @@ fn js_error_value(message: &str) -> JsValue {
             "suggestion": null
         }]
     });
-    serde_wasm_bindgen::to_value(&err).unwrap_or(JsValue::NULL)
+    serde_wasm_bindgen::to_value(&err).unwrap_or_else(|e| JsValue::from_str(&format!("Critical internal error: {}", e)))
 }
 
 /// Serialize any Serialize-able value to JsValue, falling back to an error JsValue.
@@ -132,7 +132,7 @@ pub fn compile_multi_to_omniview(sources: JsValue, editor_mode: bool) -> JsValue
                     "suggestion": null
                 }]
             }))
-            .unwrap_or(JsValue::NULL);
+            .unwrap_or_else(|e| js_error_value(&format!("serialization error: {}", e)));
         }
     };
     const MAX_INPUT_SIZE: usize = 10 * 1024 * 1024; // 10MB
@@ -204,7 +204,7 @@ impl OmniCompiler {
                     "suggestion": null
                 }]
             }))
-            .unwrap_or(JsValue::NULL);
+            .unwrap_or_else(|e| js_error_value(&format!("serialization error: {}", e)));
         }
         if let Some((ref cached_opts, ref cached)) = self.cached_compile_result {
             if *cached_opts == editor_mode {
@@ -232,7 +232,7 @@ impl OmniCompiler {
                             "suggestion": null
                         }]
                     }))
-                    .unwrap_or(JsValue::NULL);
+                    .unwrap_or_else(|e| js_error_value(&format!("serialization error: {}", e)));
                 }
             };
             let full = crate::compile_omniview_full(source, editor_mode);
@@ -273,7 +273,7 @@ impl OmniCompiler {
             "success": all_success,
             "errors": all_errors,
         }))
-        .unwrap_or(JsValue::NULL);
+        .unwrap_or_else(|e| js_error_value(&format!("serialization error: {}", e)));
         self.cached_diags_result = Some(result_value.clone());
         result_value
     }

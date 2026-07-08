@@ -1,0 +1,5 @@
+---
+source: omnilang/src/codegen/python/tests.rs
+expression: fmt(&expr)
+---
+(value) if result.get("_variant") == "Ok" else (-1)

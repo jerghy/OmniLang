@@ -1,0 +1,5 @@
+---
+source: omnilang/src/codegen/python/tests.rs
+expression: fmt(&expr)
+---
+items.append('new_item')
