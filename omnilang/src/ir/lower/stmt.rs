@@ -6,6 +6,7 @@ use crate::ir::types::*;
 use crate::parser::ast::*;
 use crate::semantic::SemanticResult;
 use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use super::expr::lower_expr;
 
 // ═══════════════════════════════════════════════════════
@@ -15,7 +16,7 @@ use super::expr::lower_expr;
 pub(super) fn lower_stmt(
     stmt: &Stmt,
     variant_map: &FxHashMap<String, String>,
-    mut event_fields: Option<&mut Vec<String>>,
+    mut event_fields: Option<&mut FxHashSet<String>>,
     semantics: &mut SemanticResult,
 ) -> StatementIR {
     match stmt {
@@ -177,7 +178,7 @@ pub(super) fn lower_stmt(
 pub(super) fn try_lower_mutation(
     expr: &Expr,
     variant_map: &FxHashMap<String, String>,
-    mut event_fields: Option<&mut Vec<String>>,
+    mut event_fields: Option<&mut FxHashSet<String>>,
     semantics: &mut SemanticResult,
 ) -> Option<MutationIntent> {
     // Pattern 1: Expr::MethodCall { object: VarRef("count"), method: "set", args: [value] }
@@ -362,7 +363,7 @@ pub(super) fn mutation_for_method(
     method: &str,
     amount: Option<&Expr>,
     variant_map: &FxHashMap<String, String>,
-    event_fields: Option<&mut Vec<String>>,
+    event_fields: Option<&mut FxHashSet<String>>,
     semantics: &mut SemanticResult,
 ) -> Option<MutationIntent> {
     let target = SignalRefIR {
@@ -399,7 +400,7 @@ pub(super) fn mutation_for_method(
 pub(crate) fn lower_block(
     block: &Block,
     variant_map: &FxHashMap<String, String>,
-    mut event_fields: Option<&mut Vec<String>>,
+    mut event_fields: Option<&mut FxHashSet<String>>,
     semantics: &mut SemanticResult,
 ) -> BlockIR {
     let mut statements: Vec<StatementIR> = block

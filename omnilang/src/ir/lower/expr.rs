@@ -6,6 +6,7 @@ use crate::ir::types::*;
 use crate::parser::ast::*;
 use crate::semantic::SemanticResult;
 use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use super::stmt::lower_block;
 
 /// Convert an AST `BinaryOpKind` to its IR counterpart.
@@ -42,7 +43,7 @@ fn lower_binary_op(kind: &BinaryOpKind) -> BinaryOpIR {
 pub(crate) fn lower_expr(
     expr: &Expr,
     variant_map: &FxHashMap<String, String>,
-    mut event_fields: Option<&mut Vec<String>>,
+    mut event_fields: Option<&mut FxHashSet<String>>,
     semantics: &mut SemanticResult,
 ) -> ExprIR {
     match expr {
@@ -166,10 +167,11 @@ pub(crate) fn lower_expr(
         }
         Expr::FieldAccess { object, field, .. } => {
             // Collect event field names during lowering (e.field → push field).
+            // FxHashSet ensures O(1) dedup.
             if let Some(ref mut fields) = event_fields {
                 if let Expr::VarRef(name, _) = object.as_ref() {
-                    if name == "e" && !fields.contains(field) {
-                        fields.push(field.clone());
+                    if name == "e" {
+                        fields.insert(field.clone());
                     }
                 }
             }

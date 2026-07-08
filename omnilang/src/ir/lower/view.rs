@@ -9,6 +9,7 @@ use crate::parser::ast::*;
 use crate::semantic::SemanticResult;
 use std::cell::Cell;
 use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use super::expr::lower_expr;
 use super::stmt::lower_block;
 
@@ -274,7 +275,7 @@ fn lower_element(
 
                             // Collect event field names during lowering instead
                             // of a separate pre-walk.
-                            let mut event_fields = Vec::new();
+                            let mut event_fields = FxHashSet::default();
                             let block_ir =
                                 lower_block(body, variant_map, Some(&mut event_fields), semantics);
 
@@ -282,7 +283,7 @@ fn lower_element(
                                 body: block_ir,
                                 params: params.iter().map(|p| p.name.clone()).collect(),
                                 event_data: event_data.clone(),
-                                used_fields: Some(event_fields),
+                                used_fields: Some(event_fields.into_iter().collect()),
                                 needs_prevent_default: needs_pd,
                                 needs_stop_propagation: needs_sp,
                             }
