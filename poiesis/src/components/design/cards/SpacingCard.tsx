@@ -79,7 +79,7 @@ function SpacingSection({
       // when the user has explicitly set individual corner values
       const hasShorthand = getProp(properties, shorthandName) !== "";
       if (hasShorthand) return true;
-      const hasAnyCorner = corners.some(
+      const hasAnyCorner = cornerNames.some(
         (c) => getProp(properties, c) !== "",
       );
       return !hasAnyCorner;
