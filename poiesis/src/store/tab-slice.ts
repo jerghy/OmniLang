@@ -3,6 +3,7 @@
 import type { DesignTab } from "../core/types/design-page";
 import type { PoiesisState } from "./index";
 import { buildTabSaveEntry, tabRestoreCanvasPartial, tabRestoreDesignPagePartial } from "./tab-helpers";
+import { lruEvictTabData } from "./operations/lru-evict";
 
 type SetFn = (partial: Partial<PoiesisState> | ((state: PoiesisState) => Partial<PoiesisState>)) => void;
 type GetFn = () => PoiesisState;
@@ -109,19 +110,7 @@ export function createTabSlice(set: SetFn, _get?: GetFn) {
       // Clean up the closed tab's data
       const { [tabId]: _, ...restTabData } = tabDataWithSave;
       // LRU eviction: keep at most 20 entries to prevent unbounded growth.
-      const TAB_DATA_MAX = 20;
-      let prunedTabData = restTabData;
-      const keys = Object.keys(prunedTabData);
-      if (keys.length > TAB_DATA_MAX) {
-        const toRemove = keys.length - TAB_DATA_MAX;
-        // Remove oldest (not currently open) entries — simple FIFO approximation
-        const openIds = new Set(newTabs.map(t => t.id));
-        const removable = keys.filter(k => !openIds.has(k)).sort();
-        for (let i = 0; i < Math.min(toRemove, removable.length); i++) {
-          const { [removable[i]]: _, ...remaining } = prunedTabData;
-          prunedTabData = remaining;
-        }
-      }
+      const prunedTabData = lruEvictTabData(restTabData, new Set(newTabs.map(t => t.id)));
       // If a neighbor tab becomes active, restore its data
       const restoreEntry = activeTabId ? prunedTabData[activeTabId] : undefined;
       const canvasPartial = tabRestoreCanvasPartial(restoreEntry, activeTabId ? undefined : s.elements);

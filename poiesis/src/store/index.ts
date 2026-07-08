@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { ElementData, PortData } from "../core/types/element";
+import type { ElementData } from "../core/types/element";
 import type { WireData } from "../core/types/wire";
 import type { ArchitectureState, BubbleNode, BubbleEdge } from "../core/types/architecture";
 import type { DesignPageState, Breadcrumb } from "../core/types/design-page";
@@ -9,17 +9,15 @@ import type { ComponentDef, ProjectJson, NodeMeta, WireMeta } from "../core/type
 import { COMPONENT_PROTOCOL } from "../data/componentProtocol";
 import type { ComponentProtocolEntry } from "../data/componentProtocol";
 import type { StyleProperty } from "../core/types/style";
+import { EMPTY_DESIGN } from "../core/types/design";
+import { uid } from "../core/utils";
 import { DEFAULT_PROJECT_NAME, DEFAULT_PANEL_LAYOUT } from "../constants";
 import type { UndoStack } from "./undo-slice";
 import { buildUndoUpdate, createUndoSlice } from "./undo-slice";
 import { createTabSlice } from "./tab-slice";
-// DesignSlice fields inlined — design-slice.ts is dead code (actions delegated to useDesignSystemStore)
 import { createLogger } from "../lib/utils/logger";
-
-// ── Domain stores (standalone, synced reactively) ──
-import { useArchitectureStore, createInitialArchitectureState } from "./architecture-store";
-import { useDesignSystemStore } from "./design-system-store";
 import { buildTabSaveEntry, tabRestoreCanvasPartial, tabRestoreDesignPagePartial } from "./tab-helpers";
+import { lruEvictTabData } from "./operations/lru-evict";
 
 const log = createLogger("store");
 
@@ -182,22 +180,21 @@ export interface PoiesisState {
   toProjectJson: () => ProjectJson;
   loadFromProjectJson: (json: ProjectJson) => void;
 
-  // ── Legacy runtime methods (backward compat with driver/service code) ──
-
-  /** @deprecated Legacy — use setProp + proper element update instead */
-  setElementPorts: (id: string, ports: PortData[] | undefined) => void;
-
-  /** @deprecated Legacy — event binding management will be refactored */
-  setEventBindings: (id: string, eventName: string, bindings: unknown) => void;
-
-  /** @deprecated Legacy — event binding management will be refactored */
-  removeEventBindings: (id: string, eventName: string) => void;
-
-  /** @deprecated Legacy — use activeFileContent + generateOmniSource instead */
-  setSourceCode: (content: string) => void;
 }
 
 // ── Initial State ──
+
+function createInitialArchitectureState(): ArchitectureState {
+  return {
+    mode: "overall",
+    bubbles: [],
+    edges: [],
+    focusComponentId: null,
+    expandedBubbleIds: [],
+    selectedPid: null,
+    camera: { x: 0, y: 0, zoom: 1 },
+  };
+}
 
 function createInitialDesignPageState(): DesignPageState {
   return {
@@ -241,28 +238,14 @@ function createCleanState(): Partial<PoiesisState> {
 // ── Store Implementation ──
 
 export const usePoiesisStore = create<PoiesisState>((set, get) => {
-  // ── Domain store subscriptions (synced reactively) ──
-
-  useArchitectureStore.subscribe((state) => {
-    set({ architecture: state.architecture });
-  });
-
-  useDesignSystemStore.subscribe((state) => {
-    set({
-      activeDesign: state.activeDesign,
-      elementVariants: state.elementVariants,
-      isDirty: true,
-    });
-  });
-
   // ── Store definition ──
 
   return {
-    // ── Initial values (from domain stores where applicable) ──
+    // ── Initial values ──
     currentPage: "design",
-    architecture: useArchitectureStore.getState().architecture,
-    activeDesign: useDesignSystemStore.getState().activeDesign,
-    elementVariants: useDesignSystemStore.getState().elementVariants,
+    architecture: createInitialArchitectureState(),
+    activeDesign: { ...EMPTY_DESIGN },
+    elementVariants: {},
     designPage: createInitialDesignPageState(),
     elements: [],
     wires: [],
@@ -286,87 +269,138 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => {
     panels: { ...DEFAULT_PANEL_LAYOUT },
     undoStacks: {},
 
-    // ── Architecture actions (delegated to domain store; subscription syncs back) ──
-    setArchMode: (mode) => {
-      useArchitectureStore.getState().setArchMode(mode);
-    },
+    // ── Architecture actions (inlined — no longer delegated to external store) ──
+    setArchMode: (mode) => set((s) => ({ architecture: { ...s.architecture, mode } })),
 
-    expandBubble: (bubbleId) => {
-      useArchitectureStore.getState().expandBubble(bubbleId);
-    },
+    expandBubble: (bubbleId) => set((s) => {
+      const linkedIds = s.architecture.bubbles
+        .filter(b => b.id === bubbleId)
+        .flatMap(b => {
+          const linked = s.architecture.bubbles.filter(
+            o => o.depth === b.depth && o.type !== b.type && o.parentId === b.parentId,
+          );
+          return [b.id, ...linked.map(l => l.id)];
+        });
+      const unique = [...new Set([...s.architecture.expandedBubbleIds, ...linkedIds])];
+      return { architecture: { ...s.architecture, expandedBubbleIds: unique } };
+    }),
 
-    collapseBubble: (bubbleId) => {
-      useArchitectureStore.getState().collapseBubble(bubbleId);
-    },
+    collapseBubble: (bubbleId) => set((s) => ({
+      architecture: { ...s.architecture, expandedBubbleIds: s.architecture.expandedBubbleIds.filter(id => id !== bubbleId) },
+    })),
 
-    focusComponent: (componentId) => {
-      useArchitectureStore.getState().focusComponent(componentId);
-    },
+    focusComponent: (componentId) => set((s) => ({
+      architecture: { ...s.architecture, mode: componentId ? "local" : "overall", focusComponentId: componentId },
+    })),
 
-    selectBubbleByPid: (pid) => {
-      useArchitectureStore.getState().selectBubbleByPid(pid);
-    },
+    selectBubbleByPid: (pid) => set((s) => ({
+      architecture: { ...s.architecture, selectedPid: pid },
+    })),
 
-    setArchCamera: (camera) => {
-      useArchitectureStore.getState().setArchCamera(camera);
-    },
+    setArchCamera: (camera) => set((s) => ({
+      architecture: { ...s.architecture, camera },
+    })),
 
-    setBubblesAndEdges: (bubbles, edges) => {
-      useArchitectureStore.getState().setBubblesAndEdges(bubbles, edges);
-    },
+    setBubblesAndEdges: (bubbles, edges) => set((s) => ({
+      architecture: { ...s.architecture, bubbles, edges },
+    })),
 
     // ── Design page actions ──
     ...createTabSlice(set, get),
 
-    // ── Design system actions (delegated to domain store; subscription syncs back
-    //     plus marks isDirty, matching the original design-slice.ts behaviour) ──
-    loadDesign: (design) => {
-      useDesignSystemStore.getState().loadDesign(design);
-    },
+    // ── Design system actions (inlined with isDirty: true — no longer delegated) ──
+    loadDesign: (design) => set({ activeDesign: design, isDirty: true }),
 
-    addToken: (name, category, tokenType, value) => {
-      useDesignSystemStore.getState().addToken(name, category, tokenType, value);
-    },
+    addToken: (name, category, tokenType, value) => set((s) => ({
+      activeDesign: {
+        ...s.activeDesign,
+        tokens: [...s.activeDesign.tokens, { id: uid("tk"), name, category, tokenType, value }],
+      },
+      isDirty: true,
+    })),
 
-    updateToken: (id, updates) => {
-      useDesignSystemStore.getState().updateToken(id, updates);
-    },
+    updateToken: (id, updates) => set((s) => ({
+      activeDesign: {
+        ...s.activeDesign,
+        tokens: s.activeDesign.tokens.map((t) =>
+          t.id === id ? { ...t, ...updates } : t
+        ),
+      },
+      isDirty: true,
+    })),
 
-    removeToken: (id) => {
-      useDesignSystemStore.getState().removeToken(id);
-    },
+    removeToken: (id) => set((s) => ({
+      activeDesign: {
+        ...s.activeDesign,
+        tokens: s.activeDesign.tokens.filter((t) => t.id !== id),
+      },
+      isDirty: true,
+    })),
 
-    addDesignClass: (name) => {
-      useDesignSystemStore.getState().addDesignClass(name);
-    },
+    addDesignClass: (name) => set((s) => ({
+      activeDesign: {
+        ...s.activeDesign,
+        classes: [...s.activeDesign.classes, { id: uid("cls"), name, properties: [], pseudoStates: [] }],
+      },
+      isDirty: true,
+    })),
 
-    updateDesignClass: (id, updates) => {
-      useDesignSystemStore.getState().updateDesignClass(id, updates);
-    },
+    updateDesignClass: (id, updates) => set((s) => ({
+      activeDesign: {
+        ...s.activeDesign,
+        classes: s.activeDesign.classes.map((c) =>
+          c.id === id ? { ...c, ...updates } : c
+        ),
+      },
+      isDirty: true,
+    })),
 
-    removeDesignClass: (id) => {
-      useDesignSystemStore.getState().removeDesignClass(id);
-    },
+    removeDesignClass: (id) => set((s) => ({
+      activeDesign: {
+        ...s.activeDesign,
+        classes: s.activeDesign.classes.filter((c) => c.id !== id),
+      },
+      isDirty: true,
+    })),
 
-    addVariant: (name) => {
-      useDesignSystemStore.getState().addVariant(name);
-    },
+    addVariant: (name) => set((s) => ({
+      activeDesign: {
+        ...s.activeDesign,
+        variants: [
+          ...s.activeDesign.variants,
+          { id: uid("var"), name, dimensions: [], defaults: {}, baseProperties: [], branches: [] },
+        ],
+      },
+      isDirty: true,
+    })),
 
-    updateVariant: (id, updates) => {
-      useDesignSystemStore.getState().updateVariant(id, updates);
-    },
+    updateVariant: (id, updates) => set((s) => ({
+      activeDesign: {
+        ...s.activeDesign,
+        variants: s.activeDesign.variants.map((v) =>
+          v.id === id ? { ...v, ...updates } : v
+        ),
+      },
+      isDirty: true,
+    })),
 
-    removeVariant: (id) => {
-      useDesignSystemStore.getState().removeVariant(id);
-    },
+    removeVariant: (id) => set((s) => ({
+      activeDesign: {
+        ...s.activeDesign,
+        variants: s.activeDesign.variants.filter((v) => v.id !== id),
+      },
+      isDirty: true,
+    })),
 
-    bindVariantToElement: (elementId, variantName, dimensionValues) => {
-      useDesignSystemStore.getState().bindVariantToElement(elementId, variantName, dimensionValues);
-    },
+    bindVariantToElement: (elementId, variantName, dimensionValues) => set((s) => ({
+      elementVariants: { ...s.elementVariants, [elementId]: { variantName, dimensionValues } },
+      isDirty: true,
+    })),
 
-    unbindVariantFromElement: (elementId) => {
-      useDesignSystemStore.getState().unbindVariantFromElement(elementId);
-    },
+    unbindVariantFromElement: (elementId) => set((s) => {
+      const { [elementId]: _, ...rest } = s.elementVariants;
+      return { elementVariants: rest, isDirty: true };
+    }),
 
     toggleCodeFlow: (elementId) => set((s) => {
       const visible = elementId !== null;
@@ -724,18 +758,7 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => {
       const tabDataWithSave = { ...s.tabData, [tabId]: saveEntry };
       const { [tabId]: _tab, ...restTabData } = tabDataWithSave;
       // LRU eviction: keep at most 20 entries to prevent unbounded growth.
-      const TAB_DATA_MAX = 20;
-      let prunedTabData = restTabData;
-      const keys = Object.keys(prunedTabData);
-      if (keys.length > TAB_DATA_MAX) {
-        const toRemove = keys.length - TAB_DATA_MAX;
-        const openIds = new Set(newTabs.map((t) => t.id));
-        const removable = keys.filter((k) => !openIds.has(k)).sort();
-        for (let i = 0; i < Math.min(toRemove, removable.length); i++) {
-          const { [removable[i]]: _, ...remaining } = prunedTabData;
-          prunedTabData = remaining;
-        }
-      }
+      const prunedTabData = lruEvictTabData(restTabData, new Set(newTabs.map((t) => t.id)));
       const restoreEntry = activeTabId ? prunedTabData[activeTabId] : undefined;
       const canvasPartial = tabRestoreCanvasPartial(restoreEntry, activeTabId ? [] : undefined);
       const codeFlowPartial = tabRestoreDesignPagePartial(restoreEntry);
@@ -811,17 +834,11 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => {
 
     // ── Reset editor state (keep project dir/name) ──
     resetEditorState: () => {
-      // Reset domain stores first
-      useArchitectureStore.getState().setArchitectureState(createInitialArchitectureState());
-      useDesignSystemStore.getState().loadDesign({ ...useDesignSystemStore.getInitialState().activeDesign });
       set(createCleanState());
     },
 
     // ── New project ──
     newProject: () => {
-      // Reset domain stores first
-      useArchitectureStore.getState().setArchitectureState(createInitialArchitectureState());
-      useDesignSystemStore.getState().loadDesign({ ...useDesignSystemStore.getInitialState().activeDesign });
       set({ ...createCleanState(), projectDir: null, projectName: DEFAULT_PROJECT_NAME });
     },
 
@@ -843,29 +860,23 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => {
       };
     },
 
-    loadFromProjectJson: (json) => set((s) => {
-      // Delegate architecture state to domain store (subscription syncs back)
-      useArchitectureStore.getState().setArchitectureState({
-        mode: json.architecture?.mode || "overall",
-        expandedBubbleIds: json.architecture?.expandedBubbles || [],
-        focusComponentId: json.architecture?.focusComponent || null,
-        camera: json.architecture?.camera || { x: 0, y: 0, zoom: 1 },
-      });
-      return {
-        nodeMeta: json.nodes || {},
-        wireMeta: json.wires || {},
-        canvasStates: json.canvasStates || {},
-        panels: json.panels || s.panels,
-        // componentDefs kept in runtime state, not persisted — loaded from .omni parsing
-        // architecture is synced via subscription, no need to set here
-      };
-    }),
+    loadFromProjectJson: (json) => set((s) => ({
+      nodeMeta: json.nodes || {},
+      wireMeta: json.wires || {},
+      architecture: {
+        ...s.architecture,
+        ...(json.architecture ? {
+          mode: json.architecture.mode || "overall",
+          expandedBubbleIds: json.architecture.expandedBubbles || [],
+          focusComponentId: json.architecture.focusComponent || null,
+          camera: json.architecture.camera || { x: 0, y: 0, zoom: 1 },
+        } : {}),
+      },
+      canvasStates: json.canvasStates || {},
+      panels: json.panels || s.panels,
+      // componentDefs kept in runtime state, not persisted — loaded from .omni parsing
+    })),
 
-    // ── Legacy runtime methods (backward compat; minimal no-ops) ──
-    setElementPorts: () => { console.warn("setElementPorts is deprecated"); },
-    setEventBindings: () => { console.warn("setEventBindings is deprecated"); },
-    removeEventBindings: () => { console.warn("removeEventBindings is deprecated"); },
-    setSourceCode: (content) => set({ activeFileContent: content }),
   };
 });
 

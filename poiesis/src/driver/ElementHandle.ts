@@ -197,14 +197,6 @@ export class ElementHandle {
     // Set event prop on the view element
     getDesignStore().setProp(d.id, eventName, fnName);
 
-    // Store paramBindings as _eventBindings on element config if provided
-    if (options.params && Object.keys(options.params).length > 0) {
-      getDesignStore().setEventBindings(d.id, eventName, {
-        fnName,
-        paramBindings: options.params,
-      });
-    }
-
     return this;
   }
 
@@ -221,7 +213,6 @@ export class ElementHandle {
       return this;
     }
     getDesignStore().setProp(d.id, eventName, undefined as unknown);
-    getDesignStore().removeEventBindings(d.id, eventName);
     return this;
   }
 
@@ -266,15 +257,6 @@ export class ElementHandle {
     const params = [...((config.fnParams as FnParam[]) || []), { name, type, default: defaultValue }];
     const newConfig = { ...config, fnParams: params } as Record<string, unknown>;
     getDesignStore().setProp(this.id, "config", newConfig);
-    const inPorts = params.map((p) => ({
-      name: p.name, direction: "in" as const, portType: "data" as const,
-      type: p.type, label: p.name + ": " + p.type,
-    }));
-    const outPort = {
-      name: "return", direction: "out" as const, portType: "data" as const,
-      type: (newConfig.fnReturnType as string) || "void", label: "return: " + (newConfig.fnReturnType || "void"),
-    };
-    getDesignStore().setElementPorts(this.id, [...inPorts, outPort]);
     return this;
   }
 
@@ -286,11 +268,6 @@ export class ElementHandle {
     }
     const config = { ...d.config, fnReturnType: type };
     getDesignStore().setProp(this.id, "config", config);
-    const ports = ("ports" in d ? d.ports : undefined) || [];
-    const updated = ports.map((p) =>
-      p.name === "return" ? { ...p, type, label: "return: " + type } : p,
-    );
-    getDesignStore().setElementPorts(this.id, updated);
     return this;
   }
 

@@ -5,7 +5,7 @@ import { Logger } from "../lib/utils/logger";
 import { usePoiesisStore } from "../store";
 
 import { getAllPorts } from "../components/canvas/shared/connectionValidators";
-import type { ElementData, PortData } from "../core/types/element";
+import type { ElementData } from "../core/types/element";
 import type { WireData } from "../core/types/wire";
 
 const log = new Logger({ prefix: "OmniDriver" });
@@ -43,7 +43,6 @@ interface ActiveStore {
   addWire: (w: WireData) => void;
   removeWire: (id: string) => void;
   setElementSource: (id: string, source: string) => void;
-  setElementPorts: (id: string, ports: PortData[] | undefined) => void;
   selectElement: (id: string | null, multi?: boolean) => void;
   selectedElementIds: string[];
   previewUrl: string | null;
@@ -67,7 +66,6 @@ export function getActiveStore(): ActiveStore {
       addWire: (w: WireData) => state.addWire(w),
       removeWire: (id: string) => state.removeWire(id),
       setElementSource: (id: string, source: string) => state.setElementSource(id, source),
-      setElementPorts: (_id: string, _ports: PortData[] | undefined) => {},
       selectElement: (_id: string | null, _multi?: boolean) => {},
       get selectedElementIds() { return []; },
       get previewUrl() { return null; },
@@ -87,8 +85,6 @@ export function getActiveStore(): ActiveStore {
     addWire: (w: WireData) => s.addWire(w),
     removeWire: (id: string) => s.removeWire(id),
     setElementSource: (id: string, source: string) => s.setElementSource(id, source),
-    // NOTE: setElementPorts is a deprecated no-op on PoiesisState
-    setElementPorts: (_id: string, _ports: PortData[] | undefined) => {},
     selectElement: (id: string | null, multi?: boolean) => s.selectElement(id, multi),
     get selectedElementIds() { return s.selectedElementIds; },
     get previewUrl() { return s.previewUrl; },
