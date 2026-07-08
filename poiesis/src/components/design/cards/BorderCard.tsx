@@ -94,7 +94,7 @@ export function BorderCard({
     ? `${borderWidth} ${borderStyle} ${
         isColorFromToken ? `var(--${borderColor})` : borderColor
       }`
-    : "Not set";
+    : "—";
 
   const handleWidthChange = useCallback(
     (v: number) => {

@@ -320,7 +320,7 @@ export function ClassEditor() {
     );
     return parts.length > 0
       ? parts.map((p) => `${p.name}:${segmentsToString(p.segments)}`).join(", ")
-      : "Not set";
+      : "—";
   }, [currentProps]);
 
   const typographySummary = useMemo(() => {
@@ -329,7 +329,7 @@ export function ClassEditor() {
     );
     return parts.length > 0
       ? parts.map((p) => `${p.name}:${segmentsToString(p.segments)}`).join(", ")
-      : "Not set";
+      : "—";
   }, [currentProps]);
 
   // ── Close popups on outside click ──

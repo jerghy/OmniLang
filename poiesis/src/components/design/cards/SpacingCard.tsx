@@ -74,7 +74,16 @@ function SpacingSection({
   onChange,
 }: SpacingSectionProps) {
   const [unified, setUnified] = useState(
-    () => getProp(properties, shorthandName) !== "",
+    () => {
+      // Default to unified when nothing is set; switch to individual only
+      // when the user has explicitly set individual corner values
+      const hasShorthand = getProp(properties, shorthandName) !== "";
+      if (hasShorthand) return true;
+      const hasAnyCorner = corners.some(
+        (c) => getProp(properties, c) !== "",
+      );
+      return !hasAnyCorner;
+    },
   );
 
   const cornerLabels = ["上", "右", "下", "左"];
@@ -286,7 +295,7 @@ export function SpacingCard({ properties, onChange }: SpacingCardProps) {
   if (marShorthand) summaryParts.push(`M:${marShorthand}`);
   else if (marTop) summaryParts.push(`M:${marTop}`);
 
-  const summary = summaryParts.length > 0 ? summaryParts.join(" ") : "Not set";
+  const summary = summaryParts.length > 0 ? summaryParts.join(" ") : "—";
 
   // Derive spacing values for the preview
   function spacingForPreview(

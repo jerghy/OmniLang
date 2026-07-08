@@ -1,4 +1,7 @@
-import React, { useState } from 'react';
+// components/design/CollapsibleGroup.tsx
+// Collapsible property group — matches Poiesis design panel aesthetic.
+
+import { useState, useCallback } from "react";
 
 interface CollapsibleGroupProps {
   title: string;
@@ -7,82 +10,84 @@ interface CollapsibleGroupProps {
   children: React.ReactNode;
 }
 
-export const CollapsibleGroup: React.FC<CollapsibleGroupProps> = ({
+export function CollapsibleGroup({
   title,
   summary,
   defaultOpen = false,
   children,
-}) => {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
+}: CollapsibleGroupProps) {
+  const [open, setOpen] = useState(defaultOpen);
 
-  const headerStyle: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    padding: '6px 12px',
-    borderBottom: '1px solid #e0e0e0',
-    cursor: 'pointer',
-    userSelect: 'none',
-    fontSize: '13px',
-    lineHeight: '1.4',
-  };
-
-  const chevronStyle: React.CSSProperties = {
-    display: 'inline-block',
-    fontSize: '12px',
-    color: '#666',
-    transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)',
-    transition: 'transform 150ms ease',
-    flexShrink: 0,
-  };
-
-  const titleStyle: React.CSSProperties = {
-    fontWeight: 600,
-    textTransform: 'uppercase',
-    color: '#333',
-    whiteSpace: 'nowrap',
-  };
-
-  const summaryStyle: React.CSSProperties = {
-    color: '#888',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
-  };
-
-  const childrenContainerStyle: React.CSSProperties = {
-    padding: '4px 12px 8px',
-  };
-
-  const [isHovered, setIsHovered] = useState(false);
-
-  const mergedHeaderStyle: React.CSSProperties = {
-    ...headerStyle,
-    background: isHovered ? '#f5f5f5' : undefined,
-  };
+  const toggle = useCallback(() => setOpen((v) => !v), []);
 
   return (
     <div>
       <div
-        style={mergedHeaderStyle}
-        onClick={() => setIsOpen((prev) => !prev)}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            setIsOpen((prev) => !prev);
-          }
+        onClick={toggle}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          padding: "5px 0",
+          cursor: "pointer",
+          userSelect: "none",
+          fontSize: 11,
+          lineHeight: "20px",
+          color: "#374151",
         }}
-        aria-expanded={isOpen}
+        onMouseEnter={(e) => {
+          (e.currentTarget as HTMLElement).style.color = "#6366f1";
+        }}
+        onMouseLeave={(e) => {
+          (e.currentTarget as HTMLElement).style.color = "#374151";
+        }}
       >
-        <span style={chevronStyle}>▶</span>
-        <span style={titleStyle}>{title}</span>
-        <span style={summaryStyle}>{summary}</span>
+        <span
+          style={{
+            fontSize: 8,
+            color: "#94a3b8",
+            transform: open ? "rotate(90deg)" : "rotate(0deg)",
+            transition: "transform 150ms ease",
+            flexShrink: 0,
+            width: 12,
+            textAlign: "center",
+          }}
+        >
+          ▶
+        </span>
+        <span
+          style={{
+            fontWeight: 600,
+            textTransform: "uppercase",
+            letterSpacing: "0.5px",
+            fontSize: 10,
+            color: "inherit",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {title}
+        </span>
+        {!open && summary && (
+          <span
+            style={{
+              color: "#94a3b8",
+              fontWeight: 400,
+              fontSize: 11,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              flex: 1,
+            }}
+          >
+            {summary}
+          </span>
+        )}
       </div>
-      {isOpen && <div style={childrenContainerStyle}>{children}</div>}
+      {open && (
+        <div style={{ padding: "0 0 8px 16px" }}>
+          {children}
+        </div>
+      )}
     </div>
   );
-};
+}

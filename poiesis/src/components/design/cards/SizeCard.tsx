@@ -86,7 +86,7 @@ export function SizeCard({ properties, onChange, onFocus }: SizeCardProps) {
   const hasSize = width > 0 || height > 0;
   const summary = hasSize
     ? `${widthStr || "auto"} × ${heightStr || "auto"}`
-    : "Not set";
+    : "—";
 
   // Mini preview: scale dimensions by 1/8, clamped to 200x60
   const previewW = Math.min(Math.max(width / 8, 4), 200);

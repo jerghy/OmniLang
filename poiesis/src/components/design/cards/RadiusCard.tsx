@@ -85,12 +85,12 @@ export function RadiusCard({ properties, onChange }: RadiusCardProps) {
   // Summary
   const summary = useMemo(() => {
     if (mode === "unified") {
-      return radiusValue > 0 ? `${radiusValue}px` : "Not set";
+      return radiusValue > 0 ? `${radiusValue}px` : "—";
     }
     const vals = cornerValues.filter((v) => v > 0);
     return vals.length > 0
       ? cornerValues.map((v) => `${v}px`).join(" ")
-      : "Not set";
+      : "—";
   }, [mode, radiusValue, cornerValues]);
 
   // Preview border-radius value
