@@ -53,7 +53,7 @@ export function buildUndoUpdate(
 
 // ── Action slice factory ──
 
-import type { PoiesisState } from "./index";
+import type { PoiesisState } from "./types";
 
 type SetFn = (partial: Partial<PoiesisState> | ((state: PoiesisState) => Partial<PoiesisState>)) => void;
 type GetFn = () => PoiesisState;

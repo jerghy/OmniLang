@@ -1,12 +1,23 @@
 // ── Tab lifecycle slice for Poiesis store ──
 
-import type { DesignTab } from "../core/types/design-page";
-import type { PoiesisState } from "./index";
-import { buildTabSaveEntry, tabRestoreCanvasPartial, tabRestoreDesignPagePartial } from "./tab-helpers";
-import { lruEvictTabData } from "./operations/lru-evict";
+import type { DesignTab, DesignPageState } from "../../core/types/design-page";
+import type { PoiesisState } from "../types";
+import { buildTabSaveEntry, tabRestoreCanvasPartial, tabRestoreDesignPagePartial } from "../tab-helpers";
+import { lruEvictTabData } from "./lru-evict";
 
 type SetFn = (partial: Partial<PoiesisState> | ((state: PoiesisState) => Partial<PoiesisState>)) => void;
 type GetFn = () => PoiesisState;
+
+export function createInitialDesignPageState(): DesignPageState {
+  return {
+    openTabs: [],
+    activeTabId: null,
+    tabOrder: [],
+    codeFlowVisible: false,
+    codeFlowElementId: null,
+    breadcrumbs: [],
+  };
+}
 
 export function createTabSlice(set: SetFn, _get?: GetFn) {
   let _tabIdCounter = 0;
@@ -14,7 +25,7 @@ export function createTabSlice(set: SetFn, _get?: GetFn) {
     return `tab_${Date.now()}_${_tabIdCounter++}`;
   }
   return {
-    openTab: (filePath: string, componentName: string, tabType: import("../core/types/design-page").TabType = "component") => set((s) => {
+    openTab: (filePath: string, componentName: string, tabType: import("../../core/types/design-page").TabType = "component") => set((s) => {
       const existing = s.designPage.openTabs.find(t => t.filePath === filePath);
       if (existing) {
         const oldTabId = s.designPage.activeTabId;
@@ -167,6 +178,20 @@ export function createTabSlice(set: SetFn, _get?: GetFn) {
         openTabs: s.designPage.openTabs.map(t => t.id === tabId ? { ...t, isDirty: dirty } : t),
       },
       isDirty: dirty,
+    })),
+
+    toggleCodeFlow: (elementId: string | null) => set((s) => {
+      const visible = elementId !== null;
+      const breadcrumbs = visible
+        ? [...s.designPage.breadcrumbs, { type: "code-layer" as const, label: "代码", id: elementId }]
+        : s.designPage.breadcrumbs.filter(b => b.type !== "code-layer");
+      return {
+        designPage: { ...s.designPage, codeFlowVisible: visible, codeFlowElementId: elementId, breadcrumbs },
+      };
+    }),
+
+    setBreadcrumbs: (breadcrumbs: import("../../core/types/design-page").Breadcrumb[]) => set((s) => ({
+      designPage: { ...s.designPage, breadcrumbs },
     })),
   };
 }

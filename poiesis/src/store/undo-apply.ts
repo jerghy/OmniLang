@@ -1,7 +1,7 @@
 // ── Pure function that computes the inverse state partial for an undo/redo action ──
 // Avoids calling set() or CRUD operations directly, enabling atomic single-set() undo/redo.
 
-import type { PoiesisState } from "./index";
+import type { PoiesisState } from "./types";
 import type { UndoAction } from "./undo-slice";
 import type { ElementData } from "../core/types/element";
 
