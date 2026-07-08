@@ -28,7 +28,6 @@ function setProp(
   name: string,
   value: string,
 ): StyleProperty[] {
-  // When value is empty, remove the property entirely
   if (value === "") {
     return props.filter((p) => p.name !== name);
   }
@@ -60,12 +59,12 @@ function parsePx(value: string): number {
 interface RadiusCardProps {
   properties: StyleProperty[];
   onChange: (props: StyleProperty[]) => void;
+  onFocus?: () => void;
 }
 
 // ── Component ──
 
-export function RadiusCard({ properties, onChange }: RadiusCardProps) {
-  // Determine initial mode based on whether individual corner properties exist
+export function RadiusCard({ properties, onChange, onFocus }: RadiusCardProps) {
   const hasCornerProps = CORNER_NAMES.some(
     (n) => getProp(properties, n) !== "",
   );
@@ -82,7 +81,6 @@ export function RadiusCard({ properties, onChange }: RadiusCardProps) {
 
   const [tl, tr, br, bl] = cornerValues;
 
-  // Summary
   const summary = useMemo(() => {
     if (mode === "unified") {
       return radiusValue > 0 ? `${radiusValue}px` : "—";
@@ -93,7 +91,6 @@ export function RadiusCard({ properties, onChange }: RadiusCardProps) {
       : "—";
   }, [mode, radiusValue, cornerValues]);
 
-  // Preview border-radius value
   const previewRadius = useMemo(() => {
     if (mode === "unified") {
       return `${radiusValue}px`;
@@ -101,21 +98,17 @@ export function RadiusCard({ properties, onChange }: RadiusCardProps) {
     return cornerValues.map((v) => `${v}px`).join(" ");
   }, [mode, radiusValue, cornerValues]);
 
-  // Toggle between unified and individual mode
   const toggleMode = useCallback(() => {
     if (mode === "unified") {
-      // Unified → Individual: copy unified value to all 4 corners
       const value = radiusValue > 0 ? `${radiusValue}px` : "";
       let newProps = properties;
       for (const name of CORNER_NAMES) {
         newProps = setProp(newProps, name, value);
       }
-      // Remove the unified property
       newProps = setProp(newProps, "borderRadius", "");
       onChange(newProps);
       setMode("individual");
     } else {
-      // Individual → Unified: take average of the 4 corners
       const avg = Math.round((tl + tr + br + bl) / 4);
       let newProps = properties;
       newProps = setProp(
@@ -149,27 +142,44 @@ export function RadiusCard({ properties, onChange }: RadiusCardProps) {
   );
 
   const labelStyle: React.CSSProperties = {
-    fontSize: 11,
-    color: "#64748b",
-    width: 14,
+    fontSize: 12,
+    color: "var(--dp-text-secondary, #6b6893)",
+    width: 16,
     flexShrink: 0,
     textAlign: "center",
+  };
+
+  const toggleBtnBase: React.CSSProperties = {
+    borderRadius: "var(--dp-radius-sm, 6px)",
+    cursor: "pointer",
+    fontSize: 13,
+    lineHeight: 1,
+    padding: "3px 5px",
+    fontFamily: "inherit",
+    flexShrink: 0,
+    transition: "all 150ms ease",
+  };
+
+  const linkedBtnStyle: React.CSSProperties = {
+    ...toggleBtnBase,
+    border: "1px solid var(--dp-accent, #6366f1)",
+    background: "var(--dp-accent-subtle, #eef0ff)",
+    color: "var(--dp-accent, #6366f1)",
+  };
+
+  const unlinkedBtnStyle: React.CSSProperties = {
+    ...toggleBtnBase,
+    border: "1px solid var(--dp-border, #e8e5f2)",
+    background: "transparent",
+    color: "var(--dp-text-muted, #a09db8)",
   };
 
   return (
     <CollapsibleGroup title="圆角" summary={summary} defaultOpen={true}>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {mode === "unified" ? (
-          /* Unified mode: single borderRadius ScrubInput + toggle button */
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 4,
-                flex: 1,
-              }}
-            >
+            <div style={{ display: "flex", alignItems: "center", gap: 4, flex: 1 }}>
               <span style={labelStyle}>R</span>
               <ScrubInput
                 value={radiusValue}
@@ -182,88 +192,65 @@ export function RadiusCard({ properties, onChange }: RadiusCardProps) {
             <button
               onClick={toggleMode}
               title="Switch to individual corners"
-              style={{
-                border: "1px solid #6366f1",
-                borderRadius: 4,
-                background: "#eef2ff",
-                color: "#6366f1",
-                cursor: "pointer",
-                fontSize: 14,
-                lineHeight: 1,
-                padding: "2px 5px",
-                fontFamily: "inherit",
-                flexShrink: 0,
-              }}
+              style={linkedBtnStyle}
             >
               {"🔗"}
             </button>
           </div>
         ) : (
-          /* Individual mode: 2x2 grid of corner inputs + toggle button */
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            {/* Top row: TL, TR */}
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <CornerInput
                 label="↖"
                 value={cornerValues[0]}
                 onChange={(v) => handleCornerChange(0, v)}
-                labelStyle={labelStyle}
               />
               <CornerInput
                 label="↗"
                 value={cornerValues[1]}
                 onChange={(v) => handleCornerChange(1, v)}
-                labelStyle={labelStyle}
               />
               <button
                 onClick={toggleMode}
                 title="Switch to unified radius"
-                style={{
-                  border: "1px solid #d1d5db",
-                  borderRadius: 4,
-                  background: "transparent",
-                  color: "#94a3b8",
-                  cursor: "pointer",
-                  fontSize: 14,
-                  lineHeight: 1,
-                  padding: "2px 5px",
-                  fontFamily: "inherit",
-                  flexShrink: 0,
-                }}
+                style={unlinkedBtnStyle}
               >
                 {"🔓"}
               </button>
             </div>
-            {/* Bottom row: BL, BR */}
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <CornerInput
                 label="↙"
                 value={cornerValues[3]}
                 onChange={(v) => handleCornerChange(3, v)}
-                labelStyle={labelStyle}
               />
               <CornerInput
                 label="↘"
                 value={cornerValues[2]}
                 onChange={(v) => handleCornerChange(2, v)}
-                labelStyle={labelStyle}
               />
-              {/* Spacer to align with toggle button above */}
               <div style={{ width: 30, flexShrink: 0 }} />
             </div>
           </div>
         )}
 
-        {/* Mini preview */}
+        {/* Mini preview — right-click for focus mode */}
         <div
+          onContextMenu={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onFocus?.();
+          }}
           style={{
             width: "100%",
-            height: 50,
+            height: 48,
             borderRadius: previewRadius,
-            border: "2px solid #6366f1",
+            border: "2px solid var(--dp-accent, #6366f1)",
             background: "rgba(99, 102, 241, 0.06)",
-            transition: "border-radius 100ms",
+            transition: "border-radius 150ms ease",
+            cursor: onFocus ? "context-menu" : "default",
           }}
+          title={onFocus ? "Right-click for focus mode" : undefined}
         />
       </div>
     </CollapsibleGroup>
@@ -276,20 +263,22 @@ interface CornerInputProps {
   label: string;
   value: number;
   onChange: (v: number) => void;
-  labelStyle: React.CSSProperties;
 }
 
-function CornerInput({ label, value, onChange, labelStyle }: CornerInputProps) {
+function CornerInput({ label, value, onChange }: CornerInputProps) {
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 4,
-        flex: 1,
-      }}
-    >
-      <span style={labelStyle}>{label}</span>
+    <div style={{ display: "flex", alignItems: "center", gap: 4, flex: 1 }}>
+      <span
+        style={{
+          fontSize: 12,
+          color: "var(--dp-text-secondary, #6b6893)",
+          width: 16,
+          flexShrink: 0,
+          textAlign: "center",
+        }}
+      >
+        {label}
+      </span>
       <ScrubInput
         value={value}
         unit="px"

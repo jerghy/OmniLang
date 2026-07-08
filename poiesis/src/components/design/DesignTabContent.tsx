@@ -17,17 +17,18 @@ const TAB_BTN: React.CSSProperties = {
   borderBottomWidth: "2px",
   borderBottomStyle: "solid",
   borderBottomColor: "transparent",
-  color: "#64748b",
+  color: "var(--dp-text-muted, #a09db8)",
   fontSize: 13,
   fontWeight: 500,
   cursor: "pointer",
   fontFamily: "inherit",
+  transition: "color 150ms ease, border-color 150ms ease",
 };
 
 const TAB_BTN_ACTIVE: React.CSSProperties = {
   ...TAB_BTN,
-  borderBottomColor: "#6366f1",
-  color: "#6366f1",
+  borderBottomColor: "var(--dp-accent, #6366f1)",
+  color: "var(--dp-accent, #6366f1)",
   fontWeight: 600,
 };
 
@@ -91,15 +92,15 @@ export function DesignTabContent() {
   }, []);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#f8fafc" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--dp-bg, #f7f6fa)" }}>
       {/* ═══ Outer layer header: main view tabs (Tokens | Classes | Variants) ═══ */}
       <div style={{
         display: "flex",
         gap: 0,
-        borderBottom: "1px solid #e2e8f0",
-        padding: "0 24px",
+        borderBottom: "1px solid var(--dp-border, #e8e5f2)",
+        padding: "0 16px",
         alignItems: "center",
-        background: "#fff",
+        background: "var(--dp-surface, #fff)",
         minHeight: 42,
       }}>
         {(["tokens", "classes", "variants"] as const).map((v) => (
@@ -112,16 +113,16 @@ export function DesignTabContent() {
           </button>
         ))}
         <div style={{ flex: 1 }} />
-        {/* Inner layer: Code toggle — subtle, inside the outer header */}
+        {/* Inner layer: Code toggle */}
         <button
           onClick={handleToggleCode}
           title={showCode ? "Hide generated code" : "Show generated code"}
           style={{
             padding: "4px 12px",
-            border: showCode ? "1px solid #6366f1" : "1px solid #e2e8f0",
-            borderRadius: 6,
-            background: showCode ? "#6366f1" : "#f8fafc",
-            color: showCode ? "#fff" : "#64748b",
+            border: showCode ? "1px solid var(--dp-accent, #6366f1)" : "1px solid var(--dp-border, #e8e5f2)",
+            borderRadius: "var(--dp-radius-sm, 6px)",
+            background: showCode ? "var(--dp-accent, #6366f1)" : "transparent",
+            color: showCode ? "#fff" : "var(--dp-text-muted, #a09db8)",
             cursor: "pointer",
             fontSize: 12,
             fontWeight: showCode ? 600 : 400,
@@ -140,7 +141,6 @@ export function DesignTabContent() {
           style={{
             flex: 1,
             overflow: "auto",
-            padding: "24px 28px",
             minHeight: 0,
           }}
         >
@@ -154,10 +154,10 @@ export function DesignTabContent() {
           <div style={{
             height: CODE_DRAWER_HEIGHT,
             minHeight: 180,
-            borderTop: "2px solid #6366f1",
+            borderTop: "2px solid var(--dp-accent, #6366f1)",
             display: "flex",
             flexDirection: "column",
-            background: "#fff",
+            background: "var(--dp-surface, #fff)",
             flexShrink: 0,
           }}>
             {/* Drawer header */}
@@ -166,12 +166,12 @@ export function DesignTabContent() {
               alignItems: "center",
               justifyContent: "space-between",
               padding: "6px 16px",
-              background: "#f1f5f9",
-              borderBottom: "1px solid #e2e8f0",
+              background: "var(--dp-bg, #f7f6fa)",
+              borderBottom: "1px solid var(--dp-border, #e8e5f2)",
               flexShrink: 0,
             }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: "#475569", display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ color: "#6366f1" }}>{"</>"}</span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: "var(--dp-text-secondary, #6b6893)", display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ color: "var(--dp-accent, #6366f1)" }}>{"</>"}</span>
                 design.omni
               </span>
               <button
@@ -181,7 +181,7 @@ export function DesignTabContent() {
                   background: "none",
                   cursor: "pointer",
                   fontSize: 18,
-                  color: "#94a3b8",
+                  color: "var(--dp-text-muted, #a09db8)",
                   padding: "0 4px",
                   lineHeight: 1,
                   borderRadius: 4,
@@ -196,7 +196,7 @@ export function DesignTabContent() {
               fontFamily: "'Cascadia Code', 'Fira Code', monospace",
               fontSize: 13,
               lineHeight: 1.6,
-              color: "#1e293b",
+              color: "var(--dp-text, #1e1b4b)",
               padding: "12px 16px",
               overflow: "auto",
               whiteSpace: "pre-wrap",

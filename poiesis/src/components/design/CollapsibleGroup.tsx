@@ -1,5 +1,5 @@
 // components/design/CollapsibleGroup.tsx
-// Collapsible property group — matches Poiesis design panel aesthetic.
+// Card-like collapsible property group with Poiesis design panel styling.
 
 import { useState, useCallback } from "react";
 
@@ -17,37 +17,49 @@ export function CollapsibleGroup({
   children,
 }: CollapsibleGroupProps) {
   const [open, setOpen] = useState(defaultOpen);
+  const [hover, setHover] = useState(false);
 
   const toggle = useCallback(() => setOpen((v) => !v), []);
 
   return (
-    <div>
+    <div
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        background: "var(--dp-surface, #fff)",
+        borderRadius: "var(--dp-radius, 8px)",
+        margin: "0 8px 6px",
+        boxShadow: open
+          ? "var(--dp-shadow, 0 1px 3px rgba(99,102,241,0.06))"
+          : hover
+            ? "var(--dp-shadow, 0 1px 3px rgba(99,102,241,0.06))"
+            : "var(--dp-shadow-sm, 0 1px 2px rgba(99,102,241,0.04))",
+        transition: "box-shadow 150ms ease",
+        overflow: "hidden",
+      }}
+    >
       <div
         onClick={toggle}
         style={{
           display: "flex",
           alignItems: "center",
           gap: 6,
-          padding: "5px 0",
+          padding: "6px 10px",
           cursor: "pointer",
           userSelect: "none",
-          fontSize: 11,
-          lineHeight: "20px",
-          color: "#374151",
-        }}
-        onMouseEnter={(e) => {
-          (e.currentTarget as HTMLElement).style.color = "#6366f1";
-        }}
-        onMouseLeave={(e) => {
-          (e.currentTarget as HTMLElement).style.color = "#374151";
+          fontSize: 12,
+          lineHeight: "22px",
+          color: open ? "var(--dp-text, #1e1b4b)" : "var(--dp-text-secondary, #6b6893)",
+          transition: "color 150ms ease, background 150ms ease",
+          background: hover ? "var(--dp-surface-hover, #f5f3ff)" : "transparent",
         }}
       >
         <span
           style={{
             fontSize: 8,
-            color: "#94a3b8",
+            color: open ? "var(--dp-accent, #6366f1)" : "var(--dp-text-muted, #a09db8)",
             transform: open ? "rotate(90deg)" : "rotate(0deg)",
-            transition: "transform 150ms ease",
+            transition: "transform 150ms ease, color 150ms ease",
             flexShrink: 0,
             width: 12,
             textAlign: "center",
@@ -59,8 +71,8 @@ export function CollapsibleGroup({
           style={{
             fontWeight: 600,
             textTransform: "uppercase",
-            letterSpacing: "0.5px",
-            fontSize: 10,
+            letterSpacing: "0.3px",
+            fontSize: 11,
             color: "inherit",
             whiteSpace: "nowrap",
           }}
@@ -70,13 +82,15 @@ export function CollapsibleGroup({
         {!open && summary && (
           <span
             style={{
-              color: "#94a3b8",
+              color: "var(--dp-text-muted, #a09db8)",
               fontWeight: 400,
-              fontSize: 11,
+              fontSize: 12,
+              fontFamily: "var(--dp-font-mono, monospace)",
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
               flex: 1,
+              textAlign: "right",
             }}
           >
             {summary}
@@ -84,7 +98,7 @@ export function CollapsibleGroup({
         )}
       </div>
       {open && (
-        <div style={{ padding: "0 0 8px 16px" }}>
+        <div style={{ padding: "4px 10px 10px" }}>
           {children}
         </div>
       )}

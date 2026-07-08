@@ -1,5 +1,5 @@
 // components/design/ScrubInput.tsx
-// Drag-scrub numeric input: click+drag to increment/decrement, click to enter edit mode.
+// Drag-scrub numeric input with Poiesis design panel styling.
 
 import { useState, useRef, useCallback, useEffect } from "react";
 
@@ -38,6 +38,8 @@ export function ScrubInput({
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState(String(value));
   const [scrubbing, setScrubbing] = useState(false);
+  const [hover, setHover] = useState(false);
+  const [focus, setFocus] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const committedRef = useRef(false);
@@ -51,14 +53,12 @@ export function ScrubInput({
   const clamped = clamp(value, min, max);
   clampedValueRef.current = clamped;
 
-  // Keep editText in sync when value changes externally and not editing
   useEffect(() => {
     if (!editing) {
       setEditText(String(clamped));
     }
   }, [clamped, editing]);
 
-  // Auto-focus input when entering edit mode
   useEffect(() => {
     if (editing && inputRef.current) {
       inputRef.current.focus();
@@ -66,7 +66,6 @@ export function ScrubInput({
     }
   }, [editing]);
 
-  // Reset commit guard when entering edit mode
   useEffect(() => {
     if (editing) {
       committedRef.current = false;
@@ -89,7 +88,6 @@ export function ScrubInput({
     setEditing(false);
   }, []);
 
-  // Keyboard handler for the container (when NOT in edit mode)
   const handleContainerKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (disabled || editing) return;
@@ -105,7 +103,6 @@ export function ScrubInput({
     [disabled, editing, clamped, step, fineStep, min, max, onChange, onChangeEnd]
   );
 
-  // Keyboard handler for the input element (when in edit mode)
   const handleInputKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === "Enter") {
@@ -168,11 +165,9 @@ export function ScrubInput({
         setScrubbing(false);
 
         if (s && !s.moved) {
-          // Click without drag -> enter edit mode
           setEditing(true);
           setEditText(String(clamped));
         } else if (s && s.moved) {
-          // Drag complete -> notify parent
           currentOnChangeEnd?.(clampedValueRef.current);
         }
 
@@ -186,23 +181,31 @@ export function ScrubInput({
     [disabled, clamped, step, fineStep, min, max, onChange, onChangeEnd]
   );
 
-  // ---- Styles ----
+  // Compute border color based on state
+  const borderColor = focus
+    ? "var(--dp-accent, #6366f1)"
+    : hover
+      ? "var(--dp-border-active, #6366f1)"
+      : "var(--dp-border, #e8e5f2)";
 
   const rootStyle: React.CSSProperties = {
     display: "inline-flex",
     alignItems: "center",
-    fontFamily: "'Consolas', 'Monaco', 'Courier New', monospace",
-    fontSize: 11,
-    border: "1px solid #d0d0d0",
-    borderRadius: 3,
-    padding: "0 4px",
+    fontFamily: "var(--dp-font-mono, monospace)",
+    fontSize: 12,
+    border: `1px solid ${borderColor}`,
+    borderRadius: "var(--dp-radius-sm, 6px)",
+    padding: "0 5px",
     cursor: scrubbing ? "ew-resize" : disabled ? "default" : "ew-resize",
     userSelect: "none",
     minWidth: 48,
-    height: 22,
+    height: 24,
     boxSizing: "border-box",
-    background: disabled ? "#f5f5f5" : "#fff",
-    color: disabled ? "#999" : "inherit",
+    background: disabled ? "#f5f5f5" : "var(--dp-surface, #fff)",
+    color: disabled ? "#999" : "var(--dp-text, #1e1b4b)",
+    transition: "border-color 150ms ease, box-shadow 150ms ease",
+    boxShadow: focus ? "0 0 0 2px rgba(99,102,241,0.15)" : "none",
+    outline: "none",
     ...style,
   };
 
@@ -220,14 +223,15 @@ export function ScrubInput({
     fontSize: "inherit",
     textAlign: "right",
     background: "transparent",
-    color: "inherit",
+    color: "var(--dp-accent, #6366f1)",
   };
 
   const unitStyle: React.CSSProperties = {
     marginLeft: 2,
-    fontSize: 10,
-    color: "#888",
+    fontSize: 9,
+    color: "var(--dp-text-muted, #a09db8)",
     lineHeight: 1,
+    fontWeight: 500,
   };
 
   return (
@@ -236,6 +240,10 @@ export function ScrubInput({
       tabIndex={disabled ? -1 : 0}
       onMouseDown={handleMouseDown}
       onKeyDown={handleContainerKeyDown}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      onFocus={() => setFocus(true)}
+      onBlur={() => setFocus(false)}
     >
       {editing ? (
         <input

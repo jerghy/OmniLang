@@ -16,7 +16,7 @@ use rustc_hash::FxHashMap;
 use rustc_hash::FxHasher;
 
 use crate::codegen::writer::CompiledFile;
-use crate::ir::{ComponentIR, StoreIR};
+use crate::ir::{ComponentIR, StoreIR, ViewTree};
 
 /// Cache keyed by (component|store) name, holding a content hash and the
 /// generated file list.
@@ -34,15 +34,19 @@ impl CodegenCache {
         }
     }
 
-    /// Compute a content hash for a [`ComponentIR`] via its Debug output.
+    /// Compute a content hash for a [`ComponentIR`] by hashing key fields.
     ///
-    /// Uses `format!("{:?}", …)` so that every field that participates in the
-    /// codegen output is reflected in the hash.  This is safe (deterministic)
-    /// because all IR types use derived [`Debug`].
+    /// Hashes `name`, the length of each collection, and a summary of the
+    /// view tree (node count). This avoids serializing the entire IR to a
+    /// Debug string (which can be hundreds of KB for deeply nested types).
     #[inline]
     pub(crate) fn hash_component(comp: &ComponentIR) -> u64 {
         let mut hasher = FxHasher::default();
-        format!("{:?}", comp).hash(&mut hasher);
+        comp.name.hash(&mut hasher);
+        comp.states.len().hash(&mut hasher);
+        comp.computeds.len().hash(&mut hasher);
+        comp.fns.len().hash(&mut hasher);
+        comp.view.as_ref().map_or(0, |v| count_view_nodes(v)).hash(&mut hasher);
         hasher.finish()
     }
 
@@ -50,7 +54,10 @@ impl CodegenCache {
     #[inline]
     pub(crate) fn hash_store(store: &StoreIR) -> u64 {
         let mut hasher = FxHasher::default();
-        format!("{:?}", store).hash(&mut hasher);
+        store.name.hash(&mut hasher);
+        store.signals.len().hash(&mut hasher);
+        store.getters.len().hash(&mut hasher);
+        store.actions.len().hash(&mut hasher);
         hasher.finish()
     }
 
@@ -78,6 +85,42 @@ impl CodegenCache {
     /// Insert or update cached output for a store.
     pub fn put_store(&mut self, name: &str, hash: u64, files: Vec<CompiledFile>) {
         self.store_outputs.insert(name.to_string(), (hash, files));
+    }
+}
+
+/// Count the number of nodes in a [`ViewTree`] for use as a content-hash summary.
+fn count_view_nodes(view: &ViewTree) -> usize {
+    match view {
+        ViewTree::Element(el) => {
+            let mut count = 1;
+            for child in &el.children {
+                count += count_view_nodes(child);
+            }
+            count
+        }
+        ViewTree::Conditional(cond) => {
+            let mut count = 1;
+            for branch in &cond.branches {
+                if let Some(body) = &branch.body {
+                    count += count_view_nodes(body);
+                }
+            }
+            if let Some(fallback) = &cond.fallback {
+                count += count_view_nodes(fallback);
+            }
+            count
+        }
+        ViewTree::ListRendering(list) => {
+            let mut count = 1;
+            if let Some(body) = &list.body {
+                count += count_view_nodes(body);
+            }
+            if let Some(empty) = &list.empty_body {
+                count += count_view_nodes(empty);
+            }
+            count
+        }
+        ViewTree::Interpolation(_) | ViewTree::Text(_) | ViewTree::Slot(_) => 1,
     }
 }
 

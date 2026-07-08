@@ -47,6 +47,29 @@ interface SizeCardProps {
   onFocus?: () => void;
 }
 
+// ── Styles ──
+
+const labelStyle: React.CSSProperties = {
+  fontSize: 12,
+  fontWeight: 600,
+  color: "var(--dp-text-secondary, #6b6893)",
+  width: 14,
+  flexShrink: 0,
+};
+
+const linkBtnBase: React.CSSProperties = {
+  border: "1px solid var(--dp-border, #e8e5f2)",
+  borderRadius: "var(--dp-radius-sm, 6px)",
+  background: "transparent",
+  cursor: "pointer",
+  fontSize: 13,
+  lineHeight: 1,
+  padding: "3px 5px",
+  fontFamily: "inherit",
+  flexShrink: 0,
+  transition: "all 150ms ease",
+};
+
 // ── Component ──
 
 export function SizeCard({ properties, onChange, onFocus }: SizeCardProps) {
@@ -88,34 +111,23 @@ export function SizeCard({ properties, onChange, onFocus }: SizeCardProps) {
     ? `${widthStr || "auto"} × ${heightStr || "auto"}`
     : "—";
 
-  // Mini preview: scale dimensions by 1/8, clamped to 200x60
   const previewW = Math.min(Math.max(width / 8, 4), 200);
   const previewH = Math.min(Math.max(height / 8, 4), 60);
+
+  const linkBtnStyle: React.CSSProperties = {
+    ...linkBtnBase,
+    borderColor: linked ? "var(--dp-accent, #6366f1)" : "var(--dp-border, #e8e5f2)",
+    background: linked ? "var(--dp-accent-subtle, #eef0ff)" : "transparent",
+    color: linked ? "var(--dp-accent, #6366f1)" : "var(--dp-text-muted, #a09db8)",
+  };
 
   return (
     <CollapsibleGroup title="尺寸" summary={summary} defaultOpen={true}>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {/* W / H scrub row */}
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {/* Width */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 4,
-              flex: 1,
-            }}
-          >
-            <span
-              style={{
-                fontSize: 11,
-                color: "#64748b",
-                width: 14,
-                flexShrink: 0,
-              }}
-            >
-              W
-            </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 4, flex: 1 }}>
+            <span style={labelStyle}>W</span>
             <ScrubInput
               value={width}
               unit="px"
@@ -125,45 +137,16 @@ export function SizeCard({ properties, onChange, onFocus }: SizeCardProps) {
             />
           </div>
 
-          {/* Linked ratio button */}
           <button
             onClick={() => setLinked((v) => !v)}
             title={linked ? "Unlink dimensions" : "Link dimensions"}
-            style={{
-              border: linked ? "1px solid #6366f1" : "1px solid #d1d5db",
-              borderRadius: 4,
-              background: linked ? "#eef2ff" : "transparent",
-              color: linked ? "#6366f1" : "#94a3b8",
-              cursor: "pointer",
-              fontSize: 14,
-              lineHeight: 1,
-              padding: "2px 5px",
-              fontFamily: "inherit",
-              flexShrink: 0,
-            }}
+            style={linkBtnStyle}
           >
-            {"🔗"}
+            {linked ? "🔗" : "🔓"}
           </button>
 
-          {/* Height */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 4,
-              flex: 1,
-            }}
-          >
-            <span
-              style={{
-                fontSize: 11,
-                color: "#64748b",
-                width: 14,
-                flexShrink: 0,
-              }}
-            >
-              H
-            </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 4, flex: 1 }}>
+            <span style={labelStyle}>H</span>
             <ScrubInput
               value={height}
               unit="px"
@@ -177,28 +160,52 @@ export function SizeCard({ properties, onChange, onFocus }: SizeCardProps) {
         {/* Mini preview */}
         {hasSize && (
           <div
-            onDoubleClick={() => onFocus?.()}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              onFocus?.();
+            }}
             style={{
               width: "100%",
               height: 60,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              cursor: "pointer",
-              borderRadius: 4,
-              background: "#f8fafc",
+              cursor: "context-menu",
+              borderRadius: "var(--dp-radius-sm, 6px)",
+              background: "var(--dp-bg, #f7f6fa)",
+              border: "1px dashed var(--dp-border, #e8e5f2)",
             }}
+            title="Right-click for focus mode"
           >
             <div
               style={{
                 width: previewW,
                 height: previewH,
-                border: "2px solid #6366f1",
+                border: "2px solid var(--dp-accent, #6366f1)",
                 borderRadius: 2,
                 background: "rgba(99, 102, 241, 0.06)",
                 transition: "width 100ms, height 100ms",
+                position: "relative",
               }}
-            />
+            >
+              {/* Dimension labels */}
+              {previewW > 30 && (
+                <span
+                  style={{
+                    position: "absolute",
+                    top: "50%",
+                    left: "50%",
+                    transform: "translate(-50%, -50%)",
+                    fontSize: 8,
+                    color: "var(--dp-text-muted, #a09db8)",
+                    fontFamily: "var(--dp-font-mono, monospace)",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {`${widthStr} × ${heightStr}`}
+                </span>
+              )}
+            </div>
           </div>
         )}
       </div>

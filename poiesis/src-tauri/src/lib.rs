@@ -3,8 +3,8 @@
 // Frontend compilation goes through WASM (rustCompiler.ts); these commands provide
 // complementary server-side support (project management, export, analysis).
 
-use serde::{Deserialize, Serialize};
 use rustc_hash::FxHashMap;
+use serde::{Deserialize, Serialize};
 
 // ── Compile project ──
 

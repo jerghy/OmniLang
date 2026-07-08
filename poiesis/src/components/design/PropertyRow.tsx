@@ -24,23 +24,23 @@ export function PropertyRow({
   const rowStyle: React.CSSProperties = {
     display: 'flex',
     alignItems: 'center',
-    gap: '4px',
+    gap: '6px',
     height: '28px',
-    padding: '0 4px',
+    padding: '0 2px',
   };
 
   const overrideDotStyle: React.CSSProperties = {
     width: '6px',
     height: '6px',
     borderRadius: '50%',
-    backgroundColor: '#6366f1',
+    backgroundColor: 'var(--dp-accent, #6366f1)',
     flexShrink: 0,
   };
 
   const labelStyle: React.CSSProperties = {
-    width: '56px',
-    fontSize: '11px',
-    color: inherited ? '#94a3b8' : '#374151',
+    width: '60px',
+    fontSize: '12px',
+    color: inherited ? 'var(--dp-text-muted, #a09db8)' : 'var(--dp-text-secondary, #6b6893)',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
@@ -64,10 +64,11 @@ export function PropertyRow({
     fontSize: '12px',
     lineHeight: '1',
     flexShrink: 0,
-    borderRadius: '2px',
+    borderRadius: '3px',
+    transition: 'color 150ms ease, background 150ms ease',
   };
 
-  const tokenColor: string = hasToken ? '#6366f1' : '#94a3b8';
+  const tokenColor = hasToken ? 'var(--dp-accent, #6366f1)' : 'var(--dp-text-muted, #a09db8)';
 
   return (
     <div style={rowStyle}>
@@ -88,7 +89,7 @@ export function PropertyRow({
       )}
       {onRemove && (
         <button
-          style={iconButtonStyle}
+          style={{ ...iconButtonStyle, color: 'var(--dp-text-muted, #a09db8)' }}
           onClick={onRemove}
           title="Remove"
           type="button"

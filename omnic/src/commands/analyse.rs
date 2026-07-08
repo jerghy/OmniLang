@@ -33,10 +33,7 @@ pub fn cmd_analyse(files: Vec<String>, format: &str) -> anyhow::Result<()> {
     // Terminal output — matches Python OmniError.format() (errors.py:19)
     if let Some(diags) = result["diagnostics"].as_array() {
         let error_count = diags.iter().filter(|d| d["severity"] == "error").count();
-        let warn_count = diags
-            .iter()
-            .filter(|d| d["severity"] == "warning")
-            .count();
+        let warn_count = diags.iter().filter(|d| d["severity"] == "warning").count();
 
         for d in diags {
             let severity = d["severity"].as_str().unwrap_or("info");

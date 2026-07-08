@@ -65,9 +65,26 @@ interface BorderCardProps {
   properties: StyleProperty[];
   tokens: DesignToken[];
   onChange: (props: StyleProperty[]) => void;
+  onFocus?: () => void;
 }
 
 const BORDER_STYLES = ["solid", "dashed", "dotted", "double", "none"];
+
+// ── Styles ──
+
+const selectStyle: React.CSSProperties = {
+  width: "100%",
+  height: 24,
+  fontSize: 12,
+  fontFamily: "var(--dp-font-mono, monospace)",
+  border: "1px solid var(--dp-border, #e8e5f2)",
+  borderRadius: "var(--dp-radius-sm, 6px)",
+  background: "var(--dp-surface, #fff)",
+  color: "var(--dp-text, #1e1b4b)",
+  outline: "none",
+  cursor: "pointer",
+  padding: "0 4px",
+};
 
 // ── Component ──
 
@@ -75,6 +92,7 @@ export function BorderCard({
   properties,
   tokens,
   onChange,
+  onFocus,
 }: BorderCardProps) {
   const [showColorPicker, setShowColorPicker] = useState(false);
   const swatchRef = useRef<HTMLButtonElement>(null);
@@ -83,7 +101,6 @@ export function BorderCard({
   const borderStyle = getProp(properties, "borderStyle") || "solid";
   const borderColor = getProp(properties, "borderColor") || "#000000";
 
-  // Detect if the border color value came from a token
   const borderColorProp = properties.find((p) => p.name === "borderColor");
   const isColorFromToken =
     borderColorProp?.segments[0]?.type === "var-ref";
@@ -126,10 +143,25 @@ export function BorderCard({
     setShowColorPicker(false);
   }, []);
 
+  const swatchStyle: React.CSSProperties = {
+    width: 24,
+    height: 24,
+    borderRadius: "var(--dp-radius-sm, 6px)",
+    border: isColorFromToken
+      ? "2px solid var(--dp-accent, #6366f1)"
+      : "1px solid var(--dp-border, #e8e5f2)",
+    backgroundColor: isColorFromToken ? undefined : borderColor,
+    cursor: "pointer",
+    padding: 0,
+    flexShrink: 0,
+    position: "relative",
+    transition: "box-shadow 150ms ease",
+    boxShadow: "0 1px 2px rgba(0,0,0,0.06)",
+  };
+
   return (
     <CollapsibleGroup title="边框" summary={summary} defaultOpen={true}>
       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        {/* 粗细 row */}
         <PropertyRow label="粗细">
           <ScrubInput
             value={widthNum}
@@ -140,20 +172,11 @@ export function BorderCard({
           />
         </PropertyRow>
 
-        {/* 样式 row */}
         <PropertyRow label="样式">
           <select
             value={borderStyle}
             onChange={handleStyleChange}
-            style={{
-              width: "100%",
-              height: 22,
-              fontSize: 11,
-              border: "1px solid #d0d0d0",
-              borderRadius: 3,
-              background: "#fff",
-              fontFamily: "inherit",
-            }}
+            style={selectStyle}
           >
             {BORDER_STYLES.map((s) => (
               <option key={s} value={s}>
@@ -163,25 +186,12 @@ export function BorderCard({
           </select>
         </PropertyRow>
 
-        {/* 颜色 row */}
         <PropertyRow label="颜色">
           <button
             ref={swatchRef}
             onClick={handleColorSwatchClick}
             type="button"
-            style={{
-              width: 24,
-              height: 24,
-              borderRadius: 3,
-              border: isColorFromToken
-                ? "2px solid #6366f1"
-                : "1px solid rgba(0,0,0,0.15)",
-              backgroundColor: isColorFromToken ? undefined : borderColor,
-              cursor: "pointer",
-              padding: 0,
-              flexShrink: 0,
-              position: "relative",
-            }}
+            style={swatchStyle}
             title={
               isColorFromToken ? `var(--${borderColor})` : borderColor
             }
@@ -190,10 +200,11 @@ export function BorderCard({
               <span
                 style={{
                   fontSize: 10,
-                  color: "#6366f1",
+                  color: "var(--dp-accent, #6366f1)",
                   lineHeight: "24px",
                   display: "block",
                   textAlign: "center",
+                  fontWeight: 700,
                 }}
               >
                 T
@@ -201,6 +212,44 @@ export function BorderCard({
             )}
           </button>
         </PropertyRow>
+
+        {/* Border preview strip — right-click for focus mode */}
+        <div
+          onContextMenu={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onFocus?.();
+          }}
+          style={{
+            marginTop: 6,
+            height: 20,
+            borderRadius: "var(--dp-radius-sm, 6px)",
+            borderStyle: borderStyle as React.CSSProperties["borderStyle"],
+            borderColor: isColorFromToken
+              ? "var(--dp-accent, #6366f1)"
+              : borderColor,
+            borderWidth: Math.min(widthNum, 4) || 1,
+            background: "var(--dp-bg, #f7f6fa)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "context-menu",
+            transition: "background 100ms ease",
+          }}
+          title="Right-click for focus mode"
+        >
+          {onFocus && (
+            <span
+              style={{
+                fontSize: 9,
+                color: "var(--dp-text-muted, #a09db8)",
+                fontFamily: "var(--dp-font-mono, monospace)",
+              }}
+            >
+              {borderWidth ? `${borderWidth} ${borderStyle}` : "no border"}
+            </span>
+          )}
+        </div>
       </div>
 
       {showColorPicker && swatchRef.current && (

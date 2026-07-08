@@ -43,9 +43,12 @@ fn make_test_design() -> DesignIR {
         .collect(),
         pseudo_states: vec![PseudoStateIR {
             pseudo: "hover".to_string(),
-            properties: vec![("box-shadow".to_string(), "0 4px 12px rgba(0,0,0,0.08)".to_string())]
-                .into_iter()
-                .collect(),
+            properties: vec![(
+                "box-shadow".to_string(),
+                "0 4px 12px rgba(0,0,0,0.08)".to_string(),
+            )]
+            .into_iter()
+            .collect(),
         }],
     }];
 
@@ -193,7 +196,11 @@ fn expand_variant_partial_dimensions() {
 
     assert!(classes.contains(&"Button".to_string()));
     assert!(classes.contains(&"danger".to_string()));
-    assert_eq!(classes.len(), 2, "should only include variant name and 'danger'");
+    assert_eq!(
+        classes.len(),
+        2,
+        "should only include variant name and 'danger'"
+    );
 }
 
 #[test]
@@ -216,7 +223,10 @@ fn emit_empty_design_produces_no_css() {
         variants: vec![],
     };
     let css = emit_design_css(&design).expect("should emit CSS for empty design");
-    assert!(css.is_empty(), "empty design should produce empty CSS string");
+    assert!(
+        css.is_empty(),
+        "empty design should produce empty CSS string"
+    );
 }
 
 #[test]

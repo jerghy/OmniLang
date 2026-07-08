@@ -34,9 +34,8 @@ fn js_error_value(message: &str) -> JsValue {
 
 /// Serialize any Serialize-able value to JsValue, falling back to an error JsValue.
 fn to_js_value<T: Serialize + ?Sized>(value: &T) -> JsValue {
-    serde_wasm_bindgen::to_value(value).unwrap_or_else(|e| {
-        js_error_value(&format!("serialization error: {}", e))
-    })
+    serde_wasm_bindgen::to_value(value)
+        .unwrap_or_else(|e| js_error_value(&format!("serialization error: {}", e)))
 }
 
 /// Compile .omni source to OmniView (JS + HTML + CSS). Returns JsValue.
@@ -76,9 +75,8 @@ pub fn compile_omniview_component(
         "component": component,
         "errors": result.errors,
     });
-    serde_wasm_bindgen::to_value(&output).unwrap_or_else(|e| {
-        js_error_value(&format!("serialization error: {}", e))
-    })
+    serde_wasm_bindgen::to_value(&output)
+        .unwrap_or_else(|e| js_error_value(&format!("serialization error: {}", e)))
 }
 
 /// Return compiler version.
@@ -133,14 +131,16 @@ pub fn compile_multi_to_omniview(sources: JsValue, editor_mode: bool) -> JsValue
                     "end_col": 0,
                     "suggestion": null
                 }]
-            })).unwrap_or(JsValue::NULL);
+            }))
+            .unwrap_or(JsValue::NULL);
         }
     };
     const MAX_INPUT_SIZE: usize = 10 * 1024 * 1024; // 10MB
     let total_size: usize = sources_map.values().map(|s| s.len()).sum();
     if total_size > MAX_INPUT_SIZE {
         return js_error_value("Input exceeds 10MB limit");
-    }    let result = crate::compile_multi_internal(
+    }
+    let result = crate::compile_multi_internal(
         sources_map,
         crate::codegen::Target::OmniView,
         FxHashMap::default(),
@@ -203,7 +203,8 @@ impl OmniCompiler {
                     "end_col": 0,
                     "suggestion": null
                 }]
-            })).unwrap_or(JsValue::NULL);
+            }))
+            .unwrap_or(JsValue::NULL);
         }
         if let Some((ref cached_opts, ref cached)) = self.cached_compile_result {
             if *cached_opts == editor_mode {
@@ -230,7 +231,8 @@ impl OmniCompiler {
                             "end_col": 0,
                             "suggestion": null
                         }]
-                    })).unwrap_or(JsValue::NULL);
+                    }))
+                    .unwrap_or(JsValue::NULL);
                 }
             };
             let full = crate::compile_omniview_full(source, editor_mode);
@@ -314,8 +316,7 @@ mod tests {
     #[test]
     fn test_compile_to_omniview_full_editor_mode() {
         let result1 = compile_to_omniview_full("component App { view { Text { \"hi\" } } }", false);
-        let result2 =
-            compile_to_omniview_full("component App { view { Text { \"hi\" } } }", true);
+        let result2 = compile_to_omniview_full("component App { view { Text { \"hi\" } } }", true);
         let p1: serde_json::Value = serde_wasm_bindgen::from_value(result1).unwrap();
         let p2: serde_json::Value = serde_wasm_bindgen::from_value(result2).unwrap();
         // Both should compile successfully

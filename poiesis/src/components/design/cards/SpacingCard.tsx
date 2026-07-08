@@ -59,11 +59,24 @@ interface SpacingSectionProps {
   onChange: (props: StyleProperty[]) => void;
 }
 
-const labelStyle: React.CSSProperties = {
+const cornerLabelStyle: React.CSSProperties = {
   fontSize: 11,
-  color: "#64748b",
+  fontWeight: 600,
+  color: "var(--dp-text-secondary, #6b6893)",
   width: 14,
   flexShrink: 0,
+  textAlign: "center",
+};
+
+const toggleBtnBase: React.CSSProperties = {
+  borderRadius: "var(--dp-radius-sm, 6px)",
+  cursor: "pointer",
+  fontSize: 13,
+  lineHeight: 1,
+  padding: "3px 5px",
+  fontFamily: "inherit",
+  flexShrink: 0,
+  transition: "all 150ms ease",
 };
 
 function SpacingSection({
@@ -75,8 +88,6 @@ function SpacingSection({
 }: SpacingSectionProps) {
   const [unified, setUnified] = useState(
     () => {
-      // Default to unified when nothing is set; switch to individual only
-      // when the user has explicitly set individual corner values
       const hasShorthand = getProp(properties, shorthandName) !== "";
       if (hasShorthand) return true;
       const hasAnyCorner = cornerNames.some(
@@ -90,7 +101,6 @@ function SpacingSection({
 
   const handleToggle = useCallback(() => {
     if (unified) {
-      // unified → independent: spread shorthand to corners, remove shorthand
       const shorthandVal = getProp(properties, shorthandName);
       const px = parsePx(shorthandVal);
       const pix = px > 0 ? `${px}px` : "";
@@ -100,7 +110,6 @@ function SpacingSection({
       }
       onChange(newProps);
     } else {
-      // independent → unified: read corners (use top as representative), remove corners
       const vals = cornerNames.map((n) => parsePx(getProp(properties, n)));
       const pix = vals[0] > 0 ? `${vals[0]}px` : "";
       let newProps = [...properties];
@@ -134,15 +143,35 @@ function SpacingSection({
     parsePx(getProp(properties, n)),
   ) as [number, number, number, number];
 
+  const linkedBtnStyle: React.CSSProperties = {
+    ...toggleBtnBase,
+    border: "1px solid var(--dp-accent, #6366f1)",
+    background: "var(--dp-accent-subtle, #eef0ff)",
+    color: "var(--dp-accent, #6366f1)",
+  };
+
+  const unlinkedBtnStyle: React.CSSProperties = {
+    ...toggleBtnBase,
+    border: "1px solid var(--dp-border, #e8e5f2)",
+    background: "transparent",
+    color: "var(--dp-text-muted, #a09db8)",
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      {/* Section title */}
-      <div style={{ fontSize: 12, fontWeight: 600, color: "#333" }}>
+      <div
+        style={{
+          fontSize: 12,
+          fontWeight: 600,
+          color: "var(--dp-text-secondary, #6b6893)",
+          textTransform: "uppercase",
+          letterSpacing: "0.3px",
+        }}
+      >
         {label}
       </div>
 
       {unified ? (
-        /* Unified: single ScrubInput + 🔗 button */
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <div style={{ flex: 1 }}>
             <ScrubInput
@@ -156,36 +185,16 @@ function SpacingSection({
           <button
             onClick={handleToggle}
             title="独立设置各方向"
-            style={{
-              border: "1px solid #6366f1",
-              borderRadius: 4,
-              background: "#eef2ff",
-              color: "#6366f1",
-              cursor: "pointer",
-              fontSize: 14,
-              lineHeight: 1,
-              padding: "2px 5px",
-              fontFamily: "inherit",
-              flexShrink: 0,
-            }}
+            style={linkedBtnStyle}
           >
             🔗
           </button>
         </div>
       ) : (
-        /* Independent: 4 ScrubInputs in a 2×2 grid + 🔓 button */
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          {/* Row 1: top, right */}
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 4,
-                flex: 1,
-              }}
-            >
-              <span style={labelStyle}>{cornerLabels[0]}</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 4, flex: 1 }}>
+              <span style={cornerLabelStyle}>{cornerLabels[0]}</span>
               <ScrubInput
                 value={cornerVals[0]}
                 unit="px"
@@ -194,15 +203,8 @@ function SpacingSection({
                 onChange={(v) => handleCornerChange(0, v)}
               />
             </div>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 4,
-                flex: 1,
-              }}
-            >
-              <span style={labelStyle}>{cornerLabels[1]}</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 4, flex: 1 }}>
+              <span style={cornerLabelStyle}>{cornerLabels[1]}</span>
               <ScrubInput
                 value={cornerVals[1]}
                 unit="px"
@@ -211,36 +213,13 @@ function SpacingSection({
                 onChange={(v) => handleCornerChange(1, v)}
               />
             </div>
-            <button
-              onClick={handleToggle}
-              title="统一设置所有方向"
-              style={{
-                border: "1px solid #d1d5db",
-                borderRadius: 4,
-                background: "transparent",
-                color: "#94a3b8",
-                cursor: "pointer",
-                fontSize: 14,
-                lineHeight: 1,
-                padding: "2px 5px",
-                fontFamily: "inherit",
-                flexShrink: 0,
-              }}
-            >
+            <button onClick={handleToggle} title="统一设置所有方向" style={unlinkedBtnStyle}>
               🔓
             </button>
           </div>
-          {/* Row 2: bottom, left */}
           <div style={{ display: "flex", gap: 8 }}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 4,
-                flex: 1,
-              }}
-            >
-              <span style={labelStyle}>{cornerLabels[2]}</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 4, flex: 1 }}>
+              <span style={cornerLabelStyle}>{cornerLabels[2]}</span>
               <ScrubInput
                 value={cornerVals[2]}
                 unit="px"
@@ -249,15 +228,8 @@ function SpacingSection({
                 onChange={(v) => handleCornerChange(2, v)}
               />
             </div>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 4,
-                flex: 1,
-              }}
-            >
-              <span style={labelStyle}>{cornerLabels[3]}</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 4, flex: 1 }}>
+              <span style={cornerLabelStyle}>{cornerLabels[3]}</span>
               <ScrubInput
                 value={cornerVals[3]}
                 unit="px"
@@ -266,7 +238,6 @@ function SpacingSection({
                 onChange={(v) => handleCornerChange(3, v)}
               />
             </div>
-            {/* Spacer to align with the button above */}
             <div style={{ width: 25, flexShrink: 0 }} />
           </div>
         </div>
@@ -280,10 +251,10 @@ function SpacingSection({
 interface SpacingCardProps {
   properties: StyleProperty[];
   onChange: (props: StyleProperty[]) => void;
+  onFocus?: () => void;
 }
 
-export function SpacingCard({ properties, onChange }: SpacingCardProps) {
-  // Compute summary from shorthand or individual top values
+export function SpacingCard({ properties, onChange, onFocus }: SpacingCardProps) {
   const padShorthand = getProp(properties, "padding");
   const padTop = getProp(properties, "padding-top");
   const marShorthand = getProp(properties, "margin");
@@ -297,7 +268,6 @@ export function SpacingCard({ properties, onChange }: SpacingCardProps) {
 
   const summary = summaryParts.length > 0 ? summaryParts.join(" ") : "—";
 
-  // Derive spacing values for the preview
   function spacingForPreview(
     shorthand: string,
     corners: [string, string, string, string],
@@ -341,7 +311,12 @@ export function SpacingCard({ properties, onChange }: SpacingCardProps) {
           onChange={onChange}
         />
 
-        <div style={{ borderTop: "1px solid #e0e0e0" }} />
+        <div
+          style={{
+            borderTop: "1px solid var(--dp-border, #e8e5f2)",
+            margin: "2px 0",
+          }}
+        />
 
         <SpacingSection
           label="Margin"
@@ -356,7 +331,18 @@ export function SpacingCard({ properties, onChange }: SpacingCardProps) {
           onChange={onChange}
         />
 
-        <BoxModelPreview margin={margin} padding={padding} />
+        {/* Box model preview — right-click for focus mode */}
+        <div
+          onContextMenu={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onFocus?.();
+          }}
+          style={{ cursor: onFocus ? "context-menu" : "default" }}
+          title={onFocus ? "Right-click for focus mode" : undefined}
+        >
+          <BoxModelPreview margin={margin} padding={padding} />
+        </div>
       </div>
     </CollapsibleGroup>
   );

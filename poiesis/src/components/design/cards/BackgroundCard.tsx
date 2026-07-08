@@ -47,6 +47,7 @@ interface BackgroundCardProps {
   properties: StyleProperty[];
   tokens: DesignToken[];
   onChange: (props: StyleProperty[]) => void;
+  onFocus?: () => void;
 }
 
 // ── Component ──
@@ -55,12 +56,14 @@ export function BackgroundCard({
   properties,
   tokens,
   onChange,
+  onFocus,
 }: BackgroundCardProps) {
   const bgValue = getProp(properties, "background");
+
+  const isHex = /^#[0-9a-fA-F]{6}$/.test(bgValue);
   const summary = bgValue || "none";
 
-  // Parse hex value to HSV; default to white if not a valid hex.
-  const hex = /^#[0-9a-fA-F]{6}$/.test(bgValue) ? bgValue : "#ffffff";
+  const hex = isHex ? bgValue : "#ffffff";
   const hsv = hexToHsv(hex);
   const hsvColor: HSVColor = { h: hsv.h, s: hsv.s, v: hsv.v, a: 1 };
 
@@ -79,9 +82,45 @@ export function BackgroundCard({
           display: "flex",
           flexDirection: "column",
           gap: 8,
-          padding: "4px 0",
+        }}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onFocus?.();
         }}
       >
+        {/* Current color indicator */}
+        {isHex && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              marginBottom: 2,
+            }}
+          >
+            <span
+              style={{
+                width: 18,
+                height: 18,
+                borderRadius: "var(--dp-radius-sm, 6px)",
+                background: bgValue,
+                border: "1px solid var(--dp-border, #e8e5f2)",
+                flexShrink: 0,
+              }}
+            />
+            <span
+              style={{
+                fontSize: 12,
+                fontFamily: "var(--dp-font-mono, monospace)",
+                color: "var(--dp-text, #1e1b4b)",
+              }}
+            >
+              {bgValue}
+            </span>
+          </div>
+        )}
+
         <HSVPanel color={hsvColor} onChange={handleColorChange} showHexInput />
       </div>
     </CollapsibleGroup>

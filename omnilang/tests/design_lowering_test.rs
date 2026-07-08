@@ -113,14 +113,8 @@ fn lower_class_literal_values() {
 
     assert_eq!(design.classes.len(), 1);
     let alert = &design.classes[0];
-    assert_eq!(
-        alert.properties.get("padding"),
-        Some(&"16px".to_string())
-    );
-    assert_eq!(
-        alert.properties.get("font-size"),
-        Some(&"14px".to_string())
-    );
+    assert_eq!(alert.properties.get("padding"), Some(&"16px".to_string()));
+    assert_eq!(alert.properties.get("font-size"), Some(&"14px".to_string()));
 }
 
 #[test]
@@ -219,10 +213,7 @@ fn lower_variant_with_defaults() {
     assert_eq!(btn.defaults.get("size"), Some(&"md".to_string()));
 
     // Base properties
-    assert_eq!(
-        btn.base.get("display"),
-        Some(&"inline-flex".to_string())
-    );
+    assert_eq!(btn.base.get("display"), Some(&"inline-flex".to_string()));
 
     // Branch properties with resolved token
     let primary_branch = btn

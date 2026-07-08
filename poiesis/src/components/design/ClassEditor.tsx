@@ -171,49 +171,51 @@ function setPropValue(
 
 const SIDEBAR_STYLE: React.CSSProperties = {
   width: 180,
-  borderRight: "1px solid #e2e8f0",
+  borderRight: "1px solid var(--dp-border, #e8e5f2)",
   display: "flex",
   flexDirection: "column",
   flexShrink: 0,
+  background: "var(--dp-surface, #fff)",
 };
 
 const SIDEBAR_HEADER: React.CSSProperties = {
-  fontSize: 11,
+  fontSize: 10,
   fontWeight: 600,
-  color: "#6b7280",
+  color: "var(--dp-text-secondary, #6b6893)",
   textTransform: "uppercase",
   letterSpacing: "0.5px",
-  padding: "10px 8px 6px",
+  padding: "10px 10px 6px",
 };
 
 const CLASS_ITEM_BASE: React.CSSProperties = {
-  padding: "6px 12px",
+  padding: "6px 10px",
   fontSize: 12,
   cursor: "pointer",
-  color: "#374151",
+  color: "var(--dp-text-secondary, #6b6893)",
   display: "flex",
   alignItems: "center",
   justifyContent: "space-between",
-  borderRadius: 4,
+  borderRadius: "var(--dp-radius-sm, 6px)",
   margin: "1px 6px",
+  transition: "background 100ms ease, color 100ms ease",
 };
 
 const CLASS_ITEM_ACTIVE: React.CSSProperties = {
   ...CLASS_ITEM_BASE,
-  background: "#eef2ff",
-  color: "#4f46e5",
+  background: "var(--dp-accent-subtle, #eef0ff)",
+  color: "var(--dp-accent, #6366f1)",
   fontWeight: 600,
 };
 
 const INPUT_STYLE: React.CSSProperties = {
   padding: "3px 6px",
   fontSize: 11,
-  fontFamily: "monospace",
-  border: "1px solid #e2e8f0",
-  borderRadius: 4,
+  fontFamily: "var(--dp-font-mono, monospace)",
+  border: "1px solid var(--dp-border, #e8e5f2)",
+  borderRadius: "var(--dp-radius-sm, 6px)",
   outline: "none",
-  background: "#fff",
-  color: "#374151",
+  background: "var(--dp-surface, #fff)",
+  color: "var(--dp-text, #1e1b4b)",
   boxSizing: "border-box",
   flex: 1,
   minWidth: 0,
@@ -222,11 +224,12 @@ const INPUT_STYLE: React.CSSProperties = {
 const SELECT_STYLE: React.CSSProperties = {
   padding: "3px 4px",
   fontSize: 10,
-  border: "1px solid #e2e8f0",
-  borderRadius: 4,
+  fontFamily: "var(--dp-font-mono, monospace)",
+  border: "1px solid var(--dp-border, #e8e5f2)",
+  borderRadius: "var(--dp-radius-sm, 6px)",
   outline: "none",
-  background: "#fff",
-  color: "#374151",
+  background: "var(--dp-surface, #fff)",
+  color: "var(--dp-text, #1e1b4b)",
   cursor: "pointer",
   flex: 1,
   minWidth: 0,
@@ -236,11 +239,12 @@ const REMOVE_BTN: React.CSSProperties = {
   border: "none",
   background: "none",
   cursor: "pointer",
-  color: "#94a3b8",
+  color: "var(--dp-text-muted, #a09db8)",
   fontSize: 14,
   padding: "2px 4px",
   lineHeight: 1,
   flexShrink: 0,
+  borderRadius: 3,
 };
 
 // ── Hook: outside click ──
@@ -563,14 +567,24 @@ export function ClassEditor() {
       <button
         onClick={handleAddClass}
         style={{
-          border: "1px dashed #cbd5e1",
-          borderRadius: 4,
+          border: "1px dashed var(--dp-border, #e8e5f2)",
+          borderRadius: "var(--dp-radius-sm, 6px)",
           background: "transparent",
-          color: "#64748b",
+          color: "var(--dp-text-muted, #a09db8)",
           fontSize: 11,
-          padding: "4px 10px",
+          padding: "5px 10px",
           cursor: "pointer",
           margin: "8px",
+          transition: "color 150ms ease, border-color 150ms ease",
+          fontFamily: "inherit",
+        }}
+        onMouseEnter={(e) => {
+          (e.currentTarget as HTMLElement).style.color = "var(--dp-accent, #6366f1)";
+          (e.currentTarget as HTMLElement).style.borderColor = "var(--dp-accent, #6366f1)";
+        }}
+        onMouseLeave={(e) => {
+          (e.currentTarget as HTMLElement).style.color = "var(--dp-text-muted, #a09db8)";
+          (e.currentTarget as HTMLElement).style.borderColor = "var(--dp-border, #e8e5f2)";
         }}
       >
         + Add Class
@@ -586,10 +600,11 @@ export function ClassEditor() {
         style={{
           display: "flex",
           gap: 0,
-          borderBottom: "1px solid #e2e8f0",
-          padding: "0 4px",
+          borderBottom: "1px solid var(--dp-border, #e8e5f2)",
+          padding: "4px 6px 0",
           alignItems: "center",
           flexShrink: 0,
+          background: "var(--dp-bg, #f7f6fa)",
         }}
       >
         {PSEUDO_TABS.map((pseudo) => (
@@ -597,15 +612,17 @@ export function ClassEditor() {
             key={pseudo}
             onClick={() => handlePseudoSelect(pseudo)}
             style={{
-              padding: "6px 10px",
+              padding: "5px 10px",
               fontSize: 11,
               cursor: "pointer",
               border: "none",
               background: "none",
-              color: activePseudo === pseudo ? "#4f46e5" : "#64748b",
+              color: activePseudo === pseudo ? "var(--dp-accent, #6366f1)" : "var(--dp-text-muted, #a09db8)",
               fontWeight: activePseudo === pseudo ? 600 : 400,
               borderBottom:
-                activePseudo === pseudo ? "2px solid #6366f1" : "2px solid transparent",
+                activePseudo === pseudo ? "2px solid var(--dp-accent, #6366f1)" : "2px solid transparent",
+              transition: "color 150ms ease, border-color 150ms ease",
+              fontFamily: "var(--dp-font-mono, monospace)",
             }}
           >
             {pseudo === "base" ? "Base" : `:${pseudo}`}
@@ -615,13 +632,14 @@ export function ClassEditor() {
           <button
             onClick={() => setShowPseudoMenu((v) => !v)}
             style={{
-              padding: "6px 6px",
-              fontSize: 16,
+              padding: "5px 6px",
+              fontSize: 14,
               cursor: "pointer",
               border: "none",
               background: "none",
-              color: "#64748b",
+              color: "var(--dp-text-muted, #a09db8)",
               lineHeight: 1,
+              fontFamily: "inherit",
             }}
             title="More pseudo-classes"
           >
@@ -656,12 +674,13 @@ export function ClassEditor() {
                     fontSize: 11,
                     border: "none",
                     background: "transparent",
-                    color: "#374151",
+                    color: "var(--dp-text-secondary, #6b6893)",
                     cursor: "pointer",
                     textAlign: "left",
+                    fontFamily: "var(--dp-font-mono, monospace)",
                   }}
                   onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLElement).style.background = "#f1f5f9";
+                    (e.currentTarget as HTMLElement).style.background = "var(--dp-accent-subtle, #eef0ff)";
                   }}
                   onMouseLeave={(e) => {
                     (e.currentTarget as HTMLElement).style.background = "transparent";
@@ -675,7 +694,7 @@ export function ClassEditor() {
         </div>
         <div style={{ flex: 1 }} />
         {!pseudoExists && activePseudo !== "base" && (
-          <span style={{ fontSize: 10, color: "#94a3b8", paddingRight: 8 }}>
+          <span style={{ fontSize: 10, color: "var(--dp-text-muted, #a09db8)", paddingRight: 8 }}>
             (no overrides yet)
           </span>
         )}
@@ -754,12 +773,13 @@ const renderTokenPicker = () => {
                     fontSize: 11,
                     border: "none",
                     background: "transparent",
-                    color: "#374151",
+                    color: "var(--dp-text-secondary, #6b6893)",
                     cursor: "pointer",
                     textAlign: "left",
+                    fontFamily: "var(--dp-font-mono, monospace)",
                   }}
                   onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLElement).style.background = "#f1f5f9";
+                    (e.currentTarget as HTMLElement).style.background = "var(--dp-accent-subtle, #eef0ff)";
                   }}
                   onMouseLeave={(e) => {
                     (e.currentTarget as HTMLElement).style.background = "transparent";
@@ -827,18 +847,28 @@ const renderTokenPicker = () => {
     );
 
     return (
-      <div style={{ position: "relative", marginTop: 4 }}>
+      <div style={{ position: "relative", margin: "4px 8px" }}>
         <button
           onClick={() => setShowAddProp((v) => !v)}
           style={{
-            border: "1px dashed #cbd5e1",
-            borderRadius: 4,
+            border: "1px dashed var(--dp-border, #e8e5f2)",
+            borderRadius: "var(--dp-radius-sm, 6px)",
             background: "transparent",
-            color: "#64748b",
-            fontSize: 10,
-            padding: "4px 10px",
+            color: "var(--dp-text-muted, #a09db8)",
+            fontSize: 11,
+            padding: "6px 10px",
             cursor: "pointer",
             width: "100%",
+            fontFamily: "inherit",
+            transition: "color 150ms ease, border-color 150ms ease",
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLElement).style.color = "var(--dp-accent, #6366f1)";
+            (e.currentTarget as HTMLElement).style.borderColor = "var(--dp-accent, #6366f1)";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLElement).style.color = "var(--dp-text-muted, #a09db8)";
+            (e.currentTarget as HTMLElement).style.borderColor = "var(--dp-border, #e8e5f2)";
           }}
         >
           + Add property
@@ -994,11 +1024,13 @@ const renderTokenPicker = () => {
                 padding: "8px 12px",
                 fontSize: 13,
                 fontWeight: 600,
-                color: "#1e293b",
-                borderBottom: "1px solid #e2e8f0",
+                color: "var(--dp-text, #1e1b4b)",
+                borderBottom: "1px solid var(--dp-border, #e8e5f2)",
                 display: "flex",
                 alignItems: "center",
                 gap: 8,
+                background: "var(--dp-surface, #fff)",
+                flexShrink: 0,
               }}
             >
               {editingClassName === selectedClass.id ? (
@@ -1030,9 +1062,10 @@ const renderTokenPicker = () => {
                   border: "none",
                   background: "none",
                   cursor: "pointer",
-                  color: "#94a3b8",
+                  color: "var(--dp-text-muted, #a09db8)",
                   fontSize: 11,
                   padding: 0,
+                  borderRadius: 3,
                 }}
                 title="Rename"
               >
@@ -1048,7 +1081,7 @@ const renderTokenPicker = () => {
               {focusMode === null ? (
                 <>
                   {/* Property editor: cards + collapsed groups */}
-                  <div style={{ flex: 1, overflow: "auto", padding: "0" }}>
+                  <div style={{ flex: 1, overflow: "auto", padding: "8px 0", background: "var(--dp-bg, #f7f6fa)" }}>
                     {/* Cards for common properties */}
                     <SizeCard
                       properties={currentProps}
@@ -1059,19 +1092,23 @@ const renderTokenPicker = () => {
                       properties={currentProps}
                       tokens={tokens}
                       onChange={handlePropsChange}
+                      onFocus={() => setFocusMode("background")}
                     />
                     <BorderCard
                       properties={currentProps}
                       tokens={tokens}
                       onChange={handlePropsChange}
+                      onFocus={() => setFocusMode("border")}
                     />
                     <RadiusCard
                       properties={currentProps}
                       onChange={handlePropsChange}
+                      onFocus={() => setFocusMode("radius")}
                     />
                     <SpacingCard
                       properties={currentProps}
                       onChange={handlePropsChange}
+                      onFocus={() => setFocusMode("spacing")}
                     />
 
                     {/* Layout group for remaining layout properties */}
@@ -1219,8 +1256,9 @@ const renderTokenPicker = () => {
               alignItems: "center",
               justifyContent: "center",
               height: "100%",
-              color: "#94a3b8",
+              color: "var(--dp-text-muted, #a09db8)",
               fontSize: 12,
+              background: "var(--dp-bg, #f7f6fa)",
             }}
           >
             Select a class to edit
