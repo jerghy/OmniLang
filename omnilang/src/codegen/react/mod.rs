@@ -7,7 +7,7 @@
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
-use crate::codegen::shared::generator::{generate_per_component, PerComponentCodegen};
+use crate::codegen::shared::generator::build_component_map;
 use crate::codegen::shared::types::FormatType;
 use crate::codegen::{format_json_value, JSON_REACT};
 use crate::ir::*;
@@ -22,18 +22,22 @@ pub(crate) mod view;
 
 pub struct ReactCodegen;
 
-impl PerComponentCodegen for ReactCodegen {
+impl Codegen for ReactCodegen {
+    fn generate(&self, ir: &IRProgram, source_files: &FxHashMap<String, String>) -> CompileOutput {
+        self.generate_per_component(ir, source_files)
+    }
+
     fn gen_component_file(
         &self,
         name: &str,
         comp: &ComponentIR,
         ir: &IRProgram,
-        component_map: &FxHashMap<String, ComponentIR>,
     ) -> Vec<CompiledFile> {
+        let component_map = build_component_map(ir);
         vec![
             CompiledFile {
                 path: format!("{}.tsx", name),
-                content: self.gen_component_tsx(name, comp, ir, component_map),
+                content: self.gen_component_tsx(name, comp, ir, &component_map),
             },
             CompiledFile {
                 path: format!("{}.module.css", name),
@@ -46,12 +50,6 @@ impl PerComponentCodegen for ReactCodegen {
             path: format!("use{}.ts", name),
             content: self.gen_store_hook(name, store),
         }]
-    }
-}
-
-impl Codegen for ReactCodegen {
-    fn generate(&self, ir: &IRProgram, _source_files: &FxHashMap<String, String>) -> CompileOutput {
-        generate_per_component(self, ir)
     }
 }
 

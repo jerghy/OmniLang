@@ -16,20 +16,22 @@ use rustc_hash::FxHashMap;
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
 use crate::codegen::format_json_value;
 use crate::codegen::shared::expr::FormatExpr;
-use crate::codegen::shared::generator::{generate_per_component, PerComponentCodegen};
 use crate::codegen::shared::types::{FormatType, JsTypeFormatter};
 use crate::codegen::JSON_VUE;
 use crate::ir::*;
 
 pub struct VueCodegen;
 
-impl PerComponentCodegen for VueCodegen {
+impl Codegen for VueCodegen {
+    fn generate(&self, ir: &IRProgram, source_files: &FxHashMap<String, String>) -> CompileOutput {
+        self.generate_per_component(ir, source_files)
+    }
+
     fn gen_component_file(
         &self,
         name: &str,
         comp: &ComponentIR,
         ir: &IRProgram,
-        _component_map: &FxHashMap<String, ComponentIR>,
     ) -> Vec<CompiledFile> {
         vec![CompiledFile {
             path: format!("{}.vue", name),
@@ -41,12 +43,6 @@ impl PerComponentCodegen for VueCodegen {
             path: format!("use{}.ts", name),
             content: self.gen_store_hook(name, store),
         }]
-    }
-}
-
-impl Codegen for VueCodegen {
-    fn generate(&self, ir: &IRProgram, _source_files: &FxHashMap<String, String>) -> CompileOutput {
-        generate_per_component(self, ir)
     }
 }
 

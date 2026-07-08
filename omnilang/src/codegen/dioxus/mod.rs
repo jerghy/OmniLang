@@ -15,20 +15,22 @@ use view::*;
 use rustc_hash::FxHashMap;
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
 use crate::codegen::shared::expr::{FormatExpr, RustFormatExpr};
-use crate::codegen::shared::generator::{generate_per_component, PerComponentCodegen};
 use crate::codegen::shared::stmt::FormatStmt;
 use crate::codegen::{format_json_value, JSON_DIOXUS};
 use crate::ir::*;
 
 pub struct DioxusCodegen;
 
-impl PerComponentCodegen for DioxusCodegen {
+impl Codegen for DioxusCodegen {
+    fn generate(&self, ir: &IRProgram, source_files: &FxHashMap<String, String>) -> CompileOutput {
+        self.generate_per_component(ir, source_files)
+    }
+
     fn gen_component_file(
         &self,
         name: &str,
         comp: &ComponentIR,
         ir: &IRProgram,
-        _component_map: &FxHashMap<String, ComponentIR>,
     ) -> Vec<CompiledFile> {
         vec![CompiledFile {
             path: format!("{}.rs", name),
@@ -40,12 +42,6 @@ impl PerComponentCodegen for DioxusCodegen {
             path: format!("{}.rs", to_snake_case(name)),
             content: self.gen_store_module(name, store),
         }]
-    }
-}
-
-impl Codegen for DioxusCodegen {
-    fn generate(&self, ir: &IRProgram, _source_files: &FxHashMap<String, String>) -> CompileOutput {
-        generate_per_component(self, ir)
     }
 }
 

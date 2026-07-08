@@ -25,23 +25,27 @@ mod tests;
 
 use rustc_hash::FxHashMap;
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
-use crate::codegen::shared::generator::{generate_per_component, PerComponentCodegen};
+use crate::codegen::shared::generator::build_component_map;
 use crate::codegen::{format_json_value, JSON_FLUTTER};
 use crate::ir::*;
 
 pub struct FlutterCodegen;
 
-impl PerComponentCodegen for FlutterCodegen {
+impl Codegen for FlutterCodegen {
+    fn generate(&self, ir: &IRProgram, source_files: &FxHashMap<String, String>) -> CompileOutput {
+        self.generate_per_component(ir, source_files)
+    }
+
     fn gen_component_file(
         &self,
         name: &str,
         comp: &ComponentIR,
         ir: &IRProgram,
-        component_map: &FxHashMap<String, ComponentIR>,
     ) -> Vec<CompiledFile> {
+        let component_map = build_component_map(ir);
         vec![CompiledFile {
             path: format!("{}.dart", name),
-            content: self.gen_component_dart(name, comp, ir, component_map),
+            content: self.gen_component_dart(name, comp, ir, &component_map),
         }]
     }
     fn gen_store_file(&self, name: &str, store: &StoreIR) -> Vec<CompiledFile> {
@@ -49,12 +53,6 @@ impl PerComponentCodegen for FlutterCodegen {
             path: format!("{}_store.dart", name),
             content: self.gen_store_dart(name, store),
         }]
-    }
-}
-
-impl Codegen for FlutterCodegen {
-    fn generate(&self, ir: &IRProgram, _source_files: &FxHashMap<String, String>) -> CompileOutput {
-        generate_per_component(self, ir)
     }
 }
 
