@@ -3,8 +3,10 @@
 // Extracted 1:1 from App.tsx's useEffect that calls validate() then parseOmniSource().
 
 import { validate, parseOmniSource } from "../codegen";
+import { parseStyleValue } from "../codegen/design-value-parser";
 import { usePoiesisStore } from "../../store";
 import { loadCodeTabs } from "../../services/codegraph/store";
+import { uid } from "../../core/utils/id";
 import type { ElementData, WireData } from "../../core/types";
 import type { DesignDefinition, TokenType } from "../../core/types/design";
 import { tokenTypeToCategory } from "../../core/types/design";
@@ -63,18 +65,46 @@ export function parseAndPopulate(
           ? parseResult.designClasses.map((c) => ({
               id: c.id,
               name: c.name,
-              properties: [],
-              pseudoStates: [],
+              properties: (c.properties ?? []).map((p) => ({
+                id: uid("sp"),
+                name: p.name,
+                segments: parseStyleValue(p.value),
+              })),
+              pseudoStates: (c.pseudoStates ?? []).map((ps) => ({
+                id: uid("ps"),
+                pseudo: ps.pseudo,
+                properties: ps.properties.map((p) => ({
+                  id: uid("sp"),
+                  name: p.name,
+                  segments: parseStyleValue(p.value),
+                })),
+              })),
             }))
           : [],
         variants: parseResult.designVariants
           ? parseResult.designVariants.map((v) => ({
               id: v.id,
               name: v.name,
-              dimensions: [],
-              defaults: {},
-              baseProperties: [],
-              branches: [],
+              dimensions: (v.dimensions ?? []).map((d) => ({
+                name: d.name,
+                values: d.values.map((dv) => dv.name),
+              })),
+              defaults: v.defaults ?? {},
+              baseProperties: (v.baseProperties ?? []).map((p) => ({
+                id: uid("sp"),
+                name: p.name,
+                segments: parseStyleValue(p.value),
+              })),
+              branches: (v.branches ?? []).map((b) => ({
+                id: uid("vb"),
+                dimension: "",
+                value: b.name,
+                properties: b.properties.map((p) => ({
+                  id: uid("sp"),
+                  name: p.name,
+                  segments: parseStyleValue(p.value),
+                })),
+              })),
             }))
           : [],
       };

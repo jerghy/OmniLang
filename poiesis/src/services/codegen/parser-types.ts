@@ -7,6 +7,33 @@ import type { CodeTab } from "../../services/codegraph/types";
 import type { ParseResult } from "./types";
 import type { Token } from "./omni-tokenizer";
 
+// ── Parsed design body types (Phase H) ──
+
+export interface ParsedClassProperty {
+  name: string;
+  value: string;
+}
+
+export interface ParsedPseudoState {
+  pseudo: string;
+  properties: ParsedClassProperty[];
+}
+
+export interface ParsedDimensionValue {
+  name: string;
+  isDefault: boolean;
+}
+
+export interface ParsedDimension {
+  name: string;
+  values: ParsedDimensionValue[];
+}
+
+export interface ParsedBranch {
+  name: string;
+  properties: ParsedClassProperty[];
+}
+
 // ── Parser state ──
 
 export type ParserState =
@@ -48,8 +75,20 @@ export interface ParseContext {
   // ── Design block state (Phase H) ──
   designName: string;
   designTokens: Array<{ id: string; name: string; tokenType: string; value: string }>;
-  designClasses: Array<{ id: string; name: string; body: string }>;
-  designVariants: Array<{ id: string; name: string; body: string }>;
+  designClasses: Array<{
+    id: string;
+    name: string;
+    properties: ParsedClassProperty[];
+    pseudoStates: ParsedPseudoState[];
+  }>;
+  designVariants: Array<{
+    id: string;
+    name: string;
+    dimensions: ParsedDimension[];
+    baseProperties: ParsedClassProperty[];
+    branches: ParsedBranch[];
+    defaults: Record<string, string>;
+  }>;
 }
 
 // ── Parsed attribute shape ──

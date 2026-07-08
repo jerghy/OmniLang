@@ -2,6 +2,8 @@ import { useEffect, useCallback } from "react";
 import { usePoiesisStore } from "../store";
 import { useCodeGraphStore, type CodeGraphStoreState } from "../services/codegraph/store";
 import { parseOmniSource } from "../services/codegen";
+import { parseStyleValue } from "../services/codegen/design-value-parser";
+import { uid } from "../core/utils/id";
 import { api } from "../commands";
 import { loadComponentDefinitionsFromServer, saveComponentDefinitionsToServer } from "../services/project/component-service";
 import { computeAutoLayout } from "../components/canvas/shared/layoutUtils";
@@ -25,10 +27,46 @@ async function loadDesignFromSource(source: string): Promise<void> {
         id: t.id, name: t.name, category: tokenTypeToCategory(t.tokenType), tokenType: t.tokenType as TokenType, value: t.value,
       })),
       classes: (result.designClasses ?? []).map((c) => ({
-        id: c.id, name: c.name, properties: [], pseudoStates: [],
+        id: c.id,
+        name: c.name,
+        properties: (c.properties ?? []).map((p) => ({
+          id: uid("sp"),
+          name: p.name,
+          segments: parseStyleValue(p.value),
+        })),
+        pseudoStates: (c.pseudoStates ?? []).map((ps) => ({
+          id: uid("ps"),
+          pseudo: ps.pseudo,
+          properties: ps.properties.map((p) => ({
+            id: uid("sp"),
+            name: p.name,
+            segments: parseStyleValue(p.value),
+          })),
+        })),
       })),
       variants: (result.designVariants ?? []).map((v) => ({
-        id: v.id, name: v.name, dimensions: [], defaults: {}, baseProperties: [], branches: [],
+        id: v.id,
+        name: v.name,
+        dimensions: (v.dimensions ?? []).map((d) => ({
+          name: d.name,
+          values: d.values.map((dv) => dv.name),
+        })),
+        defaults: v.defaults ?? {},
+        baseProperties: (v.baseProperties ?? []).map((p) => ({
+          id: uid("sp"),
+          name: p.name,
+          segments: parseStyleValue(p.value),
+        })),
+        branches: (v.branches ?? []).map((b) => ({
+          id: uid("vb"),
+          dimension: "",
+          value: b.name,
+          properties: b.properties.map((p) => ({
+            id: uid("sp"),
+            name: p.name,
+            segments: parseStyleValue(p.value),
+          })),
+        })),
       })),
     });
   }

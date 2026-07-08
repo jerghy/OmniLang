@@ -2,6 +2,8 @@ import { useState, useMemo, useCallback, useEffect } from "react";
 import { usePoiesisStore } from "../../store";
 import { emitDesignSource } from "../../services/codegen/design-emitter";
 import { parseOmniSource } from "../../services/codegen";
+import { parseStyleValue } from "../../services/codegen/design-value-parser";
+import { uid } from "../../core/utils/id";
 import { api } from "../../commands";
 import { TokenEditor } from "./TokenEditor";
 import { ClassEditor } from "./ClassEditor";
@@ -65,16 +67,44 @@ export function DesignTabContent() {
           classes: (result.designClasses ?? []).map((c) => ({
             id: c.id,
             name: c.name,
-            properties: [],
-            pseudoStates: [],
+            properties: (c.properties ?? []).map((p) => ({
+              id: uid("sp"),
+              name: p.name,
+              segments: parseStyleValue(p.value),
+            })),
+            pseudoStates: (c.pseudoStates ?? []).map((ps) => ({
+              id: uid("ps"),
+              pseudo: ps.pseudo,
+              properties: ps.properties.map((p) => ({
+                id: uid("sp"),
+                name: p.name,
+                segments: parseStyleValue(p.value),
+              })),
+            })),
           })),
           variants: (result.designVariants ?? []).map((v) => ({
             id: v.id,
             name: v.name,
-            dimensions: [],
-            defaults: {},
-            baseProperties: [],
-            branches: [],
+            dimensions: (v.dimensions ?? []).map((d) => ({
+              name: d.name,
+              values: d.values.map((dv) => dv.name),
+            })),
+            defaults: v.defaults ?? {},
+            baseProperties: (v.baseProperties ?? []).map((p) => ({
+              id: uid("sp"),
+              name: p.name,
+              segments: parseStyleValue(p.value),
+            })),
+            branches: (v.branches ?? []).map((b) => ({
+              id: uid("vb"),
+              dimension: "",
+              value: b.name,
+              properties: b.properties.map((p) => ({
+                id: uid("sp"),
+                name: p.name,
+                segments: parseStyleValue(p.value),
+              })),
+            })),
           })),
         });
       }

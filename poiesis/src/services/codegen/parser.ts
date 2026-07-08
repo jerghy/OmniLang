@@ -4,7 +4,15 @@
 import type { Token } from "./omni-tokenizer";
 import { TokenStream } from "./token-stream";
 import type { ParseResult } from "./types";
-import type { ParserState, ParseContext } from "./parser-types";
+import type {
+  ParserState,
+  ParseContext,
+  ParsedClassProperty,
+  ParsedPseudoState,
+  ParsedDimension,
+  ParsedDimensionValue,
+  ParsedBranch,
+} from "./parser-types";
 import { parseKeyValueAttrs } from "./parser-types";
 import { parseDesignAnnotation } from "../../core/types/design";
 import { uid } from "../../core/utils/id";
@@ -711,22 +719,117 @@ export class Parser {
     if (nameTok.kind === "EOF") return;
     this.stream.expect("BRACE_OPEN");
 
-    // Collect raw body text by brace counting
-    let depth = 1;
-    let body = "";
-    while (depth > 0 && !this.stream.isEof()) {
-      const t = this.stream.consume();
-      if (t.kind === "BRACE_OPEN") depth++;
-      else if (t.kind === "BRACE_CLOSE") depth--;
-      if (depth > 0) body += t.text;
-    }
+    const properties: ParsedClassProperty[] = [];
+    const pseudoStates: ParsedPseudoState[] = [];
+
+    this.parseClassBody(properties, pseudoStates);
 
     const id = annotation?.id || uid("cls");
     this.ctx.designClasses.push({
       id,
       name: nameTok.text,
-      body,
+      properties,
+      pseudoStates,
     });
+  }
+
+  private parseClassBody(
+    props: ParsedClassProperty[],
+    pseudos: ParsedPseudoState[],
+  ): void {
+    while (!this.stream.isEof()) {
+      this.stream.skipNewlines();
+      if (this.stream.peek().kind === "BRACE_CLOSE") {
+        this.stream.consume();
+        return;
+      }
+      // Detect pseudo-state: either ":hover" or "&:hover"
+      if (
+        this.stream.peek().kind === "COLON" ||
+        (this.stream.peek().kind === "TEXT" && this.stream.peek().text === "&")
+      ) {
+        pseudos.push(this.parsePseudoState());
+      } else if (this.stream.peek().kind === "IDENTIFIER") {
+        const prop = this.parseProperty();
+        if (prop) props.push(prop);
+      } else {
+        // COMMENT_LINE or other unexpected tokens — skip
+        this.stream.consume();
+      }
+    }
+  }
+
+  private parsePseudoState(): ParsedPseudoState {
+    // Handle optional "&" prefix (for "&:hover" syntax)
+    if (this.stream.peek().kind === "TEXT" && this.stream.peek().text === "&") {
+      this.stream.consume();
+    }
+    this.stream.consume(); // consume ':'
+    const name = this.stream.expect("IDENTIFIER").text;
+    this.stream.skipNewlines();
+    this.stream.expect("BRACE_OPEN");
+
+    const props: ParsedClassProperty[] = [];
+    while (!this.stream.isEof()) {
+      this.stream.skipNewlines();
+      if (this.stream.peek().kind === "BRACE_CLOSE") {
+        this.stream.consume();
+        return { pseudo: name, properties: props };
+      }
+      const prop = this.parseProperty();
+      if (prop) props.push(prop);
+    }
+    return { pseudo: name, properties: props };
+  }
+
+  private parseProperty(): ParsedClassProperty | null {
+    if (this.stream.peek().kind !== "IDENTIFIER") {
+      this.stream.consume();
+      return null;
+    }
+    const name = this.stream.consume().text;
+    if (this.stream.peek().kind !== "COLON") {
+      this.skipLine();
+      return null;
+    }
+    this.stream.consume(); // ':'
+    const value = this.readLineValue();
+    return { name, value };
+  }
+
+  private readLineValue(): string {
+    let result = "";
+    let lastToken: import("./omni-tokenizer").Token | null = null;
+    while (!this.stream.isEof()) {
+      const tok = this.stream.peek();
+      if (tok.kind === "NEWLINE" || tok.kind === "BRACE_CLOSE") break;
+      if (tok.kind === "SEMICOLON") {
+        this.stream.consume();
+        break;
+      }
+      this.stream.consume();
+      if (lastToken) {
+        const gap = tok.col - (lastToken.col + lastToken.text.length);
+        if (gap > 0) result += " ".repeat(gap);
+      }
+      result += tok.text;
+      lastToken = tok;
+    }
+    return result;
+  }
+
+  private skipLine(): void {
+    while (!this.stream.isEof()) {
+      const tok = this.stream.peek();
+      if (
+        tok.kind === "NEWLINE" ||
+        tok.kind === "BRACE_CLOSE" ||
+        tok.kind === "EOF"
+      ) {
+        return;
+      }
+      this.stream.consume();
+    }
   }
 
   private parseDesignVariant(
@@ -737,22 +840,114 @@ export class Parser {
     if (nameTok.kind === "EOF") return;
     this.stream.expect("BRACE_OPEN");
 
-    // Collect raw body text by brace counting
-    let depth = 1;
-    let body = "";
-    while (depth > 0 && !this.stream.isEof()) {
-      const t = this.stream.consume();
-      if (t.kind === "BRACE_OPEN") depth++;
-      else if (t.kind === "BRACE_CLOSE") depth--;
-      if (depth > 0) body += t.text;
+    const dimensions: ParsedDimension[] = [];
+    const baseProperties: ParsedClassProperty[] = [];
+    const branches: ParsedBranch[] = [];
+
+    this.parseVariantBody(dimensions, baseProperties, branches);
+
+    // Build defaults map from dimension values marked (default)
+    const defaults: Record<string, string> = {};
+    for (const dim of dimensions) {
+      for (const val of dim.values) {
+        if (val.isDefault) defaults[dim.name] = val.name;
+      }
     }
 
     const id = annotation?.id || uid("var");
     this.ctx.designVariants.push({
       id,
       name: nameTok.text,
-      body,
+      dimensions,
+      baseProperties,
+      branches,
+      defaults,
     });
+  }
+
+  private parseVariantBody(
+    dims: ParsedDimension[],
+    baseProps: ParsedClassProperty[],
+    branches: ParsedBranch[],
+  ): void {
+    while (!this.stream.isEof()) {
+      this.stream.skipNewlines();
+      if (this.stream.peek().kind === "BRACE_CLOSE") {
+        this.stream.consume();
+        return;
+      }
+
+      // Consume the keyword
+      const kwTok = this.stream.peek();
+      if (kwTok.kind !== "IDENTIFIER") {
+        this.stream.consume();
+        continue;
+      }
+      const kw = kwTok.text;
+      this.stream.consume();
+
+      if (kw === "dimension") {
+        dims.push(this.parseDimensionBlock());
+      } else if (kw === "base") {
+        this.parsePropertyBlock(baseProps);
+      } else if (kw === "branch") {
+        branches.push(this.parseBranchBlock());
+      } else {
+        this.skipLine();
+      }
+    }
+  }
+
+  private parseDimensionBlock(): ParsedDimension {
+    const name = this.stream.expect("IDENTIFIER").text;
+    this.stream.expect("BRACE_OPEN");
+    const values: ParsedDimensionValue[] = [];
+    while (!this.stream.isEof()) {
+      this.stream.skipNewlines();
+      if (this.stream.peek().kind === "BRACE_CLOSE") {
+        this.stream.consume();
+        break;
+      }
+      const valName = this.stream.expect("IDENTIFIER").text;
+      let isDefault = false;
+      if (this.stream.peek().kind === "PAREN_OPEN") {
+        this.stream.consume();
+        const word = this.stream.expect("IDENTIFIER");
+        if (word.text === "default") isDefault = true;
+        this.stream.expect("PAREN_CLOSE");
+      }
+      values.push({ name: valName, isDefault });
+    }
+    return { name, values };
+  }
+
+  private parseBranchBlock(): ParsedBranch {
+    const name = this.stream.expect("IDENTIFIER").text;
+    this.stream.expect("BRACE_OPEN");
+    const props: ParsedClassProperty[] = [];
+    while (!this.stream.isEof()) {
+      this.stream.skipNewlines();
+      if (this.stream.peek().kind === "BRACE_CLOSE") {
+        this.stream.consume();
+        break;
+      }
+      const prop = this.parseProperty();
+      if (prop) props.push(prop);
+    }
+    return { name, properties: props };
+  }
+
+  private parsePropertyBlock(props: ParsedClassProperty[]): void {
+    this.stream.expect("BRACE_OPEN");
+    while (!this.stream.isEof()) {
+      this.stream.skipNewlines();
+      if (this.stream.peek().kind === "BRACE_CLOSE") {
+        this.stream.consume();
+        return;
+      }
+      const prop = this.parseProperty();
+      if (prop) props.push(prop);
+    }
   }
 
   // ── State machine helpers ──

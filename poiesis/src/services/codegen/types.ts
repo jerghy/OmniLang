@@ -282,6 +282,18 @@ export interface ParseResult {
   // ── Design block result (Phase H) ──
   designName?: string;
   designTokens?: Array<{ id: string; name: string; tokenType: string; value: string }>;
-  designClasses?: Array<{ id: string; name: string; body: string }>;
-  designVariants?: Array<{ id: string; name: string; body: string }>;
+  designClasses?: Array<{
+    id: string;
+    name: string;
+    properties: Array<{ name: string; value: string }>;
+    pseudoStates: Array<{ pseudo: string; properties: Array<{ name: string; value: string }> }>;
+  }>;
+  designVariants?: Array<{
+    id: string;
+    name: string;
+    dimensions: Array<{ name: string; values: Array<{ name: string; isDefault: boolean }> }>;
+    baseProperties: Array<{ name: string; value: string }>;
+    branches: Array<{ name: string; properties: Array<{ name: string; value: string }> }>;
+    defaults: Record<string, string>;
+  }>;
 }
