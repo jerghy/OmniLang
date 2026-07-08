@@ -3,7 +3,7 @@
 //! Provides functions to format stdlib function calls and validate
 //! that required stdlib modules are available on the target platform.
 
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use std::sync::LazyLock;
 
 use crate::codegen::Target;
@@ -128,7 +128,7 @@ mod tests {
             version: "1.0".into(),
             modules: FxHashMap::default(),
             source_map: FxHashMap::default(),
-            stdlib_imports: vec!["storage".into()],
+            stdlib_imports: FxHashSet::from_iter(["storage".to_string()]),
         };
         let result = validate_stdlib_imports(&ir, Target::Rust);
         assert!(result.is_err(), "storage on rust should fail");
@@ -147,7 +147,7 @@ mod tests {
             version: "1.0".into(),
             modules: FxHashMap::default(),
             source_map: FxHashMap::default(),
-            stdlib_imports: vec!["http".into(), "json".into()],
+            stdlib_imports: FxHashSet::from_iter(["http".to_string(), "json".to_string()]),
         };
         let result = validate_stdlib_imports(&ir, Target::JavaScript);
         assert!(
@@ -163,7 +163,7 @@ mod tests {
             version: "1.0".into(),
             modules: FxHashMap::default(),
             source_map: FxHashMap::default(),
-            stdlib_imports: vec![],
+            stdlib_imports: Default::default(),
         };
         let result = validate_stdlib_imports(&ir, Target::Rust);
         assert!(result.is_ok(), "Empty imports should always be valid");

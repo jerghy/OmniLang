@@ -33,7 +33,7 @@ pub(crate) fn fixture_empty() -> IRProgram {
             },
         )]),
         source_map: HashMap::new(),
-        stdlib_imports: Vec::new(),
+        stdlib_imports: Default::default(),
     }
 }
 
@@ -148,7 +148,7 @@ pub(crate) fn fixture_component() -> IRProgram {
             },
         )]),
         source_map: HashMap::new(),
-        stdlib_imports: Vec::new(),
+        stdlib_imports: Default::default(),
     }
 }
 
@@ -213,7 +213,7 @@ pub(crate) fn fixture_store() -> IRProgram {
             },
         )]),
         source_map: HashMap::new(),
-        stdlib_imports: Vec::new(),
+        stdlib_imports: Default::default(),
     }
 }
 
@@ -319,7 +319,7 @@ pub(crate) fn fixture_component_with_store() -> IRProgram {
             },
         )]),
         source_map: HashMap::new(),
-        stdlib_imports: Vec::new(),
+        stdlib_imports: Default::default(),
     }
 }
 
@@ -659,7 +659,7 @@ pub(crate) fn fixture_expressions() -> IRProgram {
             },
         )]),
         source_map: HashMap::new(),
-        stdlib_imports: Vec::new(),
+        stdlib_imports: Default::default(),
     }
 }
 

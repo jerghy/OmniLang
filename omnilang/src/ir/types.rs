@@ -4,6 +4,7 @@
 use crate::sourcemap::SourceMapEntry;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use strum::IntoStaticStr;
 
 // Cross-reference: ComponentIR, StoreIR, Enums need logic types
@@ -1068,7 +1069,7 @@ pub struct IRProgram {
     pub source_map: FxHashMap<String, SourceMapEntry>,
     /// Stdlib modules imported via `import { ... } from "std/<module>"`
     #[serde(default)]
-    pub stdlib_imports: Vec<String>,
+    pub stdlib_imports: FxHashSet<String>,
 }
 
 impl Default for IRProgram {
@@ -1077,7 +1078,7 @@ impl Default for IRProgram {
             version: "0.1".to_string(),
             modules: FxHashMap::default(),
             source_map: FxHashMap::default(),
-            stdlib_imports: Vec::new(),
+            stdlib_imports: FxHashSet::default(),
         }
     }
 }

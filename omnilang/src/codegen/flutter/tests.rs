@@ -527,7 +527,7 @@ fn make_ir(components: HashMap<String, ComponentIR>) -> IRProgram {
                 ..Default::default()
             },
         )]),
-        stdlib_imports: Vec::new(),
+        stdlib_imports: Default::default(),
         source_map: HashMap::new(),
     }
 }
@@ -950,7 +950,7 @@ fn test_full_pipeline_empty() {
             },
         )]),
         source_map: HashMap::new(),
-        stdlib_imports: Vec::new(),
+        stdlib_imports: Default::default(),
     };
     let sources = HashMap::from([("main.omni".into(), "".into())]);
     let output = codegen.generate(&ir, &sources);
@@ -994,7 +994,7 @@ fn test_full_pipeline_component() {
             },
         )]),
         source_map: HashMap::new(),
-        stdlib_imports: Vec::new(),
+        stdlib_imports: Default::default(),
     };
     let sources = HashMap::from([("main.omni".into(), "".into())]);
     let output = codegen.generate(&ir, &sources);
@@ -1037,7 +1037,7 @@ fn test_full_pipeline_with_store() {
             },
         )]),
         source_map: HashMap::new(),
-        stdlib_imports: Vec::new(),
+        stdlib_imports: Default::default(),
     };
     let sources = HashMap::from([("main.omni".into(), "".into())]);
     let output = codegen.generate(&ir, &sources);
@@ -1101,7 +1101,7 @@ fn test_full_pipeline_component_with_store_ref() {
             },
         )]),
         source_map: HashMap::new(),
-        stdlib_imports: Vec::new(),
+        stdlib_imports: Default::default(),
     };
     let sources = HashMap::from([("main.omni".into(), "".into())]);
     let output = codegen.generate(&ir, &sources);

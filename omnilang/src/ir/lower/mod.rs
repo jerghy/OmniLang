@@ -23,6 +23,7 @@ use super::types_motion::*;
 use crate::parser::ast::{ImportStmt, Program};
 use crate::semantic::SemanticResult;
 use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 /// Lower AST -> IR.
 pub fn lower(program: &Program, semantics: &mut SemanticResult) -> IRProgram {
     let mut modules = FxHashMap::default();
@@ -133,18 +134,13 @@ pub fn lower(program: &Program, semantics: &mut SemanticResult) -> IRProgram {
     }
 
     // Collect stdlib imports: any "import { ... } from \"std/<module>\""
-    let mut stdlib_imports: Vec<String> = Vec::new();
+    let mut stdlib_imports: FxHashSet<String> = FxHashSet::default();
     for module in program.modules.values() {
         for imp in &module.imports {
             if let ImportStmt::Named(ni) = imp {
                 if ni.path.starts_with("std/") {
-                    let module_name = match ni.path.strip_prefix("std/") {
-                        Some(p) => p,
-                        None => continue,
-                    }
-                    .to_string();
-                    if !stdlib_imports.contains(&module_name) {
-                        stdlib_imports.push(module_name);
+                    if let Some(p) = ni.path.strip_prefix("std/") {
+                        stdlib_imports.insert(p.to_string());
                     }
                 }
             }

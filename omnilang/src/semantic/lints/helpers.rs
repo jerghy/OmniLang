@@ -811,7 +811,7 @@ pub(super) mod test_helpers {
             version: "1.0".into(),
             modules,
             source_map: FxHashMap::default(),
-            stdlib_imports: Vec::new(),
+            stdlib_imports: Default::default(),
         }
     }
 }

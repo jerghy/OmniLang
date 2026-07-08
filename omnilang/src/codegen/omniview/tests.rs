@@ -78,7 +78,7 @@ fn make_program(modules: HashMap<String, ModuleIR>) -> IRProgram {
         version: "0.1".into(),
         modules,
         source_map: HashMap::new(),
-        stdlib_imports: Vec::new(),
+        stdlib_imports: Default::default(),
     }
 }
 

@@ -639,7 +639,7 @@ fn test_full_pipeline_through_trait() {
             },
         )]),
         source_map: HashMap::new(),
-        stdlib_imports: Vec::new(),
+        stdlib_imports: Default::default(),
     };
     let sources = HashMap::from([("main.omni".into(), "".into())]);
     let output = codegen.generate(&ir, &sources);
@@ -683,7 +683,7 @@ fn test_full_pipeline_with_store() {
             },
         )]),
         source_map: HashMap::new(),
-        stdlib_imports: Vec::new(),
+        stdlib_imports: Default::default(),
     };
     let sources = HashMap::from([("main.omni".into(), "".into())]);
     let output = codegen.generate(&ir, &sources);

@@ -291,7 +291,7 @@ mod tests {
                     ..Default::default()
                 },
             )]),
-            stdlib_imports: Vec::new(),
+            stdlib_imports: Default::default(),
             source_map: HashMap::new(),
         }
     }
@@ -674,7 +674,7 @@ mod tests {
                 },
             )]),
             source_map: HashMap::new(),
-            stdlib_imports: Vec::new(),
+            stdlib_imports: Default::default(),
         };
         let sources = HashMap::from([("main.omni".into(), "".into())]);
         let output = codegen.generate(&ir, &sources);
@@ -729,7 +729,7 @@ mod tests {
                 },
             )]),
             source_map: HashMap::new(),
-            stdlib_imports: Vec::new(),
+            stdlib_imports: Default::default(),
         };
         let sources = HashMap::from([("main.omni".into(), "".into())]);
         let output = codegen.generate(&ir, &sources);
@@ -773,7 +773,7 @@ mod tests {
                 },
             )]),
             source_map: HashMap::new(),
-            stdlib_imports: Vec::new(),
+            stdlib_imports: Default::default(),
         };
         let sources = HashMap::from([("main.omni".into(), "".into())]);
         let output = codegen.generate(&ir, &sources);
@@ -837,7 +837,7 @@ mod tests {
                 },
             )]),
             source_map: HashMap::new(),
-            stdlib_imports: Vec::new(),
+            stdlib_imports: Default::default(),
         };
         let sources = HashMap::from([("main.omni".into(), "".into())]);
         let output = codegen.generate(&ir, &sources);

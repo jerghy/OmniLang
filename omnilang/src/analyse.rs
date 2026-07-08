@@ -286,7 +286,7 @@ pub fn analyse_multi(
         version: "1.0".to_string(),
         modules: FxHashMap::default(),
         source_map: FxHashMap::default(),
-        stdlib_imports: Vec::new(),
+        stdlib_imports: Default::default(),
     };
 
     let mut merge_warnings: Vec<Diagnostic> = Vec::new();
@@ -500,7 +500,7 @@ pub fn analyse_multi_cached(
         version: "1.0".to_string(),
         modules: FxHashMap::default(),
         source_map: FxHashMap::default(),
-        stdlib_imports: Vec::new(),
+        stdlib_imports: Default::default(),
     };
 
     let mut merge_warnings: Vec<Diagnostic> = Vec::new();

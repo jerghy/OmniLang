@@ -125,7 +125,7 @@ mod tests {
             version: "1.0".into(),
             modules: FxHashMap::default(),
             source_map: FxHashMap::default(),
-            stdlib_imports: Vec::new(),
+            stdlib_imports: Default::default(),
         };
 
         let diags = run_all(&programs, &ir);
