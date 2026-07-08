@@ -187,12 +187,15 @@ pub(super) fn to_react_tag(tag: &str) -> String {
     let base = crate::codegen::shared::html::to_html_tag(tag);
     // If the shared function returned the tag unchanged and it starts with uppercase,
     // lowercase the first letter to avoid React treating it as a component reference.
-    if base == tag && tag.chars().next().is_some_and(|c| c.is_uppercase()) {
-        let mut chars = tag.chars();
-        chars.next().unwrap().to_lowercase().collect::<String>() + chars.as_str()
-    } else {
-        base
+    if base == tag {
+        if let Some(first_char) = tag.chars().next() {
+            if first_char.is_uppercase() {
+                return first_char.to_lowercase().collect::<String>()
+                    + &tag[first_char.len_utf8()..];
+            }
+        }
     }
+    base
 }
 
 /// Map OmniView event names to React event handler prop names.
