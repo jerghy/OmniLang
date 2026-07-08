@@ -314,8 +314,7 @@ impl OmniViewGenerator {
                     EventHandlerIR::InlineFn { body, params, .. } => {
                         let wrapper_name = format!("__on{}_{}", event_name, nid.replace('-', "_"));
                         let params_str = params.join(", ");
-                        self.js
-                            .push_str(&format!("function {}({}) {{\n", wrapper_name, params_str));
+                        let _ = write!(self.js, "function {}({}) {{\n", wrapper_name, params_str);
                         for stmt in &body.statements {
                             self.emit_statement(stmt);
                         }
@@ -337,8 +336,7 @@ impl OmniViewGenerator {
                     }
                 };
                 if let Some(ref hname) = handler_name {
-                    self.js
-                        .push_str(&format!("__omni_forHandlers[\"{}\"] = {};\n", hname, hname));
+                    let _ = write!(self.js, "__omni_forHandlers[\"{}\"] = {};\n", hname, hname);
                 }
             } else {
                 // ResizeEvent binds to window, not el.addEventListener
@@ -415,8 +413,7 @@ impl OmniViewGenerator {
                     EventHandlerIR::InlineFn { body, params, .. } => {
                         let wrapper_name = format!("__on{}_{}", event_name, nid.replace('-', "_"));
                         let params_str = params.join(", ");
-                        self.js
-                            .push_str(&format!("function {}({}) {{\n", wrapper_name, params_str));
+                        let _ = write!(self.js, "function {}({}) {{\n", wrapper_name, params_str);
                         for stmt in &body.statements {
                             self.emit_statement(stmt);
                         }

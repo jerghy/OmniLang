@@ -152,8 +152,7 @@ impl OmniViewGenerator {
             }
         }
 
-        self.js
-            .push_str(&format!("\n/// ── Component: {} ──\n\n", name));
+        let _ = write!(self.js, "\n/// ── Component: {} ──\n\n", name);
 
         // Signal declarations
         for state in &comp.states {
@@ -196,9 +195,8 @@ impl OmniViewGenerator {
             } else {
                 event_name.to_lowercase()
             };
-            self.js
-                .push_str(&format!("function {}(...args) {{\n", prefixed_name));
-            let _ = write!(self.js, 
+            let _ = write!(self.js, "function {}(...args) {{\n", prefixed_name);
+            let _ = write!(self.js,
                 "  const el = document.querySelector('[data-component=\"{}\"]');\n",
                 name
             );
@@ -229,8 +227,7 @@ impl OmniViewGenerator {
         // Motion definitions — emit JS functions that create AnimationPlayer instances.
         // Each @motion block generates a const __omni_motion_{name} function.
         if !comp.motions.is_empty() {
-            self.js
-                .push_str(&format!("\n/// ── Motion Definitions: {} ──\n\n", name));
+            let _ = write!(self.js, "\n/// ── Motion Definitions: {} ──\n\n", name);
             for motion in &comp.motions {
                 self.motion_names.insert(motion.name.clone());
                 self.emit_motion_js(motion);
@@ -240,7 +237,7 @@ impl OmniViewGenerator {
         // Timeline definitions — emit JS that orchestrates animations by element ID.
         if !comp.timelines.is_empty() {
             self.js
-                .push_str(&format!("\n/// ── Timeline Definitions: {} ──\n\n", name));
+                let _ = write!(self.js, "\n/// ── Timeline Definitions: {} ──\n\n", name);
             for timeline in &comp.timelines {
                 self.motion_names.insert(timeline.name.clone());
                 self.emit_timeline_js(timeline);
@@ -289,8 +286,7 @@ impl OmniViewGenerator {
                 match kind {
                     LifecycleKind::Mount => {
                         if self.editor_mode {
-                            self.comp_mount_js
-                                .push_str(&format!("// @mount {}\n", name));
+                            let _ = write!(self.comp_mount_js, "// @mount {}\n", name);
                             self.comp_mount_js.push_str(&body_js);
                         } else {
                             let _ = write!(self.mount_js, "// @mount {}\n", name);
@@ -436,8 +432,7 @@ impl OmniViewGenerator {
                 prop, value_expr
             );
         } else {
-            self.js
-                .push_str(&format!("el.style.{}={};", prop, value_expr));
+            let _ = write!(self.js, "el.style.{}={};", prop, value_expr);
         }
     }
 
@@ -505,8 +500,7 @@ impl OmniViewGenerator {
             // with `return ` so the value flows back to the caller.
             if is_last && has_ret {
                 if let StatementIR::ExprStmtIR { expr } = stmt {
-                    self.js
-                        .push_str(&format!("return {};\n", self.expr_to_js(expr)));
+                    let _ = write!(self.js, "return {};\n", self.expr_to_js(expr));
                     continue;
                 }
             }
