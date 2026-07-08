@@ -123,7 +123,9 @@ export class CanvasDriver {
 
     // Auto-nest inline children
     for (const child of inlineChildren) {
-      // TODO: extract to store action
+      // FIXME: This setState bypasses undo tracking (GH-issue from code review D6).
+      // Should use a dedicated store action like setElementParentId() that captures
+      // undo entries for both the parent's children[] mutation and the child's parentId change.
       usePoiesisStore.setState({
         elements: usePoiesisStore.getState().elements.map((e) => {
           if (e.id === child.id) return { ...e, parentId: id };
