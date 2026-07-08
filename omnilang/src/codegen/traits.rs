@@ -161,9 +161,9 @@ pub(crate) trait UnifiedCodegen: FormatBundle {
     #[must_use]
     fn generate_per_module(&self, ir: &IRProgram) -> CompileOutput {
         let mut w = CodeWriter::new();
-        for (_name, module) in &ir.modules {
+        for module in ir.modules.values() {
             self.generate_module_header(&mut w, module);
-            for (_func_name, func) in &module.functions {
+            for func in module.functions.values() {
                 self.generate_function(&mut w, func);
             }
             for (comp_name, comp) in &module.components {

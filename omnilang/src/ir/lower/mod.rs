@@ -111,7 +111,7 @@ pub fn lower(program: &Program, semantics: &mut SemanticResult) -> IRProgram {
         let designs: Vec<super::DesignIR> = module
             .designs
             .iter()
-            .map(|d| lower_design(d))
+            .map(lower_design)
             .collect();
 
         let module_ir = ModuleIR {

@@ -98,7 +98,7 @@ pub fn generate_component<C: UnifiedCodegen>(
         let init = codegen.expr_fmt().format_expr(&state.initial_value);
         w.emit_fmt(format_args!("let {} = $signal({init});", state.name));
     }
-    for (prop_name, _prop_type) in &comp.props {
+    for prop_name in comp.props.keys() {
         w.emit_fmt(format_args!("let {prop_name} = props.{prop_name};"));
     }
     w.dedent();

@@ -94,7 +94,7 @@ impl ReactCodegen {
 
         // Child component imports
         let child_comps: FxHashSet<String> = if let Some(ref view) = comp.view {
-            collect_view_child_components(view, &component_map)
+            collect_view_child_components(view, component_map)
         } else {
             FxHashSet::default()
         };
@@ -481,7 +481,7 @@ impl ReactCodegen {
         w.emit("return (");
         w.indent();
         if let Some(view) = &comp.view {
-            view::gen_view_node_tsx(&mut w, view, &component_map, &signal_names, &motion_names);
+            view::gen_view_node_tsx(&mut w, view, component_map, &signal_names, &motion_names);
         } else {
             w.emit("<div className={styles.container}>");
             w.indent();

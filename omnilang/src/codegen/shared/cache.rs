@@ -46,7 +46,7 @@ impl CodegenCache {
         comp.states.len().hash(&mut hasher);
         comp.computeds.len().hash(&mut hasher);
         comp.fns.len().hash(&mut hasher);
-        comp.view.as_ref().map_or(0, |v| count_view_nodes(v)).hash(&mut hasher);
+        comp.view.as_ref().map_or(0, count_view_nodes).hash(&mut hasher);
         hasher.finish()
     }
 

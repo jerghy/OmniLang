@@ -3,7 +3,7 @@
 //! Provides functions to format stdlib function calls and validate
 //! that required stdlib modules are available on the target platform.
 
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashMap;
 use std::sync::LazyLock;
 
 use crate::codegen::Target;
@@ -77,7 +77,7 @@ pub fn validate_stdlib_imports(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rustc_hash::FxHashMap;
+    use rustc_hash::{FxHashMap, FxHashSet};
     #[test]
     fn test_try_format_stdlib_call_http_get_js() {
         let result = try_format_stdlib_call("http_get", &["\"url\"".into()], Target::JavaScript);

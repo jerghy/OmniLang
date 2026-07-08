@@ -28,8 +28,8 @@ impl OmniViewGenerator {
                 .map(serde_value_to_js)
                 .unwrap_or_else(|| "undefined".into());
 
-            let _ = write!(self.js, 
-                "const {} = __omni_signal(\"{}\", {});\n",
+            let _ = writeln!(self.js, 
+                "const {} = __omni_signal(\"{}\", {});",
                 var_name, var_name, init_val
             );
             // Map local name → flat name for getter/action bodies (must clone before moves)
@@ -44,8 +44,8 @@ impl OmniViewGenerator {
         for (getter_name, body) in &store.getters {
             let var_name = prefix(getter_name);
             let body_js = self.expr_to_js(body);
-            let _ = write!(self.js, 
-                "const {} = __omni_computed(\"{}\", () => ({}));\n",
+            let _ = writeln!(self.js, 
+                "const {} = __omni_computed(\"{}\", () => ({}));",
                 var_name, var_name, body_js
             );
             // Map local getter name → flat name for action bodies
@@ -61,8 +61,8 @@ impl OmniViewGenerator {
         for action in &store.actions {
             let func_name = prefix(&action.name);
             let params: Vec<String> = action.params.iter().map(|p| p.name.clone()).collect();
-            let _ = write!(self.js, 
-                "function {}({}) {{\n",
+            let _ = writeln!(self.js, 
+                "function {}({}) {{",
                 func_name,
                 params.join(", ")
             );
@@ -110,8 +110,8 @@ impl OmniViewGenerator {
         // Editor mode: wrap component in a factory IIFE so it can be hot-replaced
         // via __omni_replaceComponent in the editor bridge.
         if self.editor_mode {
-            let _ = write!(self.js, 
-                "window.__omni_components[\"{}\"] = (function() {{\n",
+            let _ = writeln!(self.js, 
+                "window.__omni_components[\"{}\"] = (function() {{",
                 name
             );
         }
@@ -169,8 +169,8 @@ impl OmniViewGenerator {
         for (prop_name, prop_default) in &comp.prop_defaults {
             let init_val = self.expr_to_js(prop_default);
             let prefixed = format!("{}_{}", name, prop_name);
-            let _ = write!(self.js, 
-                "const {} = __omni_signal(\"{}\", {});\n",
+            let _ = writeln!(self.js, 
+                "const {} = __omni_signal(\"{}\", {});",
                 prefixed, prefixed, init_val
             );
             self.name_renames
@@ -195,13 +195,13 @@ impl OmniViewGenerator {
             } else {
                 event_name.to_lowercase()
             };
-            let _ = write!(self.js, "function {}(...args) {{\n", prefixed_name);
-            let _ = write!(self.js,
-                "  const el = document.querySelector('[data-component=\"{}\"]');\n",
+            let _ = writeln!(self.js, "function {}(...args) {{", prefixed_name);
+            let _ = writeln!(self.js,
+                "  const el = document.querySelector('[data-component=\"{}\"]');",
                 name
             );
-            let _ = write!(self.js, 
-                "  if (el) el.dispatchEvent(new CustomEvent('{}', {{ detail: args[0], bubbles: true }}));\n",
+            let _ = writeln!(self.js, 
+                "  if (el) el.dispatchEvent(new CustomEvent('{}', {{ detail: args[0], bubbles: true }}));",
                 dom_event
             );
             self.js.push_str("}\n");
@@ -236,8 +236,7 @@ impl OmniViewGenerator {
 
         // Timeline definitions — emit JS that orchestrates animations by element ID.
         if !comp.timelines.is_empty() {
-            self.js
-                let _ = write!(self.js, "\n/// ── Timeline Definitions: {} ──\n\n", name);
+            let _ = write!(self.js, "\n/// ── Timeline Definitions: {} ──\n\n", name);
             for timeline in &comp.timelines {
                 self.motion_names.insert(timeline.name.clone());
                 self.emit_timeline_js(timeline);
@@ -286,10 +285,10 @@ impl OmniViewGenerator {
                 match kind {
                     LifecycleKind::Mount => {
                         if self.editor_mode {
-                            let _ = write!(self.comp_mount_js, "// @mount {}\n", name);
+                            let _ = writeln!(self.comp_mount_js, "// @mount {}", name);
                             self.comp_mount_js.push_str(&body_js);
                         } else {
-                            let _ = write!(self.mount_js, "// @mount {}\n", name);
+                            let _ = writeln!(self.mount_js, "// @mount {}", name);
                             self.mount_js.push_str(&body_js);
                         }
                     }
@@ -448,8 +447,8 @@ impl OmniViewGenerator {
     pub(super) fn emit_signal_decl(&mut self, state: &StateIntent) {
         let init_val = self.expr_to_js(&state.initial_value);
         let prefixed = format!("{}_{}", self.current_component, state.name);
-        let _ = write!(self.js, 
-            "const {} = __omni_signal(\"{}\", {});\n",
+        let _ = writeln!(self.js, 
+            "const {} = __omni_signal(\"{}\", {});",
             prefixed, prefixed, init_val
         );
     }
@@ -457,8 +456,8 @@ impl OmniViewGenerator {
     pub(super) fn emit_computed_decl(&mut self, computed: &ComputedIntent) {
         let body = self.expr_to_js(&computed.body);
         let prefixed = format!("{}_{}", self.current_component, computed.name);
-        let _ = write!(self.js, 
-            "const {} = __omni_computed(\"{}\", () => ({}));\n",
+        let _ = writeln!(self.js, 
+            "const {} = __omni_computed(\"{}\", () => ({}));",
             prefixed, prefixed, body
         );
     }
@@ -487,8 +486,8 @@ impl OmniViewGenerator {
         }
         let async_kw = if f.is_async { "async " } else { "" };
         let has_ret = f.return_type.is_some();
-        let _ = write!(self.js, 
-            "{}function {}({}) {{\n",
+        let _ = writeln!(self.js, 
+            "{}function {}({}) {{",
             async_kw,
             name,
             params.join(", ")
@@ -500,7 +499,7 @@ impl OmniViewGenerator {
             // with `return ` so the value flows back to the caller.
             if is_last && has_ret {
                 if let StatementIR::ExprStmtIR { expr } = stmt {
-                    let _ = write!(self.js, "return {};\n", self.expr_to_js(expr));
+                    let _ = writeln!(self.js, "return {};", self.expr_to_js(expr));
                     continue;
                 }
             }

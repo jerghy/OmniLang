@@ -34,7 +34,7 @@ export function DesignCanvas() {
       <div
         style={{
           position: "absolute",
-          transition: "all 300ms ease",
+          transition: "transform 300ms ease, opacity 300ms ease",
           top: 0,
           left: 0,
           right: codeFlowVisible ? "60%" : 0,

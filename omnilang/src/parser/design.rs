@@ -233,8 +233,7 @@ fn parse_design_property(input: &str) -> ParseResult<(DesignProperty, &str)> {
 
 fn parse_design_value(input: &str) -> ParseResult<(DesignValue, &str)> {
     let input = input.trim_start();
-    if input.starts_with("token(") {
-        let rest = &input[6..];
+    if let Some(rest) = input.strip_prefix("token(") {
         let end = rest
             .find(')')
             .ok_or_else(|| err("expected ')'"))?;
@@ -252,7 +251,7 @@ fn parse_design_value(input: &str) -> ParseResult<(DesignValue, &str)> {
     } else {
         // Unquoted literal until ; or }
         let end = input
-            .find(|c: char| c == ';' || c == '}')
+            .find([';', '}'])
             .unwrap_or(input.len());
         Ok((
             DesignValue::Literal(input[..end].trim().to_string()),
@@ -303,7 +302,7 @@ fn parse_variant(input: &str) -> ParseResult<(VariantDef, &str)> {
             // Try parsing as dimension.value { ... } branch
             let dot_pos = remaining.find('.').unwrap_or(0);
             let space_pos = remaining
-                .find(|c: char| c == ' ' || c == '{')
+                .find([' ', '{'])
                 .unwrap_or(remaining.len());
             if dot_pos > 0 && dot_pos < space_pos {
                 let (branch, rest) = parse_variant_branch(remaining)?;
@@ -338,7 +337,7 @@ fn parse_variant_dimension(input: &str) -> ParseResult<(VariantDimension, &str)>
             break;
         }
         if remaining.starts_with("|") {
-            remaining = &remaining[1..].trim_start();
+            remaining = remaining[1..].trim_start();
             continue;
         }
         let (val, rest) = parse_ident(remaining)?;

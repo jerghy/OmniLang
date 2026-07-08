@@ -29,7 +29,12 @@ function sortedKeysReplacer(_key: string, value: unknown): unknown {
  * Parse project.json from raw string.
  */
 export function deserializeProjectJson(raw: string): ProjectJson {
-  const parsed = JSON.parse(raw);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (e) {
+    throw new Error(`Failed to parse project.json: ${e instanceof Error ? e.message : String(e)}`);
+  }
   validateProjectJson(parsed);
   return parsed as ProjectJson;
 }

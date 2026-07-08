@@ -42,8 +42,8 @@ impl OmniViewGenerator {
                         js_expr
                     };
                     // Write to self.js (which is the deferred buffer after emit_view swap)
-                    let _ = write!(self.js, 
-                        "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) try {{ el.textContent = String({}); }} catch(e) {{}} }});\n",
+                    let _ = writeln!(self.js, 
+                        "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) try {{ el.textContent = String({}); }} catch(e) {{}} }});",
                         nid, value_access
                     );
                     format!("{}<span data-nid=\"{}\"></span>\n", pad, nid)
@@ -126,8 +126,8 @@ impl OmniViewGenerator {
                         } else {
                             js_val
                         };
-                        let _ = write!(self.js, 
-                            "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) el.setAttribute('{}', {}); }});\n",
+                        let _ = writeln!(self.js, 
+                            "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) el.setAttribute('{}', {}); }});",
                             nid, name, js_access
                         );
                     } else if is_boolean_attr && val_str == "true" {
@@ -314,7 +314,7 @@ impl OmniViewGenerator {
                     EventHandlerIR::InlineFn { body, params, .. } => {
                         let wrapper_name = format!("__on{}_{}", event_name, nid.replace('-', "_"));
                         let params_str = params.join(", ");
-                        let _ = write!(self.js, "function {}({}) {{\n", wrapper_name, params_str);
+                        let _ = writeln!(self.js, "function {}({}) {{", wrapper_name, params_str);
                         for stmt in &body.statements {
                             self.emit_statement(stmt);
                         }
@@ -336,7 +336,7 @@ impl OmniViewGenerator {
                     }
                 };
                 if let Some(ref hname) = handler_name {
-                    let _ = write!(self.js, "__omni_forHandlers[\"{}\"] = {};\n", hname, hname);
+                    let _ = writeln!(self.js, "__omni_forHandlers[\"{}\"] = {};", hname, hname);
                 }
             } else {
                 // ResizeEvent binds to window, not el.addEventListener
@@ -356,8 +356,8 @@ impl OmniViewGenerator {
                             let wrapper_name =
                                 format!("__on{}_{}", event_name, nid.replace('-', "_"));
                             let params_str = params.join(", ");
-                            let _ = write!(self.js, 
-                                "function {}({}) {{\n",
+                            let _ = writeln!(self.js, 
+                                "function {}({}) {{",
                                 wrapper_name, params_str
                             );
                             for stmt in &body.statements {
@@ -367,8 +367,8 @@ impl OmniViewGenerator {
                             format!("{}({})", wrapper_name, event_obj)
                         }
                     };
-                    let _ = write!(self.js, 
-                        "{{ window.addEventListener(\"resize\", (_e) => {{ {} }}); }}\n",
+                    let _ = writeln!(self.js, 
+                        "{{ window.addEventListener(\"resize\", (_e) => {{ {} }}); }}",
                         handler_call
                     );
                     continue;
@@ -387,8 +387,8 @@ impl OmniViewGenerator {
                     EventHandlerIR::FnRef { r#ref, .. } => {
                         if self.motion_names.contains(r#ref.as_str()) {
                             // Motion reference: create AnimationPlayer and play on event
-                            let _ = write!(self.js, 
-                                "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ if (el.offsetParent !== null) {{ var p = __omni_motion_{motion}(el, {{}}); __omni_animations.set(\"{nid}_{js_event}\", p); p.play(); }} }}); }}\n",
+                            let _ = writeln!(self.js, 
+                                "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ if (el.offsetParent !== null) {{ var p = __omni_motion_{motion}(el, {{}}); __omni_animations.set(\"{nid}_{js_event}\", p); p.play(); }} }}); }}",
                                 nid = nid,
                                 js_event = js_event,
                                 motion = r#ref,
@@ -397,31 +397,31 @@ impl OmniViewGenerator {
                             let prefixed = format!("{}_{}", self.current_component, r#ref);
                             let event_obj =
                                 emit_event_object(handler.event_data(), handler.used_fields(), "e");
-                            let _ = write!(self.js, 
-                                "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ {sp} {pd} {prefixed}({event_obj}); }}); }}\n",
+                            let _ = writeln!(self.js, 
+                                "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ {sp} {pd} {prefixed}({event_obj}); }}); }}",
                                 nid = nid, js_event = js_event, sp = sp, pd = pd, prefixed = prefixed, event_obj = event_obj
                             );
                         }
                     }
                     EventHandlerIR::StoreAction { r#ref, .. } => {
                         let var_name = r#ref.replace('.', "_");
-                        let _ = write!(self.js, 
-                            "{{ const el = __omni_el(\"{}\"); if (el) el.addEventListener(\"{}\", (e) => {{ {} {} {}(); }}); }}\n",
+                        let _ = writeln!(self.js, 
+                            "{{ const el = __omni_el(\"{}\"); if (el) el.addEventListener(\"{}\", (e) => {{ {} {} {}(); }}); }}",
                             nid, js_event, sp, pd, var_name
                         );
                     }
                     EventHandlerIR::InlineFn { body, params, .. } => {
                         let wrapper_name = format!("__on{}_{}", event_name, nid.replace('-', "_"));
                         let params_str = params.join(", ");
-                        let _ = write!(self.js, "function {}({}) {{\n", wrapper_name, params_str);
+                        let _ = writeln!(self.js, "function {}({}) {{", wrapper_name, params_str);
                         for stmt in &body.statements {
                             self.emit_statement(stmt);
                         }
                         self.js.push_str("}\n");
                         let event_obj =
                             emit_event_object(handler.event_data(), handler.used_fields(), "e");
-                        let _ = write!(self.js, 
-                            "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ {sp} {pd} {wrapper_name}({event_obj}); }}); }}\n",
+                        let _ = writeln!(self.js, 
+                            "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ {sp} {pd} {wrapper_name}({event_obj}); }}); }}",
                             nid = nid, js_event = js_event, sp = sp, pd = pd, wrapper_name = wrapper_name, event_obj = event_obj
                         );
                     }
@@ -442,19 +442,19 @@ impl OmniViewGenerator {
                 // Prevent infinite loop: guard flag to stop the effect from re-triggering input event
                 self.guard_counter += 1;
                 let guard_name = format!("_guard_{}_{}", prop_name, nid.replace('-', "_"));
-                let _ = write!(self.js, "let {} = false;\n", guard_name);
+                let _ = writeln!(self.js, "let {} = false;", guard_name);
                 let (event_name, dom_prop) = if prop_name == "checked" {
                     ("change", "checked")
                 } else {
                     ("input", "value")
                 };
-                let _ = write!(self.js, 
-                    "{{ const el = __omni_el(\"{0}\"); if (el) el.addEventListener(\"{1}\", (e) => {{ if (!{2}) {{ {3}.set(e.target.{4}); }} }}); }}\n",
+                let _ = writeln!(self.js, 
+                    "{{ const el = __omni_el(\"{0}\"); if (el) el.addEventListener(\"{1}\", (e) => {{ if (!{2}) {{ {3}.set(e.target.{4}); }} }}); }}",
                     nid, event_name, guard_name, sig_name, dom_prop
                 );
                 // Reactive binding: signal → DOM (guard against programmatic updates)
-                let _ = write!(self.js, 
-                    "__omni_effect(() => {{ const el = __omni_el(\"{0}\"); if (el) {{ {1} = true; el.{2} = {3}.value; {1} = false; }} }});\n",
+                let _ = writeln!(self.js, 
+                    "__omni_effect(() => {{ const el = __omni_el(\"{0}\"); if (el) {{ {1} = true; el.{2} = {3}.value; {1} = false; }} }});",
                     nid, guard_name, prop_name, sig_name
                 );
             }
@@ -647,7 +647,7 @@ impl OmniViewGenerator {
             "track", "wbr",
         ];
         if void_tags.contains(&html_tag.as_str()) {
-            let _ = write!(out, "{}<{}{} />\n", pad, html_tag, attrs);
+            let _ = writeln!(out, "{}<{}{} />", pad, html_tag, attrs);
             // Emit any interpolation _effect() calls
             for effect in &interp_effects {
                 self.js.push_str(effect);
@@ -663,8 +663,8 @@ impl OmniViewGenerator {
                     } else {
                         js_expr
                     };
-                    let _ = write!(self.js, 
-                            "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) el.classList.toggle(\"{}\", !!({})); }});\n",
+                    let _ = writeln!(self.js, 
+                            "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) el.classList.toggle(\"{}\", !!({})); }});",
                             nid, class_name, js_access
                         );
                 }
@@ -683,7 +683,7 @@ impl OmniViewGenerator {
             // Fragment attrs like data-class-expr are handled via data-* on inner elements
             // Skip the closing tag since we didn't emit an opening tag.
         } else {
-            let _ = write!(out, "{}<{}{}>\n", pad, html_tag, attrs);
+            let _ = writeln!(out, "{}<{}{}>", pad, html_tag, attrs);
 
             // Children
             for child in &el.children {
@@ -691,7 +691,7 @@ impl OmniViewGenerator {
                 out.push_str(&child_html);
             }
 
-            let _ = write!(out, "{}</{}>\n", pad, html_tag);
+            let _ = writeln!(out, "{}</{}>", pad, html_tag);
         }
 
         // Emit any interpolation _effect() calls
@@ -710,8 +710,8 @@ impl OmniViewGenerator {
                 } else {
                     js_expr
                 };
-                let _ = write!(self.js, 
-                    "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) el.classList.toggle(\"{}\", !!({})); }});\n",
+                let _ = writeln!(self.js, 
+                    "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) el.classList.toggle(\"{}\", !!({})); }});",
                     nid, class_name, js_access
                 );
             }

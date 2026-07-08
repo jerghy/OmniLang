@@ -249,7 +249,7 @@ fn view_tree_has_motion(view: &ViewTree) -> bool {
             {
                 return true;
             }
-            el.children.iter().any(|c| view_tree_has_motion(c))
+            el.children.iter().any(view_tree_has_motion)
         }
         ViewTree::Conditional(cond) => {
             if cond.transition_mode.is_some() {
@@ -257,20 +257,20 @@ fn view_tree_has_motion(view: &ViewTree) -> bool {
             }
             cond.branches
                 .iter()
-                .any(|b| b.body.as_ref().is_some_and(|v| view_tree_has_motion(v)))
+                .any(|b| b.body.as_ref().is_some_and(view_tree_has_motion))
                 || cond
                     .fallback
                     .as_ref()
-                    .is_some_and(|f| view_tree_has_motion(f))
+                    .is_some_and(view_tree_has_motion)
         }
         ViewTree::ListRendering(list) => {
             list.body
                 .as_ref()
-                .is_some_and(|v| view_tree_has_motion(v))
+                .is_some_and(view_tree_has_motion)
                 || list
                     .empty_body
                     .as_ref()
-                    .is_some_and(|v| view_tree_has_motion(v))
+                    .is_some_and(view_tree_has_motion)
         }
         _ => false,
     }

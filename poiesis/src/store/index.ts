@@ -13,7 +13,7 @@ import { DEFAULT_PROJECT_NAME, DEFAULT_PANEL_LAYOUT } from "../constants";
 import type { UndoStack } from "./undo-slice";
 import { buildUndoUpdate, createUndoSlice } from "./undo-slice";
 import { createTabSlice } from "./tab-slice";
-import type { DesignSlice } from "./design-slice";
+// DesignSlice fields inlined — design-slice.ts is dead code (actions delegated to useDesignSystemStore)
 import { createLogger } from "../lib/utils/logger";
 
 // ── Domain stores (standalone, synced reactively) ──
@@ -25,7 +25,22 @@ const log = createLogger("store");
 
 // ── Store Interface ──
 
-export interface PoiesisState extends DesignSlice {
+export interface PoiesisState {
+  // ── Design system (was extends DesignSlice, now inlined) ──
+  activeDesign: import("../core/types/design").DesignDefinition;
+  elementVariants: Record<string, import("../core/types/design").ElementVariantBinding>;
+  loadDesign: (design: import("../core/types/design").DesignDefinition) => void;
+  addToken: (name: string, category: string, tokenType: import("../core/types/design").DesignToken["tokenType"], value: string) => void;
+  updateToken: (id: string, updates: Partial<import("../core/types/design").DesignToken>) => void;
+  removeToken: (id: string) => void;
+  addDesignClass: (name: string) => void;
+  updateDesignClass: (id: string, updates: Partial<import("../core/types/design").DesignClass>) => void;
+  removeDesignClass: (id: string) => void;
+  addVariant: (name: string) => void;
+  updateVariant: (id: string, updates: Partial<import("../core/types/design").VariantDefinition>) => void;
+  removeVariant: (id: string) => void;
+  bindVariantToElement: (elementId: string, variantName: string, dimensionValues: Record<string, string>) => void;
+  unbindVariantFromElement: (elementId: string) => void;
   // ── Page routing ──
   currentPage: "architecture" | "design";
 

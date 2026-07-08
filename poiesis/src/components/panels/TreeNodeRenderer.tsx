@@ -22,7 +22,7 @@ interface TreeNodeViewProps {
   treeDropState: TreeDropState | null;
 }
 
-export function TreeNodeView({
+export const TreeNodeView = React.memo(function TreeNodeView({
   node,
   depth,
   selectedIds,
@@ -161,7 +161,7 @@ export function TreeNodeView({
       )}
     </div>
   );
-}
+});
 
 /** Thin blue line indicator for before/after drop position. */
 function DropLine({ depth }: { depth: number }) {
