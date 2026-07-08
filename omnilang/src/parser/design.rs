@@ -293,8 +293,10 @@ fn parse_variant(input: &str) -> ParseResult<(VariantDef, &str)> {
             defaults = defs;
             remaining = rest;
         } else if remaining.starts_with("base ") {
-            let (props, rest) =
-                parse_variant_block_body(remaining.strip_prefix("base ").unwrap())?;
+            let body = remaining
+                .strip_prefix("base ")
+                .ok_or_else(|| err("expected 'base'"))?;
+            let (props, rest) = parse_variant_block_body(body)?;
             base = props;
             remaining = rest;
         } else {
