@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 use rayon::prelude::*;
 
-use crate::error::{Diagnostic, DiagnosticKind};
+use crate::error::{Diagnostic, DiagnosticKind, Severity};
 use crate::ir::IRProgram;
 use crate::parser::ast::{ImportStmt, Program};
 
@@ -114,10 +114,48 @@ fn collect_import_paths(program: &Program) -> Vec<String> {
     paths
 }
 
+/// Report a duplicate name warning during IR merge.
+fn report_duplicate(warnings: &mut Vec<Diagnostic>, kind: &str, name: &str, path: &str) {
+    warnings.push(Diagnostic {
+        severity: Severity::Warning,
+        kind: DiagnosticKind::E0000,
+        message: format!("duplicate {} name '{}'", kind, name),
+        file: Some(path.to_string()),
+        line: 0,
+        col: 0,
+        end_line: None,
+        end_col: None,
+        suggestion: None,
+    });
+}
+
+/// Report duplicates in a collection before extending.
+fn extend_and_warn<K, V>(
+    target: &mut FxHashMap<K, V>,
+    source: &mut FxHashMap<K, V>,
+    warnings: &mut Vec<Diagnostic>,
+    kind: &str,
+    path: &str,
+) where
+    K: std::cmp::Eq + std::hash::Hash + std::fmt::Display,
+{
+    for (name, _) in source.iter() {
+        if target.contains_key(name) {
+            report_duplicate(warnings, kind, &name.to_string(), path);
+        }
+    }
+    target.extend(std::mem::take(source));
+}
+
 /// Merge a single file's IR into the merged IR program.
 /// Takes `&mut IRProgram` so it can move data out of the per-file IR,
 /// avoiding clones for newly generated IR.
-fn merge_file_ir_into(merged: &mut IRProgram, path: &str, ir: &mut IRProgram) {
+fn merge_file_ir_into(
+    merged: &mut IRProgram,
+    path: &str,
+    ir: &mut IRProgram,
+    warnings: &mut Vec<Diagnostic>,
+) {
     for (mod_name, mut mod_ir) in std::mem::take(&mut ir.modules) {
         for comp in mod_ir.components.values_mut() {
             if comp.source_file.is_none() {
@@ -130,13 +168,27 @@ fn merge_file_ir_into(merged: &mut IRProgram, path: &str, ir: &mut IRProgram) {
             }
         }
         let existing = merged.modules.entry(mod_name).or_default();
-        existing
-            .components
-            .extend(std::mem::take(&mut mod_ir.components));
-        existing.stores.extend(std::mem::take(&mut mod_ir.stores));
-        existing
-            .functions
-            .extend(std::mem::take(&mut mod_ir.functions));
+        extend_and_warn(
+            &mut existing.components,
+            &mut mod_ir.components,
+            warnings,
+            "component",
+            path,
+        );
+        extend_and_warn(
+            &mut existing.stores,
+            &mut mod_ir.stores,
+            warnings,
+            "store",
+            path,
+        );
+        extend_and_warn(
+            &mut existing.functions,
+            &mut mod_ir.functions,
+            warnings,
+            "function",
+            path,
+        );
         existing.structs.extend(std::mem::take(&mut mod_ir.structs));
         existing
             .type_aliases
@@ -237,57 +289,21 @@ pub fn analyse_multi(
         stdlib_imports: Vec::new(),
     };
 
-    for (path, ir_program, local_diags) in ir_results {
+    let mut merge_warnings: Vec<Diagnostic> = Vec::new();
+    for (path, mut ir_program, local_diags) in ir_results {
         diags.extend(local_diags);
-
-        // Stamp source file path onto IR nodes for multi-file codegen,
-        // then merge modules — combine declarations from multiple files.
-        for (mod_name, mut mod_ir) in ir_program.modules {
-            for comp in mod_ir.components.values_mut() {
-                if comp.source_file.is_none() {
-                    comp.source_file = Some(path.clone());
-                }
-            }
-            for store in mod_ir.stores.values_mut() {
-                if store.source_file.is_none() {
-                    store.source_file = Some(path.clone());
-                }
-            }
-
-            // Use entry().or_default() + std::mem::take to avoid cloning
-            // all collections on the merge path.
-            let existing = merged_ir.modules.entry(mod_name).or_default();
-            existing
-                .components
-                .extend(std::mem::take(&mut mod_ir.components));
-            existing.stores.extend(std::mem::take(&mut mod_ir.stores));
-            existing
-                .functions
-                .extend(std::mem::take(&mut mod_ir.functions));
-            existing.structs.extend(std::mem::take(&mut mod_ir.structs));
-            existing
-                .type_aliases
-                .extend(std::mem::take(&mut mod_ir.type_aliases));
-            existing.imports.extend(std::mem::take(&mut mod_ir.imports));
-            existing.exports.extend(std::mem::take(&mut mod_ir.exports));
-            existing.motions.extend(std::mem::take(&mut mod_ir.motions));
-            existing
-                .timelines
-                .extend(std::mem::take(&mut mod_ir.timelines));
-        }
-
-        for (key, entry) in ir_program.source_map {
-            merged_ir.source_map.entry(key).or_insert(entry);
-        }
+        merge_file_ir_into(&mut merged_ir, &path, &mut ir_program, &mut merge_warnings);
     }
 
     // Phase 4: Run lint rules against ASTs and merged IR
     let lint_diags = crate::semantic::lints::run_all(&programs, &merged_ir);
-    let warnings: Vec<Diagnostic> = lint_diags
-        .iter()
-        .filter(|d| !is_lint_error(d))
-        .map(lint_to_diag)
-        .collect();
+    let mut warnings: Vec<Diagnostic> = merge_warnings;
+    warnings.extend(
+        lint_diags
+            .iter()
+            .filter(|d| !is_lint_error(d))
+            .map(lint_to_diag),
+    );
 
     // Lint errors are also included in diagnostics so that all callers
     // (compile_multi_to_target, omni_analyse, analyse_direct) see them.
@@ -487,11 +503,13 @@ pub fn analyse_multi_cached(
         stdlib_imports: Vec::new(),
     };
 
+    let mut merge_warnings: Vec<Diagnostic> = Vec::new();
+
     // Merge cached IR for files NOT in to_reprocess (clone to preserve cache)
     for (path, cached) in &cache.entries {
         if !to_reprocess.contains(path) {
             let mut ir_clone = cached.ir.clone();
-            merge_file_ir_into(&mut merged_ir, path, &mut ir_clone);
+            merge_file_ir_into(&mut merged_ir, path, &mut ir_clone, &mut merge_warnings);
         }
     }
 
@@ -499,16 +517,18 @@ pub fn analyse_multi_cached(
     for (path, (ir_program, local_diags)) in per_file_ir.drain() {
         diags.extend(local_diags);
         let mut ir = ir_program;
-        merge_file_ir_into(&mut merged_ir, &path, &mut ir);
+        merge_file_ir_into(&mut merged_ir, &path, &mut ir, &mut merge_warnings);
     }
 
     // Phase 4: Run lint rules against ASTs and merged IR
     let lint_diags = crate::semantic::lints::run_all(&all_programs, &merged_ir);
-    let warnings: Vec<Diagnostic> = lint_diags
-        .iter()
-        .filter(|d| !is_lint_error(d))
-        .map(lint_to_diag)
-        .collect();
+    let mut warnings: Vec<Diagnostic> = merge_warnings;
+    warnings.extend(
+        lint_diags
+            .iter()
+            .filter(|d| !is_lint_error(d))
+            .map(lint_to_diag),
+    );
 
     let success = !diags
         .iter()
