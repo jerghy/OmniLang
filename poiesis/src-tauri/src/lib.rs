@@ -860,15 +860,17 @@ pub fn run() {
             get_store_snapshot,
             get_pid_index,
             verify_pid_roundtrip,
-        ])
-        // NOTE: Victauri plugin should be gated behind debug_assertions.
-        // Currently unconditional; wrap with #[cfg(debug_assertions)] in a follow-up.
-        .plugin(
-            victauri_plugin::VictauriBuilder::new()
-                .auth_disabled()
-                .build()
-                .expect("Failed to build Victauri plugin"),
-        )
+        ]);
+
+    #[cfg(debug_assertions)]
+    let app = app.plugin(
+        victauri_plugin::VictauriBuilder::new()
+            .auth_disabled()
+            .build()
+            .expect("Failed to build Victauri plugin"),
+    );
+
+    let app = app
         .build(tauri::generate_context!())
         .expect("error while building Poiesis");
     app.run(|_app_handle, _event| {});
