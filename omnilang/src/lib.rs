@@ -25,14 +25,16 @@ pub mod wasm;
 
 use serde::{Deserialize, Serialize};
 use rustc_hash::FxHashMap;
+use ts_rs::TS;
 #[cfg(feature = "codegen-omniview")]
 use crate::codegen::omniview::ComponentOutput;
 
 /// Top-level compile result — returned as JSON by WASM/native bindings.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, TS)]
 pub struct CompileResult {
     pub success: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(type = "Record<string, unknown> | null")]
     pub ir: Option<ir::IRProgram>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub errors: Vec<error::Diagnostic>,
@@ -91,23 +93,25 @@ fn run_pipeline(source: &str) -> Result<PipelineOutput, Vec<error::Diagnostic>> 
 
 /// OmniView compile result — JS + HTML + CSS + SourceMap.
 #[cfg(feature = "codegen-omniview")]
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, TS)]
 pub struct OmniViewResult {
     pub success: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub files: Option<OmniViewFiles>,
     /// Per-component output for hot-replace (keyed by component name)
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "Record<string, { js: string; html: string; css: string }> | null")]
     pub components: Option<FxHashMap<String, ComponentOutput>>,
     #[serde(rename = "sourceMap")]
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(type = "Array<{ node_id: string }> | null")]
     pub source_map: Option<Vec<sourcemap::SourceMapEntry>>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub errors: Vec<error::Diagnostic>,
 }
 
 #[cfg(feature = "codegen-omniview")]
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, TS)]
 pub struct OmniViewFiles {
     pub js: String,
     pub html: String,
@@ -154,18 +158,21 @@ pub fn compile_omniview(source: &str, editor_mode: bool) -> OmniViewResult {
 /// Combined compile result — IR + OmniView (JS + HTML + CSS + SourceMap + Components).
 /// Runs the full pipeline in one pass, returning both the IR and codegen output.
 #[cfg(feature = "codegen-omniview")]
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, TS)]
 pub struct OmniViewFullResult {
     pub success: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(type = "Record<string, unknown> | null")]
     pub ir: Option<ir::IRProgram>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub files: Option<OmniViewFiles>,
     /// Per-component output for hot-replace (keyed by component name)
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "Record<string, { js: string; html: string; css: string }> | null")]
     pub components: Option<FxHashMap<String, ComponentOutput>>,
     #[serde(rename = "sourceMap")]
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(type = "Array<{ node_id: string }> | null")]
     pub source_map: Option<Vec<sourcemap::SourceMapEntry>>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub errors: Vec<error::Diagnostic>,
@@ -262,9 +269,10 @@ fn extract_body_html(html: &str) -> String {
 }
 
 /// Internal compile result struct (avoids JSON round-trip for native consumers).
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, TS)]
 pub struct InternalCompileResult {
     pub success: bool,
+    #[ts(type = "Record<string, string>")]
     pub files: FxHashMap<String, String>,
     pub errors: Vec<crate::error::Diagnostic>,
     pub warnings: Vec<crate::error::Diagnostic>,
@@ -409,4 +417,54 @@ pub fn compile_multi_to_target(
             e
         )
     })
+}
+
+// ═══════════════════════════════════════════════════════
+// TS Export (generates TypeScript type definitions)
+// ═══════════════════════════════════════════════════════
+
+/// Export all `#[derive(TS)]` types as TypeScript definition files.
+///
+/// Generated files go to `poiesis/src/commands/__generated__/`.
+/// Dependencies of each root type are exported automatically.
+/// Run: `cargo test export_bindings --lib`
+#[cfg(test)]
+mod type_exports {
+    use crate::{
+        CompileResult, error,
+    };
+    #[cfg(feature = "codegen-omniview")]
+    use crate::{OmniViewResult, OmniViewFullResult, OmniViewFiles};
+    use ts_rs::TS;
+
+    #[test]
+    fn export_bindings() {
+        // Set the export directory relative to the crate root
+        let export_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("poiesis")
+            .join("src")
+            .join("commands")
+            .join("__generated__");
+        std::fs::create_dir_all(&export_dir).expect("failed to create __generated__ directory");
+
+        // Export CompileResult and all its dependencies (Diagnostic, Severity)
+        CompileResult::export_all_to(&export_dir)
+            .expect("failed to export CompileResult TS bindings");
+
+        // Export feature-gated types (only when codegen-omniview is enabled)
+        #[cfg(feature = "codegen-omniview")]
+        {
+            OmniViewResult::export_all_to(&export_dir)
+                .expect("failed to export OmniViewResult TS bindings");
+            OmniViewFullResult::export_all_to(&export_dir)
+                .expect("failed to export OmniViewFullResult TS bindings");
+            OmniViewFiles::export_all_to(&export_dir)
+                .expect("failed to export OmniViewFiles TS bindings");
+        }
+
+        // Also export Diagnostic directly (in case it's not pulled in transitively)
+        error::Diagnostic::export_all_to(&export_dir)
+            .expect("failed to export Diagnostic TS bindings");
+    }
 }

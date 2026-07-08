@@ -4,6 +4,7 @@ use serde::de::{self, Deserializer, Visitor};
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Serialize, Serializer};
 use std::fmt;
+use ts_rs::TS;
 
 use crate::lexer::Span;
 
@@ -198,7 +199,7 @@ impl<'de> Deserialize<'de> for DiagnosticKind {
 // Severity
 // ═══════════════════════════════════════════════════════════
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "lowercase")]
 pub enum Severity {
     Error,
@@ -211,11 +212,12 @@ pub enum Severity {
 // ═══════════════════════════════════════════════════════════
 
 /// A user-facing diagnostic message.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, TS)]
 pub struct Diagnostic {
     pub severity: Severity,
     /// The typed diagnostic kind (serialized as `"code"` for backward compat).
     #[serde(rename = "code")]
+    #[ts(type = "string")]
     pub kind: DiagnosticKind,
     pub message: String,
     /// Source file path (set for multi-file compiles; omitted for single-file).
