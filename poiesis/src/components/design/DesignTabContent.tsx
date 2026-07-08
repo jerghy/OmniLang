@@ -1,9 +1,12 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { usePoiesisStore } from "../../store";
 import { emitDesignSource } from "../../services/codegen/design-emitter";
+import { parseOmniSource } from "../../services/codegen";
+import { api } from "../../commands";
 import { TokenEditor } from "./TokenEditor";
 import { ClassEditor } from "./ClassEditor";
 import { VariantEditor } from "./VariantEditor";
+import { type TokenType, tokenTypeToCategory } from "../../core/types/design";
 
 type DesignView = "tokens" | "classes" | "variants";
 
@@ -35,6 +38,47 @@ export function DesignTabContent() {
   const [view, setView] = useState<DesignView>("tokens");
   const [showCode, setShowCode] = useState(false);
   const activeDesign = usePoiesisStore((s) => s.activeDesign);
+
+  // ── Load design.omni content from disk on mount ──
+  useEffect(() => {
+    const activeTabId = usePoiesisStore.getState().designPage.activeTabId;
+    if (!activeTabId) return;
+    const tab = usePoiesisStore.getState().designPage.openTabs.find((t) => t.id === activeTabId);
+    if (!tab || tab.tabType !== "design") return;
+    api.project.readFile(tab.filePath).then((res) => {
+      if (!res.content) return;
+      const result = parseOmniSource(res.content);
+      if ((result.designTokens?.length ?? 0) > 0
+          || (result.designClasses?.length ?? 0) > 0
+          || (result.designVariants?.length ?? 0) > 0) {
+        const { loadDesign } = usePoiesisStore.getState();
+        loadDesign({
+          name: result.designName || "AppDesign",
+          tokens: (result.designTokens ?? []).map((t) => ({
+            id: t.id,
+            name: t.name,
+            category: tokenTypeToCategory(t.tokenType),
+            tokenType: t.tokenType as TokenType,
+            value: t.value,
+          })),
+          classes: (result.designClasses ?? []).map((c) => ({
+            id: c.id,
+            name: c.name,
+            properties: [],
+            pseudoStates: [],
+          })),
+          variants: (result.designVariants ?? []).map((v) => ({
+            id: v.id,
+            name: v.name,
+            dimensions: [],
+            defaults: {},
+            baseProperties: [],
+            branches: [],
+          })),
+        });
+      }
+    }).catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const designSource = useMemo(() => emitDesignSource(activeDesign), [activeDesign]);
 

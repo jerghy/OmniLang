@@ -7,6 +7,7 @@ import { usePoiesisStore } from "../../store";
 import { loadCodeTabs } from "../../services/codegraph/store";
 import type { ElementData, WireData } from "../../core/types";
 import type { DesignDefinition, TokenType } from "../../core/types/design";
+import { tokenTypeToCategory } from "../../core/types/design";
 
 export interface ParseResult {
   elements: ElementData[];
@@ -54,7 +55,7 @@ export function parseAndPopulate(
         tokens: (parseResult.designTokens ?? []).map((t) => ({
           id: t.id,
           name: t.name,
-          category: "custom",
+          category: tokenTypeToCategory(t.tokenType),
           tokenType: t.tokenType as TokenType,
           value: t.value,
         })),

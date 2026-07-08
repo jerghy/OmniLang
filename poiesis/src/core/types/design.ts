@@ -92,3 +92,13 @@ export const EMPTY_DESIGN: DesignDefinition = {
   classes: [],
   variants: [],
 };
+
+/** Map a tokenType to the TokenEditor category name for UI grouping. */
+export function tokenTypeToCategory(tokenType: string): string {
+  switch (tokenType) {
+    case "color":  return "colors";
+    case "size":   return "spacing";
+    case "font":   return "typography";
+    default:       return "custom";
+  }
+}

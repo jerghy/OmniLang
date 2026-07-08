@@ -32,7 +32,7 @@ export interface Token {
  * - `/>` becomes SELF_CLOSING, `->` becomes ARROW.
  * - `{` `}` `(` `)` `<` `>` `;` `:` `=` `.` `@` `|` `,` `/` each map to
  *   their own token kinds.
- * - Sequences of [a-zA-Z_][a-zA-Z0-9_]* become IDENTIFIER. Pure digit
+ * - Sequences of [a-zA-Z_][a-zA-Z0-9_-]* become IDENTIFIER. Pure digit
  *   sequences become NUMBER.
  */
 export function tokenize(source: string): Token[] {
@@ -209,6 +209,41 @@ function scanLine(
           tokens.push({ kind: "ARROW", text: "->", line: lineNum, col });
           pos += 2;
           col += 2;
+        } else if (content[pos + 1] && /[a-zA-Z_0-9]/.test(content[pos + 1])) {
+          // Hyphen inside a kebab-case identifier (e.g. "color-new")
+          // Extend previous IDENTIFIER or start a new identifier segment
+          const lastToken = tokens[tokens.length - 1];
+          if (lastToken && lastToken.kind === "IDENTIFIER") {
+            lastToken.text += "-";
+            pos++;
+            col++;
+            while (
+              pos < content.length &&
+              /[a-zA-Z_0-9-]/.test(content[pos])
+            ) {
+              lastToken.text += content[pos];
+              pos++;
+              col++;
+            }
+          } else {
+            // Start a fresh identifier with hyphen
+            const startPos = pos;
+            pos++;
+            col++;
+            while (
+              pos < content.length &&
+              /[a-zA-Z_0-9-]/.test(content[pos])
+            ) {
+              pos++;
+              col++;
+            }
+            tokens.push({
+              kind: "IDENTIFIER",
+              text: content.substring(startPos, pos),
+              line: lineNum,
+              col: firstCol + startPos,
+            });
+          }
         } else {
           // Standalone hyphen — TEXT token
           tokens.push({ kind: "TEXT", text: "-", line: lineNum, col });
@@ -248,11 +283,11 @@ function scanLine(
 
       default:
         if (/[a-zA-Z_]/.test(ch)) {
-          // Identifier
+          // Identifier (allow hyphens for kebab-case names like "color-new")
           const startPos = pos;
           while (
             pos < content.length &&
-            /[a-zA-Z_0-9]/.test(content[pos])
+            /[a-zA-Z_0-9-]/.test(content[pos])
           ) {
             pos++;
             col++;

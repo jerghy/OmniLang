@@ -2,7 +2,7 @@
 // Top-level design page with tabbed editor, left panels, and Z-axis canvas.
 // Drag-and-drop from palette to canvas uses @dnd-kit/core (pointer events, not native HTML5 DnD).
 
-import { Component, type ReactNode } from "react";
+import { Component, useState, useEffect, useCallback, type ReactNode } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -13,6 +13,8 @@ import {
   closestCenter,
 } from "@dnd-kit/core";
 import { DesignTabBar } from "../components/design/DesignTabBar";
+import { api } from "../commands";
+import type { RecentProject } from "../commands/project-api";
 import { DesignTabContent } from "../components/design/DesignTabContent";
 import { DesignCanvas } from "../components/design/DesignCanvas";
 import { CodeFlowCanvas } from "../components/design/CodeFlowCanvas";
@@ -46,7 +48,7 @@ class PanelErrorBoundary extends Component<{ children: ReactNode; name: string }
   }
 }
 
-export function DesignPage() {
+export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: string, name: string) => void }) {
   const undo = usePoiesisStore((s) => s.undo);
   const isDirty = usePoiesisStore((s) => s.isDirty);
   const activeTabType = usePoiesisStore((s) => {
@@ -60,6 +62,48 @@ export function DesignPage() {
 
   const { saving, saveError, handleSave } = useSaveProject();
   const { handleDragStart, handleDragMove, handleDragEnd, activeComponent, activeTreeId, treeDropState } = useDragHandlers();
+
+  // ── Open Project panel ──
+  const [showProjectPanel, setShowProjectPanel] = useState(false);
+  const [recentProjects, setRecentProjects] = useState<RecentProject[]>([]);
+
+  useEffect(() => {
+    if (showProjectPanel) {
+      api.project.getRecentProjects().then(setRecentProjects).catch(() => {});
+    }
+  }, [showProjectPanel]);
+
+  const handleOpenProject = useCallback(async () => {
+    try {
+      const folder = await api.project.openFolderDialog();
+      if (!folder) return;
+      const name = folder.replace(/\\/g, "/").split("/").pop() || folder;
+      await api.project.setProjectDir(folder);
+      await api.project.addRecentProject(name, folder);
+      setShowProjectPanel(false);
+      onProjectOpened?.(folder, name);
+    } catch (e) {
+      /* ignore */
+    }
+  }, [onProjectOpened]);
+
+  const handleOpenRecent = useCallback(async (proj: RecentProject) => {
+    try {
+      await api.project.setProjectDir(proj.path);
+      await api.project.addRecentProject(proj.name, proj.path);
+      setShowProjectPanel(false);
+      onProjectOpened?.(proj.path, proj.name);
+    } catch (e) {
+      /* ignore */
+    }
+  }, [onProjectOpened]);
+
+  const handleRemoveRecent = useCallback(async (e: React.MouseEvent, path: string) => {
+    e.stopPropagation();
+    await api.project.removeRecentProject(path);
+    const list = await api.project.getRecentProjects();
+    setRecentProjects(list);
+  }, []);
 
   // ── @dnd-kit sensors (unified context handles both palette and tree drags) ──
   const pointerSensor = useSensor(PointerSensor, {
@@ -130,6 +174,22 @@ export function DesignPage() {
             }}
           >
             {saving ? "⏳" : "💾"}
+          </button>
+          <button
+            onClick={() => setShowProjectPanel(true)}
+            title="打开项目"
+            style={{
+              padding: "2px 8px",
+              fontSize: 13,
+              border: "1px solid transparent",
+              borderRadius: 4,
+              background: "transparent",
+              cursor: "pointer",
+              lineHeight: 1,
+              color: "#6B7280",
+            }}
+          >
+            📂
           </button>
           {saveError && (
             <span
@@ -238,6 +298,111 @@ export function DesignPage() {
           </div>
         ) : null}
       </DragOverlay>
+
+      {/* ── Open Project Panel (modal overlay) ── */}
+      {showProjectPanel && (
+        <div
+          style={{
+            position: "fixed", inset: 0, zIndex: 200,
+            background: "rgba(0,0,0,0.3)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}
+          onClick={() => setShowProjectPanel(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "#fff",
+              borderRadius: 16,
+              padding: 28,
+              width: 420,
+              maxWidth: "90vw",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.15)",
+            }}
+          >
+            <div style={{ fontSize: 18, fontWeight: 700, color: "#1f2937", marginBottom: 20 }}>
+              打开项目
+            </div>
+
+            {/* Open folder button */}
+            <button
+              onClick={handleOpenProject}
+              style={{
+                display: "flex", alignItems: "center", gap: 8,
+                width: "100%", padding: "16px 20px",
+                background: "#fff", border: "1px solid #e5e7eb",
+                borderRadius: 12, cursor: "pointer",
+                fontFamily: "inherit", textAlign: "left",
+                fontSize: 14, fontWeight: 600, color: "#1f2937",
+              }}
+            >
+              <span style={{ fontSize: 24 }}>📂</span>
+              <span>打开项目</span>
+            </button>
+
+            {/* Recent projects */}
+            {recentProjects.length > 0 && (
+              <div style={{ marginTop: 20 }}>
+                <div style={{
+                  fontSize: 12, fontWeight: 600, color: "#9ca3af",
+                  textTransform: "uppercase", letterSpacing: 1, marginBottom: 8,
+                }}>
+                  最近打开
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  {recentProjects.map((proj) => (
+                    <button
+                      key={proj.path}
+                      onClick={() => handleOpenRecent(proj)}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 10,
+                        width: "100%", padding: "10px 12px",
+                        background: "#fff", border: "1px solid #f3f4f6",
+                        borderRadius: 8, cursor: "pointer",
+                        fontFamily: "inherit", textAlign: "left",
+                        fontSize: 13, color: "#1f2937", fontWeight: 600,
+                      }}
+                    >
+                      <span style={{ fontSize: 18, flexShrink: 0 }}>📁</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, color: "#1f2937", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {proj.name}
+                        </div>
+                        <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {proj.path}
+                        </div>
+                      </div>
+                      <span
+                        onClick={(e) => handleRemoveRecent(e, proj.path)}
+                        style={{
+                          fontSize: 16, color: "#d1d5db", padding: "2px 6px",
+                          borderRadius: 4, flexShrink: 0, cursor: "pointer",
+                        }}
+                        title="移除"
+                      >
+                        ×
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Close button */}
+            <button
+              onClick={() => setShowProjectPanel(false)}
+              style={{
+                marginTop: 16, width: "100%", padding: "8px 0",
+                border: "none", background: "transparent",
+                cursor: "pointer", fontSize: 12, color: "#9ca3af",
+                fontFamily: "inherit",
+              }}
+            >
+              取消
+            </button>
+          </div>
+        </div>
+      )}
     </DndContext>
   );
 }

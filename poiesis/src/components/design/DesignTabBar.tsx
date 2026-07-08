@@ -11,7 +11,8 @@ import { FileTreePanel } from "./FileTreePanel";
 import { NewFileModal } from "./NewFileModal";
 import { api } from "../../commands";
 import { emitDesignSource } from "../../services/codegen/design-emitter";
-import { EMPTY_DESIGN } from "../../core/types/design";
+import { parseOmniSource } from "../../services/codegen";
+import { EMPTY_DESIGN, type TokenType, tokenTypeToCategory } from "../../core/types/design";
 
 export function DesignTabBar() {
   const tabs = usePoiesisStore((s) => s.designPage.openTabs);
@@ -41,10 +42,9 @@ export function DesignTabBar() {
   // New file sub-panel
   const [showNewFilePanel, setShowNewFilePanel] = useState(false);
 
-  // Check if design.omni tab already exists
-  const hasDesignTab = tabs.some((t) => t.filePath === "design.omni" || t.filePath.endsWith("/design.omni"));
 
-  // Close "+" menu on outside click
+
+// Close "+" menu on outside click
   useEffect(() => {
     if (!showPlusMenu) return;
     const handler = (e: MouseEvent) => {
@@ -66,10 +66,63 @@ export function DesignTabBar() {
     (filePath: string, fileName: string) => {
       const componentName = fileName.replace(/\.omni$/, "");
       const tabType = detectTabType(filePath);
+      // ── Deduplicate design.omni: if any design tab is open, redirect to canonical ──
+      if (tabType === "design") {
+        const existingDesignTab = tabs.find((t) => t.tabType === "design");
+        if (existingDesignTab) {
+          switchTab(existingDesignTab.id);
+          // Load content from the requested file into the design store
+          api.project.readFile(filePath).then((res) => {
+            if (res.content) {
+              const result = parseOmniSource(res.content);
+              if ((result.designTokens?.length ?? 0) > 0 || (result.designClasses?.length ?? 0) > 0 || (result.designVariants?.length ?? 0) > 0) {
+                const { loadDesign } = usePoiesisStore.getState();
+                loadDesign({
+                  name: result.designName || "AppDesign",
+                  tokens: (result.designTokens ?? []).map((t) => ({
+                    id: t.id, name: t.name, category: tokenTypeToCategory(t.tokenType), tokenType: t.tokenType as TokenType, value: t.value,
+                  })),
+                  classes: (result.designClasses ?? []).map((c) => ({
+                    id: c.id, name: c.name, properties: [], pseudoStates: [],
+                  })),
+                  variants: (result.designVariants ?? []).map((v) => ({
+                    id: v.id, name: v.name, dimensions: [], defaults: {}, baseProperties: [], branches: [],
+                  })),
+                });
+              }
+            }
+          }).catch(() => {});
+          setShowFilePanel(false);
+          return;
+        }
+      }
       openTab(filePath, componentName, tabType);
       setShowFilePanel(false);
+      // If opening a design.omni file, load its content into the design store
+      if (tabType === "design") {
+        api.project.readFile(filePath).then((res) => {
+          if (res.content) {
+            const result = parseOmniSource(res.content);
+            if ((result.designTokens?.length ?? 0) > 0 || (result.designClasses?.length ?? 0) > 0 || (result.designVariants?.length ?? 0) > 0) {
+              const { loadDesign } = usePoiesisStore.getState();
+              loadDesign({
+                name: result.designName || "AppDesign",
+                tokens: (result.designTokens ?? []).map((t) => ({
+                  id: t.id, name: t.name, category: tokenTypeToCategory(t.tokenType), tokenType: t.tokenType as TokenType, value: t.value,
+                })),
+                classes: (result.designClasses ?? []).map((c) => ({
+                  id: c.id, name: c.name, properties: [], pseudoStates: [],
+                })),
+                variants: (result.designVariants ?? []).map((v) => ({
+                  id: v.id, name: v.name, dimensions: [], defaults: {}, baseProperties: [], branches: [],
+                })),
+              });
+            }
+          }
+        }).catch(() => {});
+      }
     },
-    [openTab]
+    [openTab, tabs, switchTab]
   );
 
   const handleCreateNewFile = useCallback(
@@ -88,19 +141,71 @@ export function DesignTabBar() {
 
   const handleDesignOmni = useCallback(async () => {
     setShowPlusMenu(false);
-    if (hasDesignTab) {
-      // Switch to existing design.omni tab
-      const tab = tabs.find((t) => t.filePath === "design.omni" || t.filePath.endsWith("/design.omni"));
-      if (tab) switchTab(tab.id);
-    } else {
-      // Create design.omni on disk then open it
-      const source = emitDesignSource({ ...EMPTY_DESIGN, name: "AppDesign" });
-      const result = await api.project.writeFile("design.omni", source);
-      if (result.ok) {
-        openTab("design.omni", "design", "design");
+    const canonicalPath = "src/design.omni";
+
+    // ── Check if any design tab already exists ──
+    const existingDesignTab = tabs.find((t) => t.tabType === "design");
+    if (existingDesignTab) {
+      switchTab(existingDesignTab.id);
+      // If the existing tab has a non-canonical path (e.g. src/design.omni),
+      // read from canonical path
+      const readPath = existingDesignTab.filePath !== canonicalPath
+        ? canonicalPath
+        : existingDesignTab.filePath;
+      const res = await api.project.readFile(readPath);
+      if (res.content) {
+        const result = parseOmniSource(res.content);
+        if ((result.designTokens?.length ?? 0) > 0
+            || (result.designClasses?.length ?? 0) > 0
+            || (result.designVariants?.length ?? 0) > 0) {
+          const { loadDesign } = usePoiesisStore.getState();
+          loadDesign({
+            name: result.designName || "AppDesign",
+            tokens: (result.designTokens ?? []).map((t) => ({
+              id: t.id, name: t.name, category: tokenTypeToCategory(t.tokenType), tokenType: t.tokenType as TokenType, value: t.value,
+            })),
+            classes: (result.designClasses ?? []).map((c) => ({
+              id: c.id, name: c.name, properties: [], pseudoStates: [],
+            })),
+            variants: (result.designVariants ?? []).map((v) => ({
+              id: v.id, name: v.name, dimensions: [], defaults: {}, baseProperties: [], branches: [],
+            })),
+          });
+        }
       }
+      return;
     }
-  }, [hasDesignTab, tabs, switchTab, openTab]);
+
+    // ── Read existing canonical design.omni or create if missing ──
+    const existing = await api.project.readFile(canonicalPath);
+    if (existing.content && !existing.error) {
+      // File exists with content — parse it
+      openTab(canonicalPath, "design", "design");
+      const result = parseOmniSource(existing.content);
+      if ((result.designTokens?.length ?? 0) > 0
+          || (result.designClasses?.length ?? 0) > 0
+          || (result.designVariants?.length ?? 0) > 0) {
+        const { loadDesign } = usePoiesisStore.getState();
+        loadDesign({
+          name: result.designName || "AppDesign",
+          tokens: (result.designTokens ?? []).map((t) => ({
+            id: t.id, name: t.name, category: tokenTypeToCategory(t.tokenType), tokenType: t.tokenType as TokenType, value: t.value,
+          })),
+          classes: (result.designClasses ?? []).map((c) => ({
+            id: c.id, name: c.name, properties: [], pseudoStates: [],
+          })),
+          variants: (result.designVariants ?? []).map((v) => ({
+            id: v.id, name: v.name, dimensions: [], defaults: {}, baseProperties: [], branches: [],
+          })),
+        });
+      }
+    } else {
+      // File doesn't exist — create empty and open
+      const source = emitDesignSource({ ...EMPTY_DESIGN, name: "AppDesign" });
+      await api.project.writeFile(canonicalPath, source);
+      openTab(canonicalPath, "design", "design");
+    }
+  }, [tabs, switchTab, openTab]);
 
   const handleClose = useCallback(
     (e: React.MouseEvent, tabId: string) => {
@@ -308,7 +413,7 @@ export function DesignTabBar() {
                   onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "#f1f5f9"; }}
                   onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
                 >
-                  <span>🎨 {hasDesignTab ? "打开 design.omni" : "创建 design.omni"}</span>
+                  <span>🎨 打开 design.omni</span>
                 </button>
               </div>
           )}

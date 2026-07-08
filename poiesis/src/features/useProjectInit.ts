@@ -6,9 +6,33 @@ import { api } from "../commands";
 import { loadComponentDefinitionsFromServer, saveComponentDefinitionsToServer } from "../services/project/component-service";
 import { computeAutoLayout } from "../components/canvas/shared/layoutUtils";
 import type { ElementData, WireData, ViewElementData, GroupElementData } from "../core/types";
+import type { TokenType } from "../core/types/design";
+import { tokenTypeToCategory } from "../core/types/design";
 import { createLogger } from "../lib/utils/logger";
 
 const log = createLogger("init");
+
+/** Parse a design.omni source string and load it into the design store. */
+async function loadDesignFromSource(source: string): Promise<void> {
+  const result = parseOmniSource(source);
+  if ((result.designTokens?.length ?? 0) > 0
+      || (result.designClasses?.length ?? 0) > 0
+      || (result.designVariants?.length ?? 0) > 0) {
+    const { loadDesign } = usePoiesisStore.getState();
+    loadDesign({
+      name: result.designName || "AppDesign",
+      tokens: (result.designTokens ?? []).map((t) => ({
+        id: t.id, name: t.name, category: tokenTypeToCategory(t.tokenType), tokenType: t.tokenType as TokenType, value: t.value,
+      })),
+      classes: (result.designClasses ?? []).map((c) => ({
+        id: c.id, name: c.name, properties: [], pseudoStates: [],
+      })),
+      variants: (result.designVariants ?? []).map((v) => ({
+        id: v.id, name: v.name, dimensions: [], defaults: {}, baseProperties: [], branches: [],
+      })),
+    });
+  }
+}
 
 export function useProjectInit(setShowWelcome: (v: boolean) => void) {
   // Initial load
@@ -156,6 +180,29 @@ export function useProjectInit(setShowWelcome: (v: boolean) => void) {
           }
         } catch (e) {
           log.warn("Failed to load main.omni:", e);
+        }
+      })();
+
+      // ── Also load design.omni (canonical src/, fallback root) ──
+      (async () => {
+        try {
+          // Prefer canonical src/design.omni; fall back to root design.omni
+          const srcRes = await api.project.readFile("src/design.omni");
+          if (srcRes.content && !srcRes.error) {
+            await loadDesignFromSource(srcRes.content);
+            // Clean up old root design.omni if src/ exists
+            const rootRes = await api.project.readFile("design.omni");
+            if (rootRes.content && !rootRes.error) {
+              api.project.deleteFile("design.omni").catch(() => {});
+            }
+          } else {
+            const rootRes = await api.project.readFile("design.omni");
+            if (rootRes.content && !rootRes.error) {
+              await loadDesignFromSource(rootRes.content);
+            }
+          }
+        } catch (e) {
+          log.warn("Failed to load design.omni:", e);
         }
       })();
 

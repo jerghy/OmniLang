@@ -192,12 +192,15 @@ export default function App() {
     loadOmniFiles().catch((e) => log.warn("Failed to load .omni:", e));
   }, [projectDir]);
 
-  // ── Open project: set dir (useEffect handles loading) ──
+  // ── Open project: set dir and load .omni files ──
   const handleProjectOpened = async (path: string, name: string) => {
     resetEditorState();
     setProjectName(name);
     loadedRef.current = false;
     setProjectDir(path);
+    // Always reload .omni files, even if same project is re-selected
+    await loadOmniFiles();
+    loadedRef.current = true;
   };
 
   return (
@@ -219,7 +222,7 @@ export default function App() {
           {/* Page content */}
           <div style={{ flex: 1, overflow: "hidden" }}>
             <Suspense fallback={<div style={{ padding: 40, color: "#6b7280", fontSize: 14 }}>Loading...</div>}>
-              {currentPage === "architecture" ? <ArchitecturePage /> : <DesignPage />}
+              {currentPage === "architecture" ? <ArchitecturePage /> : <DesignPage onProjectOpened={handleProjectOpened} />}
             </Suspense>
           </div>
 

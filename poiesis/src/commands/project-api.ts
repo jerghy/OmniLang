@@ -2,7 +2,7 @@
 // Project filesystem operations — implemented via Tauri plugins (fs, store, dialog)
 // Replaces Python FastAPI backend endpoints: /api/fs/*, /api/project/*
 
-import { readDir, readTextFile, writeTextFile, mkdir } from "@tauri-apps/plugin-fs";
+import { readDir, readTextFile, writeTextFile, mkdir, remove } from "@tauri-apps/plugin-fs";
 import { Store } from "@tauri-apps/plugin-store";
 import { open } from "@tauri-apps/plugin-dialog";
 import type { FsEntry, ProjectInfo } from "./types";
@@ -103,6 +103,21 @@ export function createProjectApi() {
         if (!dir) return { ok: false, error: "未设置项目目录" };
         const fullPath = joinPath(dir, filePath);
         await writeTextFile(fullPath, content);
+        return { ok: true };
+      } catch (e) {
+        return { ok: false, error: String(e) };
+      }
+    },
+
+    // ── Delete file (relative to project dir) ──
+    async deleteFile(
+      filePath: string,
+    ): Promise<{ ok: boolean; error?: string }> {
+      try {
+        const dir = await resolveProjectDir();
+        if (!dir) return { ok: false, error: "未设置项目目录" };
+        const fullPath = joinPath(dir, filePath);
+        await remove(fullPath);
         return { ok: true };
       } catch (e) {
         return { ok: false, error: String(e) };

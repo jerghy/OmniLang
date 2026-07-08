@@ -4,7 +4,7 @@
 // complementary server-side support (project management, export, analysis).
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 
 // ── Compile project ──
 
@@ -33,7 +33,7 @@ pub struct CompileDiagnostic {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CompileResult {
     pub success: bool,
-    pub files: HashMap<String, String>,
+    pub files: FxHashMap<String, String>,
     #[serde(default)]
     pub errors: Vec<CompileDiagnostic>,
     #[serde(default)]
@@ -45,7 +45,7 @@ impl CompileResult {
     fn from_error(msg: &str, code: &str) -> Self {
         CompileResult {
             success: false,
-            files: HashMap::new(),
+            files: FxHashMap::default(),
             errors: vec![CompileDiagnostic {
                 severity: "error".to_string(),
                 code: code.to_string(),
@@ -65,7 +65,7 @@ impl CompileResult {
     fn from_errors(errors: Vec<String>, code: &str) -> Self {
         CompileResult {
             success: false,
-            files: HashMap::new(),
+            files: FxHashMap::default(),
             errors: errors
                 .into_iter()
                 .map(|msg| CompileDiagnostic {
@@ -100,7 +100,7 @@ impl CompileResult {
 }
 
 fn do_compile(
-    sources: HashMap<String, String>,
+    sources: FxHashMap<String, String>,
     codegen_target: omnilang::codegen::Target,
     cache: Option<&mut omnilang::analyse::IncrementalCache>,
 ) -> CompileResult {
@@ -110,7 +110,7 @@ fn do_compile(
     if total_bytes > MAX_TOTAL_SIZE {
         return CompileResult {
             success: false,
-            files: HashMap::new(),
+            files: FxHashMap::default(),
             errors: vec![CompileDiagnostic {
                 severity: "error".into(),
                 code: "INPUT_TOO_LARGE".into(),
@@ -200,7 +200,7 @@ fn compile_project(
         _ => {
             return CompileResult {
                 success: false,
-                files: HashMap::new(),
+                files: FxHashMap::default(),
                 errors: vec![CompileDiagnostic {
                     severity: "error".to_string(),
                     code: "E_TARGET".to_string(),
@@ -219,7 +219,7 @@ fn compile_project(
 
     // Discover .omni files in project directory
     let project_dir = std::path::Path::new(&project_path);
-    let mut sources: HashMap<String, String> = HashMap::new();
+    let mut sources: FxHashMap<String, String> = FxHashMap::default();
     let mut discover_errors: Vec<String> = Vec::new();
 
     if project_dir.is_dir() {
@@ -561,7 +561,7 @@ use std::sync::Mutex;
 use std::time::SystemTime;
 
 struct CachedFileList {
-    sources: HashMap<String, String>,
+    sources: FxHashMap<String, String>,
     root_mtime: Option<SystemTime>,
 }
 
@@ -864,7 +864,8 @@ pub fn run() {
         .plugin(
             victauri_plugin::VictauriBuilder::new()
                 .auth_disabled()
-                .build(),
+                .build()
+                .expect("Failed to build Victauri plugin"),
         )
         .build(tauri::generate_context!())
         .expect("error while building Poiesis");
