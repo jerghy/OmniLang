@@ -234,7 +234,7 @@ pub(super) fn generate_store(w: &mut CodeWriter, name: &str, store: &StoreIR) {
 }
 
 /// Generate a statement.
-#[allow(dead_code)]
+#[cfg(test)]
 pub(super) fn generate_statement(w: &mut CodeWriter, stmt: &StatementIR) {
     let fmt = PythonStmtFormatter {
         expr: PythonFormatExpr,

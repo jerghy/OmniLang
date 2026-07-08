@@ -125,7 +125,7 @@ pub(super) fn to_vue_event(event_name: &str) -> &str {
 }
 
 /// Format a single expression IR node as a Vue expression string (test helper).
-#[allow(dead_code)]
+#[cfg(test)]
 pub(super) fn format_expr_vue(expr: &ExprIR) -> String {
     VueFormatExpr.format_expr(expr)
 }

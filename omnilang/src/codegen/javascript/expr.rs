@@ -139,13 +139,13 @@ fn format_stmt_ir(stmt: &StatementIR, fmt: &impl FormatExpr) -> String {
 }
 
 /// Format a single expression IR node as JavaScript/TypeScript.
-#[allow(dead_code)]
+#[cfg(test)]
 pub(super) fn format_expr_ir(expr: &ExprIR, ts_mode: bool) -> String {
     JavaScriptFormatExpr { ts_mode }.format_expr(expr)
 }
 
 /// Format a block as a JavaScript IIFE expression (test helper).
-#[allow(dead_code)]
+#[cfg(test)]
 pub(super) fn format_block_as_js_expr(block: &BlockIR, ts_mode: bool) -> String {
     let fmt = JavaScriptFormatExpr { ts_mode };
     let tail = block
