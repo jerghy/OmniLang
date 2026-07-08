@@ -1,6 +1,7 @@
 import { Handle, Position } from "@xyflow/react";
 import type { NodeProps } from "@xyflow/react";
 import type { BubbleLayer } from "../../../core/types/architecture";
+import React from "react";
 
 export interface ChildBubbleNodeData {
   pid: string;
@@ -30,7 +31,7 @@ const TYPE_COLORS: Record<string, { border: string; bg: string }> = {
   code: { border: "#10b981", bg: "#ecfdf5" },
 };
 
-export function ChildBubbleNode({ data }: NodeProps) {
+const ChildBubbleNode = React.memo(function ChildBubbleNode({ data }: NodeProps) {
   const d = data as unknown as ChildBubbleNodeData;
   const layerStyle = d.layer
     ? LAYER_COLORS[d.layer]
@@ -121,4 +122,5 @@ export function ChildBubbleNode({ data }: NodeProps) {
       />
     </div>
   );
-}
+});
+export { ChildBubbleNode };

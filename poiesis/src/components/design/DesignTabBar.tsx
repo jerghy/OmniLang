@@ -91,7 +91,7 @@ export function DesignTabBar() {
                 });
               }
             }
-          }).catch(() => {});
+          }).catch((e) => { console.warn("Tab operation failed", e); });
           setShowFilePanel(false);
           return;
         }
@@ -119,7 +119,7 @@ export function DesignTabBar() {
               });
             }
           }
-        }).catch(() => {});
+        }).catch((e) => { console.warn("Tab operation failed", e); });
       }
     },
     [openTab, tabs, switchTab]

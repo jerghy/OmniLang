@@ -1,4 +1,5 @@
 import { Handle, Position } from "@xyflow/react";
+import React from "react";
 
 interface Props {
   data: {
@@ -30,7 +31,7 @@ const TAG_LABELS: Record<string, string> = {
   customFn: "函数调用",
 };
 
-export function CodeBlockNode({ data }: Props) {
+const CodeBlockNode = React.memo(function CodeBlockNode({ data }: Props) {
   const chineseLabel = TAG_LABELS[data.label] || data.label;
   const preview = data.source
     ? data.source.length > 50
@@ -86,4 +87,5 @@ export function CodeBlockNode({ data }: Props) {
       />
     </div>
   );
-}
+});
+export { CodeBlockNode };

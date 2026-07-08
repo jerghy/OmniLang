@@ -1,5 +1,6 @@
 import { Handle, Position } from "@xyflow/react";
 import type { NodeProps } from "@xyflow/react";
+import React from "react";
 
 export interface BubbleNodeData {
   pid: string;
@@ -26,7 +27,7 @@ const ICONS: Record<string, string> = {
   code: "⚙️",
 };
 
-export function BubbleNode({ data }: NodeProps) {
+const BubbleNode = React.memo(function BubbleNode({ data }: NodeProps) {
   const d = data as unknown as BubbleNodeData;
   const colors = COLORS[d.type] || COLORS.ui;
   const icon = ICONS[d.type] || "🔵";
@@ -99,4 +100,5 @@ export function BubbleNode({ data }: NodeProps) {
       />
     </div>
   );
-}
+});
+export { BubbleNode };

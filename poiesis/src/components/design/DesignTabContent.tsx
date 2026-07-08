@@ -78,7 +78,7 @@ export function DesignTabContent() {
           })),
         });
       }
-    }).catch(() => {});
+    }).catch((e) => { console.warn("Design load failed", e); });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const designSource = useMemo(() => emitDesignSource(activeDesign), [activeDesign]);

@@ -193,7 +193,7 @@ export function useProjectInit(setShowWelcome: (v: boolean) => void) {
             // Clean up old root design.omni if src/ exists
             const rootRes = await api.project.readFile("design.omni");
             if (rootRes.content && !rootRes.error) {
-              api.project.deleteFile("design.omni").catch(() => {});
+              api.project.deleteFile("design.omni").catch((e) => { log.warn("Failed to delete design.omni", e); });
             }
           } else {
             const rootRes = await api.project.readFile("design.omni");

@@ -69,7 +69,7 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
 
   useEffect(() => {
     if (showProjectPanel) {
-      api.project.getRecentProjects().then(setRecentProjects).catch(() => {});
+      api.project.getRecentProjects().then(setRecentProjects).catch((e) => { console.warn("Failed to load recent projects", e); });
     }
   }, [showProjectPanel]);
 
