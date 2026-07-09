@@ -13,10 +13,11 @@ import { useElements, useRootOrder, useSelectedElementIds, useComponentDefs } fr
 import { OmniViewElement } from "./OmniViewElement";
 import { buildInlineStyleMap } from "./render-utils";
 import { rustCompiler } from "../../commands/rustCompiler";
-import { useLiveCodePreview } from "../../hooks/useLiveCodePreview";
+import { generateOmniFiles } from "../../services/codegen/pipeline";
 import { emitDesignSource } from "../../services/codegen/design-emitter";
 import type { ElementData, ViewElementData } from "../../core/types/element";
 import type { ComponentDef } from "../../core/types/project-json";
+import type { CodeTab } from "../../core/types/codegraph";
 
 export function OmniViewRenderer() {
   const elements = useElements();
@@ -30,6 +31,8 @@ export function OmniViewRenderer() {
   const componentDefs = useComponentDefs();
   // Subscribe to activeDesign so class/style changes reflect on canvas immediately.
   const activeDesign = usePoiesisStore((s) => s.activeDesign);
+  // Subscribe to wires for WASM codegen
+  const wires = usePoiesisStore((s) => s.wires);
 
   // Build expanded element map + track IDs that are inside custom components
   const { expandedElements, customChildIds } = useMemo(() => {
@@ -92,8 +95,29 @@ export function OmniViewRenderer() {
     return { expandedElements: map, customChildIds: innerIds };
   }, [elements, componentDefs]);
 
-  // Live component .omni source for WASM compilation
-  const componentSource = useLiveCodePreview();
+  // Live component .omni source for WASM compilation — generate inline
+  // (not via useLiveCodePreview, which only returns content when a
+  // component tab is active).
+  const componentSource = useMemo(() => {
+    if (elements.length === 0) return null;
+    const codeTabs: CodeTab[] = [{
+      id: "main", type: "logic", label: "Main", icon: "📄",
+      graph: { elements, wires }, variables: [],
+    }];
+    try {
+      const result = generateOmniFiles({
+        designElements: elements,
+        designWires: wires,
+        codeTabs,
+        componentName: "main",
+        rootOrder,
+        forSave: false,
+        filePath: "src/main.omni",
+        designName: activeDesign?.name && (activeDesign.tokens?.length || activeDesign.classes?.length || activeDesign.variants?.length) ? activeDesign.name : undefined,
+      });
+      return result.value?.["src/main.omni"] ?? null;
+    } catch { return null; }
+  }, [elements, wires, rootOrder, activeDesign]);
 
   // Build design.omni source from activeDesign
   const designSource = useMemo(() => {

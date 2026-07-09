@@ -312,6 +312,7 @@ export function generateOmniFiles(options: {
   forSave?: boolean;
   /** Target file path relative to project root (e.g. "src/components/MyCard.omni"). Default: "src/main.omni". */
   filePath?: string;
+  designName?: string;
 }): StageResult<Record<string, string>> {
   // Run the full pipeline for the main source
   const mainResult = generateOmniSource(options);
