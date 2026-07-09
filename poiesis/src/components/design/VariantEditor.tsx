@@ -6,6 +6,7 @@ import { usePoiesisStore } from "../../store";
 import { uid } from "../../core/utils";
 import type { VariantBranch, VariantDimension } from "../../core/types/design";
 import type { StyleProperty, StyleValueSegment } from "../../core/types/style";
+import { parseStyleValue } from "../../services/codegen/design-value-parser";
 import { SizeCard } from "./cards/SizeCard";
 import { BackgroundCard } from "./cards/BackgroundCard";
 import { BorderCard } from "./cards/BorderCard";
@@ -22,10 +23,6 @@ import { TokenSlashPicker } from "./TokenSlashPicker";
 
 function segmentsToString(segments: StyleValueSegment[]): string {
   return segments.map((s) => (s.type === "text" ? s.value : "")).join("");
-}
-
-function stringToSegments(value: string): StyleValueSegment[] {
-  return value ? [{ type: "text" as const, value }] : [];
 }
 
 /** Parse a branch key "dimension.value" into { dim, val }, or null for "base". */
@@ -308,8 +305,11 @@ const typographyPropNames = ["color", "fontFamily", "fontSize", "fontWeight", "l
 function getPropValue(props: StyleProperty[], name: string): string {
   const prop = props.find((p) => p.name === name);
   if (!prop || prop.segments.length === 0) return "";
-  const seg = prop.segments[0];
-  return seg.type === "text" ? seg.value : "";
+  return prop.segments.map((s) => {
+    if (s.type === "var-ref") return `token(${s.name})`;
+    if (s.type === "text") return s.value;
+    return "";
+  }).join("");
 }
 
 function isEnumProperty(name: string): boolean {
@@ -668,13 +668,13 @@ export function VariantEditor() {
       if (existing) {
         newProps = currentProps.map((p) =>
           p.name === name
-            ? { ...p, segments: stringToSegments(value) }
+            ? { ...p, segments: parseStyleValue(value) }
             : p,
         );
       } else {
         newProps = [
           ...currentProps,
-          { id: uid("prop"), name, segments: stringToSegments(value) },
+          { id: uid("prop"), name, segments: parseStyleValue(value) },
         ];
       }
       handleCardPropsChange(newProps);

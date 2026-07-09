@@ -14,10 +14,12 @@ import { uid } from "../../../core/utils";
 function getProp(props: StyleProperty[], name: string): string {
   const prop = props.find((p) => p.name === name);
   if (!prop || prop.segments.length === 0) return "";
-  const seg = prop.segments[0];
-  return seg.type === "text" ? seg.value : "";
+  return prop.segments.map((s) => {
+    if (s.type === "var-ref") return `token(${s.name})`;
+    if (s.type === "text") return s.value;
+    return "";
+  }).join("");
 }
-
 function setProp(
   props: StyleProperty[],
   name: string,
