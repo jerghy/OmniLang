@@ -14,7 +14,6 @@ import { buildPidAnnotations, createAnnotationStrategy } from "./annotation-data
 import { SourceEmitter, CodeWriter } from "./source-emitter";
 import { expandCustomComponents } from "./expand-custom-components";
 import { collectStylesFromEntries, applyStyles } from "./collect-styles";
-import { emitDesignSource } from "./design-emitter";
 import type { ElementData, WireData, CodeTab } from "../../core/types";
 // import type { PidMap } from "../../core/types/pid";
 import { getComponentDefinitions, usePoiesisStore } from "../../store";
@@ -460,5 +459,3 @@ function emitStoreBlock(store: StoreDef): string {
   return w.toString();
 }
 
-// ── Design source emitter (re-export) ────────────────────────────────────
-export { emitDesignSource };

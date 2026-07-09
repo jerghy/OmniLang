@@ -3,44 +3,17 @@
 // ViewNode resolvedStyle trees into the componentStyle map, elementClassMap,
 // and elementInlineMap consumed by SourceEmitter.
 
-import { resolveStyle } from "./style-resolver";
-import { variableToClassName } from "../../core/types";
 import type { StyleRegistry, StyleValueSegment } from "../../core/types";
 import type { ViewNode } from "./types";
 
 // ── applyStyles ───────────────────────────────────────────────────────
 
 /**
- * Walk the ViewNode tree and call resolveStyle on each node,
- * setting the `resolvedStyle` property in place.
+ * Stub: style resolution is now performed by WASM resolve_styles().
+ * Kept as a no-op to avoid breaking the pipeline call site.
  */
-export function applyStyles(roots: ViewNode[]): void {
-  for (const r of roots) {
-    walkApply(r);
-  }
-  function walkApply(n: ViewNode): void {
-    if (n.kind === "element") {
-      n.resolvedStyle = resolveStyle(n);
-    }
-    switch (n.kind) {
-      case "element":
-      case "for":
-      case "slot":
-        for (const c of n.children) walkApply(c);
-        break;
-      case "if":
-        for (const branch of n.branches) {
-          for (const c of branch.body) walkApply(c);
-        }
-        if (n.fallback) {
-          for (const c of n.fallback) walkApply(c);
-        }
-        break;
-      case "text":
-      case "interpolation":
-        break;
-    }
-  }
+export function applyStyles(_roots: ViewNode[]): void {
+  // No-op: WASM handles style resolution
 }
 
 // ── collectStylesFromEntries ──────────────────────────────────────────
@@ -56,7 +29,7 @@ export function applyStyles(roots: ViewNode[]): void {
  */
 export function collectStylesFromEntries(
   elements: Array<{ id: string; style?: { classRefs?: string[]; inlineProperties?: Array<{ name: string; segments: StyleValueSegment[] }> } }>,
-  styleRegistry: StyleRegistry,
+  _styleRegistry: StyleRegistry,
   roots?: ViewNode[],
 ): {
   componentStyle: Record<string, Record<string, string>>;
@@ -67,24 +40,27 @@ export function collectStylesFromEntries(
   const elementClassMap = new Map<string, string[]>();
   const elementInlineMap = new Map<string, Record<string, string>>();
 
-  // Phase 1: Build componentStyle from StyleRegistry
-  for (const cls of styleRegistry.classes) {
-    const rules: Record<string, string> = {};
-    for (const prop of cls.properties) {
-      rules[prop.name] = compileSegments(prop.segments);
-    }
-    componentStyle[cls.name] = { ...(componentStyle[cls.name] ?? {}), ...rules };
-  }
-
-  for (const v of styleRegistry.variables) {
-    const className = variableToClassName(v.name);
-    const rules = { [v.name]: compileSegments(v.segments) };
-    componentStyle[className] = { ...(componentStyle[className] ?? {}), ...rules };
-  }
+  // Phase 1 (REMOVED): Design classes and token variables are emitted only in
+  // design.omni via emitDesignSource. They should NOT be duplicated into every
+  // component's style { } block. Component-local styles are added by Phase 3 below.
 
   // Phase 2: Element classRefs → elementClassMap, inlineProperties → elementInlineMap
+  // Filter out auto-generated CSS class names (e.g. "MyCard_p_0") that come from
+  // the view tree path. Everything else — design-system classes, component-local
+  // classes, user-bound classes — passes through into the emitted source.
+  const autoClassNames = new Set<string>();
+  if (roots) {
+    walkViewNodes(roots, (n) => {
+      if (n.kind === "element" && n.resolvedStyle?.cssClassName) {
+        autoClassNames.add(n.resolvedStyle.cssClassName);
+      }
+    });
+  }
+
   for (const el of elements) {
-    const classRefs = el.style?.classRefs ?? [];
+    const classRefs = (el.style?.classRefs ?? []).filter(
+      (name) => !autoClassNames.has(name),
+    );
     if (classRefs.length > 0) {
       elementClassMap.set(el.id, [...new Set(classRefs)]);
     }
@@ -122,6 +98,11 @@ export function collectStylesFromEntries(
 
 // ── compileSegments ──────────────────────────────────────────────────
 
+/** Ensure a var-ref name has the `--` CSS custom property prefix. */
+function normalizeVarRef(name: string): string {
+  return name.startsWith("--") ? name : `--${name}`;
+}
+
 /**
  * Compile StyleValueSegment[] into an OmniLang expression string.
  *
@@ -136,13 +117,13 @@ export function compileSegments(segments: StyleValueSegment[]): string {
     const s = segments[0];
     if (s.type === "text") return `"${s.value}"`;
     if (s.type === "signal") return s.name;
-    if (s.type === "var-ref") return `var(${s.name})`;
+    if (s.type === "var-ref") return `var(${normalizeVarRef(s.name)})`;
     return "";
   }
   return segments.map((s) => {
     if (s.type === "text") return `"${s.value}"`;
     if (s.type === "signal") return s.name;
-    if (s.type === "var-ref") return `var(${s.name})`;
+    if (s.type === "var-ref") return `var(${normalizeVarRef(s.name)})`;
     return "";
   }).join(" + ");
 }
