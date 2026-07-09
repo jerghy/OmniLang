@@ -8,10 +8,12 @@ export function collectImports(
   storeRefs: string[],
   codeTabs: CodeTab[],
   designName?: string,
+  hasDesignClassUsage?: boolean,
 ): string[] {
   const imports: string[] = ["import omniview;"];
 
-  if (designName) {
+  // Only import design if name is provided AND it's actually used
+  if (designName && hasDesignClassUsage) {
     imports.push(`import { ${designName} } from "./design.omni";`);
   }
 
