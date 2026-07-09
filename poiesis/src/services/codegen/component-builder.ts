@@ -44,6 +44,8 @@ export interface PhaseBContext {
 export interface PhaseCContext {
   annotationStrategy: AnnotationStrategy | null;
   styleCollection: StyleCollection;
+  /** Signal bindings keyed by elementId → { propName: signalName } */
+  elementBindings: Map<string, Record<string, string>>;
 }
 
 // ── Helper: View Wrapper ID ─────────────────────────────────────────

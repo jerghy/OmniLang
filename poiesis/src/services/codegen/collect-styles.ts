@@ -19,48 +19,29 @@ export function applyStyles(_roots: ViewNode[]): void {
 // ── collectStylesFromEntries ──────────────────────────────────────────
 
 /**
- * Build the final style maps from ElementData (with ElementStyle) and a
- * StyleRegistry (canonical source of class/variable definitions).
+ * Build the final style maps from ElementData (with ElementStyle).
  *
  * Returns three data structures consumed by SourceEmitter:
- *   - componentStyle:   class name → { property: value } (for the style {} block)
- *   - elementClassMap:  element ID → class names (for class: attrib on view nodes)
+ *   - componentStyle:   always empty — CSS comes from WASM resolve_styles()
+ *   - elementClassMap:  element ID → design class references (for class: attrib on view nodes)
  *   - elementInlineMap: element ID → { property: value } (for inline style: on view nodes)
  */
 export function collectStylesFromEntries(
   elements: Array<{ id: string; style?: { classRefs?: string[]; inlineProperties?: Array<{ name: string; segments: StyleValueSegment[] }> } }>,
   _styleRegistry: StyleRegistry,
-  roots?: ViewNode[],
+  _roots?: ViewNode[],
 ): {
   componentStyle: Record<string, Record<string, string>>;
   elementClassMap: Map<string, string[]>;
   elementInlineMap: Map<string, Record<string, string>>;
 } {
-  const componentStyle: Record<string, Record<string, string>> = {};
   const elementClassMap = new Map<string, string[]>();
   const elementInlineMap = new Map<string, Record<string, string>>();
 
-  // Phase 1 (REMOVED): Design classes and token variables are emitted only in
-  // design.omni via emitDesignSource. They should NOT be duplicated into every
-  // component's style { } block. Component-local styles are added by Phase 3 below.
-
-  // Phase 2: Element classRefs → elementClassMap, inlineProperties → elementInlineMap
-  // Filter out auto-generated CSS class names (e.g. "MyCard_p_0") that come from
-  // the view tree path. Everything else — design-system classes, component-local
-  // classes, user-bound classes — passes through into the emitted source.
-  const autoClassNames = new Set<string>();
-  if (roots) {
-    walkViewNodes(roots, (n) => {
-      if (n.kind === "element" && n.resolvedStyle?.cssClassName) {
-        autoClassNames.add(n.resolvedStyle.cssClassName);
-      }
-    });
-  }
-
+  // Element classRefs → elementClassMap (design classes from classRefs)
+  // inlineProperties → elementInlineMap (inline/dynamic styles)
   for (const el of elements) {
-    const classRefs = (el.style?.classRefs ?? []).filter(
-      (name) => !autoClassNames.has(name),
-    );
+    const classRefs = el.style?.classRefs ?? [];
     if (classRefs.length > 0) {
       elementClassMap.set(el.id, [...new Set(classRefs)]);
     }
@@ -74,26 +55,8 @@ export function collectStylesFromEntries(
     }
   }
 
-  // Phase 3: Merge resolvedStyle.cssRules from ViewNode tree.
-  // applyStyles(roots) computed resolvedStyle on each ViewNode with cssRules from
-  // snake_case props (e.g. background_color -> background).  Make sure those rules
-  // end up in componentStyle under the correct class name so they appear in the
-  // emitted style block, not just as inline HTML attrs.
-  if (roots) {
-    walkViewNodes(roots, (n) => {
-      if (n.kind !== "element" || !n.resolvedStyle) return;
-      const { cssRules, cssClassName } = n.resolvedStyle;
-      if (!cssRules || Object.keys(cssRules).length === 0) return;
-
-      if (componentStyle[cssClassName]) {
-        componentStyle[cssClassName] = { ...componentStyle[cssClassName], ...cssRules };
-      } else {
-        componentStyle[cssClassName] = cssRules;
-      }
-    });
-  }
-
-  return { componentStyle, elementClassMap, elementInlineMap };
+  // componentStyle is now empty — CSS comes from WASM resolve_styles()
+  return { componentStyle: {}, elementClassMap, elementInlineMap };
 }
 
 // ── compileSegments ──────────────────────────────────────────────────

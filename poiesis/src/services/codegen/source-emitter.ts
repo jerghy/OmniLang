@@ -2,7 +2,7 @@
 // CodeWriter helper + SourceEmitter for view and style generation.
 
 import type { EmitInput, AnnotationStrategy, ChainBlock } from "./types";
-import type { ViewNode } from "./types";
+import type { ViewNode, ElementViewNode } from "./types";
 
 export class CodeWriter {
   private lines: string[] = [];
@@ -24,6 +24,7 @@ export class SourceEmitter {
     private annotationStrategy?: AnnotationStrategy,
     private elementClassMap?: Map<string, string[]>,
     private elementInlineMap?: Map<string, Record<string, string>>,
+    private elementBindings?: Map<string, Record<string, string>>,
   ) {}
 
   emitDocument(input: EmitInput, chains: Map<string, ChainBlock>): string {
@@ -314,42 +315,68 @@ export class SourceEmitter {
       return;
     }
 
-    // ── Element nodes (require resolvedStyle) ──
-    // If resolvedStyle is missing, skip silently — this can happen when a node
-    // was added to the ViewNode tree but applyStyles() hasn't been called yet
-    // (e.g. during incremental compilation where only part of the tree is rebuilt).
-    const style = node.resolvedStyle;
-    if (!style) {
-      // Skipping element node without resolvedStyle — caller should ensure
-      // applyStyles() is called before emitting.
-      return;
-    }
+    // ── Element nodes ──
+    // Elements may or may not have resolvedStyle (WASM handles CSS resolution).
+    // When resolvedStyle is missing, derive info from the node's own fields.
+    const elNode = node as ElementViewNode;
+    const tag = elNode.tag;
+    const style = elNode.resolvedStyle;
 
     const parts: string[] = [];
-    parts.push(`<${style.htmlTag}`);
-    parts.push(` id="${node.id}"`);
+    parts.push(`<${tag}`);
+    parts.push(` id="${elNode.id}"`);
 
-    // Base class name from resolved style + extra classes from element classRefs
-    const extraClasses = this.elementClassMap?.get(node.id);
-    const fullClassName = extraClasses?.length
-      ? `${style.cssClassName} ${extraClasses.join(" ")}`
-      : style.cssClassName;
-    parts.push(` class: ${fullClassName}`);
+    // ── class: attribute ──
+    // Design class refs from elementClassMap (e.g. "AppDesign.Card")
+    // Local class from resolvedStyle.cssClassName (e.g. "app_view" for root wrapper)
+    const designClasses = this.elementClassMap?.get(elNode.id);
+    const localClass = style?.cssClassName;
+    const classParts: string[] = [];
+    if (localClass) classParts.push(localClass);
+    if (designClasses && designClasses.length > 0) {
+      for (const cls of designClasses) {
+        if (!classParts.includes(cls)) classParts.push(cls);
+      }
+    }
+    if (classParts.length > 0) {
+      parts.push(` class: ${classParts.join(" ")}`);
+    }
 
-    for (const [attr, val] of Object.entries(style.htmlAttrs)) {
-      // Skip className — already emitted via class: above
-      if (attr === "className" || attr === "style") continue;
-      // Boolean attributes: emit bare name
-      if (SourceEmitter.BOOLEAN_ATTRS.has(attr)) {
-        parts.push(` ${attr}`);
-      } else {
-        parts.push(` ${attr}="${escapeAttr(val)}"`);
+    // ── variant: attribute ──
+    const variantRef = elNode.variantRef;
+    if (variantRef && variantRef.designName && variantRef.variantName) {
+      const paramsStr = Object.entries(variantRef.params)
+        .map(([k, val]) => `${k}=${val}`)
+        .join(", ");
+      const variantStr = `${variantRef.designName}.${variantRef.variantName}`;
+      parts.push(` variant: ${variantStr}${paramsStr ? `(${paramsStr})` : ""}`);
+    }
+
+    // ── HTML attributes ──
+    if (style?.htmlAttrs) {
+      for (const [attr, val] of Object.entries(style.htmlAttrs)) {
+        if (attr === "className" || attr === "style") continue;
+        if (SourceEmitter.BOOLEAN_ATTRS.has(attr)) {
+          parts.push(` ${attr}`);
+        } else {
+          parts.push(` ${attr}="${escapeAttr(String(val))}"`);
+        }
+      }
+    } else {
+      // Derive HTML attributes from node.props (used when applyStyles is no-op)
+      for (const [key, val] of Object.entries(elNode.props)) {
+        if (key === "className" || key === "style" || key === "key") continue;
+        if (key.startsWith("on")) continue; // event handlers handled below
+        if (typeof val === "boolean") {
+          if (val) parts.push(` ${key}`);
+        } else if (typeof val === "string" || typeof val === "number") {
+          parts.push(` ${key}="${escapeAttr(String(val))}"`);
+        }
       }
     }
 
-    // Inline styles — values are already compiled segment strings from
-    // collectStylesFromEntries (text segments quoted, signals bare, var-refs as var()).
-    const inlineStyles = this.elementInlineMap?.get(node.id);
+    // ── Inline styles ──
+    const inlineStyles = this.elementInlineMap?.get(elNode.id);
     if (inlineStyles && Object.keys(inlineStyles).length > 0) {
       const styleStr = Object.entries(inlineStyles)
         .filter(([, v]) => v !== "" && v !== undefined && v !== null)
@@ -358,19 +385,46 @@ export class SourceEmitter {
       parts.push(` style: { ${styleStr} }`);
     }
 
-    for (const [evt, handler] of Object.entries(style.eventBindings)) {
-      parts.push(` @${evt}={${handler}}`);
+    // ── Event bindings ──
+    if (style?.eventBindings) {
+      for (const [evt, handler] of Object.entries(style.eventBindings)) {
+        parts.push(` @${evt}={${handler}}`);
+      }
+    } else {
+      for (const [key, val] of Object.entries(elNode.props)) {
+        if (key.startsWith("on") && typeof val === "string") {
+          const evtName = key[2].toLowerCase() + key.slice(3); // onClick → click
+          parts.push(` @${evtName}={${val}}`);
+        }
+      }
     }
-    for (const [prop, sig] of Object.entries(style.bindings)) {
-      parts.push(` bind:${prop}={${sig}}`);
+
+    // ── Signal bindings ──
+    // Prefer elementBindings map (newer path) over resolvedStyle.bindings
+    const emittedBindings = new Set<string>();
+    if (this.elementBindings) {
+      const elBindings = this.elementBindings.get(elNode.id);
+      if (elBindings) {
+        for (const [prop, sig] of Object.entries(elBindings)) {
+          parts.push(` bind:${prop}={${sig}}`);
+          emittedBindings.add(prop);
+        }
+      }
+    }
+    if (style?.bindings) {
+      for (const [prop, sig] of Object.entries(style.bindings)) {
+        if (!emittedBindings.has(prop)) {
+          parts.push(` bind:${prop}={${sig}}`);
+        }
+      }
     }
 
     const openTag = parts.join("");
-    const isVoid = SourceEmitter.VOID_ELEMENTS.has(style.htmlTag);
-    const hasContent = style.contentText || node.children.length > 0;
+    const isVoid = SourceEmitter.VOID_ELEMENTS.has(tag);
+    const hasContent = style?.contentText || elNode.children.length > 0;
 
     if (isVoid || !hasContent) {
-      w.emit(isVoid ? `${openTag} />` : `${openTag}></${style.htmlTag}>`);
+      w.emit(isVoid ? `${openTag} />` : `${openTag}></${tag}>`);
       return;
     }
 
@@ -378,18 +432,18 @@ export class SourceEmitter {
     w.indent();
 
     // Emit content text only when no binding covers the same prop.
-    // When a signal is wired to the content prop (e.g. label on Button),
-    // the binding takes priority; contentText becomes a stale literal.
-    if (style.contentText) {
-      const bindingKeys = new Set(Object.keys(style.bindings));
-      const contentIsBound = style.contentText.length > 0 &&
-        Array.from(bindingKeys).some((k) => k === "label" || k === "value");
+    if (style?.contentText) {
+      const bindingKeys = new Set([
+        ...(this.elementBindings?.get(elNode.id) ? Object.keys(this.elementBindings.get(elNode.id)!) : []),
+        ...Object.keys(style.bindings),
+      ]);
+      const contentIsBound = bindingKeys.has("label") || bindingKeys.has("value");
       if (!contentIsBound) {
         w.emit(style.contentText);
       }
     }
 
-    for (const child of node.children) {
+    for (const child of elNode.children) {
       if (child.kind === "text" || child.kind === "interpolation") {
         this.emitViewNode(child, w, depth + 1);
       } else {
@@ -398,7 +452,7 @@ export class SourceEmitter {
     }
 
     w.dedent();
-    w.emit(`</${style.htmlTag}>`);
+    w.emit(`</${tag}>`);
   }
 }
 

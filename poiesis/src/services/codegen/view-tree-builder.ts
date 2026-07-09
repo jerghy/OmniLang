@@ -57,6 +57,10 @@ export function buildViewTree(
       kind: "element",
       isFolded: el.isFolded,
       renderMode: el.renderMode,
+      classRefs: el.classRefs,
+      variantRef: el.variantRef,
+      componentClasses: el.componentClasses,
+      inlineStyle: el.inlineStyle,
     } as ElementViewNode;
   }
 

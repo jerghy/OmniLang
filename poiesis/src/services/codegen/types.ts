@@ -177,6 +177,7 @@ export interface ResolvedStyle {
   htmlAttrs: Record<string, string>;
   eventBindings: Record<string, string>;
   bindings: Record<string, string>;
+  /** No longer populated — CSS resolution delegated to WASM resolve_styles() */
   cssRules: Record<string, string>;
   usedClassNames: string[];
 }
@@ -195,6 +196,18 @@ export interface ElementViewNode extends ViewNodeBase {
   inline_style?: Record<string, string> | null;
   isFolded?: boolean;
   renderMode?: "dom" | "canvas";
+  /** Design system class references, e.g. ["AppDesign.Card", "AppDesign.Row"] */
+  classRefs?: string[];
+  /** Design variant binding reference */
+  variantRef?: {
+    designName: string;
+    variantName: string;
+    params: Record<string, string>;
+  } | null;
+  /** Component-local style class names (defined in component style {} block) */
+  componentClasses?: string[];
+  /** Inline style for signal-driven dynamic values */
+  inlineStyle?: Record<string, string>;
 }
 
 export interface IfViewNode extends ViewNodeBase {

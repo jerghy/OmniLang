@@ -16,7 +16,7 @@ import { expandCustomComponents } from "./expand-custom-components";
 import { collectStylesFromEntries, applyStyles } from "./collect-styles";
 import type { ElementData, WireData, CodeTab } from "../../core/types";
 // import type { PidMap } from "../../core/types/pid";
-import { getComponentDefinitions, usePoiesisStore } from "../../store";
+import { getComponentDefinitions } from "../../store";
 import type {
   StageResult,
   PipelineError,
@@ -190,9 +190,11 @@ function runPhaseC(
   });
   errors.push(...c1.errors);
 
-  // ── Plumb signal bindings from wire analysis into ViewNode trees ──
+  // ── Collect signal bindings from wire analysis ──
+  // These are passed directly to SourceEmitter via elementBindings,
+  // rather than walking the tree to merge into resolvedStyle.bindings.
+  const elBindings = new Map<string, Record<string, string>>();
   if (c1.errors.length === 0) {
-    const elBindings = new Map<string, Record<string, string>>();
     for (const [sigName, targets] of phaseA.bindings.signalBindings) {
       for (const t of targets) {
         const existing = elBindings.get(t.elementId) ?? {};
@@ -200,29 +202,15 @@ function runPhaseC(
         elBindings.set(t.elementId, existing);
       }
     }
-    if (elBindings.size > 0) {
-      for (const root of phaseA.roots) {
-        walkAndApplyBindings(root, elBindings);
-      }
-    }
   }
 
-  const designState = usePoiesisStore.getState().activeDesign;
-  const registry = {
-    variables: designState.tokens.map((t) => ({
-      id: t.id,
-      name: `--${t.name}`,
-      segments: [{ type: "text" as const, value: t.value }],
-    })),
-    classes: designState.classes.map((c) => ({
-      id: c.id,
-      name: c.name,
-      properties: c.properties,
-    })),
-  };
   const styleCollection = c1.errors.length > 0
     ? defaultStyleCollection()
-    : collectStylesFromEntries(expandedElements, registry, phaseA.roots);
+    : collectStylesFromEntries(
+        expandedElements,
+        { variables: [], classes: [] }, // registry no longer needed — WASM handles CSS
+        phaseA.roots,
+      );
 
   const mainTab = options.codeTabs.find((t) => t.id === "main") ?? options.codeTabs[0];
 
@@ -241,44 +229,10 @@ function runPhaseC(
     ctx: {
       annotationStrategy: c2.value,
       styleCollection,
+      elementBindings: elBindings,
     },
     errors,
   };
-}
-
-/**
- * Walk a ViewNode tree and merge signal bindings into resolvedStyle.bindings.
- */
-function walkAndApplyBindings(
-  node: ViewNode,
-  elBindings: Map<string, Record<string, string>>,
-): void {
-  if (node.kind === "element" && node.resolvedStyle) {
-    const bindings = elBindings.get(node.id);
-    if (bindings) {
-      node.resolvedStyle.bindings = { ...node.resolvedStyle.bindings, ...bindings };
-    }
-  }
-  switch (node.kind) {
-    case "element":
-    case "for":
-    case "slot":
-      for (const child of node.children) {
-        walkAndApplyBindings(child, elBindings);
-      }
-      break;
-    case "if":
-      for (const branch of node.branches) {
-        for (const child of branch.body) walkAndApplyBindings(child, elBindings);
-      }
-      if (node.fallback) {
-        for (const child of node.fallback) walkAndApplyBindings(child, elBindings);
-      }
-      break;
-    case "text":
-    case "interpolation":
-      break;
-  }
 }
 
 // ── generateOmniSource ──────────────────────────────────────────────
@@ -315,10 +269,12 @@ export function generateOmniSource(options: GenerateOmniSourceOptions): StageRes
   };
 
   const c3 = runPhase("C", "source-emitter", () => {
+    const elBindings = phaseC.ctx.elementBindings;
     const emitter = new SourceEmitter(
       phaseC.ctx.annotationStrategy ?? undefined,
       phaseC.ctx.styleCollection.elementClassMap,
       phaseC.ctx.styleCollection.elementInlineMap,
+      elBindings.size > 0 ? elBindings : undefined,
     );
     return emitter.emitDocument(emitInput, phaseB.ctx.allChains);
   });
