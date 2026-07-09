@@ -16,7 +16,8 @@ import { DesignTabBar } from "../components/design/DesignTabBar";
 import { api } from "../commands";
 import type { RecentProject } from "../commands/project-api";
 import { DesignTabContent } from "../components/design/DesignTabContent";
-import { DesignCanvas } from "../components/design/DesignCanvas";
+import { InfiniteCanvas } from "../components/canvas/InfiniteCanvas";
+import { OmniViewRenderer } from "../components/design/OmniViewRenderer";
 import { CodeFlowCanvas } from "../components/design/CodeFlowCanvas";
 import { BreadcrumbBar } from "../components/design/BreadcrumbBar";
 import { ComponentPalette } from "../components/panels/ComponentPalette";
@@ -249,7 +250,9 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
           {activeTabType === "design" ? (
             <DesignTabContent />
           ) : activeTabType === "component" ? (
-            <DesignCanvas />
+            <InfiniteCanvas>
+              <OmniViewRenderer />
+            </InfiniteCanvas>
           ) : (
             <CodeFlowCanvas />
           )}
