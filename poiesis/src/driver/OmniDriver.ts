@@ -141,17 +141,17 @@ class OmniDriver {
   heading(label: string, level?: string | number, parentId?: string | null): ElementHandle {
     return this._canvas.heading(label, level, parentId);
   }
-  container(props?: Record<string, unknown>, parentId?: string | null): ElementHandle {
-    return this._canvas.container(props, parentId);
+  container(parentId?: string | null): ElementHandle {
+    return this._canvas.container(parentId);
   }
   input(placeholder?: string, props?: Record<string, unknown>, parentId?: string | null): ElementHandle {
     return this._canvas.input(placeholder, props, parentId);
   }
-  card(props?: Record<string, unknown>, parentId?: string | null): ElementHandle {
-    return this._canvas.card(props, parentId);
+  card(parentId?: string | null): ElementHandle {
+    return this._canvas.card(parentId);
   }
-  flex(direction?: string, gap?: string, props?: Record<string, unknown>, parentId?: string | null): ElementHandle {
-    return this._canvas.flex(direction, gap, props, parentId);
+  flex(parentId?: string | null): ElementHandle {
+    return this._canvas.flex(parentId);
   }
   image(src: string, alt?: string, parentId?: string | null): ElementHandle {
     return this._canvas.image(src, alt, parentId);
@@ -174,6 +174,13 @@ class OmniDriver {
   getProp(id: string, prop: string): unknown { return this._canvas.getProp(id, prop); }
   setSource(id: string, source: string): void { return this._canvas.setSource(id, source); }
   selectElement(id: string | null): void { return this._canvas.selectElement(id); }
+
+  // ── Design System Integration ─────────────────────
+
+  applyClass(elementId: string, classRef: string): void { return this._canvas.applyClass(elementId, classRef); }
+  applyVariant(elementId: string, designName: string, variantName: string, params: Record<string, string>): void {
+    return this._canvas.applyVariant(elementId, designName, variantName, params);
+  }
 
   // ── Mode Switching ───────────────────────────────
 
@@ -283,7 +290,7 @@ class OmniDriver {
       description: "Playwright-like API for OmniLang editor automation (pure data-flow v2)",
       state: ["getState()", "getElements() / .elements", "getWires() / .wires", "getMode()", "getSelectedElement()", "getPreviewUrl()", ".views", ".codeBlocks"],
       locator: ["element(id)", "findByTag(tag)", "find(query)", "findByProp(prop,value)"],
-      creation: ["component(tag,props?,parentId?)", "button(label,props?,parentId?)", "text(label,props?,parentId?)", "heading(label,level?,parentId?)", "container(props?,parentId?)", "input(placeholder?,props?,parentId?)", "card(props?,parentId?)", "flex(direction?,gap?,props?,parentId?)", "image(src,alt?,parentId?)", "list(parentId?)", "alert(type?,label?,parentId?)"],
+      creation: ["component(tag,props?,parentId?)", "button(label,props?,parentId?)", "text(label,props?,parentId?)", "heading(label,level?,parentId?)", "container(parentId?)", "input(placeholder?,props?,parentId?)", "card(parentId?)", "flex(parentId?)", "image(src,alt?,parentId?)", "list(parentId?)", "alert(type?,label?,parentId?)"],
       codeBlocks: ["codeBlock(type,name,options) — types: signal, computed, store, literal, add, sub, mul, div, compare, and, or, not, concat, getVariable, setVariable, branch, sequence, forEach, updateUIProperty, fn, customFn, return"],
       elementHandle: ["exists()", "text()", "setProp(k,v)", "getProp(k)", "select()", "remove()", "connectTo(target,fromPort,toPort)", "bindEvent(eventName,fnName,options?)", "unbindEvent(eventName)", "getPorts()", "getEvents()", "getAvailableEvents()", "getEventBindings()", "children()", "parent()", "getSource()", "setSource(src)", "addParam(name,type,default?)", "setReturnType(type)", "setDescription(desc)", "waitForLive(ms)", "data"],
       wireHandle: ["disconnect()", "source()", "target()", "data"],

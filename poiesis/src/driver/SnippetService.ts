@@ -23,11 +23,11 @@ export class SnippetService {
    *
    *  @example
    *  O.registerSnippet("product-card", (opts) => {
-   *    const card = O.card({ padding: "16px" });
+   *    const card = O.component("div", {}, undefined);
    *    O.image(opts.image, "Product", card.id);
    *    O.heading(opts.title, "3", card.id);
    *    O.text(`$${opts.price}`, {}, card.id);
-   *    const btn = O.button("Buy", { variant: "primary" }, card.id);
+   *    const btn = O.button("Buy", {}, card.id);
    *    btn.bindEvent("onPress", "handlePurchase");
    *    return card;
    *  });
@@ -69,36 +69,36 @@ export class SnippetService {
     switch (template) {
       case "login-form": {
         const title = (options?.title as string) || "Sign In";
-        const card = this._driver.card({ padding: "32px" });
+        const card = this._driver.component("div", {}, undefined);
         this._driver.heading(title, "2", card.id);
         this._driver.input("Email", { type: "email" }, card.id);
         this._driver.input("Password", { type: "password" }, card.id);
-        const submitBtn = this._driver.button("Sign In", { variant: "primary" }, card.id);
+        const submitBtn = this._driver.button("Sign In", {}, card.id);
         submitBtn.bindEvent("onPress", "handleSignIn");
         return card;
       }
       case "data-card": {
         const title = (options?.title as string) || "Card Title";
         const desc = (options?.description as string) || "Card description here.";
-        const card = this._driver.card({ padding: "24px" });
+        const card = this._driver.component("div", {}, undefined);
         this._driver.heading(title, "3", card.id);
         this._driver.text(desc, {}, card.id);
         if (options?.actionLabel) {
-          const actionBtn = this._driver.button(options.actionLabel as string, { variant: "primary" }, card.id);
+          const actionBtn = this._driver.button(options.actionLabel as string, {}, card.id);
           actionBtn.bindEvent("onPress", "handleAction");
         }
         return card;
       }
       case "crud-table": {
         const title = (options?.title as string) || "Data";
-        const card = this._driver.card({ padding: "24px" });
+        const card = this._driver.component("div", {}, undefined);
         this._driver.heading(title, "2", card.id);
-        const toolbar = this._driver.flex("row", "8px", {}, card.id);
+        const toolbar = this._driver.flex(card.id);
         this._driver.input("Search...", {}, toolbar.id);
-        const addBtn = this._driver.button("Add", { variant: "primary" }, toolbar.id);
+        const addBtn = this._driver.button("Add", {}, toolbar.id);
         addBtn.bindEvent("onPress", "handleAdd");
         const columns = (options?.columns as string[]) || ["Name", "Status", "Actions"];
-        const headerRow = this._driver.flex("row", "12px", {}, card.id);
+        const headerRow = this._driver.flex(card.id);
         for (const col of columns) {
           this._driver.heading(col, "4", headerRow.id);
         }

@@ -87,10 +87,10 @@ interface OmniDriver {
   button(label: string, props?: Record<string, unknown>, parentId?: string | null): ElementHandle;
   text(label: string, props?: Record<string, unknown>, parentId?: string | null): ElementHandle;
   heading(label: string, level?: string | number, parentId?: string | null): ElementHandle;
-  container(props?: Record<string, unknown>, parentId?: string | null): ElementHandle;
+  container(parentId?: string | null): ElementHandle;
   input(placeholder?: string, props?: Record<string, unknown>, parentId?: string | null): ElementHandle;
-  card(props?: Record<string, unknown>, parentId?: string | null): ElementHandle;
-  flex(direction?: string, gap?: string, props?: Record<string, unknown>, parentId?: string | null): ElementHandle;
+  card(parentId?: string | null): ElementHandle;
+  flex(parentId?: string | null): ElementHandle;
   image(src: string, alt?: string, parentId?: string | null): ElementHandle;
   list(parentId?: string | null): ElementHandle;
   alert(type?: string, label?: string, parentId?: string | null): ElementHandle;
@@ -98,6 +98,10 @@ interface OmniDriver {
   // ── Wires ──
   connect(fromId: string, fromPort: string, toId: string, toPort: string, wireId?: string): WireHandle;
   disconnect(wireId: string): void;
+
+  // ── Design System Integration ──
+  applyClass(elementId: string, classRef: string): void;
+  applyVariant(elementId: string, designName: string, variantName: string, params: Record<string, string>): void;
 
   // ── Properties ──
   setProp(id: string, prop: string, value: unknown): void;

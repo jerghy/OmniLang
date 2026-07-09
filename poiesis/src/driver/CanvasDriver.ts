@@ -227,8 +227,8 @@ export class CanvasDriver {
   }
 
   /** Convenience: add a div container. */
-  container(props?: Record<string, unknown>, parentId?: string | null): ElementHandle {
-    return this.component("div", props, parentId);
+  container(parentId?: string | null): ElementHandle {
+    return this.component("div", {}, parentId);
   }
 
   /** Convenience: add an input component. */
@@ -237,13 +237,13 @@ export class CanvasDriver {
   }
 
   /** Convenience: add a div (card container). */
-  card(props?: Record<string, unknown>, parentId?: string | null): ElementHandle {
-    return this.component("div", props, parentId);
+  card(parentId?: string | null): ElementHandle {
+    return this.component("div", {}, parentId);
   }
 
   /** Convenience: add a div flex container. */
-  flex(direction = "row", gap = "8px", props?: Record<string, unknown>, parentId?: string | null): ElementHandle {
-    return this.component("div", { direction, gap, ...props }, parentId);
+  flex(parentId?: string | null): ElementHandle {
+    return this.component("div", {}, parentId);
   }
 
   /** Convenience: add an img component.
@@ -318,5 +318,29 @@ export class CanvasDriver {
     window.dispatchEvent(
       new CustomEvent("omni-mode-change", { detail: { mode } }),
     );
+  }
+
+  // ── Design System Integration ───────────────────────
+
+  /** Apply a design system class reference to an element. */
+  applyClass(elementId: string, classRef: string): void {
+    usePoiesisStore.setState({
+      elements: usePoiesisStore.getState().elements.map((e) => {
+        if (e.id !== elementId || !("classRefs" in e)) return e;
+        const existing = (e as ViewElementData).classRefs ?? [];
+        if (existing.includes(classRef)) return e;
+        return { ...e, classRefs: [...existing, classRef] };
+      }),
+    });
+  }
+
+  /** Apply a design system variant binding to an element. */
+  applyVariant(elementId: string, designName: string, variantName: string, params: Record<string, string>): void {
+    usePoiesisStore.setState({
+      elements: usePoiesisStore.getState().elements.map((e) => {
+        if (e.id !== elementId || !("variantRef" in e)) return e;
+        return { ...e, variantRef: { designName, variantName, params } };
+      }),
+    });
   }
 }
