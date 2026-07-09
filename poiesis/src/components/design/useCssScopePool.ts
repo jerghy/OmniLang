@@ -1,5 +1,5 @@
 // poiesis/src/components/design/useCssScopePool.ts
-import { useRef, useCallback } from "react";
+import { useRef, useCallback, useEffect } from "react";
 
 function hashStr(s: string): number {
   let hash = 0;
@@ -27,6 +27,7 @@ export function useCssScopePool(): UseCssScopePoolResult {
     if (!el) {
       el = document.createElement("style");
       el.setAttribute("data-css-scope", scopeId);
+      document.head.appendChild(el);
       scopeRefs.current.set(scopeId, el);
     }
     el.textContent = css;
@@ -58,15 +59,26 @@ export function useCssScopePool(): UseCssScopePoolResult {
         }
       }
 
-      for (const [name] of lastHashes.current.components) {
-        if (!newComponents.has(name)) {
-          removeScope(`component:${name}`);
-          lastHashes.current.components.delete(name);
-        }
+      const stale: string[] = [];
+      for (const name of lastHashes.current.components.keys()) {
+        if (!newComponents.has(name)) stale.push(name);
+      }
+      for (const name of stale) {
+        removeScope(`component:${name}`);
+        lastHashes.current.components.delete(name);
       }
     },
     [upsertScope, removeScope],
   );
+
+  useEffect(() => {
+    return () => {
+      for (const el of scopeRefs.current.values()) {
+        el.remove();
+      }
+      scopeRefs.current.clear();
+    };
+  }, []);
 
   return { updateScopes };
 }
