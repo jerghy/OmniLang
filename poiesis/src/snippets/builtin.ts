@@ -43,9 +43,9 @@ export const BUILTIN_SNIPPETS: OmniSnippet[] = [
     context: "top_level",
     body: `component $1 {
     view {
-        Container {
-            Text { label: "$2" }
-        }
+        <div>
+            <p>$2</p>
+        </div>
     }
 }`,
   },
@@ -218,37 +218,27 @@ export const BUILTIN_SNIPPETS: OmniSnippet[] = [
     label: "Bind Value",
     description: "Two-way binding via bind:value",
     context: "view_interpolation",
-    body: `Input {
-    bind:value={$1}
-    placeholder="$2"
-    test-id="$3"
-}`,
+    body: `<input bind:value={$1} class: AppDesign.Input placeholder="$2" data-testid="$3" />`,
   },
   {
     id: "view-event",
     label: "Event Handler",
     description: "onPress with inline fn",
     context: "view_interpolation",
-    body: `Button {
-    label: "$1"
-    onPress={fn() {
-        $2
-    }}
-    test-id="$3"
-}`,
+    body: `<button variant: AppDesign.Button(color=primary) @press={fn() { $2 }} data-testid="$3">
+    $1
+</button>`,
   },
   {
     id: "view-for",
     label: "For Directive",
     description: "List rendering with @for",
     context: "view_interpolation",
-    body: `List {
+    body: `<ul>
     @for ($1 in $2) {
-        ListItem {
-            Text { label: "{$1.$3}" }
-        }
+        <li>{$1.$3}</li>
     }
-}`,
+</ul>`,
   },
   {
     id: "view-if",
@@ -256,9 +246,9 @@ export const BUILTIN_SNIPPETS: OmniSnippet[] = [
     description: "Conditional with @if",
     context: "view_interpolation",
     body: `@if ($1) {
-    Text { label: "$2" }
+    <p>$2</p>
 } @else {
-    Text { label: "$3" }
+    <p>$3</p>
 }`,
   },
   {
@@ -266,23 +256,18 @@ export const BUILTIN_SNIPPETS: OmniSnippet[] = [
     label: "Flex Row",
     description: "Horizontal flex container",
     context: "view_interpolation",
-    body: `Flex {
-    direction: "row";
-    gap: "$1";
-    align: "center";
-    $2
-}`,
+    body: `<div class: AppDesign.Row>
+    $1
+</div>`,
   },
   {
     id: "view-card",
     label: "div (Card)",
     description: "Container div with shadow styling",
     context: "view_interpolation",
-    body: `div {
-    padding: "$1";
-    border_radius: "$2";
-    $3
-}`,
+    body: `<div class: AppDesign.Card>
+    $1
+</div>`,
   },
 
   // ── Data Fetch ─────────────────────────────────
