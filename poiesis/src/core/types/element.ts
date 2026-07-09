@@ -21,7 +21,21 @@ interface ElementDataBase {
 export interface ViewElementData extends ElementDataBase {
   nodeType: "view";
   tag: string;
+  /** Semantic props only (label, src, placeholder, type, etc.) — no layout or style */
   props: Record<string, unknown>;
+  /** References to design system classes, e.g. ["AppDesign.Card", "AppDesign.Row"] */
+  classRefs?: string[];
+  /** Reference to a design variant binding */
+  variantRef?: {
+    designName: string;
+    variantName: string;
+    params: Record<string, string>;
+  } | null;
+  /** Component-local style class names (defined in component style {} block) */
+  componentClasses?: string[];
+  /** Inline style ONLY for signal-driven dynamic values */
+  inlineStyle?: Record<string, string>;
+  /** Deprecated: kept for backward compat during migration */
   style?: ElementStyle;
   children: string[];
   ports?: PortData[];

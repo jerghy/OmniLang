@@ -39,6 +39,8 @@ export interface StyleRegistry {
 
 // ── Per-element style (references only) ──
 
+/** Per-element style references (NOT CSS values — those come from WASM resolve_styles).
+ *  Kept for backward compat; new code should use classRefs/variantRef directly on ViewElementData. */
 export interface ElementStyle {
   classRefs: string[];                // ["wrapper", "card"]
   inlineProperties: StyleProperty[];  // inline props (may contain signal bindings)
