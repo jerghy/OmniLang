@@ -15,6 +15,7 @@ import { CollapsibleGroup } from "./CollapsibleGroup";
 import { PropertyRow } from "./PropertyRow";
 import { ScrubInput } from "./ScrubInput";
 import { IconButtonGroup } from "./IconButtonGroup";
+import { ClassPreview } from "./ClassPreview";
 
 // ── Helpers ──
 
@@ -354,6 +355,7 @@ export function VariantEditor() {
   const [activeBranchKey, setActiveBranchKey] = useState<string>("base");
   const [showAddProp, setShowAddProp] = useState(false);
   const [addPropSearch, setAddPropSearch] = useState("");
+  const [previewSelections, setPreviewSelections] = useState<Record<string, string>>({});
 
   const addPropRef = useRef<HTMLDivElement>(null);
 
@@ -399,6 +401,29 @@ export function VariantEditor() {
     );
     return getCombinedProps(selectedVariant.baseProperties, branch ?? null);
   }, [selectedVariant, activeBranchKey]);
+
+  // Preview props for the live preview panel (merged base + branch per selection)
+  const previewProps = useMemo(() => {
+    if (!selectedVariant) return [];
+    const merged = new Map<string, StyleProperty>();
+    for (const p of selectedVariant.baseProperties) merged.set(p.name, p);
+    for (const [dim, val] of Object.entries(previewSelections)) {
+      const branch = selectedVariant.branches.find(
+        (b) => b.dimension === dim && b.value === val,
+      );
+      if (branch) {
+        for (const p of branch.properties) merged.set(p.name, p);
+      }
+    }
+    return Array.from(merged.values());
+  }, [selectedVariant, previewSelections]);
+
+  // Sync preview selections when the selected variant changes
+  useEffect(() => {
+    if (selectedVariant) {
+      setPreviewSelections({ ...selectedVariant.defaults });
+    }
+  }, [selectedVariant?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Default combination display string
   const defaultComboStr = useMemo(() => {
@@ -1246,6 +1271,100 @@ export function VariantEditor() {
     );
   };
 
+  // ── Render: Preview panel ──
+
+  const renderPreview = () => {
+    if (!selectedVariant) return null;
+    return (
+      <div
+        style={{
+          width: 260,
+          flexShrink: 0,
+          borderLeft: "1px solid var(--dp-border, #e8e5f2)",
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+          background: "var(--dp-surface, #fff)",
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            padding: "8px 12px",
+            fontSize: 10,
+            fontWeight: 600,
+            color: "var(--dp-text-secondary, #6b6893)",
+            textTransform: "uppercase",
+            letterSpacing: "0.5px",
+            borderBottom: "1px solid var(--dp-border, #e8e5f2)",
+            flexShrink: 0,
+          }}
+        >
+          Preview
+        </div>
+
+        {/* Dimension combination selectors */}
+        {selectedVariant.dimensions.map((dim) => (
+          <div
+            key={dim.name}
+            style={{
+              padding: "4px 8px",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 500,
+                color: "var(--dp-text-secondary, #6b6893)",
+                minWidth: 40,
+              }}
+            >
+              {dim.name}
+            </span>
+            <select
+              value={previewSelections[dim.name] || ""}
+              onChange={(e) =>
+                setPreviewSelections((prev) => ({
+                  ...prev,
+                  [dim.name]: e.target.value,
+                }))
+              }
+              style={{
+                flex: 1,
+                padding: "2px 4px",
+                fontSize: 11,
+                fontFamily: "var(--dp-font-mono, monospace)",
+                border: "1px solid var(--dp-border, #e8e5f2)",
+                borderRadius: "var(--dp-radius-sm, 6px)",
+                outline: "none",
+                background: "var(--dp-surface, #fff)",
+                color: "var(--dp-text, #1e1b4b)",
+                cursor: "pointer",
+              }}
+            >
+              <option value="">—</option>
+              {dim.values.map((val) => (
+                <option key={val} value={val}>
+                  {val}
+                </option>
+              ))}
+            </select>
+          </div>
+        ))}
+
+        <ClassPreview
+          baseProperties={previewProps}
+          pseudoStates={[]}
+          className={selectedVariant.name}
+          tokens={tokens}
+        />
+      </div>
+    );
+  };
+
   // ── Main render ──
 
   return (
@@ -1264,50 +1383,60 @@ export function VariantEditor() {
         style={{
           flex: 1,
           display: "flex",
-          flexDirection: "column",
           overflow: "hidden",
+          minHeight: 0,
         }}
       >
-        {selectedVariant ? (
-          <div style={{ flex: 1, overflow: "auto", padding: "8px 12px" }}>
-            {/* Variant name header */}
+        <div
+          style={{
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+          }}
+        >
+          {selectedVariant ? (
+            <div style={{ flex: 1, overflow: "auto", padding: "8px 12px" }}>
+              {/* Variant name header */}
+              <div
+                style={{
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: "var(--dp-text, #1e1b4b)",
+                  marginBottom: 8,
+                }}
+              >
+                {selectedVariant.name}
+              </div>
+
+              {/* Default combination */}
+              {renderDefaultCombo()}
+
+              {/* Dimensions */}
+              {renderDimensions()}
+
+              {/* Branch tabs */}
+              {renderBranchTabs()}
+
+              {/* Cards-based property editor */}
+              {renderCards()}
+            </div>
+          ) : (
             <div
               style={{
-                fontSize: 14,
-                fontWeight: 600,
-                color: "var(--dp-text, #1e1b4b)",
-                marginBottom: 8,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                height: "100%",
+                color: "var(--dp-text-muted, #a09db8)",
+                fontSize: 13,
               }}
             >
-              {selectedVariant.name}
+              Select a variant to edit
             </div>
-
-            {/* Default combination */}
-            {renderDefaultCombo()}
-
-            {/* Dimensions */}
-            {renderDimensions()}
-
-            {/* Branch tabs */}
-            {renderBranchTabs()}
-
-            {/* Cards-based property editor */}
-            {renderCards()}
-          </div>
-        ) : (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              height: "100%",
-              color: "var(--dp-text-muted, #a09db8)",
-              fontSize: 13,
-            }}
-          >
-            Select a variant to edit
-          </div>
-        )}
+          )}
+        </div>
+        {selectedVariant && renderPreview()}
       </div>
     </div>
   );
