@@ -25,20 +25,50 @@ function parseBranchKey(key: string): { dim: string; val: string } | null {
   return { dim: key.slice(0, idx), val: key.slice(idx + 1) };
 }
 
-// ── Styles ──
+/** Merge base and branch properties — branch values take priority. */
+function getCombinedProps(
+  baseProperties: StyleProperty[],
+  branch: { properties: StyleProperty[] } | null,
+): StyleProperty[] {
+  if (!branch) return baseProperties;
+  const merged = new Map<string, StyleProperty>();
+  for (const p of baseProperties) merged.set(p.name, p);
+  for (const p of branch.properties) merged.set(p.name, p);
+  return Array.from(merged.values());
+}
+
+/** Return only the properties in `merged` whose value differs from the base. */
+function computeBranchOverrides(
+  merged: StyleProperty[],
+  baseProperties: StyleProperty[],
+): StyleProperty[] {
+  const baseMap = new Map(baseProperties.map((p) => [p.name, segmentsToString(p.segments)]));
+  return merged.filter((p) => {
+    const baseVal = baseMap.get(p.name);
+    const mergedVal = segmentsToString(p.segments);
+    return baseVal === undefined || baseVal !== mergedVal;
+  });
+}
+
+// Suppress TS6133 until these are used in subsequent tasks
+void getCombinedProps;
+void computeBranchOverrides;
+
+// ── Styles (using --dp-* CSS variables for consistency with TokenEditor/ClassEditor) ──
 
 const SIDEBAR_STYLE: React.CSSProperties = {
   width: 180,
-  borderRight: "1px solid #e2e8f0",
+  borderRight: "1px solid var(--dp-border, #e8e5f2)",
   display: "flex",
   flexDirection: "column",
   flexShrink: 0,
+  background: "var(--dp-surface, #fff)",
 };
 
 const SIDEBAR_HEADER: React.CSSProperties = {
-  fontSize: 11,
+  fontSize: 12,
   fontWeight: 600,
-  color: "#6b7280",
+  color: "var(--dp-text-secondary, #6b6893)",
   textTransform: "uppercase",
   letterSpacing: "0.5px",
   padding: "10px 8px 6px",
@@ -46,37 +76,37 @@ const SIDEBAR_HEADER: React.CSSProperties = {
 
 const ITEM_BASE: React.CSSProperties = {
   padding: "6px 12px",
-  fontSize: 12,
+  fontSize: 13,
   cursor: "pointer",
-  color: "#374151",
+  color: "var(--dp-text-secondary, #6b6893)",
   display: "flex",
   alignItems: "center",
   justifyContent: "space-between",
-  borderRadius: 4,
+  borderRadius: "var(--dp-radius-sm, 6px)",
   margin: "1px 6px",
+  transition: "background 100ms ease, color 100ms ease",
 };
 
 const ITEM_ACTIVE: React.CSSProperties = {
   ...ITEM_BASE,
-  background: "#eef2ff",
-  color: "#4f46e5",
+  background: "var(--dp-accent-subtle, #eef0ff)",
+  color: "var(--dp-accent, #6366f1)",
   fontWeight: 600,
 };
 
 const INPUT_STYLE: React.CSSProperties = {
-  padding: "3px 6px",
-  fontSize: 11,
-  fontFamily: "monospace",
-  border: "1px solid #e2e8f0",
-  borderRadius: 4,
+  padding: "4px 6px",
+  fontSize: 12,
+  fontFamily: "var(--dp-font-mono, monospace)",
+  border: "1px solid var(--dp-border, #e8e5f2)",
+  borderRadius: "var(--dp-radius-sm, 6px)",
   outline: "none",
-  background: "#fff",
-  color: "#374151",
+  background: "var(--dp-surface, #fff)",
+  color: "var(--dp-text, #1e1b4b)",
   boxSizing: "border-box",
   flex: 1,
   minWidth: 0,
 };
-
 
 const PROP_ROW: React.CSSProperties = {
   display: "flex",
@@ -86,8 +116,8 @@ const PROP_ROW: React.CSSProperties = {
 };
 
 const PROP_LABEL: React.CSSProperties = {
-  fontSize: 11,
-  color: "#374151",
+  fontSize: 12,
+  color: "var(--dp-text, #1e1b4b)",
   width: 100,
   flexShrink: 0,
   overflow: "hidden",
@@ -97,29 +127,32 @@ const PROP_LABEL: React.CSSProperties = {
 
 const INHERITED_LABEL: React.CSSProperties = {
   ...PROP_LABEL,
-  color: "#94a3b8",
+  color: "var(--dp-text-muted, #a09db8)",
 };
 
 const REMOVE_BTN: React.CSSProperties = {
   border: "none",
   background: "none",
   cursor: "pointer",
-  color: "#94a3b8",
+  color: "var(--dp-text-muted, #a09db8)",
   fontSize: 14,
   padding: "2px 4px",
   lineHeight: 1,
   flexShrink: 0,
+  borderRadius: 3,
 };
 
 const DASHED_BTN: React.CSSProperties = {
-  border: "1px dashed #cbd5e1",
-  borderRadius: 4,
+  border: "1px dashed var(--dp-border, #e8e5f2)",
+  borderRadius: "var(--dp-radius-sm, 6px)",
   background: "transparent",
-  color: "#64748b",
-  fontSize: 10,
+  color: "var(--dp-text-muted, #a09db8)",
+  fontSize: 11,
   padding: "4px 10px",
   cursor: "pointer",
   width: "100%",
+  fontFamily: "inherit",
+  transition: "color 150ms ease, border-color 150ms ease",
 };
 
 const VALUE_PILL: React.CSSProperties = {
@@ -127,43 +160,44 @@ const VALUE_PILL: React.CSSProperties = {
   alignItems: "center",
   gap: 4,
   padding: "2px 8px",
-  fontSize: 11,
+  fontSize: 12,
   borderRadius: 12,
-  border: "1px solid #e2e8f0",
-  background: "#f8fafc",
-  color: "#374151",
+  border: "1px solid var(--dp-border, #e8e5f2)",
+  background: "var(--dp-surface, #fff)",
+  color: "var(--dp-text, #1e1b4b)",
   cursor: "pointer",
   whiteSpace: "nowrap",
 };
 
 const VALUE_PILL_DEFAULT: React.CSSProperties = {
   ...VALUE_PILL,
-  background: "#6366f1",
+  background: "var(--dp-accent, #6366f1)",
   color: "#fff",
-  borderColor: "#6366f1",
+  borderColor: "var(--dp-accent, #6366f1)",
 };
 
 const BRANCH_TAB: React.CSSProperties = {
   padding: "4px 10px",
-  fontSize: 11,
+  fontSize: 12,
   cursor: "pointer",
   border: "none",
   background: "none",
-  color: "#64748b",
+  color: "var(--dp-text-muted, #a09db8)",
   borderRadius: 4,
+  fontFamily: "var(--dp-font-mono, monospace)",
 };
 
 const BRANCH_TAB_ACTIVE: React.CSSProperties = {
   ...BRANCH_TAB,
-  background: "#eef2ff",
-  color: "#4f46e5",
+  background: "var(--dp-accent-subtle, #eef0ff)",
+  color: "var(--dp-accent, #6366f1)",
   fontWeight: 600,
 };
 
 const SECTION_HEADER: React.CSSProperties = {
-  fontSize: 11,
+  fontSize: 12,
   fontWeight: 600,
-  color: "#6b7280",
+  color: "var(--dp-text-secondary, #6b6893)",
   textTransform: "uppercase",
   letterSpacing: "0.5px",
   padding: "12px 0 6px",
@@ -494,8 +528,8 @@ export function VariantEditor() {
             fontSize: 11,
             border: "none",
             borderRadius: 4,
-            background: newVariantName.trim() ? "#6366f1" : "#e2e8f0",
-            color: newVariantName.trim() ? "#fff" : "#94a3b8",
+            background: newVariantName.trim() ? "var(--dp-accent, #6366f1)" : "var(--dp-border, #e8e5f2)",
+            color: newVariantName.trim() ? "#fff" : "var(--dp-text-muted, #a09db8)",
             cursor: newVariantName.trim() ? "pointer" : "default",
           }}
         >
@@ -514,7 +548,7 @@ export function VariantEditor() {
       <div style={{ marginBottom: 12 }}>
         <div style={SECTION_HEADER}>Dimensions</div>
         {selectedVariant.dimensions.length === 0 && (
-          <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 6 }}>
+          <div style={{ fontSize: 12, color: "var(--dp-text-muted, #a09db8)", marginBottom: 6 }}>
             No dimensions yet. Add your first dimension below.
           </div>
         )}
@@ -526,9 +560,9 @@ export function VariantEditor() {
               style={{
                 marginBottom: 8,
                 padding: "6px 8px",
-                background: "#fafafa",
+                background: "var(--dp-bg, #f7f6fa)",
                 borderRadius: 6,
-                border: "1px solid #f0f0f0",
+                border: "1px solid var(--dp-border, #e8e5f2)",
               }}
             >
               {/* Dimension header */}
@@ -540,10 +574,10 @@ export function VariantEditor() {
                   marginBottom: 4,
                 }}
               >
-                <span style={{ fontSize: 12, fontWeight: 600, color: "#374151" }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--dp-text, #1e1b4b)" }}>
                   {dim.name}
                 </span>
-                <span style={{ fontSize: 10, color: "#94a3b8" }}>
+                <span style={{ fontSize: 11, color: "var(--dp-text-muted, #a09db8)" }}>
                   ({dim.values.length} values)
                 </span>
                 <div style={{ flex: 1 }} />
@@ -581,7 +615,7 @@ export function VariantEditor() {
                           border: "none",
                           background: "none",
                           cursor: "pointer",
-                          color: isDefault ? "rgba(255,255,255,0.7)" : "#94a3b8",
+                          color: isDefault ? "rgba(255,255,255,0.7)" : "var(--dp-text-muted, #a09db8)",
                           fontSize: 12,
                           padding: 0,
                           lineHeight: 1,
@@ -608,7 +642,7 @@ export function VariantEditor() {
                   style={{
                     ...INPUT_STYLE,
                     width: 120,
-                    fontSize: 10,
+                    fontSize: 11,
                   }}
                 />
                 <button
@@ -616,11 +650,11 @@ export function VariantEditor() {
                   disabled={!newDimValue.trim()}
                   style={{
                     padding: "2px 8px",
-                    fontSize: 10,
-                    border: "1px solid #e2e8f0",
-                    borderRadius: 4,
-                    background: newDimValue.trim() ? "#6366f1" : "#f8fafc",
-                    color: newDimValue.trim() ? "#fff" : "#94a3b8",
+                    fontSize: 11,
+                    border: "1px solid var(--dp-border, #e8e5f2)",
+                    borderRadius: "var(--dp-radius-sm, 6px)",
+                    background: newDimValue.trim() ? "var(--dp-accent, #6366f1)" : "var(--dp-bg, #f7f6fa)",
+                    color: newDimValue.trim() ? "#fff" : "var(--dp-text-muted, #a09db8)",
                     cursor: newDimValue.trim() ? "pointer" : "default",
                   }}
                 >
@@ -641,7 +675,7 @@ export function VariantEditor() {
               if (e.key === "Enter") handleAddDimension();
             }}
             placeholder='+ 添加维度 (e.g. "color", "size")'
-            style={{ ...INPUT_STYLE, flex: 1, minWidth: 0, fontSize: 10 }}
+            style={{ ...INPUT_STYLE, flex: 1, minWidth: 0, fontSize: 11 }}
           />
           <button
             onClick={handleAddDimension}
@@ -651,8 +685,8 @@ export function VariantEditor() {
               fontSize: 11,
               border: "none",
               borderRadius: 4,
-              background: newDimName.trim() ? "#6366f1" : "#e2e8f0",
-              color: newDimName.trim() ? "#fff" : "#94a3b8",
+              background: newDimName.trim() ? "var(--dp-accent, #6366f1)" : "var(--dp-border, #e8e5f2)",
+              color: newDimName.trim() ? "#fff" : "var(--dp-text-muted, #a09db8)",
               cursor: newDimName.trim() ? "pointer" : "default",
               whiteSpace: "nowrap",
             }}
@@ -672,15 +706,15 @@ export function VariantEditor() {
       <div
         style={{
           fontSize: 11,
-          color: "#64748b",
+          color: "var(--dp-text-secondary, #6b6893)",
           padding: "6px 8px",
-          background: "#f8fafc",
-          borderRadius: 6,
+          background: "var(--dp-bg, #f7f6fa)",
+          borderRadius: "var(--dp-radius-sm, 6px)",
           marginBottom: 12,
-          border: "1px solid #e2e8f0",
+          border: "1px solid var(--dp-border, #e8e5f2)",
         }}
       >
-        <span style={{ fontWeight: 500, color: "#374151" }}>默认组合: </span>
+        <span style={{ fontWeight: 500, color: "var(--dp-text, #1e1b4b)" }}>默认组合: </span>
         {defaultComboStr}
       </div>
     );
@@ -700,7 +734,7 @@ export function VariantEditor() {
           gap: 4,
           padding: "4px 0",
           marginBottom: 8,
-          borderBottom: "1px solid #e2e8f0",
+          borderBottom: "1px solid var(--dp-border, #e8e5f2)",
           paddingBottom: 8,
           alignItems: "center",
         }}
@@ -721,7 +755,7 @@ export function VariantEditor() {
           </button>
         ))}
         {!branchesExist && (
-          <span style={{ fontSize: 10, color: "#94a3b8", marginLeft: 4 }}>
+          <span style={{ fontSize: 11, color: "var(--dp-text-muted, #a09db8)", marginLeft: 4 }}>
             (add dimension values above)
           </span>
         )}
@@ -748,7 +782,7 @@ export function VariantEditor() {
               width: 6,
               height: 6,
               borderRadius: "50%",
-              background: "#6366f1",
+              background: "var(--dp-accent, #6366f1)",
               flexShrink: 0,
               display: "inline-block",
             }}
@@ -774,12 +808,12 @@ export function VariantEditor() {
           <div
             style={{
               ...INPUT_STYLE,
-              background: "#f8fafc",
-              color: "#94a3b8",
+              background: "var(--dp-bg, #f7f6fa)",
+              color: "var(--dp-text-muted, #a09db8)",
               cursor: "not-allowed",
               display: "flex",
               alignItems: "center",
-              fontSize: 10,
+              fontSize: 11,
             }}
           >
             ← base: {displayValue || "—"}
@@ -811,7 +845,7 @@ export function VariantEditor() {
       return (
         <div>
           {baseProps.length === 0 && (
-            <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 8 }}>
+            <div style={{ fontSize: 11, color: "var(--dp-text-muted, #a09db8)", marginBottom: 8 }}>
               No base properties yet.
             </div>
           )}
@@ -840,7 +874,7 @@ export function VariantEditor() {
     return (
       <div>
         {propNames.length === 0 && (
-          <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 8 }}>
+          <div style={{ fontSize: 11, color: "var(--dp-text-muted, #a09db8)", marginBottom: 8 }}>
             No properties for this branch. Add one below, or properties inherited from base will
             appear here.
           </div>
@@ -906,8 +940,8 @@ export function VariantEditor() {
                 fontSize: 11,
                 border: "none",
                 borderRadius: 4,
-                background: addPropName.trim() ? "#6366f1" : "#e2e8f0",
-                color: addPropName.trim() ? "#fff" : "#94a3b8",
+                background: addPropName.trim() ? "var(--dp-accent, #6366f1)" : "var(--dp-border, #e8e5f2)",
+                color: addPropName.trim() ? "#fff" : "var(--dp-text-muted, #a09db8)",
                 cursor: addPropName.trim() ? "pointer" : "default",
               }}
             >
@@ -926,8 +960,8 @@ export function VariantEditor() {
       style={{
         display: "flex",
         height: "100%",
-        fontSize: 12,
-        color: "#374151",
+        fontSize: 13,
+        color: "var(--dp-text, #1e1b4b)",
         position: "relative",
       }}
     >
@@ -948,7 +982,7 @@ export function VariantEditor() {
               style={{
                 fontSize: 14,
                 fontWeight: 600,
-                color: "#1e293b",
+                color: "var(--dp-text, #1e1b4b)",
                 marginBottom: 8,
               }}
             >
@@ -974,8 +1008,8 @@ export function VariantEditor() {
               alignItems: "center",
               justifyContent: "center",
               height: "100%",
-              color: "#94a3b8",
-              fontSize: 12,
+              color: "var(--dp-text-muted, #a09db8)",
+              fontSize: 13,
             }}
           >
             Select a variant to edit
