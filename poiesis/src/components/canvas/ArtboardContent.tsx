@@ -1,7 +1,6 @@
 // poiesis/src/components/canvas/ArtboardContent.tsx
 import React, { useRef, useEffect } from "react";
 import { useCanvasStore } from "./canvas-store";
-import { useCssScopePool } from "../design/useCssScopePool";
 
 export interface ArtboardContentProps {
   children: React.ReactNode;
