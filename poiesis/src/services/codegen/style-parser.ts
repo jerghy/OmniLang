@@ -73,9 +73,17 @@ export function parseStylesFromAST(
 
     if (viewNode && viewNode.kind === "element") {
       // Parse class: attribute → classRefs
-      const classAttr = viewNode.props?.["class"];
+      // Falls back to className (stored by parser from class: attribute in source)
+      const classAttr = viewNode.props?.["class"] || viewNode.props?.["className"];
       if (classAttr && typeof classAttr === "string") {
-        const allClasses = classAttr.split(/\s+/);
+        const allClasses = classAttr.split(/\s+/).filter(c => {
+          if (!c) return false;
+          // Filter auto-generated class names from old style-resolver.ts:
+          // Patterns: main_div_0, main_div_0_p_0, app_view, etc.
+          if (/^[a-z][a-z0-9_]*_\d+$/.test(c)) return false;
+          if (/^[a-z]+_[a-z]+\d*_\d+_[a-z]+\d*_\d+$/.test(c)) return false;
+          return true;
+        });
         classRefs.push(...allClasses);
       }
 
@@ -106,7 +114,10 @@ export function parseStylesFromAST(
       }
     }
 
-    if (!("style" in el)) continue;
+    // el.style may not exist yet on freshly-parsed elements (optional prop),
+    // so assign unconditionally for view elements instead of checking with `in`.
+    // Group elements are filtered by the "tag" in el check above.
+    if (el.nodeType !== "view") continue;
     el.style = { classRefs, inlineProperties };
 
     // Cleanup: remove old props.style and props.className when style
