@@ -446,7 +446,9 @@ export function VariantEditor() {
   // Merged properties for the active editing context
   const currentProps = useMemo(() => {
     if (!selectedVariant) return [];
-    if (activeBranchKey === "base") return selectedVariant.baseProperties;
+    const normalize = (props: StyleProperty[]) =>
+      props.map((p) => ({ ...p, name: kebabToCamel(p.name) }));
+    if (activeBranchKey === "base") return normalize(selectedVariant.baseProperties);
     const parsed = parseBranchKey(activeBranchKey);
     if (!parsed) return [];
     const branch = selectedVariant.branches.find(
@@ -459,13 +461,15 @@ export function VariantEditor() {
   const previewProps = useMemo(() => {
     if (!selectedVariant) return [];
     const merged = new Map<string, StyleProperty>();
-    for (const p of selectedVariant.baseProperties) merged.set(p.name, p);
+    const normalize = (props: StyleProperty[]) =>
+      props.map((p) => ({ ...p, name: kebabToCamel(p.name) }));
+    for (const p of normalize(selectedVariant.baseProperties)) merged.set(p.name, p);
     for (const [dim, val] of Object.entries(previewSelections)) {
       const branch = selectedVariant.branches.find(
         (b) => b.dimension === dim && b.value === val,
       );
       if (branch) {
-        for (const p of branch.properties) merged.set(p.name, p);
+        for (const p of normalize(branch.properties)) merged.set(p.name, p);
       }
     }
     return Array.from(merged.values());
