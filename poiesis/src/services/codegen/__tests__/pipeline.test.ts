@@ -21,7 +21,7 @@ describe("generateOmniSource", () => {
       designWires: [],
       codeTabs: basicCodeTabs,
       componentName: "App",
-      forSave: true,
+      // forSave removed — pipeline always emits clean code
     });
 
     // No fatal errors with minimal valid input
@@ -53,7 +53,7 @@ describe("generateOmniSource", () => {
       designWires: [],
       codeTabs: basicCodeTabs,
       componentName: "App",
-      forSave: true,
+      // forSave removed — pipeline always emits clean code
     });
 
     // Phase A produced a ViewNode tree that survived to source emission
@@ -92,7 +92,7 @@ describe("generateOmniSource", () => {
       designWires: [],
       codeTabs: basicCodeTabs,
       componentName: "App",
-      forSave: true,
+      // forSave removed — pipeline always emits clean code
     });
 
     // Verify Phase B extracted and emitted the store definition
@@ -109,7 +109,7 @@ describe("generateOmniSource", () => {
       designWires: [],
       codeTabs: basicCodeTabs,
       componentName: "App",
-      forSave: true,
+      // forSave removed — pipeline always emits clean code
     });
 
     // StageResult<T> = { value: T | null; errors: PipelineError[] }
@@ -146,7 +146,7 @@ describe("generateOmniSource", () => {
       designWires: [],
       codeTabs: basicCodeTabs,
       componentName: "MyButton",
-      forSave: true,
+      // forSave removed — pipeline always emits clean code
     });
 
     expect(result.value).not.toBeNull();

@@ -69,7 +69,7 @@ export function useSaveProject() {
         codeTabs,
         componentName,
         rootOrder: store.rootOrder,
-        forSave: true,
+        // forSave removed — pipeline always emits clean code
         filePath: activeTab?.filePath,
         designName: store.activeDesign?.name && (store.activeDesign.tokens?.length || store.activeDesign.classes?.length || store.activeDesign.variants?.length) ? store.activeDesign.name : undefined,
       });

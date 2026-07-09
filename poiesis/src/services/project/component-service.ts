@@ -25,7 +25,7 @@ export async function saveComponentDefinitionsToServer(
       rootOrder: (def.elements || [])
         .filter((e: { parentId?: string | null }) => !e.parentId)
         .map((e: { id: string }) => e.id),
-      forSave: true,
+      // forSave removed — pipeline always emits clean code
       componentMeta: {
         id: def.id,
         category: def.category,

@@ -48,7 +48,7 @@ export function useLiveCodePreview(): string | null {
         codeTabs,
         componentName: activeTab.componentName ?? "main",
         rootOrder,
-        forSave: false,
+        // forSave removed — pipeline always emits clean code
         filePath: activeTab.filePath,
         designName: activeDesign?.name && (activeDesign.tokens?.length || activeDesign.classes?.length || activeDesign.variants?.length) ? activeDesign.name : undefined,
       });

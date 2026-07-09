@@ -39,7 +39,7 @@ export async function saveFileEntry(
     codeTabs: codeTabs.tabs as CodeTab[],
     componentName,
     rootOrder: entry.rootOrder,
-    forSave: true,
+    // forSave removed — pipeline always emits clean code
   });
 
   let content: string;
@@ -136,7 +136,7 @@ export async function saveProject(
         codeTabs: codeTabs.tabs as CodeTab[],
         componentName: activeTab?.componentName ?? "App",
         rootOrder: entry.rootOrder,
-        forSave: true,
+        // forSave removed — pipeline always emits clean code
       });
       if (genResult.value) activeContent = genResult.value;
     }
