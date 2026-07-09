@@ -96,18 +96,38 @@ export function parseViewComment(internals: ParserInternals): void {
 
 // ── View text content ──
 
-export function parseViewTextContent(internals: ParserInternals): void {
-  // Collect all textual tokens on this line as text content
-  let text = "";
+/**
+ * Collect consecutive IDENTIFIER / TEXT / STRING / NUMBER tokens and reconstruct
+ * text with whitespace between them. The tokenizer discards intra-line whitespace,
+ * so we use column gaps to re-insert spaces that were removed during tokenization.
+ */
+function collectTextWithSpacing(internals: ParserInternals): string {
+  let result = "";
+  let lastEndCol = -1;
+
   while (
     !internals.stream.isEof() &&
     internals.stream.peek().kind !== "NEWLINE" &&
     internals.stream.peek().kind !== "BRACE_CLOSE" &&
     internals.stream.peek().kind !== "ANGLE_OPEN"
   ) {
-    text += internals.stream.consume().text;
+    const tok = internals.stream.peek();
+
+    // Insert spaces based on column gap between consecutive tokens
+    if (lastEndCol >= 0 && tok.col > lastEndCol) {
+      result += " ".repeat(tok.col - lastEndCol);
+    }
+
+    internals.stream.consume();
+    result += tok.text;
+    lastEndCol = tok.col + tok.text.length;
   }
-  text = text.trim();
+
+  return result.trim();
+}
+
+export function parseViewTextContent(internals: ParserInternals): void {
+  const text = collectTextWithSpacing(internals);
 
   if (text && !text.startsWith("//") && !text.startsWith("<")) {
     // Attach as label prop to the current parent element
@@ -159,8 +179,10 @@ export function parseViewElement(internals: ParserInternals): void {
   if (!attrs.isSelfClosing) {
     internals.ctx.viewParentStack.push(el.id);
 
-    // Check for text content between > and </ on same line
-    const textTokens: string[] = [];
+    // Check for text content between > and </ on same line.
+    // The tokenizer discards intra-line whitespace, so we track column gaps
+    // to re-insert spaces between tokens.
+    const textParts: Array<{ text: string; col: number }> = [];
     while (
       !internals.stream.isEof() &&
       internals.stream.peek().kind !== "NEWLINE" &&
@@ -179,8 +201,17 @@ export function parseViewElement(internals: ParserInternals): void {
         }
         internals.ctx.viewParentStack.pop();
 
-        // Set text content if we collected any
-        const textContent = textTokens.join("").trim();
+        // Set text content if we collected any, with column-gap spacing
+        let textContent = "";
+        let lastEndCol = -1;
+        for (const p of textParts) {
+          if (lastEndCol >= 0 && p.col > lastEndCol) {
+            textContent += " ".repeat(p.col - lastEndCol);
+          }
+          textContent += p.text;
+          lastEndCol = p.col + p.text.length;
+        }
+        textContent = textContent.trim();
         if (textContent && "props" in el) {
           const elIdx = internals.ctx.elements.findIndex(e => e.id === el.id);
           if (elIdx !== -1 && "props" in internals.ctx.elements[elIdx] && !internals.ctx.elements[elIdx].props.label) {
@@ -189,12 +220,22 @@ export function parseViewElement(internals: ParserInternals): void {
         }
         return;
       }
-      // Collect token as text content
-      textTokens.push(internals.stream.consume().text);
+      // Collect token with its column position
+      const tok = internals.stream.consume();
+      textParts.push({ text: tok.text, col: tok.col });
     }
 
     // If no closing tag on same line, set text content from any collected text
-    const textContent = textTokens.join("").trim();
+    let textContent = "";
+    let lastEndCol = -1;
+    for (const p of textParts) {
+      if (lastEndCol >= 0 && p.col > lastEndCol) {
+        textContent += " ".repeat(p.col - lastEndCol);
+      }
+      textContent += p.text;
+      lastEndCol = p.col + p.text.length;
+    }
+    textContent = textContent.trim();
     if (textContent && "props" in el) {
       const elIdx = internals.ctx.elements.findIndex(e => e.id === el.id);
       if (elIdx !== -1 && "props" in internals.ctx.elements[elIdx] && !internals.ctx.elements[elIdx].props.label) {
@@ -426,6 +467,17 @@ export function parseClassName(internals: ParserInternals): string {
         internals.stream.consume(); // consume "-"
         if (internals.stream.peek()?.kind === "IDENTIFIER") {
           name += "-" + internals.stream.consume().text;
+        } else {
+          break;
+        }
+      }
+
+      // Handle dot-separated continuation: Design.Class
+      // The DOT token is emitted as kind "DOT", not "TEXT"
+      while (internals.stream.peek()?.kind === "DOT") {
+        internals.stream.consume(); // consume "."
+        if (internals.stream.peek()?.kind === "IDENTIFIER") {
+          name += "." + internals.stream.consume().text;
         } else {
           break;
         }
