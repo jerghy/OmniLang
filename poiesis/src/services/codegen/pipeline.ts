@@ -119,7 +119,9 @@ function runPhaseA(
 
   // Check if any elements reference design classes (for conditional design import)
   const hasDesignClassUsage = options.designElements.some(
-    (el) => "classRefs" in el && Array.isArray(el.classRefs) && el.classRefs.length > 0,
+    (el) =>
+      ("classRefs" in el && Array.isArray(el.classRefs) && el.classRefs.length > 0) ||
+      ("variantRef" in el && el.variantRef != null && typeof el.variantRef === "object" && "designName" in el.variantRef && typeof el.variantRef.designName === "string"),
   );
 
   const a3 = runPhase("A", "import-collector", () =>
@@ -300,7 +302,6 @@ export function generateOmniFiles(options: {
   codeTabs: CodeTab[];
   componentName: string;
   rootOrder?: string[];
-  forSave?: boolean;
   /** Target file path relative to project root (e.g. "src/components/MyCard.omni"). Default: "src/main.omni". */
   filePath?: string;
   designName?: string;
