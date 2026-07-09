@@ -84,6 +84,8 @@ type StyleResolveResult = {
   element_classes: Record<string, string[]>;
   /** nid → HTML tag name */
   element_tags: Record<string, string>;
+  /** Structured element tree for React rendering */
+  element_tree?: { nid: string; tag: string; text?: string | null; children: any[] }[];
   /** Compilation warnings (unknown variant, missing design, etc.) */
   warnings: string[];
   errors: Diagnostic[];
