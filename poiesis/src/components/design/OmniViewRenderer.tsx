@@ -61,7 +61,7 @@ export function OmniViewRenderer() {
       data-renderer="omniview"
       style={{
         width: "100%", height: "100%", overflow: "auto",
-        padding: 8, boxSizing: "border-box",
+        padding: 8, boxSizing: "border-box", position: "relative",
       }}
     >
       {/* CSS scope pool container */}

@@ -21,6 +21,7 @@ export interface OmniViewElementProps {
 export const OmniViewElement = React.memo(function OmniViewElement({
   node,
   tag,
+  className,
   isSelected,
   onSelect,
   onDoubleClick,
@@ -46,7 +47,7 @@ export const OmniViewElement = React.memo(function OmniViewElement({
     {
       key: node.nid,
       "data-nid": node.nid,
-      className: node.tag === "#text" ? undefined : undefined, // className set by parent via CSS
+      className, // pass through from parent
       style,
       onClick: handleClick,
       onDoubleClick: handleDoubleClick,

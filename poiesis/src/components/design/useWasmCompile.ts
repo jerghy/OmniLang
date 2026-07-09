@@ -6,6 +6,7 @@ import { useState, useEffect, useRef } from "react";
 import { usePoiesisStore } from "../../store";
 import { useElements, useRootOrder, useComponentDefs } from "../../store/hooks";
 import { rustCompiler } from "../../commands/rustCompiler";
+import type { StyleResolveResult } from "../../commands/rustCompiler";
 import { generateOmniFiles, generateOmniFragment } from "../../services/codegen/pipeline";
 import { emitDesignSource } from "../../services/codegen/design-emitter";
 import type { CodeTab } from "../../core/types/codegraph";
@@ -47,13 +48,14 @@ function useWasmCompile(): {
     if (!rustCompiler.isReady) return;
     if (elements.length === 0) {
       setOutput(null);
+      setIsCompiling(false);
       return;
     }
 
+    setIsCompiling(true);
     // 150ms debounce
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
-      setIsCompiling(true);
 
       try {
         const codeTabs: CodeTab[] = [{
@@ -125,7 +127,7 @@ function useWasmCompile(): {
           setOutput({
             css: result.design_css,
             component_css: result.component_css,
-            element_tree: (result as any).element_tree || [],
+            element_tree: (result as StyleResolveResult).element_tree || [],
             element_classes: result.element_classes,
             element_tags: result.element_tags,
             warnings: result.warnings,
