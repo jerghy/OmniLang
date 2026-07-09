@@ -29,7 +29,8 @@ fn js_error_value(message: &str) -> JsValue {
             "suggestion": null
         }]
     });
-    serde_wasm_bindgen::to_value(&err).unwrap_or_else(|e| JsValue::from_str(&format!("Critical internal error: {}", e)))
+    serde_wasm_bindgen::to_value(&err)
+        .unwrap_or_else(|e| JsValue::from_str(&format!("Critical internal error: {}", e)))
 }
 
 /// Serialize any Serialize-able value to JsValue, falling back to an error JsValue.
@@ -106,6 +107,18 @@ pub fn compile_to_omniview_full(source: &str, editor_mode: bool) -> JsValue {
         return js_error_value("Input exceeds 10MB limit");
     }
     to_js_value(&crate::compile_omniview_full(source, editor_mode))
+}
+
+/// Resolve per-element computed styles for editor canvas rendering.
+/// Returns structured JSON with component -> element -> computed CSS.
+#[cfg(feature = "codegen-omniview")]
+#[wasm_bindgen]
+pub fn resolve_styles(source: &str) -> JsValue {
+    const MAX_INPUT_SIZE: usize = 10 * 1024 * 1024; // 10MB
+    if source.len() > MAX_INPUT_SIZE {
+        return js_error_value("Input exceeds 10MB limit");
+    }
+    to_js_value(&crate::resolve_styles(source))
 }
 
 /// Compile multiple .omni source files to OmniView.

@@ -24,7 +24,7 @@ pub mod validate;
 pub mod wasm;
 
 #[cfg(feature = "codegen-omniview")]
-use crate::codegen::omniview::ComponentOutput;
+use crate::codegen::omniview::{ComponentOutput, StyleResolveResult};
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -208,6 +208,44 @@ pub fn compile_omniview_full(source: &str, editor_mode: bool) -> OmniViewFullRes
                     Some(gen_output.components)
                 },
                 source_map: Some(gen_output.source_map),
+                errors: pipeline.diagnostics,
+            }
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════
+// Style Resolution for Editor Canvas
+// ═══════════════════════════════════════════════════════
+
+/// Resolve per-element computed styles for editor canvas rendering.
+///
+/// Parses .omni source, lowers to IR, then traverses ViewTrees to compute
+/// the final CSS properties for each element (merging design classes,
+/// variants, component styles, and inline styles).
+///
+/// Returns structured JSON that Poiesis consumes directly — no JS/HTML/CSS
+/// codegen is performed.
+#[cfg(feature = "codegen-omniview")]
+#[must_use]
+pub fn resolve_styles(source: &str) -> StyleResolveResult {
+    use crate::codegen::omniview::style_resolver::{build_design_map, resolve_styles_from_ir};
+
+    match run_pipeline(source) {
+        Err(errors) => StyleResolveResult {
+            success: false,
+            components: FxHashMap::default(),
+            design: None,
+            errors,
+        },
+        Ok(pipeline) => {
+            let design_map = build_design_map(&pipeline.ir);
+            let result = resolve_styles_from_ir(&pipeline.ir, &design_map);
+
+            StyleResolveResult {
+                success: !pipeline.has_errors,
+                components: result.components,
+                design: result.design,
                 errors: pipeline.diagnostics,
             }
         }
