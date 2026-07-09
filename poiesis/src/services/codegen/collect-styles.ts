@@ -30,6 +30,7 @@ export function collectStylesFromEntries(
   elements: Array<{ id: string; style?: { classRefs?: string[]; inlineProperties?: Array<{ name: string; segments: StyleValueSegment[] }> } }>,
   _styleRegistry: StyleRegistry,
   _roots?: ViewNode[],
+  designName?: string,
 ): {
   componentStyle: Record<string, Record<string, string>>;
   elementClassMap: Map<string, string[]>;
@@ -43,7 +44,12 @@ export function collectStylesFromEntries(
   for (const el of elements) {
     const classRefs = el.style?.classRefs ?? [];
     if (classRefs.length > 0) {
-      elementClassMap.set(el.id, [...new Set(classRefs)]);
+      const normalized = classRefs.map((ref) => {
+        if (ref.includes(".")) return ref;              // already "Design.Class"
+        if (designName) return `${designName}.${ref}`;  // prefix bare name
+        return ref;                                      // no designName, keep as-is
+      });
+      elementClassMap.set(el.id, [...new Set(normalized)]);
     }
     const inlineProps = el.style?.inlineProperties ?? [];
     if (inlineProps.length > 0) {
