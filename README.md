@@ -88,3 +88,4 @@ omni-test/         # Standalone test files
 ## Known Limitations
 
 See [REAL_WORLD_GAPS.md](docs/REAL_WORLD_GAPS.md). All 8 CRITICAL bugs found during validation are fixed. 12 non-critical gaps remain (CSS shorthand, Unicode in text, etc.).
+
