@@ -3,10 +3,15 @@ import { usePoiesisStore } from "./store";
 import { WelcomePage } from "./pages/WelcomePage";
 import { StatusBar } from "./components/shell/StatusBar";
 import { api } from "./commands";
+import { rustCompiler } from "./commands/rustCompiler";
 import { DEFAULT_PROJECT_NAME } from "./constants";
 import { parseOmniSource } from "./services/codegen";
+import { parseStyleValue } from "./services/codegen/design-value-parser";
 import type { ElementData, WireData } from "./core/types";
 import { detectTabType } from "./core/types/design-page";
+import type { DesignDefinition, TokenType } from "./core/types/design";
+import { tokenTypeToCategory } from "./core/types/design";
+import { uid } from "./core/utils/id";
 import { ErrorBoundary } from "./components/error/ErrorBoundary";
 import { createLogger } from "./lib/utils/logger";
 import "./styles/tokens.css";
@@ -95,6 +100,84 @@ async function loadOmniFiles(): Promise<void> {
     }
   }
 
+  // ── Load design.omni into the design store ──
+  // Design data is separate from elements/wires — it provides tokens, classes,
+  // and variants that are bound to elements via classRefs in the canvas renderer.
+  {
+    const designPath = omniPaths.find(
+      (p) => p === "src/design.omni" || p === "design.omni",
+    );
+    if (designPath) {
+      try {
+        const designRes = await api.project.readFile(designPath);
+        if (designRes.content) {
+          const designResult = parseOmniSource(designRes.content);
+          if (
+            (designResult.designTokens?.length ?? 0) > 0 ||
+            (designResult.designClasses?.length ?? 0) > 0 ||
+            (designResult.designVariants?.length ?? 0) > 0
+          ) {
+            const design: DesignDefinition = {
+              name: designResult.designName || "AppDesign",
+              tokens: (designResult.designTokens ?? []).map((t) => ({
+                id: t.id,
+                name: t.name,
+                category: tokenTypeToCategory(t.tokenType),
+                tokenType: t.tokenType as TokenType,
+                value: t.value,
+              })),
+              classes: (designResult.designClasses ?? []).map((c) => ({
+                id: c.id,
+                name: c.name,
+                properties: (c.properties ?? []).map((p) => ({
+                  id: uid("sp"),
+                  name: p.name,
+                  segments: parseStyleValue(p.value),
+                })),
+                pseudoStates: (c.pseudoStates ?? []).map((ps) => ({
+                  id: uid("ps"),
+                  pseudo: ps.pseudo,
+                  properties: ps.properties.map((p) => ({
+                    id: uid("sp"),
+                    name: p.name,
+                    segments: parseStyleValue(p.value),
+                  })),
+                })),
+              })),
+              variants: (designResult.designVariants ?? []).map((v) => ({
+                id: v.id,
+                name: v.name,
+                dimensions: (v.dimensions ?? []).map((d) => ({
+                  name: d.name,
+                  values: d.values.map((dv) => dv.name),
+                })),
+                defaults: v.defaults ?? {},
+                baseProperties: (v.baseProperties ?? []).map((p) => ({
+                  id: uid("sp"),
+                  name: p.name,
+                  segments: parseStyleValue(p.value),
+                })),
+                branches: (v.branches ?? []).map((b) => ({
+                  id: uid("vb"),
+                  dimension: "",
+                  value: b.name,
+                  properties: b.properties.map((p) => ({
+                    id: uid("sp"),
+                    name: p.name,
+                    segments: parseStyleValue(p.value),
+                  })),
+                })),
+              })),
+            };
+            usePoiesisStore.getState().loadDesign(design);
+          }
+        }
+      } catch (e) {
+        log.warn("Failed to load design.omni:", e);
+      }
+    }
+  }
+
   // Batch-apply parsed results to store.
   if (parsed.length > 0) {
     const store = usePoiesisStore.getState();
@@ -108,7 +191,9 @@ async function loadOmniFiles(): Promise<void> {
     const newTabData = { ...store.tabData };
     const newComponentDefs: Record<string, import("./core/types/project-json").ComponentDef> = { ...store.componentDefs };
 
-    const lastParsed = parsed[parsed.length - 1];
+    // Find the main file's parsed data — canvas elements should come from main.omni,
+    // NOT the last file in scan order (which could be a component definition).
+    const mainParsed = parsed.find((p) => p.filePath === mainPath) || parsed[parsed.length - 1];
 
     for (const p of parsed) {
       const tab = store.designPage.openTabs.find((t) => t.filePath === p.filePath);
@@ -140,23 +225,28 @@ async function loadOmniFiles(): Promise<void> {
       }
     }
 
-    stateUpdate.elements = lastParsed.elements;
-    stateUpdate.wires = lastParsed.wires;
-    stateUpdate.rootOrder = lastParsed.rootOrder;
+    stateUpdate.elements = mainParsed.elements;
+    stateUpdate.wires = mainParsed.wires;
+    stateUpdate.rootOrder = mainParsed.rootOrder;
+
+    // Find the main.omni tab ID — the active tab must match the main canvas
+    // to avoid tabData corruption when switching tabs later.
+    const mainTabId = store.designPage.openTabs.find(
+      (t) => t.filePath === mainPath,
+    )?.id;
 
     usePoiesisStore.setState({
       ...stateUpdate,
       tabData: newTabData,
       componentDefs: newComponentDefs,
+      designPage: {
+        ...store.designPage,
+        // Ensure the active tab matches the loaded main.omni canvas.
+        // Do NOT call switchTab separately — it saves current state to the
+        // old tab's slot, corrupting freshly-loaded tabData.
+        ...(mainTabId ? { activeTabId: mainTabId } : {}),
+      },
     });
-
-    if (mainPath && mainPath !== lastParsed.filePath) {
-      const mainTabs = usePoiesisStore.getState().designPage.openTabs
-        .filter((t) => t.filePath === mainPath);
-      if (mainTabs.length > 0) {
-        usePoiesisStore.getState().switchTab(mainTabs[0].id);
-      }
-    }
   }
 }
 
@@ -183,6 +273,11 @@ export default function App() {
     };
     window.addEventListener("unhandledrejection", handler);
     return () => window.removeEventListener("unhandledrejection", handler);
+  }, []);
+
+  // ── WASM compiler early init ──
+  useEffect(() => {
+    rustCompiler.init();
   }, []);
 
   // ── Theme initialization and system preference listener ──
@@ -223,11 +318,10 @@ export default function App() {
   const handleProjectOpened = async (path: string, name: string) => {
     resetEditorState();
     setProjectName(name);
-    loadedRef.current = false;
+    loadedRef.current = true; // prevent useEffect from also calling loadOmniFiles
     setProjectDir(path);
     // Always reload .omni files, even if same project is re-selected
     await loadOmniFiles();
-    loadedRef.current = true;
   };
 
   return (
