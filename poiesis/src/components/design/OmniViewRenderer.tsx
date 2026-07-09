@@ -13,10 +13,10 @@ import { useElements, useRootOrder, useSelectedElementIds, useComponentDefs } fr
 import { OmniViewElement } from "./OmniViewElement";
 import { buildInlineStyleMap } from "./render-utils";
 import { rustCompiler } from "../../commands/rustCompiler";
-import { generateOmniFiles } from "../../services/codegen/pipeline";
+import { generateOmniFiles, generateOmniFragment } from "../../services/codegen/pipeline";
+import { expandCustomComponents } from "../../services/codegen/expand-custom-components";
 import { emitDesignSource } from "../../services/codegen/design-emitter";
 import type { ElementData, ViewElementData } from "../../core/types/element";
-import type { ComponentDef } from "../../core/types/project-json";
 import type { CodeTab } from "../../core/types/codegraph";
 
 export function OmniViewRenderer() {
@@ -34,122 +34,121 @@ export function OmniViewRenderer() {
   // Subscribe to wires for WASM codegen
   const wires = usePoiesisStore((s) => s.wires);
 
-  // Build expanded element map + track IDs that are inside custom components
-  const { expandedElements, customChildIds } = useMemo(() => {
-    const registry: Record<string, ComponentDef> = componentDefs ?? {};
-    const map = new Map<string, ElementData>(elements.map((e) => [e.id, e]));
-    const innerIds = new Set<string>();
-
-    const expanded = new Set<string>();
-    let foundNew = true;
-    while (foundNew) {
-      foundNew = false;
-      for (const [id, el] of [...map]) {
-        if (!("tag" in el)) continue; // skip group elements
-        const compRef: string | undefined = "componentRef" in el ? (el.componentRef || (registry[el.tag] ? el.tag : undefined)) : (registry[el.tag] ? el.tag : undefined);
-        if (!compRef || expanded.has(id)) continue;
-        expanded.add(id);
-        const def = registry[compRef];
-        const defElements = def && Array.isArray((def as unknown as Record<string, unknown>).elements)
-          ? (def as unknown as Record<string, unknown>).elements as ElementData[]
-          : null;
-        if (!defElements || defElements.length === 0) continue;
-
-        const idMap = new Map<string, string>();
-        let idx = 0;
-        for (const defEl of defElements) {
-          idMap.set(defEl.id, `${id}__${idx++}`);
-        }
-
-        const newChildIds: string[] = [];
-        for (const defEl of defElements) {
-          if (!("children" in defEl && "tag" in defEl)) continue;
-          const newId = idMap.get(defEl.id)!;
-          // Mark as inside custom component (non-selectable)
-          innerIds.add(newId);
-          const isRoot = !defEl.parentId || !defElements.some((d) => d.id === defEl.parentId);
-          const cloned: ViewElementData = {
-            id: newId,
-            parentId: isRoot ? id : (idMap.get(defEl.parentId || "") || defEl.parentId),
-            nodeType: "view",
-            tag: defEl.tag || "div",
-            props: defEl.props || {},
-            children: (defEl.children || []).map((cid) => idMap.get(cid) || cid),
-            // Copy style (classRefs + inlineProperties) so canvas preview reflects
-            // design-system class bindings and inline styles applied to the component.
-            style: defEl.style ? { ...defEl.style, classRefs: [...(defEl.style.classRefs ?? [])], inlineProperties: [...(defEl.style.inlineProperties ?? [])] } : undefined,
-          };
-          map.set(newId, cloned);
-          if (isRoot) newChildIds.push(newId);
-        }
-
-        const updated = { ...map.get(id)! };
-        if ("children" in updated) {
-          updated.children = [...updated.children, ...newChildIds];
-        }
-        map.set(id, updated);
-        foundNew = true;
-      }
-    }
-
-    return { expandedElements: map, customChildIds: innerIds };
+  // Expand custom components for canvas rendering (reuses codegen's expansion)
+  const { expandedElements, customChildIds, idMappings } = useMemo(() => {
+    const result = expandCustomComponents(elements);
+    // Convert to Map for O(1) lookups in OmniViewElement
+    const map = new Map<string, ElementData>(result.elements.map((e) => [e.id, e]));
+    return { expandedElements: map, customChildIds: result.customChildIds, idMappings: result.idMappings };
   }, [elements, componentDefs]);
 
-  // Live component .omni source for WASM compilation — generate inline
-  // (not via useLiveCodePreview, which only returns content when a
-  // component tab is active).
-  const componentSource = useMemo(() => {
+  // Generate ALL .omni sources for WASM multi-file resolution
+  const allOmniSources = useMemo(() => {
     if (elements.length === 0) return null;
+
     const codeTabs: CodeTab[] = [{
       id: "main", type: "logic", label: "Main", icon: "📄",
       graph: { elements, wires }, variables: [],
     }];
+
     try {
-      const result = generateOmniFiles({
+      // Main component
+      const mainResult = generateOmniFiles({
         designElements: elements,
         designWires: wires,
         codeTabs,
         componentName: "main",
         rootOrder,
-        forSave: false,
         filePath: "src/main.omni",
-        designName: activeDesign?.name && (activeDesign.tokens?.length || activeDesign.classes?.length || activeDesign.variants?.length) ? activeDesign.name : undefined,
+        designName: activeDesign?.name
+          && (activeDesign.tokens?.length || activeDesign.classes?.length || activeDesign.variants?.length)
+          ? activeDesign.name : undefined,
       });
-      return result.value?.["src/main.omni"] ?? null;
-    } catch { return null; }
-  }, [elements, wires, rootOrder, activeDesign]);
 
-  // Build design.omni source from activeDesign
-  const designSource = useMemo(() => {
-    if (!activeDesign?.name) return null;
-    if (!activeDesign.tokens?.length && !activeDesign.classes?.length && !activeDesign.variants?.length) return null;
-    return emitDesignSource(activeDesign);
-  }, [activeDesign]);
+      const sources: Record<string, string> = {};
 
-  // WASM CSS resolution: resolve design-system styles + component styles
+      // Collect main + store files
+      if (mainResult.value) {
+        Object.assign(sources, mainResult.value);
+      }
+
+      // Generate source for each custom component referenced in the tree
+      if (componentDefs) {
+        for (const [compName, compDef] of Object.entries(componentDefs)) {
+          if (!compDef.elements || compDef.elements.length === 0) continue;
+          const compResult = generateOmniFragment({
+            componentName: compName,
+            designElements: compDef.elements,
+            designWires: compDef.wires || [],
+            codeTabs: [],
+            rootOrder: compDef.rootOrder,
+            fromDefinition: true,
+          });
+          if (compResult.value) {
+            sources[`src/components/${compName}.omni`] = compResult.value;
+          }
+        }
+      }
+
+      return sources;
+    } catch {
+      return null;
+    }
+  }, [elements, wires, rootOrder, activeDesign, componentDefs]);
+
+  // WASM CSS resolution with ALL component files
   const wasmStyleResult = useMemo(() => {
-    if (!componentSource || !designSource || !rustCompiler.isReady) return null;
-    const sources: Record<string, string> = {
-      "src/design.omni": designSource,
-      "src/main.omni": componentSource,
-    };
+    if (!allOmniSources || !rustCompiler.isReady) return null;
+
+    const sources: Record<string, string> = { ...allOmniSources };
+
+    // Add design.omni
+    const designSrc = activeDesign?.name
+      && (activeDesign.tokens?.length || activeDesign.classes?.length || activeDesign.variants?.length)
+      ? emitDesignSource(activeDesign)
+      : null;
+    if (designSrc) {
+      sources["src/design.omni"] = designSrc;
+    }
+
+    // Build path mappings for cross-file imports
     const pathMapping: Record<string, string> = {
       "./design.omni": "src/design.omni",
     };
+    if (componentDefs) {
+      for (const compName of Object.keys(componentDefs)) {
+        pathMapping[`./components/${compName}`] = `src/components/${compName}.omni`;
+      }
+    }
+
     const result = rustCompiler.resolveStylesMulti(sources, pathMapping);
     if (!result.success) return null;
     return result;
-  }, [componentSource, designSource]);
+  }, [allOmniSources, activeDesign, componentDefs]);
 
-  // Build classMap from WASM result (element id → class names)
+  // Translate WASM class map from original element IDs → expanded canvas IDs
   const classMap = useMemo(() => {
     if (!wasmStyleResult) return null;
+
+    // Build reverse mapping: expandedId → originalDefId
+    // (idMappings is: expandedId → originalDefId, same as expandCustomComponents returns)
     const map = new Map<string, string[]>();
+
     for (const [elId, classes] of Object.entries(wasmStyleResult.element_classes)) {
-      map.set(elId, classes);
+      // Direct lookup for non-component elements (IDs are unchanged)
+      map.set(elId, classes as string[]);
     }
+
+    // For expanded component-internal elements, add entries keyed by expanded ID
+    for (const [expandedId, originalId] of idMappings) {
+      const classes = wasmStyleResult.element_classes[originalId];
+      if (classes) {
+        map.set(expandedId, classes as string[]);
+      }
+    }
+
     return map;
-  }, [wasmStyleResult]);
+  }, [wasmStyleResult, idMappings]);
 
   // Combined CSS for <style> injection (design_css + component_css)
   const combinedCss = useMemo(() => {
