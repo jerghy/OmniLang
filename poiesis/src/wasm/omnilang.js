@@ -173,6 +173,22 @@ export function resolve_styles(source) {
 }
 
 /**
+ * Resolve styles for multiple .omni source files (cross-file design imports).
+ *
+ * `sources`: JS object `{ "file/path.omni": "source content", ... }`
+ * `path_mapping`: JS object `{ "import/path": "resolved/file/path.omni", ... }`
+ *
+ * Returns `StyleResolveResult` with compiled CSS + element mappings.
+ * @param {any} sources
+ * @param {any} path_mapping
+ * @returns {any}
+ */
+export function resolve_styles_multi(sources, path_mapping) {
+    const ret = wasm.resolve_styles_multi(addHeapObject(sources), addHeapObject(path_mapping));
+    return takeObject(ret);
+}
+
+/**
  * Return compiler version.
  * @returns {string}
  */
