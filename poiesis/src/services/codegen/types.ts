@@ -310,3 +310,13 @@ export interface ParseResult {
     defaults: Record<string, string>;
   }>;
 }
+
+/** Result of expanding custom component references into a flat element set. */
+export interface ExpansionResult {
+  /** All elements including cloned component-internal elements. */
+  elements: ElementData[];
+  /** IDs of elements that are inside custom components (non-selectable in canvas). */
+  customChildIds: Set<string>;
+  /** Maps expanded element ID -> original definition element ID (for WASM class translation). */
+  idMappings: Map<string, string>;
+}

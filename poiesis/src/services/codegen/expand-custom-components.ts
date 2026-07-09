@@ -4,6 +4,7 @@
 
 import { getComponentDefinitions } from "../../store";
 import type { ElementData } from "../../core/types";
+import type { ExpansionResult } from "./types";
 
 /** Minimal shape of a component definition's element needed for expansion. */
 interface DefElement {
@@ -37,12 +38,17 @@ function getDefElements(def: Record<string, unknown>): DefElement[] | null {
  * generated omniLang source is stable across recompiles, so the compilerCache
  * can hit correctly and the preview iframe doesn't reload unnecessarily.
  */
-export function expandCustomComponents(elements: ElementData[]): ElementData[] {
+export function expandCustomComponents(elements: ElementData[]): ExpansionResult {
   const registry = getComponentDefinitions();
+  const customChildIds = new Set<string>();
+  const idMappings = new Map<string, string>();
 
-  // Check for elements that reference custom components (by componentRef OR by tag in registry)
-  const hasRefs = elements.some((el) => ("componentRef" in el && el.componentRef) || ("tag" in el && registry[el.tag]));
-  if (!hasRefs) return elements;
+  const hasRefs = elements.some(
+    (el) =>
+      ("componentRef" in el && el.componentRef) ||
+      ("tag" in el && registry[el.tag]),
+  );
+  if (!hasRefs) return { elements, customChildIds, idMappings };
 
   // Build element map (shallow clone so we can safely update children arrays)
   const elementMap = new Map<string, ElementData>();
@@ -70,7 +76,11 @@ export function expandCustomComponents(elements: ElementData[]): ElementData[] {
       const idMap = new Map<string, string>();
       let idx = 0;
       for (const defEl of defElements) {
-        idMap.set(defEl.id, `${el.id}__${idx++}`);
+        const newId = `${el.id}__${idx}`;
+        idMap.set(defEl.id, newId);
+        // Record reverse mapping for WASM class translation
+        idMappings.set(newId, defEl.id);
+        idx++;
       }
 
       // Clone definition elements with remapped IDs and parent references
@@ -92,6 +102,7 @@ export function expandCustomComponents(elements: ElementData[]): ElementData[] {
         } as unknown as ElementData;
 
         elementMap.set(newId, cloned);
+        customChildIds.add(newId);
         foundNew = true;
         if (isRoot) rootIds.push(newId);
       }
@@ -112,5 +123,5 @@ export function expandCustomComponents(elements: ElementData[]): ElementData[] {
     }
   }
 
-  return [...elementMap.values()];
+  return { elements: [...elementMap.values()], customChildIds, idMappings };
 }
