@@ -433,17 +433,17 @@ export class SourceEmitter {
     }
     const hasContent = contentText || elNode.children.length > 0;
 
-    if (isVoid || !hasContent) {
-      w.emit(isVoid ? `${openTag} />` : `${openTag}></${tag}>`);
-      return;
-    }
-
     // Custom components: always self-close — their internal template
     // is defined in their own .omni file. Expanded children are a
     // canvas-rendering artifact, not part of the component's source API.
     const isComponentTag = /^[A-Z]/.test(tag);
     if (isComponentTag) {
       w.emit(`${openTag} />`);
+      return;
+    }
+
+    if (isVoid || !hasContent) {
+      w.emit(isVoid ? `${openTag} />` : `${openTag}></${tag}>`);
       return;
     }
 
