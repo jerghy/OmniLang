@@ -10,7 +10,11 @@ import { uid } from "../../../core/utils";
 // ── Helpers ──
 
 function getProp(props: StyleProperty[], name: string): string {
-  const prop = props.find((p) => p.name === name);
+  let prop = props.find((p) => p.name === name);
+  if (!prop) {
+    const camel = name.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
+    prop = props.find((p) => p.name === camel);
+  }
   if (!prop || prop.segments.length === 0) return "";
   return prop.segments.map((s) => {
     if (s.type === "var-ref") return `token(${s.name})`;

@@ -33,15 +33,23 @@ function parseBranchKey(key: string): { dim: string; val: string } | null {
   return { dim: key.slice(0, idx), val: key.slice(idx + 1) };
 }
 
-/** Merge base and branch properties — branch values take priority. */
+/** Convert kebab-case to camelCase (e.g. "border-radius" → "borderRadius"). */
+function kebabToCamel(name: string): string {
+  return name.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+}
+
+/** Merge base and branch properties — branch values take priority.
+ *  Normalizes all property names to camelCase for consistent lookup. */
 function getCombinedProps(
   baseProperties: StyleProperty[],
   branch: { properties: StyleProperty[] } | null,
 ): StyleProperty[] {
-  if (!branch) return baseProperties;
+  const normalize = (props: StyleProperty[]) =>
+    props.map((p) => ({ ...p, name: kebabToCamel(p.name) }));
+  if (!branch) return normalize(baseProperties);
   const merged = new Map<string, StyleProperty>();
-  for (const p of baseProperties) merged.set(p.name, p);
-  for (const p of branch.properties) merged.set(p.name, p);
+  for (const p of normalize(baseProperties)) merged.set(p.name, p);
+  for (const p of normalize(branch.properties)) merged.set(p.name, p);
   return Array.from(merged.values());
 }
 
@@ -50,7 +58,8 @@ function computeBranchOverrides(
   merged: StyleProperty[],
   baseProperties: StyleProperty[],
 ): StyleProperty[] {
-  const baseMap = new Map(baseProperties.map((p) => [p.name, segmentsToString(p.segments)]));
+  const normalized = baseProperties.map((p) => ({ ...p, name: kebabToCamel(p.name) }));
+  const baseMap = new Map(normalized.map((p) => [p.name, segmentsToString(p.segments)]));
   return merged.filter((p) => {
     const baseVal = baseMap.get(p.name);
     const mergedVal = segmentsToString(p.segments);
@@ -303,7 +312,12 @@ const typographyPropNames = ["color", "fontFamily", "fontSize", "fontWeight", "l
 // ── Helpers for property access ──
 
 function getPropValue(props: StyleProperty[], name: string): string {
-  const prop = props.find((p) => p.name === name);
+  // Try exact match, then camelCase variant
+  let prop = props.find((p) => p.name === name);
+  if (!prop) {
+    const camel = kebabToCamel(name);
+    prop = props.find((p) => p.name === camel);
+  }
   if (!prop || prop.segments.length === 0) return "";
   return prop.segments.map((s) => {
     if (s.type === "var-ref") return `token(${s.name})`;
