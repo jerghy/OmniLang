@@ -338,8 +338,10 @@ export class SourceEmitter {
         if (!classParts.includes(cls)) classParts.push(cls);
       }
     }
-    if (classParts.length > 0) {
-      parts.push(` class: ${classParts.join(" ")}`);
+    // Only emit class: when there are meaningful class names
+    const validClassParts = classParts.filter(c => c && c.length > 0);
+    if (validClassParts.length > 0) {
+      parts.push(` class: ${validClassParts.join(" ")}`);
     }
 
     // ── variant: attribute ──
@@ -365,7 +367,7 @@ export class SourceEmitter {
     } else {
       // Derive HTML attributes from node.props (used when applyStyles is no-op)
       for (const [key, val] of Object.entries(elNode.props)) {
-        if (key === "className" || key === "style" || key === "key") continue;
+        if (key === "className" || key === "style" || key === "key" || key === "label") continue;
         if (key.startsWith("on")) continue; // event handlers handled below
         if (typeof val === "boolean") {
           if (val) parts.push(` ${key}`);
@@ -421,7 +423,12 @@ export class SourceEmitter {
 
     const openTag = parts.join("");
     const isVoid = SourceEmitter.VOID_ELEMENTS.has(tag);
-    const hasContent = style?.contentText || elNode.children.length > 0;
+    // Determine content text: prefer resolvedStyle, fall back to props.label
+    let contentText = style?.contentText;
+    if (!contentText && elNode.props.label && typeof elNode.props.label === "string") {
+      contentText = elNode.props.label;
+    }
+    const hasContent = contentText || elNode.children.length > 0;
 
     if (isVoid || !hasContent) {
       w.emit(isVoid ? `${openTag} />` : `${openTag}></${tag}>`);
@@ -432,14 +439,14 @@ export class SourceEmitter {
     w.indent();
 
     // Emit content text only when no binding covers the same prop.
-    if (style?.contentText) {
+    if (contentText) {
       const bindingKeys = new Set([
         ...(this.elementBindings?.get(elNode.id) ? Object.keys(this.elementBindings.get(elNode.id)!) : []),
-        ...Object.keys(style.bindings),
+        ...Object.keys(style?.bindings ?? {}),
       ]);
       const contentIsBound = bindingKeys.has("label") || bindingKeys.has("value");
       if (!contentIsBound) {
-        w.emit(style.contentText);
+        w.emit(contentText);
       }
     }
 
