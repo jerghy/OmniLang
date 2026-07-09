@@ -17,6 +17,7 @@ export function finalizeParse(internals: ParserInternals): void {
   if (internals.ctx.elements.length > 0) {
     type ViewTreeNode = {
       id: string;
+      kind: "element";
       props: Record<string, unknown>;
       inline_style: Record<string, string> | null;
       children: ViewTreeNode[];
@@ -27,7 +28,7 @@ export function finalizeParse(internals: ParserInternals): void {
     ): ViewTreeNode {
       // Only view elements have the structure we need for tree building
       if (el.nodeType !== "view") {
-        return { id: el.id, props: {}, inline_style: null, children: [] };
+        return { id: el.id, kind: "element" as const, props: {}, inline_style: null, children: [] };
       }
       let inline_style: Record<string, string> | null = null;
       const styleStr = el.props.style as string | undefined;
@@ -53,7 +54,15 @@ export function finalizeParse(internals: ParserInternals): void {
 
       return {
         id: el.id,
-        props: { ...el.props, class: (el.props.className as string) || "" },
+        kind: "element" as const,
+        // Use classRefs for class: round-trip, NOT className (a CSS class for canvas
+        // rendering that may contain auto-generated garbage names like main_div_0_p_0).
+        props: {
+          ...el.props,
+          class: ("style" in el && el.style?.classRefs?.length)
+            ? el.style.classRefs.join(" ")
+            : "",
+        },
         inline_style,
         children: (el.children || [])
           .map((cid: string) =>

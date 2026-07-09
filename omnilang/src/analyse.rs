@@ -199,6 +199,7 @@ fn merge_file_ir_into(
         existing
             .timelines
             .extend(std::mem::take(&mut mod_ir.timelines));
+        existing.designs.extend(std::mem::take(&mut mod_ir.designs));
     }
     for (key, entry) in std::mem::take(&mut ir.source_map) {
         merged.source_map.entry(key).or_insert(entry);

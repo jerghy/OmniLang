@@ -108,6 +108,24 @@ pub fn lower(program: &Program, semantics: &mut SemanticResult) -> IRProgram {
             .map(|t| lower_timeline_def(t, &variant_map, semantics))
             .collect();
 
+        // Validate design blocks before lowering
+        for design in &module.designs {
+            let errors = crate::ir::lower::design::validate_design(design);
+            for err in &errors {
+                semantics.diagnostics.push(crate::error::Diagnostic {
+                    severity: crate::error::Severity::Warning,
+                    kind: crate::error::DiagnosticKind::E0002,
+                    message: format!("[design '{}'] {}", design.name, err),
+                    file: None,
+                    line: 0,
+                    col: 0,
+                    end_line: None,
+                    end_col: None,
+                    suggestion: None,
+                });
+            }
+        }
+
         let designs: Vec<super::DesignIR> = module.designs.iter().map(lower_design).collect();
 
         let module_ir = ModuleIR {
@@ -127,6 +145,37 @@ pub fn lower(program: &Program, semantics: &mut SemanticResult) -> IRProgram {
         };
 
         modules.insert(module_name.clone(), module_ir);
+    }
+
+    // ── Resolve cross-file design imports ──
+    // Collect all designs from all modules into a global map (keyed by design name).
+    // Designs are implicitly public (like components/stores) — no visibility gate.
+    let all_designs: FxHashMap<String, super::DesignIR> = modules
+        .values()
+        .flat_map(|m| m.designs.iter().cloned())
+        .map(|d| (d.name.clone(), d))
+        .collect();
+
+    // For each module, scan its Named imports.  If an imported name matches
+    // a design in all_designs, clone the DesignIR into the importing module.
+    for (module_name, module) in program.modules.iter() {
+        let module_ir = modules.get_mut(module_name).unwrap();
+        let mut imported_designs: Vec<super::DesignIR> = Vec::new();
+
+        for imp in &module.imports {
+            if let ImportStmt::Named(named) = imp {
+                for name in &named.names {
+                    if let Some(design) = all_designs.get(name) {
+                        // Avoid duplicates (design defined in this file already there)
+                        if !module_ir.designs.iter().any(|d| d.name == *name) {
+                            imported_designs.push(design.clone());
+                        }
+                    }
+                }
+            }
+        }
+
+        module_ir.designs.extend(imported_designs);
     }
 
     // Collect stdlib imports: any "import { ... } from \"std/<module>\""

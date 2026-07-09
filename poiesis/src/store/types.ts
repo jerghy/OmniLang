@@ -58,6 +58,7 @@ export interface PoiesisState {
     wires: WireData[];
     rootOrder: string[];
     selectedElementIds: string[];
+    filePath?: string;
     codeFlowVisible?: boolean;
     codeFlowElementId?: string | null;
   }>;

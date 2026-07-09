@@ -87,7 +87,8 @@ function useWasmCompile(): {
               componentName: compName,
               designElements: compDef.elements,
               designWires: compDef.wires || [],
-              codeTabs: [],
+              codeTabs: [{ id: "fragment", type: "logic", label: "Fragment", icon: "📄",
+                graph: { elements: compDef.elements, wires: compDef.wires || [] }, variables: [] }],
               rootOrder: compDef.rootOrder,
               fromDefinition: true,
             });

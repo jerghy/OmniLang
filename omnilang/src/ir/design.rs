@@ -27,13 +27,22 @@ pub struct TokenIR {
     pub token_type: TokenTypeIR,
 }
 
-/// Token type annotation mirroring the AST `TokenType`.
+/// Token type annotation mirroring the AST `TokenType` — 13 recognized types.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum TokenTypeIR {
     Color,
     Size,
-    Font,
+    Radius,
+    FontFamily,
+    FontSize,
+    FontWeight,
+    LineHeight,
+    LetterSpacing,
     Shadow,
+    Duration,
+    Easing,
+    Opacity,
+    ZIndex,
 }
 
 /// A CSS class with resolved property values and pseudo-state variants.

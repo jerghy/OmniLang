@@ -163,12 +163,14 @@ export function StylesSection({ element }: StylesSectionProps) {
               placeholder="value"
               style={{
                 flex: 1,
+                minWidth: 0,
                 padding: "3px 6px",
                 fontSize: 11,
                 border: "1px solid #e2e8f0",
                 borderRadius: 4,
                 outline: "none",
                 fontFamily: "monospace",
+                transition: "border-color 150ms ease",
               }}
               onFocus={(e) => {
                 e.target.style.borderColor = "#6366F1";

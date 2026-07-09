@@ -3,7 +3,20 @@
 import type { StyleProperty } from "./style";
 
 // ── Token ────────────────────────────────────────────────────
-export type TokenType = "color" | "size" | "font" | "shadow";
+export type TokenType =
+  | "color"
+  | "size"
+  | "radius"
+  | "fontFamily"
+  | "fontSize"
+  | "fontWeight"
+  | "lineHeight"
+  | "letterSpacing"
+  | "shadow"
+  | "duration"
+  | "easing"
+  | "opacity"
+  | "zIndex";
 
 export interface DesignToken {
   id: string;
@@ -96,9 +109,19 @@ export const EMPTY_DESIGN: DesignDefinition = {
 /** Map a tokenType to the TokenEditor category name for UI grouping. */
 export function tokenTypeToCategory(tokenType: string): string {
   switch (tokenType) {
-    case "color":  return "colors";
-    case "size":   return "spacing";
-    case "font":   return "typography";
-    default:       return "custom";
+    case "color":         return "colors";
+    case "size":          return "spacing";
+    case "radius":        return "radii";
+    case "fontFamily":    return "typography";
+    case "fontSize":      return "typography";
+    case "fontWeight":    return "typography";
+    case "lineHeight":    return "typography";
+    case "letterSpacing": return "typography";
+    case "shadow":        return "shadows";
+    case "duration":      return "animation";
+    case "easing":        return "animation";
+    case "opacity":       return "effects";
+    case "zIndex":        return "layout";
+    default:              return "custom";
   }
 }

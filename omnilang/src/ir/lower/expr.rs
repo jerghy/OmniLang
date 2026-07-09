@@ -460,26 +460,39 @@ pub(crate) fn lower_expr(
             }
         }
         Expr::TemplateString { parts, .. } => {
-            // Concatenate template string parts into a single string literal.
-            // For expression parts, lower and extract their value representation.
-            let concatenated: String = parts
-                .iter()
-                .map(|p| match p {
-                    TemplatePart::Literal(s) => s.clone(),
-                    TemplatePart::Expr(e) => {
-                        match lower_expr(e, variant_map, event_fields.as_deref_mut(), semantics) {
-                            ExprIR::LiteralExpr { value } => match &value {
-                                serde_json::Value::String(s) => s.clone(),
-                                other => other.to_string(),
-                            },
-                            other => format!("{:?}", other),
-                        }
-                    }
-                })
-                .collect();
-            ExprIR::LiteralExpr {
-                value: serde_json::Value::String(concatenated),
+            // Lower template string parts to a runtime concatenation chain.
+            // Each part is either a literal string or an expression; they are
+            // joined via BinaryOpExpr with Add so that existing codegen handles
+            // JavaScript template literals automatically (string + expr + string).
+            if parts.is_empty() {
+                return ExprIR::LiteralExpr {
+                    value: serde_json::Value::String(String::new()),
+                };
             }
+
+            let mut result: Option<ExprIR> = None;
+            for part in parts {
+                let part_ir = match part {
+                    TemplatePart::Literal(s) => ExprIR::LiteralExpr {
+                        value: serde_json::Value::String(s.clone()),
+                    },
+                    TemplatePart::Expr(e) => {
+                        lower_expr(e, variant_map, event_fields.as_deref_mut(), semantics)
+                    }
+                };
+                result = Some(match result {
+                    None => part_ir,
+                    Some(left) => ExprIR::BinaryOpExpr {
+                        op: BinaryOpIR::Add,
+                        left: Box::new(left),
+                        right: Box::new(part_ir),
+                    },
+                });
+            }
+
+            result.unwrap_or_else(|| ExprIR::LiteralExpr {
+                value: serde_json::Value::String(String::new()),
+            })
         }
         Expr::NotYetImplemented {
             feature: _feature, ..

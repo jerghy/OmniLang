@@ -96,6 +96,10 @@ impl OmniViewGenerator {
         is_root: bool,
     ) {
         let js_before = self.js.len();
+        // Snapshot CSS position for per-component delta tracking (css_only mode).
+        if self.css_only {
+            self.current_css_start = self.css.len();
+        }
         self.current_component = name.to_string();
         // Clear component-local signal renames (global function/event renames persist).
         self.name_renames.clear();
@@ -103,6 +107,14 @@ impl OmniViewGenerator {
         self.comp_mount_js.clear();
         // Clear @enter replay tracking for this component
         self.enter_trigger_nids.clear();
+        // Populate component-local style class names for class: validation
+        self.component_style_classes.clear();
+        for style_rule in &comp.styles {
+            if !style_rule.class_name.is_empty() {
+                self.component_style_classes
+                    .insert(style_rule.class_name.clone());
+            }
+        }
 
         // Editor mode: wrap component in a factory IIFE so it can be hot-replaced
         // via __omni_replaceComponent in the editor bridge.
@@ -201,7 +213,7 @@ impl OmniViewGenerator {
                 name
             );
             let _ = writeln!(self.js, 
-                "  if (el) el.dispatchEvent(new CustomEvent('{}', {{ detail: args[0], bubbles: true }}));",
+                "  if (el) el.dispatchEvent(new CustomEvent('{}', {{ detail: args[0], bubbles: false }}));",
                 dom_event
             );
             self.js.push_str("}\n");
@@ -419,6 +431,12 @@ impl OmniViewGenerator {
         if self.editor_mode {
             let component_js = self.js[js_before..].to_string();
             self.component_js.insert(name.to_string(), component_js);
+        }
+        // Capture per-component CSS delta for resolve_styles (css_only mode).
+        if self.css_only {
+            let component_css = self.css[self.current_css_start..].to_string();
+            self.per_component_css
+                .insert(name.to_string(), component_css);
         }
     }
 

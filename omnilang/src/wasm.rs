@@ -121,6 +121,44 @@ pub fn resolve_styles(source: &str) -> JsValue {
     to_js_value(&crate::resolve_styles(source))
 }
 
+/// Resolve styles for multiple .omni source files (cross-file design imports).
+///
+/// `sources`: JS object `{ "file/path.omni": "source content", ... }`
+/// `path_mapping`: JS object `{ "import/path": "resolved/file/path.omni", ... }`
+///
+/// Returns `StyleResolveResult` with compiled CSS + element mappings.
+#[cfg(feature = "codegen-omniview")]
+#[wasm_bindgen]
+pub fn resolve_styles_multi(sources: JsValue, path_mapping: JsValue) -> JsValue {
+    let sources_map: FxHashMap<String, String> = match serde_wasm_bindgen::from_value(sources) {
+        Ok(s) => s,
+        Err(e) => {
+            return serde_wasm_bindgen::to_value(&serde_json::json!({
+                "success": false,
+                "design_css": "",
+                "component_css": {},
+                "element_classes": {},
+                "element_tags": {},
+                "warnings": [],
+                "errors": [{
+                    "severity": "error",
+                    "code": "E_INVALID_SOURCES",
+                    "message": format!("Failed to parse sources: {}", e),
+                    "line": 0, "col": 0, "end_line": 0, "end_col": 0
+                }]
+            }))
+            .unwrap_or_else(|e| js_error_value(&format!("serialization error: {}", e)));
+        }
+    };
+    let path_map: FxHashMap<String, String> =
+        serde_wasm_bindgen::from_value(path_mapping).unwrap_or_default();
+    let total_size: usize = sources_map.values().map(|s| s.len()).sum();
+    if total_size > 10 * 1024 * 1024 {
+        return js_error_value("Input exceeds 10MB limit");
+    }
+    to_js_value(&crate::resolve_styles_multi(sources_map, path_map))
+}
+
 /// Compile multiple .omni source files to OmniView.
 /// sources: JS object mapping file path to source content, e.g. {"path": "source content", ...}
 /// editor_mode: enable debug wrappers for editor preview.

@@ -336,6 +336,10 @@ export function ClassEditor() {
       : "—";
   }, [currentProps]);
 
+  // Interactive preview dimensions for focus mode
+  const previewWidth = useMemo(() => parseFloat(getPropValue(currentProps, "width")) || 0, [currentProps]);
+  const previewHeight = useMemo(() => parseFloat(getPropValue(currentProps, "height")) || 0, [currentProps]);
+
   // ── Close popups on outside click ──
 
   useOutsideClick(pseudoMenuRef, showPseudoMenu, () => setShowPseudoMenu(false));
@@ -396,6 +400,44 @@ export function ClassEditor() {
       return { pseudoStates, psIdx: pseudoStates.length - 1 };
     },
     [activePseudo],
+  );
+
+  // ── Stabilized callbacks via refs (so React.memo children don't re-render on every state change) ──
+
+  const handlePropsChangeRef = useRef<(newProps: StyleProperty[]) => void>(null!);
+  handlePropsChangeRef.current = (newProps: StyleProperty[]) => {
+    if (!selectedClass) return;
+    if (activePseudo === "base") {
+      updateDesignClass(selectedClass.id, { properties: newProps });
+    } else {
+      const { pseudoStates, psIdx } = ensurePseudoState(selectedClass);
+      pseudoStates[psIdx] = { ...pseudoStates[psIdx], properties: newProps };
+      updateDesignClass(selectedClass.id, { pseudoStates });
+    }
+  };
+
+  const handlePropsChange = useCallback(
+    (newProps: StyleProperty[]) => {
+      handlePropsChangeRef.current?.(newProps);
+    },
+    [],
+  );
+
+  const handleSinglePropChangeRef = useRef<(name: string, value: string) => void>(null!);
+  handleSinglePropChangeRef.current = (name: string, value: string) => {
+    if (!selectedClass) return;
+    const props =
+      activePseudo === "base"
+        ? selectedClass.properties
+        : pseudoState?.properties ?? [];
+    handlePropsChangeRef.current?.(setPropValue(props, name, value));
+  };
+
+  const handleSinglePropChange = useCallback(
+    (name: string, value: string) => {
+      handleSinglePropChangeRef.current?.(name, value);
+    },
+    [],
   );
 
   const handleSelectClass = useCallback((id: string) => {
@@ -503,33 +545,6 @@ export function ClassEditor() {
     [selectedClass, handlePropChange],
   );
 
-  /** Update properties array and save to store (for card-based editors). */
-  const handlePropsChange = useCallback(
-    (newProps: StyleProperty[]) => {
-      if (!selectedClass) return;
-      if (activePseudo === "base") {
-        updateDesignClass(selectedClass.id, { properties: newProps });
-      } else {
-        const { pseudoStates, psIdx } = ensurePseudoState(selectedClass);
-        pseudoStates[psIdx] = { ...pseudoStates[psIdx], properties: newProps };
-        updateDesignClass(selectedClass.id, { pseudoStates });
-      }
-    },
-    [selectedClass, activePseudo, updateDesignClass, ensurePseudoState],
-  );
-
-  /** Update a single property in the active properties array (for collapsed groups). */
-  const handleSinglePropChange = useCallback(
-    (name: string, value: string) => {
-      if (!selectedClass) return;
-      const props =
-        activePseudo === "base"
-          ? selectedClass.properties
-          : pseudoState?.properties ?? [];
-      handlePropsChange(setPropValue(props, name, value));
-    },
-    [selectedClass, activePseudo, pseudoState, handlePropsChange],
-  );
 
   // ── Render helpers ──
 
@@ -1244,6 +1259,17 @@ const renderTokenPicker = () => {
                     pseudoStates={selectedClass.pseudoStates}
                     className={selectedClass.name}
                     tokens={tokens}
+                    interactive
+                    width={previewWidth}
+                    height={previewHeight}
+                    onResize={(w, h) => {
+                      handleSinglePropChange("width", `${w}px`);
+                      handleSinglePropChange("height", `${h}px`);
+                    }}
+                    onResizeEnd={(w, h) => {
+                      handleSinglePropChange("width", `${w}px`);
+                      handleSinglePropChange("height", `${h}px`);
+                    }}
                   />
                 </FocusOverlay>
               )}

@@ -24,8 +24,17 @@ pub fn lower_design(ast: &DesignDef) -> DesignIR {
             let token_type = match t.token_type {
                 TokenType::Color => TokenTypeIR::Color,
                 TokenType::Size => TokenTypeIR::Size,
-                TokenType::Font => TokenTypeIR::Font,
+                TokenType::Radius => TokenTypeIR::Radius,
+                TokenType::FontFamily => TokenTypeIR::FontFamily,
+                TokenType::FontSize => TokenTypeIR::FontSize,
+                TokenType::FontWeight => TokenTypeIR::FontWeight,
+                TokenType::LineHeight => TokenTypeIR::LineHeight,
+                TokenType::LetterSpacing => TokenTypeIR::LetterSpacing,
                 TokenType::Shadow => TokenTypeIR::Shadow,
+                TokenType::Duration => TokenTypeIR::Duration,
+                TokenType::Easing => TokenTypeIR::Easing,
+                TokenType::Opacity => TokenTypeIR::Opacity,
+                TokenType::ZIndex => TokenTypeIR::ZIndex,
             };
             (
                 t.name.clone(),
@@ -82,12 +91,12 @@ fn resolve_value(value: &DesignValue, tokens: &FxHashMap<String, TokenIR>) -> St
     }
 }
 
-/// Resolve a token name: look up in the token map, or return `var(--name)` fallback.
-fn resolve_token_ref(name: &str, tokens: &FxHashMap<String, TokenIR>) -> String {
-    tokens
-        .get(name)
-        .map(|t| t.value.clone())
-        .unwrap_or_else(|| format!("var(--{})", name))
+/// Resolve a token name: always emit `var(--name)`.
+///
+/// Token values are emitted as CSS custom property declarations in `:root { }`
+/// by `emit_design_css()`, so class/variant properties always reference via `var()`.
+fn resolve_token_ref(name: &str, _tokens: &FxHashMap<String, TokenIR>) -> String {
+    format!("var(--{})", name)
 }
 
 /// Convert a `Vec<DesignProperty>` into a `FxHashMap<String, String>` with resolution.
@@ -160,6 +169,111 @@ fn lower_variant(variant: &VariantDef, tokens: &FxHashMap<String, TokenIR>) -> V
     }
 }
 
+/// Validate a `DesignDef` AST for compile-time errors.
+///
+/// Checks:
+/// - All `token(...)` references refer to tokens declared in the same design block.
+/// - Variant branches reference valid dimensions.
+///
+/// Returns a list of human-readable error messages (empty = valid).
+pub fn validate_design(ast: &DesignDef) -> Vec<String> {
+    let mut errors = Vec::new();
+
+    // Build the set of declared token names
+    let token_names: std::collections::HashSet<&str> =
+        ast.tokens.iter().map(|t| t.name.as_str()).collect();
+
+    // Walk design values in classes
+    for cls in &ast.classes {
+        for prop in &cls.properties {
+            check_value_tokens(
+                &prop.value,
+                &token_names,
+                &format!("class '{}'", cls.name),
+                &mut errors,
+            );
+        }
+        for ps in &cls.pseudo_states {
+            for prop in &ps.properties {
+                check_value_tokens(
+                    &prop.value,
+                    &token_names,
+                    &format!("class '{}' &:{}", cls.name, ps.pseudo),
+                    &mut errors,
+                );
+            }
+        }
+    }
+
+    // Walk design values in variants
+    for variant in &ast.variants {
+        let dim_names: std::collections::HashSet<&str> =
+            variant.dimensions.iter().map(|d| d.name.as_str()).collect();
+
+        for prop in &variant.base {
+            check_value_tokens(
+                &prop.value,
+                &token_names,
+                &format!("variant '{}' base", variant.name),
+                &mut errors,
+            );
+        }
+        for branch in &variant.branches {
+            // Validate branch dimension exists
+            if !dim_names.contains(branch.dimension.as_str()) {
+                errors.push(format!(
+                    "variant '{}' branch '{}.{}' references undeclared dimension '{}'",
+                    variant.name, branch.dimension, branch.value, branch.dimension
+                ));
+            }
+            for prop in &branch.properties {
+                check_value_tokens(
+                    &prop.value,
+                    &token_names,
+                    &format!(
+                        "variant '{}' branch '{}.{}'",
+                        variant.name, branch.dimension, branch.value
+                    ),
+                    &mut errors,
+                );
+            }
+        }
+    }
+
+    errors
+}
+
+fn check_value_tokens(
+    value: &DesignValue,
+    token_names: &std::collections::HashSet<&str>,
+    context: &str,
+    errors: &mut Vec<String>,
+) {
+    match value {
+        DesignValue::TokenRef(name) => {
+            if !token_names.contains(name.as_str()) {
+                errors.push(format!(
+                    "undefined token '{}' referenced in {}",
+                    name, context
+                ));
+            }
+        }
+        DesignValue::Mixed(parts) => {
+            for part in parts {
+                if let DesignValuePart::Token(name) = part {
+                    if !token_names.contains(name.as_str()) {
+                        errors.push(format!(
+                            "undefined token '{}' referenced in {}",
+                            name, context
+                        ));
+                    }
+                }
+            }
+        }
+        DesignValue::Literal(_) => {}
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -194,12 +308,16 @@ mod tests {
         assert_eq!(design.name, "App");
         assert_eq!(design.tokens.len(), 2);
 
-        let primary = design.tokens.get("primary")
+        let primary = design
+            .tokens
+            .get("primary")
             .ok_or_else(|| "missing token: primary".to_string())?;
         assert_eq!(primary.value, "#6366f1");
         assert_eq!(primary.token_type, TokenTypeIR::Color);
 
-        let spacing = design.tokens.get("spacingMd")
+        let spacing = design
+            .tokens
+            .get("spacingMd")
             .ok_or_else(|| "missing token: spacingMd".to_string())?;
         assert_eq!(spacing.value, "16px");
         assert_eq!(spacing.token_type, TokenTypeIR::Size);
@@ -228,11 +346,11 @@ mod tests {
         assert_eq!(card.name, "Card");
         assert_eq!(
             card.properties.get("background"),
-            Some(&"#ffffff".to_string())
+            Some(&"var(--surface)".to_string())
         );
         assert_eq!(
             card.properties.get("border-radius"),
-            Some(&"8px".to_string())
+            Some(&"var(--radiusMd)".to_string())
         );
     }
 

@@ -16,6 +16,7 @@ export function createInitialDesignPageState(): DesignPageState {
     codeFlowVisible: false,
     codeFlowElementId: null,
     breadcrumbs: [],
+    designView: "tokens",
   };
 }
 
@@ -64,6 +65,24 @@ export function createTabSlice(set: SetFn, _get?: GetFn) {
         pidMap: { status: "ok", entries: {}, lineToPid: {} },
         tabType,
       };
+
+      // ── Recover data from a previously-closed tab with the same filePath ──
+      let restoredTabData = s.tabData;
+      let restoredElements: import("../../core/types/element").ElementData[] = [];
+      let restoredWires: import("../../core/types/wire").WireData[] = [];
+      let restoredRootOrder: string[] = [];
+      for (const [tid, entry] of Object.entries(s.tabData)) {
+        if (entry.filePath === filePath && entry.elements.length > 0) {
+          // Found a closed tab's data — reuse it with the new tab ID
+          const { [tid]: _old, ...rest } = s.tabData;
+          restoredTabData = { ...rest, [id]: entry };
+          restoredElements = entry.elements;
+          restoredWires = entry.wires;
+          restoredRootOrder = entry.rootOrder;
+          break;
+        }
+      }
+
       // Save current tab's data before switching to new tab (including code flow view state)
       const oldTabId = s.designPage.activeTabId;
       const saveEntry = oldTabId
@@ -76,8 +95,8 @@ export function createTabSlice(set: SetFn, _get?: GetFn) {
           })
         : undefined;
       const updatedTabData = saveEntry
-        ? { ...s.tabData, [oldTabId!]: saveEntry }
-        : s.tabData;
+        ? { ...restoredTabData, [oldTabId!]: saveEntry }
+        : restoredTabData;
       return {
         currentPage: "design",
         designPage: {
@@ -90,9 +109,9 @@ export function createTabSlice(set: SetFn, _get?: GetFn) {
           breadcrumbs: [{ type: "architecture", label: "架构", id: "arch" }, { type: "component", label: componentName, id, filePath }],
         },
         tabData: updatedTabData,
-        elements: [],
-        wires: [],
-        rootOrder: [],
+        elements: restoredElements,
+        wires: restoredWires,
+        rootOrder: restoredRootOrder,
         selectedElementIds: [],
       };
     }),
@@ -108,20 +127,26 @@ export function createTabSlice(set: SetFn, _get?: GetFn) {
         const neighborIdx = Math.min(idx, newTabs.length - 1);
         activeTabId = newTabs[neighborIdx]?.id ?? null;
       }
-      // Save current canvas state for the tab being closed BEFORE removing its data.
-      // This ensures unsaved canvas state is persisted in tabData for undo/redo history.
+      // Save the CLOSED tab's canvas state before removing it.
+      // If the closed tab is currently active, save the live canvas state.
+      // If it's a background tab, save its per-tab tabData (not the active canvas).
+      const closedTab = s.designPage.openTabs.find(t => t.id === tabId);
+      const closedTabData = s.tabData[tabId];
+      const isActive = s.designPage.activeTabId === tabId;
       const saveEntry = buildTabSaveEntry({
-        elements: s.elements,
-        wires: s.wires,
-        rootOrder: s.rootOrder,
-        selectedElementIds: s.selectedElementIds,
-        designPage: s.designPage,
+        elements: isActive ? s.elements : (closedTabData?.elements ?? []),
+        wires: isActive ? s.wires : (closedTabData?.wires ?? []),
+        rootOrder: isActive ? s.rootOrder : (closedTabData?.rootOrder ?? []),
+        selectedElementIds: isActive ? s.selectedElementIds : (closedTabData?.selectedElementIds ?? []),
+        filePath: closedTab?.filePath,
+        designPage: {
+          codeFlowVisible: isActive ? s.designPage.codeFlowVisible : (closedTabData?.codeFlowVisible ?? false),
+          codeFlowElementId: isActive ? s.designPage.codeFlowElementId : (closedTabData?.codeFlowElementId ?? null),
+        },
       });
       const tabDataWithSave = { ...s.tabData, [tabId]: saveEntry };
-      // Clean up the closed tab's data
-      const { [tabId]: _, ...restTabData } = tabDataWithSave;
-      // LRU eviction: keep at most 20 entries to prevent unbounded growth.
-      const prunedTabData = lruEvictTabData(restTabData, new Set(newTabs.map(t => t.id)));
+      // LRU eviction: keep at most 20 entries (evicts least-recently-used, not the closed tab)
+      const prunedTabData = lruEvictTabData(tabDataWithSave, new Set(newTabs.map(t => t.id)));
       // If a neighbor tab becomes active, restore its data
       const restoreEntry = activeTabId ? prunedTabData[activeTabId] : undefined;
       const canvasPartial = tabRestoreCanvasPartial(restoreEntry, activeTabId ? undefined : s.elements);
@@ -153,6 +178,29 @@ export function createTabSlice(set: SetFn, _get?: GetFn) {
       const savedTabData = oldTabId
         ? { [oldTabId]: saveEntry }
         : {};
+
+      // ── Sync componentDefs when leaving a custom component tab ──
+      // The main canvas expands custom components from componentDefs,
+      // not from tabData. Without this sync, edits made on a custom
+      // component tab (e.g. MyCard) won't appear in main.omni.
+      const oldTab = oldTabId
+        ? s.designPage.openTabs.find((t) => t.id === oldTabId)
+        : null;
+      const updatedComponentDefs =
+        oldTab && oldTab.componentName !== "main" && oldTab.componentName !== "design"
+          ? {
+              ...s.componentDefs,
+              [oldTab.componentName]: {
+                ...(s.componentDefs[oldTab.componentName] || {}),
+                name: oldTab.componentName,
+                filePath: oldTab.filePath,
+                elements: s.elements,
+                wires: s.wires,
+                rootOrder: s.rootOrder,
+              },
+            }
+          : s.componentDefs;
+
       // Restore target tab's data (or empty if not yet loaded)
       const restoreEntry = s.tabData[tabId];
       const canvasPartial = tabRestoreCanvasPartial(restoreEntry);
@@ -164,6 +212,7 @@ export function createTabSlice(set: SetFn, _get?: GetFn) {
           ...codeFlowPartial,
         },
         tabData: { ...s.tabData, ...savedTabData },
+        componentDefs: updatedComponentDefs,
         ...canvasPartial,
       };
     }),

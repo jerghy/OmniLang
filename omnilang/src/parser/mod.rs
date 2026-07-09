@@ -98,10 +98,13 @@ impl<'a> Parser<'a> {
         if self.pos >= self.tokens.len() {
             return Token::new(TokenKind::Eof, 0, 0, 0, 0);
         }
-        // Move the real token out, leave a cheap placeholder in its place.
-        // The placeholder is never accessed because positions < pos are retired.
-        let placeholder = Token::placeholder();
-        let token = std::mem::replace(&mut self.tokens[self.pos], placeholder);
+        // Clone the token instead of replacing it with a placeholder.
+        // The placeholder optimisation broke speculative parsing: when a
+        // directive parse (e.g. @for) fails, the caller restores `self.pos`
+        // and retries as text — but the tokens at the restored position had
+        // already been overwritten with PlaceholderDummy, so the fallback
+        // text collector saw garbage.
+        let token = self.tokens[self.pos].clone();
         self.pos += 1;
         token
     }

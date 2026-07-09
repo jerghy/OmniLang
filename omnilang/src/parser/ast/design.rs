@@ -15,13 +15,22 @@ pub struct DesignDef {
     pub variants: Vec<VariantDef>,
 }
 
-/// Token type annotation
+/// Token type annotation — 13 recognized types for design tokens.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum TokenType {
     Color,
     Size,
-    Font,
+    Radius,
+    FontFamily,
+    FontSize,
+    FontWeight,
+    LineHeight,
+    LetterSpacing,
     Shadow,
+    Duration,
+    Easing,
+    Opacity,
+    ZIndex,
 }
 
 /// `token primary: color = "#6366f1";`

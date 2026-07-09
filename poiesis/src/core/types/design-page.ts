@@ -50,4 +50,5 @@ export interface DesignPageState {
   codeFlowVisible: boolean;
   codeFlowElementId: string | null;
   breadcrumbs: Breadcrumb[];
+  designView: "tokens" | "classes" | "variants";  // persisted sub-tab selection
 }

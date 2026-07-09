@@ -2,7 +2,7 @@
 // Spacing editing card: padding and margin sections with unified/independent toggle
 // and a live box-model preview.
 
-import { useState, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import { CollapsibleGroup } from "../CollapsibleGroup";
 import { ScrubInput } from "../ScrubInput";
 import { BoxModelPreview } from "./BoxModelPreview";
@@ -254,7 +254,7 @@ interface SpacingCardProps {
   onFocus?: () => void;
 }
 
-export function SpacingCard({ properties, onChange, onFocus }: SpacingCardProps) {
+export const SpacingCard = React.memo(function SpacingCard({ properties, onChange, onFocus }: SpacingCardProps) {
   const padShorthand = getProp(properties, "padding");
   const padTop = getProp(properties, "padding-top");
   const marShorthand = getProp(properties, "margin");
@@ -296,7 +296,7 @@ export function SpacingCard({ properties, onChange, onFocus }: SpacingCardProps)
   ]);
 
   return (
-    <CollapsibleGroup title="间距" summary={summary} defaultOpen={true}>
+    <CollapsibleGroup title="间距" summary={summary} defaultOpen={true} onDoubleClick={() => onFocus?.()}>
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         <SpacingSection
           label="Padding"
@@ -331,19 +331,9 @@ export function SpacingCard({ properties, onChange, onFocus }: SpacingCardProps)
           onChange={onChange}
         />
 
-        {/* Box model preview — right-click for focus mode */}
-        <div
-          onContextMenu={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onFocus?.();
-          }}
-          style={{ cursor: onFocus ? "context-menu" : "default" }}
-          title={onFocus ? "Right-click for focus mode" : undefined}
-        >
-          <BoxModelPreview margin={margin} padding={padding} />
-        </div>
+        {/* Box model preview */}
+        <BoxModelPreview margin={margin} padding={padding} />
       </div>
     </CollapsibleGroup>
   );
-}
+});

@@ -1,4 +1,5 @@
 use crate::error::ParseError;
+use crate::lexer::Span;
 use crate::lexer::TokenKind;
 use crate::parser::ast::*;
 use crate::parser::Parser;
@@ -16,8 +17,8 @@ impl<'a> Parser<'a> {
         let name = self.expect_ident("expected design block name")?;
 
         // Consume the opening '{'
+        let lbrace_span = self.peek().span; // capture span BEFORE advance replaces with placeholder
         self.expect_token(TokenKind::LBrace, "expected '{'")?;
-        let lbrace = &self.tokens[self.pos - 1];
 
         // Scan forward to find the matching '}' (tracking brace depth)
         let mut depth: usize = 1;
@@ -44,13 +45,17 @@ impl<'a> Parser<'a> {
         let rbrace = &self.tokens[rbrace_pos];
 
         // Extract the inner text between '{' and '}'
-        let inner_text = &self.source[lbrace.span.end..rbrace.span.start];
+        let inner_text = &self.source[lbrace_span.end..rbrace.span.start];
 
         // Delegate to the string-based design body parser
         let mut def =
             crate::parser::design::parse_design_body(inner_text).map_err(|e| ParseError {
-                message: e,
-                span: start,
+                message: e.message,
+                span: Span {
+                    start: start.start + e.offset,
+                    end: start.start + e.offset,
+                    ..start
+                },
             })?;
         def.name = name;
 

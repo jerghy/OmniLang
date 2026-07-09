@@ -1,7 +1,7 @@
 // components/design/ScrubInput.tsx
 // Drag-scrub numeric input with Poiesis design panel styling.
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 
 interface ScrubInputProps {
   value: number;
@@ -23,7 +23,7 @@ function clamp(n: number, lo?: number, hi?: number): number {
   return r;
 }
 
-export function ScrubInput({
+export const ScrubInput = React.memo(function ScrubInput({
   value,
   unit,
   min,
@@ -44,6 +44,8 @@ export function ScrubInput({
   const inputRef = useRef<HTMLInputElement>(null);
   const committedRef = useRef(false);
   const clampedValueRef = useRef(value);
+  const rafRef = useRef<number | null>(null);
+  const latestValueRef = useRef(value);
   const scrubRef = useRef<{
     startX: number;
     startValue: number;
@@ -155,11 +157,24 @@ export function ScrubInput({
             currentMin,
             currentMax
           );
-          currentOnChange(nv);
+          // Batch updates via rAF — only commit once per frame
+          latestValueRef.current = nv;
+          if (rafRef.current === null) {
+            rafRef.current = requestAnimationFrame(() => {
+              rafRef.current = null;
+              currentOnChange(latestValueRef.current);
+            });
+          }
         }
       };
 
       const onUp = () => {
+        // Cancel pending rAF
+        if (rafRef.current !== null) {
+          cancelAnimationFrame(rafRef.current);
+          rafRef.current = null;
+        }
+
         const s = scrubRef.current;
         scrubRef.current = null;
         setScrubbing(false);
@@ -168,6 +183,8 @@ export function ScrubInput({
           setEditing(true);
           setEditText(String(clamped));
         } else if (s && s.moved) {
+          // Commit final value
+          currentOnChange(latestValueRef.current);
           currentOnChangeEnd?.(clampedValueRef.current);
         }
 
@@ -199,6 +216,7 @@ export function ScrubInput({
     cursor: scrubbing ? "ew-resize" : disabled ? "default" : "ew-resize",
     userSelect: "none",
     minWidth: 48,
+    width: 64,
     height: 24,
     boxSizing: "border-box",
     background: disabled ? "#f5f5f5" : "var(--dp-surface, #fff)",
@@ -215,7 +233,8 @@ export function ScrubInput({
   };
 
   const inputStyle: React.CSSProperties = {
-    width: "100%",
+    flex: 1,
+    minWidth: 0,
     border: "none",
     outline: "none",
     padding: 0,
@@ -263,4 +282,4 @@ export function ScrubInput({
       {unit && <span style={unitStyle}>{unit}</span>}
     </div>
   );
-}
+});

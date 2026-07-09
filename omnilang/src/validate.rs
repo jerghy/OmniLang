@@ -166,6 +166,7 @@ enum CrossFileSymbolKind {
     TypeAlias,
     Component,
     Store,
+    Design,
     ReExport(String),
 }
 
@@ -200,6 +201,9 @@ fn build_pub_symbols(
             }
             for store in &module.stores {
                 symbols.insert(store.name.clone(), CrossFileSymbolKind::Store);
+            }
+            for design in &module.designs {
+                symbols.insert(design.name.clone(), CrossFileSymbolKind::Design);
             }
             // Re-exports
             for exp in &module.exports {

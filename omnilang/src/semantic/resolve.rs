@@ -474,7 +474,8 @@ impl SemanticAnalyzer {
                 | ElementProp::DragThreshold(_)
                 | ElementProp::DragVelocityMax(_)
                 | ElementProp::HeroTag(_)
-                | ElementProp::HeroTransition(_) => {}
+                | ElementProp::HeroTransition(_)
+                | ElementProp::Variant { .. } => {}
             }
         }
         for child in &element.children {

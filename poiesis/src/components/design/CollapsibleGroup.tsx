@@ -1,25 +1,50 @@
 // components/design/CollapsibleGroup.tsx
 // Card-like collapsible property group with Poiesis design panel styling.
 
-import { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef } from "react";
 
 interface CollapsibleGroupProps {
   title: string;
   summary: string;
   defaultOpen?: boolean;
   children: React.ReactNode;
+  onDoubleClick?: () => void;
 }
 
-export function CollapsibleGroup({
+export const CollapsibleGroup = React.memo(function CollapsibleGroup({
   title,
   summary,
   defaultOpen = false,
   children,
+  onDoubleClick,
 }: CollapsibleGroupProps) {
   const [open, setOpen] = useState(defaultOpen);
   const [hover, setHover] = useState(false);
 
-  const toggle = useCallback(() => setOpen((v) => !v), []);
+  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingToggleRef = useRef(false);
+
+  const handleHeaderClick = useCallback(() => {
+    if (clickTimerRef.current !== null) {
+      // Second click within double-click window
+      clearTimeout(clickTimerRef.current);
+      clickTimerRef.current = null;
+      // Undo the toggle from the first click
+      if (pendingToggleRef.current) {
+        setOpen((v) => !v);
+        pendingToggleRef.current = false;
+      }
+      onDoubleClick?.();
+    } else {
+      // First click — toggle immediately
+      setOpen((v) => !v);
+      pendingToggleRef.current = true;
+      clickTimerRef.current = setTimeout(() => {
+        clickTimerRef.current = null;
+        pendingToggleRef.current = false;
+      }, 300);
+    }
+  }, [onDoubleClick]);
 
   return (
     <div
@@ -39,7 +64,7 @@ export function CollapsibleGroup({
       }}
     >
       <div
-        onClick={toggle}
+        onClick={handleHeaderClick}
         style={{
           display: "flex",
           alignItems: "center",
@@ -104,4 +129,4 @@ export function CollapsibleGroup({
       )}
     </div>
   );
-}
+});

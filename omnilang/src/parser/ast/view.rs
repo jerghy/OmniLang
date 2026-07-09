@@ -131,6 +131,12 @@ pub enum ElementProp {
     Class {
         value: ClassValue,
     },
+    /// `variant: AppDesign.Button(color=primary, size=md)` in view templates
+    Variant {
+        design_name: String,
+        variant_name: String,
+        dimension_values: Vec<(String, String)>,
+    },
     Style {
         entries: Vec<(String, Expr)>,
     },
@@ -191,6 +197,11 @@ pub enum ClassValue {
     StyleRef(String),
     StringLiteral(String),
     ClassMap(Vec<(String, Expr)>),
+    /// `class: AppDesign.Card` — reference to a design block class
+    DesignClass {
+        design_name: String,
+        class_name: String,
+    },
 }
 
 #[derive(Debug, Clone)]

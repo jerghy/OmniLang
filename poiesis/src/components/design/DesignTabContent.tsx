@@ -38,16 +38,25 @@ const TAB_BTN_ACTIVE: React.CSSProperties = {
 const CODE_DRAWER_HEIGHT = "38%";
 
 export function DesignTabContent() {
-  const [view, setView] = useState<DesignView>("tokens");
+  const designView = usePoiesisStore((s) => s.designPage.designView);
   const [showCode, setShowCode] = useState(false);
   const activeDesign = usePoiesisStore((s) => s.activeDesign);
 
-  // ── Load design.omni content from disk on mount ──
+  const setDesignView = useCallback((v: DesignView) => {
+    usePoiesisStore.setState((s) => ({
+      designPage: { ...s.designPage, designView: v },
+    }));
+  }, []);
+
+  // ── Load design.omni content from disk on mount (fallback only) ──
+  // Design data is normally loaded during project init. Only re-parse from
+  // disk if the store is empty (e.g. user opened design.omni without a project).
   useEffect(() => {
-    const activeTabId = usePoiesisStore.getState().designPage.activeTabId;
-    if (!activeTabId) return;
-    const tab = usePoiesisStore.getState().designPage.openTabs.find((t) => t.id === activeTabId);
-    if (!tab || tab.tabType !== "design") return;
+    const store = usePoiesisStore.getState();
+    // Skip if design data already loaded (preserves unsaved edits across page switches)
+    if (store.activeDesign.tokens.length > 0 || store.activeDesign.classes.length > 0) return;
+    const tab = store.designPage.openTabs.find((t) => t.tabType === "design");
+    if (!tab) return;
     api.project.readFile(tab.filePath).then((res) => {
       if (!res.content) return;
       const result = parseOmniSource(res.content);
@@ -136,8 +145,8 @@ export function DesignTabContent() {
         {(["tokens", "classes", "variants"] as const).map((v) => (
           <button
             key={v}
-            onClick={() => setView(v)}
-            style={view === v ? TAB_BTN_ACTIVE : TAB_BTN}
+            onClick={() => setDesignView(v)}
+            style={designView === v ? TAB_BTN_ACTIVE : TAB_BTN}
           >
             {v === "tokens" ? "Tokens" : v === "classes" ? "Classes" : "Variants"}
           </button>
@@ -174,9 +183,9 @@ export function DesignTabContent() {
             minHeight: 0,
           }}
         >
-          {view === "tokens" && <TokenEditor />}
-          {view === "classes" && <ClassEditor />}
-          {view === "variants" && <VariantEditor />}
+          {designView === "tokens" && <TokenEditor />}
+          {designView === "classes" && <ClassEditor />}
+          {designView === "variants" && <VariantEditor />}
         </div>
 
         {/* Inner layer: code drawer — slides up from bottom when toggled */}

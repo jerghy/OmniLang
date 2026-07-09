@@ -1,7 +1,7 @@
 // components/design/cards/BackgroundCard.tsx
 // Background color editing card with HSV panel for inline color picking.
 
-import { useCallback } from "react";
+import React, { useCallback } from "react";
 import { CollapsibleGroup } from "../CollapsibleGroup";
 import { HSVPanel, hexToHsv, hsvToHex } from "../HSVPanel";
 import type { HSVColor } from "../HSVPanel";
@@ -52,7 +52,7 @@ interface BackgroundCardProps {
 
 // ── Component ──
 
-export function BackgroundCard({
+export const BackgroundCard = React.memo(function BackgroundCard({
   properties,
   tokens,
   onChange,
@@ -76,17 +76,12 @@ export function BackgroundCard({
   );
 
   return (
-    <CollapsibleGroup title="背景" summary={summary} defaultOpen={false}>
+    <CollapsibleGroup title="背景" summary={summary} defaultOpen={false} onDoubleClick={() => onFocus?.()}>
       <div
         style={{
           display: "flex",
           flexDirection: "column",
           gap: 8,
-        }}
-        onContextMenu={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          onFocus?.();
         }}
       >
         {/* Current color indicator */}
@@ -125,4 +120,4 @@ export function BackgroundCard({
       </div>
     </CollapsibleGroup>
   );
-}
+});

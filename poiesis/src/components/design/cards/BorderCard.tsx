@@ -1,7 +1,7 @@
 // components/design/cards/BorderCard.tsx
 // Border editing card with width, style, and color controls.
 
-import { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback } from "react";
 import { CollapsibleGroup } from "../CollapsibleGroup";
 import { PropertyRow } from "../PropertyRow";
 import { ScrubInput } from "../ScrubInput";
@@ -88,7 +88,7 @@ const selectStyle: React.CSSProperties = {
 
 // ── Component ──
 
-export function BorderCard({
+export const BorderCard = React.memo(function BorderCard({
   properties,
   tokens,
   onChange,
@@ -160,7 +160,7 @@ export function BorderCard({
   };
 
   return (
-    <CollapsibleGroup title="边框" summary={summary} defaultOpen={true}>
+    <CollapsibleGroup title="边框" summary={summary} defaultOpen={true} onDoubleClick={() => onFocus?.()}>
       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
         <PropertyRow label="粗细">
           <ScrubInput
@@ -213,13 +213,8 @@ export function BorderCard({
           </button>
         </PropertyRow>
 
-        {/* Border preview strip — right-click for focus mode */}
+        {/* Border preview strip */}
         <div
-          onContextMenu={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onFocus?.();
-          }}
           style={{
             marginTop: 6,
             height: 20,
@@ -230,26 +225,9 @@ export function BorderCard({
               : borderColor,
             borderWidth: Math.min(widthNum, 4) || 1,
             background: "var(--dp-bg, #f7f6fa)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: "context-menu",
             transition: "background 100ms ease",
           }}
-          title="Right-click for focus mode"
-        >
-          {onFocus && (
-            <span
-              style={{
-                fontSize: 9,
-                color: "var(--dp-text-muted, #a09db8)",
-                fontFamily: "var(--dp-font-mono, monospace)",
-              }}
-            >
-              {borderWidth ? `${borderWidth} ${borderStyle}` : "no border"}
-            </span>
-          )}
-        </div>
+        />
       </div>
 
       {showColorPicker && swatchRef.current && (
@@ -263,4 +241,4 @@ export function BorderCard({
       )}
     </CollapsibleGroup>
   );
-}
+});

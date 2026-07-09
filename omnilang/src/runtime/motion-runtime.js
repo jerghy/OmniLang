@@ -157,9 +157,9 @@ function backInOutFn(t, intensity) {
     : (Math.pow(2 * t - 2, 2) * ((i2 + 1) * (t * 2 - 2) + i2) + 2) / 2;
 }
 
-EASINGS.backIn = function backIn(t) { return backInFn(t); };
-EASINGS.backOut = function backOut(t) { return backOutFn(t); };
-EASINGS.backInOut = function backInOut(t) { return backInOutFn(t); };
+EASINGS.backIn = function backIn(t, intensity) { return backInFn(t, intensity); };
+EASINGS.backOut = function backOut(t, intensity) { return backOutFn(t, intensity); };
+EASINGS.backInOut = function backInOut(t, intensity) { return backInOutFn(t, intensity); };
 
 // --- Bounce ---
 
@@ -207,8 +207,8 @@ function elasticInFn(t, amplitude, period) {
   return -(a * Math.pow(2, 10 * (t - 1)) * Math.sin(((t - 1) - s) * (2 * Math.PI) / p));
 }
 
-EASINGS.elasticOut = function elasticOut(t) { return elasticOutFn(t); };
-EASINGS.elasticIn = function elasticIn(t) { return elasticInFn(t); };
+EASINGS.elasticOut = function elasticOut(t, amplitude, period) { return elasticOutFn(t, amplitude, period); };
+EASINGS.elasticIn = function elasticIn(t, amplitude, period) { return elasticInFn(t, amplitude, period); };
 
 EASINGS.elasticInOut = function elasticInOut(t) {
   if (t === 0 || t === 1) return t;
@@ -322,6 +322,21 @@ function resolveEasing(easing) {
     const stMatch = easing.match(/^steps\(\s*(\d+)\s*(?:,\s*(start|end)\s*)?\)$/);
     if (stMatch) {
       return stepsFn(parseInt(stMatch[1], 10), stMatch[2]);
+    }
+    // Parse parameterized easing: backIn|backOut|backInOut(intensity)
+    const backMatch = easing.match(/^(backIn|backOut|backInOut)\(([\d.]+)\)$/);
+    if (backMatch) {
+      const intensity = parseFloat(backMatch[2]);
+      const fn = EASINGS[backMatch[1]];
+      if (fn) return function(t) { return fn(t, intensity); };
+    }
+    // Parse parameterized elastic: elasticIn|elasticOut|elasticInOut(amplitude,period)
+    const elasticMatch = easing.match(/^(elasticIn|elasticOut|elasticInOut)\(([\d.]+)\s*,\s*([\d.]+)\)$/);
+    if (elasticMatch) {
+      const amplitude = parseFloat(elasticMatch[2]);
+      const period = parseFloat(elasticMatch[3]);
+      const fn = EASINGS[elasticMatch[1]];
+      if (fn) return function(t) { return fn(t, amplitude, period); };
     }
     // Look up named easing
     if (EASINGS[easing]) return EASINGS[easing];

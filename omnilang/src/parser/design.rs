@@ -6,11 +6,36 @@
 
 use crate::parser::ast::design::*;
 
-// Placeholder error types until we properly integrate:
-type ParseResult<T> = Result<T, String>;
+/// Structured error for design block parsing with position tracking.
+#[derive(Debug)]
+pub struct DesignParseError {
+    pub message: String,
+    /// Byte offset from the start of the design body string.
+    pub offset: usize,
+}
 
-fn err(msg: &str) -> String {
-    msg.to_string()
+impl std::fmt::Display for DesignParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} (offset {})", self.message, self.offset)
+    }
+}
+
+impl std::error::Error for DesignParseError {}
+
+type ParseResult<T> = Result<T, DesignParseError>;
+
+fn err(msg: &str) -> DesignParseError {
+    DesignParseError {
+        message: msg.to_string(),
+        offset: 0,
+    }
+}
+
+fn err_at(input: &str, remaining: &str, msg: &str) -> DesignParseError {
+    DesignParseError {
+        message: msg.to_string(),
+        offset: input.len() - remaining.len(),
+    }
 }
 
 /// Parse the body content inside `design Name { ... }`
@@ -40,7 +65,15 @@ pub fn parse_design_body(input: &str) -> ParseResult<DesignDef> {
         } else if remaining.is_empty() {
             break;
         } else {
-            remaining = &remaining[1..]; // skip unknown char
+            return Err(err_at(
+                input,
+                remaining,
+                &format!(
+                    "unexpected content at position {}: '{}...'",
+                    input.len() - remaining.len(),
+                    &remaining[..remaining.find('\n').unwrap_or(remaining.len()).min(40)]
+                ),
+            ));
         }
     }
 
@@ -86,17 +119,22 @@ fn parse_token(input: &str) -> ParseResult<(TokenDef, &str)> {
 }
 
 fn parse_token_type(input: &str) -> ParseResult<(TokenType, &str)> {
-    let input = input.trim_start();
-    if input.starts_with("color") {
-        Ok((TokenType::Color, &input[5..]))
-    } else if input.starts_with("size") {
-        Ok((TokenType::Size, &input[4..]))
-    } else if input.starts_with("font") {
-        Ok((TokenType::Font, &input[4..]))
-    } else if input.starts_with("shadow") {
-        Ok((TokenType::Shadow, &input[6..]))
-    } else {
-        Err(err("expected token type: color|size|font|shadow"))
+    let (ident, rest) = parse_ident(input)?;
+    match ident.as_str() {
+        "color" => Ok((TokenType::Color, rest)),
+        "size" => Ok((TokenType::Size, rest)),
+        "radius" => Ok((TokenType::Radius, rest)),
+        "fontFamily" => Ok((TokenType::FontFamily, rest)),
+        "fontSize" => Ok((TokenType::FontSize, rest)),
+        "fontWeight" => Ok((TokenType::FontWeight, rest)),
+        "lineHeight" => Ok((TokenType::LineHeight, rest)),
+        "letterSpacing" => Ok((TokenType::LetterSpacing, rest)),
+        "shadow" => Ok((TokenType::Shadow, rest)),
+        "duration" => Ok((TokenType::Duration, rest)),
+        "easing" => Ok((TokenType::Easing, rest)),
+        "opacity" => Ok((TokenType::Opacity, rest)),
+        "zIndex" => Ok((TokenType::ZIndex, rest)),
+        _ => Err(err("expected token type: color|size|radius|fontFamily|fontSize|fontWeight|lineHeight|letterSpacing|shadow|duration|easing|opacity|zIndex")),
     }
 }
 
@@ -126,9 +164,16 @@ fn parse_string_or_ident(input: &str) -> ParseResult<(String, &str)> {
 
 fn skip_ws_and_comments(input: &str) -> &str {
     let mut s = input.trim_start();
-    while s.starts_with("//") {
-        let line_end = s.find('\n').unwrap_or(s.len());
-        s = s[line_end..].trim_start();
+    loop {
+        if s.starts_with("//") {
+            let line_end = s.find('\n').unwrap_or(s.len());
+            s = s[line_end..].trim_start();
+        } else if s.starts_with("/*") {
+            let end = s[2..].find("*/").map(|i| i + 4).unwrap_or(s.len());
+            s = s[end..].trim_start();
+        } else {
+            break;
+        }
     }
     s
 }
@@ -154,7 +199,11 @@ fn parse_class(input: &str) -> ParseResult<(DesignClassDef, &str)> {
             remaining = &remaining[1..];
             break;
         }
-        if remaining.starts_with("&:") {
+        if remaining.starts_with("&::") {
+            let (pseudo, rest) = parse_pseudo_element(remaining)?;
+            pseudo_states.push(pseudo);
+            remaining = rest;
+        } else if remaining.starts_with("&:") {
             let (pseudo, rest) = parse_pseudo_state(remaining)?;
             pseudo_states.push(pseudo);
             remaining = rest;
@@ -182,6 +231,39 @@ fn parse_pseudo_state(input: &str) -> ParseResult<(PseudoState, &str)> {
         .strip_prefix("&:")
         .ok_or_else(|| err("expected '&:'"))?;
     let (pseudo, rest) = parse_ident(rest)?;
+    let rest = rest
+        .trim_start()
+        .strip_prefix("{")
+        .ok_or_else(|| err("expected '{'"))?
+        .trim_start();
+
+    let mut properties = Vec::new();
+    let mut remaining = rest;
+    loop {
+        remaining = skip_ws_and_comments(remaining);
+        if remaining.starts_with("}") {
+            remaining = &remaining[1..];
+            break;
+        }
+        let (prop, rest) = parse_design_property(remaining)?;
+        properties.push(prop);
+        remaining = rest;
+    }
+
+    Ok((PseudoState { pseudo, properties }, remaining))
+}
+
+/// Parse `&::before { ... }` — pseudo-element with double-colon prefix.
+///
+/// Unlike pseudo-classes (which store `"hover"`), pseudo-elements store the
+/// full `"::before"` string so the codegen can distinguish `:hover` from `::before`.
+fn parse_pseudo_element(input: &str) -> ParseResult<(PseudoState, &str)> {
+    let rest = input
+        .strip_prefix("&::")
+        .ok_or_else(|| err("expected '&::'"))?;
+    let (name, rest) = parse_ident(rest)?;
+    // prefix with :: so codegen emits `.Card::before` not `.Card:before`
+    let pseudo = format!("::{}", name);
     let rest = rest
         .trim_start()
         .strip_prefix("{")
@@ -233,27 +315,65 @@ fn parse_design_property(input: &str) -> ParseResult<(DesignProperty, &str)> {
 
 fn parse_design_value(input: &str) -> ParseResult<(DesignValue, &str)> {
     let input = input.trim_start();
+
+    // Fast path: bare token(name)
     if let Some(rest) = input.strip_prefix("token(") {
         let end = rest.find(')').ok_or_else(|| err("expected ')'"))?;
         let name = rest[..end].trim().to_string();
-        Ok((DesignValue::TokenRef(name), &rest[end + 1..]))
-    } else if input.starts_with('"') {
-        let end = input[1..]
-            .find('"')
-            .map(|i| i + 2)
-            .ok_or_else(|| err("expected closing '\"'"))?;
-        Ok((
-            DesignValue::Literal(input[1..end - 1].to_string()),
-            &input[end..],
-        ))
-    } else {
-        // Unquoted literal until ; or }
-        let end = input.find([';', '}']).unwrap_or(input.len());
-        Ok((
-            DesignValue::Literal(input[..end].trim().to_string()),
-            &input[end..],
-        ))
+        return Ok((DesignValue::TokenRef(name), &rest[end + 1..]));
     }
+
+    // Scan for mixed content: quoted strings and token() refs
+    let mut parts: Vec<DesignValuePart> = Vec::new();
+    let mut remaining = input;
+
+    while !remaining.is_empty() && !remaining.starts_with(';') && !remaining.starts_with('}') {
+        if remaining.starts_with('"') {
+            // quoted string
+            let end = remaining[1..]
+                .find('"')
+                .map(|i| i + 2)
+                .ok_or_else(|| err("expected closing '\"'"))?;
+            parts.push(DesignValuePart::Text(remaining[1..end - 1].to_string()));
+            remaining = remaining[end..].trim_start();
+        } else if remaining.starts_with("token(") {
+            // inline token reference
+            let end = remaining.find(')').ok_or_else(|| err("expected ')'"))?;
+            let name = remaining["token(".len()..end].trim().to_string();
+            parts.push(DesignValuePart::Token(name));
+            remaining = remaining[end + 1..].trim_start();
+        } else {
+            // Unquoted literal — read until the next delimiter (;, }, ", or token()
+            let delim = remaining.find([';', '}', '"']);
+            let token_paren = remaining.find("token(");
+            let end = match (delim, token_paren) {
+                (Some(a), Some(b)) => a.min(b),
+                (Some(a), None) => a,
+                (None, Some(b)) => b,
+                (None, None) => remaining.len(),
+            };
+            let text = remaining[..end].trim().to_string();
+            if !text.is_empty() {
+                parts.push(DesignValuePart::Text(text));
+            }
+            remaining = &remaining[end..];
+        }
+    }
+
+    if parts.is_empty() {
+        return Err(err("expected a value"));
+    }
+    if parts.len() == 1 {
+        match &parts[0] {
+            DesignValuePart::Text(s) => {
+                return Ok((DesignValue::Literal(s.clone()), remaining));
+            }
+            DesignValuePart::Token(n) => {
+                return Ok((DesignValue::TokenRef(n.clone()), remaining));
+            }
+        }
+    }
+    Ok((DesignValue::Mixed(parts), remaining))
 }
 
 fn parse_variant(input: &str) -> ParseResult<(VariantDef, &str)> {
@@ -294,6 +414,8 @@ fn parse_variant(input: &str) -> ParseResult<(VariantDef, &str)> {
             let (props, rest) = parse_variant_block_body(body)?;
             base = props;
             remaining = rest;
+        } else if remaining.starts_with('}') {
+            break;
         } else {
             // Try parsing as dimension.value { ... } branch
             let dot_pos = remaining.find('.').unwrap_or(0);
@@ -303,7 +425,14 @@ fn parse_variant(input: &str) -> ParseResult<(VariantDef, &str)> {
                 branches.push(branch);
                 remaining = rest;
             } else {
-                break;
+                return Err(err_at(
+                    input,
+                    remaining,
+                    &format!(
+                        "unexpected content in variant: '{}...'",
+                        &remaining[..remaining.find('\n').unwrap_or(remaining.len()).min(40)]
+                    ),
+                ));
             }
         }
     }

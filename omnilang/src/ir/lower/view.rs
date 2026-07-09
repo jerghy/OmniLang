@@ -327,6 +327,15 @@ fn lower_element(
                 let class_str = match value {
                     ClassValue::StyleRef(s) => s.clone(),
                     ClassValue::StringLiteral(s) => s.clone(),
+                    ClassValue::DesignClass {
+                        design_name: _,
+                        class_name,
+                    } => {
+                        // Design class names are emitted directly (CSS is scoped
+                        // via [data-design~="Name"] on the root element, not via
+                        // component-level class name mangling).
+                        class_name.clone()
+                    }
                     ClassValue::ClassMap(entries) => {
                         // Include classes based on their literal value:
                         //   Bool(true)  → static truth  → include the class
@@ -376,6 +385,24 @@ fn lower_element(
                     })
                     .collect();
                 inline_style = Some(serde_json::Value::Object(style_map));
+            }
+            ElementProp::Variant {
+                design_name,
+                variant_name,
+                dimension_values,
+            } => {
+                // Encode variant binding as a synthetic prop that codegen will
+                // pick up and expand via `expand_variant()`.
+                let dim_map: FxHashMap<String, String> = dimension_values.iter().cloned().collect();
+                let json_val = serde_json::json!({
+                    "design_name": design_name,
+                    "variant_name": variant_name,
+                    "dimension_values": dim_map,
+                });
+                props.get_or_insert_with(Default::default).insert(
+                    "_design_variant".into(),
+                    ExprIR::LiteralExpr { value: json_val },
+                );
             }
             ElementProp::TestId(id) => {
                 // test-id="..." attribute

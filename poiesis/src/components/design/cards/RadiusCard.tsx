@@ -1,7 +1,7 @@
 // components/design/cards/RadiusCard.tsx
 // Border-radius editing card with unified/individual modes and mini preview.
 
-import { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import { CollapsibleGroup } from "../CollapsibleGroup";
 import { ScrubInput } from "../ScrubInput";
 import type { StyleProperty } from "../../../core/types/style";
@@ -64,7 +64,7 @@ interface RadiusCardProps {
 
 // ── Component ──
 
-export function RadiusCard({ properties, onChange, onFocus }: RadiusCardProps) {
+export const RadiusCard = React.memo(function RadiusCard({ properties, onChange, onFocus }: RadiusCardProps) {
   const hasCornerProps = CORNER_NAMES.some(
     (n) => getProp(properties, n) !== "",
   );
@@ -175,7 +175,7 @@ export function RadiusCard({ properties, onChange, onFocus }: RadiusCardProps) {
   };
 
   return (
-    <CollapsibleGroup title="圆角" summary={summary} defaultOpen={true}>
+    <CollapsibleGroup title="圆角" summary={summary} defaultOpen={true} onDoubleClick={() => onFocus?.()}>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {mode === "unified" ? (
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -234,13 +234,8 @@ export function RadiusCard({ properties, onChange, onFocus }: RadiusCardProps) {
           </div>
         )}
 
-        {/* Mini preview — right-click for focus mode */}
+        {/* Mini preview */}
         <div
-          onContextMenu={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onFocus?.();
-          }}
           style={{
             width: "100%",
             height: 48,
@@ -248,14 +243,12 @@ export function RadiusCard({ properties, onChange, onFocus }: RadiusCardProps) {
             border: "2px solid var(--dp-accent, #6366f1)",
             background: "rgba(99, 102, 241, 0.06)",
             transition: "border-radius 150ms ease",
-            cursor: onFocus ? "context-menu" : "default",
           }}
-          title={onFocus ? "Right-click for focus mode" : undefined}
         />
       </div>
     </CollapsibleGroup>
   );
-}
+});
 
 // ── Sub-component: CornerInput ──
 

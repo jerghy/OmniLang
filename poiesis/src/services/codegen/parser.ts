@@ -877,64 +877,141 @@ export class Parser {
         return;
       }
 
-      // Consume the keyword
-      const kwTok = this.stream.peek();
-      if (kwTok.kind !== "IDENTIFIER") {
-        this.stream.consume();
+      const tok = this.stream.peek();
+
+      // Handle @dim and @default annotations
+      if (tok.kind === "AT") {
+        this.stream.consume(); // '@'
+        const kwTok = this.stream.peek();
+        if (kwTok.kind === "IDENTIFIER") {
+          const kw = kwTok.text;
+          this.stream.consume(); // keyword after @
+          if (kw === "dim") {
+            dims.push(this.parseAtDimBlock());
+          } else if (kw === "default") {
+            this.parseDefaultBlock(baseProps, dims);
+          } else {
+            this.skipLine();
+          }
+        } else {
+          this.skipLine();
+        }
         continue;
       }
-      const kw = kwTok.text;
-      this.stream.consume();
 
-      if (kw === "dimension") {
-        dims.push(this.parseDimensionBlock());
-      } else if (kw === "base") {
-        this.parsePropertyBlock(baseProps);
-      } else if (kw === "branch") {
-        branches.push(this.parseBranchBlock());
-      } else {
-        this.skipLine();
+      // Handle bare identifiers: "base", or dimension.value branch notation
+      if (tok.kind === "IDENTIFIER") {
+        const kw = tok.text;
+        this.stream.consume();
+
+        if (kw === "base") {
+          this.parsePropertyBlock(baseProps);
+        } else if (
+          this.stream.peek().kind === "DOT"
+        ) {
+          // dimension.value { ... } branch notation
+          this.stream.consume(); // '.'
+          const valTok = this.stream.expect("IDENTIFIER");
+          if (valTok.kind === "EOF") continue;
+          const branch = this.parseBranchProperties();
+          branch.name = `${kw}.${valTok.text}`;
+          branches.push(branch);
+        } else {
+          this.skipLine();
+        }
+        continue;
       }
+
+      // Skip unexpected tokens
+      this.stream.consume();
     }
   }
 
-  private parseDimensionBlock(): ParsedDimension {
-    const name = this.stream.expect("IDENTIFIER").text;
-    this.stream.expect("BRACE_OPEN");
+  /**
+   * Parse `@dim name: value1 | value2 | ... ;` annotation.
+   * Values are pipe-separated; the first value before `|` is the default.
+   */
+  private parseAtDimBlock(): ParsedDimension {
+    const nameTok = this.stream.expect("IDENTIFIER");
+    const name = nameTok.text;
+    // Expect colon
+    if (this.stream.peek().kind === "COLON") {
+      this.stream.consume();
+    }
     const values: ParsedDimensionValue[] = [];
+    let isFirst = true;
     while (!this.stream.isEof()) {
       this.stream.skipNewlines();
-      if (this.stream.peek().kind === "BRACE_CLOSE") {
-        this.stream.consume();
+      const t = this.stream.peek();
+      if (t.kind === "SEMICOLON" || t.kind === "NEWLINE" || t.kind === "BRACE_CLOSE") {
+        if (t.kind === "SEMICOLON") this.stream.consume();
         break;
       }
-      const valName = this.stream.expect("IDENTIFIER").text;
-      let isDefault = false;
-      if (this.stream.peek().kind === "PAREN_OPEN") {
+      // Skip pipe separators
+      if (t.kind === "PIPE") {
         this.stream.consume();
-        const word = this.stream.expect("IDENTIFIER");
-        if (word.text === "default") isDefault = true;
-        this.stream.expect("PAREN_CLOSE");
+        continue;
       }
-      values.push({ name: valName, isDefault });
+      if (t.kind === "IDENTIFIER") {
+        const valName = this.stream.consume().text;
+        values.push({ name: valName, isDefault: isFirst });
+        isFirst = false;
+      } else {
+        this.stream.consume();
+      }
     }
     return { name, values };
   }
 
-  private parseBranchBlock(): ParsedBranch {
-    const name = this.stream.expect("IDENTIFIER").text;
-    this.stream.expect("BRACE_OPEN");
-    const props: ParsedClassProperty[] = [];
-    while (!this.stream.isEof()) {
-      this.stream.skipNewlines();
-      if (this.stream.peek().kind === "BRACE_CLOSE") {
-        this.stream.consume();
-        break;
+  /**
+   * Parse `@default { key: value; ... }` annotation.
+   * Stores resolved default map directly on the last dimension's values.
+   */
+  private parseDefaultBlock(
+    baseProps: ParsedClassProperty[],
+    dims: ParsedDimension[],
+  ): void {
+    if (this.stream.peek().kind === "BRACE_OPEN") {
+      this.stream.consume(); // '{'
+      while (!this.stream.isEof()) {
+        this.stream.skipNewlines();
+        if (this.stream.peek().kind === "BRACE_CLOSE") {
+          this.stream.consume();
+          return;
+        }
+        const prop = this.parseProperty();
+        if (prop) {
+          // Mark the matching dimension value as default
+          for (const dim of dims) {
+            for (const val of dim.values) {
+              if (val.name === prop.value) {
+                val.isDefault = true;
+              }
+            }
+          }
+        }
       }
-      const prop = this.parseProperty();
-      if (prop) props.push(prop);
+    } else {
+      this.skipLine();
     }
-    return { name, properties: props };
+  }
+
+  /** Parse properties inside `{ ... }` and return as a ParsedBranch. */
+  private parseBranchProperties(): ParsedBranch {
+    const props: ParsedClassProperty[] = [];
+    if (this.stream.peek().kind === "BRACE_OPEN") {
+      this.stream.consume();
+      while (!this.stream.isEof()) {
+        this.stream.skipNewlines();
+        if (this.stream.peek().kind === "BRACE_CLOSE") {
+          this.stream.consume();
+          break;
+        }
+        const prop = this.parseProperty();
+        if (prop) props.push(prop);
+      }
+    }
+    return { name: "", properties: props };
   }
 
   private parsePropertyBlock(props: ParsedClassProperty[]): void {

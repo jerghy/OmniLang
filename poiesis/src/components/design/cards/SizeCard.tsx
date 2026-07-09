@@ -1,7 +1,7 @@
 // components/design/cards/SizeCard.tsx
 // Size/dimensions editing card with W/H scrub inputs, linked ratio toggle, and mini preview.
 
-import { useState, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import { CollapsibleGroup } from "../CollapsibleGroup";
 import { ScrubInput } from "../ScrubInput";
 import type { StyleProperty } from "../../../core/types/style";
@@ -72,7 +72,7 @@ const linkBtnBase: React.CSSProperties = {
 
 // ── Component ──
 
-export function SizeCard({ properties, onChange, onFocus }: SizeCardProps) {
+export const SizeCard = React.memo(function SizeCard({ properties, onChange, onFocus }: SizeCardProps) {
   const [linked, setLinked] = useState(false);
 
   const widthStr = getProp(properties, "width");
@@ -122,7 +122,7 @@ export function SizeCard({ properties, onChange, onFocus }: SizeCardProps) {
   };
 
   return (
-    <CollapsibleGroup title="尺寸" summary={summary} defaultOpen={true}>
+    <CollapsibleGroup title="尺寸" summary={summary} defaultOpen={true} onDoubleClick={() => onFocus?.()}>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {/* W / H scrub row */}
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -160,22 +160,16 @@ export function SizeCard({ properties, onChange, onFocus }: SizeCardProps) {
         {/* Mini preview */}
         {hasSize && (
           <div
-            onContextMenu={(e) => {
-              e.preventDefault();
-              onFocus?.();
-            }}
             style={{
               width: "100%",
               height: 60,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              cursor: "context-menu",
               borderRadius: "var(--dp-radius-sm, 6px)",
               background: "var(--dp-bg, #f7f6fa)",
               border: "1px dashed var(--dp-border, #e8e5f2)",
             }}
-            title="Right-click for focus mode"
           >
             <div
               style={{
@@ -211,4 +205,4 @@ export function SizeCard({ properties, onChange, onFocus }: SizeCardProps) {
       </div>
     </CollapsibleGroup>
   );
-}
+});

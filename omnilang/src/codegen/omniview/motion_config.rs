@@ -188,10 +188,9 @@ impl OmniViewGenerator {
                 )
             }
             EasingIR::Back {
-                intensity: _,
+                intensity,
                 direction,
             } => {
-                // The parser stores the full name ("backIn"), also support short form ("in")
                 let dir = direction.as_deref().unwrap_or("backOut");
                 let name = match dir {
                     "backIn" | "in" => "backIn",
@@ -199,14 +198,18 @@ impl OmniViewGenerator {
                     "backInOut" | "inOut" => "backInOut",
                     _ => "backOut",
                 };
-                format!("\"{}\"", name)
+                // Include intensity param when non-default
+                if (*intensity - 1.70158).abs() > f64::EPSILON {
+                    format!("\"{}({})\"", name, intensity)
+                } else {
+                    format!("\"{}\"", name)
+                }
             }
             EasingIR::Elastic {
-                amplitude: _,
-                period: _,
+                amplitude,
+                period,
                 direction,
             } => {
-                // The parser stores the full name ("elasticIn"), also support short form ("in")
                 let dir = direction.as_deref().unwrap_or("elasticOut");
                 let name = match dir {
                     "elasticIn" | "in" => "elasticIn",
@@ -214,7 +217,12 @@ impl OmniViewGenerator {
                     "elasticInOut" | "inOut" => "elasticInOut",
                     _ => "elasticOut",
                 };
-                format!("\"{}\"", name)
+                // Include amplitude/period when either is non-default
+                if (amplitude - 1.0).abs() > f64::EPSILON || (period - 0.5).abs() > f64::EPSILON {
+                    format!("\"{}({},{})\"", name, amplitude, period)
+                } else {
+                    format!("\"{}\"", name)
+                }
             }
             EasingIR::Steps { count, direction } => {
                 format!("\"steps({},{})\"", count, direction)

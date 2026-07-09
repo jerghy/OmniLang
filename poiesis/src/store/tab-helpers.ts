@@ -12,6 +12,7 @@ export interface TabDataEntry {
   wires: WireData[];
   rootOrder: string[];
   selectedElementIds: string[];
+  filePath?: string; // preserved across close/reopen to restore tab state
   codeFlowVisible?: boolean;
   codeFlowElementId?: string | null;
 }
@@ -25,6 +26,7 @@ export interface TabSaveSource {
   wires: WireData[];
   rootOrder: string[];
   selectedElementIds: string[];
+  filePath?: string;
   designPage: { codeFlowVisible: boolean; codeFlowElementId: string | null };
 }
 
@@ -43,6 +45,7 @@ export function buildTabSaveEntry(source: TabSaveSource): TabDataEntry {
     wires: source.wires,
     rootOrder: source.rootOrder,
     selectedElementIds: source.selectedElementIds,
+    filePath: source.filePath,
     codeFlowVisible: source.designPage.codeFlowVisible,
     codeFlowElementId: source.designPage.codeFlowElementId,
   };

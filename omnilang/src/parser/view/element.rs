@@ -192,6 +192,35 @@ impl<'a> Parser<'a> {
                     let value = self.parse_expr()?;
                     return Ok(ElementProp::StaggerChildren(value));
                 }
+                // variant: DesignName.VariantName(dim=val, ...)
+                if name == "variant" {
+                    self.advance(); // consume ':'
+                    let design_name = self.expect_ident("expected design name")?;
+                    self.expect_token(TokenKind::Dot, "expected '.' after design name")?;
+                    let variant_name = self.expect_ident("expected variant name")?;
+
+                    // Parse optional dimension value pairs: (dim=val, dim=val, ...)
+                    let mut dimension_values = Vec::new();
+                    if self.at(&TokenKind::LParen) {
+                        self.advance(); // consume '('
+                        while !self.at(&TokenKind::RParen) && !self.at(&TokenKind::Eof) {
+                            let dim = self.expect_ident("expected dimension name")?;
+                            self.expect_token(TokenKind::Eq, "expected '='")?;
+                            let val = self.expect_ident("expected dimension value")?;
+                            dimension_values.push((dim, val));
+                            if self.at(&TokenKind::Comma) {
+                                self.advance();
+                            }
+                        }
+                        self.expect_token(TokenKind::RParen, "expected ')'")?;
+                    }
+
+                    return Ok(ElementProp::Variant {
+                        design_name,
+                        variant_name,
+                        dimension_values,
+                    });
+                }
                 // style: entries or class: name
                 self.advance();
                 match self.peek_kind() {
@@ -305,6 +334,18 @@ impl<'a> Parser<'a> {
                                 }
                             }
                         };
+                        // Check for design class reference: DesignName.ClassName
+                        // Detect dot-notation in the first class name
+                        if self.at(&TokenKind::Dot) {
+                            self.advance(); // consume '.'
+                            let class_name = self.expect_ident("expected class name after '.'")?;
+                            return Ok(ElementProp::Class {
+                                value: ClassValue::DesignClass {
+                                    design_name: first,
+                                    class_name,
+                                },
+                            });
+                        }
                         // Collect additional space-separated class names: class: btn btn-plus
                         // BUT stop if the next identifier is a known boolean HTML attribute
                         // (e.g. <audio class: media controls> — "controls" is an attribute)

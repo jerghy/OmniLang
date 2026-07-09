@@ -14,9 +14,14 @@ impl OmniViewGenerator {
         std::mem::swap(&mut self.js, &mut self.deferred_js);
 
         // Generate initial DOM HTML (events/effects go to deferred_js)
+        let design_attr = if self.design_names.is_empty() {
+            String::new()
+        } else {
+            format!(" data-design=\"{}\"", self.design_names.join(" "))
+        };
         self.html.push_str(&format!(
-            "<div id=\"root\" data-component=\"{}\">\n",
-            self.current_component
+            "<div id=\"root\" data-component=\"{}\"{}>\n",
+            self.current_component, design_attr
         ));
         let html = self.view_to_html(view, 1);
         self.html.push_str(&html);
