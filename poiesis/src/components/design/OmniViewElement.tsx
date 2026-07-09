@@ -1,95 +1,66 @@
 // components/design/OmniViewElement.tsx
-// Standalone React.memo component for rendering a single view element.
-// Children lookups use O(1) Map.get() — no closure-per-child or Array.find() overhead.
+// React.memo component for rendering a single element tree node.
+// Uses stable nid as React key for zero-flicker reconciliation.
 
 import React from "react";
-import { resolveTag } from "./render-utils";
-import type { ElementData, ViewElementData } from "../../core/types/element";
+import type { ElementTreeNode } from "./useWasmCompile";
 
 export interface OmniViewElementProps {
-  element: ViewElementData;
-  expandedElements: ReadonlyMap<string, ElementData>;
-  customChildIds: ReadonlySet<string>;
-  selectedIds: ReadonlySet<string>;
-  inlineStyleMap: ReadonlyMap<string, Record<string, string>>;
-  /** WASM-resolved class names per element id. When available, className is used. */
-  classMap?: ReadonlyMap<string, string[]> | null;
-  onSelect: (id: string) => void;
-  onDoubleClick: (id: string) => void;
+  node: ElementTreeNode;
+  tag: string;
+  className?: string | undefined;
+  isSelected: boolean;
+  onSelect: (nid: string) => void;
+  onDoubleClick: (nid: string) => void;
+  /** Passed from OmniViewElementTree for CSS resolution (unused here; handled by Task 4). */
+  classMap?: ReadonlyMap<string, string[]>;
+  /** Passed from OmniViewElementTree for tag resolution. */
+  tagMap?: ReadonlyMap<string, string>;
 }
 
 export const OmniViewElement = React.memo(function OmniViewElement({
-  element,
-  expandedElements,
-  customChildIds,
-  selectedIds,
-  inlineStyleMap,
-  classMap,
+  node,
+  tag,
+  isSelected,
   onSelect,
   onDoubleClick,
 }: OmniViewElementProps) {
-  const isInsideCustom = customChildIds.has(element.id);
-  const isSelected = !isInsideCustom && selectedIds.has(element.id);
-
-  // WASM class names take priority over inline styles for design classes
-  const wasmClasses = classMap?.get(element.id);
-  const className = wasmClasses ? wasmClasses.join(" ") : undefined;
-
-  const inlineStyles = inlineStyleMap.get(element.id) ?? {};
-
   const style: React.CSSProperties = {
     outline: isSelected ? "2px solid #7C3AED" : "none",
     outlineOffset: "-2px",
-    cursor: isInsideCustom ? "default" : "pointer",
-    // When WASM classes are active, skip inline styles (they are from design classes)
-    ...(className ? {} : inlineStyles),
+    cursor: "pointer",
   };
 
-  const tagName = resolveTag(element.tag);
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onSelect(node.nid);
+  };
 
-  const handleClick = isInsideCustom
-    ? undefined
-    : (e: React.MouseEvent) => {
-        e.stopPropagation();
-        onSelect(element.id);
-      };
-
-  const handleDoubleClick = isInsideCustom
-    ? undefined
-    : (e: React.MouseEvent) => {
-        e.stopPropagation();
-        onDoubleClick(element.id);
-      };
-
-  // Resolve children: O(1) Map.get() per child, no Array.find() fallback
-  const childElements = (element.children || [])
-    .map((cid) => expandedElements.get(cid))
-    .filter((e): e is ViewElementData => e !== undefined && "children" in e && "tag" in e)
-    .map((childEl) => (
-      <OmniViewElement
-        key={childEl.id}
-        element={childEl}
-        expandedElements={expandedElements}
-        customChildIds={customChildIds}
-        selectedIds={selectedIds}
-        inlineStyleMap={inlineStyleMap}
-        classMap={classMap}
-        onSelect={onSelect}
-        onDoubleClick={onDoubleClick}
-      />
-    ));
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onDoubleClick(node.nid);
+  };
 
   return React.createElement(
-    tagName,
+    tag,
     {
-      key: element.id,
-      "data-pid": element.id,
-      className,
+      key: node.nid,
+      "data-nid": node.nid,
+      className: node.tag === "#text" ? undefined : undefined, // className set by parent via CSS
       style,
       onClick: handleClick,
       onDoubleClick: handleDoubleClick,
     },
-    element.props?.label != null ? String(element.props.label) : null,
-    ...childElements,
+    node.text,
+    ...node.children.map((child) => (
+      <OmniViewElement
+        key={child.nid}
+        node={child}
+        tag={child.tag === "#text" ? "span" : child.tag}
+        isSelected={false}
+        onSelect={onSelect}
+        onDoubleClick={onDoubleClick}
+      />
+    )),
   );
 });

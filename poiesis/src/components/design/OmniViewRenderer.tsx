@@ -212,7 +212,7 @@ export function OmniViewRenderer() {
             customChildIds={customChildIds}
             selectedIds={selectedIdSet}
             inlineStyleMap={inlineStyleMap}
-            classMap={classMap}
+            classMap={classMap ?? undefined}
             onSelect={handleSelect}
             onDoubleClick={handleDoubleClick}
           />
