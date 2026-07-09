@@ -7,8 +7,13 @@ export function collectImports(
   pascalCaseTags: string[],
   storeRefs: string[],
   codeTabs: CodeTab[],
+  designName?: string,
 ): string[] {
   const imports: string[] = ["import omniview;"];
+
+  if (designName) {
+    imports.push(`import { ${designName} } from "./design.omni";`);
+  }
 
   for (const tag of pascalCaseTags) {
     imports.push(`import { ${tag} } from "./components/${tag}";`);
