@@ -3,6 +3,11 @@ import { usePoiesisStore } from "../../store";
 import { parseOmniSource } from "../../services/codegen";
 import { parseStyleValue } from "../../services/codegen/design-value-parser";
 import { uid } from "../../core/utils/id";
+
+/** Convert kebab-case CSS property name to camelCase for internal storage. */
+function kebabToCamel(name: string): string {
+  return name.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+}
 import { api } from "../../commands";
 import { TokenEditor } from "./TokenEditor";
 import { ClassEditor } from "./ClassEditor";
@@ -73,7 +78,7 @@ export function DesignTabContent() {
             name: c.name,
             properties: (c.properties ?? []).map((p) => ({
               id: uid("sp"),
-              name: p.name,
+              name: kebabToCamel(p.name),
               segments: parseStyleValue(p.value),
             })),
             pseudoStates: (c.pseudoStates ?? []).map((ps) => ({
@@ -81,7 +86,7 @@ export function DesignTabContent() {
               pseudo: ps.pseudo,
               properties: ps.properties.map((p) => ({
                 id: uid("sp"),
-                name: p.name,
+                name: kebabToCamel(p.name),
                 segments: parseStyleValue(p.value),
               })),
             })),
@@ -96,7 +101,7 @@ export function DesignTabContent() {
             defaults: v.defaults ?? {},
             baseProperties: (v.baseProperties ?? []).map((p) => ({
               id: uid("sp"),
-              name: p.name,
+              name: kebabToCamel(p.name),
               segments: parseStyleValue(p.value),
             })),
             branches: (v.branches ?? []).map((b) => {
@@ -105,7 +110,7 @@ export function DesignTabContent() {
               const val = dotIdx >= 0 ? b.name.slice(dotIdx + 1) : b.name;
               const props = b.properties.map((p) => ({
                 id: uid("sp"),
-                name: p.name,
+                name: kebabToCamel(p.name),
                 segments: parseStyleValue(p.value),
               }));
               return { id: uid("vb"), dimension: dim, value: val, properties: props };

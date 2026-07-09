@@ -11,6 +11,11 @@ import type { StyleValueSegment } from "../../core/types/style";
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
+/** Convert camelCase to kebab-case for CSS property name emission. */
+function camelToKebab(name: string): string {
+  return name.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
+}
+
 /**
  * Compile StyleValueSegment[] into an OmniLang expression string for design.omni emission.
  *
@@ -119,14 +124,14 @@ function emitClass(lines: string[], cls: DesignClass): void {
 
   for (const prop of cls.properties) {
     const val = compileDesignSegments(prop.segments);
-    lines.push(`        ${prop.name}: ${val};`);
+    lines.push(`        ${camelToKebab(prop.name)}: ${val};`);
   }
 
   for (const ps of cls.pseudoStates) {
     lines.push(`        &:${ps.pseudo} {`);
     for (const prop of ps.properties) {
       const val = compileDesignSegments(prop.segments);
-      lines.push(`            ${prop.name}: ${val};`);
+      lines.push(`            ${camelToKebab(prop.name)}: ${val};`);
     }
     lines.push(`        }`);
   }
@@ -158,7 +163,7 @@ function emitVariant(lines: string[], variant: VariantDefinition): void {
     lines.push(`        base {`);
     for (const prop of variant.baseProperties) {
       const val = compileDesignSegments(prop.segments);
-      lines.push(`            ${prop.name}: ${val};`);
+      lines.push(`            ${camelToKebab(prop.name)}: ${val};`);
     }
     lines.push(`        }`);
   }
@@ -168,7 +173,7 @@ function emitVariant(lines: string[], variant: VariantDefinition): void {
     lines.push(`        ${branch.dimension}.${branch.value} {`);
     for (const prop of branch.properties) {
       const val = compileDesignSegments(prop.segments);
-      lines.push(`            ${prop.name}: ${val};`);
+      lines.push(`            ${camelToKebab(prop.name)}: ${val};`);
     }
     lines.push(`        }`);
   }
