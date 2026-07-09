@@ -6,6 +6,15 @@ import { usePoiesisStore } from "../../store";
 import { uid } from "../../core/utils";
 import type { VariantBranch, VariantDimension } from "../../core/types/design";
 import type { StyleProperty, StyleValueSegment } from "../../core/types/style";
+import { SizeCard } from "./cards/SizeCard";
+import { BackgroundCard } from "./cards/BackgroundCard";
+import { BorderCard } from "./cards/BorderCard";
+import { RadiusCard } from "./cards/RadiusCard";
+import { SpacingCard } from "./cards/SpacingCard";
+import { CollapsibleGroup } from "./CollapsibleGroup";
+import { PropertyRow } from "./PropertyRow";
+import { ScrubInput } from "./ScrubInput";
+import { IconButtonGroup } from "./IconButtonGroup";
 
 // ── Helpers ──
 
@@ -104,26 +113,18 @@ const INPUT_STYLE: React.CSSProperties = {
   minWidth: 0,
 };
 
-const PROP_ROW: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 6,
-  padding: "3px 0",
-};
-
-const PROP_LABEL: React.CSSProperties = {
-  fontSize: 12,
+const SELECT_STYLE: React.CSSProperties = {
+  padding: "3px 4px",
+  fontSize: 10,
+  fontFamily: "var(--dp-font-mono, monospace)",
+  border: "1px solid var(--dp-border, #e8e5f2)",
+  borderRadius: "var(--dp-radius-sm, 6px)",
+  outline: "none",
+  background: "var(--dp-surface, #fff)",
   color: "var(--dp-text, #1e1b4b)",
-  width: 100,
-  flexShrink: 0,
-  overflow: "hidden",
-  textOverflow: "ellipsis",
-  whiteSpace: "nowrap",
-};
-
-const INHERITED_LABEL: React.CSSProperties = {
-  ...PROP_LABEL,
-  color: "var(--dp-text-muted, #a09db8)",
+  cursor: "pointer",
+  flex: 1,
+  minWidth: 0,
 };
 
 const REMOVE_BTN: React.CSSProperties = {
@@ -199,11 +200,148 @@ const SECTION_HEADER: React.CSSProperties = {
   padding: "12px 0 6px",
 };
 
+// ── Property constants (copied from ClassEditor) ──
+
+interface GroupDef {
+  label: string;
+  properties: string[];
+}
+
+const PROPERTY_GROUPS: GroupDef[] = [
+  {
+    label: "布局 Layout",
+    properties: [
+      "display", "position", "width", "height",
+      "flexDirection", "justifyContent", "alignItems", "alignSelf",
+      "padding", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft",
+      "margin", "marginTop", "marginRight", "marginBottom", "marginLeft",
+      "gap", "overflow", "overflowX", "overflowY", "flexWrap",
+    ],
+  },
+  {
+    label: "视觉 Visual",
+    properties: [
+      "background", "border", "borderColor", "borderRadius",
+      "boxShadow", "opacity", "cursor", "transition", "transform",
+    ],
+  },
+  {
+    label: "文字 Typography",
+    properties: [
+      "color", "fontFamily", "fontSize", "fontWeight",
+      "lineHeight", "textAlign", "textDecoration", "textTransform", "letterSpacing",
+    ],
+  },
+];
+
+const ALL_PROPERTY_NAMES = PROPERTY_GROUPS.flatMap((g) => g.properties);
+
+const PROPERTY_LABELS: Record<string, string> = {
+  display: "Display",
+  position: "定位",
+  width: "宽度",
+  height: "高度",
+  flexDirection: "Flex 方向",
+  justifyContent: "主轴对齐",
+  alignItems: "交叉轴对齐",
+  alignSelf: "自身对齐",
+  padding: "内边距",
+  paddingTop: "内边距-上",
+  paddingRight: "内边距-右",
+  paddingBottom: "内边距-下",
+  paddingLeft: "内边距-左",
+  margin: "外边距",
+  marginTop: "外边距-上",
+  marginRight: "外边距-右",
+  marginBottom: "外边距-下",
+  marginLeft: "外边距-左",
+  gap: "间距",
+  overflow: "溢出",
+  overflowX: "溢出-X",
+  overflowY: "溢出-Y",
+  flexWrap: "换行",
+  background: "背景色",
+  border: "边框",
+  borderColor: "边框颜色",
+  borderRadius: "圆角",
+  boxShadow: "阴影",
+  opacity: "不透明度",
+  cursor: "光标",
+  transition: "过渡",
+  transform: "变换",
+  color: "文字颜色",
+  fontFamily: "字体",
+  fontSize: "字号",
+  fontWeight: "字重",
+  lineHeight: "行高",
+  textAlign: "对齐",
+  textDecoration: "装饰线",
+  textTransform: "大小写",
+  letterSpacing: "字间距",
+};
+
+const ENUM_OPTIONS: Record<string, string[]> = {
+  display: ["block", "flex", "inline", "inline-block", "grid", "none", "contents"],
+  position: ["static", "relative", "absolute", "fixed", "sticky"],
+  flexDirection: ["row", "column", "row-reverse", "column-reverse"],
+  justifyContent: ["flex-start", "center", "flex-end", "space-between", "space-around", "space-evenly"],
+  alignItems: ["stretch", "flex-start", "center", "flex-end", "baseline"],
+  alignSelf: ["auto", "stretch", "flex-start", "center", "flex-end", "baseline"],
+  overflow: ["visible", "hidden", "scroll", "auto"],
+  overflowX: ["visible", "hidden", "scroll", "auto"],
+  overflowY: ["visible", "hidden", "scroll", "auto"],
+  flexWrap: ["nowrap", "wrap", "wrap-reverse"],
+  textAlign: ["left", "center", "right", "justify"],
+  textDecoration: ["none", "underline", "line-through", "overline"],
+  textTransform: ["none", "uppercase", "lowercase", "capitalize"],
+  fontWeight: ["100", "200", "300", "400", "500", "600", "700", "800", "900"],
+  cursor: ["auto", "default", "pointer", "text", "move", "not-allowed", "grab", "zoom-in", "zoom-out"],
+};
+
+const layoutPropNames = ["display", "position", "flexDirection", "justifyContent", "alignItems", "alignSelf", "gap", "overflow", "flexWrap"];
+const typographyPropNames = ["color", "fontFamily", "fontSize", "fontWeight", "lineHeight", "textAlign", "textDecoration", "textTransform", "letterSpacing"];
+
+// ── Helpers for property access ──
+
+function getPropValue(props: StyleProperty[], name: string): string {
+  const prop = props.find((p) => p.name === name);
+  if (!prop || prop.segments.length === 0) return "";
+  const seg = prop.segments[0];
+  return seg.type === "text" ? seg.value : "";
+}
+
+function isEnumProperty(name: string): boolean {
+  return name in ENUM_OPTIONS;
+}
+
+// ── Hook: outside click ──
+
+function useOutsideClick(
+  ref: React.RefObject<HTMLElement | null>,
+  enabled: boolean,
+  onOutside: () => void,
+) {
+  useEffect(() => {
+    if (!enabled) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        onOutside();
+      }
+    };
+    const timer = setTimeout(() => document.addEventListener("mousedown", handler), 0);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("mousedown", handler);
+    };
+  }, [enabled, ref, onOutside]);
+}
+
 // ── Component ──
 
 export function VariantEditor() {
   // ── Store ──
   const variants = usePoiesisStore((s) => s.activeDesign.variants);
+  const tokens = usePoiesisStore((s) => s.activeDesign.tokens);
   const addVariant = usePoiesisStore((s) => s.addVariant);
   const updateVariant = usePoiesisStore((s) => s.updateVariant);
   const removeVariant = usePoiesisStore((s) => s.removeVariant);
@@ -215,7 +353,7 @@ export function VariantEditor() {
   const [newDimValue, setNewDimValue] = useState("");
   const [activeBranchKey, setActiveBranchKey] = useState<string>("base");
   const [showAddProp, setShowAddProp] = useState(false);
-  const [addPropName, setAddPropName] = useState("");
+  const [addPropSearch, setAddPropSearch] = useState("");
 
   const addPropRef = useRef<HTMLDivElement>(null);
 
@@ -225,6 +363,8 @@ export function VariantEditor() {
     () => variants.find((v) => v.id === selectedVariantId) ?? null,
     [variants, selectedVariantId],
   );
+
+  const isBranchMode = activeBranchKey !== "base";
 
   // Generate branch keys from dimensions: ["color.primary", "color.danger", "size.sm", ...]
   const branchKeys = useMemo(() => {
@@ -238,6 +378,16 @@ export function VariantEditor() {
     return keys;
   }, [selectedVariant]);
 
+  // Current branch object (null for base mode)
+  const branch = useMemo(() => {
+    if (!selectedVariant || !isBranchMode) return null;
+    const parsed = parseBranchKey(activeBranchKey);
+    if (!parsed) return null;
+    return selectedVariant.branches.find(
+      (b) => b.dimension === parsed.dim && b.value === parsed.val,
+    ) ?? null;
+  }, [selectedVariant, isBranchMode, activeBranchKey]);
+
   // Merged properties for the active editing context
   const currentProps = useMemo(() => {
     if (!selectedVariant) return [];
@@ -249,7 +399,6 @@ export function VariantEditor() {
     );
     return getCombinedProps(selectedVariant.baseProperties, branch ?? null);
   }, [selectedVariant, activeBranchKey]);
-  void currentProps; // Suppress TS6133 until used in subsequent tasks
 
   // Default combination display string
   const defaultComboStr = useMemo(() => {
@@ -259,22 +408,30 @@ export function VariantEditor() {
       .join(", ");
   }, [selectedVariant]);
 
+  const layoutSummary = useMemo(() => {
+    const parts = currentProps.filter(
+      (p) => layoutPropNames.includes(p.name) && segmentsToString(p.segments),
+    );
+    return parts.length > 0
+      ? parts.map((p) => `${p.name}:${segmentsToString(p.segments)}`).join(", ")
+      : "—";
+  }, [currentProps]);
+
+  const typographySummary = useMemo(() => {
+    const parts = currentProps.filter(
+      (p) => typographyPropNames.includes(p.name) && segmentsToString(p.segments),
+    );
+    return parts.length > 0
+      ? parts.map((p) => `${p.name}:${segmentsToString(p.segments)}`).join(", ")
+      : "—";
+  }, [currentProps]);
+
   // ── Close add-property popup on outside click ──
 
-  useEffect(() => {
-    if (!showAddProp) return;
-    const handler = (e: MouseEvent) => {
-      if (addPropRef.current && !addPropRef.current.contains(e.target as Node)) {
-        setShowAddProp(false);
-        setAddPropName("");
-      }
-    };
-    const timer = setTimeout(() => document.addEventListener("mousedown", handler), 0);
-    return () => {
-      clearTimeout(timer);
-      document.removeEventListener("mousedown", handler);
-    };
-  }, [showAddProp]);
+  useOutsideClick(addPropRef, showAddProp, () => {
+    setShowAddProp(false);
+    setAddPropSearch("");
+  });
 
   // ── Handlers: Variant CRUD ──
 
@@ -397,53 +554,10 @@ export function VariantEditor() {
 
   // ── Handlers: Properties ──
 
-  const updatePropsList = useCallback(
-    (props: StyleProperty[], propName: string, value: string): StyleProperty[] => {
-      const idx = props.findIndex((p) => p.name === propName);
-      if (idx >= 0) {
-        const next = [...props];
-        next[idx] = { ...next[idx], segments: stringToSegments(value) };
-        return next;
-      }
-      return [
-        ...props,
-        { id: uid("prop"), name: propName, segments: stringToSegments(value) },
-      ];
-    },
-    [],
-  );
-
   const removePropFromList = useCallback(
     (props: StyleProperty[], propName: string): StyleProperty[] =>
       props.filter((p) => p.name !== propName),
     [],
-  );
-
-  const handlePropertyChange = useCallback(
-    (propName: string, value: string) => {
-      if (!selectedVariant) return;
-
-      if (activeBranchKey === "base") {
-        updateVariant(selectedVariant.id, {
-          baseProperties: updatePropsList(selectedVariant.baseProperties, propName, value),
-        });
-      } else {
-        const parsed = parseBranchKey(activeBranchKey);
-        if (!parsed) return;
-        const branch = selectedVariant.branches.find(
-          (b) => b.dimension === parsed.dim && b.value === parsed.val,
-        );
-        if (!branch) return;
-        updateVariant(selectedVariant.id, {
-          branches: selectedVariant.branches.map((b) =>
-            b.id === branch.id
-              ? { ...b, properties: updatePropsList(b.properties, propName, value) }
-              : b,
-          ),
-        });
-      }
-    },
-    [selectedVariant, activeBranchKey, updateVariant, updatePropsList],
   );
 
   /** Handle props change from a card — diffs against base to determine overrides. */
@@ -484,7 +598,29 @@ export function VariantEditor() {
     },
     [selectedVariant, activeBranchKey, updateVariant],
   );
-  void handleCardPropsChange; // Suppress TS6133 until used in subsequent tasks
+
+  /** Handle single property change from a group row — builds the full props list and delegates to card handler. */
+  const handleSinglePropChange = useCallback(
+    (name: string, value: string) => {
+      if (!selectedVariant) return;
+      const existing = currentProps.find((p) => p.name === name);
+      let newProps: StyleProperty[];
+      if (existing) {
+        newProps = currentProps.map((p) =>
+          p.name === name
+            ? { ...p, segments: stringToSegments(value) }
+            : p,
+        );
+      } else {
+        newProps = [
+          ...currentProps,
+          { id: uid("prop"), name, segments: stringToSegments(value) },
+        ];
+      }
+      handleCardPropsChange(newProps);
+    },
+    [selectedVariant, currentProps, handleCardPropsChange],
+  );
 
   const handleRemoveProperty = useCallback(
     (propName: string) => {
@@ -512,14 +648,6 @@ export function VariantEditor() {
     },
     [selectedVariant, activeBranchKey, updateVariant, removePropFromList],
   );
-
-  const handleAddPropertyNameSubmit = useCallback(() => {
-    const name = addPropName.trim();
-    if (!name) return;
-    handlePropertyChange(name, "");
-    setShowAddProp(false);
-    setAddPropName("");
-  }, [addPropName, handlePropertyChange]);
 
   // ── Render: Sidebar ──
 
@@ -812,192 +940,308 @@ export function VariantEditor() {
     );
   };
 
-  // ── Render: Property rows ──
+  // ── Render: Add property dropdown ──
 
-  const renderPropertyRow = (
-    propName: string,
-    prop: StyleProperty | undefined,
-    inherited: boolean,
-  ) => {
-    if (!selectedVariant) return null;
-    const displayValue = prop ? segmentsToString(prop.segments) : "";
+  const renderAddProperty = () => {
+    const filtered = ALL_PROPERTY_NAMES.filter(
+      (n) => n.toLowerCase().includes(addPropSearch.toLowerCase()),
+    );
 
     return (
-      <div key={propName} style={PROP_ROW}>
-        {/* Override indicator dot */}
-        {!inherited && activeBranchKey !== "base" && (
-          <span
-            style={{
-              width: 6,
-              height: 6,
-              borderRadius: "50%",
-              background: "var(--dp-accent, #6366f1)",
-              flexShrink: 0,
-              display: "inline-block",
-            }}
-          />
-        )}
-        {inherited && <span style={{ width: 6, flexShrink: 0, display: "inline-block" }} />}
-
-        {/* Property name */}
-        <span style={inherited ? INHERITED_LABEL : PROP_LABEL} title={propName}>
-          {propName}
-        </span>
-
-        {/* Value */}
-        {!inherited && (
-          <input
-            value={displayValue}
-            onChange={(e) => handlePropertyChange(propName, e.target.value)}
-            style={INPUT_STYLE}
-            placeholder="value"
-          />
-        )}
-        {inherited && (
-          <div
-            style={{
-              ...INPUT_STYLE,
-              background: "var(--dp-bg, #f7f6fa)",
-              color: "var(--dp-text-muted, #a09db8)",
-              cursor: "not-allowed",
-              display: "flex",
-              alignItems: "center",
-              fontSize: 11,
-            }}
-          >
-            ← base: {displayValue || "—"}
-          </div>
-        )}
-
-        {/* Remove */}
-        {!inherited && (
-          <button
-            onClick={() => handleRemoveProperty(propName)}
-            style={REMOVE_BTN}
-            title="Remove property"
-          >
-            &times;
-          </button>
-        )}
-      </div>
-    );
-  };
-
-  // ── Render: Property editor ──
-
-  const renderPropertyEditor = () => {
-    if (!selectedVariant) return null;
-
-    if (activeBranchKey === "base") {
-      // Base mode: show only base properties
-      const baseProps = selectedVariant.baseProperties;
-      return (
-        <div>
-          {baseProps.length === 0 && (
-            <div style={{ fontSize: 11, color: "var(--dp-text-muted, #a09db8)", marginBottom: 8 }}>
-              No base properties yet.
-            </div>
-          )}
-          {baseProps.map((prop) => renderPropertyRow(prop.name, prop, false))}
-          {renderAddPropertyButton()}
-        </div>
-      );
-    }
-
-    // Branch mode: show inherited base properties + branch overrides
-    const parsed = parseBranchKey(activeBranchKey);
-    if (!parsed) return null;
-    const baseProps = selectedVariant.baseProperties;
-    const branch = selectedVariant.branches.find(
-      (b) => b.dimension === parsed.dim && b.value === parsed.val,
-    );
-    const branchProps = branch?.properties ?? [];
-
-    // Collect all property names from base and branch
-    const allPropNames = new Set<string>();
-    for (const bp of baseProps) allPropNames.add(bp.name);
-    for (const bp of branchProps) allPropNames.add(bp.name);
-
-    const propNames = Array.from(allPropNames);
-
-    return (
-      <div>
-        {propNames.length === 0 && (
-          <div style={{ fontSize: 11, color: "var(--dp-text-muted, #a09db8)", marginBottom: 8 }}>
-            No properties for this branch. Add one below, or properties inherited from base will
-            appear here.
-          </div>
-        )}
-        {propNames.map((name) => {
-          const baseProp = baseProps.find((p) => p.name === name);
-          const branchProp = branchProps.find((p) => p.name === name);
-          const baseVal = baseProp ? segmentsToString(baseProp.segments) : "";
-          const branchVal = branchProp ? segmentsToString(branchProp.segments) : "";
-          const isOverridden = branchProp !== undefined && branchVal !== baseVal;
-          const isNew = branchProp !== undefined && !baseProp;
-          const editable = isOverridden || isNew;
-          return renderPropertyRow(name, editable ? branchProp : baseProp, !editable);
-        })}
-        {renderAddPropertyButton()}
-      </div>
-    );
-  };
-
-  // ── Render: Add property button with inline input ──
-
-  const renderAddPropertyButton = () => {
-    return (
-      <div style={{ position: "relative", marginTop: 6 }}>
-        <button onClick={() => setShowAddProp((v) => !v)} style={DASHED_BTN}>
-          + 添加属性
+      <div style={{ position: "relative", margin: "4px 8px" }}>
+        <button
+          onClick={() => setShowAddProp((v) => !v)}
+          style={DASHED_BTN}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLElement).style.color = "var(--dp-accent, #6366f1)";
+            (e.currentTarget as HTMLElement).style.borderColor = "var(--dp-accent, #6366f1)";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLElement).style.color = "var(--dp-text-muted, #a09db8)";
+            (e.currentTarget as HTMLElement).style.borderColor = "var(--dp-border, #e8e5f2)";
+          }}
+        >
+          + Add property
         </button>
         {showAddProp && (
           <div
             ref={addPropRef}
             style={{
-              marginTop: 4,
-              display: "flex",
-              gap: 4,
-              alignItems: "center",
+              position: "absolute",
+              top: "100%",
+              left: 0,
+              right: 0,
+              marginTop: 2,
+              background: "#fff",
+              border: "1px solid #e2e8f0",
+              borderRadius: 6,
+              boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+              zIndex: 100,
+              maxHeight: 200,
+              overflow: "auto",
             }}
           >
             <input
               autoFocus
-              value={addPropName}
-              onChange={(e) => setAddPropName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleAddPropertyNameSubmit();
-                if (e.key === "Escape") {
-                  setShowAddProp(false);
-                  setAddPropName("");
-                }
-              }}
-              placeholder="Property name"
+              value={addPropSearch}
+              onChange={(e) => setAddPropSearch(e.target.value)}
+              placeholder="Search properties..."
               style={{
                 ...INPUT_STYLE,
-                flex: 1,
-                minWidth: 0,
-                fontSize: 11,
+                margin: 4,
+                width: "calc(100% - 8px)",
                 padding: "4px 6px",
+                fontSize: 11,
               }}
             />
-            <button
-              onClick={handleAddPropertyNameSubmit}
-              disabled={!addPropName.trim()}
-              style={{
-                padding: "4px 8px",
-                fontSize: 11,
-                border: "none",
-                borderRadius: 4,
-                background: addPropName.trim() ? "var(--dp-accent, #6366f1)" : "var(--dp-border, #e8e5f2)",
-                color: addPropName.trim() ? "#fff" : "var(--dp-text-muted, #a09db8)",
-                cursor: addPropName.trim() ? "pointer" : "default",
-              }}
-            >
-              Add
-            </button>
+            {filtered.map((name) => (
+              <button
+                key={name}
+                onClick={() => {
+                  handleSinglePropChange(name, "");
+                  setShowAddProp(false);
+                  setAddPropSearch("");
+                }}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  padding: "4px 10px",
+                  fontSize: 11,
+                  border: "none",
+                  background: "transparent",
+                  color: "#374151",
+                  cursor: "pointer",
+                  textAlign: "left",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLElement).style.background = "#f1f5f9";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLElement).style.background = "transparent";
+                }}
+              >
+                <span style={{ color: "#64748b", marginRight: 4 }}>+</span>
+                {PROPERTY_LABELS[name] || name}
+              </button>
+            ))}
+            {filtered.length === 0 && (
+              <div
+                style={{
+                  padding: 8,
+                  fontSize: 10,
+                  color: "#94a3b8",
+                  textAlign: "center",
+                }}
+              >
+                No matching properties
+              </div>
+            )}
           </div>
         )}
+      </div>
+    );
+  };
+
+  // ── Render: Cards-based property editor ──
+
+  const renderCards = () => {
+    if (!selectedVariant) return null;
+
+    return (
+      <div>
+        {/* Visual editing cards */}
+        <SizeCard
+          properties={currentProps}
+          onChange={handleCardPropsChange}
+        />
+        <BackgroundCard
+          properties={currentProps}
+          tokens={tokens}
+          onChange={handleCardPropsChange}
+        />
+        <BorderCard
+          properties={currentProps}
+          tokens={tokens}
+          onChange={handleCardPropsChange}
+        />
+        <RadiusCard
+          properties={currentProps}
+          onChange={handleCardPropsChange}
+        />
+        <SpacingCard
+          properties={currentProps}
+          onChange={handleCardPropsChange}
+        />
+
+        {/* Layout group for remaining layout properties */}
+        <CollapsibleGroup title="布局 Layout" summary={layoutSummary} defaultOpen={false}>
+          {layoutPropNames.map((name) => {
+            const value = getPropValue(currentProps, name);
+            const label = PROPERTY_LABELS[name] || name;
+            const isInherited = isBranchMode && !branch?.properties.some((p) => p.name === name);
+
+            if (isInherited) {
+              const baseValue = getPropValue(selectedVariant.baseProperties, name);
+              return (
+                <PropertyRow key={name} label={label} inherited>
+                  <div
+                    style={{
+                      ...INPUT_STYLE,
+                      background: "var(--dp-bg, #f7f6fa)",
+                      color: "var(--dp-text-muted, #a09db8)",
+                      cursor: "not-allowed",
+                      display: "flex",
+                      alignItems: "center",
+                      fontSize: 11,
+                    }}
+                  >
+                    ← base: {baseValue || "—"}
+                  </div>
+                </PropertyRow>
+              );
+            }
+
+            let input: React.ReactNode;
+
+            if (name === "flexDirection") {
+              input = (
+                <IconButtonGroup
+                  options={[
+                    { value: "row", label: "→", title: "row" },
+                    { value: "column", label: "↓", title: "column" },
+                    { value: "row-reverse", label: "←", title: "row-reverse" },
+                    { value: "column-reverse", label: "↑", title: "column-reverse" },
+                  ]}
+                  value={(value || "row") as "row" | "column" | "row-reverse" | "column-reverse"}
+                  onChange={(v) => handleSinglePropChange(name, v as string)}
+                />
+              );
+            } else if (name === "gap") {
+              input = (
+                <ScrubInput
+                  value={parseFloat(value) || 0}
+                  unit="px"
+                  min={0}
+                  max={200}
+                  onChange={(v) => handleSinglePropChange(name, `${v}px`)}
+                />
+              );
+            } else if (isEnumProperty(name)) {
+              input = (
+                <select
+                  value={value}
+                  onChange={(e) => handleSinglePropChange(name, e.target.value)}
+                  style={SELECT_STYLE}
+                >
+                  <option value="">—</option>
+                  {ENUM_OPTIONS[name]?.map((opt) => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  )) ?? null}
+                </select>
+              );
+            } else {
+              input = (
+                <input
+                  value={value}
+                  onChange={(e) => handleSinglePropChange(name, e.target.value)}
+                  style={INPUT_STYLE}
+                  placeholder="value"
+                />
+              );
+            }
+
+            return (
+              <PropertyRow
+                key={name}
+                label={label}
+                showOverrideDot={isBranchMode}
+                onRemove={() => handleRemoveProperty(name)}
+              >
+                {input}
+              </PropertyRow>
+            );
+          })}
+        </CollapsibleGroup>
+
+        {/* Typography group */}
+        <CollapsibleGroup title="文字 Typography" summary={typographySummary} defaultOpen={false}>
+          {typographyPropNames.map((name) => {
+            const value = getPropValue(currentProps, name);
+            const label = PROPERTY_LABELS[name] || name;
+            const isInherited = isBranchMode && !branch?.properties.some((p) => p.name === name);
+
+            if (isInherited) {
+              const baseValue = getPropValue(selectedVariant.baseProperties, name);
+              return (
+                <PropertyRow key={name} label={label} inherited>
+                  <div
+                    style={{
+                      ...INPUT_STYLE,
+                      background: "var(--dp-bg, #f7f6fa)",
+                      color: "var(--dp-text-muted, #a09db8)",
+                      cursor: "not-allowed",
+                      display: "flex",
+                      alignItems: "center",
+                      fontSize: 11,
+                    }}
+                  >
+                    ← base: {baseValue || "—"}
+                  </div>
+                </PropertyRow>
+              );
+            }
+
+            let input: React.ReactNode;
+
+            if (["fontSize", "lineHeight", "letterSpacing"].includes(name)) {
+              const unit = name === "fontSize" ? "px" : (name === "letterSpacing" ? "px" : "");
+              input = (
+                <ScrubInput
+                  value={parseFloat(value) || 0}
+                  unit={unit}
+                  min={0}
+                  max={999}
+                  onChange={(v) => handleSinglePropChange(name, unit ? `${v}${unit}` : `${v}`)}
+                />
+              );
+            } else if (isEnumProperty(name)) {
+              input = (
+                <select
+                  value={value}
+                  onChange={(e) => handleSinglePropChange(name, e.target.value)}
+                  style={SELECT_STYLE}
+                >
+                  <option value="">—</option>
+                  {ENUM_OPTIONS[name]?.map((opt) => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  )) ?? null}
+                </select>
+              );
+            } else {
+              input = (
+                <input
+                  value={value}
+                  onChange={(e) => handleSinglePropChange(name, e.target.value)}
+                  style={INPUT_STYLE}
+                  placeholder="value"
+                />
+              );
+            }
+
+            return (
+              <PropertyRow
+                key={name}
+                label={label}
+                showOverrideDot={isBranchMode}
+                onRemove={() => handleRemoveProperty(name)}
+              >
+                {input}
+              </PropertyRow>
+            );
+          })}
+        </CollapsibleGroup>
+
+        {renderAddProperty()}
       </div>
     );
   };
@@ -1047,8 +1291,8 @@ export function VariantEditor() {
             {/* Branch tabs */}
             {renderBranchTabs()}
 
-            {/* Property editor */}
-            {renderPropertyEditor()}
+            {/* Cards-based property editor */}
+            {renderCards()}
           </div>
         ) : (
           <div
