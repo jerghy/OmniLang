@@ -62,6 +62,10 @@ pub struct OmniViewOutput {
     /// Structured element tree for React-side rendering.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub element_tree: Vec<ElementTreeNode>,
+    /// Mapping from WASM nid (e.g. "el-div-001") to design element ID (UUID).
+    /// Built during the same walk as element_classes — keyed by element id prop.
+    #[serde(default, skip_serializing_if = "FxHashMap::is_empty")]
+    pub nid_map: FxHashMap<String, String>,
 }
 
 /// Per-component compiled output for hot-replace.
@@ -105,6 +109,9 @@ pub struct StyleResolveResult {
     /// Structured element tree for React-side rendering.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub element_tree: Vec<ElementTreeNode>,
+    /// Mapping from WASM nid (e.g. "el-div-001") to design element ID (UUID).
+    #[serde(default, skip_serializing_if = "FxHashMap::is_empty")]
+    pub nid_map: FxHashMap<String, String>,
     /// Compilation warnings (unknown variant, missing design, etc.)
     pub warnings: Vec<String>,
     /// Parse / semantic errors.
@@ -156,6 +163,7 @@ pub fn generate(ir: &IRProgram, editor_mode: bool, css_only: bool) -> OmniViewOu
         component_style_classes: FxHashSet::default(),
         element_tree_stack: Vec::new(),
         element_tree: Vec::new(),
+        nid_map: FxHashMap::default(),
     };
 
     // In css_only mode, skip ALL JS emission — we only need CSS + element mappings.
@@ -321,6 +329,7 @@ pub fn generate(ir: &IRProgram, editor_mode: bool, css_only: bool) -> OmniViewOu
         element_tags: gen.element_tags,
         per_component_css: gen.per_component_css,
         element_tree: gen.element_tree,
+        nid_map: gen.nid_map,
     }
 }
 
@@ -465,6 +474,8 @@ struct OmniViewGenerator {
     element_tree_stack: Vec<ElementTreeNode>,
     /// Root-level tree nodes accumulated during view_to_html.
     element_tree: Vec<ElementTreeNode>,
+    /// Mapping from WASM nid to the element's design ID (UUID from id prop).
+    nid_map: FxHashMap<String, String>,
 }
 
 /// A parsed part of an attribute template value with {word} placeholders.

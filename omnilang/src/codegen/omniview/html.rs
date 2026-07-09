@@ -792,7 +792,9 @@ impl OmniViewGenerator {
                 self.element_classes
                     .insert(key.clone(), class_name_parts.clone());
                 self.element_tags
-                    .insert(key, html_tag.to_string());
+                    .insert(key.clone(), html_tag.to_string());
+                // Record nid → design element ID mapping for editor selection
+                self.nid_map.insert(nid.clone(), key.clone());
                 self.tree_pop();
                 return String::new();
             }
@@ -857,7 +859,8 @@ impl OmniViewGenerator {
                 self.element_classes
                     .insert(key.clone(), class_name_parts.clone());
                 self.element_tags
-                    .insert(key, html_tag.to_string());
+                    .insert(key.clone(), html_tag.to_string());
+                self.nid_map.insert(nid.clone(), key.clone());
                 self.tree_pop();
                 return String::new();
             }

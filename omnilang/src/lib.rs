@@ -237,6 +237,7 @@ pub fn resolve_styles(source: &str) -> StyleResolveResult {
             element_classes: FxHashMap::default(),
             element_tags: FxHashMap::default(),
             element_tree: Vec::new(),
+            nid_map: FxHashMap::default(),
             warnings: Vec::new(),
             errors,
         },
@@ -251,6 +252,7 @@ pub fn resolve_styles(source: &str) -> StyleResolveResult {
                 element_classes: gen_output.element_classes,
                 element_tags: gen_output.element_tags,
                 element_tree: gen_output.element_tree,
+                nid_map: gen_output.nid_map,
                 warnings: gen_output.warnings,
                 errors: pipeline.diagnostics,
             }
@@ -285,6 +287,7 @@ pub fn resolve_styles_multi(
                 element_classes: output.element_classes,
                 element_tags: output.element_tags,
                 element_tree: output.element_tree,
+                nid_map: output.nid_map,
                 warnings: output.warnings,
                 errors,
             }
@@ -296,6 +299,7 @@ pub fn resolve_styles_multi(
             element_classes: FxHashMap::default(),
             element_tags: FxHashMap::default(),
             element_tree: Vec::new(),
+            nid_map: FxHashMap::default(),
             warnings: Vec::new(),
             errors,
         }

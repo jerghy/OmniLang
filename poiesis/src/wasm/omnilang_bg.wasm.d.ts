@@ -1,10 +1,6 @@
 /* tslint:disable */
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
-export const omni_analyse: (a: number, b: number) => number;
-export const omni_compile_multi_to_target: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => number;
-export const omni_free_string: (a: number) => void;
-export const omni_version: () => number;
 export const __wbg_omnicompiler_free: (a: number, b: number) => void;
 export const compile_multi_to_omniview: (a: number, b: number) => number;
 export const compile_omniview_component: (a: number, b: number, c: number, d: number, e: number) => number;
@@ -18,8 +14,11 @@ export const omnicompiler_remove_source: (a: number, b: number, c: number) => vo
 export const omnicompiler_upsert_source: (a: number, b: number, c: number, d: number, e: number) => void;
 export const omnicompiler_version: (a: number, b: number) => void;
 export const resolve_styles: (a: number, b: number) => number;
-export const resolve_styles_multi: (a: number, b: number) => number;
 export const version: (a: number) => void;
+export const omni_analyse: (a: number, b: number) => number;
+export const omni_compile_multi_to_target: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => number;
+export const omni_free_string: (a: number) => void;
+export const omni_version: () => number;
 export const __wbindgen_export: (a: number, b: number) => number;
 export const __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;
 export const __wbindgen_export3: (a: number) => void;

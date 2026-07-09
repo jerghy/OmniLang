@@ -75,16 +75,6 @@ export function compile_to_omniview_full(source: string, editor_mode: boolean): 
 export function resolve_styles(source: string): any;
 
 /**
- * Resolve styles for multiple .omni source files (cross-file design imports).
- *
- * `sources`: JS object `{ "file/path.omni": "source content", ... }`
- * `path_mapping`: JS object `{ "import/path": "resolved/file/path.omni", ... }`
- *
- * Returns `StyleResolveResult` with compiled CSS + element mappings.
- */
-export function resolve_styles_multi(sources: any, path_mapping: any): any;
-
-/**
  * Return compiler version.
  */
 export function version(): string;
@@ -93,10 +83,6 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
-    readonly omni_analyse: (a: number, b: number) => number;
-    readonly omni_compile_multi_to_target: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => number;
-    readonly omni_free_string: (a: number) => void;
-    readonly omni_version: () => number;
     readonly __wbg_omnicompiler_free: (a: number, b: number) => void;
     readonly compile_multi_to_omniview: (a: number, b: number) => number;
     readonly compile_omniview_component: (a: number, b: number, c: number, d: number, e: number) => number;
@@ -110,8 +96,11 @@ export interface InitOutput {
     readonly omnicompiler_upsert_source: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly omnicompiler_version: (a: number, b: number) => void;
     readonly resolve_styles: (a: number, b: number) => number;
-    readonly resolve_styles_multi: (a: number, b: number) => number;
     readonly version: (a: number) => void;
+    readonly omni_analyse: (a: number, b: number) => number;
+    readonly omni_compile_multi_to_target: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => number;
+    readonly omni_free_string: (a: number) => void;
+    readonly omni_version: () => number;
     readonly __wbindgen_export: (a: number, b: number) => number;
     readonly __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_export3: (a: number) => void;

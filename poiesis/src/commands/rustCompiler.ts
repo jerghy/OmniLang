@@ -86,6 +86,8 @@ type StyleResolveResult = {
   element_tags: Record<string, string>;
   /** Structured element tree for React rendering */
   element_tree?: { nid: string; tag: string; text?: string | null; children: any[] }[];
+  /** nid → element design ID (UUID) mapping for editor selection */
+  nid_map?: Record<string, string>;
   /** Compilation warnings (unknown variant, missing design, etc.) */
   warnings: string[];
   errors: Diagnostic[];

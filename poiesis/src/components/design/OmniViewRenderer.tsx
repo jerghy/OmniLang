@@ -25,28 +25,23 @@ export function OmniViewRenderer() {
     updateScopes(output.css, output.component_css);
   }, [output, updateScopes]);
 
-  // nid → elementId mapping (from sourceMap or element_classes keys)
-  const selectedNid = useMemo(() => {
-    if (!output || selectedElementIds.length === 0) return null;
-    // element_classes maps element.id → string[]
-    // Find the nid that matches the selected element ID
-    for (const [id] of Object.entries(output.element_classes)) {
-      if (selectedElementIds.includes(id)) {
-        // The nid = id (they match in the current WASM; for component expansion,
-        // we'll map through sourceMap later)
-        return id;
-      }
-    }
-    return null;
+  // nid ↔ elementId bi-directional mapping from WASM nid_map
+  const { selectedNid, nidToElementId } = useMemo(() => {
+    if (!output) return { selectedNid: null, nidToElementId: new Map<string, string>() };
+    // nid_map: nid → elementId (UUID). Build reverse: elementId → nid.
+    const nidToId = new Map<string, string>(Object.entries(output.nid_map));
+    const idToNid = new Map<string, string>();
+    for (const [nid, id] of nidToId) idToNid.set(id, nid);
+    const selId = selectedElementIds.length > 0 ? selectedElementIds[0] : null;
+    return { selectedNid: selId ? (idToNid.get(selId) ?? null) : null, nidToElementId: nidToId };
   }, [output, selectedElementIds]);
 
   const handleSelectNid = useCallback(
     (nid: string) => {
-      // Map nid → elementId: in current WASM, element_classes keys ARE element IDs
-      // For expanded components, the mapping is nid → originalDefId
-      selectElement(nid);
+      const elementId = nidToElementId.get(nid) ?? nid;
+      selectElement(elementId);
     },
-    [selectElement],
+    [selectElement, nidToElementId],
   );
 
   const handleDoubleClickNid = useCallback(

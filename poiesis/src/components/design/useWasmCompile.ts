@@ -17,6 +17,7 @@ export interface OmniViewOutput {
   element_tree: ElementTreeNode[];
   element_classes: Record<string, string[]>;
   element_tags: Record<string, string>;
+  nid_map: Record<string, string>;
   warnings: string[];
 }
 
@@ -130,6 +131,7 @@ function useWasmCompile(): {
             element_tree: (result as StyleResolveResult).element_tree || [],
             element_classes: result.element_classes,
             element_tags: result.element_tags,
+            nid_map: (result as StyleResolveResult).nid_map || {},
             warnings: result.warnings,
           });
           setErrors([]);
