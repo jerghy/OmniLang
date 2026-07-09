@@ -2,6 +2,7 @@
 // Demonstrates slot projection, keyboard events, and mouse hover tracking
 
 import omniview;
+import { LearnDesign } from "../design";
 
 component Modal {
     signal isOpen: bool = false;
@@ -27,7 +28,7 @@ component Modal {
 
     view {
         <div class: container>
-            <button class: trigger-btn @onPress={open}>Open Modal</button>
+            <button variant: LearnDesign.Button(color=primary, size=lg) @onPress={open}>Open Modal</button>
             <p class: status-text>Status: {lastAction} | Hover: {isHovering}</p>
 
             @if isOpen {
@@ -59,8 +60,8 @@ component Modal {
                         <!-- Named slot: footer -->
                         <div class: modal-footer>
                             @slot footer
-                            <button class: cancel-btn @onPress={close}>Cancel</button>
-                            <button class: confirm-btn @onPress={close}>Confirm</button>
+                            <button variant: LearnDesign.Button(color=ghost, size=md) @onPress={close}>Cancel</button>
+                            <button variant: LearnDesign.Button(color=primary, size=md) @onPress={close}>Confirm</button>
                         </div>
                     </div>
                 </div>
@@ -68,13 +69,13 @@ component Modal {
         </div>
     }
     style {
+        // 模态框特有的弹窗布局和覆盖层
         .container { padding: 16px 0; }
-        .trigger-btn { padding: 12px 24px; background: #6366f1; color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; }
         .status-text { font-size: 13px; color: #9ca3af; margin-top: 8px; }
         .overlay { background: #808080; display: flex; align-items: center; justify-content: center; padding: 40px; }
         .visible { }
         .hidden { display: none; }
-        .modalcontent { background: white; border-radius: 12px; padding: 24px; width: 400px; }
+        .modalcontent { background: white; border-radius: 12px; padding: 24px; width: 400px; max-width: 90vw; }
         .hover { background: #f9fafb; }
         .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
         .modal-title { font-size: 20px; color: #1f2937; margin: 0; }
@@ -83,7 +84,6 @@ component Modal {
         .modal-text { font-size: 15px; color: #374151; margin: 0 0 8px 0; }
         .hint-text { font-size: 12px; color: #9ca3af; margin: 0; }
         .modal-footer { display: flex; justify-content: flex-end; gap: 8px; }
-        .cancel-btn { padding: 10px 20px; background: #f3f4f6; border: 1px solid #d4d4d8; border-radius: 8px; font-size: 14px; cursor: pointer; color: #374151; }
-        .confirm-btn { padding: 10px 20px; background: #6366f1; color: white; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; }
+        // .trigger-btn / .cancel-btn / .confirm-btn 已由 LearnDesign.Button 变体提供
     }
 }

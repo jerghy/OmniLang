@@ -2,9 +2,11 @@
 // ║  Counter.omni —— signal + computed + 内联回调                   ║
 // ║  演示：signal 修改、computed 派生计算、                           ║
 // ║        @onPress 内联回调 () => { }、局部 fn                     ║
+// ║  按钮使用 LearnDesign.Button 变体（Design 为第一公民）            ║
 // ╚══════════════════════════════════════════════════════════════╝
 
 import omniview;
+import { LearnDesign } from "../design";
 
 component Counter {
     signal count: i32 = 0;
@@ -24,27 +26,26 @@ component Counter {
             <p class: big-number>{count}</p>
             <p class: info>翻倍：{doubled} | {label}</p>
             <div class: row>
-                <button class: btn @onPress={dec}>-</button>
+                <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={dec}>-</button>
                 <span class: step-text>步长 {step}</span>
-                <button class: btn @onPress={inc}>+</button>
+                <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={inc}>+</button>
             </div>
             <div class: row>
-                <button class: btn-sm @onPress={() => { step = 1; }}>步长1</button>
-                <button class: btn-sm @onPress={() => { step = 5; }}>步长5</button>
-                <button class: btn-sm @onPress={() => { step = 10; }}>步长10</button>
-                <button class: btn-reset @onPress={reset}>重置</button>
+                <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={() => { step = 1; }}>步长1</button>
+                <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={() => { step = 5; }}>步长5</button>
+                <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={() => { step = 10; }}>步长10</button>
+                <button variant: LearnDesign.Button(color=danger, size=sm) @onPress={reset}>重置</button>
             </div>
         </div>
     }
     style {
+        // 组件特有的布局样式（非通用，保留在组件级）
         .box { background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px 16px; margin: 16px 0; text-align: center; min-height: 30vh; }
         .title { font-size: 18px; margin: 0 0 12px 0; color: #1f2937; }
         .big-number { font-size: 48px; font-weight: bold; color: #6366f1; margin: 8px 0; }
         .info { font-size: 14px; color: #6b7280; }
         .row { display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 12px; }
         .step-text { font-size: 14px; color: #6b7280; }
-        .btn { width: 40px; height: 40px; border: 2px solid #e5e7eb; border-radius: 8px; background: white; font-size: 20px; cursor: pointer; color: #374151; }
-        .btn-sm { padding: 6px 12px; border: 1px solid #e5e7eb; border-radius: 6px; background: white; font-size: 13px; cursor: pointer; color: #374151; }
-        .btn-reset { padding: 6px 12px; border: 1px solid #fecaca; border-radius: 6px; background: #fef2f2; font-size: 13px; cursor: pointer; color: #dc2626; }
+        // 按钮样式已全部由 LearnDesign.Button 变体提供
     }
 }

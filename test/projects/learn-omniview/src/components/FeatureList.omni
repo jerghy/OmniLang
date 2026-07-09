@@ -2,9 +2,11 @@
 // ║  FeatureList.omni —— @if + @for 折叠展开 + 列表遍历             ║
 // ║  演示：signal 布尔切换、@if/@else 条件渲染、                     ║
 // ║        @for 遍历固定列表、@empty 空状态                          ║
+// ║  容器使用 LearnDesign.Card + Tag（Design 为第一公民）             ║
 // ╚══════════════════════════════════════════════════════════════╝
 
 import omniview;
+import { LearnDesign } from "../design";
 
 component FeatureList {
     signal isOpen: bool = true;
@@ -31,7 +33,7 @@ component FeatureList {
     }
 
     view {
-        <div class: panel>
+        <div class: LearnDesign.Card style: { background: "#fffbeb" }>
             <div class: header @onPress={toggle}>
                 <h3 class: title>Features ({features.len()} items)</h3>
                 <span class: arrow>{if isOpen { "^" } else { "v" }}</span>
@@ -39,7 +41,7 @@ component FeatureList {
             @if isOpen {
                 <div class: list>
                     @for f in features {
-                        <span class: tag>{f}</span>
+                        <span class: LearnDesign.Tag>{f}</span>
                     }
                     @empty { <span>No features</span> }
                 </div>
@@ -47,11 +49,11 @@ component FeatureList {
         </div>
     }
     style {
-        .panel { background: #fffbeb; border: 1px solid #d4d4d8; border-radius: 12px; padding: 16px 12px; margin: 16px 0; }
+        // 特有色板（暖黄色系——组件特有的演示风格）
         .header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
         .title { font-size: 16px; color: #b45309; }
         .arrow { font-size: 14px; color: #a16207; }
         .list { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 12px; }
-        .tag { font-size: 13px; padding: 4px 8px; border-radius: 6px; }
+        // .panel / .tag 已由 LearnDesign.Card / Tag 类提供
     }
 }

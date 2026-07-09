@@ -1,0 +1,97 @@
+import omniview;
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  🧪 Playwright Test                                         ║
+// ║                                                            ║
+// ║  **Steps:**                                                ║
+// ║  1. Navigate to StepsStartDemo component.                   ║
+// ║  2. Verify the steps animation boxes render.                ║
+// ║  3. Each box has @enter with steps-something motion.        ║
+// ║                                                            ║
+// ║  **Expected:**                                             ║
+// ║  - 4 @motion definitions use steps(count, direction: start/end) ║
+// ║  - direction: start syntax compiles without errors.         ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+// ★ steps easing 演示: direction 用 start 和 end 两种
+@motion stepCount2 {
+    from { opacity: 0 }
+    to   { opacity: 1 }
+    over 800
+    ease: steps(count: 2, direction: start)
+}
+
+@motion stepCount4Start {
+    from { opacity: 0, x: -30 }
+    to   { opacity: 1, x: 0 }
+    over 1200
+    ease: steps(count: 4, direction: start)
+}
+
+@motion stepCount4End {
+    from { opacity: 0, x: 30 }
+    to   { opacity: 1, x: 0 }
+    over 1200
+    ease: steps(count: 4, direction: end)
+}
+
+@motion stepCount8 {
+    from { opacity: 0, y: 20 }
+    to   { opacity: 1, y: 0 }
+    over 1600
+    ease: steps(count: 8, direction: start)
+    loop
+}
+
+component StepsStartDemo {
+    view {
+        <div class: container>
+            <h3 class: title>Steps Easing: direction=start Demo</h3>
+            <p class: subtitle>演示 steps(count, direction: start) 步进缓动</p>
+
+            <div class: card>
+                <h4 class: label>steps(2, start) — 2 步, 从首帧开始</h4>
+                <div class: step-box @enter={stepCount2}>
+                    <p>2 steps (start)</p>
+                </div>
+            </div>
+
+            <div class: demo-row>
+                <div class: demo-col>
+                    <h4 class: label>steps(4, start) — 从首帧</h4>
+                    <div class: step-box @enter={stepCount4Start}>
+                        <p>4 steps start</p>
+                    </div>
+                </div>
+                <div class: demo-col>
+                    <h4 class: label>steps(4, end) — 从尾帧 (对比)</h4>
+                    <div class: step-box-alt @enter={stepCount4End}>
+                        <p>4 steps end</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class: card>
+                <h4 class: label>steps(8, start) + loop — 8 步循环</h4>
+                <div class: step-box-wide @enter={stepCount8}>
+                    <p>8 steps start + loop</p>
+                </div>
+            </div>
+
+            <p class: note>direction: start 表示每步的起始位置在段首；direction: end 在段尾</p>
+        </div>
+    }
+    style {
+        .container { background: white; border: 1px solid #d4d4d8; border-radius: 12px; padding: 20px 16px; margin: 16px 0; }
+        .title { font-size: 18px; color: #1f2937; margin: 0 0 4px 0; }
+        .subtitle { font-size: 13px; color: #9ca3af; margin: 0 0 16px 0; }
+        .card { margin-bottom: 14px; padding: 12px; background: #f9fafb; border-radius: 8px; }
+        .label { font-size: 14px; font-weight: 600; color: #374151; margin: 0 0 8px 0; }
+        .demo-row { display: flex; gap: 12px; margin-bottom: 14px; }
+        .demo-col { flex: 1; min-width: 0; }
+        .step-box { padding: 20px; background: "#6366f1"; color: white; border-radius: 8px; text-align: center; font-size: 14px; margin-bottom: 8px; }
+        .step-box-alt { padding: 20px; background: "#f59e0b"; color: white; border-radius: 8px; text-align: center; font-size: 14px; margin-bottom: 8px; }
+        .step-box-wide { padding: 20px; background: "#10b981"; color: white; border-radius: 8px; text-align: center; font-size: 14px; }
+        .note { font-size: 12px; color: #9ca3af; margin: 4px 0 0 0; }
+    }
+}

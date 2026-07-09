@@ -1,0 +1,72 @@
+import omniview;
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  🧪 Playwright Test                                         ║
+// ║                                                            ║
+// ║  **Steps:**                                                ║
+// ║  1. Navigate to TernaryExprDemo component.                  ║
+// ║  2. Verify computed labels render with ternary results.     ║
+// ║  3. Click buttons to change count — see labels update.      ║
+// ║                                                            ║
+// ║  **Expected:**                                             ║
+// ║  - "Positive" when count > 0, "Zero/negative" when ≤ 0.     ║
+// ║  - Grade labels use ternary in computed and view.          ║
+// ║  - ? : syntax compiles without errors.                     ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+component TernaryExprDemo {
+    signal count: i32 = 0;
+    signal score: i32 = 75;
+
+    // ★ 三元表达式 computed: cond ? then : else
+    computed label: String = count > 0 ? "Positive" : "Zero or negative";
+    // ★ 链式三元表达式
+    computed grade: String = score >= 90 ? "A" : score >= 80 ? "B" : score >= 70 ? "C" : score >= 60 ? "D" : "F";
+
+    fn inc() { count = count + 1; }
+    fn dec() { count = count - 1; }
+    fn setScore(s: i32) { score = s; }
+
+    view {
+        <div class: container>
+            <h3 class: title>Ternary ( ? : ) 三元表达式 Demo</h3>
+            <p class: subtitle>演示 cond ? then : else 运算符</p>
+
+            <div class: card>
+                <h4 class: label>数值判定: count = {count}</h4>
+                <p class: value-text>结果: {label}</p>
+                <p class: value-text>直接内联: {count > 0 ? "正数哦" : "非正数哦"}</p>
+                <div class: btn-row>
+                    <button class: btn-inc @onPress={inc}>count + 1</button>
+                    <button class: btn-dec @onPress={dec}>count - 1</button>
+                </div>
+            </div>
+
+            <div class: card>
+                <h4 class: label>成绩判定: score = {score}</h4>
+                <p class: value-text>等级: {grade}</p>
+                <div class: btn-row>
+                    <button class: btn-small @onPress={() => { setScore(95); }}>95 → A</button>
+                    <button class: btn-small @onPress={() => { setScore(85); }}>85 → B</button>
+                    <button class: btn-small @onPress={() => { setScore(72); }}>72 → C</button>
+                    <button class: btn-small @onPress={() => { setScore(55); }}>55 → F</button>
+                </div>
+            </div>
+
+            <p class: note>三元 ? : 是 if-expr 的紧凑形式，用于值上下文</p>
+        </div>
+    }
+    style {
+        .container { background: white; border: 1px solid #d4d4d8; border-radius: 12px; padding: 20px 16px; margin: 16px 0; }
+        .title { font-size: 18px; color: #1f2937; margin: 0 0 4px 0; }
+        .subtitle { font-size: 13px; color: #9ca3af; margin: 0 0 16px 0; }
+        .card { margin-bottom: 14px; padding: 12px; background: #f9fafb; border-radius: 8px; }
+        .label { font-size: 14px; font-weight: 600; color: #374151; margin: 0 0 8px 0; }
+        .value-text { font-size: 15px; color: #1f2937; margin: 5px 0; font-family: monospace; }
+        .btn-row { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+        .btn-inc { padding: 8px 16px; background: "#16a34a"; color: white; border: none; border-radius: 8px; font-size: 13px; cursor: pointer; }
+        .btn-dec { padding: 8px 16px; background: "#dc2626"; color: white; border: none; border-radius: 8px; font-size: 13px; cursor: pointer; }
+        .btn-small { padding: 6px 12px; background: "#6366f1"; color: white; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; }
+        .note { font-size: 12px; color: #9ca3af; margin: 4px 0 0 0; }
+    }
+}

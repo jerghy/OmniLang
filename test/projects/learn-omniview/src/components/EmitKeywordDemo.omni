@@ -12,6 +12,7 @@
 // ╚══════════════════════════════════════════════════════════════════╝
 
 import omniview;
+import { LearnDesign } from "../design";
 
 // ── EmitChild: 用 emit 关键字触发事件的子组件 ──────────
 component EmitChild {
@@ -40,7 +41,7 @@ component EmitChild {
                 内部分发计数: <strong>{count}</strong>
             </p>
             <div class: btn-row>
-                <button class: emit-btn @onPress={handleEmit}>
+                <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={handleEmit}>
                     emit onEmitClick
                 </button>
                 <button class: func-btn @onPress={handleFunc}>
@@ -53,12 +54,11 @@ component EmitChild {
         </div>
     }
     style {
+        // EmitChild 特有的布局和粉色 func 按钮
         .emit-child { background: white; border: 1px solid #d4d4d8; border-radius: 10px; padding: 16px; }
         .child-title { font-size: 15px; color: #1e293b; margin: 0 0 4px 0; }
         .child-desc { font-size: 12px; color: #64748b; margin: 0 0 12px 0; }
         .btn-row { display: flex; gap: 8px; }
-        .emit-btn { padding: 8px 16px; background: #6366f1; color: white; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; }
-        .emit-btn:hover { background: #4f46e5; }
         .func-btn { padding: 8px 16px; background: #ec4899; color: white; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; }
         .func-btn:hover { background: #db2777; }
         .child-hint { font-size: 11px; color: #94a3b8; margin: 8px 0 0 0; }
@@ -96,9 +96,9 @@ component EmitKeywordDemo {
     }
 
     view {
-        <div class: wrapper>
-            <h3 class: section-title>emit Keyword vs Function Call</h3>
-            <p class: subtitle>
+        <div class: LearnDesign.Card>
+            <h3 class: LearnDesign.CardTitle>emit Keyword vs Function Call</h3>
+            <p class: LearnDesign.Hint>
                 对比 <code>emit eventName(value)</code> 与 <code>eventName(value)</code> 两种事件触发语法
             </p>
 
@@ -159,15 +159,10 @@ component EmitKeywordDemo {
     }
 
     style {
-        .wrapper { background: white; border: 1px solid #d4d4d8; border-radius: 12px; padding: 20px; margin: 16px 0; }
-        .section-title { font-size: 18px; color: #1e293b; margin: 0 0 4px 0; }
-        .subtitle { font-size: 13px; color: #64748b; margin: 0 0 16px 0; }
-        code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
-
-        .side-by-side { margin-bottom: 16px; }
+        // emit 演示特有的日志布局和技术说明暗色块
         .child-column { max-width: 400px; }
         .column-label { font-size: 13px; color: #64748b; margin: 0 0 8px 0; font-weight: 600; }
-
+        .side-by-side { margin-bottom: 16px; }
         .log-section { display: flex; gap: 12px; margin-bottom: 16px; }
         .log-column { flex: 1; }
         .log-title { font-size: 13px; font-weight: 600; color: #334155; margin: 0 0 6px 0; }
@@ -178,10 +173,11 @@ component EmitKeywordDemo {
         .log-badge.emit { background: #e0e7ff; color: #4338ca; }
         .log-badge.func { background: #fce7f3; color: #be185d; }
         .log-msg { font-size: 12px; color: #334155; }
-
         .tech-note { background: #0f172a; border-radius: 8px; padding: 14px 18px; }
         .note-title { font-size: 14px; color: #e2e8f0; margin: 0 0 8px 0; }
         .note-list { margin: 0; padding-left: 18px; }
         .note-list li { font-size: 12px; color: #94a3b8; margin-bottom: 4px; line-height: 1.5; }
+        // .wrapper / .section-title / .subtitle / code
+        // 已由 LearnDesign.Card / CardTitle / Hint 提供
     }
 }

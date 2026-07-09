@@ -1,3 +1,5 @@
+import omniview;
+
 // @pid:c5
 component TodoItem {
   prop text: String = "";

@@ -10,6 +10,7 @@
 // ╚══════════════════════════════════════════════════════════════╝
 
 import omniview;
+import { LearnDesign } from "../design";
 import { StatsPanel } from "../components/StatsPanel";
 import { StatsDashboard } from "../components/StatsDashboard";
 import { Counter } from "../components/Counter";
@@ -33,39 +34,33 @@ component Dashboard {
                 <p class: page-subtitle>
                     Overview of {totalItems} items · Updated {lastUpdated}
                 </p>
-                <button class: refresh-btn @onPress={refresh}>Refresh</button>
+                <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={refresh}>Refresh</button>
             </header>
 
             <!-- 统计概览区域 -->
-            <section class: section>
-                <h3 class: section-title>Statistics</h3>
+            <section class: LearnDesign.Section>
+                <h3 class: LearnDesign.SectionTitle>Statistics</h3>
                 <StatsPanel total={totalItems} />
                 <StatsDashboard />
             </section>
 
             <!-- 交互演示区域 -->
-            <section class: section>
-                <h3 class: section-title>Interactions</h3>
+            <section class: LearnDesign.Section>
+                <h3 class: LearnDesign.SectionTitle>Interactions</h3>
                 <div class: demo-grid>
-                    <div class: demo-card>
-                        <Counter />
-                    </div>
-                    <div class: demo-card>
-                        <FeatureCard />
-                    </div>
+                    <Counter />
+                    <FeatureCard />
                 </div>
             </section>
         </div>
     }
     style {
+        // 仪表盘特有的页面头部布局（非通用模式）
         .dashboard-page { background: #f9fafb; border: 1px solid #d4d4d8; border-radius: 12px; margin: 16px 0; overflow: hidden; max-width: 90vw; }
         .page-header { padding: 20px; background: #fff; border-bottom: 1px solid #e5e7eb; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
         .page-title { font-size: 22px; font-weight: 700; color: #111; margin: 0; }
         .page-subtitle { font-size: 13px; color: #888; margin: 0; flex: 1; }
-        .refresh-btn { padding: 8px 16px; background: #6366f1; color: #fff; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; }
-        .section { padding: 0 16px 16px 16px; }
-        .section-title { font-size: 14px; font-weight: 600; color: #666; margin: 16px 0 8px 0; text-transform: uppercase; letter-spacing: 0.5px; }
         .demo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-        .demo-card { }
+        // .refresh-btn / .section / .section-title 已由 LearnDesign.Button / Section / SectionTitle 提供
     }
 }

@@ -1,0 +1,49 @@
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  lib/datetime_demo.omni —— std/datetime 模块演示             ║
+// ║  演示：datetime_now, datetime_format, datetime_from_timestamp, ║
+// ║        datetime_year/month/day/hour/minute/second             ║
+// ║  纯逻辑文件，不写 import omniview;                              ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+import { datetime_now, datetime_from_timestamp, datetime_format,
+         datetime_year, datetime_month, datetime_day,
+         datetime_hour, datetime_minute, datetime_second } from "std/datetime";
+
+pub fn now_formatted() -> String {
+    let now = datetime_now();
+    return datetime_format(now, "%Y-%m-%d %H:%M:%S");
+}
+
+pub fn get_date_parts() -> Map<String, i32> {
+    let now = datetime_now();
+    let mut parts: Map<String, i32> = {};
+    parts.set("year", datetime_year(now));
+    parts.set("month", datetime_month(now));
+    parts.set("day", datetime_day(now));
+    return parts;
+}
+
+pub fn get_time_parts() -> Map<String, i32> {
+    let now = datetime_now();
+    let mut parts: Map<String, i32> = {};
+    parts.set("hour", datetime_hour(now));
+    parts.set("minute", datetime_minute(now));
+    parts.set("second", datetime_second(now));
+    return parts;
+}
+
+pub fn timestamp_to_string(ts: i64) -> String {
+    return datetime_format(datetime_from_timestamp(ts), "%Y-%m-%d");
+}
+
+pub fn all_extractors() -> Map<String, i32> {
+    let now = datetime_now();
+    let mut result: Map<String, i32> = {};
+    result.set("year", datetime_year(now));
+    result.set("month", datetime_month(now));
+    result.set("day", datetime_day(now));
+    result.set("hour", datetime_hour(now));
+    result.set("minute", datetime_minute(now));
+    result.set("second", datetime_second(now));
+    return result;
+}

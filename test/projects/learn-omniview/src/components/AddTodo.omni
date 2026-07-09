@@ -5,6 +5,7 @@
 // ╚══════════════════════════════════════════════════════════════╝
 
 import omniview;
+import { LearnDesign } from "../design";
 import { console_log, console_warn, console_error } from "std/console";
 
 component AddTodo {
@@ -47,18 +48,18 @@ component AddTodo {
         <div class: container>
             <div class: row>
                 <input bind:value={input} placeholder={hint} class: input />
-                <button class: btn-add @onPress={handleAdd}>添加</button>
-                <button class: btn-clear @onPress={() => { input = ""; }}>清空</button>
+                <button variant: LearnDesign.Button(color=primary, size=md) @onPress={handleAdd}>添加</button>
+                <button variant: LearnDesign.Button(color=danger, size=md) @onPress={() => { input = ""; }}>清空</button>
             </div>
-            <p class: counter>已输入 {input.len()} 字符</p>
+            <p class: LearnDesign.Hint>已输入 {input.len()} 字符</p>
         </div>
     }
     style {
+        // 组件特有的输入框布局（非通用模式，保留在组件级）
         .container { padding: 0 16px 16px 16px; }
         .row { display: flex; gap: 8px; }
-        .input { flex: 1; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 16px; }
-        .btn-add { padding: 12px 20px; background: #6366f1; color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; }
-        .btn-clear { padding: 12px 16px; background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; border-radius: 8px; font-size: 14px; cursor: pointer; }
-        .counter { font-size: 12px; color: #9ca3af; padding-top: 8px; }
+        .input { flex: 1; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 16px; outline: none; }
+        .input:focus { border-color: #6366f1; box-shadow: 0 0 0 3px #a5b4fc; }
+        // .btn-add / .btn-clear / .counter 已由 LearnDesign.Button 变体 / Hint 类提供
     }
 }

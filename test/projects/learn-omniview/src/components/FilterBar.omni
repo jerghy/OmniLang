@@ -5,6 +5,7 @@
 // ╚══════════════════════════════════════════════════════════════╝
 
 import omniview;
+import { LearnDesign } from "../design";
 import { TodoStore } from "../stores/TodoStore";
 import { array_filter, array_length } from "std/array";
 
@@ -29,7 +30,7 @@ component FilterBar {
     }
 
     view {
-        <div class: filter-bar>
+        <div class: LearnDesign.Card>
             <!-- 搜索输入 + @onChange 过滤 -->
             <div class: search-row>
                 <input
@@ -45,7 +46,7 @@ component FilterBar {
                         }
                     }}
                 ></input>
-                <button class: clear-btn @onPress={() => {
+                <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={() => {
                     searchText = "";
                     TodoStore.setFilter("all");
                 }}>X</button>
@@ -60,10 +61,10 @@ component FilterBar {
                         "Filter: " + searchText + " (" + TodoStore.totalCount.to_string() + " total)"
                     }}
                 </p>
-                <button class: sort-btn @onClick={handleSortToggle}>
+                <button variant: LearnDesign.Button(color=primary, size=sm) @onClick={handleSortToggle}>
                     Sort {sortLabel}
                 </button>
-                <button class: sync-btn @onPress={() => {
+                <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={() => {
                     TodoStore.fetchReminders();
                 }}>
                     Sync
@@ -72,26 +73,25 @@ component FilterBar {
 
             <!-- Store 状态展示 -->
             <div class: store-info>
-                <p class: info-text>
+                <p class: LearnDesign.Hint>
                     Store: {TodoStore.totalCount} items
                     | Filter: {TodoStore.filterStatus}
                     | Changes: {changeCount}
                 </p>
-                <p class: info-text>Last: {TodoStore.lastAction}</p>
-                <p class: info-text>Filtered frameworks: {array_length(filteredFrameworks)}/{array_length(demoFrameworks)}</p>
+                <p class: LearnDesign.Hint>Last: {TodoStore.lastAction}</p>
+                <p class: LearnDesign.Hint>Filtered frameworks: {array_length(filteredFrameworks)}/{array_length(demoFrameworks)}</p>
             </div>
         </div>
     }
     style {
-        .filter-bar { background: white; border: 1px solid #d4d4d8; border-radius: 12px; padding: 16px 12px; margin: 16px 0; }
+        // 组件特有的搜索栏布局和状态区背景
         .search-row { display: flex; gap: 8px; margin-bottom: 12px; }
-        .search-input { flex: 1; padding: 10px 12px; border: 2px solid #d4d4d8; border-radius: 8px; font-size: 14px; }
-        .clear-btn { padding: 10px 14px; background: #f3f4f6; border: 1px solid #d4d4d8; border-radius: 8px; cursor: pointer; color: #6b7280; font-size: 14px; }
+        .search-input { flex: 1; padding: 10px 12px; border: 2px solid #d4d4d8; border-radius: 8px; font-size: 14px; outline: none; }
+        .search-input:focus { border-color: #6366f1; }
         .sort-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
         .filter-label { font-size: 14px; color: #374151; margin: 0; }
-        .sort-btn { padding: 8px 16px; background: #6366f1; color: white; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; }
-        .sync-btn { padding: 8px 16px; background: #10b981; color: white; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; }
         .store-info { background: #f9fafb; padding: 10px 12px; border-radius: 8px; }
-        .info-text { font-size: 12px; color: #6b7280; margin: 0 0 4px 0; }
+        // .filter-bar / .clear-btn / .sort-btn / .sync-btn / .info-text
+        // 已由 LearnDesign.Card / Button 变体 / Hint 类提供
     }
 }

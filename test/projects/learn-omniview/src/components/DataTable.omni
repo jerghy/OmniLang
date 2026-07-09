@@ -5,6 +5,7 @@
 // comment preservation, map/dict usage, and inline closures
 
 import omniview;
+import { LearnDesign } from "../design";
 import { array_sort, array_filter, array_length } from "std/array";
 
 struct RowItem {
@@ -87,19 +88,19 @@ component DataTable {
     @mount { initRows(); }
 
     view {
-        <div class: datatable>
+        <div class: LearnDesign.Card>
             <!-- Header -->
             <div class: header-row>
                 <img src="/dot.png" alt="dot" />
-                <h2 class: title>DataTable Demo</h2>
+                <h2 class: LearnDesign.CardTitle>DataTable Demo</h2>
                 <hr />
             </div>
 
             <!-- Controls -->
             <div class: controls>
                 <p class: info-text>Scroll count: {scrollCount}<br />Sort: {getSortIcon()}</p>
-                <Button class: sort-btn @onPress={toggleSort}>Toggle Sort</Button>
-                <Button class: sort-btn @onPress={handleScroll}>Scroll +1</Button>
+                <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={toggleSort}>Toggle Sort</button>
+                <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={handleScroll}>Scroll +1</button>
             </div>
 
             <!-- Table -->
@@ -183,12 +184,10 @@ component DataTable {
         </div>
     }
     style {
-        .datatable { background: white; border: 1px solid #d4d4d8; border-radius: 12px; padding: 20px 16px; margin: 16px 0; }
+        // 数据表格特有的表格布局和行内样式
         .header-row { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
-        .title { font-size: 20px; color: #1f2937; margin: 0; }
         .controls { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
         .info-text { font-size: 13px; color: #6b7280; margin: 0; }
-        .sort-btn { padding: 8px 16px; background: #f3f4f6; border: 1px solid #d4d4d8; border-radius: 6px; font-size: 14px; cursor: pointer; color: #374151; }
         .table-wrapper { max-height: 400px; overflow-y: auto; border: 1px solid #d4d4d8; border-radius: 8px; }
         .data-table { width: 100%; border-collapse: collapse; }
         .th { padding: 12px; color: #6b7280; background: #f9fafb; border-bottom: 2px solid #d4d4d8; }

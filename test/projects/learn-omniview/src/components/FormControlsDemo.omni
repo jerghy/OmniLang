@@ -1,10 +1,10 @@
 // ╔══════════════════════════════════════════════════════════════╗
 // ║  FormControlsDemo.omni —— HTML 表单控件                          ║
-// ║  演示：<a> + href、<select> + <option>、checkbox checked、        ║
-// ║        number min/max/step、HTML 注释、title 属性                  ║
+// ║  容器使用 LearnDesign.Card，section 使用组件特有样式                ║
 // ╚══════════════════════════════════════════════════════════════╝
 
 import omniview;
+import { LearnDesign } from "../design";
 import { console_log } from "std/console";
 
 component FormControlsDemo {
@@ -38,14 +38,13 @@ component FormControlsDemo {
     }
 
     view {
-        <div class: form-controls>
+        <div class: LearnDesign.Card>
             <h3 class: title>Form Controls Demo</h3>
-            <p class: subtitle>a-tag · select · checkbox · range · number</p>
+            <p class: LearnDesign.Hint>a-tag · select · checkbox · range · number</p>
 
             <!-- <a> 标签 + href + title + target 属性 -->
             <div class: section>
                 <p class: section-title>a-tag link with href / title / target:</p>
-                <!-- 使用 @onPress 来处理点击行为，避免页面跳转 -->
                 <a href="#" title="Demo link — click to count" class: demo-link @onPress={handleLinkClick}>
                     Click me ({linkClicked})
                 </a>
@@ -54,7 +53,6 @@ component FormControlsDemo {
             <!-- <select> + <option> + bind:value -->
             <div class: section>
                 <p class: section-title>select with option:</p>
-                <!-- HTML 注释: 下拉选择框演示 -->
                 <select class: demo-select bind:value={selected} @onChange={handleSelect}>
                     <option value="option1">Option 1 — First</option>
                     <option value="option2">Option 2 — Second</option>
@@ -112,9 +110,8 @@ component FormControlsDemo {
         </div>
     }
     style {
-        .form-controls { background: white; border: 1px solid #d4d4d8; border-radius: 12px; padding: 20px 16px; margin: 16px 0; }
+        // 表单控件特有的 section 分组和控件样式
         .title { font-size: 18px; color: #1f2937; margin: 0 0 4px 0; }
-        .subtitle { font-size: 13px; color: #9ca3af; margin: 0 0 16px 0; }
         .section { margin-bottom: 14px; padding: 10px 12px; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb; }
         .section-title { font-size: 13px; font-weight: 600; color: #6b7280; margin: 0 0 8px 0; }
         .demo-link { font-size: 14px; color: #6366f1; text-decoration: underline; cursor: pointer; }
@@ -128,5 +125,6 @@ component FormControlsDemo {
         .demo-range { width: 100%; margin: 8px 0; }
         .status-area { margin-top: 12px; padding: 10px 12px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; }
         .status-text { font-size: 14px; color: #166534; margin: 0; }
+        // .form-controls / .subtitle 已由 LearnDesign.Card / Hint 提供
     }
 }

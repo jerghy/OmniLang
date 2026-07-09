@@ -1,0 +1,38 @@
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  lib/string_ext.omni —— std/string 扩展函数演示               ║
+// ║  演示：string_concat, split, join, replace, substring,       ║
+// ║        to_upper, to_lower, ends_with                         ║
+// ║  纯逻辑文件，不写 import omniview;                              ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+import { string_concat, string_split, string_join, string_replace,
+         string_substring, string_to_upper, string_to_lower,
+         string_ends_with } from "std/string";
+
+pub fn demo_split_join(text: String, sep: String) -> String {
+    let parts = string_split(text, sep);
+    return string_join(parts, " | ");
+}
+
+pub fn demo_replace(text: String, from: String, to: String) -> String {
+    return string_replace(text, from, to);
+}
+
+pub fn demo_substring(text: String, start: i32, end: i32) -> String {
+    return string_substring(text, start, end);
+}
+
+pub fn demo_case(text: String) -> Map<String, String> {
+    let mut result: Map<String, String> = {};
+    result.set("upper", string_to_upper(text));
+    result.set("lower", string_to_lower(text));
+    return result;
+}
+
+pub fn demo_ends_with(text: String, suffix: String) -> bool {
+    return string_ends_with(text, suffix);
+}
+
+pub fn demo_concat(a: String, b: String) -> String {
+    return string_concat(a, b);
+}

@@ -1,4 +1,5 @@
 import omniview;
+import { LearnDesign } from "../design";
 import { math_abs, math_random, math_ceil, math_floor, math_sqrt } from "std/math";
 
 component StatsDashboard {
@@ -40,8 +41,8 @@ component StatsDashboard {
     }
 
     view {
-        <div class: dashboard ref: container>
-            <h3 class: title>StatsDashboard Demo</h3>
+        <div class: LearnDesign.Card ref: container>
+            <h3 class: LearnDesign.CardTitle>StatsDashboard Demo</h3>
 
             <div class: const-area>
                 <p class: small>MAX_ITEMS: {MAX_ITEMS}</p>
@@ -51,11 +52,11 @@ component StatsDashboard {
             <div class: counter-area>
                 <p class: counter-text>Counter: {counter} ({getModStatus()})</p>
                 <div class: btn-row>
-                    <button class: btn @onPress={addFive}>+5</button>
-                    <button class: btn @onPress={subThree}>-3</button>
-                    <button class: btn @onPress={double}>x2</button>
-                    <button class: btn @onPress={halve}>/2</button>
-                    <button class: btn @onPress={modThree}>mod3</button>
+                    <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={addFive}>+5</button>
+                    <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={subThree}>-3</button>
+                    <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={double}>x2</button>
+                    <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={halve}>/2</button>
+                    <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={modThree}>mod3</button>
                 </div>
             </div>
 
@@ -65,7 +66,7 @@ component StatsDashboard {
 
             <div class: dice-area>
                 <p class: small>Random: {randomValue} | Ceil*100 = {math_ceil(randomValue * 100)} | Floor*100 = {math_floor(randomValue * 100)}</p>
-                <button class: btn @onPress={rollDice}>Roll Dice</button>
+                <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={rollDice}>Roll Dice</button>
             </div>
 
             <div class: array-area>
@@ -73,24 +74,22 @@ component StatsDashboard {
             </div>
 
             @if !removed {
-                <button class: btn-danger @onPress={removeContainer}>
+                <button variant: LearnDesign.Button(color=danger, size=sm) @onPress={removeContainer}>
                     Trigger unmount
                 </button>
             }
         </div>
     }
     style {
-        .dashboard { background: white; border: 1px solid #d4d4d8; border-radius: 12px; padding: 20px 16px; margin: 16px 0; }
-        .title { font-size: 18px; margin-bottom: 12px; color: #1f2937; }
+        // 组件特有的演示区域颜色和内部布局
         .const-area { background: #f9fafb; padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; }
         .small { font-size: 12px; color: #6b7280; margin: 2px 0; }
         .counter-area { margin-bottom: 12px; }
         .counter-text { font-size: 24px; font-weight: bold; color: #6366f1; margin-bottom: 8px; }
         .btn-row { display: flex; gap: 6px; }
-        .btn { padding: 8px 12px; border: 1px solid #d4d4d8; border-radius: 6px; background: white; font-size: 14px; cursor: pointer; color: #374151; }
         .math-area { background: #f0fdf4; padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; }
         .dice-area { background: #fff7ed; padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; }
         .array-area { margin-bottom: 12px; }
-        .btn-danger { padding: 8px 16px; background: #fddddd; color: #dc2626; border: 1px solid #fdcaca; border-radius: 6px; font-size: 14px; cursor: pointer; }
+        // .dashboard / .title / .btn / .btn-danger 已由 LearnDesign.Card / CardTitle / Button 变体提供
     }
 }

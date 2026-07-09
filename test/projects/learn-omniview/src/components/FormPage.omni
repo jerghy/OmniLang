@@ -2,6 +2,7 @@
 // Demonstrates full form event handling, accessibility attributes, and data attributes
 
 import omniview;
+import { LearnDesign } from "../design";
 import { string_length, string_contains, string_trim, string_starts_with } from "std/string";
 
 component FormPage {
@@ -64,8 +65,8 @@ component FormPage {
     }
 
     view {
-        <div class: formpage>
-            <h2 class: title>FormPage Demo</h2>
+        <div class: LearnDesign.Card>
+            <h2 class: LearnDesign.CardTitle>FormPage Demo</h2>
 
             <!-- Form demonstrating @onSubmit, @onChange, boolean attrs, aria/data attrs -->
             <form class: form @onSubmit={handleSubmit}>
@@ -180,14 +181,14 @@ component FormPage {
                 <!-- Form actions -->
                 <div class: actions>
                     <button
-                        class: submit-btn
+                        variant: LearnDesign.Button(color=primary, size=lg)
                         type="submit"
                         disabled={false}
                         aria-label="Submit form"
                         data-testid="submit-btn"
                     >Submit</button>
                     <button
-                        class: reset-btn
+                        variant: LearnDesign.Button(color=ghost, size=lg)
                         type="button"
                         @onPress={handleReset}
                         aria-label="Reset form"
@@ -198,7 +199,7 @@ component FormPage {
                 <!-- Conditional disabled button -->
                 <div class: conditional-area>
                     <button
-                        class: conditional-btn
+                        variant: LearnDesign.Button(color=ghost, size=md)
                         @onPress={handleSubmit}
                         disabled={false}
                         aria-label="Conditional submit button"
@@ -218,13 +219,14 @@ component FormPage {
         </div>
     }
     style {
-        .formpage { background: white; border: 1px solid #d4d4d8; border-radius: 12px; padding: 24px 20px; margin: 16px 0; }
-        .title { font-size: 20px; color: #1f2937; margin: 0 0 20px 0; }
+        // 表单特有的布局和验证样式
         .form { display: flex; flex-direction: column; gap: 16px; }
         .field { display: flex; flex-direction: column; gap: 4px; }
         .label { font-size: 14px; font-weight: bold; color: #374151; margin-bottom: 4px; }
-        .input { padding: 12px; border: 2px solid #d4d4d8; border-radius: 8px; font-size: 15px; color: #1f2937; }
-        .textarea { padding: 12px; border: 2px solid #d4d4d8; border-radius: 8px; font-size: 15px; min-height: 80px; color: #1f2937; }
+        .input { padding: 12px; border: 2px solid #d4d4d8; border-radius: 8px; font-size: 15px; color: #1f2937; outline: none; }
+        .input:focus { border-color: #6366f1; }
+        .textarea { padding: 12px; border: 2px solid #d4d4d8; border-radius: 8px; font-size: 15px; min-height: 80px; color: #1f2937; outline: none; }
+        .textarea:focus { border-color: #6366f1; }
         .error-text { font-size: 12px; color: #dc2626; }
         .scroll-box { height: 120px; overflow-y: scroll; padding: 12px; background: #f9fafb; border: 1px solid #d4d4d8; border-radius: 8px; }
         .scroll-title { font-size: 14px; font-weight: bold; color: #374151; margin: 0 0 8px 0; }
@@ -235,14 +237,13 @@ component FormPage {
         .error { background: #fddddd; color: #991b1b; }
         .idle { background: #f3f4f6; color: #6b7280; }
         .actions { display: flex; gap: 8px; }
-        .submit-btn { padding: 12px 24px; background: #6366f1; color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; }
-        .reset-btn { padding: 12px 24px; background: #f3f4f6; border: 1px solid #d4d4d8; border-radius: 8px; font-size: 16px; cursor: pointer; color: #374151; }
         .trimmed-area { margin: 8px 0; padding: 8px 12px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; }
         .trimmed-label { font-size: 12px; color: #6b7280; margin: 0 0 2px 0; }
         .trimmed-value { font-size: 14px; color: #166534; margin: 0; font-family: monospace; }
         .conditional-area { padding: 8px 0; }
-        .conditional-btn { padding: 10px 20px; background: #f9fafb; border: 1px solid #d4d4d8; border-radius: 8px; font-size: 14px; cursor: pointer; color: #374151; }
         .focus-indicator { margin-top: 12px; padding: 8px 16px; background: #dbf0ff; border-radius: 8px; }
         .focus-text { font-size: 13px; color: #1d40d0; margin: 0; }
+        // .formpage / .title / .submit-btn / .reset-btn / .conditional-btn
+        // 已由 LearnDesign.Card / CardTitle / Button 变体提供
     }
 }

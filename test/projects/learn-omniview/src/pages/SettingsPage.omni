@@ -5,6 +5,7 @@
 // ╚══════════════════════════════════════════════════════════════╝
 
 import omniview;
+import { LearnDesign } from "../design";
 import { ThemeStore } from "../stores/ThemeStore";
 import { ThemeSwitcher } from "../components/ThemeSwitcher";
 
@@ -32,7 +33,7 @@ component SettingsPage {
             </header>
 
             <!-- 主题切换区域 -->
-            <section class: section>
+            <section class: LearnDesign.Section>
                 <h3 class: section-title style: { color: ThemeStore.currentPrimary }>
                     Appearance
                 </h3>
@@ -40,7 +41,7 @@ component SettingsPage {
             </section>
 
             <!-- 主题色色板（@for + const 演示） -->
-            <section class: section>
+            <section class: LearnDesign.Section>
                 <h3 class: section-title style: { color: ThemeStore.currentPrimary }>
                     Theme Colors
                 </h3>
@@ -55,7 +56,7 @@ component SettingsPage {
             </section>
 
             <!-- 关于区域 -->
-            <section class: section>
+            <section class: LearnDesign.Section>
                 <div class: about-header @onPress={toggleAbout}>
                     <h3 class: section-title style: { color: ThemeStore.currentPrimary }>
                         About
@@ -96,11 +97,11 @@ component SettingsPage {
         </div>
     }
     style {
+        // 设置页特有的布局（主题色板、关于区域）
         .settings-page { border: 1px solid #d4d4d8; border-radius: 12px; margin: 16px 0; overflow: hidden; }
         .page-header { padding: 16px; margin: 0 0 8px 0; }
         .page-title { font-size: 20px; font-weight: 700; margin: 0 0 4px 0; }
         .page-subtitle { font-size: 13px; margin: 0; }
-        .section { padding: 0 16px 16px 16px; }
         .section-title { font-size: 14px; font-weight: 600; margin: 0 0 8px 0; }
         .about-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; padding: 8px 0; }
         .about-arrow { font-size: 14px; color: #6b7280; }
@@ -115,5 +116,6 @@ component SettingsPage {
         .swatch-item { display: flex; flex-direction: column; align-items: center; gap: 4px; }
         .swatch-box { width: 32px; height: 32px; border-radius: 6px; border: 1px solid #d4d4d8; background: #6366f1; }
         .swatch-label { font-size: 11px; }
+        // .section 已由 LearnDesign.Section 提供
     }
 }

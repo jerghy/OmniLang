@@ -5,6 +5,7 @@
 // ╚══════════════════════════════════════════════════════════════╝
 
 import omniview;
+import { LearnDesign } from "../design";
 // 跨文件导入——从其他文件引用组件和 Store
 import { TodoItem } from "./TodoItem";
 import { TodoStore } from "../stores/TodoStore";
@@ -31,7 +32,7 @@ component TodoList {
     view {
         <div>
             <h2 class: title>待办列表
-                <span class: badge>{items.len()}</span>
+                <span class: LearnDesign.Badge style: { background: "#6366f1", color: "#fff" }>{items.len()}</span>
             </h2>
 
             <AddTodo @onAdd={handleAdd} />
@@ -42,17 +43,17 @@ component TodoList {
                 }
                 @empty {
                     <div class: empty-state>
-                        <p class: empty-text>还没有待办事项，在上方添加吧</p>
+                        <p class: LearnDesign.Hint style: { font-size: "16px" }>还没有待办事项，在上方添加吧</p>
                     </div>
                 }
             </div>
         </div>
     }
     style {
+        // 待办列表特有的标题和空状态布局
         .title { font-size: 20px; padding: 16px 16px 0 16px; color: #1f2937; display: flex; align-items: center; gap: 8px; }
-        .badge { font-size: 13px; background: #6366f1; color: #fff; padding: 2px 10px; border-radius: 12px; }
         .items { padding: 0 16px 16px 16px; }
         .empty-state { text-align: center; padding: 48px 24px; }
-        .empty-text { font-size: 16px; color: #9ca3af; }
+        // .badge / .empty-text 已由 LearnDesign.Badge / Hint 提供
     }
 }

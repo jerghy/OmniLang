@@ -4,6 +4,7 @@
 // ╚══════════════════════════════════════════════════════════════╝
 
 import omniview;
+import { LearnDesign } from "../design";
 
 component EventsDemo {
     signal eventLog: Array<String> = [];
@@ -31,15 +32,15 @@ component EventsDemo {
     }
 
     view {
-        <main class: container>
+        <main class: LearnDesign.Card>
             <nav aria-label="Event Demo">
                 <h2 class: title>事件处理器全覆盖</h2>
-                <p class: subtitle>双击 · 右键 · 拖拽 · 触摸 · 滚轮 · 媒体 · 动画 · 切换</p>
+                <p class: LearnDesign.Hint>双击 · 右键 · 拖拽 · 触摸 · 滚轮 · 媒体 · 动画 · 切换</p>
             </nav>
 
             <!-- 输入与键盘事件 :: @onInput @onKeyUp @onKeyPress @onCopy @onCut @onPaste -->
             <article class: card>
-                <h3 class: card-title>输入与键盘事件</h3>
+                <h3 class: LearnDesign.CardTitle>输入与键盘事件</h3>
                 <input class: input
                     placeholder="在此输入..."
                     @onInput={addLog("input")}
@@ -220,12 +221,8 @@ component EventsDemo {
         </main>
     }
     style {
-        .container { background: white; border: 1px solid #d4d4d8; border-radius: 12px; padding: 20px 16px; margin: 16px 0; }
+        // 事件演示特有的卡片内布局和事件交互框颜色
         .title { font-size: 18px; color: #1f2937; margin: 0 0 4px 0; }
-        .subtitle { font-size: 13px; color: #9ca3af; margin: 0 0 16px 0; }
-
-        .card { margin-bottom: 14px; padding: 14px; background: #f9fafb; border-radius: 8px; }
-        .card-title { font-size: 15px; color: #374151; margin: 0 0 10px 0; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px; }
         .input { width: 100%; padding: 8px; border: 1px solid #d4d4d8; border-radius: 6px; font-size: 13px; }
         .hint { font-size: 13px; color: #6b7280; margin: 0; }
 

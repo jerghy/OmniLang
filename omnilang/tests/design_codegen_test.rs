@@ -6,11 +6,11 @@
 
 use omnilang::codegen::omniview::design::*;
 use omnilang::ir::design::*;
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 
 /// Create a test DesignIR with a Card class and Button variant.
 fn make_test_design() -> DesignIR {
-    let mut tokens = HashMap::new();
+    let mut tokens = FxHashMap::default();
     tokens.insert(
         "surface".to_string(),
         TokenIR {
@@ -96,12 +96,30 @@ fn make_test_design() -> DesignIR {
 #[test]
 fn emit_class_css_output() {
     let design = make_test_design();
-    let css = emit_design_css(&design).expect("should emit CSS");
+    let css = emit_design_css(&design, "AppDesign").expect("should emit CSS");
 
-    // Verify class rule
+    // Verify :root token declarations
     assert!(
-        css.contains(".Card {"),
-        "CSS should contain .Card class selector"
+        css.contains(":root {"),
+        "CSS should contain :root token declarations"
+    );
+    assert!(
+        css.contains("--surface: #ffffff;"),
+        "CSS should contain --surface token declaration"
+    );
+    assert!(
+        css.contains("--primary: #6366f1;"),
+        "CSS should contain --primary token declaration"
+    );
+    assert!(
+        css.contains("--radiusMd: 8px;"),
+        "CSS should contain --radiusMd token declaration"
+    );
+
+    // Verify scoped class rule
+    assert!(
+        css.contains("[data-design~=\"AppDesign\"] .Card {"),
+        "CSS should contain scoped .Card class selector"
     );
     assert!(
         css.contains("background: #ffffff;"),
@@ -112,10 +130,10 @@ fn emit_class_css_output() {
         "CSS should contain border-radius property"
     );
 
-    // Verify pseudo-state rule
+    // Verify scoped pseudo-state rule
     assert!(
-        css.contains(".Card:hover {"),
-        "CSS should contain .Card:hover pseudo-state selector"
+        css.contains("[data-design~=\"AppDesign\"] .Card:hover {"),
+        "CSS should contain scoped .Card:hover pseudo-state selector"
     );
     assert!(
         css.contains("box-shadow: 0 4px 12px rgba(0,0,0,0.08);"),
@@ -126,12 +144,12 @@ fn emit_class_css_output() {
 #[test]
 fn emit_variant_css_output() {
     let design = make_test_design();
-    let css = emit_design_css(&design).expect("should emit CSS");
+    let css = emit_design_css(&design, "AppDesign").expect("should emit CSS");
 
-    // Verify variant base rule
+    // Verify scoped variant base rule
     assert!(
-        css.contains(".Button {"),
-        "CSS should contain .Button variant base rule"
+        css.contains("[data-design~=\"AppDesign\"] .Button {"),
+        "CSS should contain scoped .Button variant base rule"
     );
     assert!(
         css.contains("display: inline-flex;"),
@@ -142,10 +160,10 @@ fn emit_variant_css_output() {
         "CSS should contain variant base property with token reference"
     );
 
-    // Verify variant branch rule
+    // Verify scoped variant branch rule
     assert!(
-        css.contains(".Button.primary {"),
-        "CSS should contain .Button.primary branch rule"
+        css.contains("[data-design~=\"AppDesign\"] .Button.primary {"),
+        "CSS should contain scoped .Button.primary branch rule"
     );
     assert!(
         css.contains("background: #6366f1;"),
@@ -156,7 +174,7 @@ fn emit_variant_css_output() {
 #[test]
 fn expand_variant_returns_classes() {
     let design = make_test_design();
-    let mut dim_values = HashMap::new();
+    let mut dim_values = FxHashMap::default();
     dim_values.insert("color".to_string(), "primary".to_string());
     dim_values.insert("size".to_string(), "sm".to_string());
 
@@ -188,25 +206,29 @@ fn expand_variant_returns_classes() {
 #[test]
 fn expand_variant_partial_dimensions() {
     let design = make_test_design();
-    let mut dim_values = HashMap::new();
+    let mut dim_values = FxHashMap::default();
     dim_values.insert("color".to_string(), "danger".to_string());
-    // size is omitted — should not be included
+    // size is omitted — should fall back to its default "md"
 
     let (classes, _) = expand_variant(&design, "Button", &dim_values).expect("should expand");
 
     assert!(classes.contains(&"Button".to_string()));
     assert!(classes.contains(&"danger".to_string()));
+    assert!(
+        classes.contains(&"md".to_string()),
+        "should include default value for missing dimension"
+    );
     assert_eq!(
         classes.len(),
-        2,
-        "should only include variant name and 'danger'"
+        3,
+        "should include variant name, 'danger', and default 'md'"
     );
 }
 
 #[test]
 fn expand_variant_not_found() {
     let design = make_test_design();
-    let dim_values = HashMap::new();
+    let dim_values = FxHashMap::default();
     let result = expand_variant(&design, "NonExistent", &dim_values);
     assert!(
         result.is_err(),
@@ -218,11 +240,11 @@ fn expand_variant_not_found() {
 fn emit_empty_design_produces_no_css() {
     let design = DesignIR {
         name: "Empty".to_string(),
-        tokens: HashMap::new(),
+        tokens: FxHashMap::default(),
         classes: vec![],
         variants: vec![],
     };
-    let css = emit_design_css(&design).expect("should emit CSS for empty design");
+    let css = emit_design_css(&design, "Empty").expect("should emit CSS for empty design");
     assert!(
         css.is_empty(),
         "empty design should produce empty CSS string"
@@ -260,16 +282,16 @@ fn emit_class_with_multiple_pseudo_states() {
 
     let design = DesignIR {
         name: "FormDesign".to_string(),
-        tokens: HashMap::new(),
+        tokens: FxHashMap::default(),
         classes,
         variants: vec![],
     };
 
-    let css = emit_design_css(&design).expect("should emit CSS");
+    let css = emit_design_css(&design, "FormDesign").expect("should emit CSS");
 
-    assert!(css.contains(".Input {"));
-    assert!(css.contains(".Input:hover {"));
+    assert!(css.contains("[data-design~=\"FormDesign\"] .Input {"));
+    assert!(css.contains("[data-design~=\"FormDesign\"] .Input:hover {"));
     assert!(css.contains("border-color: #999;"));
-    assert!(css.contains(".Input:focus {"));
+    assert!(css.contains("[data-design~=\"FormDesign\"] .Input:focus {"));
     assert!(css.contains("border-color: #6366f1;"));
 }

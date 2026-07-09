@@ -1,5 +1,5 @@
 // poiesis/src/components/canvas/InfiniteCanvas.tsx
-import React, { useCallback, useRef } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import { useCanvasStore } from "./canvas-store";
 import { CanvasGrid } from "./CanvasGrid";
 import { Artboard } from "./Artboard";
@@ -18,7 +18,7 @@ export function InfiniteCanvas({ children }: InfiniteCanvasProps) {
 
   const isPanning = useRef(false);
   const lastPointer = useRef({ x: 0, y: 0 });
-  const spaceHeld = useRef(false);
+  const [spaceHeld, setSpaceHeld] = useState(false);
 
   const handleWheel = useCallback(
     (e: React.WheelEvent) => {
@@ -36,7 +36,7 @@ export function InfiniteCanvas({ children }: InfiniteCanvasProps) {
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
       // Space+drag or middle-button drag = pan
-      if (spaceHeld.current || e.button === 1) {
+      if (spaceHeld || e.button === 1) {
         e.preventDefault();
         isPanning.current = true;
         lastPointer.current = { x: e.clientX, y: e.clientY };
@@ -66,11 +66,11 @@ export function InfiniteCanvas({ children }: InfiniteCanvasProps) {
     const down = (e: KeyboardEvent) => {
       if (e.code === "Space" && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
         e.preventDefault();
-        spaceHeld.current = true;
+        setSpaceHeld(true);
       }
     };
     const up = (e: KeyboardEvent) => {
-      if (e.code === "Space") spaceHeld.current = false;
+      if (e.code === "Space") setSpaceHeld(false);
     };
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
@@ -86,7 +86,7 @@ export function InfiniteCanvas({ children }: InfiniteCanvasProps) {
         flex: 1,
         position: "relative",
         overflow: "hidden",
-        cursor: spaceHeld.current ? "grab" : "default",
+        cursor: spaceHeld ? "grab" : "default",
         background: "#f8fafc",
       }}
       onWheel={handleWheel}

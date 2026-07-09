@@ -1,6 +1,7 @@
 // TabPanel.omni - custom tags (Card, Button, Flex, Text), class: map, inline style:
 
 import omniview;
+import { LearnDesign } from "../design";
 
 component TabPanel {
     signal activeTab: String = "home";
@@ -34,62 +35,61 @@ component TabPanel {
     }
 
     view {
-        <div class: tab-panel>
+        <div class: LearnDesign.Card>
             <div class: tab-bar>
-                <Button
-                    class: { active: isActive("home"), tab: true }
-                    style: { padding: "10px 20px", border: "none", background: getBtnBg("home"), color: getBtnColor("home"), borderRadius: "8px", cursor: "pointer", fontSize: "14px" }
+                <button
+                    variant: LearnDesign.Button(color=primary, size=sm)
+                    class: { active: isActive("home") }
                     @onPress={() => { switchTo("home"); }}
-                >Home</Button>
-                <Button
-                    class: { active: isActive("about"), tab: true }
-                    style: { padding: "10px 20px", border: "none", background: getBtnBg("about"), color: getBtnColor("about"), borderRadius: "8px", cursor: "pointer", fontSize: "14px" }
+                >Home</button>
+                <button
+                    variant: LearnDesign.Button(color=primary, size=sm)
+                    class: { active: isActive("about") }
                     @onPress={() => { switchTo("about"); }}
-                >About</Button>
-                <Button
-                    class: { active: isActive("settings"), tab: true }
-                    style: { padding: "10px 20px", border: "none", background: getBtnBg("settings"), color: getBtnColor("settings"), borderRadius: "8px", cursor: "pointer", fontSize: "14px" }
+                >About</button>
+                <button
+                    variant: LearnDesign.Button(color=primary, size=sm)
+                    class: { active: isActive("settings") }
                     @onPress={() => { switchTo("settings"); }}
-                >Settings</Button>
+                >Settings</button>
             </div>
 
             @if activeTab == "home" {
-                <Card class: card style: { borderLeft: "5px solid " + activeStyle }>
+                <div class: LearnDesign.Card style: { borderLeft: "5px solid " + activeStyle }>
                     <h3 class: card-title>Home Tab</h3>
-                    <Flex class: row>
-                        <Text>Custom tags: Card, Button, Flex, Text</Text>
-                    </Flex>
+                    <div class: row>
+                        <span>Custom tags: Card, Button, Flex, Text</span>
+                    </div>
                     <p class: text>class: map syntax demo on buttons above</p>
-                </Card>
+                </div>
             }
             @else if activeTab == "about" {
-                <Card class: card style: { borderLeft: "5px solid " + activeStyle }>
+                <div class: LearnDesign.Card style: { borderLeft: "5px solid " + activeStyle }>
                     <h3 class: card-title>About Tab</h3>
                     <p class: text>Custom tag mapping: Card to div, Button to button</p>
                     <p class: text>Inline style: syntax on Button elements</p>
-                </Card>
+                </div>
             }
             @else if activeTab == "settings" {
-                <Card class: card style: { borderLeft: "5px solid " + activeStyle }>
+                <div class: LearnDesign.Card style: { borderLeft: "5px solid " + activeStyle }>
                     <h3 class: card-title>Settings Tab</h3>
                     <p class: text>Active tab: {activeTab}</p>
-                </Card>
+                </div>
             }
             @else {
-                <Card class: card style: { borderLeft: "5px solid " + activeStyle }>
+                <div class: LearnDesign.Card style: { borderLeft: "5px solid " + activeStyle }>
                     <p class: text>Unknown tab</p>
-                </Card>
+                </div>
             }
         </div>
     }
     style {
-        .tab-panel { background: white; border: 1px solid #d4d4d8; border-radius: 12px; padding: 20px 16px; margin: 16px 0; }
+        // 标签面板特有的内部布局
         .tab-bar { display: flex; gap: 8px; margin-bottom: 16px; }
-        .tab { }
         .active { background: #6366f1; color: white; }
-        .card { background: #f9fafb; border: 1px solid #ddd; border-radius: 8px; padding: 16px; }
         .card-title { font-size: 18px; color: #222; margin-bottom: 8px; }
         .row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
         .text { font-size: 14px; color: #666; margin: 4px 0; }
+        // .tab-panel / .card 已由 LearnDesign.Card 提供
     }
 }

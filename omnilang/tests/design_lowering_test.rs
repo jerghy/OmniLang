@@ -80,21 +80,21 @@ fn lower_class_resolves_token_refs() {
     let card = &design.classes[0];
     assert_eq!(card.name, "Card");
 
-    // All token refs should be resolved to values
+    // All token refs should be resolved to var(--name) references
     assert_eq!(
         card.properties.get("background"),
-        Some(&"#ffffff".to_string()),
-        "token(surface) should resolve to '#ffffff'"
+        Some(&"var(--surface)".to_string()),
+        "token(surface) should resolve to 'var(--surface)'"
     );
     assert_eq!(
         card.properties.get("border-radius"),
-        Some(&"8px".to_string()),
-        "token(radiusMd) should resolve to '8px'"
+        Some(&"var(--radiusMd)".to_string()),
+        "token(radiusMd) should resolve to 'var(--radiusMd)'"
     );
     assert_eq!(
         card.properties.get("box-shadow"),
-        Some(&"0 1px 3px rgba(0,0,0,0.12)".to_string()),
-        "token(shadowSm) should resolve to shadow value"
+        Some(&"var(--shadowSm)".to_string()),
+        "token(shadowSm) should resolve to 'var(--shadowSm)'"
     );
 }
 
@@ -223,7 +223,7 @@ fn lower_variant_with_defaults() {
         .expect("should have color.primary branch");
     assert_eq!(
         primary_branch.properties.get("background"),
-        Some(&"#6366f1".to_string()),
-        "token(primary) should resolve to '#6366f1'"
+        Some(&"var(--primary)".to_string()),
+        "token(primary) should resolve to 'var(--primary)'"
     );
 }

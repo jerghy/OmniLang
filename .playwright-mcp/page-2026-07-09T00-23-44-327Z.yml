@@ -1,0 +1,51 @@
+- generic [ref=f2e4]:
+  - banner [ref=f2e6]:
+    - heading "OmniView 教学项目" [level=1] [ref=f2e7]
+    - paragraph [ref=f2e8]: 涵盖 Store、Signal、Computed、Prop、Event、bind:value 等核心特性
+  - generic [ref=f2e9]:
+    - generic [ref=f2e10]:
+      - button "首页" [ref=f2e11] [cursor=pointer]
+      - button "待办" [ref=f2e12] [cursor=pointer]
+      - button "基础交互" [ref=f2e13] [cursor=pointer]
+      - button "编译器特性" [ref=f2e14] [cursor=pointer]
+      - button "运动动画" [ref=f2e15] [cursor=pointer]
+      - button "CSS 特性" [ref=f2e16] [cursor=pointer]
+      - button "事件/表单" [ref=f2e17] [cursor=pointer]
+      - button "语言特性" [ref=f2e18] [cursor=pointer]
+      - button "设置" [ref=f2e19] [cursor=pointer]
+      - button "补充" [ref=f2e20] [cursor=pointer]
+    - generic [ref=f2e571]:
+      - generic [ref=f2e574]:
+        - heading "HTTP GET Demo" [level=3] [ref=f2e575]
+        - paragraph [ref=f2e576]: async action + await http_get + json_parse + match
+        - generic [ref=f2e577]:
+          - textbox [ref=f2e578]: https://jsonplaceholder.typicode.com/todos/1
+          - button "Load" [active] [ref=f2e579] [cursor=pointer]
+          - button "API" [ref=f2e580] [cursor=pointer]
+          - button "Reset" [ref=f2e581] [cursor=pointer]
+        - generic [ref=f2e614]:
+          - paragraph [ref=f2e615]: "Response:"
+          - generic [ref=f2e616]: "{\"userId\":1,\"id\":1,\"title\":\"delectus aut autem\",\"completed\":false}"
+      - generic [ref=f2e588]:
+        - heading "HTTP POST Demo" [level=3] [ref=f2e589]
+        - paragraph [ref=f2e590]: json_stringify + http_post + await + match status
+        - generic [ref=f2e591]:
+          - generic [ref=f2e592]: Title
+          - textbox "Enter title..." [ref=f2e593]
+          - generic [ref=f2e594]: Body
+          - textbox "Enter body..." [ref=f2e595]
+          - generic [ref=f2e596]:
+            - button "Submit" [ref=f2e597] [cursor=pointer]
+            - button "Reset" [ref=f2e598] [cursor=pointer]
+      - generic [ref=f2e601]:
+        - heading "Storage Demo" [level=3] [ref=f2e602]
+        - paragraph [ref=f2e603]: storage get/set + json parse/stringify + mount
+        - generic [ref=f2e604]:
+          - generic [ref=f2e605]: Username
+          - textbox "Your name..." [ref=f2e606]
+          - generic [ref=f2e607]:
+            - button "Save" [ref=f2e608] [cursor=pointer]
+            - button "Clear" [ref=f2e609] [cursor=pointer]
+        - paragraph [ref=f2e611]: Settings saved at now
+    - contentinfo [ref=f2e115]:
+      - paragraph [ref=f2e116]: OmniView 教学项目 · 74+ 源文件 · omnic run

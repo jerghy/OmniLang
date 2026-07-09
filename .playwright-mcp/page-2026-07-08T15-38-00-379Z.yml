@@ -1,0 +1,505 @@
+- generic [ref=f1e4]:
+  - banner [ref=f1e6]:
+    - heading "OmniView 教学项目" [level=1] [ref=f1e7]
+    - paragraph [ref=f1e8]: 涵盖 Store、Signal、Computed、Prop、Event、bind:value 等核心特性
+  - generic [ref=f1e9]:
+    - generic [ref=f1e10]:
+      - button "首页" [ref=f1e11] [cursor=pointer]
+      - button "待办" [ref=f1e12] [cursor=pointer]
+      - button "基础交互" [ref=f1e13] [cursor=pointer]
+      - button "编译器特性" [ref=f1e14] [cursor=pointer]
+      - button "运动动画" [ref=f1e15] [cursor=pointer]
+      - button "CSS 特性" [ref=f1e16] [cursor=pointer]
+      - button "事件/表单" [ref=f1e17] [cursor=pointer]
+      - button "语言特性" [ref=f1e18] [cursor=pointer]
+      - button "设置" [ref=f1e19] [cursor=pointer]
+      - button "补充" [ref=f1e20] [cursor=pointer]
+    - generic [ref=f1e1342]:
+      - generic [ref=f1e1345]:
+        - heading "Motion Demo" [level=1] [ref=f1e1346]
+        - paragraph [ref=f1e1347]: "Count: 0"
+        - button "Toggle Modal" [ref=f1e1348]
+        - button "Add Item" [ref=f1e1349]
+        - button "Remove Item" [ref=f1e1350]
+        - generic [ref=f1e1351]: Interactive Panel
+      - generic [ref=f1e1354]:
+        - heading "Motion Playback Properties Demo" [level=3] [ref=f1e1355]
+        - paragraph [ref=f1e1356]: fill · delay · timeScale · interrupt · stagger · path · colorSpace · callback 全覆盖
+        - generic [ref=f1e1357]:
+          - heading "fill forwards" [level=4] [ref=f1e1359]
+          - heading "delay + repeatDelay + repeatRefresh" [level=4] [ref=f1e1361]
+          - heading "timeScale 0.5" [level=4] [ref=f1e1363]
+          - heading "interrupt queue" [level=4] [ref=f1e1365]
+          - heading "respectReducedMotion" [level=4] [ref=f1e1367]
+          - heading "staggerChildren · staggerFrom" [level=4] [ref=f1e1369]
+          - heading "paused · path · pathRotate" [level=4] [ref=f1e1371]
+          - heading "multi-stop · colorSpace lab" [level=4] [ref=f1e1373]
+      - generic [ref=f1e1376]:
+        - heading "缓动函数全家桶" [level=3] [ref=f1e1377]
+        - paragraph [ref=f1e1378]: 24 种未测试缓动 · 点击按钮播放当前屏幕所有 动画
+        - button "Reset" [ref=f1e1837] [cursor=pointer]
+        - heading "Power 曲线（easeIn · power1 · power2 · power3 · power4）" [level=4] [ref=f1e1380]
+        - generic [ref=f1e1381]:
+          - generic [ref=f1e1382]:
+            - strong [ref=f1e1383]: easeIn
+            - paragraph [ref=f1e1384]: 三次方加速
+          - generic [ref=f1e1385]:
+            - strong [ref=f1e1386]: power1In
+            - paragraph [ref=f1e1387]: 二次方入
+          - generic [ref=f1e1388]:
+            - strong [ref=f1e1389]: power1Out
+            - paragraph [ref=f1e1390]: 二次方出
+          - generic [ref=f1e1391]:
+            - strong [ref=f1e1392]: power1InOut
+            - paragraph [ref=f1e1393]: 二次方出入
+          - generic [ref=f1e1394]:
+            - strong [ref=f1e1395]: power2In
+            - paragraph [ref=f1e1396]: 三次方入
+          - generic [ref=f1e1397]:
+            - strong [ref=f1e1398]: power2InOut
+            - paragraph [ref=f1e1399]: 三次方出入
+          - generic [ref=f1e1400]:
+            - strong [ref=f1e1401]: power3In
+            - paragraph [ref=f1e1402]: 四次方入
+          - generic [ref=f1e1403]:
+            - strong [ref=f1e1404]: power3InOut
+            - paragraph [ref=f1e1405]: 四次方出入
+          - generic [ref=f1e1406]:
+            - strong [ref=f1e1407]: power4In
+            - paragraph [ref=f1e1408]: 五次方入
+          - generic [ref=f1e1409]:
+            - strong [ref=f1e1410]: power4Out
+            - paragraph [ref=f1e1411]: 五次方出
+          - generic [ref=f1e1412]:
+            - strong [ref=f1e1413]: power4InOut
+            - paragraph [ref=f1e1414]: 五次方出入
+        - heading "Back 弹回（带可选 intensity 参数）" [level=4] [ref=f1e1415]
+        - generic [ref=f1e1416]:
+          - generic [ref=f1e1417]:
+            - strong [ref=f1e1418]: backIn
+            - paragraph [ref=f1e1419]: 默认 intensity 1.7
+          - generic [ref=f1e1420]:
+            - strong [ref=f1e1421]: backOut
+            - paragraph [ref=f1e1422]: 默认 intensity 1.7
+          - generic [ref=f1e1423]:
+            - strong [ref=f1e1424]: backInOut
+            - paragraph [ref=f1e1425]: 默认 intensity 1.7
+          - generic [ref=f1e1426]:
+            - strong [ref=f1e1427]: backOut(3.5)
+            - paragraph [ref=f1e1428]: 自定义弹回强度
+        - heading "Bounce 弹跳" [level=4] [ref=f1e1429]
+        - generic [ref=f1e1430]:
+          - generic [ref=f1e1431]:
+            - strong [ref=f1e1432]: bounceIn
+            - paragraph [ref=f1e1433]: 弹跳入
+          - generic [ref=f1e1434]:
+            - strong [ref=f1e1435]: bounceOut
+            - paragraph [ref=f1e1436]: 弹跳出
+          - generic [ref=f1e1437]:
+            - strong [ref=f1e1438]: bounceInOut
+            - paragraph [ref=f1e1439]: 弹跳出入
+        - heading "Elastic 弹性（带可选 amplitude/period 参数）" [level=4] [ref=f1e1440]
+        - generic [ref=f1e1441]:
+          - generic [ref=f1e1442]:
+            - strong [ref=f1e1443]: elasticIn
+            - paragraph [ref=f1e1444]: 默认振幅 1.0/周期 0.5
+          - generic [ref=f1e1445]:
+            - strong [ref=f1e1446]: elasticOut
+            - paragraph [ref=f1e1447]: 默认振幅 1.0/周期 0.5
+          - generic [ref=f1e1448]:
+            - strong [ref=f1e1449]: elasticInOut
+            - paragraph [ref=f1e1450]: 默认振幅 1.0/周期 0.5
+          - generic [ref=f1e1451]:
+            - strong [ref=f1e1452]: elasticOut(2,0.8)
+            - paragraph [ref=f1e1453]: 自定义振幅/周期
+        - heading "Spring 物理缓动（tension · friction · velocity）" [level=4] [ref=f1e1454]
+        - generic [ref=f1e1455]:
+          - generic [ref=f1e1456]:
+            - strong [ref=f1e1457]: spring(180,12)
+            - paragraph [ref=f1e1458]: 默认弹簧参数
+          - generic [ref=f1e1459]:
+            - strong [ref=f1e1460]: spring(120,8,2)
+            - paragraph [ref=f1e1461]: 弹性大·阻尼小
+          - generic [ref=f1e1462]:
+            - strong [ref=f1e1463]: spring(400,30)
+            - paragraph [ref=f1e1464]: 刚硬弹簧·scale
+        - heading "自定义缓动（cubic-bezier · steps）" [level=4] [ref=f1e1465]
+        - generic [ref=f1e1466]:
+          - generic [ref=f1e1467]:
+            - strong [ref=f1e1468]: cubic(x1,y1,x2,y2)
+            - paragraph [ref=f1e1469]: 自定义贝塞尔 overshoot
+          - generic [ref=f1e1470]:
+            - strong [ref=f1e1471]: steps(6,end)
+            - paragraph [ref=f1e1472]: 6 帧逐帧动画
+      - generic [ref=f1e1475]:
+        - heading "全动画属性覆盖" [level=3] [ref=f1e1476]
+        - paragraph [ref=f1e1477]: 15 个 keyframe 属性 · scaleX/Y · rotateX/Y/Z · blur · brightness · backgroundColor · color · borderColor · borderRadius · width · height · margin · padding · 点击按钮播放所有 动画
+        - button "Reset" [active] [ref=f1e1838] [cursor=pointer]
+        - heading "3D 变换组（scaleX · scaleY · rotateX · rotateY · rotateZ）" [level=4] [ref=f1e1479]
+        - generic [ref=f1e1480]:
+          - generic [ref=f1e1481]:
+            - strong [ref=f1e1482]: scaleX
+            - paragraph [ref=f1e1483]: X 轴 1→1.8 缩放
+          - generic [ref=f1e1484]:
+            - strong [ref=f1e1485]: scaleY
+            - paragraph [ref=f1e1486]: Y 轴 1→1.5 缩放
+          - generic [ref=f1e1487]:
+            - strong [ref=f1e1488]: rotateX
+            - paragraph [ref=f1e1489]: X 轴 360° 旋转
+          - generic [ref=f1e1490]:
+            - strong [ref=f1e1491]: rotateY
+            - paragraph [ref=f1e1492]: Y 轴 360° 旋转
+          - generic [ref=f1e1493]:
+            - strong [ref=f1e1494]: rotateZ
+            - paragraph [ref=f1e1495]: Z 轴 360° 摆动
+        - heading "滤镜组（blur · brightness）" [level=4] [ref=f1e1496]
+        - generic [ref=f1e1497]:
+          - generic [ref=f1e1498]:
+            - strong [ref=f1e1499]: blur
+            - paragraph [ref=f1e1500]: 模糊 0→6px 脉冲
+          - generic [ref=f1e1501]:
+            - strong [ref=f1e1502]: brightness
+            - paragraph [ref=f1e1503]: 亮度 1→2.5 脉冲
+        - heading "颜色组（backgroundColor · color · borderColor · borderRadius）" [level=4] [ref=f1e1504]
+        - generic [ref=f1e1505]:
+          - generic [ref=f1e1506]:
+            - strong [ref=f1e1507]: backgroundColor + borderRadius
+            - paragraph [ref=f1e1508]: 背景色与圆角联动
+          - generic [ref=f1e1509]:
+            - strong [ref=f1e1510]: color + borderColor
+            - paragraph [ref=f1e1511]: 文字色与边框色联动
+        - heading "尺寸组（width · height · margin · padding）" [level=4] [ref=f1e1512]
+        - generic [ref=f1e1513]:
+          - generic [ref=f1e1514]:
+            - strong [ref=f1e1515]: width
+            - paragraph [ref=f1e1516]: 宽度 60→200px
+          - generic [ref=f1e1517]:
+            - strong [ref=f1e1518]: height
+            - paragraph [ref=f1e1519]: 高度 40→120px
+          - generic [ref=f1e1520]:
+            - strong [ref=f1e1521]: margin + padding
+            - paragraph [ref=f1e1522]: 内外边距联动
+      - generic [ref=f1e1525]:
+        - heading "Motion Triggers Demo" [level=3] [ref=f1e1526]
+        - paragraph [ref=f1e1527]: · · · · · @drag
+        - generic [ref=f1e1528]:
+          - heading "触发器" [level=4] [ref=f1e1529]
+          - button "Hover then leave" [ref=f1e1530] [cursor=pointer]
+        - generic [ref=f1e1531]:
+          - heading "触发器" [level=4] [ref=f1e1532]
+          - textbox "Focus me" [ref=f1e1533]
+        - generic [ref=f1e1534]:
+          - heading "触发器（持续循环）" [level=4] [ref=f1e1535]
+          - paragraph [ref=f1e1537]: ↻
+        - generic [ref=f1e1538]:
+          - heading "触发器 + 子属性" [level=4] [ref=f1e1539]
+          - paragraph [ref=f1e1541]: Slide in once
+          - paragraph [ref=f1e1543]: Slide in repeat (threshold 0.5)
+        - generic [ref=f1e1544]:
+          - heading "触发器 + scroll-start/end/scrub" [level=4] [ref=f1e1545]
+          - paragraph [ref=f1e1547]: Scroll to animate
+        - generic [ref=f1e1548]:
+          - heading "@dragHorizontal / @dragVertical 拖拽" [level=4] [ref=f1e1549]
+          - paragraph [ref=f1e1551]: Drag me →
+          - paragraph [ref=f1e1553]: Drag me ↓
+      - generic [ref=f1e1556]:
+        - heading "Callback Mode" [level=3] [ref=f1e1557]
+        - paragraph [ref=f1e1558]:
+          - text: 演示
+          - code [ref=f1e1559]: onStart
+          - text: 、
+          - code [ref=f1e1560]: onComplete
+          - text: 、
+          - code [ref=f1e1561]: onRepeat
+          - text: 、
+          - code [ref=f1e1562]: onInterrupt
+          - text: 回调与信号的联动
+        - generic [ref=f1e1563]:
+          - generic [ref=f1e1564]:
+            - generic [ref=f1e1565]: "0"
+            - generic [ref=f1e1566]: onStart 触发
+          - generic [ref=f1e1567]:
+            - generic [ref=f1e1568]: "0"
+            - generic [ref=f1e1569]: onComplete 触发
+          - generic [ref=f1e1570]:
+            - generic [ref=f1e1571]: "0"
+            - generic [ref=f1e1572]: onRepeat 触发
+          - generic [ref=f1e1573]:
+            - generic [ref=f1e1574]: —
+            - generic [ref=f1e1575]: 最近事件
+        - generic [ref=f1e1576]:
+          - 'heading "① trackedEnter: onStart + onComplete" [level=4] [ref=f1e1577]'
+          - paragraph [ref=f1e1578]:
+            - text: 每次点击按钮重新触发运动，
+            - code [ref=f1e1579]: onStart
+            - text: 和
+            - code [ref=f1e1580]: onComplete
+            - text: 回调分别更新信号值。
+          - generic [ref=f1e1581]:
+            - generic [ref=f1e1583] [cursor=pointer]:
+              - generic [ref=f1e1584]: ▶
+              - generic [ref=f1e1585]: Click me
+            - generic [ref=f1e1586]:
+              - paragraph [ref=f1e1587]:
+                - code [ref=f1e1588]: onStart
+                - text: "→ enterCount:"
+                - strong [ref=f1e1589]: "0"
+              - paragraph [ref=f1e1590]:
+                - code [ref=f1e1591]: onComplete
+                - text: "→ completeCount:"
+                - strong [ref=f1e1592]: "0"
+        - generic [ref=f1e1593]:
+          - 'heading "② pulseWithCallback: onRepeat" [level=4] [ref=f1e1594]'
+          - paragraph [ref=f1e1595]:
+            - text: 循环运动每次重复触发
+            - code [ref=f1e1596]: onRepeat
+            - text: 回调， 可用于追踪循环动画的执行次数。
+          - generic [ref=f1e1597]:
+            - generic [ref=f1e1599] [cursor=pointer]:
+              - generic [ref=f1e1600]: ○
+              - generic [ref=f1e1601]: "Pulse (循环中: 0 )"
+            - generic [ref=f1e1602]:
+              - paragraph [ref=f1e1603]:
+                - code [ref=f1e1604]: onRepeat
+                - text: "→ pulseRepeatCount:"
+                - strong [ref=f1e1605]: "0"
+              - paragraph [ref=f1e1606]:
+                - code [ref=f1e1607]: onUpdate
+                - text: → 每帧触发（不追踪计数）
+        - generic [ref=f1e1608]:
+          - 'heading "③ interruptWithCallback: onInterrupt" [level=4] [ref=f1e1609]'
+          - paragraph [ref=f1e1610]:
+            - text: 快速连续点击触发
+            - code [ref=f1e1611]: interrupt replace
+            - text: ， 每次中断调用
+            - code [ref=f1e1612]: onInterrupt
+            - text: 回调。
+          - generic [ref=f1e1613]:
+            - generic [ref=f1e1615] [cursor=pointer]:
+              - generic [ref=f1e1616]: ↺
+              - generic [ref=f1e1617]: 快速点击我
+            - generic [ref=f1e1618]:
+              - paragraph [ref=f1e1619]:
+                - code [ref=f1e1620]: onInterrupt
+                - text: "→ lastEvent:"
+                - strong [ref=f1e1621]: —
+              - paragraph [ref=f1e1622]:
+                - code [ref=f1e1623]: onComplete
+                - text: → 未被中断时触发
+        - generic [ref=f1e1624]:
+          - heading "💡 回调模式 vs 函数式监听" [level=4] [ref=f1e1625]
+          - list [ref=f1e1626]:
+            - listitem [ref=f1e1627]:
+              - text: 回调模式定义在
+              - code [ref=f1e1628]
+              - text: 块内部，与运动声明共处一处
+            - listitem [ref=f1e1629]: 每个回调接收一个 block 体，可执行任意 OmniLang 语句
+            - listitem [ref=f1e1630]:
+              - text: 5 种回调：
+              - code [ref=f1e1631]: onStart
+              - code [ref=f1e1632]: onUpdate
+              - code [ref=f1e1633]: onComplete
+              - code [ref=f1e1634]: onRepeat
+              - code [ref=f1e1635]: onInterrupt
+            - listitem [ref=f1e1636]:
+              - text: 注意：MotionPlaybackDemo.omni 中声明的
+              - code [ref=f1e1637]: callbackOnly
+              - text: 运动在视图中从未被引用 —— 那是**鬼影代码**（dead code），本组件是回调模式的**正确使用示范**
+      - generic [ref=f1e1640]:
+        - 'heading "Timeline start: Position Modes" [level=3] [ref=f1e1641]'
+        - paragraph [ref=f1e1642]:
+          - text: 演示
+          - code [ref=f1e1643]: "start: \"withPrev\""
+          - text: /
+          - code [ref=f1e1644]: overlap(N)
+          - text: /
+          - code [ref=f1e1645]: afterPrev(N)
+          - text: /
+          - code [ref=f1e1646]: withOffset(N)
+          - text: /
+          - code [ref=f1e1647]: absolute(N)
+          - text: 定位修饰符
+        - generic [ref=f1e1648]:
+          - 'button "start: 定位模式" [ref=f1e1649]'
+          - button "then/with 对比" [ref=f1e1650]
+        - paragraph [ref=f1e1651]:
+          - text: 每次切换 demo 或点此按钮重新触发时间线：
+          - button "重新触发 (x 0 )" [ref=f1e1652] [cursor=pointer]
+        - generic [ref=f1e1655]:
+          - 'heading "with start: Position Modes" [level=4] [ref=f1e1656]'
+          - generic [ref=f1e1657]:
+            - generic [ref=f1e1658]: A-start
+            - generic [ref=f1e1659]: B-withPrev
+            - generic [ref=f1e1660]: C-after
+            - generic [ref=f1e1661]: D-overlap
+            - generic [ref=f1e1662]: E-afterPrev
+            - generic [ref=f1e1663]: F-withOffset
+            - generic [ref=f1e1664]: G-absolute
+          - paragraph [ref=f1e1665]: A (set) → B (withPrev, 同时) → C (after, 默认) → D (overlap 150ms) → E (afterPrev 200ms) → F (withOffset 100ms) → G (absolute 1200ms)
+        - generic [ref=f1e1666]:
+          - 'heading "start: 定位修饰符一览" [level=4] [ref=f1e1667]'
+          - generic [ref=f1e1668]:
+            - generic [ref=f1e1669]:
+              - code [ref=f1e1670]: "start: \"withPrev\""
+              - generic [ref=f1e1671]: 与上一项同时开始
+              - generic [ref=f1e1672]: → B 与 A 同时执行
+            - generic [ref=f1e1673]:
+              - code [ref=f1e1674]: "start: \"after\""
+              - generic [ref=f1e1675]: 在上一项结束后开始（默认行为）
+              - generic [ref=f1e1676]: → C 在 B 之后执行
+            - generic [ref=f1e1677]:
+              - code [ref=f1e1678]: "start: \"overlap(N)\""
+              - generic [ref=f1e1679]: 与上一项重叠 N 毫秒
+              - generic [ref=f1e1680]: → D 在 C 结束前 150ms 开始
+            - generic [ref=f1e1681]:
+              - code [ref=f1e1682]: "start: \"afterPrev(N)\""
+              - generic [ref=f1e1683]: 上一项结束后 N 毫秒开始
+              - generic [ref=f1e1684]: → E 在 D 结束后 200ms 开始
+            - generic [ref=f1e1685]:
+              - code [ref=f1e1686]: "start: \"withOffset(N)\""
+              - generic [ref=f1e1687]: 与上一项同时开始，但偏移 N 毫秒
+              - generic [ref=f1e1688]: → F 与 D 同时但晚 100ms 触发
+            - generic [ref=f1e1689]:
+              - code [ref=f1e1690]: "start: \"absolute(N)\""
+              - generic [ref=f1e1691]: 在时间线绝对时间 N 毫秒处开始
+              - generic [ref=f1e1692]: → G 在 1200ms 处执行
+        - generic [ref=f1e1693]:
+          - heading "💡 时间线定位语义" [level=4] [ref=f1e1694]
+          - list [ref=f1e1695]:
+            - listitem [ref=f1e1696]:
+              - code [ref=f1e1697]: "start:"
+              - text: 修饰符控制时间线项目的
+              - strong [ref=f1e1698]: 相对/绝对定时
+            - listitem [ref=f1e1699]:
+              - text: 未指定时默认行为是
+              - code [ref=f1e1700]: "start: \"after\""
+              - text: （在上一个项目完成后开始）
+            - listitem [ref=f1e1701]:
+              - code [ref=f1e1702]: then
+              - text: 连接器等价于
+              - code [ref=f1e1703]: "start: \"after\""
+              - text: 顺序执行
+            - listitem [ref=f1e1704]:
+              - code [ref=f1e1705]: with
+              - text: 连接器等价于
+              - code [ref=f1e1706]: "start: \"withPrev\""
+              - text: 同时执行
+            - listitem [ref=f1e1707]:
+              - code [ref=f1e1708]: "start:"
+              - text: 提供
+              - code [ref=f1e1709]: then
+              - text: /
+              - code [ref=f1e1710]: with
+              - text: 之外的细粒度控制
+      - generic [ref=f1e1713]:
+        - heading "Stagger 方向 + 时间线连接器" [level=3] [ref=f1e1714]
+        - paragraph [ref=f1e1715]: staggerFrom start/end/edges · then · with · MotionRef
+        - heading "Stagger 方向（start / end / edges — center 已测）" [level=4] [ref=f1e1716]
+        - generic [ref=f1e1717]:
+          - strong [ref=f1e1718]: staggerFrom start
+          - generic [ref=f1e1719]:
+            - generic [ref=f1e1720]: "1"
+            - generic [ref=f1e1721]: "2"
+            - generic [ref=f1e1722]: "3"
+            - generic [ref=f1e1723]: "4"
+            - generic [ref=f1e1724]: "5"
+        - generic [ref=f1e1725]:
+          - strong [ref=f1e1726]: staggerFrom end
+          - generic [ref=f1e1727]:
+            - generic [ref=f1e1728]: "1"
+            - generic [ref=f1e1729]: "2"
+            - generic [ref=f1e1730]: "3"
+            - generic [ref=f1e1731]: "4"
+            - generic [ref=f1e1732]: "5"
+        - generic [ref=f1e1733]:
+          - strong [ref=f1e1734]: staggerFrom edges
+          - generic [ref=f1e1735]:
+            - generic [ref=f1e1736]: "1"
+            - generic [ref=f1e1737]: "2"
+            - generic [ref=f1e1738]: "3"
+            - generic [ref=f1e1739]: "4"
+            - generic [ref=f1e1740]: "5"
+        - 'heading "时间线连接器: then（顺序） + with（并行）+ MotionRef" [level=4] [ref=f1e1741]'
+        - generic [ref=f1e1742]:
+          - generic [ref=f1e1743]: phase1（set 后）
+          - generic [ref=f1e1744]: box1 · then →
+          - generic [ref=f1e1745]: box2 · with（与 refMotion 并行）
+          - generic [ref=f1e1746]: box3 · then after above
+          - generic [ref=f1e1747]: outro
+          - generic [ref=f1e1748]: box4 · with outro
+      - generic [ref=f1e1751]:
+        - heading "Timeline Motion Demo" [level=3] [ref=f1e1752]
+        - paragraph [ref=f1e1753]: · set · stagger · label
+        - generic [ref=f1e1754]:
+          - heading "header" [level=4] [ref=f1e1755]
+          - paragraph [ref=f1e1756]: 包含在 pageEnter timeline 中
+        - generic [ref=f1e1757]:
+          - heading "body" [level=4] [ref=f1e1758]
+          - paragraph [ref=f1e1759]: stagger 0.05s 逐个入场
+        - generic [ref=f1e1760]:
+          - heading "footer" [level=4] [ref=f1e1761]
+          - paragraph [ref=f1e1762]: 最后入场（label outro 之后）
+      - generic [ref=f1e1765]:
+        - heading "播放属性进阶" [level=3] [ref=f1e1766]
+        - paragraph [ref=f1e1767]: direction reverse/alternateReverse · fill backwards/both · interrupt stop/complete/replace
+        - button "Play Direction & Fill" [ref=f1e1768] [cursor=pointer]
+        - heading "Direction 方向（reverse · alternateReverse）" [level=4] [ref=f1e1769]
+        - generic [ref=f1e1770]:
+          - generic [ref=f1e1771]:
+            - strong [ref=f1e1772]: direction reverse
+            - paragraph [ref=f1e1773]: 反向播放（终点→起点）
+          - generic [ref=f1e1774]:
+            - strong [ref=f1e1775]: direction alternateReverse
+            - paragraph [ref=f1e1776]: 交替反向
+        - heading "Fill 填充（backwards · both）" [level=4] [ref=f1e1777]
+        - generic [ref=f1e1778]:
+          - generic [ref=f1e1779]:
+            - strong [ref=f1e1780]: fill backwards
+            - paragraph [ref=f1e1781]: delay 500ms 前即跳到 from 态
+          - generic [ref=f1e1782]:
+            - strong [ref=f1e1783]: fill both
+            - paragraph [ref=f1e1784]: 前后都填充·delay 300ms
+        - heading "Interrupt 中断行为（stop · complete · replace）" [level=4] [ref=f1e1785]
+        - generic [ref=f1e1786]:
+          - generic [ref=f1e1787]:
+            - strong [ref=f1e1788]: interrupt stop
+            - paragraph [ref=f1e1789]: 中断即停在当前值
+          - generic [ref=f1e1790]:
+            - strong [ref=f1e1791]: interrupt complete
+            - paragraph [ref=f1e1792]: 中断时快速跳到终点
+          - generic [ref=f1e1793]:
+            - strong [ref=f1e1794]: interrupt replace
+            - paragraph [ref=f1e1795]: 中断即替换为新动画
+        - paragraph [ref=f1e1796]: interrupt demo 使用 direction alternate + loop 来触发多次中断（保持自动重播以测试中断行为）
+        - paragraph [ref=f1e1797]: direction 与 fill demo 点击上方按钮播放（不需要自动重播即可测试）
+      - generic [ref=f1e1800]:
+        - heading "Hero Test" [level=3] [ref=f1e1801]
+        - button "Toggle" [ref=f1e1802]
+        - paragraph [ref=f1e1806]: Card 1 (collapsed)
+        - heading "Card 2 ()" [level=4] [ref=f1e1808]
+        - paragraph [ref=f1e1810]: progress bar
+        - paragraph [ref=f1e1812]: "on: signal binding"
+      - generic [ref=f1e1815]:
+        - heading "组件级特殊语法" [level=3] [ref=f1e1816]
+        - paragraph [ref=f1e1817]: "if_mode: wait · slot(name) 括号形式 · hero 组件级 · on: 信号绑定"
+        - 'heading "if_mode: \"wait\"（组件级 if 过渡默认值）" [level=4] [ref=f1e1818]'
+        - generic [ref=f1e1819]:
+          - paragraph [ref=f1e1820]: 当 showPanel 切换时，leave 动画（fadeSlideOut 300ms）会在新内容渲染前完成
+          - button "Show Panel" [ref=f1e1821] [cursor=pointer]
+        - heading "slot(name) 带括号形式" [level=4] [ref=f1e1822]
+        - generic [ref=f1e1823]:
+          - paragraph [ref=f1e1824]:
+            - text: slot(header) · slot(body) · slot(footer) — 代替
+            - text: 的无括号形式
+          - button "Open Slot Demo" [ref=f1e1825] [cursor=pointer]
+        - heading "组件级" [level=4] [ref=f1e1826]
+        - generic [ref=f1e1827]:
+          - paragraph [ref=f1e1828]: "在组件级定义 cardHero (over: 400, ease: power2Out)"
+          - paragraph [ref=f1e1830]: ="hero-demo-1" 引用组件级 cardHero
+        - 'heading "on: (signal) 信号绑定" [level=4] [ref=f1e1831]'
+        - generic [ref=f1e1832]:
+          - paragraph [ref=f1e1833]: 点击按钮增加 progressPct（0→100 循环），驱动下方元素动画进度
+          - button "Advance 0 %" [ref=f1e1834] [cursor=pointer]
+          - paragraph [ref=f1e1836]: "progressPct: 0 %"
+    - contentinfo [ref=f1e115]:
+      - paragraph [ref=f1e116]: OmniView 教学项目 · 74+ 源文件 · omnic run

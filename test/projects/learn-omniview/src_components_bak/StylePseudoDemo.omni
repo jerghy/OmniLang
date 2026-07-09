@@ -1,0 +1,70 @@
+import omniview;
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  🧪 Playwright Test                                         ║
+// ║                                                            ║
+// ║  **Steps:**                                                ║
+// ║  1. Navigate to StylePseudoDemo component.                  ║
+// ║  2. Verify buttons and input render with pseudo-class       ║
+// ║     styles in style block.                                  ║
+// ║  3. Check that :hover, :focus, :active pseudo-classes       ║
+// ║     parse correctly in the compiled output.                 ║
+// ║                                                            ║
+// ║  **Expected:**                                             ║
+// ║  - Hover button has :hover styles applied on hover.         ║
+// ║  - Focus input has :focus styles applied on focus.          ║
+// ║  - Active button has :active styles applied on press.       ║
+// ║  - Pseudo-class syntax compiles without errors.             ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+component StylePseudoDemo {
+    signal clicked: i32 = 0;
+
+    fn increment() { clicked = clicked + 1; }
+
+    view {
+        <div class: container>
+            <h3 class: title>CSS Pseudo-Classes Demo</h3>
+            <p class: subtitle>演示 :hover :focus :active 伪类</p>
+
+            <div class: card>
+                <h4 class: label>伪类按钮</h4>
+                <button class: btn-hover>Hover me (:hover)</button>
+                <button class: btn-focus @onPress={increment}>Focus me (:focus) x{clicked}</button>
+                <button class: btn-active @onPress={increment}>Press me (:active)</button>
+            </div>
+
+            <div class: card>
+                <h4 class: label>伪类输入框</h4>
+                <input class: input-focus placeholder="Focus to see :focus style" />
+            </div>
+
+            <div class: card>
+                <h4 class: label>组合伪类</h4>
+                <div class: card-hover>Hover this card (:hover)</div>
+            </div>
+        </div>
+    }
+    style {
+        .container { background: white; border: 1px solid #d4d4d8; border-radius: 12px; padding: 20px 16px; margin: 16px 0; }
+        .title { font-size: 18px; color: #1f2937; margin: 0 0 4px 0; }
+        .subtitle { font-size: 13px; color: #9ca3af; margin: 0 0 16px 0; }
+        .card { margin-bottom: 14px; padding: 12px; background: #f9fafb; border-radius: 8px; }
+        .label { font-size: 14px; font-weight: 600; color: #374151; margin: 0 0 8px 0; }
+
+        .btn-hover { padding: 10px 20px; background: "#7c3aed"; color: white; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; margin-right: 8px; }
+        .btn-hover:hover { background: "#6d28d9"; transform: "scale(1.05)"; }
+
+        .btn-focus { padding: 10px 20px; background: "#2563eb"; color: white; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; margin-right: 8px; }
+        .btn-focus:focus { outline: "2px solid #93c5fd"; outline-offset: 2; }
+
+        .btn-active { padding: 10px 20px; background: "#dc2626"; color: white; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; }
+        .btn-active:active { background: "#b91c1c"; transform: "scale(0.97)"; }
+
+        .input-focus { padding: 10px 14px; border: 1px solid #d4d4d8; border-radius: 8px; font-size: 14px; outline: none; width: 100%; }
+        .input-focus:focus { border-color: "#6366f1"; box-shadow: "0 0 0 3px rgba(99,102,241,0.3)"; }
+
+        .card-hover { padding: 20px; background: "#f0fdf4"; border: 1px solid #bbf7d0; border-radius: 8px; text-align: center; font-size: 14px; color: #166534; cursor: pointer; }
+        .card-hover:hover { background: "#dcfce7"; border-color: "#86efac"; transform: "translateY(-2px)"; }
+    }
+}

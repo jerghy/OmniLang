@@ -4,6 +4,9 @@ version = "0.2.0"
 edition = "2021"
 description = "OmniLang compiler — .omni -> Intent IR -> target code"
 
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ["-O", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]
+
 [lib]
 crate-type = ["cdylib", "rlib"]
 

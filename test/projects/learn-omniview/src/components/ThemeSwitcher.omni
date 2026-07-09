@@ -5,6 +5,7 @@
 // ╚══════════════════════════════════════════════════════════════╝
 
 import omniview;
+import { LearnDesign } from "../design";
 import { ThemeStore } from "../stores/ThemeStore";
 
 component ThemeSwitcher {
@@ -21,7 +22,7 @@ component ThemeSwitcher {
     };
 
     view {
-        <div class: theme-switcher>
+        <div class: LearnDesign.Card>
             <!-- 当前主题指示器 -->
             <div class: indicator-row>
                 <div
@@ -65,13 +66,13 @@ component ThemeSwitcher {
             <!-- 快捷模式切换 -->
             <div class: quick-actions>
                 <button
-                    class: quick-btn light-btn
+                    variant: LearnDesign.Button(color=ghost, size=sm)
                     @onPress={() => { ThemeStore.setMode("light"); }}
                 >
                     Light
                 </button>
                 <button
-                    class: quick-btn dark-btn
+                    variant: LearnDesign.Button(color=ghost, size=sm)
                     style: { background: "#1f2937", color: "#f9fafb" }
                     @onPress={() => { ThemeStore.setMode("dark"); }}
                 >
@@ -81,7 +82,7 @@ component ThemeSwitcher {
         </div>
     }
     style {
-        .theme-switcher { background: white; border: 1px solid #d4d4d8; border-radius: 12px; padding: 16px; margin: 16px 0; }
+        // 主题切换器特有的布局和色板展示
         .indicator-row { display: flex; align-items: center; gap: 12px; margin: 0 0 12px 0; }
         .mode-indicator { padding: 8px 14px; border-radius: 8px; }
         .mode-label { font-size: 14px; font-weight: 600; }
@@ -92,7 +93,6 @@ component ThemeSwitcher {
         .swatches { display: flex; gap: 6px; }
         .swatch { padding: 4px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; }
         .quick-actions { display: flex; gap: 8px; }
-        .quick-btn { flex: 1; padding: 8px; border: 1px solid #d4d4d8; border-radius: 8px; font-size: 13px; cursor: pointer; background: #fff; }
-        .dark-btn { background: #1f2937; color: #f9fafb; border-color: #4b5563; }
+        // .theme-switcher / .quick-btn / .dark-btn 已由 LearnDesign.Card / Button 变体提供
     }
 }
