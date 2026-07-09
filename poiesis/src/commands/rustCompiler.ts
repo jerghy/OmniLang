@@ -125,8 +125,9 @@ class RustCompiler {
     if (this.ready) return;
 
     try {
-      // Dynamic import of the WASM JS glue — served from /public/wasm/
-      const wasmModule = await import('/wasm/omnilang.js');
+      // Dynamic import of the WASM JS glue — construct URL at runtime
+      const wasmUrl = new URL('/wasm/omnilang.js', window.location.href).href;
+      const wasmModule = await import(/* @vite-ignore */ wasmUrl);
 
       try {
         // Primary: fetch-based initialization (works in browser/dev server)
