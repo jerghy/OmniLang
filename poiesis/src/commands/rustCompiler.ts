@@ -74,34 +74,18 @@ type OmniViewFullResult = {
   errors?: Diagnostic[];
 };
 
-type ResolvedElementStyle = {
-  path: string;
-  tag: string;
-  classes: string[];
-  computed_css: Record<string, string>;
-  html_attrs: Record<string, string>;
-  events: Record<string, string>;
-  bindings: Record<string, string>;
-  inline_style: Record<string, string> | null;
-  children: string[];
-  source_line: number;
-};
-
-type DesignSummary = {
-  name: string;
-  tokens: Array<{ name: string; token_type: string; value: string }>;
-  classes: Array<{ name: string; properties: Record<string, string> }>;
-  variants: Array<{
-    name: string;
-    dimensions: Array<{ name: string; values: string[] }>;
-    defaults: Record<string, string>;
-  }>;
-};
-
 type StyleResolveResult = {
   success: boolean;
-  components: Record<string, ResolvedElementStyle[]>;
-  design: DesignSummary | null;
+  /** Global design-block CSS (tokens + class rules + variant rules) */
+  design_css: string;
+  /** Per-component CSS (style {} block output), keyed by component name */
+  component_css: Record<string, string>;
+  /** element id → CSS class names applied during compilation (resolve_styles/css_only mode) */
+  element_classes: Record<string, string[]>;
+  /** nid → HTML tag name */
+  element_tags: Record<string, string>;
+  /** Compilation warnings (unknown variant, missing design, etc.) */
+  warnings: string[];
   errors: Diagnostic[];
 };
 
@@ -133,6 +117,7 @@ class RustCompiler {
     compile_to_omniview_full?: (source: string, editor_mode: boolean) => any;
     compile_multi_to_omniview?: (sources: Record<string, string>, editor_mode: boolean) => any;
     resolve_styles?: (source: string) => any;
+    resolve_styles_multi?: (sources: Record<string, string>, path_mapping: Record<string, string>) => any;
   } | null = null;
   private ready = false;
 
@@ -184,6 +169,7 @@ class RustCompiler {
         compile_to_omniview_full: wasmModule.compile_to_omniview_full as unknown as (source: string, editor_mode: boolean) => any,
         compile_multi_to_omniview: wasmModule.compile_multi_to_omniview as unknown as (sources: Record<string, string>, editor_mode: boolean) => any,
         resolve_styles: wasmModule.resolve_styles as unknown as (source: string) => any,
+        resolve_styles_multi: wasmModule.resolve_styles_multi as unknown as (sources: Record<string, string>, path_mapping: Record<string, string>) => any,
       };
       this.ready = true;
 
@@ -321,8 +307,11 @@ class RustCompiler {
     if (!this.wasm || !this.wasm.resolve_styles) {
       return {
         success: false,
-        components: {},
-        design: null,
+        design_css: '',
+        component_css: {},
+        element_classes: {},
+        element_tags: {},
+        warnings: [],
         errors: [{ severity: 'error', code: 'WASM', message: 'resolve_styles not available in WASM', line: 0, col: 0, end_line: 0, end_col: 0 }],
       };
     }
@@ -332,9 +321,41 @@ class RustCompiler {
       log.error('resolveStyles failed:', e);
       return {
         success: false,
-        components: {},
-        design: null,
+        design_css: '',
+        component_css: {},
+        element_classes: {},
+        element_tags: {},
+        warnings: [],
         errors: [{ severity: 'error', code: 'WASM', message: `resolve_styles error: ${e}`, line: 0, col: 0, end_line: 0, end_col: 0 }],
+      };
+    }
+  }
+
+  /** Resolve styles for multiple .omni source files with cross-file design imports. */
+  resolveStylesMulti(sources: Record<string, string>, pathMapping: Record<string, string>): StyleResolveResult {
+    if (!this.wasm || !this.wasm.resolve_styles_multi) {
+      return {
+        success: false,
+        design_css: '',
+        component_css: {},
+        element_classes: {},
+        element_tags: {},
+        warnings: [],
+        errors: [{ severity: 'error', code: 'WASM', message: 'resolve_styles_multi not available in WASM', line: 0, col: 0, end_line: 0, end_col: 0 }],
+      };
+    }
+    try {
+      return this.wasm.resolve_styles_multi(sources, pathMapping) as StyleResolveResult;
+    } catch (e) {
+      log.error('resolveStylesMulti failed:', e);
+      return {
+        success: false,
+        design_css: '',
+        component_css: {},
+        element_classes: {},
+        element_tags: {},
+        warnings: [],
+        errors: [{ severity: 'error', code: 'WASM', message: `resolve_styles_multi error: ${e}`, line: 0, col: 0, end_line: 0, end_col: 0 }],
       };
     }
   }
@@ -342,4 +363,4 @@ class RustCompiler {
 
 // Singleton
 export const rustCompiler = new RustCompiler();
-export type { CompileResult, OmniViewResult, OmniViewFullResult, MultiCompileResult, MultiCompileDiagnostic, ComponentCompileResult, Diagnostic, SourceMap, StyleResolveResult, ResolvedElementStyle, DesignSummary };
+export type { CompileResult, OmniViewResult, OmniViewFullResult, MultiCompileResult, MultiCompileDiagnostic, ComponentCompileResult, Diagnostic, SourceMap, StyleResolveResult };

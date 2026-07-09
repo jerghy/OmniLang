@@ -171,7 +171,7 @@ export function OmniViewRenderer() {
         padding: 8, boxSizing: "border-box",
       }}
     >
-      {combinedCss && <style dangerouslySetInnerHTML={{ __html: combinedCss }} />}
+      {combinedCss && <style>{combinedCss}</style>}
       {rootElements.length === 0 ? (
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "center",
