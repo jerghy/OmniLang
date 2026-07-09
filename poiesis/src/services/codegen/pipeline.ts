@@ -125,7 +125,7 @@ function runPhaseA(
   const bindings = a2.value ?? defaultBindingResult();
 
   const a3 = runPhase("A", "import-collector", () =>
-    collectImports(pascalCaseTags, [...bindings.storeRefs.keys()], options.codeTabs),
+    collectImports(pascalCaseTags, [...bindings.storeRefs.keys()], options.codeTabs, options.designName),
   );
   errors.push(...a3.errors);
   const imports = a3.value ?? [];
@@ -210,6 +210,7 @@ function runPhaseC(
         expandedElements,
         { variables: [], classes: [] }, // registry no longer needed — WASM handles CSS
         phaseA.roots,
+        options.designName,
       );
 
   const mainTab = options.codeTabs.find((t) => t.id === "main") ?? options.codeTabs[0];
