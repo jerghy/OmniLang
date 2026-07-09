@@ -1,4 +1,5 @@
 use super::utils::{escape_html, map_event, map_tag};
+use super::ElementTreeNode;
 use super::OmniViewGenerator;
 use crate::codegen::emit_event_object;
 use crate::codegen::{camel_to_kebab, sanitize_css_value};
@@ -7,6 +8,42 @@ use crate::sourcemap::{SourceMapEntry, SourceSpan, TargetSpan, TargetSpanKind};
 use std::fmt::Write;
 
 impl OmniViewGenerator {
+    /// Begin recording a tree node. Called when we emit an opening tag.
+    fn tree_push(&mut self, nid: String, tag: String) {
+        self.element_tree_stack.push(ElementTreeNode {
+            nid,
+            tag,
+            text: None,
+            children: Vec::new(),
+        });
+    }
+
+    /// Add a text leaf node to the current parent's children.
+    fn tree_text(&mut self, nid: String, text: String) {
+        let node = ElementTreeNode {
+            nid,
+            tag: "#text".to_string(),
+            text: Some(text),
+            children: Vec::new(),
+        };
+        if let Some(parent) = self.element_tree_stack.last_mut() {
+            parent.children.push(node);
+        } else {
+            self.element_tree.push(node);
+        }
+    }
+
+    /// Finish recording a tree node. Pops the stack and appends to parent.
+    fn tree_pop(&mut self) {
+        if let Some(node) = self.element_tree_stack.pop() {
+            if let Some(parent) = self.element_tree_stack.last_mut() {
+                parent.children.push(node);
+            } else {
+                self.element_tree.push(node);
+            }
+        }
+    }
+
     pub(super) fn next_nid(&mut self, tag: &str) -> String {
         self.node_counter += 1;
         format!("el-{}-{:03}", tag, self.node_counter)
@@ -20,6 +57,8 @@ impl OmniViewGenerator {
                 if text.trim().is_empty() {
                     String::new()
                 } else {
+                    let tnid = self.next_nid("text");
+                    self.tree_text(tnid, escape_html(text));
                     format!("{}{}\n", pad, escape_html(text))
                 }
             }
@@ -66,6 +105,7 @@ impl OmniViewGenerator {
 
         // Map omni tags to HTML tags
         let html_tag = map_tag(&el.tag);
+        self.tree_push(nid.clone(), html_tag.clone());
 
         // Try to inline a known component's view HTML.
         // When inside a @for template, props are mapped to their value
@@ -73,22 +113,37 @@ impl OmniViewGenerator {
         // loop variable; event handlers and prop-wiring effects are skipped
         // (they cannot work correctly for dynamically-cloned elements).
         if let Some(inlined) = self.try_inline_component(el, indent, &nid, &pad) {
+            self.tree_pop(); // pop the placeholder node; inlined component pushes its own
             return inlined;
         }
 
         // Build attributes
         let mut attrs = format!(" data-nid=\"{}\"", nid);
+        // Collect class names separately (from props + variant expansion) so
+        // we can emit a single merged `class="..."` attribute at the end.
+        let mut class_name_parts: Vec<String> = Vec::new();
 
-        // Static props
+        // Static props (skip synthetic/internal props prefixed with '_')
         for (name, value) in &el.props {
+            if name.starts_with('_') {
+                continue; // skip internal/synthetic props
+            }
             match name.as_str() {
                 "testId" | "test_id" => {
                     let _ = write!(attrs, " data-testid=\"{}\"", self.expr_to_static_str(value));
                 }
+                // class is collected separately — merged with variant classes at the end
+                "class" => {
+                    let class_str = self.expr_to_static_str(value);
+                    if !class_str.is_empty() {
+                        class_name_parts.extend(class_str.split_whitespace().map(String::from));
+                    }
+                }
                 // Real HTML attributes — emit as-is, not data-*
-                "class" | "id" | "placeholder" | "type" | "value" | "disabled" | "checked"
-                | "required" | "readonly" | "href" | "src" | "alt" | "title" | "name" | "rows"
-                | "cols" | "max" | "min" | "step" | "autocomplete" | "autofocus" | "multiple"
+                // "class" is handled separately to support merging with variant-expanded class names
+                "id" | "placeholder" | "type" | "value" | "disabled" | "checked" | "required"
+                | "readonly" | "href" | "src" | "alt" | "title" | "name" | "rows" | "cols"
+                | "max" | "min" | "step" | "autocomplete" | "autofocus" | "multiple"
                 | "pattern" | "selected" | "for" | "action" | "method" | "enctype" | "accept"
                 | "controls" | "width" | "height" | "coords" | "shape" | "media" | "srcset"
                 | "sizes" | "target" | "rel" | "lang" | "dir" | "datetime" | "cite" | "list"
@@ -162,6 +217,85 @@ impl OmniViewGenerator {
                     }
                 }
             }
+        }
+
+        // ── Expand design variant binding into CSS class names ──
+        // Variant bindings are stored as a synthetic `_design_variant` prop
+        // during IR lowering, encoded as a JSON object.
+        if let Some(variant_prop) = el.props.get("_design_variant") {
+            if let ExprIR::LiteralExpr { value } = variant_prop {
+                if let (Some(design_name), Some(variant_name), Some(dim_values)) = (
+                    value.get("design_name").and_then(|v| v.as_str()),
+                    value.get("variant_name").and_then(|v| v.as_str()),
+                    value.get("dimension_values"),
+                ) {
+                    let dim_map: rustc_hash::FxHashMap<String, String> = dim_values
+                        .as_object()
+                        .map(|obj| {
+                            obj.iter()
+                                .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
+                                .collect()
+                        })
+                        .unwrap_or_default();
+
+                    if let Some(design) = self.design_map.get(design_name) {
+                        match crate::codegen::omniview::design::expand_variant(
+                            design,
+                            variant_name,
+                            &dim_map,
+                        ) {
+                            Ok((variant_classes, _extra_css)) => {
+                                class_name_parts.extend(variant_classes);
+                            }
+                            Err(e) => {
+                                self.warnings.push(format!(
+                                    "variant '{}' not found in design '{}': {}",
+                                    variant_name, design_name, e
+                                ));
+                            }
+                        }
+                    } else {
+                        self.warnings.push(format!(
+                            "design '{}' not found for variant binding",
+                            design_name
+                        ));
+                    }
+                }
+            }
+        }
+
+        // ── Validate class names against design_map + component styles ──
+        for class_name in &class_name_parts {
+            // Skip empty names
+            if class_name.is_empty() {
+                continue;
+            }
+            // Check component-local style classes
+            if self.component_style_classes.contains(class_name) {
+                continue;
+            }
+            // Check all registered design blocks for this class
+            let in_design = self
+                .design_map
+                .values()
+                .any(|d| d.classes.iter().any(|c| c.name == *class_name));
+            if in_design {
+                continue;
+            }
+            // Not found anywhere — warn
+            self.warnings.push(format!(
+                "class '{}' referenced on <{}> (nid={}) is not defined in any design block or component style",
+                class_name, html_tag, nid
+            ));
+        }
+
+        // Emit merged class attribute if any class names accumulated
+        if !class_name_parts.is_empty() {
+            let _ = write!(
+                attrs,
+                " class=\"{}\"",
+                escape_html(&class_name_parts.join(" "))
+            );
         }
 
         // Hero shared element transition tag — emit as data attribute
@@ -645,6 +779,23 @@ impl OmniViewGenerator {
             "track", "wbr",
         ];
         if void_tags.contains(&html_tag.as_str()) {
+            if self.css_only {
+                let key = el.props.get("id")
+                    .and_then(|v| {
+                        if let ExprIR::LiteralExpr { value } = v {
+                            value.as_str().map(|s| s.to_string())
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap_or_else(|| nid.clone());
+                self.element_classes
+                    .insert(key.clone(), class_name_parts.clone());
+                self.element_tags
+                    .insert(key, html_tag.to_string());
+                self.tree_pop();
+                return String::new();
+            }
             let _ = writeln!(out, "{}<{}{} />", pad, html_tag, attrs);
             // Emit any interpolation _effect() calls
             for effect in &interp_effects {
@@ -661,12 +812,13 @@ impl OmniViewGenerator {
                     } else {
                         js_expr
                     };
-                    let _ = writeln!(self.js, 
+                    let _ = writeln!(self.js,
                             "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) el.classList.toggle(\"{}\", !!({})); }});",
                             nid, class_name, js_access
                         );
                 }
             }
+            self.tree_pop();
             return out;
         }
 
@@ -678,6 +830,7 @@ impl OmniViewGenerator {
                 let child_html = self.view_to_html(child, indent + 1);
                 out.push_str(&child_html);
             }
+            self.tree_pop(); // fragment has no wrapper, pop after children
             // Fragment attrs like data-class-expr are handled via data-* on inner elements
             // Skip the closing tag since we didn't emit an opening tag.
         } else {
@@ -689,7 +842,28 @@ impl OmniViewGenerator {
                 out.push_str(&child_html);
             }
 
+            // In css_only mode: capture element mappings now that children are done,
+            // then return empty string (no HTML/JS needed).
+            if self.css_only {
+                let key = el.props.get("id")
+                    .and_then(|v| {
+                        if let ExprIR::LiteralExpr { value } = v {
+                            value.as_str().map(|s| s.to_string())
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap_or_else(|| nid.clone());
+                self.element_classes
+                    .insert(key.clone(), class_name_parts.clone());
+                self.element_tags
+                    .insert(key, html_tag.to_string());
+                self.tree_pop();
+                return String::new();
+            }
+
             let _ = writeln!(out, "{}</{}>", pad, html_tag);
+            self.tree_pop();
         }
 
         // Emit any interpolation _effect() calls

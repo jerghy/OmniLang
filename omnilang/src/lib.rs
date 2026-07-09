@@ -131,7 +131,7 @@ pub fn compile_omniview(source: &str, editor_mode: bool) -> OmniViewResult {
             errors,
         },
         Ok(pipeline) => {
-            let gen_output = codegen::omniview::generate(&pipeline.ir, editor_mode);
+            let gen_output = codegen::omniview::generate(&pipeline.ir, editor_mode, false);
             OmniViewResult {
                 success: !pipeline.has_errors,
                 files: Some(OmniViewFiles {
@@ -193,7 +193,7 @@ pub fn compile_omniview_full(source: &str, editor_mode: bool) -> OmniViewFullRes
             errors,
         },
         Ok(pipeline) => {
-            let gen_output = codegen::omniview::generate(&pipeline.ir, editor_mode);
+            let gen_output = codegen::omniview::generate(&pipeline.ir, editor_mode, false);
             OmniViewFullResult {
                 success: !pipeline.has_errors,
                 ir: Some(pipeline.ir),
@@ -220,32 +220,38 @@ pub fn compile_omniview_full(source: &str, editor_mode: bool) -> OmniViewFullRes
 
 /// Resolve per-element computed styles for editor canvas rendering.
 ///
-/// Parses .omni source, lowers to IR, then traverses ViewTrees to compute
-/// the final CSS properties for each element (merging design classes,
-/// variants, component styles, and inline styles).
+/// Runs the full `codegen::omniview::generate()` pipeline in css_only mode,
+/// reusing the authoritative CSS generation path (design blocks, component
+/// styles, variant expansion) rather than a parallel ad-hoc IR walker.
 ///
-/// Returns structured JSON that Poiesis consumes directly — no JS/HTML/CSS
-/// codegen is performed.
+/// Returns compiled CSS strings + per-element class/tag mappings that
+/// Poiesis uses for canvas rendering.
 #[cfg(feature = "codegen-omniview")]
 #[must_use]
 pub fn resolve_styles(source: &str) -> StyleResolveResult {
-    use crate::codegen::omniview::style_resolver::{build_design_map, resolve_styles_from_ir};
-
     match run_pipeline(source) {
         Err(errors) => StyleResolveResult {
             success: false,
-            components: FxHashMap::default(),
-            design: None,
+            design_css: String::new(),
+            component_css: FxHashMap::default(),
+            element_classes: FxHashMap::default(),
+            element_tags: FxHashMap::default(),
+            element_tree: Vec::new(),
+            warnings: Vec::new(),
             errors,
         },
         Ok(pipeline) => {
-            let design_map = build_design_map(&pipeline.ir);
-            let result = resolve_styles_from_ir(&pipeline.ir, &design_map);
+            let gen_output =
+                codegen::omniview::generate(&pipeline.ir, true, /* css_only= */ true);
 
             StyleResolveResult {
-                success: !pipeline.has_errors,
-                components: result.components,
-                design: result.design,
+                success: !pipeline.has_errors && gen_output.warnings.is_empty(),
+                design_css: gen_output.css,
+                component_css: gen_output.per_component_css,
+                element_classes: gen_output.element_classes,
+                element_tags: gen_output.element_tags,
+                element_tree: gen_output.element_tree,
+                warnings: gen_output.warnings,
                 errors: pipeline.diagnostics,
             }
         }
@@ -255,6 +261,46 @@ pub fn resolve_styles(source: &str) -> StyleResolveResult {
 // ═══════════════════════════════════════════════════════
 // Multi-Target Codegen
 // ═══════════════════════════════════════════════════════
+
+/// Resolve styles for multiple .omni source files (cross-file design imports).
+/// Uses the full multi-file analysis pipeline so that `import { DesignName }`
+/// statements resolve correctly and design class validation works.
+#[cfg(feature = "codegen-omniview")]
+#[must_use]
+pub fn resolve_styles_multi(
+    sources: FxHashMap<String, String>,
+    path_mapping: FxHashMap<String, String>,
+) -> StyleResolveResult {
+    let analysis = crate::analyse::analyse_multi(&sources, &path_mapping);
+    let errors = analysis.diagnostics;
+
+    match analysis.ir {
+        Some(ir) => {
+            let output = codegen::omniview::generate(&ir, true, /* css_only= */ true);
+            StyleResolveResult {
+                success: errors.iter().all(|d| d.severity != crate::error::Severity::Error)
+                    && output.warnings.is_empty(),
+                design_css: output.css,
+                component_css: output.per_component_css,
+                element_classes: output.element_classes,
+                element_tags: output.element_tags,
+                element_tree: output.element_tree,
+                warnings: output.warnings,
+                errors,
+            }
+        }
+        None => StyleResolveResult {
+            success: false,
+            design_css: String::new(),
+            component_css: FxHashMap::default(),
+            element_classes: FxHashMap::default(),
+            element_tags: FxHashMap::default(),
+            element_tree: Vec::new(),
+            warnings: Vec::new(),
+            errors,
+        }
+    }
+}
 
 /// Compile IR to a specific target, returning JSON with { success, files: {path: content}, errors }.
 #[must_use]

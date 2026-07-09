@@ -22,7 +22,6 @@ mod motion_triggers;
 mod runtime;
 mod stmt;
 mod store;
-pub mod style_resolver;
 mod timeline;
 mod utils;
 mod view;
@@ -48,6 +47,21 @@ pub struct OmniViewOutput {
     /// Per-component output for hot-replace (keyed by component name)
     #[serde(default)]
     pub components: FxHashMap<String, ComponentOutput>,
+    /// Diagnostic warnings collected during codegen (e.g., unknown variant references)
+    #[serde(default)]
+    pub warnings: Vec<String>,
+    /// Per-element CSS class names: nid → class names applied
+    #[serde(default)]
+    pub element_classes: FxHashMap<String, Vec<String>>,
+    /// Per-element HTML tag names: nid → tag
+    #[serde(default)]
+    pub element_tags: FxHashMap<String, String>,
+    /// Per-component CSS deltas (component name → scoped CSS rules)
+    #[serde(default)]
+    pub per_component_css: FxHashMap<String, String>,
+    /// Structured element tree for React-side rendering.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub element_tree: Vec<ElementTreeNode>,
 }
 
 /// Per-component compiled output for hot-replace.
@@ -60,79 +74,45 @@ pub struct ComponentOutput {
     pub css: String,
 }
 
-/// Per-element resolved style returned by resolve_styles().
-/// Mirrors the info Poiesis needs to render a canvas element.
+/// A single node in the rendered element tree, used by the Poiesis editor
+/// to reconstruct the view hierarchy in React without parsing HTML strings.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ResolvedElementStyle {
-    /// Tree path like "MyPage.div.0.Card.0.header.1"
-    pub path: String,
-    /// HTML tag name
+pub struct ElementTreeNode {
+    pub nid: String,
     pub tag: String,
-    /// Resolved CSS class names applied to this element
-    pub classes: Vec<String>,
-    /// Merged CSS properties (design class -> variant -> component style -> inline)
-    pub computed_css: FxHashMap<String, String>,
-    /// Semantic HTML attributes (id, placeholder, src, etc.)
-    pub html_attrs: FxHashMap<String, String>,
-    /// Event bindings: event_name -> handler_fn_name
-    pub events: FxHashMap<String, String>,
-    /// Signal bindings: prop_name -> signal_name
-    pub bindings: FxHashMap<String, String>,
-    /// Inline style expressions (signal-driven only)
-    pub inline_style: Option<serde_json::Value>,
-    /// Child element paths (for tree reconstruction)
-    pub children: Vec<String>,
-    /// Source line in .omni file
-    pub source_line: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub children: Vec<ElementTreeNode>,
 }
 
 /// Top-level result from resolve_styles().
+/// Returns compiled CSS + element mappings from the full codegen pipeline
+/// (not manual IR traversal).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StyleResolveResult {
     pub success: bool,
-    /// Per-component resolved elements, keyed by component name
-    pub components: FxHashMap<String, Vec<ResolvedElementStyle>>,
-    /// Design system summary (for Poiesis design panel)
-    pub design: Option<DesignSummary>,
+    /// Global design-block CSS (tokens + class rules + variant rules),
+    /// scoped via [data-design~="Name"] selectors.
+    pub design_css: String,
+    /// Per-component CSS (style {} block compilation output),
+    /// keyed by component name.
+    pub component_css: FxHashMap<String, String>,
+    /// nid → CSS class names applied to each element during compilation.
+    pub element_classes: FxHashMap<String, Vec<String>>,
+    /// nid → HTML tag name.
+    pub element_tags: FxHashMap<String, String>,
+    /// Structured element tree for React-side rendering.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub element_tree: Vec<ElementTreeNode>,
+    /// Compilation warnings (unknown variant, missing design, etc.)
+    pub warnings: Vec<String>,
+    /// Parse / semantic errors.
     pub errors: Vec<Diagnostic>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DesignSummary {
-    pub name: String,
-    pub tokens: Vec<TokenSummary>,
-    pub classes: Vec<ClassSummary>,
-    pub variants: Vec<VariantSummary>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TokenSummary {
-    pub name: String,
-    pub token_type: String,
-    pub value: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ClassSummary {
-    pub name: String,
-    pub properties: FxHashMap<String, String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct VariantSummary {
-    pub name: String,
-    pub dimensions: Vec<VariantDimSummary>,
-    pub defaults: FxHashMap<String, String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct VariantDimSummary {
-    pub name: String,
-    pub values: Vec<String>,
-}
-
 /// Generate OmniView output from an IR program.
-pub fn generate(ir: &IRProgram, editor_mode: bool) -> OmniViewOutput {
+pub fn generate(ir: &IRProgram, editor_mode: bool, css_only: bool) -> OmniViewOutput {
     let mut gen = OmniViewGenerator {
         js: String::new(),
         html: String::new(),
@@ -168,48 +148,65 @@ pub fn generate(ir: &IRProgram, editor_mode: bool) -> OmniViewOutput {
         for_class_bindings: Vec::new(),
         for_attr_bindings: Vec::new(),
         for_rebind_fn: None,
+        css_only,
+        element_classes: FxHashMap::default(),
+        element_tags: FxHashMap::default(),
+        per_component_css: FxHashMap::default(),
+        current_css_start: 0,
+        component_style_classes: FxHashSet::default(),
+        element_tree_stack: Vec::new(),
+        element_tree: Vec::new(),
     };
 
-    gen.emit_js_header();
-    gen.emit_signal_runtime();
+    // In css_only mode, skip ALL JS emission — we only need CSS + element mappings.
+    if !css_only {
+        gen.emit_js_header();
+        gen.emit_signal_runtime();
 
-    // Only embed the 46KB motion runtime if the project actually uses motion features
-    if project_uses_motion(ir) {
-        gen.emit_animation_runtime();
+        // Only embed the 46KB motion runtime if the project actually uses motion features
+        if project_uses_motion(ir) {
+            gen.emit_animation_runtime();
+        }
     }
 
     // Emit all stores as global JS variables (signals, getters, actions)
-    for (store_name, store) in ir.all_stores() {
-        gen.emit_store(store_name, store);
+    if !css_only {
+        for (store_name, store) in ir.all_stores() {
+            gen.emit_store(store_name, store);
+        }
     }
 
     // Emit all module-level public functions (e.g., lib.omni utilities)
-    for func in ir.all_functions() {
-        gen.js.push_str(&format!("\n// pub fn {}\n", func.name));
-        gen.emit_function(func);
+    if !css_only {
+        for func in ir.all_functions() {
+            gen.js.push_str(&format!("\n// pub fn {}\n", func.name));
+            gen.emit_function(func);
+        }
     }
 
     // Emit module-level motion definitions (@motion blocks defined outside any component).
     // These must be emitted before component-level motions because they're referenced by
     // component view triggers like @enter={motionName}.
-    for module in ir.modules.values() {
-        if !module.motions.is_empty() {
-            gen.js.push_str(&format!(
-                "\n/// ── Module Motion Definitions: {} ──\n\n",
-                module.name
-            ));
-            for motion in &module.motions {
-                gen.motion_names.insert(motion.name.clone());
-                gen.emit_motion_js(motion);
+    if !css_only {
+        for module in ir.modules.values() {
+            if !module.motions.is_empty() {
+                gen.js.push_str(&format!(
+                    "\n/// ── Module Motion Definitions: {} ──\n\n",
+                    module.name
+                ));
+                for motion in &module.motions {
+                    gen.motion_names.insert(motion.name.clone());
+                    gen.emit_motion_js(motion);
+                }
             }
-        }
-        if !module.timelines.is_empty() {
-            gen.js.push_str(&format!(
-                "\n/// ── Module Timeline Definitions: {} ──\n\n",
-                module.name
-            ));
-            for timeline in &module.timelines {
-                gen.emit_timeline_js(timeline);
+            if !module.timelines.is_empty() {
+                gen.js.push_str(&format!(
+                    "\n/// ── Module Timeline Definitions: {} ──\n\n",
+                    module.name
+                ));
+                for timeline in &module.timelines {
+                    gen.emit_timeline_js(timeline);
+                }
             }
         }
     }
@@ -240,7 +237,7 @@ pub fn generate(ir: &IRProgram, editor_mode: bool) -> OmniViewOutput {
     };
 
     // Initialize editor bridge globals before component factories reference them
-    if gen.editor_mode {
+    if gen.editor_mode && !css_only {
         gen.js.push_str(
             "window.__omni_signals = {};\nwindow.__omni_components = window.__omni_components || {};\n"
         );
@@ -262,27 +259,30 @@ pub fn generate(ir: &IRProgram, editor_mode: bool) -> OmniViewOutput {
     }
 
     // Emit global __mergeTouches helper for TouchEvent support
-    gen.js.push_str(
-        "function __mergeTouches(e) {\n\
-         \x20 const seen = new Map();\n\
-         \x20 for (const t of e.touches)\n\
-         \x20   seen.set(t.identifier, { x: t.clientX, y: t.clientY, id: t.identifier });\n\
-         \x20 for (const t of e.changedTouches)\n\
-         \x20   if (!seen.has(t.identifier))\n\
-         \x20     seen.set(t.identifier, { x: t.clientX, y: t.clientY, id: t.identifier });\n\
-         \x20 return [...seen.values()];\n\
-         }\n",
-    );
+    if !css_only {
+        gen.js.push_str(
+            "function __mergeTouches(e) {\n\
+             \x20 const seen = new Map();\n\
+             \x20 for (const t of e.touches)\n\
+             \x20   seen.set(t.identifier, { x: t.clientX, y: t.clientY, id: t.identifier });\n\
+             \x20 for (const t of e.changedTouches)\n\
+             \x20   if (!seen.has(t.identifier))\n\
+             \x20     seen.set(t.identifier, { x: t.clientX, y: t.clientY, id: t.identifier });\n\
+             \x20 return [...seen.values()];\n\
+             }\n",
+        );
+    }
 
     // Build per-component output map for editor hot-replace
     let mut components: FxHashMap<String, ComponentOutput> = FxHashMap::default();
     for (name, js) in &gen.component_js {
+        let css = gen.per_component_css.get(name).cloned().unwrap_or_default();
         components.insert(
             name.clone(),
             ComponentOutput {
                 js: js.clone(),
                 html: String::new(),
-                css: String::new(),
+                css,
             },
         );
     }
@@ -300,10 +300,15 @@ pub fn generate(ir: &IRProgram, editor_mode: bool) -> OmniViewOutput {
         }
     }
 
-    gen.emit_dom_and_bindings();
-    // Inject editor bridge code (postMessage, nid_map, highlight, hot-replace)
-    gen.emit_editor_bridge();
-    gen.finalize_js();
+    if !css_only {
+        gen.emit_dom_and_bindings();
+        // Inject editor bridge code (postMessage, nid_map, highlight, hot-replace)
+        gen.emit_editor_bridge();
+        gen.finalize_js();
+    }
+
+    // Transfer accumulated element_tree from generator
+    gen.element_tree = std::mem::take(&mut gen.element_tree);
 
     OmniViewOutput {
         js: gen.js,
@@ -311,6 +316,11 @@ pub fn generate(ir: &IRProgram, editor_mode: bool) -> OmniViewOutput {
         css: gen.css,
         source_map: gen.source_map,
         components,
+        warnings: gen.warnings,
+        element_classes: gen.element_classes,
+        element_tags: gen.element_tags,
+        per_component_css: gen.per_component_css,
+        element_tree: gen.element_tree,
     }
 }
 
@@ -437,6 +447,24 @@ struct OmniViewGenerator {
     for_attr_bindings: Vec<(String, String, Vec<AttrPart>)>,
     /// Optional name of the rebind function for this @for loop
     for_rebind_fn: Option<String>,
+    /// When true, skip JS emission entirely — only collect CSS + element mappings.
+    /// Used by resolve_styles() for the Poiesis editor canvas.
+    css_only: bool,
+    /// Per-element CSS class names collected during element_to_html(): nid → [class_names]
+    element_classes: FxHashMap<String, Vec<String>>,
+    /// Per-element HTML tag names collected during element_to_html(): nid → tag
+    element_tags: FxHashMap<String, String>,
+    /// Per-component CSS deltas accumulated during generate_component(): name → css
+    per_component_css: FxHashMap<String, String>,
+    /// Snapshot of self.css.len() at the start of a component, for delta tracking.
+    current_css_start: usize,
+    /// Component-local style class names for validating class: references.
+    /// Populated during generate_component from the component's StyleRuleIR entries.
+    component_style_classes: FxHashSet<String>,
+    /// Stack of ElementTreeNode builders — each level collects children of the current parent.
+    element_tree_stack: Vec<ElementTreeNode>,
+    /// Root-level tree nodes accumulated during view_to_html.
+    element_tree: Vec<ElementTreeNode>,
 }
 
 /// A parsed part of an attribute template value with {word} placeholders.
@@ -487,6 +515,14 @@ impl OmniViewGenerator {
             for_class_bindings: Vec::new(),
             for_attr_bindings: Vec::new(),
             for_rebind_fn: None,
+            css_only: false,
+            element_classes: FxHashMap::default(),
+            element_tags: FxHashMap::default(),
+            per_component_css: FxHashMap::default(),
+            current_css_start: 0,
+            component_style_classes: FxHashSet::default(),
+            element_tree_stack: Vec::new(),
+            element_tree: Vec::new(),
         }
     }
 
