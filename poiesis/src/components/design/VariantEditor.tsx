@@ -4,7 +4,7 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { usePoiesisStore } from "../../store";
 import { uid } from "../../core/utils";
-import type { VariantDimension } from "../../core/types/design";
+import type { VariantBranch, VariantDimension } from "../../core/types/design";
 import type { StyleProperty, StyleValueSegment } from "../../core/types/style";
 
 // ── Helpers ──
@@ -49,10 +49,6 @@ function computeBranchOverrides(
     return baseVal === undefined || baseVal !== mergedVal;
   });
 }
-
-// Suppress TS6133 until these are used in subsequent tasks
-void getCombinedProps;
-void computeBranchOverrides;
 
 // ── Styles (using --dp-* CSS variables for consistency with TokenEditor/ClassEditor) ──
 
@@ -241,6 +237,19 @@ export function VariantEditor() {
     }
     return keys;
   }, [selectedVariant]);
+
+  // Merged properties for the active editing context
+  const currentProps = useMemo(() => {
+    if (!selectedVariant) return [];
+    if (activeBranchKey === "base") return selectedVariant.baseProperties;
+    const parsed = parseBranchKey(activeBranchKey);
+    if (!parsed) return [];
+    const branch = selectedVariant.branches.find(
+      (b) => b.dimension === parsed.dim && b.value === parsed.val,
+    );
+    return getCombinedProps(selectedVariant.baseProperties, branch ?? null);
+  }, [selectedVariant, activeBranchKey]);
+  void currentProps; // Suppress TS6133 until used in subsequent tasks
 
   // Default combination display string
   const defaultComboStr = useMemo(() => {
@@ -436,6 +445,46 @@ export function VariantEditor() {
     },
     [selectedVariant, activeBranchKey, updateVariant, updatePropsList],
   );
+
+  /** Handle props change from a card — diffs against base to determine overrides. */
+  const handleCardPropsChange = useCallback(
+    (newProps: StyleProperty[]) => {
+      if (!selectedVariant) return;
+
+      if (activeBranchKey === "base") {
+        updateVariant(selectedVariant.id, { baseProperties: newProps });
+        return;
+      }
+
+      const parsed = parseBranchKey(activeBranchKey);
+      if (!parsed) return;
+
+      const overrides = computeBranchOverrides(newProps, selectedVariant.baseProperties);
+      const branch = selectedVariant.branches.find(
+        (b) => b.dimension === parsed.dim && b.value === parsed.val,
+      );
+
+      if (branch) {
+        updateVariant(selectedVariant.id, {
+          branches: selectedVariant.branches.map((b) =>
+            b.id === branch.id ? { ...b, properties: overrides } : b,
+          ),
+        });
+      } else if (overrides.length > 0) {
+        const newBranch: VariantBranch = {
+          id: uid("vb"),
+          dimension: parsed.dim,
+          value: parsed.val,
+          properties: overrides,
+        };
+        updateVariant(selectedVariant.id, {
+          branches: [...selectedVariant.branches, newBranch],
+        });
+      }
+    },
+    [selectedVariant, activeBranchKey, updateVariant],
+  );
+  void handleCardPropsChange; // Suppress TS6133 until used in subsequent tasks
 
   const handleRemoveProperty = useCallback(
     (propName: string) => {
