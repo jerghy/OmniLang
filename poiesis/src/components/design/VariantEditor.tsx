@@ -338,6 +338,34 @@ function useOutsideClick(
   }, [enabled, ref, onOutside]);
 }
 
+// ── Tokenized Input (standalone component) ──
+
+function TokenizedInput({
+  value,
+  onChange,
+  onSlash,
+  placeholder,
+  style,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onSlash: () => void;
+  placeholder?: string;
+  style?: React.CSSProperties;
+}) {
+  const handleChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const newVal = e.target.value;
+      if (newVal.endsWith("/") && !value.endsWith("/")) {
+        onSlash();
+      }
+      onChange(newVal);
+    },
+    [value, onChange, onSlash],
+  );
+  return <input value={value} onChange={handleChange} style={style} placeholder={placeholder} />;
+}
+
 // ── Component ──
 
 export function VariantEditor() {
@@ -365,37 +393,6 @@ export function VariantEditor() {
   } | null>(null);
 
   const addPropRef = useRef<HTMLDivElement>(null);
-
-  // ── Tokenized input helper (inside component to use hooks) ──
-
-  const TokenizedInput = useCallback(
-    ({
-      value,
-      onChange,
-      onSlash,
-      placeholder,
-      style,
-    }: {
-      value: string;
-      onChange: (value: string) => void;
-      onSlash: () => void;
-      placeholder?: string;
-      style?: React.CSSProperties;
-    }) => {
-      const handleChange = useCallback(
-        (e: React.ChangeEvent<HTMLInputElement>) => {
-          const newVal = e.target.value;
-          if (newVal.endsWith("/") && !value.endsWith("/")) {
-            onSlash();
-          }
-          onChange(newVal);
-        },
-        [value, onChange, onSlash],
-      );
-      return <input value={value} onChange={handleChange} style={style} placeholder={placeholder} />;
-    },
-    [],
-  );
 
   // ── Derived data ──
 
@@ -1058,8 +1055,8 @@ export function VariantEditor() {
               left: 0,
               right: 0,
               marginTop: 2,
-              background: "#fff",
-              border: "1px solid #e2e8f0",
+              background: "var(--dp-surface, #fff)",
+              border: "1px solid var(--dp-border, #e8e5f2)",
               borderRadius: 6,
               boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
               zIndex: 100,
@@ -1095,18 +1092,18 @@ export function VariantEditor() {
                   fontSize: 11,
                   border: "none",
                   background: "transparent",
-                  color: "#374151",
+                  color: "var(--dp-text, #1e1b4b)",
                   cursor: "pointer",
                   textAlign: "left",
                 }}
                 onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLElement).style.background = "#f1f5f9";
+                  (e.currentTarget as HTMLElement).style.background = "var(--dp-surface-hover, #f5f3ff)";
                 }}
                 onMouseLeave={(e) => {
                   (e.currentTarget as HTMLElement).style.background = "transparent";
                 }}
               >
-                <span style={{ color: "#64748b", marginRight: 4 }}>+</span>
+                <span style={{ color: "var(--dp-text-muted, #a09db8)", marginRight: 4 }}>+</span>
                 {PROPERTY_LABELS[name] || name}
               </button>
             ))}
@@ -1115,7 +1112,7 @@ export function VariantEditor() {
                 style={{
                   padding: 8,
                   fontSize: 10,
-                  color: "#94a3b8",
+                  color: "var(--dp-text-muted, #a09db8)",
                   textAlign: "center",
                 }}
               >

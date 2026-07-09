@@ -6,7 +6,7 @@ import type { DesignToken } from "../../core/types/design";
 
 interface TokenSlashPickerProps {
   tokens: DesignToken[];
-  filter: string;
+  filter?: string;
   onSelect: (tokenName: string) => void;
   onClose: () => void;
   position: { top: number; left: number };
@@ -23,7 +23,6 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 export function TokenSlashPicker({
   tokens,
-  filter,
   onSelect,
   onClose,
   position,
@@ -31,16 +30,14 @@ export function TokenSlashPicker({
   const ref = useRef<HTMLDivElement>(null);
 
   const grouped = React.useMemo(() => {
-    const query = filter.toLowerCase();
     const result: Record<string, DesignToken[]> = {};
     for (const t of tokens) {
-      if (query && !t.name.toLowerCase().includes(query)) continue;
       const cat = t.category ?? "other";
       if (!result[cat]) result[cat] = [];
       result[cat].push(t);
     }
     return result;
-  }, [tokens, filter]);
+  }, [tokens]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
