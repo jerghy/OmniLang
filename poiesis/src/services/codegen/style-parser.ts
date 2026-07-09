@@ -119,6 +119,8 @@ export function parseStylesFromAST(
     // Group elements are filtered by the "tag" in el check above.
     if (el.nodeType !== "view") continue;
     el.style = { classRefs, inlineProperties };
+    // Sync to top-level classRefs for hasDesignClassUsage check
+    el.classRefs = classRefs;
 
     // Cleanup: remove old props.style and props.className when style
     // has been set, to avoid duplicate style/class attributes in emitted source

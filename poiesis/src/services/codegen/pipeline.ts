@@ -118,9 +118,11 @@ function runPhaseA(
   const bindings = a2.value ?? defaultBindingResult();
 
   // Check if any elements reference design classes (for conditional design import)
+  // classRefs may be at the top level (el.classRefs) or nested in style (el.style.classRefs)
   const hasDesignClassUsage = options.designElements.some(
     (el) =>
       ("classRefs" in el && Array.isArray(el.classRefs) && el.classRefs.length > 0) ||
+      (el.style && "classRefs" in el.style && Array.isArray(el.style.classRefs) && el.style.classRefs.length > 0) ||
       ("variantRef" in el && el.variantRef != null && typeof el.variantRef === "object" && "designName" in el.variantRef && typeof el.variantRef.designName === "string"),
   );
 
