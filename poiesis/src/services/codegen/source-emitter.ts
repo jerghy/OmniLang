@@ -25,13 +25,14 @@ export class SourceEmitter {
     private elementClassMap?: Map<string, string[]>,
     private elementInlineMap?: Map<string, Record<string, string>>,
     private elementBindings?: Map<string, Record<string, string>>,
+    private enableAnnotations: boolean = false,
   ) {}
 
   emitDocument(input: EmitInput, chains: Map<string, ChainBlock>): string {
     const writer = new CodeWriter();
 
     // @omni-file directive (only emitted for non-default types like "event")
-    if (this.annotationStrategy) {
+    if (this.enableAnnotations && this.annotationStrategy) {
       const directive = this.annotationStrategy.beforeFile();
       if (directive) writer.emit(directive);
     }
@@ -93,7 +94,9 @@ export class SourceEmitter {
     // Emit component metadata comments (replaces old *.meta.json)
     this.emitComponentMeta(input.componentMeta, w);
 
-    w.emit(`component ${comp.name} {`);
+    // PascalCase: ensure first character is uppercase
+    const pascalName = comp.name.charAt(0).toUpperCase() + comp.name.slice(1);
+    w.emit(`component ${pascalName} {`);
     w.indent();
 
     for (const sr of comp.storeRefs) w.emit(`@store ${sr};`);
@@ -233,7 +236,7 @@ export class SourceEmitter {
 
   private emitViewNode(node: ViewNode, w: CodeWriter, depth: number): void {
     // PID annotation (skip for text/interpolation which are inline)
-    if (this.annotationStrategy && node.kind !== "text" && node.kind !== "interpolation") {
+    if (this.enableAnnotations && this.annotationStrategy && node.kind !== "text" && node.kind !== "interpolation") {
       const ann = this.annotationStrategy.beforeViewNode(node, depth);
       if (ann) w.emit(`// @pid:${ann.pid}`);
     }
@@ -432,6 +435,15 @@ export class SourceEmitter {
 
     if (isVoid || !hasContent) {
       w.emit(isVoid ? `${openTag} />` : `${openTag}></${tag}>`);
+      return;
+    }
+
+    // Custom components: always self-close — their internal template
+    // is defined in their own .omni file. Expanded children are a
+    // canvas-rendering artifact, not part of the component's source API.
+    const isComponentTag = /^[A-Z]/.test(tag);
+    if (isComponentTag) {
+      w.emit(`${openTag} />`);
       return;
     }
 
