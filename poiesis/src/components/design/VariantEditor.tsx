@@ -22,7 +22,11 @@ import { TokenSlashPicker } from "./TokenSlashPicker";
 // ── Helpers ──
 
 function segmentsToString(segments: StyleValueSegment[]): string {
-  return segments.map((s) => (s.type === "text" ? s.value : "")).join("");
+  return segments.map((s) => {
+    if (s.type === "var-ref") return `token(${s.name})`;
+    if (s.type === "text") return s.value;
+    return "";
+  }).join("");
 }
 
 /** Parse a branch key "dimension.value" into { dim, val }, or null for "base". */
