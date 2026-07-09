@@ -6,7 +6,7 @@ import type { TokenStream } from "./token-stream";
 import type { ParseContext, ViewElementAttrs } from "./parser-types";
 import type { ParserInternals } from "./parser";
 import type { ElementData, CodeblockElementData } from "../../core/types/element";
-import { getComponentDefinitions } from "../../store";
+import { getComponentDefinitions, usePoiesisStore } from "../../store";
 import { Logger } from "../../lib/utils/logger";
 
 const log = new Logger({ prefix: "omni-parser" });
@@ -93,19 +93,50 @@ export function createElement(
   const isCustom =
     isPascal && !!(getComponentDefinitions()[tag]);
 
+  // Parse variant: attribute → variantRef
+  const variantRaw = attrs.attrs["variant:"] as string | undefined;
+  let variantRef: { designName: string; variantName: string; params: Record<string, string> } | null = null;
+  const cleanAttrs = { ...attrs.attrs };
+  if (variantRaw) {
+    delete cleanAttrs["variant:"];
+    const dotIdx = variantRaw.indexOf(".");
+    const parenIdx = variantRaw.indexOf("(");
+    if (dotIdx > 0) {
+      const designName = variantRaw.slice(0, dotIdx).trim();
+      const variantPart = parenIdx > dotIdx ? variantRaw.slice(dotIdx + 1, parenIdx).trim() : variantRaw.slice(dotIdx + 1).trim();
+      const params: Record<string, string> = {};
+      if (parenIdx > dotIdx) {
+        const paramsStr = variantRaw.slice(parenIdx + 1, variantRaw.lastIndexOf(")"));
+        for (const pair of paramsStr.split(",")) {
+          const eqIdx = pair.indexOf("=");
+          if (eqIdx > 0) {
+            params[pair.slice(0, eqIdx).trim()] = pair.slice(eqIdx + 1).trim();
+          }
+        }
+      }
+      variantRef = { designName, variantName: variantPart, params };
+    }
+  }
+
   const el: ElementData = {
     id: finalId,
     nodeType: "view",
     tag,
     props: {
-      ...attrs.attrs,
+      ...cleanAttrs,
       ...attrs.events,
       ...(attrs.className ? { className: attrs.className } : {}),
     },
     children: [],
     parentId,
     ...(isCustom ? { componentRef: tag } : {}),
+    ...(variantRef ? { variantRef } : {}),
   };
+
+  // Sync variantRef → elementVariants store so the properties panel shows the binding
+  if (variantRef) {
+    usePoiesisStore.getState().bindVariantToElement(finalId, variantRef.variantName, variantRef.params);
+  }
 
   // Set parent/child relationships
   if (parentId) {

@@ -141,7 +141,7 @@ fn parse_token_type(input: &str) -> ParseResult<(TokenType, &str)> {
 fn parse_ident(input: &str) -> ParseResult<(String, &str)> {
     let input = input.trim_start();
     let end = input
-        .find(|c: char| !c.is_alphanumeric() && c != '_')
+        .find(|c: char| !c.is_alphanumeric() && c != '_' && c != '-')
         .unwrap_or(input.len());
     if end == 0 {
         return Err(err("expected identifier"));

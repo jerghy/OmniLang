@@ -111,7 +111,7 @@ export interface PoiesisState {
   switchTab: (tabId: string) => void;
   reorderTabs: (tabOrder: string[]) => void;
   markTabDirty: (tabId: string, dirty: boolean) => void;
-  toggleCodeFlow: (elementId: string | null) => void;
+  toggleCodeFlow: (elementId: string | null, focusPoint?: { x: number; y: number }) => void;
   setBreadcrumbs: (breadcrumbs: Breadcrumb[]) => void;
 
   // Element/wire CRUD

@@ -115,16 +115,17 @@ export function DesignTabBar() {
                       name: p.name,
                       segments: parseStyleValue(p.value),
                     })),
-                    branches: (v.branches ?? []).map((b) => ({
-                      id: uid("vb"),
-                      dimension: "",
-                      value: b.name,
-                      properties: b.properties.map((p) => ({
+                    branches: (v.branches ?? []).map((b) => {
+                      const dotIdx = b.name.indexOf(".");
+                      const dim = dotIdx >= 0 ? b.name.slice(0, dotIdx) : "";
+                      const val = dotIdx >= 0 ? b.name.slice(dotIdx + 1) : b.name;
+                      const props = b.properties.map((p) => ({
                         id: uid("sp"),
                         name: p.name,
                         segments: parseStyleValue(p.value),
-                      })),
-                    })),
+                      }));
+                      return { id: uid("vb"), dimension: dim, value: val, properties: props };
+                    }),
                   })),
                 });
               }
@@ -179,16 +180,17 @@ export function DesignTabBar() {
                     name: p.name,
                     segments: parseStyleValue(p.value),
                   })),
-                  branches: (v.branches ?? []).map((b) => ({
-                    id: uid("vb"),
-                    dimension: "",
-                    value: b.name,
-                    properties: b.properties.map((p) => ({
+                  branches: (v.branches ?? []).map((b) => {
+                    const dotIdx = b.name.indexOf(".");
+                    const dim = dotIdx >= 0 ? b.name.slice(0, dotIdx) : "";
+                    const val = dotIdx >= 0 ? b.name.slice(dotIdx + 1) : b.name;
+                    const props = b.properties.map((p) => ({
                       id: uid("sp"),
                       name: p.name,
                       segments: parseStyleValue(p.value),
-                    })),
-                  })),
+                    }));
+                    return { id: uid("vb"), dimension: dim, value: val, properties: props };
+                  }),
                 })),
               });
             }

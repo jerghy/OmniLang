@@ -91,10 +91,19 @@ export function createDesignSystemSlice(set: SetFn, _get?: GetFn) {
       isDirty: true,
     })),
 
-    bindVariantToElement: (elementId: string, variantName: string, dimensionValues: Record<string, string>) => set((s) => ({
-      elementVariants: { ...s.elementVariants, [elementId]: { variantName, dimensionValues } },
-      isDirty: true,
-    })),
+    bindVariantToElement: (elementId: string, variantName: string, dimensionValues: Record<string, string>) => set((s) => {
+      // Sync variantRef.params on the element so source emitter picks up dimension changes
+      const elements = s.elements.map((el) =>
+        el.id === elementId && el.variantRef
+          ? { ...el, variantRef: { ...el.variantRef, params: { ...dimensionValues } } }
+          : el,
+      );
+      return {
+        elements,
+        elementVariants: { ...s.elementVariants, [elementId]: { variantName, dimensionValues } },
+        isDirty: true,
+      };
+    }),
 
     unbindVariantFromElement: (elementId: string) => set((s) => {
       const { [elementId]: _, ...rest } = s.elementVariants;

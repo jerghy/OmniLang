@@ -49,6 +49,7 @@ export interface DesignPageState {
   tabOrder: string[];       // drag-reordered tab IDs
   codeFlowVisible: boolean;
   codeFlowElementId: string | null;
+  codeFlowFocusPoint: { x: number; y: number } | null;
   breadcrumbs: Breadcrumb[];
   designView: "tokens" | "classes" | "variants";  // persisted sub-tab selection
 }

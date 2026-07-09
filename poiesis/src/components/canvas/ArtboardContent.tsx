@@ -27,6 +27,7 @@ export const ArtboardContent = React.memo(function ArtboardContent({
   return (
     <div
       ref={scrollRef}
+      data-artboard-scroll=""
       style={{
         flex: 1,
         overflow: "auto",

@@ -15,6 +15,7 @@ export function createInitialDesignPageState(): DesignPageState {
     tabOrder: [],
     codeFlowVisible: false,
     codeFlowElementId: null,
+    codeFlowFocusPoint: null,
     breadcrumbs: [],
     designView: "tokens",
   };
@@ -106,6 +107,7 @@ export function createTabSlice(set: SetFn, _get?: GetFn) {
           activeTabId: id,
           codeFlowVisible: false,
           codeFlowElementId: null,
+          codeFlowFocusPoint: null,
           breadcrumbs: [{ type: "architecture", label: "架构", id: "arch" }, { type: "component", label: componentName, id, filePath }],
         },
         tabData: updatedTabData,
@@ -229,13 +231,19 @@ export function createTabSlice(set: SetFn, _get?: GetFn) {
       isDirty: dirty,
     })),
 
-    toggleCodeFlow: (elementId: string | null) => set((s) => {
+    toggleCodeFlow: (elementId: string | null, focusPoint?: { x: number; y: number }) => set((s) => {
       const visible = elementId !== null;
       const breadcrumbs = visible
         ? [...s.designPage.breadcrumbs, { type: "code-layer" as const, label: "代码", id: elementId }]
         : s.designPage.breadcrumbs.filter(b => b.type !== "code-layer");
       return {
-        designPage: { ...s.designPage, codeFlowVisible: visible, codeFlowElementId: elementId, breadcrumbs },
+        designPage: {
+          ...s.designPage,
+          codeFlowVisible: visible,
+          codeFlowElementId: elementId,
+          codeFlowFocusPoint: visible ? (focusPoint ?? null) : null,
+          breadcrumbs,
+        },
       };
     }),
 

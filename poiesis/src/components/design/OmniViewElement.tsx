@@ -1,21 +1,35 @@
 // components/design/OmniViewElement.tsx
 // React.memo component for rendering a single element tree node.
 // Uses stable nid as React key for zero-flicker reconciliation.
+//
+// Custom components (identified by tag containing a hyphen, e.g. "my-card")
+// act as opaque black boxes: clicking anywhere inside the component selects
+// the component itself, not its internal children.
 
 import React from "react";
 import type { ElementTreeNode } from "./useWasmCompile";
+
+/** Module-level: last click position (clientX, clientY), captured by click handlers.
+ *  Read by OmniViewRenderer to center the code-flow shrink animation on the click point. */
+export let _lastClickPos = { x: 0, y: 0 };
 
 export interface OmniViewElementProps {
   node: ElementTreeNode;
   tag: string;
   className?: string | undefined;
   isSelected: boolean;
+  selectedNid?: string | null;
   onSelect: (nid: string) => void;
   onDoubleClick: (nid: string) => void;
-  /** Passed from OmniViewElementTree for CSS resolution (unused here; handled by Task 4). */
+  /** Passed from OmniViewElementTree for CSS resolution. */
   classMap?: ReadonlyMap<string, string[]>;
   /** Passed from OmniViewElementTree for tag resolution. */
   tagMap?: ReadonlyMap<string, string>;
+  /**
+   * When set, this element is a descendant of a custom component.
+   * Click events select the ancestor component nid instead of this node's nid.
+   */
+  parentComponentNid?: string | null;
 }
 
 export const OmniViewElement = React.memo(function OmniViewElement({
@@ -23,44 +37,79 @@ export const OmniViewElement = React.memo(function OmniViewElement({
   tag,
   className,
   isSelected,
+  selectedNid,
   onSelect,
   onDoubleClick,
+  classMap,
+  tagMap,
+  parentComponentNid,
 }: OmniViewElementProps) {
+  // Custom components are identified by a hyphen in the HTML tag
+  // (e.g. "my-card"). Per spec, standard HTML elements never contain hyphens.
+  const isCustomComponent = tag.includes("-");
+
+  // Text nodes render as <span> but should not intercept clicks —
+  // they pass selection up to their parent element.
+  const isTextNode = node.tag === "#text";
+
+  // Nid to propagate to children: if THIS element is a custom component,
+  // its descendants should select this component, not themselves.
+  // Nested custom components form their own boundary.
+  const componentNid = isCustomComponent ? node.nid : parentComponentNid;
+
+  // Effective nid for click selection.
+  // A custom component always selects itself (even if inside another component).
+  // Regular elements inside a component select their nearest component ancestor.
+  const effectiveNid = isCustomComponent ? node.nid : (parentComponentNid ?? node.nid);
+
+  // Only the effective selection target shows the outline — not every child.
+  const showOutline = node.nid === effectiveNid && effectiveNid === selectedNid;
+
   const style: React.CSSProperties = {
-    outline: isSelected ? "2px solid #7C3AED" : "none",
+    display: isCustomComponent ? "block" : undefined,
+    outline: showOutline ? "2px solid #7C3AED" : "none",
     outlineOffset: "-2px",
-    cursor: "pointer",
+    cursor: isTextNode ? undefined : "pointer",
   };
 
-  const handleClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onSelect(node.nid);
-  };
-
-  const handleDoubleClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onDoubleClick(node.nid);
-  };
+  // Text elements don't intercept clicks — events bubble to the parent element.
+  const clickHandlerProps = isTextNode
+    ? {}
+    : {
+        onClick: (e: React.MouseEvent) => {
+          _lastClickPos = { x: e.clientX, y: e.clientY };
+          e.stopPropagation();
+          onSelect(effectiveNid);
+        },
+        onDoubleClick: (e: React.MouseEvent) => {
+          e.stopPropagation();
+          onDoubleClick(effectiveNid);
+        },
+      };
 
   return React.createElement(
     tag,
     {
       key: node.nid,
       "data-nid": node.nid,
-      className, // pass through from parent
+      className,
       style,
-      onClick: handleClick,
-      onDoubleClick: handleDoubleClick,
+      ...clickHandlerProps,
     },
     node.text,
-    ...node.children.map((child) => (
+    ...(node.children || []).map((child) => (
       <OmniViewElement
         key={child.nid}
         node={child}
         tag={child.tag === "#text" ? "span" : child.tag}
-        isSelected={false}
+        className={(classMap?.get(child.nid) || []).join(" ")}
+        isSelected={child.nid === selectedNid}
+        selectedNid={selectedNid}
+        classMap={classMap}
+        tagMap={tagMap}
         onSelect={onSelect}
         onDoubleClick={onDoubleClick}
+        parentComponentNid={componentNid}
       />
     )),
   );

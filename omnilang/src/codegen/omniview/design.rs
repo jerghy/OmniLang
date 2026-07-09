@@ -10,6 +10,7 @@
 //! `<style>` block.  The `expand_variant` helper is used at component-bind time
 //! to resolve which class names and additional CSS a variant binding produces.
 
+use crate::codegen::camel_to_kebab;
 use crate::ir::design::*;
 use rustc_hash::FxHashMap;
 
@@ -19,13 +20,31 @@ use rustc_hash::FxHashMap;
 /// design blocks on the same page do not conflict.  Token values are declared
 /// on `:root` as CSS custom properties.
 ///
+/// When `editor_mode` is true, the `[data-design~="..."]` scope prefix is
+/// omitted so that the CSS works inside the editor canvas (which has no
+/// data-design wrapper element).
+///
 /// Returns `Err(msg)` if the design has no name (unlikely, but defensive).
 pub fn emit_design_css(design: &DesignIR, scope: &str) -> Result<String, String> {
+    emit_design_css_impl(design, scope, false)
+}
+
+/// Like `emit_design_css` but with an `editor_mode` flag that strips
+/// the `[data-design~="..."]` scope prefix for editor canvas compatibility.
+pub fn emit_design_css_editor(design: &DesignIR, scope: &str) -> Result<String, String> {
+    emit_design_css_impl(design, scope, true)
+}
+
+fn emit_design_css_impl(design: &DesignIR, scope: &str, editor_mode: bool) -> Result<String, String> {
     if design.name.is_empty() {
         return Err("design block has an empty name".to_string());
     }
 
-    let scope_prefix = format!("[data-design~=\"{}\"] ", scope);
+    let scope_prefix = if editor_mode {
+        String::new()
+    } else {
+        format!("[data-design~=\"{}\"] ", scope)
+    };
     let mut css = String::new();
 
     // ── Emit token CSS custom property declarations ──
@@ -59,7 +78,7 @@ fn emit_class_css(class: &ClassIR, scope_prefix: &str) -> String {
     if !class.properties.is_empty() {
         css.push_str(&format!("{}.{} {{\n", scope_prefix, class.name));
         for (prop, val) in &class.properties {
-            css.push_str(&format!("  {}: {};\n", prop, val));
+            css.push_str(&format!("  {}: {};\n", camel_to_kebab(prop), val));
         }
         css.push_str("}\n\n");
     }
@@ -74,7 +93,7 @@ fn emit_class_css(class: &ClassIR, scope_prefix: &str) -> String {
             };
             css.push_str(&pseudo_selector);
             for (prop, val) in &ps.properties {
-                css.push_str(&format!("  {}: {};\n", prop, val));
+                css.push_str(&format!("  {}: {};\n", camel_to_kebab(prop), val));
             }
             css.push_str("}\n\n");
         }
@@ -91,7 +110,7 @@ fn emit_variant_css(variant: &VariantIR, scope_prefix: &str) -> String {
     if !variant.base.is_empty() {
         css.push_str(&format!("{}.{} {{\n", scope_prefix, variant.name));
         for (prop, val) in &variant.base {
-            css.push_str(&format!("  {}: {};\n", prop, val));
+            css.push_str(&format!("  {}: {};\n", camel_to_kebab(prop), val));
         }
         css.push_str("}\n\n");
     }
@@ -104,7 +123,7 @@ fn emit_variant_css(variant: &VariantIR, scope_prefix: &str) -> String {
                 scope_prefix, variant.name, branch.value
             ));
             for (prop, val) in &branch.properties {
-                css.push_str(&format!("  {}: {};\n", prop, val));
+                css.push_str(&format!("  {}: {};\n", camel_to_kebab(prop), val));
             }
             css.push_str("}\n\n");
         }

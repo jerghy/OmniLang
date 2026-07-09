@@ -240,6 +240,8 @@ pub fn generate(ir: &IRProgram, editor_mode: bool, css_only: bool) -> OmniViewOu
     let all_comps: Vec<(&str, &ComponentIR)> = ir.all_components().into_iter().collect();
     let root_name = if all_comps.iter().any(|(n, _)| *n == "App") {
         "App"
+    } else if all_comps.iter().any(|(n, _)| *n == "Main") {
+        "Main"
     } else {
         all_comps.last().map(|(n, _)| *n).unwrap_or("App")
     };
@@ -298,9 +300,15 @@ pub fn generate(ir: &IRProgram, editor_mode: bool, css_only: bool) -> OmniViewOu
     // ── Emit scoped design CSS (tokens, classes, variants) ──
     // Design names were collected before component generation so emit_view()
     // sees them when writing the data-design attribute on the root <div>.
+    // In editor mode, use unscoped selectors — the canvas has no data-design attr.
     for module in ir.modules.values() {
         for design in &module.designs {
-            if let Ok(css) = design::emit_design_css(design, &design.name) {
+            let css_result = if editor_mode {
+                design::emit_design_css_editor(design, &design.name)
+            } else {
+                design::emit_design_css(design, &design.name)
+            };
+            if let Ok(css) = css_result {
                 gen.css
                     .push_str(&format!("\n/* ── Design: {} ── */\n", design.name));
                 gen.css.push_str(&css);

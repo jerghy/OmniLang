@@ -2,7 +2,7 @@
 // Top-level design page with tabbed editor, left panels, and Z-axis canvas.
 // Drag-and-drop from palette to canvas uses @dnd-kit/core (pointer events, not native HTML5 DnD).
 
-import { Component, useState, useEffect, useCallback, type ReactNode } from "react";
+import { Component, useState, useEffect, useRef, useLayoutEffect, useCallback, useMemo, type ReactNode } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -19,7 +19,10 @@ import { DesignTabContent } from "../components/design/DesignTabContent";
 import { InfiniteCanvas } from "../components/canvas/InfiniteCanvas";
 import { OmniViewRenderer } from "../components/design/OmniViewRenderer";
 import { CodeFlowCanvas } from "../components/design/CodeFlowCanvas";
+import { CodeDrawer } from "../components/design/CodeDrawer";
 import { BreadcrumbBar } from "../components/design/BreadcrumbBar";
+import { generateOmniFiles, generateOmniFragment } from "../services/codegen/pipeline";
+import { emitDesignSource } from "../services/codegen/design-emitter";
 import { ComponentPalette } from "../components/panels/ComponentPalette";
 import { ComponentTree } from "../components/panels/ComponentTree";
 import { ContextInspector } from "../components/panels/ContextInspector";
@@ -58,11 +61,49 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
     return s.designPage.openTabs.find((t) => t.id === activeId)?.tabType ?? "component";
   });
   const codeFlowVisible = usePoiesisStore((s) => s.designPage.codeFlowVisible);
+  const codeFlowFocusPoint = usePoiesisStore((s) => s.designPage.codeFlowFocusPoint);
+  const toggleCodeFlow = usePoiesisStore((s) => s.toggleCodeFlow);
   // Side panels are visible only for component tabs NOT in code-flow mode
   const showSidePanels = activeTabType === "component" && !codeFlowVisible;
 
+  // Ref for z-axis container to convert client coords to percentages
+  const zAxisRef = useRef<HTMLDivElement>(null);
+
   const { saving, saveError, handleSave } = useSaveProject();
   const { handleDragStart, handleDragMove, handleDragEnd, activeComponent, activeTreeId, treeDropState } = useDragHandlers();
+
+  // ── Code drawer ──
+  const [showCode, setShowCode] = useState(false);
+  const codeSource = useMemo(() => {
+    const state = usePoiesisStore.getState();
+    const activeTab = state.designPage.openTabs.find((t) => t.id === state.designPage.activeTabId);
+    if (!activeTab) return "";
+    if (activeTab.tabType === "design") {
+      return state.activeDesign ? emitDesignSource(state.activeDesign) : "";
+    }
+    // component tab
+    const componentName = activeTab.componentName || "main";
+    const codeTabs = [{ id: "code", type: "logic" as const, label: "Preview", icon: "📄",
+      graph: { elements: state.elements, wires: state.wires }, variables: [] }];
+    const result = componentName === "main"
+      ? generateOmniFiles({
+          designElements: state.elements, designWires: state.wires, codeTabs,
+          componentName: "main", rootOrder: state.rootOrder,
+          filePath: activeTab.filePath || "src/main.omni",
+          designName: state.activeDesign?.name,
+        })
+      : generateOmniFragment({
+          componentName, designElements: state.elements, designWires: state.wires,
+          codeTabs, rootOrder: state.rootOrder, fromDefinition: true,
+        });
+    const fileKey = Object.keys(result.value || {}).find((k) => k.includes(componentName));
+    return (fileKey && result.value?.[fileKey]) || "// Failed to generate source";
+  }, [showCode]);
+  const codeFileName = useMemo(() => {
+    const state = usePoiesisStore.getState();
+    const activeTab = state.designPage.openTabs.find((t) => t.id === state.designPage.activeTabId);
+    return activeTab?.filePath || "source.omni";
+  }, [showCode]);
 
   // ── Open Project panel ──
   const [showProjectPanel, setShowProjectPanel] = useState(false);
@@ -192,6 +233,24 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
           >
             📂
           </button>
+          <button
+            onClick={() => setShowCode((v) => !v)}
+            title={showCode ? "Hide generated code" : "Show generated code"}
+            style={{
+              padding: "2px 10px",
+              fontSize: 12,
+              border: showCode ? "1px solid #6366f1" : "1px solid #e2e8f0",
+              borderRadius: 4,
+              background: showCode ? "#6366f1" : "transparent",
+              cursor: "pointer",
+              lineHeight: 1,
+              color: showCode ? "#fff" : "#6B7280",
+              fontWeight: showCode ? 600 : 400,
+              marginLeft: 2,
+            }}
+          >
+            {showCode ? "Code ▾" : "Code ▸"}
+          </button>
           {saveError && (
             <span
               title={saveError}
@@ -250,9 +309,40 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
           {activeTabType === "design" ? (
             <DesignTabContent />
           ) : activeTabType === "component" ? (
-            <InfiniteCanvas>
-              <OmniViewRenderer />
-            </InfiniteCanvas>
+            /* Z-axis dual-layer: OmniView top layer shrinks to reveal CodeFlowCanvas below */
+            <div ref={zAxisRef} style={{ flex: 1, position: "relative", overflow: "hidden" }}>
+              {/* Top layer: OmniViewRenderer with shrink animation */}
+              <TopLayer
+                codeFlowVisible={codeFlowVisible}
+                focusPoint={codeFlowFocusPoint}
+                containerRef={zAxisRef}
+              >
+                <InfiniteCanvas>
+                  <OmniViewRenderer />
+                </InfiniteCanvas>
+              </TopLayer>
+
+              {/* Bottom layer: CodeFlowCanvas (revealed when codeFlowVisible) */}
+              {codeFlowVisible && (
+                <div
+                  onDoubleClick={(e) => {
+                    const target = e.target as HTMLElement;
+                    if (target.closest(".react-flow__node, .react-flow__controls")) return;
+                    toggleCodeFlow(null);
+                  }}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    zIndex: 0,
+                  }}
+                >
+                  <CodeFlowCanvas />
+                </div>
+              )}
+            </div>
           ) : (
             <CodeFlowCanvas />
           )}
@@ -272,6 +362,15 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
         >
           <ContextInspector />
         </div>
+        )}
+
+        {/* Code drawer — fixed at viewport bottom, overlays all content */}
+        {showCode && (
+          <div style={{
+            position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 100,
+          }}>
+            <CodeDrawer source={codeSource} fileName={codeFileName} onClose={() => setShowCode(false)} />
+          </div>
         )}
 
         {/* Breadcrumb bar spans full width */}
@@ -429,6 +528,60 @@ function TreeDragPreview({ elementId }: { elementId: string }) {
     >
       {"tag" in el ? el.tag : ""}
       {"props" in el && el.props?.label ? ` "${String(el.props.label).slice(0, 20)}"` : ""}
+    </div>
+  );
+}
+
+/** Z-axis top layer with shrink animation centered on the double-click focus point. */
+function TopLayer({
+  codeFlowVisible,
+  focusPoint,
+  containerRef,
+  children,
+}: {
+  codeFlowVisible: boolean;
+  focusPoint: { x: number; y: number } | null;
+  containerRef: React.RefObject<HTMLDivElement | null>;
+  children: React.ReactNode;
+}) {
+  // Measure the container AFTER layout (side panels hidden) to get correct pixel coords.
+  const [origin, setOrigin] = useState<string>("50% 50%");
+
+  useLayoutEffect(() => {
+    if (!codeFlowVisible || !focusPoint) return;
+    const container = containerRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    // Convert viewport-relative client coords to element-relative pixel coords
+    const ox = focusPoint.x - rect.left;
+    const oy = focusPoint.y - rect.top;
+    setOrigin(`${ox}px ${oy}px`);
+  }, [codeFlowVisible, focusPoint, containerRef]);
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 1,
+        overflow: "hidden",
+        background: "#fff",
+        display: "flex",
+        flexDirection: "column",
+        transition: "transform 300ms ease, border-radius 300ms ease, box-shadow 300ms ease",
+        transform: codeFlowVisible ? "scale(0.4)" : "scale(1)",
+        transformOrigin: origin,
+        borderRadius: codeFlowVisible ? 8 : 0,
+        boxShadow: codeFlowVisible ? "0 4px 16px rgba(0,0,0,0.15)" : "none",
+        // When shrunk, pointer events pass through to CodeFlowCanvas underneath.
+        // The CodeFlowCanvas background handles double-click to dismiss.
+        pointerEvents: codeFlowVisible ? "none" : "auto",
+      }}
+    >
+      {children}
     </div>
   );
 }

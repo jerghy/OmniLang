@@ -8,6 +8,7 @@ import { usePoiesisStore } from "../../store";
 import { useWasmCompile } from "./useWasmCompile";
 import { useCssScopePool } from "./useCssScopePool";
 import { OmniViewElementTree } from "./OmniViewElementTree";
+import { _lastClickPos } from "./OmniViewElement";
 
 export function OmniViewRenderer() {
   const selectedElementIds = usePoiesisStore((s) => s.selectedElementIds);
@@ -29,7 +30,10 @@ export function OmniViewRenderer() {
   const { selectedNid, nidToElementId } = useMemo(() => {
     if (!output) return { selectedNid: null, nidToElementId: new Map<string, string>() };
     // nid_map: nid → elementId (UUID). Build reverse: elementId → nid.
-    const nidToId = new Map<string, string>(Object.entries(output.nid_map));
+    // serde_wasm_bindgen serializes HashMap as JS Map, not plain object
+    const nidToId: Map<string, string> = output.nid_map instanceof Map
+      ? output.nid_map as Map<string, string>
+      : new Map<string, string>(Object.entries(output.nid_map));
     const idToNid = new Map<string, string>();
     for (const [nid, id] of nidToId) idToNid.set(id, nid);
     const selId = selectedElementIds.length > 0 ? selectedElementIds[0] : null;
@@ -46,9 +50,13 @@ export function OmniViewRenderer() {
 
   const handleDoubleClickNid = useCallback(
     (nid: string) => {
-      toggleCodeFlow(codeFlowVisible ? null : nid);
+      const elementId = nidToElementId.get(nid) ?? nid;
+      toggleCodeFlow(
+        codeFlowVisible ? null : elementId,
+        codeFlowVisible ? undefined : { x: _lastClickPos.x, y: _lastClickPos.y },
+      );
     },
-    [toggleCodeFlow, codeFlowVisible],
+    [toggleCodeFlow, codeFlowVisible, nidToElementId],
   );
 
   return (

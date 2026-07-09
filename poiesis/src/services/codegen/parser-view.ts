@@ -380,8 +380,13 @@ export function parseViewAttributes(internals: ParserInternals): ViewElementAttr
           continue;
         }
 
-        // Other colon-prefixed attributes (e.g. bind: is handled above, but
-        // there could be others like `prop: value` syntax)
+        // variant: DesignName.VariantName(param=val, ...)
+        if (attrName === "variant") {
+          result.attrs["variant:"] = parseVariantAttribute(internals);
+          continue;
+        }
+
+        // Other colon-prefixed attributes
         let value = "";
         while (
           !internals.stream.isEof() &&
@@ -433,6 +438,32 @@ export function parseStyleAttribute(internals: ParserInternals): string {
     .join("; ");
 
   return `{ ${semiStyle} }`;
+}
+
+/**
+ * Parse variant attribute value: `DesignName.VariantName(param=val, ...)`
+ */
+export function parseVariantAttribute(internals: ParserInternals): string {
+  let result = "";
+  // Read DesignName.VariantName
+  result += internals.stream.expect("IDENTIFIER").text; // DesignName
+  if (internals.stream.peek().kind === "DOT") {
+    result += internals.stream.consume().text; // "."
+    result += internals.stream.expect("IDENTIFIER").text; // VariantName
+  }
+  // Optionally read (param=val, ...)
+  if (internals.stream.peek().kind === "PAREN_OPEN") {
+    let depth = 1;
+    result += internals.stream.consume().text; // "("
+    while (depth > 0 && !internals.stream.isEof()) {
+      const t = internals.stream.peek();
+      if (t.kind === "PAREN_OPEN") depth++;
+      else if (t.kind === "PAREN_CLOSE") depth--;
+      if (t.kind === "ANGLE_CLOSE" || t.kind === "SELF_CLOSING" || t.kind === "NEWLINE") break;
+      result += internals.stream.consume().text;
+    }
+  }
+  return result;
 }
 
 /**

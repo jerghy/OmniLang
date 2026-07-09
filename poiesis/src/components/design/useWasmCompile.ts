@@ -125,7 +125,10 @@ function useWasmCompile(): {
 
         const result = rustCompiler.resolveStylesMulti(sources, pathMapping);
 
-        if (result.success) {
+        const actualErrors = (result.errors || []).filter(
+          (e: any) => e.severity === "error",
+        );
+        if (actualErrors.length === 0) {
           setOutput({
             css: result.design_css,
             component_css: result.component_css,
@@ -137,7 +140,7 @@ function useWasmCompile(): {
           });
           setErrors([]);
         } else {
-          setErrors(result.errors?.map((e: any) => e.message) || ["Compilation failed"]);
+          setErrors(actualErrors.map((e: any) => e.message));
         }
       } catch (e) {
         setErrors([e instanceof Error ? e.message : String(e)]);

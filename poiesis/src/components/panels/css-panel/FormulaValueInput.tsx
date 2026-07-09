@@ -131,7 +131,7 @@ function mergeTextTokens(tokens: ValueToken[]): ValueToken[] {
 export function tokensToCss(tokens: ValueToken[]): string {
   return tokens.map((t) => {
     switch (t.type) {
-      case "var-ref": return `var(${t.name})`;
+      case "var-ref": return `var(--${t.name})`;
       case "text": return t.value;
       case "color": return t.value;
       case "dimension": return t.value;
@@ -196,7 +196,7 @@ export function FormulaValueInput({ value, onChange, onBlur, variables, placehol
     if (token.type === "var-ref") {
       // Click on var token — replace with text for editing
       const newTokens = [...tokens];
-      newTokens[idx] = { type: "text", value: `var(${token.name})` };
+      newTokens[idx] = { type: "text", value: `var(--${token.name})` };
       onChange(tokensToCss(newTokens));
     }
   }, [tokens, onChange]);
@@ -279,7 +279,7 @@ export function FormulaValueInput({ value, onChange, onBlur, variables, placehol
   const tokenSpans = useMemo(() => {
     if (tokens.length === 0 || tokens.every((t) => t.type === "text")) return null;
     return tokens.map((t, i) => {
-      const display = t.type === "var-ref" ? `var(${t.name})`
+      const display = t.type === "var-ref" ? `var(--${t.name})`
         : t.type === "text" ? t.value
         : t.type === "color" ? t.value
         : t.type === "dimension" ? t.value

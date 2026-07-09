@@ -19,13 +19,18 @@ export function OmniViewElementTree({
   onSelectNid,
   onDoubleClickNid,
 }: OmniViewElementTreeProps) {
+  // serde_wasm_bindgen serializes HashMap as JS Map, not plain object
   const classMap = useMemo(
-    () => new Map(Object.entries(output.element_classes)),
+    () => output.element_classes instanceof Map
+      ? output.element_classes as Map<string, string[]>
+      : new Map(Object.entries(output.element_classes)),
     [output.element_classes],
   );
 
   const tagMap = useMemo(
-    () => new Map(Object.entries(output.element_tags)),
+    () => output.element_tags instanceof Map
+      ? output.element_tags as Map<string, string>
+      : new Map(Object.entries(output.element_tags)),
     [output.element_tags],
   );
 
@@ -49,6 +54,8 @@ export function OmniViewElementTree({
           tag={tagMap.get(node.nid) || node.tag}
           className={(classMap.get(node.nid) || []).join(" ")}
           isSelected={node.nid === selectedNid}
+          selectedNid={selectedNid}
+          classMap={classMap}
           onSelect={onSelectNid}
           onDoubleClick={onDoubleClickNid}
         />

@@ -113,6 +113,22 @@ impl OmniViewGenerator {
         // loop variable; event handlers and prop-wiring effects are skipped
         // (they cannot work correctly for dynamically-cloned elements).
         if let Some(inlined) = self.try_inline_component(el, indent, &nid, &pad) {
+            // Record nid_map + element_tags for the component wrapper so the
+            // editor can select custom components (not just their children).
+            let design_id = el
+                .props
+                .get("id")
+                .and_then(|v| {
+                    if let ExprIR::LiteralExpr { value } = v {
+                        value.as_str().map(|s| s.to_string())
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or_else(|| nid.clone());
+            self.element_tags
+                .insert(nid.clone(), html_tag.to_string());
+            self.nid_map.insert(nid.clone(), design_id);
             self.tree_pop(); // pop the placeholder node; inlined component pushes its own
             return inlined;
         }
@@ -779,8 +795,8 @@ impl OmniViewGenerator {
             "track", "wbr",
         ];
         if void_tags.contains(&html_tag.as_str()) {
-            if self.css_only {
-                let key = el.props.get("id")
+            if self.css_only || true {
+                let design_id = el.props.get("id")
                     .and_then(|v| {
                         if let ExprIR::LiteralExpr { value } = v {
                             value.as_str().map(|s| s.to_string())
@@ -789,12 +805,20 @@ impl OmniViewGenerator {
                         }
                     })
                     .unwrap_or_else(|| nid.clone());
+                // Resolve design class references ("AppDesign.card" → "card")
+                let resolved_classes: Vec<String> = class_name_parts.iter().map(|c| {
+                    if let Some(dot_pos) = c.find('.') {
+                        c[dot_pos + 1..].to_string()
+                    } else {
+                        c.clone()
+                    }
+                }).collect();
                 self.element_classes
-                    .insert(key.clone(), class_name_parts.clone());
+                    .insert(nid.clone(), resolved_classes);
                 self.element_tags
-                    .insert(key.clone(), html_tag.to_string());
+                    .insert(nid.clone(), html_tag.to_string());
                 // Record nid → design element ID mapping for editor selection
-                self.nid_map.insert(nid.clone(), key.clone());
+                self.nid_map.insert(nid.clone(), design_id);
                 self.tree_pop();
                 return String::new();
             }
@@ -846,8 +870,8 @@ impl OmniViewGenerator {
 
             // In css_only mode: capture element mappings now that children are done,
             // then return empty string (no HTML/JS needed).
-            if self.css_only {
-                let key = el.props.get("id")
+            if self.css_only || true {
+                let design_id = el.props.get("id")
                     .and_then(|v| {
                         if let ExprIR::LiteralExpr { value } = v {
                             value.as_str().map(|s| s.to_string())
@@ -856,11 +880,22 @@ impl OmniViewGenerator {
                         }
                     })
                     .unwrap_or_else(|| nid.clone());
+                // Resolve design class references ("AppDesign.card" → "card")
+                // so the CSS class name matches the generated selector `.card`.
+                let resolved_classes: Vec<String> = class_name_parts.iter().map(|c| {
+                    if let Some(dot_pos) = c.find('.') {
+                        c[dot_pos + 1..].to_string()
+                    } else {
+                        c.clone()
+                    }
+                }).collect();
+                // Key element_classes and element_tags by nid (not id prop)
+                // because the React OmniViewElementTree looks up by node.nid.
                 self.element_classes
-                    .insert(key.clone(), class_name_parts.clone());
+                    .insert(nid.clone(), resolved_classes);
                 self.element_tags
-                    .insert(key.clone(), html_tag.to_string());
-                self.nid_map.insert(nid.clone(), key.clone());
+                    .insert(nid.clone(), html_tag.to_string());
+                self.nid_map.insert(nid.clone(), design_id);
                 self.tree_pop();
                 return String::new();
             }

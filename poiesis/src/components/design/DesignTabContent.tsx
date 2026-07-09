@@ -1,6 +1,5 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import { usePoiesisStore } from "../../store";
-import { emitDesignSource } from "../../services/codegen/design-emitter";
 import { parseOmniSource } from "../../services/codegen";
 import { parseStyleValue } from "../../services/codegen/design-value-parser";
 import { uid } from "../../core/utils/id";
@@ -34,12 +33,8 @@ const TAB_BTN_ACTIVE: React.CSSProperties = {
   fontWeight: 600,
 };
 
-/** Height of the code drawer when open (percentage of available height). */
-const CODE_DRAWER_HEIGHT = "38%";
-
 export function DesignTabContent() {
   const designView = usePoiesisStore((s) => s.designPage.designView);
-  const [showCode, setShowCode] = useState(false);
   const activeDesign = usePoiesisStore((s) => s.activeDesign);
 
   const setDesignView = useCallback((v: DesignView) => {
@@ -104,31 +99,22 @@ export function DesignTabContent() {
               name: p.name,
               segments: parseStyleValue(p.value),
             })),
-            branches: (v.branches ?? []).map((b) => ({
-              id: uid("vb"),
-              dimension: "",
-              value: b.name,
-              properties: b.properties.map((p) => ({
+            branches: (v.branches ?? []).map((b) => {
+              const dotIdx = b.name.indexOf(".");
+              const dim = dotIdx >= 0 ? b.name.slice(0, dotIdx) : "";
+              const val = dotIdx >= 0 ? b.name.slice(dotIdx + 1) : b.name;
+              const props = b.properties.map((p) => ({
                 id: uid("sp"),
                 name: p.name,
                 segments: parseStyleValue(p.value),
-              })),
-            })),
+              }));
+              return { id: uid("vb"), dimension: dim, value: val, properties: props };
+            }),
           })),
         });
       }
     }).catch((e) => { console.warn("Design load failed", e); });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const designSource = useMemo(() => emitDesignSource(activeDesign), [activeDesign]);
-
-  const handleToggleCode = useCallback(() => {
-    setShowCode((v) => !v);
-  }, []);
-
-  const handleCloseCode = useCallback(() => {
-    setShowCode(false);
-  }, []);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--dp-bg, #f7f6fa)" }}>
@@ -152,25 +138,6 @@ export function DesignTabContent() {
           </button>
         ))}
         <div style={{ flex: 1 }} />
-        {/* Inner layer: Code toggle */}
-        <button
-          onClick={handleToggleCode}
-          title={showCode ? "Hide generated code" : "Show generated code"}
-          style={{
-            padding: "4px 12px",
-            border: showCode ? "1px solid var(--dp-accent, #6366f1)" : "1px solid var(--dp-border, #e8e5f2)",
-            borderRadius: "var(--dp-radius-sm, 6px)",
-            background: showCode ? "var(--dp-accent, #6366f1)" : "transparent",
-            color: showCode ? "#fff" : "var(--dp-text-muted, #a09db8)",
-            cursor: "pointer",
-            fontSize: 12,
-            fontWeight: showCode ? 600 : 400,
-            fontFamily: "inherit",
-            transition: "all 150ms",
-          }}
-        >
-          {showCode ? "Code ▾" : "Code ▸"}
-        </button>
       </div>
 
       {/* ═══ Content area: outer layer (editor) + inner layer (code drawer) ═══ */}
@@ -188,65 +155,6 @@ export function DesignTabContent() {
           {designView === "variants" && <VariantEditor />}
         </div>
 
-        {/* Inner layer: code drawer — slides up from bottom when toggled */}
-        {showCode && (
-          <div style={{
-            height: CODE_DRAWER_HEIGHT,
-            minHeight: 180,
-            borderTop: "2px solid var(--dp-accent, #6366f1)",
-            display: "flex",
-            flexDirection: "column",
-            background: "var(--dp-surface, #fff)",
-            flexShrink: 0,
-          }}>
-            {/* Drawer header */}
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "6px 16px",
-              background: "var(--dp-bg, #f7f6fa)",
-              borderBottom: "1px solid var(--dp-border, #e8e5f2)",
-              flexShrink: 0,
-            }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: "var(--dp-text-secondary, #6b6893)", display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ color: "var(--dp-accent, #6366f1)" }}>{"</>"}</span>
-                design.omni
-              </span>
-              <button
-                onClick={handleCloseCode}
-                style={{
-                  border: "none",
-                  background: "none",
-                  cursor: "pointer",
-                  fontSize: 18,
-                  color: "var(--dp-text-muted, #a09db8)",
-                  padding: "0 4px",
-                  lineHeight: 1,
-                  borderRadius: 4,
-                }}
-                title="Close code panel"
-              >
-                ×
-              </button>
-            </div>
-            {/* Drawer body */}
-            <pre style={{
-              fontFamily: "'Cascadia Code', 'Fira Code', monospace",
-              fontSize: 13,
-              lineHeight: 1.6,
-              color: "var(--dp-text, #1e1b4b)",
-              padding: "12px 16px",
-              overflow: "auto",
-              whiteSpace: "pre-wrap",
-              flex: 1,
-              margin: 0,
-              tabSize: 2,
-            }}>
-              {designSource}
-            </pre>
-          </div>
-        )}
       </div>
     </div>
   );
