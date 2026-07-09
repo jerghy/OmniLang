@@ -16,6 +16,7 @@ import { PropertyRow } from "./PropertyRow";
 import { ScrubInput } from "./ScrubInput";
 import { IconButtonGroup } from "./IconButtonGroup";
 import { ClassPreview } from "./ClassPreview";
+import { TokenSlashPicker } from "./TokenSlashPicker";
 
 // ── Helpers ──
 
@@ -357,7 +358,44 @@ export function VariantEditor() {
   const [addPropSearch, setAddPropSearch] = useState("");
   const [previewSelections, setPreviewSelections] = useState<Record<string, string>>({});
 
+  const [slashPicker, setSlashPicker] = useState<{
+    propName: string;
+    filter: string;
+    position: { top: number; left: number };
+  } | null>(null);
+
   const addPropRef = useRef<HTMLDivElement>(null);
+
+  // ── Tokenized input helper (inside component to use hooks) ──
+
+  const TokenizedInput = useCallback(
+    ({
+      value,
+      onChange,
+      onSlash,
+      placeholder,
+      style,
+    }: {
+      value: string;
+      onChange: (value: string) => void;
+      onSlash: () => void;
+      placeholder?: string;
+      style?: React.CSSProperties;
+    }) => {
+      const handleChange = useCallback(
+        (e: React.ChangeEvent<HTMLInputElement>) => {
+          const newVal = e.target.value;
+          if (newVal.endsWith("/") && !value.endsWith("/")) {
+            onSlash();
+          }
+          onChange(newVal);
+        },
+        [value, onChange, onSlash],
+      );
+      return <input value={value} onChange={handleChange} style={style} placeholder={placeholder} />;
+    },
+    [],
+  );
 
   // ── Derived data ──
 
@@ -645,6 +683,29 @@ export function VariantEditor() {
       handleCardPropsChange(newProps);
     },
     [selectedVariant, currentProps, handleCardPropsChange],
+  );
+
+  const handleSlashTrigger = useCallback(
+    (propName: string, inputEl: HTMLInputElement) => {
+      const rect = inputEl.getBoundingClientRect();
+      setSlashPicker({
+        propName,
+        filter: "",
+        position: { top: rect.bottom + 4, left: rect.left },
+      });
+    },
+    [],
+  );
+
+  const handleTokenSelect = useCallback(
+    (tokenName: string) => {
+      if (!slashPicker) return;
+      const currentVal = getPropValue(currentProps, slashPicker.propName);
+      const newVal = currentVal.slice(0, -1) + `token(${tokenName}) `;
+      handleSinglePropChange(slashPicker.propName, newVal);
+      setSlashPicker(null);
+    },
+    [slashPicker, currentProps, handleSinglePropChange],
   );
 
   const handleRemoveProperty = useCallback(
@@ -1166,11 +1227,15 @@ export function VariantEditor() {
               );
             } else {
               input = (
-                <input
+                <TokenizedInput
                   value={value}
-                  onChange={(e) => handleSinglePropChange(name, e.target.value)}
-                  style={INPUT_STYLE}
+                  onChange={(v) => handleSinglePropChange(name, v)}
+                  onSlash={() => {
+                    const el = document.activeElement as HTMLInputElement;
+                    if (el) handleSlashTrigger(name, el);
+                  }}
                   placeholder="value"
+                  style={INPUT_STYLE}
                 />
               );
             }
@@ -1244,11 +1309,15 @@ export function VariantEditor() {
               );
             } else {
               input = (
-                <input
+                <TokenizedInput
                   value={value}
-                  onChange={(e) => handleSinglePropChange(name, e.target.value)}
-                  style={INPUT_STYLE}
+                  onChange={(v) => handleSinglePropChange(name, v)}
+                  onSlash={() => {
+                    const el = document.activeElement as HTMLInputElement;
+                    if (el) handleSlashTrigger(name, el);
+                  }}
                   placeholder="value"
+                  style={INPUT_STYLE}
                 />
               );
             }
@@ -1438,6 +1507,15 @@ export function VariantEditor() {
         </div>
         {selectedVariant && renderPreview()}
       </div>
+      {slashPicker && (
+        <TokenSlashPicker
+          tokens={tokens}
+          filter={slashPicker.filter}
+          onSelect={handleTokenSelect}
+          onClose={() => setSlashPicker(null)}
+          position={slashPicker.position}
+        />
+      )}
     </div>
   );
 }
