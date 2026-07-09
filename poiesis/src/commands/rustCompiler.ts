@@ -125,9 +125,8 @@ class RustCompiler {
     if (this.ready) return;
 
     try {
-      // Dynamic import of the WASM JS glue — construct URL at runtime
-      const wasmUrl = new URL('/wasm/omnilang.js', window.location.href).href;
-      const wasmModule = await import(/* @vite-ignore */ wasmUrl);
+      // Dynamic import of the WASM JS glue (Vite processes src/wasm/ as module)
+      const wasmModule = await import('../wasm/omnilang.js');
 
       try {
         // Primary: fetch-based initialization (works in browser/dev server)
@@ -146,7 +145,7 @@ class RustCompiler {
         const __dirname = dirname(__filename);
         const wasmPath = resolve(
           __dirname,
-          '../../public/wasm/omnilang_bg.wasm',
+          '../wasm/omnilang_bg.wasm',
         );
         const wasmBytes = readFileSync(wasmPath);
         // Slice the backing ArrayBuffer to the exact byte range — a
