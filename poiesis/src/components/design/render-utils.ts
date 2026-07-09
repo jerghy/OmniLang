@@ -1,9 +1,9 @@
 // components/design/render-utils.ts
 // Shared rendering utilities for the OmniView renderer.
 
-import type { ElementData, ViewElementData } from "../../core/types/element";
+import type { ViewElementData } from "../../core/types/element";
 import type { StyleValueSegment } from "../../core/types/style";
-import type { DesignToken, DesignClass, DesignDefinition } from "../../core/types/design";
+import type { DesignToken } from "../../core/types/design";
 
 export function isTextSegment(
   s: StyleValueSegment
@@ -65,49 +65,3 @@ export function resolveSegmentsValue(
   return null;
 }
 
-/**
- * Pre-compute inline styles for all elements in the expanded tree.
- * Uses O(1) Map lookups instead of O(n) Array.find() for class resolution.
- */
-export function buildInlineStyleMap(
-  expandedElements: ReadonlyMap<string, ElementData>,
-  activeDesign: DesignDefinition,
-): Map<string, Record<string, string>> {
-  const map = new Map<string, Record<string, string>>();
-
-  // Build O(1) class name lookup
-  const classMap = new Map<string, DesignClass>(activeDesign.classes.map((c) => [c.name, c]));
-
-  for (const [id, el] of expandedElements) {
-    // Only view elements have styles
-    if (!("children" in el && "tag" in el)) continue;
-
-    const styles: Record<string, string> = { ...getDefaultInlineStyles(el) };
-
-    if (el.style?.inlineProperties) {
-      for (const prop of el.style.inlineProperties) {
-        const textSeg = prop.segments.find(isTextSegment);
-        if (textSeg) styles[prop.name] = textSeg.value;
-      }
-    }
-
-    if (el.style?.classRefs) {
-      for (const ref of el.style.classRefs) {
-        // Strip namespace prefix (e.g. "AppDesign.Card" → "Card")
-        const className = ref.includes(".") ? ref.split(".").slice(1).join(".") : ref;
-        const classDef = classMap.get(className);
-        if (!classDef) continue;
-        for (const prop of classDef.properties) {
-          const resolved = resolveSegmentsValue(prop.segments, activeDesign.tokens);
-          if (resolved != null) {
-            styles[prop.name] = resolved;
-          }
-        }
-      }
-    }
-
-    map.set(id, styles);
-  }
-
-  return map;
-}
