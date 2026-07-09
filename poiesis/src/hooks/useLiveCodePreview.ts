@@ -21,7 +21,6 @@ export function useLiveCodePreview(): string | null {
   const componentDefs = usePoiesisStore((s) => s.componentDefs);
   const activeTabId = usePoiesisStore((s) => s.designPage.activeTabId);
   const openTabs = usePoiesisStore((s) => s.designPage.openTabs);
-  const activeDesign = usePoiesisStore((s) => s.activeDesign);
 
   return useMemo(() => {
     if (elements.length === 0) return null;
