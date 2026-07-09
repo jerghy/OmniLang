@@ -15,7 +15,6 @@ export interface GenerateOmniSourceOptions {
   codeTabs: CodeTab[];
   componentName: string;
   rootOrder?: string[];
-  forSave?: boolean;
   componentMeta?: ComponentMeta;
   /** Existing PID map to reuse PIDs across regenerations for stability. */
   existingPidMap?: PidMap;
@@ -32,7 +31,6 @@ export interface GenerateOmniFilesOptions {
   codeTabs: CodeTab[];
   componentName: string;
   rootOrder?: string[];
-  forSave?: boolean;
   componentMeta?: ComponentMeta;
   existingPidMap?: PidMap;
   /** Design system name for class reference prefixing and import emission. */
@@ -51,6 +49,8 @@ export interface GenerateOmniFragmentOptions {
   existingPidMap?: PidMap;
   /** Design system name for class reference prefixing and import emission. */
   designName?: string;
+  /** When true, elements already belong to this component (from ComponentDef). Skip filtering. */
+  fromDefinition?: boolean;
 }
 
 // ── Public function signatures (re-exported from pipeline.ts) ──

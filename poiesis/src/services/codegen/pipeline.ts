@@ -12,11 +12,9 @@ import { lowerCode } from "./expression-lowering";
 import { emitChains } from "./chain-emitter";
 import { buildPidAnnotations, createAnnotationStrategy } from "./annotation-data";
 import { SourceEmitter, CodeWriter } from "./source-emitter";
-import { expandCustomComponents } from "./expand-custom-components";
 import { collectStylesFromEntries, applyStyles } from "./collect-styles";
 import type { ElementData, WireData, CodeTab } from "../../core/types";
 // import type { PidMap } from "../../core/types/pid";
-import { getComponentDefinitions } from "../../store";
 import type {
   StageResult,
   PipelineError,
@@ -100,23 +98,18 @@ function defaultStyleCollection(): StyleCollection {
 
 function runPhaseA(
   options: GenerateOmniSourceOptions,
-  expandedElements: ElementData[],
+  elements: ElementData[],
 ): { ctx: PhaseAContext; errors: PipelineError[] } {
   const errors: PipelineError[] = [];
-  const shouldExpand = !options.forSave;
 
   const a1 = runPhase("A", "view-tree-builder", () =>
-    buildViewTree(expandedElements, options.componentName, options.rootOrder),
+    buildViewTree(elements, options.componentName, options.rootOrder),
   );
   errors.push(...a1.errors);
   const viewTreeResult = a1.value ?? defaultViewTreeResult();
-  const { roots } = viewTreeResult;
-  let { pascalCaseTags } = viewTreeResult;
-
-  const registryDefs = getComponentDefinitions();
-  if (shouldExpand) {
-    pascalCaseTags = pascalCaseTags.filter((tag) => !(tag in registryDefs));
-  }
+  const { roots, pascalCaseTags } = viewTreeResult;
+  // All PascalCase tags kept — they're component references that need imports.
+  // (No filtering of registry components — expansion no longer substitutes for imports.)
 
   const a2 = runPhase("A", "wire-analyzer", () =>
     analyzeWires(options.designElements, options.designWires),
@@ -124,8 +117,13 @@ function runPhaseA(
   errors.push(...a2.errors);
   const bindings = a2.value ?? defaultBindingResult();
 
+  // Check if any elements reference design classes (for conditional design import)
+  const hasDesignClassUsage = options.designElements.some(
+    (el) => "classRefs" in el && Array.isArray(el.classRefs) && el.classRefs.length > 0,
+  );
+
   const a3 = runPhase("A", "import-collector", () =>
-    collectImports(pascalCaseTags, [...bindings.storeRefs.keys()], options.codeTabs, options.designName),
+    collectImports(pascalCaseTags, [...bindings.storeRefs.keys()], options.codeTabs, options.designName, hasDesignClassUsage),
   );
   errors.push(...a3.errors);
   const imports = a3.value ?? [];
@@ -180,10 +178,7 @@ function runPhaseC(
   phaseA: PhaseAContext,
 ): { ctx: PhaseCContext; errors: PipelineError[] } {
   const errors: PipelineError[] = [];
-  const shouldExpand = !options.forSave;
-  const expandedElements = shouldExpand
-    ? expandCustomComponents(options.designElements)
-    : options.designElements;
+  // No expansion — components stay as references, styles only from flat elements
 
   const c1 = runPhase("C", "style-resolver", () => {
     applyStyles(phaseA.roots);
@@ -207,7 +202,7 @@ function runPhaseC(
   const styleCollection = c1.errors.length > 0
     ? defaultStyleCollection()
     : collectStylesFromEntries(
-        expandedElements,
+        options.designElements,
         { variables: [], classes: [] }, // registry no longer needed — WASM handles CSS
         phaseA.roots,
         options.designName,
@@ -239,12 +234,8 @@ function runPhaseC(
 // ── generateOmniSource ──────────────────────────────────────────────
 
 export function generateOmniSource(options: GenerateOmniSourceOptions): StageResult<string> {
-  const shouldExpand = !options.forSave;
-  const expandedElements = shouldExpand
-    ? expandCustomComponents(options.designElements)
-    : options.designElements;
-
-  const phaseA = runPhaseA(options, expandedElements);
+  // No expansion — components stay as references. Expansion is a canvas concern.
+  const phaseA = runPhaseA(options, options.designElements);
 
   // Short-circuit: if Phase A has fatal errors, phases B/C would produce
   // meaningless results from default empty values — skip them.
@@ -358,24 +349,26 @@ export function generateOmniFragment(options: {
   designWires: WireData[];
   codeTabs: CodeTab[];
   rootOrder?: string[];
+  /** When true, elements already belong to this component (from ComponentDef). Skip filtering. */
+  fromDefinition?: boolean;
 }): StageResult<string> {
-  const { componentName, designElements, designWires, codeTabs, rootOrder } = options;
+  const { componentName, designElements, designWires, codeTabs, rootOrder, fromDefinition } = options;
 
-  // Filter elements belonging to this component
-  const componentElements = designElements.filter((el) => {
-    const ref = "componentRef" in el ? el.componentRef : undefined;
-    if (componentName === "App" || componentName === "main") {
-      return !ref || ref === componentName;
-    }
-    return ref === componentName;
-  });
+  // If elements come from a ComponentDef, they already belong to this component — no filter
+  const componentElements = fromDefinition
+    ? designElements
+    : designElements.filter((el) => {
+        const ref = "componentRef" in el ? el.componentRef : undefined;
+        if (componentName === "App" || componentName === "main") {
+          return !ref || ref === componentName;
+        }
+        return ref === componentName;
+      });
 
-  // If no elements for this component, return empty
   if (componentElements.length === 0) {
     return { value: "", errors: [] };
   }
 
-  // Re-run the full pipeline but only for these elements
   return generateOmniSource({
     designElements: componentElements,
     designWires,
