@@ -1,8 +1,10 @@
 //! CSS codegen for `design` blocks.
 //!
 //! Converts `DesignIR` into CSS output:
-//! - Classes → `.className { prop: val; }` rules with pseudo-states
-//! - Variants → `.variant-base { ... }`, `.variant-dim-value { ... }` utility rules
+//! - `:root { --token: value; }` declarations for design tokens
+//! - Classes → `[data-design~="Name"] .className { prop: val; }` rules with pseudo-states
+//! - Variants → `[data-design~="Name"] .variant-base { ... }`,
+//!   `[data-design~="Name"] .variant-dim-value { ... }` utility rules
 //!
 //! These CSS blocks are intended to be concatenated into the Omniview output's
 //! `<style>` block.  The `expand_variant` helper is used at component-bind time
@@ -10,51 +12,69 @@
 
 use crate::ir::design::*;
 use rustc_hash::FxHashMap;
-/// Emit CSS for all classes and variants in a design block.
+
+/// Emit CSS for all tokens, classes, and variants in a design block.
 ///
-/// Returns a single CSS string containing:
-/// 1. Class rules: `.className { prop: val; }\n.className:pseudo { ... }`
-/// 2. Variant base rules: `.variant-base { ... }`
-/// 3. Variant branch rules: `.variant-name.dim-value { ... }`
+/// The emitted CSS is scoped to `[data-design~="<scope>"]` so that multiple
+/// design blocks on the same page do not conflict.  Token values are declared
+/// on `:root` as CSS custom properties.
 ///
 /// Returns `Err(msg)` if the design has no name (unlikely, but defensive).
-pub fn emit_design_css(design: &DesignIR) -> Result<String, String> {
+pub fn emit_design_css(design: &DesignIR, scope: &str) -> Result<String, String> {
     if design.name.is_empty() {
         return Err("design block has an empty name".to_string());
     }
 
+    let scope_prefix = format!("[data-design~=\"{}\"] ", scope);
     let mut css = String::new();
+
+    // ── Emit token CSS custom property declarations ──
+    if !design.tokens.is_empty() {
+        css.push_str(":root {\n");
+        let mut sorted: Vec<_> = design.tokens.iter().collect();
+        sorted.sort_by(|a, b| a.0.cmp(b.0));
+        for (name, token) in &sorted {
+            css.push_str(&format!("  --{}: {};\n", name, token.value));
+        }
+        css.push_str("}\n\n");
+    }
 
     // ── Emit class rules ──
     for class in &design.classes {
-        css.push_str(&emit_class_css(class));
+        css.push_str(&emit_class_css(class, &scope_prefix));
     }
 
     // ── Emit variant rules ──
     for variant in &design.variants {
-        css.push_str(&emit_variant_css(variant));
+        css.push_str(&emit_variant_css(variant, &scope_prefix));
     }
 
     Ok(css)
 }
 
-/// Emit CSS for a single class: `.name { prop: val; }` plus pseudo-states.
-fn emit_class_css(class: &ClassIR) -> String {
+/// Emit CSS for a single class: `{scope}.name { prop: val; }` plus pseudo-states.
+fn emit_class_css(class: &ClassIR, scope_prefix: &str) -> String {
     let mut css = String::new();
 
     if !class.properties.is_empty() {
-        css.push_str(&format!(".{} {{\n", class.name));
+        css.push_str(&format!("{}.{} {{\n", scope_prefix, class.name));
         for (prop, val) in &class.properties {
-            css.push_str(&format!("\t{}: {};\n", prop, val));
+            css.push_str(&format!("  {}: {};\n", prop, val));
         }
         css.push_str("}\n\n");
     }
 
     for ps in &class.pseudo_states {
         if !ps.properties.is_empty() {
-            css.push_str(&format!(".{}:{} {{\n", class.name, ps.pseudo));
+            // Pseudo-classes use `:hover` syntax, pseudo-elements use `::before`
+            let pseudo_selector = if ps.pseudo.starts_with("::") {
+                format!("{}.{}{} {{\n", scope_prefix, class.name, ps.pseudo)
+            } else {
+                format!("{}.{}:{} {{\n", scope_prefix, class.name, ps.pseudo)
+            };
+            css.push_str(&pseudo_selector);
             for (prop, val) in &ps.properties {
-                css.push_str(&format!("\t{}: {};\n", prop, val));
+                css.push_str(&format!("  {}: {};\n", prop, val));
             }
             css.push_str("}\n\n");
         }
@@ -64,24 +84,27 @@ fn emit_class_css(class: &ClassIR) -> String {
 }
 
 /// Emit CSS for variant base and branch rules.
-fn emit_variant_css(variant: &VariantIR) -> String {
+fn emit_variant_css(variant: &VariantIR, scope_prefix: &str) -> String {
     let mut css = String::new();
 
-    // Base rule: `.variant-name { ... }`
+    // Base rule: `{scope}.variant-name { ... }`
     if !variant.base.is_empty() {
-        css.push_str(&format!(".{} {{\n", variant.name));
+        css.push_str(&format!("{}.{} {{\n", scope_prefix, variant.name));
         for (prop, val) in &variant.base {
-            css.push_str(&format!("\t{}: {};\n", prop, val));
+            css.push_str(&format!("  {}: {};\n", prop, val));
         }
         css.push_str("}\n\n");
     }
 
-    // Branch rules: `.variant-name.dim-value { ... }`
+    // Branch rules: `{scope}.variant-name.dim-value { ... }`
     for branch in &variant.branches {
         if !branch.properties.is_empty() {
-            css.push_str(&format!(".{}.{} {{\n", variant.name, branch.value));
+            css.push_str(&format!(
+                "{}.{}.{} {{\n",
+                scope_prefix, variant.name, branch.value
+            ));
             for (prop, val) in &branch.properties {
-                css.push_str(&format!("\t{}: {};\n", prop, val));
+                css.push_str(&format!("  {}: {};\n", prop, val));
             }
             css.push_str("}\n\n");
         }
@@ -120,9 +143,13 @@ pub fn expand_variant(
     let mut classes = Vec::new();
     classes.push(variant_name.to_string());
 
-    // Add dimension values that match declared dimensions
+    // Add dimension values that match declared dimensions,
+    // falling back to defaults for any missing dimensions
     for dim in &variant.dimensions {
-        if let Some(val) = dimension_values.get(&dim.name) {
+        let val = dimension_values
+            .get(&dim.name)
+            .or_else(|| variant.defaults.get(&dim.name));
+        if let Some(val) = val {
             if dim.values.contains(val) {
                 classes.push(val.clone());
             }
@@ -131,6 +158,33 @@ pub fn expand_variant(
 
     // Additional CSS is already handled by emit_design_css, so return empty
     Ok((classes, String::new()))
+}
+
+/// Look up a class by name and return its resolved CSS properties.
+/// Returns `None` if the class is not found in the given design.
+pub fn resolve_class_properties<'a>(
+    design: &'a DesignIR,
+    class_name: &str,
+) -> Option<&'a FxHashMap<String, String>> {
+    design
+        .classes
+        .iter()
+        .find(|c| c.name == class_name)
+        .map(|c| &c.properties)
+}
+
+/// Look up a class by name and return its pseudo-state properties.
+/// Returns an empty slice if the class is not found or has no pseudo-states.
+pub fn resolve_class_pseudo_states<'a>(
+    design: &'a DesignIR,
+    class_name: &str,
+) -> &'a [PseudoStateIR] {
+    design
+        .classes
+        .iter()
+        .find(|c| c.name == class_name)
+        .map(|c| c.pseudo_states.as_slice())
+        .unwrap_or(&[])
 }
 
 #[cfg(test)]
@@ -224,16 +278,23 @@ mod tests {
     #[test]
     fn emit_class_css_output() {
         let design = make_test_design();
-        let css = emit_design_css(&design).expect("should emit CSS");
+        let css = emit_design_css(&design, "AppDesign").expect("should emit CSS");
 
-        assert!(css.contains(".Card {"), "should contain .Card class rule");
+        assert!(
+            css.contains("[data-design~=\"AppDesign\"] .Card {"),
+            "should contain scoped .Card class rule"
+        );
+        assert!(
+            css.contains("--surface: #ffffff;"),
+            "should contain token declaration in :root"
+        );
         assert!(
             css.contains("background: #ffffff;"),
             "should contain resolved property"
         );
         assert!(
-            css.contains(".Card:hover {"),
-            "should contain hover pseudo-state"
+            css.contains("[data-design~=\"AppDesign\"] .Card:hover {"),
+            "should contain scoped hover pseudo-state"
         );
         assert!(
             css.contains("box-shadow: 0 4px 12px rgba(0,0,0,0.08);"),
@@ -244,24 +305,36 @@ mod tests {
     #[test]
     fn emit_variant_css_output() {
         let design = make_test_design();
-        let css = emit_design_css(&design).expect("should emit CSS");
+        let css = emit_design_css(&design, "AppDesign").expect("should emit CSS");
 
         assert!(
-            css.contains(".Button {"),
-            "should contain variant base rule"
+            css.contains("[data-design~=\"AppDesign\"] .Button {"),
+            "should contain scoped variant base rule"
         );
         assert!(
             css.contains("display: inline-flex;"),
             "should contain variant base property"
         );
         assert!(
-            css.contains(".Button.primary {"),
-            "should contain variant branch rule"
+            css.contains("[data-design~=\"AppDesign\"] .Button.primary {"),
+            "should contain scoped variant branch rule"
         );
         assert!(
             css.contains("background: #6366f1;"),
             "should contain branch property"
         );
+    }
+
+    #[test]
+    fn emit_empty_design() {
+        let design = DesignIR {
+            name: "Empty".to_string(),
+            tokens: FxHashMap::default(),
+            classes: vec![],
+            variants: vec![],
+        };
+        let css = emit_design_css(&design, "Empty").expect("should emit empty CSS");
+        assert!(css.is_empty(), "empty design should produce no CSS");
     }
 
     #[test]
@@ -293,22 +366,30 @@ mod tests {
     }
 
     #[test]
+    fn expand_variant_applies_defaults() {
+        let design = make_test_design();
+        // Only supply "color", leaving "size" to fall back to its default ("md")
+        let dim_values = vec![("color".to_string(), "primary".to_string())]
+            .into_iter()
+            .collect();
+
+        let (classes, _) = expand_variant(&design, "Button", &dim_values).expect("should expand");
+
+        assert!(
+            classes.contains(&"primary".to_string()),
+            "should include explicitly provided dimension value"
+        );
+        assert!(
+            classes.contains(&"md".to_string()),
+            "should include default value for missing dimension"
+        );
+    }
+
+    #[test]
     fn expand_variant_not_found() {
         let design = make_test_design();
         let dim_values = FxHashMap::default();
         let result = expand_variant(&design, "NonExistent", &dim_values);
         assert!(result.is_err(), "should error on unknown variant");
-    }
-
-    #[test]
-    fn emit_empty_design() {
-        let design = DesignIR {
-            name: "Empty".to_string(),
-            tokens: FxHashMap::default(),
-            classes: vec![],
-            variants: vec![],
-        };
-        let css = emit_design_css(&design).expect("should emit empty CSS");
-        assert!(css.is_empty(), "empty design should produce no CSS");
     }
 }

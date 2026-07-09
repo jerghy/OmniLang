@@ -22,11 +22,13 @@ mod motion_triggers;
 mod runtime;
 mod stmt;
 mod store;
+pub mod style_resolver;
 mod timeline;
 mod utils;
 mod view;
 pub use utils::{compile_files, wrap_debug_html};
 
+use crate::error::Diagnostic;
 use crate::ir::*;
 use crate::sourcemap::SourceMapEntry;
 use rustc_hash::FxHashMap;
@@ -56,6 +58,77 @@ pub struct ComponentOutput {
     pub js: String,
     pub html: String,
     pub css: String,
+}
+
+/// Per-element resolved style returned by resolve_styles().
+/// Mirrors the info Poiesis needs to render a canvas element.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResolvedElementStyle {
+    /// Tree path like "MyPage.div.0.Card.0.header.1"
+    pub path: String,
+    /// HTML tag name
+    pub tag: String,
+    /// Resolved CSS class names applied to this element
+    pub classes: Vec<String>,
+    /// Merged CSS properties (design class -> variant -> component style -> inline)
+    pub computed_css: FxHashMap<String, String>,
+    /// Semantic HTML attributes (id, placeholder, src, etc.)
+    pub html_attrs: FxHashMap<String, String>,
+    /// Event bindings: event_name -> handler_fn_name
+    pub events: FxHashMap<String, String>,
+    /// Signal bindings: prop_name -> signal_name
+    pub bindings: FxHashMap<String, String>,
+    /// Inline style expressions (signal-driven only)
+    pub inline_style: Option<serde_json::Value>,
+    /// Child element paths (for tree reconstruction)
+    pub children: Vec<String>,
+    /// Source line in .omni file
+    pub source_line: u32,
+}
+
+/// Top-level result from resolve_styles().
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StyleResolveResult {
+    pub success: bool,
+    /// Per-component resolved elements, keyed by component name
+    pub components: FxHashMap<String, Vec<ResolvedElementStyle>>,
+    /// Design system summary (for Poiesis design panel)
+    pub design: Option<DesignSummary>,
+    pub errors: Vec<Diagnostic>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DesignSummary {
+    pub name: String,
+    pub tokens: Vec<TokenSummary>,
+    pub classes: Vec<ClassSummary>,
+    pub variants: Vec<VariantSummary>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TokenSummary {
+    pub name: String,
+    pub token_type: String,
+    pub value: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClassSummary {
+    pub name: String,
+    pub properties: FxHashMap<String, String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VariantSummary {
+    pub name: String,
+    pub dimensions: Vec<VariantDimSummary>,
+    pub defaults: FxHashMap<String, String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VariantDimSummary {
+    pub name: String,
+    pub values: Vec<String>,
 }
 
 /// Generate OmniView output from an IR program.
@@ -88,6 +161,8 @@ pub fn generate(ir: &IRProgram, editor_mode: bool) -> OmniViewOutput {
         enter_trigger_nids: Vec::new(),
         for_state_names: FxHashMap::default(),
         motion_names: FxHashSet::default(),
+        design_names: Vec::new(),
+        design_map: FxHashMap::default(),
         warnings: Vec::new(),
         for_text_bindings: Vec::new(),
         for_class_bindings: Vec::new(),
@@ -171,6 +246,16 @@ pub fn generate(ir: &IRProgram, editor_mode: bool) -> OmniViewOutput {
         );
     }
 
+    // ── Collect design names before component generation ──
+    // Must happen BEFORE generate_component() because emit_view() reads
+    // self.design_names to decide whether to emit the data-design attribute.
+    for module in ir.modules.values() {
+        for design in &module.designs {
+            gen.design_names.push(design.name.clone());
+            gen.design_map.insert(design.name.clone(), design.clone());
+        }
+    }
+
     // Generate each component (signals, fns). Only root component emits its view.
     for (comp_name, comp) in ir.all_components() {
         gen.generate_component(comp_name, comp, ir, comp_name == root_name);
@@ -202,7 +287,19 @@ pub fn generate(ir: &IRProgram, editor_mode: bool) -> OmniViewOutput {
         );
     }
 
-    // Emit ONE innerHTML insertion with accumulated HTML + ALL deferred bindings
+    // ── Emit scoped design CSS (tokens, classes, variants) ──
+    // Design names were collected before component generation so emit_view()
+    // sees them when writing the data-design attribute on the root <div>.
+    for module in ir.modules.values() {
+        for design in &module.designs {
+            if let Ok(css) = design::emit_design_css(design, &design.name) {
+                gen.css
+                    .push_str(&format!("\n/* ── Design: {} ── */\n", design.name));
+                gen.css.push_str(&css);
+            }
+        }
+    }
+
     gen.emit_dom_and_bindings();
     // Inject editor bridge code (postMessage, nid_map, highlight, hot-replace)
     gen.emit_editor_bridge();
@@ -325,6 +422,11 @@ struct OmniViewGenerator {
     enter_trigger_nids: Vec<(String, String, String)>,
     /// @for template: maps child component state names -> (original_name, default_js)
     for_state_names: FxHashMap<String, (String, String)>,
+    /// Design names collected during codegen, used for `data-design` attribute emission.
+    design_names: Vec<String>,
+    /// Compiled DesignIR map keyed by design name, used for variant expansion
+    /// and design-class resolution at codegen time.
+    design_map: FxHashMap<String, crate::ir::design::DesignIR>,
     /// Diagnostic warnings collected during codegen (e.g., missing animation params).
     warnings: Vec<String>,
     /// Pre-compiled text bindings for @for templates: (nid, js_expression)
@@ -378,6 +480,8 @@ impl OmniViewGenerator {
             enter_trigger_nids: Vec::new(),
             for_state_names: FxHashMap::default(),
             motion_names: FxHashSet::default(),
+            design_names: Vec::new(),
+            design_map: FxHashMap::default(),
             warnings: Vec::new(),
             for_text_bindings: Vec::new(),
             for_class_bindings: Vec::new(),
