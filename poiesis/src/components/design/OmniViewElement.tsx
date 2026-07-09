@@ -12,6 +12,8 @@ export interface OmniViewElementProps {
   customChildIds: ReadonlySet<string>;
   selectedIds: ReadonlySet<string>;
   inlineStyleMap: ReadonlyMap<string, Record<string, string>>;
+  /** WASM-resolved class names per element id. When available, className is used. */
+  classMap?: ReadonlyMap<string, string[]> | null;
   onSelect: (id: string) => void;
   onDoubleClick: (id: string) => void;
 }
@@ -22,11 +24,16 @@ export const OmniViewElement = React.memo(function OmniViewElement({
   customChildIds,
   selectedIds,
   inlineStyleMap,
+  classMap,
   onSelect,
   onDoubleClick,
 }: OmniViewElementProps) {
   const isInsideCustom = customChildIds.has(element.id);
   const isSelected = !isInsideCustom && selectedIds.has(element.id);
+
+  // WASM class names take priority over inline styles for design classes
+  const wasmClasses = classMap?.get(element.id);
+  const className = wasmClasses ? wasmClasses.join(" ") : undefined;
 
   const inlineStyles = inlineStyleMap.get(element.id) ?? {};
 
@@ -34,7 +41,8 @@ export const OmniViewElement = React.memo(function OmniViewElement({
     outline: isSelected ? "2px solid #7C3AED" : "none",
     outlineOffset: "-2px",
     cursor: isInsideCustom ? "default" : "pointer",
-    ...inlineStyles,
+    // When WASM classes are active, skip inline styles (they are from design classes)
+    ...(className ? {} : inlineStyles),
   };
 
   const tagName = resolveTag(element.tag);
@@ -65,6 +73,7 @@ export const OmniViewElement = React.memo(function OmniViewElement({
         customChildIds={customChildIds}
         selectedIds={selectedIds}
         inlineStyleMap={inlineStyleMap}
+        classMap={classMap}
         onSelect={onSelect}
         onDoubleClick={onDoubleClick}
       />
@@ -75,6 +84,7 @@ export const OmniViewElement = React.memo(function OmniViewElement({
     {
       key: element.id,
       "data-pid": element.id,
+      className,
       style,
       onClick: handleClick,
       onDoubleClick: handleDoubleClick,
