@@ -71,12 +71,18 @@ export function useSaveProject() {
         rootOrder: store.rootOrder,
         forSave: true,
         filePath: activeTab?.filePath,
+        designName: store.activeDesign?.name && (store.activeDesign.tokens?.length || store.activeDesign.classes?.length || store.activeDesign.variants?.length) ? store.activeDesign.name : undefined,
       });
 
       if (genResult.value) {
         // ── 3. Write each generated .omni file to disk ──
         for (const [filePath, source] of Object.entries(genResult.value)) {
           await api.project.writeFile(filePath, source);
+        }
+        // Update activeFileContent so the code drawer shows the latest content
+        const targetPath = activeTab?.filePath ?? "src/main.omni";
+        if (genResult.value[targetPath]) {
+          usePoiesisStore.setState({ activeFileContent: genResult.value[targetPath] });
         }
       } else if (genResult.errors.some((e) => e.severity === "fatal")) {
         log.error("codegen errors:", genResult.errors);

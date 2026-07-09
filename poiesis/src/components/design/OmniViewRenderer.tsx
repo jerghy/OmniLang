@@ -97,7 +97,8 @@ export function OmniViewRenderer() {
 
   // Build design.omni source from activeDesign
   const designSource = useMemo(() => {
-    if (!activeDesign || activeDesign.tokens.length === 0) return null;
+    if (!activeDesign?.name) return null;
+    if (!activeDesign.tokens?.length && !activeDesign.classes?.length && !activeDesign.variants?.length) return null;
     return emitDesignSource(activeDesign);
   }, [activeDesign]);
 

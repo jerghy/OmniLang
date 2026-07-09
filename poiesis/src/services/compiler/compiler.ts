@@ -22,6 +22,7 @@ export interface CompileProjectParams {
   target: string;
   isRunning: boolean;
   editorMode?: boolean;
+  designName?: string;
 }
 
 export interface CompileProjectResult {
@@ -53,6 +54,7 @@ export async function compileProject(
     codeTabs: params.codeTabs,
     componentName: params.componentName,
     rootOrder: params.rootOrder,
+    designName: params.designName,
   });
 
   let content = params.activeFileContent;
