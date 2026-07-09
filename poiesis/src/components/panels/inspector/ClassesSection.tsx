@@ -27,12 +27,13 @@ export function ClassesSection({ element }: ClassesSectionProps) {
 
   const handleAddClass = useCallback(
     (className: string) => {
-      if (currentRefs.includes(className)) return;
-      setElementClassRefs(element.id, [...currentRefs, className]);
+      const prefixed = `${activeDesign.name}.${className}`;
+      if (currentRefs.includes(prefixed)) return;
+      setElementClassRefs(element.id, [...currentRefs, prefixed]);
       setSearch("");
       setShowDropdown(false);
     },
-    [element.id, currentRefs, setElementClassRefs],
+    [element.id, currentRefs, setElementClassRefs, activeDesign.name],
   );
 
   const handleRemoveClass = useCallback(
