@@ -12,6 +12,9 @@ import { usePoiesisStore } from "../../store";
 import { useElements, useRootOrder, useSelectedElementIds, useComponentDefs } from "../../store/hooks";
 import { OmniViewElement } from "./OmniViewElement";
 import { buildInlineStyleMap } from "./render-utils";
+import { rustCompiler } from "../../commands/rustCompiler";
+import { useLiveCodePreview } from "../../hooks/useLiveCodePreview";
+import { emitDesignSource } from "../../services/codegen/design-emitter";
 import type { ElementData, ViewElementData } from "../../core/types/element";
 import type { ComponentDef } from "../../core/types/project-json";
 
@@ -89,7 +92,52 @@ export function OmniViewRenderer() {
     return { expandedElements: map, customChildIds: innerIds };
   }, [elements, componentDefs]);
 
-  // Pre-compute inline styles for all elements: O(1) class lookup via Map
+  // Live component .omni source for WASM compilation
+  const componentSource = useLiveCodePreview();
+
+  // Build design.omni source from activeDesign
+  const designSource = useMemo(() => {
+    if (!activeDesign || activeDesign.tokens.length === 0) return null;
+    return emitDesignSource(activeDesign);
+  }, [activeDesign]);
+
+  // WASM CSS resolution: resolve design-system styles + component styles
+  const wasmStyleResult = useMemo(() => {
+    if (!componentSource || !designSource || !rustCompiler.isReady) return null;
+    const sources: Record<string, string> = {
+      "src/design.omni": designSource,
+      "src/main.omni": componentSource,
+    };
+    const pathMapping: Record<string, string> = {
+      "./design.omni": "src/design.omni",
+    };
+    const result = rustCompiler.resolveStylesMulti(sources, pathMapping);
+    if (!result.success) return null;
+    return result;
+  }, [componentSource, designSource]);
+
+  // Build classMap from WASM result (element id → class names)
+  const classMap = useMemo(() => {
+    if (!wasmStyleResult) return null;
+    const map = new Map<string, string[]>();
+    for (const [elId, classes] of Object.entries(wasmStyleResult.element_classes)) {
+      map.set(elId, classes);
+    }
+    return map;
+  }, [wasmStyleResult]);
+
+  // Combined CSS for <style> injection (design_css + component_css)
+  const combinedCss = useMemo(() => {
+    if (!wasmStyleResult) return null;
+    const parts: string[] = [];
+    if (wasmStyleResult.design_css) parts.push(wasmStyleResult.design_css);
+    for (const css of Object.values(wasmStyleResult.component_css)) {
+      if (css) parts.push(css);
+    }
+    return parts.join("\n");
+  }, [wasmStyleResult]);
+
+  // Fallback: existing TS-based inline style resolution
   const inlineStyleMap = useMemo(
     () => buildInlineStyleMap(expandedElements, activeDesign),
     [expandedElements, activeDesign],
@@ -123,6 +171,7 @@ export function OmniViewRenderer() {
         padding: 8, boxSizing: "border-box",
       }}
     >
+      {combinedCss && <style dangerouslySetInnerHTML={{ __html: combinedCss }} />}
       {rootElements.length === 0 ? (
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "center",
@@ -139,6 +188,7 @@ export function OmniViewRenderer() {
             customChildIds={customChildIds}
             selectedIds={selectedIdSet}
             inlineStyleMap={inlineStyleMap}
+            classMap={classMap}
             onSelect={handleSelect}
             onDoubleClick={handleDoubleClick}
           />
