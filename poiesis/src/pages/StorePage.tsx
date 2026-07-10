@@ -1,6 +1,7 @@
 // pages/StorePage.tsx
 // Top-level component for the Store editor tab.
 // Left panel: StoreMembersPanel. Center: FlowCanvas for action code-flow editing.
+// Supports inlineMode for component-scoped stores in the drawer.
 
 import { useCallback, useEffect } from "react";
 import type { CodeblockElementData } from "../core/types/element";
@@ -14,6 +15,8 @@ import { uid } from "../core/utils/id";
 interface Props {
   storeName: string;
   tabId: string;
+  /** When true, reads/writes inlineStoreDefs instead of storeDefs. */
+  inlineMode?: boolean;
 }
 
 function createDefaultStore(storeName: string, filePath: string): StoreDefinition {
@@ -29,14 +32,31 @@ function createDefaultStore(storeName: string, filePath: string): StoreDefinitio
   };
 }
 
-export function StorePage({ storeName, tabId }: Props) {
-  const store = usePoiesisStore((s) => s.storeDefs[storeName]);
+export function StorePage({ storeName, tabId, inlineMode = false }: Props) {
+  // Select from correct store slice
+  const globalStore = usePoiesisStore((s) => s.storeDefs[storeName]);
+  const inlineStore = usePoiesisStore((s) => s.inlineStoreDefs[storeName]);
+  const store = inlineMode ? inlineStore : globalStore;
+
+  // Store lifecycle actions
   const loadStoreDef = usePoiesisStore((s) => s.loadStoreDef);
+  const loadInlineStoreDef = usePoiesisStore((s) => s.loadInlineStoreDef);
   const registerStorePids = usePoiesisStore((s) => s.registerStorePids);
   const setElementsAndWires = usePoiesisStore((s) => s.setElementsAndWires);
   const tabData = usePoiesisStore((s) => s.tabData);
   const updateStoreAction = usePoiesisStore((s) => s.updateStoreAction);
+  const updateInlineStoreAction = usePoiesisStore((s) => s.updateInlineStoreAction);
   const tabs = usePoiesisStore((s) => s.designPage.openTabs);
+
+  // Inline store CRUD actions (passed as callbacks to StoreMembersPanel)
+  const addInlineStoreSignal = usePoiesisStore((s) => s.addInlineStoreSignal);
+  const updateInlineStoreSignal = usePoiesisStore((s) => s.updateInlineStoreSignal);
+  const removeInlineStoreSignal = usePoiesisStore((s) => s.removeInlineStoreSignal);
+  const addInlineStoreGetter = usePoiesisStore((s) => s.addInlineStoreGetter);
+  const updateInlineStoreGetter = usePoiesisStore((s) => s.updateInlineStoreGetter);
+  const removeInlineStoreGetter = usePoiesisStore((s) => s.removeInlineStoreGetter);
+  const addInlineStoreAction = usePoiesisStore((s) => s.addInlineStoreAction);
+  const removeInlineStoreAction = usePoiesisStore((s) => s.removeInlineStoreAction);
 
   const selectedActionPid = tabData[tabId]?.selectedActionPid ?? null;
 
@@ -46,10 +66,14 @@ export function StorePage({ storeName, tabId }: Props) {
       const tab = tabs.find((t) => t.id === tabId);
       const filePath = tab?.filePath ?? `src/stores/${storeName}.omni`;
       const def = createDefaultStore(storeName, filePath);
-      loadStoreDef(def);
+      if (inlineMode) {
+        loadInlineStoreDef(def);
+      } else {
+        loadStoreDef(def);
+      }
       registerStorePids(def);
     }
-  }, [store, storeName, tabId, tabs, loadStoreDef, registerStorePids]);
+  }, [store, storeName, tabId, tabs, loadStoreDef, loadInlineStoreDef, registerStorePids, inlineMode]);
 
   // Sync fn node name/params → StoreActionDef in real-time
   useEffect(() => {
@@ -80,13 +104,17 @@ export function StorePage({ storeName, tabId }: Props) {
       const updates: Partial<typeof action> = {};
       if (fnName !== undefined && fnName !== action.name) updates.name = fnName;
       if (JSON.stringify(parsedParams) !== JSON.stringify(action.params)) updates.params = parsedParams;
-      usePoiesisStore.getState().updateStoreAction(storeName, activePid, updates);
+      const updateAction = inlineMode
+        ? state.updateInlineStoreAction
+        : state.updateStoreAction;
+      updateAction(storeName, activePid, updates);
     }
   });
 
   const handleSelectAction = useCallback((pid: string) => {
     const state = usePoiesisStore.getState();
-    const currentStore = state.storeDefs[storeName];
+    const stores = inlineMode ? state.inlineStoreDefs : state.storeDefs;
+    const currentStore = stores[storeName];
     const currentElements = state.elements;
     const currentWires = state.wires;
     const currentSelectedPid = state.tabData[tabId]?.selectedActionPid ?? null;
@@ -95,7 +123,6 @@ export function StorePage({ storeName, tabId }: Props) {
       const currentAction = currentStore.actions.find((a) => a.pid === currentSelectedPid);
       if (currentAction) {
         const codeblockElements = currentElements.filter((e) => e.nodeType === "codeblock");
-        // Sync fn node's name + params back to StoreActionDef
         const fnEl = codeblockElements.find((e) => e.tag === "fn");
         const nameFromFn = (fnEl?.props?.name as string) || currentAction.name;
         const paramsFromFn = (fnEl?.props?.params as string) || "";
@@ -105,7 +132,10 @@ export function StorePage({ storeName, tabId }: Props) {
               return { name: pName || "", type: pType || "String" };
             })
           : currentAction.params;
-        updateStoreAction(storeName, currentSelectedPid, {
+        const updateAction = inlineMode
+          ? state.updateInlineStoreAction
+          : state.updateStoreAction;
+        updateAction(storeName, currentSelectedPid, {
           name: nameFromFn,
           params: parsedParams,
           elements: codeblockElements as CodeblockElementData[],
@@ -127,7 +157,7 @@ export function StorePage({ storeName, tabId }: Props) {
         [tabId]: { ...s.tabData[tabId], selectedActionPid: pid },
       },
     }));
-  }, [storeName, tabId, updateStoreAction, setElementsAndWires]);
+  }, [storeName, tabId, inlineMode, setElementsAndWires]);
 
   useEffect(() => {
     if (!selectedActionPid && store && store.actions.length > 0) {
@@ -158,6 +188,15 @@ export function StorePage({ storeName, tabId }: Props) {
           storeName={storeName}
           selectedActionPid={selectedActionPid}
           onSelectAction={handleSelectAction}
+          storeOverride={inlineMode ? store : undefined}
+          onAddSignal={inlineMode ? (sig) => addInlineStoreSignal(storeName, sig) : undefined}
+          onUpdateSignal={inlineMode ? (pid, updates) => updateInlineStoreSignal(storeName, pid, updates) : undefined}
+          onRemoveSignal={inlineMode ? (pid) => removeInlineStoreSignal(storeName, pid) : undefined}
+          onAddGetter={inlineMode ? (g) => addInlineStoreGetter(storeName, g) : undefined}
+          onUpdateGetter={inlineMode ? (pid, updates) => updateInlineStoreGetter(storeName, pid, updates) : undefined}
+          onRemoveGetter={inlineMode ? (pid) => removeInlineStoreGetter(storeName, pid) : undefined}
+          onAddAction={inlineMode ? (a) => addInlineStoreAction(storeName, a) : undefined}
+          onRemoveAction={inlineMode ? (pid) => removeInlineStoreAction(storeName, pid) : undefined}
         />
       </div>
 

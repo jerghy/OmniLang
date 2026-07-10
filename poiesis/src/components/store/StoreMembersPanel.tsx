@@ -1,10 +1,12 @@
 // components/store/StoreMembersPanel.tsx
 // Left panel for the Store editor: Signals, Getters, Actions sections.
 // Uses Poiesis --ol-* design tokens for visual consistency.
+// Supports storeOverride + CRUD callbacks for inline store drawer mode.
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { usePoiesisStore } from "../../store";
 import { CodeEditorModal } from "../canvas/code/CodeEditorModal";
+import type { StoreDefinition, StoreSignalDef, StoreGetterDef, StoreActionDef } from "../../core/types/store";
 
 // ── OmniLang common types for dropdown ──
 const OMNI_TYPES = [
@@ -151,18 +153,54 @@ interface Props {
   storeName: string;
   selectedActionPid: string | null;
   onSelectAction: (pid: string) => void;
+  /** Override store lookup (for inline stores in drawer mode).
+   *  When provided, used instead of s.storeDefs[storeName]. */
+  storeOverride?: StoreDefinition;
+  // CRUD callbacks (required when storeOverride is set; used instead of Zustand actions)
+  onAddSignal?: (signal: StoreSignalDef) => void;
+  onUpdateSignal?: (pid: string, updates: Partial<StoreSignalDef>) => void;
+  onRemoveSignal?: (pid: string) => void;
+  onAddGetter?: (getter: StoreGetterDef) => void;
+  onUpdateGetter?: (pid: string, updates: Partial<StoreGetterDef>) => void;
+  onRemoveGetter?: (pid: string) => void;
+  onAddAction?: (action: StoreActionDef) => void;
+  onRemoveAction?: (pid: string) => void;
 }
 
-export function StoreMembersPanel({ storeName, selectedActionPid, onSelectAction }: Props) {
-  const store = usePoiesisStore((s) => s.storeDefs[storeName]);
-  const addStoreSignal = usePoiesisStore((s) => s.addStoreSignal);
-  const updateStoreSignal = usePoiesisStore((s) => s.updateStoreSignal);
-  const removeStoreSignal = usePoiesisStore((s) => s.removeStoreSignal);
-  const addStoreGetter = usePoiesisStore((s) => s.addStoreGetter);
-  const updateStoreGetter = usePoiesisStore((s) => s.updateStoreGetter);
-  const removeStoreGetter = usePoiesisStore((s) => s.removeStoreGetter);
-  const addStoreAction = usePoiesisStore((s) => s.addStoreAction);
-  const removeStoreAction = usePoiesisStore((s) => s.removeStoreAction);
+export function StoreMembersPanel({
+  storeName,
+  selectedActionPid,
+  onSelectAction,
+  storeOverride,
+  onAddSignal,
+  onUpdateSignal,
+  onRemoveSignal,
+  onAddGetter,
+  onUpdateGetter,
+  onRemoveGetter,
+  onAddAction,
+  onRemoveAction,
+}: Props) {
+  // Store data: use override when provided, otherwise read from global storeDefs
+  const globalStore = usePoiesisStore((s) => s.storeDefs[storeName]);
+  const store = storeOverride ?? globalStore;
+
+  // Read all store defs and convert to array (memoized to avoid reference changes)
+  const storeDefsObj = usePoiesisStore((s) => s.storeDefs);
+  const allStoreDefs = useMemo(
+    () => Object.values(storeDefsObj),
+    [storeDefsObj],
+  );
+
+  // Zustand CRUD actions (global store; used when storeOverride is not set)
+  const zAddStoreSignal = usePoiesisStore((s) => s.addStoreSignal);
+  const zUpdateStoreSignal = usePoiesisStore((s) => s.updateStoreSignal);
+  const zRemoveStoreSignal = usePoiesisStore((s) => s.removeStoreSignal);
+  const zAddStoreGetter = usePoiesisStore((s) => s.addStoreGetter);
+  const zUpdateStoreGetter = usePoiesisStore((s) => s.updateStoreGetter);
+  const zRemoveStoreGetter = usePoiesisStore((s) => s.removeStoreGetter);
+  const zAddStoreAction = usePoiesisStore((s) => s.addStoreAction);
+  const zRemoveStoreAction = usePoiesisStore((s) => s.removeStoreAction);
 
   const [editingGetterPid, setEditingGetterPid] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -181,28 +219,40 @@ export function StoreMembersPanel({ storeName, selectedActionPid, onSelectAction
     return (nums.length > 0 ? Math.max(...nums) : 0) + 1;
   };
 
+  // ── CRUD routing: use callback props when storeOverride is set ──
+
   const handleAddSignal = () => {
-    addStoreSignal(storeName, {
+    const sig: StoreSignalDef = {
       pid: `${store.pid}_n${nextN()}`,
       name: "newSignal",
       type: "String",
       defaultValue: "",
-    });
+    };
+    if (storeOverride && onAddSignal) {
+      onAddSignal(sig);
+    } else {
+      zAddStoreSignal(storeName, sig);
+    }
   };
 
   const handleAddGetter = () => {
-    addStoreGetter(storeName, {
+    const getter: StoreGetterDef = {
       pid: `${store.pid}_n${nextN()}`,
       name: "newGetter",
       returnType: "String",
       expression: "",
-    });
+    };
+    if (storeOverride && onAddGetter) {
+      onAddGetter(getter);
+    } else {
+      zAddStoreGetter(storeName, getter);
+    }
   };
 
   const handleAddAction = () => {
     const actionPid = `${store.pid}_n${nextN()}`;
     const fnPid = `${actionPid}_c1`;
-    addStoreAction(storeName, {
+    const action: StoreActionDef = {
       pid: actionPid,
       name: "newAction",
       params: [],
@@ -217,8 +267,40 @@ export function StoreMembersPanel({ storeName, selectedActionPid, onSelectAction
         source: "",
       }],
       wires: [],
-    });
+    };
+    if (storeOverride && onAddAction) {
+      onAddAction(action);
+    } else {
+      zAddStoreAction(storeName, action);
+    }
     onSelectAction(actionPid);
+  };
+
+  // ── Inline CRUD helpers used in JSX ──
+
+  const updateSignal = (pid: string, updates: Partial<StoreSignalDef>) => {
+    if (storeOverride && onUpdateSignal) onUpdateSignal(pid, updates);
+    else zUpdateStoreSignal(storeName, pid, updates);
+  };
+
+  const removeSignal = (pid: string) => {
+    if (storeOverride && onRemoveSignal) onRemoveSignal(pid);
+    else zRemoveStoreSignal(storeName, pid);
+  };
+
+  const updateGetter = (pid: string, updates: Partial<StoreGetterDef>) => {
+    if (storeOverride && onUpdateGetter) onUpdateGetter(pid, updates);
+    else zUpdateStoreGetter(storeName, pid, updates);
+  };
+
+  const removeGetter = (pid: string) => {
+    if (storeOverride && onRemoveGetter) onRemoveGetter(pid);
+    else zRemoveStoreGetter(storeName, pid);
+  };
+
+  const removeAction = (pid: string) => {
+    if (storeOverride && onRemoveAction) onRemoveAction(pid);
+    else zRemoveStoreAction(storeName, pid);
   };
 
   const editingGetter = editingGetterPid
@@ -237,20 +319,20 @@ export function StoreMembersPanel({ storeName, selectedActionPid, onSelectAction
           <div key={sig.pid} style={S.itemRow}>
             <div style={S.itemHeader}>
               <input style={{ ...S.input, width: 72 }} value={sig.name}
-                onChange={(e) => updateStoreSignal(storeName, sig.pid, { name: e.target.value })} />
+                onChange={(e) => updateSignal(sig.pid, { name: e.target.value })} />
               <span style={S.typeSep}>:</span>
               <select style={{ ...S.select, width: 128 }} value={sig.type}
-                onChange={(e) => updateStoreSignal(storeName, sig.pid, { type: e.target.value })}>
+                onChange={(e) => updateSignal(sig.pid, { type: e.target.value })}>
                 {OMNI_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
                 {!OMNI_TYPES.includes(sig.type) && <option value={sig.type}>{sig.type}</option>}
               </select>
-              <button style={S.removeBtn} onClick={() => removeStoreSignal(storeName, sig.pid)}>×</button>
+              <button style={S.removeBtn} onClick={() => removeSignal(sig.pid)}>×</button>
             </div>
             <div style={S.valueRow}>
               <span style={{ ...S.typeSep, width: 12, textAlign: "center" }}>=</span>
               <input style={S.input} value={sig.defaultValue !== undefined ? String(sig.defaultValue) : ""}
                 placeholder="default value"
-                onChange={(e) => updateStoreSignal(storeName, sig.pid, { defaultValue: e.target.value })} />
+                onChange={(e) => updateSignal(sig.pid, { defaultValue: e.target.value })} />
             </div>
           </div>
         ))}
@@ -271,14 +353,14 @@ export function StoreMembersPanel({ storeName, selectedActionPid, onSelectAction
           <div key={g.pid} style={S.itemRow}>
             <div style={S.itemHeader}>
               <input style={{ ...S.input, width: 72 }} value={g.name}
-                onChange={(e) => updateStoreGetter(storeName, g.pid, { name: e.target.value })} />
+                onChange={(e) => updateGetter(g.pid, { name: e.target.value })} />
               <span style={S.typeSep}>:</span>
               <select style={{ ...S.select, width: 128 }} value={g.returnType}
-                onChange={(e) => updateStoreGetter(storeName, g.pid, { returnType: e.target.value })}>
+                onChange={(e) => updateGetter(g.pid, { returnType: e.target.value })}>
                 {OMNI_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
                 {!OMNI_TYPES.includes(g.returnType) && <option value={g.returnType}>{g.returnType}</option>}
               </select>
-              <button style={S.removeBtn} onClick={() => removeStoreGetter(storeName, g.pid)}>×</button>
+              <button style={S.removeBtn} onClick={() => removeGetter(g.pid)}>×</button>
             </div>
             <div style={S.valueRow}>
               <span style={{ ...S.typeSep, width: 12, textAlign: "center" }}>=</span>
@@ -311,7 +393,7 @@ export function StoreMembersPanel({ storeName, selectedActionPid, onSelectAction
               </span>
               <button
                 style={S.removeBtn}
-                onClick={(e) => { e.stopPropagation(); removeStoreAction(storeName, a.pid); }}
+                onClick={(e) => { e.stopPropagation(); removeAction(a.pid); }}
               >×</button>
             </div>
           );
@@ -336,8 +418,9 @@ export function StoreMembersPanel({ storeName, selectedActionPid, onSelectAction
           elementId={editingGetter.pid}
           initialSource={editingGetter.expression}
           initialDescription=""
+          storeDefs={allStoreDefs}
           onSave={(source: string) => {
-            updateStoreGetter(storeName, editingGetter.pid, { expression: source });
+            updateGetter(editingGetter.pid, { expression: source });
             setEditingGetterPid(null);
           }}
           onClose={() => setEditingGetterPid(null)}
