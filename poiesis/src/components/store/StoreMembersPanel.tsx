@@ -50,13 +50,17 @@ const S = {
   } as React.CSSProperties,
 
   itemRow: {
-    display: "flex",
-    alignItems: "center",
-    gap: "var(--ol-space-1)",
-    padding: "4px 12px",
+    padding: "6px 12px",
     fontSize: "var(--ol-font-size-12)",
     borderBottom: "1px solid var(--ol-border-subtle)",
     background: "var(--ol-surface)",
+  } as React.CSSProperties,
+
+  itemHeader: {
+    display: "flex",
+    alignItems: "center",
+    gap: "var(--ol-space-1)",
+    marginBottom: 3,
   } as React.CSSProperties,
 
   input: {
@@ -68,6 +72,7 @@ const S = {
     background: "var(--ol-surface)",
     color: "var(--ol-text)",
     outline: "none",
+    width: "100%",
   } as React.CSSProperties,
 
   select: {
@@ -80,13 +85,18 @@ const S = {
     color: "var(--ol-text)",
     outline: "none",
     cursor: "pointer",
-    maxWidth: 130,
   } as React.CSSProperties,
 
   typeSep: {
     color: "var(--ol-text-muted)",
     fontSize: "var(--ol-font-size-11)",
     fontFamily: "var(--ol-font-family-mono)",
+  } as React.CSSProperties,
+
+  valueRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: "var(--ol-space-1)",
   } as React.CSSProperties,
 
   removeBtn: {
@@ -115,7 +125,6 @@ const S = {
 
   getterExpr: {
     flex: 1,
-    marginLeft: "var(--ol-space-1)",
     fontSize: "var(--ol-font-size-11)",
     fontFamily: "var(--ol-font-family-mono)",
     color: "var(--ol-text-link)",
@@ -124,7 +133,7 @@ const S = {
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
     background: "var(--ol-color-primary-subtle)",
-    padding: "1px 6px",
+    padding: "2px 6px",
     borderRadius: "var(--ol-radius-sm)",
   } as React.CSSProperties,
 
@@ -226,19 +235,23 @@ export function StoreMembersPanel({ storeName, selectedActionPid, onSelectAction
         </div>
         {!collapsed.signals && store.signals.map((sig) => (
           <div key={sig.pid} style={S.itemRow}>
-            <input style={{ ...S.input, width: 72 }} value={sig.name}
-              onChange={(e) => updateStoreSignal(storeName, sig.pid, { name: e.target.value })} />
-            <span style={S.typeSep}>:</span>
-            <select style={S.select} value={sig.type}
-              onChange={(e) => updateStoreSignal(storeName, sig.pid, { type: e.target.value })}>
-              {OMNI_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-              {!OMNI_TYPES.includes(sig.type) && <option value={sig.type}>{sig.type}</option>}
-            </select>
-            <span style={S.typeSep}>=</span>
-            <input style={{ ...S.input, flex: 1 }} value={sig.defaultValue !== undefined ? String(sig.defaultValue) : ""}
-              placeholder="default"
-              onChange={(e) => updateStoreSignal(storeName, sig.pid, { defaultValue: e.target.value })} />
-            <button style={S.removeBtn} onClick={() => removeStoreSignal(storeName, sig.pid)}>×</button>
+            <div style={S.itemHeader}>
+              <input style={{ ...S.input, width: 72 }} value={sig.name}
+                onChange={(e) => updateStoreSignal(storeName, sig.pid, { name: e.target.value })} />
+              <span style={S.typeSep}>:</span>
+              <select style={{ ...S.select, width: 128 }} value={sig.type}
+                onChange={(e) => updateStoreSignal(storeName, sig.pid, { type: e.target.value })}>
+                {OMNI_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                {!OMNI_TYPES.includes(sig.type) && <option value={sig.type}>{sig.type}</option>}
+              </select>
+              <button style={S.removeBtn} onClick={() => removeStoreSignal(storeName, sig.pid)}>×</button>
+            </div>
+            <div style={S.valueRow}>
+              <span style={{ ...S.typeSep, width: 12, textAlign: "center" }}>=</span>
+              <input style={S.input} value={sig.defaultValue !== undefined ? String(sig.defaultValue) : ""}
+                placeholder="default value"
+                onChange={(e) => updateStoreSignal(storeName, sig.pid, { defaultValue: e.target.value })} />
+            </div>
           </div>
         ))}
         {!collapsed.signals && store.signals.length === 0 && (
@@ -256,19 +269,23 @@ export function StoreMembersPanel({ storeName, selectedActionPid, onSelectAction
         </div>
         {!collapsed.getters && store.getters.map((g) => (
           <div key={g.pid} style={S.itemRow}>
-            <input style={{ ...S.input, width: 72 }} value={g.name}
-              onChange={(e) => updateStoreGetter(storeName, g.pid, { name: e.target.value })} />
-            <span style={S.typeSep}>:</span>
-            <select style={S.select} value={g.returnType}
-              onChange={(e) => updateStoreGetter(storeName, g.pid, { returnType: e.target.value })}>
-              {OMNI_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-              {!OMNI_TYPES.includes(g.returnType) && <option value={g.returnType}>{g.returnType}</option>}
-            </select>
-            <span style={S.typeSep}>=</span>
-            <span style={S.getterExpr} onClick={() => setEditingGetterPid(g.pid)} title={g.expression || "Click to edit"}>
-              {g.expression ? g.expression.slice(0, 40) + (g.expression.length > 40 ? "…" : "") : "…"}
-            </span>
-            <button style={S.removeBtn} onClick={() => removeStoreGetter(storeName, g.pid)}>×</button>
+            <div style={S.itemHeader}>
+              <input style={{ ...S.input, width: 72 }} value={g.name}
+                onChange={(e) => updateStoreGetter(storeName, g.pid, { name: e.target.value })} />
+              <span style={S.typeSep}>:</span>
+              <select style={{ ...S.select, width: 128 }} value={g.returnType}
+                onChange={(e) => updateStoreGetter(storeName, g.pid, { returnType: e.target.value })}>
+                {OMNI_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                {!OMNI_TYPES.includes(g.returnType) && <option value={g.returnType}>{g.returnType}</option>}
+              </select>
+              <button style={S.removeBtn} onClick={() => removeStoreGetter(storeName, g.pid)}>×</button>
+            </div>
+            <div style={S.valueRow}>
+              <span style={{ ...S.typeSep, width: 12, textAlign: "center" }}>=</span>
+              <span style={S.getterExpr} onClick={() => setEditingGetterPid(g.pid)} title={g.expression || "Click to edit"}>
+                {g.expression ? g.expression.slice(0, 40) + (g.expression.length > 40 ? "…" : "") : "click to edit"}
+              </span>
+            </div>
           </div>
         ))}
         {!collapsed.getters && store.getters.length === 0 && (
