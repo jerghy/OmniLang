@@ -17,3 +17,6 @@ export * from "./style";
 
 // Proper CodeTab interface from codegraph module
 export * from "./codegraph";
+
+// Store editor types
+export * from "./store";
