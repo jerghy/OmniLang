@@ -44,8 +44,6 @@ export function StorePage({ storeName, tabId, inlineMode = false }: Props) {
   const registerStorePids = usePoiesisStore((s) => s.registerStorePids);
   const setElementsAndWires = usePoiesisStore((s) => s.setElementsAndWires);
   const tabData = usePoiesisStore((s) => s.tabData);
-  const updateStoreAction = usePoiesisStore((s) => s.updateStoreAction);
-  const updateInlineStoreAction = usePoiesisStore((s) => s.updateInlineStoreAction);
   const tabs = usePoiesisStore((s) => s.designPage.openTabs);
 
   // Inline store CRUD actions (passed as callbacks to StoreMembersPanel)
