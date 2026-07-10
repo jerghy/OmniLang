@@ -3,7 +3,6 @@ import {
   ReactFlow,
   ReactFlowProvider,
   useReactFlow,
-  useOnSelectionChange,
   Controls,
   Background,
   BackgroundVariant,
@@ -139,14 +138,9 @@ function FlowCanvasInner() {
     [addWire],
   );
 
-  // ── Selected node IDs ──
+  // ── Selected node IDs (manual tracking — xyflow v12 internal selection resets on element updates) ──
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
-  useOnSelectionChange({
-    onChange: ({ nodes: selNodes }) => {
-      setSelectedNodeIds(selNodes.map((n) => n.id));
-    },
-  });
 
   // ── Node context menu (right-click on a node) ──
   const [nodeMenu, setNodeMenu] = useState<{ x: number; y: number; nodeId: string } | null>(null);
@@ -237,6 +231,8 @@ function FlowCanvasInner() {
         id: el.id,
         type: el.tag,
         position: el.position ?? { x: 0, y: 0 },
+        selected: selectedNodeIds.includes(el.id),
+        className: selectedNodeIds.includes(el.id) ? "flow-node-selected" : "",
         data: {
           label: TAG_CN[el.tag] || el.tag,
           source: el.source,
@@ -262,7 +258,7 @@ function FlowCanvasInner() {
           },
         },
       })),
-    [codeElements],
+    [codeElements, selectedNodeIds, setEditingNodeId, setProp],
   );
 
   const edges = useMemo(
