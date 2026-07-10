@@ -22,6 +22,7 @@ import { ReturnNode } from "./nodes/ReturnNode";
 import { DesignPreviewNode } from "./nodes/DesignPreviewNode";
 import { CODE_TAGS, TAG_CN, type ContextMenuState } from "./flowConstants";
 import { ContextMenu } from "./CanvasContextMenu";
+import { CodeEditorModal } from "./CodeEditorModal";
 import styles from "./FlowCanvas.module.css";
 
 const nodeTypes = {
@@ -120,6 +121,7 @@ function FlowCanvasInner() {
   const setElementPosition = usePoiesisStore((s) => s.setElementPosition);
   const removeElement = usePoiesisStore((s) => s.removeElement);
   const setProp = usePoiesisStore((s) => s.setProp);
+  const setElementSource = usePoiesisStore((s) => s.setElementSource);
   const addWire = usePoiesisStore((s) => s.addWire);
 
   // ── Connect handler ──
@@ -138,6 +140,7 @@ function FlowCanvasInner() {
 
   // ── Selected node IDs ──
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
+  const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   useOnSelectionChange({
     onChange: ({ nodes: selNodes }) => {
       setSelectedNodeIds(selNodes.map((n) => n.id));
@@ -238,9 +241,13 @@ function FlowCanvasInner() {
           source: el.source,
           fnName: el.props?.name as string,
           params: el.props?.params as string,
+          onParamsChange: (newParams: string) => {
+            setProp(el.id, "params", newParams);
+          },
           branches: el.props?.branches as Array<{id:string;type:string;condition:string}> | undefined,
           returnExpr: el.source,
-          onDoubleClick: () => { /* open inline editor */ },
+          description: el.props?.description as string | undefined,
+          onDoubleClick: () => setEditingNodeId(el.id),
           onUpdateBranches: (branches: unknown) => {
             setProp(el.id, "branches", branches);
           },
@@ -285,6 +292,21 @@ function FlowCanvasInner() {
   const allNodes = useMemo(
     () => (previewNode ? [...nodes, previewNode] : nodes),
     [nodes, previewNode],
+  );
+
+  // ── Editing element (for CodeEditorModal) ──
+  const editingElement = editingNodeId
+    ? elements.find((e) => e.id === editingNodeId && e.nodeType === "codeblock")
+    : null;
+
+  const handleSaveCode = useCallback(
+    (source: string, description: string) => {
+      if (!editingNodeId) return;
+      setElementSource(editingNodeId, source);
+      setProp(editingNodeId, "description", description);
+      setEditingNodeId(null);
+    },
+    [editingNodeId, setElementSource, setProp],
   );
 
   return (
@@ -351,6 +373,17 @@ function FlowCanvasInner() {
             handleAddNode(tag);
           }}
           onClose={() => setContextMenu(null)}
+        />
+      )}
+
+      {/* Code Editor Modal — double-click code-block node */}
+      {editingElement && (
+        <CodeEditorModal
+          elementId={editingElement.id}
+          initialSource={(editingElement as CodeblockElementData).source}
+          initialDescription={((editingElement as CodeblockElementData).props?.description as string) || ""}
+          onSave={handleSaveCode}
+          onClose={() => setEditingNodeId(null)}
         />
       )}
 
