@@ -206,7 +206,12 @@ export function DesignTabBar() {
             if (result.inlineStoreDefs) {
               const { loadInlineStoreDef } = usePoiesisStore.getState();
               for (const def of Object.values(result.inlineStoreDefs)) {
-                loadInlineStoreDef(def);
+                // Re-key: parser uses PascalCase from source (e.g. "Main.TestStore"),
+                // but tab's componentName may differ in case (e.g. "main" from main.omni).
+                const dotIdx = def.name.indexOf(".");
+                const storeName = dotIdx >= 0 ? def.name.slice(dotIdx + 1) : def.name;
+                const rekeyed = { ...def, name: `${componentName}.${storeName}` };
+                loadInlineStoreDef(rekeyed);
               }
             }
           }

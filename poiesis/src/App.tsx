@@ -24,7 +24,7 @@ const log = createLogger("App");
 
 /** Load .omni files from disk: open tabs, populate canvas/main, store component defs. */
 async function loadOmniFiles(): Promise<void> {
-  const scanDirs = [".", "src", "src/components"];
+  const scanDirs = [".", "src", "src/components", "src/stores", "src/lib"];
   const omniPaths: string[] = [];
 
   for (const dir of scanDirs) {
@@ -38,16 +38,11 @@ async function loadOmniFiles(): Promise<void> {
   }
 
   let mainPath: string | null = null;
-
   for (const filePath of omniPaths) {
-    const componentName = filePath.split("/").pop()!.replace(/\.omni$/, "");
-    usePoiesisStore.getState().openTab(filePath, componentName, detectTabType(filePath));
-
     if (!mainPath && (filePath === "src/main.omni" || filePath === "main.omni")) {
       mainPath = filePath;
     }
   }
-
   // If no main.omni found, use the first .omni file
   if (!mainPath && omniPaths.length > 0) mainPath = omniPaths[0];
 
@@ -60,9 +55,12 @@ async function loadOmniFiles(): Promise<void> {
     wires: WireData[];
     rootOrder: string[];
     storeDef?: import("./core/types/store").StoreDefinition;
+    inlineStoreDefs?: Record<string, import("./core/types/store").StoreDefinition>;
   }
 
-  // Batch-load files in parallel (BATCH_SIZE=5) to avoid too many concurrent I/O ops
+  // ── Phase 1: Parse all files and load storeDefs BEFORE opening tabs ──
+  // This prevents StorePage's useEffect from creating an empty default store
+  // that overwrites the parsed store definition.
   const BATCH_SIZE = 5;
   const parsed: ParsedFile[] = [];
   for (let i = 0; i < omniPaths.length; i += BATCH_SIZE) {
@@ -72,18 +70,19 @@ async function loadOmniFiles(): Promise<void> {
         const res = await api.project.readFile(filePath);
         if (!res.content) return null;
         const parseResult = parseOmniSource(res.content);
-        if (!parseResult.designElements) return null;
+        // Allow files with store definitions even if they have no view elements
+        if (!parseResult.designElements && !parseResult.storeDef) return null;
         const componentName = filePath.split("/").pop()!.replace(/\.omni$/, "");
-        const rootOrder = parseResult.designElements
-          .filter((e: ElementData) => !e.parentId)
-          .map((e: ElementData) => e.id);
-        const positionedElements = parseResult.designElements.map((el, idx) => {
+        const positionedElements = (parseResult.designElements ?? []).map((el, idx) => {
           const position = el.nodeType !== "group" ? el.position : undefined;
           return {
             ...el,
             position: position ?? { x: 100 + idx * 50, y: 100 + idx * 50 },
           };
         });
+        const rootOrder = positionedElements
+          .filter((e: ElementData) => !e.parentId)
+          .map((e: ElementData) => e.id);
         return {
           filePath, componentName,
           content: res.content,
@@ -91,6 +90,7 @@ async function loadOmniFiles(): Promise<void> {
           wires: parseResult.designWires || [],
           rootOrder,
           storeDef: parseResult.storeDef || undefined,
+          inlineStoreDefs: parseResult.inlineStoreDefs || undefined,
         } as ParsedFile;
       } catch (e) {
         log.warn("Failed to parse .omni file:", filePath, e);
@@ -100,6 +100,30 @@ async function loadOmniFiles(): Promise<void> {
     for (const r of results) {
       if (r) parsed.push(r);
     }
+  }
+
+  // ── Load storeDefs now, before opening tabs ──
+  for (const p of parsed) {
+    if (p.storeDef) {
+      usePoiesisStore.getState().loadStoreDef(p.storeDef);
+      usePoiesisStore.getState().registerStorePids(p.storeDef);
+    }
+    if (p.inlineStoreDefs) {
+      for (const def of Object.values(p.inlineStoreDefs)) {
+        // Re-key: parser uses PascalCase from source (e.g. "Main.TestStore"),
+        // but tabs use componentName from filename (e.g. "main" from main.omni)
+        const dotIdx = def.name.indexOf(".");
+        const storeName = dotIdx >= 0 ? def.name.slice(dotIdx + 1) : def.name;
+        const rekeyed = { ...def, name: `${p.componentName}.${storeName}` };
+        usePoiesisStore.getState().loadInlineStoreDef(rekeyed);
+      }
+    }
+  }
+
+  // ── Phase 2: Open tabs (storeDefs already loaded, so StorePage won't create empty defaults) ──
+  for (const filePath of omniPaths) {
+    const componentName = filePath.split("/").pop()!.replace(/\.omni$/, "");
+    usePoiesisStore.getState().openTab(filePath, componentName, detectTabType(filePath));
   }
 
   // ── Load design.omni into the design store ──
@@ -251,14 +275,6 @@ async function loadOmniFiles(): Promise<void> {
       },
     });
 
-    // ── Load parsed store definitions into storeDefs ──
-    const storeState = usePoiesisStore.getState();
-    for (const p of parsed) {
-      if (p.storeDef) {
-        storeState.loadStoreDef(p.storeDef);
-        storeState.registerStorePids(p.storeDef);
-      }
-    }
   }
 }
 

@@ -215,6 +215,18 @@ export function useProjectInit(setShowWelcome: (v: boolean) => void) {
                   rootOrder,
                 });
               }
+              // Load inline store definitions from parsed component file
+              if (parseResult.inlineStoreDefs) {
+                const { loadInlineStoreDef } = usePoiesisStore.getState();
+                for (const def of Object.values(parseResult.inlineStoreDefs)) {
+                  // Re-key: parser uses PascalCase from source (e.g. "Main.TestStore"),
+                  // but we need tab's componentName ("main" from main.omni)
+                  const dotIdx = def.name.indexOf(".");
+                  const storeName = dotIdx >= 0 ? def.name.slice(dotIdx + 1) : def.name;
+                  const rekeyed = { ...def, name: `main.${storeName}` };
+                  loadInlineStoreDef(rekeyed);
+                }
+              }
             }
           }
         } catch (e) {
