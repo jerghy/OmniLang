@@ -42,7 +42,6 @@ export type ParserState =
   | "IN_STORE"
   | "IN_VIEW"
   | "IN_CHAIN"
-  | "IN_FN"
   | "IN_STYLE"
   | "IN_DESIGN";
 

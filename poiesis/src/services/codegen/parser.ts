@@ -498,16 +498,6 @@ export class Parser {
     this.parsedFnBodies.set(fnName, { elements, wires });
   }
 
-  private parseFnBody(): void {
-    let depth = 1;
-    while (depth > 0 && !this.stream.isEof()) {
-      const tok = this.stream.consume();
-      if (tok.kind === "BRACE_OPEN") depth++;
-      else if (tok.kind === "BRACE_CLOSE") depth--;
-    }
-    this.popState();
-  }
-
   // ── Store body (skip by brace counting) ──
 
   private parseStoreBody(): void {
@@ -869,9 +859,8 @@ export class Parser {
     const dimensions: ParsedDimension[] = [];
     const baseProperties: ParsedClassProperty[] = [];
     const branches: ParsedBranch[] = [];
-    const inheritedProps: string[] = [];
 
-    this.parseVariantBody(dimensions, baseProperties, branches, inheritedProps);
+    this.parseVariantBody(dimensions, baseProperties, branches);
 
     // Build defaults map from dimension values marked (default)
     const defaults: Record<string, string> = {};
@@ -889,7 +878,6 @@ export class Parser {
       baseProperties,
       branches,
       defaults,
-      inheritedProps: inheritedProps.length > 0 ? inheritedProps : undefined,
     });
   }
 
@@ -897,7 +885,6 @@ export class Parser {
     dims: ParsedDimension[],
     baseProps: ParsedClassProperty[],
     branches: ParsedBranch[],
-    inheritedProps: string[],
   ): void {
     while (!this.stream.isEof()) {
       this.stream.skipNewlines();
@@ -919,8 +906,6 @@ export class Parser {
             dims.push(this.parseAtDimBlock());
           } else if (kw === "default") {
             this.parseDefaultBlock(baseProps, dims);
-          } else if (kw === "inherit") {
-            this.parseInheritBlock(inheritedProps);
           } else {
             this.skipLine();
           }
@@ -1027,27 +1012,6 @@ export class Parser {
     }
   }
 
-  /** Parse `@inherit prop1, prop2;` annotation — marks properties as inherited. */
-  private parseInheritBlock(inheritedProps: string[]): void {
-    while (!this.stream.isEof()) {
-      this.stream.skipNewlines();
-      const t = this.stream.peek();
-      if (t.kind === "SEMICOLON" || t.kind === "NEWLINE" || t.kind === "BRACE_CLOSE") {
-        if (t.kind === "SEMICOLON") this.stream.consume();
-        break;
-      }
-      if (t.kind === "COMMA") {
-        this.stream.consume();
-        continue;
-      }
-      if (t.kind === "IDENTIFIER") {
-        inheritedProps.push(this.stream.consume().text);
-      } else {
-        this.stream.consume();
-      }
-    }
-  }
-
   /** Parse properties inside `{ ... }` and return as a ParsedBranch. */
   private parseBranchProperties(): ParsedBranch {
     const props: ParsedClassProperty[] = [];
@@ -1095,9 +1059,6 @@ export class Parser {
         break;
       case "IN_VIEW":
         this.parseViewBody();
-        break;
-      case "IN_FN":
-        this.parseFnBody();
         break;
       case "IN_STORE":
         this.parseStoreBody();
