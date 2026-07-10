@@ -76,6 +76,7 @@ export class Parser {
       currentStorePid: "",
       storeDef: null,
       inlineStoreDefs: {} as Record<string, import("../../core/types/store").StoreDefinition>,
+      _parsingInlineStore: false,
       storeSignalCounter: 0,
       storeActionCounter: 0,
       storeGetterCounter: 0,
@@ -367,6 +368,24 @@ export class Parser {
       case "style":
         this.parseStyleBlock();
         break;
+      case "store":
+        this.stream.consume(); // "store"
+        const storeNameTok = this.stream.expect("IDENTIFIER");
+        if (storeNameTok.kind === "EOF") {
+          this.pushError("error", "P005", "Invalid inline store declaration: missing name", storeNameTok);
+          break;
+        }
+        this.ctx.currentStore = storeNameTok.text;
+        this.ctx.currentStorePid = "";
+        this.ctx.storeSignalCounter = 0;
+        this.ctx.storeActionCounter = 0;
+        this.ctx.storeGetterCounter = 0;
+        this.ctx.parsedStorePid = null;
+        // Mark BEFORE pushState — pushState synchronously calls parseStoreBody
+        this.ctx._parsingInlineStore = true;
+        this.stream.expect("BRACE_OPEN");
+        this.pushState("IN_STORE");
+        break;
       default:
         // Unknown keyword — skip token
         this.stream.consume();
@@ -513,9 +532,12 @@ export class Parser {
   // ── Store body (parse signal/getter/action members into StoreDefinition) ──
 
   private parseStoreBody(): void {
+    const storeName = this.ctx._parsingInlineStore
+      ? `${this.ctx.currentComponent}.${this.ctx.currentStore}`
+      : this.ctx.currentStore;
     const storeDef: import("../../core/types/store").StoreDefinition = {
       pid: this.ctx.currentStorePid || `s${this.ctx.storeDef ? Object.keys(this.ctx.storeDef).length + 1 : 1}`,
-      name: this.ctx.currentStore,
+      name: storeName,
       filePath: "",
       imports: [],
       signals: [],
@@ -533,7 +555,14 @@ export class Parser {
       // Close store
       if (tok.kind === "BRACE_CLOSE") {
         this.stream.consume();
-        this.ctx.storeDef = storeDef;
+        if (this.ctx._parsingInlineStore) {
+          // Inline store inside a component
+          // storeDef.name is already qualified as "ComponentName.StoreName"
+          this.ctx.inlineStoreDefs = { ...this.ctx.inlineStoreDefs, [storeDef.name]: storeDef };
+          this.ctx._parsingInlineStore = false;
+        } else {
+          this.ctx.storeDef = storeDef;
+        }
         this.popState();
         return;
       }

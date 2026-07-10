@@ -75,6 +75,7 @@ export interface ParseContext {
   currentStorePid: string;
   storeDef: import("../../core/types/store").StoreDefinition | null;
   inlineStoreDefs: Record<string, import("../../core/types/store").StoreDefinition>;
+  _parsingInlineStore: boolean;
   storeSignalCounter: number;
   storeActionCounter: number;
   storeGetterCounter: number;
