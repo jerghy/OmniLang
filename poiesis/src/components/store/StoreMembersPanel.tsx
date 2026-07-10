@@ -162,9 +162,7 @@ export function StoreMembersPanel({ storeName, selectedActionPid, onSelectAction
   const updateStoreGetter = usePoiesisStore((s) => s.updateStoreGetter);
   const removeStoreGetter = usePoiesisStore((s) => s.removeStoreGetter);
   const addStoreAction = usePoiesisStore((s) => s.addStoreAction);
-  const updateStoreAction = usePoiesisStore((s) => s.updateStoreAction);
   const removeStoreAction = usePoiesisStore((s) => s.removeStoreAction);
-  const setProp = usePoiesisStore((s) => s.setProp);
 
   const [editingGetterPid, setEditingGetterPid] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -304,116 +302,17 @@ export function StoreMembersPanel({ storeName, selectedActionPid, onSelectAction
           <button style={S.addBtn} onClick={(e) => { e.stopPropagation(); handleAddAction(); }}>+</button>
         </div>
         {!collapsed.actions && store.actions.map((a) => {
+          const paramsStr = a.params.map((p) => `${p.name}: ${p.type}`).join(", ");
           const isSelected = selectedActionPid === a.pid;
           return (
-            <div key={a.pid} style={S.itemRow}>
-              <div style={S.itemHeader}>
-                <input
-                  style={{ ...S.input, width: 72 }}
-                  value={a.name}
-                  onChange={(e) => {
-                    updateStoreAction(storeName, a.pid, { name: e.target.value });
-                    const fnEl = a.elements.find((el) => el.tag === "fn");
-                    if (fnEl) setProp(fnEl.id, "name", e.target.value);
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                />
-                <span style={S.typeSep}>(</span>
-                {a.params.map((p, i) => (
-                  <span key={i} style={{ display: "inline-flex", gap: 1, alignItems: "center" }}>
-                    {i > 0 && <span style={S.typeSep}>,</span>}
-                    <input
-                      style={{ ...S.input, width: 44, fontSize: "var(--ol-font-size-11)" }}
-                      value={p.name}
-                      placeholder="name"
-                      onClick={(e) => e.stopPropagation()}
-                      onChange={(e) => {
-                        const newParams = [...a.params];
-                        newParams[i] = { ...newParams[i], name: e.target.value };
-                        updateStoreAction(storeName, a.pid, { params: newParams });
-                      }}
-                    />
-                    <span style={S.typeSep}>:</span>
-                    <select
-                      style={{ ...S.select, width: 60, fontSize: "var(--ol-font-size-11)" }}
-                      value={p.type}
-                      onClick={(e) => e.stopPropagation()}
-                      onChange={(e) => {
-                        const newParams = [...a.params];
-                        newParams[i] = { ...newParams[i], type: e.target.value };
-                        updateStoreAction(storeName, a.pid, { params: newParams });
-                      }}
-                    >
-                      {OMNI_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                      {!OMNI_TYPES.includes(p.type) && <option value={p.type}>{p.type}</option>}
-                    </select>
-                  </span>
-                ))}
-                <span style={S.typeSep}>)</span>
-                {/* Add param button */}
-                <button
-                  style={{ ...S.addBtn, fontSize: 10, padding: "0 4px" }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    updateStoreAction(storeName, a.pid, {
-                      params: [...a.params, { name: "p", type: "String" }],
-                    });
-                  }}
-                >+</button>
-                <span style={{ flex: 1 }} />
-                <button style={S.removeBtn} onClick={(e) => { e.stopPropagation(); removeStoreAction(storeName, a.pid); }}>×</button>
-              </div>
-              {/* Return type + async toggles */}
-              <div style={{ display: "flex", gap: 4, alignItems: "center", marginTop: 3 }}>
-                {a.returnType !== undefined && (
-                  <>
-                    <span style={{ ...S.typeSep, fontSize: "var(--ol-font-size-10)" }}>returns</span>
-                    <select
-                      style={{ ...S.select, width: 72, fontSize: "var(--ol-font-size-10)" }}
-                      value={a.returnType}
-                      onChange={(e) => updateStoreAction(storeName, a.pid, { returnType: e.target.value || undefined })}
-                    >
-                      <option value="">void</option>
-                      {OMNI_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                      {a.returnType && !OMNI_TYPES.includes(a.returnType) && <option value={a.returnType}>{a.returnType}</option>}
-                    </select>
-                  </>
-                )}
-                {a.returnType === undefined && (
-                  <span
-                    style={{ fontSize: "var(--ol-font-size-10)", color: "var(--ol-text-muted)", cursor: "pointer" }}
-                    onClick={() => updateStoreAction(storeName, a.pid, { returnType: "String" })}
-                  >+ return type</span>
-                )}
-                {a.returnType !== undefined && (
-                  <>
-                    <span
-                      style={{ fontSize: "var(--ol-font-size-10)", color: "var(--ol-text-muted)", cursor: "pointer" }}
-                      onClick={() => updateStoreAction(storeName, a.pid, { returnType: undefined })}
-                    >×</span>
-                    <label style={{ fontSize: "var(--ol-font-size-11)", color: "var(--ol-text-secondary)", display: "flex", alignItems: "center", gap: 2, cursor: "pointer" }}>
-                      <input type="checkbox" checked={a.isAsync}
-                        onChange={(e) => updateStoreAction(storeName, a.pid, { isAsync: e.target.checked })} />
-                      async
-                    </label>
-                  </>
-                )}
-              </div>
-              {/* Canvas editing indicator */}
-              <div
-                style={{
-                  ...S.actionItem(isSelected),
-                  borderLeft: "none",
-                  borderBottom: "none",
-                  padding: "1px 0",
-                  marginTop: 2,
-                  cursor: "pointer",
-                  fontSize: "var(--ol-font-size-11)",
-                } as React.CSSProperties}
-                onClick={() => onSelectAction(a.pid)}
-              >
-                {isSelected ? "● Editing code flow →" : "○ Click to edit code flow"}
-              </div>
+            <div key={a.pid} style={S.actionItem(isSelected)} onClick={() => onSelectAction(a.pid)}>
+              <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", fontFamily: "var(--ol-font-family-mono)" }}>
+                {a.name}({paramsStr}){a.returnType ? `: ${a.returnType}` : ""}{a.isAsync ? " async" : ""}
+              </span>
+              <button
+                style={S.removeBtn}
+                onClick={(e) => { e.stopPropagation(); removeStoreAction(storeName, a.pid); }}
+              >×</button>
             </div>
           );
         })}

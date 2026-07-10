@@ -23,6 +23,7 @@ import { DesignPreviewNode } from "./nodes/DesignPreviewNode";
 import { CODE_TAGS, TAG_CN, type ContextMenuState } from "./flowConstants";
 import { ContextMenu } from "./CanvasContextMenu";
 import { CodeEditorModal } from "./CodeEditorModal";
+import { FlowInspector } from "./FlowInspector";
 import styles from "./FlowCanvas.module.css";
 
 const nodeTypes = {
@@ -310,7 +311,8 @@ function FlowCanvasInner() {
   );
 
   return (
-    <div ref={flowWrapperRef} style={{ width: "100%", height: "100%" }}>
+    <div style={{ display: "flex", width: "100%", height: "100%" }}>
+      <div ref={flowWrapperRef} style={{ flex: 1, height: "100%", minWidth: 0 }}>
       {allNodes.length === 0 ? (
         <div
           onContextMenu={handlePaneContextMenu}
@@ -426,6 +428,9 @@ function FlowCanvasInner() {
           </button>
         </div>
       )}
+      </div>
+      {/* Right-side inspector: edits selected FN or Return node */}
+      <FlowInspector selectedNodeIds={selectedNodeIds} />
     </div>
   );
 }
