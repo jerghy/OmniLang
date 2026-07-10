@@ -51,6 +51,39 @@ export function StorePage({ storeName, tabId }: Props) {
     }
   }, [store, storeName, tabId, tabs, loadStoreDef, registerStorePids]);
 
+  // Sync fn node name/params → StoreActionDef in real-time
+  useEffect(() => {
+    const state = usePoiesisStore.getState();
+    const activePid = state.tabData[tabId]?.selectedActionPid;
+    if (!activePid || !store) return;
+    const action = store.actions.find((a) => a.pid === activePid);
+    if (!action) return;
+
+    const codeblockElements = state.elements.filter((e) => e.nodeType === "codeblock");
+    const fnEl = codeblockElements.find((e) => e.tag === "fn");
+    if (!fnEl) return;
+
+    const fnName = fnEl.props?.name as string | undefined;
+    const fnParamsStr = (fnEl.props?.params as string) || "";
+    const parsedParams: Array<{ name: string; type: string }> = fnParamsStr
+      ? fnParamsStr.split(",").map((p) => {
+          const [pName, pType] = p.trim().split(":").map((s) => s.trim());
+          return { name: pName || "", type: pType || "String" };
+        })
+      : [];
+
+    const needsSync =
+      (fnName !== undefined && fnName !== action.name) ||
+      JSON.stringify(parsedParams) !== JSON.stringify(action.params);
+
+    if (needsSync) {
+      const updates: Partial<typeof action> = {};
+      if (fnName !== undefined && fnName !== action.name) updates.name = fnName;
+      if (JSON.stringify(parsedParams) !== JSON.stringify(action.params)) updates.params = parsedParams;
+      usePoiesisStore.getState().updateStoreAction(storeName, activePid, updates);
+    }
+  });
+
   const handleSelectAction = useCallback((pid: string) => {
     const state = usePoiesisStore.getState();
     const currentStore = state.storeDefs[storeName];

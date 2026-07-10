@@ -238,9 +238,6 @@ function FlowCanvasInner() {
           source: el.source,
           fnName: el.props?.name as string,
           params: el.props?.params as string,
-          onParamsChange: (newParams: string) => {
-            setProp(el.id, "params", newParams);
-          },
           branches: el.props?.branches as Array<{id:string;type:string;condition:string}> | undefined,
           returnExpr: el.source,
           description: el.props?.description as string | undefined,
