@@ -75,6 +75,7 @@ export class Parser {
       hasStyleBlock: false,
       currentStorePid: "",
       storeDef: null,
+      inlineStoreDefs: {} as Record<string, import("../../core/types/store").StoreDefinition>,
       storeSignalCounter: 0,
       storeActionCounter: 0,
       storeGetterCounter: 0,

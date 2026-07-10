@@ -299,6 +299,9 @@ export interface ParseResult {
   /** Parsed store definition (when source is a store .omni file). */
   storeDef?: import("../../core/types/store").StoreDefinition;
 
+  /** Parsed inline store definitions (store blocks inside component body). */
+  inlineStoreDefs?: Record<string, import("../../core/types/store").StoreDefinition>;
+
   // ── Design block result (Phase H) ──
   designName?: string;
   designTokens?: Array<{ id: string; name: string; tokenType: string; value: string }>;

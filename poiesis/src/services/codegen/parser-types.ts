@@ -74,6 +74,7 @@ export interface ParseContext {
   // ── Store editor state (Task 4) ──
   currentStorePid: string;
   storeDef: import("../../core/types/store").StoreDefinition | null;
+  inlineStoreDefs: Record<string, import("../../core/types/store").StoreDefinition>;
   storeSignalCounter: number;
   storeActionCounter: number;
   storeGetterCounter: number;

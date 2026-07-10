@@ -104,6 +104,7 @@ export function buildParseResult(ctx: ParserInternals["ctx"]): ParseResult {
     errors: ctx.errors,
     componentMeta: ctx.componentMeta,
     storeDef: ctx.storeDef,
+    inlineStoreDefs: Object.keys(ctx.inlineStoreDefs).length > 0 ? ctx.inlineStoreDefs : undefined,
     props: ctx.props.length > 0 ? ctx.props : undefined,
     events: ctx.events.length > 0 ? ctx.events : undefined,
     designName: ctx.designName || undefined,
