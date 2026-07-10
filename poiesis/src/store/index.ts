@@ -15,6 +15,7 @@ import { createMetadataSlice } from "./slices/metadata";
 import { createComponentLifecycleSlice } from "./slices/component-lifecycle";
 import { createNavigationSlice } from "./slices/navigation";
 import { createSerializationSlice } from "./slices/serialization";
+import { createStoreCrudSlice } from "./slices/store-crud";
 import { createTabSlice, createInitialDesignPageState } from "./operations/tab-lifecycle";
 import { createUndoSlice } from "./undo-slice";
 import { createThemeSlice } from "./slices/theme";
@@ -60,6 +61,7 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
   ...createMetadataSlice(set, get),
   ...createNavigationSlice(set, get),
   ...createSerializationSlice(set, get),
+  ...createStoreCrudSlice(set, get),
 }));
 
 // ── Utility accessors (used by codegen services and UI components) ──

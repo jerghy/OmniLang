@@ -5,6 +5,7 @@ import type { WireData } from "../core/types/wire";
 import type { ArchitectureState, BubbleNode, BubbleEdge } from "../core/types/architecture";
 import type { DesignPageState, Breadcrumb, TabType } from "../core/types/design-page";
 import type { PidEntry } from "../core/types/pid";
+import type { StoreDefinition, StoreSignalDef, StoreGetterDef, StoreActionDef } from "../core/types/store";
 import type { ComponentDef, ProjectJson, NodeMeta, WireMeta } from "../core/types/project-json";
 import type { StyleProperty } from "../core/types/style";
 import type {
@@ -34,6 +35,7 @@ export interface PoiesisState {
   addVariant: (name: string) => void;
   updateVariant: (id: string, updates: Partial<VariantDefinition>) => void;
   removeVariant: (id: string) => void;
+  toggleInheritedProp: (variantId: string, propName: string) => void;
   bindVariantToElement: (elementId: string, variantName: string, dimensionValues: Record<string, string>) => void;
   unbindVariantFromElement: (elementId: string) => void;
   // ── Page routing ──
@@ -94,6 +96,10 @@ export interface PoiesisState {
   // ── Undo/redo (keyed by tabId) ──
   undoStacks: Record<string, UndoStack>;
 
+  // ── Store definitions ──
+  storeDefs: Record<string, StoreDefinition>;
+  storeReferences: Record<string, string[]>;
+
   // ── Actions ──
 
   // Architecture
@@ -113,6 +119,7 @@ export interface PoiesisState {
   markTabDirty: (tabId: string, dirty: boolean) => void;
   toggleCodeFlow: (elementId: string | null, focusPoint?: { x: number; y: number }) => void;
   setBreadcrumbs: (breadcrumbs: Breadcrumb[]) => void;
+  setPreviewOutput: (output: import("../components/design/useWasmCompile").OmniViewOutput | null) => void;
 
   // Element/wire CRUD
   addElement: (el: ElementData) => void;
@@ -178,4 +185,28 @@ export interface PoiesisState {
   toProjectJson: () => ProjectJson;
   loadFromProjectJson: (json: ProjectJson) => void;
 
+  // Store lifecycle
+  loadStoreDef: (def: StoreDefinition) => void;
+  removeStoreDef: (name: string) => void;
+
+  // Signal CRUD
+  addStoreSignal: (storeName: string, signal: StoreSignalDef) => void;
+  updateStoreSignal: (storeName: string, pid: string, updates: Partial<StoreSignalDef>) => void;
+  removeStoreSignal: (storeName: string, pid: string) => void;
+
+  // Getter CRUD
+  addStoreGetter: (storeName: string, getter: StoreGetterDef) => void;
+  updateStoreGetter: (storeName: string, pid: string, updates: Partial<StoreGetterDef>) => void;
+  removeStoreGetter: (storeName: string, pid: string) => void;
+
+  // Action CRUD
+  addStoreAction: (storeName: string, action: StoreActionDef) => void;
+  updateStoreAction: (storeName: string, pid: string, updates: Partial<StoreActionDef>) => void;
+  removeStoreAction: (storeName: string, pid: string) => void;
+
+  // PID + references
+  registerStorePids: (storeDef: StoreDefinition) => void;
+  registerStoreRef: (componentName: string, storeName: string) => void;
+  unregisterStoreRef: (componentName: string, storeName: string) => void;
+  unregisterAllStoreRefs: (componentName: string) => void;
 }
