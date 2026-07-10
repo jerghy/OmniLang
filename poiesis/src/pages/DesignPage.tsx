@@ -97,6 +97,8 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
   const codeOpenTabs = usePoiesisStore((s) => s.designPage.openTabs);
   const codeComponentDefs = usePoiesisStore((s) => s.componentDefs);
 
+  const codeInlineStores = usePoiesisStore((s) => s.inlineStoreDefs);
+
   const codeSource = useMemo(() => {
     if (!showCode) return "";
     const state = usePoiesisStore.getState();
@@ -111,6 +113,11 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
     }
     // component tab
     const componentName = activeTab.componentName || "main";
+    // Collect inline stores belonging to this component
+    const prefix = `${componentName}.`;
+    const inlineStores = Object.entries(state.inlineStoreDefs)
+      .filter(([key]) => key.startsWith(prefix))
+      .map(([, def]) => def);
     const codeTabs = [{ id: "code", type: "logic" as const, label: "Preview", icon: "📄",
       graph: { elements: state.elements, wires: state.wires }, variables: [] }];
     const result = componentName === "main"
@@ -119,15 +126,17 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
           componentName: "main", rootOrder: state.rootOrder,
           filePath: activeTab.filePath || "src/main.omni",
           designName: state.activeDesign?.name,
+          inlineStores,
         })
       : generateOmniFragment({
           componentName, designElements: state.elements, designWires: state.wires,
           codeTabs, rootOrder: state.rootOrder, fromDefinition: true,
+          inlineStores,
         });
     const fileKey = Object.keys(result.value || {}).find((k) => k.includes(componentName));
     const files = result.value as Record<string, string> | undefined;
     return (fileKey && files?.[fileKey]) || "// Failed to generate source";
-  }, [showCode, codeElements, codeWires, codeRootOrder, codeActiveDesign, codeStoreDefs, codeActiveTabId, codeOpenTabs, codeComponentDefs]);
+  }, [showCode, codeElements, codeWires, codeRootOrder, codeActiveDesign, codeStoreDefs, codeActiveTabId, codeOpenTabs, codeComponentDefs, codeInlineStores]);
 
   const codeFileName = useMemo(() => {
     if (!showCode) return "";

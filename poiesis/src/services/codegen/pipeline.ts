@@ -390,8 +390,10 @@ export function generateOmniFragment(options: {
   rootOrder?: string[];
   /** When true, elements already belong to this component (from ComponentDef). Skip filtering. */
   fromDefinition?: boolean;
+  /** Inline store definitions to emit inside the component body. */
+  inlineStores?: StoreDefinition[];
 }): StageResult<string> {
-  const { componentName, designElements, designWires, codeTabs, rootOrder, fromDefinition } = options;
+  const { componentName, designElements, designWires, codeTabs, rootOrder, fromDefinition, inlineStores } = options;
 
   // If elements come from a ComponentDef, they already belong to this component — no filter
   const componentElements = fromDefinition
@@ -414,6 +416,7 @@ export function generateOmniFragment(options: {
     codeTabs,
     componentName,
     rootOrder,
+    inlineStores: inlineStores ?? [],
   });
 }
 
