@@ -72,8 +72,8 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
     if (!activeId) return null;
     return s.designPage.openTabs.find((t) => t.id === activeId) ?? null;
   });
-  // Side panels are visible only for component tabs NOT in code-flow mode
-  const showSidePanels = activeTabType === "component" && !codeFlowVisible;
+  // Side panels are visible only for component tabs NOT in code-flow mode AND not in store drawer mode
+  const showSidePanels = activeTabType === "component" && !codeFlowVisible && !storePanelVisible;
 
   // Ref for z-axis container to convert client coords to percentages
   const zAxisRef = useRef<HTMLDivElement>(null);
