@@ -19,6 +19,7 @@ import { DesignTabContent } from "../components/design/DesignTabContent";
 import { InfiniteCanvas } from "../components/canvas/InfiniteCanvas";
 import { OmniViewRenderer } from "../components/design/OmniViewRenderer";
 import { CodeFlowCanvas } from "../components/design/CodeFlowCanvas";
+import { StorePage } from "./StorePage";
 import { CodeDrawer } from "../components/design/CodeDrawer";
 import { BreadcrumbBar } from "../components/design/BreadcrumbBar";
 import { generateOmniFiles, generateOmniFragment } from "../services/codegen/pipeline";
@@ -63,6 +64,11 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
   const codeFlowVisible = usePoiesisStore((s) => s.designPage.codeFlowVisible);
   const codeFlowFocusPoint = usePoiesisStore((s) => s.designPage.codeFlowFocusPoint);
   const toggleCodeFlow = usePoiesisStore((s) => s.toggleCodeFlow);
+  const activeTab = usePoiesisStore((s) => {
+    const activeId = s.designPage.activeTabId;
+    if (!activeId) return null;
+    return s.designPage.openTabs.find((t) => t.id === activeId) ?? null;
+  });
   // Side panels are visible only for component tabs NOT in code-flow mode
   const showSidePanels = activeTabType === "component" && !codeFlowVisible;
 
@@ -343,6 +349,8 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
                 </div>
               )}
             </div>
+          ) : activeTabType === "store" && activeTab ? (
+            <StorePage storeName={activeTab.componentName} tabId={activeTab.id} />
           ) : (
             <CodeFlowCanvas />
           )}
