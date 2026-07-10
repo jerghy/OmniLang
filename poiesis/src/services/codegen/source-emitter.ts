@@ -83,7 +83,7 @@ export class SourceEmitter {
     // Signals
     for (const sig of store.signals) {
       const defStr = sig.defaultValue !== undefined && sig.defaultValue !== ""
-        ? ` = ${JSON.stringify(sig.defaultValue)}`
+        ? ` = ${sig.defaultValue}`
         : "";
       w.emit(`signal ${sig.name}: ${sig.type}${defStr}; // @pid:${sig.pid}`);
     }
@@ -145,7 +145,7 @@ export class SourceEmitter {
 
     // Props (e.g. `prop title: String = ""`)
     for (const prop of comp.props || []) {
-      const def = prop.defaultValue !== undefined ? ` = ${JSON.stringify(prop.defaultValue)}` : "";
+      const def = prop.defaultValue !== undefined ? ` = ${prop.defaultValue}` : "";
       w.emit(`prop ${prop.name}: ${prop.type}${def};`);
     }
     // Events (e.g. `event onAction`)
@@ -154,7 +154,7 @@ export class SourceEmitter {
     }
 
     for (const [name, sig] of Object.entries(comp.signals)) {
-      const def = sig.defaultValue !== undefined ? ` = ${JSON.stringify(sig.defaultValue)}` : "";
+      const def = sig.defaultValue !== undefined ? ` = ${sig.defaultValue}` : "";
       w.emit(`signal ${name}: ${sig.type}${def};`);
     }
     for (const [name, c] of Object.entries(comp.computeds || {})) {

@@ -247,4 +247,21 @@ store GettersOnlyStore {
     expect(result.storeDef!.getters[1].name).toBe("message");
     expect(result.storeDef!.getters[1].expression).toContain("hello");
   });
+
+  // ── Default value round-trip ──────────────────────────────────────────
+
+  it("default values survive parse-emit-reparse round-trip", () => {
+    const source = `import omniview;
+store TestStore {
+    // @pid:rt1_n1
+    signal mode: String = "dark";
+    // @pid:rt1_n2
+    signal count: i32 = 0;
+}`;
+    const parsed = parseOmniSource(source);
+    const emitted = emitStoreDef(parsed.storeDef!);
+    const reparsed = parseOmniSource(emitted);
+    expect(reparsed.storeDef!.signals[0].defaultValue).toContain("dark");
+    expect(reparsed.storeDef!.signals[1].defaultValue).toContain("0");
+  });
 });

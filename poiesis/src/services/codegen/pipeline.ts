@@ -460,7 +460,7 @@ function emitStoreBlock(store: StoreDef): string {
   for (const [name, sig] of Object.entries(store.signals)) {
     const def =
       sig.defaultValue !== undefined
-        ? ` = ${JSON.stringify(sig.defaultValue)}`
+        ? ` = ${sig.defaultValue}`
         : "";
     w.emit(`signal ${name}: ${sig.type}${def};`);
   }
