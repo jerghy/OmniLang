@@ -8,6 +8,7 @@ import {
   Background,
   BackgroundVariant,
   type Node as RFNode,
+  type Connection,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { usePoiesisStore } from "../../../store";
@@ -119,6 +120,21 @@ function FlowCanvasInner() {
   const setElementPosition = usePoiesisStore((s) => s.setElementPosition);
   const removeElement = usePoiesisStore((s) => s.removeElement);
   const setProp = usePoiesisStore((s) => s.setProp);
+  const addWire = usePoiesisStore((s) => s.addWire);
+
+  // ── Connect handler ──
+  const onConnect = useCallback(
+    (connection: Connection) => {
+      addWire({
+        id: uid("wire"),
+        fromId: connection.source,
+        fromPort: connection.sourceHandle || "flow-out",
+        toId: connection.target,
+        toPort: connection.targetHandle || "flow-in",
+      });
+    },
+    [addWire],
+  );
 
   // ── Selected node IDs ──
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
@@ -305,6 +321,7 @@ function FlowCanvasInner() {
           elementsSelectable
           panOnScroll
           onNodeDragStop={onNodeDragStop}
+          onConnect={onConnect}
           onPaneContextMenu={handlePaneContextMenu}
           onNodeContextMenu={handleNodeContextMenu}
         >
