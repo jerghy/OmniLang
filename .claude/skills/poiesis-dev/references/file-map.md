@@ -32,7 +32,7 @@
 | `undo-apply.ts` | 撤销应用逻辑 | 反向应用各种操作类型 |
 | `tab-helpers.ts` | Tab 切换辅助 | Tab 数据保存/恢复 |
 | `slices/design-system.ts` | ★ Design System CRUD | Token/Class/Variant 所有 action |
-| `slices/store-crud.ts` | ★ Store CRUD | Signal/Getter/Action CRUD + @store 引用追踪 |
+| `slices/store-crud.ts` | ★ Store CRUD | Signal/Getter/Action CRUD + @store 引用追踪 + inlineStoreDefs 并行 CRUD（结构镜像 storeDefs） |
 | `slices/project.ts` | 项目管理 | 项目打开/关闭/状态 |
 | `slices/element-crud.ts` | 元素 CRUD | addElement/removeElement/setProp/moveElement |
 | `slices/navigation.ts` | 页面路由 | navigateTo |
@@ -50,7 +50,7 @@
 |------|------|------|
 | `pipeline.ts` | ★ 主管道 | Store → .omni 源码（多文件） |
 | `pipeline-types.ts` | 管道类型 | GenerateOmniSourceOptions 等 |
-| `source-emitter.ts` | 组件 .omni 发射 | 生成 component/store 的 .omni 源码 |
+| `source-emitter.ts` | 组件/Store .omni 发射 | 生成 component/store 的 .omni 源码。`CodeWriter` 类 + `SourceEmitter` 类 + `emitStoreDefinition()` standalone（Code 面板调用）+ `formatDefaultValue()` 类型感知值格式化 |
 | `design-emitter.ts` | ★ design .omni 发射 | DesignDefinition → design.omni 源码 |
 | `design-value-parser.ts` | 样式值解析 | .omni 值字符串 → StyleValueSegment[] |
 | `parser.ts` | ★ 主解析器 | .omni 源码 → ElementData + DesignDefinition |
@@ -99,7 +99,7 @@
 | `code/nodes/DesignPreviewNode.tsx` | ★ CodeFlow 中的设计缩略图节点 |
 | `code/FlowInspector.tsx` | ★ CodeFlow 右侧面板：选中 FN 节点编辑 name+params，选中 Return 编辑表达式 |
 | `code/CanvasContextMenu.tsx` | 画布右键菜单 |
-| `code/CodeEditorModal.tsx` | ★ CodeBlockNode 双击代码编辑器（Monaco Editor 80vw×80vh 模态面板 + 功能说明输入） |
+| `code/CodeEditorModal.tsx` | ★ 代码块代码编辑器（Monaco Editor 80vw×80vh 模态面板）。集成 `services/monaco/` 提供 OmniLang 语法高亮 + 代码片段 + 类型注入 + WASM 诊断。Props：`language`/`storeDefs`/`omniSourcePath`/`omniSource`（diagnostics 用） |
 | `shared/nodeRegistry.ts` | 节点类型注册表 |
 | `shared/connectionValidators.ts` | 连线验证 |
 | `shared/layoutUtils.ts` | 自动布局工具 |
@@ -121,6 +121,7 @@
 | `OmniViewElement.tsx` | 单元素 → React.createElement |
 | `OmniViewElementTree.tsx` | 元素树递归渲染 |
 | `OmniViewRenderer.tsx` | ★ 设计画布渲染入口（始终挂载，output 同步到 store.previewOutput） |
+| `StoreDrawer.tsx` | ★ Store 面板抽屉（组件标签页内）：右侧滑出全幅面板，内嵌 StorePage。Store 切换下拉 + 新建弹窗（内联/全局选择） |
 | `CodeFlowCanvas.tsx` | 代码流画布入口（→ re-export FlowCanvas） |
 | `DesignPreviewNode.tsx` | CodeFlow 中的设计缩略图（ReactFlow 节点，无 handle，读 store.previewOutput） |
 | `FileTreePanel.tsx` | 项目文件树 |
@@ -154,7 +155,7 @@
 | `ComponentTree.tsx` | 当前文件元素层级树 |
 | `ContextInspector.tsx` | ★ 元素右侧属性面板 |
 | `CssStylePanel.tsx` | CSS 变量 + Class 编辑面板（design.omni） |
-| `inspector/InlineStylePanel.tsx` | ★ 画布元素内联样式面板（替代旧 StylesSection）。🔒/🔓 分区锁机制，复用 SizeCard/SpacingCard 等卡片 |
+| `inspector/InlineStylePanel.tsx` | ★ 画布元素内联样式面板（替代旧 StylesSection）。属性级自锁：空值灰显(opacity:0.4)=锁定，有值亮起+×清除=解锁。始终展示所有卡片（无 section 级 🔒/🔓 开关） |
 | `inspector/TypographyBasics.tsx` | 轻量文字卡片（字号 scrub + 预设 + 字重 select + 颜色 picker），仅文本元素显示 |
 | `TreeNodeRenderer.tsx` | 树节点递归渲染 |
 | `tree-utils.ts` | 树操作工具函数 |
@@ -213,7 +214,19 @@
 | `project-json.ts` | project.json 读写 |
 | `index.ts` | 公共 API |
 
-### 5.4 其他服务
+### 5.4 Monaco 语言服务（services/monaco/）
+
+**2026-07-10 新增。** 为 CodeEditorModal 提供 OmniLang 语法高亮、代码片段、类型定义注入、WASM 诊断集成。
+
+| 文件 | 职责 |
+|------|------|
+| `index.ts` | 统一导出入口 |
+| `omnilang-language.ts` | Monarch tokenizer 注册 `omnilang` 语言：70+ 关键字、50+ 注解（`@pid`/`@dim`/`@if` 等）、13 种设计 token 类型、双字符串/模板字符串、行+块注释 |
+| `omnilang-types.ts` | 静态 `.d.ts`（11 个 std 模块 + 基本类型 + 实例方法）+ `generateStoreTypes(storeDefs)` 动态生成 Store 类型 → `addExtraLib()` 注入 TS IntelliSense |
+| `omnilang-snippets.ts` | `CompletionItemProvider` — 16 个代码逻辑片段（if/for/while/let/match/try/import/lambda/arrow 等），注册在 `typescript` 语言上 |
+| `diagnostics.ts` | WASM `OmniCompiler.diagnostics()` 接入：`getOmniCompiler()` 实例管理 + `wasmDiagnosticToMarker()` 映射 + `applyDiagnostics()` → `setModelMarkers()` |
+
+### 5.5 其他服务
 
 | 文件 | 职责 |
 |------|------|

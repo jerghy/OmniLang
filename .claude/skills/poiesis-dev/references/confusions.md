@@ -301,9 +301,9 @@ const semiStyle = styleContent
 
 `parser-view.ts` L413-436：替换为 `splitTopLevelCommas()`，只在引号外的逗号处拆分（状态机跟踪引号开关状态）。
 
-## 十六、`@monaco-editor/react` 与 React 19 不兼容 ★
+## 十六、Monaco Editor 集成陷阱（多个） ★
 
-### 问题
+### 16.1 `@monaco-editor/react` 与 React 19 不兼容
 
 在 Poiesis（React 19 + Vite）中安装 `@monaco-editor/react`，双击节点弹出编辑器时报错：
 
@@ -349,6 +349,39 @@ import jsonWorker from "monaco-editor/esm/vs/language/json/json.worker?worker";
 
 `poiesis/src/components/canvas/code/CodeEditorModal.tsx`。
 
+### 16.2 `languages.typescript` 在 Monaco 0.55 被标记为 `deprecated`
+
+Monaco 0.55.1 的 TypeScript 类型中，`languages.typescript` 的类型是 `{ deprecated: true }`，**不是**包含 `typescriptDefaults`/`ScriptTarget`/`ModuleResolutionKind` 的命名空间。直接访问 → TS2341 编译错误。
+
+**修复**：用 runtime cast 绕过类型检查 `(languages as Record<string, unknown>).typescript`（见 `omnilang-types.ts` L310 `getTsDefaults()`）。运行时 API 仍可用，只是类型定义移到了 module-level contributions。
+
+**影响**：`addExtraLib()` 注入 `.d.ts`、`setCompilerOptions()` 配置 TS 选项、`CompletionItemKind` 等全部需要通过 cast 访问。
+
+涉及文件：`poiesis/src/services/monaco/omnilang-types.ts` L300-335。
+
+### 16.3 Monarch `cases` 不支持正则表达式
+
+Monarch tokenizer 的 `cases` 块中，case label 是**字面字符串前缀**，不是正则。以下写法会在编辑器打开时直接抛异常：
+
+```typescript
+// ❌ 崩溃：Monarch 把 "@(pid|token|...)\\b" 当作字面匹配目标名
+cases: {
+  "@(pid|token|class|...)\\b": "annotation",
+}
+```
+
+**错误信息**：`omnilang: the @ match target '(pid|token|...) is not defined`
+
+**修复**：对于所有 `@` 开头的 token，直接用简单规则 `[/@[a-zA-Z_][a-zA-Z0-9_-]*/, "annotation"]`，不需要按前缀细分（见 `omnilang-language.ts` L80）。
+
+涉及文件：`poiesis/src/services/monaco/omnilang-language.ts` L80-96。
+
+### 16.4 `triggerCharacters` 对特殊字符不可靠
+
+`registerCompletionItemProvider` 的 `triggerCharacters: ["|"]` 在 Monaco 0.55 中不触发补全——`|` 被 TypeScript language service 消费或忽略。对于特殊字符（`|`、`(`、`{` 等）的触发，改用**字母别名**（如 `lambda` → `|param| expr`、`arrow` → `() => { }`），比 `triggerCharacters` 更可靠。
+
+涉及文件：`poiesis/src/services/monaco/omnilang-snippets.ts` L46-65。
+
 ## 十七、xyflow v12 `useOnSelectionChange` 在元素更新时重置选择 ★
 
 ### 问题
@@ -378,6 +411,170 @@ onPaneClick={() => setSelectedNodeIds([])}
 
 ## 十九、Store 文件启动时必须从 `parseResult` 加载
 
-`App.tsx` L69-97 的项目初始化解析循环只处理 `parseResult.designElements`，不处理 `parseResult.storeDef`。Store 文件打开后不会自动加载。
+`App.tsx` L26-263 `loadOmniFiles()` 的项目初始化解析循环必须处理 `parseResult.storeDef`。
 
-修复：在 `ParsedFile` 接口加 `storeDef` 字段 → 解析时提取 → 批量 apply 后遍历 `parsed` 调用 `loadStoreDef()` + `registerStorePids()`。
+**关键陷阱 1**：纯 Store 文件（只有 `store { ... }` 块、无 `view { ... }` 块）经过 `parseOmniSource()` 解析后，`designElements` 为 `null`。旧代码 `if (!parseResult.designElements) return null` 会直接丢弃这类文件，导致 `storeDef` 也被忽略。
+
+修复：改为 `if (!parseResult.designElements && !parseResult.storeDef) return null`。
+
+**关键陷阱 2**：`loadOmniFiles()` 原来的执行顺序是先 `openTab()`（触发 React 渲染 → StorePage mount → useEffect 创建空的 default Store），再异步解析文件 → 加载 `storeDef`。此时 StorePage 已用空 Store 覆盖了 `storeDefs[storeName]`，从磁盘解析出来的信号/动作被丢弃。
+
+修复：改为先解析所有文件 → 加载 `storeDef` 到 `storeDefs` → 再 `openTab()`。这样 StorePage 挂载时 `storeDefs[storeName]` 已有完整数据，useEffect 跳过创建。
+
+**关键陷阱 3**：`scanDirs` 必须包含 `"src/stores"` 和 `"src/lib"`，否则在这些目录下的 `.omni` 文件在重载后不会被扫描到（标签页不会出现）。`App.tsx` L27。
+
+**涉及文件**：`App.tsx` L27, L44-49, L76, L104-118, `StorePage.tsx` L44-52
+
+## 二十、ReactFlow `fitView` 单节点过度放大 ★
+
+### 问题
+
+CodeFlowCanvas 中只有一个 DesignPreviewNode（240×360）时，`fitView` 会把 viewport 放大到 ~2x 来填满画布区域，导致预览节点变成巨型浮窗。
+
+### 原因
+
+`@xyflow/react` 的 `fitView` 默认让所有节点填满视口。当画布里只有一个小节点时，缩放倍率 = `viewportSize / nodeSize`，可达 2~3x。
+
+### 修复
+
+`FlowCanvas.tsx` L336：加 `fitViewOptions={{ maxZoom: 1 }}` 限制自动适配的最高缩放倍率。代码节点多时 fitView 仍可缩小以展示全貌（maxZoom 只限制放大，不影响缩小）。
+
+### 通用原则
+
+任何时候在 ReactFlow 中有一个尺寸固定的占位/预览节点，都应该设 `fitViewOptions.maxZoom` 防止它被放大。值取 `1` 即可（保持节点实际尺寸），或取 `1.5` 允许适度放大。
+
+## 二十一、内联样式锁是属性级的，不是 section 级的 ★
+
+### 旧机制（已废弃）
+
+`InlineStylePanel.tsx` 曾使用 section 级 🔒/🔓 开关：每个分组（尺寸/间距/背景/边框/圆角/文字）一把锁。解锁一个 section → 该 section 内所有属性（如间距的 padding×6 + margin×6 = 12 个）全部可编辑。问题：只想改 `margin-bottom` 却被迫解锁整个间距卡片，空属性显示 `0px` 易误触导致覆盖 class 样式。
+
+### 新机制（当前）
+
+`InlineStylePanel.tsx` 不再有 section 锁。所有卡片始终展示，每个属性独立判断：
+
+| 状态 | 显示 | 行为 |
+|------|------|------|
+| 属性值空（无 inline 值） | 灰显 `opacity: 0.4`，ScrubInput 可拖拽 | 从 class/variant 继承，拖拽即设置 inline 值 |
+| 属性值存在 | 正常亮起 + 右侧 × 按钮 | 点击 × → 清除该属性 → 回到空/灰显状态 |
+
+**关键**：每个属性独立——`padding` 有值但 `margin` 为空时，padding 亮起+×，margin 灰显。不再有"解锁一个 section 就全亮"的问题。
+
+### 涉及文件
+
+- `InlineStylePanel.tsx` L1-124 — 移除 `unlocked`/`LockedSection`/`lock`/`unlock`，始终渲染所有卡片
+- `SpacingCard.tsx` L54-96 `SpacingValue` + L270-290 统一简写 — 空值 `opacity:0.4` + × 清除
+- `SizeCard.tsx` L204-240 — W/H 同理
+- `BackgroundCard.tsx` L91-143 — 背景色同理
+- `BorderCard.tsx` L175-227 — 粗细/样式/颜色同理
+- `RadiusCard.tsx` L243-261 + L338-372 — 圆角 + CornerInput 同理
+- `TypographyBasics.tsx` L169-197 + L217-250 — 字号/颜色同理
+
+## 二十二、Code 面板 `useMemo` + `getState()` 不响应 Store 变化 ★
+
+### 问题
+
+Code 面板（`DesignPage.tsx` L83-118）用 `useMemo` 生成 `.omni` 源码预览，但依赖数组只放了 `[showCode]`。打开 Code 面板后编辑画布、切换 Tab，代码内容不更新——必须关闭再打开。
+
+### 原因
+
+`useMemo` 内部用 `usePoiesisStore.getState()` 读取 Store 快照。`getState()` 不是响应式的——它只是读取当前值，不会让 `useMemo`"知道"数据变了。`useMemo` 的重新计算只由 **依赖数组** 驱动，而 `[showCode]` 只在打开/关闭抽屉时变化。
+
+```typescript
+// ❌ getState() 不会触发 useMemo 重新计算
+const codeSource = useMemo(() => {
+  const state = usePoiesisStore.getState();  // 静态快照
+  // ... 生成代码 ...
+}, [showCode]);  // ← 只有 showCode 变化时才重算
+
+// ✅ 用 Zustand selector 订阅依赖的数据源
+const elements = usePoiesisStore(s => s.elements);
+const activeDesign = usePoiesisStore(s => s.activeDesign);
+// ... 其他依赖 ...
+const codeSource = useMemo(() => {
+  if (!showCode) return "";  // 关闭时不计算
+  const state = usePoiesisStore.getState();  // 读取最新值
+  // ... 生成代码 ...
+}, [showCode, elements, activeDesign, ...]);  // ← 数据变 → 重算
+```
+
+### 涉及文件
+
+`DesignPage.tsx` L83-118 — `codeSource` + `codeFileName` 的 useMemo 定义。
+
+## 二十三、Codegen `defaultValue` 双来源 + 类型感知格式化 ★
+
+### 问题
+
+Store 中 signal 的 `defaultValue` 有两个来源，格式不一致：
+
+| 来源 | `signal name: String = "all"` 的 defaultValue | `signal count: i32 = 0` 的 defaultValue |
+|------|-----------------------------------------------|----------------------------------------|
+| Parser (`collectDefaultValue()` L661-669) | `"all"`（含引号，token 原始文本） | `0` |
+| StorePage UI（`StoreMembersPanel.tsx` L251-253） | `all`（用户输入的原始文本，无引号） | `0` |
+
+旧 emitter 直接用 `${sig.defaultValue}` 拼接，导致 UI 创建/编辑的 String signal 生成 `= all` 而非 `= "all"`。
+
+### 修复
+
+新增 `formatDefaultValue(value, type)`（`source-emitter.ts` L21-42），类型感知地格式化默认值：
+
+- `String` 或 `String?` → 包裹双引号（已含引号则不重复）
+- 其他类型（`i32`, `bool`, `Array<...>`, struct 字面量）→ 原样输出
+
+应用于 5 个发射位置：
+`source-emitter.ts` L78, L198, L265, L274 + `pipeline.ts` L463。
+
+### 涉及文件
+
+- `source-emitter.ts` L21-42 — `formatDefaultValue()` 定义
+- `source-emitter.ts` L78 — `emitStoreDefinition` standalone（Code 面板 store 路径）
+- `pipeline.ts` L463 — `emitStoreBlock`
+
+## 二十四、内联 Store 的 Key 大小写陷阱 ★
+
+### 问题
+
+内联 Store 保存在组件 `.omni` 文件中，保存成功、磁盘文件也有内容。但刷新/重开后 Store 面板显示"还没有 Store"。
+
+### 原因
+
+Parser 和 Zustand 对 inline store 的 key 使用了**不同的 componentName**：
+
+```
+Parser (parser.ts L535-537):
+  ctx.currentComponent = "Main"       // 来自源码 component Main { ... }
+  → inlineStoreDefs["Main.TestStore"]
+
+Zustand (StoreDrawer.tsx, useSaveProject.ts):
+  activeTab.componentName = "main"    // 来自文件名 main.omni
+  → inlineStoreDefs["main.TestStore"]
+
+加载时 key 不匹配 → 查不到 → 面板显示空
+```
+
+### 为什么会出现大小写差异
+
+`source-emitter.ts emitComponent()` 中组件名首字母大写：`const pascalName = comp.name.charAt(0).toUpperCase() + comp.name.slice(1)`。所以 disk 上 `component main {`→`component Main {`。Parser 读到 `Main`，但 tab 的 `componentName` 来自 `fileName.replace(/\.omni$/, "")` = `"main"`。
+
+### 修复
+
+加载 inlineStoreDefs 的三处代码全部 re-key：提取 store 短名（`def.name` 中 `.` 之后的部分），用 `componentName`（来自 tab/filename）重建 key。
+
+```
+App.tsx L104-118:
+  const dotIdx = def.name.indexOf(".");
+  const storeName = dotIdx >= 0 ? def.name.slice(dotIdx + 1) : def.name;
+  const rekeyed = { ...def, name: `${p.componentName}.${storeName}` };
+  loadInlineStoreDef(rekeyed);
+```
+
+同样修复在 `useProjectInit.ts` L199+ 和 `DesignTabBar.tsx` L206-214。
+
+### 涉及文件
+
+- `parser.ts` L535-537 — 构建 qualified name
+- `source-emitter.ts` L250-255 — emitComponent 首字母大写
+- `App.tsx` L104-118 — 加载时 re-key
+- `useProjectInit.ts` L199+ — 加载时 re-key
+- `DesignTabBar.tsx` L206-214 — 加载时 re-key

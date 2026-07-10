@@ -64,17 +64,19 @@ DesignPage
 │   ├─ 设计模式 (codeFlowVisible=false)
 │   │   └─ InfiniteCanvas + ZoomControls (WASM 编译 + 渲染)
 │   └─ CodeFlow 模式 (codeFlowVisible=true)
-│       ├─ OmniView 隐藏（visibility:hidden，不卸载，useWasmCompile 暂停）
-│       └─ CodeFlowCanvas 覆盖层
-│           ├─ 4 节点: fn / code-block / condition / return（纯控制流连线）
-│           ├─ GraphCompiler: 保存时 图 → fn body .omni 源码（含 // @pid:xxx）
-│           ├─ GraphParser: 加载时 .omni 源码 → 图（14 tests, graph-parser.test.ts）
-│           └─ DesignPreviewNode: 设计缩略图，读 store.previewOutput
+│       ├─ TopLayer display:none 完全隐藏（非 scale 缩小）
+│       │    设计预览由 DesignPreviewNode 独立提供，不需双份
+│       ├─ CodeFlowCanvas 覆盖层
+│       │   ├─ 4 节点: fn / code-block / condition / return（纯控制流连线）
+│       │   ├─ GraphCompiler: 保存时 图 → fn body .omni 源码（含 // @pid:xxx）
+│       │   ├─ GraphParser: 加载时 .omni 源码 → 图（14 tests, graph-parser.test.ts）
+│       │   └─ DesignPreviewNode: 设计缩略图，读 store.previewOutput
+│       │       └─ 宽高比从 useCanvasStore.devicePreset 动态计算，同步 DeviceSelector 选择的设备尺寸
 └─ 右侧面板 (ContextInspector)
     ├─ 属性: ID / label / 自定义 props
     ├─ Class 绑定: 搜索/绑定/解绑 design.omni 中的 class
     ├─ Variant 绑定: 维度选择器 (如 color=[danger] size=[lg])
-    ├─ 内联样式: CSS 属性 key→value + token 绑定
+    ├─ 内联样式: 所有卡片始终可见，属性级自锁——空值灰显(锁)/有值亮起+×清除(token绑定)
     └─ 事件绑定
 ```
 
@@ -119,6 +121,10 @@ DesignTabContent
 
 ### 3.1.1 Store 数据流
 
+Store 有**两种形态**：全局 Store（独立文件 `src/stores/*.omni`）和内联 Store（写在 `component { }` 内部）。
+
+#### 全局 Store
+
 Store 文件 (*.omni) 的往返闭环和 component/design 一样，但走独立的类型和解析路径：
 
 ```
@@ -142,6 +148,37 @@ Store 文件 (*.omni) 的往返闭环和 component/design 一样，但走独立�
 ```
 
 **关键点**：`StoreActionDef` 不直接存 `elements/wires` 在 Zustand 顶层——只有当前选中的 action 数据被 swap 到 `store.elements/wires`，FlowCanvas 零改动即渲染。切换 action 时写回 `storeDefs[name].actions[pid]`。
+
+#### 内联 Store（2026-07-11 新增）
+
+在组件标签页内通过右侧面板的 `📦 Store` 按钮打开抽屉，可直接编辑内联 Store——保存在组件 `.omni` 文件内部。状态存储在 `inlineStoreDefs: Record<string, StoreDefinition>`，Key 格式 `"ComponentName.StoreName"`（如 `"main.TestStore"`）。
+
+```
+解析:
+  parser.ts parseComponentKeyword() → case "store"
+  → _parsingInlineStore=true → pushState(IN_STORE) → parseStoreBody()
+  → 存入 ctx.inlineStoreDefs["ComponentName.StoreName"]
+  → 通过 parser-finalize.ts → ParseResult.inlineStoreDefs
+
+发射:
+  source-emitter.ts emitComponent() 内 → emitInlineStore()
+  → 在 @store refs 之后、prop 之前发射 store Name { ... } 块
+  → store 名去掉 "ComponentName." 前缀（已嵌套在 component 内）
+
+加载 (3 个路径，漏一个就会丢数据):
+  1. App.tsx L69-97: 项目启动批量解析 → parseResult.inlineStoreDefs → loadInlineStoreDef
+  2. useProjectInit.ts L199: 加载 main.omni → parseResult.inlineStoreDefs → loadInlineStoreDef
+  3. DesignTabBar.tsx L201-214: 打开组件文件 → parseResult.inlineStoreDefs → loadInlineStoreDef
+
+⚠️ 关键陷阱: Parser 用源码中的 component 名（可能是 PascalCase，如 "Main"）
+  做 key 前缀，但 Zustand 用 tab 的 componentName（来自文件名，如 "main"）。
+  加载时必须 re-key: 提取 store 短名 + 用 componentName 重建 key。
+  (见 confusions.md §二十四)
+
+保存:
+  useSaveProject.ts: 收集 inlineStoreDefs 中匹配当前 componentName 前缀的 store
+  → 作为 inlineStores 参数传入 generateOmniFiles → pipeline → emitComponent
+```
 
 ### 3.2 PID 系统
 
