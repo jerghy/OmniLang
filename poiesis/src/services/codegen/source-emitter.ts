@@ -3,6 +3,8 @@
 
 import type { EmitInput, AnnotationStrategy, ChainBlock } from "./types";
 import type { ViewNode, ElementViewNode } from "./types";
+import type { StoreDefinition } from "../../core/types/store";
+import { compileCodeFlowGraph } from "./graph-compiler";
 
 export class CodeWriter {
   private lines: string[] = [];
@@ -66,24 +68,64 @@ export class SourceEmitter {
     return writer.toString();
   }
 
-  private emitStore(store: EmitInput["stores"][0], w: CodeWriter): void {
+  private emitStore(store: StoreDefinition, w: CodeWriter): void {
+    // Imports
+    for (const imp of store.imports) {
+      w.emit(imp);
+    }
+    if (store.imports.length > 0) w.blank();
+
+    // Store header
+    w.emit(`// @pid:${store.pid}`);
     w.emit(`store ${store.name} {`);
     w.indent();
-    for (const [name, sig] of Object.entries(store.signals)) {
-      const def = sig.defaultValue !== undefined ? ` = ${JSON.stringify(sig.defaultValue)}` : "";
-      w.emit(`signal ${name}: ${sig.type}${def};`);
+
+    // Signals
+    for (const sig of store.signals) {
+      const defStr = sig.defaultValue !== undefined && sig.defaultValue !== ""
+        ? ` = ${JSON.stringify(sig.defaultValue)}`
+        : "";
+      w.emit(`signal ${sig.name}: ${sig.type}${defStr}; // @pid:${sig.pid}`);
     }
-    for (const [name, g] of Object.entries(store.getters)) {
-      w.emit(`getter ${name}: ${g.returnType} = ${g.body};`);
+
+    // Getters
+    if (store.getters.length > 0 && store.signals.length > 0) w.blank();
+    for (const g of store.getters) {
+      w.emit(`getter ${g.name}: ${g.returnType} = ${g.expression}; // @pid:${g.pid}`);
     }
+
+    // Actions
     for (const a of store.actions) {
-      const params = a.params.map(p => `${p.name}: ${p.type}`).join(", ");
-      w.emit(`action ${a.name}(${params}) {`);
-      w.indent();
-      for (const line of a.body.split("\n")) w.emit(line);
-      w.dedent();
+      if (store.signals.length + store.getters.length > 0 || a !== store.actions[0]) w.blank();
+      const paramsStr = a.params.map((p) => `${p.name}: ${p.type}`).join(", ");
+      const retStr = a.returnType ? `: ${a.returnType}` : "";
+      const asyncStr = a.isAsync ? " async" : "";
+      w.emit(`action ${a.name}(${paramsStr})${retStr}${asyncStr} { // @pid:${a.pid}`);
+
+      // Emit action body via CodeFlow compiler
+      if (a.elements.length > 0) {
+        w.indent();
+        const actionFnPid = a.elements.find((e) => e.tag === "fn")?.id;
+        if (actionFnPid) {
+          const body = compileCodeFlowGraph(a.elements, a.wires, actionFnPid);
+          // compileCodeFlowGraph includes fn { ... } wrapper, just emit inner body lines
+          const lines = body.split("\n");
+          for (const line of lines) {
+            const trimmed = line.trim();
+            // Skip the fn signature line and the closing }
+            if (trimmed.startsWith("// @pid:") && trimmed.includes("fn ")) continue;
+            if (trimmed.startsWith("fn ")) continue;
+            if (trimmed === "}" && lines.indexOf(line) === lines.length - 1) continue;
+            if (trimmed.startsWith("// @pid:") || trimmed.length > 0) {
+              w.emit(trimmed);
+            }
+          }
+        }
+        w.dedent();
+      }
       w.emit(`}`);
     }
+
     w.dedent();
     w.emit(`}`);
   }

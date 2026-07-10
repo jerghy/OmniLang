@@ -643,7 +643,11 @@ export class Parser {
           t.kind === "COLON" ||
           t.kind === "NEWLINE" ||
           t.kind === "BRACE_CLOSE" ||
-          t.kind === "BRACE_OPEN"
+          t.kind === "BRACE_OPEN" ||
+          t.kind === "COMMA" ||
+          t.kind === "PAREN_CLOSE" ||
+          t.kind === "PAREN_OPEN" ||
+          (t.kind === "IDENTIFIER" && t.text === "async")
         )
       ) break;
       if (t.kind === "ANGLE_OPEN") depth++;

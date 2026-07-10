@@ -27,6 +27,7 @@ import type {
   BindingResult,
   LoweredCode,
 } from "./types";
+import type { StoreDefinition } from "../../core/types/store";
 import type { GenerateOmniSourceOptions } from "./pipeline-types";
 // import { parseStylesFromAST } from "./style-parser";
 import type { PhaseAContext, PhaseBContext, PhaseCContext, StyleCollection } from "./component-builder";
@@ -290,7 +291,7 @@ export function generateOmniSource(options: GenerateOmniSourceOptions): StageRes
   const emitInput: EmitInput = {
     codeTabType: (mainTab.type as "logic" | "event") ?? "logic",
     imports: phaseA.ctx.imports,
-    stores: phaseB.ctx.stores,
+    stores: phaseB.ctx.stores.map(storeDefToStoreDefinition),
     component: componentPart,
     componentMeta: emitComponentMeta,
     existingPidMap: options.existingPidMap,
@@ -414,6 +415,40 @@ export function generateOmniFragment(options: {
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────
+
+/**
+ * Convert a legacy StoreDef (from store-extractor) to the new StoreDefinition format.
+ * Synthetic PIDs are generated since StoreDef has no PID data.
+ */
+function storeDefToStoreDefinition(sd: StoreDef): StoreDefinition {
+  return {
+    pid: `gen_${sd.name}`,
+    name: sd.name,
+    filePath: `src/stores/${sd.name}.omni`,
+    imports: [],
+    signals: Object.entries(sd.signals).map(([name, sig], i) => ({
+      pid: `gen_${sd.name}_sig_${i}`,
+      name,
+      type: sig.type,
+      defaultValue: sig.defaultValue,
+    })),
+    getters: Object.entries(sd.getters).map(([name, g], i) => ({
+      pid: `gen_${sd.name}_get_${i}`,
+      name,
+      returnType: g.returnType,
+      expression: g.body,
+    })),
+    actions: sd.actions.map((a, i) => ({
+      pid: `gen_${sd.name}_act_${i}`,
+      name: a.name,
+      params: a.params,
+      returnType: undefined,
+      isAsync: false,
+      elements: [],
+      wires: [],
+    })),
+  };
+}
 
 /**
  * Emit a single store block as standalone OmniLang source.

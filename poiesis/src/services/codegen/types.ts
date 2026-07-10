@@ -3,6 +3,7 @@
 
 import type { ElementData, WireData, CodeblockElementData } from "../../core/types";
 import type { CodeTab } from "../../core/types";
+import type { StoreDefinition } from "../../core/types/store";
 import type { PidMap, PidBlockType } from "../../core/types/pid";
 
 // ── Error types ──
@@ -118,7 +119,7 @@ export interface ThemeDef {
 export interface EmitInput {
   codeTabType: "logic" | "event";
   imports: string[];
-  stores: StoreDef[];
+  stores: StoreDefinition[];
   component: ComponentPart;
   themes?: ThemeDef[];
   customComponents?: Array<{ name: string; source: string }>;
