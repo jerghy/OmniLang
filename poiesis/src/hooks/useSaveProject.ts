@@ -5,6 +5,7 @@ import { useState, useCallback } from "react";
 import { usePoiesisStore } from "../store";
 import { api } from "../commands";
 import { generateOmniFiles } from "../services/codegen/pipeline";
+import { emitStoreDefinition } from "../services/codegen/source-emitter";
 import type { CodeTab } from "../core/types/codegraph";
 import { createLogger } from "../lib/utils/logger";
 
@@ -49,6 +50,21 @@ export function useSaveProject() {
         return;
       }
 
+      // ── Store tab: emit StoreDefinition from storeDefs ──
+      if (activeTab?.tabType === "store") {
+        const storeDef = store.storeDefs[activeTab.componentName];
+        if (storeDef) {
+          const source = emitStoreDefinition(storeDef);
+          await api.project.writeFile(activeTab.filePath, source);
+        } else {
+          // New store with no members yet — write minimal stub
+          await api.project.writeFile(activeTab.filePath, `store ${activeTab.componentName} {\n}\n`);
+        }
+        const result = await api.annotation.saveProject();
+        if (result.ok) markClean();
+        return;
+      }
+
       // ── 1. Build codeTabs from current elements+wires ──
       const codeTabs: CodeTab[] = [
         {
@@ -63,6 +79,12 @@ export function useSaveProject() {
 
       // ── 2. Generate .omni source via codegen pipeline ──
       const componentName = activeTab?.componentName ?? "main";
+
+      // Collect inline store definitions associated with the current component
+      const inlineStores = Object.entries(store.inlineStoreDefs)
+        .filter(([key]) => key.startsWith(`${componentName}.`))
+        .map(([, def]) => def);
+
       const genResult = generateOmniFiles({
         designElements: store.elements,
         designWires: store.wires,
@@ -71,6 +93,7 @@ export function useSaveProject() {
         rootOrder: store.rootOrder,
         // forSave removed — pipeline always emits clean code
         filePath: activeTab?.filePath,
+        inlineStores, // NEW
         designName: store.activeDesign?.name && (store.activeDesign.tokens?.length || store.activeDesign.classes?.length || store.activeDesign.variants?.length) ? store.activeDesign.name : undefined,
       });
 

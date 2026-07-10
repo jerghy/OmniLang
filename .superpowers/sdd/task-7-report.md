@@ -1,55 +1,67 @@
-# Task 7 Report: Integrate GraphParser into parse pipeline
+# Task 7 Report: Save Pipeline Integration for Inline Stores
 
 ## Status: COMPLETED
 
-## Summary
+## Changes Summary
 
-Rewrote `parser.ts`'s `parseFn()` to collect fn body text and call `parseCodeFlowGraph(fnBody)` instead of just brace-count-skipping. Added `codeFlowGraphs` to the `ParseResult` interface and exposed a getter for the parsed fn bodies map.
+The save pipeline now fully supports inline store definitions — stores defined inside component `.omni` files are persisted to disk when the user clicks save, and reloaded from disk when component files are opened.
 
-## Changes
+### Modified: `poiesis/src/services/codegen/pipeline-types.ts`
+- Added `inlineStores?: StoreDefinition[]` to `GenerateOmniSourceOptions`
+- Added `inlineStores?: StoreDefinition[]` to `GenerateOmniFilesOptions`
+- Added `import type { StoreDefinition } from "../../core/types/store";`
 
-### `poiesis/src/services/codegen/parser.ts`
+### Modified: `poiesis/src/services/codegen/pipeline.ts`
+- Added `inlineStores?: StoreDefinition[]` to the inline options type in `generateOmniFiles` function
+- Added `inlineStores: options.inlineStores ?? []` to the `EmitInput` construction in `generateOmniSource`, so inline stores flow from pipeline options through to the SourceEmitter
+- Added `import type { StoreDefinition } from "../../core/types/store";`
 
-1. **New imports**: `CodeblockElementData`, `WireData`, `parseCodeFlowGraph`
-2. **New field**: `parsedFnBodies` — `Map<string, { elements: CodeblockElementData[]; wires: WireData[] }>`
-3. **Rewrote `parseFn()`**:
-   - Collects fn signature tokens before `{` and extracts fn name via regex
-   - Collects fn body text by brace-counting (preserves `// @pid:xxx` comments)
-   - Calls `parseCodeFlowGraph(fnBody)` (single-arg signature, no componentName)
-   - Stores result in `parsedFnBodies` map
-   - Does NOT push `IN_FN` state (the body tokens are already consumed)
-4. **Added `getParsedFnBodies()` getter** — public access to the map
-5. **Updated `buildResult()`** — converts `parsedFnBodies` map to a plain object and attaches it as `codeFlowGraphs` on the `ParseResult`
+### Modified: `poiesis/src/hooks/useSaveProject.ts`
+- In `handleSave()`, the component tab save path now collects `inlineStoreDefs` from Zustand state that match the current component (keyed by `ComponentName.` prefix)
+- Passes the collected `inlineStores` array to `generateOmniFiles`
 
-### `poiesis/src/services/codegen/types.ts`
+### Modified: `poiesis/src/components/design/DesignTabBar.tsx`
+- In `handleOpenFile()`, after opening a component file (non-design, non-store tab), reads the file, parses it, and loads any `inlineStoreDefs` from the parse result into Zustand via `loadInlineStoreDef`
 
-1. Added `CodeblockElementData` to the import from `"../../core/types"`
-2. Added `codeFlowGraphs?: Record<string, { elements: CodeblockElementData[]; wires: WireData[] }>` to `ParseResult`
+### Created: `poiesis/src/services/codegen/__tests__/save-inline-store.test.ts`
+- 7 integration tests for the save pipeline:
+  1. `generateOmniSource` includes inline stores in component output
+  2. `generateOmniFiles` includes inline stores in component output
+  3. Multiple inline stores are emitted inside the component
+  4. Backward compatibility: works without inline stores
+  5. Backward compatibility for `generateOmniFiles`
+  6. Inline stores with actions and getters survive full pipeline
+  7. Inline stores do NOT generate standalone files under `src/stores/`
 
-## Verification
+## Data Flow
 
-- `npx tsc --noEmit` — no new errors (only pre-existing errors in unrelated files)
-- `npx vitest run src/services/codegen/__tests__/` — 25 passed, 0 failed (3 test files)
-- Existing parser output is unchanged — code flow graph data is ADDED to `ParseResult`, not replacing anything
+```
+User clicks Save
+  → useSaveProject.handleSave()
+    → Collects inlineStoreDefs from Zustand filtered by component name
+    → generateOmniFiles({ inlineStores, ... })
+      → generateOmniSource({ inlineStores, ... })
+        → EmitInput { inlineStores, ... }
+          → SourceEmitter.emitDocument()
+            → emitInlineStore() for each store
+              → Written to component .omni file
 
----
+User opens file
+  → DesignTabBar.handleOpenFile()
+    → api.project.readFile()
+    → parseOmniSource()
+    → loadInlineStoreDef() for each parsed def
+      → Zustand inlineStoreDefs populated
+```
 
-## Task 7 Review Fix
+## Test Results
 
-**Date**: 2026-07-10
+All 52 tests pass (7 test files, 52 test cases). Zero new TypeScript errors introduced by these changes (48 pre-existing errors remain unmodified).
 
-**Findings fixed**:
+## Files Changed
 
-1. **CRITICAL: Reverted `@inherit`/`inheritedProps` scope creep** — removed `parseInheritBlock()` method, `@inherit` case in `parseVariantBody()`, and `inheritedProps` from `parseDesignVariant()` and `parseVariantBody()` parameter lists in `parser.ts`. Removed `inheritedProps?: string[]` from `ParseContext.designVariants` in `parser-types.ts`. Removed `inheritedProps: v.inheritedProps` from `App.tsx:155` and `source-parser.ts:93`.
-
-2. **Dead code removed** — deleted `parseFnBody()` method and `IN_FN` case in `pushState()` state machine switch. Removed `"IN_FN"` from `ParserState` union type in `parser-types.ts`.
-
-3. **Verification**:
-   - `npx tsc --noEmit` — 0 new errors (only pre-existing errors in unrelated files: SpacingCard.tsx, CssStylePanel.tsx, etc.)
-   - `npx vitest run src/services/codegen/__tests__/` — 25/25 tests pass (3 test files)
-
-**Files modified**:
-- `poiesis/src/services/codegen/parser.ts` — removed `parseFnBody()`, `parseInheritBlock()`, `IN_FN` state case, `inheritedProps` from `parseDesignVariant`/`parseVariantBody`
-- `poiesis/src/services/codegen/parser-types.ts` — removed `"IN_FN"` from `ParserState`, removed `inheritedProps` from `ParseContext.designVariants`
-- `poiesis/src/App.tsx` — removed `inheritedProps: v.inheritedProps`
-- `poiesis/src/services/parser/source-parser.ts` — removed `inheritedProps: v.inheritedProps`
+- `D:/space/OmniLang/poiesis/src/services/codegen/pipeline-types.ts`
+- `D:/space/OmniLang/poiesis/src/services/codegen/pipeline.ts`
+- `D:/space/OmniLang/poiesis/src/hooks/useSaveProject.ts`
+- `D:/space/OmniLang/poiesis/src/components/design/DesignTabBar.tsx`
+- `D:/space/OmniLang/poiesis/src/services/codegen/__tests__/save-inline-store.test.ts`

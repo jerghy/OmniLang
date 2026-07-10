@@ -5,6 +5,7 @@
 import type { ElementData, WireData, CodeTab } from "../../core/types";
 import type { ComponentMeta, StageResult } from "./types";
 import type { PidMap } from "../../core/types/pid";
+import type { StoreDefinition } from "../../core/types/store";
 
 /**
  * Options for generating a single OmniLang source string from design data.
@@ -20,6 +21,8 @@ export interface GenerateOmniSourceOptions {
   existingPidMap?: PidMap;
   /** Design system name for class reference prefixing and import emission. */
   designName?: string;
+  /** Inline store definitions to emit inside the component body. */
+  inlineStores?: StoreDefinition[];
 }
 
 /**
@@ -35,6 +38,8 @@ export interface GenerateOmniFilesOptions {
   existingPidMap?: PidMap;
   /** Design system name for class reference prefixing and import emission. */
   designName?: string;
+  /** Inline store definitions to emit inside the component body. */
+  inlineStores?: StoreDefinition[];
 }
 
 /**

@@ -11,7 +11,7 @@ import { extractStores } from "./store-extractor";
 import { lowerCode } from "./expression-lowering";
 import { emitChains } from "./chain-emitter";
 import { buildPidAnnotations, createAnnotationStrategy } from "./annotation-data";
-import { SourceEmitter, CodeWriter } from "./source-emitter";
+import { SourceEmitter, CodeWriter, formatDefaultValue } from "./source-emitter";
 import { collectStylesFromEntries, applyStyles } from "./collect-styles";
 import { compileCodeFlowGraph } from "./graph-compiler";
 import type { ElementData, WireData, CodeTab } from "../../core/types";
@@ -292,6 +292,7 @@ export function generateOmniSource(options: GenerateOmniSourceOptions): StageRes
     codeTabType: (mainTab.type as "logic" | "event") ?? "logic",
     imports: phaseA.ctx.imports,
     stores: phaseB.ctx.stores.map(storeDefToStoreDefinition),
+    inlineStores: options.inlineStores ?? [],
     component: componentPart,
     componentMeta: emitComponentMeta,
     existingPidMap: options.existingPidMap,
@@ -340,6 +341,8 @@ export function generateOmniFiles(options: {
   /** Target file path relative to project root (e.g. "src/components/MyCard.omni"). Default: "src/main.omni". */
   filePath?: string;
   designName?: string;
+  /** Inline store definitions to emit inside the component body. */
+  inlineStores?: StoreDefinition[];
 }): StageResult<Record<string, string>> {
   // Run the full pipeline for the main source
   const mainResult = generateOmniSource(options);
@@ -460,7 +463,7 @@ function emitStoreBlock(store: StoreDef): string {
   for (const [name, sig] of Object.entries(store.signals)) {
     const def =
       sig.defaultValue !== undefined
-        ? ` = ${sig.defaultValue}`
+        ? ` = ${formatDefaultValue(sig.defaultValue, sig.type)}`
         : "";
     w.emit(`signal ${name}: ${sig.type}${def};`);
   }

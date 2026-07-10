@@ -197,6 +197,21 @@ export function DesignTabBar() {
           }
         }).catch((e) => { console.warn("Tab operation failed", e); });
       }
+
+      // Load inline store definitions for component files
+      if (tabType !== "design" && tabType !== "store") {
+        api.project.readFile(filePath).then((res) => {
+          if (res.content) {
+            const result = parseOmniSource(res.content);
+            if (result.inlineStoreDefs) {
+              const { loadInlineStoreDef } = usePoiesisStore.getState();
+              for (const def of Object.values(result.inlineStoreDefs)) {
+                loadInlineStoreDef(def);
+              }
+            }
+          }
+        }).catch((e) => { console.warn("Failed to load inline stores", e); });
+      }
     },
     [openTab, tabs, switchTab]
   );
@@ -211,6 +226,13 @@ export function DesignTabBar() {
       openTab(filePath, sanitized, tabType);
       setShowNewFilePanel(false);
       setShowFilePanel(false);
+      // Write stub file to disk so it survives reload
+      const stubContent = type === "store"
+        ? `store ${sanitized} {\n}\n`
+        : `// ${sanitized}.omni\n`;
+      api.project.writeFile(filePath, stubContent).catch((e) => {
+        console.warn("Failed to write stub file:", e);
+      });
     },
     [openTab]
   );
@@ -241,10 +263,47 @@ export function DesignTabBar() {
               id: t.id, name: t.name, category: tokenTypeToCategory(t.tokenType), tokenType: t.tokenType as TokenType, value: t.value,
             })),
             classes: (result.designClasses ?? []).map((c) => ({
-              id: c.id, name: c.name, properties: [], pseudoStates: [],
+              id: c.id,
+              name: c.name,
+              properties: (c.properties ?? []).map((p) => ({
+                id: uid("sp"),
+                name: p.name,
+                segments: parseStyleValue(p.value),
+              })),
+              pseudoStates: (c.pseudoStates ?? []).map((ps) => ({
+                id: uid("ps"),
+                pseudo: ps.pseudo,
+                properties: ps.properties.map((p) => ({
+                  id: uid("sp"),
+                  name: p.name,
+                  segments: parseStyleValue(p.value),
+                })),
+              })),
             })),
             variants: (result.designVariants ?? []).map((v) => ({
-              id: v.id, name: v.name, dimensions: [], defaults: {}, baseProperties: [], branches: [],
+              id: v.id,
+              name: v.name,
+              dimensions: (v.dimensions ?? []).map((d) => ({
+                name: d.name,
+                values: d.values.map((dv) => dv.name),
+              })),
+              defaults: v.defaults ?? {},
+              baseProperties: (v.baseProperties ?? []).map((p) => ({
+                id: uid("sp"),
+                name: p.name,
+                segments: parseStyleValue(p.value),
+              })),
+              branches: (v.branches ?? []).map((b) => {
+                const dotIdx = b.name.indexOf(".");
+                const dim = dotIdx >= 0 ? b.name.slice(0, dotIdx) : "";
+                const val = dotIdx >= 0 ? b.name.slice(dotIdx + 1) : b.name;
+                const props = b.properties.map((p) => ({
+                  id: uid("sp"),
+                  name: p.name,
+                  segments: parseStyleValue(p.value),
+                }));
+                return { id: uid("vb"), dimension: dim, value: val, properties: props };
+              }),
             })),
           });
         }
@@ -268,10 +327,47 @@ export function DesignTabBar() {
             id: t.id, name: t.name, category: tokenTypeToCategory(t.tokenType), tokenType: t.tokenType as TokenType, value: t.value,
           })),
           classes: (result.designClasses ?? []).map((c) => ({
-            id: c.id, name: c.name, properties: [], pseudoStates: [],
+            id: c.id,
+            name: c.name,
+            properties: (c.properties ?? []).map((p) => ({
+              id: uid("sp"),
+              name: p.name,
+              segments: parseStyleValue(p.value),
+            })),
+            pseudoStates: (c.pseudoStates ?? []).map((ps) => ({
+              id: uid("ps"),
+              pseudo: ps.pseudo,
+              properties: ps.properties.map((p) => ({
+                id: uid("sp"),
+                name: p.name,
+                segments: parseStyleValue(p.value),
+              })),
+            })),
           })),
           variants: (result.designVariants ?? []).map((v) => ({
-            id: v.id, name: v.name, dimensions: [], defaults: {}, baseProperties: [], branches: [],
+            id: v.id,
+            name: v.name,
+            dimensions: (v.dimensions ?? []).map((d) => ({
+              name: d.name,
+              values: d.values.map((dv) => dv.name),
+            })),
+            defaults: v.defaults ?? {},
+            baseProperties: (v.baseProperties ?? []).map((p) => ({
+              id: uid("sp"),
+              name: p.name,
+              segments: parseStyleValue(p.value),
+            })),
+            branches: (v.branches ?? []).map((b) => {
+              const dotIdx = b.name.indexOf(".");
+              const dim = dotIdx >= 0 ? b.name.slice(0, dotIdx) : "";
+              const val = dotIdx >= 0 ? b.name.slice(dotIdx + 1) : b.name;
+              const props = b.properties.map((p) => ({
+                id: uid("sp"),
+                name: p.name,
+                segments: parseStyleValue(p.value),
+              }));
+              return { id: uid("vb"), dimension: dim, value: val, properties: props };
+            }),
           })),
         });
       }
