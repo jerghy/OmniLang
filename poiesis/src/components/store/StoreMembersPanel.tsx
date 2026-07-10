@@ -162,7 +162,9 @@ export function StoreMembersPanel({ storeName, selectedActionPid, onSelectAction
   const updateStoreGetter = usePoiesisStore((s) => s.updateStoreGetter);
   const removeStoreGetter = usePoiesisStore((s) => s.removeStoreGetter);
   const addStoreAction = usePoiesisStore((s) => s.addStoreAction);
+  const updateStoreAction = usePoiesisStore((s) => s.updateStoreAction);
   const removeStoreAction = usePoiesisStore((s) => s.removeStoreAction);
+  const setProp = usePoiesisStore((s) => s.setProp);
 
   const [editingGetterPid, setEditingGetterPid] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -304,16 +306,35 @@ export function StoreMembersPanel({ storeName, selectedActionPid, onSelectAction
         {!collapsed.actions && store.actions.map((a) => {
           const paramsStr = a.params.map((p) => `${p.name}: ${p.type}`).join(", ");
           const retStr = a.returnType ? `: ${a.returnType}` : "";
-          const asyncStr = a.isAsync ? " async" : "";
           const isSelected = selectedActionPid === a.pid;
           return (
-            <div key={a.pid} style={S.actionItem(isSelected)} onClick={() => onSelectAction(a.pid)}>
-              <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>
-                {a.name}({paramsStr}){retStr}{asyncStr}
-              </span>
-              <button style={S.removeBtn} onClick={(e) => { e.stopPropagation(); removeStoreAction(storeName, a.pid); }}>
-                ×
-              </button>
+            <div key={a.pid} style={S.itemRow}>
+              <div style={S.itemHeader}>
+                <input style={{ ...S.input, width: 72 }} value={a.name}
+                  onChange={(e) => {
+                    updateStoreAction(storeName, a.pid, { name: e.target.value });
+                    // Also update the fn element name in the canvas
+                    const fnEl = a.elements.find((el) => el.tag === "fn");
+                    if (fnEl) setProp(fnEl.id, "name", e.target.value);
+                  }}
+                  onClick={(e) => e.stopPropagation()} />
+                <span style={{ ...S.typeSep, fontSize: 11 }}>({paramsStr}){retStr}{a.isAsync ? " async" : ""}</span>
+                <span style={{ flex: 1 }} />
+                <button style={S.removeBtn} onClick={(e) => { e.stopPropagation(); removeStoreAction(storeName, a.pid); }}>×</button>
+              </div>
+              <div
+                style={{
+                  ...S.actionItem(isSelected),
+                  borderLeft: "none",
+                  borderBottom: "none",
+                  padding: "2px 0",
+                  marginTop: 3,
+                  cursor: "pointer",
+                } as React.CSSProperties}
+                onClick={() => onSelectAction(a.pid)}
+              >
+                {isSelected ? "● Editing in canvas →" : "○ Click to edit in canvas"}
+              </div>
             </div>
           );
         })}

@@ -62,7 +62,19 @@ export function StorePage({ storeName, tabId }: Props) {
       const currentAction = currentStore.actions.find((a) => a.pid === currentSelectedPid);
       if (currentAction) {
         const codeblockElements = currentElements.filter((e) => e.nodeType === "codeblock");
+        // Sync fn node's name + params back to StoreActionDef
+        const fnEl = codeblockElements.find((e) => e.tag === "fn");
+        const nameFromFn = (fnEl?.props?.name as string) || currentAction.name;
+        const paramsFromFn = (fnEl?.props?.params as string) || "";
+        const parsedParams = paramsFromFn
+          ? paramsFromFn.split(",").map((p) => {
+              const [pName, pType] = p.trim().split(":").map((s) => s.trim());
+              return { name: pName || "", type: pType || "String" };
+            })
+          : currentAction.params;
         updateStoreAction(storeName, currentSelectedPid, {
+          name: nameFromFn,
+          params: parsedParams,
           elements: codeblockElements as CodeblockElementData[],
           wires: currentWires,
         });
