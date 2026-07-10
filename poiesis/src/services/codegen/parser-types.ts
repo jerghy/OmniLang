@@ -71,6 +71,14 @@ export interface ParseContext {
   events: Array<{ name: string }>;
   componentMeta: Record<string, unknown> | null;
 
+  // ── Store editor state (Task 4) ──
+  currentStorePid: string;
+  storeDef: import("../../core/types/store").StoreDefinition | null;
+  storeSignalCounter: number;
+  storeActionCounter: number;
+  storeGetterCounter: number;
+  parsedStorePid: string | null;
+
   // ── Design block state (Phase H) ──
   designName: string;
   designTokens: Array<{ id: string; name: string; tokenType: string; value: string }>;

@@ -295,6 +295,9 @@ export interface ParseResult {
   /** Code flow graphs parsed from fn bodies, keyed by fn name */
   codeFlowGraphs?: Record<string, { elements: CodeblockElementData[]; wires: WireData[] }>;
 
+  /** Parsed store definition (when source is a store .omni file). */
+  storeDef?: import("../../core/types/store").StoreDefinition;
+
   // ── Design block result (Phase H) ──
   designName?: string;
   designTokens?: Array<{ id: string; name: string; tokenType: string; value: string }>;

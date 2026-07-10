@@ -73,6 +73,12 @@ export class Parser {
       events: [],
       componentMeta: null,
       hasStyleBlock: false,
+      currentStorePid: "",
+      storeDef: null,
+      storeSignalCounter: 0,
+      storeActionCounter: 0,
+      storeGetterCounter: 0,
+      parsedStorePid: null,
       designName: "",
       designTokens: [],
       designClasses: [],
@@ -252,6 +258,11 @@ export class Parser {
         return;
       }
       this.ctx.currentStore = nameTok.text;
+      this.ctx.currentStorePid = ""; // will be filled by @pid comment or auto-generated
+      this.ctx.storeSignalCounter = 0;
+      this.ctx.storeActionCounter = 0;
+      this.ctx.storeGetterCounter = 0;
+      this.ctx.parsedStorePid = null;
       this.stream.expect("BRACE_OPEN");
       this.pushState("IN_STORE");
       return;
@@ -498,16 +509,204 @@ export class Parser {
     this.parsedFnBodies.set(fnName, { elements, wires });
   }
 
-  // ── Store body (skip by brace counting) ──
+  // ── Store body (parse signal/getter/action members into StoreDefinition) ──
 
   private parseStoreBody(): void {
+    const storeDef: import("../../core/types/store").StoreDefinition = {
+      pid: this.ctx.currentStorePid || `s${this.ctx.storeDef ? Object.keys(this.ctx.storeDef).length + 1 : 1}`,
+      name: this.ctx.currentStore,
+      filePath: "",
+      imports: [],
+      signals: [],
+      getters: [],
+      actions: [],
+    };
+    let pendingPid: string | null = this.ctx.parsedStorePid;
+
+    while (!this.stream.isEof()) {
+      this.stream.skipNewlines();
+      if (this.stream.isEof()) break;
+
+      const tok = this.stream.peek();
+
+      // Close store
+      if (tok.kind === "BRACE_CLOSE") {
+        this.stream.consume();
+        this.ctx.storeDef = storeDef;
+        this.popState();
+        return;
+      }
+
+      // Parse @pid comment
+      if (tok.kind === "COMMENT_LINE" && tok.text.trim().startsWith("// @pid:")) {
+        pendingPid = tok.text.trim().slice(8).trim();
+        this.stream.consume();
+        continue;
+      }
+
+      // Parse import
+      if (tok.kind === "IDENTIFIER" && tok.text === "import") {
+        const importLine = this.collectUntilNewline();
+        storeDef.imports.push("import" + importLine);
+        continue;
+      }
+
+      // Parse signal
+      if (tok.kind === "IDENTIFIER" && tok.text === "signal") {
+        this.stream.consume(); // "signal"
+        const nameTok = this.stream.expect("IDENTIFIER");
+        this.stream.expect("COLON");
+        const typeStr = this.collectType();
+        let defaultValue: unknown = undefined;
+        const next = this.stream.peek();
+        if (next.kind === "EQUALS") {
+          this.stream.consume(); // "="
+          defaultValue = this.collectDefaultValue();
+        }
+        this.expectSemicolon();
+        const pid = pendingPid || `${storeDef.pid}_n${++this.ctx.storeSignalCounter}`;
+        pendingPid = null;
+        storeDef.signals.push({ pid, name: nameTok.text, type: typeStr, defaultValue });
+        continue;
+      }
+
+      // Parse getter
+      if (tok.kind === "IDENTIFIER" && tok.text === "getter") {
+        this.stream.consume(); // "getter"
+        const nameTok = this.stream.expect("IDENTIFIER");
+        this.stream.expect("COLON");
+        const returnType = this.collectType();
+        this.stream.expect("EQUALS");
+        const expression = this.collectExpressionUntilSemicolon();
+        this.expectSemicolon();
+        const pid = pendingPid || `${storeDef.pid}_n${++this.ctx.storeGetterCounter}`;
+        pendingPid = null;
+        storeDef.getters.push({ pid, name: nameTok.text, returnType, expression });
+        continue;
+      }
+
+      // Parse action
+      if (tok.kind === "IDENTIFIER" && tok.text === "action") {
+        this.stream.consume(); // "action"
+        const nameTok = this.stream.expect("IDENTIFIER");
+        this.stream.expect("PAREN_OPEN");
+        const params = this.collectActionParams();
+        this.stream.expect("PAREN_CLOSE");
+        let returnType: string | undefined;
+        let isAsync = false;
+        // Optional ": ReturnType"
+        if (this.stream.peek().kind === "COLON") {
+          this.stream.consume(); // ":"
+          returnType = this.collectType();
+        }
+        // Optional "async"
+        if (this.stream.peek().kind === "IDENTIFIER" && this.stream.peek().text === "async") {
+          this.stream.consume();
+          isAsync = true;
+        }
+        this.stream.expect("BRACE_OPEN");
+        // Collect action body (until matching close brace)
+        const actionBody = this.collectActionBody();
+        const { elements, wires } = parseCodeFlowGraph(actionBody);
+        const pid = pendingPid || `${storeDef.pid}_n${++this.ctx.storeActionCounter}`;
+        pendingPid = null;
+        storeDef.actions.push({ pid, name: nameTok.text, params, returnType, isAsync, elements, wires });
+        continue;
+      }
+
+      // Skip unknown tokens
+      this.stream.consume();
+    }
+  }
+
+  // ── Store body helpers (Task 4) ──
+
+  /** Collect tokens until NEWLINE — used for import lines. */
+  private collectUntilNewline(): string {
+    let result = "";
+    while (!this.stream.isEof() && this.stream.peek().kind !== "NEWLINE") {
+      result += this.stream.consume().text;
+    }
+    return result;
+  }
+
+  /** Collect a type annotation string (e.g. "String", "Todo[]", "Array<String>"). */
+  private collectType(): string {
+    let typeStr = "";
+    let depth = 0;
+    while (!this.stream.isEof()) {
+      const t = this.stream.peek();
+      if (
+        depth === 0 && (
+          t.kind === "SEMICOLON" ||
+          t.kind === "EQUALS" ||
+          t.kind === "COLON" ||
+          t.kind === "NEWLINE" ||
+          t.kind === "BRACE_CLOSE" ||
+          t.kind === "BRACE_OPEN"
+        )
+      ) break;
+      if (t.kind === "ANGLE_OPEN") depth++;
+      if (t.kind === "ANGLE_CLOSE") depth--;
+      typeStr += this.stream.consume().text;
+    }
+    return typeStr.trim();
+  }
+
+  /** Collect a default value expression after "=", stopping at ";". */
+  private collectDefaultValue(): unknown {
+    let val = "";
+    while (!this.stream.isEof() && this.stream.peek().kind !== "SEMICOLON") {
+      val += this.stream.consume().text;
+    }
+    const trimmed = val.trim();
+    // Return as string (caller can JSON.parse if needed)
+    return trimmed;
+  }
+
+  /** Collect an expression until ";" (possibly multi-line). */
+  private collectExpressionUntilSemicolon(): string {
+    let expr = "";
+    while (!this.stream.isEof() && this.stream.peek().kind !== "SEMICOLON") {
+      expr += this.stream.consume().text;
+    }
+    return expr.trim();
+  }
+
+  /** Expect and consume a semicolon. */
+  private expectSemicolon(): void {
+    if (this.stream.peek().kind === "SEMICOLON") {
+      this.stream.consume();
+    }
+  }
+
+  /** Collect action params inside "(...)", comma-separated. */
+  private collectActionParams(): Array<{ name: string; type: string }> {
+    const params: Array<{ name: string; type: string }> = [];
+    while (!this.stream.isEof() && this.stream.peek().kind !== "PAREN_CLOSE") {
+      const name = this.stream.expect("IDENTIFIER").text;
+      this.stream.expect("COLON");
+      const pType = this.collectType();
+      params.push({ name, type: pType });
+      if (this.stream.peek().kind === "COMMA") {
+        this.stream.consume(); // ","
+      }
+    }
+    return params;
+  }
+
+  /** Collect action body between braces, preserving @pid comments for parseCodeFlowGraph. */
+  private collectActionBody(): string {
+    let body = "";
     let depth = 1;
     while (depth > 0 && !this.stream.isEof()) {
       const tok = this.stream.consume();
       if (tok.kind === "BRACE_OPEN") depth++;
-      else if (tok.kind === "BRACE_CLOSE") depth--;
+      else if (tok.kind === "BRACE_CLOSE") { depth--; if (depth === 0) break; }
+      if (tok.kind === "NEWLINE") body += "\n";
+      else body += tok.text + (tok.kind === "COMMENT_LINE" ? "" : " ");
     }
-    this.popState();
+    return body.trim();
   }
 
   // ── Style block ──
