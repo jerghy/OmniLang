@@ -106,14 +106,42 @@ DesignTabContent
   .omni 文本 → omni-tokenizer → omni-parser → parser.ts 递归下降
   → ElementData[] (元素树) + WireData[] (连线)
   → DesignDefinition (如果是 design.omni)
+  → StoreDefinition (如果是 store 文件，`parser-types.ts` + `parseStoreBody()` L503+)
   → ComponentDef (如果是组件文件)
 
 生成方向:
   ElementData[] → view-tree-builder → component-builder
   → source-emitter.ts (组件 .omni)
   DesignDefinition → design-emitter.ts (design .omni)
+  StoreDefinition → source-emitter.ts `emitStore()` (store .omni, 含 // @pid:xxx + CodeFlow action body)
   → pipeline.ts 统一输出 → write_file 写磁盘
 ```
+
+### 3.1.1 Store 数据流
+
+Store 文件 (*.omni) 的往返闭环和 component/design 一样，但走独立的类型和解析路径：
+
+```
+项目启动 (App.tsx L69-97):
+  read_file → parseOmniSource() → parseResult.storeDef
+  → loadStoreDef(def) → storeDefs[name]
+  → registerStorePids(def) → pidIndex
+
+打开 Store Tab (StorePage):
+  storeDefs[name] → 渲染 StoreMembersPanel
+  → 选中 action → 将 action.elements/wires 写入 store.elements/wires
+  → FlowCanvas 渲染（零改动，始终读 store.elements/wires）
+
+编辑 Action (FlowCanvas + FlowInspector):
+  右侧 FlowInspector 选中 FN/Return 节点 → setProp 修改元素
+  → StorePage useEffect 实时同步 fn name/params → StoreActionDef
+
+保存:
+  storeDefs[name] → source-emitter.emitStore() → .omni 含 @pid
+  → action body: compileCodeFlowGraph() → 含 @pid 分片
+```
+
+**关键点**：`StoreActionDef` 不直接存 `elements/wires` 在 Zustand 顶层——只有当前选中的 action 数据被 swap 到 `store.elements/wires`，FlowCanvas 零改动即渲染。切换 action 时写回 `storeDefs[name].actions[pid]`。
 
 ### 3.2 PID 系统
 

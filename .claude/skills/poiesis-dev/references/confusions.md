@@ -300,3 +300,84 @@ const semiStyle = styleContent
 ### 修复
 
 `parser-view.ts` L413-436：替换为 `splitTopLevelCommas()`，只在引号外的逗号处拆分（状态机跟踪引号开关状态）。
+
+## 十六、`@monaco-editor/react` 与 React 19 不兼容 ★
+
+### 问题
+
+在 Poiesis（React 19 + Vite）中安装 `@monaco-editor/react`，双击节点弹出编辑器时报错：
+
+```
+Invalid hook call. Hooks can only be called inside of the body of a function component.
+TypeError: Cannot read properties of null (reading 'useState')
+```
+
+### 原因
+
+`@monaco-editor/react` v4.7.0 的 peer dependency 声明为 `"react": "^17.0.0 || ^18.0.0"`，**不包含 React 19**。当 React 19 运行时，库内部的 hook 调用因 React 版本不匹配而失败（`useState` 读取到 null）。
+
+### 修复
+
+不使用 `@monaco-editor/react`，直接用 `monaco-editor` 原生 API：
+
+1. **依赖**：`package.json` 只装 `monaco-editor`（不装 `@monaco-editor/react`）
+2. **Worker 配置**：在 Vite 中必须用 `?worker` 语法导入 web workers，否则语法高亮不工作：
+
+```typescript
+// CodeEditorModal.tsx 顶部（不可省略）
+import editorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
+import tsWorker from "monaco-editor/esm/vs/language/typescript/ts.worker?worker";
+import cssWorker from "monaco-editor/esm/vs/language/css/css.worker?worker";
+import htmlWorker from "monaco-editor/esm/vs/language/html/html.worker?worker";
+import jsonWorker from "monaco-editor/esm/vs/language/json/json.worker?worker";
+
+(self as { MonacoEnvironment?: unknown }).MonacoEnvironment = {
+  getWorker(_: string, label: string) {
+    if (label === "typescript" || label === "javascript") return new tsWorker();
+    if (label === "css") return new cssWorker();
+    if (label === "html") return new htmlWorker();
+    if (label === "json") return new jsonWorker();
+    return new editorWorker();
+  },
+};
+```
+
+3. **编辑器初始化**：用 `useRef<HTMLDivElement>` + `useEffect(() => { monaco.editor.create(container, opts) }, [])` 创建，不通过 React 组件树渲染
+4. **值的双向同步**：`editor.onDidChangeModelContent()` → `ref.current`，外部值变更时 `editor.setValue()` 同步回编辑器
+
+### 完整文件参考
+
+`poiesis/src/components/canvas/code/CodeEditorModal.tsx`。
+
+## 十七、xyflow v12 `useOnSelectionChange` 在元素更新时重置选择 ★
+
+### 问题
+
+在 CodeFlowCanvas 中编辑节点属性（如 FN 节点名称）后，节点选中状态丢失，右侧面板显示 "Select a node to edit"。
+
+### 原因
+
+`@xyflow/react` v12 的 `useOnSelectionChange` 依赖 ReactFlow **内部选择状态**。当 `elements` 因 `setProp` 变化时，ReactFlow 重算节点引用 → 内部选择被清空 → `onChange` 收到空数组 → 覆盖 `selectedNodeIds`。
+
+链条：`setProp → elements 引用变化 → nodes 重算 → ReactFlow 内部选择重置 → useOnSelectionChange 清空 selectedNodeIds`
+
+### 修复
+
+`FlowCanvas.tsx` L142-148：用 `onNodeClick` + `onPaneClick` 手动管理 `selectedNodeIds`，**移除 `useOnSelectionChange`**。
+
+```typescript
+onNodeClick={(_event, node) => setSelectedNodeIds([node.id])}
+onPaneClick={() => setSelectedNodeIds([])}
+```
+
+同时在 nodes 的 `useMemo` 中根据 `selectedNodeIds` 给节点加 `selected` 属性实现视觉高亮。
+
+## 十八、`parser-finalize.ts` 的 `buildParseResult` 漏传 `storeDef`
+
+`parser-finalize.ts` L97-113 的 `buildParseResult()` 需要包含 `storeDef: ctx.storeDef`。缺少这行 → parser 解析出 `StoreDefinition` 但被丢弃 → `App.tsx` 的 `parseResult.storeDef` 永远是 `undefined` → store 文件打开后无数据。
+
+## 十九、Store 文件启动时必须从 `parseResult` 加载
+
+`App.tsx` L69-97 的项目初始化解析循环只处理 `parseResult.designElements`，不处理 `parseResult.storeDef`。Store 文件打开后不会自动加载。
+
+修复：在 `ParsedFile` 接口加 `storeDef` 字段 → 解析时提取 → 批量 apply 后遍历 `parsed` 调用 `loadStoreDef()` + `registerStorePids()`。

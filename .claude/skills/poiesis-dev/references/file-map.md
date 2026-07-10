@@ -7,6 +7,7 @@
 | 文件 | 定义 | 关键类型 |
 |------|------|---------|
 | `design.ts` | Design System 类型 | `DesignDefinition`, `DesignToken`, `DesignClass`, `VariantDefinition`, `VariantDimension`, `VariantBranch`, `ElementVariantBinding`, `TokenType` |
+| `store.ts` | Store 类型 | `StoreDefinition`, `StoreSignalDef`, `StoreGetterDef`, `StoreActionDef` |
 | `element.ts` | 元素数据 | `ElementData` (id, tag, props, children, parentId, position, source, style, cssClasses, componentRef) |
 | `style.ts` | 样式属性 | `StyleProperty`, `StyleValueSegment` |
 | `wire.ts` | 连线数据 | `WireData` (from/to 节点 + 端口) |
@@ -31,6 +32,7 @@
 | `undo-apply.ts` | 撤销应用逻辑 | 反向应用各种操作类型 |
 | `tab-helpers.ts` | Tab 切换辅助 | Tab 数据保存/恢复 |
 | `slices/design-system.ts` | ★ Design System CRUD | Token/Class/Variant 所有 action |
+| `slices/store-crud.ts` | ★ Store CRUD | Signal/Getter/Action CRUD + @store 引用追踪 |
 | `slices/project.ts` | 项目管理 | 项目打开/关闭/状态 |
 | `slices/element-crud.ts` | 元素 CRUD | addElement/removeElement/setProp/moveElement |
 | `slices/navigation.ts` | 页面路由 | navigateTo |
@@ -95,7 +97,9 @@
 | `code/nodes/CodeBlockNode.tsx` | code-block 节点：自由 OmniView 代码文本，flow-in + flow-out |
 | `code/nodes/ReturnNode.tsx` | return 节点：返回语句，单入口 flow-in（终端） |
 | `code/nodes/DesignPreviewNode.tsx` | ★ CodeFlow 中的设计缩略图节点 |
+| `code/FlowInspector.tsx` | ★ CodeFlow 右侧面板：选中 FN 节点编辑 name+params，选中 Return 编辑表达式 |
 | `code/CanvasContextMenu.tsx` | 画布右键菜单 |
+| `code/CodeEditorModal.tsx` | ★ CodeBlockNode 双击代码编辑器（Monaco Editor 80vw×80vh 模态面板 + 功能说明输入） |
 | `shared/nodeRegistry.ts` | 节点类型注册表 |
 | `shared/connectionValidators.ts` | 连线验证 |
 | `shared/layoutUtils.ts` | 自动布局工具 |
@@ -106,6 +110,8 @@
 | 文件 | 职责 |
 |------|------|
 | `DesignTabBar.tsx` | Tokens / Classes / Variants 标签切换 |
+| `StoreMembersPanel.tsx` | Store 编辑器的左侧成员列表（Signals/Getters/Actions 分组 + 折叠 + 内联 CRUD） |
+| `StorePage.tsx` | Store 页面顶层组件：左侧 StoreMembersPanel + 中央 CodeFlowCanvas（action 切换逻辑） |
 | `DesignTabContent.tsx` | 根据 active tab 分发到 TokenEditor/ClassEditor/VariantEditor |
 | `TokenEditor.tsx` | Token 列表：创建、编辑、删除、分组 |
 | `ClassEditor.tsx` | Class 编辑器：属性卡片 + pseudo states |
