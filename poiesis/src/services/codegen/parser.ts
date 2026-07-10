@@ -4,6 +4,9 @@
 import type { Token } from "./omni-tokenizer";
 import { TokenStream } from "./token-stream";
 import type { ParseResult } from "./types";
+import type { CodeblockElementData } from "../../core/types/element";
+import type { WireData } from "../../core/types";
+import { parseCodeFlowGraph } from "./graph-parser";
 import type {
   ParserState,
   ParseContext,
@@ -30,6 +33,7 @@ export class Parser {
   private stream: TokenStream;
   private ctx: ParseContext;
   private indentMap = new Map<string, number>();
+  private parsedFnBodies = new Map<string, { elements: CodeblockElementData[]; wires: WireData[] }>();
 
   constructor(stream: TokenStream) {
     this.stream = stream;
@@ -456,20 +460,42 @@ export class Parser {
     this.ctx.events.push({ name: nameTok.text });
   }
 
-  // ── Fn body (skip by brace counting) ──
+  // ── Fn body (parse into code flow graph) ──
 
   private parseFn(): void {
     this.stream.consume(); // "fn"
-    // Skip fn signature tokens until the opening BRACE_OPEN that starts the body
+
+    // Collect fn signature tokens until {
+    let fnSignature = "";
     while (!this.stream.isEof()) {
       const tok = this.stream.peek();
       if (tok.kind === "BRACE_OPEN") {
         this.stream.consume();
         break;
       }
+      fnSignature += tok.text + " ";
       this.stream.consume();
     }
-    this.pushState("IN_FN");
+
+    // Extract fn name from signature
+    const sigMatch = fnSignature.match(/(\w+)\s*\(([^)]*)\)/);
+    const fnName = sigMatch?.[1] || "unnamed";
+
+    // Collect fn body with brace counting, preserving // @pid:xxx comments
+    let fnBody = "";
+    let depth = 1;
+    while (depth > 0 && !this.stream.isEof()) {
+      const tok = this.stream.peek();
+      if (tok.kind === "BRACE_OPEN") { depth++; fnBody += "{\n"; }
+      else if (tok.kind === "BRACE_CLOSE") { depth--; if (depth > 0) fnBody += "}\n"; }
+      else { fnBody += tok.text + " "; }
+      this.stream.consume();
+    }
+
+    // Parse fn body into code flow graph
+    const { elements, wires } = parseCodeFlowGraph(fnBody);
+
+    this.parsedFnBodies.set(fnName, { elements, wires });
   }
 
   private parseFnBody(): void {
@@ -843,8 +869,9 @@ export class Parser {
     const dimensions: ParsedDimension[] = [];
     const baseProperties: ParsedClassProperty[] = [];
     const branches: ParsedBranch[] = [];
+    const inheritedProps: string[] = [];
 
-    this.parseVariantBody(dimensions, baseProperties, branches);
+    this.parseVariantBody(dimensions, baseProperties, branches, inheritedProps);
 
     // Build defaults map from dimension values marked (default)
     const defaults: Record<string, string> = {};
@@ -862,6 +889,7 @@ export class Parser {
       baseProperties,
       branches,
       defaults,
+      inheritedProps: inheritedProps.length > 0 ? inheritedProps : undefined,
     });
   }
 
@@ -869,6 +897,7 @@ export class Parser {
     dims: ParsedDimension[],
     baseProps: ParsedClassProperty[],
     branches: ParsedBranch[],
+    inheritedProps: string[],
   ): void {
     while (!this.stream.isEof()) {
       this.stream.skipNewlines();
@@ -890,6 +919,8 @@ export class Parser {
             dims.push(this.parseAtDimBlock());
           } else if (kw === "default") {
             this.parseDefaultBlock(baseProps, dims);
+          } else if (kw === "inherit") {
+            this.parseInheritBlock(inheritedProps);
           } else {
             this.skipLine();
           }
@@ -996,6 +1027,27 @@ export class Parser {
     }
   }
 
+  /** Parse `@inherit prop1, prop2;` annotation — marks properties as inherited. */
+  private parseInheritBlock(inheritedProps: string[]): void {
+    while (!this.stream.isEof()) {
+      this.stream.skipNewlines();
+      const t = this.stream.peek();
+      if (t.kind === "SEMICOLON" || t.kind === "NEWLINE" || t.kind === "BRACE_CLOSE") {
+        if (t.kind === "SEMICOLON") this.stream.consume();
+        break;
+      }
+      if (t.kind === "COMMA") {
+        this.stream.consume();
+        continue;
+      }
+      if (t.kind === "IDENTIFIER") {
+        inheritedProps.push(this.stream.consume().text);
+      } else {
+        this.stream.consume();
+      }
+    }
+  }
+
   /** Parse properties inside `{ ... }` and return as a ParsedBranch. */
   private parseBranchProperties(): ParsedBranch {
     const props: ParsedClassProperty[] = [];
@@ -1073,6 +1125,11 @@ export class Parser {
     return { stream: this.stream, ctx: this.ctx, indentMap: this.indentMap };
   }
 
+  /** Get parsed code flow graphs keyed by fn name. */
+  getParsedFnBodies(): Map<string, { elements: CodeblockElementData[]; wires: WireData[] }> {
+    return this.parsedFnBodies;
+  }
+
   // ── Delegation wrappers for extracted methods ──
 
   private skipUntilSemicolon(): void {
@@ -1113,6 +1170,14 @@ export class Parser {
   }
 
   private buildResult(): ParseResult {
-    return ParserFinalize.buildParseResult(this.ctx);
+    const result = ParserFinalize.buildParseResult(this.ctx);
+    if (this.parsedFnBodies.size > 0) {
+      const entries: Record<string, { elements: CodeblockElementData[]; wires: WireData[] }> = {};
+      for (const [key, value] of this.parsedFnBodies) {
+        entries[key] = value;
+      }
+      result.codeFlowGraphs = entries;
+    }
+    return result;
   }
 }

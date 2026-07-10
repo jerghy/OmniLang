@@ -1,7 +1,7 @@
 // poiesis/src/services/codegen/types.ts
 // Shared types for the OmniGen pipeline.
 
-import type { ElementData, WireData } from "../../core/types";
+import type { ElementData, WireData, CodeblockElementData } from "../../core/types";
 import type { CodeTab } from "../../core/types";
 import type { PidMap, PidBlockType } from "../../core/types/pid";
 
@@ -291,6 +291,9 @@ export interface ParseResult {
   events?: Array<{ name: string }>;
   /** PID map parsed from `// @pid:xxx` comments in the source. */
   pidMap?: PidMap;
+
+  /** Code flow graphs parsed from fn bodies, keyed by fn name */
+  codeFlowGraphs?: Record<string, { elements: CodeblockElementData[]; wires: WireData[] }>;
 
   // ── Design block result (Phase H) ──
   designName?: string;
