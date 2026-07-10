@@ -6,6 +6,13 @@ import { useState } from "react";
 import { usePoiesisStore } from "../../store";
 import { CodeEditorModal } from "../canvas/code/CodeEditorModal";
 
+// ── OmniLang common types for dropdown ──
+const OMNI_TYPES = [
+  "String", "i32", "i64", "f64", "f32",
+  "bool", "Array<String>", "Array<i32>", "Array<f64>",
+  "Map<String, String>",
+];
+
 // ── Styles using --ol-* tokens to match Poiesis visual language ──
 
 const S = {
@@ -61,6 +68,19 @@ const S = {
     background: "var(--ol-surface)",
     color: "var(--ol-text)",
     outline: "none",
+  } as React.CSSProperties,
+
+  select: {
+    border: "1px solid var(--ol-border)",
+    borderRadius: "var(--ol-radius-sm)",
+    padding: "2px 4px",
+    fontSize: "var(--ol-font-size-12)",
+    fontFamily: "var(--ol-font-family-mono)",
+    background: "var(--ol-surface)",
+    color: "var(--ol-text)",
+    outline: "none",
+    cursor: "pointer",
+    maxWidth: 130,
   } as React.CSSProperties,
 
   typeSep: {
@@ -206,23 +226,18 @@ export function StoreMembersPanel({ storeName, selectedActionPid, onSelectAction
         </div>
         {!collapsed.signals && store.signals.map((sig) => (
           <div key={sig.pid} style={S.itemRow}>
-            <input style={{ ...S.input, width: 88 }} value={sig.name}
+            <input style={{ ...S.input, width: 72 }} value={sig.name}
               onChange={(e) => updateStoreSignal(storeName, sig.pid, { name: e.target.value })} />
             <span style={S.typeSep}>:</span>
-            <input style={{ ...S.input, width: 62 }} value={sig.type}
-              onChange={(e) => updateStoreSignal(storeName, sig.pid, { type: e.target.value })} />
-            {sig.defaultValue !== undefined && sig.defaultValue !== "" ? (
-              <>
-                <span style={S.typeSep}>=</span>
-                <input style={{ ...S.input, width: 48, flex: 1 }} value={String(sig.defaultValue)}
-                  onChange={(e) => updateStoreSignal(storeName, sig.pid, { defaultValue: e.target.value })} />
-              </>
-            ) : (
-              <span style={{ ...S.typeSep, cursor: "pointer", marginLeft: "auto" }}
-                onClick={() => updateStoreSignal(storeName, sig.pid, { defaultValue: "" })}>
-                = …
-              </span>
-            )}
+            <select style={S.select} value={sig.type}
+              onChange={(e) => updateStoreSignal(storeName, sig.pid, { type: e.target.value })}>
+              {OMNI_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+              {!OMNI_TYPES.includes(sig.type) && <option value={sig.type}>{sig.type}</option>}
+            </select>
+            <span style={S.typeSep}>=</span>
+            <input style={{ ...S.input, flex: 1 }} value={sig.defaultValue !== undefined ? String(sig.defaultValue) : ""}
+              placeholder="default"
+              onChange={(e) => updateStoreSignal(storeName, sig.pid, { defaultValue: e.target.value })} />
             <button style={S.removeBtn} onClick={() => removeStoreSignal(storeName, sig.pid)}>×</button>
           </div>
         ))}
@@ -241,11 +256,14 @@ export function StoreMembersPanel({ storeName, selectedActionPid, onSelectAction
         </div>
         {!collapsed.getters && store.getters.map((g) => (
           <div key={g.pid} style={S.itemRow}>
-            <input style={{ ...S.input, width: 80 }} value={g.name}
+            <input style={{ ...S.input, width: 72 }} value={g.name}
               onChange={(e) => updateStoreGetter(storeName, g.pid, { name: e.target.value })} />
             <span style={S.typeSep}>:</span>
-            <input style={{ ...S.input, width: 48 }} value={g.returnType}
-              onChange={(e) => updateStoreGetter(storeName, g.pid, { returnType: e.target.value })} />
+            <select style={S.select} value={g.returnType}
+              onChange={(e) => updateStoreGetter(storeName, g.pid, { returnType: e.target.value })}>
+              {OMNI_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+              {!OMNI_TYPES.includes(g.returnType) && <option value={g.returnType}>{g.returnType}</option>}
+            </select>
             <span style={S.typeSep}>=</span>
             <span style={S.getterExpr} onClick={() => setEditingGetterPid(g.pid)} title={g.expression || "Click to edit"}>
               {g.expression ? g.expression.slice(0, 40) + (g.expression.length > 40 ? "…" : "") : "…"}
