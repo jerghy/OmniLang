@@ -1,4 +1,11 @@
 // ── Store CRUD slice for Poiesis store ──
+//
+// TODO: Push undo snapshot on each mutation (requires tabId from caller).
+//       The undo system is keyed by tabId (undoStacks[tabId] in tab-lifecycle.ts),
+//       but this slice doesn't know the active tab. The design spec (section 九)
+//       says "复用现有 undoStacks[tabId] 机制" — integration point is in
+//       tab-lifecycle.ts which needs to snapshot storeDefs when saving/restoring
+//       tab data. Implementation deferred to a follow-up task.
 
 import type { PoiesisState } from "../types";
 import type { StoreDefinition, StoreSignalDef, StoreGetterDef, StoreActionDef } from "../../core/types/store";
