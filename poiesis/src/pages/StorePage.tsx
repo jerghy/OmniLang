@@ -5,24 +5,54 @@
 
 import { useCallback, useEffect } from "react";
 import type { CodeblockElementData } from "../core/types/element";
+import type { StoreDefinition } from "../core/types/store";
 import { usePoiesisStore } from "../store";
 import { StoreMembersPanel } from "../components/store/StoreMembersPanel";
 import { FlowCanvas } from "../components/canvas/code/FlowCanvas";
 import { ReactFlowProvider } from "@xyflow/react";
+import { uid } from "../core/utils/id";
 
 interface Props {
   storeName: string;
   tabId: string;
 }
 
+/** Create a default empty StoreDefinition for a previously-unseen store. */
+function createDefaultStore(storeName: string, filePath: string): StoreDefinition {
+  const storePid = uid("s");
+  return {
+    pid: storePid,
+    name: storeName,
+    filePath,
+    imports: ["import omniview;"],
+    signals: [],
+    getters: [],
+    actions: [],
+  };
+}
+
 export function StorePage({ storeName, tabId }: Props) {
   const store = usePoiesisStore((s) => s.storeDefs[storeName]);
+  const loadStoreDef = usePoiesisStore((s) => s.loadStoreDef);
+  const registerStorePids = usePoiesisStore((s) => s.registerStorePids);
   const setElementsAndWires = usePoiesisStore((s) => s.setElementsAndWires);
   const tabData = usePoiesisStore((s) => s.tabData);
   const updateStoreAction = usePoiesisStore((s) => s.updateStoreAction);
+  const tabs = usePoiesisStore((s) => s.designPage.openTabs);
 
   // Read selectedActionPid from tabData
   const selectedActionPid = tabData[tabId]?.selectedActionPid ?? null;
+
+  // Auto-create default StoreDefinition on first open
+  useEffect(() => {
+    if (!store) {
+      const tab = tabs.find((t) => t.id === tabId);
+      const filePath = tab?.filePath ?? `src/stores/${storeName}.omni`;
+      const def = createDefaultStore(storeName, filePath);
+      loadStoreDef(def);
+      registerStorePids(def);
+    }
+  }, [store, storeName, tabId, tabs, loadStoreDef, registerStorePids]);
 
   const handleSelectAction = useCallback((pid: string) => {
     // Save current action's elements/wires back to storeDefs

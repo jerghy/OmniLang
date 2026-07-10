@@ -59,6 +59,7 @@ async function loadOmniFiles(): Promise<void> {
     elements: ElementData[];
     wires: WireData[];
     rootOrder: string[];
+    storeDef?: import("./core/types/store").StoreDefinition;
   }
 
   // Batch-load files in parallel (BATCH_SIZE=5) to avoid too many concurrent I/O ops
@@ -89,6 +90,7 @@ async function loadOmniFiles(): Promise<void> {
           elements: positionedElements,
           wires: parseResult.designWires || [],
           rootOrder,
+          storeDef: parseResult.storeDef || undefined,
         } as ParsedFile;
       } catch (e) {
         log.warn("Failed to parse .omni file:", filePath, e);
@@ -248,6 +250,15 @@ async function loadOmniFiles(): Promise<void> {
         ...(mainTabId ? { activeTabId: mainTabId } : {}),
       },
     });
+
+    // ── Load parsed store definitions into storeDefs ──
+    const storeState = usePoiesisStore.getState();
+    for (const p of parsed) {
+      if (p.storeDef) {
+        storeState.loadStoreDef(p.storeDef);
+        storeState.registerStorePids(p.storeDef);
+      }
+    }
   }
 }
 
