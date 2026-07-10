@@ -108,15 +108,13 @@ export class SourceEmitter {
         const actionFnPid = a.elements.find((e) => e.tag === "fn")?.id;
         if (actionFnPid) {
           const body = compileCodeFlowGraph(a.elements, a.wires, actionFnPid);
-          // compileCodeFlowGraph includes fn { ... } wrapper, just emit inner body lines
+          // compileCodeFlowGraph includes fn { ... } wrapper, strip first and last line
           const lines = body.split("\n");
-          for (const line of lines) {
+          // Skip first line (fn signature + @pid) and last line (closing })
+          const innerLines = lines.slice(1, -1);
+          for (const line of innerLines) {
             const trimmed = line.trim();
-            // Skip the fn signature line and the closing }
-            if (trimmed.startsWith("// @pid:") && trimmed.includes("fn ")) continue;
-            if (trimmed.startsWith("fn ")) continue;
-            if (trimmed === "}" && lines.indexOf(line) === lines.length - 1) continue;
-            if (trimmed.startsWith("// @pid:") || trimmed.length > 0) {
+            if (trimmed.length > 0) {
               w.emit(trimmed);
             }
           }
