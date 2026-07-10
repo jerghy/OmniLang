@@ -453,10 +453,45 @@ FN 节点（`FnNode.tsx`）当前无法可视化编辑参数。增加一个 **"P
 | P5 | 保存/加载闭环验证 + 往返测试（包括 pidIndex 和 undo/redo） | 质量保证 |
 | P6 | CodeFlowCanvas FN 节点参数按钮 | 独立增强 |
 
-## 十三、开放问题
+## 十三、@store 引用追踪
+
+组件通过 `@store StoreName;` 声明引用。需要维护双向索引以支持：store 重命名联动更新、store 删除时警告引用者。
+
+### 数据模型
+
+```typescript
+// PoiesisState
+storeReferences: Record<string, string[]>;  // store name → 引用它的 component 名列表
+```
+
+注册/注销时机：
+- parser 解析 `@store Xxx` → `registerStoreRef(componentName, storeName)` → 加入索引
+- 组件被删除或重解析 → `unregisterAllStoreRefs(componentName)` → 清理该组件所有引用
+
+### 操作联动
+
+| 操作 | 行为 |
+|------|------|
+| Store 重命名 | `storeReferences[oldName]` 获取引用组件列表 → emitter 重新生成这些组件的 .omni（`@store newName`） |
+| Store 删除 | `storeReferences[name]` 非空时弹窗警告，列出引用组件 |
+| 组件删除 | 遍历 `ComponentDef.storeRefs` → 从 `storeReferences` 中逐一移除 |
+
+## 十四、Store 间引用验证
+
+Action body 中可能调用另一个 store 的方法（如 `NotificationStore.notify("msg")`），需要验证其存在性。
+
+### 验证规则
+
+在 code-block 源码中匹配 `PascalCase.method()` 模式，校验：
+- 目标 store 是否已加载 → 不存在则报 ERROR
+- 目标 action 是否存在 → 不存在则报 WARNING
+
+### 实现策略
+
+**全量预扫描**：`open_project` 时扫描项目所有 `.omni` 文件，收集 store 名称和 action 签名列表存入 `storeDefs`。这复用现有项目初始化流程（扫描建 `componentDefs` 和泡泡图），parser 即可直接查表验证。
+
+## 十五、开放问题
 
 1. **Getter 表达式中的闭包高亮**：Monaco 编辑器中 OmniLang 语法高亮需覆盖闭包 `|param| body` 语法
 2. **Signal 默认值的复合类型**：`Todo[] = []` 中的 `Todo[]` 类型引用需要 parser 正确处理
-3. **Store 间引用**：`NotificationStore.notify(...)` —— parser 需要识别 `OtherStore.method()` 调用模式。parser 解析到对另一个 store 的引用时，仅保留文本，不做跨文件解析
-4. **内联 Store**：后续单独设计，编辑组件可复用全局 Store 的 UI 组件
-5. **@store 引用追踪**：组件里的 `@store TodoStore;` 由 parser 存入 `ComponentPart.storeRefs`（已有字段）。如果 store 被重命名，需要遍历所有 `componentDefs` 更新引用——这是一个后续的"重命名重构"功能，不在本设计范围内
+3. **内联 Store**：后续单独设计，编辑组件可复用全局 Store 的 UI 组件
