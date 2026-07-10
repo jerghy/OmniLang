@@ -311,8 +311,8 @@ function FlowCanvasInner() {
   );
 
   return (
-    <div style={{ display: "flex", width: "100%", height: "100%" }}>
-      <div ref={flowWrapperRef} style={{ flex: 1, height: "100%", minWidth: 0 }}>
+    <div ref={flowWrapperRef} style={{ width: "100%", height: "100%", display: "flex" }}>
+      <div style={{ flex: 1, height: "100%", minWidth: 0 }}>
       {allNodes.length === 0 ? (
         <div
           onContextMenu={handlePaneContextMenu}
@@ -342,8 +342,11 @@ function FlowCanvasInner() {
           fitView
           nodesDraggable
           nodesConnectable
+          nodesFocusable
           elementsSelectable
           panOnScroll
+          onNodeClick={(_event, node) => setSelectedNodeIds([node.id])}
+          onPaneClick={() => setSelectedNodeIds([])}
           onNodeDragStop={onNodeDragStop}
           onConnect={onConnect}
           onPaneContextMenu={handlePaneContextMenu}
