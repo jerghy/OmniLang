@@ -101,6 +101,11 @@ export interface PoiesisState {
   storeDefs: Record<string, StoreDefinition>;
   storeReferences: Record<string, string[]>;
 
+  // ── Inline store definitions (component-scoped, keyed by "ComponentName.StoreName") ──
+  inlineStoreDefs: Record<string, StoreDefinition>;
+  loadInlineStoreDef: (def: StoreDefinition) => void;
+  removeInlineStoreDef: (key: string) => void;
+
   // ── Actions ──
 
   // Architecture
@@ -204,6 +209,21 @@ export interface PoiesisState {
   addStoreAction: (storeName: string, action: StoreActionDef) => void;
   updateStoreAction: (storeName: string, pid: string, updates: Partial<StoreActionDef>) => void;
   removeStoreAction: (storeName: string, pid: string) => void;
+
+  // ── Inline store Signal CRUD ──
+  addInlineStoreSignal: (storeKey: string, signal: StoreSignalDef) => void;
+  updateInlineStoreSignal: (storeKey: string, pid: string, updates: Partial<StoreSignalDef>) => void;
+  removeInlineStoreSignal: (storeKey: string, pid: string) => void;
+
+  // ── Inline store Getter CRUD ──
+  addInlineStoreGetter: (storeKey: string, getter: StoreGetterDef) => void;
+  updateInlineStoreGetter: (storeKey: string, pid: string, updates: Partial<StoreGetterDef>) => void;
+  removeInlineStoreGetter: (storeKey: string, pid: string) => void;
+
+  // ── Inline store Action CRUD ──
+  addInlineStoreAction: (storeKey: string, action: StoreActionDef) => void;
+  updateInlineStoreAction: (storeKey: string, pid: string, updates: Partial<StoreActionDef>) => void;
+  removeInlineStoreAction: (storeKey: string, pid: string) => void;
 
   // PID + references
   registerStorePids: (storeDef: StoreDefinition) => void;

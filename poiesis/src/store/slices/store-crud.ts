@@ -163,6 +163,153 @@ export function createStoreCrudSlice(set: SetFn, _get?: GetFn) {
       };
     }),
 
+    // ── Inline store definitions ──
+    inlineStoreDefs: {} as Record<string, StoreDefinition>,
+
+    loadInlineStoreDef: (def: StoreDefinition) => set((s) => ({
+      inlineStoreDefs: { ...s.inlineStoreDefs, [def.name]: def },
+    })),
+
+    removeInlineStoreDef: (key: string) => set((s) => {
+      const { [key]: _removed, ...rest } = s.inlineStoreDefs;
+      return { inlineStoreDefs: rest };
+    }),
+
+    // ── Inline store Signal CRUD ──
+    addInlineStoreSignal: (storeKey: string, signal: StoreSignalDef) => set((s) => {
+      const store = s.inlineStoreDefs[storeKey];
+      if (!store) return s;
+      return {
+        inlineStoreDefs: {
+          ...s.inlineStoreDefs,
+          [storeKey]: { ...store, signals: [...store.signals, signal] },
+        },
+        isDirty: true,
+      };
+    }),
+
+    updateInlineStoreSignal: (storeKey: string, pid: string, updates: Partial<StoreSignalDef>) => set((s) => {
+      const store = s.inlineStoreDefs[storeKey];
+      if (!store) return s;
+      return {
+        inlineStoreDefs: {
+          ...s.inlineStoreDefs,
+          [storeKey]: {
+            ...store,
+            signals: store.signals.map((sig) =>
+              sig.pid === pid ? { ...sig, ...updates } : sig
+            ),
+          },
+        },
+        isDirty: true,
+      };
+    }),
+
+    removeInlineStoreSignal: (storeKey: string, pid: string) => set((s) => {
+      const store = s.inlineStoreDefs[storeKey];
+      if (!store) return s;
+      return {
+        inlineStoreDefs: {
+          ...s.inlineStoreDefs,
+          [storeKey]: {
+            ...store,
+            signals: store.signals.filter((sig) => sig.pid !== pid),
+          },
+        },
+        isDirty: true,
+      };
+    }),
+
+    // ── Inline store Getter CRUD ──
+    addInlineStoreGetter: (storeKey: string, getter: StoreGetterDef) => set((s) => {
+      const store = s.inlineStoreDefs[storeKey];
+      if (!store) return s;
+      return {
+        inlineStoreDefs: {
+          ...s.inlineStoreDefs,
+          [storeKey]: { ...store, getters: [...store.getters, getter] },
+        },
+        isDirty: true,
+      };
+    }),
+
+    updateInlineStoreGetter: (storeKey: string, pid: string, updates: Partial<StoreGetterDef>) => set((s) => {
+      const store = s.inlineStoreDefs[storeKey];
+      if (!store) return s;
+      return {
+        inlineStoreDefs: {
+          ...s.inlineStoreDefs,
+          [storeKey]: {
+            ...store,
+            getters: store.getters.map((g) =>
+              g.pid === pid ? { ...g, ...updates } : g
+            ),
+          },
+        },
+        isDirty: true,
+      };
+    }),
+
+    removeInlineStoreGetter: (storeKey: string, pid: string) => set((s) => {
+      const store = s.inlineStoreDefs[storeKey];
+      if (!store) return s;
+      return {
+        inlineStoreDefs: {
+          ...s.inlineStoreDefs,
+          [storeKey]: {
+            ...store,
+            getters: store.getters.filter((g) => g.pid !== pid),
+          },
+        },
+        isDirty: true,
+      };
+    }),
+
+    // ── Inline store Action CRUD ──
+    addInlineStoreAction: (storeKey: string, action: StoreActionDef) => set((s) => {
+      const store = s.inlineStoreDefs[storeKey];
+      if (!store) return s;
+      return {
+        inlineStoreDefs: {
+          ...s.inlineStoreDefs,
+          [storeKey]: { ...store, actions: [...store.actions, action] },
+        },
+        isDirty: true,
+      };
+    }),
+
+    updateInlineStoreAction: (storeKey: string, pid: string, updates: Partial<StoreActionDef>) => set((s) => {
+      const store = s.inlineStoreDefs[storeKey];
+      if (!store) return s;
+      return {
+        inlineStoreDefs: {
+          ...s.inlineStoreDefs,
+          [storeKey]: {
+            ...store,
+            actions: store.actions.map((a) =>
+              a.pid === pid ? { ...a, ...updates } : a
+            ),
+          },
+        },
+        isDirty: true,
+      };
+    }),
+
+    removeInlineStoreAction: (storeKey: string, pid: string) => set((s) => {
+      const store = s.inlineStoreDefs[storeKey];
+      if (!store) return s;
+      return {
+        inlineStoreDefs: {
+          ...s.inlineStoreDefs,
+          [storeKey]: {
+            ...store,
+            actions: store.actions.filter((a) => a.pid !== pid),
+          },
+        },
+        isDirty: true,
+      };
+    }),
+
     // ── PID index registration ──
     registerStorePids: (storeDef: StoreDefinition) => set((s) => {
       const entries: Record<string, PidEntry> = {};
