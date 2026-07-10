@@ -1,7 +1,6 @@
 // components/canvas/code/CanvasContextMenu.tsx
 // Right-click context menu for the flow canvas with collapsible sections and smart positioning.
 
-import { useMemo } from "react";
 import { MENU_SECTIONS, MENU_WIDTH, ITEM_HEIGHT } from "./flowConstants";
 import styles from "./CanvasContextMenu.module.css";
 
@@ -10,9 +9,8 @@ export interface ContextMenuProps {
   y: number;
   menuRef: React.RefObject<HTMLDivElement | null>;
   collapsedSections: Set<number>;
-  registeredFns: Set<string>;
   onToggleSection: (i: number) => void;
-  onSelectNode: (tag: string, fnName?: string) => void;
+  onSelectNode: (tag: string) => void;
   onClose: () => void;
 }
 
@@ -21,30 +19,10 @@ export function ContextMenu({
   y,
   menuRef,
   collapsedSections,
-  registeredFns,
   onToggleSection,
   onSelectNode,
   onClose,
 }: ContextMenuProps) {
-  // Build sections, replacing "函数调用" with dynamic registered functions
-  const sections = useMemo(() => {
-    return MENU_SECTIONS.map((section) => {
-      if (section.label === "函数调用") {
-        if (registeredFns.size === 0) {
-          return { ...section, items: [{ label: "（暂无已注册函数）", tag: "", shortcut: "" }] };
-        }
-        return {
-          ...section,
-          items: Array.from(registeredFns).sort().map((name) => ({
-            label: name,
-            tag: "customFn",
-            shortcut: name,
-          })),
-        };
-      }
-      return section;
-    });
-  }, [registeredFns]);
 
   // Compute total visible items for height estimation
   let visibleCount = 0;
@@ -89,7 +67,7 @@ export function ContextMenu({
       }}
       onContextMenu={(e) => e.preventDefault()}
     >
-      {sections.map((section, i) => {
+      {MENU_SECTIONS.map((section, i) => {
         const collapsed = collapsedSections.has(i);
         return (
           <div key={section.label}>
@@ -124,12 +102,11 @@ export function ContextMenu({
             {!collapsed &&
               section.items.map((item) => {
                 const isDisabled = item.tag === "";
-                const fnName = item.tag === "customFn" ? item.label : undefined;
                 return (
                   <button
                     key={item.label}
                     disabled={isDisabled}
-                    onClick={() => { if (!isDisabled) { onSelectNode(item.tag, fnName); onClose(); } }}
+                    onClick={() => { if (!isDisabled) { onSelectNode(item.tag); onClose(); } }}
                     className={styles.menuBtn}
                     style={{
                       display: "flex",

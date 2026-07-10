@@ -14,19 +14,21 @@ import { usePoiesisStore } from "../../../store";
 import { useCodeElements, useWires } from "../../../store/hooks";
 import { uid } from "../../../core/utils/id";
 import type { CodeblockElementData } from "../../../core/types/element";
-import { FunctionHeaderNode } from "./nodes/FunctionHeaderNode";
-import { SkeletonNode } from "./nodes/SkeletonNode";
+import { FnNode } from "./nodes/FnNode";
+import { ConditionNode } from "./nodes/ConditionNode";
 import { CodeBlockNode } from "./nodes/CodeBlockNode";
 import { ReturnNode } from "./nodes/ReturnNode";
+import { DesignPreviewNode } from "./nodes/DesignPreviewNode";
 import { CODE_TAGS, TAG_CN, type ContextMenuState } from "./flowConstants";
 import { ContextMenu } from "./CanvasContextMenu";
 import styles from "./FlowCanvas.module.css";
 
 const nodeTypes = {
-  "function-header": FunctionHeaderNode,
-  skeleton: SkeletonNode,
+  "fn": FnNode,
   "code-block": CodeBlockNode,
-  return: ReturnNode,
+  "condition": ConditionNode,
+  "return": ReturnNode,
+  "design-preview": DesignPreviewNode,
 };
 
 function FlowCanvasInner() {
@@ -37,25 +39,15 @@ function FlowCanvasInner() {
     (s) => s.designPage.codeFlowElementId,
   );
 
+  // Read preview output from store (set by OmniViewRenderer)
+  const previewOutput = usePoiesisStore((s) => s.designPage.previewOutput);
+
   const { screenToFlowPosition } = useReactFlow();
   const flowWrapperRef = useRef<HTMLDivElement>(null);
 
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [collapsedSections, setCollapsedSections] = useState<Set<number>>(new Set());
   const menuRef = useRef<HTMLDivElement>(null);
-
-  // Derive registered custom functions from elements
-  const registeredFns = useMemo(() => {
-    const registered = new Set<string>();
-    for (const el of elements) {
-      if (el.nodeType === "codeblock" && el.tag === "customFn" && el.config?.fnName) {
-        registered.add(el.config.fnName as string);
-      } else if ("tag" in el && "props" in el && el.tag === "fn" && el.props?.name) {
-        registered.add(el.props.name as string);
-      }
-    }
-    return registered;
-  }, [elements]);
 
   // Reset collapsed sections when menu opens
   useEffect(() => {
@@ -94,34 +86,18 @@ function FlowCanvasInner() {
   );
 
   const handleAddNode = useCallback(
-    (tag: string, fnName?: string) => {
+    (tag: string) => {
       if (!contextMenu) return;
       const id = uid(tag);
       const jitter = Math.random() * 40 - 20;
-      const props: Record<string, string> = {};
-      const config: Record<string, unknown> = {};
+      const props: Record<string, unknown> = {};
 
       if (tag === "fn") {
         props.name = "newFn";
+        props.params = "";
       }
-      if (tag === "customFn") {
-        const name = fnName || "newCall";
-        props.name = name;
-        config.fnName = name;
-      }
-      if (tag === "signal") {
-        props.name = "newSignal";
-        props.typeAnnotation = "string";
-      }
-      if (tag === "computed") {
-        props.name = "newComputed";
-        props.typeAnnotation = "string";
-      }
-      if (tag === "store") {
-        props.name = "newStore";
-      }
-      if (tag === "literal") {
-        props.literal = "''";
+      if (tag === "condition") {
+        props.branches = [{ id: "br0", type: "if", condition: "" }];
       }
 
       const newEl: CodeblockElementData = {
@@ -132,7 +108,6 @@ function FlowCanvasInner() {
         parentId: null,
         position: { x: contextMenu.flowX + jitter, y: contextMenu.flowY + jitter },
         source: "",
-        ...(Object.keys(config).length > 0 ? { config } : {}),
       };
       addElement(newEl);
       setContextMenu(null);
@@ -143,6 +118,7 @@ function FlowCanvasInner() {
   // ── Store actions ──
   const setElementPosition = usePoiesisStore((s) => s.setElementPosition);
   const removeElement = usePoiesisStore((s) => s.removeElement);
+  const setProp = usePoiesisStore((s) => s.setProp);
 
   // ── Selected node IDs ──
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
@@ -239,21 +215,27 @@ function FlowCanvasInner() {
     () =>
       codeElements.map((el) => ({
         id: el.id,
-        type:
-          el.tag === "fn"
-            ? "function-header"
-            : el.tag === "if" || el.tag === "else" || el.tag === "for" || el.tag === "while"
-              ? "skeleton"
-              : el.tag === "return"
-                ? "return"
-                : "code-block",
+        type: el.tag,
         position: el.position ?? { x: 0, y: 0 },
         data: {
           label: TAG_CN[el.tag] || el.tag,
           source: el.source,
           fnName: el.props?.name as string,
-          skeletonType: el.tag,
-          condition: el.props?.condition as string,
+          params: el.props?.params as string,
+          branches: el.props?.branches as Array<{id:string;type:string;condition:string}> | undefined,
+          returnExpr: el.source,
+          onDoubleClick: () => { /* open inline editor */ },
+          onUpdateBranches: (branches: unknown) => {
+            setProp(el.id, "branches", branches);
+          },
+          onEditCondition: (branchId: string, condition: string) => {
+            const currentBranches = [...(el.props?.branches as Array<{id:string;type:string;condition:string}> || [])];
+            const idx = currentBranches.findIndex(b => b.id === branchId);
+            if (idx >= 0) {
+              currentBranches[idx] = { ...currentBranches[idx], condition };
+              setProp(el.id, "branches", currentBranches);
+            }
+          },
         },
       })),
     [codeElements],
@@ -271,9 +253,27 @@ function FlowCanvasInner() {
     [wires],
   );
 
+  // Preview node — shows the design canvas inside the flow when in codeflow mode
+  const previewNode: RFNode | null = useMemo(() => {
+    if (!codeFlowElementId) return null;
+    return {
+      id: "design-preview",
+      type: "design-preview",
+      position: { x: 50, y: 50 },
+      selectable: false,
+      draggable: true,
+      data: { output: previewOutput },
+    };
+  }, [codeFlowElementId, previewOutput]);
+
+  const allNodes = useMemo(
+    () => (previewNode ? [...nodes, previewNode] : nodes),
+    [nodes, previewNode],
+  );
+
   return (
     <div ref={flowWrapperRef} style={{ width: "100%", height: "100%" }}>
-      {nodes.length === 0 ? (
+      {allNodes.length === 0 ? (
         <div
           onContextMenu={handlePaneContextMenu}
           style={{
@@ -296,7 +296,7 @@ function FlowCanvasInner() {
         </div>
       ) : (
         <ReactFlow
-          nodes={nodes}
+          nodes={allNodes}
           edges={edges}
           nodeTypes={nodeTypes}
           fitView
@@ -325,14 +325,13 @@ function FlowCanvasInner() {
           y={contextMenu.y}
           menuRef={menuRef}
           collapsedSections={collapsedSections}
-          registeredFns={registeredFns}
           onToggleSection={(i) => setCollapsedSections((prev) => {
             const next = new Set(prev);
             if (next.has(i)) next.delete(i); else next.add(i);
             return next;
           })}
-          onSelectNode={(tag, fnName) => {
-            handleAddNode(tag, fnName);
+          onSelectNode={(tag) => {
+            handleAddNode(tag);
           }}
           onClose={() => setContextMenu(null)}
         />
