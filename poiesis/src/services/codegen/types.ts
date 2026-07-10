@@ -127,6 +127,8 @@ export interface EmitInput {
   componentMeta?: ComponentMeta;
   /** Existing PID map to preserve PIDs across regenerations (PID stability). */
   existingPidMap?: PidMap;
+  /** Inline store definitions to emit inside component body. */
+  inlineStores?: import("../../core/types/store").StoreDefinition[];
 }
 
 /**

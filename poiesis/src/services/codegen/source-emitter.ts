@@ -6,6 +6,38 @@ import type { ViewNode, ElementViewNode } from "./types";
 import type { StoreDefinition } from "../../core/types/store";
 import { compileCodeFlowGraph } from "./graph-compiler";
 
+// ── Value formatting ────────────────────────────────────────────────────────
+
+/**
+ * Format a default value for emission into .omni source.
+ *
+ * OmniLang Strings require quote-delimited literals ("hello" or 'hello').
+ * Other types (i32, bool, Array<...>, struct literals) are emitted as-is.
+ *
+ * This handles values from BOTH sources:
+ * - Parser (already quoted for strings: `"all"`)
+ * - UI editing via StoreMembersPanel (raw text without quotes: `all`)
+ */
+export function formatDefaultValue(value: unknown, type: string): string {
+  if (value === undefined || value === null) return "";
+  const str = String(value);
+  if (str === "") return "";
+
+  // Only add quotes for String-typed defaults
+  const isStringType = type === "String" || type === "String?";
+  if (isStringType) {
+    // Don't double-quote values that already have quotes (from parser)
+    if ((str.startsWith('"') && str.endsWith('"')) ||
+        (str.startsWith("'") && str.endsWith("'"))) {
+      return str;
+    }
+    return `"${str}"`;
+  }
+
+  // Numbers, booleans, arrays, struct literals, etc. — emit as-is
+  return str;
+}
+
 export class CodeWriter {
   private lines: string[] = [];
   private _indent = 0;
@@ -19,6 +51,86 @@ export class CodeWriter {
   dedent(): void { this._indent = Math.max(0, this._indent - 1); }
   blank(): void { this.lines.push(""); }
   toString(): string { return this.lines.join("\n") + "\n"; }
+}
+
+/**
+ * Emit a StoreDefinition as standalone OmniLang store source.
+ * Produces a complete `store Name { ... }` block with @pid annotations,
+ * signal/getter/action declarations, and compiled action code-flow bodies.
+ */
+export function emitStoreDefinition(store: StoreDefinition): string {
+  const w = new CodeWriter();
+
+  // Imports
+  for (const imp of store.imports) {
+    w.emit(imp);
+  }
+  if (store.imports.length > 0) w.blank();
+
+  // Store header
+  w.emit(`// @pid:${store.pid}`);
+  w.emit(`store ${store.name} {`);
+  w.indent();
+
+  // Signals
+  for (const sig of store.signals) {
+    const defStr = sig.defaultValue !== undefined && sig.defaultValue !== ""
+      ? ` = ${formatDefaultValue(sig.defaultValue, sig.type)}`
+      : "";
+    w.emit(`signal ${sig.name}: ${sig.type}${defStr}; // @pid:${sig.pid}`);
+  }
+
+  // Getters
+  if (store.getters.length > 0 && store.signals.length > 0) w.blank();
+  for (const g of store.getters) {
+    w.emit(`getter ${g.name}: ${g.returnType} = ${g.expression}; // @pid:${g.pid}`);
+  }
+
+  // Actions
+  for (const a of store.actions) {
+    if (store.signals.length + store.getters.length > 0 || a !== store.actions[0]) w.blank();
+    const paramsStr = a.params.map((p) => `${p.name}: ${p.type}`).join(", ");
+    const retStr = a.returnType ? `: ${a.returnType}` : "";
+    const asyncStr = a.isAsync ? " async" : "";
+    w.emit(`action ${a.name}(${paramsStr})${retStr}${asyncStr} { // @pid:${a.pid}`);
+
+    // Emit action body via CodeFlow compiler
+    if (a.elements.length > 0) {
+      w.indent();
+      const actionFnPid = a.elements.find((e) => e.tag === "fn")?.id;
+      if (actionFnPid) {
+        const body = compileCodeFlowGraph(a.elements, a.wires, actionFnPid);
+        const lines = body.split("\n");
+        // Skip first line (fn signature + @pid) and last line (closing })
+        const innerLines = lines.slice(1, -1);
+        let hasContent = false;
+        for (const line of innerLines) {
+          const trimmed = line.trim();
+          if (trimmed.length > 0) {
+            w.emit(trimmed);
+            hasContent = true;
+          }
+        }
+        // Ensure the fn block is properly closed even if compileCodeFlowGraph
+        // produced incomplete output (e.g. fn element with no children).
+        if (!hasContent) {
+          // Emit an empty fn block to keep the syntax valid
+          w.emit(`fn ${a.name}() {`);
+          w.emit(`}`);
+        }
+      } else {
+        // No fn element found — emit a minimal valid fn block
+        w.emit(`fn ${a.name}() {`);
+        w.emit(`}`);
+      }
+      w.dedent();
+    }
+    w.emit(`}`);
+  }
+
+  w.dedent();
+  w.emit(`}`);
+  return w.toString();
 }
 
 export class SourceEmitter {
@@ -83,7 +195,7 @@ export class SourceEmitter {
     // Signals
     for (const sig of store.signals) {
       const defStr = sig.defaultValue !== undefined && sig.defaultValue !== ""
-        ? ` = ${sig.defaultValue}`
+        ? ` = ${formatDefaultValue(sig.defaultValue, sig.type)}`
         : "";
       w.emit(`signal ${sig.name}: ${sig.type}${defStr}; // @pid:${sig.pid}`);
     }
@@ -108,16 +220,23 @@ export class SourceEmitter {
         const actionFnPid = a.elements.find((e) => e.tag === "fn")?.id;
         if (actionFnPid) {
           const body = compileCodeFlowGraph(a.elements, a.wires, actionFnPid);
-          // compileCodeFlowGraph includes fn { ... } wrapper, strip first and last line
           const lines = body.split("\n");
-          // Skip first line (fn signature + @pid) and last line (closing })
           const innerLines = lines.slice(1, -1);
+          let hasContent = false;
           for (const line of innerLines) {
             const trimmed = line.trim();
             if (trimmed.length > 0) {
               w.emit(trimmed);
+              hasContent = true;
             }
           }
+          if (!hasContent) {
+            w.emit(`fn ${a.name}() {`);
+            w.emit(`}`);
+          }
+        } else {
+          w.emit(`fn ${a.name}() {`);
+          w.emit(`}`);
         }
         w.dedent();
       }
@@ -141,9 +260,15 @@ export class SourceEmitter {
 
     for (const sr of comp.storeRefs) w.emit(`@store ${sr};`);
 
+    // ── Inline stores ──
+    for (const store of input.inlineStores ?? []) {
+      this.emitInlineStore(store, w);
+      w.blank();
+    }
+
     // Props (e.g. `prop title: String = ""`)
     for (const prop of comp.props || []) {
-      const def = prop.defaultValue !== undefined ? ` = ${prop.defaultValue}` : "";
+      const def = prop.defaultValue !== undefined ? ` = ${formatDefaultValue(prop.defaultValue, prop.type)}` : "";
       w.emit(`prop ${prop.name}: ${prop.type}${def};`);
     }
     // Events (e.g. `event onAction`)
@@ -152,7 +277,7 @@ export class SourceEmitter {
     }
 
     for (const [name, sig] of Object.entries(comp.signals)) {
-      const def = sig.defaultValue !== undefined ? ` = ${sig.defaultValue}` : "";
+      const def = sig.defaultValue !== undefined ? ` = ${formatDefaultValue(sig.defaultValue, sig.type)}` : "";
       w.emit(`signal ${name}: ${sig.type}${def};`);
     }
     for (const [name, c] of Object.entries(comp.computeds || {})) {
@@ -212,6 +337,70 @@ export class SourceEmitter {
         w.blank();
       }
       w.dedent();
+      w.emit(`}`);
+    }
+
+    w.dedent();
+    w.emit(`}`);
+  }
+
+  private emitInlineStore(store: StoreDefinition, w: CodeWriter): void {
+    w.emit(`// @pid:${store.pid}`);
+    // Inline store names are qualified as "ComponentName.StoreName" from the parser
+    // but inside the component body we emit just the unqualified "StoreName".
+    const unqualifiedName = store.name.includes(".")
+      ? store.name.slice(store.name.lastIndexOf(".") + 1)
+      : store.name;
+    w.emit(`store ${unqualifiedName} {`);
+    w.indent();
+
+    // Signals
+    for (const sig of store.signals) {
+      const defStr = sig.defaultValue !== undefined && sig.defaultValue !== ""
+        ? ` = ${formatDefaultValue(sig.defaultValue, sig.type)}`
+        : "";
+      w.emit(`signal ${sig.name}: ${sig.type}${defStr}; // @pid:${sig.pid}`);
+    }
+
+    // Getters
+    if (store.getters.length > 0 && store.signals.length > 0) w.blank();
+    for (const g of store.getters) {
+      w.emit(`getter ${g.name}: ${g.returnType} = ${g.expression}; // @pid:${g.pid}`);
+    }
+
+    // Actions
+    for (const a of store.actions) {
+      if (store.signals.length + store.getters.length > 0 || a !== store.actions[0]) w.blank();
+      const paramsStr = a.params.map((p) => `${p.name}: ${p.type}`).join(", ");
+      const retStr = a.returnType ? `: ${a.returnType}` : "";
+      const asyncStr = a.isAsync ? " async" : "";
+      w.emit(`action ${a.name}(${paramsStr})${retStr}${asyncStr} { // @pid:${a.pid}`);
+
+      if (a.elements.length > 0) {
+        w.indent();
+        const actionFnPid = a.elements.find((e) => e.tag === "fn")?.id;
+        if (actionFnPid) {
+          const body = compileCodeFlowGraph(a.elements, a.wires, actionFnPid);
+          const lines = body.split("\n");
+          const innerLines = lines.slice(1, -1);
+          let hasContent = false;
+          for (const line of innerLines) {
+            const trimmed = line.trim();
+            if (trimmed.length > 0) {
+              w.emit(trimmed);
+              hasContent = true;
+            }
+          }
+          if (!hasContent) {
+            w.emit(`fn ${a.name}() {`);
+            w.emit(`}`);
+          }
+        } else {
+          w.emit(`fn ${a.name}() {`);
+          w.emit(`}`);
+        }
+        w.dedent();
+      }
       w.emit(`}`);
     }
 
