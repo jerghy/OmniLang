@@ -126,6 +126,8 @@ export interface PoiesisState {
   toggleCodeFlow: (elementId: string | null, focusPoint?: { x: number; y: number }) => void;
   setBreadcrumbs: (breadcrumbs: Breadcrumb[]) => void;
   setPreviewOutput: (output: import("../components/design/useWasmCompile").OmniViewOutput | null) => void;
+  setStorePanelVisible: (visible: boolean) => void;
+  setStorePanelActiveStore: (name: string | null) => void;
 
   // Element/wire CRUD
   addElement: (el: ElementData) => void;

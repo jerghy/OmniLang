@@ -1,6 +1,7 @@
 // Design page types — tabbed editor with Z-axis dual-layer canvas
 
 import type { PidMap } from "./pid";
+import type { OmniViewOutput } from "../../components/design/useWasmCompile";
 
 export interface Breadcrumb {
   type: "architecture" | "component" | "code-layer";
@@ -50,6 +51,10 @@ export interface DesignPageState {
   codeFlowVisible: boolean;
   codeFlowElementId: string | null;
   codeFlowFocusPoint: { x: number; y: number } | null;
+  previewOutput: OmniViewOutput | null;
   breadcrumbs: Breadcrumb[];
   designView: "tokens" | "classes" | "variants";  // persisted sub-tab selection
+  /** Store drawer panel state */
+  storePanelVisible: boolean;
+  storePanelActiveStore: string | null;
 }

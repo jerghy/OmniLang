@@ -21,9 +21,11 @@ import { OmniViewRenderer } from "../components/design/OmniViewRenderer";
 import { CodeFlowCanvas } from "../components/design/CodeFlowCanvas";
 import { StorePage } from "./StorePage";
 import { CodeDrawer } from "../components/design/CodeDrawer";
+import { StoreDrawer } from "../components/design/StoreDrawer";
 import { BreadcrumbBar } from "../components/design/BreadcrumbBar";
 import { generateOmniFiles, generateOmniFragment } from "../services/codegen/pipeline";
 import { emitDesignSource } from "../services/codegen/design-emitter";
+import { emitStoreDefinition } from "../services/codegen/source-emitter";
 import { ComponentPalette } from "../components/panels/ComponentPalette";
 import { ComponentTree } from "../components/panels/ComponentTree";
 import { ContextInspector } from "../components/panels/ContextInspector";
@@ -63,6 +65,7 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
   });
   const codeFlowVisible = usePoiesisStore((s) => s.designPage.codeFlowVisible);
   const codeFlowFocusPoint = usePoiesisStore((s) => s.designPage.codeFlowFocusPoint);
+  const storePanelVisible = usePoiesisStore((s) => s.designPage.storePanelVisible);
   const toggleCodeFlow = usePoiesisStore((s) => s.toggleCodeFlow);
   const activeTab = usePoiesisStore((s) => {
     const activeId = s.designPage.activeTabId;
@@ -79,13 +82,32 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
   const { handleDragStart, handleDragMove, handleDragEnd, activeComponent, activeTreeId, treeDropState } = useDragHandlers();
 
   // ── Code drawer ──
+  // Subscribe to all state that should trigger a code refresh:
+  //   elements / wires / rootOrder  → canvas edits
+  //   activeDesign / storeDefs      → design-system / store edits
+  //   activeTabId / openTabs        → tab switching
+  //   componentDefs                 → custom component creation
   const [showCode, setShowCode] = useState(false);
+  const codeElements = usePoiesisStore((s) => s.elements);
+  const codeWires = usePoiesisStore((s) => s.wires);
+  const codeRootOrder = usePoiesisStore((s) => s.rootOrder);
+  const codeActiveDesign = usePoiesisStore((s) => s.activeDesign);
+  const codeStoreDefs = usePoiesisStore((s) => s.storeDefs);
+  const codeActiveTabId = usePoiesisStore((s) => s.designPage.activeTabId);
+  const codeOpenTabs = usePoiesisStore((s) => s.designPage.openTabs);
+  const codeComponentDefs = usePoiesisStore((s) => s.componentDefs);
+
   const codeSource = useMemo(() => {
+    if (!showCode) return "";
     const state = usePoiesisStore.getState();
     const activeTab = state.designPage.openTabs.find((t) => t.id === state.designPage.activeTabId);
     if (!activeTab) return "";
     if (activeTab.tabType === "design") {
       return state.activeDesign ? emitDesignSource(state.activeDesign) : "";
+    }
+    if (activeTab.tabType === "store") {
+      const storeDef = state.storeDefs[activeTab.componentName];
+      return storeDef ? emitStoreDefinition(storeDef) : "// No store definition found";
     }
     // component tab
     const componentName = activeTab.componentName || "main";
@@ -103,13 +125,16 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
           codeTabs, rootOrder: state.rootOrder, fromDefinition: true,
         });
     const fileKey = Object.keys(result.value || {}).find((k) => k.includes(componentName));
-    return (fileKey && result.value?.[fileKey]) || "// Failed to generate source";
-  }, [showCode]);
+    const files = result.value as Record<string, string> | undefined;
+    return (fileKey && files?.[fileKey]) || "// Failed to generate source";
+  }, [showCode, codeElements, codeWires, codeRootOrder, codeActiveDesign, codeStoreDefs, codeActiveTabId, codeOpenTabs, codeComponentDefs]);
+
   const codeFileName = useMemo(() => {
+    if (!showCode) return "";
     const state = usePoiesisStore.getState();
     const activeTab = state.designPage.openTabs.find((t) => t.id === state.designPage.activeTabId);
     return activeTab?.filePath || "source.omni";
-  }, [showCode]);
+  }, [showCode, codeActiveTabId, codeOpenTabs]);
 
   // ── Open Project panel ──
   const [showProjectPanel, setShowProjectPanel] = useState(false);
@@ -372,6 +397,19 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
         </div>
         )}
 
+        {/* Store Drawer — overlays center area when visible */}
+        {storePanelVisible && activeTabType === "component" && (
+          <div style={{
+            gridRow: 3,
+            gridColumn: showSidePanels ? 2 : "1 / -1",
+            overflow: "hidden",
+            position: "relative",
+            zIndex: 10,
+          }}>
+            <StoreDrawer />
+          </div>
+        )}
+
         {/* Code drawer — fixed at viewport bottom, overlays all content */}
         {showCode && (
           <div style={{
@@ -577,7 +615,9 @@ function TopLayer({
         zIndex: 1,
         overflow: "hidden",
         background: "#fff",
-        display: "flex",
+        // Hide completely when code flow is active — the DesignPreviewNode
+        // inside CodeFlowCanvas already provides a live preview.
+        display: codeFlowVisible ? "none" : "flex",
         flexDirection: "column",
         transition: "transform 300ms ease, border-radius 300ms ease, box-shadow 300ms ease",
         transform: codeFlowVisible ? "scale(0.4)" : "scale(1)",

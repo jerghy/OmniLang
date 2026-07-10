@@ -19,6 +19,8 @@ export function createInitialDesignPageState(): DesignPageState {
     previewOutput: null,
     breadcrumbs: [],
     designView: "tokens",
+    storePanelVisible: false,
+    storePanelActiveStore: null,
   };
 }
 
@@ -271,6 +273,13 @@ export function createTabSlice(set: SetFn, _get?: GetFn) {
 
     setPreviewOutput: (output: import("../../components/design/useWasmCompile").OmniViewOutput | null) => set((s) => ({
       designPage: { ...s.designPage, previewOutput: output },
+    })),
+
+    setStorePanelVisible: (visible: boolean) => set((s) => ({
+      designPage: { ...s.designPage, storePanelVisible: visible },
+    })),
+    setStorePanelActiveStore: (name: string | null) => set((s) => ({
+      designPage: { ...s.designPage, storePanelActiveStore: name },
     })),
   };
 }
