@@ -15,6 +15,8 @@ export interface TabDataEntry {
   filePath?: string; // preserved across close/reopen to restore tab state
   codeFlowVisible?: boolean;
   codeFlowElementId?: string | null;
+  /** Store tab: currently selected action PID */
+  selectedActionPid?: string | null;
 }
 
 /**
@@ -48,6 +50,7 @@ export function buildTabSaveEntry(source: TabSaveSource): TabDataEntry {
     filePath: source.filePath,
     codeFlowVisible: source.designPage.codeFlowVisible,
     codeFlowElementId: source.designPage.codeFlowElementId,
+    selectedActionPid: (source as { selectedActionPid?: string | null }).selectedActionPid ?? null,
   };
 }
 

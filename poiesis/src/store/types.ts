@@ -63,6 +63,7 @@ export interface PoiesisState {
     filePath?: string;
     codeFlowVisible?: boolean;
     codeFlowElementId?: string | null;
+    selectedActionPid?: string | null;
   }>;
 
   // ── Component definitions (parsed from .omni, cached) ──

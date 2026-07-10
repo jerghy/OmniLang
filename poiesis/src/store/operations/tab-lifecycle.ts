@@ -16,6 +16,7 @@ export function createInitialDesignPageState(): DesignPageState {
     codeFlowVisible: false,
     codeFlowElementId: null,
     codeFlowFocusPoint: null,
+    previewOutput: null,
     breadcrumbs: [],
     designView: "tokens",
   };
@@ -42,6 +43,10 @@ export function createTabSlice(set: SetFn, _get?: GetFn) {
               designPage: s.designPage,
             })
           : undefined;
+        // Preserve selectedActionPid from existing tabData
+        if (saveEntry && oldTabId && s.tabData[oldTabId]?.selectedActionPid) {
+          saveEntry.selectedActionPid = s.tabData[oldTabId].selectedActionPid;
+        }
         const updatedTabData = saveEntry
           ? { ...s.tabData, [oldTabId!]: { ...s.tabData[oldTabId!], ...saveEntry } }
           : s.tabData;
@@ -95,6 +100,10 @@ export function createTabSlice(set: SetFn, _get?: GetFn) {
             designPage: s.designPage,
           })
         : undefined;
+      // Preserve selectedActionPid from existing tabData
+      if (saveEntry && oldTabId && s.tabData[oldTabId]?.selectedActionPid) {
+        saveEntry.selectedActionPid = s.tabData[oldTabId].selectedActionPid;
+      }
       const updatedTabData = saveEntry
         ? { ...restoredTabData, [oldTabId!]: saveEntry }
         : restoredTabData;
@@ -108,6 +117,7 @@ export function createTabSlice(set: SetFn, _get?: GetFn) {
           codeFlowVisible: false,
           codeFlowElementId: null,
           codeFlowFocusPoint: null,
+          previewOutput: null,
           breadcrumbs: [{ type: "architecture", label: "架构", id: "arch" }, { type: "component", label: componentName, id, filePath }],
         },
         tabData: updatedTabData,
@@ -146,6 +156,10 @@ export function createTabSlice(set: SetFn, _get?: GetFn) {
           codeFlowElementId: isActive ? s.designPage.codeFlowElementId : (closedTabData?.codeFlowElementId ?? null),
         },
       });
+      // Preserve selectedActionPid from existing tabData
+      if (closedTabData?.selectedActionPid) {
+        saveEntry.selectedActionPid = closedTabData.selectedActionPid;
+      }
       const tabDataWithSave = { ...s.tabData, [tabId]: saveEntry };
       // LRU eviction: keep at most 20 entries (evicts least-recently-used, not the closed tab)
       const prunedTabData = lruEvictTabData(tabDataWithSave, new Set(newTabs.map(t => t.id)));
@@ -177,6 +191,10 @@ export function createTabSlice(set: SetFn, _get?: GetFn) {
         selectedElementIds: s.selectedElementIds,
         designPage: s.designPage,
       });
+      // Preserve selectedActionPid from existing tabData
+      if (oldTabId && s.tabData[oldTabId]?.selectedActionPid) {
+        saveEntry.selectedActionPid = s.tabData[oldTabId].selectedActionPid;
+      }
       const savedTabData = oldTabId
         ? { [oldTabId]: saveEntry }
         : {};
@@ -249,6 +267,10 @@ export function createTabSlice(set: SetFn, _get?: GetFn) {
 
     setBreadcrumbs: (breadcrumbs: import("../../core/types/design-page").Breadcrumb[]) => set((s) => ({
       designPage: { ...s.designPage, breadcrumbs },
+    })),
+
+    setPreviewOutput: (output: import("../../components/design/useWasmCompile").OmniViewOutput | null) => set((s) => ({
+      designPage: { ...s.designPage, previewOutput: output },
     })),
   };
 }
