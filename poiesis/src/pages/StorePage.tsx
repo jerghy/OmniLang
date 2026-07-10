@@ -1,7 +1,6 @@
 // pages/StorePage.tsx
 // Top-level component for the Store editor tab.
-// Left panel: StoreMembersPanel with Signals/Getters/Actions.
-// Center: FlowCanvas for action body code-flow editing.
+// Left panel: StoreMembersPanel. Center: FlowCanvas for action code-flow editing.
 
 import { useCallback, useEffect } from "react";
 import type { CodeblockElementData } from "../core/types/element";
@@ -17,7 +16,6 @@ interface Props {
   tabId: string;
 }
 
-/** Create a default empty StoreDefinition for a previously-unseen store. */
 function createDefaultStore(storeName: string, filePath: string): StoreDefinition {
   const storePid = uid("s");
   return {
@@ -40,7 +38,6 @@ export function StorePage({ storeName, tabId }: Props) {
   const updateStoreAction = usePoiesisStore((s) => s.updateStoreAction);
   const tabs = usePoiesisStore((s) => s.designPage.openTabs);
 
-  // Read selectedActionPid from tabData
   const selectedActionPid = tabData[tabId]?.selectedActionPid ?? null;
 
   // Auto-create default StoreDefinition on first open
@@ -55,7 +52,6 @@ export function StorePage({ storeName, tabId }: Props) {
   }, [store, storeName, tabId, tabs, loadStoreDef, registerStorePids]);
 
   const handleSelectAction = useCallback((pid: string) => {
-    // Save current action's elements/wires back to storeDefs
     const state = usePoiesisStore.getState();
     const currentStore = state.storeDefs[storeName];
     const currentElements = state.elements;
@@ -73,7 +69,6 @@ export function StorePage({ storeName, tabId }: Props) {
       }
     }
 
-    // Load selected action's elements/wires into store
     if (currentStore) {
       const action = currentStore.actions.find((a) => a.pid === pid);
       if (action) {
@@ -81,7 +76,6 @@ export function StorePage({ storeName, tabId }: Props) {
       }
     }
 
-    // Update tabData with new selection
     usePoiesisStore.setState((s) => ({
       tabData: {
         ...s.tabData,
@@ -90,23 +84,31 @@ export function StorePage({ storeName, tabId }: Props) {
     }));
   }, [storeName, tabId, updateStoreAction, setElementsAndWires]);
 
-  // Load first action on mount if none selected
   useEffect(() => {
     if (!selectedActionPid && store && store.actions.length > 0) {
       handleSelectAction(store.actions[0].pid);
     }
-    // Only run on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (!store) {
-    return <div style={{ padding: 32, textAlign: "center", color: "#999" }}>Store not loaded</div>;
+    return (
+      <div style={{
+        flex: 1,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color: "var(--ol-text-muted)",
+        fontSize: "var(--ol-font-size-13)",
+      }}>
+        Loading store…
+      </div>
+    );
   }
 
   return (
     <div style={{ display: "flex", height: "100%", width: "100%" }}>
-      {/* Left: Members Panel */}
-      <div style={{ width: 300, minWidth: 200, height: "100%" }}>
+      <div style={{ width: 280, minWidth: 200, height: "100%", flexShrink: 0 }}>
         <StoreMembersPanel
           storeName={storeName}
           selectedActionPid={selectedActionPid}
@@ -114,14 +116,20 @@ export function StorePage({ storeName, tabId }: Props) {
         />
       </div>
 
-      {/* Center: CodeFlow Canvas */}
-      <div style={{ flex: 1, height: "100%" }}>
+      <div style={{ flex: 1, height: "100%", borderLeft: "1px solid var(--ol-border)" }}>
         {selectedActionPid ? (
           <ReactFlowProvider>
             <FlowCanvas />
           </ReactFlowProvider>
         ) : (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#999" }}>
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            height: "100%",
+            color: "var(--ol-text-muted)",
+            fontSize: "var(--ol-font-size-13)",
+          }}>
             Select an action to edit
           </div>
         )}
