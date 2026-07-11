@@ -5,6 +5,7 @@ import type { EmitInput, AnnotationStrategy, ChainBlock } from "./types";
 import type { ViewNode, ElementViewNode } from "./types";
 import type { StoreDefinition } from "../../core/types/store";
 import { compileCodeFlowGraph } from "./graph-compiler";
+import { emitPidAnnotation } from "./annotation-registry";
 
 // ── Value formatting ────────────────────────────────────────────────────────
 
@@ -68,7 +69,7 @@ export function emitStoreDefinition(store: StoreDefinition): string {
   if (store.imports.length > 0) w.blank();
 
   // Store header
-  w.emit(`// @pid:${store.pid}`);
+  w.emit(emitPidAnnotation(store.pid));
   w.emit(`store ${store.name} {`);
   w.indent();
 
@@ -77,13 +78,15 @@ export function emitStoreDefinition(store: StoreDefinition): string {
     const defStr = sig.defaultValue !== undefined && sig.defaultValue !== ""
       ? ` = ${formatDefaultValue(sig.defaultValue, sig.type)}`
       : "";
-    w.emit(`signal ${sig.name}: ${sig.type}${defStr}; // @pid:${sig.pid}`);
+    w.emit(emitPidAnnotation(sig.pid));
+    w.emit(`signal ${sig.name}: ${sig.type}${defStr};`);
   }
 
   // Getters
   if (store.getters.length > 0 && store.signals.length > 0) w.blank();
   for (const g of store.getters) {
-    w.emit(`getter ${g.name}: ${g.returnType} = ${g.expression}; // @pid:${g.pid}`);
+    w.emit(emitPidAnnotation(g.pid));
+    w.emit(`getter ${g.name}: ${g.returnType} = ${g.expression};`);
   }
 
   // Actions
@@ -92,7 +95,8 @@ export function emitStoreDefinition(store: StoreDefinition): string {
     const paramsStr = a.params.map((p) => `${p.name}: ${p.type}`).join(", ");
     const retStr = a.returnType ? `: ${a.returnType}` : "";
     const asyncStr = a.isAsync ? " async" : "";
-    w.emit(`action ${a.name}(${paramsStr})${retStr}${asyncStr} { // @pid:${a.pid}`);
+    w.emit(emitPidAnnotation(a.pid));
+    w.emit(`action ${a.name}(${paramsStr})${retStr}${asyncStr} {`);
 
     // Emit action body via CodeFlow compiler
     if (a.elements.length > 0) {
@@ -188,7 +192,7 @@ export class SourceEmitter {
     if (store.imports.length > 0) w.blank();
 
     // Store header
-    w.emit(`// @pid:${store.pid}`);
+    w.emit(emitPidAnnotation(store.pid));
     w.emit(`store ${store.name} {`);
     w.indent();
 
@@ -197,13 +201,15 @@ export class SourceEmitter {
       const defStr = sig.defaultValue !== undefined && sig.defaultValue !== ""
         ? ` = ${formatDefaultValue(sig.defaultValue, sig.type)}`
         : "";
-      w.emit(`signal ${sig.name}: ${sig.type}${defStr}; // @pid:${sig.pid}`);
+      w.emit(emitPidAnnotation(sig.pid));
+      w.emit(`signal ${sig.name}: ${sig.type}${defStr};`);
     }
 
     // Getters
     if (store.getters.length > 0 && store.signals.length > 0) w.blank();
     for (const g of store.getters) {
-      w.emit(`getter ${g.name}: ${g.returnType} = ${g.expression}; // @pid:${g.pid}`);
+      w.emit(emitPidAnnotation(g.pid));
+      w.emit(`getter ${g.name}: ${g.returnType} = ${g.expression};`);
     }
 
     // Actions
@@ -212,7 +218,8 @@ export class SourceEmitter {
       const paramsStr = a.params.map((p) => `${p.name}: ${p.type}`).join(", ");
       const retStr = a.returnType ? `: ${a.returnType}` : "";
       const asyncStr = a.isAsync ? " async" : "";
-      w.emit(`action ${a.name}(${paramsStr})${retStr}${asyncStr} { // @pid:${a.pid}`);
+      w.emit(emitPidAnnotation(a.pid));
+      w.emit(`action ${a.name}(${paramsStr})${retStr}${asyncStr} {`);
 
       // Emit action body via CodeFlow compiler
       if (a.elements.length > 0) {
@@ -345,7 +352,7 @@ export class SourceEmitter {
   }
 
   private emitInlineStore(store: StoreDefinition, w: CodeWriter): void {
-    w.emit(`// @pid:${store.pid}`);
+    w.emit(emitPidAnnotation(store.pid));
     // Inline store names are qualified as "ComponentName.StoreName" from the parser
     // but inside the component body we emit just the unqualified "StoreName".
     const unqualifiedName = store.name.includes(".")
@@ -359,13 +366,15 @@ export class SourceEmitter {
       const defStr = sig.defaultValue !== undefined && sig.defaultValue !== ""
         ? ` = ${formatDefaultValue(sig.defaultValue, sig.type)}`
         : "";
-      w.emit(`signal ${sig.name}: ${sig.type}${defStr}; // @pid:${sig.pid}`);
+      w.emit(emitPidAnnotation(sig.pid));
+      w.emit(`signal ${sig.name}: ${sig.type}${defStr};`);
     }
 
     // Getters
     if (store.getters.length > 0 && store.signals.length > 0) w.blank();
     for (const g of store.getters) {
-      w.emit(`getter ${g.name}: ${g.returnType} = ${g.expression}; // @pid:${g.pid}`);
+      w.emit(emitPidAnnotation(g.pid));
+      w.emit(`getter ${g.name}: ${g.returnType} = ${g.expression};`);
     }
 
     // Actions
@@ -374,7 +383,8 @@ export class SourceEmitter {
       const paramsStr = a.params.map((p) => `${p.name}: ${p.type}`).join(", ");
       const retStr = a.returnType ? `: ${a.returnType}` : "";
       const asyncStr = a.isAsync ? " async" : "";
-      w.emit(`action ${a.name}(${paramsStr})${retStr}${asyncStr} { // @pid:${a.pid}`);
+      w.emit(emitPidAnnotation(a.pid));
+      w.emit(`action ${a.name}(${paramsStr})${retStr}${asyncStr} {`);
 
       if (a.elements.length > 0) {
         w.indent();
@@ -467,7 +477,7 @@ export class SourceEmitter {
     // PID annotation (skip for text/interpolation which are inline)
     if (this.enableAnnotations && this.annotationStrategy && node.kind !== "text" && node.kind !== "interpolation") {
       const ann = this.annotationStrategy.beforeViewNode(node, depth);
-      if (ann) w.emit(`// @pid:${ann.pid}`);
+      if (ann) w.emit(emitPidAnnotation(ann.pid));
     }
 
     // ── Non-element node kinds (don't need resolvedStyle) ──
