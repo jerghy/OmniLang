@@ -332,30 +332,6 @@ pub fn compile_to_target_json(
     })
 }
 
-/// Extract the inner HTML between `<body>` and `</body>` tags.
-/// Works on both multi-line and minified/single-line HTML.
-#[cfg(feature = "codegen-omniview")]
-fn extract_body_html(html: &str) -> String {
-    // Find <body> tag (with optional attributes)
-    let body_start = html
-        .find("<body")
-        .and_then(|i| html[i..].find('>').map(|j| i + j + 1));
-    let body_end = html.find("</body>");
-
-    match (body_start, body_end) {
-        (Some(start), Some(end)) if start < end => html[start..end].to_string(),
-        _ => {
-            // Fallback: try line-based extraction for unusual formatting
-            html.lines()
-                .skip_while(|l| !l.contains("<body"))
-                .skip(1)
-                .take_while(|l| !l.contains("</body>"))
-                .collect::<Vec<_>>()
-                .join("\n")
-        }
-    }
-}
-
 /// Internal compile result struct (avoids JSON round-trip for native consumers).
 #[derive(Debug, Serialize, TS)]
 pub struct InternalCompileResult {
@@ -426,9 +402,17 @@ fn compile_multi_internal_post(
     };
 
     // Dispatch to target codegen
+    // For OmniView, call compile_files directly to forward editor_mode/debug_mode.
+    #[cfg(feature = "codegen-omniview")]
+    let output = if matches!(target, codegen::Target::OmniView) {
+        codegen::omniview::compile_files(&merged_ir, sources, editor_mode, debug_mode)
+    } else {
+        codegen::compile(&merged_ir, target, sources)
+    };
+    #[cfg(not(feature = "codegen-omniview"))]
     let output = codegen::compile(&merged_ir, target, sources);
-    #[allow(unused_mut)]
-    let mut files_map: FxHashMap<String, String> = output
+
+    let files_map: FxHashMap<String, String> = output
         .files
         .into_iter()
         .map(|f| (f.path, f.content))
@@ -436,41 +420,6 @@ fn compile_multi_internal_post(
 
     // Codegen errors are already Diagnostic objects
     diags.extend(output.errors);
-
-    // Post-process: wrap debug HTML for editor mode.
-    // Only available when the omniview codegen backend is enabled.
-    #[cfg(feature = "codegen-omniview")]
-    if editor_mode && matches!(target, codegen::Target::OmniView) {
-        for path in files_map.keys().cloned().collect::<Vec<_>>() {
-            if path.ends_with(".html") {
-                // Resolve JS/CSS by matching the HTML file's base name instead of
-                // hardcoding "index.*" — supports multi-page projects.
-                let base = path.strip_suffix(".html").unwrap_or(&path);
-                let js_key = format!("{}.js", base);
-                let css_key = format!("{}.css", base);
-                let js = files_map
-                    .get(&js_key)
-                    .or_else(|| files_map.get("index.js"))
-                    .map(|s| s.as_str())
-                    .unwrap_or("");
-                let css = files_map
-                    .get(&css_key)
-                    .or_else(|| files_map.get("index.css"))
-                    .map(|s| s.as_str())
-                    .unwrap_or("");
-                if let Some(html_content) = files_map.get(&path) {
-                    // Use substring extraction instead of line-based parsing —
-                    // works on both multi-line and minified/single-line HTML.
-                    let body_html = extract_body_html(html_content);
-                    files_map.insert(
-                        path,
-                        codegen::omniview::wrap_debug_html(js, css, &body_html),
-                    );
-                }
-                break;
-            }
-        }
-    }
 
     let success = diags.iter().all(|d| d.severity != error::Severity::Error);
     InternalCompileResult {
