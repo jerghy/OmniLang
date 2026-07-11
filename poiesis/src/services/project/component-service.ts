@@ -111,6 +111,7 @@ export async function loadComponentDefinitionsFromServer(): Promise<
       children: (meta.children as boolean) ?? true,
       elements,
       wires,
+      codeFlowGraphs: parsed.codeFlowGraphs || {},
       createdAt: ((meta as Record<string, unknown>).createdAt as string) || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       storage: "file",
