@@ -230,6 +230,14 @@ export class Parser {
     }
 
     // Chain-related comments are handled in IN_CHAIN state or IN_COMPONENT state
+
+    // @pid comment before a declaration — store in pendingPid for next keyword handler
+    const pidResult = parsePidAnnotation(text);
+    if (pidResult) {
+      this.ctx.pendingPid = pidResult.pid;
+      return;
+    }
+
     // Ignore other comments at root level
   }
 
@@ -278,7 +286,8 @@ export class Parser {
         return;
       }
       this.ctx.currentStore = nameTok.text;
-      this.ctx.currentStorePid = ""; // will be filled by @pid comment or auto-generated
+      this.ctx.currentStorePid = this.ctx.pendingPid || "";
+      this.ctx.pendingPid = null;
       this.ctx.storeSignalCounter = 0;
       this.ctx.storeActionCounter = 0;
       this.ctx.storeGetterCounter = 0;
@@ -358,6 +367,13 @@ export class Parser {
       return;
     }
 
+    // @pid comment before a declaration — store in pendingPid for next keyword handler
+    const pidResult = parsePidAnnotation(text);
+    if (pidResult) {
+      this.ctx.pendingPid = pidResult.pid;
+      return;
+    }
+
     // Other comments in component body are ignored (same as old parser)
   }
 
@@ -394,7 +410,8 @@ export class Parser {
           break;
         }
         this.ctx.currentStore = storeNameTok.text;
-        this.ctx.currentStorePid = "";
+        this.ctx.currentStorePid = this.ctx.pendingPid || "";
+        this.ctx.pendingPid = null;
         this.ctx.storeSignalCounter = 0;
         this.ctx.storeActionCounter = 0;
         this.ctx.storeGetterCounter = 0;
