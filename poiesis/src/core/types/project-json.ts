@@ -11,7 +11,7 @@
  */
 
 export interface ProjectJson {
-  version: 2;
+  version: 3;
 
   /** Node metadata keyed by PID. Alice adds c5, Bob adds c6 → auto-merge. */
   nodes: Record<string, NodeMeta>;
@@ -25,6 +25,9 @@ export interface ProjectJson {
   canvasStates: Record<string, CanvasViewport>;
 
   panels: PanelLayout;
+
+  /** Code flow graphs keyed by fn/action PID. */
+  codeFlowGraphs: Record<string, CodeFlowGraph>;
 }
 
 export interface NodeMeta {
@@ -32,6 +35,10 @@ export interface NodeMeta {
   folded?: boolean;
   /** migrated from old @edit render=canvas annotation */
   renderMode?: "dom" | "canvas";
+  /** Node type for code flow graph nodes: "if" | "elif" | "else" | "return" | "code-block" | "for" | "while" | "fn" | "action" */
+  nodeType?: string;
+  /** Owning fn/action name, used for PID-based matching during parse */
+  blockName?: string;
 }
 
 export interface WireMeta {
@@ -60,6 +67,28 @@ export interface PanelLayout {
   leftWidth: number;
   rightWidth: number;
 }
+
+// ── New: Code Flow Graph persistence ──────────────────────────
+
+/** Persisted code flow graph for one fn/action, keyed by fn/action PID. */
+export interface CodeFlowGraph {
+  pid: string;
+  nodes: Record<string, CodeFlowNode>;
+  wires: Record<string, CodeFlowWire>;
+}
+
+export interface CodeFlowNode {
+  nodeType: string;    // "if" | "elif" | "else" | "return" | "code-block" | "for" | "while"
+}
+
+export interface CodeFlowWire {
+  from: string;        // source node PID
+  fromPort: string;    // "flow-out" | "br0" | "br1" | "br2"
+  to: string;          // target node PID
+  toPort: string;      // "flow-in"
+}
+
+// ── Component def types (unchanged) ──────────────────────────
 
 /** Component source-level definition — parsed from .omni DSL declarations. */
 export interface ComponentSourceDef {

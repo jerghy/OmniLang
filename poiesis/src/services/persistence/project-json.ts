@@ -47,8 +47,8 @@ function validateProjectJson(data: unknown): void {
     throw new Error("project.json must be a JSON object");
   }
   const obj = data as Record<string, unknown>;
-  if (obj.version !== 2) {
-    throw new Error(`Unsupported project.json version: ${obj.version}. Expected: 2`);
+  if (obj.version !== 2 && obj.version !== 3) {
+    throw new Error(`Unsupported project.json version: ${obj.version}. Expected: 2 or 3`);
   }
   if (obj.nodes !== undefined && typeof obj.nodes !== "object") {
     throw new Error("project.json: 'nodes' must be a Record<string, NodeMeta>");
@@ -63,7 +63,7 @@ function validateProjectJson(data: unknown): void {
  */
 export function createEmptyProjectJson(): ProjectJson {
   return {
-    version: 2,
+    version: 3,
     nodes: {},
     wires: {},
     architecture: {
@@ -74,5 +74,6 @@ export function createEmptyProjectJson(): ProjectJson {
     },
     canvasStates: {},
     panels: { leftWidth: 240, rightWidth: 300 },
+    codeFlowGraphs: {},
   };
 }
