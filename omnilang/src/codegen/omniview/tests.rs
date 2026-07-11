@@ -136,7 +136,7 @@ fn test_store_signals_with_defaults() {
         },
     );
     let ir = make_program(HashMap::from([("main".into(), module)]));
-    let output = generate(&ir, false);
+    let output = generate(&ir, false, false, false);
     assert!(output.js.contains("AppStore_count"));
     assert!(output.js.contains("__omni_signal"));
     assert!(output.js.contains("0"));
@@ -177,7 +177,7 @@ fn test_store_getters() {
         },
     );
     let ir = make_program(HashMap::from([("main".into(), module)]));
-    let output = generate(&ir, false);
+    let output = generate(&ir, false, false, false);
     assert!(output.js.contains("CalcStore_doubled"));
     assert!(output.js.contains("__omni_computed"));
     assert!(output.js.contains("CalcStore_x.value * 2"));
@@ -221,7 +221,7 @@ fn test_store_actions() {
         },
     );
     let ir = make_program(HashMap::from([("main".into(), module)]));
-    let output = generate(&ir, false);
+    let output = generate(&ir, false, false, false);
     assert!(output.js.contains("function TodoStore_addItem"));
     assert!(output.js.contains("item"));
 }
@@ -738,7 +738,7 @@ fn test_component_with_states() {
         },
     );
     let ir = make_program(HashMap::from([("main".into(), module)]));
-    let output = generate(&ir, false);
+    let output = generate(&ir, false, false, false);
     assert!(output.js.contains("Counter_count"));
     assert!(output.js.contains("__omni_signal"));
 }
@@ -784,7 +784,7 @@ fn test_component_with_computed() {
         },
     );
     let ir = make_program(HashMap::from([("main".into(), module)]));
-    let output = generate(&ir, false);
+    let output = generate(&ir, false, false, false);
     assert!(output.js.contains("Calc_doubled"));
     assert!(output.js.contains("__omni_computed"));
 }
@@ -826,7 +826,7 @@ fn test_component_with_functions() {
         },
     );
     let ir = make_program(HashMap::from([("main".into(), module)]));
-    let output = generate(&ir, false);
+    let output = generate(&ir, false, false, false);
     assert!(output.js.contains("function App_greet"));
     assert!(output.js.contains("name"));
     assert!(output.js.contains("console.log"));
@@ -868,7 +868,7 @@ fn test_component_with_lifecycle_mount() {
         },
     );
     let ir = make_program(HashMap::from([("main".into(), module)]));
-    let output = generate(&ir, false);
+    let output = generate(&ir, false, false, false);
     assert!(output.js.contains("@mount App"));
     assert!(output.js.contains("console.log"));
 }
@@ -902,7 +902,7 @@ fn test_component_with_store_ref() {
         },
     );
     let ir = make_program(HashMap::from([("main".into(), module)]));
-    let output = generate(&ir, false);
+    let output = generate(&ir, false, false, false);
     assert!(output.js.contains("AppStore_count"));
 }
 
@@ -942,7 +942,7 @@ fn test_component_with_effect() {
         },
     );
     let ir = make_program(HashMap::from([("main".into(), module)]));
-    let output = generate(&ir, false);
+    let output = generate(&ir, false, false, false);
     assert!(output.js.contains("__omni_effect"));
 }
 
@@ -1064,7 +1064,7 @@ fn test_html_conditional() {
 #[test]
 fn test_full_pipeline_empty() {
     let ir = IRProgram::default();
-    let output = generate(&ir, false);
+    let output = generate(&ir, false, false, false);
     assert!(output.js.contains("__omni_signal"));
 }
 
@@ -1121,7 +1121,7 @@ fn test_full_pipeline_store_only() {
         },
     );
     let ir = make_program(HashMap::from([("main".into(), module)]));
-    let output = generate(&ir, false);
+    let output = generate(&ir, false, false, false);
     assert!(output.js.contains("DataStore_value"));
     assert!(output.js.contains("__omni_signal(\"DataStore_value\", 5)"));
 }

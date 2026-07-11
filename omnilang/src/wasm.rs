@@ -346,7 +346,7 @@ mod tests {
     #[test]
     fn test_compile_to_omniview_full_success() {
         let result =
-            compile_to_omniview_full("component App { view { Text { \"hello\" } } }", false);
+            compile_to_omniview_full("component App { view { Text { \"hello\" } } }", false, false);
         let parsed: serde_json::Value = serde_wasm_bindgen::from_value(result).unwrap();
         assert!(parsed["success"].as_bool().unwrap());
         assert!(parsed["files"]["js"].as_str().unwrap().len() > 0);
@@ -369,8 +369,8 @@ mod tests {
     #[cfg(feature = "codegen-omniview")]
     #[test]
     fn test_compile_to_omniview_full_editor_mode() {
-        let result1 = compile_to_omniview_full("component App { view { Text { \"hi\" } } }", false);
-        let result2 = compile_to_omniview_full("component App { view { Text { \"hi\" } } }", true);
+        let result1 = compile_to_omniview_full("component App { view { Text { \"hi\" } } }", false, false);
+        let result2 = compile_to_omniview_full("component App { view { Text { \"hi\" } } }", true, false);
         let p1: serde_json::Value = serde_wasm_bindgen::from_value(result1).unwrap();
         let p2: serde_json::Value = serde_wasm_bindgen::from_value(result2).unwrap();
         // Both should compile successfully
