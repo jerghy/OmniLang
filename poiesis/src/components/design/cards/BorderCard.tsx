@@ -6,6 +6,7 @@ import { CollapsibleGroup } from "../CollapsibleGroup";
 import { PropertyRow } from "../PropertyRow";
 import { ScrubInput } from "../ScrubInput";
 import { ColorHUD } from "../ColorHUD";
+import { LockIcon, isPropLocked, LOCKED_INPUT_STYLE } from "./LockIcon";
 import type { StyleProperty } from "../../../core/types/style";
 import type { DesignToken } from "../../../core/types/design";
 import { uid } from "../../../core/utils";
@@ -72,6 +73,9 @@ interface BorderCardProps {
   tokens: DesignToken[];
   onChange: (props: StyleProperty[]) => void;
   onFocus?: () => void;
+  inheritedProps?: string[];
+  onToggleInherited?: (propName: string) => void;
+  readOnly?: boolean;
 }
 
 const BORDER_STYLES = ["solid", "dashed", "dotted", "double", "none"];
@@ -99,19 +103,27 @@ export const BorderCard = React.memo(function BorderCard({
   tokens,
   onChange,
   onFocus,
+  inheritedProps,
+  onToggleInherited,
+  readOnly,
 }: BorderCardProps) {
   const [showColorPicker, setShowColorPicker] = useState(false);
   const swatchRef = useRef<HTMLButtonElement>(null);
 
   const borderWidth = getProp(properties, "border");
-  const borderStyle = getProp(properties, "borderStyle") || "solid";
-  const borderColor = getProp(properties, "borderColor") || "#000000";
+  const borderStyleFromProp = getProp(properties, "borderStyle");
+  const borderStyle = borderStyleFromProp || "solid";
+  const borderStyleSet = borderStyleFromProp !== "";
+  const borderColorFromProp = getProp(properties, "borderColor");
+  const borderColor = borderColorFromProp || "#000000";
+  const borderColorSet = borderColorFromProp !== "";
 
   const borderColorProp = properties.find((p) => p.name === "borderColor");
   const isColorFromToken =
     borderColorProp?.segments[0]?.type === "var-ref";
 
   const widthNum = parseFloat(borderWidth) || 0;
+  const borderWidthEmpty = borderWidth === "";
 
   const summary = borderWidth
     ? `${borderWidth} ${borderStyle} ${
@@ -126,12 +138,20 @@ export const BorderCard = React.memo(function BorderCard({
     [properties, onChange],
   );
 
+  const handleClearWidth = useCallback(() => {
+    onChange(properties.filter((p) => p.name !== "border"));
+  }, [properties, onChange]);
+
   const handleStyleChange = useCallback(
     (e: React.ChangeEvent<HTMLSelectElement>) => {
       onChange(setProp(properties, "borderStyle", e.target.value));
     },
     [properties, onChange],
   );
+
+  const handleClearStyle = useCallback(() => {
+    onChange(properties.filter((p) => p.name !== "borderStyle"));
+  }, [properties, onChange]);
 
   const handleColorChange = useCallback(
     (hex: string, tokenName: string | null) => {
@@ -141,6 +161,10 @@ export const BorderCard = React.memo(function BorderCard({
     [properties, onChange],
   );
 
+  const handleClearColor = useCallback(() => {
+    onChange(properties.filter((p) => p.name !== "borderColor"));
+  }, [properties, onChange]);
+
   const handleColorSwatchClick = useCallback(() => {
     setShowColorPicker((v) => !v);
   }, []);
@@ -148,6 +172,12 @@ export const BorderCard = React.memo(function BorderCard({
   const handleColorHUDClose = useCallback(() => {
     setShowColorPicker(false);
   }, []);
+
+  const clearBtn: React.CSSProperties = {
+    border: "none", background: "none", cursor: "pointer",
+    fontSize: 14, padding: "0 2px", color: "var(--dp-text-muted, #a09db8)",
+    lineHeight: 1, flexShrink: 0,
+  };
 
   const swatchStyle: React.CSSProperties = {
     width: 24,
@@ -169,54 +199,62 @@ export const BorderCard = React.memo(function BorderCard({
     <CollapsibleGroup title="边框" summary={summary} defaultOpen={true} onDoubleClick={() => onFocus?.()}>
       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
         <PropertyRow label="粗细">
-          <ScrubInput
-            value={widthNum}
-            unit="px"
-            min={0}
-            max={100}
-            onChange={handleWidthChange}
-          />
+          <span style={isPropLocked("border", inheritedProps) ? LOCKED_INPUT_STYLE : (borderWidthEmpty ? { opacity: 0.4 } : {})}>
+          {readOnly && inheritedProps?.includes("border") ? (
+            <span style={{ fontSize: 12, color: "var(--dp-text-muted, #a09db8)" }}>{borderWidth || "—"}</span>
+          ) : (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
+              <ScrubInput
+                value={widthNum}
+                unit="px"
+                min={0}
+                max={100}
+                onChange={handleWidthChange}
+              />
+              {!borderWidthEmpty && (
+                <button style={clearBtn} title="清除" onClick={(e) => { e.stopPropagation(); handleClearWidth(); }}>×</button>
+              )}
+            </span>
+          )}
+          </span>
+          <LockIcon propName="border" inheritedProps={inheritedProps} onToggleInherited={onToggleInherited} readOnly={readOnly} />
         </PropertyRow>
 
         <PropertyRow label="样式">
-          <select
-            value={borderStyle}
-            onChange={handleStyleChange}
-            style={selectStyle}
-          >
-            {BORDER_STYLES.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
+          <span style={isPropLocked("borderStyle", inheritedProps) ? LOCKED_INPUT_STYLE : undefined}>
+          {readOnly && inheritedProps?.includes("borderStyle") ? (
+            <span style={{ fontSize: 12, color: "var(--dp-text-muted, #a09db8)" }}>{borderStyle}</span>
+          ) : (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
+              <select value={borderStyle} onChange={handleStyleChange} style={selectStyle}>
+                {BORDER_STYLES.map((s) => (<option key={s} value={s}>{s}</option>))}
+              </select>
+              {borderStyleSet && (
+                <button style={clearBtn} title="清除" onClick={(e) => { e.stopPropagation(); handleClearStyle(); }}>×</button>
+              )}
+            </span>
+          )}
+          </span>
+          <LockIcon propName="borderStyle" inheritedProps={inheritedProps} onToggleInherited={onToggleInherited} readOnly={readOnly} />
         </PropertyRow>
 
         <PropertyRow label="颜色">
-          <button
-            ref={swatchRef}
-            onClick={handleColorSwatchClick}
-            type="button"
-            style={swatchStyle}
-            title={
-              isColorFromToken ? `var(--${borderColor})` : borderColor
-            }
-          >
-            {isColorFromToken && (
-              <span
-                style={{
-                  fontSize: 10,
-                  color: "var(--dp-accent, #6366f1)",
-                  lineHeight: "24px",
-                  display: "block",
-                  textAlign: "center",
-                  fontWeight: 700,
-                }}
-              >
-                T
-              </span>
-            )}
-          </button>
+          <span style={isPropLocked("borderColor", inheritedProps) ? LOCKED_INPUT_STYLE : (!borderColorSet ? { opacity: 0.4 } : {})}>
+          {readOnly && inheritedProps?.includes("borderColor") ? (
+            <span style={{ fontSize: 12, color: "var(--dp-text-muted, #a09db8)" }}>{borderColor}</span>
+          ) : (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+              <button ref={swatchRef} onClick={handleColorSwatchClick} type="button" style={swatchStyle}
+                title={isColorFromToken ? `var(--${borderColor})` : borderColor}>
+                {isColorFromToken && (<span style={{ fontSize: 10, color: "var(--dp-accent, #6366f1)", lineHeight: "24px", display: "block", textAlign: "center", fontWeight: 700 }}>T</span>)}
+              </button>
+              {borderColorSet && (
+                <button style={clearBtn} title="清除" onClick={(e) => { e.stopPropagation(); handleClearColor(); }}>×</button>
+              )}
+            </span>
+          )}
+          </span>
+          <LockIcon propName="borderColor" inheritedProps={inheritedProps} onToggleInherited={onToggleInherited} readOnly={readOnly} />
         </PropertyRow>
 
         {/* Border preview strip */}

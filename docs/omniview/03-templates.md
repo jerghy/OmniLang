@@ -168,7 +168,14 @@ view {
 <button class: { primary: true, large: isWide } @onPress={handleClick}>
     Click
 </button>
+
+<!-- 字符串字面量 class（用于语义CSS类名） -->
+<div class: "bg-blue-100 border border-blue-300 rounded-lg p-3">
+    Tailwind-style utility classes
+</div>
 ```
+
+`class:"string"` 语法适用于引用全局 CSS 框架（如 Tailwind）或不属于 OmniView style 块的语义类名。
 
 ### variant 组件变体
 
@@ -221,7 +228,26 @@ view {
 | 属性 | 用途 |
 |------|------|
 | `ref: name` | DOM 元素引用 |
-| `testId: "value"` | 测试标识符（`data-testid`） |
+| `testId: "value"` | 测试标识符（→ `data-testid`） |
+| `states: { stateName: { prop }, ... }` | 多状态动画 (详见 [09-运动与动画](09-motion.md)) |
+| `data-*` | 自定义 data 属性（如 `data-testid`, `data-type`） |
+| `aria-*` | 无障碍属性（如 `aria-label`, `role`） |
+
+### `states:` 多状态动画
+
+直接在元素上定义声明式状态机，自动绑定鼠标事件：
+
+```omni
+<div states: {
+    idle:    { scale: 1, opacity: 1 }   over: 150,
+    hover:   { scale: 1.05, opacity: 1 } over: 150,
+    pressed: { scale: 0.95, opacity: 0.8 } over: 100
+}>
+    Interactive Element
+</div>
+```
+
+保留状态名 `idle`/`hover`/`pressed` 自动绑定 mouseenter/mousedown/mouseup 事件。自定义状态名（如 `loading`/`success`/`error`）由 signal 驱动。
 
 ## 模板指令
 
@@ -243,6 +269,23 @@ view {
 - `@if ... { } @else if ... { }`（if-else if）
 - `@if ... { } @else if ... { } @else { }`（完整链）
 - `@if ... { } @else @if ... { }`（`@else @if` 写法等价于 `@else if`）
+
+**条件渲染模式**：
+
+`mode` 属性控制条件切换时的动画行为：
+
+```omni
+<!-- mode="sync"：入场和离场动画同步协调 -->
+@if isOpen mode="sync" {
+    <div @enter={fadeInUp} @leave={fadeInUp}>
+        <h2>Modal Content</h2>
+    </div>
+}
+```
+
+- 不指定 `mode`：条件分支通过 `display: block/none` 切换
+- `mode="sync"`：离场动画完成后才渲染新分支（适合模态框/弹窗）
+- 未来模式：`mode="out"`（仅离场）、`mode="wait"`（等待离场完成）
 
 ### @for / @empty（列表渲染）
 

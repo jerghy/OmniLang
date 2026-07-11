@@ -14,11 +14,16 @@ export function OmniViewRenderer() {
   const selectedElementIds = usePoiesisStore((s) => s.selectedElementIds);
   const selectElement = usePoiesisStore((s) => s.selectElement);
   const toggleCodeFlow = usePoiesisStore((s) => s.toggleCodeFlow);
-  const codeFlowVisible = usePoiesisStore((s) => s.designPage.codeFlowVisible);
 
   const { output, isCompiling, errors } = useWasmCompile();
   const { updateScopes } = useCssScopePool();
   const styleContainerRef = useRef<HTMLDivElement>(null);
+
+  // Sync output to store so FlowCanvas preview node can read it
+  const setPreviewOutput = usePoiesisStore((s) => s.setPreviewOutput);
+  useEffect(() => {
+    setPreviewOutput(output);
+  }, [output, setPreviewOutput]);
 
   // Update CSS scopes when output changes
   useEffect(() => {
@@ -51,12 +56,9 @@ export function OmniViewRenderer() {
   const handleDoubleClickNid = useCallback(
     (nid: string) => {
       const elementId = nidToElementId.get(nid) ?? nid;
-      toggleCodeFlow(
-        codeFlowVisible ? null : elementId,
-        codeFlowVisible ? undefined : { x: _lastClickPos.x, y: _lastClickPos.y },
-      );
+      toggleCodeFlow(elementId, { x: _lastClickPos.x, y: _lastClickPos.y });
     },
-    [toggleCodeFlow, codeFlowVisible, nidToElementId],
+    [toggleCodeFlow, nidToElementId],
   );
 
   return (

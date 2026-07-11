@@ -209,21 +209,99 @@ match 的模式包括：
 
 ### 闭包 / Lambda
 
+OmniLang 有两种闭包语法，分别用于不同场景：
+
+| 语法 | 形式 | 使用场景 |
+|------|------|----------|
+| `\|param\| expr` | Rust 风格管道闭包 | 函数逻辑中（`fn`、`action`、`computed`、`let`） |
+| `() => { }` | JS 箭头风格内联闭包 | view 模板的事件处理器 |
+
+#### Rust 风格管道闭包 `|param| expr`
+
+用于函数逻辑上下文，可传给高阶函数、赋值给变量、或在 computed 中使用：
+
 ```omni
-// 单参数闭包
+// 单参数闭包（类型自动推断）
 |x| x * 2
 
 // 多参数闭包
 |x, y| x + y
 
-// 用于 Array 方法
-items = items.filter(|item| item.active);
-let doubled = numbers.map(|n| n * 2);
+// 带类型标注的完整形式
+|x: i32| -> i32 { x * 2 }
 
-// 在事件处理器中
-<button @onPress={() => { count = count + 1; }}>Click</button>
+// 多语句闭包体（用 { } 包裹）
+|x| {
+    let doubled = x * 2;
+    doubled + 1    // 最后一行是返回值
+}
+```
 
-// 作为函数参数
+**赋值给 `let` 变量**（像函数一样调用）：
+
+```omni
+fn getBonusTotal() -> i32 {
+    let bonus = |s| s + 5;          // 闭包赋值给变量
+    let mut total = 0;
+    let mut i = 0;
+    while i < rows.len() {
+        total = total + bonus(rows.get(i).score);  // 通过变量名调用
+        i = i + 1;
+    }
+    return total;
+}
+```
+
+**传给 `std/array` 高阶函数**：
+
+```omni
+// 过滤 —— 单参数谓词闭包
+let active = array_filter(users, |u| u.status == "active");
+
+// 映射 —— 单参数转换闭包
+let names = array_map(users, |u| u.name);
+
+// 排序 —— 双参数比较闭包
+let sorted = array_sort(items, |a, b| a.name);
+
+// 查找 —— 单参数谓词闭包
+let found = array_find(items, |item| item.id == targetId);
+```
+
+**在 computed 中使用**：
+
+```omni
+signal searchText: String = "";
+signal demoItems: Array<String> = ["React", "Vue", "Svelte"];
+
+computed filtered: Array<String> = array_filter(
+    demoItems,
+    |f| if searchText == "" { true } else { f == searchText }
+);
+```
+
+**在 store action 中使用**：
+
+```omni
+action remove(id: i32) {
+    items = array_filter(items, |item| item.id != id);
+    lastAction = "removed";
+}
+
+action toggle(id: i32) {
+    items = array_map(items, |item|
+        if item.id == id {
+            { ...item, done: !item.done }
+        } else {
+            item
+        }
+    );
+}
+```
+
+**作为函数参数**（高阶函数）：
+
+```omni
 fn process(items: Array<String>, filter: fn(String) -> bool) -> Array<String> {
     let mut result: Array<String> = [];
     for item in items {
@@ -233,7 +311,58 @@ fn process(items: Array<String>, filter: fn(String) -> bool) -> Array<String> {
     }
     return result;
 }
+
+// 调用时传入闭包
+let filtered = process(items, |item| item.len() > 3);
 ```
+
+#### JS 箭头风格内联闭包 `() => { }`
+
+**仅用于 view 模板中的事件处理器**：
+
+```omni
+view {
+    // 单行内联
+    <button @onPress={() => { count = count + 1; }}>+1</button>
+
+    // 多行内联
+    <button @onPress={() => {
+        count = count + 1;
+        log = "clicked at " + datetime_now().to_string();
+    }}>Click</button>
+
+    // 调用 Store action
+    <button @onPress={() => { TodoStore.clear(); }}>Clear All</button>
+
+    // 带参数的内联闭包（自定义事件）
+    <TodoList @onAdd={(text) => { TodoStore.add(text); }} />
+}
+```
+
+> **注意**：`() => { }` 语法**只能**在 view 模板的事件属性中使用，不能在 `fn`/`action`/`computed` 中使用。在函数逻辑中请使用 `|param| expr` 管道闭包。
+
+#### 内置 Array 方法中的闭包
+
+除了 `std/array` 模块函数，Array 的内置方法也接受管道闭包：
+
+```omni
+// 内置 .filter() 和 .map()
+let mapped = arr.map(|x| x * 2);
+let filtered = arr.filter(|x| x > 1);
+
+// 与 getter 配合
+getter activeCount: i32 = items.filter(|item| !item.done).len();
+```
+
+#### 语法区分速查
+
+| | `\|x\| expr` 管道闭包 | `() => { }` 箭头闭包 |
+|---|---|---|
+| 使用位置 | `fn` 体、`action`、`computed`、`let` | view 模板的事件属性 |
+| 典型场景 | 传给 `array_filter/map/sort`、赋值给变量 | `@onPress`、`@onChange` 等事件 |
+| 参数 | 有参数（单参省略类型） | 通常无参，自定义事件可有参 |
+| 类型标注 | 可选：`\|x: i32\| -> i32 { ... }` | 不支持类型标注 |
+| 赋值给变量 | `let f = \|x\| x * 2;` | 不支持 |
 
 ### await 表达式
 
@@ -299,9 +428,9 @@ fn process(...args);
 | 场景 | 可用表达式 |
 |------|-----------|
 | signal 初始值 | 字面量、数组、map、结构体、三元、`??`、块表达式 |
-| computed 值 | 所有表达式（包括块表达式、match、闭包） |
-| view 插值 `{...}` | 所有表达式 |
-| 事件处理器参数 | 函数引用、内联闭包、store action |
+| computed 值 | 所有表达式（包括块表达式、match、管道闭包 `\|x\| expr`） |
+| view 插值 `{...}` | 所有表达式（含 if 表达式、三元、方法调用） |
+| 事件处理器参数 | 函数引用 `{fn}`、内联闭包 `{() => {}}`、store action `{Store.action()}` |
 | 条件类 `class: {k: expr}` | 返回 bool 的表达式 |
 | 条件渲染 `@if expr` | 返回 bool 的表达式 |
 | 列表渲染 `@for item in expr` | 返回 Array 的表达式 |

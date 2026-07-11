@@ -12,6 +12,7 @@ interface ScrubInputProps {
   fineStep?: number;
   onChange: (value: number) => void;
   onChangeEnd?: (value: number) => void;
+  onSlash?: (inputEl: HTMLInputElement) => void;
   disabled?: boolean;
   style?: React.CSSProperties;
 }
@@ -32,6 +33,7 @@ export const ScrubInput = React.memo(function ScrubInput({
   fineStep = 10,
   onChange,
   onChangeEnd,
+  onSlash,
   disabled = false,
   style,
 }: ScrubInputProps) {
@@ -107,7 +109,11 @@ export const ScrubInput = React.memo(function ScrubInput({
 
   const handleInputKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (e.key === "Enter") {
+      if (e.key === "/") {
+        e.preventDefault();
+        cancelEdit();
+        onSlash?.(e.target as HTMLInputElement);
+      } else if (e.key === "Enter") {
         commitEdit();
       } else if (e.key === "Escape") {
         cancelEdit();
@@ -121,7 +127,7 @@ export const ScrubInput = React.memo(function ScrubInput({
         onChangeEnd?.(nv);
       }
     },
-    [clamped, step, fineStep, min, max, onChange, onChangeEnd, commitEdit, cancelEdit]
+    [clamped, step, fineStep, min, max, onChange, onChangeEnd, onSlash, commitEdit, cancelEdit]
   );
 
   const handleMouseDown = useCallback(

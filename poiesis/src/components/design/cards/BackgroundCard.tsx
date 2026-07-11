@@ -4,6 +4,7 @@
 import React, { useCallback } from "react";
 import { CollapsibleGroup } from "../CollapsibleGroup";
 import { HSVPanel, hexToHsv, hsvToHex } from "../HSVPanel";
+import { LockIcon, isPropLocked, LOCKED_INPUT_STYLE } from "./LockIcon";
 import type { HSVColor } from "../HSVPanel";
 import type { StyleProperty } from "../../../core/types/style";
 import type { DesignToken } from "../../../core/types/design";
@@ -54,6 +55,9 @@ interface BackgroundCardProps {
   tokens: DesignToken[];
   onChange: (props: StyleProperty[]) => void;
   onFocus?: () => void;
+  inheritedProps?: string[];
+  onToggleInherited?: (propName: string) => void;
+  readOnly?: boolean;
 }
 
 // ── Component ──
@@ -63,6 +67,9 @@ export const BackgroundCard = React.memo(function BackgroundCard({
   tokens,
   onChange,
   onFocus,
+  inheritedProps,
+  onToggleInherited,
+  readOnly,
 }: BackgroundCardProps) {
   const bgValue = getProp(properties, "background");
 
@@ -81,6 +88,17 @@ export const BackgroundCard = React.memo(function BackgroundCard({
     [properties, onChange],
   );
 
+  const isBgInherited = readOnly && inheritedProps?.includes("background");
+  const isEmpty = bgValue === "";
+
+  const clearBtn: React.CSSProperties = {
+    border: "none", background: "none", cursor: "pointer",
+    fontSize: 14, padding: "0 2px", color: "var(--dp-text-muted, #a09db8)",
+    lineHeight: 1, flexShrink: 0,
+  };
+
+  const handleClear = () => onChange(properties.filter((p) => p.name !== "background"));
+
   return (
     <CollapsibleGroup title="背景" summary={summary} defaultOpen={false} onDoubleClick={() => onFocus?.()}>
       <div
@@ -90,7 +108,10 @@ export const BackgroundCard = React.memo(function BackgroundCard({
           gap: 8,
         }}
       >
-        {/* Current color indicator */}
+        <LockIcon propName="background" inheritedProps={inheritedProps} onToggleInherited={onToggleInherited} readOnly={readOnly} />
+        <span style={isPropLocked("background", inheritedProps) ? LOCKED_INPUT_STYLE : (isEmpty ? { opacity: 0.4 } : {})}>
+        {isBgInherited ? null : (<>
+        {/* Current color indicator + clear button */}
         {isHex && (
           <div
             style={{
@@ -119,10 +140,13 @@ export const BackgroundCard = React.memo(function BackgroundCard({
             >
               {bgValue}
             </span>
+            <button style={clearBtn} title="清除" onClick={(e) => { e.stopPropagation(); handleClear(); }}>×</button>
           </div>
         )}
 
         <HSVPanel color={hsvColor} onChange={handleColorChange} showHexInput />
+        </>)}
+        </span>
       </div>
     </CollapsibleGroup>
   );

@@ -65,11 +65,20 @@ export const OmniViewElement = React.memo(function OmniViewElement({
   // Only the effective selection target shows the outline — not every child.
   const showOutline = node.nid === effectiveNid && effectiveNid === selectedNid;
 
+  // Merge WASM-compiled inline styles with editor chrome styles
+  const inlineCss: React.CSSProperties = {};
+  if (node.inlineStyle) {
+    for (const [key, val] of Object.entries(node.inlineStyle)) {
+      (inlineCss as any)[key] = val;
+    }
+  }
+
   const style: React.CSSProperties = {
     display: isCustomComponent ? "block" : undefined,
     outline: showOutline ? "2px solid #7C3AED" : "none",
     outlineOffset: "-2px",
     cursor: isTextNode ? undefined : "pointer",
+    ...inlineCss,
   };
 
   // Text elements don't intercept clicks — events bubble to the parent element.

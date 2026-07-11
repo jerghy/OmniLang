@@ -215,67 +215,169 @@ onSelect("item-1");            // 函数调用形式
 
 ### ref（元素引用）
 
-声明对 DOM 元素的引用：
+声明对 DOM 元素的引用，可以在组件函数中访问：
 
 ```omni
-ref myInput: HtmlInputElement;
-ref myDiv: HtmlDivElement;
+component MyComponent {
+    ref myInput: HtmlElement;
+    ref scrollContainer: HtmlElement;
 
-view {
-    <input ref: myInput bind:value={text} />
-    <div ref: myDiv>...</div>
+    fn focusInput() {
+        // 通过 ref 名访问 DOM 元素
+    }
+
+    view {
+        <input ref: myInput bind:value={text} />
+        <div ref: scrollContainer class: scroll-area>...</div>
+    }
 }
 ```
 
+**使用场景**：
+- 滚动容器控制（`scrollContainer.scrollTop`）
+- 输入框聚焦（`myInput.focus()`）
+- 画布操作
+- 第三方库 DOM 操作
+
+**ref 类型**：`HtmlElement` 是所有 HTML 元素的基础引用类型。
+
 ### const（常量）
 
-组件级别的常量：
+组件级别的编译时常量，在 `@` 前缀可选：
 
 ```omni
-const MAX_ITEMS = 100;
-const $API_URL = "https://api.example.com";
+component MyComponent {
+    const MAX_ITEMS = 100;
+    const API_URL = "https://api.example.com";
+    const logoUrl = "/assets/logo.png";       // 无 @ 前缀也可
+
+    signal limit: i32 = MAX_ITEMS;             // 常量可用于初始值
+}
 ```
+
+**注意**：
+- `const` 定义在组件内部（顶层 const 有限制）
+- 常量值在编译时确定，不可在运行时修改
+- 可用于 signal 初始值、数组大小等
+
+### @store 引用（内联 Store）
+
+除了引用全局 Store 文件，还可以在组件**内部**定义 inline store：
+
+```omni
+component InlineStoreDemo {
+    // 内联 store — 仅在此组件内可见
+    store CartStore {
+        signal items: Array<String> = [];
+        signal totalPrice: f64 = 0.0;
+
+        getter itemCount: i32 = items.len();
+        getter summary: String = if items.len() == 0 {
+            "cart empty"
+        } else {
+            "total: " + items.len().to_string() + " items"
+        };
+
+        action addItem(name: String, price: f64) {
+            items.push(name);
+            totalPrice = totalPrice + price;
+        }
+
+        action clear() {
+            items = [];
+            totalPrice = 0.0;
+        }
+    }
+
+    // 在 view 中直接使用 store 的 signal/getter
+    // 通过 CartStore.actionName() 调用 action
+    fn addApple() {
+        CartStore.addItem("Apple", 5.0);
+    }
+
+    view {
+        <div>
+            <p>Items: {itemCount}</p>       <!-- getter 可直接访问 -->
+            <p>Total: {totalPrice}</p>      <!-- signal 可直接访问 -->
+            <button @onPress={addApple}>Add Apple</button>
+            <button @onPress={CartStore.clear}>Clear</button>
+        </div>
+    }
+}
+```
+
+内联 store 的 getter 和 signal **可以直接在 view 中访问**（不需要 `StoreName.` 前缀），action 仍需 `StoreName.actionName()`。
 
 ## 生命周期钩子
 
 ### @mount（挂载时）
 
-组件首次挂载到 DOM 后执行：
+组件首次挂载到 DOM 后执行。在事件绑定和 reactive effects 之前注册，但会在 DOM 插入后运行：
 
 ```omni
-component Timer {
-    signal elapsed: i32 = 0;
+component TodoPage {
+    @store TodoStore;
+    signal pageLoadCount: i32 = 0;
 
     @mount {
-        // 组件挂载后启动定时器
-        // 可以在这里初始化第三方库
+        pageLoadCount = pageLoadCount + 1;
+        TodoStore.fetchReminders();    // 挂载后加载数据
+        console_log("Page mounted");
     }
 }
 ```
 
+**常见用途**：
+- 初始化第三方库
+- 从 storage 加载持久化数据
+- 注册全局事件监听（需在 `@unmount` 中清理）
+- 启动定时器
+
 ### @unmount（卸载时）
 
-组件从 DOM 移除前执行：
+组件从 DOM 移除前执行。用于清理资源：
 
 ```omni
-@unmount {
-    // 清理资源：取消定时器、移除事件监听等
+component StatsDashboard {
+    signal counter: i32 = 0;
+
+    @unmount {
+        // 清理：取消定时器、移除事件监听等
+        println("StatsDashboard unmounting, counter: " + counter.to_string());
+    }
 }
 ```
 
 ### @effect（响应式副作用）
 
-当依赖的 signals 变化时自动执行：
+当依赖的 signals 变化时自动执行。`@effect` 可以追踪组件 signals 或 store signals：
 
 ```omni
-signal searchQuery: String = "";
-signal results: Array<String> = [];
-
+// 追踪单个 signal
 @effect(searchQuery) {
-    // 每当 searchQuery 改变时执行
-    results = performSearch(searchQuery);
+    if searchQuery.len() >= 3 {
+        results = performSearch(searchQuery);
+    }
+}
+
+// 追踪 store signal — 使用 StoreName.field 语法
+@effect(TodoStore.items) {
+    console_log("Total items: " + TodoStore.totalCount.to_string());
+}
+
+// 追踪多个 signals（编译器自动分析依赖）
+@effect(input) {
+    if input.len() > 20 {
+        println("输入较长：" + input.len().to_string() + " 字符");
+    }
 }
 ```
+
+**注意事项**：
+- `@effect` 在 DOM 更新后异步执行（microtask 队列）
+- 追踪 Store signal 时必须使用 `StoreName.field` 语法
+- effect 内部可以修改 signals，但要避免无限循环
+- effect 回调不能是 async
 
 ## view 视图块
 

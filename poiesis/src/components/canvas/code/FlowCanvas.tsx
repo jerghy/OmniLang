@@ -44,6 +44,13 @@ function FlowCanvasInner() {
   // Read preview output from store (set by OmniViewRenderer)
   const previewOutput = usePoiesisStore((s) => s.designPage.previewOutput);
 
+  // Store definitions for type injection into code editor IntelliSense
+  const storeDefsObj = usePoiesisStore((s) => s.storeDefs);
+  const storeDefs = useMemo(
+    () => Object.values(storeDefsObj),
+    [storeDefsObj],
+  );
+
   const { screenToFlowPosition } = useReactFlow();
   const flowWrapperRef = useRef<HTMLDivElement>(null);
 
@@ -333,6 +340,7 @@ function FlowCanvasInner() {
           edges={edges}
           nodeTypes={nodeTypes}
           fitView
+          fitViewOptions={{ maxZoom: 1 }}
           nodesDraggable
           nodesConnectable
           nodesFocusable
@@ -380,6 +388,7 @@ function FlowCanvasInner() {
           elementId={editingElement.id}
           initialSource={(editingElement as CodeblockElementData).source}
           initialDescription={((editingElement as CodeblockElementData).props?.description as string) || ""}
+          storeDefs={storeDefs}
           onSave={handleSaveCode}
           onClose={() => setEditingNodeId(null)}
         />

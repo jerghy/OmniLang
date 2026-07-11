@@ -8,6 +8,7 @@ import { ScrubInput } from "../ScrubInput";
 import { BoxModelPreview } from "./BoxModelPreview";
 import type { StyleProperty } from "../../../core/types/style";
 import { uid } from "../../../core/utils";
+import { LockIcon, isPropLocked, LOCKED_INPUT_STYLE } from "./LockIcon";
 
 // ── Helpers ──
 
@@ -23,6 +24,85 @@ function getProp(props: StyleProperty[], name: string): string {
     if (s.type === "text") return s.value;
     return "";
   }).join("");
+}
+
+/** Check if a value string is a token reference (not a plain numeric value). */
+function isTokenRef(value: string): boolean {
+  return value.startsWith("token(");
+}
+
+const tokenValueStyle: React.CSSProperties = {
+  fontSize: 12,
+  fontFamily: "var(--dp-font-mono, monospace)",
+  color: "var(--dp-accent, #6366f1)",
+  flex: 1,
+  cursor: "pointer",
+};
+
+const tokenRemoveBtn: React.CSSProperties = {
+  border: "none",
+  background: "none",
+  cursor: "pointer",
+  fontSize: 14,
+  padding: "0 2px",
+  color: "var(--dp-text-muted, #a09db8)",
+  lineHeight: 1,
+  flexShrink: 0,
+};
+
+/** Render a ScrubInput for numeric values, or a text label for token refs.
+ *  Empty values are grayed-out but interactive; set values show normal with × to clear. */
+function SpacingValue({
+  value,
+  rawValue,
+  onChange,
+  onSlash,
+  onTokenClick,
+  onRemoveToken,
+  locked,
+}: {
+  value: number;
+  rawValue: string;
+  onChange: (v: number) => void;
+  onSlash?: (el: HTMLElement) => void;
+  onTokenClick?: (el: HTMLElement) => void;
+  onRemoveToken?: () => void;
+  locked?: boolean;
+}) {
+  const isEmpty = rawValue === "";
+
+  if (isTokenRef(rawValue)) {
+    return (
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 2, flex: 1 }}>
+        <span style={tokenValueStyle} onClick={(e) => onTokenClick?.(e.currentTarget)}>{rawValue}</span>
+        <button style={tokenRemoveBtn} title="Remove token"
+          onClick={(e) => { e.stopPropagation(); onRemoveToken?.(); }}
+        >&times;</button>
+      </span>
+    );
+  }
+
+  // Variant-locked: fully disabled (pointerEvents: none). Empty: grayed but interactive.
+  const wrapperStyle: React.CSSProperties = locked
+    ? LOCKED_INPUT_STYLE
+    : isEmpty
+      ? { opacity: 0.4 }
+      : {};
+
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 2, flex: 1 }}>
+      <span style={wrapperStyle}>
+        <ScrubInput value={value} unit="px" min={0} max={200} onChange={onChange} onSlash={onSlash} />
+      </span>
+      {!isEmpty && !locked && (
+        <button
+          style={tokenRemoveBtn}
+          title="清除"
+          onClick={(e) => { e.stopPropagation(); onRemoveToken?.(); }}
+        >&times;</button>
+      )}
+    </span>
+  );
 }
 
 function setProp(
@@ -64,6 +144,10 @@ interface SpacingSectionProps {
   cornerNames: [string, string, string, string];
   properties: StyleProperty[];
   onChange: (props: StyleProperty[]) => void;
+  onPropSlash?: (propName: string, el: HTMLElement) => void;
+  inheritedProps?: string[];
+  onToggleInherited?: (propName: string) => void;
+  readOnly?: boolean;
 }
 
 const cornerLabelStyle: React.CSSProperties = {
@@ -92,17 +176,24 @@ function SpacingSection({
   cornerNames,
   properties,
   onChange,
+  onPropSlash,
+  inheritedProps,
+  onToggleInherited,
+  readOnly,
 }: SpacingSectionProps) {
-  const [unified, setUnified] = useState(
-    () => {
-      const hasShorthand = getProp(properties, shorthandName) !== "";
-      if (hasShorthand) return true;
-      const hasAnyCorner = cornerNames.some(
-        (c) => getProp(properties, c) !== "",
-      );
-      return !hasAnyCorner;
-    },
-  );
+  // Derive unified/individual mode from current properties so switching
+  // branches (e.g. base → size.sm) correctly reflects the new props.
+  const [userToggled, setUserToggled] = useState(false);
+  const deducedUnified = (() => {
+    const hasShorthand = getProp(properties, shorthandName) !== "";
+    if (hasShorthand) return true;
+    const hasAnyCorner = cornerNames.some(
+      (c) => getProp(properties, c) !== "",
+    );
+    if (hasAnyCorner) return false;
+    return true;
+  })();
+  const unified = userToggled ? !deducedUnified : deducedUnified;
 
   const cornerLabels = ["上", "右", "下", "左"];
 
@@ -126,29 +217,30 @@ function SpacingSection({
       newProps = setProp(newProps, shorthandName, pix);
       onChange(newProps);
     }
-    setUnified((v) => !v);
+    setUserToggled((v) => !v);
   }, [unified, properties, onChange, shorthandName, cornerNames]);
 
   const handleShorthandChange = useCallback(
     (v: number) => {
-      const newProps = setProp(properties, shorthandName, `${v}px`);
-      onChange(newProps);
+      onChange(setProp(properties, shorthandName, `${v}px`));
     },
     [properties, onChange, shorthandName],
   );
 
   const handleCornerChange = useCallback(
     (index: number, v: number) => {
-      const newProps = setProp(properties, cornerNames[index], `${v}px`);
-      onChange(newProps);
+      onChange(setProp(properties, cornerNames[index], `${v}px`));
     },
     [properties, onChange, cornerNames],
   );
 
-  const shorthandVal = parsePx(getProp(properties, shorthandName));
-  const cornerVals = cornerNames.map((n) =>
-    parsePx(getProp(properties, n)),
-  ) as [number, number, number, number];
+  const shorthandRaw = getProp(properties, shorthandName);
+  const isShorthandToken = isTokenRef(shorthandRaw);
+  const shorthandVal = isShorthandToken ? 0 : parsePx(shorthandRaw);
+  const cornerVals = cornerNames.map((n) => {
+    const raw = getProp(properties, n);
+    return isTokenRef(raw) ? 0 : parsePx(raw);
+  }) as [number, number, number, number];
 
   const linkedBtnStyle: React.CSSProperties = {
     ...toggleBtnBase,
@@ -176,18 +268,58 @@ function SpacingSection({
         }}
       >
         {label}
+        <LockIcon propName={shorthandName} inheritedProps={inheritedProps} onToggleInherited={onToggleInherited} readOnly={readOnly} />
       </div>
 
       {unified ? (
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <div style={{ flex: 1 }}>
-            <ScrubInput
-              value={shorthandVal}
-              unit="px"
-              min={0}
-              max={200}
-              onChange={handleShorthandChange}
-            />
+            {isShorthandToken ? (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 2, flex: 1 }}>
+                <span
+                  style={tokenValueStyle}
+                  onClick={(e) => onPropSlash?.(shorthandName, e.currentTarget)}
+                >{shorthandRaw}</span>
+                <button style={tokenRemoveBtn} title="Remove token"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onChange(properties.filter((p) => p.name !== shorthandName));
+                  }}
+                >&times;</button>
+              </span>
+            ) : (
+              (() => {
+                const isEmptyShorthand = shorthandRaw === "";
+                const lockedShorthand = isPropLocked(shorthandName, inheritedProps);
+                const wrapperS: React.CSSProperties = lockedShorthand
+                  ? LOCKED_INPUT_STYLE
+                  : isEmptyShorthand
+                    ? { opacity: 0.4 }
+                    : {};
+                return (
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 2, flex: 1 }}>
+                    <span style={wrapperS}>
+                      <ScrubInput
+                        value={shorthandVal}
+                        unit="px"
+                        min={0}
+                        max={200}
+                        onChange={handleShorthandChange}
+                        onSlash={onPropSlash ? (el) => onPropSlash(shorthandName, el) : undefined}
+                      />
+                    </span>
+                    {!isEmptyShorthand && !lockedShorthand && (
+                      <button style={tokenRemoveBtn} title="清除"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onChange(properties.filter((p) => p.name !== shorthandName));
+                        }}
+                      >&times;</button>
+                    )}
+                  </span>
+                );
+              })()
+            )}
           </div>
           <button
             onClick={handleToggle}
@@ -200,51 +332,37 @@ function SpacingSection({
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 4, flex: 1 }}>
-              <span style={cornerLabelStyle}>{cornerLabels[0]}</span>
-              <ScrubInput
-                value={cornerVals[0]}
-                unit="px"
-                min={0}
-                max={200}
-                onChange={(v) => handleCornerChange(0, v)}
-              />
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 4, flex: 1 }}>
-              <span style={cornerLabelStyle}>{cornerLabels[1]}</span>
-              <ScrubInput
-                value={cornerVals[1]}
-                unit="px"
-                min={0}
-                max={200}
-                onChange={(v) => handleCornerChange(1, v)}
-              />
-            </div>
-            <button onClick={handleToggle} title="统一设置所有方向" style={unlinkedBtnStyle}>
-              🔓
-            </button>
+            {[0, 1].map((i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 4, flex: 1 }}>
+                <span style={cornerLabelStyle}>{cornerLabels[i]}</span>
+                <SpacingValue
+                  value={cornerVals[i]}
+                  rawValue={getProp(properties, cornerNames[i])}
+                  onChange={(v) => handleCornerChange(i, v)}
+                  onSlash={onPropSlash ? (el) => onPropSlash(cornerNames[i], el) : undefined}
+                  onTokenClick={onPropSlash ? (el) => onPropSlash(cornerNames[i], el) : undefined}
+                  onRemoveToken={() => onChange(properties.filter((p) => p.name !== cornerNames[i]))}
+                  locked={isPropLocked(cornerNames[i], inheritedProps)}
+                />
+              </div>
+            ))}
+            <button onClick={handleToggle} title="统一设置所有方向" style={unlinkedBtnStyle}>🔓</button>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 4, flex: 1 }}>
-              <span style={cornerLabelStyle}>{cornerLabels[2]}</span>
-              <ScrubInput
-                value={cornerVals[2]}
-                unit="px"
-                min={0}
-                max={200}
-                onChange={(v) => handleCornerChange(2, v)}
-              />
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 4, flex: 1 }}>
-              <span style={cornerLabelStyle}>{cornerLabels[3]}</span>
-              <ScrubInput
-                value={cornerVals[3]}
-                unit="px"
-                min={0}
-                max={200}
-                onChange={(v) => handleCornerChange(3, v)}
-              />
-            </div>
+            {[2, 3].map((i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 4, flex: 1 }}>
+                <span style={cornerLabelStyle}>{cornerLabels[i]}</span>
+                <SpacingValue
+                  value={cornerVals[i]}
+                  rawValue={getProp(properties, cornerNames[i])}
+                  onChange={(v) => handleCornerChange(i, v)}
+                  onSlash={onPropSlash ? (el) => onPropSlash(cornerNames[i], el) : undefined}
+                  onTokenClick={onPropSlash ? (el) => onPropSlash(cornerNames[i], el) : undefined}
+                  onRemoveToken={() => onChange(properties.filter((p) => p.name !== cornerNames[i]))}
+                  locked={isPropLocked(cornerNames[i], inheritedProps)}
+                />
+              </div>
+            ))}
             <div style={{ width: 25, flexShrink: 0 }} />
           </div>
         </div>
@@ -259,9 +377,13 @@ interface SpacingCardProps {
   properties: StyleProperty[];
   onChange: (props: StyleProperty[]) => void;
   onFocus?: () => void;
+  onPropSlash?: (propName: string, el: HTMLElement) => void;
+  inheritedProps?: string[];
+  onToggleInherited?: (propName: string) => void;
+  readOnly?: boolean;
 }
 
-export const SpacingCard = React.memo(function SpacingCard({ properties, onChange, onFocus }: SpacingCardProps) {
+export const SpacingCard = React.memo(function SpacingCard({ properties, onChange, onFocus, onPropSlash, inheritedProps, onToggleInherited, readOnly }: SpacingCardProps) {
   const padShorthand = getProp(properties, "padding");
   const padTop = getProp(properties, "padding-top");
   const marShorthand = getProp(properties, "margin");
@@ -316,6 +438,10 @@ export const SpacingCard = React.memo(function SpacingCard({ properties, onChang
           ]}
           properties={properties}
           onChange={onChange}
+          onPropSlash={onPropSlash}
+          inheritedProps={inheritedProps}
+          onToggleInherited={onToggleInherited}
+          readOnly={readOnly}
         />
 
         <div
@@ -336,6 +462,10 @@ export const SpacingCard = React.memo(function SpacingCard({ properties, onChang
           ]}
           properties={properties}
           onChange={onChange}
+          onPropSlash={onPropSlash}
+          inheritedProps={inheritedProps}
+          onToggleInherited={onToggleInherited}
+          readOnly={readOnly}
         />
 
         {/* Box model preview */}

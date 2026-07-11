@@ -1,0 +1,331 @@
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import * as monaco from "monaco-editor";
+import editorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
+import tsWorker from "monaco-editor/esm/vs/language/typescript/ts.worker?worker";
+import cssWorker from "monaco-editor/esm/vs/language/css/css.worker?worker";
+import htmlWorker from "monaco-editor/esm/vs/language/html/html.worker?worker";
+import jsonWorker from "monaco-editor/esm/vs/language/json/json.worker?worker";
+import {
+  initOmniLangLanguage,
+  initOmniLangSnippets,
+  injectOmniLangTypes,
+  getOmniCompiler,
+  runDiagnostics,
+  applyDiagnostics,
+} from "../../../services/monaco";
+import type { StoreDefinition } from "../../../core/types/store";
+
+// Configure Monaco workers for Vite
+(self as unknown as { MonacoEnvironment: unknown }).MonacoEnvironment = {
+  getWorker(_: string, label: string) {
+    if (label === "typescript" || label === "javascript") return new tsWorker();
+    if (label === "css") return new cssWorker();
+    if (label === "html") return new htmlWorker();
+    if (label === "json") return new jsonWorker();
+    return new editorWorker();
+  },
+};
+
+// ── One-time initialization (guards prevent duplicate calls) ────────
+let monacoServicesInitialized = false;
+
+function initMonacoServices(storeDefs?: StoreDefinition[]): void {
+  if (monacoServicesInitialized) {
+    // Still refresh dynamic store types on each call
+    if (storeDefs) injectOmniLangTypes(storeDefs);
+    return;
+  }
+  monacoServicesInitialized = true;
+  initOmniLangLanguage();
+  initOmniLangSnippets();
+  injectOmniLangTypes(storeDefs);
+}
+
+interface CodeEditorModalProps {
+  elementId: string;
+  initialSource: string;
+  initialDescription: string;
+  /** Monaco language mode — defaults to "typescript"; set "omnilang" for .omni syntax highlighting */
+  language?: "typescript" | "omnilang";
+  /** Store definitions for dynamic type injection into TS IntelliSense */
+  storeDefs?: StoreDefinition[];
+  /** Full .omni source for WASM diagnostics (when editing within a known file context) */
+  omniSourcePath?: string;
+  omniSource?: string;
+  onSave: (source: string, description: string) => void;
+  onClose: () => void;
+}
+
+export function CodeEditorModal({
+  initialSource,
+  initialDescription,
+  language = "typescript",
+  storeDefs,
+  omniSourcePath,
+  omniSource,
+  onSave,
+  onClose,
+}: CodeEditorModalProps) {
+  const [localDescription, setLocalDescription] = useState(initialDescription);
+  const sourceRef = useRef(initialSource);
+  const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const savedSourceRef = useRef(initialSource);
+
+  // ── Initialize Monaco services (once per session) ─────────────
+  // Use a stable key derived from store names to control re-injection
+  const storeNamesKey = useMemo(
+    () => storeDefs?.map((s) => s.name).sort().join(",") ?? "",
+    [storeDefs],
+  );
+
+  useEffect(() => {
+    initMonacoServices(storeDefs);
+    // Only re-inject when the set of stores changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeNamesKey]);
+
+  // ── WASM diagnostics via OmniCompiler ─────────────────────────
+  useEffect(() => {
+    if (!omniSource || !omniSourcePath) return;
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    let timer: ReturnType<typeof setTimeout>;
+
+    const runDiagnosticsDebounced = async () => {
+      const compiler = await getOmniCompiler();
+      if (!compiler) return;
+      compiler.upsert_source(omniSourcePath, omniSource);
+      const diagnostics = runDiagnostics(compiler);
+      const model = editor.getModel();
+      if (model) {
+        applyDiagnostics(model, diagnostics, "omnilang-wasm");
+      }
+    };
+
+    // Debounce — run diagnostics 500ms after last content change
+    const disposable = editor.onDidChangeModelContent(() => {
+      clearTimeout(timer);
+      timer = setTimeout(runDiagnosticsDebounced, 500);
+    });
+
+    // Run once on mount
+    runDiagnosticsDebounced();
+
+    return () => {
+      clearTimeout(timer);
+      disposable.dispose();
+    };
+  }, [omniSource, omniSourcePath]);
+
+  // Initialize Monaco editor (mount once)
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const editor = monaco.editor.create(containerRef.current, {
+      value: initialSource,
+      language,
+      theme: "vs-dark",
+      fontSize: 13,
+      minimap: { enabled: false },
+      lineNumbers: "on",
+      scrollBeyondLastLine: false,
+      automaticLayout: true,
+    });
+    editorRef.current = editor;
+    sourceRef.current = initialSource;
+
+    // Debug: expose editor globally for Victauri testing
+    (window as unknown as Record<string, unknown>).__monacoEditor = editor;
+
+    editor.onDidChangeModelContent(() => {
+      sourceRef.current = editor.getValue();
+    });
+
+    return () => {
+      (window as unknown as Record<string, unknown>).__monacoEditor = undefined;
+      editor.dispose();
+      editorRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Sync external value changes into the editor
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    if (initialSource !== savedSourceRef.current) {
+      savedSourceRef.current = initialSource;
+      editor.setValue(initialSource);
+    }
+  }, [initialSource]);
+
+  // Escape to close
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  const handleSave = useCallback(() => {
+    onSave(sourceRef.current, localDescription);
+  }, [localDescription, onSave]);
+
+  // Ctrl+Enter / Cmd+Enter to save
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+        e.preventDefault();
+        handleSave();
+      }
+    },
+    [handleSave],
+  );
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        onClick={onClose}
+        style={{
+          position: "fixed",
+          inset: 0,
+          zIndex: 9998,
+          background: "rgba(0,0,0,0.4)",
+        }}
+      />
+      {/* Dialog */}
+      <div
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={handleKeyDown}
+        style={{
+          position: "fixed",
+          top: "50%",
+          left: "50%",
+          transform: "translate(-50%,-50%)",
+          zIndex: 9999,
+          background: "#fff",
+          borderRadius: 12,
+          boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
+          width: "80vw",
+          height: "80vh",
+          maxWidth: 1200,
+          maxHeight: 900,
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+        }}
+      >
+        {/* Title bar */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            padding: "14px 20px",
+            borderBottom: "1px solid #e2e8f0",
+          }}
+        >
+          <span style={{ fontSize: 14, fontWeight: 600, color: "#1e293b" }}>
+            编辑代码块
+          </span>
+          <button
+            onClick={onClose}
+            style={{
+              border: "none",
+              background: "none",
+              cursor: "pointer",
+              fontSize: 18,
+              color: "#94a3b8",
+              padding: "4px 8px",
+            }}
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Monaco Editor area */}
+        <div ref={containerRef} style={{ flex: 1, minHeight: 0 }} />
+
+        {/* Description field */}
+        <div
+          style={{
+            padding: "12px 20px",
+            borderTop: "1px solid #e2e8f0",
+          }}
+        >
+          <label
+            style={{
+              display: "block",
+              fontSize: 11,
+              fontWeight: 600,
+              color: "#64748b",
+              marginBottom: 4,
+            }}
+          >
+            功能说明
+          </label>
+          <input
+            type="text"
+            value={localDescription}
+            onChange={(e) => setLocalDescription(e.target.value)}
+            placeholder="描述此代码块的功能..."
+            style={{
+              width: "100%",
+              padding: "8px 12px",
+              fontSize: 13,
+              border: "1px solid #d1d5db",
+              borderRadius: 6,
+              fontFamily: "inherit",
+              boxSizing: "border-box",
+            }}
+          />
+        </div>
+
+        {/* Action buttons */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: 8,
+            padding: "12px 20px",
+            borderTop: "1px solid #e2e8f0",
+          }}
+        >
+          <button
+            onClick={onClose}
+            style={{
+              padding: "8px 20px",
+              fontSize: 13,
+              border: "1px solid #d1d5db",
+              borderRadius: 6,
+              background: "#fff",
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            取消
+          </button>
+          <button
+            onClick={handleSave}
+            style={{
+              padding: "8px 20px",
+              fontSize: 13,
+              fontWeight: 600,
+              border: "none",
+              borderRadius: 6,
+              background: "#6366F1",
+              color: "#fff",
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            保存
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}

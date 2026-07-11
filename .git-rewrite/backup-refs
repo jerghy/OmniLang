@@ -1,0 +1,9 @@
+ec8258f713922203361bf88f80a88d4bf5a20e54 commit	refs/heads/main
+56e667aae517b962d4a0f6daf4efb94364e1c6dd commit	refs/original/refs/heads/main
+56e667aae517b962d4a0f6daf4efb94364e1c6dd commit	refs/original/refs/remotes/origin/main
+adf8dca7959070c0cd756243e9f9f69b86631960 commit	refs/original/refs/stash
+7843511cd0c40b241215b4f719899ed63c4b92aa commit	refs/original/refs/tags/pre-workspace-refactor
+ec8258f713922203361bf88f80a88d4bf5a20e54 commit	refs/remotes/origin/HEAD
+ec8258f713922203361bf88f80a88d4bf5a20e54 commit	refs/remotes/origin/main
+540f22b3037fc7c46f967227fa9241594ae4ee1b commit	refs/stash
+783e064941030c8c1a712c1c576ca80f6f2dc0d3 commit	refs/tags/pre-workspace-refactor

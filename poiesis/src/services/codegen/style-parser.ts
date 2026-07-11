@@ -5,6 +5,7 @@
 import { uid } from "../../core/utils";
 import type { StyleProperty, ElementData } from "../../core/types";
 import type { ViewNode } from "./types";
+import { parseStyleValue } from "./design-value-parser";
 
 function generateId(): string {
   return uid("s");
@@ -91,11 +92,14 @@ export function parseStylesFromAST(
       const inlineStyle = viewNode.inline_style;
       if (inlineStyle && typeof inlineStyle === "object") {
         for (const [name, value] of Object.entries(inlineStyle)) {
-          inlineProperties.push({
-            id: generateId(),
-            name,
-            segments: [{ type: "text" as const, value: String(value) }],
-          });
+          const segments = parseStyleValue(String(value));
+          if (segments.length > 0) {
+            inlineProperties.push({
+              id: generateId(),
+              name,
+              segments,
+            });
+          }
         }
       }
     }
@@ -105,11 +109,14 @@ export function parseStylesFromAST(
     if (classRefs.length === 0 && inlineProperties.length === 0 && !hasStyleBlock) {
       for (const key of Object.keys(el.props)) {
         if (/^(background|color|padding|margin|border|radius|width|height|display|flex|gap|font|text|align|justify)/i.test(key)) {
-          inlineProperties.push({
-            id: generateId(),
-            name: key,
-            segments: [{ type: "text" as const, value: String(el.props[key]) }],
-          });
+          const segments = parseStyleValue(String(el.props[key]));
+          if (segments.length > 0) {
+            inlineProperties.push({
+              id: generateId(),
+              name: key,
+              segments,
+            });
+          }
         }
       }
     }

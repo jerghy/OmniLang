@@ -6,6 +6,7 @@ import { CollapsibleGroup } from "../CollapsibleGroup";
 import { ScrubInput } from "../ScrubInput";
 import type { StyleProperty } from "../../../core/types/style";
 import { uid } from "../../../core/utils";
+import { LockIcon, isPropLocked, LOCKED_INPUT_STYLE } from "./LockIcon";
 
 // ── Helpers ──
 
@@ -22,6 +23,42 @@ function getProp(props: StyleProperty[], name: string): string {
     return "";
   }).join("");
 }
+
+function isTokenRef(value: string): boolean {
+  return value.startsWith("token(");
+}
+
+const tokenTextStyle: React.CSSProperties = {
+  fontSize: 12,
+  fontFamily: "var(--dp-font-mono, monospace)",
+  color: "var(--dp-accent, #6366f1)",
+  cursor: "pointer",
+};
+
+const tokenRemoveBtn: React.CSSProperties = {
+  border: "none",
+  background: "none",
+  cursor: "pointer",
+  fontSize: 14,
+  padding: "0 2px",
+  color: "var(--dp-text-muted, #a09db8)",
+  lineHeight: 1,
+  flexShrink: 0,
+};
+
+const INPUT_STYLE: React.CSSProperties = {
+  padding: "4px 6px",
+  fontSize: 12,
+  fontFamily: "var(--dp-font-mono, monospace)",
+  border: "1px solid var(--dp-border, #e8e5f2)",
+  borderRadius: "var(--dp-radius-sm, 6px)",
+  outline: "none",
+  background: "var(--dp-surface, #fff)",
+  color: "var(--dp-text, #1e1b4b)",
+  boxSizing: "border-box",
+  flex: 1,
+  minWidth: 0,
+};
 
 function setProp(
   props: StyleProperty[],
@@ -52,7 +89,12 @@ interface SizeCardProps {
   properties: StyleProperty[];
   onChange: (props: StyleProperty[]) => void;
   onFocus?: () => void;
+  onPropSlash?: (propName: string, el: HTMLElement) => void;
+  inheritedProps?: string[];
+  onToggleInherited?: (propName: string) => void;
+  readOnly?: boolean;
 }
+
 
 // ── Styles ──
 
@@ -79,7 +121,7 @@ const linkBtnBase: React.CSSProperties = {
 
 // ── Component ──
 
-export const SizeCard = React.memo(function SizeCard({ properties, onChange, onFocus }: SizeCardProps) {
+export const SizeCard = React.memo(function SizeCard({ properties, onChange, onFocus, onPropSlash, inheritedProps, onToggleInherited, readOnly }: SizeCardProps) {
   const [linked, setLinked] = useState(false);
 
   const widthStr = getProp(properties, "width");
@@ -135,13 +177,50 @@ export const SizeCard = React.memo(function SizeCard({ properties, onChange, onF
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 4, flex: 1 }}>
             <span style={labelStyle}>W</span>
-            <ScrubInput
-              value={width}
-              unit="px"
-              min={0}
-              max={4000}
-              onChange={handleWidthChange}
-            />
+            <span style={isPropLocked("width", inheritedProps) ? LOCKED_INPUT_STYLE : undefined}>
+            {readOnly && inheritedProps?.includes("width") ? (
+              <span style={{ ...INPUT_STYLE, color: "var(--dp-text-muted, #a09db8)", flex: 1, textAlign: "right" }}>{widthStr || "—"}</span>
+            ) : isTokenRef(widthStr) ? (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 2, flex: 1 }}>
+                <span
+                  style={tokenTextStyle}
+                  onClick={(e) => onPropSlash?.("width", e.currentTarget)}
+                >{widthStr}</span>
+                <button
+                  style={tokenRemoveBtn}
+                  title="Remove token"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onChange(properties.filter((p) => p.name !== "width" && p.name !== "Width"));
+                  }}
+                >&times;</button>
+              </span>
+            ) : (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 2, flex: 1 }}>
+                <span style={widthStr === "" ? { opacity: 0.4 } : {}}>
+                  <ScrubInput
+                    value={width}
+                    unit="px"
+                    min={0}
+                    max={4000}
+                    onChange={handleWidthChange}
+                    onSlash={onPropSlash ? (el) => onPropSlash("width", el) : undefined}
+                  />
+                </span>
+                {widthStr !== "" && (
+                  <button
+                    style={tokenRemoveBtn}
+                    title="清除"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onChange(properties.filter((p) => p.name !== "width" && p.name !== "Width"));
+                    }}
+                  >&times;</button>
+                )}
+              </span>
+            )}
+            </span>
+            <LockIcon propName="width" inheritedProps={inheritedProps} onToggleInherited={onToggleInherited} readOnly={readOnly} />
           </div>
 
           <button
@@ -154,13 +233,50 @@ export const SizeCard = React.memo(function SizeCard({ properties, onChange, onF
 
           <div style={{ display: "flex", alignItems: "center", gap: 4, flex: 1 }}>
             <span style={labelStyle}>H</span>
-            <ScrubInput
-              value={height}
-              unit="px"
-              min={0}
-              max={4000}
-              onChange={handleHeightChange}
-            />
+            <span style={isPropLocked("height", inheritedProps) ? LOCKED_INPUT_STYLE : undefined}>
+            {readOnly && inheritedProps?.includes("height") ? (
+              <span style={{ ...INPUT_STYLE, color: "var(--dp-text-muted, #a09db8)", flex: 1, textAlign: "right" }}>{heightStr || "—"}</span>
+            ) : isTokenRef(heightStr) ? (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 2, flex: 1 }}>
+                <span
+                  style={tokenTextStyle}
+                  onClick={(e) => onPropSlash?.("height", e.currentTarget)}
+                >{heightStr}</span>
+                <button
+                  style={tokenRemoveBtn}
+                  title="Remove token"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onChange(properties.filter((p) => p.name !== "height" && p.name !== "Height"));
+                  }}
+                >&times;</button>
+              </span>
+            ) : (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 2, flex: 1 }}>
+                <span style={heightStr === "" ? { opacity: 0.4 } : {}}>
+                  <ScrubInput
+                    value={height}
+                    unit="px"
+                    min={0}
+                    max={4000}
+                    onChange={handleHeightChange}
+                    onSlash={onPropSlash ? (el) => onPropSlash("height", el) : undefined}
+                  />
+                </span>
+                {heightStr !== "" && (
+                  <button
+                    style={tokenRemoveBtn}
+                    title="清除"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onChange(properties.filter((p) => p.name !== "height" && p.name !== "Height"));
+                    }}
+                  >&times;</button>
+                )}
+              </span>
+            )}
+            </span>
+            <LockIcon propName="height" inheritedProps={inheritedProps} onToggleInherited={onToggleInherited} readOnly={readOnly} />
           </div>
         </div>
 

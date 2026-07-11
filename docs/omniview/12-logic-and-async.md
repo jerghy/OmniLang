@@ -307,10 +307,19 @@ let arr = [1, 2, 3];
 let len = arr.len();          // 长度
 arr.push(4);                  // 追加
 arr.pop();                    // 移除最后
-let mapped = arr.map(|x| x * 2);           // 映射
-let filtered = arr.filter(|x| x > 1);      // 过滤
+let mapped = arr.map(|x| x * 2);           // 映射（管道闭包）
+let filtered = arr.filter(|x| x > 1);      // 过滤（管道闭包）
 let newArr = arr.concat([4, 5]);           // 连接
 ```
+
+管道闭包也可以赋值给 `let` 变量后复用：
+
+```omni
+let isPositive = |x| x > 0;
+let pos = arr.filter(isPositive);   // 复用同一个闭包
+```
+
+> 闭包语法详见 [11-表达式系统](11-expressions.md#闭包--lambda)。
 
 ### i32 / f64 方法
 

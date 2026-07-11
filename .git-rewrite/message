@@ -1,0 +1,7 @@
+fix(flutter-codegen): pixel-accurate button styling to match visual editor
+
+- ElevatedButton: add textStyle fontSize:13, fix color to #4F46E5
+- OutlinedButton: add textStyle fontSize:13, fix foregroundColor to #1F2937
+- Revert Heading level-2 to 20px (matches editor DOM computed style)
+- Card padding via EdgeInsets.all(24) preserved
+- Vision MCP comparison: 8/8 properties MATCH editor design

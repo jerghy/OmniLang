@@ -16,12 +16,83 @@ view {
     <!-- 内联闭包 -->
     <button @onPress={() => { count = count + 1; }}>+1</button>
 
-    <!-- 调用 Store action -->
+    <!-- 调用 Store action（带参数自动封装） -->
     <button @onPress={TodoStore.add("item")}>Add</button>
+
+    <!-- 带参数调用组件函数 -->
+    <button @onPress={switchTab("home")}>Home</button>
 }
 ```
 
-事件名使用 PascalCase（`onClick`）而不是 HTML 的 camelCase（`onclick`）。
+事件名使用 PascalCase（`onPress`），编译时映射到 DOM 事件。
+
+**`@onPress` vs `@onClick`**：两者都映射到 `click` DOM 事件，完全等价。`@onPress` 是 OmniView 推荐的写法（语义更清晰），`@click` 也完全支持。
+
+```omni
+<!-- 以下两种写法等价 -->
+<button @onPress={handleClick}>Click</button>
+<button @onClick={handleClick}>Click</button>
+```
+
+### 事件对象（Event Data）
+
+事件处理器可以接收事件对象，编译器**自动提取**所需字段，生成最小事件数据：
+
+```omni
+fn handleKeyDown(e) {
+    // e 包含你访问的字段
+    if e.key == "Escape" { close(); }
+    if e.ctrl { /* Ctrl 键被按下 */ }
+}
+
+fn handleScroll(e) {
+    scrollY = e.y;        // e.target.scrollTop
+}
+
+fn handleMouseMove(e) {
+    mouseX = e.x;         // e.clientX
+    mouseY = e.y;         // e.clientY
+}
+
+fn handleWheel(e) {
+    delta = e.deltaY;     // e.deltaY
+    isCtrl = e.ctrl;      // e.ctrlKey
+}
+```
+
+编译器分析事件处理器中访问了哪些字段，只为需要的字段生成提取代码（零开销抽象）。
+
+**修饰键字段**（适用所有鼠标/键盘/触摸事件）：
+| 字段 | 事件对象属性 |
+|------|-------------|
+| `e.ctrl` | `e.ctrlKey` |
+| `e.shift` | `e.shiftKey` |
+| `e.alt` | `e.altKey` |
+| `e.meta` | `e.metaKey` (Cmd on Mac, Win on Windows) |
+
+### Component Event（自定义事件）的 Event Data
+
+组件之间通过 `event` 声明传递自定义事件，接收方直接在参数中获取数据：
+
+```omni
+// 子组件声明
+component Child {
+    event onAction: String;
+    fn trigger() { onAction("hello"); }
+}
+
+// 父组件接收
+component Parent {
+    fn handleAction(msg: String) {
+        // msg = "hello"
+    }
+    view {
+        <Child @onAction={handleAction} />
+    }
+}
+```
+
+自定义事件的数据不通过 `e.detail` 传递——编译器直接将 payload 作为函数参数传入。
 
 ### 三种事件处理器类型
 
@@ -56,6 +127,8 @@ view {
     <button @onPress={ThemeStore.toggle()}>Toggle Theme</button>
 }
 ```
+
+> **闭包语法区分**：view 模板中的事件处理器使用 `() => { }`（JS 箭头风格），而 `fn`/`action`/`computed` 中的函数逻辑使用 `|param| expr`（Rust 管道风格）。两种语法**不能互换**——`@onPress={|e| e.value}` 在 view 中无效，`array_filter(items, () => { ... })` 在函数逻辑中也无效。详见 [11-表达式系统](11-expressions.md#闭包--lambda)。
 
 ### 事件参数
 

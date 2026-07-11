@@ -152,6 +152,52 @@ ease elasticInOut(amplitude: 1.0, period: 0.5)
 ease steps(count: 5, direction: end)
 ```
 
+## `states:` 多状态动画
+
+直接在 HTML 元素上定义声明式状态机，无需单独定义 `@motion`：
+
+```omni
+view {
+    <div states: {
+        idle:    { scale: 1, opacity: 1 }   over: 150,
+        hover:   { scale: 1.05, opacity: 1 } over: 150,
+        pressed: { scale: 0.95, opacity: 0.8 } over: 100
+    }>
+        Interactive Panel
+    </div>
+}
+```
+
+**保留状态名**（自动绑定事件）：
+| 状态 | 触发事件 |
+|------|----------|
+| `idle` | 默认状态 |
+| `hover` | mouseenter → hover; mouseleave → idle |
+| `pressed` | mousedown → pressed; mouseup → idle |
+
+**自定义状态名**（由 signal 驱动）：
+```omni
+signal loadState: String = "loading";
+
+view {
+    <div states: {
+        idle:     { opacity: 1 } over: 300,
+        loading:  { opacity: 0.5, scale: 0.98 } over: 300,
+        success:  { borderColor: "#10b981" } over: 300,
+        error:    { borderColor: "#ef4444" } over: 200
+    }>
+        Content
+    </div>
+}
+```
+
+当 `loadState` signal 值变为 `"loading"` 时，自动过渡到 `loading` 状态。编译使用 `el.animate()` API（WAAPI），性能和 GPU 加速优于 CSS transition。
+
+**注意事项**：
+- 默认 duration：保留状态 150ms，自定义状态 300ms
+- 默认 easing：`"ease-out"`
+- transform 属性（x/y/scale/rotate）会自动合并为单个 `transform` 字符串
+
 ## 动画触发器
 
 在 HTML 元素上使用 `@trigger` 属性将动画绑定到 DOM 生命周期事件：

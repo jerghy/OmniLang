@@ -15,9 +15,10 @@ OmniView 是 OmniLang 语言的 UI 框架层，用于构建响应式 Web 应用�
 | [07-样式系统](07-styling.md) | 组件 `style` 块、CSS 属性、设计类引用 |
 | [08-设计系统](08-design-system.md) | `design` 定义、设计令牌、CSS 类、`variant` 组件变体 |
 | [09-运动与动画](09-motion.md) | `@motion`、`@timeline`、动画触发器、缓动函数 |
-| [10-类型系统](10-type-system.md) | 基础类型、`struct`、tagged union、可选类型、类型别名 |
-| [11-表达式系统](11-expressions.md) | 运算符、三元表达式、块表达式、空值合并、可选链、match |
-| [12-逻辑与异步](12-logic-and-async.md) | `fn`、控制流、`async`/`await`、标准库 |
+| [10-类型系统](10-type-system.md) | 基础类型（15+ 种）、`struct`、tagged union、可选类型、类型别名 |
+| [11-表达式系统](11-expressions.md) | 运算符、三元表达式、块表达式、闭包/lambda、空值合并、可选链、match |
+| [12-逻辑与异步](12-logic-and-async.md) | `fn`、控制流、`async`/`await` |
+| [13-标准库参考](13-standard-library.md) | `std/*` 全部 10 个模块 + 内置方法 |
 
 ## 快速入门
 

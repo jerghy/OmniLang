@@ -21,8 +21,13 @@ function camelToKebab(name: string): string {
  *
  * Unlike compileSegments (which emits CSS syntax like `var(--name)`), this emits
  * omni-native syntax:
- *   - text segments → quoted string
+ *   - text segments → quoted string (single) or as-is (multi, stripped of trailing +)
  *   - var-ref segments → `token(name)` (omni compile-time resolution)
+ *
+ * Multi-segment values come from the original design.omni source where `parseStyleValue`
+ * split an OmniLang expression like `"foo" + token(bar)` into text + var-ref segments.
+ * The text segment already carries the proper OmniLang quoting/escaping and a trailing
+ * ` + ` operator; we strip the trailing ` + ` before re-joining with fresh ` + `.
  */
 function compileDesignSegments(segments: StyleValueSegment[]): string {
   if (segments.length === 0) return "";
@@ -32,9 +37,14 @@ function compileDesignSegments(segments: StyleValueSegment[]): string {
     if (s.type === "var-ref") return `token(${s.name})`;
     return "";
   }
+  // Multi-segment: text already carries OmniLang syntax from the source.
+  // Strip trailing " + " (the expression operator) from text values, then
+  // re-join with fresh " + " to produce clean OmniLang source.
   return segments
     .map((s) => {
-      if (s.type === "text") return `"${s.value}"`;
+      if (s.type === "text") {
+        return s.value.replace(/\s*\+\s*$/, "");
+      }
       if (s.type === "var-ref") return `token(${s.name})`;
       return "";
     })
@@ -147,6 +157,11 @@ function emitVariant(lines: string[], variant: VariantDefinition): void {
   // Dimensions
   for (const dim of variant.dimensions) {
     lines.push(`        @dim ${dim.name}: ${dim.values.join(" | ")};`);
+  }
+
+  // Inherited properties
+  if (variant.inheritedProps && variant.inheritedProps.length > 0) {
+    lines.push(`        @inherit ${variant.inheritedProps.join(", ")};`);
   }
 
   // Defaults

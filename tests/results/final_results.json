@@ -1,0 +1,8 @@
+{
+  "passed": 55,
+  "total": 55,
+  "failures": [],
+  "errors": [
+    "Failed to load resource: the server responded with a status of 404 (File not found)"
+  ]
+}

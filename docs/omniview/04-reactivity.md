@@ -49,7 +49,9 @@ count += 5;
 price -= 2.0;
 ```
 
-对于 Array 类型，使用展开运算符创建新数组（**不可变模式**）：
+对于 Array 类型，有两种更新方式：
+
+**不可变模式**（推荐用于赋值操作）：
 
 ```omni
 // 追加元素
@@ -61,6 +63,25 @@ items = items.filter(|item| item.id != targetId);
 // 清空
 items = [];
 ```
+
+**原地操作模式**（`.push()` / `.pop()` 自带响应式）：
+
+```omni
+// 追加 — 编译器自动触发响应式
+items.push(newItem);
+
+// 移除最后一个 — 编译器自动触发响应式
+items.pop();
+```
+
+`.push()` 和 `.pop()` 的编译机制：
+```js
+// 编译器生成：先操作、再 .set(.slice()) 触发更新
+arr.value.push(item);
+arr.set(arr.value.slice());
+```
+
+这意味着 `.push()` 和 `.pop()` 会触发所有依赖该 signal 的 computed 和 view 重新计算。
 
 ## computed（计算属性）
 
@@ -239,8 +260,18 @@ signal results: Array<String> = [];
 
 ## 响应式系统注意事项
 
-1. **不可变更新**：对于 Array 和 struct，创建新值而不是修改现有值
+1. **不可变更新**：对于 Array 和 struct，创建新值而不是修改现有值（`.push()` / `.pop()` 除外）
 2. **computed 纯度**：computed 不应有副作用（lint 规则会检测）
 3. **避免循环依赖**：`computed a` 依赖 `signal b`，而 `computed b` 又依赖 `signal a`
 4. **signal 赋值在 fn/action 中**：只能在 `fn`、`action`、生命周期钩子中修改 signal
 5. **prop 不可变**：组件不能修改自己的 prop 值
+
+## 已知限制
+
+| 限制 | 说明 | 解决方法 |
+|------|------|----------|
+| 无深度响应性 | `user.address.city = "X"` 不会触发更新 | 整体替换：`user = { ...user, address: { ...user.address, city: "X" } }` |
+| 数字型 CSS 值加 `px` | `fontWeight: 700` → CSS `700.0px`（无效） | 用引号包裹：`fontWeight: "700"` |
+| `{signal} 文本` 会覆盖同节点文本 | effect 设置 `textContent` 覆盖相邻文本 | 用独立 `<span>` 包裹 signal |
+| 信号同名冲突 | 两个组件同名 signal 可能冲突 | 编译器通过 `{Component}_{signal}` 前缀自动避免 |
+| computed 函数形式需 `()` 调用 | `computed name() -> Type { }` 在 view 中需 `{name()}` | 使用简单形式：`computed name: Type = expr` |

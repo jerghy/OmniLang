@@ -54,8 +54,83 @@ store TodoStore {
 
 Store 成员：
 - **signal**：响应式状态——与组件 signal 语义一致
-- **getter**：派生计算值——与组件 getter 语义一致
+- **getter**：派生计算值——类似于 computed，惰性求值。store 中**不支持** `computed`，用 `getter`
 - **action**：修改 signal 的方法——只能在 action 内部修改 store signal
+
+### Action 返回类型与异步
+
+Action 可以有返回类型，也可以声明为 async：
+
+```omni
+store NotificationStore {
+    signal notifications: Array<String> = [];
+
+    // 带返回值的 action
+    action add(message: String): String {
+        if message == "" {
+            return "empty message ignored";
+        }
+        notifications.push(message);
+        return "added";
+    }
+
+    // 异步 action + 返回值
+    action removeLast(): String async {
+        if notifications.len() == 0 {
+            return "no notifications";
+        }
+        notifications.pop();
+        return "removed";
+    }
+
+    // 多参数 action + 返回值
+    action addWithPriority(title: String, body: String, priority: i32): String {
+        let full = title + ": " + body;
+        notifications.push(full);
+        return "added";
+    }
+}
+```
+
+### Store 持久化（storage）
+
+使用 `std/storage` 在 action 中实现持久化：
+
+```omni
+import { storage_get, storage_set } from "std/storage";
+
+store ThemeStore {
+    signal mode: String = "light";
+    signal toggleCount: i32 = 0;
+
+    // 初始化时从 storage 恢复
+    action load() {
+        let raw = storage_get("theme-mode");
+        if raw != null {
+            mode = raw;
+        }
+    }
+
+    // 修改时持久化
+    action toggle() {
+        if mode == "dark" { mode = "light"; }
+        else { mode = "dark"; }
+        toggleCount = toggleCount + 1;
+        storage_set("theme-mode", mode);
+    }
+}
+```
+
+在组件中调用 load action：
+```omni
+component App {
+    @store ThemeStore;
+
+    @mount {
+        ThemeStore.load();    // 挂载时恢复主题
+    }
+}
+```
 
 ### 在组件中使用 Store
 

@@ -29,21 +29,23 @@ design LearnDesign {
 
 OmniView 支持 **13 种**令牌类型：
 
-| 类型 | 用途 | 示例 |
-|------|------|------|
-| `color` | 颜色值 | `"#6366f1"` |
-| `size` | 尺寸值 | `"16px"` |
-| `radius` | 圆角值 | `"8px"` |
-| `shadow` | 阴影值 | `"0 4px 6px rgba(0,0,0,0.1)"` |
-| `fontFamily` | 字体族 | `"system-ui, sans-serif"` |
-| `fontSize` | 字号 | `"14px"` |
-| `fontWeight` | 字重 | `"600"` |
-| `lineHeight` | 行高 | `"1.5"` |
-| `letterSpacing` | 字间距 | `"0.5px"` |
-| `duration` | 过渡时长 | `"150ms"` |
-| `easing` | 缓动函数 | `"ease"` |
-| `opacity` | 透明度 | `"0.5"` |
-| `zIndex` | 层级 | `"100"` |
+| 类型 | 用途 | CSS 属性 | 示例值 |
+|------|------|----------|--------|
+| `color` | 颜色 | 颜色相关属性 | `"#6366f1"`, `"rgba(0,0,0,0.5)"`, `"white"` |
+| `size` | 尺寸/间距 | `padding`, `margin`, `gap`, `width` 等 | `"16px"`, `"1rem"` |
+| `radius` | 圆角 | `border-radius` | `"8px"`, `"9999px"` |
+| `shadow` | 阴影 | `box-shadow` | `"0 4px 6px rgba(0,0,0,0.1)"` |
+| `fontFamily` | 字体族 | `font-family` | `"system-ui, sans-serif"` |
+| `fontSize` | 字号 | `font-size` | `"14px"`, `"1rem"` |
+| `fontWeight` | 字重 | `font-weight` | `"400"`, `"600"`, `"700"` |
+| `lineHeight` | 行高 | `line-height` | `"1.5"`, `"1.6"` |
+| `letterSpacing` | 字间距 | `letter-spacing` | `"0.5px"`, `"-0.5px"` |
+| `duration` | 过渡时长 | `transition-duration` | `"150ms"`, `"300ms"` |
+| `easing` | 缓动函数 | `transition-timing-function` | `"ease"`, `"cubic-bezier(0.4,0,0.2,1)"` |
+| `opacity` | 透明度 | `opacity` | `"0"`, `"0.5"`, `"1"` |
+| `zIndex` | 层级 | `z-index` | `"10"`, `"100"` |
+
+编译后，所有令牌生成 `:root { --tokenName: value; }` CSS 变量。
 
 ### 定义令牌
 

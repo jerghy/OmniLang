@@ -1,8 +1,0 @@
-import omniview;
-
-design TestDesign {
-    token primary: color = "#6366f1";
-    token spacingMd: size = "16px";
-    token bodyFont: fontFamily = "system-ui, sans-serif";
-    token disabledOpacity: opacity = "0.5";
-}

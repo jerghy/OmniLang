@@ -7,6 +7,7 @@ import { uid } from "../../core/utils";
 import type { VariantBranch, VariantDimension } from "../../core/types/design";
 import type { StyleProperty, StyleValueSegment } from "../../core/types/style";
 import { parseStyleValue } from "../../services/codegen/design-value-parser";
+import { LOCKED_INPUT_STYLE } from "./cards/LockIcon";
 import { SizeCard } from "./cards/SizeCard";
 import { BackgroundCard } from "./cards/BackgroundCard";
 import { BorderCard } from "./cards/BorderCard";
@@ -367,7 +368,7 @@ function TokenizedInput({
 }: {
   value: string;
   onChange: (value: string) => void;
-  onSlash: () => void;
+  onSlash: (inputEl: HTMLInputElement) => void;
   placeholder?: string;
   style?: React.CSSProperties;
 }) {
@@ -375,7 +376,7 @@ function TokenizedInput({
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const newVal = e.target.value;
       if (newVal.endsWith("/") && !value.endsWith("/")) {
-        onSlash();
+        onSlash(e.target as HTMLInputElement);
       }
       onChange(newVal);
     },
@@ -393,6 +394,7 @@ export function VariantEditor() {
   const addVariant = usePoiesisStore((s) => s.addVariant);
   const updateVariant = usePoiesisStore((s) => s.updateVariant);
   const removeVariant = usePoiesisStore((s) => s.removeVariant);
+  const toggleInheritedProp = usePoiesisStore((s) => s.toggleInheritedProp);
 
   // ── Local state ──
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
@@ -634,6 +636,8 @@ export function VariantEditor() {
     setActiveBranchKey(key);
   }, []);
 
+  const inheritedProps = selectedVariant?.inheritedProps ?? [];
+
   // ── Handlers: Properties ──
 
   const removePropFromList = useCallback(
@@ -705,8 +709,8 @@ export function VariantEditor() {
   );
 
   const handleSlashTrigger = useCallback(
-    (propName: string, inputEl: HTMLInputElement) => {
-      const rect = inputEl.getBoundingClientRect();
+    (propName: string, el: HTMLElement) => {
+      const rect = el.getBoundingClientRect();
       setSlashPicker({
         propName,
         filter: "",
@@ -720,7 +724,17 @@ export function VariantEditor() {
     (tokenName: string) => {
       if (!slashPicker) return;
       const currentVal = getPropValue(currentProps, slashPicker.propName);
-      const newVal = currentVal.slice(0, -1) + `token(${tokenName}) `;
+      let newVal: string;
+      if (currentVal.endsWith("/")) {
+        // Typed "/" in TokenizedInput — replace the trailing "/"
+        newVal = currentVal.slice(0, -1) + `token(${tokenName}) `;
+      } else if (currentVal.startsWith("token(")) {
+        // Clicked an existing token ref — replace it entirely
+        newVal = `token(${tokenName})`;
+      } else {
+        // Opened from ScrubInput (empty or numeric) — set the token
+        newVal = `token(${tokenName})`;
+      }
       handleSinglePropChange(slashPicker.propName, newVal);
       setSlashPicker(null);
     },
@@ -1158,24 +1172,42 @@ export function VariantEditor() {
         <SizeCard
           properties={currentProps}
           onChange={handleCardPropsChange}
+          onPropSlash={handleSlashTrigger}
+          inheritedProps={inheritedProps}
+          onToggleInherited={isBranchMode ? undefined : (name) => selectedVariant && toggleInheritedProp(selectedVariant.id, name)}
+          readOnly={isBranchMode}
         />
         <BackgroundCard
           properties={currentProps}
           tokens={tokens}
           onChange={handleCardPropsChange}
+          inheritedProps={inheritedProps}
+          onToggleInherited={isBranchMode ? undefined : (name) => selectedVariant && toggleInheritedProp(selectedVariant.id, name)}
+          readOnly={isBranchMode}
         />
         <BorderCard
           properties={currentProps}
           tokens={tokens}
           onChange={handleCardPropsChange}
+          inheritedProps={inheritedProps}
+          onToggleInherited={isBranchMode ? undefined : (name) => selectedVariant && toggleInheritedProp(selectedVariant.id, name)}
+          readOnly={isBranchMode}
         />
         <RadiusCard
           properties={currentProps}
           onChange={handleCardPropsChange}
+          onPropSlash={handleSlashTrigger}
+          inheritedProps={inheritedProps}
+          onToggleInherited={isBranchMode ? undefined : (name) => selectedVariant && toggleInheritedProp(selectedVariant.id, name)}
+          readOnly={isBranchMode}
         />
         <SpacingCard
           properties={currentProps}
           onChange={handleCardPropsChange}
+          onPropSlash={handleSlashTrigger}
+          inheritedProps={inheritedProps}
+          onToggleInherited={isBranchMode ? undefined : (name) => selectedVariant && toggleInheritedProp(selectedVariant.id, name)}
+          readOnly={isBranchMode}
         />
 
         {/* Layout group for remaining layout properties */}
@@ -1183,23 +1215,14 @@ export function VariantEditor() {
           {layoutPropNames.map((name) => {
             const value = getPropValue(currentProps, name);
             const label = PROPERTY_LABELS[name] || name;
-            const isInherited = isBranchMode && !branch?.properties.some((p) => p.name === name);
+            const isInherited = selectedVariant?.inheritedProps?.includes(name);
 
-            if (isInherited) {
+            // Inherited prop in branch mode: read-only
+            if (isBranchMode && isInherited) {
               const baseValue = getPropValue(selectedVariant.baseProperties, name);
               return (
-                <PropertyRow key={name} label={label} inherited>
-                  <div
-                    style={{
-                      ...INPUT_STYLE,
-                      background: "var(--dp-bg, #f7f6fa)",
-                      color: "var(--dp-text-muted, #a09db8)",
-                      cursor: "not-allowed",
-                      display: "flex",
-                      alignItems: "center",
-                      fontSize: 11,
-                    }}
-                  >
+                <PropertyRow key={name} label={label} inherited={true}>
+                  <div style={{ ...INPUT_STYLE, background: "var(--dp-bg, #f7f6fa)", color: "var(--dp-text-muted, #a09db8)", cursor: "not-allowed", display: "flex", alignItems: "center", fontSize: 11 }}>
                     ← base: {baseValue || "—"}
                   </div>
                 </PropertyRow>
@@ -1249,24 +1272,31 @@ export function VariantEditor() {
                 <TokenizedInput
                   value={value}
                   onChange={(v) => handleSinglePropChange(name, v)}
-                  onSlash={() => {
-                    const el = document.activeElement as HTMLInputElement;
-                    if (el) handleSlashTrigger(name, el);
-                  }}
+                  onSlash={(el) => handleSlashTrigger(name, el)}
                   placeholder="value"
                   style={INPUT_STYLE}
                 />
               );
             }
 
+            const isLockedInBase = !isBranchMode && !isInherited;
             return (
               <PropertyRow
                 key={name}
                 label={label}
-                showOverrideDot={isBranchMode}
+                showOverrideDot={isBranchMode && !!branch?.properties.some((p) => p.name === name)}
                 onRemove={() => handleRemoveProperty(name)}
               >
-                {input}
+                <span style={isLockedInBase ? LOCKED_INPUT_STYLE : undefined}>
+                  {input}
+                </span>
+                {!isBranchMode && (
+                  <button
+                    onClick={() => selectedVariant && toggleInheritedProp(selectedVariant.id, name)}
+                    title={isInherited ? "已解锁（分支只读）— 点击封锁" : "已封锁（分支可覆盖）— 点击解锁"}
+                    style={{ border: "none", background: "none", cursor: "pointer", fontSize: 12, padding: "0 4px", color: isInherited ? "var(--dp-accent, #6366f1)" : "var(--dp-text-muted, #a09db8)" }}
+                  >{isInherited ? "🔓" : "🔒"}</button>
+                )}
               </PropertyRow>
             );
           })}
@@ -1277,23 +1307,14 @@ export function VariantEditor() {
           {typographyPropNames.map((name) => {
             const value = getPropValue(currentProps, name);
             const label = PROPERTY_LABELS[name] || name;
-            const isInherited = isBranchMode && !branch?.properties.some((p) => p.name === name);
+            const isInherited = selectedVariant?.inheritedProps?.includes(name);
 
-            if (isInherited) {
+            // Inherited prop in branch mode: read-only
+            if (isBranchMode && isInherited) {
               const baseValue = getPropValue(selectedVariant.baseProperties, name);
               return (
-                <PropertyRow key={name} label={label} inherited>
-                  <div
-                    style={{
-                      ...INPUT_STYLE,
-                      background: "var(--dp-bg, #f7f6fa)",
-                      color: "var(--dp-text-muted, #a09db8)",
-                      cursor: "not-allowed",
-                      display: "flex",
-                      alignItems: "center",
-                      fontSize: 11,
-                    }}
-                  >
+                <PropertyRow key={name} label={label} inherited={true}>
+                  <div style={{ ...INPUT_STYLE, background: "var(--dp-bg, #f7f6fa)", color: "var(--dp-text-muted, #a09db8)", cursor: "not-allowed", display: "flex", alignItems: "center", fontSize: 11 }}>
                     ← base: {baseValue || "—"}
                   </div>
                 </PropertyRow>
@@ -1331,24 +1352,31 @@ export function VariantEditor() {
                 <TokenizedInput
                   value={value}
                   onChange={(v) => handleSinglePropChange(name, v)}
-                  onSlash={() => {
-                    const el = document.activeElement as HTMLInputElement;
-                    if (el) handleSlashTrigger(name, el);
-                  }}
+                  onSlash={(el) => handleSlashTrigger(name, el)}
                   placeholder="value"
                   style={INPUT_STYLE}
                 />
               );
             }
 
+            const isLockedInBase = !isBranchMode && !isInherited;
             return (
               <PropertyRow
                 key={name}
                 label={label}
-                showOverrideDot={isBranchMode}
+                showOverrideDot={isBranchMode && !!branch?.properties.some((p) => p.name === name)}
                 onRemove={() => handleRemoveProperty(name)}
               >
-                {input}
+                <span style={isLockedInBase ? LOCKED_INPUT_STYLE : undefined}>
+                  {input}
+                </span>
+                {!isBranchMode && (
+                  <button
+                    onClick={() => selectedVariant && toggleInheritedProp(selectedVariant.id, name)}
+                    title={isInherited ? "已解锁（分支只读）— 点击封锁" : "已封锁（分支可覆盖）— 点击解锁"}
+                    style={{ border: "none", background: "none", cursor: "pointer", fontSize: 12, padding: "0 4px", color: isInherited ? "var(--dp-accent, #6366f1)" : "var(--dp-text-muted, #a09db8)" }}
+                  >{isInherited ? "🔓" : "🔒"}</button>
+                )}
               </PropertyRow>
             );
           })}

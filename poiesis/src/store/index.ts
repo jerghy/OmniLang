@@ -64,6 +64,12 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
   ...createStoreCrudSlice(set, get),
 }));
 
+// Expose store on window for debugging (Victauri MCP access)
+if (typeof window !== "undefined") {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (window as any).__POIESIS_STORE__ = usePoiesisStore;
+}
+
 // ── Utility accessors (used by codegen services and UI components) ──
 
 /**

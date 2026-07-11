@@ -162,17 +162,88 @@ style {
 }
 ```
 
-### CSS 变量（Custom Properties）
+## CSS 变量（Custom Properties）
+
+在 `style { }` 块中可以直接定义 `--*` CSS 自定义属性，编译器原生支持：
 
 ```omni
 style {
-    :root {
-        --primary: #6366f1;
-        --radius: 8px;
+    .wrapper {
+        --card-radius: 12px;
+        --action-h: 48px;
     }
-    .button {
-        background: "var(--primary)";
-        border-radius: "var(--radius)";
+
+    .themed-card {
+        background: "var(--card-bg)";
+        border-radius: "var(--card-radius)";
+        font-family: "var(--font)";
+    }
+}
+```
+
+**关键机制**：编译器 parser 专门识别 `--` 前缀：
+- 解析时：`parse_css_property_name()` 检测 `--` 前缀并按 Token 逐段拼接属性名
+- 代码生成时：`emit_style_assignment()` 对 `--*` 属性使用 `el.style.setProperty("--name", value)`，而对普通属性使用 `el.style.prop = value`
+
+### CSS 变量 + 信号联动（主题化实战）
+
+将 store 信号注入为 CSS 变量，实现声明式主题切换：
+
+```omni
+component ThemeCssVarsDemo {
+    @store ThemeStore;
+
+    view {
+        <!-- 在根元素注入所有主题变量 -->
+        <div class: theme-root
+            style: {
+                --theme-bg: ThemeStore.currentBg,
+                --theme-text: ThemeStore.currentText,
+                --theme-primary: ThemeStore.currentPrimary,
+                --theme-border: ThemeStore.currentBorder
+            }
+        >
+            <!-- 子元素只需用 var() 引用 -->
+            <div class: themed-card>
+                <h4>标题</h4>
+                <p>此卡片颜色完全由 CSS 变量驱动</p>
+            </div>
+        </div>
+    }
+
+    style {
+        .themed-card {
+            background: "var(--theme-bg)";
+            color: "var(--theme-text)";
+            border: "1px solid var(--theme-border)";
+        }
+        .themed-card h4 {
+            color: "var(--theme-primary)";
+        }
+    }
+}
+```
+
+编译器为每个 `style: { --var: signal }` 生成：
+```js
+__omni_effect(() => {
+  const el = __omni_el("nid");
+  if (el) el.style.setProperty("--theme-bg", ThemeStore_currentBg.value);
+});
+```
+
+这样主题切换只需更新 store，所有 CSS 变量自动级联响应。
+
+### calc() 与 CSS 变量组合
+
+```omni
+style {
+    .card {
+        border: "calc(var(--border-w, 2) * 1px) solid var(--theme-border)";
+        transform: "scale(var(--theme-scale, 1))";
+    }
+    .card:hover {
+        filter: "brightness(1.1)";
     }
 }
 ```

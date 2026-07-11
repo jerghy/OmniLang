@@ -5,6 +5,7 @@ interface Props {
   data: {
     label: string;
     source?: string;
+    description?: string;
     onDoubleClick?: () => void;
   };
 }
@@ -43,6 +44,23 @@ const CodeBlockNode = React.memo(function CodeBlockNode({ data }: Props) {
       }}
     >
       <code>{preview}</code>
+      {data.description && (
+        <div
+          style={{
+            marginTop: 6,
+            paddingTop: 6,
+            borderTop: "1px solid #E2E8F0",
+            fontSize: 10,
+            color: "#64748B",
+            fontStyle: "italic",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {data.description}
+        </div>
+      )}
       <Handle
         type="target"
         position={Position.Top}
@@ -54,18 +72,6 @@ const CodeBlockNode = React.memo(function CodeBlockNode({ data }: Props) {
         position={Position.Bottom}
         id="flow-out"
         style={{ background: "#94A3B8" }}
-      />
-      <Handle
-        type="target"
-        position={Position.Left}
-        id="data-in"
-        style={{ background: "#CBD5E1" }}
-      />
-      <Handle
-        type="source"
-        position={Position.Right}
-        id="data-out"
-        style={{ background: "#CBD5E1" }}
       />
     </div>
   );

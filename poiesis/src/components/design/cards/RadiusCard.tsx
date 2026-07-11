@@ -6,6 +6,7 @@ import { CollapsibleGroup } from "../CollapsibleGroup";
 import { ScrubInput } from "../ScrubInput";
 import type { StyleProperty } from "../../../core/types/style";
 import { uid } from "../../../core/utils";
+import { LockIcon, isPropLocked, LOCKED_INPUT_STYLE } from "./LockIcon";
 
 // ── Helpers ──
 
@@ -29,6 +30,28 @@ function getProp(props: StyleProperty[], name: string): string {
     return "";
   }).join("");
 }
+
+function isTokenRef(value: string): boolean {
+  return value.startsWith("token(");
+}
+
+const tokenTextStyle: React.CSSProperties = {
+  fontSize: 12,
+  fontFamily: "var(--dp-font-mono, monospace)",
+  color: "var(--dp-accent, #6366f1)",
+  cursor: "pointer",
+};
+
+const tokenRemoveBtn: React.CSSProperties = {
+  border: "none",
+  background: "none",
+  cursor: "pointer",
+  fontSize: 14,
+  padding: "0 2px",
+  color: "var(--dp-text-muted, #a09db8)",
+  lineHeight: 1,
+  flexShrink: 0,
+};
 
 function setProp(
   props: StyleProperty[],
@@ -67,11 +90,15 @@ interface RadiusCardProps {
   properties: StyleProperty[];
   onChange: (props: StyleProperty[]) => void;
   onFocus?: () => void;
+  onPropSlash?: (propName: string, el: HTMLElement) => void;
+  inheritedProps?: string[];
+  onToggleInherited?: (propName: string) => void;
+  readOnly?: boolean;
 }
 
 // ── Component ──
 
-export const RadiusCard = React.memo(function RadiusCard({ properties, onChange, onFocus }: RadiusCardProps) {
+export const RadiusCard = React.memo(function RadiusCard({ properties, onChange, onFocus, onPropSlash, inheritedProps, onToggleInherited, readOnly }: RadiusCardProps) {
   const hasCornerProps = CORNER_NAMES.some(
     (n) => getProp(properties, n) !== "",
   );
@@ -79,10 +106,15 @@ export const RadiusCard = React.memo(function RadiusCard({ properties, onChange,
     hasCornerProps ? "individual" : "unified",
   );
 
-  const radiusValue = parsePx(getProp(properties, "borderRadius"));
+  const radiusRaw = getProp(properties, "borderRadius");
+  const isRadiusToken = isTokenRef(radiusRaw);
+  const radiusValue = isRadiusToken ? 0 : parsePx(radiusRaw);
 
   const cornerValues = useMemo(
-    () => CORNER_NAMES.map((n) => parsePx(getProp(properties, n))),
+    () => CORNER_NAMES.map((n) => {
+      const raw = getProp(properties, n);
+      return isTokenRef(raw) ? 0 : parsePx(raw);
+    }),
     [properties],
   );
 
@@ -188,13 +220,48 @@ export const RadiusCard = React.memo(function RadiusCard({ properties, onChange,
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 4, flex: 1 }}>
               <span style={labelStyle}>R</span>
-              <ScrubInput
-                value={radiusValue}
-                unit="px"
-                min={0}
-                max={200}
-                onChange={handleUnifiedChange}
-              />
+              <LockIcon propName="borderRadius" inheritedProps={inheritedProps} onToggleInherited={onToggleInherited} readOnly={readOnly} />
+              <span style={isPropLocked("borderRadius", inheritedProps) ? LOCKED_INPUT_STYLE : undefined}>
+              {readOnly && inheritedProps?.includes("borderRadius") ? (
+                <span style={{ ...tokenTextStyle, cursor: "default", flex: 1 }}>{radiusRaw || "—"}</span>
+              ) : isRadiusToken ? (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 2, flex: 1 }}>
+                  <span
+                    style={tokenTextStyle}
+                    onClick={(e) => onPropSlash?.("borderRadius", e.currentTarget)}
+                  >{radiusRaw}</span>
+                  <button
+                    style={tokenRemoveBtn}
+                    title="Remove token"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onChange(properties.filter((p) => p.name !== "borderRadius"));
+                    }}
+                  >&times;</button>
+                </span>
+              ) : (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
+                  <span style={radiusRaw === "" ? { opacity: 0.4 } : {}}>
+                    <ScrubInput
+                      value={radiusValue}
+                      unit="px"
+                      min={0}
+                      max={200}
+                      onChange={handleUnifiedChange}
+                      onSlash={onPropSlash ? (el) => onPropSlash("borderRadius", el) : undefined}
+                    />
+                  </span>
+                  {radiusRaw !== "" && !isRadiusToken && (
+                    <button style={tokenRemoveBtn} title="清除"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onChange(properties.filter((p) => p.name !== "borderRadius"));
+                      }}
+                    >×</button>
+                  )}
+                </span>
+              )}
+              </span>
             </div>
             <button
               onClick={toggleMode}
@@ -210,12 +277,18 @@ export const RadiusCard = React.memo(function RadiusCard({ properties, onChange,
               <CornerInput
                 label="↖"
                 value={cornerValues[0]}
+                rawValue={getProp(properties, CORNER_NAMES[0])}
                 onChange={(v) => handleCornerChange(0, v)}
+                onSlash={onPropSlash ? (el) => onPropSlash(CORNER_NAMES[0], el) : undefined}
+                onRemoveToken={() => onChange(properties.filter((p) => p.name !== CORNER_NAMES[0]))}
               />
               <CornerInput
                 label="↗"
                 value={cornerValues[1]}
+                rawValue={getProp(properties, CORNER_NAMES[1])}
                 onChange={(v) => handleCornerChange(1, v)}
+                onSlash={onPropSlash ? (el) => onPropSlash(CORNER_NAMES[1], el) : undefined}
+                onRemoveToken={() => onChange(properties.filter((p) => p.name !== CORNER_NAMES[1]))}
               />
               <button
                 onClick={toggleMode}
@@ -229,12 +302,18 @@ export const RadiusCard = React.memo(function RadiusCard({ properties, onChange,
               <CornerInput
                 label="↙"
                 value={cornerValues[3]}
+                rawValue={getProp(properties, CORNER_NAMES[3])}
                 onChange={(v) => handleCornerChange(3, v)}
+                onSlash={onPropSlash ? (el) => onPropSlash(CORNER_NAMES[3], el) : undefined}
+                onRemoveToken={() => onChange(properties.filter((p) => p.name !== CORNER_NAMES[3]))}
               />
               <CornerInput
                 label="↘"
                 value={cornerValues[2]}
+                rawValue={getProp(properties, CORNER_NAMES[2])}
                 onChange={(v) => handleCornerChange(2, v)}
+                onSlash={onPropSlash ? (el) => onPropSlash(CORNER_NAMES[2], el) : undefined}
+                onRemoveToken={() => onChange(properties.filter((p) => p.name !== CORNER_NAMES[2]))}
               />
               <div style={{ width: 30, flexShrink: 0 }} />
             </div>
@@ -262,10 +341,15 @@ export const RadiusCard = React.memo(function RadiusCard({ properties, onChange,
 interface CornerInputProps {
   label: string;
   value: number;
+  rawValue?: string;
   onChange: (v: number) => void;
+  onSlash?: (el: HTMLElement) => void;
+  onRemoveToken?: () => void;
 }
 
-function CornerInput({ label, value, onChange }: CornerInputProps) {
+function CornerInput({ label, value, rawValue, onChange, onSlash, onRemoveToken }: CornerInputProps) {
+  const isToken = rawValue && isTokenRef(rawValue);
+  const isEmpty = !rawValue || rawValue === "";
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 4, flex: 1 }}>
       <span
@@ -279,13 +363,32 @@ function CornerInput({ label, value, onChange }: CornerInputProps) {
       >
         {label}
       </span>
-      <ScrubInput
-        value={value}
-        unit="px"
-        min={0}
-        max={200}
-        onChange={onChange}
-      />
+      {isToken ? (
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 2, flex: 1 }}>
+          <span style={tokenTextStyle} onClick={(e) => onSlash?.(e.currentTarget)}>{rawValue}</span>
+          <button style={tokenRemoveBtn} title="Remove token"
+            onClick={(e) => { e.stopPropagation(); onRemoveToken?.(); }}
+          >&times;</button>
+        </span>
+      ) : (
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 2, flex: 1 }}>
+          <span style={isEmpty ? { opacity: 0.4 } : {}}>
+            <ScrubInput
+              value={value}
+              unit="px"
+              min={0}
+              max={200}
+              onChange={onChange}
+              onSlash={onSlash}
+            />
+          </span>
+          {!isEmpty && (
+            <button style={tokenRemoveBtn} title="清除"
+              onClick={(e) => { e.stopPropagation(); onRemoveToken?.(); }}
+            >×</button>
+          )}
+        </span>
+      )}
     </div>
   );
 }

@@ -26,6 +26,8 @@ export interface ElementTreeNode {
   tag: string;
   text?: string | null;
   children: ElementTreeNode[];
+  /** Inline styles from style: { } — applied directly as HTML style attribute */
+  inlineStyle?: Record<string, string>;
 }
 
 function useWasmCompile(): {
@@ -38,6 +40,7 @@ function useWasmCompile(): {
   const wires = usePoiesisStore((s) => s.wires);
   const activeDesign = usePoiesisStore((s) => s.activeDesign);
   const componentDefs = useComponentDefs();
+  const codeFlowVisible = usePoiesisStore((s) => s.designPage.codeFlowVisible);
 
   const [output, setOutput] = useState<OmniViewOutput | null>(null);
   const [isCompiling, setIsCompiling] = useState(false);
@@ -52,6 +55,10 @@ function useWasmCompile(): {
       setIsCompiling(false);
       return;
     }
+
+    // Skip WASM recompilation when CodeFlow is active.
+    // OmniViewRenderer stays mounted so output is preserved in store.
+    if (codeFlowVisible) return;
 
     setIsCompiling(true);
     // 150ms debounce
@@ -129,13 +136,48 @@ function useWasmCompile(): {
           (e: any) => e.severity === "error",
         );
         if (actualErrors.length === 0) {
+          // Build element UUID → inline styles map from store elements
+          const elStyleMap = new Map<string, Record<string, string>>();
+          for (const el of elements) {
+            const props = (el as any).style?.inlineProperties as Array<{ name: string; segments: Array<{ type: string; value?: string; name?: string }> }> | undefined;
+            if (props && props.length > 0) {
+              const styles: Record<string, string> = {};
+              for (const p of props) {
+                const val = p.segments
+                  .map((s) => (s.type === "text" ? s.value : s.type === "var-ref" ? `var(--${s.name})` : ""))
+                  .join("");
+                if (val) styles[p.name] = val;
+              }
+              elStyleMap.set(el.id, styles);
+            }
+          }
+
+          // Walk element tree and attach inline styles via nid_map
+          const nidMapRaw = (result as StyleResolveResult).nid_map || {};
+          const nidMap: Record<string, string> =
+            nidMapRaw instanceof Map ? Object.fromEntries(nidMapRaw) : nidMapRaw;
+          const elementTree = (result as StyleResolveResult).element_tree || [];
+
+          function attachInlineStyles(nodes: ElementTreeNode[]) {
+            for (const node of nodes) {
+              const elId = nidMap[node.nid];
+              if (elId && elStyleMap.has(elId)) {
+                node.inlineStyle = elStyleMap.get(elId);
+              }
+              if (node.children) attachInlineStyles(node.children as ElementTreeNode[]);
+            }
+          }
+          if (elStyleMap.size > 0) {
+            attachInlineStyles(elementTree as ElementTreeNode[]);
+          }
+
           setOutput({
             css: result.design_css,
             component_css: result.component_css,
-            element_tree: (result as StyleResolveResult).element_tree || [],
+            element_tree: elementTree,
             element_classes: result.element_classes,
             element_tags: result.element_tags,
-            nid_map: (result as StyleResolveResult).nid_map || {},
+            nid_map: nidMapRaw,
             warnings: result.warnings,
           });
           setErrors([]);
@@ -152,7 +194,7 @@ function useWasmCompile(): {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [elements, wires, rootOrder, activeDesign, componentDefs]);
+  }, [elements, wires, rootOrder, activeDesign, componentDefs, codeFlowVisible]);
 
   return { output, isCompiling, errors };
 }

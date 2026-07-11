@@ -91,6 +91,22 @@ export function createDesignSystemSlice(set: SetFn, _get?: GetFn) {
       isDirty: true,
     })),
 
+    toggleInheritedProp: (variantId: string, propName: string) => set((s) => ({
+      activeDesign: {
+        ...s.activeDesign,
+        variants: s.activeDesign.variants.map((v) => {
+          if (v.id !== variantId) return v;
+          const inherited = v.inheritedProps ?? [];
+          const idx = inherited.indexOf(propName);
+          const next = idx >= 0
+            ? inherited.filter((_, i) => i !== idx)
+            : [...inherited, propName];
+          return { ...v, inheritedProps: next };
+        }),
+      },
+      isDirty: true,
+    })),
+
     bindVariantToElement: (elementId: string, variantName: string, dimensionValues: Record<string, string>) => set((s) => {
       // Sync variantRef.params on the element so source emitter picks up dimension changes
       const elements = s.elements.map((el) =>

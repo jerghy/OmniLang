@@ -102,6 +102,9 @@ export function createProjectApi() {
         const dir = await resolveProjectDir();
         if (!dir) return { ok: false, error: "未设置项目目录" };
         const fullPath = joinPath(dir, filePath);
+        // Ensure parent directory exists
+        const parentDir = fullPath.substring(0, fullPath.lastIndexOf("/"));
+        await mkdir(parentDir, { recursive: true });
         await writeTextFile(fullPath, content);
         return { ok: true };
       } catch (e) {

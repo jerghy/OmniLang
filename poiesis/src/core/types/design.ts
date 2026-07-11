@@ -48,6 +48,8 @@ export interface VariantDefinition {
   defaults: Record<string, string>;
   baseProperties: StyleProperty[];
   branches: VariantBranch[];
+  /** Property names pinned to base — branches inherit them read-only. */
+  inheritedProps?: string[];
 }
 
 export interface VariantDimension {

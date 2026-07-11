@@ -8,7 +8,6 @@ import type { ParserInternals } from "./parser";
 import type { ElementData, CodeblockElementData } from "../../core/types/element";
 import { getComponentDefinitions, usePoiesisStore } from "../../store";
 import { Logger } from "../../lib/utils/logger";
-import { parsePidAnnotation, parseTypeAnnotation } from "./annotation-registry";
 
 const log = new Logger({ prefix: "omni-parser" });
 

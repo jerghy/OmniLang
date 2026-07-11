@@ -17,7 +17,7 @@ import type {
   ParsedBranch,
 } from "./parser-types";
 import { parseKeyValueAttrs } from "./parser-types";
-import { parsePidAnnotation, isPidAnnotation, isAnyAnnotation, parseAnyAnnotation } from "./annotation-registry";
+import { parsePidAnnotation } from "./annotation-registry";
 import { uid } from "../../core/utils/id";
 import * as ParserHelpers from "./parser-helpers";
 import * as ParserView from "./parser-view";
