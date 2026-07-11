@@ -121,6 +121,16 @@ class ApiClient {
     this.onDebugMessage = null;
     this.onDebugStatusChange = null;
   }
+
+  /** Open the debug window. Creates it if not already open. */
+  async openDebugWindow(): Promise<void> {
+    return invoke("open_debug_window");
+  }
+
+  /** Close the debug window. */
+  async closeDebugWindow(): Promise<void> {
+    return invoke("close_debug_window");
+  }
 }
 
 export const api = new ApiClient();

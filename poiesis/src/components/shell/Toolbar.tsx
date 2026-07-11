@@ -3,6 +3,7 @@
 // ═══════════════════════════════════════════════
 
 import React from "react";
+import { DebugWindowButton } from "../../features/debug/DebugWindowButton";
 import { S, btnStyle, iconBtn } from "./theme";
 
 export interface ToolbarProps {
@@ -52,6 +53,7 @@ export function Toolbar({
       <button onClick={onSave} style={{...iconBtn, color: isDirty ? "#DC2626" : "#6B7280", fontWeight: isDirty ? 700 : 400 as React.CSSProperties['fontWeight']}} title="保存项目 (Ctrl+S)">💾</button>
       <span style={{ width: 12 }} />
       <button onClick={onOpenCssStyles} style={{...btnStyle, color: "#6366F1", fontWeight: 600, fontSize: 12}} title="CSS 样式设计">🎨 CSS 样式</button>
+      <DebugWindowButton />
       {children}
       {/* Run/Stop/Compile */}
       {runStatus.running ? (
