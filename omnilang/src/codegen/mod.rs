@@ -75,7 +75,7 @@ pub fn compile(
     #[allow(unreachable_patterns)]
     match target {
         #[cfg(feature = "codegen-omniview")]
-        Target::OmniView => omniview::compile_files(ir, source_files),
+        Target::OmniView => omniview::compile_files(ir, source_files, false, false),
         #[cfg(feature = "codegen-python")]
         Target::Python => python::PythonCodegen.generate(ir, source_files),
         #[cfg(feature = "codegen-javascript")]

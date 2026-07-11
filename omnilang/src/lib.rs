@@ -131,7 +131,7 @@ pub fn compile_omniview(source: &str, editor_mode: bool) -> OmniViewResult {
             errors,
         },
         Ok(pipeline) => {
-            let gen_output = codegen::omniview::generate(&pipeline.ir, editor_mode, false);
+            let gen_output = codegen::omniview::generate(&pipeline.ir, editor_mode, false, false);
             OmniViewResult {
                 success: !pipeline.has_errors,
                 files: Some(OmniViewFiles {
@@ -193,7 +193,7 @@ pub fn compile_omniview_full(source: &str, editor_mode: bool) -> OmniViewFullRes
             errors,
         },
         Ok(pipeline) => {
-            let gen_output = codegen::omniview::generate(&pipeline.ir, editor_mode, false);
+            let gen_output = codegen::omniview::generate(&pipeline.ir, editor_mode, false, false);
             OmniViewFullResult {
                 success: !pipeline.has_errors,
                 ir: Some(pipeline.ir),
@@ -243,7 +243,7 @@ pub fn resolve_styles(source: &str) -> StyleResolveResult {
         },
         Ok(pipeline) => {
             let gen_output =
-                codegen::omniview::generate(&pipeline.ir, true, /* css_only= */ true);
+                codegen::omniview::generate(&pipeline.ir, true, /* css_only= */ true, false);
 
             StyleResolveResult {
                 success: !pipeline.has_errors && gen_output.warnings.is_empty(),
@@ -278,7 +278,7 @@ pub fn resolve_styles_multi(
 
     match analysis.ir {
         Some(ir) => {
-            let output = codegen::omniview::generate(&ir, true, /* css_only= */ true);
+            let output = codegen::omniview::generate(&ir, true, /* css_only= */ true, false);
             StyleResolveResult {
                 success: errors.iter().all(|d| d.severity != crate::error::Severity::Error)
                     && output.warnings.is_empty(),

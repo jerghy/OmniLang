@@ -192,8 +192,10 @@ body {{ margin: 0; padding: 8px; font-family: system-ui, sans-serif; }}
 pub fn compile_files(
     ir: &crate::ir::IRProgram,
     _source_files: &FxHashMap<String, String>,
+    editor_mode: bool,
+    debug_mode: bool,
 ) -> CompileOutput {
-    let output = super::generate(ir, false, false);
+    let output = super::generate(ir, editor_mode, false, debug_mode);
     // Wrap body HTML in a proper document that references the separate JS/CSS files
     let html = format!(
         r#"<!DOCTYPE html>

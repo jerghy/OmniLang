@@ -26,6 +26,7 @@ mod timeline;
 mod utils;
 mod view;
 pub use utils::{compile_files, wrap_debug_html};
+mod debug;
 
 use crate::error::Diagnostic;
 use crate::ir::*;
@@ -119,7 +120,7 @@ pub struct StyleResolveResult {
 }
 
 /// Generate OmniView output from an IR program.
-pub fn generate(ir: &IRProgram, editor_mode: bool, css_only: bool) -> OmniViewOutput {
+pub fn generate(ir: &IRProgram, editor_mode: bool, css_only: bool, debug_mode: bool) -> OmniViewOutput {
     let mut gen = OmniViewGenerator {
         js: String::new(),
         html: String::new(),
@@ -164,6 +165,7 @@ pub fn generate(ir: &IRProgram, editor_mode: bool, css_only: bool) -> OmniViewOu
         element_tree_stack: Vec::new(),
         element_tree: Vec::new(),
         nid_map: FxHashMap::default(),
+        debug_mode,
     };
 
     // In css_only mode, skip ALL JS emission — we only need CSS + element mappings.
@@ -320,6 +322,8 @@ pub fn generate(ir: &IRProgram, editor_mode: bool, css_only: bool) -> OmniViewOu
         gen.emit_dom_and_bindings();
         // Inject editor bridge code (postMessage, nid_map, highlight, hot-replace)
         gen.emit_editor_bridge();
+        // Inject debug bridge code (Tauri event communication for standalone debug window)
+        gen.emit_debug_bridge();
         gen.finalize_js();
     }
 
@@ -484,6 +488,9 @@ struct OmniViewGenerator {
     element_tree: Vec<ElementTreeNode>,
     /// Mapping from WASM nid to the element's design ID (UUID from id prop).
     nid_map: FxHashMap<String, String>,
+    /// When true, emit debug bridge code for the standalone debug window.
+    /// Uses Tauri events instead of parent.postMessage.
+    debug_mode: bool,
 }
 
 /// A parsed part of an attribute template value with {word} placeholders.
@@ -542,6 +549,8 @@ impl OmniViewGenerator {
             component_style_classes: FxHashSet::default(),
             element_tree_stack: Vec::new(),
             element_tree: Vec::new(),
+            nid_map: FxHashMap::default(),
+            debug_mode: false,
         }
     }
 
