@@ -3,6 +3,9 @@ import { usePoiesisStore } from "../../store";
 import { rustCompiler } from "../../commands/rustCompiler";
 import { generateOmniFiles } from "../../services/codegen/pipeline";
 import { useDebugWindow } from "./useDebugWindow";
+import { Logger } from "../../lib/utils/logger";
+
+const log = new Logger({ prefix: "DebugCompile" });
 
 /**
  * When debug window is open, re-compiles the full project (editor_mode=true, debug_mode=true)
@@ -44,10 +47,10 @@ export function useDebugCompile() {
         // Compile with debug flags (editorMode=true, debugMode=true)
         const output = rustCompiler.compileForDebugWindow(sources);
         if (output) {
-          pushCompileResult(output);
+          pushCompileResult({ ...output, nidMap: output.nidMap });
         }
       } catch (e) {
-        console.error("[DebugCompile] Compile failed:", e);
+        log.error("Compile failed:", e);
       }
     }, 150);
 

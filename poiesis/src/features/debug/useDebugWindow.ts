@@ -1,6 +1,9 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { emit, listen } from "@tauri-apps/api/event";
 import { api } from "../../commands";
+import { Logger } from "../../lib/utils/logger";
+
+const log = new Logger({ prefix: "DebugWindow" });
 
 interface CompilePayload {
   js: string;
@@ -23,7 +26,7 @@ export function useDebugWindow() {
       await api.openDebugWindow();
       setIsOpen(true);
     } catch (e) {
-      console.error("[DebugWindow] Failed to open:", e);
+      log.error("Failed to open:", e);
     }
   }, []);
 
@@ -32,7 +35,7 @@ export function useDebugWindow() {
       await api.closeDebugWindow();
       setIsOpen(false);
     } catch (e) {
-      console.error("[DebugWindow] Failed to close:", e);
+      log.error("Failed to close:", e);
     }
   }, []);
 
@@ -45,7 +48,7 @@ export function useDebugWindow() {
     try {
       await emit("debug:compile-result", payload);
     } catch (e) {
-      console.error("[DebugWindow] Failed to push compile result:", e);
+      log.error("Failed to push compile result:", e);
     }
   }, [isOpen]);
 
@@ -55,7 +58,7 @@ export function useDebugWindow() {
     try {
       await emit("debug:highlight", { nid });
     } catch (e) {
-      console.error("[DebugWindow] Failed to highlight:", e);
+      log.error("Failed to highlight:", e);
     }
   }, [isOpen]);
 

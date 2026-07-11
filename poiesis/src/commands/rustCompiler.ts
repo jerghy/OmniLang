@@ -302,12 +302,26 @@ class RustCompiler {
       };
     }
   }
-  /** Compile multiple sources for debug window preview. Returns full OmniView output. */
-  compileForDebugWindow(sources: Record<string, string>): { js: string; html: string; css: string } | null {
+  /** Compile multiple sources for debug window preview. Returns full OmniView output with nidMap for bidirectional element selection. */
+  compileForDebugWindow(sources: Record<string, string>): { js: string; html: string; css: string; nidMap: Record<string, string> } | null {
     const result = this.compileMultiToOmniView(sources, true, true);
     if (!result.success || !result.files) {
       log.warn('Debug window compile failed', result.errors);
       return null;
+    }
+    // Also resolve styles to get nidMap for bidirectional element selection
+    let nidMap: Record<string, string> = {};
+    try {
+      const pathMapping: Record<string, string> = {};
+      for (const srcPath of Object.keys(sources)) {
+        pathMapping[srcPath] = srcPath;
+      }
+      const styleResult = this.resolveStylesMulti(sources, pathMapping);
+      if (styleResult.success && styleResult.nid_map) {
+        nidMap = styleResult.nid_map;
+      }
+    } catch (e) {
+      // nidMap is optional -- debug window works without it, just no bidirectional highlight
     }
     // compile_multi_to_omniview returns { files: { "index.js": ..., "index.html": ..., "index.css": ... } }
     const files = result.files;
@@ -319,6 +333,7 @@ class RustCompiler {
       js: files['index.js'] || '',
       html: bodyHtml || htmlContent,
       css: files['index.css'] || '',
+      nidMap,
     };
   }
 
