@@ -43,12 +43,12 @@ fn to_js_value<T: Serialize + ?Sized>(value: &T) -> JsValue {
 /// editor_mode: enable debug wrappers for editor preview.
 #[cfg(feature = "codegen-omniview")]
 #[wasm_bindgen]
-pub fn compile_to_omniview(source: &str, editor_mode: bool) -> JsValue {
+pub fn compile_to_omniview(source: &str, editor_mode: bool, debug_mode: bool) -> JsValue {
     const MAX_INPUT_SIZE: usize = 10 * 1024 * 1024; // 10MB
     if source.len() > MAX_INPUT_SIZE {
         return js_error_value("Input exceeds 10MB limit");
     }
-    to_js_value(&compile_omniview(source, editor_mode))
+    to_js_value(&compile_omniview(source, editor_mode, debug_mode))
 }
 
 /// Compile a single .omni component to OmniView output. Returns JsValue.
@@ -60,12 +60,13 @@ pub fn compile_omniview_component(
     source: &str,
     component_name: &str,
     editor_mode: bool,
+    debug_mode: bool,
 ) -> JsValue {
     const MAX_INPUT_SIZE: usize = 10 * 1024 * 1024; // 10MB
     if source.len() > MAX_INPUT_SIZE {
         return js_error_value("Input exceeds 10MB limit");
     }
-    let result = compile_omniview(source, editor_mode);
+    let result = compile_omniview(source, editor_mode, debug_mode);
     let component = result
         .components
         .as_ref()
@@ -101,12 +102,12 @@ pub fn compile_to_ir(source: &str) -> JsValue {
 /// editor_mode: enable debug wrappers for editor preview.
 #[cfg(feature = "codegen-omniview")]
 #[wasm_bindgen]
-pub fn compile_to_omniview_full(source: &str, editor_mode: bool) -> JsValue {
+pub fn compile_to_omniview_full(source: &str, editor_mode: bool, debug_mode: bool) -> JsValue {
     const MAX_INPUT_SIZE: usize = 10 * 1024 * 1024; // 10MB
     if source.len() > MAX_INPUT_SIZE {
         return js_error_value("Input exceeds 10MB limit");
     }
-    to_js_value(&crate::compile_omniview_full(source, editor_mode))
+    to_js_value(&crate::compile_omniview_full(source, editor_mode, debug_mode))
 }
 
 /// Resolve per-element computed styles for editor canvas rendering.
@@ -164,7 +165,7 @@ pub fn resolve_styles_multi(sources: JsValue, path_mapping: JsValue) -> JsValue 
 /// editor_mode: enable debug wrappers for editor preview.
 /// Returns JsValue with `success`, `files`, `errors`, and `warnings`.
 #[wasm_bindgen]
-pub fn compile_multi_to_omniview(sources: JsValue, editor_mode: bool) -> JsValue {
+pub fn compile_multi_to_omniview(sources: JsValue, editor_mode: bool, debug_mode: bool) -> JsValue {
     let sources_map: FxHashMap<String, String> = match serde_wasm_bindgen::from_value(sources) {
         Ok(s) => s,
         Err(e) => {
@@ -196,6 +197,7 @@ pub fn compile_multi_to_omniview(sources: JsValue, editor_mode: bool) -> JsValue
         crate::codegen::Target::OmniView,
         FxHashMap::default(),
         editor_mode,
+        debug_mode,
     );
     to_js_value(&result)
 }
@@ -204,7 +206,7 @@ pub fn compile_multi_to_omniview(sources: JsValue, editor_mode: bool) -> JsValue
 #[wasm_bindgen]
 pub struct OmniCompiler {
     sources: FxHashMap<String, String>,
-    cached_compile_result: Option<(bool, JsValue)>, // (editor_mode, result JsValue)
+    cached_compile_result: Option<(bool, bool, JsValue)>, // (editor_mode, debug_mode, result JsValue)
     cached_diags_result: Option<JsValue>,
 }
 
@@ -237,7 +239,7 @@ impl OmniCompiler {
     /// Compile all registered sources to OmniView. Uses cached result when available.
     /// editor_mode: enable debug wrappers for editor preview.
     #[cfg(feature = "codegen-omniview")]
-    pub fn compile_to_omniview(&mut self, editor_mode: bool) -> JsValue {
+    pub fn compile_to_omniview(&mut self, editor_mode: bool, debug_mode: bool) -> JsValue {
         if self.sources.is_empty() {
             return serde_wasm_bindgen::to_value(&serde_json::json!({
                 "success": false,
@@ -257,8 +259,8 @@ impl OmniCompiler {
             }))
             .unwrap_or_else(|e| js_error_value(&format!("serialization error: {}", e)));
         }
-        if let Some((ref cached_opts, ref cached)) = self.cached_compile_result {
-            if *cached_opts == editor_mode {
+        if let Some((ref cached_editor, ref cached_debug, ref cached)) = self.cached_compile_result {
+            if *cached_editor == editor_mode && *cached_debug == debug_mode {
                 return cached.clone();
             }
         }
@@ -286,7 +288,7 @@ impl OmniCompiler {
                     .unwrap_or_else(|e| js_error_value(&format!("serialization error: {}", e)));
                 }
             };
-            let full = crate::compile_omniview_full(source, editor_mode);
+            let full = crate::compile_omniview_full(source, editor_mode, debug_mode);
             to_js_value(&full)
         } else {
             // Multi-file: use compile_multi_internal with structured result
@@ -295,10 +297,11 @@ impl OmniCompiler {
                 crate::codegen::Target::OmniView,
                 FxHashMap::default(),
                 editor_mode,
+                debug_mode,
             );
             to_js_value(&result)
         };
-        self.cached_compile_result = Some((editor_mode, result_js.clone()));
+        self.cached_compile_result = Some((editor_mode, debug_mode, result_js.clone()));
         self.cached_diags_result = None;
         result_js
     }
@@ -355,7 +358,7 @@ mod tests {
     #[cfg(feature = "codegen-omniview")]
     #[test]
     fn test_compile_to_omniview_full_parse_error() {
-        let result = compile_to_omniview_full("this is invalid @@@", false);
+        let result = compile_to_omniview_full("this is invalid @@@", false, false);
         let parsed: serde_json::Value = serde_wasm_bindgen::from_value(result).unwrap();
         assert!(!parsed["success"].as_bool().unwrap());
         assert!(parsed["ir"].is_null());
@@ -386,7 +389,7 @@ mod tests {
             "main.omni": "component App { view { Text { \"multi\" } } }"
         }))
         .unwrap();
-        let result = compile_multi_to_omniview(sources, false);
+        let result = compile_multi_to_omniview(sources, false, false);
         let parsed: serde_json::Value = serde_wasm_bindgen::from_value(result).unwrap();
         // Multi-file compile succeeds or has diagnostic errors (both valid outcomes)
         let has_output = parsed["files"]
@@ -406,7 +409,7 @@ mod tests {
     #[test]
     fn test_compile_multi_to_omniview_invalid_sources() {
         let sources = serde_wasm_bindgen::to_value("not a map").unwrap();
-        let result = compile_multi_to_omniview(sources, false);
+        let result = compile_multi_to_omniview(sources, false, false);
         let parsed: serde_json::Value = serde_wasm_bindgen::from_value(result).unwrap();
         assert!(!parsed["success"].as_bool().unwrap());
     }
@@ -421,7 +424,7 @@ mod tests {
     #[test]
     fn test_omni_compiler_empty_sources() {
         let mut c = OmniCompiler::new();
-        let result = c.compile_to_omniview(false);
+        let result = c.compile_to_omniview(false, false);
         let parsed: serde_json::Value = serde_wasm_bindgen::from_value(result).unwrap();
         assert!(!parsed["success"].as_bool().unwrap());
         assert!(parsed["errors"]
@@ -439,7 +442,7 @@ mod tests {
             "app.omni".into(),
             "component App { view { Text { \"hello\" } } }".into(),
         );
-        let result = c.compile_to_omniview(false);
+        let result = c.compile_to_omniview(false, false);
         let parsed: serde_json::Value = serde_wasm_bindgen::from_value(result).unwrap();
         assert!(parsed["success"].as_bool().unwrap());
         assert!(parsed["files"]["js"].as_str().unwrap().len() > 0);
@@ -453,11 +456,11 @@ mod tests {
             "app.omni".into(),
             "component App { view { Text { \"v1\" } } }".into(),
         );
-        let r1 = c.compile_to_omniview(false);
+        let r1 = c.compile_to_omniview(false, false);
         let p1: serde_json::Value = serde_wasm_bindgen::from_value(r1).unwrap();
 
         // Same source, same options — should hit cache
-        let r2 = c.compile_to_omniview(false);
+        let r2 = c.compile_to_omniview(false, false);
         let p2: serde_json::Value = serde_wasm_bindgen::from_value(r2).unwrap();
         assert_eq!(p1, p2);
 
@@ -466,7 +469,7 @@ mod tests {
             "app.omni".into(),
             "component App { view { Text { \"v2\" } } }".into(),
         );
-        let r3 = c.compile_to_omniview(false);
+        let r3 = c.compile_to_omniview(false, false);
         let p3: serde_json::Value = serde_wasm_bindgen::from_value(r3).unwrap();
         assert_ne!(p1, p3);
     }

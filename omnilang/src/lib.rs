@@ -121,7 +121,7 @@ pub struct OmniViewFiles {
 /// Compile .omni → OmniView (JS + HTML + CSS + SourceMap). Core function.
 #[cfg(feature = "codegen-omniview")]
 #[must_use]
-pub fn compile_omniview(source: &str, editor_mode: bool) -> OmniViewResult {
+pub fn compile_omniview(source: &str, editor_mode: bool, debug_mode: bool) -> OmniViewResult {
     match run_pipeline(source) {
         Err(errors) => OmniViewResult {
             success: false,
@@ -131,7 +131,7 @@ pub fn compile_omniview(source: &str, editor_mode: bool) -> OmniViewResult {
             errors,
         },
         Ok(pipeline) => {
-            let gen_output = codegen::omniview::generate(&pipeline.ir, editor_mode, false, false);
+            let gen_output = codegen::omniview::generate(&pipeline.ir, editor_mode, false, debug_mode);
             OmniViewResult {
                 success: !pipeline.has_errors,
                 files: Some(OmniViewFiles {
@@ -182,7 +182,7 @@ pub struct OmniViewFullResult {
 /// Eliminates the double lex->parse->semantic->IR when both IR and codegen are needed.
 #[cfg(feature = "codegen-omniview")]
 #[must_use]
-pub fn compile_omniview_full(source: &str, editor_mode: bool) -> OmniViewFullResult {
+pub fn compile_omniview_full(source: &str, editor_mode: bool, debug_mode: bool) -> OmniViewFullResult {
     match run_pipeline(source) {
         Err(errors) => OmniViewFullResult {
             success: false,
@@ -193,7 +193,7 @@ pub fn compile_omniview_full(source: &str, editor_mode: bool) -> OmniViewFullRes
             errors,
         },
         Ok(pipeline) => {
-            let gen_output = codegen::omniview::generate(&pipeline.ir, editor_mode, false, false);
+            let gen_output = codegen::omniview::generate(&pipeline.ir, editor_mode, false, debug_mode);
             OmniViewFullResult {
                 success: !pipeline.has_errors,
                 ir: Some(pipeline.ir),
@@ -375,9 +375,10 @@ pub fn compile_multi_internal(
     target: codegen::Target,
     path_mapping: FxHashMap<String, String>,
     editor_mode: bool,
+    debug_mode: bool,
 ) -> InternalCompileResult {
     let analysis = crate::analyse::analyse_multi(&sources, &path_mapping);
-    compile_multi_internal_post(analysis, &sources, target, editor_mode)
+    compile_multi_internal_post(analysis, &sources, target, editor_mode, debug_mode)
 }
 
 /// Compile multiple .omni sources with incremental cache support.
@@ -392,10 +393,11 @@ pub fn compile_multi_internal_cached(
     target: codegen::Target,
     path_mapping: FxHashMap<String, String>,
     editor_mode: bool,
+    debug_mode: bool,
     cache: &mut crate::analyse::IncrementalCache,
 ) -> InternalCompileResult {
     let analysis = crate::analyse::analyse_multi_cached(&sources, &path_mapping, cache);
-    compile_multi_internal_post(analysis, &sources, target, editor_mode)
+    compile_multi_internal_post(analysis, &sources, target, editor_mode, debug_mode)
 }
 
 /// Shared post-analysis codegen + post-processing for compile_multi_* functions.
@@ -406,6 +408,7 @@ fn compile_multi_internal_post(
     sources: &FxHashMap<String, String>,
     target: codegen::Target,
     editor_mode: bool,
+    debug_mode: bool,
 ) -> InternalCompileResult {
     let mut diags = analysis.diagnostics;
     let warnings = analysis.warnings;
@@ -491,8 +494,9 @@ pub fn compile_multi_to_target(
     target: codegen::Target,
     path_mapping: FxHashMap<String, String>,
     editor_mode: bool,
+    debug_mode: bool,
 ) -> String {
-    let result = compile_multi_internal(sources, target, path_mapping, editor_mode);
+    let result = compile_multi_internal(sources, target, path_mapping, editor_mode, debug_mode);
     serde_json::to_string(&serde_json::json!({
         "success": result.success,
         "files": result.files,

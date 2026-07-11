@@ -87,6 +87,7 @@ fn e2e_compile_to_python_json() {
         omnilang::codegen::Target::Python,
         path_mapping,
         false,
+        false,
     );
     let data: serde_json::Value = serde_json::from_str(&json).expect("should be valid JSON");
     assert!(

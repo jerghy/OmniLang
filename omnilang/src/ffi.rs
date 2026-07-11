@@ -310,7 +310,7 @@ pub unsafe extern "C" fn omni_compile_multi_to_target(
         }
     };
 
-    let result = compile_multi_to_target(sources, target, path_mapping, editor_mode);
+    let result = compile_multi_to_target(sources, target, path_mapping, editor_mode, false);
     if warnings.is_empty() {
         rust_to_c_string(result)
     } else {
