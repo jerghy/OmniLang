@@ -1,6 +1,6 @@
 // poiesis/src/services/codegen/__tests__/graph-parser.test.ts
 import { describe, it, expect } from "vitest";
-import { parseCodeFlowGraph } from "../graph-parser";
+import { parseCodeFlowGraph, normalizeAnnotations } from "../graph-parser";
 import { compileCodeFlowGraph } from "../graph-compiler";
 import type { CodeblockElementData } from "../../../core/types/element";
 import type { WireData } from "../../../core/types/wire";
@@ -438,5 +438,158 @@ return`;
     const result = parseCodeFlowGraph(fnBody);
     const retEl = result.elements.find((e) => e.tag === "return");
     expect(retEl?.source).toBe("");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tests for // @<type> annotation support
+// ---------------------------------------------------------------------------
+
+describe("parseCodeFlowGraph with // @<type> annotations", () => {
+  it("parses manual @if and @return annotations", () => {
+    const fnBody = [
+      "// @if",
+      "if (x > 0) {",
+      "  // @return",
+      "  return x;",
+      "}",
+      "// @return",
+      "return 0;",
+    ].join("\n");
+
+    const result = parseCodeFlowGraph(fnBody);
+    expect(result.elements).toHaveLength(3);
+    const ifEl = result.elements.find((e) => e.tag === "condition");
+    expect(ifEl).toBeDefined();
+    const returnEls = result.elements.filter((e) => e.tag === "return");
+    expect(returnEls).toHaveLength(2);
+    // Should have wires connecting them
+    expect(result.wires.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("parses sequential @code-block nodes with linear flow-out", () => {
+    const fnBody = [
+      "// @code-block",
+      "step1();",
+      "// @code-block",
+      "step2();",
+      "// @code-block",
+      "step3();",
+    ].join("\n");
+
+    const result = parseCodeFlowGraph(fnBody);
+    const codeBlocks = result.elements.filter((e) => e.tag === "code-block");
+    expect(codeBlocks).toHaveLength(3);
+    // Linear flow-out: step1 → step2, step2 → step3
+    const flowWires = result.wires.filter((w) => w.fromPort === "flow-out");
+    expect(flowWires).toHaveLength(2);
+  });
+
+  it("parses if/elif/else with manual annotations", () => {
+    const fnBody = [
+      "// @if",
+      "if (x > 0) {",
+      "  // @code-block",
+      "  doA();",
+      "}",
+      "// @elif",
+      "else if (x == 0) {",
+      "  // @code-block",
+      "  doB();",
+      "}",
+      "// @else",
+      "else {",
+      "  // @code-block",
+      "  doC();",
+      "}",
+    ].join("\n");
+
+    const result = parseCodeFlowGraph(fnBody);
+    const conditions = result.elements.filter((e) => e.tag === "condition");
+    expect(conditions).toHaveLength(1);
+    // Should have br0, br1, br2 wires
+    const brWires = result.wires.filter((w) => w.fromPort.startsWith("br"));
+    expect(brWires).toHaveLength(3);
+  });
+
+  it("returns pidMap for @type annotations", () => {
+    const fnBody = [
+      "// @if",
+      "if (x > 0) {",
+      "  // @return",
+      "  return x;",
+      "}",
+      "// @return",
+      "return 0;",
+    ].join("\n");
+
+    const result = parseCodeFlowGraph(fnBody);
+    expect(result.pidMap).toBeDefined();
+    expect(result.pidMap.size).toBe(3); // @if + 2 × @return
+    // Verify pidMap keys use correct line indices
+    for (const [key, pid] of result.pidMap) {
+      expect(key).toMatch(/^(if|return):\d+$/);
+      expect(pid).toMatch(/^(if|return)-[a-z0-9-]+$/);
+    }
+  });
+
+  it("normalizeAnnotations replaces @type with @pid in source", () => {
+    const fnBody = [
+      "// @code-block",
+      "step1();",
+      "// @return",
+      "return x;",
+    ].join("\n");
+
+    const { pidMap } = parseCodeFlowGraph(fnBody);
+    const normalized = normalizeAnnotations(fnBody, pidMap);
+
+    // After normalization, all // @<type> should be replaced with // @pid:xxx
+    expect(normalized).not.toContain("// @code-block");
+    expect(normalized).not.toContain("// @return");
+    expect(normalized).toContain("// @pid:");
+    // Code lines should remain unchanged
+    expect(normalized).toContain("step1();");
+    expect(normalized).toContain("return x;");
+  });
+
+  it("normalizeAnnotations leaves @pid-only source unchanged", () => {
+    const fnBody = [
+      "// @pid:abc",
+      "step1();",
+      "// @pid:def",
+      "return x;",
+    ].join("\n");
+
+    const { pidMap } = parseCodeFlowGraph(fnBody);
+    const normalized = normalizeAnnotations(fnBody, pidMap);
+
+    expect(normalized).toBe(fnBody);
+  });
+
+  it("parses for-loop annotation as code-block", () => {
+    const fnBody = [
+      "// @for",
+      "for (let i = 0; i < n; i++) {",
+      "  process(i);",
+      "}",
+    ].join("\n");
+
+    const result = parseCodeFlowGraph(fnBody);
+    const els = result.elements.filter((e) => e.tag === "code-block");
+    expect(els).toHaveLength(1);
+  });
+
+  it("parses while-loop annotation as code-block", () => {
+    const fnBody = [
+      "// @while",
+      "while (cond) {",
+      "  work();",
+      "}",
+    ].join("\n");
+
+    const result = parseCodeFlowGraph(fnBody);
+    const els = result.elements.filter((e) => e.tag === "code-block");
+    expect(els).toHaveLength(1);
   });
 });

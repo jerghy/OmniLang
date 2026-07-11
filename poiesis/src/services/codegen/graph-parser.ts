@@ -1,11 +1,21 @@
 // poiesis/src/services/codegen/graph-parser.ts
 // Parse an OmniView fn body string → code flow graph (nodes + wires).
-// Reverse of GraphCompiler. Uses // @pid:xxx annotations to identify nodes.
+// Reverse of GraphCompiler. Uses // @pid:xxx and // @<type> annotations to
+// identify nodes.  When // @<type> annotations are present, auto-generated
+// PIDs are created so that hand-written .omni source is immediately usable
+// in the canvas.
+//
 // Handles proper branch wiring for condition nodes via brace-depth analysis.
 
 import type { CodeblockElementData } from "../../core/types/element";
 import type { WireData } from "../../core/types/wire";
 import { uid } from "../../core/utils/id";
+import {
+  isAnyAnnotation,
+  parsePidAnnotation,
+  parseTypeAnnotation,
+  emitPidAnnotation,
+} from "./annotation-registry";
 
 // ---------------------------------------------------------------------------
 // Internal types
@@ -18,6 +28,22 @@ interface ParsedSegment {
   code: string;
   type: "fn" | "code-block" | "condition" | "return";
 }
+
+/**
+ * Segment type override map for // @<type> annotations.
+ * Maps annotation node types to segment types.
+ * @elif and @else are mapped to "code-block" so they are handled as
+ * branch continuations rather than new condition nodes.
+ */
+const TYPE_TO_SEGMENT: Record<string, "fn" | "code-block" | "condition" | "return"> = {
+  if: "condition",
+  elif: "code-block",
+  else: "code-block",
+  "code-block": "code-block",
+  return: "return",
+  for: "code-block",
+  while: "code-block",
+};
 
 interface BranchDef {
   id: string;
@@ -36,46 +62,77 @@ interface BranchContext {
 }
 
 // ---------------------------------------------------------------------------
-// splitByPid – split fn body into segments at // @pid:xxx comment boundaries
+// splitByPid – split fn body into segments at // @pid:xxx or // @<type>
+// comment boundaries
 // ---------------------------------------------------------------------------
 
 /**
- * Split fn body into segments delimited by // @pid:xxx comments.
- * Each segment starts at a @pid comment and ends before the next @pid comment.
- * Returns an empty array for empty or whitespace-only input.
+ * Split fn body into segments delimited by // @pid:xxx or // @<type> comments.
+ * Each segment starts at an annotation comment and ends before the next one.
+ * For // @<type> annotations, a PID is auto-generated via uid().
+ *
+ * Returns segments and a pidMap that maps "nodeType:lineNumber" → generated pid.
+ * The pidMap lets callers (e.g. normalizeAnnotations) replace // @<type> lines
+ * with // @pid:xxx in saved source.
  */
-function splitByPid(fnBody: string): ParsedSegment[] {
-  if (!fnBody || !fnBody.trim()) return [];
+function splitByPid(
+  fnBody: string,
+): { segments: ParsedSegment[]; pidMap: Map<string, string> } {
+  const empty = { segments: [], pidMap: new Map<string, string>() };
+  if (!fnBody || !fnBody.trim()) return empty;
 
   const segments: ParsedSegment[] = [];
-  const pidRe = /^\s*\/\/\s*@pid:(\S+)/;
+  const pidMap = new Map<string, string>();
   const lines = fnBody.split("\n");
 
   let currentPid = "";
   let currentStart = 0;
   let currentLines: string[] = [];
+  /** Non-null when the most recent annotation was a // @<type> annotation. */
+  let lastTypeAnnotation: string | null = null;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    const match = line.match(pidRe);
-    if (match) {
-      // Save previous segment if we were tracking one
+
+    if (isAnyAnnotation(line)) {
+      // Save previous segment
       if (currentPid && currentLines.length > 0) {
         segments.push({
           pid: currentPid,
           startLine: currentStart,
           endLine: i - 1,
           code: currentLines.join("\n").trimEnd(),
-          type: detectSegmentType(currentLines),
+          type: lastTypeAnnotation
+            ? (TYPE_TO_SEGMENT[lastTypeAnnotation] ?? detectSegmentType(currentLines))
+            : detectSegmentType(currentLines),
         });
       }
-      currentPid = match[1];
+
+      // Determine pid for the new segment
+      const pidResult = parsePidAnnotation(line);
+      const typeResult = parseTypeAnnotation(line);
+
+      if (pidResult) {
+        currentPid = pidResult.pid;
+        lastTypeAnnotation = null;
+      } else if (typeResult) {
+        // Auto-generate PID for // @<type> annotations
+        currentPid = uid(typeResult.nodeType);
+        pidMap.set(`${typeResult.nodeType}:${i}`, currentPid);
+        lastTypeAnnotation = typeResult.nodeType;
+      } else {
+        // Unknown annotation — treat as part of code
+        currentLines.push(line);
+        continue;
+      }
+
       currentStart = i;
       currentLines = [];
     } else {
       currentLines.push(line);
     }
   }
+
   // Save last segment
   if (currentPid && currentLines.length > 0) {
     segments.push({
@@ -83,11 +140,13 @@ function splitByPid(fnBody: string): ParsedSegment[] {
       startLine: currentStart,
       endLine: lines.length - 1,
       code: currentLines.join("\n").trimEnd(),
-      type: detectSegmentType(currentLines),
+      type: lastTypeAnnotation
+        ? (TYPE_TO_SEGMENT[lastTypeAnnotation] ?? detectSegmentType(currentLines))
+        : detectSegmentType(currentLines),
     });
   }
 
-  return segments;
+  return { segments, pidMap };
 }
 
 // ---------------------------------------------------------------------------
@@ -185,12 +244,11 @@ function computeLineDepths(fnBody: string): number[] {
   const lines = fnBody.split("\n");
   const depths: number[] = [];
   let depth = 0;
-  const pidRe = /^\s*\/\/\s*@pid:/;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    // PID comment lines don't contribute to brace depth
-    if (!pidRe.test(line)) {
+    // Annotation lines don't contribute to brace depth
+    if (!isAnyAnnotation(line)) {
       for (const ch of line) {
         if (ch === "{") depth++;
         if (ch === "}") depth--;
@@ -245,13 +303,34 @@ function assignBranchContext(
     const startDepth = lineDepths[seg.startLine] ?? 0;
     const trimmed = seg.code.trim();
 
+    // Detect if this segment is an elif/else continuation.
+    // Handles both `} else {` (legacy @pid style) and bare `else {` / `else if`
+    // (new @type style where the closing `}` is in the preceding segment).
+    const isElifElseCode =
+      /^\}\s*else\s*\{/.test(trimmed) ||
+      /^\}\s*else\s+if\b/.test(trimmed) ||
+      /^else\s*\{/.test(trimmed) ||
+      /^else\s+if\b/.test(trimmed);
+
     // ------------------------------------------------------------------
     // 1. Close conditions whose brace scope ended (depth returned to their base)
+    //    EXCEPT if this segment is an elif/else of the top condition — in that
+    //    case the depth match is expected (the annotation sits outside braces).
     // ------------------------------------------------------------------
     while (
       conditionStack.length > 0 &&
       startDepth <= conditionStack[conditionStack.length - 1].baseDepth
     ) {
+      // For @type-style elif/else, the annotation line is at the same depth as
+      // the condition's base (the `}` closed before the annotation).  Don't pop
+      // in that case — the elif/else is a branch continuation.
+      const top = conditionStack[conditionStack.length - 1];
+      if (
+        isElifElseCode &&
+        startDepth === top.baseDepth
+      ) {
+        break;
+      }
       conditionStack.pop();
     }
 
@@ -263,28 +342,24 @@ function assignBranchContext(
     if (conditionStack.length > 0) {
       const cond = conditionStack[conditionStack.length - 1];
 
-      // 2a. Segment starts with `} else {` or `} else if` — transition via closing + opening brace
+      // 2a. @pid-style: segment starts with `} else {` or `} else if`
       if (/^\}\s*else\s*\{/.test(trimmed) || /^\}\s*else\s+if\b/.test(trimmed)) {
         cond.currentBranch++;
         cond.pendingTransition = false;
         isBranchContinuation = true;
       }
-      // 2b. Segment starts with bare `else {` or `else if` (no leading `}`) —
-      //     previous branch's closing `}` was in a preceding segment
+      // 2b. @type-style elif/else (no leading `}`)
       else if (/^else\s*\{/.test(trimmed) || /^else\s+if\b/.test(trimmed)) {
         cond.currentBranch++;
         cond.pendingTransition = false;
         isBranchContinuation = true;
       }
-      // 2c. Previous segment indicated a pending transition after a `} else {`
-      //     pattern that was NOT at the start of that segment.
+      // 2c. Previous segment indicated a pending transition
       else if (cond.pendingTransition) {
         cond.currentBranch++;
         cond.pendingTransition = false;
       }
-      // 2d. Check if THIS segment's code CONTAINS `} else {` or `} else if`
-      //     but NOT at the start. The transition happens at the end of this
-      //     segment, so the next segment should advance branch.
+      // 2d. This segment's code contains `} else {` or `} else if` inside (not at start)
       else if (
         /\}\s*else\s*\{/.test(seg.code) ||
         /\}\s*else\s+if\b/.test(seg.code)
@@ -357,23 +432,23 @@ function collectConditionBranches(
  * Parse an OmniView fn body string into code flow elements and wires.
  *
  * The fnBody should contain // @pid:xxx annotation comments that define
- * node boundaries. The parser splits on those boundaries, determines the
- * control flow structure (conditions, branches), and returns the equivalent
- * elements and wires that the GraphCompiler would have consumed.
+ * node boundaries.  // @<type> annotations (e.g. // @if, // @return) are
+ * also supported — auto-generated PIDs are assigned via uid().
  *
- * @param fnBody  Raw source text (e.g. inside a function body) with // @pid:xxx comments.
- * @returns       Elements and wires for the code flow graph.
+ * @param fnBody  Raw source text (e.g. inside a function body).
+ * @returns       Elements, wires, and a pidMap mapping "nodeType:lineNumber"
+ *                to auto-generated pid (for use by normalizeAnnotations).
  */
 export function parseCodeFlowGraph(
   fnBody: string,
-): { elements: CodeblockElementData[]; wires: WireData[] } {
+): { elements: CodeblockElementData[]; wires: WireData[]; pidMap: Map<string, string> } {
   // Defensive: empty fnBody
   if (!fnBody || !fnBody.trim()) {
-    return { elements: [], wires: [] };
+    return { elements: [], wires: [], pidMap: new Map() };
   }
 
-  const segments = splitByPid(fnBody);
-  if (segments.length === 0) return { elements: [], wires: [] };
+  const { segments, pidMap } = splitByPid(fnBody);
+  if (segments.length === 0) return { elements: [], wires: [], pidMap };
 
   const lineDepths = computeLineDepths(fnBody);
   const branchCtx = assignBranchContext(segments, lineDepths);
@@ -492,16 +567,59 @@ export function parseCodeFlowGraph(
       const nextDepth = lineDepths[nextSeg.startLine] ?? 0;
 
       if (nextDepth <= condBaseDepth) {
-        // This segment is outside the condition — wire flow-out
-        // But only if this segment isn't already wired as a branch successor
+        // This segment is at or outside the condition's base depth.
+        // Wire flow-out only if it isn't still part of the same condition
+        // (e.g. an @elif/@else segment at the same brace depth).
         const ctx = branchCtx.get(j);
         if (!ctx || ctx.conditionPid !== condSeg.pid) {
           wire(condSeg.pid, "flow-out", nextSeg.pid, "flow-in");
+          break;
         }
-        break;
+        // Still inside the same condition (elif/else at same depth) — keep looking
       }
     }
   }
 
-  return { elements, wires };
+  return { elements, wires, pidMap };
+}
+
+// ---------------------------------------------------------------------------
+// normalizeAnnotations – convert // @<type> to // @pid:xxx in source
+// ---------------------------------------------------------------------------
+
+/**
+ * Convert // @<type> annotations to // @pid:xxx in fn body source.
+ * Called during save to replace manual type annotations with editor-generated
+ * PIDs so the source is stable for round-trip editing.
+ *
+ * The pidMap should be the one returned by parseCodeFlowGraph, which maps
+ * "nodeType:lineNumber" → auto-generated pid for each // @<type> line.
+ *
+ * @param fnBody  Raw fn body source with // @<type> or // @pid annotations.
+ * @param pidMap  Map from "nodeType:lineNumber" to pid, as returned by
+ *                parseCodeFlowGraph.
+ * @returns       fnBody with // @<type> replaced by // @pid:xxx.
+ */
+export function normalizeAnnotations(
+  fnBody: string,
+  pidMap: Map<string, string>,
+): string {
+  const lines = fnBody.split("\n");
+  const result: string[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const typeResult = parseTypeAnnotation(line);
+    if (typeResult) {
+      const key = `${typeResult.nodeType}:${i}`;
+      const pid = pidMap.get(key);
+      if (pid) {
+        result.push(emitPidAnnotation(pid));
+        continue;
+      }
+    }
+    result.push(line);
+  }
+
+  return result.join("\n");
 }
