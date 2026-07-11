@@ -63,10 +63,23 @@ export function loadProjectFromJson(raw: string): { success: boolean; error?: st
     const store = usePoiesisStore.getState();
     store.newProject();
     store.loadFromProjectJson(projectJson);
+    // codeFlowGraphs restored via loadFromProjectJson which now handles v3
     return { success: true };
   } catch (e) {
     return { success: false, error: String(e) };
   }
+}
+
+/**
+ * Restore code flow nodes from project.json's codeFlowGraphs.
+ * Called after .omni parsing to overlay persisted graph data on parsed elements.
+ */
+export function applyCodeFlowGraphs(
+  _pidIndex: Record<string, { sourceFile: string }>,
+  codeFlowGraphs: Record<string, import("../../core/types/project-json").CodeFlowGraph>,
+): void {
+  // Merge persisted code flow graphs into store
+  usePoiesisStore.setState({ codeFlowGraphs });
 }
 
 /**

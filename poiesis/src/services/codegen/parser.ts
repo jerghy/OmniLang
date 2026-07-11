@@ -18,10 +18,27 @@ import type {
 } from "./parser-types";
 import { parseKeyValueAttrs } from "./parser-types";
 import { parsePidAnnotation } from "./annotation-registry";
+import { parseDesignAnnotation } from "../../core/types/design";
 import { uid } from "../../core/utils/id";
 import * as ParserHelpers from "./parser-helpers";
 import * as ParserView from "./parser-view";
 import * as ParserFinalize from "./parser-finalize";
+
+/**
+ * Parse a design element annotation line, supporting both the new // @pid:xxx format
+ * and the legacy // @token/@class/@variant formats for backward compatibility.
+ */
+function parseDesignElementAnnotation(line: string): { id: string } | null {
+  // Try new format first: // @pid:xxx
+  const pidResult = parsePidAnnotation(line);
+  if (pidResult) return { id: pidResult.pid };
+
+  // Fall back to old format: // @token id=xxx / // @class id=xxx / // @variant id=xxx
+  const oldResult = parseDesignAnnotation(line);
+  if (oldResult) return { id: oldResult.id };
+
+  return null;
+}
 
 export interface ParserInternals {
   stream: TokenStream;
@@ -884,7 +901,7 @@ export class Parser {
   // ── Design block ──
 
   private parseDesignBody(): void {
-    let lastAnnotation: { pid: string } | null = null;
+    let lastAnnotation: { id: string } | null = null;
 
     while (!this.stream.isEof()) {
       this.stream.skipNewlines();
@@ -900,13 +917,13 @@ export class Parser {
         return;
       }
 
-      // Annotation comments giving stable IDs — uses // @pid:xxx format
+      // Annotation comments giving stable IDs — supports // @pid and legacy // @token/@class/@variant
       if (tok.kind === "COMMENT_LINE") {
         this.stream.consume();
         const text = tok.text.trim();
-        const pidResult = parsePidAnnotation(text);
-        if (pidResult) {
-          lastAnnotation = pidResult;
+        const result = parseDesignElementAnnotation(text);
+        if (result) {
+          lastAnnotation = result;
         }
         continue;
       }
@@ -935,7 +952,7 @@ export class Parser {
   }
 
   private parseDesignToken(
-    annotation: { pid: string } | null,
+    annotation: { id: string } | null,
   ): void {
     this.stream.consume(); // "token"
     const nameTok = this.stream.expect("IDENTIFIER");
@@ -955,7 +972,7 @@ export class Parser {
       this.stream.consume();
     }
 
-    const id = annotation?.pid || uid("tk");
+    const id = annotation?.id || uid("tk");
     this.ctx.designTokens.push({
       id,
       name: nameTok.text,
@@ -965,7 +982,7 @@ export class Parser {
   }
 
   private parseDesignClass(
-    annotation: { pid: string } | null,
+    annotation: { id: string } | null,
   ): void {
     this.stream.consume(); // "class"
     const nameTok = this.stream.expect("IDENTIFIER");
@@ -977,7 +994,7 @@ export class Parser {
 
     this.parseClassBody(properties, pseudoStates);
 
-    const id = annotation?.pid || uid("cls");
+    const id = annotation?.id || uid("cls");
     this.ctx.designClasses.push({
       id,
       name: nameTok.text,
@@ -1086,7 +1103,7 @@ export class Parser {
   }
 
   private parseDesignVariant(
-    annotation: { pid: string } | null,
+    annotation: { id: string } | null,
   ): void {
     this.stream.consume(); // "variant"
     const nameTok = this.stream.expect("IDENTIFIER");
@@ -1107,7 +1124,7 @@ export class Parser {
       }
     }
 
-    const id = annotation?.pid || uid("var");
+    const id = annotation?.id || uid("var");
     this.ctx.designVariants.push({
       id,
       name: nameTok.text,

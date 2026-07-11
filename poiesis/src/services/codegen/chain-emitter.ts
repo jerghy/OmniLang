@@ -5,6 +5,9 @@
 import type { ElementData, WireData } from "../../core/types";
 import type { CodeTab } from "../../core/types";
 import type { ChainBlock, LoweredCode } from "./types";
+import { emitPidAnnotation } from "./annotation-registry";
+import type { CodeFlowGraph } from "../../core/types/project-json";
+import type { CodeblockElementData } from "../../core/types/element";
 
 // ── Node attribute definitions ────────────────────────────────────
 
@@ -266,4 +269,68 @@ export function emitChains(
   }
 
   return result;
+}
+
+// ── New exports: code flow graph JSON persistence ─────────────────────
+
+/**
+ * Build CodeFlowGraph JSON structure from parsed code flow data.
+ * Converts the internal parsed format (from ParseResult.codeFlowGraphs)
+ * to the merge-friendly project.json persistence format.
+ *
+ * Called during save to populate project.json codeFlowGraphs field.
+ *
+ * @param parsedGraphs  Code flow graphs keyed by fn/action name, each with
+ *                      elements (CodeblockElementData[]) and wires (WireData[]).
+ * @returns             CodeFlowGraphs keyed by fn/action name, suitable for
+ *                      ProjectJson.codeFlowGraphs.
+ */
+export function buildCodeFlowGraphs(
+  parsedGraphs: Record<string, { elements: CodeblockElementData[]; wires: WireData[] }>,
+): Record<string, CodeFlowGraph> {
+  const graphs: Record<string, CodeFlowGraph> = {};
+
+  for (const [fnName, { elements, wires }] of Object.entries(parsedGraphs)) {
+    const graph: CodeFlowGraph = {
+      pid: fnName,
+      nodes: {},
+      wires: {},
+    };
+
+    for (const el of elements) {
+      graph.nodes[el.id] = { nodeType: el.tag };
+    }
+
+    for (const w of wires) {
+      graph.wires[w.id] = {
+        from: w.fromId,
+        fromPort: w.fromPort,
+        to: w.toId,
+        toPort: w.toPort,
+      };
+    }
+
+    graphs[fnName] = graph;
+  }
+
+  return graphs;
+}
+
+/**
+ * Format chain block node IDs as // @pid annotation lines.
+ * Replaces the old // @chain/@node/@wire comment block format.
+ * Each node line in the chain produces a // @pid:<id> annotation.
+ *
+ * @param chain  The ChainBlock whose nodeLines are parsed for node IDs.
+ * @returns      A string of // @pid:<id> lines, one per node, joined by newline.
+ */
+export function formatChainAsPidAnnotations(chain: ChainBlock): string {
+  const lines: string[] = [];
+  for (const nodeLine of chain.nodeLines) {
+    const match = nodeLine.match(/@node\s+(\S+)/);
+    if (match) {
+      lines.push(emitPidAnnotation(match[1]));
+    }
+  }
+  return lines.join("\n");
 }

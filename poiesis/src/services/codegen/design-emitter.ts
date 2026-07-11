@@ -1,6 +1,7 @@
 // poiesis/src/services/codegen/design-emitter.ts
 // Emit design.omni source code from a DesignDefinition object.
 
+import { emitPidAnnotation } from "./annotation-registry";
 import type {
   DesignDefinition,
   DesignToken,
@@ -122,14 +123,14 @@ export function emitDesignSource(design: DesignDefinition): string {
 // ── Helpers ───────────────────────────────────────────────────────────────
 
 function emitToken(lines: string[], token: DesignToken): void {
-  lines.push(`    // @token id=${token.id}`);
+  lines.push(`    ${emitPidAnnotation(token.id)}`);
   const value = `"${token.value}"`;
   lines.push(`    token ${token.name}: ${token.tokenType} = ${value};`);
   lines.push("");
 }
 
 function emitClass(lines: string[], cls: DesignClass): void {
-  lines.push(`    // @class id=${cls.id}`);
+  lines.push(`    ${emitPidAnnotation(cls.id)}`);
   lines.push(`    class ${cls.name} {`);
 
   for (const prop of cls.properties) {
@@ -151,7 +152,7 @@ function emitClass(lines: string[], cls: DesignClass): void {
 }
 
 function emitVariant(lines: string[], variant: VariantDefinition): void {
-  lines.push(`    // @variant id=${variant.id}`);
+  lines.push(`    ${emitPidAnnotation(variant.id)}`);
   lines.push(`    variant ${variant.name} {`);
 
   // Dimensions

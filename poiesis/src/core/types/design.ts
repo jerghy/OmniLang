@@ -79,6 +79,11 @@ export interface ElementVariantBinding {
 }
 
 // ── Design annotations (for round-trip stability) ────────────
+/**
+ * @deprecated Use parsePidAnnotation from annotation-registry instead.
+ * Kept for backward compatibility with old // @token/@class/@variant annotations.
+ * Remove after all projects have been migrated.
+ */
 export const DESIGN_ANNOTATION_PREFIX = {
   token: "// @token",
   class: "// @class",

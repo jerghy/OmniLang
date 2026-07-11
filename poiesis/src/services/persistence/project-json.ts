@@ -2,6 +2,7 @@
 // Core read/write for the project.json file at project root.
 
 import type { ProjectJson } from "../../core/types/project-json";
+import { needsMigration, migrateV2ToV3 } from "./migration";
 
 /**
  * Write project.json with sorted keys for git merge friendliness.
@@ -36,6 +37,11 @@ export function deserializeProjectJson(raw: string): ProjectJson {
     throw new Error(`Failed to parse project.json: ${e instanceof Error ? e.message : String(e)}`);
   }
   validateProjectJson(parsed);
+
+  if (needsMigration(parsed as { version: number })) {
+    return migrateV2ToV3(parsed as Record<string, unknown> & { version: 2 });
+  }
+
   return parsed as ProjectJson;
 }
 

@@ -5,6 +5,8 @@
 import { writeTextFile, mkdir } from "@tauri-apps/plugin-fs";
 import { usePoiesisStore } from "../../store";
 import { serializeProjectJson } from "./project-json";
+import { buildCodeFlowGraphs } from "../codegen/chain-emitter";
+import type { CodeblockElementData, WireData } from "../../core/types";
 
 /**
  * Save the current project. Pipeline:
@@ -19,6 +21,17 @@ export function buildProjectJsonFromStore(): string {
   const store = usePoiesisStore.getState();
   const json = store.toProjectJson();
   return serializeProjectJson(json);
+}
+
+/**
+ * Update code flow graphs in the store from chain emitter output.
+ * Called during the save pipeline before writing project.json.
+ */
+export function updateCodeFlowGraphsInStore(
+  parsedGraphs: Record<string, { elements: CodeblockElementData[]; wires: WireData[] }>,
+): void {
+  const graphs = buildCodeFlowGraphs(parsedGraphs);
+  usePoiesisStore.setState({ codeFlowGraphs: graphs });
 }
 
 /**

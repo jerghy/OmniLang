@@ -7,6 +7,7 @@ import { Parser } from "./parser";
 import type { ParseResult } from "./types";
 import type { PidMap, PidEntry } from "../../core/types/pid";
 import { createLogger } from "../../lib/utils/logger";
+import { PID_REGEX } from "./annotation-registry";
 
 const log = createLogger("parser");
 
@@ -36,7 +37,8 @@ export function parsePidAnnotations(source: string): PidMap {
   const lines = source.split("\n");
 
   // Regex: optional whitespace, then // @pid:<pid>  — capture only the first non-whitespace token
-  const pidRe = /^\s*\/\/\s*@pid:(\S+)/;
+  // Uses PID_REGEX from annotation-registry for single-source-of-truth annotation format
+  const pidRe = PID_REGEX;
 
   for (let i = 0; i < lines.length; i++) {
     const match = lines[i].match(pidRe);
