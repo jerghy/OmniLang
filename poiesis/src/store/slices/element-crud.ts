@@ -93,16 +93,28 @@ export function createElementCrudSlice(set: SetFn, get: GetFn) {
     },
 
     selectElement: (id: string | null, multi = false) => set((s) => {
-      if (id === null) return { selectedElementIds: [] };
-      if (multi) {
+      let result: { selectedElementIds: string[] };
+      if (id === null) {
+        result = { selectedElementIds: [] };
+      } else if (multi) {
         const exists = s.selectedElementIds.includes(id);
-        return {
+        result = {
           selectedElementIds: exists
             ? s.selectedElementIds.filter(x => x !== id)
             : [...s.selectedElementIds, id],
         };
+      } else {
+        result = { selectedElementIds: [id] };
       }
-      return { selectedElementIds: [id] };
+
+      // Notify debug window of selection change
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent("poiesis:editor-select", {
+          detail: { elementId: id },
+        }));
+      }
+
+      return result;
     }),
 
     clearSelection: () => set({ selectedElementIds: [] }),

@@ -18,29 +18,6 @@ export function useDebugWindow() {
   const [isOpen, setIsOpen] = useState(false);
   const nidMapRef = useRef<Record<string, string>>({});
 
-  // Listen for element clicks from debug window
-  useEffect(() => {
-    const unlistenPromise = listen<ElementClickPayload>("debug:element-click", (event) => {
-      const { nid } = event.payload;
-      // Look up the design element ID from nid_map
-      const designId = nidMapRef.current[nid];
-      if (designId) {
-        // Emit a custom event that the editor can listen to for element selection
-        window.dispatchEvent(new CustomEvent("poiesis:debug-select", { detail: { nid, designId } }));
-      }
-    });
-    return () => { unlistenPromise.then((fn) => fn()); };
-  }, []);
-
-  // Listen for window-ready from debug window
-  useEffect(() => {
-    const unlistenPromise = listen("debug:window-ready", () => {
-      // Debug window is ready to receive compile results
-      // The next compile cycle will push automatically
-    });
-    return () => { unlistenPromise.then((fn) => fn()); };
-  }, []);
-
   const open = useCallback(async () => {
     try {
       await api.openDebugWindow();
@@ -62,7 +39,6 @@ export function useDebugWindow() {
   /** Push compiled OmniView output to the debug window. */
   const pushCompileResult = useCallback(async (payload: CompilePayload) => {
     if (!isOpen) return;
-    // Cache nid_map for element click → design ID resolution
     if (payload.nidMap) {
       nidMapRef.current = payload.nidMap;
     }
@@ -82,6 +58,49 @@ export function useDebugWindow() {
       console.error("[DebugWindow] Failed to highlight:", e);
     }
   }, [isOpen]);
+
+  // Listen for element clicks from debug window → dispatch poiesis:debug-select
+  useEffect(() => {
+    const unlistenPromise = listen<ElementClickPayload>("debug:element-click", (event) => {
+      const { nid } = event.payload;
+      const designId = nidMapRef.current[nid];
+      if (designId) {
+        window.dispatchEvent(new CustomEvent("poiesis:debug-select", { detail: { nid, designId } }));
+      }
+    });
+    return () => { unlistenPromise.then((fn) => fn()); };
+  }, []);
+
+  // Listen for window-ready from debug window
+  useEffect(() => {
+    const unlistenPromise = listen("debug:window-ready", () => {
+      // Debug window is ready to receive compile results
+      // The next compile cycle will push automatically
+    });
+    return () => { unlistenPromise.then((fn) => fn()); };
+  }, []);
+
+  // Listen for editor selection → highlight in debug window
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { elementId } = (e as CustomEvent).detail;
+      if (!elementId) {
+        highlight(null);
+        return;
+      }
+      // Reverse-lookup: find nid for the given design element ID
+      const nidMap = nidMapRef.current;
+      for (const [nid, designId] of Object.entries(nidMap)) {
+        if (designId === elementId) {
+          highlight(nid);
+          return;
+        }
+      }
+      highlight(null);
+    };
+    window.addEventListener("poiesis:editor-select", handler);
+    return () => window.removeEventListener("poiesis:editor-select", handler);
+  }, [highlight]);
 
   return { isOpen, open, close, pushCompileResult, highlight };
 }

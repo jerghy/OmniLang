@@ -115,11 +115,11 @@ type MultiCompileResult = {
 class RustCompiler {
   private wasm: {
     compile_to_ir: (source: string) => any;
-    compile_to_omniview: (source: string, editor_mode: boolean) => any;
-    compile_omniview_component?: (source: string, component_name: string, editor_mode: boolean) => any;
+    compile_to_omniview: (source: string, editor_mode: boolean, debug_mode: boolean) => any;
+    compile_omniview_component?: (source: string, component_name: string, editor_mode: boolean, debug_mode: boolean) => any;
     version: () => string;
-    compile_to_omniview_full?: (source: string, editor_mode: boolean) => any;
-    compile_multi_to_omniview?: (sources: Record<string, string>, editor_mode: boolean) => any;
+    compile_to_omniview_full?: (source: string, editor_mode: boolean, debug_mode: boolean) => any;
+    compile_multi_to_omniview?: (sources: Record<string, string>, editor_mode: boolean, debug_mode: boolean) => any;
     resolve_styles?: (source: string) => any;
     resolve_styles_multi?: (sources: Record<string, string>, path_mapping: Record<string, string>) => any;
   } | null = null;
@@ -163,11 +163,11 @@ class RustCompiler {
 
       this.wasm = {
         compile_to_ir: wasmModule.compile_to_ir as unknown as (source: string) => any,
-        compile_to_omniview: wasmModule.compile_to_omniview as unknown as (source: string, editor_mode: boolean) => any,
-        compile_omniview_component: wasmModule.compile_omniview_component as unknown as (source: string, component_name: string, editor_mode: boolean) => any,
+        compile_to_omniview: wasmModule.compile_to_omniview as unknown as (source: string, editor_mode: boolean, debug_mode: boolean) => any,
+        compile_omniview_component: wasmModule.compile_omniview_component as unknown as (source: string, component_name: string, editor_mode: boolean, debug_mode: boolean) => any,
         version: wasmModule.version as unknown as () => string,
-        compile_to_omniview_full: wasmModule.compile_to_omniview_full as unknown as (source: string, editor_mode: boolean) => any,
-        compile_multi_to_omniview: wasmModule.compile_multi_to_omniview as unknown as (sources: Record<string, string>, editor_mode: boolean) => any,
+        compile_to_omniview_full: wasmModule.compile_to_omniview_full as unknown as (source: string, editor_mode: boolean, debug_mode: boolean) => any,
+        compile_multi_to_omniview: wasmModule.compile_multi_to_omniview as unknown as (sources: Record<string, string>, editor_mode: boolean, debug_mode: boolean) => any,
         resolve_styles: wasmModule.resolve_styles as unknown as (source: string) => any,
         resolve_styles_multi: wasmModule.resolve_styles_multi as unknown as (sources: Record<string, string>, path_mapping: Record<string, string>) => any,
       };
@@ -204,7 +204,7 @@ class RustCompiler {
     }
   }
 
-  compileToOmniView(source: string, editorMode: boolean = false): OmniViewResult {
+  compileToOmniView(source: string, editorMode: boolean = false, debugMode: boolean = false): OmniViewResult {
     if (!this.wasm || !this.wasm.compile_to_omniview) {
       return {
         success: false,
@@ -212,7 +212,7 @@ class RustCompiler {
       };
     }
     try {
-      return this.wasm.compile_to_omniview(source, editorMode) as OmniViewResult;
+      return this.wasm.compile_to_omniview(source, editorMode, debugMode) as OmniViewResult;
     } catch (e) {
       log.error('compileToOmniView failed:', e);
       return {
@@ -222,10 +222,10 @@ class RustCompiler {
     }
   }
 
-  compileOmniViewComponent(source: string, componentName: string, editorMode: boolean = false): ComponentCompileResult {
+  compileOmniViewComponent(source: string, componentName: string, editorMode: boolean = false, debugMode: boolean = false): ComponentCompileResult {
     if (!this.wasm || !this.wasm.compile_omniview_component) {
       // Fallback: use full compile and extract on TS side
-      const full = this.compileToOmniView(source, editorMode);
+      const full = this.compileToOmniView(source, editorMode, debugMode);
       if (!full.success || !full.files) {
         return { success: false, errors: full.errors };
       }
@@ -239,7 +239,7 @@ class RustCompiler {
       };
     }
     try {
-      return this.wasm.compile_omniview_component(source, componentName, editorMode) as ComponentCompileResult;
+      return this.wasm.compile_omniview_component(source, componentName, editorMode, debugMode) as ComponentCompileResult;
     } catch (e) {
       log.error('compileOmniViewComponent failed:', e);
       return {
@@ -259,10 +259,10 @@ class RustCompiler {
     }
   }
 
-  compileToOmniViewFull(source: string, editorMode: boolean = false): OmniViewFullResult {
+  compileToOmniViewFull(source: string, editorMode: boolean = false, debugMode: boolean = false): OmniViewFullResult {
     if (!this.wasm || !this.wasm.compile_to_omniview_full) {
       // Fallback: use existing compileToOmniView
-      const omniResult = this.compileToOmniView(source, editorMode);
+      const omniResult = this.compileToOmniView(source, editorMode, debugMode);
       return {
         success: omniResult.success,
         ir: null,
@@ -273,7 +273,7 @@ class RustCompiler {
       };
     }
     try {
-      return this.wasm.compile_to_omniview_full(source, editorMode) as OmniViewFullResult;
+      return this.wasm.compile_to_omniview_full(source, editorMode, debugMode) as OmniViewFullResult;
     } catch (e) {
       log.error('compileToOmniViewFull failed:', e);
       return {
@@ -283,7 +283,7 @@ class RustCompiler {
     }
   }
 
-  compileMultiToOmniView(sources: Record<string, string>, editorMode: boolean = false): MultiCompileResult {
+  compileMultiToOmniView(sources: Record<string, string>, editorMode: boolean = false, debugMode: boolean = false): MultiCompileResult {
     if (!this.wasm || !this.wasm.compile_multi_to_omniview) {
       return {
         success: false,
@@ -292,7 +292,7 @@ class RustCompiler {
       };
     }
     try {
-      return this.wasm.compile_multi_to_omniview(sources, editorMode) as MultiCompileResult;
+      return this.wasm.compile_multi_to_omniview(sources, editorMode, debugMode) as MultiCompileResult;
     } catch (e) {
       log.error('compileMultiToOmniView failed:', e);
       return {
@@ -301,6 +301,25 @@ class RustCompiler {
         errors: [{ severity: 'error' as const, code: 'WASM', message: `Multi compile error: ${e}`, file: null, line: 0, col: 0, end_line: 0, end_col: 0 }],
       };
     }
+  }
+  /** Compile multiple sources for debug window preview. Returns full OmniView output. */
+  compileForDebugWindow(sources: Record<string, string>): { js: string; html: string; css: string } | null {
+    const result = this.compileMultiToOmniView(sources, true, true);
+    if (!result.success || !result.files) {
+      log.warn('Debug window compile failed', result.errors);
+      return null;
+    }
+    // compile_multi_to_omniview returns { files: { "index.js": ..., "index.html": ..., "index.css": ... } }
+    const files = result.files;
+    // Extract HTML body content (between <body> and </body>)
+    const htmlContent = files['body.html'] || '';
+    const htmlMatch = (files['index.html'] || '').match(/<body[^>]*>([\s\S]*)<\/body>/i);
+    const bodyHtml = htmlMatch ? htmlMatch[1] : '';
+    return {
+      js: files['index.js'] || '',
+      html: bodyHtml || htmlContent,
+      css: files['index.css'] || '',
+    };
   }
 
   resolveStyles(source: string): StyleResolveResult {

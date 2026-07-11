@@ -6,6 +6,7 @@
 import { useCallback, useMemo, useRef, useEffect } from "react";
 import { usePoiesisStore } from "../../store";
 import { useWasmCompile } from "./useWasmCompile";
+import { useDebugCompile } from "../../features/debug/useDebugCompile";
 import { useCssScopePool } from "./useCssScopePool";
 import { OmniViewElementTree } from "./OmniViewElementTree";
 import { _lastClickPos } from "./OmniViewElement";
@@ -16,6 +17,7 @@ export function OmniViewRenderer() {
   const toggleCodeFlow = usePoiesisStore((s) => s.toggleCodeFlow);
 
   const { output, isCompiling, errors } = useWasmCompile();
+  useDebugCompile();
   const { updateScopes } = useCssScopePool();
   const styleContainerRef = useRef<HTMLDivElement>(null);
 
@@ -52,6 +54,17 @@ export function OmniViewRenderer() {
     },
     [selectElement, nidToElementId],
   );
+
+
+  // Listen for element selection requests from debug window
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { designId } = (e as CustomEvent).detail;
+      if (designId) selectElement(designId);
+    };
+    window.addEventListener("poiesis:debug-select", handler);
+    return () => window.removeEventListener("poiesis:debug-select", handler);
+  }, [selectElement]);
 
   const handleDoubleClickNid = useCallback(
     (nid: string) => {
