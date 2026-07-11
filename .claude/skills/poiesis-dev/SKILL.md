@@ -20,6 +20,9 @@ description: Poiesis 开发指南——当编写、调试、理解 Poiesis 可�
 | 往返闭环 | `.omni 源码 → parser → Store → codegen emitter → .omni 源码`（PID 注释保证稳定性） |
 | 编译双路径 | WASM（编辑器画布预览）+ Rust 后端（项目导出到 React/Flutter 等） |
 | 调试用 Victauri | `dom_snapshot` + `eval_js` + `screenshot`，不猜状态 |
+| 统一注解格式 | `.omni` 中只使用 `// @pid:xxx`（独占一行，在声明之上）。旧 `// @token/@class/@variant` 格式已废弃 |
+| 手动 omni | fn/action body 内用 `// @<type>` 标注节点类型（@if/@elif/@else/@return/@code-block/@for/@while），保存后自动替换为 `// @pid` |
+| project.json v3 | 新增 `nodeMeta.nodeType`、`nodeMeta.blockName`、`codeFlowGraphs`；全部 `Record<string, T>` 结构 |
 
 ## 目录结构
 

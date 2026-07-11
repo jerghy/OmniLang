@@ -578,3 +578,11 @@ App.tsx L104-118:
 - `App.tsx` L104-118 — 加载时 re-key
 - `useProjectInit.ts` L199+ — 加载时 re-key
 - `DesignTabBar.tsx` L206-214 — 加载时 re-key
+
+### 注解格式混淆
+
+**陷阱**：旧代码中 `// @token id=tk_1`、`// @class id=cls_1`、行尾 `// @pid:xxx` 已废弃。
+**正确**：所有注解统一为 `// @pid:xxx`独占一行，在声明之上。
+
+**陷阱**：手动写 omni 时忘记 `// @<type>`。只有 fn/action body 内部需要。
+**正确**：component / store / design / view / style / `<tag>` / `@if` / `@for` 等顶层/模板构造有自明关键词，不需要标注。只在 body 内部的代码语句前加标注。
