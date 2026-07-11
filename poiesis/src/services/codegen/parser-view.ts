@@ -7,6 +7,7 @@ import type { ParserInternals } from "./parser";
 import type { ViewElementAttrs } from "./parser-types";
 import { isAttrBound } from "./parser-types";
 import { createElement } from "./parser-helpers";
+import { parsePidAnnotation } from "./annotation-registry";
 
 // ── View entry ──
 
@@ -87,7 +88,14 @@ export function parseViewComment(internals: ParserInternals): void {
   const tok = internals.stream.consume();
   const text = tok.text.trim();
 
-  // @edit annotation
+  // @pid annotation on view elements — store for later PID index building
+  const pidResult = parsePidAnnotation(text);
+  if (pidResult) {
+    internals.ctx.pendingPid = pidResult.pid;
+    return;
+  }
+
+  // @edit annotation (unchanged)
   if (text.startsWith("// @edit")) {
     internals.ctx.pendingEditFlags = text.slice("// @edit".length).trim() || null;
   }
@@ -411,6 +419,34 @@ export function parseViewAttributes(internals: ParserInternals): ViewElementAttr
 }
 
 /**
+ * Split a string on commas that appear at the top level (outside of quotes).
+ * Preserves commas inside double-quoted strings so that values like
+ * `rgba(0,0,0,0.1)` or `"0, 0, 0"` are not truncated.
+ */
+function splitTopLevelCommas(content: string): string[] {
+  const parts: string[] = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < content.length; i++) {
+    const ch = content[i];
+    if (ch === '"') {
+      inQuotes = !inQuotes;
+      current += ch;
+    } else if (ch === "," && !inQuotes) {
+      parts.push(current);
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  if (current.length > 0) {
+    parts.push(current);
+  }
+  return parts;
+}
+
+/**
  * Parse a `style: { key: val, key2: "val2" }` attribute.
  * Returns the reconstructed style string in the format the old parser used:
  * "{ key: val; key2: val2 }" (comma → semicolon, quotes stripped).
@@ -429,9 +465,9 @@ export function parseStyleAttribute(internals: ParserInternals): string {
   // Reconstruct style content from tokens
   const styleContent = styleTokens.map((t) => t.text).join("").trim();
 
-  // Same conversion as the old parser: comma → semicolon, strip quotes from values
-  const semiStyle = styleContent
-    .split(",")
+  // Split on top-level commas only (not inside quoted strings),
+  // so that values like rgba(0,0,0,0.1) or "0, 0, 0" survive intact.
+  const semiStyle = splitTopLevelCommas(styleContent)
     .map((part) => part.trim())
     .filter(Boolean)
     .map((part) => part.replace(/:\s*"([^"]*)"/g, ": $1"))

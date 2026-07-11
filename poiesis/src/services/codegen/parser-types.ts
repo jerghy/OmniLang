@@ -65,6 +65,7 @@ export interface ParseContext {
   chainWires: WireData[];
   viewParentStack: string[];
   pendingEditFlags: string | null;
+  pendingPid: string | null;
   parsedStyleRules: Array<{ class_name: string; properties: Record<string, string> }>;
   hasStyleBlock: boolean;
   props: Array<{ name: string; type: string; defaultValue?: unknown }>;

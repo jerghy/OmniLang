@@ -6,6 +6,7 @@ import type { ElementData } from "../../core/types/element";
 import type { ParseResult } from "./types";
 import { parseStylesFromAST } from "./style-parser";
 import { flushChain } from "./parser-helpers";
+import { parsePidAnnotation } from "./annotation-registry";
 
 // ── Finalization (post-processing) ──
 
