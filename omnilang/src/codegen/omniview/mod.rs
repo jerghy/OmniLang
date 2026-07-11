@@ -121,6 +121,10 @@ pub struct StyleResolveResult {
 
 /// Generate OmniView output from an IR program.
 pub fn generate(ir: &IRProgram, editor_mode: bool, css_only: bool, debug_mode: bool) -> OmniViewOutput {
+    debug_assert!(
+        !debug_mode || editor_mode,
+        "debug_mode requires editor_mode=true"
+    );
     let mut gen = OmniViewGenerator {
         js: String::new(),
         html: String::new(),
