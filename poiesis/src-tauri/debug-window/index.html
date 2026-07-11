@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Poiesis Debug</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin: 0; padding: 0; font-family: system-ui, sans-serif; overflow: hidden; }
+  #root { width: 100vw; height: 100vh; overflow: auto; }
+
+  .debug-ball {
+    position: fixed; top: 16px; right: 16px;
+    width: 42px; height: 42px; border-radius: 50%;
+    background: #22c55e; cursor: pointer; z-index: 99999;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; user-select: none;
+    transition: background 0.2s, transform 0.15s;
+    border: none; outline: none;
+  }
+  .debug-ball:hover { transform: scale(1.08); }
+  .debug-ball:active { transform: scale(0.95); }
+  .debug-ball.active { background: #6366f1; }
+
+  .debug-panel {
+    position: fixed; top: 68px; right: 16px;
+    width: 300px; max-height: 520px;
+    background: #1e1e2e; color: #cdd6f4;
+    border-radius: 12px; box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+    z-index: 99998; overflow: hidden; display: none;
+    font-family: 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace;
+    font-size: 12px;
+  }
+  .debug-panel.visible { display: block; }
+
+  .panel-header {
+    padding: 10px 14px; font-size: 11px; font-weight: 600;
+    text-transform: uppercase; color: #a6adc8;
+    border-bottom: 1px solid #313244; letter-spacing: 0.5px;
+    user-select: none;
+  }
+  .panel-drag-handle { cursor: grab; }
+  .panel-drag-handle:active { cursor: grabbing; }
+
+  .signal-row {
+    padding: 6px 14px; font-size: 12px;
+    display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 1px solid #181825;
+  }
+  .signal-row:hover { background: #313244; }
+  .signal-name { color: #89b4fa; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0; max-width: 55%; }
+  .signal-value { color: #a6e3a1; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
+
+  .action-row { padding: 4px 14px; font-size: 11px; color: #f9e2af; }
+  .compile-log { font-size: 10px; padding: 4px 14px; color: #6c7086; font-family: inherit; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<button id="debug-ball" class="debug-ball" title="Toggle debug mode">🔍</button>
+
+<div id="debug-panel" class="debug-panel">
+  <div class="panel-header panel-drag-handle" id="panel-drag-handle">📊 Store Signals</div>
+  <div id="signal-list"></div>
+  <div class="panel-header">📋 Stores</div>
+  <div id="action-list"></div>
+  <div id="compile-log" class="compile-log"></div>
+</div>
+
+<script>
+(function() {
+  var ball = document.getElementById('debug-ball');
+  var panel = document.getElementById('debug-panel');
+  var signalList = document.getElementById('signal-list');
+  var actionList = document.getElementById('action-list');
+  var compileLog = document.getElementById('compile-log');
+  var active = false;
+  var refreshTimer = null;
+
+  function toggleDebug() {
+    active = !active;
+    ball.classList.toggle('active', active);
+    panel.classList.toggle('visible', active);
+    ball.textContent = active ? '✕' : '🔍';
+    if (active) { refreshSignals(); }
+    else { stopRefresh(); }
+    if (window.__omni_debug) window.__omni_debug._active = active;
+  }
+
+  ball.addEventListener('click', toggleDebug);
+
+  // Panel drag
+  var dragHandle = document.getElementById('panel-drag-handle');
+  var dragging = false, startX, startY, startLeft, startTop;
+  dragHandle.addEventListener('mousedown', function(e) {
+    dragging = true; startX = e.clientX; startY = e.clientY;
+    startLeft = panel.offsetLeft; startTop = panel.offsetTop;
+    dragHandle.style.cursor = 'grabbing'; e.preventDefault();
+  });
+  document.addEventListener('mousemove', function(e) {
+    if (!dragging) return;
+    panel.style.left = (startLeft + e.clientX - startX) + 'px';
+    panel.style.top = (startTop + e.clientY - startY) + 'px';
+    panel.style.right = 'auto';
+  });
+  document.addEventListener('mouseup', function() {
+    dragging = false; dragHandle.style.cursor = 'grab';
+  });
+
+  function refreshSignals() {
+    if (!active) return;
+    if (window.__omni_debug && window.__omni_debug.getSignals) {
+      var signals = window.__omni_debug.getSignals();
+      var storeGroups = {};
+      Object.keys(signals).forEach(function(k) {
+        var parts = k.split('_');
+        var store = parts.length > 1 ? parts[0] : '(global)';
+        if (!storeGroups[store]) storeGroups[store] = [];
+        storeGroups[store].push({ name: k, value: signals[k].value });
+      });
+
+      var html = '';
+      Object.keys(storeGroups).sort().forEach(function(store) {
+        html += '<div style="padding:2px 14px;font-size:10px;color:#6c7086;">' + store + '</div>';
+        storeGroups[store].forEach(function(s) {
+          var display = s.value === undefined ? 'undefined'
+            : s.value === null ? 'null'
+            : typeof s.value === 'object' ? JSON.stringify(s.value).substring(0, 100)
+            : String(s.value);
+          html += '<div class="signal-row"><span class="signal-name">' +
+            s.name.replace(store + '_', '') +
+            '</span><span class="signal-value">' + display + '</span></div>';
+        });
+      });
+      signalList.innerHTML = html || '<div style="padding:6px 14px;color:#6c7086;">(no signals)</div>';
+
+      // Show store list
+      var storeNames = Object.keys(storeGroups);
+      var actionHtml = '';
+      storeNames.forEach(function(sn) {
+        actionHtml += '<div class="action-row">📦 ' + sn + ' (' +
+          storeGroups[sn].length + ' signals)</div>';
+      });
+      actionList.innerHTML = actionHtml || '<div style="padding:4px 14px;color:#6c7086;">(no stores)</div>';
+    }
+    scheduleRefresh();
+  }
+
+  function scheduleRefresh() { refreshTimer = setTimeout(refreshSignals, 500); }
+  function stopRefresh() { if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; } }
+
+  // Listen for compile results from main window
+  if (window.__TAURI_INTERNALS__) {
+    window.__TAURI_INTERNALS__.invoke('plugin:event|listen', {
+      event: 'debug:compile-result',
+      handler: window.__TAURI_INTERNALS__.transformCallback(function(e) {
+        var payload = typeof e.payload === 'string' ? JSON.parse(e.payload) : e.payload;
+        compileLog.textContent = 'Compiled: ' + new Date().toLocaleTimeString();
+
+        // Apply CSS
+        var styleEl = document.getElementById('omni-css');
+        if (!styleEl) { styleEl = document.createElement('style'); styleEl.id = 'omni-css'; document.head.appendChild(styleEl); }
+        styleEl.textContent = payload.css || '';
+
+        // Replace body HTML
+        document.getElementById('root').innerHTML = payload.html || '';
+
+        // Execute JS — remove old script, create new one
+        var oldScript = document.getElementById('omni-js');
+        if (oldScript) oldScript.remove();
+        if (payload.js) {
+          var script = document.createElement('script');
+          script.id = 'omni-js';
+          script.textContent = payload.js;
+          document.body.appendChild(script);
+        }
+
+        // Clear old highlights
+        if (window.__omni_debug) window.__omni_debug.clearHighlight();
+
+        // Refresh panel after JS executes
+        setTimeout(function() { if (active) refreshSignals(); }, 200);
+      })
+    }).catch(function() {});
+
+    // Notify main
+    window.__TAURI_INTERNALS__.invoke('plugin:event|emit', {
+      event: 'debug:window-ready', payload: {}
+    }).catch(function() {});
+  }
+})();
+</script>
+</body>
+</html>

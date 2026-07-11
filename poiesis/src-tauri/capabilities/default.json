@@ -5,6 +5,7 @@
   "windows": ["*"],
   "permissions": [
     "core:default",
+    "core:event:default",
     {
       "identifier": "fs:scope",
       "allow": [

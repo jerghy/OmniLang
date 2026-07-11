@@ -19,7 +19,7 @@ pub fn cmd_build(
         .parse()
         .map_err(|_| anyhow::anyhow!("unknown target: {target_str}"))?;
 
-    let result_json = omnilang::compile_multi_to_target(sources, t, path_mapping, false);
+    let result_json = omnilang::compile_multi_to_target(sources, t, path_mapping, false, false);
     let data: serde_json::Value = serde_json::from_str(&result_json)?;
 
     // Python checks result.success (cli.py:173)

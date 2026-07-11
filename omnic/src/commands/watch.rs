@@ -75,6 +75,7 @@ pub fn cmd_watch(file: &str, target: &str, output_dir: &str) -> anyhow::Result<(
             t,
             path_mapping.clone(),
             false,
+            false,
             &mut cache,
         );
 

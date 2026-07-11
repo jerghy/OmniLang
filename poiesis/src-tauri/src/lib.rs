@@ -5,6 +5,7 @@
 
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
+use tauri::Manager;
 
 // ── Compile project ──
 
@@ -129,9 +130,9 @@ fn do_compile(
     let path_mapping = omnilang::path_mapping::derive_path_mapping(&sources);
     let output = match cache {
         Some(c) => {
-            omnilang::compile_multi_internal_cached(sources, codegen_target, path_mapping, false, c)
+            omnilang::compile_multi_internal_cached(sources, codegen_target, path_mapping, false, false, c)
         }
-        None => omnilang::compile_multi_internal(sources, codegen_target, path_mapping, false),
+        None => omnilang::compile_multi_internal(sources, codegen_target, path_mapping, false, false),
     };
     CompileResult {
         success: output.success,
@@ -835,6 +836,40 @@ fn verify_pid_roundtrip(
     }))
 }
 
+// ── Debug window commands ──
+
+/// Open the standalone debug window for live OmniView preview.
+#[tauri::command]
+fn open_debug_window(app: tauri::AppHandle) -> Result<(), String> {
+    use tauri::WebviewWindowBuilder;
+    // If window already exists, just show it
+    if let Some(window) = app.get_webview_window("debug") {
+        window.show().map_err(|e| e.to_string())?;
+        window.set_focus().map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+    WebviewWindowBuilder::new(
+        &app,
+        "debug",
+        tauri::WebviewUrl::App("debug-window/index.html".into()),
+    )
+    .title("Poiesis Debug")
+    .inner_size(1400.0, 900.0)
+    .resizable(true)
+    .build()
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Close the debug window.
+#[tauri::command]
+fn close_debug_window(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("debug") {
+        window.close().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 // ── Tauri app entry ──
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -860,6 +895,8 @@ pub fn run() {
             get_store_snapshot,
             get_pid_index,
             verify_pid_roundtrip,
+            open_debug_window,
+            close_debug_window,
         ]);
 
     #[cfg(debug_assertions)]
