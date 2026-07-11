@@ -425,6 +425,10 @@ export function generateOmniFragment(options: {
 /**
  * Convert a legacy StoreDef (from store-extractor) to the new StoreDefinition format.
  * Synthetic PIDs are generated since StoreDef has no PID data.
+ *
+ * @deprecated Parser now produces StoreDefinition directly.
+ * This conversion shim exists for backward compatibility with store-extractor output.
+ * Remove after store-extractor is updated to emit StoreDefinition.
  */
 function storeDefToStoreDefinition(sd: StoreDef): StoreDefinition {
   return {
