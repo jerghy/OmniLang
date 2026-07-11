@@ -1,7 +1,6 @@
 // poiesis/src/services/codegen/__tests__/roundtrip-annotation.test.ts
 import { describe, it, expect } from "vitest";
 import { parseCodeFlowGraph } from "../graph-parser";
-import { compileCodeFlowGraph } from "../graph-compiler";
 
 describe("annotation round-trip", () => {
   it("manual @if/@return → auto-PID nodes, then re-parse preserves structure", () => {
