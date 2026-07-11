@@ -106,6 +106,9 @@ export interface PoiesisState {
   loadInlineStoreDef: (def: StoreDefinition) => void;
   removeInlineStoreDef: (key: string) => void;
 
+  // ── Code flow graph persistence ──
+  codeFlowGraphs: Record<string, import("../core/types/project-json").CodeFlowGraph>;
+
   // ── Actions ──
 
   // Architecture

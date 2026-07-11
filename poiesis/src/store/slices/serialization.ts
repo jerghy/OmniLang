@@ -11,7 +11,7 @@ export function createSerializationSlice(set: SetFn, get: GetFn) {
     toProjectJson: (): ProjectJson => {
       const s = get();
       return {
-        version: 2,
+        version: 3,
         nodes: s.nodeMeta,
         wires: s.wireMeta,
         architecture: {
@@ -22,6 +22,7 @@ export function createSerializationSlice(set: SetFn, get: GetFn) {
         },
         canvasStates: s.canvasStates,
         panels: s.panels,
+        codeFlowGraphs: s.codeFlowGraphs ?? {},
       };
     },
 
@@ -39,6 +40,7 @@ export function createSerializationSlice(set: SetFn, get: GetFn) {
       },
       canvasStates: json.canvasStates || {},
       panels: json.panels || s.panels,
+      codeFlowGraphs: json.codeFlowGraphs || {},
       // componentDefs kept in runtime state, not persisted — loaded from .omni parsing
     })),
   };
