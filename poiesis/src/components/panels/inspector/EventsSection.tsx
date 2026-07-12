@@ -95,7 +95,7 @@ export function EventsSection({ element, handlerItems }: EventsSectionProps) {
 
   const handleRemoveEvent = useCallback(
     (eventName: string) => {
-      setProp(element.id, eventName, "");
+      setProp(element.id, eventName, undefined);
     },
     [element.id, setProp]
   );
