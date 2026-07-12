@@ -69,8 +69,8 @@ export function parseViewBody(internals: ParserInternals): void {
       continue;
     }
 
-    // Text content on its own line
-    if (tok.kind === "IDENTIFIER" || tok.kind === "TEXT" || tok.kind === "STRING") {
+    // Text content on its own line (including {expr} interpolation)
+    if (tok.kind === "IDENTIFIER" || tok.kind === "TEXT" || tok.kind === "STRING" || tok.kind === "BRACE_OPEN") {
       parseViewTextContent(internals);
       internals.stream.skipNewlines();
       continue;
@@ -116,7 +116,6 @@ function collectTextWithSpacing(internals: ParserInternals): string {
   while (
     !internals.stream.isEof() &&
     internals.stream.peek().kind !== "NEWLINE" &&
-    internals.stream.peek().kind !== "BRACE_CLOSE" &&
     internals.stream.peek().kind !== "ANGLE_OPEN"
   ) {
     const tok = internals.stream.peek();
@@ -193,8 +192,7 @@ export function parseViewElement(internals: ParserInternals): void {
     const textParts: Array<{ text: string; col: number }> = [];
     while (
       !internals.stream.isEof() &&
-      internals.stream.peek().kind !== "NEWLINE" &&
-      internals.stream.peek().kind !== "BRACE_CLOSE"
+      internals.stream.peek().kind !== "NEWLINE"
     ) {
       if (
         internals.stream.peek().kind === "ANGLE_OPEN" &&
@@ -291,15 +289,37 @@ export function parseViewAttributes(internals: ParserInternals): ViewElementAttr
       break;
     }
 
-    // Event binding: @name={handler}
+    // Event binding: @name={expression}
     if (tok.kind === "AT") {
-      internals.stream.consume();
-      const eventName = internals.stream.expect("IDENTIFIER").text;
+      internals.stream.consume(); // AT (@)
+      const rawEventName = internals.stream.expect("IDENTIFIER").text;
       internals.stream.expect("EQUALS");
       internals.stream.expect("BRACE_OPEN");
-      const handlerName = internals.stream.expect("IDENTIFIER").text;
-      internals.stream.expect("BRACE_CLOSE");
-      result.events[eventName] = handlerName;
+
+      // Collect all tokens between { and } as a raw expression string,
+      // using brace-depth counting to handle nested braces (closures, objects, etc.)
+      let depth = 1;
+      let handlerExpr = "";
+      while (depth > 0 && !internals.stream.isEof()) {
+        const t = internals.stream.peek();
+        if (t.kind === "BRACE_OPEN") depth++;
+        else if (t.kind === "BRACE_CLOSE") depth--;
+        if (depth === 0) {
+          internals.stream.consume(); // consume closing }
+          break;
+        }
+        internals.stream.consume();
+        handlerExpr += t.text;
+      }
+      handlerExpr = handlerExpr.trim();
+
+      // Normalize event name: ensure it has "on" prefix
+      // @click => onClick, @onClick => onClick
+      const normalizedEventName = rawEventName.startsWith("on")
+        ? rawEventName
+        : "on" + rawEventName.charAt(0).toUpperCase() + rawEventName.slice(1);
+
+      result.events[normalizedEventName] = handlerExpr;
       continue;
     }
 
