@@ -3,6 +3,8 @@
 
 import { generateOmniSource } from "../codegen";
 import { api } from "../../commands";
+import { uid } from "../../core/utils/id";
+import type { ComputedEntry } from "../../core/types/project-json";
 import type { ElementData, WireData } from "../../core/types";
 
 /**
@@ -100,13 +102,33 @@ export async function loadComponentDefinitionsFromServer(): Promise<
       }
     }
 
+    // Signals from DSL declarations
+    const dslSignals = parsed.signals || [];
+    const mappedSignals = dslSignals.map((s) => ({
+      pid: uid("sig"),
+      name: s.name,
+      type: s.type,
+      defaultValue: s.defaultValue,
+    }));
+
+    // Computeds from DSL declarations
+    const dslComputeds = parsed.computeds || [];
+    const mappedComputeds: ComputedEntry[] = dslComputeds.map((c) => ({
+      pid: uid("comp"),
+      name: c.name,
+      returnType: c.type,
+      expression: c.expression,
+    }));
+
     merged[name] = {
       id: (meta.id as string) || name,
       name,
       category: (meta.category as string) || "Custom",
       description: (meta.description as string) || "",
+      signals: mappedSignals,
       props: propSchema,
       events: eventSchema,
+      computeds: mappedComputeds,
       styleProperties: (meta.styleProperties as string[]) || [],
       children: (meta.children as boolean) ?? true,
       elements,
