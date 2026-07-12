@@ -9,6 +9,7 @@
 
 pub mod analyse;
 pub mod codegen;
+pub mod discovery;
 pub mod error;
 #[cfg(not(target_family = "wasm"))]
 pub mod ffi;

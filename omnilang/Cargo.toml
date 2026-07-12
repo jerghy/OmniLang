@@ -20,6 +20,7 @@ strum = { version = "0.26", features = ["derive"] }
 pathdiff = "0.2"
 rayon = "1"
 log = "0.4"
+walkdir = "2"
 rustc-hash = "2"
 ts-rs = { version = "10", features = ["serde-compat"] }
 
