@@ -62,29 +62,6 @@ impl CompileResult {
         }
     }
 
-    /// Create an error result from multiple message strings.
-    fn from_errors(errors: Vec<String>, code: &str) -> Self {
-        CompileResult {
-            success: false,
-            files: FxHashMap::default(),
-            errors: errors
-                .into_iter()
-                .map(|msg| CompileDiagnostic {
-                    severity: "error".to_string(),
-                    code: code.to_string(),
-                    message: msg,
-                    file: None,
-                    line: 0,
-                    col: 0,
-                    end_line: 0,
-                    end_col: 0,
-                    suggestion: None,
-                })
-                .collect(),
-            warnings: vec![],
-        }
-    }
-
     /// Extract user-facing error messages from structured diagnostics.
     fn error_messages(&self) -> Vec<String> {
         self.errors
@@ -187,41 +164,19 @@ fn compile_project(
     state: tauri::State<ProjectState>,
 ) -> CompileResult {
     // Convert target string to codegen::Target
-    let codegen_target = match target.as_str() {
-        "python" => omnilang::codegen::Target::Python,
-        "js" | "javascript" => omnilang::codegen::Target::JavaScript,
-        "ts" | "typescript" => omnilang::codegen::Target::TypeScript,
-        "rust" | "rs" => omnilang::codegen::Target::Rust,
-        "dart" => omnilang::codegen::Target::Dart,
-        "react" => omnilang::codegen::Target::React,
-        "vue" => omnilang::codegen::Target::Vue,
-        "dioxus" => omnilang::codegen::Target::Dioxus,
-        "flutter" => omnilang::codegen::Target::Flutter,
-        "omniview" => omnilang::codegen::Target::OmniView,
-        _ => {
-            return CompileResult {
-                success: false,
-                files: FxHashMap::default(),
-                errors: vec![CompileDiagnostic {
-                    severity: "error".to_string(),
-                    code: "E_TARGET".to_string(),
-                    message: format!("Unknown target: {}", target),
-                    file: None,
-                    line: 0,
-                    col: 0,
-                    end_line: 0,
-                    end_col: 0,
-                    suggestion: None,
-                }],
-                warnings: vec![],
-            };
+    let codegen_target: omnilang::codegen::Target = match target.parse() {
+        Ok(t) => t,
+        Err(e) => {
+            return CompileResult::from_error(
+                &format!("Unknown target: {} ({})", target, e),
+                "E_TARGET",
+            );
         }
     };
 
     // Discover .omni files in project directory
     let project_dir = std::path::Path::new(&project_path);
     let mut sources: FxHashMap<String, String> = FxHashMap::default();
-    let mut discover_errors: Vec<String> = Vec::new();
 
     if project_dir.is_dir() {
         // Check file list cache
@@ -244,33 +199,16 @@ fn compile_project(
             }
         }
 
-        for entry in walkdir::WalkDir::new(project_dir)
-            .follow_links(false)
-            .into_iter()
-            .filter_map(|e| match e {
-                Ok(entry) => Some(entry),
-                Err(err) => {
-                    eprintln!("[omni] warning: skipping inaccessible entry: {}", err);
-                    None
-                }
-            })
-            .filter(|e| e.file_name().to_string_lossy().ends_with(".omni"))
-        {
-            let path = entry.path().to_owned();
-            match std::fs::read_to_string(&path) {
-                Ok(content) => {
-                    let rel_path = path
-                        .strip_prefix(project_dir)
-                        .unwrap_or(&path)
-                        .to_string_lossy()
-                        .to_string();
-                    sources.insert(rel_path, content);
-                }
-                Err(e) => {
-                    discover_errors.push(format!("Cannot read {:?}: {}", path, e));
-                }
+        match omnilang::discovery::discover_omni_sources(
+            project_dir,
+            omnilang::discovery::DiscoveryMode::Directory,
+        ) {
+            Ok(s) => sources = s,
+            Err(e) => {
+                return CompileResult::from_error(&e, "E_DISCOVERY");
             }
         }
+
         // Update file list cache
         if let Ok(mut cache) = state.file_list_cache.lock() {
             *cache = Some(CachedFileList {
@@ -278,60 +216,16 @@ fn compile_project(
                 root_mtime,
             });
         }
-    } else if project_dir.is_file() && project_dir.extension().is_some_and(|e| e == "omni") {
-        // Also discover sibling .omni files for import resolution
-        let _file_stem = project_dir
-            .file_stem()
-            .map(|s| s.to_string_lossy().to_string())
-            .unwrap_or_default();
-        let name = project_dir
-            .file_name()
-            .map(|s| s.to_string_lossy().to_string())
-            .unwrap_or_default();
-        if name.is_empty() {
-            return CompileResult::from_error("Invalid file path: no filename", "E_IO");
-        }
-        match std::fs::read_to_string(project_dir) {
-            Ok(content) => {
-                sources.insert(name, content);
-            }
+    } else if project_dir.is_file()
+        && project_dir.extension().is_some_and(|e| e == "omni")
+    {
+        match omnilang::discovery::discover_omni_sources(
+            project_dir,
+            omnilang::discovery::DiscoveryMode::SingleFileWithSiblings,
+        ) {
+            Ok(s) => sources = s,
             Err(e) => {
-                return CompileResult::from_error(
-                    &format!("Cannot read {:?}: {}", project_dir, e),
-                    "E_IO",
-                );
-            }
-        }
-        // Walk sibling directories to resolve imports
-        if let Some(parent) = project_dir.parent() {
-            let parent = if parent.as_os_str().is_empty() {
-                std::path::Path::new(".")
-            } else {
-                parent
-            };
-            for entry in walkdir::WalkDir::new(parent)
-                .follow_links(false)
-                .into_iter()
-                .filter_map(|e| match e {
-                    Ok(entry) => Some(entry),
-                    Err(err) => {
-                        eprintln!("[omni] warning: skipping inaccessible entry: {}", err);
-                        None
-                    }
-                })
-                .filter(|e| {
-                    e.file_name().to_string_lossy().ends_with(".omni") && e.path() != project_dir
-                })
-            {
-                let path = entry.path().to_owned();
-                if let Ok(content) = std::fs::read_to_string(&path) {
-                    let rel_path = path
-                        .strip_prefix(parent)
-                        .unwrap_or(&path)
-                        .to_string_lossy()
-                        .to_string();
-                    sources.insert(rel_path, content);
-                }
+                return CompileResult::from_error(&e, "E_DISCOVERY");
             }
         }
     } else {
@@ -342,9 +236,7 @@ fn compile_project(
     }
 
     if sources.is_empty() {
-        let mut all_errors = discover_errors;
-        all_errors.push("No .omni source files found.".to_string());
-        return CompileResult::from_errors(all_errors, "E_IO");
+        return CompileResult::from_error("No .omni source files found.", "E_IO");
     }
 
     let mut compile_cache = state
@@ -838,7 +730,7 @@ fn verify_pid_roundtrip(
 
 // ── Debug window commands ──
 
-/// Open (show) the pre-created debug window.
+/// Open the debug window. Creates it if it doesn't exist yet.
 #[tauri::command]
 fn open_debug_window(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("debug") {
@@ -846,7 +738,19 @@ fn open_debug_window(app: tauri::AppHandle) -> Result<(), String> {
         window.set_focus().map_err(|e| e.to_string())?;
         return Ok(());
     }
-    Err("Debug window not found — should have been created at startup".into())
+    // Window was not pre-created — create it now
+    tauri::WebviewWindowBuilder::new(
+        &app,
+        "debug",
+        tauri::WebviewUrl::App("debug-window/index.html".into()),
+    )
+    .title("Poiesis Debug")
+    .inner_size(1400.0, 900.0)
+    .resizable(true)
+    .visible(true)
+    .build()
+    .map_err(|e| format!("Failed to create debug window: {e}"))?;
+    Ok(())
 }
 
 /// Hide the debug window (never destroy — recreate blocks IPC).
@@ -902,7 +806,8 @@ pub fn run() {
             // Pre-create the debug window hidden so open_debug_window can just show it.
             // WebviewWindowBuilder::build() blocks IPC responses on Windows,
             // so we create it here during setup (no IPC involved).
-            tauri::WebviewWindowBuilder::new(
+            // If it fails, open_debug_window will create it on demand.
+            if let Err(e) = tauri::WebviewWindowBuilder::new(
                 app,
                 "debug",
                 tauri::WebviewUrl::App("debug-window/index.html".into()),
@@ -912,8 +817,9 @@ pub fn run() {
             .resizable(true)
             .visible(false)
             .build()
-            .map_err(|e| eprintln!("[Poiesis] Failed to pre-create debug window: {e}"))
-            .ok();
+            {
+                eprintln!("[Poiesis] Failed to pre-create debug window: {e}");
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
