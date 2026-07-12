@@ -112,15 +112,8 @@ function useWasmCompile(): {
           : null;
         if (designSrc) sources["src/design.omni"] = designSrc;
 
-        // Build path mappings
-        const pathMapping: Record<string, string> = {
-          "./design.omni": "src/design.omni",
-        };
-        if (componentDefs) {
-          for (const compName of Object.keys(componentDefs)) {
-            pathMapping[`./components/${compName}`] = `src/components/${compName}.omni`;
-          }
-        }
+        // Path mapping is auto-derived by WASM from source keys
+        const pathMapping: Record<string, string> = {};
 
         // Skip compile if sources haven't changed
         const sourcesKey = JSON.stringify(sources);

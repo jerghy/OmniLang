@@ -158,8 +158,14 @@ pub fn resolve_styles_multi(sources: JsValue, path_mapping: JsValue) -> JsValue 
             .unwrap_or_else(|e| js_error_value(&format!("serialization error: {}", e)));
         }
     };
-    let path_map: FxHashMap<String, String> =
+    let mut path_map: FxHashMap<String, String> =
         serde_wasm_bindgen::from_value(path_mapping).unwrap_or_default();
+    // Merge auto-derived path mappings from source keys, using caller overrides
+    // as priority (or_insert keeps the first value).
+    let derived = crate::path_mapping::derive_path_mapping(&sources_map);
+    for (k, v) in derived {
+        path_map.entry(k).or_insert(v);
+    }
     let total_size: usize = sources_map.values().map(|s| s.len()).sum();
     if total_size > 10 * 1024 * 1024 {
         return js_error_value("Input exceeds 10MB limit");
@@ -200,20 +206,9 @@ pub fn compile_multi_to_omniview(sources: JsValue, editor_mode: bool, debug_mode
         return js_error_value("Input exceeds 10MB limit");
     }
     // Build path_mapping from source keys so cross-file imports resolve.
-    // Maps e.g. "./design.omni" → "src/design.omni" and "./components/Foo" → "src/components/Foo.omni"
-    let mut path_mapping: FxHashMap<String, String> = FxHashMap::default();
-    for src_path in sources_map.keys() {
-        path_mapping.insert(src_path.clone(), src_path.clone());
-        if let Some(basename) = src_path.rsplit('/').next() {
-            path_mapping.insert(format!("./{}", basename), src_path.clone());
-        }
-        if src_path.starts_with("src/components/") {
-            if let Some(stripped) = src_path.strip_suffix(".omni") {
-                let rel_path = stripped.replacen("src/", "./", 1);
-                path_mapping.insert(rel_path, src_path.clone());
-            }
-        }
-    }
+    // Uses the canonical derive_path_mapping() which handles basename, stem,
+    // relative path, ./ prefix, ../ prefix, and .omni-less variant mappings.
+    let path_mapping = crate::path_mapping::derive_path_mapping(&sources_map);
     let result = crate::compile_multi_internal(
         sources_map,
         crate::codegen::Target::OmniView,

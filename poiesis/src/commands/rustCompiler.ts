@@ -314,19 +314,8 @@ class RustCompiler {
     // Also resolve styles to get nidMap for bidirectional element selection
     let nidMap: Record<string, string> = {};
     try {
+      // Path mapping is auto-derived in WASM from source keys
       const pathMapping: Record<string, string> = {};
-      for (const srcPath of Object.keys(sources)) {
-        pathMapping[srcPath] = srcPath;
-        // Add ./ basename mappings for import resolution (mirrors Rust wasm.rs)
-        const basename = srcPath.split('/').pop() || srcPath;
-        pathMapping[`./${basename}`] = srcPath;
-        // Add component import mappings
-        if (srcPath.startsWith('src/components/') && srcPath.endsWith('.omni')) {
-          const stripped = srcPath.replace(/\.omni$/, '');
-          const relPath = stripped.replace(/^src\//, './');
-          pathMapping[relPath] = srcPath;
-        }
-      }
       const styleResult = this.resolveStylesMulti(sources, pathMapping);
       if (styleResult.success && styleResult.nid_map) {
         // nid_map may be a JS Map (from serde_wasm_bindgen) or plain object
