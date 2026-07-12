@@ -8,9 +8,14 @@
 
 ## 当前问题
 
+### UI 问题
 1. EventsSection 仅对非 basic 元素显示（`!isBasic` 条件），button/input 等基础元素无法绑定事件
 2. 事件列表硬编码 14 个，未使用 componentProtocol 中的 40+ 事件定义
 3. handler 只支持手动输入字符串名，无法可视化选择函数/action 或编写内联表达式
+
+### 管线问题（解析/发射往返）
+4. **Parser 只解析单个 IDENTIFIER**（`parser-view.ts:298`）：`@onClick={handleClick}` 可以解析，但 `@onClick={() => { ... }}` 或 `@onClick={TodoStore.add("item")}` 无法解析
+5. **Emitter 丢失 `on` 前缀**（`source-emitter.ts:648`）：`props.onClick` → 发射为 `@click={handler}`，下次解析时 key 变成 `click`（不以 `on` 开头），事件在二次保存后丢失
 
 ## 面板层级顺序
 
@@ -20,6 +25,73 @@
 Class (ClassesSection)
 Variant (VariantBindingSection)
 样式 (InlineStylePanel)
+```
+
+---
+
+## 零、Phase 0：Parser / Emitter 管线修复（先于 UI）
+
+### 0.1 Parser 修复
+
+**文件**：`parser-view.ts` 第 293-301 行
+
+**问题 A**：只解析单个 IDENTIFIER handler
+
+当前：
+```typescript
+const handlerName = internals.stream.expect("IDENTIFIER").text;
+result.events[eventName] = handlerName;
+```
+
+修复后：将 `@{...}` 内的内容作为原始表达式字符串读取，支持：
+- `@onClick={handleClick}` — 简单标识符
+- `@onClick={handleClick()}` — 函数调用
+- `@onClick={switchTab("home")}` — 带参数调用
+- `@onClick={TodoStore.add(item.id)}` — Store action 调用
+- `@onClick={() => { count = count + 1; }}` — 内联闭包
+
+通过括号匹配深度计数收集 `{ }` 内的所有 token，拼接为原始字符串。
+
+**问题 B**：事件名存储时丢失 `on` 前缀
+
+当前存储方式：`@click={handler}` → `props.click = "handler"`（无 `on` 前缀）
+
+修复后：统一存储为 `on` 前缀格式。解析 `@click` 和 `@onClick` 都归一化为 `props.onClick`。与 Rust 端 parser 对齐（Rust parser 保留 `on` 前缀）。
+
+### 0.2 Emitter 修复
+
+**文件**：`source-emitter.ts` 第 646-653 行
+
+**问题 A**：发射时丢失 `on` 前缀（`onClick` → `@click`），导致二次解析后事件 key 不匹配
+
+当前：
+```typescript
+const evtName = key[2].toLowerCase() + key.slice(3); // onClick → click
+parts.push(` @${evtName}={${val}}`);
+```
+
+修复后：保留 `on` 前缀，发射 `@onClick={handler}`：
+```typescript
+parts.push(` @${key}={${val}}`);
+```
+
+**问题 B**：fallback 路径只匹配 `on*` 前缀 key
+
+修复后：统一使用 `on*` 前缀规范，无需兼容两种格式。
+
+### 0.3 存储规范确立
+
+| 层 | 事件名格式 | 示例 |
+|----|-----------|------|
+| `.omni` 源码 | `@onXxx` | `@onClick={handler}` |
+| Store `element.props` | `onXxx` | `props.onClick = "handler"` |
+| Handler 值 | 原始表达式字符串 | `handleClick`、`switchTab("home")`、`() => { ... }` |
+
+往返保证：
+```
+.omni: @onClick={handleClick}
+  → parse → props.onClick = "handleClick"
+  → emit  → @onClick={handleClick}  ← 完全一致
 ```
 
 ---
@@ -242,6 +314,8 @@ Variant (VariantBindingSection)
 
 | 文件 | 变更 |
 |------|------|
+| `parser-view.ts` | 修复事件解析：支持任意表达式 handler + 归一化 `on` 前缀 |
+| `source-emitter.ts` | 修复事件发射：保留 `on` 前缀 |
 | `EventsSection.tsx` | 完全重写：紧凑行列表 + 弹窗触发 |
 | `ContextInspector.tsx` | 移除 `!isBasic` 条件（已做），调整面板顺序（已做） |
 
