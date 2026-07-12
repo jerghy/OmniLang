@@ -30,6 +30,7 @@ import { emitStoreDefinition } from "../services/codegen/source-emitter";
 import { ComponentPalette } from "../components/panels/ComponentPalette";
 import { ComponentTree } from "../components/panels/ComponentTree";
 import { ContextInspector } from "../components/panels/ContextInspector";
+import { ComponentMembersPanel } from "../components/design/ComponentMembersPanel";
 import { usePoiesisStore } from "../store";
 import { useSaveProject } from "../hooks/useSaveProject";
 import { useDragHandlers } from "../hooks/useDragHandlers";
@@ -74,7 +75,8 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
     return s.designPage.openTabs.find((t) => t.id === activeId) ?? null;
   });
   // Side panels are visible only for component tabs NOT in code-flow mode AND not in store drawer mode
-  const showSidePanels = activeTabType === "component" && !codeFlowVisible && !storePanelVisible;
+  const showCodeFlowPanel = codeFlowVisible && activeTabType === "component";
+  const showDesignPanels = activeTabType === "component" && !codeFlowVisible && !storePanelVisible;
 
   // Ref for z-axis container to convert client coords to percentages
   const zAxisRef = useRef<HTMLDivElement>(null);
@@ -200,7 +202,11 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: showSidePanels ? "280px 1fr 300px" : "1fr",
+          gridTemplateColumns: showDesignPanels
+            ? "280px 1fr 300px"
+            : showCodeFlowPanel
+              ? "280px 1fr 240px"
+              : "1fr",
           gridTemplateRows: "36px 32px 1fr 24px",
           height: "100vh",
           background: "#f8fafc",
@@ -312,7 +318,7 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
         </div>
 
         {/* Left panel: ComponentPalette + ComponentTree (component tabs, hidden in code-flow mode) */}
-        {showSidePanels && (
+        {showDesignPanels && (
         <div
           style={{
             gridRow: 3,
@@ -337,11 +343,26 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
         </div>
         )}
 
+        {/* Left panel: ComponentMembersPanel (code-flow mode for component tabs) */}
+        {showCodeFlowPanel && activeTab && (
+        <div
+          style={{
+            gridRow: 3,
+            gridColumn: 1,
+            overflow: "hidden",
+            background: "#fff",
+            borderRight: "1px solid #e2e8f0",
+          }}
+        >
+          <ComponentMembersPanel componentName={activeTab.componentName} />
+        </div>
+        )}
+
         {/* Center: DesignCanvas for components, CodeFlowCanvas for store/code */}
         <div
           style={{
             gridRow: 3,
-            gridColumn: showSidePanels ? 2 : "1 / -1",
+            gridColumn: showDesignPanels ? 2 : showCodeFlowPanel ? 2 : "1 / -1",
             overflow: "hidden",
             display: "flex",
             flexDirection: "column",
@@ -393,7 +414,7 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
         </div>
 
         {/* Right panel: ContextInspector (component tabs, hidden in code-flow mode) */}
-        {showSidePanels && (
+        {showDesignPanels && (
         <div
           style={{
             gridRow: 3,
@@ -412,7 +433,7 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
         {storePanelVisible && activeTabType === "component" && (
           <div style={{
             gridRow: 3,
-            gridColumn: showSidePanels ? 2 : "1 / -1",
+            gridColumn: showDesignPanels ? 2 : showCodeFlowPanel ? 2 : "1 / -1",
             overflow: "hidden",
             position: "relative",
             zIndex: 10,
