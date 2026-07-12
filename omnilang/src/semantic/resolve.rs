@@ -183,14 +183,20 @@ impl SemanticAnalyzer {
                 mutable,
                 ..
             } => {
-                // Declare the variable so it's available in enclosing scope
-                self.declare_or_warn(Symbol {
-                    name: name.clone(),
-                    kind: SymbolKind::Variable,
-                    type_ann: type_ann.as_ref().map(type_to_string),
-                    mutable: *mutable,
-                    declared_at: 0,
-                });
+                // Declare the variable only if it hasn't already been collected
+                // by Pass 1 (collect_block_symbols). This avoids duplicate warnings
+                // for named scopes (fn:name, action:name) while still allowing
+                // declaration in dynamic scopes (block_expr, inline_handler, closure)
+                // where collect can't reliably match scope indices across passes.
+                if !self.symbols.is_in_current_scope(name) {
+                    self.declare_or_warn(Symbol {
+                        name: name.clone(),
+                        kind: SymbolKind::Variable,
+                        type_ann: type_ann.as_ref().map(type_to_string),
+                        mutable: *mutable,
+                        declared_at: 0,
+                    });
+                }
                 if let Some(e) = init {
                     self.resolve_expr_refs(e, vctx);
                 }
@@ -250,14 +256,17 @@ impl SemanticAnalyzer {
                 finally_body,
                 ..
             } => {
+                // Declare catch_var only if not already collected by Pass 1
                 if let Some(ref var) = catch_var {
-                    self.declare_or_warn(Symbol {
-                        name: var.clone(),
-                        kind: SymbolKind::Variable,
-                        type_ann: None,
-                        mutable: false,
-                        declared_at: 0,
-                    });
+                    if !self.symbols.is_in_current_scope(var) {
+                        self.declare_or_warn(Symbol {
+                            name: var.clone(),
+                            kind: SymbolKind::Variable,
+                            type_ann: None,
+                            mutable: false,
+                            declared_at: 0,
+                        });
+                    }
                 }
                 self.resolve_block_refs(try_body, vctx);
                 if let Some(ref b) = catch_body {

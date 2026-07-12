@@ -15,10 +15,18 @@ impl OmniViewGenerator {
         self.js.push_str(
             r#"/// ── Debug Bridge ──
 (function() {
-  // Expose signal registry for the debug panel UI
+  // Always update signal registry reference — new IIFE has fresh __omni_subs
   window.__omni_subs = __omni_subs;
+  // Component registry for hot-replace
+  window.__omni_components = window.__omni_components || {};
 
-  // Override click handling: emit Tauri event instead of parent.postMessage
+  // Guard against re-registration on reload:
+  // the Tauri event listeners and click handler only need to be set up once.
+  if (window.__omni_debug && window.__omni_debug._initialized) {
+    return;
+  }
+
+  // Click → Tauri IPC element selection (capturing phase, before editor bridge)
   document.addEventListener('click', function(e) {
     if (!window.__omni_debug || !window.__omni_debug._active) return;
     var el = e.target.closest('[data-nid]');
@@ -32,9 +40,9 @@ impl OmniViewGenerator {
     } catch(_) {}
   }, true);
 
-  // Listen for highlight commands from main window
   window.__omni_debug = {
-    _active: false,
+    _active: true,
+    _initialized: true,
     _highlightedNid: null,
 
     toggle: function() {
@@ -84,7 +92,7 @@ impl OmniViewGenerator {
     }
   };
 
-  // Listen for highlight events from main window
+  // Listen for highlight commands from main window (register once)
   if (window.__TAURI_INTERNALS__) {
     window.__TAURI_INTERNALS__.invoke('plugin:event|listen', {
       event: 'debug:highlight',
@@ -104,6 +112,7 @@ impl OmniViewGenerator {
       payload: { nidMap: window.__omni_debug.getNidMap() }
     }).catch(function() {});
   }
+
 })();
 "#,
         );

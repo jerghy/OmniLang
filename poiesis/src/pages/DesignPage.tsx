@@ -13,6 +13,7 @@ import {
   closestCenter,
 } from "@dnd-kit/core";
 import { DesignTabBar } from "../components/design/DesignTabBar";
+import { DebugWindowButton } from "../features/debug/DebugWindowButton";
 import { api } from "../commands";
 import type { RecentProject } from "../commands/project-api";
 import { DesignTabContent } from "../components/design/DesignTabContent";
@@ -291,6 +292,7 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
           >
             {showCode ? "Code ▾" : "Code ▸"}
           </button>
+          <DebugWindowButton />
           {saveError && (
             <span
               title={saveError}

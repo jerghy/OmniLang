@@ -586,3 +586,139 @@ App.tsx L104-118:
 
 **陷阱**：手动写 omni 时忘记 `// @<type>`。只有 fn/action body 内部需要。
 **正确**：component / store / design / view / style / `<tag>` / `@if` / `@for` 等顶层/模板构造有自明关键词，不需要标注。只在 body 内部的代码语句前加标注。
+
+## 二十五、`serde_wasm_bindgen` 把 `HashMap` 序列化为 JS `Map` ★
+
+### 问题
+
+WASM 编译函数返回 `InternalCompileResult { files: FxHashMap<String, String> }`。TS 代码用 `result.files['index.js']` 读取 → 返回 `undefined`。`Object.keys(result.files)` → `[]`。
+
+### 原因
+
+`serde_wasm_bindgen::to_value()` 把 Rust `HashMap`/`FxHashMap` 序列化为 **JavaScript `Map`** 对象，不是普通 Object：
+
+```javascript
+const m = new Map(); m.set('a', 1);
+m['a']     // → undefined ❌
+m.get('a') // → 1 ✅
+Object.keys(m) // → []，Map 的 key 不可枚举
+JSON.stringify(m) // → "{}"
+```
+
+`OmniViewResult.files` 是 struct（`{js, html, css}`），序列化为普通 Object → 括号记法有效。
+`InternalCompileResult.files` 是 `HashMap<String, String>` → JS Map → 括号记法无效。
+
+### 修复
+
+TS 侧统一处理两种类型（`rustCompiler.ts` L336-341）：
+
+```typescript
+const getFile = (key: string): string => {
+  if (files instanceof Map) {
+    return (files as Map<string, string>).get(key) || '';
+  }
+  return (files as Record<string, string>)[key] || '';
+};
+```
+
+同理 `result.components`、`result.nid_map` 等所有 HashMap 字段都需要做 Map 检查。
+
+### 涉及文件
+
+- `wasm.rs` L168-218 — `compile_multi_to_omniview` 返回 `InternalCompileResult`
+- `rustCompiler.ts` L305-352 — `compileForDebugWindow` 中的 getFile 和 components Map 处理
+
+## 二十六、Tauri v2 跨窗口事件必须指定 `target: { kind: 'Any' }` ★
+
+### 问题
+
+Debug 窗口 `index.html` 中用裸 `window.__TAURI_INTERNALS__.invoke('plugin:event|listen', { event: '...', handler: ... })` 监听事件，Tauri v2 返回 `"invalid args: command listen missing required key target"`。
+
+### 原因
+
+Tauri v2 的 `plugin:event|listen` 要求显式指定 `target` 字段。省略 target 时 Tauri 不知道要监听哪个窗口的事件。
+
+### 修复
+
+```javascript
+// ❌ Tauri v1 风格（v2 报错）
+internals.invoke('plugin:event|listen', {
+  event: 'debug:compile-result',
+  handler: callbackId
+});
+
+// ✅ Tauri v2
+internals.invoke('plugin:event|listen', {
+  event: 'debug:compile-result',
+  target: { kind: 'Any' },
+  handler: callbackId
+});
+```
+
+可选 target 值：`{ kind: 'Any' }`（任意窗口）、`{ kind: 'Window', label: 'main' }`（指定窗口）、`{ kind: 'App' }`（App 级事件）。
+
+### 注意
+
+`@tauri-apps/api/event` 的 `listen()` 函数不需要手动加 target——库内部自动处理。只有裸 `__TAURI_INTERNALS__.invoke('plugin:event|listen', ...)` 需要。
+
+### 涉及文件
+
+- `debug-window/index.html` L118-125 — debug window 的 listen 调用（裸 invoke）
+- `useDebugWindow.ts` L121-130 — 主窗口的 listen（用 `@tauri-apps/api`，不需要 target）
+
+## 二十七、WASM 构建输出 `public/wasm/` 但 Vite 从 `src/wasm/` 加载 ★
+
+### 问题
+
+修改了 `omnilang/src/wasm.rs` → 运行 `build-wasm.sh` → 重启 App → 浏览器仍加载旧 WASM。JS 中新增的函数不存在。
+
+### 原因
+
+`build-wasm.sh` 将 WASM 输出到 `poiesis/public/wasm/`。但 `rustCompiler.ts` L133 用 `import('../wasm/omnilang.js')` 导入，Vite 从 `poiesis/src/wasm/` 解析这个路径。两个目录不同步。
+
+### 修复
+
+`build-wasm.sh` 末尾追加 cp 命令，构建后自动同步：
+
+```bash
+cp -f "$REPO_ROOT/poiesis/public/wasm/omnilang_bg.wasm" "$REPO_ROOT/poiesis/src/wasm/"
+cp -f "$REPO_ROOT/poiesis/public/wasm/omnilang.js" "$REPO_ROOT/poiesis/src/wasm/"
+```
+
+### 调试
+
+可以用 `md5sum` 对比两个目录的 WASM 文件确认是否同步。
+
+### 涉及文件
+
+- `scripts/build-wasm.sh` L15-18 — 同步逻辑
+- `rustCompiler.ts` L133 — `import('../wasm/omnilang.js')` → Vite 解析到 `src/wasm/`
+
+## 二十八、子组件 prop 无默认值 → 父组件需手动 emit signal 声明 ★
+
+### 问题
+
+主组件 `<MyCard id="mycard-inst-..."/>` 传入 `id` prop，MyCard 组件的 `.omni` 源码中未声明该 prop（无 `props { id: string }`）。WASM 编译后的 JS 报错 `Uncaught ReferenceError: MyCard_id is not defined`。此错误使后续的 debug bridge 等 JS 全部不执行。
+
+### 原因
+
+`component_html.rs` L134-143 的 prop 绑定生成 `__omni_effect(() => { MyCard_id.set(...) })`。但 signal `MyCard_id` 只在子组件 prop 有**默认值**（`child_comp.prop_defaults`）时才声明（`store.rs` L179-184）。没有默认值的 prop → `MyCard_id` 未声明 → ReferenceError。
+
+### 修复
+
+`component_html.rs` L138-148：对传入子组件的每个 prop，在父组件的 `signal_names` 中注册并用 `push_str` emit `const MyCard_id = __omni_signal("MyCard_id", undefined);` 声明。关键在于这段代码必须在**父组件上下文恢复之后**执行（`self.signal_names = saved_signal_names` 之后），否则注册的 signal 会被恢复操作覆盖。
+
+```rust
+if !self.signal_names.contains(&child_prefixed) {
+    self.signal_names.insert(child_prefixed.clone());
+    self.js.push_str(&format!(
+        "const {} = __omni_signal(\"{}\", undefined);\n",
+        child_prefixed, child_prefixed
+    ));
+}
+```
+
+### 涉及文件
+
+- `component_html.rs` L107-152 — 上下文保存/恢复 + prop 绑定
+- `store.rs` L179-184 — prop_defaults 循环（仅处理有默认值的 prop）

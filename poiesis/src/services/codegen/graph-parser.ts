@@ -465,10 +465,13 @@ export function parseCodeFlowGraph(
     let source = "";
 
     if (seg.type === "fn") {
-      const sigMatch = seg.code.match(/fn\s+(\w+)\s*\(([^)]*)\)/);
+      // Capture fn name, params, and optional return type (-> Type).
+      // The fn body may contain the opening brace after the signature.
+      const sigMatch = seg.code.match(/fn\s+(\w+)\s*\(([^)]*)\)\s*(?:->\s*(\w+))?/);
       props = {
         name: sigMatch?.[1] || "unnamed",
         params: sigMatch?.[2] || "",
+        returnType: sigMatch?.[3] || "",
       };
     } else if (seg.type === "condition") {
       // Use combined code from all segments inside the condition so that

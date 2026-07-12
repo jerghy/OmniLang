@@ -132,10 +132,24 @@ impl OmniViewGenerator {
                 out.push_str(&format!("{}</div>\n", pad));
 
                 if !self.in_for_template {
-                    // Wire parent props to child signals via reactive effects
+                    // Wire parent props to child signals via reactive effects.
+                    // Register the child signal + emit its declaration in the parent.
                     for (prop_name, prop_value) in &el.props {
                         let js_value = self.expr_to_js(prop_value);
                         let child_prefixed = format!("{}_{}", child_comp.name, prop_name);
+                        // The signal_names were just restored to the parent's set,
+                        // so inserting here persists correctly.
+                        if !self.signal_names.contains(&child_prefixed) {
+                            self.signal_names.insert(child_prefixed.clone());
+                            self.name_renames
+                                .entry(prop_name.clone())
+                                .or_insert_with(|| child_prefixed.clone());
+                            // Emit signal declaration for the parent component
+                            self.js.push_str(&format!(
+                                "const {} = __omni_signal(\"{}\", undefined);\n",
+                                child_prefixed, child_prefixed
+                            ));
+                        }
                         self.js.push_str(&format!(
                             "__omni_effect(() => {{ {}.set({}); }});\n",
                             child_prefixed, js_value

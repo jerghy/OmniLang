@@ -838,35 +838,48 @@ fn verify_pid_roundtrip(
 
 // ── Debug window commands ──
 
-/// Open the standalone debug window for live OmniView preview.
+/// Open (show) the pre-created debug window.
 #[tauri::command]
 fn open_debug_window(app: tauri::AppHandle) -> Result<(), String> {
-    use tauri::WebviewWindowBuilder;
-    // If window already exists, just show it
     if let Some(window) = app.get_webview_window("debug") {
         window.show().map_err(|e| e.to_string())?;
         window.set_focus().map_err(|e| e.to_string())?;
         return Ok(());
     }
-    WebviewWindowBuilder::new(
-        &app,
-        "debug",
-        tauri::WebviewUrl::App("debug-window/index.html".into()),
-    )
-    .title("Poiesis Debug")
-    .inner_size(1400.0, 900.0)
-    .resizable(true)
-    .build()
-    .map_err(|e| e.to_string())?;
-    Ok(())
+    Err("Debug window not found — should have been created at startup".into())
 }
 
-/// Close the debug window.
+/// Hide the debug window (never destroy — recreate blocks IPC).
 #[tauri::command]
 fn close_debug_window(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("debug") {
-        window.close().map_err(|e| e.to_string())?;
+        window.hide().map_err(|e| e.to_string())?;
     }
+    Ok(())
+}
+
+/// Append a line to the debug log file for frontend debugging.
+#[tauri::command]
+fn dw_log(message: String) -> Result<(), String> {
+    use std::io::Write;
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let path = "/tmp/poiesis-debug.log";
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+        .map_err(|e| format!("Failed to open log file: {e}"))?;
+    let ms = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+    let secs = (ms / 1000) % 86400;
+    let h = secs / 3600;
+    let m = (secs % 3600) / 60;
+    let s = secs % 60;
+    let millis = ms % 1000;
+    writeln!(file, "[{h:02}:{m:02}:{s:02}.{millis:03}] {message}")
+        .map_err(|e| format!("Failed to write log: {e}"))?;
     Ok(())
 }
 
@@ -878,9 +891,31 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_window_state::Builder::default().build())
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_denylist(&["debug"])
+                .build(),
+        )
         .plugin(tauri_plugin_store::Builder::default().build())
         .manage(ProjectState::default())
+        .setup(|app| {
+            // Pre-create the debug window hidden so open_debug_window can just show it.
+            // WebviewWindowBuilder::build() blocks IPC responses on Windows,
+            // so we create it here during setup (no IPC involved).
+            tauri::WebviewWindowBuilder::new(
+                app,
+                "debug",
+                tauri::WebviewUrl::App("debug-window/index.html".into()),
+            )
+            .title("Poiesis Debug")
+            .inner_size(1400.0, 900.0)
+            .resizable(true)
+            .visible(false)
+            .build()
+            .map_err(|e| eprintln!("[Poiesis] Failed to pre-create debug window: {e}"))
+            .ok();
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             compile_project,
             analyse_source,
@@ -897,6 +932,7 @@ pub fn run() {
             verify_pid_roundtrip,
             open_debug_window,
             close_debug_window,
+            dw_log,
         ]);
 
     #[cfg(debug_assertions)]

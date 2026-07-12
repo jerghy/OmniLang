@@ -6,10 +6,22 @@ import { usePoiesisStore } from "../store";
 import { api } from "../commands";
 import { generateOmniFiles } from "../services/codegen/pipeline";
 import { emitStoreDefinition } from "../services/codegen/source-emitter";
+import { validateSources } from "../services/monaco/diagnostics";
 import type { CodeTab } from "../core/types/codegraph";
 import { createLogger } from "../lib/utils/logger";
 
 const log = createLogger("save");
+
+/** Format WASM diagnostics into a human-readable error string. */
+function formatDiagnostics(
+  errors: Array<{ severity: string; file?: string | null; line: number; col: number; message: string; code: string }>,
+): string {
+  const lines = errors.map((e) => {
+    const loc = e.file ? `${e.file}:` : "";
+    return `  ${loc}${e.line}:${e.col} — ${e.message} [${e.code}]`;
+  });
+  return `OmniLang analyse found ${errors.length} error(s):\n${lines.join("\n")}`;
+}
 
 export function useSaveProject() {
   const markClean = usePoiesisStore((s) => s.markClean);
@@ -39,6 +51,16 @@ export function useSaveProject() {
         const designFilePath = activeTab?.tabType === "design" && activeTab?.filePath
           ? activeTab.filePath
           : "src/design.omni";
+
+        // Validate through WASM analyse before writing
+        const designErrors = await validateSources({ [designFilePath]: source });
+        const designCriticals = designErrors.filter((e) => e.severity === "error");
+        if (designCriticals.length > 0) {
+          setSaveError(formatDiagnostics(designCriticals));
+          setSaving(false);
+          return;
+        }
+
         await api.project.writeFile(designFilePath, source);
       }
 
@@ -53,13 +75,24 @@ export function useSaveProject() {
       // ── Store tab: emit StoreDefinition from storeDefs ──
       if (activeTab?.tabType === "store") {
         const storeDef = store.storeDefs[activeTab.componentName];
+        let source: string;
         if (storeDef) {
-          const source = emitStoreDefinition(storeDef);
-          await api.project.writeFile(activeTab.filePath, source);
+          source = emitStoreDefinition(storeDef);
         } else {
           // New store with no members yet — write minimal stub
-          await api.project.writeFile(activeTab.filePath, `store ${activeTab.componentName} {\n}\n`);
+          source = `store ${activeTab.componentName} {\n}\n`;
         }
+
+        // Validate through WASM analyse before writing
+        const storeErrors = await validateSources({ [activeTab.filePath]: source });
+        const storeCriticals = storeErrors.filter((e) => e.severity === "error");
+        if (storeCriticals.length > 0) {
+          setSaveError(formatDiagnostics(storeCriticals));
+          setSaving(false);
+          return;
+        }
+
+        await api.project.writeFile(activeTab.filePath, source);
         const result = await api.annotation.saveProject();
         if (result.ok) markClean();
         return;
@@ -98,7 +131,17 @@ export function useSaveProject() {
       });
 
       if (genResult.value) {
-        // ── 3. Write each generated .omni file to disk ──
+        // ── 3. Validate generated sources through WASM analyse ──
+        const analyseErrors = await validateSources(genResult.value);
+        const criticalErrors = analyseErrors.filter((e) => e.severity === "error");
+        if (criticalErrors.length > 0) {
+          setSaveError(formatDiagnostics(criticalErrors));
+          log.error("WASM analyse errors:", criticalErrors);
+          setSaving(false);
+          return;
+        }
+
+        // ── 4. Write each generated .omni file to disk ──
         for (const [filePath, source] of Object.entries(genResult.value)) {
           await api.project.writeFile(filePath, source);
         }
@@ -112,7 +155,7 @@ export function useSaveProject() {
         return;
       }
 
-      // ── 4. Save project.json (editor metadata) ──
+      // ── 5. Save project.json (editor metadata) ──
       const result = await api.annotation.saveProject();
       if (result.ok) {
         markClean();

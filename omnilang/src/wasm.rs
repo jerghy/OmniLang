@@ -192,10 +192,25 @@ pub fn compile_multi_to_omniview(sources: JsValue, editor_mode: bool, debug_mode
     if total_size > MAX_INPUT_SIZE {
         return js_error_value("Input exceeds 10MB limit");
     }
+    // Build path_mapping from source keys so cross-file imports resolve.
+    // Maps e.g. "./design.omni" → "src/design.omni" and "./components/Foo" → "src/components/Foo.omni"
+    let mut path_mapping: FxHashMap<String, String> = FxHashMap::default();
+    for src_path in sources_map.keys() {
+        path_mapping.insert(src_path.clone(), src_path.clone());
+        if let Some(basename) = src_path.rsplit('/').next() {
+            path_mapping.insert(format!("./{}", basename), src_path.clone());
+        }
+        if src_path.starts_with("src/components/") {
+            if let Some(stripped) = src_path.strip_suffix(".omni") {
+                let rel_path = stripped.replacen("src/", "./", 1);
+                path_mapping.insert(rel_path, src_path.clone());
+            }
+        }
+    }
     let result = crate::compile_multi_internal(
         sources_map,
         crate::codegen::Target::OmniView,
-        FxHashMap::default(),
+        path_mapping,
         editor_mode,
         debug_mode,
     );

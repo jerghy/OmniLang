@@ -34,6 +34,8 @@ for i in $(seq 1 60); do
   sleep 2
   if tasklist 2>/dev/null | grep -qi poiesis.exe; then
     echo "[$(date '+%H:%M:%S')] Poiesis is running!" >> "$LOG_FILE"
+    # Sync Victauri port in .mcp.json with the running process
+    bash /d/space/OmniLang/.claude/skills/start-poiesis/sync-victauri-port.sh >> "$LOG_FILE" 2>&1 || true
     echo "Poiesis is running"
     exit 0
   fi

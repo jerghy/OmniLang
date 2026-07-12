@@ -62,6 +62,13 @@ export class CodeWriter {
 export function emitStoreDefinition(store: StoreDefinition): string {
   const w = new CodeWriter();
 
+  // Stores are view files — always emit import omniview;
+  const hasOmniViewImport = store.imports.some((imp) => imp.includes("omniview"));
+  if (!hasOmniViewImport) {
+    w.emit("import omniview;");
+    if (store.imports.length > 0) w.blank();
+  }
+
   // Imports
   for (const imp of store.imports) {
     w.emit(imp);

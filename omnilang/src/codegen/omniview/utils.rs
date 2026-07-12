@@ -1,5 +1,6 @@
 //! Standalone utility functions for OmniView codegen.
 use super::super::{CompileOutput, CompiledFile};
+use super::OmniViewOutput;
 use crate::ir::*;
 use rustc_hash::FxHashMap;
 pub(super) fn serde_value_to_js(value: &serde_json::Value) -> String {
@@ -187,6 +188,33 @@ body {{ margin: 0; padding: 8px; font-family: system-ui, sans-serif; }}
 }
 
 /// Wrap `generate()` into the standard `CompileOutput` format.
+/// Build `CompileOutput` from an already-generated `OmniViewOutput`.
+/// Separates generation from file-wrapping so callers can extract `components`.
+pub fn build_file_output(gen: &OmniViewOutput) -> CompileOutput {
+    let html = format!(
+        r#"<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OmniView App</title>
+<link rel="stylesheet" href="index.css">
+</head>
+<body>
+{}
+<script src="index.js"></script>
+</body>
+</html>"#,
+        gen.html
+    );
+    CompileOutput::success(vec![
+        CompiledFile { path: "index.js".into(), content: gen.js.clone() },
+        CompiledFile { path: "index.html".into(), content: html },
+        CompiledFile { path: "body.html".into(), content: gen.html.clone() },
+        CompiledFile { path: "index.css".into(), content: gen.css.clone() },
+    ])
+}
+
 ///
 /// Called by `super::compile()` when the target is `Target::OmniView`.
 pub fn compile_files(

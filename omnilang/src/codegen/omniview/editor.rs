@@ -18,6 +18,25 @@ impl OmniViewGenerator {
         if !self.editor_mode {
             return;
         }
+        // When debug_mode is active, the Debug Bridge handles click/communication
+        // via Tauri IPC. Only emit __omni_buildNidMap() which getNidMap() relies on.
+        if self.debug_mode {
+            self.js.push_str(
+                "\n/// ── Editor Bridge (debug: nidMap only) ──\n\
+function __omni_buildNidMap() {\n\
+  var map = {};\n\
+  document.querySelectorAll('[data-nid]').forEach(function(el) {\n\
+    map[el.dataset.nid] = {\n\
+      elementId: el.id || '',\n\
+      tag: el.tagName.toLowerCase(),\n\
+      component: (el.closest('[data-component]') || {}).dataset ? el.closest('[data-component]').dataset.component : '',\n\
+    };\n\
+  });\n\
+  return map;\n\
+}\n",
+            );
+            return;
+        }
         self.js.push_str(
             r#"
 /// ── Editor Bridge ──

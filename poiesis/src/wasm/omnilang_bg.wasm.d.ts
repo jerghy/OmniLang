@@ -1,17 +1,13 @@
 /* tslint:disable */
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
-export const omni_analyse: (a: number, b: number) => number;
-export const omni_compile_multi_to_target: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => number;
-export const omni_free_string: (a: number) => void;
-export const omni_version: () => number;
 export const __wbg_omnicompiler_free: (a: number, b: number) => void;
-export const compile_multi_to_omniview: (a: number, b: number) => number;
-export const compile_omniview_component: (a: number, b: number, c: number, d: number, e: number) => number;
+export const compile_multi_to_omniview: (a: number, b: number, c: number) => number;
+export const compile_omniview_component: (a: number, b: number, c: number, d: number, e: number, f: number) => number;
 export const compile_to_ir: (a: number, b: number) => number;
-export const compile_to_omniview: (a: number, b: number, c: number) => number;
-export const compile_to_omniview_full: (a: number, b: number, c: number) => number;
-export const omnicompiler_compile_to_omniview: (a: number, b: number) => number;
+export const compile_to_omniview: (a: number, b: number, c: number, d: number) => number;
+export const compile_to_omniview_full: (a: number, b: number, c: number, d: number) => number;
+export const omnicompiler_compile_to_omniview: (a: number, b: number, c: number) => number;
 export const omnicompiler_diagnostics: (a: number) => number;
 export const omnicompiler_new: () => number;
 export const omnicompiler_remove_source: (a: number, b: number, c: number) => void;

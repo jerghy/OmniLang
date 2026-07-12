@@ -18,10 +18,11 @@ export class OmniCompiler {
      * Compile all registered sources to OmniView. Uses cached result when available.
      * editor_mode: enable debug wrappers for editor preview.
      * @param {boolean} editor_mode
+     * @param {boolean} debug_mode
      * @returns {any}
      */
-    compile_to_omniview(editor_mode) {
-        const ret = wasm.omnicompiler_compile_to_omniview(this.__wbg_ptr, editor_mode);
+    compile_to_omniview(editor_mode, debug_mode) {
+        const ret = wasm.omnicompiler_compile_to_omniview(this.__wbg_ptr, editor_mode, debug_mode);
         return takeObject(ret);
     }
     /**
@@ -93,10 +94,11 @@ if (Symbol.dispose) OmniCompiler.prototype[Symbol.dispose] = OmniCompiler.protot
  * Returns JsValue with `success`, `files`, `errors`, and `warnings`.
  * @param {any} sources
  * @param {boolean} editor_mode
+ * @param {boolean} debug_mode
  * @returns {any}
  */
-export function compile_multi_to_omniview(sources, editor_mode) {
-    const ret = wasm.compile_multi_to_omniview(addHeapObject(sources), editor_mode);
+export function compile_multi_to_omniview(sources, editor_mode, debug_mode) {
+    const ret = wasm.compile_multi_to_omniview(addHeapObject(sources), editor_mode, debug_mode);
     return takeObject(ret);
 }
 
@@ -107,14 +109,15 @@ export function compile_multi_to_omniview(sources, editor_mode) {
  * @param {string} source
  * @param {string} component_name
  * @param {boolean} editor_mode
+ * @param {boolean} debug_mode
  * @returns {any}
  */
-export function compile_omniview_component(source, component_name, editor_mode) {
+export function compile_omniview_component(source, component_name, editor_mode, debug_mode) {
     const ptr0 = passStringToWasm0(source, wasm.__wbindgen_export, wasm.__wbindgen_export2);
     const len0 = WASM_VECTOR_LEN;
     const ptr1 = passStringToWasm0(component_name, wasm.__wbindgen_export, wasm.__wbindgen_export2);
     const len1 = WASM_VECTOR_LEN;
-    const ret = wasm.compile_omniview_component(ptr0, len0, ptr1, len1, editor_mode);
+    const ret = wasm.compile_omniview_component(ptr0, len0, ptr1, len1, editor_mode, debug_mode);
     return takeObject(ret);
 }
 
@@ -135,12 +138,13 @@ export function compile_to_ir(source) {
  * editor_mode: enable debug wrappers for editor preview.
  * @param {string} source
  * @param {boolean} editor_mode
+ * @param {boolean} debug_mode
  * @returns {any}
  */
-export function compile_to_omniview(source, editor_mode) {
+export function compile_to_omniview(source, editor_mode, debug_mode) {
     const ptr0 = passStringToWasm0(source, wasm.__wbindgen_export, wasm.__wbindgen_export2);
     const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.compile_to_omniview(ptr0, len0, editor_mode);
+    const ret = wasm.compile_to_omniview(ptr0, len0, editor_mode, debug_mode);
     return takeObject(ret);
 }
 
@@ -150,12 +154,13 @@ export function compile_to_omniview(source, editor_mode) {
  * editor_mode: enable debug wrappers for editor preview.
  * @param {string} source
  * @param {boolean} editor_mode
+ * @param {boolean} debug_mode
  * @returns {any}
  */
-export function compile_to_omniview_full(source, editor_mode) {
+export function compile_to_omniview_full(source, editor_mode, debug_mode) {
     const ptr0 = passStringToWasm0(source, wasm.__wbindgen_export, wasm.__wbindgen_export2);
     const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.compile_to_omniview_full(ptr0, len0, editor_mode);
+    const ret = wasm.compile_to_omniview_full(ptr0, len0, editor_mode, debug_mode);
     return takeObject(ret);
 }
 

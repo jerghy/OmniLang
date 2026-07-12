@@ -25,7 +25,7 @@ mod store;
 mod timeline;
 mod utils;
 mod view;
-pub use utils::{compile_files, wrap_debug_html};
+pub use utils::{build_file_output, compile_files, wrap_debug_html};
 mod debug;
 
 use crate::error::Diagnostic;
@@ -309,7 +309,7 @@ pub fn generate(ir: &IRProgram, editor_mode: bool, css_only: bool, debug_mode: b
     // In editor mode, use unscoped selectors — the canvas has no data-design attr.
     for module in ir.modules.values() {
         for design in &module.designs {
-            let css_result = if editor_mode {
+            let css_result = if editor_mode && css_only {
                 design::emit_design_css_editor(design, &design.name)
             } else {
                 design::emit_design_css(design, &design.name)

@@ -24,6 +24,10 @@ impl SemanticAnalyzer {
                     mutable: false,
                     declared_at: prop.type_ann.span().start,
                 });
+                // Traverse default value expression for inner VarDecls (block expressions)
+                if let Some(ref default) = prop.default {
+                    self.collect_expr_symbols(default);
+                }
             }
 
             for sig in &comp.signals {
@@ -34,6 +38,8 @@ impl SemanticAnalyzer {
                     mutable: true,
                     declared_at: sig.type_ann.span().start,
                 });
+                // Traverse init expression for inner VarDecls (block expressions)
+                self.collect_expr_symbols(&sig.init);
             }
 
             for c in &comp.computeds {
@@ -44,6 +50,8 @@ impl SemanticAnalyzer {
                     mutable: false,
                     declared_at: c.type_ann.span().start,
                 });
+                // Traverse computed body expression for inner VarDecls (block expressions)
+                self.collect_expr_symbols(&c.body);
             }
 
             for ev in &comp.events {
@@ -81,6 +89,8 @@ impl SemanticAnalyzer {
                     mutable: false,
                     declared_at: g.type_ann.span().start,
                 });
+                // Traverse getter body expression for inner VarDecls (block expressions)
+                self.collect_expr_symbols(&g.body);
             }
 
             // Lifecycle hooks
@@ -118,6 +128,8 @@ impl SemanticAnalyzer {
                     mutable: true,
                     declared_at: sig.type_ann.span().start,
                 });
+                // Traverse init expression for inner VarDecls (block expressions)
+                self.collect_expr_symbols(&sig.init);
             }
 
             for g in &store.getters {
@@ -128,6 +140,8 @@ impl SemanticAnalyzer {
                     mutable: false,
                     declared_at: g.type_ann.span().start,
                 });
+                // Traverse getter body expression for inner VarDecls (block expressions)
+                self.collect_expr_symbols(&g.body);
             }
 
             for a in &store.actions {
@@ -323,6 +337,56 @@ impl SemanticAnalyzer {
                 }
                 _ => {}
             }
+        }
+    }
+
+    /// Collect symbols from within expressions.
+    ///
+    /// Currently handles `Expr::Block` (block expressions that may contain `let` declarations)
+    /// and `Expr::ClosureExpr` (closures whose body may contain block expressions).
+    /// Recurses into child expressions where VarDecls could appear.
+    fn collect_expr_symbols(&mut self, expr: &Expr) {
+        match expr {
+            Expr::Block { body, .. } => {
+                self.symbols.push_scope("block_expr");
+                self.collect_block_symbols(body);
+                self.symbols.pop_scope();
+            }
+            Expr::ClosureExpr { params, body, .. } => {
+                self.symbols.push_scope("closure");
+                for p in params {
+                    self.declare_or_warn(Symbol {
+                        name: p.clone(),
+                        kind: SymbolKind::Variable,
+                        type_ann: None,
+                        mutable: false,
+                        declared_at: 0,
+                    });
+                }
+                self.collect_expr_symbols(body);
+                self.symbols.pop_scope();
+            }
+            Expr::IfExpr {
+                condition,
+                then_expr,
+                else_expr,
+                ..
+            } => {
+                self.collect_expr_symbols(condition);
+                self.collect_expr_symbols(then_expr);
+                self.collect_expr_symbols(else_expr);
+            }
+            Expr::TernaryExpr {
+                condition,
+                then_expr,
+                else_expr,
+                ..
+            } => {
+                self.collect_expr_symbols(condition);
+                self.collect_expr_symbols(then_expr);
+                self.collect_expr_symbols(else_expr);
+            }
+            _ => {}
         }
     }
 }

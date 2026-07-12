@@ -96,6 +96,7 @@ export interface ComponentSourceDef {
   filePath: string;
   signals: Array<DefEntry>;
   props: Array<DefEntry>;
+  computeds: Array<ComputedEntry>;
   events: Array<{ pid: string; name: string; payloadType: string }>;
   fns: Array<FnDef>;
 }
@@ -122,4 +123,12 @@ export interface FnDef {
   name: string;
   params: Array<{ name: string; type: string }>;
   returnType: string;
+}
+
+/** Component-level computed declaration — aligns with StoreGetterDef. */
+export interface ComputedEntry {
+  pid: string;
+  name: string;
+  returnType: string;
+  expression: string;
 }

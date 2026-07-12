@@ -1,0 +1,256 @@
+- generic [ref=e4]:
+  - banner [ref=e6]:
+    - heading "OmniView 教学项目" [level=1] [ref=e7]
+    - paragraph [ref=e8]: 涵盖 Store、Signal、Computed、Prop、Event、bind:value 等核心特性
+  - generic [ref=e9]:
+    - generic [ref=e10]:
+      - button "首页" [ref=e11] [cursor=pointer]
+      - button "待办" [ref=e12] [cursor=pointer]
+      - button "基础交互" [ref=e13] [cursor=pointer]
+      - button "编译器特性" [ref=e14] [cursor=pointer]
+      - button "运动动画" [ref=e15] [cursor=pointer]
+      - button "CSS 特性" [active] [ref=e16] [cursor=pointer]
+      - button "事件/表单" [ref=e17] [cursor=pointer]
+      - button "语言特性" [ref=e18] [cursor=pointer]
+      - button "设置" [ref=e19] [cursor=pointer]
+      - button "补充" [ref=e20] [cursor=pointer]
+    - generic [ref=e1062]:
+      - generic [ref=e1065]:
+        - heading "CSS 单位全覆盖" [level=3] [ref=e1066]
+        - paragraph [ref=e1067]: 30 个 CSS 单位全覆盖（含 10 个新增：s, vmax, svw, lvw, dvw, cqh, cqb, cqmin, cqmax, rlh）
+        - generic [ref=e1068]:
+          - generic [ref=e1069]: 10vh
+          - generic [ref=e1070]: 1fr
+          - generic [ref=e1071]: 12pt
+          - generic [ref=e1072]: 1cm
+          - generic [ref=e1073]: 10mm
+          - generic [ref=e1074]: 150ms
+          - generic [ref=e1075]: 15deg
+          - generic [ref=e1076]: 0.5rad
+          - generic [ref=e1077]: 50grad
+          - generic [ref=e1078]: 0.25turn
+          - generic [ref=e1079]: 5vmin
+          - generic [ref=e1080]: 5svh
+          - generic [ref=e1081]: 5lvh
+          - generic [ref=e1082]: 5dvh
+          - generic [ref=e1083]: 20ch
+          - generic [ref=e1084]: 10ex
+          - generic [ref=e1085]: 15ic
+          - generic [ref=e1086]: 2lh
+          - generic [ref=e1087]: 10cqw
+          - generic [ref=e1088]: 5cqi
+          - generic [ref=e1089]: 1s
+          - generic [ref=e1090]: 5vmax
+          - generic [ref=e1091]: 5svw
+          - generic [ref=e1092]: 5lvw
+          - generic [ref=e1093]: 5dvw
+          - generic [ref=e1094]: 5cqh
+          - generic [ref=e1095]: 5cqb
+          - generic [ref=e1096]: 5cqmin
+          - generic [ref=e1097]: 5cqmax
+          - generic [ref=e1098]: 2rlh
+      - generic [ref=e1101]:
+        - heading "CSS Custom Properties (CSS Variables)" [level=3] [ref=e1102]
+        - paragraph [ref=e1103]:
+          - text: 演示编译器对
+          - code [ref=e1104]: "--*"
+          - text: 声明、
+          - code [ref=e1105]: var()
+          - text: 引用、内联静态/动态 CSS 变量的完整支持
+        - generic [ref=e1106]:
+          - heading "① Style 块声明 --* + var() 引用" [level=4] [ref=e1107]
+          - paragraph [ref=e1108]:
+            - text: Style 块内部声明
+            - code [ref=e1109]: "--primary"
+            - text: 、
+            - code [ref=e1110]: "--bg"
+            - text: 等自定义属性， 然后用
+            - code [ref=e1111]: var()
+            - text: 引用。这是编译器中
+            - code [ref=e1112]: parse_css_property_name()
+            - text: 解析
+            - code [ref=e1113]: "--"
+            - text: 前缀的常规路径。
+          - generic [ref=e1114]:
+            - generic [ref=e1115]: var(--primary)
+            - generic [ref=e1116]: var(--primary-alt)
+            - generic [ref=e1117]: "background: var(--surface)"
+            - generic [ref=e1118]: "border: var(--border-color)"
+        - generic [ref=e1119]:
+          - heading "② 内联样式静态 CSS 变量" [level=4] [ref=e1120]
+          - paragraph [ref=e1121]:
+            - text: 在
+            - code [ref=e1122]: "style: &#123; --name: \"value\" &#125;"
+            - text: 中直接写
+            - code [ref=e1123]: "--"
+            - text: 属性。 编译器代码生成将
+            - code [ref=e1124]: "--"
+            - text: 属性用
+            - code [ref=e1125]: el.style.setProperty("--name", value)
+            - text: 输出，而非普通的
+            - code [ref=e1126]: el.style.prop = value
+            - text: 。
+          - generic [ref=e1127]:
+            - code [ref=e1129]: "--box-bg: \"#e0e7ff\""
+            - code [ref=e1131]: "--box-radius: \"16px\""
+            - code [ref=e1133]: "--box-radius: \"50%\""
+        - generic [ref=e1134]:
+          - heading "③ 内联样式动态 CSS 变量（信号 → setProperty）" [level=4] [ref=e1135]
+          - paragraph [ref=e1136]:
+            - text: 传递
+            - strong [ref=e1137]: 信号引用
+            - text: 给
+            - code [ref=e1138]: "--*"
+            - text: 属性。编译器自动生成
+            - code [ref=e1139]: __omni_effect(() => el.style.setProperty("--name", signal.value))
+            - text: 。 这是新增的
+            - code [ref=e1140]: $signal
+            - text: JSON 标记代码路径。
+          - generic [ref=e1141]:
+            - paragraph [ref=e1142]:
+              - text: "当前 accent:"
+              - strong [ref=e1143]: "#6366f1"
+            - generic [ref=e1144]: "#6366f1"
+            - button "Cycle Accent Color" [ref=e1147] [cursor=pointer]
+            - paragraph [ref=e1148]:
+              - text: "生成的 JS:"
+              - code [ref=e1149]: setProperty("--accent", accentColor.value)
+        - generic [ref=e1150]:
+          - heading "④ CSS 变量级联 + Motion 驱动" [level=4] [ref=e1151]
+          - paragraph [ref=e1152]:
+            - text: 外层设
+            - code [ref=e1153]: "--accent-h"
+            - text: ，内层用
+            - code [ref=e1154]: var(--accent-h)
+            - text: 计算衍生色。 配合
+            - code [ref=e1155]
+            - text: 交替动画驱动 hue 值变化。
+          - generic [ref=e1157]:
+            - paragraph [ref=e1158]:
+              - text: hue =
+              - strong [ref=e1159]: 221 °
+            - paragraph [ref=e1160]:
+              - text: 内层用
+              - code [ref=e1161]: var(--accent-h)
+              - text: 通过 CSS
+              - code [ref=e1162]: hsl()
+              - text: 计算色值
+            - generic [ref=e1163]:
+              - generic [ref=e1164]: 221°
+              - generic [ref=e1165]: 260°
+              - generic [ref=e1166]: 300°
+              - generic [ref=e1167]: 340°
+        - generic [ref=e1168]:
+          - heading "编译器技术要点" [level=4] [ref=e1169]
+          - list [ref=e1170]:
+            - listitem [ref=e1171]:
+              - code [ref=e1172]: parse_css_property_name()
+              - text: 在
+              - code [ref=e1173]: view.rs:1134
+              - text: 检测
+              - code [ref=e1174]: "--"
+              - text: 双短横前缀
+            - listitem [ref=e1175]:
+              - code [ref=e1176]: emit_style_assignment()
+              - text: 在
+              - code [ref=e1177]: omniview.rs:692
+              - text: 对
+              - code [ref=e1178]: "--"
+              - text: 属性用
+              - code [ref=e1179]: setProperty()
+              - text: 而非直接赋值
+            - listitem [ref=e1180]:
+              - text: Style 块中
+              - code [ref=e1181]: "--name: value"
+              - text: 以
+              - code [ref=e1182]: StyleValue::Ident
+              - text: /
+              - code [ref=e1183]: HexColor
+              - text: /
+              - code [ref=e1184]: Dimension
+              - text: 存储在 AST
+            - listitem [ref=e1185]:
+              - text: 内联
+              - code [ref=e1186]: "style: &#123; --name: signal &#125;"
+              - text: 通过
+              - code [ref=e1187]: $signal
+              - text: JSON 标记生成响应式代码
+            - listitem [ref=e1188]:
+              - text: 测试覆盖：
+              - code [ref=e1189]: css_custom_property_test.rs
+              - text: （解析 + 静态内联 + 动态内联）
+      - generic [ref=e1192]:
+        - heading "Theme with CSS Variables" [level=3] [ref=e1193]
+        - paragraph [ref=e1194]:
+          - text: 父元素注入
+          - code [ref=e1195]: "--theme-*"
+          - text: CSS 变量（来自 ThemeStore 信号）， 子元素用
+          - code [ref=e1196]: var()
+          - text: 继承。切换主题时触发
+          - code [ref=e1197]: setProperty()
+          - text: 响应式更新。
+        - generic [ref=e1198]:
+          - generic [ref=e1199]:
+            - heading "CSS Variable Cascading" [level=4] [ref=e1200]
+            - paragraph [ref=e1201]:
+              - text: background、color、border-color 均通过
+              - code [ref=e1202]: var(--theme-*)
+              - text: 从父级继承。主题切换时所有卡片同步变化。
+            - generic [ref=e1203]:
+              - generic [ref=e1204]: "BG: var(--theme-bg)"
+              - generic [ref=e1205]: "TX: var(--theme-text)"
+              - generic [ref=e1206]: "PR: var(--theme-primary)"
+          - generic [ref=e1207]:
+            - heading "Composition with calc()" [level=4] [ref=e1208]
+            - paragraph [ref=e1209]:
+              - code [ref=e1210]: calc(var(--theme-border-w) * 2px)
+              - text: 动态计算边框宽度。 点击按钮切换
+              - code [ref=e1211]: "--theme-border-w"
+              - text: 值。
+            - button "Toggle Border Width ( 2 px → 4 px)" [ref=e1212] [cursor=pointer]
+          - generic [ref=e1213]:
+            - heading "Transform via CSS Variable" [level=4] [ref=e1214]
+            - paragraph [ref=e1215]:
+              - code [ref=e1216]: "transform: scale(var(--theme-scale))"
+              - text: 。 信号值通过
+              - code [ref=e1217]: setProperty("--theme-scale", boxScale.value)
+              - text: 驱动。
+            - button "Toggle Scale ( 1 )" [ref=e1218] [cursor=pointer]
+          - generic [ref=e1219]:
+            - heading "Theme Palette via var()" [level=4] [ref=e1220]
+            - generic [ref=e1221]:
+              - generic [ref=e1222]: "--theme-bg"
+              - generic [ref=e1223]: "--theme-primary"
+              - generic [ref=e1224]: "--theme-text"
+              - generic [ref=e1225]: "--theme-muted"
+        - generic [ref=e1226]:
+          - button "Switch to Dark Mode" [ref=e1227] [cursor=pointer]
+          - paragraph [ref=e1228]:
+            - text: "当前主题:"
+            - strong [ref=e1229]: Light
+            - text: "· 切换次数: 0 · 代码路径:"
+            - code [ref=e1230]: setProperty()
+        - generic [ref=e1231]:
+          - heading "💡 关键设计模式" [level=4] [ref=e1232]
+          - list [ref=e1233]:
+            - listitem [ref=e1234]:
+              - text: CSS 变量级联：在组件根元素一次性注入
+              - code [ref=e1235]: "--theme-*"
+              - text: ，所有子元素用
+              - code [ref=e1236]: var()
+              - text: 自动继承
+            - listitem [ref=e1237]:
+              - text: 信号 → setProperty：编译器为
+              - code [ref=e1238]: "style: &#123; --var: signal &#125;"
+              - text: 生成
+              - code [ref=e1239]: __omni_effect(() => el.style.setProperty("--var", signal.value))
+            - listitem [ref=e1240]:
+              - text: 主题切换只需更新
+              - code [ref=e1241]: ThemeStore
+              - text: 的 getter，CSS 变量自动响应
+            - listitem [ref=e1242]:
+              - text: 对比 ThemeSwitcher：后者每个元素单独绑定
+              - code [ref=e1243]: "style: &#123; color: ThemeStore.currentText &#125;"
+              - text: ，CSS 变量版只需在根元素设一次
+    - contentinfo [ref=e115]:
+      - paragraph [ref=e116]: OmniView 教学项目 · 74+ 源文件 · omnic run

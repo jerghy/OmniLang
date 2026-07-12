@@ -974,7 +974,7 @@ fn test_html_element_with_attributes() {
         },
     );
     let ir = make_program(HashMap::from([("main".into(), module)]));
-    let output = generate(&ir, true);
+    let output = generate(&ir, true, false, false);
     assert!(output.html.contains("class=\"container\""));
     assert!(output.html.contains("id=\"label\""));
     assert!(output.html.contains("data-nid="));
@@ -991,7 +991,7 @@ fn test_html_data_nid_present() {
         },
     );
     let ir = make_program(HashMap::from([("main".into(), module)]));
-    let output = generate(&ir, true);
+    let output = generate(&ir, true, false, false);
     assert!(output.html.contains("data-nid=\"el-button-"));
 }
 
@@ -1023,7 +1023,7 @@ fn test_html_interpolation() {
         },
     );
     let ir = make_program(HashMap::from([("main".into(), module)]));
-    let output = generate(&ir, true);
+    let output = generate(&ir, true, false, false);
     assert!(output.html.contains("<span"));
     assert!(output.html.contains("data-nid="));
     assert!(output.js.contains("textContent"));
@@ -1054,7 +1054,7 @@ fn test_html_conditional() {
         },
     );
     let ir = make_program(HashMap::from([("main".into(), module)]));
-    let output = generate(&ir, true);
+    let output = generate(&ir, true, false, false);
     assert!(output.html.contains("Visible"));
     assert!(output.html.contains("Hidden"));
 }
@@ -1093,7 +1093,7 @@ fn test_full_pipeline_component_only() {
         },
     );
     let ir = make_program(HashMap::from([("main".into(), module)]));
-    let output = generate(&ir, true);
+    let output = generate(&ir, true, false, false);
     assert!(output.js.contains("App_count"));
     assert!(output.js.contains("__omni_signal"));
     assert!(output.html.contains("Hello"));
@@ -1156,7 +1156,7 @@ fn test_full_pipeline_component_with_store() {
         },
     );
     let ir = make_program(HashMap::from([("main".into(), module)]));
-    let output = generate(&ir, true);
+    let output = generate(&ir, true, false, false);
     assert!(output.js.contains("AppStore_count"));
 }
 
@@ -1193,7 +1193,7 @@ fn test_event_binding_click() {
         },
     );
     let ir = make_program(HashMap::from([("main".into(), module)]));
-    let output = generate(&ir, true);
+    let output = generate(&ir, true, false, false);
     assert!(output.js.contains("click"));
     assert!(output.js.contains("App_handleClick"));
     assert!(output.js.contains("addEventListener"));
@@ -1223,7 +1223,7 @@ fn test_style_emission() {
         },
     );
     let ir = make_program(HashMap::from([("main".into(), module)]));
-    let output = generate(&ir, true);
+    let output = generate(&ir, true, false, false);
     assert!(output.css.contains("myClass"));
     assert!(output.css.contains("color: red"));
     assert!(output.css.contains("data-component"));
@@ -1245,7 +1245,7 @@ fn test_source_map_entries() {
         },
     );
     let ir = make_program(HashMap::from([("main".into(), module)]));
-    let output = generate(&ir, true);
+    let output = generate(&ir, true, false, false);
     assert!(
         !output.source_map.is_empty(),
         "should have source map entries"
@@ -1283,7 +1283,7 @@ fn test_runtime_error_reporting() {
         },
     );
     let ir = make_program(HashMap::from([("main".into(), module)]));
-    let output = generate(&ir, true);
+    let output = generate(&ir, true, false, false);
     assert!(
         output.js.contains("__omni_reportError"),
         "runtime must include __omni_reportError"

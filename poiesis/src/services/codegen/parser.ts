@@ -629,7 +629,7 @@ export class Parser {
         const next = this.stream.peek();
         if (next.kind === "EQUALS") {
           this.stream.consume(); // "="
-          defaultValue = this.collectDefaultValue();
+          defaultValue = this.collectDefaultValue(typeStr);
         }
         this.expectSemicolon();
         const pid = pendingPid || `${storeDef.pid}_n${++this.ctx.storeSignalCounter}`;
@@ -726,13 +726,31 @@ export class Parser {
   }
 
   /** Collect a default value expression after "=", stopping at ";". */
-  private collectDefaultValue(): unknown {
+  /**
+   * Collect a default value expression between "=" and ";".
+   *
+   * When `type` is a String variant, surrounding double/single quotes are
+   * stripped so the stored value is the unquoted string.  The emitter
+   * (formatDefaultValue) adds quotes back during code generation, keeping
+   * the UI textbox clean — users type `few`, not `"few"`.
+   */
+  private collectDefaultValue(type?: string): unknown {
     let val = "";
     while (!this.stream.isEof() && this.stream.peek().kind !== "SEMICOLON") {
       val += this.stream.consume().text;
     }
-    const trimmed = val.trim();
-    // Return as string (caller can JSON.parse if needed)
+    let trimmed = val.trim();
+
+    // Strip quotes for String-typed defaults so the UI shows clean values.
+    // formatDefaultValue adds quotes back when emitting .omni source.
+    const isStringType = type === "String" || type === "String?";
+    if (isStringType && trimmed.length >= 2) {
+      if ((trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+          (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+        trimmed = trimmed.slice(1, -1);
+      }
+    }
+
     return trimmed;
   }
 

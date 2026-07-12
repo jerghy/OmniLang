@@ -119,6 +119,13 @@ impl SymbolTable {
         self.resolve(name).is_some()
     }
 
+    /// Check if a symbol exists only in the current scope (not parent scopes).
+    pub fn is_in_current_scope(&self, name: &str) -> bool {
+        self.scopes[self.current_scope]
+            .symbols
+            .contains_key(name)
+    }
+
     /// Find a scope by name using hash lookup (O(1) average).
     pub fn find_scope_by_name(&self, name: &str) -> Option<usize> {
         self.scope_by_name.get(name).copied()

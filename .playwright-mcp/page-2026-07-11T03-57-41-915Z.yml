@@ -1,0 +1,51 @@
+- generic [ref=e4]:
+  - banner [ref=e6]:
+    - heading "OmniView 教学项目" [level=1] [ref=e7]
+    - paragraph [ref=e8]: 涵盖 Store、Signal、Computed、Prop、Event、bind:value 等核心特性
+  - generic [ref=e9]:
+    - generic [ref=e10]:
+      - button "首页" [ref=e11] [cursor=pointer]
+      - button "待办" [ref=e12] [cursor=pointer]
+      - button "基础交互" [ref=e13] [cursor=pointer]
+      - button "编译器特性" [ref=e14] [cursor=pointer]
+      - button "运动动画" [ref=e15] [cursor=pointer]
+      - button "CSS 特性" [ref=e16] [cursor=pointer]
+      - button "事件/表单" [ref=e17] [cursor=pointer]
+      - button "语言特性" [ref=e18] [cursor=pointer]
+      - button "设置" [ref=e19] [cursor=pointer]
+      - button "补充" [ref=e20] [cursor=pointer]
+    - generic [ref=e512]:
+      - generic [ref=e515]:
+        - heading "HTTP GET Demo" [level=3] [ref=e516]
+        - paragraph [ref=e517]: async action + await http_get + json_parse + match
+        - generic [ref=e518]:
+          - textbox [ref=e519]: https://jsonplaceholder.typicode.com/todos/1
+          - button "Load" [active] [ref=e520] [cursor=pointer]
+          - button "API" [ref=e521] [cursor=pointer]
+          - button "Reset" [ref=e522] [cursor=pointer]
+        - generic [ref=e555]:
+          - paragraph [ref=e556]: "Response:"
+          - generic [ref=e557]: "{\"userId\":1,\"id\":1,\"title\":\"delectus aut autem\",\"completed\":false}"
+      - generic [ref=e529]:
+        - heading "HTTP POST Demo" [level=3] [ref=e530]
+        - paragraph [ref=e531]: json_stringify + http_post + await + match status
+        - generic [ref=e532]:
+          - generic [ref=e533]: Title
+          - textbox "Enter title..." [ref=e534]
+          - generic [ref=e535]: Body
+          - textbox "Enter body..." [ref=e536]
+          - generic [ref=e537]:
+            - button "Submit" [ref=e538] [cursor=pointer]
+            - button "Reset" [ref=e539] [cursor=pointer]
+      - generic [ref=e542]:
+        - heading "Storage Demo" [level=3] [ref=e543]
+        - paragraph [ref=e544]: storage get/set + json parse/stringify + mount
+        - generic [ref=e545]:
+          - generic [ref=e546]: Username
+          - textbox "Your name..." [ref=e547]: TestUser
+          - generic [ref=e548]:
+            - button "Save" [ref=e549] [cursor=pointer]
+            - button "Clear" [ref=e550] [cursor=pointer]
+        - paragraph [ref=e552]: Settings saved at now
+    - contentinfo [ref=e115]:
+      - paragraph [ref=e116]: OmniView 教学项目 · 74+ 源文件 · omnic run

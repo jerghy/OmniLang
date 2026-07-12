@@ -1,72 +1,43 @@
-# Task 14 Report: ChainEmitter
+# Task 14 Report: Integration Tests + Round-Trip Tests
 
 **Status:** Complete
 
-**Commit:** `b92267b6` — `feat(omni-gen): add ChainEmitter for @chain/@node/@wire blocks`
+**Commit:** `c7b6bf8e0` on `main`
 
-## Files Created
+## Summary
 
-- `editor/client/src/omni-gen/chain-emitter.ts` (257 lines)
-- `editor/client/src/omni-gen/__tests__/chain-emitter.test.ts` (250 lines)
+Created new round-trip annotation tests and verified all existing tests pass with zero regressions.
 
-## Implementation
+## New Test File
 
-`emitChains(tab, functions)` returns a `Map<string, ChainBlock>` keyed by function name. Core algorithm:
+`poiesis/src/services/codegen/__tests__/roundtrip-annotation.test.ts`
 
-1. For each `customFn` in lowered functions, find the matching graph element by `config.fnName`
-2. BFS from the fnNode collecting all reachable nodes + wires (undirected traversal)
-3. `formatNode(el)`: looks up `NODE_ATTRS[tag]` for required/optional attributes; resolves from `el.config` (CustomFunctionMeta) or `el.props`; appends `pos=x,y`
-4. `formatWire(w, elMap)`: formats as `from.port -> to.port`; customFn nodes skip port name on the from side (body port is implicit)
-5. S5 validation: checks getVariable/setVariable names exist in `tab.variables`
-
-Key design decisions:
-- String literal values (literal node's `value`) are quoted (`value="hello"`) to distinguish from bare identifier attributes (`name=counter`)
-- Signal `type` attribute resolves from `typeAnnotation` prop; `init` resolves from `init` or `default` prop
-- customFn attributes (`fnName`, `returnType`) resolve from `el.config` (CustomFunctionMeta interface)
-- Functions without a matching graph element are silently skipped
+Contains 4 tests:
+1. **manual @if/@return -> auto-PID nodes preserves structure** -- verifies that hand-written `// @if` and `// @return` annotations produce auto-generated PIDs and the correct condition + 2x return elements
+2. **sequential @code-block nodes have linear flow-out wires** -- verifies 3 sequential `// @code-block` nodes produce 2 flow-out wires (a->b, b->c)
+3. **if/elif/else with @type annotations creates correct branch wires** -- verifies `// @if`/`// @elif`/`// @else` produce one condition node with three branch wires (br0, br1, br2)
+4. **mixed // @pid and // @type in same body** -- verifies `// @pid:old_pid` preserves explicit IDs while `// @if` auto-generates fresh IDs
 
 ## Test Results
 
-All 121 tests pass across 12 test files (7 specific to chain-emitter, 114 existing regressions):
+All **85 tests** pass across **9 test files**:
 
-| Test | Status |
-|------|--------|
-| basic chain with customFn + literal + wire | PASS |
-| empty tab returns empty map | PASS |
-| multiple functions produce multiple chain blocks | PASS |
-| BFS captures all reachable nodes and wires | PASS |
-| nodes formatted with required and optional attributes | PASS |
-| function with no matching element returns empty | PASS |
-| string literal values quoted in node attrs | PASS |
+| Test File | Tests | Status |
+|-----------|-------|--------|
+| roundtrip-annotation.test.ts | 4 | PASS |
+| graph-parser.test.ts | 26 | PASS |
+| annotation-registry.test.ts | 22 | PASS |
+| wire-analyzer.test.ts | 6 | PASS |
+| pipeline.test.ts | 5 | PASS |
+| store-roundtrip.test.ts | 11 | PASS |
+| inline-store-roundtrip.test.ts | 4 | PASS |
+| parser-inline-store.test.ts | 5 | PASS |
+| save-inline-store.test.ts | 7 | PASS |
 
-## Review Fixes (2025-06-21)
+## Type Check
 
-### Fix 1: `resolveAttr()` config fallback
-**Problem:** `resolveAttr()` checked `el.props[attrName]` for "compare.op" but compare nodes store `op` in `el.config.op` (not `el.props.op`). When `el.props.op` was undefined, the attribute was silently dropped.
-**Fix:** After checking `el.props[attrName]` for non-customFn nodes, also check `el.config[attrName]` before giving up. Changed the final line from `return el.props[attrName];` to a two-step check: first `el.props`, then `el.config` fallback.
+`npx tsc --noEmit` -- 0 new errors. 5 pre-existing errors remain (in `pipeline.ts` and `design-system.ts`).
 
-### Fix 2: `expression-lowering.ts` compare.op read
-**Problem:** `compare.op` was read as `el.props.op || "=="`. If op was stored in `el.config.op`, it would silently default to `"=="`.
-**Fix:** Changed to `el.props.op || el.config.op || "=="`.
+## Regressions Fixed
 
-### Fix 3: Missing NODE_ATTRS entries
-Added entries for:
-- `store`: required `["name"]`, optional `[]`
-- `computed`: required `["name"]`, optional `["returnType"]`
-- `fn`: required `["source"]`, optional `[]`
-- `updateUIProperty`: required `["targetId", "property"]`, optional `[]`
-
-### Tests Added
-- `compare node with op in config ➜ @node line includes op=>=`
-- `store node with name attribute`
-- `computed node with name and returnType`
-- `fn node with source attribute`
-- `updateUIProperty node with targetId and property`
-
-**Commit:** `<SHA>` — `fix(omni-gen): address review — config fallback in resolveAttr, missing NODE_ATTRS, compare.op fix`
-
-**Test Results:** 62 tests pass across 7 test files (no regressions).
-
-## Concerns
-
-None. The implementation follows the brief's algorithm precisely and integrates cleanly with existing `ChainBlock` and `LoweredCode` types in `types.ts`.
+None. All existing tests passed without modification -- no format assertion updates were needed.

@@ -302,8 +302,8 @@ class RustCompiler {
       };
     }
   }
-  /** Compile multiple sources for debug window preview. Returns full OmniView output with nidMap for bidirectional element selection. */
-  compileForDebugWindow(sources: Record<string, string>): { js: string; html: string; css: string; nidMap: Record<string, string> } | null {
+  /** Compile multiple sources for debug window preview. Returns full OmniView output with nidMap + per-component JS for hot-replace. */
+  compileForDebugWindow(sources: Record<string, string>): { js: string; html: string; css: string; nidMap: Record<string, string>; components: Record<string, { js: string }> } | null {
     const result = this.compileMultiToOmniView(sources, true, true);
     if (!result.success || !result.files) {
       log.warn('Debug window compile failed', result.errors);
@@ -315,25 +315,67 @@ class RustCompiler {
       const pathMapping: Record<string, string> = {};
       for (const srcPath of Object.keys(sources)) {
         pathMapping[srcPath] = srcPath;
+        // Add ./ basename mappings for import resolution (mirrors Rust wasm.rs)
+        const basename = srcPath.split('/').pop() || srcPath;
+        pathMapping[`./${basename}`] = srcPath;
+        // Add component import mappings
+        if (srcPath.startsWith('src/components/') && srcPath.endsWith('.omni')) {
+          const stripped = srcPath.replace(/\.omni$/, '');
+          const relPath = stripped.replace(/^src\//, './');
+          pathMapping[relPath] = srcPath;
+        }
       }
       const styleResult = this.resolveStylesMulti(sources, pathMapping);
       if (styleResult.success && styleResult.nid_map) {
-        nidMap = styleResult.nid_map;
+        // nid_map may be a JS Map (from serde_wasm_bindgen) or plain object
+        if (styleResult.nid_map instanceof Map) {
+          for (const [k, v] of (styleResult.nid_map as unknown as Map<string, string>)) {
+            nidMap[k] = v;
+          }
+        } else {
+          nidMap = styleResult.nid_map as Record<string, string>;
+        }
       }
     } catch (e) {
       // nidMap is optional -- debug window works without it, just no bidirectional highlight
     }
-    // compile_multi_to_omniview returns { files: { "index.js": ..., "index.html": ..., "index.css": ... } }
+    // compile_multi_to_omniview returns InternalCompileResult with files: HashMap<String, String>.
+    // serde_wasm_bindgen serializes HashMap as JS Map — must use .get() not bracket notation.
     const files = result.files;
+    const getFile = (key: string): string => {
+      if (files instanceof Map) {
+        return (files as unknown as Map<string, string>).get(key) || '';
+      }
+      return (files as Record<string, string>)[key] || '';
+    };
     // Extract HTML body content (between <body> and </body>)
-    const htmlContent = files['body.html'] || '';
-    const htmlMatch = (files['index.html'] || '').match(/<body[^>]*>([\s\S]*)<\/body>/i);
+    const htmlContent = getFile('body.html');
+    const indexHtml = getFile('index.html');
+    const htmlMatch = indexHtml.match(/<body[^>]*>([\s\S]*)<\/body>/i);
     const bodyHtml = htmlMatch ? htmlMatch[1] : '';
+    // Extract per-component output for hot-replace (may be JS Map from serde_wasm_bindgen)
+    let components: Record<string, { js: string }> = {};
+    try {
+      const rawComps = (result as any).components;
+      if (rawComps) {
+        if (rawComps instanceof Map) {
+          for (const [k, v] of rawComps as Map<string, any>) {
+            components[k] = { js: v?.js || '' };
+          }
+        } else {
+          for (const k of Object.keys(rawComps)) {
+            components[k] = { js: rawComps[k]?.js || '' };
+          }
+        }
+      }
+    } catch (_) { /* components are optional */ }
+
     return {
-      js: files['index.js'] || '',
+      js: getFile('index.js'),
       html: bodyHtml || htmlContent,
-      css: files['index.css'] || '',
+      css: getFile('index.css'),
       nidMap,
+      components,
     };
   }
 

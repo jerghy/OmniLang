@@ -243,6 +243,7 @@ async function loadOmniFiles(): Promise<void> {
           filePath: p.filePath,
           signals: existing?.signals ?? [],
           props: existing?.props ?? [],
+          computeds: existing?.computeds ?? [],
           events: existing?.events ?? [],
           fns: existing?.fns ?? [],
           elements: p.elements,

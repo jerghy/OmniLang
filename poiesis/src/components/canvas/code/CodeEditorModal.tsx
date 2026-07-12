@@ -52,6 +52,8 @@ interface CodeEditorModalProps {
   /** Full .omni source for WASM diagnostics (when editing within a known file context) */
   omniSourcePath?: string;
   omniSource?: string;
+  /** All project .omni sources for multi-file cross-file diagnostics */
+  allSources?: Record<string, string>;
   onSave: (source: string, description: string) => void;
   onClose: () => void;
 }
@@ -63,6 +65,7 @@ export function CodeEditorModal({
   storeDefs,
   omniSourcePath,
   omniSource,
+  allSources,
   onSave,
   onClose,
 }: CodeEditorModalProps) {
@@ -96,8 +99,17 @@ export function CodeEditorModal({
     const runDiagnosticsDebounced = async () => {
       const compiler = await getOmniCompiler();
       if (!compiler) return;
-      compiler.upsert_source(omniSourcePath, omniSource);
-      const diagnostics = runDiagnostics(compiler);
+
+      // Build the full sources map for multi-file cross-file analysis.
+      // The current editor content (unsaved) takes precedence over allSources.
+      const currentSource = editor.getValue();
+      const mergedSources: Record<string, string> = { ...allSources };
+      if (omniSourcePath) {
+        mergedSources[omniSourcePath] = currentSource;
+      }
+
+      compiler.upsert_source(omniSourcePath, currentSource);
+      const diagnostics = runDiagnostics(compiler, mergedSources);
       const model = editor.getModel();
       if (model) {
         applyDiagnostics(model, diagnostics, "omnilang-wasm");
@@ -117,7 +129,7 @@ export function CodeEditorModal({
       clearTimeout(timer);
       disposable.dispose();
     };
-  }, [omniSource, omniSourcePath]);
+  }, [omniSource, omniSourcePath, allSources]);
 
   // Initialize Monaco editor (mount once)
   useEffect(() => {

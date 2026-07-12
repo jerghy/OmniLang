@@ -465,6 +465,9 @@ function storeDefToStoreDefinition(sd: StoreDef): StoreDefinition {
  */
 function emitStoreBlock(store: StoreDef): string {
   const w = new CodeWriter();
+  // Stores are view files — always emit import omniview;
+  w.emit("import omniview;");
+  w.blank();
   w.emit(`store ${store.name} {`);
   w.indent();
   for (const [name, sig] of Object.entries(store.signals)) {

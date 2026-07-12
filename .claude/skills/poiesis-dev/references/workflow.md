@@ -172,6 +172,20 @@ wait_for { condition: "ipc_idle", timeout_ms: 5000 }
 
 ## 四、构建与测试
 
+### 4.0 Debug 窗口架构要点
+
+Debug 窗口（`label: "debug"`）是预创建的隐藏 WebView，通过按钮 show/hide 而非动态创建/销毁：
+
+- **预创建**：`lib.rs` L898-913 在 `setup()` 中用 `WebviewWindowBuilder::new(app, "debug", ...).visible(false)` 预创建
+- **打开**：`open_debug_window` 命令调用 `window.show()` + `set_focus()`
+- **关闭**：`close_debug_window` 命令调用 `window.hide()`（不销毁——重建会阻塞 IPC）
+- **防自动恢复**：`lib.rs` L894 — `tauri_plugin_window_state::Builder::default().with_denylist(&["debug"])` 防止上次会话的可见状态在新启动时恢复
+- **已保存的旧状态**：手动清理 `%APPDATA%/com.omnilang.poiesis/.window-state.json` 中的 `"debug"` 条目
+
+通信走 Tauri 事件总线（不是 `postMessage`）：
+- Main → Debug：`debug:compile-result`（全量）、`debug:hot-replace`（增量）、`debug:highlight`（高亮）
+- Debug → Main：`debug:window-ready`（就绪）、`debug:element-click`（元素选择）、`debug:bridge-ready`（bridge 就绪）
+
 ### 4.1 构建命令
 
 ```bash

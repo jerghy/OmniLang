@@ -13,3 +13,10 @@ WASM_PACK_SKIP_VALIDATE=1 wasm-pack build omnilang \
   --features "wasm,codegen-omniview"
 
 echo "==> WASM built to poiesis/public/wasm/"
+
+# Also sync to src/wasm/ for Vite module resolution (import '../wasm/omnilang.js' resolves here)
+cp -f "$REPO_ROOT/poiesis/public/wasm/omnilang_bg.wasm" "$REPO_ROOT/poiesis/src/wasm/omnilang_bg.wasm"
+cp -f "$REPO_ROOT/poiesis/public/wasm/omnilang.js" "$REPO_ROOT/poiesis/src/wasm/omnilang.js"
+cp -f "$REPO_ROOT/poiesis/public/wasm/omnilang.d.ts" "$REPO_ROOT/poiesis/src/wasm/omnilang.d.ts"
+cp -f "$REPO_ROOT/poiesis/public/wasm/omnilang_bg.wasm.d.ts" "$REPO_ROOT/poiesis/src/wasm/omnilang_bg.wasm.d.ts"
+echo "==> Synced to poiesis/src/wasm/"

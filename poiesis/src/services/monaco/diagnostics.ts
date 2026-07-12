@@ -42,12 +42,32 @@ export async function getOmniCompiler(): Promise<import("../../wasm/omnilang.js"
 
 /**
  * Run diagnostics on registered sources using the WASM OmniCompiler.
- * This is fast — it only does parse + semantic + lint, no codegen.
+ *
+ * When `allSources` is provided (multi-file mode), uses compile_to_omniview
+ * which internally calls analyse_multi for cross-file semantic validation.
+ * Falls back to single-file diagnostics() when no extra sources given.
+ *
+ * @param compiler   The stateful OmniCompiler instance.
+ * @param allSources Optional map of ALL project .omni sources for multi-file analysis.
  */
 export function runDiagnostics(
   compiler: import("../../wasm/omnilang.js").OmniCompiler,
+  allSources?: Record<string, string>,
 ): WasmDiagnostic[] {
   try {
+    // Multi-file: upsert all sources, then compile_to_omniview (uses analyse_multi)
+    if (allSources && Object.keys(allSources).length > 1) {
+      for (const [path, source] of Object.entries(allSources)) {
+        if (source) compiler.upsert_source(path, source);
+      }
+      const result = compiler.compile_to_omniview(false, false);
+      if (result && typeof result === "object" && "errors" in result) {
+        return (result as { errors: WasmDiagnostic[] }).errors ?? [];
+      }
+      return [];
+    }
+
+    // Single-file: fast parse + semantic + lint, no codegen
     const result = compiler.diagnostics();
     if (result && typeof result === "object") {
       const diag = result as { success?: boolean; errors?: WasmDiagnostic[] };
@@ -88,6 +108,40 @@ export function wasmDiagnosticToMarker(
     endColumn: d.end_col && d.end_col > 0 ? d.end_col : d.col > 0 ? d.col + 1 : 2,
     code: d.code,
   };
+}
+
+/**
+ * Validate multiple .omni source files through the WASM compiler's multi-file
+ * pipeline (parse + semantic + cross-file lint, no codegen output consumed).
+ *
+ * Uses compile_multi_to_omniview (→ analyse_multi) for true cross-file analysis,
+ * catching import errors and cross-file type mismatches that single-file
+ * diagnostics() cannot detect.
+ *
+ * Creates a fresh compiler instance so it doesn't interfere with Monaco.
+ *
+ * @param sources  Map of file path → source content.
+ * @returns        Array of WASM diagnostics. Empty array = no errors.
+ */
+export async function validateSources(
+  sources: Record<string, string>,
+): Promise<WasmDiagnostic[]> {
+  try {
+    const wasmModule = await import("../../wasm/omnilang.js");
+    // compile_multi_to_omniview: standalone multi-file with analyse_multi
+    // editor_mode=false, debug_mode=false → bare compile, just for validation
+    const result = wasmModule.compile_multi_to_omniview(sources, false, false);
+    if (result && Array.isArray(result)) {
+      return result as WasmDiagnostic[];
+    }
+    if (result && typeof result === "object" && "errors" in result) {
+      return (result as { errors: WasmDiagnostic[] }).errors ?? [];
+    }
+    return [];
+  } catch (e) {
+    console.warn("[OmniLang] validateSources failed:", e);
+    return [];
+  }
 }
 
 /**

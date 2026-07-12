@@ -10,6 +10,7 @@
 pub mod analyse;
 pub mod codegen;
 pub mod error;
+#[cfg(not(target_family = "wasm"))]
 pub mod ffi;
 pub mod ir;
 pub mod lexer;
@@ -340,6 +341,11 @@ pub struct InternalCompileResult {
     pub files: FxHashMap<String, String>,
     pub errors: Vec<crate::error::Diagnostic>,
     pub warnings: Vec<crate::error::Diagnostic>,
+    /// Per-component JS deltas for hot-replace (keyed by component name).
+    /// Only populated for OmniView target with codegen-omniview enabled.
+    #[serde(default, skip_serializing_if = "FxHashMap::is_empty")]
+    #[ts(type = "Record<string, { js: string }>")]
+    pub components: FxHashMap<String, serde_json::Value>,
 }
 
 /// Compile multiple .omni sources to a target language, returning a struct.
@@ -397,20 +403,32 @@ fn compile_multi_internal_post(
                 files: FxHashMap::default(),
                 errors: diags,
                 warnings,
+                components: FxHashMap::default(),
             };
         }
     };
 
     // Dispatch to target codegen
     // For OmniView, call compile_files directly to forward editor_mode/debug_mode.
+    // Also extract per-component output for hot-replace support.
     #[cfg(feature = "codegen-omniview")]
-    let output = if matches!(target, codegen::Target::OmniView) {
-        codegen::omniview::compile_files(&merged_ir, sources, editor_mode, debug_mode)
-    } else {
-        codegen::compile(&merged_ir, target, sources)
+    let (output, components) = {
+        if matches!(target, codegen::Target::OmniView) {
+            let gen_output = codegen::omniview::generate(&merged_ir, editor_mode, false, debug_mode);
+            let files = codegen::omniview::build_file_output(&gen_output);
+            let comps: FxHashMap<String, serde_json::Value> = gen_output
+                .components
+                .into_iter()
+                .map(|(name, c)| (name, serde_json::json!({ "js": c.js })))
+                .collect();
+            (files, comps)
+        } else {
+            (codegen::compile(&merged_ir, target, sources), FxHashMap::default())
+        }
     };
     #[cfg(not(feature = "codegen-omniview"))]
-    let output = codegen::compile(&merged_ir, target, sources);
+    let (output, components): (_, FxHashMap<String, serde_json::Value>) =
+        (codegen::compile(&merged_ir, target, sources), FxHashMap::default());
 
     let files_map: FxHashMap<String, String> = output
         .files
@@ -427,6 +445,7 @@ fn compile_multi_internal_post(
         files: files_map,
         errors: diags,
         warnings,
+        components,
     }
 }
 

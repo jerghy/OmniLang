@@ -9,8 +9,8 @@
       "env": {}
     },
     "victauri": {
-      "command": "victauri",
-      "args": ["bridge", "--wait", "--app", "com.omnilang.poiesis"]
+      "type": "http",
+      "url": "http://127.0.0.1:7373/mcp"
     }
   }
 }

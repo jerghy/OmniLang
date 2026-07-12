@@ -38,7 +38,8 @@ bash /d/space/OmniLang/.claude/skills/start-poiesis/start-poiesis.sh
 1. 杀旧 poiesis.exe + 僵死 cargo 进程
 2. `cargo tauri dev` 启动 Vite + Rust 后端
 3. 循环等待 poiesis.exe 出现（最长 120s）
-4. 日志写 `/tmp/poiesis.log`
+4. 调用 `sync-victauri-port.sh` 将 `.mcp.json` 中的端口与运行进程同步
+5. 日志写 `/tmp/poiesis.log`
 
 ### 2. 确认
 

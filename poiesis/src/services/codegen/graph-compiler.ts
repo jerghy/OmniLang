@@ -89,8 +89,10 @@ function emitNode(
     case "fn": {
       const name = (node.element.props?.name as string) || "unnamed";
       const params = (node.element.props?.params as string) || "";
+      const returnType = (node.element.props?.returnType as string) || "";
+      const ret = returnType ? ` -> ${returnType}` : "";
       let out = emitPidComment(pid);
-      out += `fn ${name}(${params}) {\n`;
+      out += `fn ${name}(${params})${ret} {\n`;
 
       // Emit successors (the fn body)
       for (const succId of node.successors) {

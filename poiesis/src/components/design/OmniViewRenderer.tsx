@@ -14,6 +14,10 @@ import { _lastClickPos } from "./OmniViewElement";
 export function OmniViewRenderer() {
   const selectedElementIds = usePoiesisStore((s) => s.selectedElementIds);
   const selectElement = usePoiesisStore((s) => s.selectElement);
+  const switchTab = usePoiesisStore((s) => s.switchTab);
+  const componentDefs = usePoiesisStore((s) => s.componentDefs);
+  const openTabs = usePoiesisStore((s) => s.designPage.openTabs);
+  const activeTabId = usePoiesisStore((s) => s.designPage.activeTabId);
   const toggleCodeFlow = usePoiesisStore((s) => s.toggleCodeFlow);
 
   const { output, isCompiling, errors } = useWasmCompile();
@@ -56,15 +60,38 @@ export function OmniViewRenderer() {
   );
 
 
-  // Listen for element selection requests from debug window
+  // Listen for element selection requests from debug window.
+  // Finds the component that owns the element and switches to its tab.
   useEffect(() => {
     const handler = (e: Event) => {
       const { designId } = (e as CustomEvent).detail;
-      if (designId) selectElement(designId);
+      if (!designId) return;
+
+      // Find which component owns this element
+      let ownerComponent: string | null = null;
+      for (const [compName, compDef] of Object.entries(componentDefs)) {
+        if (compDef.elements?.some((el) => el.id === designId)) {
+          ownerComponent = compName;
+          break;
+        }
+      }
+
+      // Switch to the component tab if found and not already active
+      if (ownerComponent) {
+        const tab = openTabs.find((t) => t.componentName === ownerComponent);
+        if (tab && tab.id !== activeTabId) {
+          switchTab(tab.id);
+          // Selection must happen after tab switch — defer to next tick
+          setTimeout(() => selectElement(designId), 50);
+          return;
+        }
+      }
+
+      selectElement(designId);
     };
     window.addEventListener("poiesis:debug-select", handler);
     return () => window.removeEventListener("poiesis:debug-select", handler);
-  }, [selectElement]);
+  }, [selectElement, switchTab, componentDefs, openTabs, activeTabId]);
 
   const handleDoubleClickNid = useCallback(
     (nid: string) => {

@@ -11,7 +11,7 @@ export class OmniCompiler {
      * Compile all registered sources to OmniView. Uses cached result when available.
      * editor_mode: enable debug wrappers for editor preview.
      */
-    compile_to_omniview(editor_mode: boolean): any;
+    compile_to_omniview(editor_mode: boolean, debug_mode: boolean): any;
     /**
      * Run diagnostics on all registered sources without compiling to output.
      * Returns JsValue with `success` and `errors` arrays.
@@ -41,14 +41,14 @@ export class OmniCompiler {
  * editor_mode: enable debug wrappers for editor preview.
  * Returns JsValue with `success`, `files`, `errors`, and `warnings`.
  */
-export function compile_multi_to_omniview(sources: any, editor_mode: boolean): any;
+export function compile_multi_to_omniview(sources: any, editor_mode: boolean, debug_mode: boolean): any;
 
 /**
  * Compile a single .omni component to OmniView output. Returns JsValue.
  * The source should contain the full .omni file; component_name selects which component to extract.
  * editor_mode: enable debug wrappers for editor preview.
  */
-export function compile_omniview_component(source: string, component_name: string, editor_mode: boolean): any;
+export function compile_omniview_component(source: string, component_name: string, editor_mode: boolean, debug_mode: boolean): any;
 
 /**
  * Compile .omni source to IR JSON. Returns JsValue.
@@ -59,14 +59,14 @@ export function compile_to_ir(source: string): any;
  * Compile .omni source to OmniView (JS + HTML + CSS). Returns JsValue.
  * editor_mode: enable debug wrappers for editor preview.
  */
-export function compile_to_omniview(source: string, editor_mode: boolean): any;
+export function compile_to_omniview(source: string, editor_mode: boolean, debug_mode: boolean): any;
 
 /**
  * Compile .omni source to OmniView output in a single pass (IR + codegen).
  * Returns JsValue with `ir`, `files`, `components`, `source_map`, and `errors`.
  * editor_mode: enable debug wrappers for editor preview.
  */
-export function compile_to_omniview_full(source: string, editor_mode: boolean): any;
+export function compile_to_omniview_full(source: string, editor_mode: boolean, debug_mode: boolean): any;
 
 /**
  * Resolve per-element computed styles for editor canvas rendering.
@@ -93,17 +93,13 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
-    readonly omni_analyse: (a: number, b: number) => number;
-    readonly omni_compile_multi_to_target: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => number;
-    readonly omni_free_string: (a: number) => void;
-    readonly omni_version: () => number;
     readonly __wbg_omnicompiler_free: (a: number, b: number) => void;
-    readonly compile_multi_to_omniview: (a: number, b: number) => number;
-    readonly compile_omniview_component: (a: number, b: number, c: number, d: number, e: number) => number;
+    readonly compile_multi_to_omniview: (a: number, b: number, c: number) => number;
+    readonly compile_omniview_component: (a: number, b: number, c: number, d: number, e: number, f: number) => number;
     readonly compile_to_ir: (a: number, b: number) => number;
-    readonly compile_to_omniview: (a: number, b: number, c: number) => number;
-    readonly compile_to_omniview_full: (a: number, b: number, c: number) => number;
-    readonly omnicompiler_compile_to_omniview: (a: number, b: number) => number;
+    readonly compile_to_omniview: (a: number, b: number, c: number, d: number) => number;
+    readonly compile_to_omniview_full: (a: number, b: number, c: number, d: number) => number;
+    readonly omnicompiler_compile_to_omniview: (a: number, b: number, c: number) => number;
     readonly omnicompiler_diagnostics: (a: number) => number;
     readonly omnicompiler_new: () => number;
     readonly omnicompiler_remove_source: (a: number, b: number, c: number) => void;

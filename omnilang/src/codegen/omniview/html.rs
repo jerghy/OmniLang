@@ -194,10 +194,20 @@ impl OmniViewGenerator {
                         } else {
                             js_val
                         };
-                        let _ = writeln!(self.js, 
-                            "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) el.setAttribute('{}', {}); }});",
-                            nid, name, js_access
-                        );
+                        if is_boolean_attr {
+                            // Boolean attributes must use the DOM property (e.g. el.checked = bool)
+                            // rather than setAttribute (which treats all values as strings — "false"
+                            // is truthy in HTML and won't uncheck the checkbox).
+                            let _ = writeln!(self.js,
+                                "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) el.{} = !!({}); }});",
+                                nid, name, js_access
+                            );
+                        } else {
+                            let _ = writeln!(self.js,
+                                "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) el.setAttribute('{}', {}); }});",
+                                nid, name, js_access
+                            );
+                        }
                     } else if is_boolean_attr && val_str == "true" {
                         // Boolean attribute: emit just the attribute name (no ="true")
                         let _ = write!(attrs, " {}", name);
@@ -795,7 +805,7 @@ impl OmniViewGenerator {
             "track", "wbr",
         ];
         if void_tags.contains(&html_tag.as_str()) {
-            if self.css_only || true {
+            if self.css_only {
                 let design_id = el.props.get("id")
                     .and_then(|v| {
                         if let ExprIR::LiteralExpr { value } = v {
@@ -870,7 +880,7 @@ impl OmniViewGenerator {
 
             // In css_only mode: capture element mappings now that children are done,
             // then return empty string (no HTML/JS needed).
-            if self.css_only || true {
+            if self.css_only {
                 let design_id = el.props.get("id")
                     .and_then(|v| {
                         if let ExprIR::LiteralExpr { value } = v {
