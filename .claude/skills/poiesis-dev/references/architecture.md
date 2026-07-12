@@ -180,6 +180,33 @@ Store 文件 (*.omni) 的往返闭环和 component/design 一样，但走独立�
   → 作为 inlineStores 参数传入 generateOmniFiles → pipeline → emitComponent
 ```
 
+#### 组件 prop/signal/computed 数据流（2026-07-12 新增）
+
+组件级声明（prop/signal/computed）的数据源是 `componentDefs[name]`，通过 ComponentMembersPanel 编辑。
+
+```
+解析 (.omni → componentDefs) — 3 个路径，漏一个都会丢数据：
+  1. App.tsx L238-254: 项目启动批量解析 → ParseResult.props/signals/computeds
+     → 对 main: 不设 elements/wires/rootOrder（main 不是自定义组件）
+     → 对非 main: 保留 existing 数据优先，无 existing 时从 ParseResult 取
+  2. useProjectInit.ts L126-143, L218-235: 加载 main.omni → ParseResult → setComponentDef("main", ...)
+  3. component-service.ts L106-119: 自定义组件注册加载 → ParseResult → merged[name]
+
+编辑 (ComponentMembersPanel):
+  componentDefs[name].props/signals/computeds → 面板三折叠区
+  → CRUD 通过 setComponentDef(name, { ...def, ...updates })
+
+发射 (componentDefs → .omni):
+  component-builder.ts buildComponentPart() → getComponentDefinitions()[name]
+  → ComponentPart.props/signals/computeds → source-emitter emitComponent()
+  → prop <name>: <type> = <default>;
+  → signal <name>: <type> = <default>;
+  → computed <name>: <type> = <expression>;
+
+⚠️ 保存陷阱: useSaveProject.ts L165-178 会用 elements/wires 覆盖 componentDef，
+必须保留已有 props/signals/computeds (L170-173: currentDef.signals || [])。
+```
+
 ### 3.2 PID 系统
 
 ```omni

@@ -53,7 +53,7 @@
 | `source-emitter.ts` | 组件/Store .omni 发射 | 生成 component/store 的 .omni 源码。`CodeWriter` 类 + `SourceEmitter` 类 + `emitStoreDefinition()` standalone（Code 面板调用）+ `formatDefaultValue()` 类型感知值格式化 |
 | `design-emitter.ts` | ★ design .omni 发射 | DesignDefinition → design.omni 源码 |
 | `design-value-parser.ts` | 样式值解析 | .omni 值字符串 → StyleValueSegment[] |
-| `parser.ts` | ★ 主解析器 | .omni 源码 → ElementData + DesignDefinition |
+| `parser.ts` | ★ 主解析器 | .omni 源码 → ElementData + DesignDefinition。`parseSignal()`/`parseComputed()` **不再**创建 codeblock 元素——改为 push 到 `ctx.signals`/`ctx.computeds`。`parsePropDeclaration()` 写入 `ctx.props` |
 | `parser-types.ts` | 解析器类型 | AST 节点类型 |
 | `parser-helpers.ts` | 解析辅助 | 公共解析工具函数 |
 | `parser-view.ts` | view 解析 | view 模板块的专门解析 |
@@ -62,7 +62,7 @@
 | `omni-tokenizer.ts` | Tokenizer | .omni 文本 → token 流 |
 | `view-tree-builder.ts` | 视图树构建 | ElementData → ViewNode tree |
 | `collect-styles.ts` | 样式收集 | 从 elements 收集所有 CSS |
-| `component-builder.ts` | 组件构建 | elements → ComponentDef |
+| `component-builder.ts` | 组件构建 | elements + `componentDefs[name]` → ComponentPart。Props/signals/computeds 统一从 `getComponentDefinitions()[name]` 读取，不再从 standaloneSignals/standaloneComputeds 提取 |
 | `expression-lowering.ts` | 表达式降级 | 复杂表达式 → 简单形式 |
 | `token-emitter.ts` | Token 发射 | 生成 token 声明 |
 | `store-extractor.ts` | Store 提取 | 从 elements 提取 Store 定义 |
@@ -123,6 +123,7 @@
 | `OmniViewRenderer.tsx` | ★ 设计画布渲染入口（始终挂载，output 同步到 store.previewOutput） |
 | `StoreDrawer.tsx` | ★ Store 面板抽屉（组件标签页内）：右侧滑出全幅面板，内嵌 StorePage。Store 切换下拉 + 新建弹窗（内联/全局选择） |
 | `CodeFlowCanvas.tsx` | 代码流画布入口（→ re-export FlowCanvas） |
+| `ComponentMembersPanel.tsx` | ★ CodeFlow 左侧面板：设计组件 prop/signal/computed 声明。三折叠区 + 内联 CRUD，读写 `componentDefs[name]`。Computed expression 弹出 CodeEditorModal |
 | `DesignPreviewNode.tsx` | CodeFlow 中的设计缩略图（ReactFlow 节点，无 handle，读 store.previewOutput） |
 | `FileTreePanel.tsx` | 项目文件树 |
 | `BreadcrumbBar.tsx` | 面包屑导航 |

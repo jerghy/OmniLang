@@ -722,3 +722,77 @@ if !self.signal_names.contains(&child_prefixed) {
 
 - `component_html.rs` L107-152 — 上下文保存/恢复 + prop 绑定
 - `store.rs` L179-184 — prop_defaults 循环（仅处理有默认值的 prop）
+
+## 二十九、componentDefs 填充 — 必须改 4 个路径，漏一个全丢 ★
+
+### 问题
+
+给 `componentDefs[name]` 添加了新字段（如 `computeds`），在面板编辑后数据正常，但刷新/重开后数据丢失——面板显示 "No computed yet"。
+
+### 原因
+
+`componentDefs` 的数据在 **4 个独立的代码路径**中被填充，每个路径都有自己的逻辑：
+
+| 路径 | 文件 | 触发时机 | 处理范围 |
+|------|------|---------|---------|
+| 1 | `App.tsx` L238-267 | 项目启动批量解析所有 .omni | main + 非 main 组件 |
+| 2 | `useProjectInit.ts` L126-143 | `openProject` 后读取 main.omni | 仅 main |
+| 3 | `useProjectInit.ts` L218-235 | main.omni 不存在于 file list 时的 fallback | 仅 main |
+| 4 | `component-service.ts` L82-119 | 自定义组件注册文件加载 | 非 main 自定义组件 |
+
+**这 4 个路径互不感知。** 如果你在路径 1 加了 `computeds` 映射但路径 2-4 没加 → 走路径 2 加载时 computeds 为空。如果你修了路径 1-3 但忘了路径 4 → 自定义组件加载后丢 computeds。
+
+### 更糟的：路径 1 对 main 跳过 componentDefs
+
+`App.tsx` L238-254 原来对 `mainPath` 只设置 `activeFileContent`/`activeFilePath`，main 的 componentDefs 完全不走路径 1。必须显式添加 main 的 componentDefs 创建（但不能设 `elements`/`wires`/`rootOrder`，否则 main 会出现在自定义组件面板中）。
+
+### 正确做法
+
+1. 新增了 componentDefs 字段后，检查并更新**全部 4 个路径**
+2. 路径 1 对 main：创建 componentDefs 但不含 elements/wires/rootOrder
+3. 路径 1 对非 main：保留 `existing?.xxx ?? []` 模式，让已编辑数据不被覆盖
+4. 每个路径都从 `ParseResult.xxx` 取对应的解析字段
+5. `getUnifiedComponentMeta()`（`store/index.ts` L85-104）会遍历所有 componentDefs 做自定义组件面板——main 和 store 不属于组件面板，通过 `filePath.startsWith("src/components/")` 过滤（L97）
+
+### 涉及文件
+
+- `App.tsx` L225-267 — 批量解析循环（路径 1）
+- `useProjectInit.ts` L126-143 — main.omni 正常加载（路径 2）
+- `useProjectInit.ts` L218-235 — main.omni fallback 加载（路径 3）
+- `component-service.ts` L82-119 — 自定义组件加载（路径 4）
+- `store/index.ts` L85-104 — `getUnifiedComponentMeta()` 过滤逻辑
+
+## 三十、useSaveProject 保存时覆盖 componentDefs ★
+
+### 问题
+
+在 ComponentMembersPanel 中编辑完 prop/signal/computed 后点保存 → 数据被清空为 `[]`。
+
+### 原因
+
+`useSaveProject.ts` L165-178 在保存时对非 main 组件更新 `componentDefs[name]`，旧代码直接写死了空数组：
+
+```typescript
+// ❌ 旧代码：直接覆盖为空
+store.setComponentDef(componentName, {
+  ...currentDef,
+  signals: [],  // ← 清空面板数据！
+  props: [],
+  events: [],
+  fns: [],
+  elements: store.elements,
+  wires: store.wires,
+});
+```
+
+同时 main 组件被 `if (componentName !== "main")` 完全跳过，main 的 componentDefs 从不持久化。
+
+### 修复
+
+- 非 main：用 `currentDef.signals || []`、`currentDef.props || []` 等保留已编辑数据
+- main：同样需要更新 componentDefs（新增 `else` 分支）
+- 两者都不应覆盖通过面板编辑的字段
+
+### 涉及文件
+
+- `useSaveProject.ts` L165-178 — 保存时的 componentDef 更新逻辑

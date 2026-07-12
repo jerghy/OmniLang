@@ -123,6 +123,40 @@ invoke_command compile_project → 看 errors
 })()
 
 // 读 Store 中某个 variant 的数据
+// 读 Store 数据（store/index.ts L112-114 暴露了全局引用）
+(() => {
+  const s = window.__POIESIS_STORE__.getState();
+  return {
+    page: s.currentPage,
+    codeFlowVisible: s.designPage?.codeFlowVisible,
+    elements: s.elements?.length,
+    componentDefs: Object.fromEntries(
+      Object.entries(s.componentDefs || {}).map(([k,v]) => [k, {
+        props: v.props?.length,
+        signals: v.signals?.length,
+        computeds: v.computeds?.length,
+        hasElements: !!(v).elements
+      }])
+    ),
+    activeTabType: s.designPage?.openTabs?.find(
+      t => t.id === s.designPage?.activeTabId
+    )?.tabType
+  };
+})()
+
+// 检查特定组件的 props/signals/computeds
+(() => {
+  const s = window.__POIESIS_STORE__.getState();
+  const def = s.componentDefs?.main;
+  if (!def) return 'componentDefs.main undefined';
+  return {
+    props: def.props?.map(p => p.name + ':' + p.type),
+    signals: def.signals?.map(s => s.name + ':' + s.type),
+    computeds: def.computeds?.map(c => c.name + ':' + c.returnType + '=' + c.expression)
+  };
+})()
+
+// 读 Store 中某个 variant 的数据
 // (需要 app 暴露 store)
 ```
 
