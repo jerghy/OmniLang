@@ -4,7 +4,7 @@ import { serializeCodeTabs } from "../../services/codegraph/store";
 import { extractComponentName } from "../../core/utils";
 import { compileProject } from "../../services/compiler/compiler";
 import { compilerCache } from "../../services/compiler/cache";
-import { api } from "../../commands";
+import { api, rustCompiler } from "../../commands";
 import { parseCodeBlocks } from "../../services/parser/omni-regex-parser";
 import type { ElementData } from "../../core/types";
 import { createLogger } from "../../lib/utils/logger";
@@ -144,27 +144,11 @@ export function useCompile(
       // Populate cache from already-compiled output instead of re-running the pipeline
       if (compileResult.generatedSource && compileResponse.files) {
         const files = compileResponse.files;
-        const srcdoc = [
-          "<!DOCTYPE html>",
-          '<html lang="en">',
-          "<head>",
-          '<meta charset="UTF-8">',
-          '<meta name="viewport" content="width=device-width, initial-scale=1.0">',
-          "<title>OmniView Preview</title>",
-          "<style>",
-          "*,*::before,*::after{box-sizing:border-box}",
-          "body{margin:0;padding:8px;font-family:system-ui,sans-serif}",
-          (files['index.css'] || ''),
-          "</style>",
-          "</head>",
-          "<body>",
-          (files['index.html'] || ''),
-          "<script>",
-          (files['index.js'] || ''),
-          "</script>",
-          "</body>",
-          "</html>",
-        ].join("\n");
+        const srcdoc = rustCompiler.wrapDebugHtml(
+          files['index.js'] || '',
+          files['index.css'] || '',
+          files['index.html'] || '',
+        );
         compilerCache.cachePut(compileResult.generatedSource, { srcdoc, omniSource: compileResult.generatedSource });
         window.dispatchEvent(
           new CustomEvent("omni-srcdoc-update", { detail: { srcdoc } }),

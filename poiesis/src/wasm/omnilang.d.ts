@@ -89,6 +89,11 @@ export function resolve_styles_multi(sources: any, path_mapping: any): any;
  */
 export function version(): string;
 
+/**
+ * Wrap generated OmniView output in a standalone debug-ready HTML document.
+ */
+export function wrap_debug_html(js: string, css: string, body_html: string): string;
+
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
@@ -108,6 +113,7 @@ export interface InitOutput {
     readonly resolve_styles: (a: number, b: number) => number;
     readonly resolve_styles_multi: (a: number, b: number) => number;
     readonly version: (a: number) => void;
+    readonly wrap_debug_html: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
     readonly __wbindgen_export: (a: number, b: number) => number;
     readonly __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_export3: (a: number) => void;

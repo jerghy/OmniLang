@@ -134,3 +134,6 @@ class ApiClient {
 }
 
 export const api = new ApiClient();
+
+// Re-export rustCompiler singleton for direct use in hooks
+export { rustCompiler } from "./rustCompiler";

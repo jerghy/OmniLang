@@ -122,6 +122,13 @@ pub fn resolve_styles(source: &str) -> JsValue {
     to_js_value(&crate::resolve_styles(source))
 }
 
+/// Wrap generated OmniView output in a standalone debug-ready HTML document.
+#[cfg(feature = "codegen-omniview")]
+#[wasm_bindgen]
+pub fn wrap_debug_html(js: &str, css: &str, body_html: &str) -> String {
+    crate::codegen::omniview::wrap_debug_html(js, css, body_html)
+}
+
 /// Resolve styles for multiple .omni source files (cross-file design imports).
 ///
 /// `sources`: JS object `{ "file/path.omni": "source content", ... }`

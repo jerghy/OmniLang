@@ -16,6 +16,7 @@ export const omnicompiler_version: (a: number, b: number) => void;
 export const resolve_styles: (a: number, b: number) => number;
 export const resolve_styles_multi: (a: number, b: number) => number;
 export const version: (a: number) => void;
+export const wrap_debug_html: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
 export const __wbindgen_export: (a: number, b: number) => number;
 export const __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;
 export const __wbindgen_export3: (a: number) => void;

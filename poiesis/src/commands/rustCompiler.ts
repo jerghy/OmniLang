@@ -122,6 +122,7 @@ class RustCompiler {
     compile_multi_to_omniview?: (sources: Record<string, string>, editor_mode: boolean, debug_mode: boolean) => any;
     resolve_styles?: (source: string) => any;
     resolve_styles_multi?: (sources: Record<string, string>, path_mapping: Record<string, string>) => any;
+    wrap_debug_html?: (js: string, css: string, body_html: string) => string;
   } | null = null;
   private ready = false;
 
@@ -170,6 +171,7 @@ class RustCompiler {
         compile_multi_to_omniview: wasmModule.compile_multi_to_omniview as unknown as (sources: Record<string, string>, editor_mode: boolean, debug_mode: boolean) => any,
         resolve_styles: wasmModule.resolve_styles as unknown as (source: string) => any,
         resolve_styles_multi: wasmModule.resolve_styles_multi as unknown as (sources: Record<string, string>, path_mapping: Record<string, string>) => any,
+        wrap_debug_html: wasmModule.wrap_debug_html as unknown as (js: string, css: string, body_html: string) => string,
       };
       this.ready = true;
 
@@ -434,6 +436,21 @@ class RustCompiler {
         errors: [{ severity: 'error', code: 'WASM', message: `resolve_styles_multi error: ${e}`, line: 0, col: 0, end_line: 0, end_col: 0 }],
       };
     }
+  }
+
+  wrapDebugHtml(js: string, css: string, bodyHtml: string): string {
+    if (!this.wasm?.wrap_debug_html) {
+      // Fallback for older WASM modules
+      return `<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OmniView Debug</title><style>
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;padding:8px;font-family:system-ui,sans-serif}
+${css}</style></head><body>
+${bodyHtml}<script>${js}</script></body></html>`;
+    }
+    return this.wasm.wrap_debug_html(js, css, bodyHtml);
   }
 }
 
