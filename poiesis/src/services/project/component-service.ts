@@ -4,7 +4,7 @@
 import { generateOmniSource } from "../codegen";
 import { api } from "../../commands";
 import { uid } from "../../core/utils/id";
-import type { ComputedEntry } from "../../core/types/project-json";
+import type { ComputedEntry, DefEntry } from "../../core/types/project-json";
 import type { ElementData, WireData } from "../../core/types";
 
 /**
@@ -120,14 +120,30 @@ export async function loadComponentDefinitionsFromServer(): Promise<
       expression: c.expression,
     }));
 
+    // Normalize props to DefEntry[] (server stores as Record, component-builder expects array)
+    const propsArray: DefEntry[] = Object.entries(propSchema).map(([pName, schema]) => ({
+      pid: uid("p"),
+      name: pName,
+      type: ((schema as Record<string, unknown>)?.type as string) || "String",
+      defaultValue: (schema as Record<string, unknown>)?.default,
+    }));
+
+    // Normalize events to array (server stores as Record, component-builder expects array)
+    const eventsArray: Array<{ pid: string; name: string; payloadType: string }> =
+      Object.entries(eventSchema).map(([eName, schema]) => ({
+        pid: uid("evt"),
+        name: eName,
+        payloadType: ((schema as Record<string, unknown>)?.payload as string) || "",
+      }));
+
     merged[name] = {
       id: (meta.id as string) || name,
       name,
       category: (meta.category as string) || "Custom",
       description: (meta.description as string) || "",
       signals: mappedSignals,
-      props: propSchema,
-      events: eventSchema,
+      props: propsArray,
+      events: eventsArray,
       computeds: mappedComputeds,
       styleProperties: (meta.styleProperties as string[]) || [],
       children: (meta.children as boolean) ?? true,

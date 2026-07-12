@@ -291,7 +291,9 @@ export class SourceEmitter {
     }
 
     for (const [name, sig] of Object.entries(comp.signals)) {
-      const def = sig.defaultValue !== undefined ? ` = ${formatDefaultValue(sig.defaultValue, sig.type)}` : "";
+      const def = sig.defaultValue !== undefined && sig.defaultValue !== ""
+        ? ` = ${formatDefaultValue(sig.defaultValue, sig.type)}`
+        : "";
       w.emit(`signal ${name}: ${sig.type}${def};`);
     }
     for (const [name, c] of Object.entries(comp.computeds || {})) {
