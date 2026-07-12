@@ -137,30 +137,40 @@ export function ComponentMembersPanel({ componentName }: Props) {
   const [editingComputedPid, setEditingComputedPid] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
-  if (!componentDef) return null;
+  // Use a default ComponentDef when none exists yet (e.g. main.omni has no explicit entry).
+  // The default is also used as the base for the initial setComponentDef call on first add.
+  const def: ComponentDef = componentDef ?? {
+    name: componentName,
+    filePath: `src/${componentName}.omni`,
+    signals: [],
+    props: [],
+    computeds: [],
+    events: [],
+    fns: [],
+  };
 
   const toggle = (key: string) => setCollapsed((c) => ({ ...c, [key]: !c[key] }));
 
   const updateDef = (updates: Partial<ComponentDef>) => {
-    setComponentDef(componentName, { ...componentDef, ...updates });
+    setComponentDef(componentName, { ...def, ...updates });
   };
 
   // ── Props CRUD ──
 
   const handleAddProp = () => {
     const entry: DefEntry = { pid: uid("p"), name: "newProp", type: "String", defaultValue: undefined };
-    updateDef({ props: [...componentDef.props, entry] });
+    updateDef({ props: [...def.props, entry] });
   };
 
   const handleUpdateProp = (pid: string, updates: Partial<DefEntry>) => {
     updateDef({
-      props: componentDef.props.map((p) => (p.pid === pid ? { ...p, ...updates } : p)),
+      props: def.props.map((p) => (p.pid === pid ? { ...p, ...updates } : p)),
     });
   };
 
   const handleRemoveProp = (pid: string) => {
     updateDef({
-      props: componentDef.props.filter((p) => p.pid !== pid),
+      props: def.props.filter((p) => p.pid !== pid),
     });
   };
 
@@ -168,18 +178,18 @@ export function ComponentMembersPanel({ componentName }: Props) {
 
   const handleAddSignal = () => {
     const entry: DefEntry = { pid: uid("sgn"), name: "newSignal", type: "String", defaultValue: "" };
-    updateDef({ signals: [...componentDef.signals, entry] });
+    updateDef({ signals: [...def.signals, entry] });
   };
 
   const handleUpdateSignal = (pid: string, updates: Partial<DefEntry>) => {
     updateDef({
-      signals: componentDef.signals.map((s) => (s.pid === pid ? { ...s, ...updates } : s)),
+      signals: def.signals.map((s) => (s.pid === pid ? { ...s, ...updates } : s)),
     });
   };
 
   const handleRemoveSignal = (pid: string) => {
     updateDef({
-      signals: componentDef.signals.filter((s) => s.pid !== pid),
+      signals: def.signals.filter((s) => s.pid !== pid),
     });
   };
 
@@ -187,23 +197,23 @@ export function ComponentMembersPanel({ componentName }: Props) {
 
   const handleAddComputed = () => {
     const entry: ComputedEntry = { pid: uid("c"), name: "newComputed", returnType: "String", expression: "" };
-    updateDef({ computeds: [...componentDef.computeds, entry] });
+    updateDef({ computeds: [...def.computeds, entry] });
   };
 
   const handleUpdateComputed = (pid: string, updates: Partial<ComputedEntry>) => {
     updateDef({
-      computeds: componentDef.computeds.map((c) => (c.pid === pid ? { ...c, ...updates } : c)),
+      computeds: def.computeds.map((c) => (c.pid === pid ? { ...c, ...updates } : c)),
     });
   };
 
   const handleRemoveComputed = (pid: string) => {
     updateDef({
-      computeds: componentDef.computeds.filter((c) => c.pid !== pid),
+      computeds: def.computeds.filter((c) => c.pid !== pid),
     });
   };
 
   const editingComputed = editingComputedPid
-    ? componentDef.computeds.find((c) => c.pid === editingComputedPid)
+    ? def.computeds.find((c) => c.pid === editingComputedPid)
     : null;
 
   // ── All store defs for CodeEditorModal type injection ──
@@ -218,7 +228,7 @@ export function ComponentMembersPanel({ componentName }: Props) {
           <span>Props</span>
           <button style={S.addBtn} onClick={(e) => { e.stopPropagation(); handleAddProp(); }}>+</button>
         </div>
-        {!collapsed.props && componentDef.props.map((prop) => (
+        {!collapsed.props && def.props.map((prop) => (
           <div key={prop.pid} style={S.itemRow}>
             <div style={S.itemHeader}>
               <input
@@ -248,7 +258,7 @@ export function ComponentMembersPanel({ componentName }: Props) {
             </div>
           </div>
         ))}
-        {!collapsed.props && componentDef.props.length === 0 && (
+        {!collapsed.props && def.props.length === 0 && (
           <div style={{ ...S.itemRow, color: "var(--ol-text-muted)", fontStyle: "italic" }}>
             No props yet
           </div>
@@ -261,7 +271,7 @@ export function ComponentMembersPanel({ componentName }: Props) {
           <span>Signals</span>
           <button style={S.addBtn} onClick={(e) => { e.stopPropagation(); handleAddSignal(); }}>+</button>
         </div>
-        {!collapsed.signals && componentDef.signals.map((sig) => (
+        {!collapsed.signals && def.signals.map((sig) => (
           <div key={sig.pid} style={S.itemRow}>
             <div style={S.itemHeader}>
               <input
@@ -291,7 +301,7 @@ export function ComponentMembersPanel({ componentName }: Props) {
             </div>
           </div>
         ))}
-        {!collapsed.signals && componentDef.signals.length === 0 && (
+        {!collapsed.signals && def.signals.length === 0 && (
           <div style={{ ...S.itemRow, color: "var(--ol-text-muted)", fontStyle: "italic" }}>
             No signals yet
           </div>
@@ -304,7 +314,7 @@ export function ComponentMembersPanel({ componentName }: Props) {
           <span>Computed</span>
           <button style={S.addBtn} onClick={(e) => { e.stopPropagation(); handleAddComputed(); }}>+</button>
         </div>
-        {!collapsed.computeds && componentDef.computeds.map((c) => (
+        {!collapsed.computeds && def.computeds.map((c) => (
           <div key={c.pid} style={S.itemRow}>
             <div style={S.itemHeader}>
               <input
@@ -337,7 +347,7 @@ export function ComponentMembersPanel({ componentName }: Props) {
             </div>
           </div>
         ))}
-        {!collapsed.computeds && componentDef.computeds.length === 0 && (
+        {!collapsed.computeds && def.computeds.length === 0 && (
           <div style={{ ...S.itemRow, color: "var(--ol-text-muted)", fontStyle: "italic" }}>
             No computeds yet
           </div>
