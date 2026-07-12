@@ -102,6 +102,7 @@ fn discover_single_with_siblings(file_path: &Path) -> Result<FxHashMap<String, S
 
     // Walk sibling directories for import resolution
     let parent = file_path.parent().unwrap_or_else(|| Path::new("."));
+    let mut errors: Vec<String> = Vec::new();
     for entry in walkdir::WalkDir::new(parent)
         .follow_links(false)
         .into_iter()
@@ -117,13 +118,28 @@ fn discover_single_with_siblings(file_path: &Path) -> Result<FxHashMap<String, S
         })
     {
         let path = entry.path().to_owned();
-        if let Ok(content) = std::fs::read_to_string(&path) {
-            let rel_path = path
-                .strip_prefix(parent)
-                .unwrap_or(&path)
-                .to_string_lossy()
-                .replace('\\', "/");
-            sources.insert(rel_path, content);
+        match std::fs::read_to_string(&path) {
+            Ok(content) => {
+                let rel_path = path
+                    .strip_prefix(parent)
+                    .unwrap_or(&path)
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                sources.insert(rel_path, content);
+            }
+            Err(e) => {
+                errors.push(format!("Cannot read {:?}: {}", path, e));
+            }
+        }
+    }
+
+    if !errors.is_empty() {
+        eprintln!(
+            "[omni] warning: {} sibling file(s) could not be read:",
+            errors.len()
+        );
+        for err in &errors {
+            eprintln!("  - {}", err);
         }
     }
 
