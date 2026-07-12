@@ -56,6 +56,7 @@ async function loadOmniFiles(): Promise<void> {
     rootOrder: string[];
     storeDef?: import("./core/types/store").StoreDefinition;
     inlineStoreDefs?: Record<string, import("./core/types/store").StoreDefinition>;
+    parseResult: ReturnType<typeof parseOmniSource>;
   }
 
   // ── Phase 1: Parse all files and load storeDefs BEFORE opening tabs ──
@@ -91,6 +92,7 @@ async function loadOmniFiles(): Promise<void> {
           rootOrder,
           storeDef: parseResult.storeDef || undefined,
           inlineStoreDefs: parseResult.inlineStoreDefs || undefined,
+          parseResult,
         } as ParsedFile;
       } catch (e) {
         log.warn("Failed to parse .omni file:", filePath, e);
@@ -236,15 +238,29 @@ async function loadOmniFiles(): Promise<void> {
       if (p.filePath === mainPath) {
         stateUpdate.activeFileContent = p.content;
         stateUpdate.activeFilePath = p.filePath;
+        // Also populate componentDefs for main — was previously skipped
+        const existing = newComponentDefs[p.componentName];
+        newComponentDefs[p.componentName] = {
+          name: p.componentName,
+          filePath: p.filePath,
+          signals: existing?.signals ?? (p.parseResult.signals || []).map((s: { name: string; type: string; defaultValue?: unknown }) => ({ pid: uid("sgn"), name: s.name, type: s.type, defaultValue: s.defaultValue })),
+          props: existing?.props ?? (p.parseResult.props || []).map((pr: { name: string; type: string; defaultValue?: unknown }) => ({ pid: uid("p"), name: pr.name, type: pr.type, defaultValue: pr.defaultValue })),
+          computeds: existing?.computeds ?? (p.parseResult.computeds || []).map((c: { name: string; type: string; expression: string }) => ({ pid: uid("c"), name: c.name, returnType: c.type, expression: c.expression })),
+          events: existing?.events ?? (p.parseResult.events || []).map((e: { name: string }) => ({ pid: uid("evt"), name: e.name, payloadType: "" })),
+          fns: existing?.fns ?? [],
+          elements: p.elements,
+          wires: p.wires,
+          rootOrder: p.rootOrder,
+        };
       } else {
         const existing = newComponentDefs[p.componentName];
         newComponentDefs[p.componentName] = {
           name: p.componentName,
           filePath: p.filePath,
-          signals: existing?.signals ?? [],
-          props: existing?.props ?? [],
-          computeds: existing?.computeds ?? [],
-          events: existing?.events ?? [],
+          signals: existing?.signals ?? (p.parseResult.signals || []).map((s: { name: string; type: string; defaultValue?: unknown }) => ({ pid: uid("sgn"), name: s.name, type: s.type, defaultValue: s.defaultValue })),
+          props: existing?.props ?? (p.parseResult.props || []).map((pr: { name: string; type: string; defaultValue?: unknown }) => ({ pid: uid("p"), name: pr.name, type: pr.type, defaultValue: pr.defaultValue })),
+          computeds: existing?.computeds ?? (p.parseResult.computeds || []).map((c: { name: string; type: string; expression: string }) => ({ pid: uid("c"), name: c.name, returnType: c.type, expression: c.expression })),
+          events: existing?.events ?? (p.parseResult.events || []).map((e: { name: string }) => ({ pid: uid("evt"), name: e.name, payloadType: "" })),
           fns: existing?.fns ?? [],
           elements: p.elements,
           wires: p.wires,
