@@ -67,42 +67,40 @@ export function buildComponentPart(
   viewWrapperId: string,
   phaseC: PhaseCContext,
 ): ComponentPart {
-  // Build component-level signals from standaloneSignals (signals not in a store)
+  // Read component definition from the registry (populated by parser -> componentDefs)
+  const registryDef = getComponentDefinitions()[options.componentName];
+  const componentDef = (registryDef && typeof registryDef === "object" && "signals" in registryDef)
+    ? registryDef as unknown as {
+        signals?: Array<{ name: string; type: string; defaultValue?: unknown }>;
+        props?: Array<{ name: string; type: string; defaultValue?: unknown }>;
+        computeds?: Array<{ pid: string; name: string; returnType: string; expression: string }>;
+        events?: Array<{ name: string }>;
+      }
+    : null;
+
+  // Props from ComponentDef
+  const componentProps: import("./types").PropDef[] = (componentDef?.props || []).map((p) => ({
+    name: p.name,
+    type: p.type,
+    defaultValue: p.defaultValue,
+  }));
+
+  // Signals from ComponentDef (no longer from standaloneSignals)
   const componentSignals: Record<string, { type: string; defaultValue?: unknown }> = {};
-  for (const s of phaseB.standaloneSignals) {
+  for (const s of componentDef?.signals || []) {
     componentSignals[s.name] = { type: s.type, defaultValue: s.defaultValue };
   }
 
-  // Build component-level computeds from standaloneComputeds
+  // Computeds from ComponentDef (no longer from standaloneComputeds)
   const componentComputeds: Record<string, { type: string; body: string }> = {};
-  for (const c of phaseB.standaloneComputeds) {
-    componentComputeds[c.name] = { type: c.type, body: c.body };
+  for (const c of componentDef?.computeds || []) {
+    componentComputeds[c.name] = { type: c.returnType, body: c.expression };
   }
 
-  // Read props/events from the component registry so they appear
-  // as `prop name: Type = default;` and `event name;` in the output.
-  const registryDef: unknown = getComponentDefinitions()[options.componentName];
-  const registryRecord = registryDef && typeof registryDef === "object"
-    ? (registryDef as Record<string, unknown>)
-    : null;
-  const registryProps: Record<string, unknown> = registryRecord && "props" in registryRecord
-    ? (registryRecord.props as Record<string, unknown>)
-    : {};
-  const registryEvents: Record<string, unknown> = registryRecord && "events" in registryRecord
-    ? (registryRecord.events as Record<string, unknown>)
-    : {};
-  const componentProps: import("./types").PropDef[] = Object.keys(registryProps).length > 0
-    ? Object.entries(registryProps).map(([name, schema]) => ({
-        name,
-        type: (schema as { type: string }).type,
-        defaultValue: (schema as { defaultValue?: unknown }).defaultValue ?? (schema as { default?: unknown }).default,
-      }))
-    : [];
-  const componentEvents: import("./types").EventDef[] = Object.keys(registryEvents).length > 0
-    ? Object.entries(registryEvents).map(([name]) => ({
-        name,
-      }))
-    : [];
+  // Events from ComponentDef
+  const componentEvents: import("./types").EventDef[] = (componentDef?.events || []).map((e) => ({
+    name: e.name,
+  }));
 
   // Extract `const` declarations from codeblock elements with tag === "const"
   const consts: import("./types").ConstDef[] = [];
