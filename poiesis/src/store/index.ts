@@ -92,6 +92,9 @@ export function getUnifiedComponentMeta(): Record<string, ComponentProtocolEntry
 
   for (const [name, def] of Object.entries(customDefs)) {
     const typedDef = def as unknown as Record<string, unknown>;
+    // Skip non-custom components — only those in src/components/ are user-defined custom components
+    const filePath = (typedDef.filePath as string) || "";
+    if (!filePath.startsWith("src/components/")) continue;
     unified[name] = {
       component: name,
       category: (typedDef.category as string) || "Custom",
