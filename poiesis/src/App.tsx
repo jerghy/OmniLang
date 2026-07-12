@@ -238,7 +238,9 @@ async function loadOmniFiles(): Promise<void> {
       if (p.filePath === mainPath) {
         stateUpdate.activeFileContent = p.content;
         stateUpdate.activeFilePath = p.filePath;
-        // Also populate componentDefs for main — was previously skipped
+        // Populate componentDefs for main with parsed props/signals/computeds.
+        // Do NOT set elements/wires/rootOrder — main is not a custom component;
+        // its canvas elements belong to the top-level elements/wires store.
         const existing = newComponentDefs[p.componentName];
         newComponentDefs[p.componentName] = {
           name: p.componentName,
@@ -248,9 +250,6 @@ async function loadOmniFiles(): Promise<void> {
           computeds: existing?.computeds ?? (p.parseResult.computeds || []).map((c: { name: string; type: string; expression: string }) => ({ pid: uid("c"), name: c.name, returnType: c.type, expression: c.expression })),
           events: existing?.events ?? (p.parseResult.events || []).map((e: { name: string }) => ({ pid: uid("evt"), name: e.name, payloadType: "" })),
           fns: existing?.fns ?? [],
-          elements: p.elements,
-          wires: p.wires,
-          rootOrder: p.rootOrder,
         };
       } else {
         const existing = newComponentDefs[p.componentName];
