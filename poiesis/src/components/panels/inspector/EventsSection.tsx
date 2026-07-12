@@ -52,8 +52,7 @@ export function EventsSection({ element, handlerItems }: EventsSectionProps) {
       .filter(
         ([key, val]) =>
           key.startsWith("on") &&
-          typeof val === "string" &&
-          val.trim().length > 0
+          typeof val === "string"
       )
       .map(([key, val]) => ({
         eventName: key,
