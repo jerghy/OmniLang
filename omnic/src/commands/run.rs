@@ -107,55 +107,17 @@ fn compile_to_temp(file: &Option<String>, run_target: &str) -> anyhow::Result<(P
     Ok((output_dir.to_path_buf(), first_name))
 }
 
-/// Assemble an OmniView standalone HTML file from compiled output files.
+/// Assemble a standalone OmniView HTML file using the shared utility.
 fn assemble_omniview_html(output_dir: &Path) -> anyhow::Result<()> {
-    let read_file = |name: &str| -> String {
-        let path = output_dir.join(name);
-        match std::fs::read_to_string(&path) {
-            Ok(content) => content,
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
-            Err(e) => {
-                eprintln!("warning: failed to read {}: {}", path.display(), e);
-                String::new()
-            }
-        }
-    };
+    use omnilang::codegen::omniview::wrap_debug_html;
 
-    // Check both body.html and index.html — Python cli.py:342
-    let body = {
-        let b = read_file("body.html");
-        if b.is_empty() {
-            read_file("index.html")
-        } else {
-            b
-        }
-    };
-    let mut js = read_file("index.js");
-    let css = read_file("index.css");
+    let body_html = read_file_opt(output_dir, "body.html")
+        .or_else(|| read_file_opt(output_dir, "index.html"))
+        .unwrap_or_default();
+    let js = read_file_opt(output_dir, "index.js").unwrap_or_default();
+    let css = read_file_opt(output_dir, "index.css").unwrap_or_default();
 
-    // JS workaround for animation init — Python cli.py:255-260
-    js.push_str(
-        "\nrequestAnimationFrame(function(){ requestAnimationFrame(function(){
-  var el = document.querySelector('.app');
-  if (el && el.style.opacity === '0') { el.style.removeProperty('opacity'); el.style.removeProperty('transform'); }
-}); });\n",
-    );
-
-    let html = format!(
-        r#"<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OmniView App</title>
-    <style>{css}</style>
-</head>
-<body>
-    <div id="root">{body}</div>
-    <script>{js}</script>
-</body>
-</html>"#
-    );
+    let html = wrap_debug_html(&js, &css, &body_html);
 
     let index_path = output_dir.join("index.html");
     std::fs::write(&index_path, &html)?;
@@ -163,6 +125,18 @@ fn assemble_omniview_html(output_dir: &Path) -> anyhow::Result<()> {
     let abs_path = std::fs::canonicalize(&index_path)?;
     println!("Open {} in your browser", abs_path.display());
     Ok(())
+}
+
+fn read_file_opt(output_dir: &Path, name: &str) -> Option<String> {
+    let path = output_dir.join(name);
+    match std::fs::read_to_string(&path) {
+        Ok(content) => Some(content),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+        Err(e) => {
+            eprintln!("warning: failed to read {}: {}", path.display(), e);
+            None
+        }
+    }
 }
 
 /// Execute a Python file with `python <path>`.
