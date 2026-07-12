@@ -89,6 +89,8 @@ export class Parser {
       pendingPid: null,
       props: [],
       events: [],
+      signals: [],
+      computeds: [],
       componentMeta: null,
       hasStyleBlock: false,
       currentStorePid: "",

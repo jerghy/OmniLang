@@ -107,6 +107,8 @@ export function buildParseResult(ctx: ParserInternals["ctx"]): ParseResult {
     inlineStoreDefs: Object.keys(ctx.inlineStoreDefs).length > 0 ? ctx.inlineStoreDefs : undefined,
     props: ctx.props.length > 0 ? ctx.props : undefined,
     events: ctx.events.length > 0 ? ctx.events : undefined,
+    signals: ctx.signals.length > 0 ? ctx.signals : undefined,
+    computeds: ctx.computeds.length > 0 ? ctx.computeds : undefined,
     designName: ctx.designName || undefined,
     designTokens: ctx.designTokens.length > 0 ? ctx.designTokens : undefined,
     designClasses: ctx.designClasses.length > 0 ? ctx.designClasses : undefined,

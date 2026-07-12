@@ -292,6 +292,10 @@ export interface ParseResult {
   props?: Array<{ name: string; type: string; defaultValue?: unknown }>;
   /** Parsed event declarations from component body (`event <name>;`). */
   events?: Array<{ name: string }>;
+  /** Parsed signal declarations from component body (`signal <name>: <type> = <default>;`). */
+  signals?: Array<{ name: string; type: string; defaultValue?: unknown }>;
+  /** Parsed computed declarations from component body (`computed <name>: <type> = <expr>;`). */
+  computeds?: Array<{ name: string; type: string; expression: string }>;
   /** PID map parsed from `// @pid:xxx` comments in the source. */
   pidMap?: PidMap;
 

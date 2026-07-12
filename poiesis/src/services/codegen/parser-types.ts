@@ -70,6 +70,8 @@ export interface ParseContext {
   hasStyleBlock: boolean;
   props: Array<{ name: string; type: string; defaultValue?: unknown }>;
   events: Array<{ name: string }>;
+  signals: Array<{ name: string; type: string; defaultValue?: unknown }>;
+  computeds: Array<{ name: string; type: string; expression: string }>;
   componentMeta: Record<string, unknown> | null;
 
   // ── Store editor state (Task 4) ──
