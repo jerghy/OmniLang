@@ -162,19 +162,35 @@ export function useSaveProject() {
       }
 
       // ── 5. Update custom component def with designed elements ──
+      // Preserve panel-managed props/signals/computeds/events/fns that were
+      // edited through ComponentMembersPanel (or parsed from .omni on load).
       if (componentName !== "main") {
         const currentDef = store.componentDefs[componentName] || {};
         store.setComponentDef(componentName, {
           ...currentDef,
           name: componentName,
           filePath: `src/components/${componentName}.omni`,
-          signals: [],
-          props: [],
-          events: [],
-          fns: [],
+          signals: currentDef.signals || [],
+          props: currentDef.props || [],
+          computeds: currentDef.computeds || [],
+          events: currentDef.events || [],
+          fns: currentDef.fns || [],
           elements: store.elements,
           wires: store.wires,
           rootOrder: store.rootOrder,
+        });
+      } else {
+        // Also ensure main component's panel data is preserved
+        const currentDef = store.componentDefs["main"] || {};
+        store.setComponentDef("main", {
+          ...currentDef,
+          name: "main",
+          filePath: "src/main.omni",
+          signals: currentDef.signals || [],
+          props: currentDef.props || [],
+          computeds: currentDef.computeds || [],
+          events: currentDef.events || [],
+          fns: currentDef.fns || [],
         });
       }
     } catch (e) {
