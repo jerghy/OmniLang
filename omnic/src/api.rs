@@ -2,82 +2,49 @@
 //!
 //! Mirrors Python `omnilang/api.py` and `omnilang/rust_bridge.py`.
 
-use std::path::Path;
-
 use rustc_hash::FxHashMap;
 
 /// Collect .omni source files from the given paths.
 ///
-/// Mirrors Python `_collect_sources()` in cli.py:73.
 /// - Empty list: auto-discover `src/**/*.omni` then `./*.omni`
-/// - Directories: glob `**/*.omni` inside them
-/// - Files: added directly
+/// - Directories: discover `.omni` files inside them
+/// - Files: added directly with sibling discovery for import resolution
 pub fn collect_sources(paths: &[String]) -> anyhow::Result<FxHashMap<String, String>> {
-    let mut source_files: Vec<std::path::PathBuf> = Vec::new();
+    use omnilang::discovery::{discover_omni_sources, DiscoveryMode};
+    use std::path::Path;
 
     if paths.is_empty() {
+        // Auto-discover: try src/ first, then .
         for dir in &["src", "."] {
-            let pattern = format!("{dir}/**/*.omni");
-            let mut found: Vec<_> = match glob::glob(&pattern) {
-                Ok(entries) => entries
-                    .filter_map(|r| match r {
-                        Ok(path) => Some(path),
-                        Err(e) => {
-                            eprintln!("warning: glob read error for '{}': {}", pattern, e);
-                            None
-                        }
-                    })
-                    .collect(),
-                Err(e) => {
-                    eprintln!("warning: invalid glob pattern '{}': {}", pattern, e);
-                    Vec::new()
+            let p = Path::new(dir);
+            if p.is_dir() {
+                match discover_omni_sources(p, DiscoveryMode::Directory) {
+                    Ok(sources) => return Ok(sources),
+                    Err(_) => continue,
                 }
-            };
-            found.sort();
-            if !found.is_empty() {
-                source_files = found;
-                break;
             }
         }
-    } else {
-        for p in paths {
-            let path = Path::new(p);
-            if path.is_dir() {
-                let pattern = format!("{p}/**/*.omni");
-                let found: Vec<_> = match glob::glob(&pattern) {
-                    Ok(entries) => entries
-                        .filter_map(|r| match r {
-                            Ok(path) => Some(path),
-                            Err(e) => {
-                                eprintln!("warning: glob read error for '{}': {}", pattern, e);
-                                None
-                            }
-                        })
-                        .collect(),
-                    Err(e) => {
-                        eprintln!("warning: invalid glob pattern '{}': {}", pattern, e);
-                        Vec::new()
-                    }
-                };
-                source_files.extend(found);
-            } else if path.exists() {
-                source_files.push(path.to_path_buf());
-            } else {
-                anyhow::bail!("File not found: {p}");
-            }
-        }
-    }
-
-    if source_files.is_empty() {
         anyhow::bail!("No .omni files found. Specify file(s) or run from a project directory.");
     }
 
-    let mut sources = FxHashMap::default();
-    for f in &source_files {
-        let content = std::fs::read_to_string(f)
-            .map_err(|e| anyhow::anyhow!("cannot read {}: {e}", f.display()))?;
-        let normalized = f.to_string_lossy().replace('\\', "/");
-        sources.insert(normalized, content);
+    let mut sources: FxHashMap<String, String> = FxHashMap::default();
+    for p in paths {
+        let path = Path::new(p);
+        if path.is_dir() {
+            let discovered = discover_omni_sources(path, DiscoveryMode::Directory)
+                .map_err(|e| anyhow::anyhow!("{p}: {e}"))?;
+            sources.extend(discovered);
+        } else if path.exists() {
+            let discovered = discover_omni_sources(path, DiscoveryMode::SingleFileWithSiblings)
+                .map_err(|e| anyhow::anyhow!("{p}: {e}"))?;
+            sources.extend(discovered);
+        } else {
+            anyhow::bail!("File not found: {p}");
+        }
+    }
+
+    if sources.is_empty() {
+        anyhow::bail!("No .omni files found. Specify file(s) or run from a project directory.");
     }
 
     Ok(sources)
