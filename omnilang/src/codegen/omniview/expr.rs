@@ -19,9 +19,17 @@ impl OmniViewGenerator {
                     .cloned()
                     .unwrap_or_else(|| name.clone());
                 if self.signal_names.contains(resolved.as_str()) {
-                    format!("{}.value", resolved)
+                    if self.editor_mode {
+                        format!("__omni_subs.get(\"{}\").value", resolved)
+                    } else {
+                        format!("{}.value", resolved)
+                    }
                 } else if self.signal_names.contains(name.as_str()) {
-                    format!("{}.value", name)
+                    if self.editor_mode {
+                        format!("__omni_subs.get(\"{}\").value", name)
+                    } else {
+                        format!("{}.value", name)
+                    }
                 } else if self.in_for_template
                     && self.for_state_names.contains_key(resolved.as_str())
                 {
@@ -348,6 +356,39 @@ impl OmniViewGenerator {
             },
             ExprIR::IdentifierExpr { name, .. } => format!("{{{}}}", name),
             _ => String::new(),
+        }
+    }
+
+    // ══════════════════════════════════════════════════════
+    // Expression → Label (human-readable short name)
+    // ══════════════════════════════════════════════════════
+
+    /// Extract a short human-readable label from an expression.
+    /// Returns the identifier name for identifiers, "obj.field" for field access,
+    /// and the trimmed JS expression for complex expressions.
+    pub(super) fn expr_label(&self, expr: &ExprIR) -> String {
+        match expr {
+            ExprIR::IdentifierExpr { name, .. } => name.clone(),
+            ExprIR::FieldAccessExpr { object, field } => {
+                let obj_label = self.expr_label(object);
+                format!("{}.{}", obj_label, field)
+            }
+            ExprIR::MethodCallExpr { object, method, .. } => {
+                let obj_label = self.expr_label(object);
+                format!("{}.{}()", obj_label, method)
+            }
+            _ => {
+                // For complex expressions, use the JS representation trimmed
+                let js = self.expr_to_js(expr);
+                let trimmed = js.trim_end_matches("()");
+                // Truncate long expressions — use char boundary to avoid UTF-8 panics
+                if trimmed.chars().count() > 40 {
+                    let end = trimmed.char_indices().nth(39).map(|(i, _)| i).unwrap_or(trimmed.len());
+                    format!("{}…", &trimmed[..end])
+                } else {
+                    trimmed.to_string()
+                }
+            }
         }
     }
 
