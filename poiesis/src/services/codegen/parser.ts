@@ -454,21 +454,32 @@ export class Parser {
     const nameTok = this.stream.expect("IDENTIFIER");
     this.stream.expect("COLON");
     const typeTok = this.stream.expect("IDENTIFIER");
-    // Optional = default
+    let defaultValue: unknown = undefined;
     if (this.stream.peek().kind === "EQUALS") {
-      // Skip default value expression
-      this.stream.consume();
-      this.skipUntilSemicolon();
+      this.stream.consume(); // "="
+      const valTok = this.stream.peek();
+      if (valTok.kind === "STRING") {
+        defaultValue = this.stream.consume().text.slice(1, -1);
+      } else if (valTok.kind === "NUMBER") {
+        const text = this.stream.consume().text;
+        defaultValue = text.includes(".") ? parseFloat(text) : parseInt(text, 10);
+      } else if (valTok.kind === "IDENTIFIER") {
+        const text = this.stream.consume().text;
+        if (text === "true") defaultValue = true;
+        else if (text === "false") defaultValue = false;
+        else defaultValue = text;
+      } else {
+        // Complex expression — skip until semicolon
+        this.skipUntilSemicolon();
+      }
     }
     this.stream.expect("SEMICOLON");
 
-    this.ctx.elements.push(
-      this.codeblockEl(
-        `${this.ctx.currentComponent}.signal.${nameTok.text}`,
-        "signal",
-        { name: nameTok.text, typeAnnotation: typeTok.text },
-      ),
-    );
+    this.ctx.signals.push({
+      name: nameTok.text,
+      type: typeTok.text,
+      defaultValue,
+    });
   }
 
   // ── Computed ──
@@ -479,17 +490,25 @@ export class Parser {
     this.stream.expect("COLON");
     const typeTok = this.stream.expect("IDENTIFIER");
     this.stream.expect("EQUALS");
-    // Skip the body expression until ;
-    this.skipUntilSemicolon();
+
+    // Collect expression text from "=" to ";"
+    let expression = "";
+    let depth = 0;
+    while (!this.stream.isEof()) {
+      const tok = this.stream.peek();
+      if (tok.kind === "SEMICOLON" && depth === 0) break;
+      if (tok.kind === "BRACE_OPEN") depth++;
+      if (tok.kind === "BRACE_CLOSE") depth--;
+      expression += tok.text;
+      this.stream.consume();
+    }
     this.stream.expect("SEMICOLON");
 
-    this.ctx.elements.push(
-      this.codeblockEl(
-        `${this.ctx.currentComponent}.computed.${nameTok.text}`,
-        "computed",
-        { name: nameTok.text, typeAnnotation: typeTok.text },
-      ),
-    );
+    this.ctx.computeds.push({
+      name: nameTok.text,
+      type: typeTok.text,
+      expression: expression.trim(),
+    });
   }
 
   // ── Prop declaration ──
