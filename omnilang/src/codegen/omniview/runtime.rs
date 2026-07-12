@@ -49,6 +49,11 @@ function __omni_signal(name, init) {
     peek() { return val; },
   };
   __omni_subs.set(name, signal);
+  // Expose globally so binding code emitted at page level
+  // can access signals created inside component factory IIFEs
+  // (editor_mode). In non-editor mode this is harmless — the
+  // signal is already a var at the outer IIFE scope.
+  window[name] = signal;
   return signal;
 }
 
