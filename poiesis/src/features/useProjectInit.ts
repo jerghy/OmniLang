@@ -124,6 +124,22 @@ export function useProjectInit(setShowWelcome: (v: boolean) => void) {
             });
 
             const parseResult = parseOmniSource(loadResult.source);
+
+            // Populate componentDefs from parsed props/signals/computeds/events
+            if (parseResult.props || parseResult.signals || parseResult.computeds || parseResult.events) {
+              const existing = usePoiesisStore.getState().componentDefs["main"] || {};
+              usePoiesisStore.getState().setComponentDef("main", {
+                ...existing,
+                name: "main",
+                filePath: "src/main.omni",
+                signals: (parseResult.signals || []).map((s) => ({ pid: uid("sgn"), name: s.name, type: s.type, defaultValue: s.defaultValue })),
+                props: (parseResult.props || []).map((p) => ({ pid: uid("p"), name: p.name, type: p.type, defaultValue: p.defaultValue })),
+                computeds: (parseResult.computeds || []).map((c) => ({ pid: uid("c"), name: c.name, returnType: c.type, expression: c.expression })),
+                events: (parseResult.events || []).map((e) => ({ pid: uid("evt"), name: e.name, payloadType: "" })),
+                fns: existing.fns || [],
+              });
+            }
+
             if (parseResult.designElements) {
               const rootOrder = parseResult.designElements
                 .filter((e: ElementData) => !e.parentId)
@@ -200,6 +216,22 @@ export function useProjectInit(setShowWelcome: (v: boolean) => void) {
             if (res.content) {
               usePoiesisStore.setState({ activeFileContent: res.content, activeFilePath: "src/main.omni" });
               const parseResult = parseOmniSource(res.content);
+
+              // Populate componentDefs from parsed props/signals/computeds/events
+              if (parseResult.props || parseResult.signals || parseResult.computeds || parseResult.events) {
+                const existing = usePoiesisStore.getState().componentDefs["main"] || {};
+                usePoiesisStore.getState().setComponentDef("main", {
+                  ...existing,
+                  name: "main",
+                  filePath: "src/main.omni",
+                  signals: (parseResult.signals || []).map((s) => ({ pid: uid("sgn"), name: s.name, type: s.type, defaultValue: s.defaultValue })),
+                  props: (parseResult.props || []).map((p) => ({ pid: uid("p"), name: p.name, type: p.type, defaultValue: p.defaultValue })),
+                  computeds: (parseResult.computeds || []).map((c) => ({ pid: uid("c"), name: c.name, returnType: c.type, expression: c.expression })),
+                  events: (parseResult.events || []).map((e) => ({ pid: uid("evt"), name: e.name, payloadType: "" })),
+                  fns: existing.fns || [],
+                });
+              }
+
               if (parseResult.designElements) {
                 const rootOrder = parseResult.designElements
                   .filter((e: ElementData) => !e.parentId)
