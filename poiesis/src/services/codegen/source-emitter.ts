@@ -645,9 +645,8 @@ export class SourceEmitter {
       }
     } else {
       for (const [key, val] of Object.entries(elNode.props)) {
-        if (key.startsWith("on") && typeof val === "string") {
-          const evtName = key[2].toLowerCase() + key.slice(3); // onClick → click
-          parts.push(` @${evtName}={${val}}`);
+        if (key.startsWith("on") && typeof val === "string" && val.length > 0) {
+          parts.push(` @${key}={${val}}`);
         }
       }
     }
