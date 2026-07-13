@@ -24,6 +24,8 @@ export interface CanvasState {
   devicePreset: DevicePreset;
   artboardScrollTop: number;
   artboardScrollLeft: number;
+  panelPosition: { x: number; y: number };
+  isPanelCollapsed: boolean;
   setZoom: (zoom: number) => void;
   setPan: (x: number, y: number) => void;
   setDevicePreset: (preset: DevicePreset) => void;
@@ -31,6 +33,8 @@ export interface CanvasState {
   zoomAtPoint: (newZoom: number, cursorX: number, cursorY: number) => void;
   fitToView: (viewportW: number, viewportH: number) => void;
   resetView: () => void;
+  setPanelPosition: (x: number, y: number) => void;
+  togglePanelCollapsed: () => void;
 }
 
 export const useCanvasStore = create<CanvasState>((set, get) => ({
@@ -40,6 +44,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   devicePreset: DEVICE_PRESETS[0], // iPhone 15 default
   artboardScrollTop: 0,
   artboardScrollLeft: 0,
+  panelPosition: { x: 0, y: 0 },
+  isPanelCollapsed: false,
 
   setZoom: (zoom) => set({ zoom: Math.max(0.1, Math.min(5.0, zoom)) }),
 
@@ -71,4 +77,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   resetView: () => set({ zoom: 1.0, panX: 0, panY: 0, artboardScrollTop: 0, artboardScrollLeft: 0 }),
+
+  setPanelPosition: (x, y) => set({ panelPosition: { x, y } }),
+  togglePanelCollapsed: () => set((s) => ({ isPanelCollapsed: !s.isPanelCollapsed })),
 }));
