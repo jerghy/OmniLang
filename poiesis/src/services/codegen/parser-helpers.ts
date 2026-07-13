@@ -131,6 +131,7 @@ export function createElement(
     parentId,
     ...(isCustom ? { componentRef: tag } : {}),
     ...(variantRef ? { variantRef } : {}),
+    ...(Object.keys(attrs.bindings).length > 0 ? { bindings: attrs.bindings } : {}),
   };
 
   // Sync variantRef → elementVariants store so the properties panel shows the binding

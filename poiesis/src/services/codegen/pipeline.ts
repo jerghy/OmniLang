@@ -206,6 +206,24 @@ function runPhaseC(
     }
   }
 
+  // ── Also collect bindings from element.bindings (parser round-trip) ──
+  // Wire bindings take precedence — only merge entries that don't already exist.
+  for (const el of options.designElements) {
+    if (el.nodeType === "view" && el.bindings && Object.keys(el.bindings).length > 0) {
+      const existing = elBindings.get(el.id) ?? {};
+      let changed = false;
+      for (const [prop, sig] of Object.entries(el.bindings)) {
+        if (!existing[prop]) {
+          existing[prop] = sig;
+          changed = true;
+        }
+      }
+      if (changed) {
+        elBindings.set(el.id, existing);
+      }
+    }
+  }
+
   const styleCollection = c1.errors.length > 0
     ? defaultStyleCollection()
     : collectStylesFromEntries(

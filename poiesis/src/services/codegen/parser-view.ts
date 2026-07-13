@@ -757,6 +757,14 @@ export function parseViewDirective(internals: ParserInternals): void {
 
   internals.ctx.elements.push(condBlock);
 
+  // Register conditional block in parent's children array
+  if (parentId) {
+    const parent = internals.ctx.elements.find((e) => e.id === parentId);
+    if (parent && "children" in parent && Array.isArray(parent.children)) {
+      (parent as { children: string[] }).children.push(condBlockId);
+    }
+  }
+
   // Pop condition block from parent stack
   if (internals.ctx.viewParentStack.length > 0) {
     internals.ctx.viewParentStack.pop();
