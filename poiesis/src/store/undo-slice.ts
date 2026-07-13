@@ -16,7 +16,8 @@ export type UndoAction =
   | { type: "removeWire"; id: string }
   | { type: "moveElement"; elementId: string; oldParentId: string | null }
   | { type: "reorderElement"; elementId: string; parentId: string | null; prevSiblingId: string | null; targetSiblingId: string; position: "before" | "after" }
-  | { type: "setElementsAndWires"; prevElements: ElementData[]; prevWires: WireData[]; newElements: ElementData[]; newWires: WireData[] };
+  | { type: "setElementsAndWires"; prevElements: ElementData[]; prevWires: WireData[]; newElements: ElementData[]; newWires: WireData[] }
+  | { type: "setElementBinding"; id: string; propName: string; oldBinding: string | null };
 
 export interface UndoStack {
   undo: UndoAction[];

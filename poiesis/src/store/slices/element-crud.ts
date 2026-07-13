@@ -1,7 +1,7 @@
 // ── Element/Wire CRUD slice for Poiesis store ──
 
 import type { PoiesisState } from "../types";
-import type { ElementData } from "../../core/types/element";
+import type { ElementData, ConditionalBlockData } from "../../core/types/element";
 import type { WireData } from "../../core/types/wire";
 import type { StyleProperty } from "../../core/types/style";
 import { buildUndoUpdate } from "../undo-slice";
@@ -91,6 +91,31 @@ export function createElementCrudSlice(set: SetFn, get: GetFn) {
       const el = get().elements.find(e => e.id === id);
       return el && "props" in el ? el.props[prop] : undefined;
     },
+
+    // ── Two-way data bindings ──
+
+    /** Set or remove a two-way data binding on a view element.
+     *  Stored as element.bindings[propName] = signalName.
+     *  Pass signalName = null to remove. */
+    setElementBinding: (id: string, propName: string, signalName: string | null) => set((s) => {
+      const oldEl = s.elements.find(e => e.id === id);
+      const oldBinding = (oldEl && oldEl.nodeType === "view" ? oldEl.bindings?.[propName] : undefined) ?? null;
+      const elements = s.elements.map(e => {
+        if (e.id !== id || e.nodeType !== "view") return e;
+        const current = (e as import("../../core/types/element").ViewElementData).bindings ?? {};
+        if (signalName === null) {
+          const { [propName]: _, ...rest } = current;
+          return { ...e, bindings: Object.keys(rest).length > 0 ? rest : undefined };
+        }
+        return { ...e, bindings: { ...current, [propName]: signalName } };
+      });
+      const undoUpdate = buildUndoUpdate(
+        s.undoStacks,
+        s.designPage.activeTabId,
+        { type: "setElementBinding", id, propName, oldBinding },
+      );
+      return { ...undoUpdate, elements, isDirty: true };
+    }),
 
     selectElement: (id: string | null, multi = false) => {
       set((s) => {
@@ -314,5 +339,139 @@ export function createElementCrudSlice(set: SetFn, get: GetFn) {
       }
       return { ...undoUpdate, rootOrder: newSiblings, isDirty: true };
     }),
+
+    // ── Conditional block CRUD ──
+
+    addConditionalBlock: (parentId: string) => {
+      set((s) => {
+        const condId = `conditional.${Date.now()}`;
+        const condBlock: ConditionalBlockData = {
+          id: condId,
+          nodeType: "conditional",
+          parentId,
+          branches: [
+            { type: "if", condition: "", children: [] },
+            { type: "else", condition: "", children: [] },
+          ],
+          children: [],
+          isFolded: false,
+        };
+        const elements = [
+          ...s.elements,
+          condBlock,
+        ].map((e) =>
+          e.id === parentId && "children" in e
+            ? { ...e, children: [...e.children, condId] }
+            : e
+        );
+        const undoUpdate = buildUndoUpdate(
+          s.undoStacks,
+          s.designPage.activeTabId,
+          { type: "removeElement", id: condId },
+        );
+        return { ...undoUpdate, elements, isDirty: true };
+      });
+    },
+
+    addConditionalBranch: (blockId: string, type: "elif" | "else") => {
+      set((s) => {
+        const elements = s.elements.map((e) => {
+          if (e.id !== blockId || e.nodeType !== "conditional") return e;
+          const cond = e as ConditionalBlockData;
+          const newBranch = {
+            type: type === "elif" ? "elif" as const : "else" as const,
+            condition: "",
+            children: [] as string[],
+          };
+          // Insert elif before last branch (else), else replaces the else
+          if (type === "elif") {
+            const newBranches: ConditionalBlockData["branches"] = [
+              ...cond.branches.slice(0, -1),
+              newBranch,
+              cond.branches[cond.branches.length - 1],
+            ];
+            return {
+              ...cond,
+              branches: newBranches,
+              children: newBranches.flatMap((b) => b.children),
+            };
+          } else {
+            // Already has else — no-op
+            return e;
+          }
+        });
+        return { ...s, elements, isDirty: true };
+      });
+    },
+
+    updateBranchCondition: (blockId: string, branchIndex: number, condition: string) => {
+      set((s) => {
+        const elements = s.elements.map((e) => {
+          if (e.id !== blockId || e.nodeType !== "conditional") return e;
+          const cond = e as ConditionalBlockData;
+          if (branchIndex < 0 || branchIndex >= cond.branches.length) return e;
+          const newBranches = cond.branches.map((b, i) =>
+            i === branchIndex ? { ...b, condition } : b
+          );
+          return { ...cond, branches: newBranches };
+        });
+        return { ...s, elements, isDirty: true };
+      });
+    },
+
+    addChildToBranch: (blockId: string, branchIndex: number, childId: string) => {
+      set((s) => {
+        const child = s.elements.find((e) => e.id === childId);
+        if (!child) return s;
+
+        const elements = s.elements
+          .map((e) => {
+            // Update child's parentId
+            if (e.id === childId) {
+              return { ...e, parentId: blockId } as typeof e;
+            }
+            // Remove from old parent's children
+            if (child.parentId && e.id === child.parentId && "children" in e) {
+              return { ...e, children: e.children.filter((c) => c !== childId) };
+            }
+            return e;
+          })
+          .map((e) => {
+            if (e.id !== blockId || e.nodeType !== "conditional") return e;
+            const cond = e as ConditionalBlockData;
+            const newBranches = cond.branches.map((b, i) => {
+              if (i !== branchIndex) return b;
+              if (b.children.includes(childId)) return b; // already there
+              return { ...b, children: [...b.children, childId] };
+            });
+            return {
+              ...cond,
+              branches: newBranches,
+              children: newBranches.flatMap((b) => b.children),
+            };
+          });
+
+        return { ...s, elements, isDirty: true };
+      });
+    },
+
+    removeChildFromBranch: (blockId: string, branchIndex: number, childId: string) => {
+      set((s) => {
+        const elements = s.elements.map((e) => {
+          if (e.id !== blockId || e.nodeType !== "conditional") return e;
+          const cond = e as ConditionalBlockData;
+          const newBranches = cond.branches.map((b, i) => {
+            if (i !== branchIndex) return b;
+            return { ...b, children: b.children.filter((c) => c !== childId) };
+          });
+          return {
+            ...cond,
+            branches: newBranches,
+            children: newBranches.flatMap((b) => b.children),
+          };
+        });
+        return { ...s, elements, isDirty: true };
+      });
+    },
   };
 }

@@ -69,6 +69,11 @@ export interface PoiesisState {
   // ── Component definitions (parsed from .omni, cached) ──
   componentDefs: Record<string, ComponentDef>;
 
+  // Debug signal value overrides (componentName → signalName → value).
+  // Used by ComponentDefPanel debug mode to preview signal changes
+  // on the canvas without modifying the generated .omni source.
+  debugSignalValues: Record<string, Record<string, unknown>>;
+
   // ── PID index ──
   pidIndex: Record<string, PidEntry>;
 
@@ -152,6 +157,13 @@ export interface PoiesisState {
   setElementInlineStyles: (elementId: string, properties: StyleProperty[]) => void;
   reorderElement: (elementId: string, targetSiblingId: string, position: "before" | "after") => void;
 
+  // Conditional block CRUD
+  addConditionalBlock: (parentId: string) => void;
+  addConditionalBranch: (blockId: string, type: "elif" | "else") => void;
+  updateBranchCondition: (blockId: string, branchIndex: number, condition: string) => void;
+  addChildToBranch: (blockId: string, branchIndex: number, childId: string) => void;
+  removeChildFromBranch: (blockId: string, branchIndex: number, childId: string) => void;
+
   // Undo/redo
   undo: () => void;
   redo: () => void;
@@ -161,10 +173,11 @@ export interface PoiesisState {
   removeComponentDef: (name: string) => void;
   getComponentDef: (name: string) => ComponentDef | undefined;
 
-  // ── Component signal CRUD ──
+  // ── Component signal CRUD + debug ──
   addComponentSignal: (compName: string, signal: { pid: string; name: string; type: string; defaultValue?: unknown }) => void;
   updateComponentSignal: (compName: string, pid: string, updates: Partial<{ name: string; type: string; defaultValue: unknown }>) => void;
   removeComponentSignal: (compName: string, pid: string) => void;
+  setDebugSignalValue: (componentName: string, signalName: string, value: unknown) => void;
 
   // ── Component prop CRUD ──
   addComponentProp: (compName: string, prop: { pid: string; name: string; type: string; defaultValue?: unknown }) => void;
