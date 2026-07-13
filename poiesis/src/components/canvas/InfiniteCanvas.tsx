@@ -4,6 +4,7 @@ import { useCanvasStore } from "./canvas-store";
 import { CanvasGrid } from "./CanvasGrid";
 import { Artboard } from "./Artboard";
 import { ZoomControls } from "./ZoomControls";
+import { ComponentDefPanel } from "../design/ComponentDefPanel";
 
 export interface InfiniteCanvasProps {
   children: React.ReactNode;
@@ -143,6 +144,7 @@ export function InfiniteCanvas({ children }: InfiniteCanvasProps) {
         }}
       >
         <Artboard>{children}</Artboard>
+        <ComponentDefPanel />
       </div>
 
       <ZoomControls />
