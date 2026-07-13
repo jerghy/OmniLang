@@ -163,6 +163,7 @@ export interface PoiesisState {
   updateBranchCondition: (blockId: string, branchIndex: number, condition: string) => void;
   addChildToBranch: (blockId: string, branchIndex: number, childId: string) => void;
   removeChildFromBranch: (blockId: string, branchIndex: number, childId: string) => void;
+  removeConditionalBranch: (blockId: string, branchIndex: number) => void;
 
   // Undo/redo
   undo: () => void;

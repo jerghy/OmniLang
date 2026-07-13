@@ -6,10 +6,12 @@ import { useMemo } from "react";
 import { useSelectedElementIds, useElements } from "../../store/hooks";
 import { PropsSection } from "./inspector/PropsSection";
 import { EventsSection } from "./inspector/EventsSection";
+import { BindingsSection } from "./inspector/BindingsSection";
 import { useHandlerItems } from "./inspector/useHandlerItems";
 import { InlineStylePanel } from "./inspector/InlineStylePanel";
 import { ClassesSection } from "./inspector/ClassesSection";
 import { VariantBindingSection } from "./inspector/VariantBindingSection";
+import { BranchConditionEditor } from "./inspector/BranchConditionEditor";
 import { usePoiesisStore } from "../../store";
 import type { SignalPickerItem } from "./inspector/SignalSlashPicker";
 
@@ -180,7 +182,24 @@ export function ContextInspector() {
         </button>
       </div>
 
-      {/* Body — existing logic */}
+      {/* Body — branch condition editor if selected is a branch */}
+      {el && selectedIds[0] && (() => {
+        const branchMatch = selectedIds[0].match(/^(.+)\.br(\d+)$/);
+        if (branchMatch) {
+          const blockId = branchMatch[1];
+          const branchIndex = parseInt(branchMatch[2], 10);
+          return (
+            <div className="context-inspector" data-section="branch-editor" style={{
+              padding: 12, overflow: "auto", height: "100%", boxSizing: "border-box",
+            }}>
+              <BranchConditionEditor blockId={blockId} branchIndex={branchIndex} />
+            </div>
+          );
+        }
+        return null;
+      })()}
+
+      {/* Empty state */}
       {!el ? (
         <div style={{ padding: 16, color: "#94a3b8", fontSize: 13, textAlign: "center", flex: 1 }}>
           选择元素以编辑属性
@@ -188,6 +207,10 @@ export function ContextInspector() {
       ) : null}
 
       {el && (() => {
+        // If branch editor is active, skip normal rendering
+        const isBranchSelected = selectedIds[0]?.match(/^(.+)\.br(\d+)$/);
+        if (isBranchSelected) return null;
+
         const isBasic = "tag" in el && BASIC_TAGS.has(el.tag);
         const tag = "tag" in el ? el.tag : "unknown";
         const componentRef = "componentRef" in el ? el.componentRef : undefined;
@@ -216,6 +239,8 @@ export function ContextInspector() {
             </h3>
 
             <PropsSection element={el} signalItems={signalItems} />
+
+            {isBasic && <BindingsSection element={el} signalItems={signalItems} />}
 
             <EventsSection element={el} handlerItems={handlerItems} />
 

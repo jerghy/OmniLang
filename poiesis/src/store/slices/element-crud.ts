@@ -473,5 +473,23 @@ export function createElementCrudSlice(set: SetFn, get: GetFn) {
         return { ...s, elements, isDirty: true };
       });
     },
+
+    removeConditionalBranch: (blockId: string, branchIndex: number) => {
+      set((s) => {
+        const elements = s.elements.map((e) => {
+          if (e.id !== blockId || e.nodeType !== "conditional") return e;
+          const cond = e as ConditionalBlockData;
+          // Cannot remove @if (index 0) or @else (last branch)
+          if (branchIndex <= 0 || branchIndex >= cond.branches.length - 1) return e;
+          const newBranches = cond.branches.filter((_, i) => i !== branchIndex);
+          return {
+            ...cond,
+            branches: newBranches,
+            children: newBranches.flatMap((b) => b.children),
+          };
+        });
+        return { ...s, elements, isDirty: true };
+      });
+    },
   };
 }

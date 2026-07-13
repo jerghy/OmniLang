@@ -74,6 +74,37 @@ describe("conditional block CRUD", () => {
     expect(updated.branches[0].condition).toBe("count > 5");
   });
 
+  it("removeConditionalBranch removes an @else if branch (not @if or @else)", () => {
+    const store = usePoiesisStore.getState();
+    store.addConditionalBlock("root");
+
+    const state1 = usePoiesisStore.getState();
+    const condBlock = state1.elements.find(
+      (e) => e.nodeType === "conditional"
+    ) as ConditionalBlockData;
+
+    // Add an @else if branch (index 1)
+    store.addConditionalBranch(condBlock.id, "elif");
+
+    const state2 = usePoiesisStore.getState();
+    const beforeRemove = state2.elements.find(
+      (e) => e.id === condBlock.id
+    ) as ConditionalBlockData;
+    expect(beforeRemove.branches).toHaveLength(3);
+    expect(beforeRemove.branches[1].type).toBe("elif");
+
+    // Remove the @else if branch at index 1
+    store.removeConditionalBranch(condBlock.id, 1);
+
+    const state3 = usePoiesisStore.getState();
+    const afterRemove = state3.elements.find(
+      (e) => e.id === condBlock.id
+    ) as ConditionalBlockData;
+    expect(afterRemove.branches).toHaveLength(2);
+    expect(afterRemove.branches[0].type).toBe("if");
+    expect(afterRemove.branches[1].type).toBe("else");
+  });
+
   it("removeConditionalBlock deletes block and its branch children", () => {
     const store = usePoiesisStore.getState();
     store.addConditionalBlock("root");
