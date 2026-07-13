@@ -170,6 +170,8 @@ export function ContextInspector() {
     if (branch) {
       titleText = branch.type === "else" ? "🔀 @else" : `🔀 ${branch.type === "if" ? "@if" : "@else if"} · ${branch.condition || "(空条件)"}`;
     }
+  } else if (el && el.nodeType === "conditional") {
+    titleText = "🔀 条件渲染";
   } else if (el && "tag" in el) {
     titleText = `属性 · <${el.tag}>`;
   }
@@ -222,7 +224,7 @@ export function ContextInspector() {
         </div>
       ) : null}
 
-      {el && !isBranchSelected && (() => {
+      {el && !isBranchSelected && el.nodeType !== "conditional" && (() => {
 
         const isBasic = "tag" in el && BASIC_TAGS.has(el.tag);
         const tag = "tag" in el ? el.tag : "unknown";
