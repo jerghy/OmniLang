@@ -502,6 +502,7 @@ export class SourceEmitter {
 
     // ── @if / @else if / @else ──
     if (node.kind === "if") {
+      let hasEmittedElse = false;
       if (node.branches && node.branches.length > 0) {
         const first = node.branches[0];
         w.emit(`@if ${first.condition} {`);
@@ -511,7 +512,12 @@ export class SourceEmitter {
         w.emit(`}`);
         for (let i = 1; i < node.branches.length; i++) {
           const b = node.branches[i];
-          w.emit(`@else if ${b.condition} {`);
+          if (!b.condition) {
+            w.emit(`@else {`);
+            hasEmittedElse = true;
+          } else {
+            w.emit(`@else if ${b.condition} {`);
+          }
           w.indent();
           for (const child of b.body) this.emitViewNode(child, w, depth + 1);
           w.dedent();
@@ -526,7 +532,7 @@ export class SourceEmitter {
       } else {
         return;
       }
-      if (node.fallback && node.fallback.length > 0) {
+      if (!hasEmittedElse && node.fallback && node.fallback.length > 0) {
         w.emit(`@else {`);
         w.indent();
         for (const child of node.fallback) this.emitViewNode(child, w, depth + 1);
