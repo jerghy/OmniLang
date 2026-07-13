@@ -153,6 +153,26 @@ export function ContextInspector() {
 
   const el = selectedIds.length > 0 ? elements.find((e) => e.id === selectedIds[0]) : undefined;
 
+  // Branch selection: synthetic IDs like "comp.@if.0.br1"
+  const branchMatch = selectedIds[0]?.match(/^(.+)\.br(\d+)$/);
+  const isBranchSelected = !!branchMatch;
+
+  // Get the conditional block element when a branch is selected
+  const condBlock = isBranchSelected && branchMatch
+    ? elements.find((e) => e.id === branchMatch[1] && e.nodeType === "conditional")
+    : null;
+
+  // Title text
+  let titleText = "属性面板";
+  if (isBranchSelected && condBlock && branchMatch) {
+    const branch = (condBlock as import("../../core/types/element").ConditionalBlockData).branches[parseInt(branchMatch[2], 10)];
+    if (branch) {
+      titleText = branch.type === "else" ? "🔀 @else" : `🔀 ${branch.type === "if" ? "@if" : "@else if"} · ${branch.condition || "(空条件)"}`;
+    }
+  } else if (el && "tag" in el) {
+    titleText = `属性 · <${el.tag}>`;
+  }
+
   return (
     <div className="context-inspector" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       {/* Title bar */}
@@ -162,7 +182,7 @@ export function ContextInspector() {
         minHeight: 32,
       }}>
         <span style={{ fontSize: 12, fontWeight: 600, color: "#64748b" }}>
-          {el ? ("tag" in el ? `属性 · <${el.tag}>` : "属性") : "属性面板"}
+          {titleText}
         </span>
         <button
           onClick={() => setStorePanelVisible(!storePanelVisible)}
@@ -183,33 +203,19 @@ export function ContextInspector() {
       </div>
 
       {/* Body — branch condition editor if selected is a branch */}
-      {el && selectedIds[0] && (() => {
-        const branchMatch = selectedIds[0].match(/^(.+)\.br(\d+)$/);
-        if (branchMatch) {
-          const blockId = branchMatch[1];
-          const branchIndex = parseInt(branchMatch[2], 10);
-          return (
-            <div className="context-inspector" data-section="branch-editor" style={{
-              padding: 12, overflow: "auto", height: "100%", boxSizing: "border-box",
-            }}>
-              <BranchConditionEditor blockId={blockId} branchIndex={branchIndex} />
-            </div>
-          );
-        }
-        return null;
-      })()}
-
-      {/* Empty state */}
-      {!el ? (
+      {isBranchSelected && branchMatch ? (
+        <div className="context-inspector" data-section="branch-editor" style={{
+          padding: 12, overflow: "auto", height: "100%", boxSizing: "border-box",
+        }}>
+          <BranchConditionEditor blockId={branchMatch[1]} branchIndex={parseInt(branchMatch[2], 10)} />
+        </div>
+      ) : !el ? (
         <div style={{ padding: 16, color: "#94a3b8", fontSize: 13, textAlign: "center", flex: 1 }}>
           选择元素以编辑属性
         </div>
       ) : null}
 
-      {el && (() => {
-        // If branch editor is active, skip normal rendering
-        const isBranchSelected = selectedIds[0]?.match(/^(.+)\.br(\d+)$/);
-        if (isBranchSelected) return null;
+      {el && !isBranchSelected && (() => {
 
         const isBasic = "tag" in el && BASIC_TAGS.has(el.tag);
         const tag = "tag" in el ? el.tag : "unknown";

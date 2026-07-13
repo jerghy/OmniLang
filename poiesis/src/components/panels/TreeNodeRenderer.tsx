@@ -5,6 +5,7 @@
 import React from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import type { TreeNode } from "./tree-utils";
+import { usePoiesisStore } from "../../store";
 
 export interface TreeDropState {
   targetId: string;
@@ -233,6 +234,27 @@ export const TreeNodeView = React.memo(function TreeNodeView({
               treeDropState={treeDropState}
             />
           ))}
+          {/* [+ 添加条件] button for conditional blocks */}
+          {node.nodeType === "conditional" && (
+            <div
+              onClick={() => usePoiesisStore.getState().addConditionalBranch(node.id, "elif")}
+              style={{
+                paddingLeft: (depth + 1) * 16 + 4,
+                paddingTop: 2,
+                paddingBottom: 2,
+                fontSize: 11,
+                color: "#8B5CF6",
+                cursor: "pointer",
+                userSelect: "none",
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+              }}
+            >
+              <span style={{ fontSize: 10 }}>＋</span>
+              <span>添加条件</span>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -398,6 +398,112 @@ function ContextMenu({
       <MenuRow label="删除" shortcut="Delete" onClick={handleDelete} />
 
       {/* ── 条件块菜单项 ── */}
+      {/* Branch node: synthetic IDs like "comp.@if.0.br1" */}
+      {(() => {
+        const branchMatch = elementId.match(/^(.+)\.br(\d+)$/);
+        if (branchMatch) {
+          const blockId = branchMatch[1];
+          const branchIdx = parseInt(branchMatch[2], 10);
+          const block = elements.find((e) => e.id === blockId && e.nodeType === "conditional") as import("../../core/types/element").ConditionalBlockData | undefined;
+          const branch = block?.branches[branchIdx];
+          return (
+            <>
+              {/* 添加子组件 — uses blockId as parent then moves to branch */}
+              <div
+                style={ST.itemBase}
+                onMouseEnter={() => {
+                  setShowAddChild(true);
+                  if (addChildTimer.current) clearTimeout(addChildTimer.current);
+                }}
+                onMouseLeave={() => {
+                  addChildTimer.current = setTimeout(() => {
+                    setShowAddChild(false);
+                    setActiveCategory(null);
+                  }, 150);
+                }}
+              >
+                <span>添加子组件 ▸</span>
+                {showAddChild && (
+                  <div
+                    style={ST.submenu}
+                    onMouseEnter={() => {
+                      if (addChildTimer.current) clearTimeout(addChildTimer.current);
+                    }}
+                    onMouseLeave={() => {
+                      setShowAddChild(false);
+                      setActiveCategory(null);
+                    }}
+                  >
+                    {Array.from(groupedComponents.entries()).map(([cat, items]) => (
+                      <div
+                        key={cat}
+                        style={{ ...ST.itemBase, paddingRight: 24 }}
+                        onMouseEnter={() => setActiveCategory(cat)}
+                        onMouseLeave={() => {
+                          if (activeCategory === cat) setActiveCategory(null);
+                        }}
+                      >
+                        <span>{CATEGORY_LABELS[cat] || cat}</span>
+                        <span style={{ color: "#9CA3AF", fontSize: 10 }}>▸</span>
+                        {activeCategory === cat && (
+                          <div
+                            style={ST.subSubmenu}
+                            onMouseEnter={() => {
+                              if (addChildTimer.current) clearTimeout(addChildTimer.current);
+                            }}
+                          >
+                            {items.map((comp) => (
+                              <div
+                                key={comp.component}
+                                className={styles.subMenuItem}
+                                style={{ ...ST.itemBase, whiteSpace: "nowrap" }}
+                                onClick={() => {
+                                  // Add element with blockId as parent, then move to branch
+                                  const childId = uid(comp.component);
+                                  usePoiesisStore.getState().addElement({
+                                    id: childId,
+                                    nodeType: "view",
+                                    tag: comp.component,
+                                    props: getDefaultProps(comp.component),
+                                    children: [],
+                                    parentId: blockId,
+                                    ...(registryDefs[comp.component] ? { componentRef: comp.component } : {}),
+                                  });
+                                  usePoiesisStore.getState().addChildToBranch(blockId, branchIdx, childId);
+                                  onClose();
+                                }}
+                              >
+                                <span>
+                                  <span style={{ marginRight: 4, fontSize: 11 }}>
+                                    {COMPONENT_ICONS[comp.component] || (comp.isCustom ? "★" : "▪")}
+                                  </span>
+                                  {comp.component}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <Separator />
+              {branch?.type !== "if" && branch?.type !== "else" ? (
+                <MenuRow
+                  label="删除此分支"
+                  onClick={() => {
+                    usePoiesisStore.getState().removeConditionalBranch(blockId, branchIdx);
+                    onClose();
+                  }}
+                />
+              ) : null}
+            </>
+          );
+        }
+        return null;
+      })()}
+
       {contextElement?.nodeType === "conditional" ? (
         <>
           <MenuRow
