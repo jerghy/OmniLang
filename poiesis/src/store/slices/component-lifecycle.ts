@@ -1,7 +1,7 @@
 // ── Component lifecycle slice for Poiesis store ──
 
 import type { PoiesisState } from "../types";
-import type { ComponentDef } from "../../core/types/project-json";
+import type { ComponentDef, DefEntry, ComputedEntry } from "../../core/types/project-json";
 import { detectTabType } from "../../core/types/design-page";
 import { buildTabSaveEntry, tabRestoreCanvasPartial, tabRestoreDesignPagePartial } from "../tab-helpers";
 import { lruEvictTabData } from "../operations/lru-evict";
@@ -88,5 +88,86 @@ export function createComponentLifecycleSlice(set: SetFn, get: GetFn) {
         s.openTab(filePath, name, detectTabType(filePath));
       }
     },
+
+    // ── Component signal CRUD ──
+    addComponentSignal: (compName: string, signal: DefEntry) => set((s) => {
+      const def = s.componentDefs[compName];
+      if (!def) return {};
+      const signals = [...(def.signals || []), signal];
+      s.setComponentDef(compName, { ...def, signals });
+      return {};
+    }),
+
+    updateComponentSignal: (compName: string, pid: string, updates: Partial<DefEntry>) => set((s) => {
+      const def = s.componentDefs[compName];
+      if (!def) return {};
+      const signals = (def.signals || []).map((sig) =>
+        sig.pid === pid ? { ...sig, ...updates } : sig
+      );
+      s.setComponentDef(compName, { ...def, signals });
+      return {};
+    }),
+
+    removeComponentSignal: (compName: string, pid: string) => set((s) => {
+      const def = s.componentDefs[compName];
+      if (!def) return {};
+      const signals = (def.signals || []).filter((sig) => sig.pid !== pid);
+      s.setComponentDef(compName, { ...def, signals });
+      return {};
+    }),
+
+    // ── Component prop CRUD ──
+    addComponentProp: (compName: string, prop: DefEntry) => set((s) => {
+      const def = s.componentDefs[compName];
+      if (!def) return {};
+      const props = [...(def.props || []), prop];
+      s.setComponentDef(compName, { ...def, props });
+      return {};
+    }),
+
+    updateComponentProp: (compName: string, pid: string, updates: Partial<DefEntry>) => set((s) => {
+      const def = s.componentDefs[compName];
+      if (!def) return {};
+      const props = (def.props || []).map((p) =>
+        p.pid === pid ? { ...p, ...updates } : p
+      );
+      s.setComponentDef(compName, { ...def, props });
+      return {};
+    }),
+
+    removeComponentProp: (compName: string, pid: string) => set((s) => {
+      const def = s.componentDefs[compName];
+      if (!def) return {};
+      const props = (def.props || []).filter((p) => p.pid !== pid);
+      s.setComponentDef(compName, { ...def, props });
+      return {};
+    }),
+
+    // ── Component computed CRUD ──
+    addComponentComputed: (compName: string, computed: ComputedEntry) => set((s) => {
+      const def = s.componentDefs[compName];
+      if (!def) return {};
+      const computeds = [...(def.computeds || []), computed];
+      s.setComponentDef(compName, { ...def, computeds });
+      return {};
+    }),
+
+    updateComponentComputed: (compName: string, pid: string, updates: Partial<ComputedEntry>) => set((s) => {
+      const def = s.componentDefs[compName];
+      if (!def) return {};
+      const computeds = (def.computeds || []).map((c) =>
+        c.pid === pid ? { ...c, ...updates } : c
+      );
+      s.setComponentDef(compName, { ...def, computeds });
+      return {};
+    }),
+
+    removeComponentComputed: (compName: string, pid: string) => set((s) => {
+      const def = s.componentDefs[compName];
+      if (!def) return {};
+      const computeds = (def.computeds || []).filter((c) => c.pid !== pid);
+      s.setComponentDef(compName, { ...def, computeds });
+      return {};
+    }),
   };
 }
