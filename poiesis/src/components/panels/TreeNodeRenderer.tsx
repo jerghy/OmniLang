@@ -65,6 +65,77 @@ export const TreeNodeView = React.memo(function TreeNodeView({
   const dropAfter = isDropTarget && treeDropState?.position === "after";
   const dropInside = isDropTarget && treeDropState?.position === "inside";
 
+  // ── Conditional branch node rendering ──
+  if (node.nodeType === "conditional-branch") {
+    return (
+      <div>
+        {dropBefore && <DropLine depth={depth} />}
+        <div
+          ref={setRefs}
+          {...listeners}
+          {...attributes}
+          onClick={(e) => onSelect(node.id, e.ctrlKey || e.metaKey)}
+          onContextMenu={(e) => onContextMenu(e, node.id)}
+          style={{
+            paddingLeft: depth * 16 + 4,
+            paddingRight: 4,
+            paddingTop: 2,
+            paddingBottom: 2,
+            fontSize: 12,
+            cursor: isDragging ? "grabbing" : "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+            background: isSelected ? "#EEF2FF" : "transparent",
+            borderRadius: 3,
+            userSelect: "none",
+            opacity: isDragging ? 0.35 : 1,
+            color: node.branchType === "else" ? "#6b7280" : "#374151",
+          }}
+        >
+          {hasChildren ? (
+            <span
+              onClick={(e) => { e.stopPropagation(); onToggle(node.id); }}
+              style={{
+                fontSize: 8, width: 12, cursor: "pointer",
+                transition: "transform 0.15s",
+                transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)",
+              }}
+            >
+              ▼
+            </span>
+          ) : (
+            <span style={{ width: 12 }} />
+          )}
+          <span style={{ color: "#8B5CF6", fontSize: 10, fontWeight: 600 }}>
+            {node.branchType === "if" ? "if" : node.branchType === "elif" ? "elif" : "else"}
+          </span>
+          <span style={{ color: "#1e293b", fontSize: 11, fontFamily: "monospace" }}>
+            {node.branchType === "else" ? "" : node.condition || "(空条件)"}
+          </span>
+        </div>
+        {dropAfter && <DropLine depth={depth} />}
+        {hasChildren && !isCollapsed && (
+          <div>
+            {node.children.map((child) => (
+              <TreeNodeView
+                key={child.id}
+                node={child}
+                depth={depth + 1}
+                selectedIds={selectedIds}
+                collapsed={collapsed}
+                onToggle={onToggle}
+                onSelect={onSelect}
+                onContextMenu={onContextMenu}
+                treeDropState={treeDropState}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div>
       {/* Before indicator */}
@@ -114,6 +185,11 @@ export const TreeNodeView = React.memo(function TreeNodeView({
           </span>
         ) : (
           <span style={{ width: 12 }} />
+        )}
+
+        {/* ── Conditional block root node extra styling ── */}
+        {node.nodeType === "conditional" && (
+          <span style={{ color: "#8B5CF6", fontSize: 13 }}>🔀</span>
         )}
 
         {/* Element icon + tag */}
