@@ -76,6 +76,13 @@ export function parseViewBody(internals: ParserInternals): void {
       continue;
     }
 
+    // Template directives: @if / @for / @slot
+    if (tok.kind === "AT") {
+      parseViewDirective(internals);
+      internals.stream.skipNewlines();
+      continue;
+    }
+
     // Skip any other unexpected tokens
     internals.stream.consume();
     internals.stream.skipNewlines();
@@ -270,6 +277,7 @@ export function parseViewAttributes(internals: ParserInternals): ViewElementAttr
     className: "",
     attrs: {},
     events: {},
+    bindings: {},
     styleStr: "",
     isSelfClosing: false,
   };
@@ -335,7 +343,7 @@ export function parseViewAttributes(internals: ParserInternals): ViewElementAttr
         internals.stream.expect("BRACE_OPEN");
         const bindValue = internals.stream.expect("IDENTIFIER").text;
         internals.stream.expect("BRACE_CLOSE");
-        result.attrs[`bind:${bindName}`] = bindValue;
+        result.bindings[bindName] = bindValue;
         continue;
       }
 
@@ -581,4 +589,176 @@ export function parseClassName(internals: ParserInternals): string {
   }
 
   return classes.join(" ");
+}
+
+// ── View directive (@if only — @for/@slot to follow) ──
+
+/**
+ * Parse @if / @else if / @else directives in view body.
+ * Produces a ConditionalBlockData element with branch children.
+ */
+export function parseViewDirective(internals: ParserInternals): void {
+  internals.stream.consume(); // AT (@)
+
+  const directiveTok = internals.stream.expect("IDENTIFIER");
+  if (directiveTok.kind === "EOF") return;
+
+  // Currently only @if is handled; @for and @slot will follow
+  if (directiveTok.text !== "if") {
+    // Skip unknown directives by consuming until end of block
+    let depth = 0;
+    while (!internals.stream.isEof()) {
+      const t = internals.stream.peek();
+      if (t.kind === "BRACE_OPEN") depth++;
+      else if (t.kind === "BRACE_CLOSE") { depth--; if (depth < 0) break; }
+      internals.stream.consume();
+    }
+    return;
+  }
+
+  const condBlockId = `${internals.ctx.currentComponent}.@if.${internals.ctx.elements.length}`;
+  const branches: Array<{
+    type: "if" | "elif" | "else";
+    condition: string;
+    children: string[];
+  }> = [];
+
+  // Push condition block ID to parent stack so children get correct parentId
+  if (internals.ctx.viewParentStack.length > 0) {
+    internals.ctx.viewParentStack.push(condBlockId);
+  }
+
+  let currentBranchType: "if" | "elif" | "else" = "if";
+
+  while (!internals.stream.isEof()) {
+    // Collect condition expression until BRACE_OPEN
+    let condition = "";
+    if (currentBranchType !== "else") {
+      let lastEndCol = -1;
+      while (
+        !internals.stream.isEof() &&
+        internals.stream.peek().kind !== "BRACE_OPEN" &&
+        internals.stream.peek().kind !== "NEWLINE"
+      ) {
+        const t = internals.stream.peek();
+        // Insert spaces based on column gap between consecutive tokens
+        if (lastEndCol >= 0 && t.col > lastEndCol) {
+          condition += " ".repeat(t.col - lastEndCol);
+        }
+        internals.stream.consume();
+        condition += t.text;
+        lastEndCol = t.col + t.text.length;
+      }
+      condition = condition.trim();
+    }
+
+    // Expect opening brace
+    if (internals.stream.peek().kind === "NEWLINE") {
+      internals.stream.skipNewlines();
+    }
+    internals.stream.expect("BRACE_OPEN");
+
+    // Track elements added inside this branch
+    const beforeCount = internals.ctx.elements.length;
+
+    // Parse branch body: recurse into view elements until matching close brace
+    let braceDepth = 1;
+    while (braceDepth > 0 && !internals.stream.isEof()) {
+      const tok = internals.stream.peek();
+
+      if (tok.kind === "BRACE_CLOSE") {
+        braceDepth--;
+        if (braceDepth === 0) {
+          internals.stream.consume();
+          break;
+        }
+        internals.stream.consume();
+        continue;
+      }
+
+      if (tok.kind === "BRACE_OPEN") {
+        braceDepth++;
+        internals.stream.consume();
+        continue;
+      }
+
+      // Recurse into view elements
+      if (tok.kind === "ANGLE_OPEN") {
+        parseViewElement(internals);
+      } else if (tok.kind === "COMMENT_LINE") {
+        parseViewComment(internals);
+      } else if (
+        tok.kind === "IDENTIFIER" ||
+        tok.kind === "TEXT" ||
+        tok.kind === "STRING" ||
+        tok.kind === "BRACE_OPEN"
+      ) {
+        parseViewTextContent(internals);
+      } else {
+        internals.stream.consume();
+      }
+
+      internals.stream.skipNewlines();
+    }
+
+    // Collect child element IDs added during this branch
+    const afterCount = internals.ctx.elements.length;
+    const branchChildren: string[] = [];
+    for (let i = beforeCount; i < afterCount; i++) {
+      branchChildren.push(internals.ctx.elements[i].id);
+    }
+
+    // Save branch
+    branches.push({
+      type: currentBranchType,
+      condition,
+      children: branchChildren,
+    });
+
+    // Check for @else / @else if continuation
+    internals.stream.skipNewlines();
+    const nextTok = internals.stream.peek();
+    if (
+      nextTok.kind === "AT" &&
+      internals.stream.peek(1)?.kind === "IDENTIFIER" &&
+      internals.stream.peek(1)?.text === "else"
+    ) {
+      internals.stream.consume(); // AT
+      internals.stream.consume(); // "else"
+      // Check if it's "else if" or just "else"
+      const afterElse = internals.stream.peek();
+      if (afterElse.kind === "IDENTIFIER" && afterElse.text === "if") {
+        internals.stream.consume(); // "if"
+        currentBranchType = "elif";
+        continue;
+      }
+      currentBranchType = "else";
+      continue;
+    }
+
+    // No more branches
+    break;
+  }
+
+  // Build ConditionalBlockData
+  const allChildren = branches.flatMap((b) => b.children);
+  const parentId =
+    internals.ctx.viewParentStack.length > 1
+      ? internals.ctx.viewParentStack[internals.ctx.viewParentStack.length - 2]
+      : null;
+
+  const condBlock: import("../../core/types/element").ConditionalBlockData = {
+    id: condBlockId,
+    nodeType: "conditional",
+    parentId,
+    branches,
+    children: allChildren,
+  };
+
+  internals.ctx.elements.push(condBlock);
+
+  // Pop condition block from parent stack
+  if (internals.ctx.viewParentStack.length > 0) {
+    internals.ctx.viewParentStack.pop();
+  }
 }
