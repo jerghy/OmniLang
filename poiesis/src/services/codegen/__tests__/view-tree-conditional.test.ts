@@ -29,10 +29,11 @@ describe("buildViewTree with conditional blocks", () => {
     expect(root.kind).toBe("if");
     if (root.kind === "if") {
       expect(root.condition).toBe("x > 0");
-      expect(root.branches).toHaveLength(2);
+      // branches[] now only contains if + elif (not else)
+      expect(root.branches).toHaveLength(1);
       expect(root.branches[0].condition).toBe("x > 0");
       expect(root.branches[0].body).toHaveLength(1);
-      expect(root.branches[1].condition).toBe("");
+      // else branch lives exclusively in fallback
       expect(root.fallback).toBeDefined();
       expect(root.fallback!.length).toBe(1);
     }

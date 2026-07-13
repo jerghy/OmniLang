@@ -17,7 +17,8 @@ export type UndoAction =
   | { type: "moveElement"; elementId: string; oldParentId: string | null }
   | { type: "reorderElement"; elementId: string; parentId: string | null; prevSiblingId: string | null; targetSiblingId: string; position: "before" | "after" }
   | { type: "setElementsAndWires"; prevElements: ElementData[]; prevWires: WireData[]; newElements: ElementData[]; newWires: WireData[] }
-  | { type: "setElementBinding"; id: string; propName: string; oldBinding: string | null };
+  | { type: "setElementBinding"; id: string; propName: string; oldBinding: string | null }
+  | { type: "restoreConditionalBlock"; blockId: string; prevBranches: Array<{type: string; condition: string; children: string[]}>; prevChildren: string[] };
 
 export interface UndoStack {
   undo: UndoAction[];

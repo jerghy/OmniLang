@@ -46,24 +46,27 @@ export function buildViewTree(
           .map((c) => buildNode(c, `${cond.id}.${c.tag.toLowerCase()}`)),
       }));
 
-      // All branches (if, elif, else) mapped to the IfViewNode format
-      const branches = condBranches.map((b) => ({
-        condition: b.condition,
-        body: b.body,
-      }));
-
-      // Extract else branch body as fallback for SourceEmitter convenience
+      // Separate else branch as fallback; branches[] only contains if + elif
+      const first = condBranches[0];
       const lastBranch = cond.branches[cond.branches.length - 1];
       const fallback =
         lastBranch.type === "else" && lastBranch.condition === ""
           ? condBranches[condBranches.length - 1].body
           : null;
+      const elifBranches = fallback
+        ? condBranches.slice(1, -1)  // exclude first (if) and last (else -> fallback)
+        : condBranches.slice(1);
+
+      const branches = [
+        { condition: first.condition, body: first.body },
+        ...elifBranches.map((b) => ({ condition: b.condition, body: b.body })),
+      ];
 
       return {
         kind: "if",
         id: cond.id,
         path: currentPath,
-        condition: condBranches[0].condition,
+        condition: first.condition,
         branches,
         fallback,
         children: condBranches.flatMap((b) => b.body),

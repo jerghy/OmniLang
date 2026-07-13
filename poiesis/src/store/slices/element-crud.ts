@@ -375,6 +375,15 @@ export function createElementCrudSlice(set: SetFn, get: GetFn) {
 
     addConditionalBranch: (blockId: string, type: "elif" | "else") => {
       set((s) => {
+        const block = s.elements.find(e => e.id === blockId && e.nodeType === "conditional") as ConditionalBlockData | undefined;
+        const undoUpdate = block
+          ? buildUndoUpdate(s.undoStacks, s.designPage.activeTabId, {
+              type: "restoreConditionalBlock",
+              blockId,
+              prevBranches: block.branches.map(b => ({ ...b })),
+              prevChildren: [...block.children],
+            })
+          : {};
         const elements = s.elements.map((e) => {
           if (e.id !== blockId || e.nodeType !== "conditional") return e;
           const cond = e as ConditionalBlockData;
@@ -400,12 +409,21 @@ export function createElementCrudSlice(set: SetFn, get: GetFn) {
             return e;
           }
         });
-        return { ...s, elements, isDirty: true };
+        return { ...s, ...undoUpdate, elements, isDirty: true };
       });
     },
 
     updateBranchCondition: (blockId: string, branchIndex: number, condition: string) => {
       set((s) => {
+        const block = s.elements.find(e => e.id === blockId && e.nodeType === "conditional") as ConditionalBlockData | undefined;
+        const undoUpdate = block
+          ? buildUndoUpdate(s.undoStacks, s.designPage.activeTabId, {
+              type: "restoreConditionalBlock",
+              blockId,
+              prevBranches: block.branches.map(b => ({ ...b })),
+              prevChildren: [...block.children],
+            })
+          : {};
         const elements = s.elements.map((e) => {
           if (e.id !== blockId || e.nodeType !== "conditional") return e;
           const cond = e as ConditionalBlockData;
@@ -415,7 +433,7 @@ export function createElementCrudSlice(set: SetFn, get: GetFn) {
           );
           return { ...cond, branches: newBranches };
         });
-        return { ...s, elements, isDirty: true };
+        return { ...s, ...undoUpdate, elements, isDirty: true };
       });
     },
 
@@ -423,6 +441,16 @@ export function createElementCrudSlice(set: SetFn, get: GetFn) {
       set((s) => {
         const child = s.elements.find((e) => e.id === childId);
         if (!child) return s;
+
+        const block = s.elements.find(e => e.id === blockId && e.nodeType === "conditional") as ConditionalBlockData | undefined;
+        const undoUpdate = block
+          ? buildUndoUpdate(s.undoStacks, s.designPage.activeTabId, {
+              type: "restoreConditionalBlock",
+              blockId,
+              prevBranches: block.branches.map(b => ({ ...b })),
+              prevChildren: [...block.children],
+            })
+          : {};
 
         const elements = s.elements
           .map((e) => {
@@ -451,12 +479,21 @@ export function createElementCrudSlice(set: SetFn, get: GetFn) {
             };
           });
 
-        return { ...s, elements, isDirty: true };
+        return { ...s, ...undoUpdate, elements, isDirty: true };
       });
     },
 
     removeChildFromBranch: (blockId: string, branchIndex: number, childId: string) => {
       set((s) => {
+        const block = s.elements.find(e => e.id === blockId && e.nodeType === "conditional") as ConditionalBlockData | undefined;
+        const undoUpdate = block
+          ? buildUndoUpdate(s.undoStacks, s.designPage.activeTabId, {
+              type: "restoreConditionalBlock",
+              blockId,
+              prevBranches: block.branches.map(b => ({ ...b })),
+              prevChildren: [...block.children],
+            })
+          : {};
         const elements = s.elements.map((e) => {
           if (e.id !== blockId || e.nodeType !== "conditional") return e;
           const cond = e as ConditionalBlockData;
@@ -470,12 +507,21 @@ export function createElementCrudSlice(set: SetFn, get: GetFn) {
             children: newBranches.flatMap((b) => b.children),
           };
         });
-        return { ...s, elements, isDirty: true };
+        return { ...s, ...undoUpdate, elements, isDirty: true };
       });
     },
 
     removeConditionalBranch: (blockId: string, branchIndex: number) => {
       set((s) => {
+        const block = s.elements.find(e => e.id === blockId && e.nodeType === "conditional") as ConditionalBlockData | undefined;
+        const undoUpdate = block
+          ? buildUndoUpdate(s.undoStacks, s.designPage.activeTabId, {
+              type: "restoreConditionalBlock",
+              blockId,
+              prevBranches: block.branches.map(b => ({ ...b })),
+              prevChildren: [...block.children],
+            })
+          : {};
         const elements = s.elements.map((e) => {
           if (e.id !== blockId || e.nodeType !== "conditional") return e;
           const cond = e as ConditionalBlockData;
@@ -488,7 +534,7 @@ export function createElementCrudSlice(set: SetFn, get: GetFn) {
             children: newBranches.flatMap((b) => b.children),
           };
         });
-        return { ...s, elements, isDirty: true };
+        return { ...s, ...undoUpdate, elements, isDirty: true };
       });
     },
   };
