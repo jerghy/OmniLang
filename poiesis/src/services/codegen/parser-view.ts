@@ -684,7 +684,20 @@ export function parseViewDirective(internals: ParserInternals): void {
 
       // Recurse into view elements
       if (tok.kind === "ANGLE_OPEN") {
-        parseViewElement(internals);
+        // Handle closing tags (</tagname>) — pop from stack, don't create element
+        if (internals.stream.peek(1)?.kind === "SLASH") {
+          internals.stream.consume(); // ANGLE_OPEN
+          internals.stream.consume(); // SLASH
+          internals.stream.consume(); // IDENTIFIER (tag name)
+          if (internals.stream.peek().kind === "ANGLE_CLOSE") {
+            internals.stream.consume();
+          }
+          if (internals.ctx.viewParentStack.length > 0) {
+            internals.ctx.viewParentStack.pop();
+          }
+        } else {
+          parseViewElement(internals);
+        }
       } else if (tok.kind === "COMMENT_LINE") {
         parseViewComment(internals);
       } else if (
@@ -740,13 +753,21 @@ export function parseViewDirective(internals: ParserInternals): void {
     break;
   }
 
-  // Build ConditionalBlockData
-  const allChildren = branches.flatMap((b) => b.children);
+  // Pop condition block from parent stack FIRST so parentId resolves
+  // to the actual parent element, not the condBlock itself or any bogus
+  // elements that may have been pushed during branch body parsing.
+  if (internals.ctx.viewParentStack.length > 0) {
+    internals.ctx.viewParentStack.pop();
+  }
+
+  // Now compute parentId from the actual parent (top of remaining stack)
   const parentId =
-    internals.ctx.viewParentStack.length > 1
-      ? internals.ctx.viewParentStack[internals.ctx.viewParentStack.length - 2]
+    internals.ctx.viewParentStack.length > 0
+      ? internals.ctx.viewParentStack[internals.ctx.viewParentStack.length - 1]
       : null;
 
+  // Build ConditionalBlockData
+  const allChildren = branches.flatMap((b) => b.children);
   const condBlock: import("../../core/types/element").ConditionalBlockData = {
     id: condBlockId,
     nodeType: "conditional",
@@ -763,10 +784,5 @@ export function parseViewDirective(internals: ParserInternals): void {
     if (parent && "children" in parent && Array.isArray(parent.children)) {
       (parent as { children: string[] }).children.push(condBlockId);
     }
-  }
-
-  // Pop condition block from parent stack
-  if (internals.ctx.viewParentStack.length > 0) {
-    internals.ctx.viewParentStack.pop();
   }
 }
