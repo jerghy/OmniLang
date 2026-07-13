@@ -12,6 +12,7 @@ import { InlineStylePanel } from "./inspector/InlineStylePanel";
 import { ClassesSection } from "./inspector/ClassesSection";
 import { VariantBindingSection } from "./inspector/VariantBindingSection";
 import { BranchConditionEditor } from "./inspector/BranchConditionEditor";
+import { ConditionalBlockEditor } from "./inspector/ConditionalBlockEditor";
 import { usePoiesisStore } from "../../store";
 import type { SignalPickerItem } from "./inspector/SignalSlashPicker";
 
@@ -202,8 +203,14 @@ export function ContextInspector() {
         </button>
       </div>
 
-      {/* Body — branch condition editor if selected is a branch */}
-      {isBranchSelected && branchMatch ? (
+      {/* Body — conditional block editor when block itself is selected */}
+      {el && el.nodeType === "conditional" ? (
+        <div className="context-inspector" data-section="conditional-editor" style={{
+          padding: 12, overflow: "auto", height: "100%", boxSizing: "border-box",
+        }}>
+          <ConditionalBlockEditor blockId={el.id} />
+        </div>
+      ) : isBranchSelected && branchMatch ? (
         <div className="context-inspector" data-section="branch-editor" style={{
           padding: 12, overflow: "auto", height: "100%", boxSizing: "border-box",
         }}>

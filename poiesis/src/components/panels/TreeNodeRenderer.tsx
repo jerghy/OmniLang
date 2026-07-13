@@ -5,7 +5,6 @@
 import React from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import type { TreeNode } from "./tree-utils";
-import { usePoiesisStore } from "../../store";
 
 export interface TreeDropState {
   targetId: string;
@@ -68,6 +67,7 @@ export const TreeNodeView = React.memo(function TreeNodeView({
 
   // ── Conditional branch node rendering ──
   if (node.nodeType === "conditional-branch") {
+    const isElse = node.branchType === "else";
     return (
       <div>
         {dropBefore && <DropLine depth={depth} />}
@@ -91,7 +91,6 @@ export const TreeNodeView = React.memo(function TreeNodeView({
             borderRadius: 3,
             userSelect: "none",
             opacity: isDragging ? 0.35 : 1,
-            color: node.branchType === "else" ? "#6b7280" : "#374151",
           }}
         >
           {hasChildren ? (
@@ -108,12 +107,14 @@ export const TreeNodeView = React.memo(function TreeNodeView({
           ) : (
             <span style={{ width: 12 }} />
           )}
-          <span style={{ color: "#8B5CF6", fontSize: 10, fontWeight: 600 }}>
-            {node.branchType === "if" ? "if" : node.branchType === "elif" ? "elif" : "else"}
+          <span style={{ color: isElse ? "#9CA3AF" : "#7C3AED", fontSize: 10, fontWeight: 500 }}>
+            {node.branchType}
           </span>
-          <span style={{ color: "#1e293b", fontSize: 11, fontFamily: "monospace" }}>
-            {node.branchType === "else" ? "" : node.condition || "(空条件)"}
-          </span>
+          {!isElse && (
+            <span style={{ color: "#374151", fontSize: 11, fontFamily: "monospace" }}>
+              {node.condition || "(空条件)"}
+            </span>
+          )}
         </div>
         {dropAfter && <DropLine depth={depth} />}
         {hasChildren && !isCollapsed && (
@@ -234,27 +235,6 @@ export const TreeNodeView = React.memo(function TreeNodeView({
               treeDropState={treeDropState}
             />
           ))}
-          {/* [+ 添加条件] button for conditional blocks */}
-          {node.nodeType === "conditional" && (
-            <div
-              onClick={() => usePoiesisStore.getState().addConditionalBranch(node.id, "elif")}
-              style={{
-                paddingLeft: (depth + 1) * 16 + 4,
-                paddingTop: 2,
-                paddingBottom: 2,
-                fontSize: 11,
-                color: "#8B5CF6",
-                cursor: "pointer",
-                userSelect: "none",
-                display: "flex",
-                alignItems: "center",
-                gap: 4,
-              }}
-            >
-              <span style={{ fontSize: 10 }}>＋</span>
-              <span>添加条件</span>
-            </div>
-          )}
         </div>
       )}
     </div>
