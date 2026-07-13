@@ -8,7 +8,7 @@
 |------|------|---------|
 | `design.ts` | Design System 类型 | `DesignDefinition`, `DesignToken`, `DesignClass`, `VariantDefinition`, `VariantDimension`, `VariantBranch`, `ElementVariantBinding`, `TokenType` |
 | `store.ts` | Store 类型 | `StoreDefinition`, `StoreSignalDef`, `StoreGetterDef`, `StoreActionDef` |
-| `element.ts` | 元素数据 | `ElementData` (id, tag, props, children, parentId, position, source, style, cssClasses, componentRef) |
+| `element.ts` | 元素数据 | `ElementData` = `ViewElementData` \| `CodeblockElementData` \| `GroupElementData` \| `ConditionalBlockData`。条件块有 `branches[]`（@if/@elif/@else）+ 扁平 `children` |
 | `style.ts` | 样式属性 | `StyleProperty`, `StyleValueSegment` |
 | `wire.ts` | 连线数据 | `WireData` (from/to 节点 + 端口) |
 | `design-page.ts` | 设计页面 | `TabType`, `TabData`, `Breadcrumb`, `DesignPageState` |
@@ -34,7 +34,7 @@
 | `slices/design-system.ts` | ★ Design System CRUD | Token/Class/Variant 所有 action |
 | `slices/store-crud.ts` | ★ Store CRUD | Signal/Getter/Action CRUD + @store 引用追踪 + inlineStoreDefs 并行 CRUD（结构镜像 storeDefs） |
 | `slices/project.ts` | 项目管理 | 项目打开/关闭/状态 |
-| `slices/element-crud.ts` | 元素 CRUD | addElement/removeElement/setProp/moveElement |
+| `slices/element-crud.ts` | 元素 CRUD | addElement/removeElement/setProp/moveElement + addConditionalBlock/addConditionalBranch/updateBranchCondition/addChildToBranch/removeChildFromBranch |
 | `slices/navigation.ts` | 页面路由 | navigateTo |
 | `slices/architecture.ts` | 架构页面状态 | setArchMode/expandBubble/focusComponent |
 | `slices/theme.ts` | 主题 | setTheme/resolvedTheme |
@@ -56,11 +56,11 @@
 | `parser.ts` | ★ 主解析器 | .omni 源码 → ElementData + DesignDefinition。`parseSignal()`/`parseComputed()` **不再**创建 codeblock 元素——改为 push 到 `ctx.signals`/`ctx.computeds`。`parsePropDeclaration()` 写入 `ctx.props` |
 | `parser-types.ts` | 解析器类型 | AST 节点类型 |
 | `parser-helpers.ts` | 解析辅助 | 公共解析工具函数 |
-| `parser-view.ts` | view 解析 | view 模板块的专门解析 |
+| `parser-view.ts` | view 解析 | view 模板块的专门解析。`parseViewBody` + `parseViewElement` + `parseViewDirective`（@if/@else if/@else） |
 | `parser-finalize.ts` | 解析收尾 | cross-reference 修复、PID 补全 |
 | `omni-parser.ts` | Omni 解析入口 | 统一的 parse → program 入口 |
 | `omni-tokenizer.ts` | Tokenizer | .omni 文本 → token 流 |
-| `view-tree-builder.ts` | 视图树构建 | ElementData → ViewNode tree |
+| `view-tree-builder.ts` | 视图树构建 | ElementData[] → ViewNode tree。`findElement()` 从 `byId`（view 元素缓存）+ 扁平数组查找非 view 子节点 |
 | `collect-styles.ts` | 样式收集 | 从 elements 收集所有 CSS |
 | `component-builder.ts` | 组件构建 | elements + `componentDefs[name]` → ComponentPart。Props/signals/computeds 统一从 `getComponentDefinitions()[name]` 读取，不再从 standaloneSignals/standaloneComputeds 提取 |
 | `expression-lowering.ts` | 表达式降级 | 复杂表达式 → 简单形式 |
@@ -160,8 +160,12 @@
 | `inspector/TypographyBasics.tsx` | 轻量文字卡片（字号 scrub + 预设 + 字重 select + 颜色 picker），仅文本元素显示 |
 | `TreeNodeRenderer.tsx` | 树节点递归渲染 |
 | `tree-utils.ts` | 树操作工具函数 |
-| `inspector/PropsSection.tsx` | Props 编辑区 |
+| `inspector/PropsSection.tsx` | ★ Props 编辑区。内含 `LabelEditor` 组件：表达式 `{name}` 以紫色芯片展示+删除，文本以内联 `<input>` 直接编辑，纯文本时退化为普通输入框 |
 | `inspector/EventsSection.tsx` | 事件绑定区 |
+| `inspector/BindingsSection.tsx` | 双向绑定区 (bind:value)。仅 input/textarea/select 显示。Prop 下拉 + Signal 搜索弹出选择器。写入 `element.bindings`，走 pipeline → emitter 输出 `bind:value={sig}` |
+| `inspector/ConditionalBlockEditor.tsx` | ★ 条件块全分支编辑器：列出所有 @if/@elif/@else 分支、InlineConditionEditor、子元素列表、[+ 添加 @else if] |
+| `inspector/BranchConditionEditor.tsx` | 单分支编辑器：条件表达式 + 子元素 + 删除（elif only） |
+| `inspector/InlineConditionEditor.tsx` | 内联条件编辑器（click to edit），复刻 Computed 编辑体验：靛蓝背景+文字、monospace、单行省略 |
 | `inspector/StylesSection.tsx` | 样式编辑区 |
 | `inspector/ClassesSection.tsx` | Class 绑定区 |
 | `inspector/VariantBindingSection.tsx` | Variant 绑定区 |
@@ -194,7 +198,7 @@
 
 | 文件 | 职责 |
 |------|------|
-| `compiler.ts` | WASM 编译器封装（compile_to_omniview） |
+| `compiler.ts` | WASM 编译器封装（compile_to_omniview, compileMultiToOmniView, resolveStyles, resolveStylesMulti, wrapDebugHtml, OmniCompiler stateful） |
 | `cache.ts` | 编译缓存管理 |
 
 ### 5.2 解析器（services/parser/）

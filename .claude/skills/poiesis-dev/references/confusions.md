@@ -796,3 +796,281 @@ store.setComponentDef(componentName, {
 ### 涉及文件
 
 - `useSaveProject.ts` L165-178 — 保存时的 componentDef 更新逻辑
+
+## 三十一、编辑器模式 signal IIFE 作用域：绑定代码看不到 signal ★
+
+### 问题
+
+调试窗口中 `<p>` 标签内 signal 插值（`{newSignal}`）渲染为空，控制台报错：
+```
+[OmniView] interpolation:text: ReferenceError: Main_newSignal is not defined
+```
+
+### 原因
+
+`omnilang/src/codegen/omniview/store.rs` `generate_component()` 在 `editor_mode=true` 时将每个组件包裹在工厂 IIFE 中：
+
+```javascript
+window.__omni_components["Main"] = (function() {
+  const Main_newSignal = __omni_signal("Main_newSignal", "signalcs");
+  return { signals: { Main_newSignal: Main_newSignal } };
+})();
+```
+
+但绑定代码（插值 `_effect`）在页面级别生成（`omnilang/src/codegen/omniview/view.rs` `emit_dom_and_bindings()`），**在 IIFE 外部**：
+```javascript
+__omni_effect(() => {
+  el.textContent = String(Main_newSignal.value); // ReferenceError!
+});
+```
+
+`const Main_newSignal` 的作用域仅限于工厂 IIFE —— 在非编辑器模式下（`omnic run`），signal 在顶层用 `var` 声明，处处可见。编辑器模式改变了作用域，但绑定代码没有适配。
+
+### 修复
+
+`omnilang/src/codegen/omniview/expr.rs` L21-33：`IdentifierExpr` 分支中，当 `editor_mode=true` 且名称为 signal 时，通过 `__omni_subs` 映射发出引用：
+
+```rust
+if self.signal_names.contains(resolved.as_str()) {
+    if self.editor_mode {
+        format!("__omni_subs.get(\"{}\").value", resolved)
+    } else {
+        format!("{}.value", resolved)
+    }
+}
+```
+
+`__omni_subs` 是内部的 `Map<name, signal>`（`runtime.rs` L51 `__omni_subs.set(name, signal)`），在调试桥接中通过 `window.__omni_subs = __omni_subs`（`debug.rs` L19）暴露到页面级别。
+
+### ❌ 错误修复：`window[name] = signal`
+
+在 `__omni_signal` 运行时中添加 `window[name] = signal`（`runtime.rs` L52）似乎也能让绑定代码解析到 signal，但会导致**调试窗口打开后冻结、无法关闭**。原因未知（可能与 Tauri webview 的 `window` 属性拦截或调试桥接的事件循环有关），已验证不可行。
+
+### 涉及文件
+
+- `omnilang/src/codegen/omniview/expr.rs` L21-33 — signal 引用生成
+- `omnilang/src/codegen/omniview/store.rs` — 组件工厂 IIFE 生成
+- `omnilang/src/codegen/omniview/view.rs` — 绑定代码生成
+- `omnilang/src/codegen/omniview/runtime.rs` L23-53 — `__omni_signal()` 运行时
+- `omnilang/src/codegen/omniview/debug.rs` L19 — `window.__omni_subs = __omni_subs`
+
+### 关联陷阱：重开 debug window 死机 — `needFullReload` + hot-replace 链断裂
+
+上面说的 `__omni_subs.get()` 解决了 signal 插值问题，但 debug window 在关闭→重开后仍然死机。原因链：
+
+1. **`needFullReload` 不重置**：`useDebugCompile.ts` L32 `needFullReload` 首次全量推送后设为 `false`。关闭时 `_windowReadyCounter = 0`，但 `needFullReload` 保持不变。重开时无新的 `debug:window-ready` 事件 → `needFullReload` 始终为 `false` → 编译走 hot-replace 路径。
+
+2. **hot-replace 的 `(0, eval)` 无法访问运行时**：`debug-window/index.html` 的 `__omni_replaceComponent()` 用 `(0, eval)(factoryCode)`（间接 eval，全局作用域）。组件 factory 代码引用 `__omni_signal` 等函数 → 这些函数只在编译输出的 IIFE 内部 → `ReferenceError`。
+
+3. **`teardown()` 在 `eval` 之前调用**：旧代码先 `teardown()`（移除 `[data-component]` DOM 元素）再 `eval`。`eval` 失败后组件已销毁但无法重建 → 页面空白。
+
+**修复**（三处联动）：
+
+| 修复点 | 文件 | 机制 |
+|--------|------|------|
+| 追踪 `isOpen` 转换 | `useDebugCompile.ts` L46-52 | `useRef(prevIsOpen)` + `useEffect` → 每次 false→true 时 `needFullReload = true` |
+| 暴露运行时到全局 | `debug.rs` L27-30 | `window.__omni_signal/__omni_computed/__omni_effect/__omni_el = ...`，每次编译更新 |
+| `cloneNode` 代替 `teardown` | `debug-window/index.html` L237-250 | `cloneNode(true)` + `replaceChild` 清除旧事件监听器（不丢失 DOM），eval 成功后再恢复 signal 值 |
+
+## 三十二、HMR 时 hook 计数变更导致 ErrorBoundary 永久崩溃 ★
+
+### 问题
+
+在 Vite HMR 热更新期间，给 `useWasmCompile.ts` 添加新的 `useState` / `useEffect` → `OmniViewRenderer` 抛出：
+```
+React has detected a change in the order of Hooks called by OmniViewRenderer.
+Previous render            Next render
+61. useEffect                 useEffect
+62. useSyncExternalStore      useEffect  ← hook 序号变了
+```
+随后 ErrorBoundary 捕获崩溃，**后续所有 HMR 更新也被 ErrorBoundary 拦截**，画布永久空白，必须 F5 硬刷新。
+
+### 原因
+
+Vite HMR 重新加载 `useWasmCompile.ts` 模块后，hook 数量从 6 变为 8（新增了 `useState` + `useEffect`）。React 在重新渲染时检测到 hook 顺序不匹配 → 抛出 Rules of Hooks 错误 → ErrorBoundary 捕获 → 组件树被替换为 fallback UI → 即使后续 HMR 修复了 hook 数量，ErrorBoundary 仍保持崩溃状态。
+
+### 正确做法
+
+在 Poiesis 的 Vite HMR 环境下，**修改 hook 数量后必须 F5 硬刷新**，不能依赖 HMR。如果需要在组件挂载时懒初始化 WASM，不能通过增加 hook 来实现 —— 应该在已有的 `useEffect` 内 fire-and-forget 调用 `rustCompiler.init()`，或确保 `App.tsx` 的初始化 `useEffect`（L324）在画布渲染前完成。
+
+### 涉及文件
+
+- `poiesis/src/components/design/useWasmCompile.ts` — hook 定义位置
+- `poiesis/src/App.tsx` L322-325 — WASM 早期初始化 `useEffect`
+
+### 变体：条件渲染组件中 hook 放在 early return 之后
+
+同样的 Rules of Hooks 错误也会发生在**根据 props 条件返回 null 的组件**中。典型案例：`BindingsSection` (`inspector/BindingsSection.tsx` L151) —— 当选中 `<p>` 时 `bindableProps` 为空 → early return null 跳过了 `useState` → 切换到 `<input>` 时 `useState` 被调用 → hook 数量从 4 变为 5 → 崩溃。
+
+**陷阱**：早期 return 的条件依赖于**父组件的选中状态变化**（不是 HMR），因此**每次在不同类型元素间切换都会触发**，不是"改一次就过"的问题。
+
+**修复模式**：所有 hooks 必须在 early return **之前**调用，计算 derived values 用常量表达式:
+
+```typescript
+// ✅ 正确: hooks 始终按相同顺序调用
+const isViewEl = "tag" in element && element.nodeType === "view";
+const bindableProps = isViewEl ? getBindableProps(tag) : [];
+const [openPopover, setOpenPopover] = useState(null); // ← 始终调用
+// ... 其他 useCallback/useEffect ...
+if (!isViewEl || bindableProps.length === 0) return null; // ← 最后才 return
+```
+
+涉及文件: `BindingsSection.tsx` L151-202
+
+## 三十三、Debug window 点 X 按钮关闭 → 窗口被销毁 → 再打开主窗口卡死 ★
+
+### 问题
+
+用户在 debug window 点击标题栏 X 按钮关闭窗口，回到主窗口再点"打开调试窗口"→ 主窗口卡死。
+
+### 原因
+
+Tauri 默认行为：点击窗口 X 按钮会 **destroy** 窗口（不是 hide）。`open_debug_window` 命令（`lib.rs` L735）先检查 `app.get_webview_window("debug")` → 返回 `None`（窗口已销毁）→ 走到 `WebviewWindowBuilder::build()` 创建新窗口。**`build()` 在 IPC 调用期间执行会阻塞 Windows 上的 IPC 响应**，这正是为什么 setup 阶段预创建窗口的原因（代码注释："WebviewWindowBuilder::build() blocks IPC responses on Windows, so we create it here during setup"）。
+
+链条：`用户点 X → 窗口 destroy → get_webview_window 返回 None → build() 在 IPC 中阻塞 → 主窗口卡死`
+
+### 修复
+
+`lib.rs` L823-830：在 `tauri::Builder` 链上添加 `.on_window_event()` 处理器，拦截 `debug` 窗口的 `CloseRequested` 事件：
+
+```rust
+.on_window_event(|window, event| {
+    if window.label() == "debug" {
+        if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+            api.prevent_close();  // 阻止销毁
+            window.hide().ok();   // 改为隐藏
+        }
+    }
+})
+```
+
+**注意**：`.on_window_event()` 在 `tauri::Builder` 上（不是 `WebviewWindowBuilder`）。`WebviewWindowBuilder` 没有这个方法。
+
+### 为何 Poiesis 关闭按钮不受影响
+
+主窗口的"关闭调试窗口"按钮调用 `close_debug_window` 命令（`lib.rs` L758），它执行 `window.hide()` 而非销毁。只有 OS 原生 X 按钮才会触发 `CloseRequested`。
+
+### 涉及文件
+
+- `poiesis/src-tauri/src/lib.rs` L733-763 — `open_debug_window` / `close_debug_window` 命令
+- `poiesis/src-tauri/src/lib.rs` L823-830 — `on_window_event` CloseRequested 拦截
+
+## 三十四、斜杠选择器的 `slashFilter` 对分段编辑器用错数据源 ★
+
+### 问题
+
+在 LabelEditor（芯片+内联输入框）中输入 `/` 触发 SignalSlashPicker，但选择面板是空的——明明有 signal 却找不到。
+
+### 原因
+
+`PropsSection.tsx` 中 `slashFilter` 的计算（L200-202）使用了 `localProps[slash.propName]`：
+
+```typescript
+const slashFilter = slash
+  ? (localProps[slash.propName] ?? "").slice(slash.slashIndex + 1)
+  : "";
+```
+
+`slashIndex` 是从**输入框**的 `selectionStart` 计算的，但 `localProps["label"]` 是**完整序列化的标签字符串**（如 `{newSignal}`）。对于纯文本输入框（如 ID 字段），输入值 == `localProps[prop]`，两者一致；但对于分段编辑器（LabelEditor），每个内联输入框只持有当前段落的文本，不是完整标签。
+
+结果：`slashFilter` 截取错误的字符串 → signal 名无法匹配 → 面板空。
+
+### 修复
+
+用 `slash.inputEl.value`（输入框实际值）代替 `localProps[propName]`：
+
+```typescript
+const slashFilter = slash
+  ? slash.inputEl.value.slice(slash.slashIndex + 1)
+  : "";
+```
+
+### 通用原则
+
+任何时候 prop 使用**分段/复合编辑器**（输入框的值 ≠ `localProps[prop]`），斜杠选择器的 filter 计算都必须用 `inputEl.value` 而非 `localProps[propName]`。
+
+### 涉及文件
+
+- `PropsSection.tsx` L200-202 — `slashFilter` 计算
+- `PropsSection.tsx` L289-344 — `LabelEditor` 组件
+
+## 二十七、view-tree-builder 只查 byId，非 view 子节点被静默丢弃 ★ 保存数据丢失
+
+### 问题
+
+`buildViewTree()` 构建视图树时，通过 `byId` Map 解析子节点——但这个 Map **只在 `el.nodeType === "view"` 时**才添加元素。ConditionalBlockData（`nodeType: "conditional"`）不在 `byId` 中。
+
+```typescript
+// view-tree-builder.ts (旧代码)
+const childElements = (viewEl.children || [])
+  .map((cid) => byId.get(cid))           // ← condBlock.id 返回 undefined
+  .filter((c): c is ViewElementData => c !== undefined);  // ← 被过滤掉
+```
+
+**结果**：保存项目时，条件块的所有子元素（及其 @if/@else 指令本身）**静默丢失**——源码中不出现 @if/@else，只有普通元素。
+
+### 修复
+
+使用 `findElement()` 辅助函数，`byId` 查不到时 fallback 到扁平 `elements` 数组：
+
+```typescript
+// view-tree-builder.ts L4-8
+function findElement(cid: string, byId: Map<string, ViewElementData>,
+  allElements: ElementData[]): ElementData | undefined {
+  return byId.get(cid) ?? allElements.find((e) => e.id === cid);
+}
+```
+
+**同样的陷阱也出现在条件块内部的 branch children 解析中**——`cond.branches[].children` 用 `byId.get(cid)` 查找，也会丢弃嵌套的非 view 子节点。一并修复。
+
+### 通用原则
+
+任何依赖 `children: string[]` 做子节点解析的代码，必须同时查找 view 元素缓存**和**扁平数组。未来 @for、@slot 等指令类型会遇到同样的问题。
+
+### 涉及文件
+
+- `view-tree-builder.ts` L4-8 — `findElement()` helper
+- `view-tree-builder.ts` L39-41 — `buildNode` 中条件块 branch children 解析
+- `view-tree-builder.ts` L86-88 — `buildNode` 中 view 元素 children 解析
+
+## 二十八、IfViewNode.branches[] 和 fallback 数据重叠 → 双重遍历 bug
+
+### 问题
+
+`IfViewNode` 有两个字段保存 @else 分支的内容：
+- `branches[last]`（condition 为空字符串）—— 旧设计残留
+- `fallback` —— 正确的唯一容器
+
+两个消费者同时 walk 两个字段，导致 @else 子节点被**处理两次**：
+
+```typescript
+// annotation-data.ts L82-86: double PID assignment for else children
+case "if":
+  for (const branch of node.branches) { walk(branch.body); }  // ← 包含 else
+  if (node.fallback) walk(node.fallback);                       // ← 又一次！
+  break;
+
+// collect-styles.ts L112-116: 同样的双重遍历
+```
+
+### 修复
+
+`view-tree-builder.ts` 中让 `branches[]` **只包含 if + elif**（不含 else），@else 内容**只存在于 `fallback`**：
+
+```typescript
+// view-tree-builder.ts：抽取 elif 分支，排除最后一个（else → fallback）
+const elifBranches = fallback
+  ? condBranches.slice(1, -1)  // 排除第一个 (if) 和最后一个 (else)
+  : condBranches.slice(1);
+```
+
+### 通用原则
+
+设计带有"主体列表 + 独立 fallback/default"字段的结构时，**二者必须互斥**——如果在主体列表中包含了 fallback 项，所有 walker 都必须加 dedup guard，代价比设计修正更高。
+
+### 涉及文件
+
+- `view-tree-builder.ts` L49-63 — branches[] + fallback 构建（修复后）
+- `annotation-data.ts` L82-86 — walk 逻辑（PidAnnotation 双重赋值风险）
+- `collect-styles.ts` L112-116 — walk 逻辑（样式双重收集风险）
+- `source-emitter.ts` L505-535 — @if/@else 发射（曾用 hasEmittedElse workaround，已移除）
