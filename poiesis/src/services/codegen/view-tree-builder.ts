@@ -2,6 +2,22 @@
 import type { ElementData, ViewElementData, ConditionalBlockData } from "../../core/types";
 import type { ViewNode, ElementViewNode, IfViewNode } from "./types";
 
+/** Look up any element by ID — view elements from byId cache, others from flat array. */
+function findElement(
+  cid: string,
+  byId: Map<string, ViewElementData>,
+  allElements: ElementData[],
+): ElementData | undefined {
+  return byId.get(cid) ?? allElements.find((e) => e.id === cid);
+}
+
+/** Get a stable path component from an element for tree path generation. */
+function pathTag(el: ElementData): string {
+  if (el.nodeType === "view") return (el as ViewElementData).tag.toLowerCase();
+  if (el.nodeType === "conditional") return "if";
+  return el.nodeType;
+}
+
 /**
  * Build a view tree from flat element array.
  *
@@ -19,15 +35,11 @@ export function buildViewTree(
 
   for (const el of elements) {
     if (el.nodeType === "view") {
-      // Prefer root elements (no parentId) over children with same ID,
-      // and keep the first entry, not the last, to avoid parent-child confusion
       if (byId.has(el.id)) {
         const existing = byId.get(el.id)!;
-        // Existing is already root-ish; prefer new one only if existing has parent
         if (existing.parentId !== null && el.parentId === null) {
           byId.set(el.id, el);
         }
-        // Otherwise keep the existing one
       } else {
         byId.set(el.id, el);
       }
@@ -41,12 +53,11 @@ export function buildViewTree(
       const condBranches = cond.branches.map((b) => ({
         condition: b.condition,
         body: b.children
-          .map((cid) => byId.get(cid))
-          .filter((c): c is ViewElementData => c !== undefined)
-          .map((c) => buildNode(c, `${cond.id}.${c.tag.toLowerCase()}`)),
+          .map((cid) => findElement(cid, byId, elements))
+          .filter((c): c is ElementData => c !== undefined)
+          .map((c) => buildNode(c, `${cond.id}.${pathTag(c)}`)),
       }));
 
-      // Separate else branch as fallback; branches[] only contains if + elif
       const first = condBranches[0];
       const lastBranch = cond.branches[cond.branches.length - 1];
       const fallback =
@@ -54,7 +65,7 @@ export function buildViewTree(
           ? condBranches[condBranches.length - 1].body
           : null;
       const elifBranches = fallback
-        ? condBranches.slice(1, -1)  // exclude first (if) and last (else -> fallback)
+        ? condBranches.slice(1, -1)
         : condBranches.slice(1);
 
       const branches = [
@@ -73,27 +84,21 @@ export function buildViewTree(
       } as IfViewNode;
     }
 
-    // ── Existing view element handling ──
+    // ── View element ──
     const viewEl = el as ViewElementData;
 
-    // Only PascalCase tags that don't match a built-in entry are custom components.
     const isPascal = /^[A-Z]/.test(viewEl.tag);
     if (isPascal && !pascalCaseTags.includes(viewEl.tag)) {
       pascalCaseTags.push(viewEl.tag);
     }
 
-    // Use el.children order instead of flat-array iteration order
+    // Resolve children — use findElement to also pick up conditional blocks
     const childElements = (viewEl.children || [])
-      .map((cid) => byId.get(cid))
-      .filter((c): c is ViewElementData => c !== undefined);
+      .map((cid) => findElement(cid, byId, elements))
+      .filter((c): c is ElementData => c !== undefined);
     const children = childElements.map((c, i) =>
-      buildNode(c, `${currentPath}.${c.tag.toLowerCase()}.${i}`),
+      buildNode(c, `${currentPath}.${pathTag(c)}.${i}`),
     );
-
-    // Note: When a child element's parentId points to a conditional block,
-    // it won't be in `byId` (which only contains view elements). The
-    // conditional block handles its children in its own buildNode branch
-    // above through the flat `children` array.
 
     return {
       id: viewEl.id,
