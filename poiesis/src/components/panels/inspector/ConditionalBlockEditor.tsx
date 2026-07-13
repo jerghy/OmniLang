@@ -2,100 +2,13 @@
 // Full editor for a conditional block — click-to-edit condition expressions,
 // child element lists, add/delete branch controls.
 
-import { useState, useCallback } from "react";
+import { useCallback } from "react";
 import { usePoiesisStore } from "../../../store";
 import type { ConditionalBlockData } from "../../../core/types/element";
+import { InlineConditionEditor } from "./InlineConditionEditor";
 
 interface ConditionalBlockEditorProps {
   blockId: string;
-}
-
-/** Inline click-to-edit condition expression. */
-function InlineConditionEditor({
-  value,
-  placeholder,
-  disabled,
-  onSave,
-}: {
-  value: string;
-  placeholder: string;
-  disabled?: boolean;
-  onSave: (v: string) => void;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value);
-
-  const handleStart = () => {
-    if (disabled) return;
-    setDraft(value);
-    setEditing(true);
-  };
-
-  const handleCommit = () => {
-    onSave(draft);
-    setEditing(false);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleCommit();
-    }
-    if (e.key === "Escape") {
-      setEditing(false);
-    }
-  };
-
-  if (disabled) {
-    return (
-      <span style={{ color: "#9CA3AF", fontSize: 11, fontStyle: "italic" }}>
-        else（无条件）
-      </span>
-    );
-  }
-
-  if (editing) {
-    return (
-      <textarea
-        autoFocus
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={handleCommit}
-        onKeyDown={handleKeyDown}
-        placeholder={placeholder}
-        rows={2}
-        style={{
-          width: "100%", padding: "4px 8px", border: "1px solid #818CF8",
-          borderRadius: 4, fontSize: 11, fontFamily: "monospace",
-          resize: "vertical", boxSizing: "border-box",
-          outline: "none",
-        }}
-      />
-    );
-  }
-
-  return (
-    <span
-      onClick={handleStart}
-      title="点击编辑条件"
-      style={{
-        display: "block", padding: "4px 8px", borderRadius: 4,
-        border: "1px solid transparent", cursor: "pointer",
-        fontSize: 11, fontFamily: "monospace",
-        color: value ? "#1e293b" : "#9CA3AF",
-        background: "#F9FAFB",
-        transition: "border-color 0.15s",
-      }}
-      onMouseEnter={(e) => {
-        (e.currentTarget as HTMLElement).style.borderColor = "#C4B5FD";
-      }}
-      onMouseLeave={(e) => {
-        (e.currentTarget as HTMLElement).style.borderColor = "transparent";
-      }}
-    >
-      {value || "click to edit"}
-    </span>
-  );
 }
 
 export function ConditionalBlockEditor({ blockId }: ConditionalBlockEditorProps) {
