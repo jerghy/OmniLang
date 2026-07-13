@@ -16,6 +16,9 @@ export function InfiniteCanvas({ children }: InfiniteCanvasProps) {
   const panY = useCanvasStore((s) => s.panY);
   const setPan = useCanvasStore((s) => s.setPan);
   const zoomAtPoint = useCanvasStore((s) => s.zoomAtPoint);
+  const devicePreset = useCanvasStore((s) => s.devicePreset);
+  const panelPosition = useCanvasStore((s) => s.panelPosition);
+  const setPanelPosition = useCanvasStore((s) => s.setPanelPosition);
 
   const wrapperRef = useRef<HTMLDivElement>(null);
   const isPanning = useRef(false);
@@ -31,6 +34,14 @@ export function InfiniteCanvas({ children }: InfiniteCanvasProps) {
   zoomAtPointRef.current = zoomAtPoint;
   const setPanRef = useRef(setPan);
   setPanRef.current = setPan;
+
+  // Set default panel position next to Artboard on first mount
+  useEffect(() => {
+    if (panelPosition.x === 0 && panelPosition.y === 0) {
+      const artboardWidth = devicePreset.width || 393;
+      setPanelPosition(artboardWidth + 40, 0);
+    }
+  }, []);
 
   // ── Native wheel handler — { passive: false } is REQUIRED for WebView2 ──
   // React's synthetic onWheel may be treated as passive by the browser,
