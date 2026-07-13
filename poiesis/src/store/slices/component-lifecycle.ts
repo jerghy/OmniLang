@@ -95,7 +95,7 @@ export function createComponentLifecycleSlice(set: SetFn, get: GetFn) {
       if (!def) return {};
       const signals = [...(def.signals || []), signal];
       s.setComponentDef(compName, { ...def, signals });
-      return {};
+      return { isDirty: true };
     }),
 
     updateComponentSignal: (compName: string, pid: string, updates: Partial<DefEntry>) => set((s) => {
@@ -105,7 +105,7 @@ export function createComponentLifecycleSlice(set: SetFn, get: GetFn) {
         sig.pid === pid ? { ...sig, ...updates } : sig
       );
       s.setComponentDef(compName, { ...def, signals });
-      return {};
+      return { isDirty: true };
     }),
 
     removeComponentSignal: (compName: string, pid: string) => set((s) => {
@@ -113,7 +113,7 @@ export function createComponentLifecycleSlice(set: SetFn, get: GetFn) {
       if (!def) return {};
       const signals = (def.signals || []).filter((sig) => sig.pid !== pid);
       s.setComponentDef(compName, { ...def, signals });
-      return {};
+      return { isDirty: true };
     }),
 
     // ── Component prop CRUD ──
@@ -122,7 +122,7 @@ export function createComponentLifecycleSlice(set: SetFn, get: GetFn) {
       if (!def) return {};
       const props = [...(def.props || []), prop];
       s.setComponentDef(compName, { ...def, props });
-      return {};
+      return { isDirty: true };
     }),
 
     updateComponentProp: (compName: string, pid: string, updates: Partial<DefEntry>) => set((s) => {
@@ -132,7 +132,7 @@ export function createComponentLifecycleSlice(set: SetFn, get: GetFn) {
         p.pid === pid ? { ...p, ...updates } : p
       );
       s.setComponentDef(compName, { ...def, props });
-      return {};
+      return { isDirty: true };
     }),
 
     removeComponentProp: (compName: string, pid: string) => set((s) => {
@@ -140,7 +140,7 @@ export function createComponentLifecycleSlice(set: SetFn, get: GetFn) {
       if (!def) return {};
       const props = (def.props || []).filter((p) => p.pid !== pid);
       s.setComponentDef(compName, { ...def, props });
-      return {};
+      return { isDirty: true };
     }),
 
     // ── Component computed CRUD ──
@@ -149,7 +149,7 @@ export function createComponentLifecycleSlice(set: SetFn, get: GetFn) {
       if (!def) return {};
       const computeds = [...(def.computeds || []), computed];
       s.setComponentDef(compName, { ...def, computeds });
-      return {};
+      return { isDirty: true };
     }),
 
     updateComponentComputed: (compName: string, pid: string, updates: Partial<ComputedEntry>) => set((s) => {
@@ -159,7 +159,7 @@ export function createComponentLifecycleSlice(set: SetFn, get: GetFn) {
         c.pid === pid ? { ...c, ...updates } : c
       );
       s.setComponentDef(compName, { ...def, computeds });
-      return {};
+      return { isDirty: true };
     }),
 
     removeComponentComputed: (compName: string, pid: string) => set((s) => {
@@ -167,7 +167,7 @@ export function createComponentLifecycleSlice(set: SetFn, get: GetFn) {
       if (!def) return {};
       const computeds = (def.computeds || []).filter((c) => c.pid !== pid);
       s.setComponentDef(compName, { ...def, computeds });
-      return {};
+      return { isDirty: true };
     }),
   };
 }

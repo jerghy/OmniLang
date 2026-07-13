@@ -138,79 +138,53 @@ export function ComponentDefPanel() {
 
       {!isCollapsed && (
         <div className="panel-body">
-          {/* Props section */}
-          <div className="panel-section">
-            <div className="section-header">
-              <span>Props</span>
-              <button className="section-add-btn" onClick={() => setIsAdding(isAdding === "prop" ? null : "prop")}>+</button>
-            </div>
-            {isAdding === "prop" && (
-              <AddForm kind="prop" onAdd={handleAdd} onCancel={() => setIsAdding(null)} />
+          <DefSection
+            title="Props" sectionKind="prop"
+            entries={props} isAdding={isAdding === "prop"}
+            onAddToggle={() => setIsAdding(isAdding === "prop" ? null : "prop")}
+            onAdd={handleAdd} onCancelAdd={() => setIsAdding(null)}
+            editingPid={editingPid} onDoubleClick={handleDoubleClick}
+            onEditSave={handleEditSave} onDelete={handleDelete}
+            renderRow={(p) => (
+              <DefEntryRow key={p.pid} entry={p as DefEntry} kind="prop"
+                isEditing={editingPid === p.pid} onDoubleClick={() => handleDoubleClick(p.pid)}
+                onEditSave={(f, v) => handleEditSave("prop", p.pid, f, v)}
+                onDelete={() => handleDelete("prop", p.pid)} />
             )}
-            {props.length === 0 && !isAdding && (
-              <div className="empty-state">No props defined</div>
-            )}
-            {props.map((p) => (
-              <DefEntryRow
-                key={p.pid}
-                entry={p}
-                kind="prop"
-                isEditing={editingPid === p.pid}
-                onDoubleClick={() => handleDoubleClick(p.pid)}
-                onEditSave={(field, value) => handleEditSave("prop", p.pid, field, value)}
-                onDelete={() => handleDelete("prop", p.pid)}
-              />
-            ))}
-          </div>
+            emptyText="No props defined"
+          />
 
-          {/* Signals section */}
-          <div className="panel-section">
-            <div className="section-header">
-              <span>Signals</span>
-              <button className="section-add-btn" onClick={() => setIsAdding(isAdding === "signal" ? null : "signal")}>+</button>
-            </div>
-            {isAdding === "signal" && (
-              <AddForm kind="signal" onAdd={handleAdd} onCancel={() => setIsAdding(null)} />
+          <DefSection
+            title="Signals" sectionKind="signal"
+            entries={signals} isAdding={isAdding === "signal"}
+            onAddToggle={() => setIsAdding(isAdding === "signal" ? null : "signal")}
+            onAdd={handleAdd} onCancelAdd={() => setIsAdding(null)}
+            editingPid={editingPid} onDoubleClick={handleDoubleClick}
+            onEditSave={handleEditSave} onDelete={handleDelete}
+            renderRow={(s) => (
+              <DefEntryRow key={s.pid} entry={s as DefEntry} kind="signal"
+                isEditing={editingPid === s.pid} onDoubleClick={() => handleDoubleClick(s.pid)}
+                onEditSave={(f, v) => handleEditSave("signal", s.pid, f, v)}
+                onDelete={() => handleDelete("signal", s.pid)} />
             )}
-            {signals.length === 0 && !isAdding && (
-              <div className="empty-state">No signals defined</div>
-            )}
-            {signals.map((s) => (
-              <DefEntryRow
-                key={s.pid}
-                entry={s}
-                kind="signal"
-                isEditing={editingPid === s.pid}
-                onDoubleClick={() => handleDoubleClick(s.pid)}
-                onEditSave={(field, value) => handleEditSave("signal", s.pid, field, value)}
-                onDelete={() => handleDelete("signal", s.pid)}
-              />
-            ))}
-          </div>
+            emptyText="No signals defined"
+          />
 
-          {/* Computed section */}
-          <div className="panel-section">
-            <div className="section-header">
-              <span>Computed</span>
-              <button className="section-add-btn" onClick={() => setIsAdding(isAdding === "computed" ? null : "computed")}>+</button>
-            </div>
-            {isAdding === "computed" && (
-              <AddForm kind="computed" onAdd={handleAdd} onCancel={() => setIsAdding(null)} />
+          <DefSection
+            title="Computed" sectionKind="computed"
+            entries={computeds} isAdding={isAdding === "computed"}
+            onAddToggle={() => setIsAdding(isAdding === "computed" ? null : "computed")}
+            onAdd={handleAdd} onCancelAdd={() => setIsAdding(null)}
+            editingPid={editingPid} onDoubleClick={handleDoubleClick}
+            onEditSave={handleEditSave} onDelete={handleDelete}
+            renderRow={(c) => (
+              <ComputedEntryRow key={c.pid} entry={c as ComputedEntry}
+                isEditing={editingPid === c.pid} onDoubleClick={() => handleDoubleClick(c.pid)}
+                onEditSave={(f, v) => handleEditSave("computed", c.pid, f, v)}
+                onDelete={() => handleDelete("computed", c.pid)} />
             )}
-            {computeds.length === 0 && !isAdding && (
-              <div className="empty-state">No computeds defined</div>
-            )}
-            {computeds.map((c) => (
-              <ComputedEntryRow
-                key={c.pid}
-                entry={c}
-                isEditing={editingPid === c.pid}
-                onDoubleClick={() => handleDoubleClick(c.pid)}
-                onEditSave={(field, value) => handleEditSave("computed", c.pid, field, value)}
-                onDelete={() => handleDelete("computed", c.pid)}
-              />
-            ))}
-          </div>
+            emptyText="No computeds defined"
+          />
         </div>
       )}
     </div>
@@ -317,6 +291,46 @@ function ComputedEntryRow({ entry, isEditing, onDoubleClick, onEditSave, onDelet
     </div>
   );
 }
+
+// ── DefSection (shared section wrapper) ──
+
+interface DefSectionProps {
+  title: string;
+  sectionKind: "prop" | "signal" | "computed";
+  entries: Array<DefEntry | ComputedEntry>;
+  isAdding: boolean;
+  onAddToggle: () => void;
+  onAdd: (kind: "prop" | "signal" | "computed", name: string, type: string, extra?: string) => void;
+  onCancelAdd: () => void;
+  editingPid: string | null;
+  onDoubleClick: (pid: string) => void;
+  onEditSave: (kind: "prop" | "signal" | "computed", pid: string, field: string, value: string) => void;
+  onDelete: (kind: "prop" | "signal" | "computed", pid: string) => void;
+  renderRow: (entry: DefEntry | ComputedEntry) => React.ReactNode;
+  emptyText: string;
+}
+
+const DefSection = React.memo(function DefSection({
+  title, sectionKind, entries, isAdding, onAddToggle,
+  onAdd, onCancelAdd, editingPid, onDoubleClick,
+  onEditSave, onDelete, renderRow, emptyText,
+}: DefSectionProps) {
+  return (
+    <div className="panel-section">
+      <div className="section-header">
+        <span>{title}</span>
+        <button className="section-add-btn" onClick={onAddToggle}>+</button>
+      </div>
+      {isAdding && (
+        <AddForm kind={sectionKind} onAdd={onAdd} onCancel={onCancelAdd} />
+      )}
+      {entries.length === 0 && !isAdding && (
+        <div className="empty-state">{emptyText}</div>
+      )}
+      {entries.map((entry) => renderRow(entry))}
+    </div>
+  );
+});
 
 // ── Add form ──
 
