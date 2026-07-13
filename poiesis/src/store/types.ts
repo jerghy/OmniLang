@@ -137,6 +137,9 @@ export interface PoiesisState {
   removeElement: (id: string) => void;
   setProp: (id: string, prop: string, value: unknown) => void;
   getProp: (id: string, prop: string) => unknown;
+  /** Set or remove a two-way data binding on a view element (e.g. bind:value={signalName}).
+   *  Pass signalName = null to remove the binding. */
+  setElementBinding: (id: string, propName: string, signalName: string | null) => void;
   selectElement: (id: string | null, multi?: boolean) => void;
   clearSelection: () => void;
   addWire: (w: WireData) => void;
@@ -157,6 +160,21 @@ export interface PoiesisState {
   setComponentDef: (name: string, def: ComponentDef) => void;
   removeComponentDef: (name: string) => void;
   getComponentDef: (name: string) => ComponentDef | undefined;
+
+  // ── Component signal CRUD ──
+  addComponentSignal: (compName: string, signal: { pid: string; name: string; type: string; defaultValue?: unknown }) => void;
+  updateComponentSignal: (compName: string, pid: string, updates: Partial<{ name: string; type: string; defaultValue: unknown }>) => void;
+  removeComponentSignal: (compName: string, pid: string) => void;
+
+  // ── Component prop CRUD ──
+  addComponentProp: (compName: string, prop: { pid: string; name: string; type: string; defaultValue?: unknown }) => void;
+  updateComponentProp: (compName: string, pid: string, updates: Partial<{ name: string; type: string; defaultValue: unknown }>) => void;
+  removeComponentProp: (compName: string, pid: string) => void;
+
+  // ── Component computed CRUD ──
+  addComponentComputed: (compName: string, computed: { pid: string; name: string; returnType: string; expression: string }) => void;
+  updateComponentComputed: (compName: string, pid: string, updates: Partial<{ name: string; returnType: string; expression: string }>) => void;
+  removeComponentComputed: (compName: string, pid: string) => void;
 
   // Custom component lifecycle (used by ComponentPalette)
   defineComponent: (name: string, def: Record<string, unknown>) => void;
