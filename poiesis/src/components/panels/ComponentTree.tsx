@@ -218,15 +218,28 @@ function ContextMenu({
   const handleAddChild = useCallback(
     (parentId: string, tag: string) => {
       const isCustom = registryDefs[tag] !== undefined;
-      usePoiesisStore.getState().addElement({
-        id: uid(tag),
-        nodeType: "view",
-        tag,
-        props: getDefaultProps(tag),
-        children: [],
-        parentId,
-        ...(isCustom ? { componentRef: tag } : {}),
-      });
+      const childId = uid(tag);
+
+      // Branch node: synthetic ID like "condId.br0" — add to block then move to branch
+      const branchMatch = parentId.match(/^(.+)\.br(\d+)$/);
+      if (branchMatch) {
+        const blockId = branchMatch[1];
+        const branchIdx = parseInt(branchMatch[2], 10);
+        usePoiesisStore.getState().addElement({
+          id: childId, nodeType: "view", tag,
+          props: getDefaultProps(tag), children: [],
+          parentId: blockId,
+          ...(isCustom ? { componentRef: tag } : {}),
+        });
+        usePoiesisStore.getState().addChildToBranch(blockId, branchIdx, childId);
+      } else {
+        usePoiesisStore.getState().addElement({
+          id: childId, nodeType: "view", tag,
+          props: getDefaultProps(tag), children: [],
+          parentId,
+          ...(isCustom ? { componentRef: tag } : {}),
+        });
+      }
       onClose();
     },
     [onClose, registryDefs],
