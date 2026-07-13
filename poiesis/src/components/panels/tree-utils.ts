@@ -7,6 +7,11 @@ export interface TreeNode {
   displayLabel: string;
   componentRef?: string;
   children: TreeNode[];
+  // Conditional rendering support
+  nodeType?: "view" | "conditional" | "conditional-branch";
+  condition?: string;           // only for conditional-branch nodes
+  branchType?: "if" | "elif" | "else";  // only for conditional-branch nodes
+  branchIndex?: number;         // branch index in the branches array
 }
 
 export function resolveHtmlTag(tag: string, _props: Record<string, unknown>): string {

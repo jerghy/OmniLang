@@ -37,6 +37,8 @@ export interface ViewElementData extends ElementDataBase {
   inlineStyle?: Record<string, string>;
   /** Deprecated: kept for backward compat during migration */
   style?: ElementStyle;
+  /** Two-way data bindings: prop name → signal name, e.g. { "value": "input", "checked": "isDone" } */
+  bindings?: Record<string, string>;
   children: string[];
   ports?: PortData[];
   renderMode?: "dom" | "canvas";
@@ -66,4 +68,18 @@ export interface GroupElementData extends ElementDataBase {
   isFolded?: boolean;
 }
 
-export type ElementData = ViewElementData | CodeblockElementData | GroupElementData;
+export interface ConditionalBlockData extends ElementDataBase {
+  nodeType: "conditional";
+  /** 条件分支列表，按 @if → @else if → @else 顺序 */
+  branches: Array<{
+    type: "if" | "elif" | "else";
+    condition: string;       // @else 时为空字符串 ""
+    children: string[];      // 该分支内的子元素 ID
+  }>;
+  /** 所有分支子元素的扁平列表（兼容现有 children 遍历模式） */
+  children: string[];
+  isFolded?: boolean;
+  position?: { x: number; y: number };
+}
+
+export type ElementData = ViewElementData | CodeblockElementData | GroupElementData | ConditionalBlockData;
