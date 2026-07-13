@@ -331,6 +331,22 @@ function ContextMenu({
               setActiveCategory(null);
             }}
           >
+            {/* 条件块 — 特殊子组件类型 */}
+            <div
+              className={styles.subMenuItem}
+              style={{ ...ST.itemBase, whiteSpace: "nowrap" }}
+              onClick={() => {
+                usePoiesisStore.getState().addConditionalBlock(elementId);
+                onClose();
+              }}
+            >
+              <span>
+                <span style={{ marginRight: 4, fontSize: 11 }}>🔀</span>
+                条件块
+              </span>
+            </div>
+            <div style={{ height: 1, background: "#E5E7EB", margin: "3px 8px" }} />
+
             {Array.from(groupedComponents.entries()).map(([cat, items]) => (
               <div
                 key={cat}
@@ -397,21 +413,6 @@ function ContextMenu({
             onClick={() => {
               const store = usePoiesisStore.getState();
               store.addConditionalBranch(elementId, "else");
-              onClose();
-            }}
-          />
-          <Separator />
-        </>
-      ) : contextElement && "nodeType" in contextElement && contextElement.nodeType !== "codeblock" && contextElement.nodeType !== "group" ? (
-        <>
-          <MenuRow
-            label="用条件块包裹"
-            onClick={() => {
-              const store = usePoiesisStore.getState();
-              const parentId = contextElement?.parentId;
-              if (parentId) {
-                store.addConditionalBlock(parentId);
-              }
               onClose();
             }}
           />
