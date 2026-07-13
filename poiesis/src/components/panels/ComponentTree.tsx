@@ -15,7 +15,7 @@ import {
 } from "../../core/constants";
 import { copySelection, pasteFromClipboard } from "../../core/clipboard";
 import { uid } from "../../lib/utils/id";
-import { resolveHtmlTag, getDisplayLabel, type TreeNode } from "./tree-utils";
+import { buildTreeNode, type TreeNode } from "./tree-utils";
 import { TreeNodeView, type TreeDropState } from "./TreeNodeRenderer";
 
 interface ComponentTreeProps {
@@ -41,32 +41,10 @@ export function ComponentTree({ treeDropState }: ComponentTreeProps) {
     const elMap = new Map(elements.map((e) => [e.id, e]));
     const rootIds = rootOrder.filter((id) => elMap.has(id));
 
-    const childrenOf = (parentId: string): ElementData[] => {
-      const parent = elMap.get(parentId);
-      if (!parent) return [];
-      const p = parent as { children?: string[] };
-      return (p.children || [])
-        .map((cid: string) => elMap.get(cid))
-        .filter((e: unknown): e is ElementData => e !== undefined);
-    };
-
-    const buildNode = (el: ElementData): TreeNode => {
-      const tag = "tag" in el ? el.tag : "div";
-      const props = "props" in el ? (el.props as Record<string, unknown>) : {};
-      return {
-        id: el.id,
-        tag,
-        htmlTag: resolveHtmlTag(tag, props),
-        displayLabel: getDisplayLabel(props),
-        componentRef: "componentRef" in el ? el.componentRef : undefined,
-        children: childrenOf(el.id).map(buildNode),
-      };
-    };
-
     return rootIds
-      .map((id: string) => {
+      .map((id) => {
         const el = elMap.get(id);
-        return el ? buildNode(el) : null;
+        return el ? buildTreeNode(el, elMap) : null;
       })
       .filter((n): n is TreeNode => n !== null);
   }, [elements, rootOrder]);
@@ -402,6 +380,45 @@ function ContextMenu({
       <MenuRow label="上移" shortcut="Ctrl+↑" onClick={handleMoveUp} />
       <MenuRow label="下移" shortcut="Ctrl+↓" onClick={handleMoveDown} />
       <MenuRow label="删除" shortcut="Delete" onClick={handleDelete} />
+
+      {/* ── 条件块菜单项 ── */}
+      {contextElement?.nodeType === "conditional" ? (
+        <>
+          <MenuRow
+            label="添加 @else if 分支"
+            onClick={() => {
+              const store = usePoiesisStore.getState();
+              store.addConditionalBranch(elementId, "elif");
+              onClose();
+            }}
+          />
+          <MenuRow
+            label="添加 @else 分支"
+            onClick={() => {
+              const store = usePoiesisStore.getState();
+              store.addConditionalBranch(elementId, "else");
+              onClose();
+            }}
+          />
+          <Separator />
+        </>
+      ) : contextElement && "nodeType" in contextElement && contextElement.nodeType !== "codeblock" && contextElement.nodeType !== "group" ? (
+        <>
+          <MenuRow
+            label="用条件块包裹"
+            onClick={() => {
+              const store = usePoiesisStore.getState();
+              const parentId = contextElement?.parentId;
+              if (parentId) {
+                store.addConditionalBlock(parentId);
+              }
+              onClose();
+            }}
+          />
+          <Separator />
+        </>
+      ) : null}
+
       {contextElement && "componentRef" in contextElement && contextElement.componentRef && (
         <>
           <Separator />
