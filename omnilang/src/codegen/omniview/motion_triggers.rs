@@ -27,10 +27,10 @@ impl OmniViewGenerator {
 
             // If there's an inline motion definition, emit it as a player config
             // If there's a motion_ref, reference the named motion function
-            let config_override = if let Some(ref inline) = trigger.inline_motion {
+            let (kf_override, opts_override) = if let Some(ref inline) = trigger.inline_motion {
                 self.motion_body_to_config(inline)
             } else {
-                String::new()
+                (String::new(), String::new())
             };
 
             if let Some(ref motion_name) = trigger.motion_ref {
@@ -48,10 +48,9 @@ impl OmniViewGenerator {
                              (function() {{\n\
                              \x20 const el = __omni_el(\"{nid}\");\n\
                              \x20 if (el) {{\n\
-                             \x20\x20 const config = {{ trigger: \"{trigger}\" }};\n\
-                             \x20\x20 const player = __omni_motion_{motion}(el, config);\n\
-                             \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", player);\n\
-                             \x20\x20 if (el.offsetParent !== null) player.play();\n\
+                             \x20\x20 const anim = __omni_motion_{motion}(el, {{ trigger: \"{trigger}\" }});\n\
+                             \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", anim);\n\
+                             \x20\x20 if (el.offsetParent !== null) anim.play();\n\
                              \x20 }}\n\
                              }})();\n",
                             nid = nid,
@@ -65,11 +64,10 @@ impl OmniViewGenerator {
                              (function() {{\n\
                              \x20 const el = __omni_el(\"{nid}\");\n\
                              \x20 if (el) {{\n\
-                             \x20\x20 const config = {{ trigger: \"{trigger}\" }};\n\
-                             \x20\x20 const player = __omni_motion_{motion}(el, config);\n\
-                             \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", player);\n\
-                             \x20\x20 el.addEventListener(\"mouseenter\", function() {{ __omni_getAnimation(\"{nid}\", \"{trigger}\")?.play(); }});\n\
-                             \x20\x20 el.addEventListener(\"mouseleave\", function() {{ __omni_getAnimation(\"{nid}\", \"{trigger}\")?.reverse(); }});\n\
+                             \x20\x20 const anim = __omni_motion_{motion}(el, {{ trigger: \"{trigger}\" }});\n\
+                             \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", anim);\n\
+                             \x20\x20 el.addEventListener(\"mouseenter\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.play(); }});\n\
+                             \x20\x20 el.addEventListener(\"mouseleave\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.reverse(); }});\n\
                              \x20 }}\n\
                              }})();\n",
                             nid = nid,
@@ -83,11 +81,10 @@ impl OmniViewGenerator {
                              (function() {{\n\
                              \x20 const el = __omni_el(\"{nid}\");\n\
                              \x20 if (el) {{\n\
-                             \x20\x20 const config = {{ trigger: \"{trigger}\" }};\n\
-                             \x20\x20 const player = __omni_motion_{motion}(el, config);\n\
-                             \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", player);\n\
-                             \x20\x20 el.addEventListener(\"mousedown\", function() {{ __omni_getAnimation(\"{nid}\", \"{trigger}\")?.play(); }});\n\
-                             \x20\x20 el.addEventListener(\"mouseup\", function() {{ __omni_getAnimation(\"{nid}\", \"{trigger}\")?.reverse(); }});\n\
+                             \x20\x20 const anim = __omni_motion_{motion}(el, {{ trigger: \"{trigger}\" }});\n\
+                             \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", anim);\n\
+                             \x20\x20 el.addEventListener(\"mousedown\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.play(); }});\n\
+                             \x20\x20 el.addEventListener(\"mouseup\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.reverse(); }});\n\
                              \x20 }}\n\
                              }})();\n",
                             nid = nid,
@@ -101,11 +98,10 @@ impl OmniViewGenerator {
                              (function() {{\n\
                              \x20 const el = __omni_el(\"{nid}\");\n\
                              \x20 if (el) {{\n\
-                             \x20\x20 const config = {{ trigger: \"{trigger}\" }};\n\
-                             \x20\x20 const player = __omni_motion_{motion}(el, config);\n\
-                             \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", player);\n\
-                             \x20\x20 el.addEventListener(\"focus\", function() {{ __omni_getAnimation(\"{nid}\", \"{trigger}\")?.play(); }});\n\
-                             \x20\x20 el.addEventListener(\"blur\", function() {{ __omni_getAnimation(\"{nid}\", \"{trigger}\")?.reverse(); }});\n\
+                             \x20\x20 const anim = __omni_motion_{motion}(el, {{ trigger: \"{trigger}\" }});\n\
+                             \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", anim);\n\
+                             \x20\x20 el.addEventListener(\"focus\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.play(); }});\n\
+                             \x20\x20 el.addEventListener(\"blur\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.reverse(); }});\n\
                              \x20 }}\n\
                              }})();\n",
                             nid = nid,
@@ -149,14 +145,13 @@ impl OmniViewGenerator {
                              (function() {{\n\
                              \x20 const el = __omni_el(\"{nid}\");\n\
                              \x20 if (!el) return;\n\
-                             \x20 const config = {{ trigger: \"{trigger}\" }};\n\
-                             \x20 const player = __omni_motion_{motion}(el, config);\n\
-                             \x20 __omni_animations.set(\"{nid}_{trigger}\", player);\n\
+                             \x20 const anim = __omni_motion_{motion}(el, {{ trigger: \"{trigger}\" }});\n\
+                             \x20 __omni_animations.set(\"{nid}_{trigger}\", anim);\n\
                              \x20 const threshold = {threshold};\n\
                              \x20 const observer = new IntersectionObserver((entries) => {{\n\
                              \x20\x20 entries.forEach(entry => {{\n\
                              \x20\x20\x20 if (entry.isIntersecting) {{\n\
-                             \x20\x20\x20\x20 player.play();\n\
+                             \x20\x20\x20\x20 anim.play();\n\
                              \x20\x20\x20\x20 if ({disconnect}) {{\n\
                              \x20\x20\x20\x20\x20 observer.disconnect();\n\
                              \x20\x20\x20\x20 }}\n\
@@ -192,10 +187,10 @@ impl OmniViewGenerator {
                              (function() {{\n\
                              \x20 const el = __omni_el(\"{nid}\");\n\
                              \x20 if (!el) return;\n\
-                             \x20 const config = {{ trigger: \"{trigger}\" }};\n\
-                             \x20 const player = __omni_motion_{motion}(el, config);\n\
-                             \x20 __omni_animations.set(\"{nid}_{trigger}\", player);\n\
-                             \x20 player.pause();\n\
+                             \x20 const anim = __omni_motion_{motion}(el, {{ trigger: \"{trigger}\" }});\n\
+                             \x20 __omni_animations.set(\"{nid}_{trigger}\", anim);\n\
+                             \x20 anim.pause();\n\
+                             \x20 const dur = anim.effect?.getTiming()?.duration || 300;\n\
                              \x20 const startCfg = \"{scroll_start}\";\n\
                              \x20 const endCfg = \"{scroll_end}\";\n\
                              \x20 const scrubDelay = {scrub};\n\
@@ -215,9 +210,9 @@ impl OmniViewGenerator {
                              \x20\x20 }} else {{\n\
                              \x20\x20\x20 currentProgress = target;\n\
                              \x20\x20 }}\n\
-                             \x20\x20 player.seek(currentProgress);\n\
+                             \x20\x20 anim.currentTime = currentProgress * dur;\n\
                              \x20 }}, {{ passive: true }});\n\
-                             \x20 player.seek(computeProgress());\n\
+                             \x20 anim.currentTime = computeProgress() * dur;\n\
                              }})();\n",
                             nid = nid,
                             trigger = trigger_str,
@@ -258,10 +253,10 @@ impl OmniViewGenerator {
                              (function() {{\n\
                              \x20 const el = __omni_el(\"{nid}\");\n\
                              \x20 if (!el) return;\n\
-                             \x20 const config = {{ trigger: \"{trigger}\" }};\n\
-                             \x20 const player = __omni_motion_{motion}(el, config);\n\
-                             \x20 __omni_animations.set(\"{nid}_{trigger}\", player);\n\
-                             \x20 player.pause();\n\
+                             \x20 const anim = __omni_motion_{motion}(el, {{ trigger: \"{trigger}\" }});\n\
+                             \x20 __omni_animations.set(\"{nid}_{trigger}\", anim);\n\
+                             \x20 anim.pause();\n\
+                             \x20 const dur = anim.effect?.getTiming()?.duration || 300;\n\
                              \x20 let startPos = 0, currentDelta = 0;\n\
                              \x20 let isDragging = false;\n\
                              \x20 let lastMoveTime = 0, lastMovePos = 0;\n\
@@ -325,16 +320,16 @@ impl OmniViewGenerator {
                              \x20\x20 }}\n\
                              \x20\x20 currentDelta = raw;\n\
                              \x20\x20 const progress = Math.abs(constrained) / maxExtent;\n\
-                             \x20\x20 player.seek(Math.min(1, progress));\n\
+                             \x20\x20 anim.currentTime = Math.min(1, progress) * dur;\n\
                              \x20 }});\n\
                              \x20 el.addEventListener('pointerup', (e) => {{\n\
                              \x20\x20 isDragging = false;\n\
                              \x20\x20 el.releasePointerCapture(e.pointerId);\n\
                              \x20\x20 const progress = Math.abs(currentDelta) / maxExtent;\n\
                              \x20\x20 if (progress >= threshold && maxExtent > 0) {{\n\
-                             \x20\x20\x20 player.play();\n\
+                             \x20\x20\x20 anim.play();\n\
                              \x20\x20 }} else {{\n\
-                             \x20\x20\x20 player.reverse();\n\
+                             \x20\x20\x20 anim.reverse();\n\
                              \x20\x20 }}\n\
                              \x20 }});\n\
                              }})();\n",
@@ -358,10 +353,9 @@ impl OmniViewGenerator {
                              (function() {{\n\
                              \x20 const el = __omni_el(\"{nid}\");\n\
                              \x20 if (el) {{\n\
-                             \x20\x20 const config = {{ trigger: \"{trigger}\" }};\n\
-                             \x20\x20 const player = __omni_motion_{motion}(el, config);\n\
-                             \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", player);\n\
-                             \x20\x20 player.play();\n\
+                             \x20\x20 const anim = __omni_motion_{motion}(el, {{ trigger: \"{trigger}\" }});\n\
+                             \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", anim);\n\
+                             \x20\x20 anim.play();\n\
                              \x20 }}\n\
                              }})();\n",
                             nid = nid,
@@ -380,9 +374,8 @@ impl OmniViewGenerator {
                              (function() {{\n\
                              \x20 const el = __omni_el(\"{nid}\");\n\
                              \x20 if (el) {{\n\
-                             \x20\x20 const config = {{ trigger: \"{trigger}\" }};\n\
-                             \x20\x20 const player = __omni_motion_{motion}(el, config);\n\
-                             \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", player);\n\
+                             \x20\x20 const anim = __omni_motion_{motion}(el, {{ trigger: \"{trigger}\" }});\n\
+                             \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", anim);\n\
                              \x20 }}\n\
                              }})();\n",
                             nid = nid,
@@ -397,9 +390,8 @@ impl OmniViewGenerator {
                              (function() {{\n\
                              \x20 const el = __omni_el(\"{nid}\");\n\
                              \x20 if (el) {{\n\
-                             \x20\x20 const config = {{ trigger: \"{trigger}\" }};\n\
-                             \x20\x20 const player = __omni_motion_{motion}(el, config);\n\
-                             \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", player);\n\
+                             \x20\x20 const anim = __omni_motion_{motion}(el, {{ trigger: \"{trigger}\" }});\n\
+                             \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", anim);\n\
                              \x20 }}\n\
                              }})();\n",
                             nid = nid,
@@ -408,7 +400,7 @@ impl OmniViewGenerator {
                         ));
                     }
                 }
-            } else if !config_override.is_empty() {
+            } else if !kf_override.is_empty() {
                 // Inline motion definition — full config embedded
                 match trigger.kind {
                     TriggerKind::Enter => {
@@ -417,15 +409,15 @@ impl OmniViewGenerator {
                              (function() {{\n\
                              \x20 const el = __omni_el(\"{nid}\");\n\
                              \x20 if (el) {{\n\
-                             \x20\x20 const config = {{ trigger: \"{trigger}\", {config} }};\n\
-                             \x20\x20 const player = new AnimationPlayer(el, config);\n\
-                             \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", player);\n\
-                             \x20\x20 if (el.offsetParent !== null) player.play();\n\
+                             \x20\x20 const anim = Omni.animate(el, {kf}, {{ {opts} }});\n\
+                             \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", anim);\n\
+                             \x20\x20 if (el.offsetParent !== null) anim.play();\n\
                              \x20 }}\n\
                              }})();\n",
                             nid = nid,
                             trigger = trigger_str,
-                            config = config_override
+                            kf = kf_override,
+                            opts = opts_override,
                         ));
                     }
                     TriggerKind::Hover => {
@@ -434,16 +426,16 @@ impl OmniViewGenerator {
                              (function() {{\n\
                              \x20 const el = __omni_el(\"{nid}\");\n\
                              \x20 if (el) {{\n\
-                             \x20\x20 const config = {{ trigger: \"{trigger}\", {config} }};\n\
-                             \x20\x20 const player = new AnimationPlayer(el, config);\n\
-                             \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", player);\n\
-                             \x20\x20 el.addEventListener(\"mouseenter\", function() {{ __omni_getAnimation(\"{nid}\", \"{trigger}\")?.play(); }});\n\
-                             \x20\x20 el.addEventListener(\"mouseleave\", function() {{ __omni_getAnimation(\"{nid}\", \"{trigger}\")?.reverse(); }});\n\
+                             \x20\x20 const anim = Omni.animate(el, {kf}, {{ {opts} }});\n\
+                             \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", anim);\n\
+                             \x20\x20 el.addEventListener(\"mouseenter\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.play(); }});\n\
+                             \x20\x20 el.addEventListener(\"mouseleave\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.reverse(); }});\n\
                              \x20 }}\n\
                              }})();\n",
                             nid = nid,
                             trigger = trigger_str,
-                            config = config_override
+                            kf = kf_override,
+                            opts = opts_override,
                         ));
                     }
                     TriggerKind::InView => {
@@ -464,14 +456,13 @@ impl OmniViewGenerator {
                              (function() {{\n\
                              \x20 const el = __omni_el(\"{nid}\");\n\
                              \x20 if (!el) return;\n\
-                             \x20 const config = {{ trigger: \"{trigger}\", {config} }};\n\
-                             \x20 const player = new AnimationPlayer(el, config);\n\
-                             \x20 __omni_animations.set(\"{nid}_{trigger}\", player);\n\
+                             \x20 const anim = Omni.animate(el, {kf}, {{ {opts} }});\n\
+                             \x20 __omni_animations.set(\"{nid}_{trigger}\", anim);\n\
                              \x20 const threshold = {threshold};\n\
                              \x20 const observer = new IntersectionObserver((entries) => {{\n\
                              \x20\x20 entries.forEach(entry => {{\n\
                              \x20\x20\x20 if (entry.isIntersecting) {{\n\
-                             \x20\x20\x20\x20 player.play();\n\
+                             \x20\x20\x20\x20 anim.play();\n\
                              \x20\x20\x20\x20 if ({once}) {{\n\
                              \x20\x20\x20\x20\x20 observer.disconnect();\n\
                              \x20\x20\x20\x20 }}\n\
@@ -484,7 +475,8 @@ impl OmniViewGenerator {
                              }})();\n",
                             nid = nid,
                             trigger = trigger_str,
-                            config = config_override,
+                            kf = kf_override,
+                            opts = opts_override,
                             once = once_val,
                             threshold = threshold_val,
                         ));
@@ -507,10 +499,10 @@ impl OmniViewGenerator {
                              (function() {{\n\
                              \x20 const el = __omni_el(\"{nid}\");\n\
                              \x20 if (!el) return;\n\
-                             \x20 const config = {{ trigger: \"{trigger}\", {config} }};\n\
-                             \x20 const player = new AnimationPlayer(el, config);\n\
-                             \x20 __omni_animations.set(\"{nid}_{trigger}\", player);\n\
-                             \x20 player.pause();\n\
+                             \x20 const anim = Omni.animate(el, {kf}, {{ {opts} }});\n\
+                             \x20 __omni_animations.set(\"{nid}_{trigger}\", anim);\n\
+                             \x20 anim.pause();\n\
+                             \x20 const dur = anim.effect?.getTiming()?.duration || 300;\n\
                              \x20 const startCfg = \"{scroll_start}\";\n\
                              \x20 const endCfg = \"{scroll_end}\";\n\
                              \x20 const scrubDelay = {scrub};\n\
@@ -527,17 +519,18 @@ impl OmniViewGenerator {
                              \x20\x20 const target = computeProgress();\n\
                              \x20\x20 if (scrubDelay > 0) {{\n\
                              \x20\x20\x20 currentProgress += (target - currentProgress) * Math.min(1, 16.67 / (scrubDelay * 1000));\n\
-                             \x20\x20\x20 player.seek(currentProgress);\n\
+                             \x20\x20\x20 anim.currentTime = currentProgress * dur;\n\
                              \x20\x20 }} else {{\n\
                              \x20\x20\x20 currentProgress = target;\n\
-                             \x20\x20\x20 player.seek(currentProgress);\n\
+                             \x20\x20\x20 anim.currentTime = currentProgress * dur;\n\
                              \x20\x20 }}\n\
                              \x20 }}, {{ passive: true }});\n\
-                             \x20 player.seek(computeProgress());\n\
+                             \x20 anim.currentTime = computeProgress() * dur;\n\
                              }})();\n",
                             nid = nid,
                             trigger = trigger_str,
-                            config = config_override,
+                            kf = kf_override,
+                            opts = opts_override,
                             scroll_start = scroll_start_str,
                             scroll_end = scroll_end_str,
                             scrub = scrub_val,
@@ -574,10 +567,10 @@ impl OmniViewGenerator {
                              (function() {{\n\
                              \x20 const el = __omni_el(\"{nid}\");\n\
                              \x20 if (!el) return;\n\
-                             \x20 const config = {{ trigger: \"{trigger}\", {cfg} }};\n\
-                             \x20 const player = new AnimationPlayer(el, config);\n\
-                             \x20 __omni_animations.set(\"{nid}_{trigger}\", player);\n\
-                             \x20 player.pause();\n\
+                             \x20 const anim = Omni.animate(el, {kf}, {{ {opts} }});\n\
+                             \x20 __omni_animations.set(\"{nid}_{trigger}\", anim);\n\
+                             \x20 anim.pause();\n\
+                             \x20 const dur = anim.effect?.getTiming()?.duration || 300;\n\
                              \x20 let startPos = 0, currentDelta = 0;\n\
                              \x20 let isDragging = false;\n\
                              \x20 let lastMoveTime = 0, lastMovePos = 0;\n\
@@ -641,21 +634,22 @@ impl OmniViewGenerator {
                              \x20\x20 }}\n\
                              \x20\x20 currentDelta = raw;\n\
                              \x20\x20 const progress = Math.abs(constrained) / maxExtent;\n\
-                             \x20\x20 player.seek(Math.min(1, progress));\n\
+                             \x20\x20 anim.currentTime = Math.min(1, progress) * dur;\n\
                              \x20 }});\n\
                              \x20 el.addEventListener('pointerup', (e) => {{\n\
                              \x20\x20 isDragging = false;\n\
                              \x20\x20 el.releasePointerCapture(e.pointerId);\n\
                              \x20\x20 const progress = Math.abs(currentDelta) / maxExtent;\n\
                              \x20\x20 if (progress >= threshold && maxExtent > 0) {{\n\
-                             \x20\x20\x20 player.play();\n\
+                             \x20\x20\x20 anim.play();\n\
                              \x20\x20 }} else {{\n\
-                             \x20\x20\x20 player.reverse();\n\
+                             \x20\x20\x20 anim.reverse();\n\
                              \x20\x20 }}\n\
                              \x20 }});\n\
                              }})();\n",
                             nid = nid,
-                            cfg = config_override,
+                            kf = kf_override,
+                            opts = opts_override,
                             axis = axis_label,
                             trigger = trigger_str,
                             constraints = constraints_str,
@@ -674,14 +668,14 @@ impl OmniViewGenerator {
                              (function() {{\n\
                              \x20 const el = __omni_el(\"{nid}\");\n\
                              \x20 if (el) {{\n\
-                             \x20\x20 const config = {{ trigger: \"{trigger}\", {config} }};\n\
-                             \x20\x20 const player = new AnimationPlayer(el, config);\n\
-                             \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", player);\n\
+                             \x20\x20 const anim = Omni.animate(el, {kf}, {{ {opts} }});\n\
+                             \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", anim);\n\
                              \x20 }}\n\
                              }})();\n",
                             nid = nid,
                             trigger = trigger_str,
-                            config = config_override
+                            kf = kf_override,
+                            opts = opts_override,
                         ));
                     }
                 }

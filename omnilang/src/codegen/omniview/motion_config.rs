@@ -5,12 +5,12 @@ impl OmniViewGenerator {
     // Motion / Animation Codegen
     // ══════════════════════════════════════════════════════
 
-    /// Convert a MotionBodyIR to a JS config object string for AnimationPlayer.
-    pub(super) fn motion_body_to_config(&self, body: &MotionBodyIR) -> String {
+    /// Convert a MotionBodyIR to (keyframes_js, opts_js) for Omni.animate().
+    pub(super) fn motion_body_to_config(&self, body: &MotionBodyIR) -> (String, String) {
         match body {
-            MotionBodyIR::Keyframe(kf) => self.keyframe_to_config(kf),
-            MotionBodyIR::Timeline(tl) => self.timeline_body_to_config(tl),
-            MotionBodyIR::CallbackOnly(cb) => self.callback_to_config(cb),
+            MotionBodyIR::Keyframe(kf) => self.keyframe_to_animate_call(kf),
+            MotionBodyIR::Timeline(tl) => self.timeline_to_factory("_inline_timeline", tl),
+            MotionBodyIR::CallbackOnly(cb) => self.callback_to_animate_call(cb),
         }
     }
 
