@@ -173,12 +173,6 @@ export const BorderCard = React.memo(function BorderCard({
     setShowColorPicker(false);
   }, []);
 
-  const clearBtn: React.CSSProperties = {
-    border: "none", background: "none", cursor: "pointer",
-    fontSize: 14, padding: "0 2px", color: "var(--dp-text-muted, #a09db8)",
-    lineHeight: 1, flexShrink: 0,
-  };
-
   const swatchStyle: React.CSSProperties = {
     width: 24,
     height: 24,
@@ -212,7 +206,7 @@ export const BorderCard = React.memo(function BorderCard({
                 onChange={handleWidthChange}
               />
               {!borderWidthEmpty && (
-                <button type="button" style={clearBtn} title="清除" onClick={(e) => { e.stopPropagation(); handleClearWidth(); }}>×</button>
+                <button type="button" style={CLEAR_BTN} title="清除" onClick={(e) => { e.stopPropagation(); handleClearWidth(); }}>×</button>
               )}
             </span>
           )}
@@ -230,7 +224,7 @@ export const BorderCard = React.memo(function BorderCard({
                 {BORDER_STYLES.map((s) => (<option key={s} value={s}>{s}</option>))}
               </select>
               {borderStyleSet && (
-                <button type="button" style={clearBtn} title="清除" onClick={(e) => { e.stopPropagation(); handleClearStyle(); }}>×</button>
+                <button type="button" style={CLEAR_BTN} title="清除" onClick={(e) => { e.stopPropagation(); handleClearStyle(); }}>×</button>
               )}
             </span>
           )}
@@ -249,7 +243,7 @@ export const BorderCard = React.memo(function BorderCard({
                 {isColorFromToken && (<span style={{ fontSize: 12, color: "var(--dp-accent, #6366f1)", lineHeight: "24px", display: "block", textAlign: "center", fontWeight: 700 }}>T</span>)}
               </button>
               {borderColorSet && (
-                <button type="button" style={clearBtn} title="清除" onClick={(e) => { e.stopPropagation(); handleClearColor(); }}>×</button>
+                <button type="button" style={CLEAR_BTN} title="清除" onClick={(e) => { e.stopPropagation(); handleClearColor(); }}>×</button>
               )}
             </span>
           )}

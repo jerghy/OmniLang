@@ -91,12 +91,6 @@ export const BackgroundCard = React.memo(function BackgroundCard({
   const isBgInherited = readOnly && inheritedProps?.includes("background");
   const isEmpty = bgValue === "";
 
-  const clearBtn: React.CSSProperties = {
-    border: "none", background: "none", cursor: "pointer",
-    fontSize: 14, padding: "0 2px", color: "var(--dp-text-muted, #a09db8)",
-    lineHeight: 1, flexShrink: 0,
-  };
-
   const handleClear = () => onChange(properties.filter((p) => p.name !== "background"));
 
   return (
@@ -140,7 +134,7 @@ export const BackgroundCard = React.memo(function BackgroundCard({
             >
               {bgValue}
             </span>
-            <button type="button" style={clearBtn} title="清除" onClick={(e) => { e.stopPropagation(); handleClear(); }}>×</button>
+            <button type="button" style={CLEAR_BTN} title="清除" onClick={(e) => { e.stopPropagation(); handleClear(); }}>×</button>
           </div>
         )}
 

@@ -39,8 +39,11 @@ export const ZoomControls = React.memo(function ZoomControls() {
         title="Zoom out"
       >&minus;</button>
       <span
+        role="button"
+        tabIndex={0}
         style={{ minWidth: 48, textAlign: "center", color: "#64748b", cursor: "pointer" }}
         onClick={resetView}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); resetView(); } }}
         title="Reset zoom"
       >
         {Math.round(zoom * 100)}%

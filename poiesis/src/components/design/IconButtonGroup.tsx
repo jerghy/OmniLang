@@ -22,14 +22,8 @@ export function IconButtonGroup<T extends string>({
 }: IconButtonGroupProps<T>) {
   const [hoveredValue, setHoveredValue] = useState<T | null>(null);
 
-  const containerStyle: React.CSSProperties = {
-    display: "flex",
-    flexDirection: "row",
-    gap: 0,
-  };
-
   return (
-    <div style={containerStyle} role="radiogroup">
+    <div style={CONTAINER_STYLE} role="radiogroup">
       {options.map((option, idx) => {
         const isActive = option.value === value;
         const isHovered = option.value === hoveredValue;
