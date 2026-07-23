@@ -21,7 +21,7 @@ import {
 } from "../autocomplete/autocomplete-rules";
 import { $createCardNode } from "../nodes/CardNode";
 import { $createContainerElementNode, $isContainerElementNode } from "../nodes/ContainerNode";
-import { $createBlockElementNode } from "../nodes/BlockNode";
+import { $createBlockElementNode, $isBlockElementNode } from "../nodes/BlockNode";
 import { $createBodyLineNode } from "../nodes/BodyLineNode";
 import { $createInputSlotNode } from "../nodes/InputSlotNode";
 import type { SlotKind } from "../../../../../core/types/editor-node";
@@ -41,6 +41,27 @@ export function AutocompletePlugin({ onCreateSlot }: Props): React.ReactNode {
     index: number;
   }>({ visible: false, items: [], index: 0 });
   const typingTokenRef = useRef("");
+
+  // ── Menu position computed from cursor ──
+  const [menuPos, setMenuPos] = useState({ top: 60, left: 60 });
+  const updateMenuPosition = useCallback(() => {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+      const editorEl = document.querySelector('[contenteditable="true"]');
+      if (editorEl) {
+        const editorRect = editorEl.getBoundingClientRect();
+        setMenuPos({
+          top: rect.bottom - editorRect.top + 4,
+          left: rect.left - editorRect.left,
+        });
+        return;
+      }
+    }
+    // Fallback
+    setMenuPos({ top: 60, left: 60 });
+  }, []);
 
   // ── Detect typing and trigger autocomplete ──
   useEffect(() => {
@@ -73,6 +94,8 @@ export function AutocompletePlugin({ onCreateSlot }: Props): React.ReactNode {
         if (items.length > 0) {
           setAcState({ visible: true, items, index: 0 });
           typingTokenRef.current = token;
+          // Schedule cursor-relative menu position update
+          requestAnimationFrame(updateMenuPosition);
         } else {
           setAcState((s) => (s.visible ? { ...s, visible: false } : s));
         }
@@ -229,7 +252,7 @@ export function AutocompletePlugin({ onCreateSlot }: Props): React.ReactNode {
       selectedIndex={acState.index}
       onSelect={executeAutocomplete}
       onClose={() => setAcState((s) => ({ ...s, visible: false }))}
-      position={{ top: 200, left: 60 }}
+      position={menuPos}
     />
   );
 }
@@ -239,8 +262,10 @@ export function AutocompletePlugin({ onCreateSlot }: Props): React.ReactNode {
 function getParentContextKind(parent: any): string | null {
   if (!parent || parent === $getRoot()) return null;
   if ($isContainerElementNode(parent)) return parent.getContainerKind();
+  if ($isBlockElementNode(parent)) return parent.getBlockKind();
   const grandparent = parent.getParent();
   if ($isContainerElementNode(grandparent)) return grandparent.getContainerKind();
+  if ($isBlockElementNode(grandparent)) return grandparent.getBlockKind();
   return null;
 }
 
