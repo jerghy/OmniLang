@@ -1,10 +1,8 @@
-import type { ContainerKind, BlockKind, InlineKind } from "../../../../../core/types/editor-node";
-
 export interface AutocompleteItem {
   label: string;
   description: string;
   /** The EditorNode kind this item creates */
-  cardKind: "container" | "block" | "inline" | "slot";
+  cardKind: "container" | "block" | "inline";
   /** Sub-kind for container/block/inline */
   subKind: string;
 }

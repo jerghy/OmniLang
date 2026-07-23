@@ -69,7 +69,7 @@ describe("ContainerElementNode", () => {
     const editor = createEditor();
     editor.update(() => {
       const node = $createContainerElementNode("map", "c10");
-      const dom = node.createDOM({ namespace: "test", theme: {} });
+      const dom = node.createDOM();
       expect(dom.className).toBe("code-container code-container--map");
       expect(dom.getAttribute("data-container-kind")).toBe("map");
       expect(dom.getAttribute("data-container-pid")).toBe("c10");
@@ -105,7 +105,7 @@ describe("ContainerElementNode", () => {
     const editor = createEditor();
     editor.update(() => {
       const node = $createContainerElementNode("let", "c14");
-      const dom = node.createDOM({ namespace: "test", theme: {} });
+      const dom = node.createDOM();
       expect(node.updateDOM(node, dom)).toBe(true);
     });
   });

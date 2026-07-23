@@ -65,7 +65,7 @@ describe("BlockElementNode", () => {
     const editor = createEditor();
     editor.update(() => {
       const node = $createBlockElementNode("if", "b6");
-      const dom = node.createDOM({ namespace: "test", theme: {} });
+      const dom = node.createDOM();
       expect(dom.className).toBe("code-block-card code-block-card--if");
       expect(dom.getAttribute("data-block-kind")).toBe("if");
       expect(dom.getAttribute("data-block-pid")).toBe("b6");
@@ -101,8 +101,7 @@ describe("BlockElementNode", () => {
     const editor = createEditor();
     editor.update(() => {
       const node = $createBlockElementNode("if", "b10");
-      const dom = node.createDOM({ namespace: "test", theme: {} });
-      expect(node.updateDOM(dom)).toBe(true);
+      expect(node.updateDOM()).toBe(true);
     });
   });
 
