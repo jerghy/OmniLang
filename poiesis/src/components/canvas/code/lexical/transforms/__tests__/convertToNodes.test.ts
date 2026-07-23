@@ -123,6 +123,53 @@ describe("convertToNodes", () => {
     expect((nodes[0] as InlineNode).cardLabel).toBe("TODO");
   });
 
+  it("converts call_fn to call container with fn_name and comma-separated args", () => {
+    const ops: CodeOp[] = [{
+      kind: "call_fn", pid: "cf1", fnName: "foo", args: ["a", "b", "c"],
+    }];
+    const nodes = convertToNodes(ops);
+    const callNode = nodes[0] as ContainerNode;
+    expect(callNode.kind).toBe("call");
+    const labels = callNode.children.map(c =>
+      c.kind === "slot" ? `slot:${(c as InputSlot).slotKind}` :
+      "cardLabel" in c ? (c as InlineNode).cardLabel : c.kind
+    );
+    expect(labels).toContain("slot:fn_name");
+    expect(labels).toContain(",");
+    expect(labels.filter(l => l === "slot:expression").length).toBe(3);
+  });
+
+  it("converts await to await container with expression slot", () => {
+    const ops: CodeOp[] = [{ kind: "await", pid: "aw1", value: "fetchData()" }];
+    const nodes = convertToNodes(ops);
+    const awaitNode = nodes[0] as ContainerNode;
+    expect(awaitNode.kind).toBe("await");
+    const firstChild = awaitNode.children[0];
+    expect(firstChild.kind).toBe("slot");
+    expect((firstChild as InputSlot).slotKind).toBe("expression");
+    expect((firstChild as InputSlot).value).toBe("fetchData()");
+  });
+
+  it("converts raw to inline comment node with source as label", () => {
+    const ops: CodeOp[] = [{ kind: "raw", pid: "rw1", source: "# some raw text" }];
+    const nodes = convertToNodes(ops);
+    const rawNode = nodes[0] as InlineNode;
+    expect(rawNode.kind).toBe("comment");
+    expect(rawNode.cardLabel).toBe("# some raw text");
+  });
+
+  it("converts if_block with empty branches gracefully", () => {
+    const ops: CodeOp[] = [{
+      kind: "if_block", pid: "if0", branches: [],
+    }];
+    const nodes = convertToNodes(ops);
+    expect(nodes.length).toBe(1);
+    const ifNode = nodes[0] as BlockNode;
+    expect(ifNode.kind).toBe("if");
+    expect(ifNode.head.length).toBe(0);
+    expect(ifNode.body.length).toBe(1);
+  });
+
   it("handles empty ops array", () => {
     expect(convertToNodes([])).toEqual([]);
   });

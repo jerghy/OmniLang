@@ -20,6 +20,7 @@ function convertOneOp(op: CodeOp): EditorNode {
     case "break": return inline("break", "break", op.pid);
     case "continue": return inline("continue", "continue", op.pid);
     case "comment": return inline("comment", op.text, op.pid);
+    // raw → "comment" kind; EditorNode lacks "raw" variant by design
     case "raw": return inline("comment", op.source, op.pid);
   }
 }
@@ -72,13 +73,16 @@ function convertSetVar(op: Extract<CodeOp, { kind: "set_var" }>): ContainerNode 
 }
 
 function convertIfBlock(op: Extract<CodeOp, { kind: "if_block" }>): BlockNode {
+  if (op.branches.length === 0) {
+    return block("if", [], [bodyLine([])], uid("tl"), op.pid);
+  }
   const first = op.branches[0];
   const branches = op.branches.length > 1
     ? op.branches.slice(1).map(br => ({
         kind: br.condition ? "elif" as const : "else" as const,
         pid: uid("br"),
         head: br.condition ? [slot("condition", br.condition)] : [],
-        body: br.body.map(op => bodyLine([convertOneOp(op)])),
+        body: br.body.map(bodyOp => bodyLine([convertOneOp(bodyOp)])),
       }))
     : undefined;
 
@@ -86,7 +90,7 @@ function convertIfBlock(op: Extract<CodeOp, { kind: "if_block" }>): BlockNode {
     "if",
     first.condition ? [slot("condition", first.condition)] : [],
     first.body.length > 0
-      ? first.body.map(op => bodyLine([convertOneOp(op)]))
+      ? first.body.map(bodyOp => bodyLine([convertOneOp(bodyOp)]))
       : [bodyLine([])],
     uid("tl"),
     op.pid,
@@ -123,9 +127,7 @@ function convertForIn(op: Extract<CodeOp, { kind: "for_in" }>): BlockNode {
 }
 
 function convertReturn(op: Extract<CodeOp, { kind: "return" }>): ContainerNode {
-  const children: EditorNode[] = [];
-  children.push(slot("expression", op.value ?? ""));
-  return container("return", children, op.pid);
+  return container("return", [slot("expression", op.value ?? "")], op.pid);
 }
 
 function convertCallFn(op: Extract<CodeOp, { kind: "call_fn" }>): ContainerNode {

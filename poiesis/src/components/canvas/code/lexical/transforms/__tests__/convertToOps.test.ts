@@ -1,22 +1,17 @@
 import { describe, it, expect } from "vitest";
 import { convertToOps } from "../convertToOps";
 import { convertToNodes } from "../convertToNodes";
-import type { ContainerNode, BlockNode, BodyLine } from "../../../../../../core/types/editor-node";
-
-function bodyLine(children: any[]): BodyLine {
-  return { pid: "bl1", children: children as any };
-}
 
 describe("convertToOps", () => {
   it("converts let container back to declare_var", () => {
     const nodes = [{
       kind: "let" as const, pid: "d1",
       children: [
-        { kind: "inline", cardLabel: "mut", pid: "m1" } as any,
+        { kind: "mut", cardLabel: "mut", pid: "m1" } as any,
         { kind: "slot", slotKind: "name", value: "count", pid: "s1" } as any,
-        { kind: "inline", cardLabel: ":", pid: "sep1" } as any,
-        { kind: "inline", cardLabel: "i32", pid: "t1" } as any,
-        { kind: "inline", cardLabel: "=", pid: "op1" } as any,
+        { kind: "separator", cardLabel: ":", pid: "sep1" } as any,
+        { kind: "type", cardLabel: "i32", pid: "t1" } as any,
+        { kind: "operator", cardLabel: "=", pid: "op1" } as any,
         { kind: "slot", slotKind: "expression", value: "0", pid: "s2" } as any,
       ],
     }];
@@ -36,7 +31,7 @@ describe("convertToOps", () => {
       kind: "set" as const, pid: "s1",
       children: [
         { kind: "slot", slotKind: "name", value: "sum", pid: "s1" } as any,
-        { kind: "inline", cardLabel: "+=", pid: "op1" } as any,
+        { kind: "operator", cardLabel: "+=", pid: "op1" } as any,
         { kind: "slot", slotKind: "expression", value: "1", pid: "s2" } as any,
       ],
     }];
@@ -104,7 +99,7 @@ describe("convertToOps", () => {
       kind: "for" as const, pid: "f1",
       head: [
         { kind: "slot", slotKind: "name", value: "item", pid: "s1" } as any,
-        { kind: "inline", cardLabel: "in", pid: "in1" } as any,
+        { kind: "separator", cardLabel: "in", pid: "in1" } as any,
         { kind: "slot", slotKind: "expression", value: "items", pid: "s2" } as any,
       ],
       body: [],
@@ -128,7 +123,21 @@ describe("convertToOps", () => {
     const roundtripped = convertToOps(nodes);
     expect(roundtripped.length).toBe(3);
     expect(roundtripped[0].kind).toBe("declare_var");
+    if (roundtripped[0].kind === "declare_var") {
+      expect(roundtripped[0].mutable).toBe(true);
+      expect(roundtripped[0].name).toBe("x");
+      expect(roundtripped[0].varType).toBe("f64");
+      expect(roundtripped[0].initValue).toBe("1.0");
+    }
     expect(roundtripped[1].kind).toBe("set_var");
+    if (roundtripped[1].kind === "set_var") {
+      expect(roundtripped[1].name).toBe("x");
+      expect(roundtripped[1].operator).toBe("=");
+      expect(roundtripped[1].value).toBe("2");
+    }
     expect(roundtripped[2].kind).toBe("return");
+    if (roundtripped[2].kind === "return") {
+      expect(roundtripped[2].value).toBe("x");
+    }
   });
 });

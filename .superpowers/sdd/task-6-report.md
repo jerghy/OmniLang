@@ -1,36 +1,53 @@
-# Task 6 Report: Context-aware autocomplete rules
+# Task 6 Report: ContainerNode + BlockNode + BodyLineNode
 
-**Status:** DONE
+## STATUS: COMPLETE
 
-**Files created:**
-- `poiesis/src/components/canvas/code/lexical/autocomplete/autocomplete-rules.ts`
-- `poiesis/src/components/canvas/code/lexical/autocomplete/__tests__/autocomplete-rules.test.ts`
+## Files Created
 
-**Test results:**
+| File | Lines | Description |
+|------|-------|-------------|
+| `poiesis/src/components/canvas/code/lexical/nodes/ContainerNode.ts` | 107 | `ContainerElementNode` -- wraps let/set/return/await/call/array/map children; imports `ContainerKind` |
+| `poiesis/src/components/canvas/code/lexical/nodes/BlockNode.ts` | 101 | `BlockElementNode` -- wraps if/while/for with head/body/tail; imports `BlockKind` |
+| `poiesis/src/components/canvas/code/lexical/nodes/BodyLineNode.ts` | 94 | `BodyLineNode` -- individual code lines within blocks; no special kind, just pid |
+| `poiesis/src/components/canvas/code/lexical/nodes/__tests__/ContainerNode.test.ts` | 157 | 11 tests for ContainerElementNode |
+| `poiesis/src/components/canvas/code/lexical/nodes/__tests__/BlockNode.test.ts` | 136 | 11 tests for BlockElementNode |
 
-## Step 2 (RED) -- FAIL:
+## Files Modified
+
+- `poiesis/src/components/canvas/code/lexical/nodes/index.ts` -- added exports for all three new nodes
+
+## Tests
+
 ```
- RUN  v4.1.9
- FAIL  src/components/canvas/code/lexical/autocomplete/__tests__/autocomplete-rules.test.ts
-Error: Failed to resolve import "../autocomplete-rules" ... Does the file exist?
- Tests:  0 tests
+Test Files  2 passed (2)
+     Tests  22 passed (22)
 ```
 
-## Step 4 (GREEN) -- all passed:
-```
- RUN  v4.1.9
+All 22 tests pass (11 per test file):
+- Construction with type/kind/pid
+- Type detection (`$is*` guard)
+- All kind variants (7 container kinds, 3 block kinds)
+- Clone preserves properties
+- JSON serialization (exportJSON) and deserialization (importJSON)
+- DOM creation with correct classnames and data attributes
+- Inline, canBeEmpty, canInsertTextBefore/After predicates
+- updateDOM returns true
 
- Test Files  1 passed (1)
-      Tests  6 passed (6)
-```
+## Dependencies Added
 
-**Commit:** `88e873a` -- "feat(poiesis): add context-aware autocomplete rules with prefix filtering"
+- `lexical ^0.47.0` added to poiesis/package.json (was missing, needed for all test files)
 
-**Summary:**
-- Implemented `AutocompleteItem` and `AutocompleteContext` interfaces
-- `getAutocompleteItems(token, context)` returns filtered candidates based on:
-  - `slotType === "type"` -- type names (i32, String, f64, bool, etc.)
-  - `slotType === "value" | "condition" | "arg"` -- expression literals (true, false, null)
-  - Default -- statement-level items (let, if, while, for, return, etc.)
-- Prefix filtering via `label.toLowerCase().startsWith(lower)`
-- `detectCardKindFromItem()` maps autocomplete kinds to `CardKind` for card creation
+## Technical Notes
+
+- All three nodes follow the same pattern as the existing `CardElementNode`:
+  - Extend `ElementNode` from lexical
+  - Private fields prefixed with `__` (Lexical convention)
+  - `getLatest()` used in getters for consistency with Lexical reconciliation
+  - `Spread<{...}, SerializedElementNode>` for serialization types
+  - Static `getType()`, `clone()`, `importJSON()` per Lexical node contract
+- `ContainerElementNode` and `BlockElementNode` have `canBeEmpty() = false` (must contain children)
+- `BodyLineNode` has `canBeEmpty() = true` (lines can be empty/placeholder)
+
+## CONCERNS
+
+1. React Doctor warning on commit about config drift between index and worktree for `poiesis/dist/wasm/package.json`, `poiesis/package.json`, `test/projects/learn-omniview/build/react-test-app/eslint.config.mjs` -- pre-existing issue, not introduced by this task.

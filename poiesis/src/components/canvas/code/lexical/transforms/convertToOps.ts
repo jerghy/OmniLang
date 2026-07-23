@@ -1,6 +1,5 @@
 import type { CodeOp } from "../../../../../core/types/code-op";
 import type { EditorNode, ContainerNode, BlockNode, InlineNode, InputSlot, BodyLine } from "../../../../../core/types/editor-node";
-import { uid } from "../../../../../core/utils/id";
 
 export function convertToOps(nodes: EditorNode[]): CodeOp[] {
   return nodes.map(node => convertOneNode(node));
@@ -20,8 +19,15 @@ function convertOneNode(node: EditorNode): CodeOp {
     case "continue": return { kind: "continue", pid: node.pid };
     case "comment": return { kind: "comment", pid: node.pid, text: (node as InlineNode).cardLabel };
     default:
+      console.warn(`convertToOps: unknown node kind "${(node as any).kind}", falling back to raw`);
       return { kind: "raw", pid: node.pid, source: "" };
   }
+}
+
+// ── Type guard ──
+
+function isInlineNode(c: EditorNode): c is InlineNode {
+  return "cardLabel" in c;
 }
 
 // ── Extract helpers ──
@@ -30,16 +36,8 @@ function findSlot(children: EditorNode[], slotKind: string): InputSlot | undefin
   return children.find(c => c.kind === "slot" && (c as InputSlot).slotKind === slotKind) as InputSlot | undefined;
 }
 
-function findInline(children: EditorNode[], cardLabel?: string): InlineNode | undefined {
-  return children.find(c => {
-    if (c.kind !== "inline") return false;
-    if (cardLabel !== undefined) return (c as InlineNode).cardLabel === cardLabel;
-    return true;
-  }) as InlineNode | undefined;
-}
-
 function hasInline(children: EditorNode[], cardLabel: string): boolean {
-  return children.some(c => c.kind === "inline" && (c as InlineNode).cardLabel === cardLabel);
+  return children.some(c => isInlineNode(c) && c.cardLabel === cardLabel);
 }
 
 // ── Container converters ──
@@ -51,17 +49,11 @@ function convertLetContainer(node: ContainerNode): CodeOp {
 
   // type is the inline whose cardLabel is after the ":" separator
   let varType: string | undefined;
-  for (const child of node.children) {
-    if (child.kind !== "inline") continue;
-    const label = (child as InlineNode).cardLabel;
-    if (label !== "mut" && label !== "=" && label !== ":" && label !== "+=" && label !== "-=" && label !== "*=" && label !== "/=" && label !== "%=") {
-      // This could be our type — after the ":" separator
-      // Only take it if preceded by ":"
-      const sepIdx = node.children.findIndex(c => c.kind === "inline" && (c as InlineNode).cardLabel === ":");
-      const typeIdx = node.children.indexOf(child);
-      if (sepIdx >= 0 && typeIdx === sepIdx + 1) {
-        varType = label;
-      }
+  const sepIdx = node.children.findIndex(c => isInlineNode(c) && c.cardLabel === ":");
+  if (sepIdx >= 0 && sepIdx + 1 < node.children.length) {
+    const next = node.children[sepIdx + 1];
+    if (isInlineNode(next)) {
+      varType = next.cardLabel;
     }
   }
 
@@ -79,12 +71,12 @@ function convertLetContainer(node: ContainerNode): CodeOp {
 function convertSetContainer(node: ContainerNode): CodeOp {
   const nameSlot = findSlot(node.children, "name");
   // operator is the inline with label matching an operator pattern
-  let operator = "=" as CodeOp["operator"];
+  let operator: Extract<CodeOp, { kind: "set_var" }>["operator"] = "=";
   for (const child of node.children) {
-    if (child.kind !== "inline") continue;
-    const label = (child as InlineNode).cardLabel;
+    if (!isInlineNode(child)) continue;
+    const label = child.cardLabel;
     if (/^(=|\+=|-=|\*=|\/=|%=)$/.test(label)) {
-      operator = label as any;
+      operator = label as Extract<CodeOp, { kind: "set_var" }>["operator"];
       break;
     }
   }

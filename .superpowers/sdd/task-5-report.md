@@ -1,40 +1,57 @@
-# Task 5 Report: Card-to-Text Degradation Transform
+# Task 5 Report: CardNode (Lexical DecoratorNode for Inline Cards)
 
-**Status:** DONE
+## Status: COMPLETE
 
-## Deliverables
-
-| File | Status |
-|------|--------|
-| `poiesis/src/components/canvas/code/lexical/transforms/card-to-text.ts` | Created |
-| `poiesis/src/components/canvas/code/lexical/transforms/__tests__/card-to-text.test.ts` | Created |
-
-## Implementation
-
-`$degradeCardToText(cardNode)` replaces a `CardElementNode` with a `ParagraphNode` containing the card's text content. Used when the user deletes all slots in a card (Backspace at boundary).
-
-```typescript
-export function $degradeCardToText(cardNode: CardElementNode): void {
-  const textContent = cardNode.getTextContent();
-  const paragraph = $createParagraphNode();
-  paragraph.append($createTextNode(textContent));
-  cardNode.replace(paragraph);
-}
-```
-
-## Test Results
+## Commits
 
 ```
-✓ 2 passed (2 tests)
-
-Test Files  1 passed (1)
+7924e22 feat(codecard-v2): add CardNode for inline non-editable cards
 ```
 
-Both tests pass:
-1. **replaces card with paragraph containing text representation** -- verifies the card is replaced by a `ParagraphNode`
-2. **preserves text content from card slots** -- verifies slot text ("count") survives the transform
+## Files Created
 
-## Notes
+- `poiesis/src/components/canvas/code/lexical/nodes/CardNode.ts` -- DecoratorNode for inline non-editable cards (mut, operator, type, var_ref, literal, etc.)
+- `poiesis/src/components/canvas/code/lexical/nodes/__tests__/CardNode.test.ts` -- 6 tests
 
-- Used corrected import paths (`from "lexical"` and `from "../nodes/CardElementNode"`) per the brief's instruction, not the auto-generated node_modules path from the Plan.
-- CardElementNode and SlotTextNode (Tasks 2-4) were already in place.
+## Files Modified
+
+- `poiesis/package.json` -- Added `lexical` dependency (v0.47.0)
+- `poiesis/pnpm-lock.yaml` -- Lockfile update from lexical install
+
+## Tests
+
+**41 passed, 0 failed** (all 6 node test suites)
+
+CardNode-specific tests (6):
+1. `has correct type` -- Static getType() returns "inline-card", getters return constructor values (PASS)
+2. `is detected by $isCardNode` -- $isCardNode returns true for CardNode, false for null/undefined (PASS)
+3. `serializes to JSON with all fields` -- exportJSON includes type, cardKind, cardLabel, cardPid (PASS)
+4. `deserializes from JSON` -- importJSON constructs correct CardNode (PASS)
+5. `is inline` -- isInline() returns true (PASS)
+6. `clones preserving all fields` -- clone copies cardKind, cardLabel, cardPid (PASS)
+
+No regressions in existing tests (CardElementNode, SlotTextNode, InputSlotNode, ContainerNode, BlockNode, BodyLineNode -- all unchanged).
+
+TypeScript: 0 errors from CardNode (pre-existing errors from other modules remain).
+
+## Deviations from Brief
+
+| Aspect | Brief | Actual | Reason |
+|--------|-------|--------|--------|
+| File extension | `.ts` with JSX | `.ts` with `React.createElement` | `.ts` does not support JSX without `.tsx` extension; used `React.createElement()` in `decorate()` |
+| DecoratorNode type param | `DecoratorNode<JSX.Element>` | `DecoratorNode<React.ReactNode>` | `JSX` namespace not available in `.ts` files |
+| Getters | `this.getLatest().__cardKind` | `this.__cardKind` | Direct field access is simpler, works without active editor context, and fields are immutable (set once in constructor) |
+| importJSON signature | `(serialized: SerializedCardNode)` | `(_serializedNode: SerializedLexicalNode & Record<string, unknown>)` | Must match base `DecoratorNode` class signature; casts internally |
+| Test wrapper | Direct `$createCardNode(...)` | Inside `editor.update(() => {...})` | LexicalNode constructor calls `$setNodeKey()` which requires active editor context |
+
+## Key Implementation Details
+
+- **DecoratorNode**: Chosen because inline cards are read-only blocks where users cannot place a cursor. Typing replaces or inserts adjacent cards.
+- **createDOM**: Creates `<span>` with `code-card code-card--{kind}` class and `data-card-kind`/`data-card-pid` attributes.
+- **updateDOM**: Returns `false` (no dynamic updates needed for immutable cards).
+- **isInline**: Returns `true` (cards sit inline within text flow).
+- **exportJSON/importJSON**: Full round-trip serialization preserving all fields.
+
+## Concerns
+
+None. The CardNode is a straightforward DecoratorNode with immutable properties. Test coverage includes all key behaviors.
