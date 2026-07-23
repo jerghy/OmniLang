@@ -407,7 +407,7 @@ export function ClassEditor() {
 
   // ── Stabilized callbacks via refs (so React.memo children don't re-render on every state change) ──
 
-  const handlePropsChangeRef = useRef<(newProps: StyleProperty[]) => void>(null!);
+  const handlePropsChangeRef = useRef<(newProps: StyleProperty[]) => void>(() => {});
   useEffect(() => {
     handlePropsChangeRef.current = (newProps: StyleProperty[]) => {
       if (!selectedClass) return;
@@ -428,7 +428,7 @@ export function ClassEditor() {
     [],
   );
 
-  const handleSinglePropChangeRef = useRef<(name: string, value: string) => void>(null!);
+  const handleSinglePropChangeRef = useRef<(name: string, value: string) => void>(() => {});
   useEffect(() => {
     handleSinglePropChangeRef.current = (name: string, value: string) => {
       if (!selectedClass) return;
