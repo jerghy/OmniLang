@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { SimpleApp } from './react-output/SimpleApp';
+import { App } from './react-output/components/App';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  React.createElement(React.StrictMode, null, React.createElement(SimpleApp))
+  React.createElement(React.StrictMode, null, React.createElement(App))
 );

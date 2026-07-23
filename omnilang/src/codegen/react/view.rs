@@ -50,9 +50,10 @@ pub(super) fn gen_view_node_tsx(
                             comp_attrs.push(format!("{}={{{}}}", jsx_event, handler_str));
                         }
                         EventHandlerIR::StoreAction { r#ref, .. } => {
-                            let action_fn = r#ref.split('.').next_back().unwrap_or(r#ref);
+                            // Use full qualified ref (e.g. "NotificationStore.clear")
+                            // so store methods are called through their hook object
                             comp_attrs
-                                .push(format!("{}={{() => {{ {}(); }}}}", jsx_event, action_fn));
+                                .push(format!("{}={{() => {{ {}(); }}}}", jsx_event, r#ref));
                         }
                     }
                 }
@@ -317,17 +318,17 @@ pub(super) fn gen_view_node_tsx(
                         }
                     }
                     EventHandlerIR::StoreAction { r#ref, .. } => {
-                        let action_fn = r#ref.split('.').next_back().unwrap_or(r#ref);
+                        // Use full qualified ref (e.g. "NotificationStore.clear")
                         if let Some(setter_call) = binding_events_map.remove(&react_event) {
                             attrs.push(format!(
                                 "{}={{(e) => {{ {}; {}(); }}}}",
-                                react_event, setter_call, action_fn
+                                react_event, setter_call, r#ref
                             ));
                         } else {
                             attrs.push(format!(
-                                "{react_event}={{() => {{ {action_fn}(); }}}}",
+                                "{react_event}={{() => {{ {action_ref}(); }}}}",
                                 react_event = react_event,
-                                action_fn = action_fn
+                                action_ref = r#ref
                             ));
                         }
                     }

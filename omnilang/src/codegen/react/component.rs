@@ -32,9 +32,19 @@ impl ReactCodegen {
         let has_effects_or_lifecycles = !comp.effects.is_empty() || !comp.lifecycles.is_empty();
         let has_motion = comp.view.as_ref().is_some_and(|v| view_has_motion_or_effects(v));
 
-        let has_states = !comp.states.is_empty();
+        // Scan all code paths for signal mutations and function calls
+        let mutated_signals = collect_signal_mutations(comp);
+        let called_fns = collect_called_local_fns(comp);
+        let read_signals = comp.view.as_ref()
+            .map(|v| collect_view_read_signals(v))
+            .unwrap_or_default();
+
+        // Determine if any state actually needs useState (has active setter)
+        let has_mutable_states = comp.states.iter().any(|s| {
+            mutated_signals.contains(&s.name)
+        });
         let mut hooks: Vec<&str> = Vec::new();
-        if has_states { hooks.push("useState"); }
+        if has_mutable_states { hooks.push("useState"); }
         if has_computeds { hooks.push("useMemo"); }
         if has_fn_form_computed { hooks.push("useCallback"); }
         if has_effects_or_lifecycles || has_motion { hooks.push("useEffect"); }
@@ -43,8 +53,13 @@ impl ReactCodegen {
         if !hooks.is_empty() {
             w.emit_fmt(format_args!("import React, {{ {} }} from 'react';", hooks.join(", ")));
         }
-        // Only import styles if the component has style rules or uses CSS module classes
-        let has_styles = !comp.styles.is_empty();
+        // Only import styles if the component has style rules AND at least one
+        // CSS class is actually referenced in the view via class: or classMap:
+        let used_style_classes = comp.view.as_ref()
+            .map(|v| collect_used_style_classes(v))
+            .unwrap_or_default();
+        let has_styles = !comp.styles.is_empty() && used_style_classes.iter()
+            .any(|c| comp.styles.iter().any(|s| &s.class_name == c));
         if has_styles {
             w.emit_fmt(format_args!("import styles from './{}.module.css';", name));
         }
@@ -73,10 +88,33 @@ impl ReactCodegen {
             w.emit("");
         }
 
-        // Store hook imports — use relative paths based on source directories
-        let mut store_hook_imports = Vec::new();
+        // Store hook imports — use relative paths based on source directories.
+        // Only import stores whose signals are actually referenced in the component.
         let all_stores = ir.all_stores();
+        let used_store_signals = collect_used_store_signals(comp);
+        let mut used_store_refs: FxHashSet<String> = FxHashSet::default();
         for store_ref in &comp.store_refs {
+            // Include store if: its ref name is referenced (e.g. `NotificationStore.clear`),
+            // or any of its signals are referenced
+            if used_store_signals.contains(store_ref.as_str()) {
+                used_store_refs.insert(store_ref.clone());
+                continue;
+            }
+            if let Some(store) = all_stores.get(store_ref.as_str()) {
+                for sig_name in store.signals.keys() {
+                    if used_store_signals.contains(sig_name) {
+                        used_store_refs.insert(store_ref.clone());
+                        break;
+                    }
+                }
+            }
+        }
+
+        let mut store_hook_imports = Vec::new();
+        for store_ref in &comp.store_refs {
+            if !used_store_refs.contains(store_ref.as_str()) {
+                continue;
+            }
             if let Some(store) = all_stores.get(store_ref.as_str()) {
                 let hook_name = format!("use{}", store_ref);
                 let module_name = format!("use{}", store_ref);
@@ -100,6 +138,9 @@ impl ReactCodegen {
         // Build a map from bare store signal name → qualified StoreName.signalName
         let mut store_signal_map: FxHashMap<String, String> = FxHashMap::default();
         for store_ref in &comp.store_refs {
+            if !used_store_refs.contains(store_ref.as_str()) {
+                continue;
+            }
             signal_names.insert(store_ref.clone());
             if let Some(store) = ir.all_stores().get(store_ref.as_str()) {
                 for sig_name in store.signals.keys() {
@@ -262,8 +303,11 @@ impl ReactCodegen {
         }
         w.indent();
 
-        // Store hooks
+        // Store hooks — only for stores whose signals are actually used
         for store_ref in &comp.store_refs {
+            if !used_store_refs.contains(store_ref.as_str()) {
+                continue;
+            }
             if ir.all_stores().contains_key(store_ref.as_str()) {
                 let hook_name = format!("use{}", store_ref);
                 w.emit_fmt(format_args!("const {} = {}();", store_ref, hook_name));
@@ -273,19 +317,27 @@ impl ReactCodegen {
         // Build set of function names for conflict detection with state setters
         let fn_names: FxHashSet<String> = comp.fns.iter().map(|f| f.name.clone()).collect();
 
-        // State hooks (useState) — rename setters that conflict with local function names
+        // State hooks (useState) — only generate setter if signal is mutated;
+        // non-mutated signals use plain const for cleaner code.
         for state in &comp.states {
             let init_val = expr::format_expr_ir_tsx(&state.initial_value);
-            let setter_base = format!("set{}", capitalize_first(&state.name));
-            let setter = if fn_names.contains(&setter_base) {
-                format!("__{}", setter_base)
+            if mutated_signals.contains(&state.name) {
+                let setter_base = format!("set{}", capitalize_first(&state.name));
+                let setter = if fn_names.contains(&setter_base) {
+                    format!("__{}", setter_base)
+                } else {
+                    setter_base
+                };
+                w.emit_fmt(format_args!(
+                    "const [{}, {}] = useState({});",
+                    state.name, setter, init_val
+                ));
             } else {
-                setter_base
-            };
-            w.emit_fmt(format_args!(
-                "const [{}, {}] = useState({});",
-                state.name, setter, init_val
-            ));
+                w.emit_fmt(format_args!(
+                    "const {} = {};",
+                    state.name, init_val
+                ));
+            }
         }
 
         // Effects (useEffect) — wrap in async IIFE if body contains await
@@ -450,7 +502,11 @@ impl ReactCodegen {
         }
 
         // Component-local functions (fn declarations in the component body)
+        // Only generate functions that are actually called from the view/effects/lifecycles
         for fun in &comp.fns {
+            if !called_fns.contains(&fun.name) {
+                continue;
+            }
             let param_names: Vec<(String, bool)> = fun
                 .params
                 .iter()
@@ -1036,11 +1092,32 @@ fn collect_mutation_identifiers(intent: &MutationIntent, acc: &mut FxHashSet<Str
 }
 
 /// Check if a view tree has motion triggers or effects that need useEffect.
+/// Only returns true for motion types that actually generate useEffect hooks:
+/// @enter, @hover/@press/@focus triggers, driven_by, in_view, scroll, drag.
+/// Bare @timeline references do NOT need useEffect.
 fn view_has_motion_or_effects(node: &ViewTree) -> bool {
     match node {
         ViewTree::Element(el) => {
-            // Check for motion/effect behaviors
-            if el.motion.is_some() || el.scroll.is_some() || el.drag.is_some() || el.hero.is_some() {
+            // Check for motion behaviors that generate useEffect
+            if let Some(ref motion) = el.motion {
+                // Triggers like @enter, @hover, @press, @focus generate useEffect
+                // @timeline and @animate triggers do NOT generate useEffect (they're WAAPI-only)
+                if motion.triggers.iter().any(|t| {
+                    !matches!(t.kind, TriggerKind::Timeline | TriggerKind::Animate)
+                }) {
+                    return true;
+                }
+                // driven_by generates useEffect
+                if motion.driven_by.is_some() {
+                    return true;
+                }
+                // in_view_once / in_view_repeat generates useEffect
+                if motion.in_view_once.is_some() || motion.in_view_repeat.is_some() {
+                    return true;
+                }
+            }
+            // scroll and drag always generate useEffect
+            if el.scroll.is_some() || el.drag.is_some() || el.hero.is_some() {
                 return true;
             }
             // Check children
@@ -1055,5 +1132,690 @@ fn view_has_motion_or_effects(node: &ViewTree) -> bool {
                 || list.empty_body.as_ref().is_some_and(|eb| view_has_motion_or_effects(eb))
         }
         ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => false,
+    }
+}
+
+// ═══════════════════════════════════════════════════════════
+// Signal mutation & usage tracking — determines which signals
+// are mutated (need setter) vs read-only (can use const).
+// ═══════════════════════════════════════════════════════════
+
+/// Collect names of all signals that are mutated (assigned to) anywhere in the component.
+fn collect_signal_mutations(comp: &ComponentIR) -> FxHashSet<String> {
+    let mut acc = FxHashSet::default();
+
+    // Scan component fns
+    for fun in &comp.fns {
+        for stmt in &fun.body.statements {
+            collect_mutation_targets_from_stmt(stmt, &mut acc);
+        }
+    }
+    // Scan effects
+    for effect in &comp.effects {
+        for stmt in &effect.body.statements {
+            collect_mutation_targets_from_stmt(stmt, &mut acc);
+        }
+    }
+    // Scan lifecycles
+    for lc in &comp.lifecycles {
+        for stmt in &lc.body.statements {
+            collect_mutation_targets_from_stmt(stmt, &mut acc);
+        }
+    }
+    // Scan computeds (may contain mutations via let/assign)
+    for computed in &comp.computeds {
+        if let ExprIR::BlockExpr { statements, .. } = &computed.body {
+            for stmt in statements {
+                collect_mutation_targets_from_stmt(stmt, &mut acc);
+            }
+        }
+    }
+    // Scan view inline handlers
+    if let Some(ref view) = comp.view {
+        collect_view_mutation_targets(view, &mut acc);
+    }
+
+    acc
+}
+
+/// Collect mutation target names from a statement (the signal being assigned to).
+fn collect_mutation_targets_from_stmt(stmt: &StatementIR, acc: &mut FxHashSet<String>) {
+    match stmt {
+        StatementIR::MutationStmt { intent } => {
+            if let Some(intent) = intent {
+                collect_mutation_targets_from_intent(intent, acc);
+            }
+        }
+        StatementIR::ExprStmtIR { expr } => {
+            // Check for direct assignments in expr position
+            collect_mutation_targets_from_expr(expr, acc);
+        }
+        StatementIR::LetStmtIR { name: _, value, .. } => {
+            if let Some(ref v) = value {
+                collect_mutation_targets_from_expr(v, acc);
+            }
+        }
+        StatementIR::IfStmtIR { then_body, else_ifs, else_body, .. } => {
+            for s in &then_body.statements {
+                collect_mutation_targets_from_stmt(s, acc);
+            }
+            for (_, body) in else_ifs {
+                for s in &body.statements {
+                    collect_mutation_targets_from_stmt(s, acc);
+                }
+            }
+            if let Some(ref eb) = else_body {
+                for s in &eb.statements {
+                    collect_mutation_targets_from_stmt(s, acc);
+                }
+            }
+        }
+        StatementIR::WhileStmtIR { body, .. } => {
+            for s in &body.statements {
+                collect_mutation_targets_from_stmt(s, acc);
+            }
+        }
+        StatementIR::ForInStmtIR { body, .. } => {
+            for s in &body.statements {
+                collect_mutation_targets_from_stmt(s, acc);
+            }
+        }
+        StatementIR::BlockStmtIR { body } => {
+            for s in &body.statements {
+                collect_mutation_targets_from_stmt(s, acc);
+            }
+        }
+        StatementIR::TryCatchStmtIR { try_body, catch_body, finally_body, .. } => {
+            for s in &try_body.statements {
+                collect_mutation_targets_from_stmt(s, acc);
+            }
+            if let Some(ref cb) = catch_body {
+                for s in &cb.statements {
+                    collect_mutation_targets_from_stmt(s, acc);
+                }
+            }
+            if let Some(ref fb) = finally_body {
+                for s in &fb.statements {
+                    collect_mutation_targets_from_stmt(s, acc);
+                }
+            }
+        }
+        StatementIR::ReturnStmtIR { .. }
+        | StatementIR::BreakStmtIR
+        | StatementIR::ContinueStmtIR
+        | StatementIR::ThrowStmtIR { .. }
+        | StatementIR::EventEmitStmtIR { .. } => {}
+    }
+}
+
+/// Extract mutation target from a MutationIntent.
+fn collect_mutation_targets_from_intent(intent: &MutationIntent, acc: &mut FxHashSet<String>) {
+    let target = match intent {
+        MutationIntent::DirectAssign { target, .. }
+        | MutationIntent::Increment { target, .. }
+        | MutationIntent::Decrement { target, .. }
+        | MutationIntent::Multiply { target, .. }
+        | MutationIntent::Divide { target, .. }
+        | MutationIntent::Modulo { target, .. }
+        | MutationIntent::Push { target, .. }
+        | MutationIntent::Pop { target } => target,
+    };
+    acc.insert(target.name.clone());
+}
+
+/// Check an expression for mutation targets (e.g., assignment expressions).
+fn collect_mutation_targets_from_expr(expr: &ExprIR, acc: &mut FxHashSet<String>) {
+    match expr {
+        ExprIR::BinaryOpExpr { left, op, .. } if *op == BinaryOpIR::Assign => {
+            if let ExprIR::IdentifierExpr { name, .. } = left.as_ref() {
+                acc.insert(name.clone());
+            }
+        }
+        ExprIR::BlockExpr { statements, tail } => {
+            for stmt in statements {
+                collect_mutation_targets_from_stmt(stmt, acc);
+            }
+            collect_mutation_targets_from_expr(tail, acc);
+        }
+        _ => {}
+    }
+}
+
+/// Walk view tree to collect mutation targets from inline event handlers.
+fn collect_view_mutation_targets(node: &ViewTree, acc: &mut FxHashSet<String>) {
+    match node {
+        ViewTree::Element(el) => {
+            for handler in el.events.values() {
+                match handler {
+                    EventHandlerIR::InlineFn { body, .. } => {
+                        for stmt in &body.statements {
+                            collect_mutation_targets_from_stmt(stmt, acc);
+                        }
+                    }
+                    EventHandlerIR::FnRef { .. } | EventHandlerIR::StoreAction { .. } => {}
+                }
+            }
+            for child in &el.children {
+                collect_view_mutation_targets(child, acc);
+            }
+        }
+        ViewTree::Conditional(cond) => {
+            for branch in &cond.branches {
+                if let Some(ref body) = branch.body {
+                    collect_view_mutation_targets(body, acc);
+                }
+            }
+            if let Some(ref fb) = cond.fallback {
+                collect_view_mutation_targets(fb, acc);
+            }
+        }
+        ViewTree::ListRendering(list) => {
+            if let Some(ref body) = list.body {
+                collect_view_mutation_targets(body, acc);
+            }
+            if let Some(ref empty_body) = list.empty_body {
+                collect_view_mutation_targets(empty_body, acc);
+            }
+        }
+        ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => {}
+    }
+}
+
+/// Collect names of local component functions that are called from the view
+/// or from effects/lifecycles (transitively).
+fn collect_called_local_fns(comp: &ComponentIR) -> FxHashSet<String> {
+    let mut acc = FxHashSet::default();
+
+    // From view event handlers and props
+    if let Some(ref view) = comp.view {
+        collect_called_fns_from_view(view, &mut acc);
+    }
+    // From effects
+    for effect in &comp.effects {
+        for stmt in &effect.body.statements {
+            collect_called_fns_from_stmt(stmt, &mut acc);
+        }
+    }
+    // From lifecycles
+    for lc in &comp.lifecycles {
+        for stmt in &lc.body.statements {
+            collect_called_fns_from_stmt(stmt, &mut acc);
+        }
+    }
+    // From computeds
+    for computed in &comp.computeds {
+        collect_called_fns_from_expr(&computed.body, &mut acc);
+    }
+
+    // Transitive closure: scan bodies of called fns for calls to other local fns
+    let mut prev_len = 0;
+    while acc.len() > prev_len {
+        prev_len = acc.len();
+        for fun in &comp.fns {
+            if acc.contains(&fun.name) {
+                for stmt in &fun.body.statements {
+                    collect_called_fns_from_stmt(stmt, &mut acc);
+                }
+            }
+        }
+        // Also scan fn bodies from view inline handlers for transitive calls
+        if let Some(ref view) = comp.view {
+            collect_called_fns_from_view_transitively(view, &mut acc);
+        }
+    }
+
+    acc
+}
+
+fn collect_called_fns_from_view_transitively(
+    node: &ViewTree,
+    acc: &mut FxHashSet<String>,
+) {
+    match node {
+        ViewTree::Element(el) => {
+            for handler in el.events.values() {
+                if let EventHandlerIR::InlineFn { body, .. } = handler {
+                    for stmt in &body.statements {
+                        collect_called_fns_from_stmt(stmt, acc);
+                    }
+                }
+            }
+            for child in &el.children {
+                collect_called_fns_from_view_transitively(child, acc);
+            }
+        }
+        ViewTree::Conditional(cond) => {
+            for branch in &cond.branches {
+                if let Some(ref body) = branch.body {
+                    collect_called_fns_from_view_transitively(body, acc);
+                }
+            }
+            if let Some(ref fb) = cond.fallback {
+                collect_called_fns_from_view_transitively(fb, acc);
+            }
+        }
+        ViewTree::ListRendering(list) => {
+            if let Some(ref body) = list.body {
+                collect_called_fns_from_view_transitively(body, acc);
+            }
+            if let Some(ref empty_body) = list.empty_body {
+                collect_called_fns_from_view_transitively(empty_body, acc);
+            }
+        }
+        ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => {}
+    }
+}
+
+fn collect_called_fns_from_view(node: &ViewTree, acc: &mut FxHashSet<String>) {
+    match node {
+        ViewTree::Element(el) => {
+            for handler in el.events.values() {
+                match handler {
+                    EventHandlerIR::FnRef { r#ref, .. } => {
+                        acc.insert(r#ref.clone());
+                    }
+                    EventHandlerIR::InlineFn { body, .. } => {
+                        for stmt in &body.statements {
+                            collect_called_fns_from_stmt(stmt, acc);
+                        }
+                    }
+                    EventHandlerIR::StoreAction { .. } => {}
+                }
+            }
+            for child in &el.children {
+                collect_called_fns_from_view(child, acc);
+            }
+        }
+        ViewTree::Conditional(cond) => {
+            for branch in &cond.branches {
+                if let Some(ref body) = branch.body {
+                    collect_called_fns_from_view(body, acc);
+                }
+            }
+            if let Some(ref fb) = cond.fallback {
+                collect_called_fns_from_view(fb, acc);
+            }
+        }
+        ViewTree::ListRendering(list) => {
+            if let Some(ref body) = list.body {
+                collect_called_fns_from_view(body, acc);
+            }
+            if let Some(ref empty_body) = list.empty_body {
+                collect_called_fns_from_view(empty_body, acc);
+            }
+        }
+        ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => {}
+    }
+}
+
+fn collect_called_fns_from_stmt(stmt: &StatementIR, acc: &mut FxHashSet<String>) {
+    match stmt {
+        StatementIR::ExprStmtIR { expr } => {
+            collect_called_fns_from_expr(expr, acc);
+        }
+        StatementIR::LetStmtIR { value, .. } => {
+            if let Some(ref v) = value {
+                collect_called_fns_from_expr(v, acc);
+            }
+        }
+        StatementIR::ReturnStmtIR { value } => {
+            if let Some(ref v) = value {
+                collect_called_fns_from_expr(v, acc);
+            }
+        }
+        StatementIR::IfStmtIR { condition, then_body, else_ifs, else_body } => {
+            collect_called_fns_from_expr(condition, acc);
+            for s in &then_body.statements { collect_called_fns_from_stmt(s, acc); }
+            for (cond, body) in else_ifs {
+                collect_called_fns_from_expr(cond, acc);
+                for s in &body.statements { collect_called_fns_from_stmt(s, acc); }
+            }
+            if let Some(ref eb) = else_body {
+                for s in &eb.statements { collect_called_fns_from_stmt(s, acc); }
+            }
+        }
+        StatementIR::WhileStmtIR { condition, body } => {
+            collect_called_fns_from_expr(condition, acc);
+            for s in &body.statements { collect_called_fns_from_stmt(s, acc); }
+        }
+        StatementIR::ForInStmtIR { iterable, body, .. } => {
+            collect_called_fns_from_expr(iterable, acc);
+            for s in &body.statements { collect_called_fns_from_stmt(s, acc); }
+        }
+        StatementIR::BlockStmtIR { body } => {
+            for s in &body.statements { collect_called_fns_from_stmt(s, acc); }
+        }
+        StatementIR::MutationStmt { intent } => {
+            if let Some(intent) = intent {
+                match intent {
+                    MutationIntent::DirectAssign { value, .. } => {
+                        if let Some(ref v) = value { collect_called_fns_from_expr(v, acc); }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        StatementIR::ThrowStmtIR { expr } => { collect_called_fns_from_expr(expr, acc); }
+        StatementIR::TryCatchStmtIR { try_body, catch_body, finally_body, .. } => {
+            for s in &try_body.statements { collect_called_fns_from_stmt(s, acc); }
+            if let Some(ref cb) = catch_body {
+                for s in &cb.statements { collect_called_fns_from_stmt(s, acc); }
+            }
+            if let Some(ref fb) = finally_body {
+                for s in &fb.statements { collect_called_fns_from_stmt(s, acc); }
+            }
+        }
+        StatementIR::EventEmitStmtIR { .. } | StatementIR::BreakStmtIR | StatementIR::ContinueStmtIR => {}
+    }
+}
+
+fn collect_called_fns_from_expr(expr: &ExprIR, acc: &mut FxHashSet<String>) {
+    match expr {
+        ExprIR::CallExpr { name, args, .. } => {
+            acc.insert(name.clone());
+            for arg in args { collect_called_fns_from_expr(arg, acc); }
+        }
+        ExprIR::MethodCallExpr { object, args, .. } => {
+            collect_called_fns_from_expr(object, acc);
+            for arg in args { collect_called_fns_from_expr(arg, acc); }
+        }
+        ExprIR::BinaryOpExpr { left, right, .. } => {
+            collect_called_fns_from_expr(left, acc);
+            collect_called_fns_from_expr(right, acc);
+        }
+        ExprIR::UnaryOpExpr { operand, .. } => { collect_called_fns_from_expr(operand, acc); }
+        ExprIR::TernaryIR { cond, then_expr, else_expr } => {
+            collect_called_fns_from_expr(cond, acc);
+            collect_called_fns_from_expr(then_expr, acc);
+            collect_called_fns_from_expr(else_expr, acc);
+        }
+        ExprIR::ArrayExpr { elements } => {
+            for elem in elements { collect_called_fns_from_expr(elem, acc); }
+        }
+        ExprIR::MapExpr { entries } => {
+            for (k, v) in entries {
+                collect_called_fns_from_expr(k, acc);
+                collect_called_fns_from_expr(v, acc);
+            }
+        }
+        ExprIR::ClosureExpr { body, .. } => { collect_called_fns_from_expr(body, acc); }
+        ExprIR::BlockExpr { statements, tail } => {
+            for stmt in statements { collect_called_fns_from_stmt(stmt, acc); }
+            collect_called_fns_from_expr(tail, acc);
+        }
+        ExprIR::IndexExpr { object, index } => {
+            collect_called_fns_from_expr(object, acc);
+            collect_called_fns_from_expr(index, acc);
+        }
+        ExprIR::FieldAccessExpr { object, .. } | ExprIR::OptionalChainExpr { object, .. } => {
+            collect_called_fns_from_expr(object, acc);
+        }
+        ExprIR::MatchExpr { matched, arms } => {
+            collect_called_fns_from_expr(matched, acc);
+            for arm in arms {
+                for stmt in &arm.body.statements { collect_called_fns_from_stmt(stmt, acc); }
+            }
+        }
+        ExprIR::VariantLiteral { fields, .. } | ExprIR::StructExpr { fields, .. } => {
+            for (_, v) in fields { collect_called_fns_from_expr(v, acc); }
+        }
+        ExprIR::SpreadExpr { operand } => { collect_called_fns_from_expr(operand, acc); }
+        ExprIR::StoreFieldAccessExpr { call_args, .. } => {
+            for arg in call_args { collect_called_fns_from_expr(arg, acc); }
+        }
+        ExprIR::AwaitExpr { operand } => { collect_called_fns_from_expr(operand, acc); }
+        ExprIR::IdentifierExpr { .. } | ExprIR::LiteralExpr { .. } => {}
+    }
+}
+
+/// Collect signal names that are read (directly or via stores) in the component.
+/// Scans view, effects, lifecycles, computeds, and function bodies.
+/// Also collects store ref names from StoreAction and inline handlers.
+fn collect_used_store_signals(comp: &ComponentIR) -> FxHashSet<String> {
+    let mut acc = FxHashSet::default();
+
+    // From view (including event handlers that reference store refs)
+    if let Some(ref view) = comp.view {
+        collect_view_read_signals_inner(view, &mut acc);
+        collect_view_store_refs_from_handlers(view, &mut acc);
+    }
+    // From effects
+    for effect in &comp.effects {
+        for stmt in &effect.body.statements {
+            collect_expr_ids_from_stmt(stmt, &mut acc);
+        }
+    }
+    // From lifecycles
+    for lc in &comp.lifecycles {
+        for stmt in &lc.body.statements {
+            collect_expr_ids_from_stmt(stmt, &mut acc);
+        }
+    }
+    // From computeds
+    for computed in &comp.computeds {
+        collect_expr_identifiers(&computed.body, &mut acc);
+    }
+    // From component fns (also scan the function bodies themselves)
+    for fun in &comp.fns {
+        for stmt in &fun.body.statements {
+            collect_expr_ids_from_stmt(stmt, &mut acc);
+        }
+    }
+
+    acc
+}
+
+fn collect_expr_ids_from_stmt(stmt: &StatementIR, acc: &mut FxHashSet<String>) {
+    match stmt {
+        StatementIR::ExprStmtIR { expr } => { collect_expr_identifiers(expr, acc); }
+        StatementIR::LetStmtIR { value, .. } => {
+            if let Some(ref v) = value { collect_expr_identifiers(v, acc); }
+        }
+        StatementIR::ReturnStmtIR { value } => {
+            if let Some(ref v) = value { collect_expr_identifiers(v, acc); }
+        }
+        StatementIR::IfStmtIR { condition, then_body, else_ifs, else_body } => {
+            collect_expr_identifiers(condition, acc);
+            for s in &then_body.statements { collect_expr_ids_from_stmt(s, acc); }
+            for (cond, body) in else_ifs {
+                collect_expr_identifiers(cond, acc);
+                for s in &body.statements { collect_expr_ids_from_stmt(s, acc); }
+            }
+            if let Some(ref eb) = else_body {
+                for s in &eb.statements { collect_expr_ids_from_stmt(s, acc); }
+            }
+        }
+        StatementIR::WhileStmtIR { condition, body } => {
+            collect_expr_identifiers(condition, acc);
+            for s in &body.statements { collect_expr_ids_from_stmt(s, acc); }
+        }
+        StatementIR::ForInStmtIR { iterable, body, .. } => {
+            collect_expr_identifiers(iterable, acc);
+            for s in &body.statements { collect_expr_ids_from_stmt(s, acc); }
+        }
+        StatementIR::BlockStmtIR { body } => {
+            for s in &body.statements { collect_expr_ids_from_stmt(s, acc); }
+        }
+        StatementIR::MutationStmt { intent } => {
+            if let Some(intent) = intent {
+                match intent {
+                    MutationIntent::DirectAssign { target, value, .. } => {
+                        acc.insert(target.name.clone());
+                        if let Some(ref v) = value { collect_expr_identifiers(v, acc); }
+                    }
+                    MutationIntent::Increment { target, amount, .. }
+                    | MutationIntent::Decrement { target, amount, .. }
+                    | MutationIntent::Multiply { target, amount, .. }
+                    | MutationIntent::Divide { target, amount, .. }
+                    | MutationIntent::Modulo { target, amount, .. } => {
+                        acc.insert(target.name.clone());
+                        if let Some(ref v) = amount { collect_expr_identifiers(v, acc); }
+                    }
+                    MutationIntent::Push { target, item, .. } => {
+                        acc.insert(target.name.clone());
+                        if let Some(ref v) = item { collect_expr_identifiers(v, acc); }
+                    }
+                    MutationIntent::Pop { target } => {
+                        acc.insert(target.name.clone());
+                    }
+                }
+            }
+        }
+        StatementIR::ThrowStmtIR { expr } => { collect_expr_identifiers(expr, acc); }
+        StatementIR::TryCatchStmtIR { try_body, catch_body, finally_body, .. } => {
+            for s in &try_body.statements { collect_expr_ids_from_stmt(s, acc); }
+            if let Some(ref cb) = catch_body {
+                for s in &cb.statements { collect_expr_ids_from_stmt(s, acc); }
+            }
+            if let Some(ref fb) = finally_body {
+                for s in &fb.statements { collect_expr_ids_from_stmt(s, acc); }
+            }
+        }
+        StatementIR::EventEmitStmtIR { .. } | StatementIR::BreakStmtIR | StatementIR::ContinueStmtIR => {}
+    }
+}
+
+/// Collect signal names that are read (not just mutated) from the view tree.
+fn collect_view_read_signals(node: &ViewTree) -> FxHashSet<String> {
+    let mut acc = FxHashSet::default();
+    collect_view_read_signals_inner(node, &mut acc);
+    acc
+}
+
+/// Collect CSS class names actually referenced in the view via class: bindings.
+fn collect_used_style_classes(node: &ViewTree) -> FxHashSet<String> {
+    let mut acc = FxHashSet::default();
+    collect_used_style_classes_inner(node, &mut acc);
+    acc
+}
+
+fn collect_used_style_classes_inner(node: &ViewTree, acc: &mut FxHashSet<String>) {
+    match node {
+        ViewTree::Element(el) => {
+            // Collect from style_classes (space-separated string)
+            if let Some(ref classes_val) = el.style_classes {
+                if let Some(classes_str) = classes_val.as_str() {
+                    for class_name in classes_str.split_whitespace() {
+                        acc.insert(class_name.to_string());
+                    }
+                }
+            }
+            // Collect from class_map_bindings keys
+            for class_name in el.class_map_bindings.keys() {
+                acc.insert(class_name.clone());
+            }
+            for child in &el.children {
+                collect_used_style_classes_inner(child, acc);
+            }
+        }
+        ViewTree::Conditional(cond) => {
+            for branch in &cond.branches {
+                if let Some(ref body) = branch.body {
+                    collect_used_style_classes_inner(body, acc);
+                }
+            }
+            if let Some(ref fb) = cond.fallback {
+                collect_used_style_classes_inner(fb, acc);
+            }
+        }
+        ViewTree::ListRendering(list) => {
+            if let Some(ref body) = list.body {
+                collect_used_style_classes_inner(body, acc);
+            }
+            if let Some(ref empty_body) = list.empty_body {
+                collect_used_style_classes_inner(empty_body, acc);
+            }
+        }
+        ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => {}
+    }
+}
+
+fn collect_view_read_signals_inner(node: &ViewTree, acc: &mut FxHashSet<String>) {
+    match node {
+        ViewTree::Element(el) => {
+            for val in el.props.values() {
+                collect_expr_identifiers(val, acc);
+            }
+            for sig_ref in el.bindings.values() {
+                acc.insert(sig_ref.name.clone());
+            }
+            for child in &el.children {
+                collect_view_read_signals_inner(child, acc);
+            }
+        }
+        ViewTree::Conditional(cond) => {
+            for branch in &cond.branches {
+                collect_expr_identifiers(&branch.condition, acc);
+                if let Some(ref body) = branch.body {
+                    collect_view_read_signals_inner(body, acc);
+                }
+            }
+            if let Some(ref fb) = cond.fallback {
+                collect_view_read_signals_inner(fb, acc);
+            }
+        }
+        ViewTree::ListRendering(list) => {
+            collect_expr_identifiers(&list.iterable, acc);
+            if let Some(ref body) = list.body {
+                collect_view_read_signals_inner(body, acc);
+            }
+            if let Some(ref empty_body) = list.empty_body {
+                collect_view_read_signals_inner(empty_body, acc);
+            }
+        }
+        ViewTree::Interpolation(expr) => {
+            collect_expr_identifiers(expr, acc);
+        }
+        ViewTree::Text(_) | ViewTree::Slot(_) => {}
+    }
+}
+
+/// Collect store ref names from event handlers in the view tree.
+/// Handles both StoreAction handlers (e.g. `NotificationStore.clear`) and
+/// inline handlers that reference store objects directly.
+fn collect_view_store_refs_from_handlers(node: &ViewTree, acc: &mut FxHashSet<String>) {
+    match node {
+        ViewTree::Element(el) => {
+            for handler in el.events.values() {
+                match handler {
+                    EventHandlerIR::StoreAction { r#ref, .. } => {
+                        // Store name is before the last dot: "NotificationStore.clear" → "NotificationStore"
+                        if let Some(dot_pos) = r#ref.rfind('.') {
+                            acc.insert(r#ref[..dot_pos].to_string());
+                        }
+                    }
+                    EventHandlerIR::FnRef { r#ref, .. } => {
+                        acc.insert(r#ref.clone());
+                    }
+                    EventHandlerIR::InlineFn { body, .. } => {
+                        for stmt in &body.statements {
+                            collect_expr_ids_from_stmt(stmt, acc);
+                        }
+                    }
+                }
+            }
+            for child in &el.children {
+                collect_view_store_refs_from_handlers(child, acc);
+            }
+        }
+        ViewTree::Conditional(cond) => {
+            for branch in &cond.branches {
+                if let Some(ref body) = branch.body {
+                    collect_view_store_refs_from_handlers(body, acc);
+                }
+            }
+            if let Some(ref fb) = cond.fallback {
+                collect_view_store_refs_from_handlers(fb, acc);
+            }
+        }
+        ViewTree::ListRendering(list) => {
+            if let Some(ref body) = list.body {
+                collect_view_store_refs_from_handlers(body, acc);
+            }
+            if let Some(ref empty_body) = list.empty_body {
+                collect_view_store_refs_from_handlers(empty_body, acc);
+            }
+        }
+        ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => {}
     }
 }
