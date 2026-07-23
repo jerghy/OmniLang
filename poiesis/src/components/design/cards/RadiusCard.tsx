@@ -72,6 +72,20 @@ const TOGGLE_BTN_BASE: React.CSSProperties = {
   transition: "border-color 150ms ease, background-color 150ms ease, opacity 150ms ease, 150ms ease",
 };
 
+const LINKED_BTN_STYLE: React.CSSProperties = {
+  ...TOGGLE_BTN_BASE,
+  border: "1px solid var(--dp-accent, #6366f1)",
+  background: "var(--dp-accent-subtle, #eef0ff)",
+  color: "var(--dp-accent, #6366f1)",
+};
+
+const UNLINKED_BTN_STYLE: React.CSSProperties = {
+  ...TOGGLE_BTN_BASE,
+  border: "1px solid var(--dp-border, #e8e5f2)",
+  background: "transparent",
+  color: "var(--dp-text-muted, #a09db8)",
+};
+
 function setProp(
   props: StyleProperty[],
   name: string,
@@ -199,20 +213,6 @@ export const RadiusCard = React.memo(function RadiusCard({ properties, onChange,
     [properties, onChange],
   );
 
-  const linkedBtnStyle: React.CSSProperties = {
-    ...TOGGLE_BTN_BASE,
-    border: "1px solid var(--dp-accent, #6366f1)",
-    background: "var(--dp-accent-subtle, #eef0ff)",
-    color: "var(--dp-accent, #6366f1)",
-  };
-
-  const unlinkedBtnStyle: React.CSSProperties = {
-    ...TOGGLE_BTN_BASE,
-    border: "1px solid var(--dp-border, #e8e5f2)",
-    background: "transparent",
-    color: "var(--dp-text-muted, #a09db8)",
-  };
-
   return (
     <CollapsibleGroup title="圆角" summary={summary} defaultOpen={true} onDoubleClick={() => onFocus?.()}>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -269,7 +269,7 @@ export const RadiusCard = React.memo(function RadiusCard({ properties, onChange,
             <button type="button"
               onClick={toggleMode}
               title="Switch to individual corners"
-              style={linkedBtnStyle}
+              style={LINKED_BTN_STYLE}
             >
               {"🔗"}
             </button>
@@ -296,7 +296,7 @@ export const RadiusCard = React.memo(function RadiusCard({ properties, onChange,
               <button type="button"
                 onClick={toggleMode}
                 title="Switch to unified radius"
-                style={unlinkedBtnStyle}
+                style={UNLINKED_BTN_STYLE}
               >
                 {"🔓"}
               </button>

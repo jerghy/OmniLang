@@ -16,7 +16,7 @@ export const ArtboardHeader = React.memo(function ArtboardHeader() {
         background: "#f1f5f9",
         borderBottom: "1px solid #e2e8f0",
         fontSize: 12,
-        color: "#64748b",
+        color: "#475569",
         flexShrink: 0,
       }}
     >

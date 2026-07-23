@@ -292,7 +292,7 @@ function EmptyStoreGuide({ onCreate }: { onCreate: () => void }) {
           marginTop: 8,
           padding: "6px 16px", fontSize: 12, fontWeight: 600,
           border: "none", borderRadius: 6,
-          background: "#6366f1", color: "#fff",
+          background: "#4f46e5", color: "#fff",
           cursor: "pointer", fontFamily: "inherit",
         }}
       >+ 新建 Store</button>
@@ -370,7 +370,7 @@ function CreateStoreModal({
           <button type="button" onClick={() => { if (name.trim()) onCreate(name, storeType); }} style={{
             padding: "5px 14px", fontSize: 12, fontWeight: 600,
             border: "none", borderRadius: 6,
-            background: "#6366f1", color: "#fff",
+            background: "#4f46e5", color: "#fff",
             cursor: "pointer", fontFamily: "inherit",
           }}>创建</button>
         </div>

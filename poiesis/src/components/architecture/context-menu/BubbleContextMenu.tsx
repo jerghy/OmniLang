@@ -21,6 +21,8 @@ export function BubbleContextMenu({
   onClose,
 }: BubbleContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; });
   const focusComponent = usePoiesisStore((s) => s.focusComponent);
   const openTab = usePoiesisStore((s) => s.openTab);
   const expandBubble = usePoiesisStore((s) => s.expandBubble);
@@ -31,11 +33,11 @@ export function BubbleContextMenu({
     if (!position) return;
     const handleClickOutside = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        onClose();
+        onCloseRef.current();
       }
     };
     const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") onCloseRef.current();
     };
     // Delay adding listener to avoid the same click that opened the menu
     const timer = setTimeout(() => {
@@ -47,7 +49,7 @@ export function BubbleContextMenu({
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleEsc);
     };
-  }, [position, onClose]);
+  }, [position]);
 
   const handleFocus = useCallback(() => {
     if (bubbleId) focusComponent(bubbleId);

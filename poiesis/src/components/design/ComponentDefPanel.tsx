@@ -87,11 +87,11 @@ export function ComponentDefPanel() {
   };
 
   // Inline editing — double-click name to start editing
-  const handleDoubleClick = (pid: string) => {
+  const handleDoubleClick = useCallback((pid: string) => {
     setEditingPid(pid);
-  };
+  }, []);
 
-  const handleEditSave = (kind: "prop" | "signal" | "computed", pid: string, field: string, value: string) => {
+  const handleEditSave = useCallback((kind: "prop" | "signal" | "computed", pid: string, field: string, value: string) => {
     if (kind === "computed") {
       const updates: Partial<ComputedEntry> = {};
       if (field === "name") updates.name = value;
@@ -110,14 +110,44 @@ export function ComponentDefPanel() {
       }
     }
     setEditingPid(null);
-  };
+  }, [componentName, updateComponentComputed, updateComponentProp, updateComponentSignal]);
 
   // Delete entry
-  const handleDelete = (kind: "prop" | "signal" | "computed", pid: string) => {
+  const handleDelete = useCallback((kind: "prop" | "signal" | "computed", pid: string) => {
     if (kind === "prop") removeComponentProp(componentName, pid);
     else if (kind === "signal") removeComponentSignal(componentName, pid);
     else removeComponentComputed(componentName, pid);
-  };
+  }, [componentName, removeComponentProp, removeComponentSignal, removeComponentComputed]);
+
+  // Stabilized renderRow callbacks for memoized DefSection children
+  const renderPropsRow = useCallback((p: DefEntry) => (
+    <DefEntryRow key={p.pid} entry={p} kind="prop"
+      isEditing={editingPid === p.pid} onDoubleClick={() => handleDoubleClick(p.pid)}
+      onEditSave={(f, v) => handleEditSave("prop", p.pid, f, v)}
+      onDelete={() => handleDelete("prop", p.pid)} />
+  ), [editingPid, handleDoubleClick, handleEditSave, handleDelete]);
+
+  const renderSignalsRow = useCallback((s: DefEntry) => {
+    const debugVal = debugSignalValues[componentName]?.[s.name];
+    return (
+      <DefEntryRow key={s.pid} entry={s} kind="signal"
+        isEditing={editingPid === s.pid}
+        onDoubleClick={() => handleDoubleClick(s.pid)}
+        onEditSave={(f, v) => handleEditSave("signal", s.pid, f, v)}
+        onDelete={() => handleDelete("signal", s.pid)}
+        debugMode={debugMode}
+        debugValue={debugVal as string | undefined}
+        onDebugValueChange={(v) => setDebugSignalValue(componentName, s.name, v || undefined)}
+      />
+    );
+  }, [editingPid, handleDoubleClick, handleEditSave, handleDelete, debugMode, debugSignalValues, componentName, setDebugSignalValue]);
+
+  const renderComputedsRow = useCallback((c: ComputedEntry) => (
+    <ComputedEntryRow key={c.pid} entry={c}
+      isEditing={editingPid === c.pid} onDoubleClick={() => handleDoubleClick(c.pid)}
+      onEditSave={(f, v) => handleEditSave("computed", c.pid, f, v)}
+      onDelete={() => handleDelete("computed", c.pid)} />
+  ), [editingPid, handleDoubleClick, handleEditSave, handleDelete]);
 
   return (
     <div
@@ -165,12 +195,7 @@ export function ComponentDefPanel() {
             onAdd={handleAdd} onCancelAdd={() => setIsAdding(null)}
             editingPid={editingPid} onDoubleClick={handleDoubleClick}
             onEditSave={handleEditSave} onDelete={handleDelete}
-            renderRow={(p) => (
-              <DefEntryRow key={p.pid} entry={p as DefEntry} kind="prop"
-                isEditing={editingPid === p.pid} onDoubleClick={() => handleDoubleClick(p.pid)}
-                onEditSave={(f, v) => handleEditSave("prop", p.pid, f, v)}
-                onDelete={() => handleDelete("prop", p.pid)} />
-            )}
+            renderRow={renderPropsRow}
             emptyText="No props defined"
           />
 
@@ -181,21 +206,7 @@ export function ComponentDefPanel() {
             onAdd={handleAdd} onCancelAdd={() => setIsAdding(null)}
             editingPid={editingPid} onDoubleClick={handleDoubleClick}
             onEditSave={handleEditSave} onDelete={handleDelete}
-            renderRow={(s) => {
-              const entry = s as DefEntry;
-              const debugVal = debugSignalValues[componentName]?.[entry.name];
-              return (
-                <DefEntryRow key={entry.pid} entry={entry} kind="signal"
-                  isEditing={editingPid === entry.pid}
-                  onDoubleClick={() => handleDoubleClick(entry.pid)}
-                  onEditSave={(f, v) => handleEditSave("signal", entry.pid, f, v)}
-                  onDelete={() => handleDelete("signal", entry.pid)}
-                  debugMode={debugMode}
-                  debugValue={debugVal as string | undefined}
-                  onDebugValueChange={(v) => setDebugSignalValue(componentName, entry.name, v || undefined)}
-                />
-              );
-            }}
+            renderRow={renderSignalsRow}
             emptyText="No signals defined"
           />
 
@@ -206,12 +217,7 @@ export function ComponentDefPanel() {
             onAdd={handleAdd} onCancelAdd={() => setIsAdding(null)}
             editingPid={editingPid} onDoubleClick={handleDoubleClick}
             onEditSave={handleEditSave} onDelete={handleDelete}
-            renderRow={(c) => (
-              <ComputedEntryRow key={c.pid} entry={c as ComputedEntry}
-                isEditing={editingPid === c.pid} onDoubleClick={() => handleDoubleClick(c.pid)}
-                onEditSave={(f, v) => handleEditSave("computed", c.pid, f, v)}
-                onDelete={() => handleDelete("computed", c.pid)} />
-            )}
+            renderRow={renderComputedsRow}
             emptyText="No computeds defined"
           />
         </div>

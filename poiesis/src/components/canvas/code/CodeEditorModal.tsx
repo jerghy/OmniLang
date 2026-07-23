@@ -337,7 +337,7 @@ export function CodeEditorModal({
               fontWeight: 600,
               border: "none",
               borderRadius: 6,
-              background: "#6366F1",
+              background: "#4f46e5",
               color: "#fff",
               cursor: "pointer",
               fontFamily: "inherit",

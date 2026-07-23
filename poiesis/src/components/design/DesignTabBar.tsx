@@ -683,7 +683,7 @@ export function DesignTabBar() {
                   fontSize: 12,
                   border: "none",
                   borderRadius: 6,
-                  background: "#ef4444",
+                  background: "#dc2626",
                   color: "#fff",
                   cursor: "pointer",
                   fontWeight: 600,

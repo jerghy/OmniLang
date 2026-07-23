@@ -127,17 +127,19 @@ function FileNodeRenderer({
 export function FileTreePanel({ tabs, onOpenFile, onNewFile, onClose, panelRef }: FileTreePanelProps) {
   const [fileTree, setFileTree] = useState<FileTreeNode[]>([]);
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; });
 
   // Close panel on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
-        onClose();
+        onCloseRef.current();
       }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, [onClose, panelRef]);
+  }, [panelRef]);
 
   // Build file tree when panel opens — recursively scan for .omni files
   useEffect(() => {

@@ -126,7 +126,8 @@ export function SignalSlashPicker({
     };
   }, [onClose]);
 
-  // Reset active index when filter changes
+  // Reset active index when filter changes — only resets one state value (not "all state")
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     setActiveIndex(0);
   }, [filter]);
