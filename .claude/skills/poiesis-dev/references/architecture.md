@@ -77,7 +77,13 @@ DesignPage
 │       │   ├─ 4 节点: fn / code-block / condition / return（纯控制流连线）
 │       │   ├─ GraphCompiler: 保存时 图 → fn body .omni 源码（含 // @pid:xxx）
 │       │   ├─ GraphParser: 加载时 .omni 源码 → 图（14 tests, graph-parser.test.ts）
-│       │   └─ DesignPreviewNode: 设计缩略图，读 store.previewOutput
+│       │   ├─ CodeCardEditor: ★ 双击 code-block 节点打开逐行编辑器
+│       │   │   ├─ 逐行模型 EditorRow[]：InputRow（<input>）+ CardRow（卡片组件）
+│       │   │   ├─ 补全：前缀过滤，菜单定位在当前行下方
+│       │   │   ├─ 左侧颜色条：紫(let)/橙(set)/青(if-while-for)/红(return)
+│       │   │   ├─ ↑↓ 跳行、Tab 跳槽位、Backspace 空卡 → 退化为文本
+│       │   │   └─ "文本模式"按钮 → CodeEditorModal (Monaco) 双模式 fallback
+│       │   ├─ DesignPreviewNode: 设计缩略图，读 store.previewOutput
 │       │       └─ 宽高比从 useCanvasStore.devicePreset 动态计算，同步 DeviceSelector 选择的设备尺寸
 └─ 右侧面板 (ContextInspector)
     ├─ 属性: ID / label / 自定义 props

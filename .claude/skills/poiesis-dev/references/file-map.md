@@ -100,6 +100,39 @@
 | `code/FlowInspector.tsx` | ★ CodeFlow 右侧面板：选中 FN 节点编辑 name+params，选中 Return 编辑表达式 |
 | `code/CanvasContextMenu.tsx` | 画布右键菜单 |
 | `code/CodeEditorModal.tsx` | ★ 代码块代码编辑器（Monaco Editor 80vw×80vh 模态面板）。集成 `services/monaco/` 提供 OmniLang 语法高亮 + 代码片段 + 类型注入 + WASM 诊断。Props：`language`/`storeDefs`/`omniSourcePath`/`omniSource`（diagnostics 用） |
+| `code/CodeCardEditor.tsx` | 旧入口（已删除，迁移到 card-editor/） |
+| `code/card-editor/` | ★★ CodeCard 逐行编辑器 |
+| `code/card-editor/CodeCardEditor.tsx` | ★ 编辑器入口：EditorRow 状态管理 + 补全触发 + Monaco 双模式 + onSave |
+| `code/card-editor/RowList.tsx` | 行列表渲染：↑↓ 行间导航、Enter 补全选中、Backspace 卡片退化 |
+| `code/card-editor/InputRow.tsx` | `<input>` 文本输入行：前缀过滤补全触发 |
+| `code/card-editor/CardRow.tsx` | 卡片分发器：按 op.kind 渲染对应卡片组件 |
+| `code/card-editor/row-utils.ts` | EditorRow[] ↔ CodeOp[] 双向转换（opsToRows / rowsToOps） |
+| `code/card-editor/AutocompleteMenu.tsx` | 浮动补全菜单：绝对定位到当前行下方，前缀过滤 |
+| `code/card-editor/autocomplete-rules.ts` | 补全规则：11 种语句类型 + 前缀过滤 |
+| `code/card-editor/cards/` (12 files) | ★ 每种 CodeOp 一个卡片组件：`<div>` 内嵌 `<input>` 槽位，Tab 跳槽位 |
+| `code/card-editor/cards/DeclareVarCard.tsx` | let [mut] name [: Type] [= value] |
+| `code/card-editor/cards/SetVarCard.tsx` | set name [operator] value |
+| `code/card-editor/cards/IfBlockCard.tsx` | if condition { ... } 块头 |
+| `code/card-editor/cards/WhileLoopCard.tsx` | while condition { ... } 块头 |
+| `code/card-editor/cards/ForLoopCard.tsx` | for item in collection { ... } 块头 |
+| `code/card-editor/cards/ReturnExprCard.tsx` | return [expr] |
+| `code/card-editor/cards/CallFnCard.tsx` | fnName(args) |
+| `code/card-editor/cards/AwaitExprCard.tsx` | await expr |
+| `code/card-editor/cards/BreakStmtCard.tsx` | break（只读） |
+| `code/card-editor/cards/ContinueStmtCard.tsx` | continue（只读） |
+| `code/card-editor/cards/CommentCard.tsx` | // text |
+| `code/card-editor/cards/RawCodeCard.tsx` | raw自由代码 |
+
+### 快速事实 — CodeCard 编辑器
+
+| 事实 | 说明 |
+|------|------|
+| 模型 | 逐行 EditorRow[]：每行是 `<input>`（打字）或卡片组件（已结构化） |
+| 补全 | 前缀过滤，菜单精准定位在当前行下方 |
+| 左侧栏 | 颜色竖条区分 op 类型：紫(let)/橙(set)/青(if/while/for)/红(return) |
+| 键盘 | ↑↓ 跳行、Tab 跳槽位、Enter 选中补全、Backspace 空卡退化 |
+| 双模式 | "文本模式"按钮 → CodeEditorModal (Monaco) 作为 fallback |
+| 数据流 | CodeOp[] → opsToRows → EditorRow[] → 编辑 → rowsToOps → CodeOp[] → emitOps → source |
 | `shared/nodeRegistry.ts` | 节点类型注册表 |
 | `shared/connectionValidators.ts` | 连线验证 |
 | `shared/layoutUtils.ts` | 自动布局工具 |

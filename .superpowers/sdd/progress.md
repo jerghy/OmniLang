@@ -22,3 +22,9 @@ Lexical layer: 16 files (nodes 4, plugins 4, transforms 4, autocomplete 4)
 Tests: 199 pass, TS errors: 93 (↓1 from baseline)
 Fix round: complete (commit be38852, 4/4 findings resolved)
 Fixes applied: source sync, SlotTextNode.createDOM, ErrorBoundary, block body extraction
+FINAL: Rewrite complete (commit c4342a6)
+- Replaced Lexical with line-by-line row editor
+- card-editor/: 19 files, 0 TS errors, 90/90 codegen tests
+- Old: lexical/, cards/, CodeCardEditor.tsx — all removed
+- New: InputRow + CardRow + AutocompleteMenu pinned to row
+- Left gutter: color-coded bar per op kind

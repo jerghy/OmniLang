@@ -59,8 +59,8 @@ poiesis-dev/
 | 6 | `poiesis/src/components/design/VariantEditor.tsx` | Variant 维度/分支/属性卡片编辑器 |
 | 7 | `poiesis/src/components/design/ClassEditor.tsx` | Class 属性卡片编辑器 |
 | 8 | `poiesis/src/components/panels/ContextInspector.tsx` | 元素右侧属性面板 |
-| 9 | `poiesis/src-tauri/src/lib.rs` | Rust 后端全部 Tauri 命令 |
-| 10 | `poiesis/src/data/componentProtocol.ts` | 内置组件协议（标签/属性/事件/推荐 variant） |
+| 9 | `poiesis/src/components/canvas/code/card-editor/CodeCardEditor.tsx` | ★ 逐行代码卡片编辑器（双击 code-block 节点） |
+| 10 | `poiesis/src-tauri/src/lib.rs` | Rust 后端全部 Tauri 命令 |
 
 ## 开发铁律
 
@@ -71,4 +71,66 @@ poiesis-dev/
 5. **Victauri > 猜**——`eval_js` 读 computed style，`dom_snapshot` 看结构
 
 <!-- APPEND -->
-<!-- 后续补充内容写在此注释之上 -->
+
+## CodeCard 编辑器（card-editor/）
+
+2026-07-23 重写。逐行编辑器模型，不依赖 Lexical。
+
+### 架构
+
+```
+双击 code-block 节点 → CodeCardEditor 弹出
+│
+├─ RowList（行列表容器）
+│   ├─ InputRow     ← <input> 文本输入行，打字触发补全
+│   ├─ CardRow      ← 卡片分发器 → DeclareVarCard / SetVarCard / ...
+│   ├─ CloseBrace   ← 只读 } 闭合行
+│   └─ (空行)       ← 光标落点
+│
+├─ AutocompleteMenu ← 浮动菜单，定位当前行下方，前缀过滤
+│
+└─ Toolbar          ← Save / Cancel / 文本模式 → CodeEditorModal
+```
+
+### 数据模型
+
+```typescript
+type EditorRow =
+  | { kind: "input";  id: string; text: string }   // 文本输入行
+  | { kind: "card";   op: CodeOp; indent: number }  // 卡片行
+  | { kind: "close-brace"; indent: number }          // } 闭合
+  | { kind: "empty";  id: string }                   // 空行
+
+// 加载: opsToRows(CodeOp[]) → EditorRow[]
+// 保存: rowsToOps(EditorRow[]) → CodeOp[] → emitOps() → source
+```
+
+### 左侧颜色条
+
+| op.kind | 颜色 | 含义 |
+|---------|------|------|
+| declare_var | 🟣 紫 #7c3aed | 变量声明 |
+| set_var | 🟠 琥珀 #f59e0b | 赋值 |
+| if_block | 🔵 青 #06b6d4 | 条件块 |
+| while | 🔵 青 #06b6d4 | 循环 |
+| for_in | 🔵 青 #06b6d4 | 遍历 |
+| return | 🔴 红 #ef4444 | 返回 |
+| 其他 | 各色 | call_fn/await/break/continue/comment/raw |
+
+### 键盘
+
+| 按键 | 行为 |
+|------|------|
+| 打字 | InputRow 累积文本 → 前缀过滤补全 |
+| ↑↓ | 行间移动焦点 |
+| Enter | 选中补全第一项 → 替换为卡片 |
+| Tab | 卡片内跳下一个槽位 |
+| Backspace | 空卡片 → 退化为 InputRow |
+
+### 注意事项
+
+- **CodeOp 数据模型不变**：`core/types/code-op.ts` 的 12 种 CodeOp 类型是稳定的
+- **emitOps/parseOps 不变**：`services/codegen/` 的发射器和解析器是稳定的
+- **双模式**：Monaco CodeEditorModal 是文本编辑 fallback
+- **不再依赖 Lexical**：完全移除 lexical + @lexical/react
+<!-- INSERT_AFTER -->
