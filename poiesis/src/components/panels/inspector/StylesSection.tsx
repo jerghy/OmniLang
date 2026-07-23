@@ -121,6 +121,7 @@ export function StylesSection({ element }: StylesSectionProps) {
   // Commit styles immediately when a remove is signaled
   useEffect(() => {
     if (removeSignalRef.current !== null) {
+      // eslint-disable-next-line react-doctor/no-pass-live-state-to-parent
       commitStyles(localStyles);
       removeSignalRef.current = null;
     }
@@ -160,33 +161,41 @@ export function StylesSection({ element }: StylesSectionProps) {
           >
             <label
               style={{
-                fontSize: 12,
-                color: "#64748b",
-                minWidth: 70,
-                flexShrink: 0,
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+                flex: 1,
               }}
             >
-              {name}
-            </label>
-            <input
-              type="text"
-              aria-label={name}
-              value={value}
-              onChange={(e) => handleChange(name, e.target.value)}
-              placeholder="value"
-              style={{
-                flex: 1,
-                minWidth: 0,
-                padding: "3px 6px",
-                fontSize: 12,
-                border: "1px solid #e2e8f0",
-                borderRadius: 4,
-                outline: "2px solid transparent",
-                fontFamily: "monospace",
-                transition: "border-color 150ms ease",
-              }}
-              onFocus={(e) => {
-                e.target.style.borderColor = "#6366F1";
+              <span
+                style={{
+                  fontSize: 12,
+                  color: "#64748b",
+                  minWidth: 70,
+                  flexShrink: 0,
+                }}
+              >
+                {name}
+              </span>
+              <input
+                type="text"
+                aria-label={name}
+                value={value}
+                onChange={(e) => handleChange(name, e.target.value)}
+                placeholder="value"
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  padding: "3px 6px",
+                  fontSize: 12,
+                  border: "1px solid #e2e8f0",
+                  borderRadius: 4,
+                  outline: "2px solid transparent",
+                  fontFamily: "monospace",
+                  transition: "border-color 150ms ease",
+                }}
+                onFocus={(e) => {
+                  e.target.style.borderColor = "#6366F1";
               }}
               onBlur={(e) => {
                 e.target.style.borderColor = "#e2e8f0";

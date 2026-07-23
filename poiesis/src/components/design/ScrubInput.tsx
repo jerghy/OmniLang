@@ -261,7 +261,6 @@ export const ScrubInput = React.memo(function ScrubInput({
 
   return (
     <div
-      role="button"
       style={rootStyle}
       tabIndex={disabled ? -1 : 0}
       onMouseDown={handleMouseDown}

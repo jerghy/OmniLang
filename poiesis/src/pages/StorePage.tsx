@@ -159,6 +159,7 @@ export function StorePage({ storeName, tabId, inlineMode = false }: Props) {
 
   useEffect(() => {
     if (!selectedActionPid && store && store.actions.length > 0) {
+      // eslint-disable-next-line react-doctor/no-pass-live-state-to-parent
       handleSelectAction(store.actions[0].pid);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

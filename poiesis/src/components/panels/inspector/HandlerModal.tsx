@@ -71,6 +71,7 @@ export function HandlerModal({
                 args[p.name] = argParts[i].replace(/^"(.*)"$/, "$1");
               }
             });
+            // eslint-disable-next-line react-doctor/no-adjust-state-on-prop-change
             setFnArgs(args);
           }
         }
@@ -223,7 +224,7 @@ export function HandlerModal({
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {/* Function/Action selector */}
               <div>
-                <label
+                <span
                   style={{
                     display: "block",
                     fontSize: 12,
@@ -233,7 +234,7 @@ export function HandlerModal({
                   }}
                 >
                   函数/Action
-                </label>
+                </span>
                 <div style={{ position: "relative" }}>
                   <button type="button"
                     onClick={() => setPickerOpen(!pickerOpen)}
@@ -272,7 +273,7 @@ export function HandlerModal({
               {/* Parameter inputs (shown when selected function has params) */}
               {selectedFn && selectedFn.params.length > 0 && (
                 <div>
-                  <label
+                  <span
                     style={{
                       display: "block",
                       fontSize: 12,
@@ -282,7 +283,7 @@ export function HandlerModal({
                     }}
                   >
                     参数
-                  </label>
+                  </span>
                   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                     {selectedFn.params.map((p) => (
                       <div
@@ -291,31 +292,40 @@ export function HandlerModal({
                       >
                         <label
                           style={{
-                            fontSize: 12,
-                            color: "#64748b",
-                            minWidth: 40,
-                            fontFamily: "var(--dp-font-mono, monospace)",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            flex: 1,
                           }}
                         >
-                          {p.name}
+                          <span
+                            style={{
+                              fontSize: 12,
+                              color: "#64748b",
+                              minWidth: 40,
+                              fontFamily: "var(--dp-font-mono, monospace)",
+                            }}
+                          >
+                            {p.name}
+                          </span>
+                          <input
+                            type="text"
+                            value={fnArgs[p.name] ?? ""}
+                            onChange={(e) => handleArgChange(p.name, e.target.value)}
+                            placeholder={p.type}
+                            style={{
+                              flex: 1,
+                              padding: "6px 10px",
+                              fontSize: 12,
+                              border: "1px solid #d1d5db",
+                              borderRadius: 4,
+                              outline: "2px solid transparent",
+                              fontFamily: "var(--dp-font-mono, monospace)",
+                            }}
+                            onFocus={(e) => (e.target.style.borderColor = "#6366F1")}
+                            onBlur={(e) => (e.target.style.borderColor = "#d1d5db")}
+                          />
                         </label>
-                        <input
-                          type="text"
-                          value={fnArgs[p.name] ?? ""}
-                          onChange={(e) => handleArgChange(p.name, e.target.value)}
-                          placeholder={p.type}
-                          style={{
-                            flex: 1,
-                            padding: "6px 10px",
-                            fontSize: 12,
-                            border: "1px solid #d1d5db",
-                            borderRadius: 4,
-                            outline: "2px solid transparent",
-                            fontFamily: "var(--dp-font-mono, monospace)",
-                          }}
-                          onFocus={(e) => (e.target.style.borderColor = "#6366F1")}
-                          onBlur={(e) => (e.target.style.borderColor = "#d1d5db")}
-                        />
                       </div>
                     ))}
                   </div>

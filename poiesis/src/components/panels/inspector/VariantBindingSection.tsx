@@ -95,28 +95,36 @@ export function VariantBindingSection({ element }: VariantBindingSectionProps) {
           >
             <label
               style={{
-                fontSize: 12,
-                color: "#64748b",
-                minWidth: 50,
-                flexShrink: 0,
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                flex: 1,
               }}
             >
-              {dim.name}
-            </label>
-            <select
-              aria-label={dim.name}
-              value={
-                boundVariant.dimensionValues[dim.name] ?? dim.values[0] ?? ""
-              }
-              onChange={(e) => handleDimensionChange(dim.name, e.target.value)}
-              style={{
-                flex: 1,
-                padding: "3px 6px",
-                fontSize: 12,
-                border: "1px solid #e2e8f0",
-                borderRadius: 4,
-                outline: "2px solid transparent",
-                background: "#fff",
+              <span
+                style={{
+                  fontSize: 12,
+                  color: "#64748b",
+                  minWidth: 50,
+                  flexShrink: 0,
+                }}
+              >
+                {dim.name}
+              </span>
+              <select
+                aria-label={dim.name}
+                value={
+                  boundVariant.dimensionValues[dim.name] ?? dim.values[0] ?? ""
+                }
+                onChange={(e) => handleDimensionChange(dim.name, e.target.value)}
+                style={{
+                  flex: 1,
+                  padding: "3px 6px",
+                  fontSize: 12,
+                  border: "1px solid #e2e8f0",
+                  borderRadius: 4,
+                  outline: "2px solid transparent",
+                  background: "#fff",
               }}
             >
               {dim.values.map((v) => (

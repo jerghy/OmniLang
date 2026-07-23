@@ -43,9 +43,9 @@ export function BranchConditionEditor({ blockId, branchIndex }: BranchConditionE
 
       {/* Condition — click to edit */}
       <div style={{ marginBottom: 12 }}>
-        <label style={{ display: "block", marginBottom: 4, color: "#6b7280", fontSize: 12 }}>
+        <span style={{ display: "block", marginBottom: 4, color: "#6b7280", fontSize: 12 }}>
           条件表达式
-        </label>
+        </span>
         <InlineConditionEditor
           value={branch.condition}
           placeholder={isIf ? "e.g. count > 5" : "e.g. status == \"error\""}

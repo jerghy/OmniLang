@@ -504,7 +504,7 @@ export function DesignTabBar() {
                 {tab.isDirty && <span style={{ color: "#f59e0b" }}>● </span>}
                 {tab.componentName}.omni
               </span>
-              <button type="button"
+              <span
                 onClick={(e) => handleClose(e, tab.id)}
                 style={{
                   border: "none",
@@ -518,7 +518,7 @@ export function DesignTabBar() {
                 title="关闭"
               >
                 ×
-              </button>
+              </span>
             </div>
           );
         })}

@@ -795,13 +795,13 @@ export function VariantEditor() {
             >
               {v.name}
             </span>
-            <button type="button"
+            <span
               onClick={(e) => handleRemoveVariant(e, v.id)}
               style={REMOVE_BTN}
               title="Remove variant"
             >
               &times;
-            </button>
+            </span>
           </div>
         ))}
       </div>
@@ -911,7 +911,7 @@ export function VariantEditor() {
                       }
                     >
                       {val}
-                      <button type="button"
+                      <span
                         onClick={(e) => {
                           e.stopPropagation();
                           handleRemoveDimValue(dim.name, val);
@@ -929,7 +929,7 @@ export function VariantEditor() {
                         title="Remove value"
                       >
                         &times;
-                      </button>
+                      </span>
                     </span>
                   );
                 })}

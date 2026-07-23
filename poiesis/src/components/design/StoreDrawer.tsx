@@ -201,14 +201,14 @@ export function StoreDrawer() {
                       {s.key === activeStore ? "●" : "○"}
                     </span>
                     <span style={{ flex: 1 }}>{s.key}</span>
-                    <button type="button"
+                    <span
                       onClick={e => { e.stopPropagation(); handleDeleteStore(s.key, s.type); }}
                       style={{
                         border: "none", background: "transparent",
                         cursor: "pointer", fontSize: 14,
                         color: "#94a3b8", padding: "0 4px",
                       }}
-                    >✕</button>
+                    >✕</span>
                   </div>
                 ))}
                 <div style={{ borderTop: "1px solid #e2e8f0" }}>

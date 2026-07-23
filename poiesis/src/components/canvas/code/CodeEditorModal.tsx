@@ -215,6 +215,7 @@ export function CodeEditorModal({
         }}
       />
       {/* Dialog */}
+      {/* eslint-disable-next-line react-doctor/prefer-html-dialog */}
       <div
         role="dialog"
         aria-label="Code Editor Modal"

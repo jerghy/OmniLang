@@ -108,6 +108,7 @@ export function PropsSection({ element, signalItems }: PropsSectionProps) {
     if (element.id !== prevElementIdRef.current) {
       prevElementIdRef.current = element.id;
       setLocalProps(buildLocalProps(element));
+      // eslint-disable-next-line react-doctor/no-adjust-state-on-prop-change
       setSlash(null);
     }
   }, [element.id]);
@@ -436,7 +437,7 @@ function LabelEditor({ value, onChange, onSlashRequest }: LabelEditorProps) {
           return (
             <span key={seg.type + "-" + seg.value} role="button" tabIndex={0} style={{ ...EXPR_CHIP_STYLE, cursor: "pointer" }} onClick={() => setEditingIdx(i)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setEditingIdx(i); } }} title="点击编辑">
               {`{${seg.value}}`}
-              <button type="button" style={{ ...CHIP_DELETE_BTN, color: "#7C3AED" }} onClick={(e) => { e.stopPropagation(); handleDelete(i); }} title="删除">&times;</button>
+              <span style={{ ...CHIP_DELETE_BTN, color: "#7C3AED" }} onClick={(e) => { e.stopPropagation(); handleDelete(i); }} title="删除">&times;</span>
             </span>
           );
         }
@@ -479,7 +480,7 @@ function LabelPropRow({
 }) {
   return (
     <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
-      <label
+      <span
         style={{
           fontSize: 12,
           color: "#64748b",
@@ -489,7 +490,7 @@ function LabelPropRow({
         }}
       >
         {label}
-      </label>
+      </span>
       <LabelEditor
         value={value}
         onChange={onChange}
@@ -529,8 +530,8 @@ function PropRow({
   );
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-      <label
+    <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      <span
         style={{
           fontSize: 12,
           color: "#64748b",
@@ -539,7 +540,7 @@ function PropRow({
         }}
       >
         {label}
-      </label>
+      </span>
       <input
         ref={inputRef}
         type="text"
@@ -563,7 +564,7 @@ function PropRow({
           e.target.style.borderColor = "#e2e8f0";
         }}
       />
-    </div>
+    </label>
   );
 }
 

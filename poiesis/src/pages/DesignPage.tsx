@@ -553,10 +553,7 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
                         </div>
                       </div>
                       <span
-                        role="button"
-                        tabIndex={0}
                         onClick={(e) => handleRemoveRecent(e, proj.path)}
-                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleRemoveRecent(e as unknown as React.MouseEvent, proj.path); } }}
                         style={{
                           fontSize: 16, color: "#d1d5db", padding: "2px 6px",
                           borderRadius: 4, flexShrink: 0, cursor: "pointer",
