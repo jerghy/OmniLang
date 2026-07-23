@@ -7,7 +7,8 @@ import { readTextFile, writeTextFile, mkdir, remove } from "@tauri-apps/plugin-f
 import { Store } from "@tauri-apps/plugin-store";
 import type { EditorTomlState } from "../core/types/annotation";
 import type { PidMap, PidEntry } from "../core/types/pid";
-import { buildProjectJsonFromStore, loadProjectFromJson } from "../services/persistence";
+import { buildProjectJsonFromStore } from "../services/persistence/save-manager";
+import { loadProjectFromJson } from "../services/persistence/load-manager";
 import { createLogger } from "../lib/utils/logger";
 
 const log = createLogger("annotation");

@@ -5,7 +5,7 @@ import { StatusBar } from "./components/shell/StatusBar";
 import { api } from "./commands";
 import { rustCompiler } from "./commands/rustCompiler";
 import { DEFAULT_PROJECT_NAME } from "./constants";
-import { parseOmniSource } from "./services/codegen";
+import { parseOmniSource } from "./services/codegen/omni-parser";
 import { parseStyleValue } from "./services/codegen/design-value-parser";
 import type { ElementData, WireData } from "./core/types";
 import { detectTabType } from "./core/types/design-page";

@@ -17,9 +17,11 @@ export function analyzeWires(elements: ElementData[], wires: WireData[]): Bindin
     if (!src || !tgt) continue;
     if (!("tag" in src) || !("tag" in tgt)) continue;
 
+    const srcProps = src.props;
+
     // signal.value → view.prop
     if ((src.tag === "signal" || src.tag === "computed") && w.fromPort === "value" && tgt.nodeType === "view") {
-      const name = src.props.name as string;
+      const name = srcProps.name as string;
       const bindings = signalBindings.get(name);
       if (bindings) {
         bindings.push({ elementId: tgt.id, propName: w.toPort });
@@ -29,14 +31,15 @@ export function analyzeWires(elements: ElementData[], wires: WireData[]): Bindin
     }
     // store.items → view
     if (src.tag === "store" && w.fromPort === "items" && tgt.nodeType === "view") {
-      const name = src.props.name as string;
+      const name = srcProps.name as string;
       if (!storeRefs.has(name)) storeRefs.set(name, []);
       storeRefs.get(name)!.push(tgt.id);
     }
     // → computed.deps
     if (tgt.tag === "computed" && w.toPort === "deps") {
-      const srcName = src.props.name as string;
-      const tgtName = tgt.props.name as string;
+      const srcName = srcProps.name as string;
+      const tgtProps = tgt.props;
+      const tgtName = tgtProps.name as string;
       if (!computedDeps.has(tgtName)) computedDeps.set(tgtName, []);
       computedDeps.get(tgtName)!.push(srcName);
     }
