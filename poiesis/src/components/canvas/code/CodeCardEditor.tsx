@@ -3,6 +3,7 @@ import React, { useState, useCallback } from "react";
 import type { CodeOp } from "../../../core/types/code-op";
 import { CardList } from "./cards/CardList";
 import { AutocompleteMenu, getAutocompleteItems, type AutocompleteItem } from "./cards/AutocompleteMenu";
+import "./cards"; // side-effect: registers all card components
 import { uid } from "../../../core/utils/id";
 
 interface Props {

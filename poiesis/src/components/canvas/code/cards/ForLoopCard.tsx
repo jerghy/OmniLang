@@ -1,10 +1,11 @@
 // poiesis/src/components/canvas/code/cards/ForLoopCard.tsx
 import React from "react";
-import type { ForLoopOp } from "../../../../core/types/code-op";
+import type { ForLoopOp, RawCodeOp } from "../../../../core/types/code-op";
 import type { CardComponentProps } from "./card-types";
 import { InlineSlot } from "./InlineSlot";
 import { CardList } from "./CardList";
 import { registerCard } from "./card-registry";
+import { uid } from "../../../../core/utils/id";
 
 const ForLoopCard: React.FC<CardComponentProps<ForLoopOp>> = ({
   op, isSelected, onUpdate, onDelete, onInsertAfter,
@@ -41,7 +42,8 @@ const ForLoopCard: React.FC<CardComponentProps<ForLoopOp>> = ({
           onDelete={(idx) => onUpdate({ ...op, body: op.body.filter((_, i) => i !== idx) })}
           onInsertAfter={(idx) => {
             const newBody = [...op.body];
-            newBody.splice(idx + 1, 0, { kind: "raw", pid: `op-${Date.now()}`, source: "" } as any);
+            const rawOp: RawCodeOp = { kind: "raw", pid: uid("op"), source: "" };
+            newBody.splice(idx + 1, 0, rawOp);
             onUpdate({ ...op, body: newBody });
           }}
         />

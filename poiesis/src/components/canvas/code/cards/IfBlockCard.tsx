@@ -1,10 +1,11 @@
 // poiesis/src/components/canvas/code/cards/IfBlockCard.tsx
 import React from "react";
-import type { IfBlockOp } from "../../../../core/types/code-op";
+import type { IfBlockOp, RawCodeOp } from "../../../../core/types/code-op";
 import type { CardComponentProps } from "./card-types";
 import { InlineSlot } from "./InlineSlot";
 import { CardList } from "./CardList";
 import { registerCard } from "./card-registry";
+import { uid } from "../../../../core/utils/id";
 
 const IfBlockCard: React.FC<CardComponentProps<IfBlockOp>> = ({
   op, isSelected, onUpdate, onDelete, onInsertAfter,
@@ -56,7 +57,8 @@ const IfBlockCard: React.FC<CardComponentProps<IfBlockOp>> = ({
                 }}
                 onInsertAfter={(idx) => {
                   const newBody = [...br.body];
-                  newBody.splice(idx + 1, 0, { kind: "raw", pid: `op-${Date.now()}`, source: "" } as any);
+                  const rawOp: RawCodeOp = { kind: "raw", pid: uid("op"), source: "" };
+                  newBody.splice(idx + 1, 0, rawOp);
                   updateBranch(bi, "body", newBody);
                 }}
               />
