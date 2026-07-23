@@ -1,6 +1,7 @@
 // ── Poiesis Store Interface ──
 
 import type { ElementData } from "../core/types/element";
+import type { CodeOp } from "../core/types/code-op";
 import type { WireData } from "../core/types/wire";
 import type { ArchitectureState, BubbleNode, BubbleEdge } from "../core/types/architecture";
 import type { DesignPageState, Breadcrumb, TabType } from "../core/types/design-page";
@@ -150,6 +151,7 @@ export interface PoiesisState {
   addWire: (w: WireData) => void;
   removeWire: (id: string) => void;
   setElementSource: (id: string, source: string) => void;
+  setElementOperations: (id: string, operations: CodeOp[]) => void;
   setElementPosition: (id: string, pos: { x: number; y: number }) => void;
   setElementsAndWires: (elements: ElementData[], wires: WireData[]) => void;
   moveElement: (elementId: string, newParentId: string | null, targetSiblingId: string | null, position: "before" | "after") => void;

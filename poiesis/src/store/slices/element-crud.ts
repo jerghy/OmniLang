@@ -4,6 +4,7 @@ import type { PoiesisState } from "../types";
 import type { ElementData, ConditionalBlockData } from "../../core/types/element";
 import type { WireData } from "../../core/types/wire";
 import type { StyleProperty } from "../../core/types/style";
+import type { CodeOp } from "../../core/types/code-op";
 import { buildUndoUpdate } from "../undo-slice";
 import { createLogger } from "../../lib/utils/logger";
 
@@ -171,6 +172,19 @@ export function createElementCrudSlice(set: SetFn, get: GetFn) {
       elements: s.elements.map(e => e.id === id ? { ...e, source } as ElementData : e),
       isDirty: true,
     })),
+
+    setElementOperations: (id: string, operations: CodeOp[]) => set((state) => {
+      const idx = state.elements.findIndex((e) => e.id === id);
+      if (idx < 0) return {};
+      const el = state.elements[idx];
+      if (el.nodeType !== "codeblock") return {};
+      return {
+        elements: state.elements.map((e, i) =>
+          i === idx ? { ...el, operations, source: "" } as ElementData : e
+        ),
+        isDirty: true,
+      };
+    }),
 
     setElementPosition: (id: string, pos: { x: number; y: number }) => set((s) => ({
       elements: s.elements.map(e => e.id === id ? { ...e, position: { ...pos } } as ElementData : e),
