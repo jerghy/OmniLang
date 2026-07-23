@@ -238,8 +238,8 @@ export function ComponentPalette() {
           return (
             <div key={cat} style={{ marginBottom: 6 }}>
               {/* Category Header */}
-              <div
-                role="button"
+              <button
+                type="button"
                 tabIndex={0}
                 onClick={() => toggleCollapse(cat)}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleCollapse(cat); } }}
@@ -249,6 +249,8 @@ export function ComponentPalette() {
                   cursor: "pointer", display: "flex", alignItems: "center", gap: 4,
                   padding: "1px 0", fontWeight: isCustom ? 700 : 500,
                   userSelect: "none",
+                  background: "none", border: "none", width: "100%",
+                  fontFamily: "inherit",
                 }}
               >
                 <span style={{ fontSize: 8, transition: "transform 0.15s", transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)" }}>
@@ -298,13 +300,13 @@ export function ComponentPalette() {
       {/* Create Dialog (simple inline modal) */}
       {showCreateDialog && (
         <>
-          <div
-            role="button"
+          <button
+            type="button"
             tabIndex={0}
             aria-label="Close create dialog"
             onClick={() => setShowCreateDialog(false)}
             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowCreateDialog(false); } }}
-            style={{ position: "fixed", inset: 0, zIndex: 9998, background: "transparent" }}
+            style={{ position: "fixed", inset: 0, zIndex: 9998, background: "transparent", border: "none", cursor: "pointer" }}
           />
           <div style={{
             position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)",

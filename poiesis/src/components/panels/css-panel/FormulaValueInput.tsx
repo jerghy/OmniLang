@@ -380,9 +380,9 @@ export function FormulaValueInput({ value, onChange, onBlur, variables, placehol
           marginTop: 2,
         }}>
           {autocomplete.items.map((v, i) => (
-            <div
+            <button
               key={v.id}
-              role="button"
+              type="button"
               tabIndex={0}
               onMouseDown={(e) => { e.preventDefault(); selectVariable(v.name); }}
               style={{
@@ -391,6 +391,9 @@ export function FormulaValueInput({ value, onChange, onBlur, variables, placehol
                 background: i === autocomplete.selectedIdx ? "#EEF2FF" : "transparent",
                 color: i === autocomplete.selectedIdx ? "#4F46E5" : "#374151",
                 display: "flex", alignItems: "center", gap: 6,
+                border: "none",
+                width: "100%",
+                textAlign: "left",
               }}
             >
               <span style={{ color: "#7C3AED", fontWeight: 600 }}>{v.name}</span>

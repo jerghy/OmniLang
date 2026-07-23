@@ -78,8 +78,8 @@ export function InlineConditionEditor({
 
   const hasContent = value.length > 0;
   return (
-    <span
-      role="button"
+    <button
+      type="button"
       tabIndex={0}
       onClick={() => { setDraft(value); setEditing(true); }}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setDraft(value); setEditing(true); } }}
@@ -88,6 +88,10 @@ export function InlineConditionEditor({
         ...S.idle,
         background: hasContent ? "#EEF0FF" : "#F9FAFB",
         color: hasContent ? "#6366F1" : "#9CA3AF",
+        border: "none",
+        fontFamily: "inherit",
+        fontSize: "inherit",
+        cursor: "pointer",
       }}
       onMouseEnter={(e) => {
         (e.currentTarget as HTMLElement).style.borderColor = "#C4B5FD";
@@ -97,6 +101,6 @@ export function InlineConditionEditor({
       }}
     >
       {hasContent ? value : "click to edit"}
-    </span>
+    </button>
   );
 }

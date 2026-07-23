@@ -133,11 +133,11 @@ export function ComponentTree({ treeDropState }: ComponentTreeProps) {
       {/* Right-click context menu */}
       {contextMenu && (
         <>
-          <div
-            role="button"
+          <button
+            type="button"
             tabIndex={0}
             aria-label="Close context menu"
-            style={{ position: "fixed", inset: 0, zIndex: 9998 }}
+            style={{ position: "fixed", inset: 0, zIndex: 9998, background: "transparent", border: "none", cursor: "pointer" }}
             onClick={closeMenu}
             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); closeMenu(); } }}
             onContextMenu={(e) => {
@@ -349,11 +349,11 @@ function ContextMenu({
             }}
           >
             {/* 条件块 — 特殊子组件类型 */}
-            <div
-              role="button"
+            <button
+              type="button"
               tabIndex={0}
               className={styles.subMenuItem}
-              style={{ ...ST.itemBase, whiteSpace: "nowrap" }}
+              style={{ ...ST.itemBase, whiteSpace: "nowrap", background: "none", border: "none", width: "100%", textAlign: "left", fontFamily: "inherit", fontSize: "inherit" }}
               onClick={() => {
                 usePoiesisStore.getState().addConditionalBlock(elementId);
                 onClose();
@@ -386,12 +386,12 @@ function ContextMenu({
                     }}
                   >
                     {items.map((comp) => (
-                      <div
+                      <button
                         key={comp.component}
-                        role="button"
+                        type="button"
                         tabIndex={0}
                         className={styles.subMenuItem}
-                        style={{ ...ST.itemBase, whiteSpace: "nowrap" }}
+                        style={{ ...ST.itemBase, whiteSpace: "nowrap", background: "none", border: "none", width: "100%", textAlign: "left", fontFamily: "inherit", fontSize: "inherit" }}
                         onClick={() => handleAddChild(elementId, comp.component)}
                         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleAddChild(elementId, comp.component); } }}
                       >
@@ -490,8 +490,8 @@ function MenuRow({
   onClick: () => void;
 }) {
   return (
-    <div
-      role="button"
+    <button
+      type="button"
       tabIndex={0}
       onClick={onClick}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
@@ -504,6 +504,11 @@ function MenuRow({
         justifyContent: "space-between",
         fontSize: 12,
         color: "#374151",
+        background: "none",
+        border: "none",
+        width: "100%",
+        textAlign: "left",
+        fontFamily: "inherit",
       }}
     >
       <span>{label}</span>

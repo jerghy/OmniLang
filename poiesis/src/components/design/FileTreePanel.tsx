@@ -215,8 +215,8 @@ export function FileTreePanel({ tabs, onOpenFile, onNewFile, onClose, panelRef }
 
   return (
     <>
-      <div
-        role="button"
+      <button
+        type="button"
         tabIndex={0}
         aria-label="Close file tree"
         onClick={onClose}
@@ -226,6 +226,8 @@ export function FileTreePanel({ tabs, onOpenFile, onNewFile, onClose, panelRef }
           inset: 0,
           zIndex: 9998,
           background: "transparent",
+          border: "none",
+          cursor: "pointer",
         }}
       />
       <div

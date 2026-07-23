@@ -627,8 +627,8 @@ export function DesignTabBar() {
       {/* Confirm dialog for dirty tab close */}
       {confirmClose && (
         <>
-          <div
-            role="button"
+          <button
+            type="button"
             tabIndex={0}
             aria-label="Close confirmation"
             onClick={() => setConfirmClose(null)}
@@ -638,6 +638,8 @@ export function DesignTabBar() {
               inset: 0,
               background: "rgba(0,0,0,0.3)",
               zIndex: 10000,
+              border: "none",
+              cursor: "pointer",
             }}
           />
           <div

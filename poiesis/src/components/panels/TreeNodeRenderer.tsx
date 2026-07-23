@@ -97,8 +97,8 @@ export const TreeNodeView = React.memo(function TreeNodeView({
           }}
         >
           {hasChildren ? (
-            <span
-              role="button"
+            <button
+              type="button"
               tabIndex={0}
               onClick={(e) => { e.stopPropagation(); onToggle(node.id); }}
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); e.preventDefault(); onToggle(node.id); } }}
@@ -106,10 +106,11 @@ export const TreeNodeView = React.memo(function TreeNodeView({
                 fontSize: 8, width: 12, cursor: "pointer",
                 transition: "transform 0.15s",
                 transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)",
+                background: "none", border: "none", padding: 0, fontFamily: "inherit",
               }}
             >
               ▼
-            </span>
+            </button>
           ) : (
             <span style={{ width: 12 }} />
           )}
@@ -179,8 +180,8 @@ export const TreeNodeView = React.memo(function TreeNodeView({
       >
         {/* Expand/collapse toggle */}
         {hasChildren ? (
-          <span
-            role="button"
+          <button
+            type="button"
             tabIndex={0}
             onClick={(e) => {
               e.stopPropagation();
@@ -193,10 +194,11 @@ export const TreeNodeView = React.memo(function TreeNodeView({
               cursor: "pointer",
               transition: "transform 0.15s",
               transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)",
+              background: "none", border: "none", padding: 0, fontFamily: "inherit",
             }}
           >
             ▼
-          </span>
+          </button>
         ) : (
           <span style={{ width: 12 }} />
         )}

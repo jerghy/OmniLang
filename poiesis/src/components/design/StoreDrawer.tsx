@@ -160,13 +160,13 @@ export function StoreDrawer() {
 
           {showStoreSwitcher && (
             <>
-              <div
-                role="button"
+              <button
+                type="button"
                 tabIndex={0}
                 aria-label="Close store switcher"
                 onClick={() => setShowStoreSwitcher(false)}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowStoreSwitcher(false); } }}
-                style={{ position: "fixed", inset: 0, zIndex: 99 }}
+                style={{ position: "fixed", inset: 0, zIndex: 99, border: "none", cursor: "pointer", background: "transparent" }}
               />
               <div style={{
                 position: "absolute", top: "100%", left: 0,
@@ -311,7 +311,7 @@ function CreateStoreModal({
 
   return (
     <>
-      <div role="button" tabIndex={0} aria-label="Close new store modal" onClick={onClose} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClose(); } }} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 1000 }} />
+      <button type="button" tabIndex={0} aria-label="Close new store modal" onClick={onClose} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClose(); } }} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 1000, border: "none", cursor: "pointer" }} />
       <div style={{
         position: "fixed", top: "50%", left: "50%",
         transform: "translate(-50%, -50%)",

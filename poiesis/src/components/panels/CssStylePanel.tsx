@@ -390,16 +390,19 @@ function ClassCard({ styleClass, componentName, variables }: {
                 />
                 <div style={{ maxHeight: 120, overflow: "auto", marginTop: 2, border: "1px solid #E5E7EB", borderRadius: 3 }}>
                   {filteredProps.slice(0, 30).map((p) => (
-                    <div
+                    <button
                       key={p}
-                      role="button"
+                      type="button"
                       tabIndex={0}
                       onMouseDown={(e) => { e.preventDefault(); addProperty(p); }}
                       style={{
                         padding: "3px 6px", fontSize: 12, fontFamily: "monospace",
                         cursor: "pointer", color: "#374151",
                         background: "transparent",
+                        border: "none",
                         borderBottom: "1px solid #F3F4F6",
+                        width: "100%",
+                        textAlign: "left",
                       }}
                       onMouseEnter={(e) => { (e.target as HTMLElement).style.background = "#EEF2FF"; }}
                       onMouseLeave={(e) => { (e.target as HTMLElement).style.background = "transparent"; }}

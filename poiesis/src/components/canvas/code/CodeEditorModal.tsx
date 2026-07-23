@@ -199,8 +199,8 @@ export function CodeEditorModal({
   return (
     <>
       {/* Backdrop */}
-      <div
-        role="button"
+      <button
+        type="button"
         tabIndex={0}
         aria-label="Close modal"
         onClick={onClose}
@@ -210,6 +210,8 @@ export function CodeEditorModal({
           inset: 0,
           zIndex: 9998,
           background: "rgba(0,0,0,0.4)",
+          border: "none",
+          cursor: "pointer",
         }}
       />
       {/* Dialog */}

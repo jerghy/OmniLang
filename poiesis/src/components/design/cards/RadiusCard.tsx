@@ -226,13 +226,13 @@ export const RadiusCard = React.memo(function RadiusCard({ properties, onChange,
                 <span style={{ ...tokenTextStyle, cursor: "default", flex: 1 }}>{radiusRaw || "—"}</span>
               ) : isRadiusToken ? (
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 2, flex: 1 }}>
-                  <span
-                    role="button"
+                  <button
+                    type="button"
                     tabIndex={0}
                     style={tokenTextStyle}
                     onClick={(e) => onPropSlash?.("borderRadius", e.currentTarget)}
                     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPropSlash?.("borderRadius", e.currentTarget); } }}
-                  >{radiusRaw}</span>
+                  >{radiusRaw}</button>
                   <button type="button"
                     style={tokenRemoveBtn}
                     title="Remove token"
@@ -368,7 +368,7 @@ function CornerInput({ label, value, rawValue, onChange, onSlash, onRemoveToken 
       </span>
       {isToken ? (
         <span style={{ display: "inline-flex", alignItems: "center", gap: 2, flex: 1 }}>
-          <span role="button" tabIndex={0} style={tokenTextStyle} onClick={(e) => onSlash?.(e.currentTarget)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSlash?.(e.currentTarget); } }}>{rawValue}</span>
+          <button type="button" tabIndex={0} style={tokenTextStyle} onClick={(e) => onSlash?.(e.currentTarget)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSlash?.(e.currentTarget); } }}>{rawValue}</button>
           <button type="button" style={tokenRemoveBtn} title="Remove token"
             onClick={(e) => { e.stopPropagation(); onRemoveToken?.(); }}
           >&times;</button>

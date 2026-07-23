@@ -134,8 +134,8 @@ export function HandlerModal({
   return (
     <>
       {/* Backdrop */}
-      <div
-        role="button"
+      <button
+        type="button"
         tabIndex={0}
         aria-label="Close handler modal"
         onClick={onClose}
@@ -145,6 +145,8 @@ export function HandlerModal({
           inset: 0,
           zIndex: 9998,
           background: "rgba(0,0,0,0.4)",
+          border: "none",
+          cursor: "pointer",
         }}
       />
       {/* Modal */}

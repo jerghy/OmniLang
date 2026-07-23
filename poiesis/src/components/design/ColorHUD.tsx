@@ -140,9 +140,9 @@ export function ColorHUD({
             const isSelected =
               hex.toUpperCase() === token.value.toUpperCase();
             return (
-              <div
+              <button
                 key={token.id}
-                role="button"
+                type="button"
                 tabIndex={0}
                 onClick={() => handleTokenClick(token)}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleTokenClick(token); } }}
@@ -161,6 +161,7 @@ export function ColorHUD({
                       ? "0 0 0 2px #666"
                       : "none",
                     boxSizing: "border-box",
+                    padding: 0,
                   } as React.CSSProperties
                 }
               />

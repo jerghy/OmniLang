@@ -182,13 +182,13 @@ export const SizeCard = React.memo(function SizeCard({ properties, onChange, onF
               <span style={{ ...INPUT_STYLE, color: "var(--dp-text-muted, #a09db8)", flex: 1, textAlign: "right" }}>{widthStr || "—"}</span>
             ) : isTokenRef(widthStr) ? (
               <span style={{ display: "inline-flex", alignItems: "center", gap: 2, flex: 1 }}>
-                <span
-                  role="button"
+                <button
+                  type="button"
                   tabIndex={0}
                   style={tokenTextStyle}
                   onClick={(e) => onPropSlash?.("width", e.currentTarget)}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPropSlash?.("width", e.currentTarget); } }}
-                >{widthStr}</span>
+                >{widthStr}</button>
                 <button type="button"
                   style={tokenRemoveBtn}
                   title="Remove token"
@@ -241,13 +241,13 @@ export const SizeCard = React.memo(function SizeCard({ properties, onChange, onF
               <span style={{ ...INPUT_STYLE, color: "var(--dp-text-muted, #a09db8)", flex: 1, textAlign: "right" }}>{heightStr || "—"}</span>
             ) : isTokenRef(heightStr) ? (
               <span style={{ display: "inline-flex", alignItems: "center", gap: 2, flex: 1 }}>
-                <span
-                  role="button"
+                <button
+                  type="button"
                   tabIndex={0}
                   style={tokenTextStyle}
                   onClick={(e) => onPropSlash?.("height", e.currentTarget)}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPropSlash?.("height", e.currentTarget); } }}
-                >{heightStr}</span>
+                >{heightStr}</button>
                 <button type="button"
                   style={tokenRemoveBtn}
                   title="Remove token"

@@ -357,9 +357,9 @@ function SignalPickerPopover({ items, position, onSelect, onClose }: SignalPicke
           <div key={cat}>
             <div style={categoryHeaderStyle}>{CATEGORY_LABELS[cat]}</div>
             {catItems.map((item) => (
-              <div
+              <button
                 key={item.pid}
-                role="button"
+                type="button"
                 tabIndex={0}
                 style={popoverItemStyle}
                 onClick={() => onSelect(item)}

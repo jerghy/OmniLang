@@ -107,8 +107,8 @@ export function ConditionNode({ data }: Props) {
                 aria-label="编辑条件表达式"
               />
             ) : (
-              <span
-                role="button"
+              <button
+                type="button"
                 tabIndex={0}
                 onClick={() => br.type !== "else" && handleEditStart(br)}
                 onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && br.type !== "else") { e.preventDefault(); handleEditStart(br); } }}
@@ -118,10 +118,15 @@ export function ConditionNode({ data }: Props) {
                   color: br.type === "else" ? "#9CA3AF" : "#1F2937",
                   cursor: br.type === "else" ? "default" : "pointer",
                   flex: 1,
+                  background: "none",
+                  border: "none",
+                  textAlign: "left",
+                  padding: 0,
                 }}
+                disabled={br.type === "else"}
               >
                 {br.type === "else" ? "" : br.condition || "..."}
-              </span>
+              </button>
             )}
           </div>
 

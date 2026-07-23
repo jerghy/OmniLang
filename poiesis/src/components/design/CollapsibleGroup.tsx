@@ -63,8 +63,8 @@ export const CollapsibleGroup = React.memo(function CollapsibleGroup({
         overflow: "hidden",
       }}
     >
-      <div
-        role="button"
+      <button
+        type="button"
         tabIndex={0}
         onClick={handleHeaderClick}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleHeaderClick(); } }}
@@ -80,6 +80,10 @@ export const CollapsibleGroup = React.memo(function CollapsibleGroup({
           color: open ? "var(--dp-text, #1e1b4b)" : "var(--dp-text-secondary, #6b6893)",
           transition: "color 150ms ease, background 150ms ease",
           background: hover ? "var(--dp-surface-hover, #f5f3ff)" : "transparent",
+          border: "none",
+          width: "100%",
+          textAlign: "left",
+          fontFamily: "inherit",
         }}
       >
         <span

@@ -150,9 +150,9 @@ export function ClassesSection({ element }: ClassesSectionProps) {
             }}
           >
             {filteredClasses.map((c) => (
-              <div
+              <button
                 key={c.id}
-                role="button"
+                type="button"
                 tabIndex={0}
                 onMouseDown={() => handleAddClass(c.name)}
                 style={{
@@ -163,6 +163,11 @@ export function ClassesSection({ element }: ClassesSectionProps) {
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "center",
+                  background: "none",
+                  border: "none",
+                  width: "100%",
+                  textAlign: "left",
+                  fontFamily: "inherit",
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.background = "#f1f5f9";

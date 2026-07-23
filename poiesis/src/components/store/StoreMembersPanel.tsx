@@ -364,7 +364,7 @@ export function StoreMembersPanel({
             </div>
             <div style={S.valueRow}>
               <span style={{ ...S.typeSep, width: 12, textAlign: "center" }}>=</span>
-              <span role="button" tabIndex={0} style={S.getterExpr} onClick={() => setEditingGetterPid(g.pid)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setEditingGetterPid(g.pid); } }} title={g.expression || "Click to edit"}>
+              <button type="button" tabIndex={0} style={S.getterExpr} onClick={() => setEditingGetterPid(g.pid)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setEditingGetterPid(g.pid); } }} title={g.expression || "Click to edit"}>
                 {g.expression ? g.expression.slice(0, 40) + (g.expression.length > 40 ? "…" : "") : "click to edit"}
               </span>
             </div>

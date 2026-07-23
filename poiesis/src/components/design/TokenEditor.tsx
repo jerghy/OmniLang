@@ -293,8 +293,8 @@ export function TokenEditor() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(64px, 1fr))", gap: 8, marginBottom: 8 }}>
             {catTokens.map((t) => (
               <div key={t.id} style={{ textAlign: "center" }}>
-                <div
-                  role="button"
+                <button
+                  type="button"
                   tabIndex={0}
                   onClick={(e) => handleOpenColorPicker(t.id, e)}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleOpenColorPicker(t.id, e as unknown as React.MouseEvent); } }}
@@ -306,6 +306,7 @@ export function TokenEditor() {
                     border: "2px solid #e2e8f0",
                     cursor: "pointer",
                     boxSizing: "border-box",
+                    padding: 0,
                   }}
                   title={t.name}
                 />
@@ -323,8 +324,8 @@ export function TokenEditor() {
           {catTokens.map((t) => (
             <div key={t.id} style={ROW_STYLE}>
               {/* Color swatch */}
-              <div
-                role="button"
+              <button
+                type="button"
                 tabIndex={0}
                 aria-label={`Color swatch for ${t.name}`}
                 onClick={(e) => handleOpenColorPicker(t.id, e)}
@@ -337,6 +338,7 @@ export function TokenEditor() {
                   border: "1px solid #cbd5e1",
                   cursor: "pointer",
                   flexShrink: 0,
+                  padding: 0,
                 }}
               />
               {/* Name */}
@@ -396,8 +398,8 @@ export function TokenEditor() {
                   aria-label="Spacing token name"
                 />
                 {/* Value with drag-scrub */}
-                <div
-                  role="button"
+                <button
+                  type="button"
                   tabIndex={0}
                   aria-label={`Scrub value: ${t.value}`}
                   onMouseDown={(e) => handleScrubStart(t.id, t.value, e)}
@@ -412,6 +414,9 @@ export function TokenEditor() {
                     display: "flex",
                     alignItems: "center",
                     gap: 4,
+                    border: "none",
+                    fontFamily: "inherit",
+                    fontSize: "inherit",
                   }}
                   title="Drag to scrub value"
                 >
@@ -530,8 +535,8 @@ export function TokenEditor() {
                   placeholder="name"
                   aria-label="Radius token name"
                 />
-                <div
-                  role="button"
+                <button
+                  type="button"
                   tabIndex={0}
                   aria-label={`Scrub value: ${t.value}`}
                   onMouseDown={(e) => handleScrubStart(t.id, t.value, e)}
@@ -546,6 +551,9 @@ export function TokenEditor() {
                     display: "flex",
                     alignItems: "center",
                     gap: 4,
+                    border: "none",
+                    fontFamily: "inherit",
+                    fontSize: "inherit",
                   }}
                   title="Drag to scrub value"
                 >

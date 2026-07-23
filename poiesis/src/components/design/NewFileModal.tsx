@@ -20,8 +20,8 @@ export function NewFileModal({ onCreate, onClose }: NewFileModalProps) {
 
   return (
     <>
-      <div
-        role="button"
+      <button
+        type="button"
         tabIndex={0}
         aria-label="Close new file modal"
         onClick={() => { onClose(); setNewFileName(""); }}
@@ -31,6 +31,8 @@ export function NewFileModal({ onCreate, onClose }: NewFileModalProps) {
           inset: 0,
           zIndex: 9998,
           background: "transparent",
+          border: "none",
+          cursor: "pointer",
         }}
       />
       <div

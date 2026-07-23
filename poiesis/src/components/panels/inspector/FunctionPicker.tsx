@@ -42,8 +42,8 @@ export function FunctionPicker({
   return (
     <>
       {/* Backdrop */}
-      <div
-        role="button"
+      <button
+        type="button"
         tabIndex={0}
         aria-label="Close function picker"
         onClick={onClose}
@@ -52,6 +52,9 @@ export function FunctionPicker({
           position: "fixed",
           inset: 0,
           zIndex: 10000,
+          background: "transparent",
+          border: "none",
+          cursor: "pointer",
         }}
       />
       {/* Dropdown panel */}

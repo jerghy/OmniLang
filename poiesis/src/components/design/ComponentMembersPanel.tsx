@@ -343,8 +343,8 @@ export function ComponentMembersPanel({ componentName }: Props) {
             </div>
             <div style={S.valueRow}>
               <span style={{ ...S.typeSep, width: 12, textAlign: "center" }}>=</span>
-              <span
-                role="button"
+              <button
+                type="button"
                 tabIndex={0}
                 style={S.exprClickable}
                 onClick={() => setEditingComputedPid(c.pid)}
