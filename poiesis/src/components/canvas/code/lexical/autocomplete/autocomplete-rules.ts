@@ -1,51 +1,106 @@
-import type { SlotType } from "../nodes/SlotTextNode";
-import type { CardKind } from "../nodes/CardElementNode";
+import type { ContainerKind, BlockKind, InlineKind } from "../../../../../core/types/editor-node";
 
 export interface AutocompleteItem {
   label: string;
   description: string;
-  kind: string;
+  /** The EditorNode kind this item creates */
+  cardKind: "container" | "block" | "inline" | "slot";
+  /** Sub-kind for container/block/inline */
+  subKind: string;
 }
 
 export interface AutocompleteContext {
-  parentKind: CardKind | null;
-  slotType: SlotType | null;
+  /** What container/block we're inside (null = top-level) */
+  parentKind: string | null;
+  /** What preceded the cursor (used for . dot detection) */
+  precedingCardKind: string | null;
 }
 
-// ── Statement-level completions (paragraph context) ──
+// ── Statement-level (top-level) ──
 const STATEMENT_ITEMS: AutocompleteItem[] = [
-  { label: "let", description: "声明不可变变量", kind: "declare_var" },
-  { label: "let mut", description: "声明可变变量", kind: "declare_var_mut" },
-  { label: "set", description: "赋值变量", kind: "set_var" },
-  { label: "if", description: "条件分支", kind: "if_block" },
-  { label: "while", description: "while 循环", kind: "while" },
-  { label: "for", description: "for..in 循环", kind: "for_in" },
-  { label: "return", description: "返回", kind: "return" },
-  { label: "await", description: "异步等待", kind: "await" },
-  { label: "break", description: "跳出循环", kind: "break" },
-  { label: "continue", description: "跳过本次", kind: "continue" },
-  { label: "//", description: "注释", kind: "comment" },
+  { label: "let", description: "声明不可变变量", cardKind: "container", subKind: "let" },
+  { label: "set", description: "赋值变量", cardKind: "container", subKind: "set" },
+  { label: "if", description: "条件分支", cardKind: "block", subKind: "if" },
+  { label: "while", description: "while 循环", cardKind: "block", subKind: "while" },
+  { label: "for", description: "for..in 循环", cardKind: "block", subKind: "for" },
+  { label: "return", description: "返回", cardKind: "container", subKind: "return" },
+  { label: "await", description: "异步等待", cardKind: "container", subKind: "await" },
+  { label: "call", description: "函数调用", cardKind: "container", subKind: "call" },
+  { label: "break", description: "跳出循环", cardKind: "inline", subKind: "break" },
+  { label: "continue", description: "跳过本次", cardKind: "inline", subKind: "continue" },
+  { label: "//", description: "注释", cardKind: "inline", subKind: "comment" },
 ];
 
-// ── Type slot completions ──
+// ── Inside let container ──
+const LET_CHILDREN: AutocompleteItem[] = [
+  { label: "mut", description: "可变修饰", cardKind: "inline", subKind: "mut" },
+  { label: ":", description: "类型标注", cardKind: "inline", subKind: "separator" },
+  { label: "=", description: "初始化", cardKind: "inline", subKind: "operator" },
+];
+
+// ── Inside set container ──
+const SET_CHILDREN: AutocompleteItem[] = [
+  { label: "=", description: "赋值", cardKind: "inline", subKind: "operator" },
+  { label: "+=", description: "加等于", cardKind: "inline", subKind: "operator" },
+  { label: "-=", description: "减等于", cardKind: "inline", subKind: "operator" },
+  { label: "*=", description: "乘等于", cardKind: "inline", subKind: "operator" },
+  { label: "/=", description: "除等于", cardKind: "inline", subKind: "operator" },
+  { label: "%=", description: "取余等于", cardKind: "inline", subKind: "operator" },
+];
+
+// ── Type completions ──
 const TYPE_ITEMS: AutocompleteItem[] = [
-  { label: "i32", description: "32-bit integer", kind: "type" },
-  { label: "i64", description: "64-bit integer", kind: "type" },
-  { label: "f32", description: "32-bit float", kind: "type" },
-  { label: "f64", description: "64-bit float", kind: "type" },
-  { label: "String", description: "string type", kind: "type" },
-  { label: "bool", description: "boolean", kind: "type" },
-  { label: "Array<T>", description: "generic array", kind: "type" },
+  { label: "i32", description: "32-bit integer", cardKind: "inline", subKind: "type" },
+  { label: "i64", description: "64-bit integer", cardKind: "inline", subKind: "type" },
+  { label: "f32", description: "32-bit float", cardKind: "inline", subKind: "type" },
+  { label: "f64", description: "64-bit float", cardKind: "inline", subKind: "type" },
+  { label: "String", description: "string type", cardKind: "inline", subKind: "type" },
+  { label: "bool", description: "boolean", cardKind: "inline", subKind: "type" },
 ];
 
-// ── Value/expression context — context-dependent, minimal defaults ──
-const EXPRESSION_ITEMS: AutocompleteItem[] = [
-  { label: "true", description: "boolean true", kind: "literal" },
-  { label: "false", description: "boolean false", kind: "literal" },
-  { label: "null", description: "null value", kind: "literal" },
+// ── Comparison operators (condition context) ──
+const COMPARISON_ITEMS: AutocompleteItem[] = [
+  { label: ">", description: "大于", cardKind: "inline", subKind: "operator" },
+  { label: "<", description: "小于", cardKind: "inline", subKind: "operator" },
+  { label: ">=", description: "大于等于", cardKind: "inline", subKind: "operator" },
+  { label: "<=", description: "小于等于", cardKind: "inline", subKind: "operator" },
+  { label: "==", description: "等于", cardKind: "inline", subKind: "operator" },
+  { label: "!=", description: "不等于", cardKind: "inline", subKind: "operator" },
 ];
 
-/** Get filtered autocomplete items based on token prefix and cursor context. */
+// ── Arithmetic operators (expression context) ──
+const ARITHMETIC_ITEMS: AutocompleteItem[] = [
+  { label: "+", description: "加", cardKind: "inline", subKind: "operator" },
+  { label: "-", description: "减", cardKind: "inline", subKind: "operator" },
+  { label: "*", description: "乘", cardKind: "inline", subKind: "operator" },
+  { label: "/", description: "除", cardKind: "inline", subKind: "operator" },
+  { label: "%", description: "取余", cardKind: "inline", subKind: "operator" },
+];
+
+// ── Logic operators ──
+const LOGIC_ITEMS: AutocompleteItem[] = [
+  { label: "&&", description: "且", cardKind: "inline", subKind: "operator" },
+  { label: "||", description: "或", cardKind: "inline", subKind: "operator" },
+  { label: "!", description: "非", cardKind: "inline", subKind: "operator" },
+];
+
+// ── Literals ──
+const LITERAL_ITEMS: AutocompleteItem[] = [
+  { label: "true", description: "true", cardKind: "inline", subKind: "literal" },
+  { label: "false", description: "false", cardKind: "inline", subKind: "literal" },
+  { label: "null", description: "null", cardKind: "inline", subKind: "literal" },
+];
+
+// ── Dot access ──
+const DOT_METHODS: AutocompleteItem[] = [
+  { label: ".len()", description: "长度", cardKind: "inline", subKind: "dot" },
+  { label: ".push()", description: "添加元素", cardKind: "inline", subKind: "dot" },
+  { label: ".pop()", description: "移除末尾", cardKind: "inline", subKind: "dot" },
+  { label: ".get()", description: "获取元素", cardKind: "inline", subKind: "dot" },
+  { label: ".to_string()", description: "转字符串", cardKind: "inline", subKind: "dot" },
+];
+
+/** Get autocomplete items filtered by token prefix and cursor context. */
 export function getAutocompleteItems(
   token: string,
   context: AutocompleteContext,
@@ -57,32 +112,40 @@ export function getAutocompleteItems(
 }
 
 function getCandidatesForContext(context: AutocompleteContext): AutocompleteItem[] {
-  const { slotType } = context;
-
-  if (slotType === "type") return TYPE_ITEMS;
-  if (slotType === "value" || slotType === "condition" || slotType === "arg") {
-    return EXPRESSION_ITEMS;
+  // After a dot, show method completions
+  if (context.precedingCardKind === "dot") {
+    return DOT_METHODS;
   }
 
-  // Default: statement-level items
-  return STATEMENT_ITEMS;
+  // Inside containers
+  switch (context.parentKind) {
+    case "let":
+      return [...LET_CHILDREN, ...TYPE_ITEMS, ...LITERAL_ITEMS];
+    case "set":
+      return [...SET_CHILDREN, ...ARITHMETIC_ITEMS, ...LITERAL_ITEMS];
+    case "return":
+    case "await":
+      return [...ARITHMETIC_ITEMS, ...LOGIC_ITEMS, ...LITERAL_ITEMS];
+    case "if":
+    case "while":
+      // In block head = condition context
+      return [...COMPARISON_ITEMS, ...LOGIC_ITEMS, ...LITERAL_ITEMS];
+    case "for":
+      return [...LITERAL_ITEMS];
+    case "call":
+      return [...ARITHMETIC_ITEMS, ...LITERAL_ITEMS];
+    case "array":
+    case "map":
+      return [...LITERAL_ITEMS];
+    default:
+      return STATEMENT_ITEMS;
+  }
 }
 
-/** Detect CardKind from autocomplete item kind string. */
-export function detectCardKindFromItem(item: AutocompleteItem): CardKind | null {
-  switch (item.kind) {
-    case "declare_var":
-    case "declare_var_mut":
-      return "declare_var";
-    case "set_var": return "set_var";
-    case "if_block": return "if_block";
-    case "while": return "while";
-    case "for_in": return "for_in";
-    case "return": return "return";
-    case "await": return "await";
-    case "break": return "break";
-    case "continue": return "continue";
-    case "comment": return "comment";
-    default: return null;
-  }
+/** Map autocomplete item to node construction parameters. */
+export function detectCardKindFromItem(item: AutocompleteItem): {
+  nodeType: "container" | "block" | "inline";
+  kind: string;
+} {
+  return { nodeType: item.cardKind, kind: item.subKind };
 }

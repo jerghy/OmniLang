@@ -1,53 +1,63 @@
 import { describe, it, expect } from "vitest";
 import { getAutocompleteItems } from "../autocomplete-rules";
 
-describe("getAutocompleteItems", () => {
-  describe("paragraph context (new statement)", () => {
-    it('filters by prefix "l" → let, let mut', () => {
-      const items = getAutocompleteItems("l", { parentKind: null, slotType: null });
-      const labels = items.map(i => i.label);
-      expect(labels).toContain("let");
-      expect(labels).toContain("let mut");
-      expect(labels).not.toContain("if"); // doesn't start with "l"
-    });
-
-    it('filters by prefix "w" → while only', () => {
-      const items = getAutocompleteItems("w", { parentKind: null, slotType: null });
-      const labels = items.map(i => i.label);
-      expect(labels).toContain("while");
-      expect(labels.length).toBe(1);
-    });
-
-    it("shows all when token is empty", () => {
-      const items = getAutocompleteItems("", { parentKind: null, slotType: null });
-      expect(items.length).toBeGreaterThanOrEqual(10);
-    });
+describe("autocomplete rules v2", () => {
+  it("returns statement items at top level", () => {
+    const items = getAutocompleteItems("l", { parentKind: null, precedingCardKind: null });
+    const labels = items.map(i => i.label);
+    expect(labels).toContain("let");
   });
 
-  describe("type slot context", () => {
-    it("shows type names", () => {
-      const items = getAutocompleteItems("", { parentKind: "declare_var", slotType: "type" });
-      const labels = items.map(i => i.label);
-      expect(labels).toContain("i32");
-      expect(labels).toContain("String");
-      expect(labels).toContain("f64");
-      expect(labels).toContain("bool");
-    });
-
-    it('filters types by prefix "f" → f64, f32', () => {
-      const items = getAutocompleteItems("f", { parentKind: "declare_var", slotType: "type" });
-      const labels = items.map(i => i.label);
-      expect(labels).toContain("f64");
-      expect(labels).toContain("f32");
-      expect(labels).not.toContain("i32");
-    });
+  it("returns mut inside let container", () => {
+    const items = getAutocompleteItems("m", { parentKind: "let", precedingCardKind: null });
+    expect(items.some(i => i.label === "mut")).toBe(true);
   });
 
-  describe("name slot context", () => {
-    it("shows nothing specific (variable names come from scope)", () => {
-      const items = getAutocompleteItems("", { parentKind: "declare_var", slotType: "name" });
-      // Name slots don't have a fixed autocomplete — just empty
-      expect(Array.isArray(items)).toBe(true);
-    });
+  it("returns type completions inside let", () => {
+    const items = getAutocompleteItems("i", { parentKind: "let", precedingCardKind: null });
+    expect(items.some(i => i.label === "i32")).toBe(true);
+  });
+
+  it("returns operators inside set", () => {
+    const items = getAutocompleteItems("+", { parentKind: "set", precedingCardKind: null });
+    expect(items.some(i => i.label === "+=")).toBe(true);
+  });
+
+  it("returns comparison operators in if head", () => {
+    const items = getAutocompleteItems(">", { parentKind: "if", precedingCardKind: null });
+    expect(items.some(i => i.label === ">=")).toBe(true);
+  });
+
+  it("returns method completions after dot", () => {
+    const items = getAutocompleteItems(".len", { parentKind: null, precedingCardKind: "dot" });
+    expect(items.some(i => i.label === ".len()")).toBe(true);
+  });
+
+  it("returns literals inside for container", () => {
+    const items = getAutocompleteItems("", { parentKind: "for", precedingCardKind: null });
+    const labels = items.map(i => i.label);
+    expect(labels).toContain("true");
+    expect(labels).toContain("false");
+    expect(labels).toContain("null");
+  });
+
+  it("returns arithmetic operators in return context", () => {
+    const items = getAutocompleteItems("+", { parentKind: "return", precedingCardKind: null });
+    expect(items.some(i => i.label === "+")).toBe(true);
+  });
+
+  it("returns logic operators in while context", () => {
+    const items = getAutocompleteItems("&", { parentKind: "while", precedingCardKind: null });
+    expect(items.some(i => i.label === "&&")).toBe(true);
+  });
+
+  it("returns all statement items when no token", () => {
+    const items = getAutocompleteItems("", { parentKind: null, precedingCardKind: null });
+    expect(items.length).toBeGreaterThanOrEqual(11);
+    const labels = items.map(i => i.label);
+    expect(labels).toContain("let");
+    expect(labels).toContain("if");
+    expect(labels).toContain("return");
+    expect(labels).toContain("//");
   });
 });
