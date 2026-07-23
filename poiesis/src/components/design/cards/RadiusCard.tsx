@@ -196,7 +196,7 @@ export const RadiusCard = React.memo(function RadiusCard({ properties, onChange,
     padding: "3px 5px",
     fontFamily: "inherit",
     flexShrink: 0,
-    transition: "all 150ms ease",
+    transition: "border-color 150ms ease, background-color 150ms ease, opacity 150ms ease, 150ms ease",
   };
 
   const linkedBtnStyle: React.CSSProperties = {
@@ -230,7 +230,7 @@ export const RadiusCard = React.memo(function RadiusCard({ properties, onChange,
                     style={tokenTextStyle}
                     onClick={(e) => onPropSlash?.("borderRadius", e.currentTarget)}
                   >{radiusRaw}</span>
-                  <button
+                  <button type="button"
                     style={tokenRemoveBtn}
                     title="Remove token"
                     onClick={(e) => {
@@ -252,7 +252,7 @@ export const RadiusCard = React.memo(function RadiusCard({ properties, onChange,
                     />
                   </span>
                   {radiusRaw !== "" && !isRadiusToken && (
-                    <button style={tokenRemoveBtn} title="清除"
+                    <button type="button" style={tokenRemoveBtn} title="清除"
                       onClick={(e) => {
                         e.stopPropagation();
                         onChange(properties.filter((p) => p.name !== "borderRadius"));
@@ -263,7 +263,7 @@ export const RadiusCard = React.memo(function RadiusCard({ properties, onChange,
               )}
               </span>
             </div>
-            <button
+            <button type="button"
               onClick={toggleMode}
               title="Switch to individual corners"
               style={linkedBtnStyle}
@@ -290,7 +290,7 @@ export const RadiusCard = React.memo(function RadiusCard({ properties, onChange,
                 onSlash={onPropSlash ? (el) => onPropSlash(CORNER_NAMES[1], el) : undefined}
                 onRemoveToken={() => onChange(properties.filter((p) => p.name !== CORNER_NAMES[1]))}
               />
-              <button
+              <button type="button"
                 onClick={toggleMode}
                 title="Switch to unified radius"
                 style={unlinkedBtnStyle}
@@ -366,7 +366,7 @@ function CornerInput({ label, value, rawValue, onChange, onSlash, onRemoveToken 
       {isToken ? (
         <span style={{ display: "inline-flex", alignItems: "center", gap: 2, flex: 1 }}>
           <span style={tokenTextStyle} onClick={(e) => onSlash?.(e.currentTarget)}>{rawValue}</span>
-          <button style={tokenRemoveBtn} title="Remove token"
+          <button type="button" style={tokenRemoveBtn} title="Remove token"
             onClick={(e) => { e.stopPropagation(); onRemoveToken?.(); }}
           >&times;</button>
         </span>
@@ -383,7 +383,7 @@ function CornerInput({ label, value, rawValue, onChange, onSlash, onRemoveToken 
             />
           </span>
           {!isEmpty && (
-            <button style={tokenRemoveBtn} title="清除"
+            <button type="button" style={tokenRemoveBtn} title="清除"
               onClick={(e) => { e.stopPropagation(); onRemoveToken?.(); }}
             >×</button>
           )}

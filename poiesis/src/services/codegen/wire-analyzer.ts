@@ -20,8 +20,12 @@ export function analyzeWires(elements: ElementData[], wires: WireData[]): Bindin
     // signal.value → view.prop
     if ((src.tag === "signal" || src.tag === "computed") && w.fromPort === "value" && tgt.nodeType === "view") {
       const name = src.props.name as string;
-      if (!signalBindings.has(name)) signalBindings.set(name, []);
-      signalBindings.get(name)!.push({ elementId: tgt.id, propName: w.toPort });
+      const bindings = signalBindings.get(name);
+      if (bindings) {
+        bindings.push({ elementId: tgt.id, propName: w.toPort });
+      } else {
+        signalBindings.set(name, [{ elementId: tgt.id, propName: w.toPort }]);
+      }
     }
     // store.items → view
     if (src.tag === "store" && w.fromPort === "items" && tgt.nodeType === "view") {

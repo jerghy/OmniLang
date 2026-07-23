@@ -140,7 +140,7 @@ export const BackgroundCard = React.memo(function BackgroundCard({
             >
               {bgValue}
             </span>
-            <button style={clearBtn} title="清除" onClick={(e) => { e.stopPropagation(); handleClear(); }}>×</button>
+            <button type="button" style={clearBtn} title="清除" onClick={(e) => { e.stopPropagation(); handleClear(); }}>×</button>
           </div>
         )}
 

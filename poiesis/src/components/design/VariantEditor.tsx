@@ -118,7 +118,7 @@ const INPUT_STYLE: React.CSSProperties = {
   fontFamily: "var(--dp-font-mono, monospace)",
   border: "1px solid var(--dp-border, #e8e5f2)",
   borderRadius: "var(--dp-radius-sm, 6px)",
-  outline: "none",
+  outline: "2px solid transparent",
   background: "var(--dp-surface, #fff)",
   color: "var(--dp-text, #1e1b4b)",
   boxSizing: "border-box",
@@ -128,11 +128,11 @@ const INPUT_STYLE: React.CSSProperties = {
 
 const SELECT_STYLE: React.CSSProperties = {
   padding: "3px 4px",
-  fontSize: 10,
+  fontSize: 12,
   fontFamily: "var(--dp-font-mono, monospace)",
   border: "1px solid var(--dp-border, #e8e5f2)",
   borderRadius: "var(--dp-radius-sm, 6px)",
-  outline: "none",
+  outline: "2px solid transparent",
   background: "var(--dp-surface, #fff)",
   color: "var(--dp-text, #1e1b4b)",
   cursor: "pointer",
@@ -157,7 +157,7 @@ const DASHED_BTN: React.CSSProperties = {
   borderRadius: "var(--dp-radius-sm, 6px)",
   background: "transparent",
   color: "var(--dp-text-muted, #a09db8)",
-  fontSize: 11,
+  fontSize: 12,
   padding: "4px 10px",
   cursor: "pointer",
   width: "100%",
@@ -512,10 +512,12 @@ export function VariantEditor() {
 
   // ── Close add-property popup on outside click ──
 
-  useOutsideClick(addPropRef, showAddProp, () => {
+  const handleOutsideAddProp = useCallback(() => {
     setShowAddProp(false);
     setAddPropSearch("");
-  });
+  }, []);
+
+  useOutsideClick(addPropRef, showAddProp, handleOutsideAddProp);
 
   // ── Handlers: Variant CRUD ──
 
@@ -790,7 +792,7 @@ export function VariantEditor() {
             >
               {v.name}
             </span>
-            <button
+            <button type="button"
               onClick={(e) => handleRemoveVariant(e, v.id)}
               style={REMOVE_BTN}
               title="Remove variant"
@@ -813,15 +815,15 @@ export function VariantEditor() {
             ...INPUT_STYLE,
             flex: 1,
             minWidth: 0,
-            fontSize: 11,
+            fontSize: 12,
           }}
         />
-        <button
+        <button type="button"
           onClick={handleAddVariant}
           disabled={!newVariantName.trim()}
           style={{
             padding: "3px 8px",
-            fontSize: 11,
+            fontSize: 12,
             border: "none",
             borderRadius: 4,
             background: newVariantName.trim() ? "var(--dp-accent, #6366f1)" : "var(--dp-border, #e8e5f2)",
@@ -873,11 +875,11 @@ export function VariantEditor() {
                 <span style={{ fontSize: 12, fontWeight: 600, color: "var(--dp-text, #1e1b4b)" }}>
                   {dim.name}
                 </span>
-                <span style={{ fontSize: 11, color: "var(--dp-text-muted, #a09db8)" }}>
+                <span style={{ fontSize: 12, color: "var(--dp-text-muted, #a09db8)" }}>
                   ({dim.values.length} values)
                 </span>
                 <div style={{ flex: 1 }} />
-                <button
+                <button type="button"
                   onClick={() => handleRemoveDimension(dim.name)}
                   style={REMOVE_BTN}
                   title="Remove dimension"
@@ -902,7 +904,7 @@ export function VariantEditor() {
                       }
                     >
                       {val}
-                      <button
+                      <button type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleRemoveDimValue(dim.name, val);
@@ -938,15 +940,15 @@ export function VariantEditor() {
                   style={{
                     ...INPUT_STYLE,
                     width: 120,
-                    fontSize: 11,
+                    fontSize: 12,
                   }}
                 />
-                <button
+                <button type="button"
                   onClick={() => handleAddDimValue(dim.name)}
                   disabled={!newDimValue.trim()}
                   style={{
                     padding: "2px 8px",
-                    fontSize: 11,
+                    fontSize: 12,
                     border: "1px solid var(--dp-border, #e8e5f2)",
                     borderRadius: "var(--dp-radius-sm, 6px)",
                     background: newDimValue.trim() ? "var(--dp-accent, #6366f1)" : "var(--dp-bg, #f7f6fa)",
@@ -971,14 +973,14 @@ export function VariantEditor() {
               if (e.key === "Enter") handleAddDimension();
             }}
             placeholder='+ 添加维度 (e.g. "color", "size")'
-            style={{ ...INPUT_STYLE, flex: 1, minWidth: 0, fontSize: 11 }}
+            style={{ ...INPUT_STYLE, flex: 1, minWidth: 0, fontSize: 12 }}
           />
-          <button
+          <button type="button"
             onClick={handleAddDimension}
             disabled={!newDimName.trim()}
             style={{
               padding: "3px 8px",
-              fontSize: 11,
+              fontSize: 12,
               border: "none",
               borderRadius: 4,
               background: newDimName.trim() ? "var(--dp-accent, #6366f1)" : "var(--dp-border, #e8e5f2)",
@@ -1001,7 +1003,7 @@ export function VariantEditor() {
     return (
       <div
         style={{
-          fontSize: 11,
+          fontSize: 12,
           color: "var(--dp-text-secondary, #6b6893)",
           padding: "6px 8px",
           background: "var(--dp-bg, #f7f6fa)",
@@ -1035,14 +1037,14 @@ export function VariantEditor() {
           alignItems: "center",
         }}
       >
-        <button
+        <button type="button"
           onClick={() => handleSelectBranch("base")}
           style={activeBranchKey === "base" ? BRANCH_TAB_ACTIVE : BRANCH_TAB}
         >
           base
         </button>
         {branchKeys.map((key) => (
-          <button
+          <button type="button"
             key={key}
             onClick={() => handleSelectBranch(key)}
             style={activeBranchKey === key ? BRANCH_TAB_ACTIVE : BRANCH_TAB}
@@ -1051,7 +1053,7 @@ export function VariantEditor() {
           </button>
         ))}
         {!branchesExist && (
-          <span style={{ fontSize: 11, color: "var(--dp-text-muted, #a09db8)", marginLeft: 4 }}>
+          <span style={{ fontSize: 12, color: "var(--dp-text-muted, #a09db8)", marginLeft: 4 }}>
             (add dimension values above)
           </span>
         )}
@@ -1068,7 +1070,7 @@ export function VariantEditor() {
 
     return (
       <div style={{ position: "relative", margin: "4px 8px" }}>
-        <button
+        <button type="button"
           onClick={() => setShowAddProp((v) => !v)}
           style={DASHED_BTN}
           onMouseEnter={(e) => {
@@ -1101,7 +1103,6 @@ export function VariantEditor() {
             }}
           >
             <input
-              autoFocus
               value={addPropSearch}
               onChange={(e) => setAddPropSearch(e.target.value)}
               placeholder="Search properties..."
@@ -1110,11 +1111,11 @@ export function VariantEditor() {
                 margin: 4,
                 width: "calc(100% - 8px)",
                 padding: "4px 6px",
-                fontSize: 11,
+                fontSize: 12,
               }}
             />
             {filtered.map((name) => (
-              <button
+              <button type="button"
                 key={name}
                 onClick={() => {
                   handleSinglePropChange(name, "");
@@ -1125,7 +1126,7 @@ export function VariantEditor() {
                   display: "block",
                   width: "100%",
                   padding: "4px 10px",
-                  fontSize: 11,
+                  fontSize: 12,
                   border: "none",
                   background: "transparent",
                   color: "var(--dp-text, #1e1b4b)",
@@ -1147,7 +1148,7 @@ export function VariantEditor() {
               <div
                 style={{
                   padding: 8,
-                  fontSize: 10,
+                  fontSize: 12,
                   color: "var(--dp-text-muted, #a09db8)",
                   textAlign: "center",
                 }}
@@ -1222,7 +1223,7 @@ export function VariantEditor() {
               const baseValue = getPropValue(selectedVariant.baseProperties, name);
               return (
                 <PropertyRow key={name} label={label} inherited={true}>
-                  <div style={{ ...INPUT_STYLE, background: "var(--dp-bg, #f7f6fa)", color: "var(--dp-text-muted, #a09db8)", cursor: "not-allowed", display: "flex", alignItems: "center", fontSize: 11 }}>
+                  <div style={{ ...INPUT_STYLE, background: "var(--dp-bg, #f7f6fa)", color: "var(--dp-text-muted, #a09db8)", cursor: "not-allowed", display: "flex", alignItems: "center", fontSize: 12 }}>
                     ← base: {baseValue || "—"}
                   </div>
                 </PropertyRow>
@@ -1291,7 +1292,7 @@ export function VariantEditor() {
                   {input}
                 </span>
                 {!isBranchMode && (
-                  <button
+                  <button type="button"
                     onClick={() => selectedVariant && toggleInheritedProp(selectedVariant.id, name)}
                     title={isInherited ? "已解锁（分支只读）— 点击封锁" : "已封锁（分支可覆盖）— 点击解锁"}
                     style={{ border: "none", background: "none", cursor: "pointer", fontSize: 12, padding: "0 4px", color: isInherited ? "var(--dp-accent, #6366f1)" : "var(--dp-text-muted, #a09db8)" }}
@@ -1314,7 +1315,7 @@ export function VariantEditor() {
               const baseValue = getPropValue(selectedVariant.baseProperties, name);
               return (
                 <PropertyRow key={name} label={label} inherited={true}>
-                  <div style={{ ...INPUT_STYLE, background: "var(--dp-bg, #f7f6fa)", color: "var(--dp-text-muted, #a09db8)", cursor: "not-allowed", display: "flex", alignItems: "center", fontSize: 11 }}>
+                  <div style={{ ...INPUT_STYLE, background: "var(--dp-bg, #f7f6fa)", color: "var(--dp-text-muted, #a09db8)", cursor: "not-allowed", display: "flex", alignItems: "center", fontSize: 12 }}>
                     ← base: {baseValue || "—"}
                   </div>
                 </PropertyRow>
@@ -1371,7 +1372,7 @@ export function VariantEditor() {
                   {input}
                 </span>
                 {!isBranchMode && (
-                  <button
+                  <button type="button"
                     onClick={() => selectedVariant && toggleInheritedProp(selectedVariant.id, name)}
                     title={isInherited ? "已解锁（分支只读）— 点击封锁" : "已封锁（分支可覆盖）— 点击解锁"}
                     style={{ border: "none", background: "none", cursor: "pointer", fontSize: 12, padding: "0 4px", color: isInherited ? "var(--dp-accent, #6366f1)" : "var(--dp-text-muted, #a09db8)" }}
@@ -1407,7 +1408,7 @@ export function VariantEditor() {
         <div
           style={{
             padding: "8px 12px",
-            fontSize: 10,
+            fontSize: 12,
             fontWeight: 600,
             color: "var(--dp-text-secondary, #6b6893)",
             textTransform: "uppercase",
@@ -1432,7 +1433,7 @@ export function VariantEditor() {
           >
             <span
               style={{
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: 500,
                 color: "var(--dp-text-secondary, #6b6893)",
                 minWidth: 40,
@@ -1451,11 +1452,11 @@ export function VariantEditor() {
               style={{
                 flex: 1,
                 padding: "2px 4px",
-                fontSize: 11,
+                fontSize: 12,
                 fontFamily: "var(--dp-font-mono, monospace)",
                 border: "1px solid var(--dp-border, #e8e5f2)",
                 borderRadius: "var(--dp-radius-sm, 6px)",
-                outline: "none",
+                outline: "2px solid transparent",
                 background: "var(--dp-surface, #fff)",
                 color: "var(--dp-text, #1e1b4b)",
                 cursor: "pointer",

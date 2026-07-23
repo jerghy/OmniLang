@@ -77,7 +77,7 @@ export function TokenSlashPicker({
         <div key={cat}>
           <div
             style={{
-              fontSize: 9,
+              fontSize: 12,
               fontWeight: 600,
               color: "#94a3b8",
               padding: "4px 8px 2px",
@@ -87,7 +87,7 @@ export function TokenSlashPicker({
             {CATEGORY_LABELS[cat] || cat}
           </div>
           {grouped[cat].map((t) => (
-            <button
+            <button type="button"
               key={t.id}
               onClick={() => onSelect(t.name)}
               style={{
@@ -96,7 +96,7 @@ export function TokenSlashPicker({
                 gap: 6,
                 width: "100%",
                 padding: "4px 8px",
-                fontSize: 11,
+                fontSize: 12,
                 border: "none",
                 background: "transparent",
                 color: "var(--dp-text-secondary, #6b6893)",
@@ -121,7 +121,7 @@ export function TokenSlashPicker({
                 />
               )}
               <span>{t.name}</span>
-              <span style={{ marginLeft: "auto", fontSize: 9, color: "#94a3b8" }}>
+              <span style={{ marginLeft: "auto", fontSize: 12, color: "#94a3b8" }}>
                 {t.value}
               </span>
             </button>

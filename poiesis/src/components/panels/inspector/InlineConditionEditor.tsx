@@ -16,7 +16,7 @@ const S: Record<string, React.CSSProperties> = {
     padding: "2px 6px",
     borderRadius: 4,
     cursor: "pointer",
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, Monaco, 'Courier New', monospace",
     overflow: "hidden",
     textOverflow: "ellipsis",
@@ -25,7 +25,7 @@ const S: Record<string, React.CSSProperties> = {
     transition: "border-color 0.15s",
   },
   disabled: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#9CA3AF",
     fontStyle: "italic",
   },
@@ -34,11 +34,11 @@ const S: Record<string, React.CSSProperties> = {
     padding: "4px 8px",
     border: "1px solid #818CF8",
     borderRadius: 4,
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, Monaco, 'Courier New', monospace",
     resize: "vertical",
     boxSizing: "border-box" as const,
-    outline: "none",
+    outline: "2px solid transparent",
   },
 };
 
@@ -62,7 +62,6 @@ export function InlineConditionEditor({
     };
     return (
       <textarea
-        autoFocus
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}

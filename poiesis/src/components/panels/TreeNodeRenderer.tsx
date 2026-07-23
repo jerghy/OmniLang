@@ -107,11 +107,11 @@ export const TreeNodeView = React.memo(function TreeNodeView({
           ) : (
             <span style={{ width: 12 }} />
           )}
-          <span style={{ color: isElse ? "#9CA3AF" : "#7C3AED", fontSize: 10, fontWeight: 500 }}>
+          <span style={{ color: isElse ? "#9CA3AF" : "#7C3AED", fontSize: 12, fontWeight: 500 }}>
             {node.branchType}
           </span>
           {!isElse && (
-            <span style={{ color: "#374151", fontSize: 11, fontFamily: "monospace" }}>
+            <span style={{ color: "#374151", fontSize: 12, fontFamily: "monospace" }}>
               {node.condition || "(空条件)"}
             </span>
           )}
@@ -195,7 +195,7 @@ export const TreeNodeView = React.memo(function TreeNodeView({
         )}
 
         {/* Element icon + tag */}
-        <span style={{ color: "#374151", fontSize: 11, fontWeight: 500 }}>
+        <span style={{ color: "#374151", fontSize: 12, fontWeight: 500 }}>
           {node.tag}
         </span>
 
@@ -204,7 +204,7 @@ export const TreeNodeView = React.memo(function TreeNodeView({
           <span
             style={{
               color: "#9ca3af",
-              fontSize: 10,
+              fontSize: 12,
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",

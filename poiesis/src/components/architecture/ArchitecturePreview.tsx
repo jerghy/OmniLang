@@ -43,7 +43,7 @@ export function ArchitecturePreview() {
         background: "#fff",
       }}
       title="App Preview"
-      sandbox="allow-scripts allow-same-origin"
+      sandbox="allow-scripts"
     />
   );
 }

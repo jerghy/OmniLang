@@ -35,7 +35,7 @@ export function CodeDrawer({ source, fileName, onClose }: CodeDrawerProps) {
           <span style={{ color: "var(--dp-accent, #6366f1)" }}>{"</>"}</span>
           {fileName}
         </span>
-        <button
+        <button type="button"
           onClick={onClose}
           style={{
             border: "none", background: "none", cursor: "pointer",

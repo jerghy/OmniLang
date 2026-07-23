@@ -73,7 +73,7 @@ const S = {
     fontFamily: "var(--ol-font-family-mono)",
     background: "var(--ol-surface)",
     color: "var(--ol-text)",
-    outline: "none",
+    outline: "2px solid transparent",
     width: "100%",
   } as React.CSSProperties,
 
@@ -85,7 +85,7 @@ const S = {
     fontFamily: "var(--ol-font-family-mono)",
     background: "var(--ol-surface)",
     color: "var(--ol-text)",
-    outline: "none",
+    outline: "2px solid transparent",
     cursor: "pointer",
   } as React.CSSProperties,
 
@@ -226,7 +226,7 @@ export function ComponentMembersPanel({ componentName }: Props) {
       <div>
         <div style={S.sectionHeader} onClick={() => toggle("props")}>
           <span>Props</span>
-          <button style={S.addBtn} onClick={(e) => { e.stopPropagation(); handleAddProp(); }}>+</button>
+          <button type="button" style={S.addBtn} onClick={(e) => { e.stopPropagation(); handleAddProp(); }}>+</button>
         </div>
         {!collapsed.props && def.props.map((prop) => (
           <div key={prop.pid} style={S.itemRow}>
@@ -245,7 +245,7 @@ export function ComponentMembersPanel({ componentName }: Props) {
                 {OMNI_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
                 {!OMNI_TYPES.includes(prop.type) && <option value={prop.type}>{prop.type}</option>}
               </select>
-              <button style={S.removeBtn} onClick={() => handleRemoveProp(prop.pid)}>&times;</button>
+              <button type="button" style={S.removeBtn} onClick={() => handleRemoveProp(prop.pid)}>&times;</button>
             </div>
             <div style={S.valueRow}>
               <span style={{ ...S.typeSep, width: 12, textAlign: "center" }}>=</span>
@@ -269,7 +269,7 @@ export function ComponentMembersPanel({ componentName }: Props) {
       <div>
         <div style={S.sectionHeader} onClick={() => toggle("signals")}>
           <span>Signals</span>
-          <button style={S.addBtn} onClick={(e) => { e.stopPropagation(); handleAddSignal(); }}>+</button>
+          <button type="button" style={S.addBtn} onClick={(e) => { e.stopPropagation(); handleAddSignal(); }}>+</button>
         </div>
         {!collapsed.signals && def.signals.map((sig) => (
           <div key={sig.pid} style={S.itemRow}>
@@ -288,7 +288,7 @@ export function ComponentMembersPanel({ componentName }: Props) {
                 {OMNI_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
                 {!OMNI_TYPES.includes(sig.type) && <option value={sig.type}>{sig.type}</option>}
               </select>
-              <button style={S.removeBtn} onClick={() => handleRemoveSignal(sig.pid)}>&times;</button>
+              <button type="button" style={S.removeBtn} onClick={() => handleRemoveSignal(sig.pid)}>&times;</button>
             </div>
             <div style={S.valueRow}>
               <span style={{ ...S.typeSep, width: 12, textAlign: "center" }}>=</span>
@@ -312,7 +312,7 @@ export function ComponentMembersPanel({ componentName }: Props) {
       <div>
         <div style={S.sectionHeader} onClick={() => toggle("computeds")}>
           <span>Computed</span>
-          <button style={S.addBtn} onClick={(e) => { e.stopPropagation(); handleAddComputed(); }}>+</button>
+          <button type="button" style={S.addBtn} onClick={(e) => { e.stopPropagation(); handleAddComputed(); }}>+</button>
         </div>
         {!collapsed.computeds && def.computeds.map((c) => (
           <div key={c.pid} style={S.itemRow}>
@@ -331,7 +331,7 @@ export function ComponentMembersPanel({ componentName }: Props) {
                 {OMNI_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
                 {!OMNI_TYPES.includes(c.returnType) && <option value={c.returnType}>{c.returnType}</option>}
               </select>
-              <button style={S.removeBtn} onClick={() => handleRemoveComputed(c.pid)}>&times;</button>
+              <button type="button" style={S.removeBtn} onClick={() => handleRemoveComputed(c.pid)}>&times;</button>
             </div>
             <div style={S.valueRow}>
               <span style={{ ...S.typeSep, width: 12, textAlign: "center" }}>=</span>

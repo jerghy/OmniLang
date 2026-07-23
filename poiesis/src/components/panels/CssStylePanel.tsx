@@ -2,7 +2,7 @@
 // Two sections: CSS variables (upper) and CSS classes (lower), each with add/edit/delete.
 // Pseudo-classes (.btn:hover) are independent class cards.
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { usePoiesisStore } from "../../store";
 import type { CssVariable, StyleClass, StyleProperty } from "../../core/types/style";
 import { uid } from "../../lib/utils/id";
@@ -57,12 +57,12 @@ const S = {
   } as React.CSSProperties,
 
   sectionTitle: {
-    fontSize: 11, fontWeight: 700, color: "#6B7280",
+    fontSize: 12, fontWeight: 700, color: "#6B7280",
     textTransform: "uppercase", display: "flex", alignItems: "center", gap: 4,
   } as React.CSSProperties,
 
   addBtn: {
-    padding: "2px 8px", fontSize: 10, fontWeight: 600,
+    padding: "2px 8px", fontSize: 12, fontWeight: 600,
     border: "1px dashed #D1D5DB", borderRadius: 4,
     background: "transparent", color: "#6B7280", cursor: "pointer",
   } as React.CSSProperties,
@@ -72,16 +72,16 @@ const S = {
   } as React.CSSProperties,
 
   emptyHint: {
-    padding: "16px 8px", textAlign: "center", fontSize: 11, color: "#9CA3AF",
+    padding: "16px 8px", textAlign: "center", fontSize: 12, color: "#9CA3AF",
   } as React.CSSProperties,
 
   rowLabel: {
-    fontSize: 10, color: "#9CA3AF", fontFamily: "monospace",
+    fontSize: 12, color: "#9CA3AF", fontFamily: "monospace",
     minWidth: 100, flexShrink: 0,
   } as React.CSSProperties,
 
   deleteBtn: {
-    padding: "1px 4px", fontSize: 11, color: "#EF4444", cursor: "pointer",
+    padding: "1px 4px", fontSize: 12, color: "#EF4444", cursor: "pointer",
     border: "none", background: "transparent", fontWeight: 700, lineHeight: 1,
   } as React.CSSProperties,
 };
@@ -128,11 +128,11 @@ export function CssStylePanel() {
       <div style={{ ...S.section, maxHeight: "40%", display: "flex", flexDirection: "column" }}>
         <div style={S.sectionHeader} onClick={() => toggleCollapse("vars")}>
           <span style={S.sectionTitle}>
-            <span style={{ transform: collapsed.has("vars") ? "rotate(-90deg)" : "none", transition: "transform 0.15s", fontSize: 10 }}>▼</span>
+            <span style={{ transform: collapsed.has("vars") ? "rotate(-90deg)" : "none", transition: "transform 0.15s", fontSize: 12 }}>▼</span>
             CSS 变量
-            <span style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 400 }}>({variables.length})</span>
+            <span style={{ fontSize: 12, color: "#9CA3AF", fontWeight: 400 }}>({variables.length})</span>
           </span>
-          <button style={S.addBtn} onClick={(e) => {
+          <button type="button" style={S.addBtn} onClick={(e) => {
             e.stopPropagation();
             const store = usePoiesisStore.getState();
             const id = uid("var");
@@ -157,11 +157,11 @@ export function CssStylePanel() {
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <div style={S.sectionHeader} onClick={() => toggleCollapse("classes")}>
           <span style={S.sectionTitle}>
-            <span style={{ transform: collapsed.has("classes") ? "rotate(-90deg)" : "none", transition: "transform 0.15s", fontSize: 10 }}>▼</span>
+            <span style={{ transform: collapsed.has("classes") ? "rotate(-90deg)" : "none", transition: "transform 0.15s", fontSize: 12 }}>▼</span>
             CSS Class
-            <span style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 400 }}>({classes.length})</span>
+            <span style={{ fontSize: 12, color: "#9CA3AF", fontWeight: 400 }}>({classes.length})</span>
           </span>
-          <button style={S.addBtn} onClick={(e) => {
+          <button type="button" style={S.addBtn} onClick={(e) => {
             e.stopPropagation();
             const store = usePoiesisStore.getState();
             const id = uid("cls");
@@ -221,7 +221,7 @@ function VariableRow({ variable, componentName }: { variable: CssVariable; compo
         type="text" value={name} onChange={(e) => setName(e.target.value)}
         onBlur={commitName}
         placeholder="--name"
-        style={{ width: 110, padding: "2px 4px", fontSize: 11, fontFamily: "monospace", border: "1px solid #E5E7EB", borderRadius: 3, color: "#7C3AED", background: "#FAFAFA" }}
+        style={{ width: 110, padding: "2px 4px", fontSize: 12, fontFamily: "monospace", border: "1px solid #E5E7EB", borderRadius: 3, color: "#7C3AED", background: "#FAFAFA" }}
         spellCheck={false}
       />
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -233,7 +233,7 @@ function VariableRow({ variable, componentName }: { variable: CssVariable; compo
           placeholder="值，如 #6366f1, 16px"
         />
       </div>
-      <button style={S.deleteBtn} onClick={() => usePoiesisStore.getState().removeVariable(componentName, variable.id)}>
+      <button type="button" style={S.deleteBtn} onClick={() => usePoiesisStore.getState().removeVariable(componentName, variable.id)}>
         ×
       </button>
     </div>
@@ -251,6 +251,7 @@ function ClassCard({ styleClass, componentName, variables }: {
 }) {
   const [expanded, setExpanded] = useState(true);
   const [editName, setEditName] = useState(styleClass.name);
+  useEffect(() => { setEditName(styleClass.name); }, [styleClass.name]);
   const [previewTag, setPreviewTag] = useState<PreviewTag>("div");
   const [showPropSelector, setShowPropSelector] = useState(false);
   const [propSearch, setPropSearch] = useState("");
@@ -298,22 +299,22 @@ function ClassCard({ styleClass, componentName, variables }: {
         background: "#FAFAFA", borderBottom: expanded ? "1px solid #E5E7EB" : "none",
         cursor: "pointer",
       }} onClick={() => setExpanded(!expanded)}>
-        <span style={{ fontSize: 10, transform: expanded ? "rotate(0deg)" : "rotate(-90deg)", transition: "transform 0.15s" }}>▼</span>
-        <span style={{ fontSize: 10, color: "#9CA3AF", fontFamily: "monospace" }}>.</span>
+        <span style={{ fontSize: 12, transform: expanded ? "rotate(0deg)" : "rotate(-90deg)", transition: "transform 0.15s" }}>▼</span>
+        <span style={{ fontSize: 12, color: "#9CA3AF", fontFamily: "monospace" }}>.</span>
         <input
           type="text" value={editName} onChange={(e) => setEditName(e.target.value)}
           onBlur={commitName}
           onClick={(e) => e.stopPropagation()}
           placeholder="class-name"
           style={{
-            flex: 1, border: "none", outline: "none", background: "transparent",
+            flex: 1, border: "none", outline: "2px solid transparent", background: "transparent",
             fontSize: 12, fontFamily: "monospace", color: "#374151", fontWeight: 600,
             minWidth: 60,
           }}
           spellCheck={false}
         />
-        <span style={{ fontSize: 9, color: "#9CA3AF" }}>{styleClass.properties.length} 属性</span>
-        <button style={{ ...S.deleteBtn, fontSize: 14 }} onClick={(e) => {
+        <span style={{ fontSize: 12, color: "#9CA3AF" }}>{styleClass.properties.length} 属性</span>
+        <button type="button" style={{ ...S.deleteBtn, fontSize: 14 }} onClick={(e) => {
           e.stopPropagation();
           usePoiesisStore.getState().removeClass(componentName, styleClass.id);
         }}>×</button>
@@ -344,7 +345,7 @@ function ClassCard({ styleClass, componentName, variables }: {
                 value={previewTag}
                 onChange={(e) => setPreviewTag(e.target.value as PreviewTag)}
                 style={{
-                  width: "100%", padding: "2px 4px", fontSize: 10,
+                  width: "100%", padding: "2px 4px", fontSize: 12,
                   border: "1px solid #E5E7EB", borderRadius: 3,
                   background: "#fff", color: "#374151",
                 }}
@@ -359,7 +360,7 @@ function ClassCard({ styleClass, componentName, variables }: {
           {/* Properties */}
           <div style={{ borderTop: "1px solid #F3F4F6", paddingTop: 6 }}>
             {styleClass.properties.length === 0 && !showPropSelector && (
-              <div style={{ fontSize: 10, color: "#9CA3AF", textAlign: "center", padding: 8 }}>
+              <div style={{ fontSize: 12, color: "#9CA3AF", textAlign: "center", padding: 8 }}>
                 暂无属性
               </div>
             )}
@@ -373,10 +374,9 @@ function ClassCard({ styleClass, componentName, variables }: {
                 <input
                   type="text" value={propSearch} onChange={(e) => setPropSearch(e.target.value)}
                   placeholder="搜索 CSS 属性..."
-                  autoFocus
                   style={{
-                    width: "100%", padding: "3px 6px", fontSize: 11, border: "1px solid #6366F1", borderRadius: 3,
-                    outline: "none", boxSizing: "border-box",
+                    width: "100%", padding: "3px 6px", fontSize: 12, border: "1px solid #6366F1", borderRadius: 3,
+                    outline: "2px solid transparent", boxSizing: "border-box",
                   }}
                   onKeyDown={(e) => {
                     if (e.key === "Escape") { setShowPropSelector(false); setPropSearch(""); }
@@ -390,7 +390,7 @@ function ClassCard({ styleClass, componentName, variables }: {
                       key={p}
                       onMouseDown={(e) => { e.preventDefault(); addProperty(p); }}
                       style={{
-                        padding: "3px 6px", fontSize: 11, fontFamily: "monospace",
+                        padding: "3px 6px", fontSize: 12, fontFamily: "monospace",
                         cursor: "pointer", color: "#374151",
                         background: "transparent",
                         borderBottom: "1px solid #F3F4F6",
@@ -399,17 +399,17 @@ function ClassCard({ styleClass, componentName, variables }: {
                       onMouseLeave={(e) => { (e.target as HTMLElement).style.background = "transparent"; }}
                     >
                       {p}
-                      {DROPDOWN_PROPERTIES[p] !== undefined && <span style={{ color: "#9CA3AF", marginLeft: 4, fontSize: 9 }}>下拉</span>}
-                      {PROPERTY_UNIT_MAP[p] !== undefined && <span style={{ color: "#9CA3AF", marginLeft: 4, fontSize: 9 }}>单位</span>}
+                      {DROPDOWN_PROPERTIES[p] !== undefined && <span style={{ color: "#9CA3AF", marginLeft: 4, fontSize: 12 }}>下拉</span>}
+                      {PROPERTY_UNIT_MAP[p] !== undefined && <span style={{ color: "#9CA3AF", marginLeft: 4, fontSize: 12 }}>单位</span>}
                     </div>
                   ))}
                 </div>
               </div>
             ) : (
-              <button
+              <button type="button"
                 onClick={() => setShowPropSelector(true)}
                 style={{
-                  width: "100%", padding: "3px", fontSize: 10, fontWeight: 500,
+                  width: "100%", padding: "3px", fontSize: 12, fontWeight: 500,
                   border: "1px dashed #D1D5DB", borderRadius: 3,
                   background: "transparent", color: "#6B7280", cursor: "pointer",
                   marginTop: 4,
@@ -436,11 +436,19 @@ function PropertyRow({ property, classId, componentName, variables }: {
   variables: CssVariable[];
 }) {
   const [propName, setPropName] = useState(property.name);
+  useEffect(() => { setPropName(property.name); }, [property.name]);
   const [val, setVal] = useState(
     property.segments.length > 0 && property.segments[0].type === "text"
       ? property.segments[0].value
       : ""
   );
+  useEffect(() => {
+    setVal(
+      property.segments.length > 0 && property.segments[0].type === "text"
+        ? property.segments[0].value
+        : ""
+    );
+  }, [property.segments]);
 
   const dropdownOpts = DROPDOWN_PROPERTIES[propName];
   const unitGroup = PROPERTY_UNIT_MAP[propName];
@@ -468,7 +476,7 @@ function PropertyRow({ property, classId, componentName, variables }: {
           onChange={(e) => { setPropName(e.target.value); commitName(); }}
           onBlur={commitName}
           style={{
-            width: "100%", padding: "2px 2px", fontSize: 10, fontFamily: "monospace",
+            width: "100%", padding: "2px 2px", fontSize: 12, fontFamily: "monospace",
             border: "1px solid #E5E7EB", borderRadius: 3, color: "#374151",
             background: "#fff",
           }}
@@ -488,7 +496,7 @@ function PropertyRow({ property, classId, componentName, variables }: {
             onChange={(e) => { setVal(e.target.value); }}
             onBlur={commitValue}
             style={{
-              width: "100%", padding: "2px 4px", fontSize: 10, fontFamily: "monospace",
+              width: "100%", padding: "2px 4px", fontSize: 12, fontFamily: "monospace",
               border: "1px solid #E5E7EB", borderRadius: 3,
               color: "#374151", background: "#fff",
             }}
@@ -508,7 +516,7 @@ function PropertyRow({ property, classId, componentName, variables }: {
           />
         )}
       </div>
-      <button style={S.deleteBtn} onClick={() => usePoiesisStore.getState().removeProperty(componentName, classId, property.id)}>
+      <button type="button" style={S.deleteBtn} onClick={() => usePoiesisStore.getState().removeProperty(componentName, classId, property.id)}>
         ×
       </button>
     </div>

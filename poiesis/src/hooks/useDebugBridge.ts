@@ -16,7 +16,7 @@ interface UseDebugBridgeOptions {
  */
 export function useDebugBridge({ iframeRef, onElementClick }: UseDebugBridgeOptions) {
   const handlerRef = useRef(onElementClick);
-  handlerRef.current = onElementClick;
+  useEffect(() => { handlerRef.current = onElementClick; });
 
   // Listen for messages from iframe — validate origin for security
   useEffect(() => {

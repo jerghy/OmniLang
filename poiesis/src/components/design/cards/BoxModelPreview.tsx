@@ -114,7 +114,7 @@ export function BoxModelPreview({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            fontSize: 9,
+            fontSize: 12,
             fontFamily: "var(--dp-font-mono, monospace)",
             color: "#c2410c",
             fontWeight: 600,
@@ -135,7 +135,7 @@ export function BoxModelPreview({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            fontSize: 9,
+            fontSize: 12,
             fontFamily: "var(--dp-font-mono, monospace)",
             color: "#c2410c",
             fontWeight: 600,
@@ -156,7 +156,7 @@ export function BoxModelPreview({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            fontSize: 9,
+            fontSize: 12,
             fontFamily: "var(--dp-font-mono, monospace)",
             color: "var(--dp-accent, #6366f1)",
             fontWeight: 600,
@@ -178,7 +178,7 @@ export function BoxModelPreview({
             display: "flex",
             justifyContent: "center",
             gap: 12,
-            fontSize: 9,
+            fontSize: 12,
           }}
         >
           <span style={{ display: "flex", alignItems: "center", gap: 3, color: "var(--dp-text-muted, #a09db8)" }}>

@@ -458,7 +458,7 @@ function PageToggleButton({
   children: React.ReactNode;
 }) {
   return (
-    <button
+    <button type="button"
       onClick={onClick}
       style={{
         padding: "5px 14px",
@@ -469,7 +469,7 @@ function PageToggleButton({
         border: "none",
         borderRadius: 6,
         cursor: "pointer",
-        transition: "all 0.15s",
+        transition: "border-color 150ms ease, background-color 150ms ease, opacity 150ms ease",
         whiteSpace: "nowrap",
       }}
     >

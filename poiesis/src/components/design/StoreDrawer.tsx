@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { usePoiesisStore } from "../../store";
 import { StorePage } from "../../pages/StorePage";
 import type { StoreDefinition } from "../../core/types/store";
@@ -23,10 +23,10 @@ export function StoreDrawer() {
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   // All stores (global + inline), deduplicated
-  const allStores = [
+  const allStores = useMemo(() => [
     ...Object.entries(globalStoreDefs).map(([name, def]) => ({ key: name, name, def, type: "global" as const })),
     ...Object.entries(inlineStoreDefs).map(([key, def]) => ({ key, name: key, def, type: "inline" as const })),
-  ];
+  ], [globalStoreDefs, inlineStoreDefs]);
 
   // ESC key to close
   useEffect(() => {
@@ -142,7 +142,7 @@ export function StoreDrawer() {
       }}>
         {/* Store switcher */}
         <div style={{ position: "relative" }}>
-          <button
+          <button type="button"
             onClick={() => setShowStoreSwitcher(!showStoreSwitcher)}
             style={{
               display: "flex", alignItems: "center", gap: 6,
@@ -154,7 +154,7 @@ export function StoreDrawer() {
               fontFamily: "inherit",
             }}
           >
-            <span style={{ color: "#6366f1", fontSize: 10 }}>●</span>
+            <span style={{ color: "#6366f1", fontSize: 12 }}>●</span>
             {activeStore ?? "选择 Store"}
           </button>
 
@@ -193,7 +193,7 @@ export function StoreDrawer() {
                       {s.key === activeStore ? "●" : "○"}
                     </span>
                     <span style={{ flex: 1 }}>{s.key}</span>
-                    <button
+                    <button type="button"
                       onClick={e => { e.stopPropagation(); handleDeleteStore(s.key, s.type); }}
                       style={{
                         border: "none", background: "transparent",
@@ -204,7 +204,7 @@ export function StoreDrawer() {
                   </div>
                 ))}
                 <div style={{ borderTop: "1px solid #e2e8f0" }}>
-                  <button
+                  <button type="button"
                     onClick={() => { setShowStoreSwitcher(false); setShowCreateModal(true); }}
                     style={{
                       width: "100%", padding: "8px 14px",
@@ -224,7 +224,7 @@ export function StoreDrawer() {
 
         {/* Right buttons */}
         <div style={{ display: "flex", gap: 4 }}>
-          <button
+          <button type="button"
             onClick={handleOpenInTab}
             title="在标签页中打开"
             style={{
@@ -233,7 +233,7 @@ export function StoreDrawer() {
               background: "transparent", cursor: "pointer",
             }}
           >📋</button>
-          <button
+          <button type="button"
             onClick={handleClose}
             style={{
               padding: "2px 8px", fontSize: 16,
@@ -278,7 +278,7 @@ function EmptyStoreGuide({ onCreate }: { onCreate: () => void }) {
       <div style={{ fontSize: 36 }}>📦</div>
       <div style={{ fontSize: 14, fontWeight: 600 }}>还没有 Store</div>
       <div style={{ fontSize: 12 }}>使用 Store 管理状态、信号和操作</div>
-      <button
+      <button type="button"
         onClick={onCreate}
         style={{
           marginTop: 8,
@@ -319,25 +319,24 @@ function CreateStoreModal({
 
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
           <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, cursor: "pointer" }}>
-            <input type="radio" checked={storeType === "inline"}
+            <input type="radio" name="storeType" checked={storeType === "inline"}
               onChange={() => setStoreType("inline")} />
             <div>
               <div style={{ fontWeight: 600 }}>内联 Store</div>
-              <div style={{ color: "#94a3b8", fontSize: 11 }}>保存在当前组件 .omni 文件中</div>
+              <div style={{ color: "#94a3b8", fontSize: 12 }}>保存在当前组件 .omni 文件中</div>
             </div>
           </label>
           <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, cursor: "pointer" }}>
-            <input type="radio" checked={storeType === "global"}
+            <input type="radio" name="storeType" checked={storeType === "global"}
               onChange={() => setStoreType("global")} />
             <div>
               <div style={{ fontWeight: 600 }}>全局 Store</div>
-              <div style={{ color: "#94a3b8", fontSize: 11 }}>独立文件 src/stores/xxx.omni</div>
+              <div style={{ color: "#94a3b8", fontSize: 12 }}>独立文件 src/stores/xxx.omni</div>
             </div>
           </label>
         </div>
 
         <input
-          autoFocus
           placeholder="Store 名称"
           value={name}
           onChange={e => setName(e.target.value)}
@@ -354,12 +353,12 @@ function CreateStoreModal({
         />
 
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-          <button onClick={onClose} style={{
+          <button type="button" onClick={onClose} style={{
             padding: "5px 14px", fontSize: 12,
             border: "1px solid #d1d5db", borderRadius: 6,
             background: "#fff", cursor: "pointer", fontFamily: "inherit",
           }}>取消</button>
-          <button onClick={() => { if (name.trim()) onCreate(name, storeType); }} style={{
+          <button type="button" onClick={() => { if (name.trim()) onCreate(name, storeType); }} style={{
             padding: "5px 14px", fontSize: 12, fontWeight: 600,
             border: "none", borderRadius: 6,
             background: "#6366f1", color: "#fff",

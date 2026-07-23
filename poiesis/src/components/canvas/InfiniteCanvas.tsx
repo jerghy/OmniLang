@@ -27,13 +27,13 @@ export function InfiniteCanvas({ children }: InfiniteCanvasProps) {
 
   // Refs to keep native event handlers fresh without stale closures
   const zoomRef = useRef(zoom);
-  zoomRef.current = zoom;
   const panRef = useRef({ x: panX, y: panY });
-  panRef.current = { x: panX, y: panY };
   const zoomAtPointRef = useRef(zoomAtPoint);
-  zoomAtPointRef.current = zoomAtPoint;
   const setPanRef = useRef(setPan);
-  setPanRef.current = setPan;
+  useEffect(() => { zoomRef.current = zoom; });
+  useEffect(() => { panRef.current = { x: panX, y: panY }; });
+  useEffect(() => { zoomAtPointRef.current = zoomAtPoint; });
+  useEffect(() => { setPanRef.current = setPan; });
 
   // Set default panel position next to Artboard on first mount
   useEffect(() => {

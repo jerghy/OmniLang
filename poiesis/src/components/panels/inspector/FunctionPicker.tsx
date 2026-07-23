@@ -76,14 +76,13 @@ export function FunctionPicker({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="搜索函数/Action..."
-            autoFocus
             style={{
               width: "100%",
               padding: "6px 10px",
               fontSize: 12,
               border: "1px solid #e2e8f0",
               borderRadius: 4,
-              outline: "none",
+              outline: "2px solid transparent",
               fontFamily: "inherit",
               boxSizing: "border-box",
             }}
@@ -143,7 +142,7 @@ function GroupLabel({ children }: { children: React.ReactNode }) {
     <div
       style={{
         padding: "4px 12px",
-        fontSize: 10,
+        fontSize: 12,
         fontWeight: 600,
         color: "#94a3b8",
         textTransform: "uppercase",
@@ -166,7 +165,7 @@ function PickerRow({
   onSelect: (item: HandlerItem) => void;
 }) {
   return (
-    <button
+    <button type="button"
       onClick={() => onSelect(item)}
       style={{
         display: "flex",
@@ -186,7 +185,7 @@ function PickerRow({
       <span style={{ fontWeight: isSelected ? 600 : 400 }}>
         {item.displayName}
       </span>
-      <span style={{ fontSize: 10, color: "#94a3b8" }}>
+      <span style={{ fontSize: 12, color: "#94a3b8" }}>
         {item.sourceName}
       </span>
     </button>

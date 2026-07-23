@@ -73,7 +73,7 @@ const S = {
     fontFamily: "var(--ol-font-family-mono)",
     background: "var(--ol-surface)",
     color: "var(--ol-text)",
-    outline: "none",
+    outline: "2px solid transparent",
     width: "100%",
   } as React.CSSProperties,
 
@@ -85,7 +85,7 @@ const S = {
     fontFamily: "var(--ol-font-family-mono)",
     background: "var(--ol-surface)",
     color: "var(--ol-text)",
-    outline: "none",
+    outline: "2px solid transparent",
     cursor: "pointer",
   } as React.CSSProperties,
 
@@ -313,7 +313,7 @@ export function StoreMembersPanel({
       <div>
         <div style={S.sectionHeader} onClick={() => toggle("signals")}>
           <span>Signals</span>
-          <button style={S.addBtn} onClick={(e) => { e.stopPropagation(); handleAddSignal(); }}>+</button>
+          <button type="button" style={S.addBtn} onClick={(e) => { e.stopPropagation(); handleAddSignal(); }}>+</button>
         </div>
         {!collapsed.signals && store.signals.map((sig) => (
           <div key={sig.pid} style={S.itemRow}>
@@ -326,7 +326,7 @@ export function StoreMembersPanel({
                 {OMNI_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
                 {!OMNI_TYPES.includes(sig.type) && <option value={sig.type}>{sig.type}</option>}
               </select>
-              <button style={S.removeBtn} onClick={() => removeSignal(sig.pid)}>×</button>
+              <button type="button" style={S.removeBtn} onClick={() => removeSignal(sig.pid)}>×</button>
             </div>
             <div style={S.valueRow}>
               <span style={{ ...S.typeSep, width: 12, textAlign: "center" }}>=</span>
@@ -347,7 +347,7 @@ export function StoreMembersPanel({
       <div>
         <div style={S.sectionHeader} onClick={() => toggle("getters")}>
           <span>Getters</span>
-          <button style={S.addBtn} onClick={(e) => { e.stopPropagation(); handleAddGetter(); }}>+</button>
+          <button type="button" style={S.addBtn} onClick={(e) => { e.stopPropagation(); handleAddGetter(); }}>+</button>
         </div>
         {!collapsed.getters && store.getters.map((g) => (
           <div key={g.pid} style={S.itemRow}>
@@ -360,7 +360,7 @@ export function StoreMembersPanel({
                 {OMNI_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
                 {!OMNI_TYPES.includes(g.returnType) && <option value={g.returnType}>{g.returnType}</option>}
               </select>
-              <button style={S.removeBtn} onClick={() => removeGetter(g.pid)}>×</button>
+              <button type="button" style={S.removeBtn} onClick={() => removeGetter(g.pid)}>×</button>
             </div>
             <div style={S.valueRow}>
               <span style={{ ...S.typeSep, width: 12, textAlign: "center" }}>=</span>
@@ -381,7 +381,7 @@ export function StoreMembersPanel({
       <div>
         <div style={S.sectionHeader} onClick={() => toggle("actions")}>
           <span>Actions</span>
-          <button style={S.addBtn} onClick={(e) => { e.stopPropagation(); handleAddAction(); }}>+</button>
+          <button type="button" style={S.addBtn} onClick={(e) => { e.stopPropagation(); handleAddAction(); }}>+</button>
         </div>
         {!collapsed.actions && store.actions.map((a) => {
           const paramsStr = a.params.map((p) => `${p.name}: ${p.type}`).join(", ");
@@ -391,7 +391,7 @@ export function StoreMembersPanel({
               <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", fontFamily: "var(--ol-font-family-mono)" }}>
                 {a.name}({paramsStr}){a.returnType ? `: ${a.returnType}` : ""}{a.isAsync ? " async" : ""}
               </span>
-              <button
+              <button type="button"
                 style={S.removeBtn}
                 onClick={(e) => { e.stopPropagation(); removeAction(a.pid); }}
               >×</button>
@@ -407,8 +407,8 @@ export function StoreMembersPanel({
 
       {/* ── Imports ── */}
       <div style={S.importsArea}>
-        {store.imports.map((imp, i) => (
-          <div key={i} style={{ wordBreak: "break-all" }}>{imp}</div>
+        {store.imports.map((imp) => (
+          <div key={imp} style={{ wordBreak: "break-all" }}>{imp}</div>
         ))}
       </div>
 

@@ -136,7 +136,7 @@ export function ComponentDefPanel() {
         onPointerUp={handlePointerUp}
       >
         <span className="panel-header-title">{componentName}</span>
-        <button
+        <button type="button"
           className={`debug-toggle-btn${debugMode ? " active" : ""}`}
           onClick={() => {
             if (debugMode) {
@@ -151,7 +151,7 @@ export function ComponentDefPanel() {
         >
           {debugMode ? "🔧 ON" : "🔧"}
         </button>
-        <button className="panel-collapse-btn" onClick={toggleCollapsed}>
+        <button type="button" className="panel-collapse-btn" onClick={toggleCollapsed}>
           {isCollapsed ? "□" : "－"}
         </button>
       </div>
@@ -241,7 +241,6 @@ function DefEntryRow({ entry, kind, isEditing, onDoubleClick, onEditSave, onDele
         <input
           className="entry-name-input"
           defaultValue={entry.name}
-          autoFocus
           onBlur={(e) => onEditSave("name", e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") onEditSave("name", e.currentTarget.value); }}
         />
@@ -288,7 +287,7 @@ function DefEntryRow({ entry, kind, isEditing, onDoubleClick, onEditSave, onDele
       ) : (
         <span className="entry-default">{String(entry.defaultValue ?? "")}</span>
       )}
-      <button className="entry-delete-btn" onClick={onDelete}>{String.fromCharCode(0x2715)}</button>
+      <button type="button" className="entry-delete-btn" onClick={onDelete}>{String.fromCharCode(0x2715)}</button>
     </div>
   );
 }
@@ -308,7 +307,6 @@ function ComputedEntryRow({ entry, isEditing, onDoubleClick, onEditSave, onDelet
         <input
           className="entry-name-input"
           defaultValue={entry.name}
-          autoFocus
           onBlur={(e) => onEditSave("name", e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") onEditSave("name", e.currentTarget.value); }}
         />
@@ -328,7 +326,7 @@ function ComputedEntryRow({ entry, isEditing, onDoubleClick, onEditSave, onDelet
       <span className="entry-name">{entry.name}</span>
       <span>:</span>
       <span className="entry-type">{entry.returnType}</span>
-      <button className="entry-delete-btn" onClick={onDelete}>{String.fromCharCode(0x2715)}</button>
+      <button type="button" className="entry-delete-btn" onClick={onDelete}>{String.fromCharCode(0x2715)}</button>
     </div>
   );
 }
@@ -360,7 +358,7 @@ const DefSection = React.memo(function DefSection({
     <div className="panel-section">
       <div className="section-header">
         <span>{title}</span>
-        <button className="section-add-btn" onClick={onAddToggle}>+</button>
+        <button type="button" className="section-add-btn" onClick={onAddToggle}>+</button>
       </div>
       {isAdding && (
         <AddForm kind={sectionKind} onAdd={onAdd} onCancel={onCancelAdd} />
@@ -419,8 +417,8 @@ function AddForm({ kind, onAdd, onCancel }: AddFormProps) {
           <input ref={extraRef} placeholder="Expression" className="entry-default-input" />
         </>
       )}
-      <button className="add-form-confirm" onClick={handleConfirm}>{String.fromCharCode(0x2713)}</button>
-      <button className="add-form-cancel" onClick={onCancel}>{String.fromCharCode(0x2715)}</button>
+      <button type="button" className="add-form-confirm" onClick={handleConfirm}>{String.fromCharCode(0x2713)}</button>
+      <button type="button" className="add-form-cancel" onClick={onCancel}>{String.fromCharCode(0x2715)}</button>
     </div>
   );
 }

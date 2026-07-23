@@ -146,7 +146,7 @@ export function SignalSlashPicker({
           zIndex: 1000,
           minWidth: 200,
           padding: "8px 12px",
-          fontSize: 11,
+          fontSize: 12,
           color: "#94a3b8",
         }}
       >
@@ -181,7 +181,7 @@ export function SignalSlashPicker({
           <div key={cat}>
             <div
               style={{
-                fontSize: 9,
+                fontSize: 12,
                 fontWeight: 600,
                 color: "#94a3b8",
                 padding: "4px 8px 2px",
@@ -199,7 +199,7 @@ export function SignalSlashPicker({
               const isActive = flatIdx === safeIndex;
 
               return (
-                <button
+                <button type="button"
                   key={item.pid}
                   onClick={() => onSelect(item)}
                   onMouseEnter={() => setActiveIndex(flatIdx)}
@@ -209,7 +209,7 @@ export function SignalSlashPicker({
                     gap: 6,
                     width: "100%",
                     padding: "4px 8px",
-                    fontSize: 11,
+                    fontSize: 12,
                     border: "none",
                     background: isActive
                       ? "var(--dp-accent-subtle, #eef0ff)"
@@ -225,7 +225,7 @@ export function SignalSlashPicker({
                   <span
                     style={{
                       marginLeft: "auto",
-                      fontSize: 9,
+                      fontSize: 12,
                       color: "#94a3b8",
                     }}
                   >

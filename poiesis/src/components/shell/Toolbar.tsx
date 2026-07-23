@@ -43,16 +43,16 @@ export function Toolbar({
   return (
     <div style={S.toolbar}>
       {/* Mode toggle */}
-      <button onMouseDown={() => onModeChange("design")} onClick={() => onModeChange("design")} style={S.modeBtn(mode === "design")}>🎨 设计</button>
-      <button onMouseDown={() => onModeChange("code")} onClick={() => onModeChange("code")} style={S.modeBtn(mode === "code")}>💻 代码</button>
+      <button type="button" onMouseDown={() => onModeChange("design")} onClick={() => onModeChange("design")} style={S.modeBtn(mode === "design")}>🎨 设计</button>
+      <button type="button" onMouseDown={() => onModeChange("code")} onClick={() => onModeChange("code")} style={S.modeBtn(mode === "code")}>💻 代码</button>
       <span style={{ width: 8 }} />
       {/* Undo/Redo */}
-      <button onClick={onUndo} style={iconBtn} title="撤销 (Ctrl+Z)">↩</button>
-      <button onClick={onRedo} style={iconBtn} title="重做 (Ctrl+Shift+Z)">↪</button>
+      <button type="button" onClick={onUndo} style={iconBtn} title="撤销 (Ctrl+Z)">↩</button>
+      <button type="button" onClick={onRedo} style={iconBtn} title="重做 (Ctrl+Shift+Z)">↪</button>
       {/* Save */}
-      <button onClick={onSave} style={{...iconBtn, color: isDirty ? "#DC2626" : "#6B7280", fontWeight: isDirty ? 700 : 400 as React.CSSProperties['fontWeight']}} title="保存项目 (Ctrl+S)">💾</button>
+      <button type="button" onClick={onSave} style={{...iconBtn, color: isDirty ? "#DC2626" : "#6B7280", fontWeight: isDirty ? 700 : 400 as React.CSSProperties['fontWeight']}} title="保存项目 (Ctrl+S)">💾</button>
       <span style={{ width: 12 }} />
-      <button onClick={onOpenCssStyles} style={{...btnStyle, color: "#6366F1", fontWeight: 600, fontSize: 12}} title="CSS 样式设计">🎨 CSS 样式</button>
+      <button type="button" onClick={onOpenCssStyles} style={{...btnStyle, color: "#6366F1", fontWeight: 600, fontSize: 12}} title="CSS 样式设计">🎨 CSS 样式</button>
       <DebugWindowButton />
       {children}
       {/* Run/Stop/Compile */}
@@ -62,18 +62,18 @@ export function Toolbar({
             style={{...btnStyle, background: "#ECFDF5", borderColor: "#10B981", color: "#059669", textDecoration: "none" }}>
             🔗 {runStatus.url?.replace("http://", "") || "运行"}
           </a>
-          <button onClick={onStop}
+          <button type="button" onClick={onStop}
             style={{...btnStyle, background: "#FEF2F2", borderColor: "#FCA5A5", color: "#DC2626" }}>
             ⏹ 停止
           </button>
         </>
       ) : (
-        <button onClick={onRun} disabled={runLoading}
+        <button type="button" onClick={onRun} disabled={runLoading}
           style={{...btnStyle, background: "#ECFDF5", borderColor: "#10B981", color: "#059669", fontWeight: 600 }}>
           {runLoading ? "⏳" : "▶"} 运行
         </button>
       )}
-      <button onClick={onCompile} style={btnStyle}>{compileLabel}</button>
+      <button type="button" onClick={onCompile} style={btnStyle}>{compileLabel}</button>
     </div>
   );
 }

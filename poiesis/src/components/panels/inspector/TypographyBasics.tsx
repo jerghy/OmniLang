@@ -81,7 +81,7 @@ const selectStyle: React.CSSProperties = {
   fontFamily: "var(--dp-font-mono, monospace)",
   border: "1px solid var(--dp-border, #e8e5f2)",
   borderRadius: "var(--dp-radius-sm, 6px)",
-  outline: "none",
+  outline: "2px solid transparent",
   background: "var(--dp-surface, #fff)",
   color: "var(--dp-text, #1e1b4b)",
 };
@@ -96,7 +96,7 @@ const labelStyle: React.CSSProperties = {
 
 const presetChipBase: React.CSSProperties = {
   padding: "2px 8px",
-  fontSize: 10,
+  fontSize: 12,
   fontFamily: "var(--dp-font-mono, monospace)",
   border: "1px solid var(--dp-border, #e8e5f2)",
   borderRadius: "var(--dp-radius-sm, 6px)",
@@ -180,7 +180,7 @@ export function TypographyBasics({ properties, onChange }: TypographyBasicsProps
               />
             </span>
             {fontSizeRaw !== "" && (
-              <button
+              <button type="button"
                 style={{ border: "none", background: "none", cursor: "pointer", fontSize: 14, padding: "0 2px", color: "var(--dp-text-muted, #a09db8)", lineHeight: 1, flexShrink: 0 }}
                 title="清除"
                 onClick={(e) => { e.stopPropagation(); onChange(properties.filter((p) => p.name !== "fontSize")); }}
@@ -190,7 +190,7 @@ export function TypographyBasics({ properties, onChange }: TypographyBasicsProps
         </div>
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap", paddingLeft: 64 }}>
           {FONT_SIZE_PRESETS.map((size) => (
-            <button
+            <button type="button"
               key={size}
               onClick={() => onChange(setProp(properties, "fontSize", `${size}px`))}
               style={{
@@ -236,7 +236,7 @@ export function TypographyBasics({ properties, onChange }: TypographyBasicsProps
               {colorIsToken && (
                 <span
                   style={{
-                    fontSize: 10,
+                    fontSize: 12,
                     color: "var(--dp-accent, #6366f1)",
                     lineHeight: "24px",
                     display: "block",
@@ -251,7 +251,7 @@ export function TypographyBasics({ properties, onChange }: TypographyBasicsProps
           </span>
           <span
             style={{
-              fontSize: 11,
+              fontSize: 12,
               fontFamily: "var(--dp-font-mono, monospace)",
               color: "var(--dp-text-muted, #a09db8)",
             }}
@@ -259,7 +259,7 @@ export function TypographyBasics({ properties, onChange }: TypographyBasicsProps
             {colorRaw || "—"}
           </span>
           {colorRaw !== "" && (
-            <button
+            <button type="button"
               style={{ border: "none", background: "none", cursor: "pointer", fontSize: 14, padding: "0 2px", color: "var(--dp-text-muted, #a09db8)", lineHeight: 1, flexShrink: 0 }}
               title="清除"
               onClick={(e) => { e.stopPropagation(); onChange(properties.filter((p) => p.name !== "color")); }}

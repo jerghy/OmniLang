@@ -95,7 +95,7 @@ function ToggleButton({
   children: React.ReactNode;
 }) {
   return (
-    <button
+    <button type="button"
       onClick={onClick}
       style={{
         padding: "6px 16px",
@@ -107,7 +107,7 @@ function ToggleButton({
         borderRadius: 6,
         cursor: "pointer",
         boxShadow: active ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
-        transition: "all 0.15s",
+        transition: "border-color 150ms ease, background-color 150ms ease, opacity 150ms ease",
       }}
     >
       {children}

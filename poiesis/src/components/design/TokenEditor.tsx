@@ -79,7 +79,7 @@ const INPUT_STYLE: React.CSSProperties = {
   fontFamily: "'Cascadia Code', 'Fira Code', monospace",
   border: "1px solid #d1d5db",
   borderRadius: 6,
-  outline: "none",
+  outline: "2px solid transparent",
   background: "#fff",
   color: "#374151",
   boxSizing: "border-box",
@@ -103,7 +103,7 @@ const SELECT_STYLE: React.CSSProperties = {
   fontSize: 12,
   border: "1px solid #d1d5db",
   borderRadius: 6,
-  outline: "none",
+  outline: "2px solid transparent",
   background: "#fff",
   color: "#374151",
   cursor: "pointer",
@@ -306,7 +306,7 @@ export function TokenEditor() {
                   }}
                   title={t.name}
                 />
-                <div style={{ fontSize: 11, color: "#64748b", marginTop: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <div style={{ fontSize: 12, color: "#64748b", marginTop: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {t.name}
                 </div>
               </div>
@@ -357,7 +357,7 @@ export function TokenEditor() {
                 ))}
               </select>
               {/* Remove */}
-              <button onClick={() => removeToken(t.id)} style={REMOVE_BTN} title="Remove token">
+              <button type="button" onClick={() => removeToken(t.id)} style={REMOVE_BTN} title="Remove token">
                 &times;
               </button>
             </div>
@@ -400,7 +400,7 @@ export function TokenEditor() {
                   }}
                   title="Drag to scrub value"
                 >
-                  <span style={{ fontSize: 11, color: "#64748b", marginRight: 2 }}>&#8596;</span>
+                  <span style={{ fontSize: 12, color: "#64748b", marginRight: 2 }}>&#8596;</span>
                   <span style={{ fontSize: 13, fontFamily: "'Cascadia Code', 'Fira Code', monospace", color: "#374151" }}>
                     {num}{unit}
                   </span>
@@ -411,11 +411,11 @@ export function TokenEditor() {
                   onChange={(e) => updateToken(t.id, { value: `${num}${e.target.value}` })}
                   style={{
                     padding: "4px 4px",
-                    fontSize: 11,
+                    fontSize: 12,
                     fontFamily: "'Cascadia Code', 'Fira Code', monospace",
                     border: "1px solid #d1d5db",
                     borderRadius: 6,
-                    outline: "none",
+                    outline: "2px solid transparent",
                     background: "#fff",
                     color: "#374151",
                     cursor: "pointer",
@@ -448,12 +448,12 @@ export function TokenEditor() {
                       height: "100%",
                       background: "#6366f1",
                       borderRadius: 5,
-                      transition: "width 0.05s",
+                      transition: "opacity 0.05s",
                     }}
                   />
                 </div>
                 {/* Remove */}
-                <button onClick={() => removeToken(t.id)} style={REMOVE_BTN} title="Remove token">
+                <button type="button" onClick={() => removeToken(t.id)} style={REMOVE_BTN} title="Remove token">
                   &times;
                 </button>
               </div>
@@ -483,7 +483,7 @@ export function TokenEditor() {
                 style={{ ...INPUT_STYLE, flex: 1, minWidth: 0 }}
                 placeholder="value"
               />
-              <button onClick={() => removeToken(t.id)} style={REMOVE_BTN} title="Remove token">
+              <button type="button" onClick={() => removeToken(t.id)} style={REMOVE_BTN} title="Remove token">
                 &times;
               </button>
             </div>
@@ -524,7 +524,7 @@ export function TokenEditor() {
                   title="Drag to scrub value"
                 >
                   {!isNaN(num) && (
-                    <span style={{ fontSize: 11, color: "#64748b", marginRight: 2 }}>&#8596;</span>
+                    <span style={{ fontSize: 12, color: "#64748b", marginRight: 2 }}>&#8596;</span>
                   )}
                   <span style={{ fontSize: 13, fontFamily: "'Cascadia Code', 'Fira Code', monospace", color: "#374151" }}>
                     {num}{unit}
@@ -536,11 +536,11 @@ export function TokenEditor() {
                   onChange={(e) => updateToken(t.id, { value: `${num}${e.target.value}` })}
                   style={{
                     padding: "4px 4px",
-                    fontSize: 11,
+                    fontSize: 12,
                     fontFamily: "'Cascadia Code', 'Fira Code', monospace",
                     border: "1px solid #d1d5db",
                     borderRadius: 6,
-                    outline: "none",
+                    outline: "2px solid transparent",
                     background: "#fff",
                     color: "#374151",
                     cursor: "pointer",
@@ -552,7 +552,7 @@ export function TokenEditor() {
                   <option value="rem">rem</option>
                   <option value="em">em</option>
                 </select>
-                <button onClick={() => removeToken(t.id)} style={REMOVE_BTN} title="Remove token">
+                <button type="button" onClick={() => removeToken(t.id)} style={REMOVE_BTN} title="Remove token">
                   &times;
                 </button>
               </div>
@@ -587,14 +587,14 @@ export function TokenEditor() {
             <span>{icon} {label} ({catTokens.length})</span>
             {/* Palette toggle (colors only) */}
             {category === "colors" && catTokens.length > 0 && (
-              <button
+              <button type="button"
                 onClick={() => setPaletteView((v) => !v)}
                 style={{
                   border: "1px solid #e2e8f0",
                   borderRadius: 6,
                   background: paletteView ? "#6366f1" : "#f8fafc",
                   color: paletteView ? "#fff" : "#64748b",
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: 500,
                   padding: "3px 10px",
                   cursor: "pointer",
@@ -609,7 +609,7 @@ export function TokenEditor() {
           {renderFn(catTokens)}
 
           {/* Add button */}
-          <button onClick={() => handleAddToken(category)} style={ADD_BTN_STYLE}>
+          <button type="button" onClick={() => handleAddToken(category)} style={ADD_BTN_STYLE}>
             + Add {ADD_BTN_SINGULAR[category] || label.toLowerCase().slice(0, -1)}
           </button>
         </div>
@@ -645,7 +645,7 @@ export function TokenEditor() {
             }}
           />
           {searchQuery && (
-            <button
+            <button type="button"
               onClick={() => setSearchQuery("")}
               style={{
                 position: "absolute",
@@ -666,7 +666,7 @@ export function TokenEditor() {
           )}
         </div>
         <div style={{ position: "relative" }}>
-          <button
+          <button type="button"
             onClick={() => setShowNewMenu((v) => !v)}
             style={{
               padding: "8px 16px",
@@ -707,7 +707,7 @@ export function TokenEditor() {
                 overflow: "hidden",
               }}
             >{CATEGORY_ORDER.map((cat) => (
-                <button
+                <button type="button"
                   key={cat}
                   onClick={() => handleAddToken(cat)}
                   style={{
@@ -760,7 +760,7 @@ export function TokenEditor() {
                     style={{ ...INPUT_STYLE, flex: 1, minWidth: 0 }}
                     placeholder="value"
                   />
-                  <button onClick={() => removeToken(t.id)} style={REMOVE_BTN} title="Remove token">
+                  <button type="button" onClick={() => removeToken(t.id)} style={REMOVE_BTN} title="Remove token">
                     &times;
                   </button>
                 </div>

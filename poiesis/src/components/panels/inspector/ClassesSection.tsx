@@ -50,7 +50,7 @@ export function ClassesSection({ element }: ClassesSectionProps) {
     <div style={{ marginBottom: 12 }}>
       <div
         style={{
-          fontSize: 11,
+          fontSize: 12,
           fontWeight: 600,
           color: "#6b7280",
           textTransform: "uppercase",
@@ -77,7 +77,7 @@ export function ClassesSection({ element }: ClassesSectionProps) {
               alignItems: "center",
               gap: 3,
               padding: "2px 8px",
-              fontSize: 11,
+              fontSize: 12,
               background: "#eef2ff",
               color: "#4338ca",
               borderRadius: 12,
@@ -85,7 +85,7 @@ export function ClassesSection({ element }: ClassesSectionProps) {
             }}
           >
             {cls}
-            <button
+            <button type="button"
               onClick={() => handleRemoveClass(cls)}
               title="移除 class"
               style={{
@@ -103,7 +103,7 @@ export function ClassesSection({ element }: ClassesSectionProps) {
           </span>
         ))}
         {currentRefs.length === 0 && (
-          <span style={{ fontSize: 11, color: "#94a3b8" }}>
+          <span style={{ fontSize: 12, color: "#94a3b8" }}>
             未绑定 class
           </span>
         )}
@@ -124,10 +124,10 @@ export function ClassesSection({ element }: ClassesSectionProps) {
           style={{
             width: "100%",
             padding: "3px 6px",
-            fontSize: 11,
+            fontSize: 12,
             border: "1px solid #e2e8f0",
             borderRadius: 4,
-            outline: "none",
+            outline: "2px solid transparent",
             fontFamily: "monospace",
             boxSizing: "border-box",
           }}
@@ -154,7 +154,7 @@ export function ClassesSection({ element }: ClassesSectionProps) {
                 onMouseDown={() => handleAddClass(c.name)}
                 style={{
                   padding: "4px 8px",
-                  fontSize: 11,
+                  fontSize: 12,
                   cursor: "pointer",
                   color: "#374151",
                   display: "flex",
@@ -169,7 +169,7 @@ export function ClassesSection({ element }: ClassesSectionProps) {
                 }}
               >
                 <span>{c.name}</span>
-                <span style={{ color: "#94a3b8", fontSize: 10 }}>
+                <span style={{ color: "#94a3b8", fontSize: 12 }}>
                   {c.properties.length + c.pseudoStates.length} 规则
                 </span>
               </div>

@@ -48,9 +48,9 @@ export function NewFileModal({ onCreate, onClose }: NewFileModalProps) {
 
         {/* File type selector */}
         <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 6 }}>文件类型</div>
+          <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 6 }}>文件类型</div>
           <div style={{ display: "flex", gap: 8 }}>
-            <button
+            <button type="button"
               onClick={() => setNewFileType("store")}
               style={{
                 flex: 1,
@@ -67,7 +67,7 @@ export function NewFileModal({ onCreate, onClose }: NewFileModalProps) {
             >
               🗄 Store
             </button>
-            <button
+            <button type="button"
               onClick={() => setNewFileType("code")}
               style={{
                 flex: 1,
@@ -89,7 +89,7 @@ export function NewFileModal({ onCreate, onClose }: NewFileModalProps) {
 
         {/* File name input */}
         <div style={{ marginBottom: 4 }}>
-          <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 6 }}>文件名</div>
+          <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 6 }}>文件名</div>
           <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
             <input
               type="text"
@@ -103,7 +103,6 @@ export function NewFileModal({ onCreate, onClose }: NewFileModalProps) {
                 }
               }}
               placeholder="my-file"
-              autoFocus
               style={{
                 flex: 1,
                 padding: "5px 8px",
@@ -111,7 +110,7 @@ export function NewFileModal({ onCreate, onClose }: NewFileModalProps) {
                 borderRadius: 4,
                 fontSize: 12,
                 fontFamily: "inherit",
-                outline: "none",
+                outline: "2px solid transparent",
               }}
             />
             <span style={{ fontSize: 12, color: "#94a3b8" }}>.omni</span>
@@ -121,7 +120,7 @@ export function NewFileModal({ onCreate, onClose }: NewFileModalProps) {
         {/* Target path preview */}
         <div
           style={{
-            fontSize: 10,
+            fontSize: 12,
             color: "#94a3b8",
             marginBottom: 12,
             padding: "2px 0",
@@ -133,7 +132,7 @@ export function NewFileModal({ onCreate, onClose }: NewFileModalProps) {
 
         {/* Action buttons */}
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-          <button
+          <button type="button"
             onClick={() => { onClose(); setNewFileName(""); }}
             style={{
               padding: "5px 14px",
@@ -147,7 +146,7 @@ export function NewFileModal({ onCreate, onClose }: NewFileModalProps) {
           >
             返回
           </button>
-          <button
+          <button type="button"
             onClick={handleCreate}
             disabled={!newFileName.trim()}
             style={{

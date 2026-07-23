@@ -49,7 +49,7 @@ export function DesignPreviewNode({
           padding: "4px 8px",
           background: "#EEF2FF",
           borderBottom: "1px solid #C7D2FE",
-          fontSize: 10,
+          fontSize: 12,
           fontWeight: 600,
           color: "#4338CA",
           display: "flex",

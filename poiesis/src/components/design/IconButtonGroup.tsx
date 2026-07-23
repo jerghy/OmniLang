@@ -33,7 +33,7 @@ export function IconButtonGroup<T extends string>({
           display: "inline-flex",
           alignItems: "center",
           padding: "2px 6px",
-          fontSize: 11,
+          fontSize: 12,
           lineHeight: "18px",
           borderRadius,
           border: isActive ? "1px solid #6366f1" : "1px solid #e2e8f0",
@@ -42,11 +42,11 @@ export function IconButtonGroup<T extends string>({
           cursor: "pointer",
           fontFamily: "inherit",
           userSelect: "none",
-          outline: "none",
+          outline: "2px solid transparent",
         };
 
         return (
-          <button
+          <button type="button"
             key={option.value}
             role="radio"
             aria-checked={isActive}

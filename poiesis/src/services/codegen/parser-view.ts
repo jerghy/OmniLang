@@ -496,8 +496,7 @@ export function parseStyleAttribute(internals: ParserInternals): string {
   // Split on top-level commas only (not inside quoted strings),
   // so that values like rgba(0,0,0,0.1) or "0, 0, 0" survive intact.
   const semiStyle = splitTopLevelCommas(styleContent)
-    .map((part) => part.trim())
-    .filter(Boolean)
+    .flatMap((part) => { const p = part.trim(); return p ? [p] : []; })
     .map((part) => part.replace(/:\s*"([^"]*)"/g, ": $1"))
     .join("; ");
 

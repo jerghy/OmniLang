@@ -80,7 +80,7 @@ const BubbleNode = React.memo(function BubbleNode({ data }: NodeProps) {
             right: -4,
             background: colors.border,
             color: "#fff",
-            fontSize: 10,
+            fontSize: 12,
             fontWeight: 700,
             borderRadius: "50%",
             width: 22,

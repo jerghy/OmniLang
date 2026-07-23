@@ -5,7 +5,7 @@ import React from "react";
 
 const LOCK_BTN: React.CSSProperties = {
   border: "none", background: "none", cursor: "pointer",
-  fontSize: 11, padding: "0 2px", flexShrink: 0,
+  fontSize: 12, padding: "0 2px", flexShrink: 0,
 };
 
 /** Style for a locked (🔒) property input in base mode — greyed out. */
@@ -33,7 +33,7 @@ export const LockIcon = React.memo(function LockIcon({
   const isUnlocked = inheritedProps?.includes(propName);
   if (!readOnly && onToggleInherited) {
     return (
-      <button
+      <button type="button"
         style={{ ...LOCK_BTN, color: isUnlocked ? "var(--dp-accent, #6366f1)" : "var(--dp-text-muted, #a09db8)" }}
         onClick={() => onToggleInherited(propName)}
         title={isUnlocked ? "已解锁（继承到分支）— 点击封锁" : "已封锁（分支可覆盖）— 点击解锁"}

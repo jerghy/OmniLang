@@ -179,7 +179,7 @@ const SIDEBAR_STYLE: React.CSSProperties = {
 };
 
 const SIDEBAR_HEADER: React.CSSProperties = {
-  fontSize: 10,
+  fontSize: 12,
   fontWeight: 600,
   color: "var(--dp-text-secondary, #6b6893)",
   textTransform: "uppercase",
@@ -209,11 +209,11 @@ const CLASS_ITEM_ACTIVE: React.CSSProperties = {
 
 const INPUT_STYLE: React.CSSProperties = {
   padding: "3px 6px",
-  fontSize: 11,
+  fontSize: 12,
   fontFamily: "var(--dp-font-mono, monospace)",
   border: "1px solid var(--dp-border, #e8e5f2)",
   borderRadius: "var(--dp-radius-sm, 6px)",
-  outline: "none",
+  outline: "2px solid transparent",
   background: "var(--dp-surface, #fff)",
   color: "var(--dp-text, #1e1b4b)",
   boxSizing: "border-box",
@@ -223,11 +223,11 @@ const INPUT_STYLE: React.CSSProperties = {
 
 const SELECT_STYLE: React.CSSProperties = {
   padding: "3px 4px",
-  fontSize: 10,
+  fontSize: 12,
   fontFamily: "var(--dp-font-mono, monospace)",
   border: "1px solid var(--dp-border, #e8e5f2)",
   borderRadius: "var(--dp-radius-sm, 6px)",
-  outline: "none",
+  outline: "2px solid transparent",
   background: "var(--dp-surface, #fff)",
   color: "var(--dp-text, #1e1b4b)",
   cursor: "pointer",
@@ -342,12 +342,16 @@ export function ClassEditor() {
 
   // ── Close popups on outside click ──
 
-  useOutsideClick(pseudoMenuRef, showPseudoMenu, () => setShowPseudoMenu(false));
-  useOutsideClick(addPropRef, showAddProp, () => {
+  const handleOutsidePseudo = useCallback(() => setShowPseudoMenu(false), []);
+  const handleOutsideAddProp = useCallback(() => {
     setShowAddProp(false);
     setAddPropSearch("");
-  });
-  useOutsideClick(tokenPickerRef, !!tokenPickerProp, () => setTokenPickerProp(null));
+  }, []);
+  const handleOutsideTokenPicker = useCallback(() => setTokenPickerProp(null), []);
+
+  useOutsideClick(pseudoMenuRef, showPseudoMenu, handleOutsidePseudo);
+  useOutsideClick(addPropRef, showAddProp, handleOutsideAddProp);
+  useOutsideClick(tokenPickerRef, !!tokenPickerProp, handleOutsideTokenPicker);
 
   // ── Handlers ──
 
@@ -405,16 +409,18 @@ export function ClassEditor() {
   // ── Stabilized callbacks via refs (so React.memo children don't re-render on every state change) ──
 
   const handlePropsChangeRef = useRef<(newProps: StyleProperty[]) => void>(null!);
-  handlePropsChangeRef.current = (newProps: StyleProperty[]) => {
-    if (!selectedClass) return;
-    if (activePseudo === "base") {
-      updateDesignClass(selectedClass.id, { properties: newProps });
-    } else {
-      const { pseudoStates, psIdx } = ensurePseudoState(selectedClass);
-      pseudoStates[psIdx] = { ...pseudoStates[psIdx], properties: newProps };
-      updateDesignClass(selectedClass.id, { pseudoStates });
-    }
-  };
+  useEffect(() => {
+    handlePropsChangeRef.current = (newProps: StyleProperty[]) => {
+      if (!selectedClass) return;
+      if (activePseudo === "base") {
+        updateDesignClass(selectedClass.id, { properties: newProps });
+      } else {
+        const { pseudoStates, psIdx } = ensurePseudoState(selectedClass);
+        pseudoStates[psIdx] = { ...pseudoStates[psIdx], properties: newProps };
+        updateDesignClass(selectedClass.id, { pseudoStates });
+      }
+    };
+  });
 
   const handlePropsChange = useCallback(
     (newProps: StyleProperty[]) => {
@@ -424,14 +430,16 @@ export function ClassEditor() {
   );
 
   const handleSinglePropChangeRef = useRef<(name: string, value: string) => void>(null!);
-  handleSinglePropChangeRef.current = (name: string, value: string) => {
-    if (!selectedClass) return;
-    const props =
-      activePseudo === "base"
-        ? selectedClass.properties
-        : pseudoState?.properties ?? [];
-    handlePropsChangeRef.current?.(setPropValue(props, name, value));
-  };
+  useEffect(() => {
+    handleSinglePropChangeRef.current = (name: string, value: string) => {
+      if (!selectedClass) return;
+      const props =
+        activePseudo === "base"
+          ? selectedClass.properties
+          : pseudoState?.properties ?? [];
+      handlePropsChangeRef.current?.(setPropValue(props, name, value));
+    };
+  });
 
   const handleSinglePropChange = useCallback(
     (name: string, value: string) => {
@@ -569,7 +577,7 @@ export function ClassEditor() {
             >
               {cls.name}
             </span>
-            <button
+            <button type="button"
               onClick={(e) => handleRemoveClass(e, cls.id)}
               style={REMOVE_BTN}
               title="Remove class"
@@ -579,14 +587,14 @@ export function ClassEditor() {
           </div>
         ))}
       </div>
-      <button
+      <button type="button"
         onClick={handleAddClass}
         style={{
           border: "1px dashed var(--dp-border, #e8e5f2)",
           borderRadius: "var(--dp-radius-sm, 6px)",
           background: "transparent",
           color: "var(--dp-text-muted, #a09db8)",
-          fontSize: 11,
+          fontSize: 12,
           padding: "5px 10px",
           cursor: "pointer",
           margin: "8px",
@@ -623,12 +631,12 @@ export function ClassEditor() {
         }}
       >
         {PSEUDO_TABS.map((pseudo) => (
-          <button
+          <button type="button"
             key={pseudo}
             onClick={() => handlePseudoSelect(pseudo)}
             style={{
               padding: "5px 10px",
-              fontSize: 11,
+              fontSize: 12,
               cursor: "pointer",
               border: "none",
               background: "none",
@@ -644,7 +652,7 @@ export function ClassEditor() {
           </button>
         ))}
         <div style={{ position: "relative" }}>
-          <button
+          <button type="button"
             onClick={() => setShowPseudoMenu((v) => !v)}
             style={{
               padding: "5px 6px",
@@ -679,14 +687,14 @@ export function ClassEditor() {
               }}
             >
               {ADDITIONAL_PSEUDOS.map((pseudo) => (
-                <button
+                <button type="button"
                   key={pseudo}
                   onClick={() => handlePseudoSelect(pseudo)}
                   style={{
                     display: "block",
                     width: "100%",
                     padding: "6px 12px",
-                    fontSize: 11,
+                    fontSize: 12,
                     border: "none",
                     background: "transparent",
                     color: "var(--dp-text-secondary, #6b6893)",
@@ -709,7 +717,7 @@ export function ClassEditor() {
         </div>
         <div style={{ flex: 1 }} />
         {!pseudoExists && activePseudo !== "base" && (
-          <span style={{ fontSize: 10, color: "var(--dp-text-muted, #a09db8)", paddingRight: 8 }}>
+          <span style={{ fontSize: 12, color: "var(--dp-text-muted, #a09db8)", paddingRight: 8 }}>
             (no overrides yet)
           </span>
         )}
@@ -737,7 +745,7 @@ const renderTokenPicker = () => {
       >
         <div
           style={{
-            fontSize: 10,
+            fontSize: 12,
             fontWeight: 600,
             color: "#6b7280",
             padding: "4px 8px",
@@ -750,7 +758,7 @@ const renderTokenPicker = () => {
         {tokens.length === 0 && (
           <div
             style={{
-              fontSize: 10,
+              fontSize: 12,
               color: "#94a3b8",
               padding: 8,
               textAlign: "center",
@@ -766,7 +774,7 @@ const renderTokenPicker = () => {
             <div key={cat}>
               <div
                 style={{
-                  fontSize: 9,
+                  fontSize: 12,
                   fontWeight: 600,
                   color: "#94a3b8",
                   padding: "4px 8px 2px",
@@ -776,7 +784,7 @@ const renderTokenPicker = () => {
                 {cat}
               </div>
               {catTokens.map((t) => (
-                <button
+                <button type="button"
                   key={t.id}
                   onClick={() => handleSelectToken(t.name)}
                   style={{
@@ -785,7 +793,7 @@ const renderTokenPicker = () => {
                     gap: 6,
                     width: "100%",
                     padding: "4px 8px",
-                    fontSize: 11,
+                    fontSize: 12,
                     border: "none",
                     background: "transparent",
                     color: "var(--dp-text-secondary, #6b6893)",
@@ -816,7 +824,7 @@ const renderTokenPicker = () => {
                   <span
                     style={{
                       marginLeft: "auto",
-                      fontSize: 9,
+                      fontSize: 12,
                       color: "#94a3b8",
                       fontFamily: "monospace",
                     }}
@@ -829,13 +837,13 @@ const renderTokenPicker = () => {
           );
         })}
         <div style={{ borderTop: "1px solid #e2e8f0", marginTop: 4, paddingTop: 4 }}>
-          <button
+          <button type="button"
             onClick={handleUnlinkToken}
             style={{
               display: "block",
               width: "100%",
               padding: "4px 8px",
-              fontSize: 11,
+              fontSize: 12,
               border: "none",
               background: "transparent",
               color: "#ef4444",
@@ -863,14 +871,14 @@ const renderTokenPicker = () => {
 
     return (
       <div style={{ position: "relative", margin: "4px 8px" }}>
-        <button
+        <button type="button"
           onClick={() => setShowAddProp((v) => !v)}
           style={{
             border: "1px dashed var(--dp-border, #e8e5f2)",
             borderRadius: "var(--dp-radius-sm, 6px)",
             background: "transparent",
             color: "var(--dp-text-muted, #a09db8)",
-            fontSize: 11,
+            fontSize: 12,
             padding: "6px 10px",
             cursor: "pointer",
             width: "100%",
@@ -907,7 +915,6 @@ const renderTokenPicker = () => {
             }}
           >
             <input
-              autoFocus
               value={addPropSearch}
               onChange={(e) => setAddPropSearch(e.target.value)}
               placeholder="Search properties..."
@@ -916,18 +923,18 @@ const renderTokenPicker = () => {
                 margin: 4,
                 width: "calc(100% - 8px)",
                 padding: "4px 6px",
-                fontSize: 11,
+                fontSize: 12,
               }}
             />
             {filtered.map((name) => (
-              <button
+              <button type="button"
                 key={name}
                 onClick={() => handleAddProperty(name)}
                 style={{
                   display: "block",
                   width: "100%",
                   padding: "4px 10px",
-                  fontSize: 11,
+                  fontSize: 12,
                   border: "none",
                   background: "transparent",
                   color: "#374151",
@@ -949,7 +956,7 @@ const renderTokenPicker = () => {
               <div
                 style={{
                   padding: 8,
-                  fontSize: 10,
+                  fontSize: 12,
                   color: "#94a3b8",
                   textAlign: "center",
                 }}
@@ -1050,7 +1057,6 @@ const renderTokenPicker = () => {
             >
               {editingClassName === selectedClass.id ? (
                 <input
-                  autoFocus
                   defaultValue={selectedClass.name}
                   onBlur={(e) => handleClassNameDone(selectedClass.id, e.target.value)}
                   onKeyDown={(e) => {
@@ -1071,14 +1077,14 @@ const renderTokenPicker = () => {
               ) : (
                 <span>{selectedClass.name}</span>
               )}
-              <button
+              <button type="button"
                 onClick={() => setEditingClassName(selectedClass.id)}
                 style={{
                   border: "none",
                   background: "none",
                   cursor: "pointer",
                   color: "var(--dp-text-muted, #a09db8)",
-                  fontSize: 11,
+                  fontSize: 12,
                   padding: 0,
                   borderRadius: 3,
                 }}

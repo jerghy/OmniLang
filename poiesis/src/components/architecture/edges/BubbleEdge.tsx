@@ -59,7 +59,7 @@ export function BubbleEdge({
               border: `1px solid ${edgeColor}`,
               borderRadius: 4,
               padding: "2px 8px",
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: 500,
               color: edgeColor,
               pointerEvents: "none",

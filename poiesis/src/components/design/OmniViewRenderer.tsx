@@ -118,7 +118,7 @@ export function OmniViewRenderer() {
         <div style={{
           position: "absolute", bottom: 8, right: 8,
           background: "#fef2f2", border: "1px solid #fecaca",
-          borderRadius: 6, padding: "6px 12px", fontSize: 11,
+          borderRadius: 6, padding: "6px 12px", fontSize: 12,
           color: "#dc2626", maxWidth: 320, zIndex: 10,
         }}>
           {errors[0]}
@@ -129,7 +129,7 @@ export function OmniViewRenderer() {
         <div style={{
           position: "absolute", top: 8, right: 8,
           background: "#eff6ff", border: "1px solid #bfdbfe",
-          borderRadius: 4, padding: "2px 8px", fontSize: 11,
+          borderRadius: 4, padding: "2px 8px", fontSize: 12,
           color: "#3b82f6", zIndex: 10,
         }}>
           compiling...

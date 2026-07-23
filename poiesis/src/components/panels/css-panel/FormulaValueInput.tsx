@@ -145,22 +145,22 @@ export function tokensToCss(tokens: ValueToken[]): string {
 const TOKEN_STYLES: Record<string, React.CSSProperties> = {
   "var-ref": {
     background: "#EDE9FE", color: "#6D28D9", border: "1px solid #C4B5FD",
-    borderRadius: 3, padding: "1px 4px", fontSize: 11, fontWeight: 600,
+    borderRadius: 3, padding: "1px 4px", fontSize: 12, fontWeight: 600,
     fontFamily: "monospace",
   },
   "color": {
     background: "#FCE7F3", color: "#BE185D", border: "1px solid #F9A8D4",
-    borderRadius: 3, padding: "1px 4px", fontSize: 11, fontWeight: 600,
+    borderRadius: 3, padding: "1px 4px", fontSize: 12, fontWeight: 600,
     fontFamily: "monospace",
   },
   "dimension": {
     background: "#DBEAFE", color: "#1D4ED8", border: "1px solid #93C5FD",
-    borderRadius: 3, padding: "1px 4px", fontSize: 11, fontWeight: 600,
+    borderRadius: 3, padding: "1px 4px", fontSize: 12, fontWeight: 600,
     fontFamily: "monospace",
   },
   "keyword": {
     background: "#F3F4F6", color: "#6B7280", border: "1px solid #D1D5DB",
-    borderRadius: 3, padding: "1px 4px", fontSize: 11, fontWeight: 500,
+    borderRadius: 3, padding: "1px 4px", fontSize: 12, fontWeight: 500,
     fontFamily: "monospace",
   },
 };
@@ -285,9 +285,10 @@ export function FormulaValueInput({ value, onChange, onBlur, variables, placehol
         : t.type === "dimension" ? t.value
         : t.value;
       const ts = TOKEN_STYLES[t.type];
+      const tokenKey = t.type === "var-ref" ? `var-ref-${t.name}` : `${t.type}-${t.value}`;
       return (
         <span
-          key={i}
+          key={tokenKey}
           style={{
             ...ts,
             cursor: t.type === "var-ref" ? "pointer" : "default",
@@ -333,10 +334,10 @@ export function FormulaValueInput({ value, onChange, onBlur, variables, placehol
           style={{
             flex: 1,
             border: "none",
-            outline: "none",
+            outline: "2px solid transparent",
             background: "transparent",
             padding: "3px 6px",
-            fontSize: 11,
+            fontSize: 12,
             fontFamily: "monospace",
             color: "#374151",
             minWidth: 0,
@@ -345,7 +346,7 @@ export function FormulaValueInput({ value, onChange, onBlur, variables, placehol
         />
         {/* Formula badge */}
         <span style={{
-          fontSize: 9, color: "#9CA3AF", paddingRight: 6,
+          fontSize: 12, color: "#9CA3AF", paddingRight: 6,
           fontFamily: "monospace", userSelect: "none",
           opacity: hasTokens ? 1 : 0,
         }}>
@@ -379,7 +380,7 @@ export function FormulaValueInput({ value, onChange, onBlur, variables, placehol
               key={v.id}
               onMouseDown={(e) => { e.preventDefault(); selectVariable(v.name); }}
               style={{
-                padding: "4px 8px", fontSize: 11, fontFamily: "monospace",
+                padding: "4px 8px", fontSize: 12, fontFamily: "monospace",
                 cursor: "pointer",
                 background: i === autocomplete.selectedIdx ? "#EEF2FF" : "transparent",
                 color: i === autocomplete.selectedIdx ? "#4F46E5" : "#374151",
@@ -387,7 +388,7 @@ export function FormulaValueInput({ value, onChange, onBlur, variables, placehol
               }}
             >
               <span style={{ color: "#7C3AED", fontWeight: 600 }}>{v.name}</span>
-              <span style={{ color: "#9CA3AF", fontSize: 10, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              <span style={{ color: "#9CA3AF", fontSize: 12, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {v.segments[0]?.type === "text" ? v.segments[0].value : ""}
               </span>
             </div>

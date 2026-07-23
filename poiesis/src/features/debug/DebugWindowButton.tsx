@@ -4,7 +4,7 @@ export function DebugWindowButton() {
   const { isOpen, open, close } = useDebugWindow();
 
   return (
-    <button
+    <button type="button"
       onClick={isOpen ? close : open}
       title={isOpen ? "Close debug window" : "Open debug window"}
       style={{

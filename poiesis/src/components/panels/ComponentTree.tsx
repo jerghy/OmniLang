@@ -89,7 +89,7 @@ export function ComponentTree({ treeDropState }: ComponentTreeProps) {
         style={{
           fontWeight: 600,
           marginBottom: 6,
-          fontSize: 11,
+          fontSize: 12,
           color: "#6b7280",
           textTransform: "uppercase",
           display: "flex",
@@ -107,7 +107,7 @@ export function ComponentTree({ treeDropState }: ComponentTreeProps) {
             style={{
               textAlign: "center",
               color: "#9CA3AF",
-              fontSize: 11,
+              fontSize: 12,
               padding: "16px 0",
             }}
           >
@@ -354,7 +354,7 @@ function ContextMenu({
               }}
             >
               <span>
-                <span style={{ marginRight: 4, fontSize: 11 }}>🔀</span>
+                <span style={{ marginRight: 4, fontSize: 12 }}>🔀</span>
                 条件块
               </span>
             </div>
@@ -370,7 +370,7 @@ function ContextMenu({
                 }}
               >
                 <span>{CATEGORY_LABELS[cat] || cat}</span>
-                <span style={{ color: "#9CA3AF", fontSize: 10 }}>▸</span>
+                <span style={{ color: "#9CA3AF", fontSize: 12 }}>▸</span>
                 {activeCategory === cat && (
                   <div
                     style={ST.subSubmenu}
@@ -386,7 +386,7 @@ function ContextMenu({
                         onClick={() => handleAddChild(elementId, comp.component)}
                       >
                         <span>
-                          <span style={{ marginRight: 4, fontSize: 11 }}>
+                          <span style={{ marginRight: 4, fontSize: 12 }}>
                             {COMPONENT_ICONS[comp.component] ||
                               (comp.isCustom ? "★" : "▪")}
                           </span>
@@ -498,7 +498,7 @@ function MenuRow({
         <span
           style={{
             color: "#9CA3AF",
-            fontSize: 10,
+            fontSize: 12,
             marginLeft: 24,
             whiteSpace: "nowrap",
           }}

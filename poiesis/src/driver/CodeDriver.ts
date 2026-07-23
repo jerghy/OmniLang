@@ -171,7 +171,7 @@ export class CodeDriver {
       const orig = srcTab.graph.elements[i];
       if (orig.parentId && idMap.has(orig.parentId)) cloneElements[i].parentId = idMap.get(orig.parentId)!;
       if ("children" in orig && orig.children.length > 0) {
-        (cloneElements[i] as ViewElementData | GroupElementData).children = orig.children.map((cid: string) => idMap.get(cid) || cid).filter(Boolean);
+        (cloneElements[i] as ViewElementData | GroupElementData).children = orig.children.flatMap((cid: string) => { const v = idMap.get(cid) || cid; return v ? [v] : []; });
       }
     }
     const cloneWires = srcTab.graph.wires.map((w: WireData) => ({

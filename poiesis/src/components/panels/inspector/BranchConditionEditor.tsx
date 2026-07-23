@@ -43,7 +43,7 @@ export function BranchConditionEditor({ blockId, branchIndex }: BranchConditionE
 
       {/* Condition — click to edit */}
       <div style={{ marginBottom: 12 }}>
-        <label style={{ display: "block", marginBottom: 4, color: "#6b7280", fontSize: 11 }}>
+        <label style={{ display: "block", marginBottom: 4, color: "#6b7280", fontSize: 12 }}>
           条件表达式
         </label>
         <InlineConditionEditor
@@ -56,13 +56,13 @@ export function BranchConditionEditor({ blockId, branchIndex }: BranchConditionE
 
       {/* Child elements */}
       <div style={{ marginBottom: 12 }}>
-        <span style={{ color: "#6b7280", fontSize: 11 }}>子元素 ({branch.children.length})</span>
+        <span style={{ color: "#6b7280", fontSize: 12 }}>子元素 ({branch.children.length})</span>
         {branch.children.length === 0 ? (
-          <div style={{ color: "#9CA3AF", fontSize: 11, fontStyle: "italic", marginTop: 4 }}>
+          <div style={{ color: "#9CA3AF", fontSize: 12, fontStyle: "italic", marginTop: 4 }}>
             右键此分支 → 添加子组件
           </div>
         ) : (
-          <div style={{ fontSize: 11, color: "#374151", marginTop: 4, display: "flex", flexWrap: "wrap", gap: 4 }}>
+          <div style={{ fontSize: 12, color: "#374151", marginTop: 4, display: "flex", flexWrap: "wrap", gap: 4 }}>
             {branch.children.map((cid) => (
               <span key={cid} style={{
                 padding: "2px 8px", background: "#EEF2FF", borderRadius: 3, color: "#4F46E5",
@@ -76,11 +76,11 @@ export function BranchConditionEditor({ blockId, branchIndex }: BranchConditionE
 
       {/* Delete — only @else if */}
       {!isIf && !isElse && (
-        <button
+        <button type="button"
           onClick={handleDeleteBranch}
           style={{
             padding: "4px 12px", border: "1px solid #FCA5A5", borderRadius: 4,
-            background: "#FEF2F2", color: "#DC2626", cursor: "pointer", fontSize: 11,
+            background: "#FEF2F2", color: "#DC2626", cursor: "pointer", fontSize: 12,
           }}
         >
           删除此分支

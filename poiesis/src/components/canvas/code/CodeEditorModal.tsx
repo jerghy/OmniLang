@@ -243,7 +243,7 @@ export function CodeEditorModal({
           <span style={{ fontSize: 14, fontWeight: 600, color: "#1e293b" }}>
             编辑代码块
           </span>
-          <button
+          <button type="button"
             onClick={onClose}
             style={{
               border: "none",
@@ -271,7 +271,7 @@ export function CodeEditorModal({
           <label
             style={{
               display: "block",
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: 600,
               color: "#64748b",
               marginBottom: 4,
@@ -306,7 +306,7 @@ export function CodeEditorModal({
             borderTop: "1px solid #e2e8f0",
           }}
         >
-          <button
+          <button type="button"
             onClick={onClose}
             style={{
               padding: "8px 20px",
@@ -320,7 +320,7 @@ export function CodeEditorModal({
           >
             取消
           </button>
-          <button
+          <button type="button"
             onClick={handleSave}
             style={{
               padding: "8px 20px",

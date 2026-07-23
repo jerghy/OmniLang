@@ -72,7 +72,7 @@ export function ContextMenu({
         return (
           <div key={section.label}>
             {i > 0 && <div style={{ height: 1, background: "#e2e8f0", margin: "2px 0" }} />}
-            <button
+            <button type="button"
               onClick={() => onToggleSection(i)}
               style={{
                 display: "flex",
@@ -83,7 +83,7 @@ export function ContextMenu({
                 border: "none",
                 background: "transparent",
                 cursor: "pointer",
-                fontSize: 10,
+                fontSize: 12,
                 fontWeight: 600,
                 color: "#64748b",
                 textTransform: "uppercase" as const,
@@ -91,11 +91,11 @@ export function ContextMenu({
                 fontFamily: "inherit",
               }}
             >
-              <span style={{ fontSize: 9, width: 10, textAlign: "center" as const }}>
+              <span style={{ fontSize: 12, width: 10, textAlign: "center" as const }}>
                 {collapsed ? "▶" : "▼"}
               </span>
               <span>{section.label}</span>
-              <span style={{ marginLeft: "auto", fontSize: 10, color: "#94a3b8" }}>
+              <span style={{ marginLeft: "auto", fontSize: 12, color: "#94a3b8" }}>
                 {collapsed ? section.items.length : ""}
               </span>
             </button>
@@ -103,7 +103,7 @@ export function ContextMenu({
               section.items.map((item) => {
                 const isDisabled = item.tag === "";
                 return (
-                  <button
+                  <button type="button"
                     key={item.label}
                     disabled={isDisabled}
                     onClick={() => { if (!isDisabled) { onSelectNode(item.tag); onClose(); } }}
@@ -126,7 +126,7 @@ export function ContextMenu({
                   >
                     <span>{item.label}</span>
                     {item.shortcut && (
-                      <span style={{ color: isDisabled ? "#cbd5e1" : "#94a3b8", fontSize: 10, fontFamily: "monospace" }}>
+                      <span style={{ color: isDisabled ? "#cbd5e1" : "#94a3b8", fontSize: 12, fontFamily: "monospace" }}>
                         {item.shortcut}
                       </span>
                     )}

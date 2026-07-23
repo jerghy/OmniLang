@@ -61,7 +61,10 @@ export function EventsSection({ element, handlerItems }: EventsSectionProps) {
       }));
   }, [elementProps, protocolEvents]);
 
-  const boundEventNames = new Set(boundEvents.map((b) => b.eventName));
+  const boundEventNames = useMemo(
+    () => new Set(boundEvents.map((b) => b.eventName)),
+    [boundEvents]
+  );
 
   // Event options for the "add" dropdown (exclude already bound)
   const availableEvents = useMemo(() => {
@@ -127,7 +130,7 @@ export function EventsSection({ element, handlerItems }: EventsSectionProps) {
       {/* Section header */}
       <div
         style={{
-          fontSize: 11,
+          fontSize: 12,
           fontWeight: 600,
           color: "#6b7280",
           textTransform: "uppercase",
@@ -148,7 +151,7 @@ export function EventsSection({ element, handlerItems }: EventsSectionProps) {
               }
             }}
             style={{
-              fontSize: 10,
+              fontSize: 12,
               border: "1px solid #e0e7ff",
               borderRadius: 4,
               background: "#eef2ff",
@@ -175,7 +178,7 @@ export function EventsSection({ element, handlerItems }: EventsSectionProps) {
 
       {/* Empty state */}
       {boundEvents.length === 0 && (
-        <div style={{ fontSize: 11, color: "#94a3b8" }}>
+        <div style={{ fontSize: 12, color: "#94a3b8" }}>
           暂无事件绑定
         </div>
       )}
@@ -204,7 +207,7 @@ export function EventsSection({ element, handlerItems }: EventsSectionProps) {
                 }
               }}
               style={{
-                fontSize: 10,
+                fontSize: 12,
                 padding: "3px 4px",
                 border: "1px solid #e2e8f0",
                 borderRadius: 4,
@@ -235,7 +238,7 @@ export function EventsSection({ element, handlerItems }: EventsSectionProps) {
             </select>
 
             {/* Handler display — clickable to open modal */}
-            <button
+            <button type="button"
               onClick={() => handleOpenModal(ev.eventName)}
               title={ev.meta ? `${ev.meta.description} — ${ev.handler}` : ev.handler}
               style={{
@@ -243,7 +246,7 @@ export function EventsSection({ element, handlerItems }: EventsSectionProps) {
                 display: "flex",
                 alignItems: "center",
                 padding: "3px 8px",
-                fontSize: 11,
+                fontSize: 12,
                 fontFamily: "var(--dp-font-mono, monospace)",
                 border: "1px solid #e2e8f0",
                 borderRadius: 4,
@@ -261,7 +264,7 @@ export function EventsSection({ element, handlerItems }: EventsSectionProps) {
             </button>
 
             {/* Remove */}
-            <button
+            <button type="button"
               onClick={() => handleRemoveEvent(ev.eventName)}
               title="移除事件"
               style={{

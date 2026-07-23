@@ -90,7 +90,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
                 marginBottom: 16,
               }}
             >
-              <button
+              <button type="button"
                 onClick={this.handleRefresh}
                 style={{
                   padding: "8px 20px",
@@ -105,7 +105,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
               >
                 刷新页面
               </button>
-              <button
+              <button type="button"
                 onClick={this.handleRetry}
                 style={{
                   padding: "8px 20px",
@@ -139,7 +139,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
                   borderRadius: 8,
                   overflow: "auto",
                   maxHeight: 200,
-                  fontSize: 11,
+                  fontSize: 12,
                   lineHeight: 1.4,
                   color: "#dc2626",
                   whiteSpace: "pre-wrap",

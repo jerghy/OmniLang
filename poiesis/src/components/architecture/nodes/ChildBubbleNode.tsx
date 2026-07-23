@@ -101,7 +101,7 @@ const ChildBubbleNode = React.memo(function ChildBubbleNode({ data }: NodeProps)
           style={{
             background: layerStyle.border,
             color: "#fff",
-            fontSize: 10,
+            fontSize: 12,
             fontWeight: 700,
             borderRadius: "50%",
             width: 18,

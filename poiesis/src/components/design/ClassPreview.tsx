@@ -147,8 +147,8 @@ export const ClassPreview = React.memo(function ClassPreview({
   const dragRef = useRef<DragState | null>(null);
   const onResizeRef = useRef(onResize);
   const onResizeEndRef = useRef(onResizeEnd);
-  onResizeRef.current = onResize;
-  onResizeEndRef.current = onResizeEnd;
+  useEffect(() => { onResizeRef.current = onResize; });
+  useEffect(() => { onResizeEndRef.current = onResizeEnd; });
 
   // Sync display dimensions when props change (external update)
   useEffect(() => {
@@ -315,7 +315,7 @@ export const ClassPreview = React.memo(function ClassPreview({
       <div
         style={{
           padding: "8px 12px",
-          fontSize: 10,
+          fontSize: 12,
           fontWeight: 600,
           color: "var(--dp-text-secondary, #6b6893)",
           textTransform: "uppercase",
@@ -334,11 +334,11 @@ export const ClassPreview = React.memo(function ClassPreview({
           onChange={(e) => setElementIdx(Number(e.target.value))}
           style={{
             padding: "2px 6px",
-            fontSize: 10,
+            fontSize: 12,
             fontFamily: "var(--dp-font-mono, monospace)",
             border: "1px solid var(--dp-border, #e8e5f2)",
             borderRadius: "var(--dp-radius-sm, 6px)",
-            outline: "none",
+            outline: "2px solid transparent",
             background: "var(--dp-surface, #fff)",
             color: "var(--dp-text, #1e1b4b)",
             cursor: "pointer",
@@ -384,7 +384,7 @@ export const ClassPreview = React.memo(function ClassPreview({
                   top: -20,
                   left: "50%",
                   transform: "translateX(-50%)",
-                  fontSize: 10,
+                  fontSize: 12,
                   fontFamily: "var(--dp-font-mono, monospace)",
                   color: "var(--dp-accent, #6366f1)",
                   background: "rgba(255,255,255,0.9)",
@@ -453,7 +453,7 @@ export const ClassPreview = React.memo(function ClassPreview({
         <div
           style={{
             textAlign: "center",
-            fontSize: 10,
+            fontSize: 12,
             color: "var(--dp-accent, #6366f1)",
             fontWeight: 600,
             padding: "4px 0",

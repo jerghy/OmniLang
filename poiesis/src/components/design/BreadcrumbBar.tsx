@@ -17,7 +17,7 @@ export function BreadcrumbBar() {
         padding: "0 12px",
         background: "#f8fafc",
         borderTop: "1px solid #e2e8f0",
-        fontSize: 11,
+        fontSize: 12,
         gap: 4,
       }}
     >

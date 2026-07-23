@@ -14,8 +14,7 @@ export function useDebugSession(
   fnToNodeMap: Record<string, string>,
 ) {
   const fnToNodeMapRef = useRef(fnToNodeMap);
-  // eslint-disable-next-line react-hooks/refs -- sync ref with latest prop value in render body
-  fnToNodeMapRef.current = fnToNodeMap;
+  useEffect(() => { fnToNodeMapRef.current = fnToNodeMap; });
 
   const handleDebugMessage = useCallback(
     (msg: Record<string, unknown>) => {

@@ -39,7 +39,7 @@ const CATEGORY_ORDER: SignalPickerItem["category"][] = [
 // ── Styles ─────────────────────────────────────────────────────────────
 
 const sectionHeader: React.CSSProperties = {
-  fontSize: 11,
+  fontSize: 12,
   fontWeight: 600,
   color: "#6b7280",
   textTransform: "uppercase",
@@ -54,7 +54,7 @@ const rowStyle: React.CSSProperties = {
 };
 
 const badgeStyle: React.CSSProperties = {
-  fontSize: 10,
+  fontSize: 12,
   fontWeight: 600,
   padding: "2px 6px",
   borderRadius: 4,
@@ -66,7 +66,7 @@ const badgeStyle: React.CSSProperties = {
 
 const signalBtnStyle: React.CSSProperties = {
   flex: 1,
-  fontSize: 11,
+  fontSize: 12,
   padding: "3px 6px",
   border: "1px solid #e2e8f0",
   borderRadius: 4,
@@ -115,7 +115,7 @@ const popoverStyle: React.CSSProperties = {
 
 const popoverItemStyle: React.CSSProperties = {
   padding: "4px 10px",
-  fontSize: 11,
+  fontSize: 12,
   cursor: "pointer",
   fontFamily: "var(--dp-font-mono, monospace)",
   display: "flex",
@@ -125,7 +125,7 @@ const popoverItemStyle: React.CSSProperties = {
 
 const categoryHeaderStyle: React.CSSProperties = {
   padding: "3px 10px",
-  fontSize: 10,
+  fontSize: 12,
   fontWeight: 600,
   color: "#94a3b8",
   textTransform: "uppercase",
@@ -134,7 +134,7 @@ const categoryHeaderStyle: React.CSSProperties = {
 };
 
 const emptyStyle: React.CSSProperties = {
-  fontSize: 11,
+  fontSize: 12,
   color: "#94a3b8",
   padding: "4px 0",
 };
@@ -198,18 +198,21 @@ export function BindingsSection({ element, signalItems }: BindingsSectionProps) 
     [],
   );
 
+  const cleanupRef = useRef<(() => void) | null>(null);
+
   useEffect(() => {
     if (!openPopover) return;
     const id = setTimeout(() => {
       const handler = () => setOpenPopover(null);
+      cleanupRef.current = handler;
       document.addEventListener("click", handler);
-      // Cleanup this specific handler
-      (openPopover as any).__cleanup = handler;
     }, 0);
     return () => {
       clearTimeout(id);
-      const cleanup = (openPopover as any)?.__cleanup;
-      if (cleanup) document.removeEventListener("click", cleanup);
+      if (cleanupRef.current) {
+        document.removeEventListener("click", cleanupRef.current);
+        cleanupRef.current = null;
+      }
     };
   }, [openPopover]);
 
@@ -223,7 +226,7 @@ export function BindingsSection({ element, signalItems }: BindingsSectionProps) 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
         <span style={sectionHeader}>🔗 绑定</span>
         {hasAvailableBindableProp && (
-          <button
+          <button type="button"
             onClick={handleAdd}
             style={addBtnStyle}
             title="添加绑定"
@@ -245,7 +248,7 @@ export function BindingsSection({ element, signalItems }: BindingsSectionProps) 
             <span style={badgeStyle}>{propName}</span>
 
             {/* Signal selector button */}
-            <button
+            <button type="button"
               style={{
                 ...signalBtnStyle,
                 color: signalName ? "#1e293b" : "#94a3b8",
@@ -260,7 +263,7 @@ export function BindingsSection({ element, signalItems }: BindingsSectionProps) 
             </button>
 
             {/* Remove button */}
-            <button
+            <button type="button"
               onClick={() => handleRemove(propName)}
               style={removeBtnStyle}
               title="移除绑定"
@@ -330,10 +333,10 @@ function SignalPickerPopover({ items, position, onSelect, onClose }: SignalPicke
           style={{
             width: "100%",
             padding: "3px 6px",
-            fontSize: 11,
+            fontSize: 12,
             border: "1px solid #e2e8f0",
             borderRadius: 4,
-            outline: "none",
+            outline: "2px solid transparent",
             boxSizing: "border-box",
             fontFamily: "var(--dp-font-mono, monospace)",
           }}
@@ -365,7 +368,7 @@ function SignalPickerPopover({ items, position, onSelect, onClose }: SignalPicke
                 }}
               >
                 <span>{item.name}</span>
-                <span style={{ color: "#94a3b8", fontSize: 10 }}>{item.type}</span>
+                <span style={{ color: "#94a3b8", fontSize: 12 }}>{item.type}</span>
               </div>
             ))}
           </div>
@@ -373,7 +376,7 @@ function SignalPickerPopover({ items, position, onSelect, onClose }: SignalPicke
       })}
 
       {filtered.length === 0 && (
-        <div style={{ padding: "8px 10px", fontSize: 11, color: "#94a3b8", textAlign: "center" }}>
+        <div style={{ padding: "8px 10px", fontSize: 12, color: "#94a3b8", textAlign: "center" }}>
           无匹配信号
         </div>
       )}

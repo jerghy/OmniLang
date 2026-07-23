@@ -142,8 +142,8 @@ export function ColorPicker({ color: initialColor, onChange, onClose, anchorRect
   const dragRef = useRef<"sv" | "hue" | null>(null);
   const onChangeRef = useRef(onChange);
   const onCloseRef = useRef(onClose);
-  onChangeRef.current = onChange;
-  onCloseRef.current = onClose;
+  useEffect(() => { onChangeRef.current = onChange; });
+  useEffect(() => { onCloseRef.current = onClose; });
 
   const emitColor = useCallback((h: number, s: number, v: number) => {
     const hex = hsvToHex(h, s, v);
@@ -360,7 +360,7 @@ export function ColorPicker({ color: initialColor, onChange, onClose, anchorRect
             borderRadius: 6,
             background: "#0f172a",
             color: "#e2e8f0",
-            outline: "none",
+            outline: "2px solid transparent",
             boxSizing: "border-box",
           }}
           placeholder="#000000"

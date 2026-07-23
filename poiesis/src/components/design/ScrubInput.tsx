@@ -55,7 +55,7 @@ export const ScrubInput = React.memo(function ScrubInput({
   } | null>(null);
 
   const clamped = clamp(value, min, max);
-  clampedValueRef.current = clamped;
+  useEffect(() => { clampedValueRef.current = clamped; });
 
   useEffect(() => {
     if (!editing) {
@@ -229,7 +229,7 @@ export const ScrubInput = React.memo(function ScrubInput({
     color: disabled ? "#999" : "var(--dp-text, #1e1b4b)",
     transition: "border-color 150ms ease, box-shadow 150ms ease",
     boxShadow: focus ? "0 0 0 2px rgba(99,102,241,0.15)" : "none",
-    outline: "none",
+    outline: "2px solid transparent",
     ...style,
   };
 
@@ -242,7 +242,7 @@ export const ScrubInput = React.memo(function ScrubInput({
     flex: 1,
     minWidth: 0,
     border: "none",
-    outline: "none",
+    outline: "2px solid transparent",
     padding: 0,
     fontFamily: "inherit",
     fontSize: "inherit",
@@ -253,7 +253,7 @@ export const ScrubInput = React.memo(function ScrubInput({
 
   const unitStyle: React.CSSProperties = {
     marginLeft: 2,
-    fontSize: 9,
+    fontSize: 12,
     color: "var(--dp-text-muted, #a09db8)",
     lineHeight: 1,
     fontWeight: 500,

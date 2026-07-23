@@ -97,7 +97,7 @@ export const CollapsibleGroup = React.memo(function CollapsibleGroup({
             fontWeight: 600,
             textTransform: "uppercase",
             letterSpacing: "0.3px",
-            fontSize: 11,
+            fontSize: 12,
             color: "inherit",
             whiteSpace: "nowrap",
           }}

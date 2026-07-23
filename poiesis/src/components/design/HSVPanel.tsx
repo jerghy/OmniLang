@@ -63,8 +63,8 @@ function useDrag(
 ): (e: React.MouseEvent) => void {
   const onMoveRef = useRef(onMove);
   const onEndRef = useRef(onEnd);
-  onMoveRef.current = onMove;
-  onEndRef.current = onEnd;
+  useEffect(() => { onMoveRef.current = onMove; });
+  useEffect(() => { onEndRef.current = onEnd; });
 
   return useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -205,7 +205,7 @@ export function HSVPanel({
           gap: 8,
           width: SV_SIZE,
           fontFamily: "monospace",
-          fontSize: 11,
+          fontSize: 12,
           userSelect: "none",
         } as React.CSSProperties
       }
@@ -354,8 +354,8 @@ export function HSVPanel({
                 border: "1px solid #ccc",
                 borderRadius: 3,
                 fontFamily: "monospace",
-                fontSize: 11,
-                outline: "none",
+                fontSize: 12,
+                outline: "2px solid transparent",
               } as React.CSSProperties
             }
           />

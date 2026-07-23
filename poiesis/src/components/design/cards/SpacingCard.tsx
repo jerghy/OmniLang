@@ -75,7 +75,7 @@ function SpacingValue({
     return (
       <span style={{ display: "inline-flex", alignItems: "center", gap: 2, flex: 1 }}>
         <span style={tokenValueStyle} onClick={(e) => onTokenClick?.(e.currentTarget)}>{rawValue}</span>
-        <button style={tokenRemoveBtn} title="Remove token"
+        <button type="button" style={tokenRemoveBtn} title="Remove token"
           onClick={(e) => { e.stopPropagation(); onRemoveToken?.(); }}
         >&times;</button>
       </span>
@@ -95,7 +95,7 @@ function SpacingValue({
         <ScrubInput value={value} unit="px" min={0} max={200} onChange={onChange} onSlash={onSlash} />
       </span>
       {!isEmpty && !locked && (
-        <button
+        <button type="button"
           style={tokenRemoveBtn}
           title="清除"
           onClick={(e) => { e.stopPropagation(); onRemoveToken?.(); }}
@@ -151,7 +151,7 @@ interface SpacingSectionProps {
 }
 
 const cornerLabelStyle: React.CSSProperties = {
-  fontSize: 11,
+  fontSize: 12,
   fontWeight: 600,
   color: "var(--dp-text-secondary, #6b6893)",
   width: 14,
@@ -167,7 +167,7 @@ const toggleBtnBase: React.CSSProperties = {
   padding: "3px 5px",
   fontFamily: "inherit",
   flexShrink: 0,
-  transition: "all 150ms ease",
+  transition: "border-color 150ms ease, background-color 150ms ease, opacity 150ms ease, 150ms ease",
 };
 
 function SpacingSection({
@@ -280,7 +280,7 @@ function SpacingSection({
                   style={tokenValueStyle}
                   onClick={(e) => onPropSlash?.(shorthandName, e.currentTarget)}
                 >{shorthandRaw}</span>
-                <button style={tokenRemoveBtn} title="Remove token"
+                <button type="button" style={tokenRemoveBtn} title="Remove token"
                   onClick={(e) => {
                     e.stopPropagation();
                     onChange(properties.filter((p) => p.name !== shorthandName));
@@ -309,7 +309,7 @@ function SpacingSection({
                       />
                     </span>
                     {!isEmptyShorthand && !lockedShorthand && (
-                      <button style={tokenRemoveBtn} title="清除"
+                      <button type="button" style={tokenRemoveBtn} title="清除"
                         onClick={(e) => {
                           e.stopPropagation();
                           onChange(properties.filter((p) => p.name !== shorthandName));
@@ -321,7 +321,7 @@ function SpacingSection({
               })()
             )}
           </div>
-          <button
+          <button type="button"
             onClick={handleToggle}
             title="独立设置各方向"
             style={linkedBtnStyle}
@@ -346,7 +346,7 @@ function SpacingSection({
                 />
               </div>
             ))}
-            <button onClick={handleToggle} title="统一设置所有方向" style={unlinkedBtnStyle}>🔓</button>
+            <button type="button" onClick={handleToggle} title="统一设置所有方向" style={unlinkedBtnStyle}>🔓</button>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             {[2, 3].map((i) => (

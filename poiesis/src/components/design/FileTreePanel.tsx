@@ -48,7 +48,7 @@ function FileNodeRenderer({
   if (node.type === "directory") {
     return (
       <div>
-        <button
+        <button type="button"
           onClick={() => onToggleDir(node.path)}
           style={{
             display: "flex",
@@ -66,7 +66,7 @@ function FileNodeRenderer({
             fontFamily: "inherit",
           }}
         >
-          <span style={{ fontSize: 10, width: 14, color: "#94a3b8" }}>
+          <span style={{ fontSize: 12, width: 14, color: "#94a3b8" }}>
             {isExpanded ? "▼" : "▶"}
           </span>
           <span style={{ fontSize: 12 }}>{isExpanded ? "📂" : "📁"}</span>
@@ -91,7 +91,7 @@ function FileNodeRenderer({
   // File node
   const isOpen = tabs.some((t) => t.filePath === node.path);
   return (
-    <button
+    <button type="button"
       onClick={() => !isOpen && onOpenFile(node.path, node.name)}
       disabled={isOpen}
       style={{
@@ -113,10 +113,10 @@ function FileNodeRenderer({
         textOverflow: "ellipsis",
       }}
     >
-      <span style={{ fontSize: 11 }}>{isOpen ? "📌" : "📄"}</span>
+      <span style={{ fontSize: 12 }}>{isOpen ? "📌" : "📄"}</span>
       <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{node.name}</span>
       {isOpen && (
-        <span style={{ fontSize: 10, color: "#94a3b8", marginLeft: "auto", flexShrink: 0 }}>
+        <span style={{ fontSize: 12, color: "#94a3b8", marginLeft: "auto", flexShrink: 0 }}>
           已打开
         </span>
       )}
@@ -243,7 +243,7 @@ export function FileTreePanel({ tabs, onOpenFile, onNewFile, onClose, panelRef }
       >
         <div
           style={{
-            fontSize: 11,
+            fontSize: 12,
             fontWeight: 600,
             color: "#6b7280",
             padding: "6px 12px",
@@ -254,7 +254,7 @@ export function FileTreePanel({ tabs, onOpenFile, onNewFile, onClose, panelRef }
           }}
         >
           <span>📁 项目文件</span>
-          <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400 }}>
+          <span style={{ fontSize: 12, color: "#94a3b8", fontWeight: 400 }}>
             ({fileTree.length > 0 ? "已加载" : "扫描中..."})
           </span>
         </div>
@@ -292,7 +292,7 @@ export function FileTreePanel({ tabs, onOpenFile, onNewFile, onClose, panelRef }
             padding: "4px",
           }}
         >
-          <button
+          <button type="button"
             onClick={onNewFile}
             style={{
               display: "flex",

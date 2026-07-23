@@ -52,7 +52,7 @@ const S = {
     fontFamily: "var(--ol-font-family-mono)",
     background: "var(--ol-surface)",
     color: "var(--ol-text)",
-    outline: "none",
+    outline: "2px solid transparent",
     boxSizing: "border-box" as const,
   } as React.CSSProperties,
 
@@ -65,7 +65,7 @@ const S = {
     fontFamily: "var(--ol-font-family-mono)",
     background: "var(--ol-surface)",
     color: "var(--ol-text)",
-    outline: "none",
+    outline: "2px solid transparent",
     cursor: "pointer",
     boxSizing: "border-box" as const,
   } as React.CSSProperties,
@@ -196,17 +196,17 @@ function FnInspector({ el, setProp }: FnInspectorProps) {
       <div style={S.field}>
         <div style={{ ...S.label, display: "flex", justifyContent: "space-between" }}>
           <span>Parameters</span>
-          <button style={S.btn} onClick={handleAddParam}>+ Add</button>
+          <button type="button" style={S.btn} onClick={handleAddParam}>+ Add</button>
         </div>
         {parsedParams.map((p, i) => (
-          <div key={i} style={{ display: "flex", gap: 4, marginBottom: 4, alignItems: "center" }}>
+          <div key={p.name + "-" + p.type} style={{ display: "flex", gap: 4, marginBottom: 4, alignItems: "center" }}>
             <input
               style={{ ...S.input, width: 72 }}
               value={p.name}
               placeholder="name"
               onChange={(e) => handleParamChange(i, "name", e.target.value)}
             />
-            <span style={{ color: "var(--ol-text-muted)", fontSize: 11 }}>:</span>
+            <span style={{ color: "var(--ol-text-muted)", fontSize: 12 }}>:</span>
             <select
               style={{ ...S.select, flex: 1 }}
               value={p.type}
@@ -215,7 +215,7 @@ function FnInspector({ el, setProp }: FnInspectorProps) {
               {OMNI_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
               {!OMNI_TYPES.includes(p.type) && <option value={p.type}>{p.type}</option>}
             </select>
-            <button style={S.removeBtn} onClick={() => handleRemoveParam(i)}>×</button>
+            <button type="button" style={S.removeBtn} onClick={() => handleRemoveParam(i)}>×</button>
           </div>
         ))}
         {parsedParams.length === 0 && (

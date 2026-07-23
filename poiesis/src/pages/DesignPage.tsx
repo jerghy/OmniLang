@@ -230,7 +230,7 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
             borderBottom: "1px solid #e2e8f0",
           }}
         >
-          <button
+          <button type="button"
             onClick={undo}
             title="撤销 (Ctrl+Z)"
             style={{
@@ -245,7 +245,7 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
           >
             ↩
           </button>
-          <button
+          <button type="button"
             onClick={handleSave}
             disabled={saving}
             title="保存项目 (Ctrl+S)"
@@ -264,7 +264,7 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
           >
             {saving ? "⏳" : "💾"}
           </button>
-          <button
+          <button type="button"
             onClick={() => setShowProjectPanel(true)}
             title="打开项目"
             style={{
@@ -280,7 +280,7 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
           >
             📂
           </button>
-          <button
+          <button type="button"
             onClick={() => setShowCode((v) => !v)}
             title={showCode ? "Hide generated code" : "Show generated code"}
             style={{
@@ -505,7 +505,7 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
             </div>
 
             {/* Open folder button */}
-            <button
+            <button type="button"
               onClick={handleOpenProject}
               style={{
                 display: "flex", alignItems: "center", gap: 8,
@@ -531,7 +531,7 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                   {recentProjects.map((proj) => (
-                    <button
+                    <button type="button"
                       key={proj.path}
                       onClick={() => handleOpenRecent(proj)}
                       style={{
@@ -548,7 +548,7 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
                         <div style={{ fontWeight: 600, color: "#1f2937", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {proj.name}
                         </div>
-                        <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {proj.path}
                         </div>
                       </div>
@@ -569,7 +569,7 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
             )}
 
             {/* Close button */}
-            <button
+            <button type="button"
               onClick={() => setShowProjectPanel(false)}
               style={{
                 marginTop: 16, width: "100%", padding: "8px 0",
@@ -598,7 +598,7 @@ function TreeDragPreview({ elementId }: { elementId: string }) {
         background: "#4F46E5",
         color: "#fff",
         borderRadius: 4,
-        fontSize: 11,
+        fontSize: 12,
         fontWeight: 500,
         boxShadow: "0 2px 8px rgba(79, 70, 229, 0.3)",
         cursor: "grabbing",

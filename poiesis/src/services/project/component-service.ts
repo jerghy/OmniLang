@@ -59,8 +59,10 @@ export async function saveComponentDefinitionsToServer(
 export async function loadComponentDefinitionsFromServer(): Promise<
   Record<string, unknown>
 > {
-  const { parseOmniSource } = await import("../codegen");
-  const result = await api.annotation.loadComponentDefinitions();
+  const [{ parseOmniSource }, result] = await Promise.all([
+    import("../codegen"),
+    api.annotation.loadComponentDefinitions(),
+  ]);
   const merged: Record<string, unknown> = {};
 
   for (const [name, raw] of Object.entries(result.definitions)) {

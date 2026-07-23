@@ -53,10 +53,12 @@ export function StylesSection({ element }: StylesSectionProps) {
   >(() => buildLocalStyles(element));
 
   const prevElementIdRef = useRef(element.id);
-  if (element.id !== prevElementIdRef.current) {
-    prevElementIdRef.current = element.id;
-    setLocalStyles(buildLocalStyles(element));
-  }
+  useEffect(() => {
+    if (element.id !== prevElementIdRef.current) {
+      prevElementIdRef.current = element.id;
+      setLocalStyles(buildLocalStyles(element));
+    }
+  }, [element.id]);
 
   const commitStyles = useCallback(
     (updated: Record<string, string>) => {
@@ -75,6 +77,11 @@ export function StylesSection({ element }: StylesSectionProps) {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestStylesRef = useRef(localStyles);
 
+  // Sync latestStylesRef whenever localStyles changes
+  useEffect(() => {
+    latestStylesRef.current = localStyles;
+  });
+
   const debouncedCommitStyles = useCallback(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
@@ -92,27 +99,32 @@ export function StylesSection({ element }: StylesSectionProps) {
 
   const handleChange = useCallback(
     (styleName: string, value: string) => {
-      setLocalStyles((prev) => {
-        const updated = { ...prev, [styleName]: value };
-        latestStylesRef.current = updated;
-        return updated;
-      });
+      setLocalStyles((prev) => ({ ...prev, [styleName]: value }));
       debouncedCommitStyles();
     },
     [debouncedCommitStyles]
   );
 
+  const removeSignalRef = useRef<string | null>(null);
+
   const handleRemove = useCallback(
     (styleName: string) => {
+      removeSignalRef.current = styleName;
       setLocalStyles((prev) => {
         const { [styleName]: _, ...rest } = prev;
-        latestStylesRef.current = rest;
-        commitStyles(rest);
         return rest;
       });
     },
-    [commitStyles]
+    []
   );
+
+  // Commit styles immediately when a remove is signaled
+  useEffect(() => {
+    if (removeSignalRef.current !== null) {
+      commitStyles(localStyles);
+      removeSignalRef.current = null;
+    }
+  }, [localStyles, commitStyles]);
 
   const handleAddStyle = useCallback(() => {
     if (!addingStyle.trim()) return;
@@ -129,7 +141,7 @@ export function StylesSection({ element }: StylesSectionProps) {
     <div style={{ marginBottom: 12 }}>
       <div
         style={{
-          fontSize: 11,
+          fontSize: 12,
           fontWeight: 600,
           color: "#6b7280",
           textTransform: "uppercase",
@@ -148,7 +160,7 @@ export function StylesSection({ element }: StylesSectionProps) {
           >
             <label
               style={{
-                fontSize: 11,
+                fontSize: 12,
                 color: "#64748b",
                 minWidth: 70,
                 flexShrink: 0,
@@ -165,10 +177,10 @@ export function StylesSection({ element }: StylesSectionProps) {
                 flex: 1,
                 minWidth: 0,
                 padding: "3px 6px",
-                fontSize: 11,
+                fontSize: 12,
                 border: "1px solid #e2e8f0",
                 borderRadius: 4,
-                outline: "none",
+                outline: "2px solid transparent",
                 fontFamily: "monospace",
                 transition: "border-color 150ms ease",
               }}
@@ -179,7 +191,7 @@ export function StylesSection({ element }: StylesSectionProps) {
                 e.target.style.borderColor = "#e2e8f0";
               }}
             />
-            <button
+            <button type="button"
               onClick={() => handleRemove(name)}
               title="移除样式"
               style={{
@@ -205,10 +217,10 @@ export function StylesSection({ element }: StylesSectionProps) {
           style={{
             flex: 1,
             padding: "3px 6px",
-            fontSize: 11,
+            fontSize: 12,
             border: "1px solid #e2e8f0",
             borderRadius: 4,
-            outline: "none",
+            outline: "2px solid transparent",
             background: "#fff",
             color: availableStyles.length === 0 ? "#cbd5e1" : "#374151",
           }}
@@ -224,12 +236,12 @@ export function StylesSection({ element }: StylesSectionProps) {
             </option>
           ))}
         </select>
-        <button
+        <button type="button"
           onClick={handleAddStyle}
           disabled={!addingStyle.trim()}
           style={{
             padding: "3px 10px",
-            fontSize: 11,
+            fontSize: 12,
             border: "none",
             borderRadius: 4,
             background: addingStyle.trim() ? "#6366F1" : "#e2e8f0",
@@ -253,12 +265,12 @@ export function StylesSection({ element }: StylesSectionProps) {
           }}
         >
           {availableStyles.slice(0, 8).map((s) => (
-            <button
+            <button type="button"
               key={s}
               onClick={() => handleChange(s, "")}
               style={{
                 padding: "1px 6px",
-                fontSize: 9,
+                fontSize: 12,
                 border: "1px solid #e2e8f0",
                 borderRadius: 3,
                 background: "#f8fafc",

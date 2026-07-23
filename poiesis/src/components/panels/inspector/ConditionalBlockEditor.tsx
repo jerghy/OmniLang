@@ -48,7 +48,7 @@ export function ConditionalBlockEditor({ blockId }: ConditionalBlockEditorProps)
 
         return (
           <div
-            key={i}
+            key={branch.type + "-" + branch.condition}
             style={{
               marginBottom: 8,
               padding: 10,
@@ -63,13 +63,13 @@ export function ConditionalBlockEditor({ blockId }: ConditionalBlockEditorProps)
               marginBottom: 8,
             }}>
               <span style={{
-                fontSize: 11, fontWeight: 600,
+                fontSize: 12, fontWeight: 600,
                 color: isElse ? "#9CA3AF" : "#7C3AED",
               }}>
                 {branchLabel}
               </span>
               {isElif && (
-                <button
+                <button type="button"
                   onClick={() => handleDeleteBranch(i)}
                   title="删除分支"
                   style={{
@@ -91,18 +91,18 @@ export function ConditionalBlockEditor({ blockId }: ConditionalBlockEditorProps)
             />
 
             {/* Child elements */}
-            <div style={{ marginTop: 8, fontSize: 11, color: "#6b7280" }}>
+            <div style={{ marginTop: 8, fontSize: 12, color: "#6b7280" }}>
               {branch.children.length === 0 ? (
-                <span style={{ fontStyle: "italic", color: "#9CA3AF", fontSize: 10 }}>
+                <span style={{ fontStyle: "italic", color: "#9CA3AF", fontSize: 12 }}>
                   空分支 — 右键此分支添加子组件
                 </span>
               ) : (
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
-                  <span style={{ fontSize: 10 }}>子元素:</span>
+                  <span style={{ fontSize: 12 }}>子元素:</span>
                   {branch.children.map((cid) => (
                     <span key={cid} style={{
                       padding: "1px 6px", background: "#EEF2FF", borderRadius: 3,
-                      fontSize: 10, color: "#4F46E5",
+                      fontSize: 12, color: "#4F46E5",
                     }}>
                       {cid.split(".").pop()}
                     </span>
@@ -115,7 +115,7 @@ export function ConditionalBlockEditor({ blockId }: ConditionalBlockEditorProps)
       })}
 
       {/* Add branch button */}
-      <button
+      <button type="button"
         onClick={handleAddBranch}
         style={{
           width: "100%", padding: "8px 0", border: "1px dashed #C4B5FD",

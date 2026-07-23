@@ -57,7 +57,7 @@ export function VariantBindingSection({ element }: VariantBindingSectionProps) {
       <div style={{ marginBottom: 12 }}>
         <div
           style={{
-            fontSize: 11,
+            fontSize: 12,
             fontWeight: 600,
             color: "#6b7280",
             textTransform: "uppercase",
@@ -73,7 +73,7 @@ export function VariantBindingSection({ element }: VariantBindingSectionProps) {
             background: "#f0fdf4",
             borderRadius: 4,
             border: "1px solid #bbf7d0",
-            fontSize: 11,
+            fontSize: 12,
             color: "#166534",
             marginBottom: 6,
             fontWeight: 500,
@@ -95,7 +95,7 @@ export function VariantBindingSection({ element }: VariantBindingSectionProps) {
           >
             <label
               style={{
-                fontSize: 11,
+                fontSize: 12,
                 color: "#64748b",
                 minWidth: 50,
                 flexShrink: 0,
@@ -111,10 +111,10 @@ export function VariantBindingSection({ element }: VariantBindingSectionProps) {
               style={{
                 flex: 1,
                 padding: "3px 6px",
-                fontSize: 11,
+                fontSize: 12,
                 border: "1px solid #e2e8f0",
                 borderRadius: 4,
-                outline: "none",
+                outline: "2px solid transparent",
                 background: "#fff",
               }}
             >
@@ -127,12 +127,12 @@ export function VariantBindingSection({ element }: VariantBindingSectionProps) {
           </div>
         ))}
 
-        <button
+        <button type="button"
           onClick={handleUnbind}
           style={{
             marginTop: 6,
             padding: "3px 8px",
-            fontSize: 11,
+            fontSize: 12,
             border: "1px solid #fca5a5",
             borderRadius: 4,
             background: "#fef2f2",
@@ -151,7 +151,7 @@ export function VariantBindingSection({ element }: VariantBindingSectionProps) {
     <div style={{ marginBottom: 12 }}>
       <div
         style={{
-          fontSize: 11,
+          fontSize: 12,
           fontWeight: 600,
           color: "#6b7280",
           textTransform: "uppercase",
@@ -168,10 +168,10 @@ export function VariantBindingSection({ element }: VariantBindingSectionProps) {
           style={{
             flex: 1,
             padding: "3px 6px",
-            fontSize: 11,
+            fontSize: 12,
             border: "1px solid #e2e8f0",
             borderRadius: 4,
-            outline: "none",
+            outline: "2px solid transparent",
             background: "#fff",
             color: selectedVariant ? "#374151" : "#94a3b8",
           }}
@@ -183,12 +183,12 @@ export function VariantBindingSection({ element }: VariantBindingSectionProps) {
             </option>
           ))}
         </select>
-        <button
+        <button type="button"
           onClick={handleBindVariant}
           disabled={!selectedVariant}
           style={{
             padding: "3px 10px",
-            fontSize: 11,
+            fontSize: 12,
             border: "none",
             borderRadius: 4,
             background: selectedVariant ? "#6366F1" : "#e2e8f0",

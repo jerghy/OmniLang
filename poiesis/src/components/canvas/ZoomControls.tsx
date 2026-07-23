@@ -33,7 +33,7 @@ export const ZoomControls = React.memo(function ZoomControls() {
         fontFamily: "inherit",
       }}
     >
-      <button
+      <button type="button"
         onClick={() => setZoom(zoom - 0.1)}
         style={btnStyle}
         title="Zoom out"
@@ -45,12 +45,12 @@ export const ZoomControls = React.memo(function ZoomControls() {
       >
         {Math.round(zoom * 100)}%
       </span>
-      <button
+      <button type="button"
         onClick={() => setZoom(zoom + 0.1)}
         style={btnStyle}
         title="Zoom in"
       >+</button>
-      <button
+      <button type="button"
         onClick={handleFit}
         style={{ ...btnStyle, marginLeft: 4 }}
         title="Fit to view"

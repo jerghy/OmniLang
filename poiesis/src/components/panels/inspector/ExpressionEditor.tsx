@@ -20,7 +20,7 @@ export function ExpressionEditor({
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const ignoreChangeRef = useRef(false);
   const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
+  useEffect(() => { onChangeRef.current = onChange; });
 
   // Initialize Monaco editor (once)
   useEffect(() => {

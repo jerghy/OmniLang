@@ -499,7 +499,7 @@ export function DesignTabBar() {
                 {tab.isDirty && <span style={{ color: "#f59e0b" }}>● </span>}
                 {tab.componentName}.omni
               </span>
-              <button
+              <button type="button"
                 onClick={(e) => handleClose(e, tab.id)}
                 style={{
                   border: "none",
@@ -533,7 +533,7 @@ export function DesignTabBar() {
 
         {/* "+" button with dropdown menu */}
         <div style={{ display: "flex", alignItems: "center", padding: "0 2px", position: "relative" }}>
-          <button
+          <button type="button"
             ref={plusBtnRef}
             onClick={(e) => {
               e.stopPropagation();
@@ -575,7 +575,7 @@ export function DesignTabBar() {
                   overflow: "hidden",
                 }}
               >
-                <button
+                <button type="button"
                   onClick={() => { setShowPlusMenu(false); setShowFilePanel(true); }}
                   style={menuItemStyle}
                   onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "#f1f5f9"; }}
@@ -584,7 +584,7 @@ export function DesignTabBar() {
                   <span>📁 打开 .omni 文件...</span>
                 </button>
                 <div style={{ borderTop: "1px solid #f1f5f9" }} />
-                <button
+                <button type="button"
                   onClick={handleDesignOmni}
                   style={menuItemStyle}
                   onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "#f1f5f9"; }}
@@ -652,7 +652,7 @@ export function DesignTabBar() {
               此标签页有未保存的更改。确定要关闭吗？
             </div>
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <button
+              <button type="button"
                 onClick={() => setConfirmClose(null)}
                 style={{
                   padding: "5px 14px",
@@ -665,7 +665,7 @@ export function DesignTabBar() {
               >
                 取消
               </button>
-              <button
+              <button type="button"
                 onClick={confirmAndClose}
                 style={{
                   padding: "5px 14px",

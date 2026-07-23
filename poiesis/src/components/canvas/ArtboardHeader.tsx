@@ -15,7 +15,7 @@ export const ArtboardHeader = React.memo(function ArtboardHeader() {
         padding: "4px 12px",
         background: "#f1f5f9",
         borderBottom: "1px solid #e2e8f0",
-        fontSize: 11,
+        fontSize: 12,
         color: "#64748b",
         flexShrink: 0,
       }}
@@ -30,7 +30,7 @@ export const ArtboardHeader = React.memo(function ArtboardHeader() {
           border: "1px solid #e2e8f0",
           borderRadius: 4,
           padding: "2px 6px",
-          fontSize: 11,
+          fontSize: 12,
           fontFamily: "inherit",
           background: "#fff",
         }}

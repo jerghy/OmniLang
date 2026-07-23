@@ -82,7 +82,7 @@ export function ConditionNode({ data }: Props) {
         >
           <div style={{ display: "flex", alignItems: "center", gap: 4, flex: 1 }}>
             <span style={{
-              fontSize: 10,
+              fontSize: 12,
               fontWeight: 600,
               color: br.type === "if" ? "#059669" : br.type === "elif" ? "#D97706" : "#DC2626",
               minWidth: 36,
@@ -95,10 +95,9 @@ export function ConditionNode({ data }: Props) {
                 onChange={(e) => setEditValue(e.target.value)}
                 onBlur={() => handleEditConfirm(br)}
                 onKeyDown={(e) => { if (e.key === "Enter") handleEditConfirm(br); }}
-                autoFocus
                 style={{
                   width: "100%",
-                  fontSize: 11,
+                  fontSize: 12,
                   fontFamily: "monospace",
                   border: "1px solid #F59E0B",
                   borderRadius: 3,
@@ -111,7 +110,7 @@ export function ConditionNode({ data }: Props) {
                 onClick={() => br.type !== "else" && handleEditStart(br)}
                 style={{
                   fontFamily: "monospace",
-                  fontSize: 11,
+                  fontSize: 12,
                   color: br.type === "else" ? "#9CA3AF" : "#1F2937",
                   cursor: br.type === "else" ? "default" : "pointer",
                   flex: 1,
@@ -135,19 +134,19 @@ export function ConditionNode({ data }: Props) {
       <div style={{ display: "flex", gap: 4, padding: "4px 10px 0", borderTop: "1px solid #FDE68A" }}>
         {!hasElse && (
           <>
-            <button
+            <button type="button"
               onClick={() => handleAddBranch("elif")}
               style={{
-                fontSize: 10, padding: "2px 6px", border: "1px solid #D97706",
+                fontSize: 12, padding: "2px 6px", border: "1px solid #D97706",
                 borderRadius: 3, background: "#FFF", color: "#D97706", cursor: "pointer",
               }}
             >
               + elif
             </button>
-            <button
+            <button type="button"
               onClick={() => handleAddBranch("else")}
               style={{
-                fontSize: 10, padding: "2px 6px", border: "1px solid #DC2626",
+                fontSize: 12, padding: "2px 6px", border: "1px solid #DC2626",
                 borderRadius: 3, background: "#FFF", color: "#DC2626", cursor: "pointer",
               }}
             >

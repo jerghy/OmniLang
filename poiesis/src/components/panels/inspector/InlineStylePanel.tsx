@@ -83,7 +83,7 @@ function mergeCardProps(
 // ── Styles ──
 
 const sectionHeader: React.CSSProperties = {
-  fontSize: 11,
+  fontSize: 12,
   fontWeight: 600,
   color: "#6b7280",
   textTransform: "uppercase",

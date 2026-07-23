@@ -175,7 +175,7 @@ export function HandlerModal({
           <span style={{ fontSize: 14, fontWeight: 600, color: "#1e293b" }}>
             编辑 {eventName} 处理器
           </span>
-          <button
+          <button type="button"
             onClick={onClose}
             style={{
               border: "none",
@@ -220,7 +220,7 @@ export function HandlerModal({
                 <label
                   style={{
                     display: "block",
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: 600,
                     color: "#64748b",
                     marginBottom: 4,
@@ -229,7 +229,7 @@ export function HandlerModal({
                   函数/Action
                 </label>
                 <div style={{ position: "relative" }}>
-                  <button
+                  <button type="button"
                     onClick={() => setPickerOpen(!pickerOpen)}
                     style={{
                       width: "100%",
@@ -269,7 +269,7 @@ export function HandlerModal({
                   <label
                     style={{
                       display: "block",
-                      fontSize: 11,
+                      fontSize: 12,
                       fontWeight: 600,
                       color: "#64748b",
                       marginBottom: 4,
@@ -285,7 +285,7 @@ export function HandlerModal({
                       >
                         <label
                           style={{
-                            fontSize: 11,
+                            fontSize: 12,
                             color: "#64748b",
                             minWidth: 40,
                             fontFamily: "var(--dp-font-mono, monospace)",
@@ -304,7 +304,7 @@ export function HandlerModal({
                             fontSize: 12,
                             border: "1px solid #d1d5db",
                             borderRadius: 4,
-                            outline: "none",
+                            outline: "2px solid transparent",
                             fontFamily: "var(--dp-font-mono, monospace)",
                           }}
                           onFocus={(e) => (e.target.style.borderColor = "#6366F1")}
@@ -337,7 +337,7 @@ export function HandlerModal({
             borderTop: "1px solid #e2e8f0",
           }}
         >
-          <button
+          <button type="button"
             onClick={onClose}
             style={{
               padding: "8px 20px",
@@ -351,7 +351,7 @@ export function HandlerModal({
           >
             取消
           </button>
-          <button
+          <button type="button"
             onClick={handleConfirm}
             style={{
               padding: "8px 20px",
@@ -383,7 +383,7 @@ function TabButton({
   label: string;
 }) {
   return (
-    <button
+    <button type="button"
       onClick={onClick}
       style={{
         padding: "10px 16px",

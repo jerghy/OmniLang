@@ -25,7 +25,7 @@ export function useZAxisCanvas(): ZAxisLayout {
   const topLayerStyle = useMemo(
     (): React.CSSProperties => ({
       position: "absolute",
-      transition: "all 300ms ease",
+      transition: "border-color 150ms ease, background-color 150ms ease, opacity 150ms ease, 300ms ease",
       top: 0,
       left: 0,
       right: codeFlowVisible ? "60%" : 0,

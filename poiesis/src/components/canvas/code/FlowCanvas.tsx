@@ -167,9 +167,9 @@ function FlowCanvasInner() {
   // ── Keyboard: arrow keys to move selected nodes, Delete to remove ──
   const MOVE_STEP = 10;
   const selectedNodeIdsRef = useRef(selectedNodeIds);
-  selectedNodeIdsRef.current = selectedNodeIds;
   const elementsRef = useRef(elements);
-  elementsRef.current = elements;
+  useEffect(() => { selectedNodeIdsRef.current = selectedNodeIds; });
+  useEffect(() => { elementsRef.current = elements; });
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -332,7 +332,7 @@ function FlowCanvasInner() {
               ? "双击组件元素进入代码节点流编辑"
               : "右键画布添加节点，或从组件标签页双击进入"}
           </div>
-          <div style={{ fontSize: 11, opacity: 0.7 }}>右键 → 添加节点</div>
+          <div style={{ fontSize: 12, opacity: 0.7 }}>右键 → 添加节点</div>
         </div>
       ) : (
         <ReactFlow
@@ -412,7 +412,7 @@ function FlowCanvasInner() {
           }}
           onContextMenu={(e) => e.preventDefault()}
         >
-          <button
+          <button type="button"
             onClick={() => { removeElement(nodeMenu.nodeId); setNodeMenu(null); }}
             className={styles.deleteBtn}
             style={{

@@ -57,7 +57,7 @@ function PaletteDraggableItem({ data }: { data: PaletteItemData }) {
           padding: "3px 6px",
           borderRadius: 3,
           cursor: isDragging ? "grabbing" : "grab",
-          fontSize: 11,
+          fontSize: 12,
           border: "1px solid transparent",
           display: "flex",
           alignItems: "center",
@@ -82,14 +82,14 @@ function PaletteDraggableItem({ data }: { data: PaletteItemData }) {
 
       {/* Edit button (custom components only) */}
       {isCustom && onEdit && (
-        <button
+        <button type="button"
           onClick={(e) => {
             e.stopPropagation();
             onEdit();
           }}
           className={styles.editBtn}
           style={{
-            padding: "1px 6px", fontSize: 10, border: "none",
+            padding: "1px 6px", fontSize: 12, border: "none",
             cursor: "pointer",
             borderRadius: 3,
           }}
@@ -99,14 +99,14 @@ function PaletteDraggableItem({ data }: { data: PaletteItemData }) {
         </button>
       )}
       {isCustom && onDelete && (
-        <button
+        <button type="button"
           onClick={(e) => {
             e.stopPropagation();
             onDelete();
           }}
           className={styles.deleteBtn}
           style={{
-            padding: "1px 6px", fontSize: 10, border: "none",
+            padding: "1px 6px", fontSize: 12, border: "none",
             cursor: "pointer", color: "#dc2626",
             borderRadius: 3,
           }}
@@ -199,7 +199,7 @@ export function ComponentPalette() {
   return (
     <div style={{ padding: 8, fontSize: 12, userSelect: "none", display: "flex", flexDirection: "column", height: "100%" }}>
       {/* Header */}
-      <div style={{ fontWeight: 600, marginBottom: 6, fontSize: 11, color: "#6b7280", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 4 }}>
+      <div style={{ fontWeight: 600, marginBottom: 6, fontSize: 12, color: "#6b7280", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 4 }}>
         🧩 组件面板
       </div>
 
@@ -210,18 +210,18 @@ export function ComponentPalette() {
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         style={{
-          padding: "4px 8px", fontSize: 11, border: "1px solid #e5e7eb", borderRadius: 4,
-          marginBottom: 6, outline: "none", width: "100%", boxSizing: "border-box",
+          padding: "4px 8px", fontSize: 12, border: "1px solid #e5e7eb", borderRadius: 4,
+          marginBottom: 6, outline: "2px solid transparent", width: "100%", boxSizing: "border-box",
         }}
         onFocus={(e) => { e.target.style.borderColor = "#4F46E5"; }}
         onBlur={(e) => { e.target.style.borderColor = "#e5e7eb"; }}
       />
 
       {/* Create Custom Component Button */}
-      <button
+      <button type="button"
         onClick={() => setShowCreateDialog(true)}
         style={{
-          width: "100%", padding: "5px 8px", marginBottom: 8, fontSize: 11, fontWeight: 600,
+          width: "100%", padding: "5px 8px", marginBottom: 8, fontSize: 12, fontWeight: 600,
           border: "1px dashed #4F46E5", borderRadius: 4, background: "#EEF2FF",
           color: "#4F46E5", cursor: "pointer",
         }}
@@ -240,7 +240,7 @@ export function ComponentPalette() {
               <div
                 onClick={() => toggleCollapse(cat)}
                 style={{
-                  fontSize: 10, color: isCustom ? "#4F46E5" : "#9ca3af",
+                  fontSize: 12, color: isCustom ? "#4F46E5" : "#9ca3af",
                   marginBottom: 2, textTransform: "uppercase",
                   cursor: "pointer", display: "flex", alignItems: "center", gap: 4,
                   padding: "1px 0", fontWeight: isCustom ? 700 : 500,
@@ -285,7 +285,7 @@ export function ComponentPalette() {
           );
         })}
         {filtered.length === 0 && (
-          <div style={{ textAlign: "center", color: "#9CA3AF", fontSize: 11, padding: "16px 0" }}>
+          <div style={{ textAlign: "center", color: "#9CA3AF", fontSize: 12, padding: "16px 0" }}>
             未找到匹配的组件
           </div>
         )}
@@ -309,7 +309,6 @@ export function ComponentPalette() {
             <input
               id="new-comp-name"
               placeholder="组件名称 (如 MyCard)"
-              autoFocus
               style={{
                 width: "100%", padding: "6px 10px", fontSize: 13, border: "1px solid #d1d5db",
                 borderRadius: 6, boxSizing: "border-box", marginBottom: 12,
@@ -322,13 +321,13 @@ export function ComponentPalette() {
               }}
             />
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <button
+              <button type="button"
                 onClick={() => setShowCreateDialog(false)}
                 style={{ padding: "5px 14px", fontSize: 12, border: "1px solid #d1d5db", borderRadius: 6, background: "#fff", cursor: "pointer" }}
               >
                 取消
               </button>
-              <button
+              <button type="button"
                 onClick={() => {
                   const input = document.getElementById("new-comp-name") as HTMLInputElement;
                   handleCreate(input?.value || "");

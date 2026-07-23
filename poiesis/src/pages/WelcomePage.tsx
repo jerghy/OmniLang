@@ -104,13 +104,13 @@ export function WelcomePage({ onProjectOpened }: WelcomePageProps) {
 
         {/* Action Cards */}
         <div style={styles.actions}>
-          <button style={styles.card} onClick={handleOpenProject}>
+          <button type="button" style={styles.card} onClick={handleOpenProject}>
             <span style={styles.cardIcon}>📂</span>
             <span style={styles.cardTitle}>打开项目</span>
             <span style={styles.cardDesc}>选择已有项目文件夹</span>
           </button>
 
-          <button style={styles.card} onClick={handleOpenNewDialog}>
+          <button type="button" style={styles.card} onClick={handleOpenNewDialog}>
             <span style={styles.cardIcon}>✨</span>
             <span style={styles.cardTitle}>新建项目</span>
             <span style={styles.cardDesc}>创建全新的 OmniLang 项目</span>
@@ -123,7 +123,7 @@ export function WelcomePage({ onProjectOpened }: WelcomePageProps) {
             <div style={styles.recentHeader}>最近打开</div>
             <div style={styles.recentList}>
               {recentProjects.map((proj) => (
-                <button
+                <button type="button"
                   key={proj.path}
                   style={styles.recentItem}
                   onClick={() => handleOpenRecent(proj)}
@@ -159,7 +159,7 @@ export function WelcomePage({ onProjectOpened }: WelcomePageProps) {
               <span style={styles.dialogLocationPath}>
                 {newProjectParent || "未选择..."}
               </span>
-              <button style={styles.dialogBrowseBtn} onClick={handlePickLocation}>
+              <button type="button" style={styles.dialogBrowseBtn} onClick={handlePickLocation}>
                 选择文件夹
               </button>
             </div>
@@ -178,14 +178,13 @@ export function WelcomePage({ onProjectOpened }: WelcomePageProps) {
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleCreateProject();
               }}
-              autoFocus
             />
             {error && <div style={styles.dialogError}>{error}</div>}
             <div style={styles.dialogButtons}>
-              <button style={styles.dialogCancel} onClick={() => setShowNewDialog(false)}>
+              <button type="button" style={styles.dialogCancel} onClick={() => setShowNewDialog(false)}>
                 取消
               </button>
-              <button
+              <button type="button"
                 style={{
                   ...styles.dialogConfirm,
                   opacity: newProjectParent && newProjectName.trim() ? 1 : 0.5,
@@ -262,7 +261,7 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid #e5e7eb",
     borderRadius: 12,
     cursor: "pointer",
-    transition: "all 0.15s",
+    transition: "border-color 150ms ease, background-color 150ms ease, opacity 150ms ease, 0.15s",
     boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
     fontFamily: "inherit",
   },
@@ -325,7 +324,7 @@ const styles: Record<string, React.CSSProperties> = {
     whiteSpace: "nowrap" as const,
   },
   recentPath: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#9ca3af",
     overflow: "hidden",
     textOverflow: "ellipsis",
@@ -408,7 +407,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 14,
     border: "1px solid #e5e7eb",
     borderRadius: 8,
-    outline: "none",
+    outline: "2px solid transparent",
     fontFamily: "inherit",
     boxSizing: "border-box" as const,
   },

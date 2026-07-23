@@ -134,7 +134,7 @@ export function DesignTabContent() {
         minHeight: 42,
       }}>
         {(["tokens", "classes", "variants"] as const).map((v) => (
-          <button
+          <button type="button"
             key={v}
             onClick={() => setDesignView(v)}
             style={designView === v ? TAB_BTN_ACTIVE : TAB_BTN}

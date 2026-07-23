@@ -44,7 +44,7 @@ const CHIP_BASE: React.CSSProperties = {
   alignItems: "center",
   gap: 4,
   padding: "3px 8px",
-  fontSize: 11,
+  fontSize: 12,
   fontFamily: "var(--dp-font-mono, monospace)",
   borderRadius: 12,
   border: "1px solid",
@@ -104,11 +104,13 @@ export function PropsSection({ element, signalItems }: PropsSectionProps) {
   const [slash, setSlash] = useState<SlashState | null>(null);
 
   const prevElementIdRef = useRef(element.id);
-  if (element.id !== prevElementIdRef.current) {
-    prevElementIdRef.current = element.id;
-    setLocalProps(buildLocalProps(element));
-    setSlash(null);
-  }
+  useEffect(() => {
+    if (element.id !== prevElementIdRef.current) {
+      prevElementIdRef.current = element.id;
+      setLocalProps(buildLocalProps(element));
+      setSlash(null);
+    }
+  }, [element.id]);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -214,7 +216,7 @@ export function PropsSection({ element, signalItems }: PropsSectionProps) {
     <div style={{ marginBottom: 12 }}>
       <div
         style={{
-          fontSize: 11,
+          fontSize: 12,
           fontWeight: 600,
           color: "#6b7280",
           textTransform: "uppercase",
@@ -411,7 +413,7 @@ function LabelEditor({ value, onChange, onSlashRequest }: LabelEditorProps) {
           onBlur={() => commitText(0)}
           placeholder="输入文本，/ 插入信号"
           style={{
-            flex: 1, padding: "3px 6px", fontSize: 11, outline: "none",
+            flex: 1, padding: "3px 6px", fontSize: 12, outline: "2px solid transparent",
             border: "1px solid #e2e8f0", borderRadius: 4,
             fontFamily: "var(--dp-font-mono, monospace)", color: "#1e293b",
           }}
@@ -421,25 +423,25 @@ function LabelEditor({ value, onChange, onSlashRequest }: LabelEditorProps) {
         if (editingIdx === i) {
           return (
             <input
-              key={i} ref={editInputRef} type="text"
+              key={seg.type + "-" + seg.value + "-editing"} ref={editInputRef} type="text"
               defaultValue={seg.type === "expr" ? `{${seg.value}}` : seg.value}
               onKeyDown={onEditKeyDown} onBlur={() => handleEditCommit(i)}
-              style={{ ...CHIP_BASE, flex: "0 1 auto", minWidth: 60, outline: "none", borderColor: "#6366F1", background: "#fff", color: "#1e293b" }}
+              style={{ ...CHIP_BASE, flex: "0 1 auto", minWidth: 60, outline: "2px solid transparent", borderColor: "#6366F1", background: "#fff", color: "#1e293b" }}
             />
           );
         }
         if (seg.type === "expr") {
           return (
-            <span key={i} style={{ ...EXPR_CHIP_STYLE, cursor: "pointer" }} onClick={() => setEditingIdx(i)} title="点击编辑">
+            <span key={seg.type + "-" + seg.value} style={{ ...EXPR_CHIP_STYLE, cursor: "pointer" }} onClick={() => setEditingIdx(i)} title="点击编辑">
               {`{${seg.value}}`}
-              <button style={{ ...CHIP_DELETE_BTN, color: "#7C3AED" }} onClick={(e) => { e.stopPropagation(); handleDelete(i); }} title="删除">&times;</button>
+              <button type="button" style={{ ...CHIP_DELETE_BTN, color: "#7C3AED" }} onClick={(e) => { e.stopPropagation(); handleDelete(i); }} title="删除">&times;</button>
             </span>
           );
         }
         // Text segment: inline input
         return (
           <input
-            key={i}
+            key={seg.type + "-" + seg.value}
             ref={(el) => { if (el) textInputRefs.current.set(i, el); else textInputRefs.current.delete(i); }}
             type="text"
             defaultValue={seg.value}
@@ -448,7 +450,7 @@ function LabelEditor({ value, onChange, onSlashRequest }: LabelEditorProps) {
             style={{
               flex: "0 1 auto",
               minWidth: hasExpr ? 40 : 120,
-              padding: "3px 4px", fontSize: 11, outline: "none",
+              padding: "3px 4px", fontSize: 12, outline: "2px solid transparent",
               border: hasExpr ? "1px solid transparent" : "1px solid #e2e8f0",
               borderRadius: hasExpr ? 6 : 4,
               background: "transparent",
@@ -476,7 +478,7 @@ function LabelPropRow({
     <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
       <label
         style={{
-          fontSize: 11,
+          fontSize: 12,
           color: "#64748b",
           minWidth: 50,
           flexShrink: 0,
@@ -527,7 +529,7 @@ function PropRow({
     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
       <label
         style={{
-          fontSize: 11,
+          fontSize: 12,
           color: "#64748b",
           minWidth: 50,
           flexShrink: 0,
@@ -544,10 +546,10 @@ function PropRow({
         style={{
           flex: 1,
           padding: "3px 6px",
-          fontSize: 11,
+          fontSize: 12,
           border: "1px solid #e2e8f0",
           borderRadius: 4,
-          outline: "none",
+          outline: "2px solid transparent",
           fontFamily: "var(--dp-font-mono, monospace)",
         }}
         onFocus={(e) => {

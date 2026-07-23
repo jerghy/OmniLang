@@ -52,7 +52,7 @@ const INPUT_STYLE: React.CSSProperties = {
   fontFamily: "var(--dp-font-mono, monospace)",
   border: "1px solid var(--dp-border, #e8e5f2)",
   borderRadius: "var(--dp-radius-sm, 6px)",
-  outline: "none",
+  outline: "2px solid transparent",
   background: "var(--dp-surface, #fff)",
   color: "var(--dp-text, #1e1b4b)",
   boxSizing: "border-box",
@@ -116,7 +116,7 @@ const linkBtnBase: React.CSSProperties = {
   padding: "3px 5px",
   fontFamily: "inherit",
   flexShrink: 0,
-  transition: "all 150ms ease",
+  transition: "border-color 150ms ease, background-color 150ms ease, opacity 150ms ease, 150ms ease",
 };
 
 // ── Component ──
@@ -186,7 +186,7 @@ export const SizeCard = React.memo(function SizeCard({ properties, onChange, onF
                   style={tokenTextStyle}
                   onClick={(e) => onPropSlash?.("width", e.currentTarget)}
                 >{widthStr}</span>
-                <button
+                <button type="button"
                   style={tokenRemoveBtn}
                   title="Remove token"
                   onClick={(e) => {
@@ -208,7 +208,7 @@ export const SizeCard = React.memo(function SizeCard({ properties, onChange, onF
                   />
                 </span>
                 {widthStr !== "" && (
-                  <button
+                  <button type="button"
                     style={tokenRemoveBtn}
                     title="清除"
                     onClick={(e) => {
@@ -223,7 +223,7 @@ export const SizeCard = React.memo(function SizeCard({ properties, onChange, onF
             <LockIcon propName="width" inheritedProps={inheritedProps} onToggleInherited={onToggleInherited} readOnly={readOnly} />
           </div>
 
-          <button
+          <button type="button"
             onClick={() => setLinked((v) => !v)}
             title={linked ? "Unlink dimensions" : "Link dimensions"}
             style={linkBtnStyle}
@@ -242,7 +242,7 @@ export const SizeCard = React.memo(function SizeCard({ properties, onChange, onF
                   style={tokenTextStyle}
                   onClick={(e) => onPropSlash?.("height", e.currentTarget)}
                 >{heightStr}</span>
-                <button
+                <button type="button"
                   style={tokenRemoveBtn}
                   title="Remove token"
                   onClick={(e) => {
@@ -264,7 +264,7 @@ export const SizeCard = React.memo(function SizeCard({ properties, onChange, onF
                   />
                 </span>
                 {heightStr !== "" && (
-                  <button
+                  <button type="button"
                     style={tokenRemoveBtn}
                     title="清除"
                     onClick={(e) => {
@@ -301,7 +301,7 @@ export const SizeCard = React.memo(function SizeCard({ properties, onChange, onF
                 border: "2px solid var(--dp-accent, #6366f1)",
                 borderRadius: 2,
                 background: "rgba(99, 102, 241, 0.06)",
-                transition: "width 100ms, height 100ms",
+                transition: "none",
                 position: "relative",
               }}
             >
