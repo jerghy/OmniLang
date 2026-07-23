@@ -359,6 +359,8 @@ function FlowCanvasInner() {
         <CodeCardEditor
           elementId={editingElement.id}
           initialOps={(editingElement as CodeblockElementData).operations || []}
+          initialSource={(editingElement as CodeblockElementData).source || ""}
+          language="omnilang"
           onSave={(operations) => {
             setElementOperations(editingNodeId!, operations);
             setEditingNodeId(null);
