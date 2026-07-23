@@ -125,6 +125,28 @@ impl FormatStmt for ReactStmtFormatter {
         "const"
     }
 
+    /// Override format_expr_stmt to ensure store action references are always called with ().
+    /// Fixes ESLint `no-unused-expressions` when a store action like `NotificationStore.clear`
+    /// is referenced without parentheses in an expression statement.
+    fn format_expr_stmt(&self, w: &mut CodeWriter, expr: &ExprIR) {
+        let line = self.expr_fmt().format_expr(expr);
+        if line != self.null_value() {
+            // Detect FieldAccessExpr on a store reference — always add () for actions
+            let needs_parens = matches!(expr, ExprIR::FieldAccessExpr { object, .. }
+                if matches!(object.as_ref(), ExprIR::IdentifierExpr { name, .. }
+                    if self.signal_names.contains(name.as_str())));
+            if self.needs_semicolon() {
+                if needs_parens {
+                    w.emit_fmt(format_args!("{line}();"));
+                } else {
+                    w.emit_fmt(format_args!("{line};"));
+                }
+            } else {
+                w.emit(&line);
+            }
+        }
+    }
+
     fn format_let_type_ann(&self, ty: &Option<TypeIR>) -> String {
         ty.as_ref()
             .map(|t| {

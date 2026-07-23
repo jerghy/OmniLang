@@ -368,10 +368,18 @@ impl ReactCodegen {
         w.emit("}");
         w.emit("");
 
+        // Collect store signal names for needs_get check
+        let store_signal_names: FxHashSet<String> = store.signals.keys().cloned().collect();
+
+        // Check if any getter or action body needs get()
+        let needs_get = !store.getters.is_empty()
+            || store.actions.iter().any(|a| block_needs_zustand_state(&a.body, &store_signal_names));
+        let create_params = if needs_get { "(set, get)" } else { "(set)" };
+
         // create() call
         w.emit_fmt(format_args!(
-            "export const use{} = create<{}>()((set, get) => ({{",
-            name, state_interface
+            "export const use{} = create<{}>()({} => ({{",
+            name, state_interface, create_params
         ));
         w.indent();
 
@@ -414,7 +422,6 @@ impl ReactCodegen {
             ));
             w.indent();
 
-            let store_signal_names: FxHashSet<String> = store.signals.keys().cloned().collect();
             // Emit const state = get(); only if the action body references store signals
             emit_zustand_action_prologue(&mut w, action, &store_signal_names);
 

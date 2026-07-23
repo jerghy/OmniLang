@@ -32,15 +32,25 @@ impl ReactCodegen {
         let has_effects_or_lifecycles = !comp.effects.is_empty() || !comp.lifecycles.is_empty();
         let has_motion = comp.view.as_ref().is_some_and(|v| view_has_motion_or_effects(v));
 
-        let mut hooks: Vec<&str> = vec!["useState"];
+        let has_states = !comp.states.is_empty();
+        let mut hooks: Vec<&str> = Vec::new();
+        if has_states { hooks.push("useState"); }
         if has_computeds { hooks.push("useMemo"); }
         if has_fn_form_computed { hooks.push("useCallback"); }
         if has_effects_or_lifecycles || has_motion { hooks.push("useEffect"); }
 
         // Imports
-        w.emit_fmt(format_args!("import React, {{ {} }} from 'react';", hooks.join(", ")));
-        w.emit_fmt(format_args!("import styles from './{}.module.css';", name));
-        w.emit("");
+        if !hooks.is_empty() {
+            w.emit_fmt(format_args!("import React, {{ {} }} from 'react';", hooks.join(", ")));
+        }
+        // Only import styles if the component has style rules or uses CSS module classes
+        let has_styles = !comp.styles.is_empty();
+        if has_styles {
+            w.emit_fmt(format_args!("import styles from './{}.module.css';", name));
+        }
+        if !hooks.is_empty() || has_styles {
+            w.emit("");
+        }
 
         // Props interface — regular props + event callbacks
         let has_props = !comp.props.is_empty() || !comp.event_names.is_empty();
