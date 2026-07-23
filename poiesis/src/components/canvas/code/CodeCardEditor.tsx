@@ -10,7 +10,6 @@ import { KeyboardPlugin } from "./lexical/plugins/KeyboardPlugin";
 import { CodeOpSyncPlugin } from "./lexical/plugins/CodeOpSyncPlugin";
 import { SlotTextNode } from "./lexical/nodes/SlotTextNode";
 import { CardElementNode } from "./lexical/nodes/CardElementNode";
-import { emitOps } from "../../../services/codegen/code-op-emitter";
 import { parseOpsWasm } from "../../../services/codegen/code-op-parser";
 import { CodeEditorModal } from "./CodeEditorModal";
 import styles from "./CodeCardEditor.module.css";
@@ -52,9 +51,13 @@ export const CodeCardEditor: React.FC<Props> = ({
   }, [onSave]);
 
   const handleMonacoSave = useCallback(async (source: string, _desc: string) => {
-    // Parse Monaco source back to operations
-    const parsedOps = await parseOpsWasm(source);
-    onSave(parsedOps);
+    try {
+      const parsedOps = await parseOpsWasm(source);
+      onSave(parsedOps);
+    } catch (err) {
+      console.error("Failed to parse Monaco source:", err);
+      // Silently fall back — the user can switch back to card mode
+    }
   }, [onSave]);
 
   // ── Monaco fallback mode ──
