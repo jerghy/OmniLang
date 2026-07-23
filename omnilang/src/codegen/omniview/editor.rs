@@ -225,7 +225,7 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, wind
             self.js.push_str("__omni_effect(() => {\n");
             self.js
                 .push_str(&format!("  const _nids = {};\n", nid_array));
-            self.js.push_str("  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? \"block\" : \"none\"; if (id === nid) { window.playBranchEnters(e); } } }); };\n");
+            self.js.push_str("  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? \"block\" : \"none\"; if (id === nid) { e.querySelectorAll('[data-nid]').forEach(function(c) { var a = __omni_animations.get(c.getAttribute('data-nid') + '_enter'); if (a) { a.cancel(); a.play(); } }); } } }); };\n");
         }
 
         // For each branch, build the if/else if chain

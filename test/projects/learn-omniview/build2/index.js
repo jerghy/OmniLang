@@ -120,1426 +120,10 @@ function __omni_bindText(nid) {
 	}
 /// ─── End Signal Runtime ────────────────────────────
 
-/// ─── OmniView Motion Runtime ───
-// OmniView Motion Runtime v0.1.0
-// Web Animation Engine -- WAAPI integration, spring physics, easing functions
-// Embedded into compiled output by the omni-compiler codegen.
-(function() {
-"use strict";
-
-/* --- 1. Spring Physics Solver --- */
-
-class SpringSolver {
-  constructor(tension, friction, mass, velocity, precision) {
-    this.tension = tension != null ? tension : 180;
-    this.friction = friction != null ? friction : 12;
-    this.mass = mass != null ? mass : 1;
-    this.velocity = velocity != null ? velocity : 0;
-    this.precision = precision != null ? precision : 0.01;
-  }
-
-  get omega0() {
-    return Math.sqrt(this.tension / this.mass);
-  }
-
-  get zeta() {
-    return this.friction / (2 * Math.sqrt(this.tension * this.mass));
-  }
-
-  solve(from, to, t) {
-    const delta = to - from;
-    const v0 = this.velocity;
-    const zeta = this.zeta;
-    const omega0 = this.omega0;
-
-    if (zeta < 1) {
-      // Underdamped -- oscillatory approach to equilibrium
-      const omegad = omega0 * Math.sqrt(1 - zeta * zeta);
-      const envelope = Math.exp(-zeta * omega0 * t);
-      const A = delta;
-      const B = (v0 + zeta * omega0 * delta) / omegad;
-      return to - envelope * (A * Math.cos(omegad * t) + B * Math.sin(omegad * t));
-    } else if (Math.abs(zeta - 1) < 1e-6) {
-      // Critically damped -- fastest non-oscillatory return
-      const envelope = Math.exp(-omega0 * t);
-      return to - envelope * (delta + (v0 + omega0 * delta) * t);
-    } else {
-      // Overdamped -- slow, non-oscillatory decay
-      const sqrtTerm = Math.sqrt(zeta * zeta - 1);
-      const r1 = -zeta * omega0 + omega0 * sqrtTerm;
-      const r2 = -zeta * omega0 - omega0 * sqrtTerm;
-      const c1 = (v0 - r2 * delta) / (r1 - r2);
-      const c2 = delta - c1;
-      return to - (c1 * Math.exp(r1 * t) + c2 * Math.exp(r2 * t));
-    }
-  }
-
-  getDuration(from, to) {
-    const total = Math.abs(to - from);
-    const prec = total < 5 ? this.precision * 0.1 : this.precision;
-    for (let t = 0; t < 10; t += 1 / 60) {
-      const pos = this.solve(from, to, t);
-      const pos2 = this.solve(from, to, t + 0.001);
-      const vel = (pos2 - pos) * 1000;
-      if (Math.abs(pos - to) < prec && Math.abs(vel) < prec) {
-        return t * 1000;
-      }
-    }
-    return 5000;
-  }
-}
-
-
-/* --- 2. Easing Function Registry --- */
-
-const EASINGS = {};
-
-// --- Standard ---
-
-EASINGS.linear = function linear(t) {
-  return t;
-};
-
-EASINGS.easeIn = function easeIn(t) {
-  return t * t * t;
-};
-
-EASINGS.easeOut = function easeOut(t) {
-  return 1 - Math.pow(1 - t, 3);
-};
-
-EASINGS.easeInOut = function easeInOut(t) {
-  return t < 0.5
-    ? 4 * t * t * t
-    : 1 - Math.pow(-2 * t + 2, 3) / 2;
-};
-
-// --- Power curves (quadratic through quintic) ---
-
-// Power 1 (quadratic): t^2, 1-(1-t)^2, etc.
-EASINGS.power1In = function power1In(t) {
-  return t * t;
-};
-EASINGS.power1Out = function power1Out(t) {
-  return 1 - (1 - t) * (1 - t);
-};
-EASINGS.power1InOut = function power1InOut(t) {
-  return t < 0.5
-    ? 2 * t * t
-    : 1 - Math.pow(-2 * t + 2, 2) / 2;
-};
-
-// Power 2 (cubic): t^3, 1-(1-t)^3, etc.
-EASINGS.power2In = EASINGS.easeIn;
-EASINGS.power2Out = EASINGS.easeOut;
-EASINGS.power2InOut = EASINGS.easeInOut;
-
-// Power 3 (quartic)
-EASINGS.power3In = function power3In(t) {
-  return t * t * t * t;
-};
-EASINGS.power3Out = function power3Out(t) {
-  return 1 - Math.pow(1 - t, 4);
-};
-EASINGS.power3InOut = function power3InOut(t) {
-  return t < 0.5
-    ? 8 * t * t * t * t
-    : 1 - Math.pow(-2 * t + 2, 4) / 2;
-};
-
-// Power 4 (quintic)
-EASINGS.power4In = function power4In(t) {
-  return t * t * t * t * t;
-};
-EASINGS.power4Out = function power4Out(t) {
-  return 1 - Math.pow(1 - t, 5);
-};
-EASINGS.power4InOut = function power4InOut(t) {
-  return t < 0.5
-    ? 16 * t * t * t * t * t
-    : 1 - Math.pow(-2 * t + 2, 5) / 2;
-};
-
-// --- Back (overshoot) ---
-
-function backInFn(t, intensity) {
-  const i = intensity != null ? intensity : 1.70158;
-  return (i + 1) * t * t * t - i * t * t;
-}
-
-function backOutFn(t, intensity) {
-  const i = intensity != null ? intensity : 1.70158;
-  return 1 + (i + 1) * Math.pow(t - 1, 3) + i * Math.pow(t - 1, 2);
-}
-
-function backInOutFn(t, intensity) {
-  const i = intensity != null ? intensity : 1.70158;
-  const i2 = i * 1.525;
-  return t < 0.5
-    ? (Math.pow(2 * t, 2) * ((i2 + 1) * 2 * t - i2)) / 2
-    : (Math.pow(2 * t - 2, 2) * ((i2 + 1) * (t * 2 - 2) + i2) + 2) / 2;
-}
-
-EASINGS.backIn = function backIn(t) { return backInFn(t); };
-EASINGS.backOut = function backOut(t) { return backOutFn(t); };
-EASINGS.backInOut = function backInOut(t) { return backInOutFn(t); };
-
-// --- Bounce ---
-
-function bounceOutFn(t) {
-  const n1 = 7.5625;
-  const d1 = 2.75;
-  if (t < 1 / d1) {
-    return n1 * t * t;
-  } else if (t < 2 / d1) {
-    return n1 * (t -= 1.5 / d1) * t + 0.75;
-  } else if (t < 2.5 / d1) {
-    return n1 * (t -= 2.25 / d1) * t + 0.9375;
-  } else {
-    return n1 * (t -= 2.625 / d1) * t + 0.984375;
-  }
-}
-
-EASINGS.bounceOut = bounceOutFn;
-
-EASINGS.bounceIn = function bounceIn(t) {
-  return 1 - bounceOutFn(1 - t);
-};
-
-EASINGS.bounceInOut = function bounceInOut(t) {
-  return t < 0.5
-    ? (1 - bounceOutFn(1 - 2 * t)) / 2
-    : (1 + bounceOutFn(2 * t - 1)) / 2;
-};
-
-// --- Elastic ---
-
-function elasticOutFn(t, amplitude, period) {
-  const a = amplitude != null ? amplitude : 1;
-  const p = period != null ? period : 0.3;
-  if (t === 0 || t === 1) return t;
-  const s = p / (2 * Math.PI) * Math.asin(1 / a);
-  return a * Math.pow(2, -10 * t) * Math.sin((t - s) * (2 * Math.PI) / p) + 1;
-}
-
-function elasticInFn(t, amplitude, period) {
-  const a = amplitude != null ? amplitude : 1;
-  const p = period != null ? period : 0.3;
-  if (t === 0 || t === 1) return t;
-  const s = p / (2 * Math.PI) * Math.asin(1 / a);
-  return -(a * Math.pow(2, 10 * (t - 1)) * Math.sin(((t - 1) - s) * (2 * Math.PI) / p));
-}
-
-EASINGS.elasticOut = function elasticOut(t) { return elasticOutFn(t); };
-EASINGS.elasticIn = function elasticIn(t) { return elasticInFn(t); };
-
-EASINGS.elasticInOut = function elasticInOut(t) {
-  if (t === 0 || t === 1) return t;
-  const a = 1;
-  const p = 0.3;
-  const s = p / (2 * Math.PI) * Math.asin(1 / a);
-  if ((t *= 2) < 1) {
-    return -0.5 * (a * Math.pow(2, 10 * (t - 1)) * Math.sin(((t - 1) - s) * (2 * Math.PI) / p));
-  }
-  return a * Math.pow(2, -10 * (t - 1)) * Math.sin(((t - 1) - s) * (2 * Math.PI) / p) * 0.5 + 1;
-};
-
-// --- Cubic Bezier Solver (Newton's method) ---
-
-function cubicBezier(p1x, p1y, p2x, p2y) {
-  function sampleCurveX(t) {
-    return ((1 - t) * 3 * (1 - t) * t * p1x + 3 * (1 - t) * t * t * p2x + t * t * t);
-  }
-  function sampleCurveY(t) {
-    return ((1 - t) * 3 * (1 - t) * t * p1y + 3 * (1 - t) * t * t * p2y + t * t * t);
-  }
-  function sampleCurveDerivativeX(t) {
-    return (3 * (1 - t) * (1 - t) * p1x + 6 * (1 - t) * t * (p2x - p1x) + 3 * t * t * (1 - p2x));
-  }
-
-  function solve(x, epsilon) {
-    const e = epsilon != null ? epsilon : 1e-6;
-    let t0, t1, t2, x2, d2;
-    // First try a few rounds of Newton
-    t2 = x;
-    for (let i = 0; i < 8; i++) {
-      x2 = sampleCurveX(t2) - x;
-      if (Math.abs(x2) < e) return sampleCurveY(t2);
-      d2 = sampleCurveDerivativeX(t2);
-      if (Math.abs(d2) < 1e-6) break;
-      t2 -= x2 / d2;
-    }
-    // Fallback: bisection
-    t0 = 0;
-    t1 = 1;
-    t2 = x;
-    if (t2 < t0) return sampleCurveY(t0);
-    if (t2 > t1) return sampleCurveY(t1);
-    while (t0 < t1) {
-      x2 = sampleCurveX(t2);
-      if (Math.abs(x2 - x) < e) return sampleCurveY(t2);
-      if (x > x2) {
-        t0 = t2;
-      } else {
-        t1 = t2;
-      }
-      t2 = (t1 - t0) * 0.5 + t0;
-    }
-    return sampleCurveY(t2);
-  }
-
-  return solve;
-}
-
-EASINGS.cubicBezier = cubicBezier;
-
-// Pre-built common cubic-bezier curves
-EASINGS.ease = function ease(t) {
-  return cubicBezier(0.25, 0.1, 0.25, 1)(t);
-};
-EASINGS.easeInCubic = function easeInCubic(t) {
-  return cubicBezier(0.32, 0, 0.67, 0)(t);
-};
-EASINGS.easeOutCubic = function easeOutCubic(t) {
-  return cubicBezier(0.33, 1, 0.68, 1)(t);
-};
-EASINGS.easeInOutCubic = function easeInOutCubic(t) {
-  return cubicBezier(0.65, 0, 0.35, 1)(t);
-};
-
-// --- Steps ---
-
-function stepsFn(count, position) {
-  const c = count || 1;
-  const pos = position === 'start' ? 0 : 1;
-  return function stepsEasing(t) {
-    const step = Math.floor(t * c);
-    const remainder = t * c - step;
-    if (remainder === 0 && t !== 1) {
-      return step / c;
-    }
-    if (pos === 0) {
-      return Math.min(t * c, c) / c;
-    }
-    return Math.max(step, 0) / c;
-  };
-}
-
-EASINGS.steps = stepsFn;
-
-// Resolve easing by name or config
-function resolveEasing(easing) {
-  if (typeof easing === 'function') return easing;
-  if (typeof easing === 'string') {
-    // Check if it's a cubic-bezier(...)
-    const cbMatch = easing.match(/^cubic-bezier\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*\)$/);
-    if (cbMatch) {
-      return cubicBezier(
-        parseFloat(cbMatch[1]),
-        parseFloat(cbMatch[2]),
-        parseFloat(cbMatch[3]),
-        parseFloat(cbMatch[4])
-      );
-    }
-    // Check if it's steps(...)
-    const stMatch = easing.match(/^steps\(\s*(\d+)\s*(?:,\s*(start|end)\s*)?\)$/);
-    if (stMatch) {
-      return stepsFn(parseInt(stMatch[1], 10), stMatch[2]);
-    }
-    // Look up named easing
-    if (EASINGS[easing]) return EASINGS[easing];
-    // Default
-    return EASINGS.easeOut;
-  }
-  // Handle SpringSolver instance: return a placeholder function.
-  // The AnimationPlayer._runJSAnimation() detects SpringSolver via _easingName
-  // and creates a duration-aware wrapper at play time, so we just mark it here.
-  if (easing && typeof easing === 'object' && typeof easing.solve === 'function') {
-    return function springPlaceholder(t) { return t; };
-  }
-  return EASINGS.easeOut;
-}
-
-// Determine if an easing is compatible with WAAPI
-function isWAAPICompatible(easing) {
-  if (typeof easing === 'string') {
-    // Map camelCase to kebab-case for WAAPI compatibility check
-    var waapiEasing = easing
-      .replace(/[A-Z]/g, function(m) { return '-' + m.toLowerCase(); })
-      .replace(/^(-?)power\d/, '');
-    // WAAPI supports: linear, ease, ease-in, ease-out, ease-in-out,
-    // cubic-bezier(n,n,n,n), steps(n), step-start, step-end
-    if (/^(linear|ease|ease-in|ease-out|ease-in-out|step-start|step-end)$/.test(waapiEasing)) return true;
-    if (/^cubic-bezier\(/.test(waapiEasing)) return true;
-    if (/^steps\(/.test(waapiEasing)) return true;
-    return false;
-  }
-  return false;
-}
-
-
-/* --- 3. AnimationPlayer Class --- */
-
-class AnimationPlayer {
-  // Track active animation per element for interrupt handling
-  static _activeByElement = new Map();
-
-  constructor(el, config) {
-    this.el = el;
-    this.config = config;
-
-    // Parse config
-    this._from = config.from || {};
-    this._to = config.to || {};
-    this._over = config.over != null ? config.over : 300;
-    this._delay = config.delay || 0;
-    this._easingName = config.easing || 'easeOut';
-    this._easing = resolveEasing(this._easingName);
-    this._iterations = config.iterations != null ? config.iterations : 1;
-    this._direction = config.direction || 'normal';
-    this._fill = config.fill || 'both';
-    this._interrupt = config.interrupt || 'cancel';
-
-    // Labels for seek-by-name
-    this._labels = config.labels || null;
-
-    // Multi-stop keyframes (25%, 50%, 75%, etc.)
-    this._keyframes = config.keyframes || null;
-
-    // Path animation support
-    this._path = config.path || null;
-    this._pathRotate = config.pathRotate || false;
-
-    // Repeat delay/refresh
-    this._repeatDelay = config.repeatDelay != null ? config.repeatDelay : 0;
-    this._repeatRefresh = config.repeatRefresh || false;
-
-    // State
-    this.progress = 0;
-    this._playing = false;
-    this._completed = false;
-    this._iteration = 0;
-    this._paused = config.paused || false;
-    this._callbacks = config.callbacks || {};
-    this._rafId = null;
-    this._startTime = null;
-    this._pauseTime = null;
-    this._elapsed = 0;
-    this._waapiAnimation = null;
-    this._killed = false;
-    this._reversed = false;
-    this._repeatTimer = null;
-    this._queuedNext = null;
-
-    // Pre-compute initial style values if from is not set
-    if (Object.keys(this._from).length === 0 && Object.keys(this._to).length > 0) {
-      for (const key of Object.keys(this._to)) {
-        this._from[key] = this._getCurrentValue(key);
-      }
-    }
-
-    // Path animation: prepare config — styles applied when play() starts
-    if (this._path) {
-      // Set aside from/to since we override with offsetDistance below;
-      // but DON'T set element styles here — they'll be applied on play().
-      this._originalFrom = this._from;
-      this._originalTo = this._to;
-      this._from = { offsetDistance: '0%' };
-      this._to = { offsetDistance: '100%' };
-    }
-  }
-
-  play() {
-    if (this._killed) return;
-    // If created with paused: true, don't auto-play — leave for external control
-    if (this.config.paused && this._startTime == null) {
-      return;
-    }
-
-    // Interrupt handling: check for existing animation on same element
-    const existing = AnimationPlayer._activeByElement.get(this.el);
-    if (existing && existing !== this) {
-      switch (this._interrupt) {
-        case 'cancel':
-          // Stop the existing animation immediately
-          existing.kill();
-          break;
-        case 'finish':
-          // Jump existing animation to end state
-          existing.seek(1);
-          existing._completed = true;
-          existing._playing = false;
-          existing._onAnimationComplete();
-          break;
-        case 'compose':
-          // Queue this animation to start after existing completes
-          existing._queuedNext = this;
-          return;  // Don't start yet — wait for current to complete
-      }
-    }
-
-    // Register as active for this element
-    AnimationPlayer._activeByElement.set(this.el, this);
-
-    if (this._completed) {
-      this._completed = false;
-      this._iteration = 0;
-      this.progress = 0;
-      this._elapsed = 0;
-    }
-    if (this._paused) {
-      this._paused = false;
-      if (this._pauseTime != null) {
-        this._elapsed += performance.now() - this._pauseTime;
-        this._pauseTime = null;
-      }
-    }
-
-    // Apply path animation CSS (offset-path, offset-rotate) only when playing,
-    // so pausing the animation doesn't permanently alter element layout.
-    if (this._path) {
-      this.el.style.offsetPath = `path("${this._path}")`;
-      if (this._pathRotate) {
-        this.el.style.offsetRotate = 'auto';
-      }
-    }
-
-    // Stagger children animation: animate each child individually with delays
-    if (this.config.staggerChildren && this.el.children && this.el.children.length > 0) {
-      this._playStaggered();
-      return;
-    }
-
-    this._playing = true;
-    this._startTime = performance.now();
-
-    // Try WAAPI first for compatible easings
-    // Check if easing is a SpringSolver instance (object, not string)
-    const isSpringSolver = this._easingName && typeof this._easingName === 'object' && typeof this._easingName.solve === 'function';
-    const isSpringLike = isSpringSolver || /spring|bounce|elastic|back/i.test(String(this._easingName));
-    if (!isSpringLike && isWAAPICompatible(this._easingName)) {
-      this._runWAAPI();
-    } else {
-      this._runJSAnimation();
-    }
-  }
-
-  /** Animate children with stagger delays */
-  _playStaggered() {
-    var children = Array.from(this.el.children).filter(function(c) { return c.nodeType === 1; });
-    if (children.length === 0) { this._completed = true; return; }
-    var staggerDelay = this.config.staggerChildren || 0;
-    var baseDelay = this.config.delayChildren || 0;
-    var direction = this.config.staggerFrom || 'start';
-    var self = this;
-
-    // Build order array based on direction
-    var indices = [];
-    var n = children.length;
-    if (direction === 'start') {
-      for (var i = 0; i < n; i++) indices.push(i);
-    } else if (direction === 'end') {
-      for (var i = n - 1; i >= 0; i--) indices.push(i);
-    } else if (direction === 'edges') {
-      var left = 0, right = n - 1;
-      while (left <= right) {
-        if (left === right) { indices.push(left); break; }
-        indices.push(left);
-        if (left !== right) indices.push(right);
-        left++; right--;
-      }
-    } else { // center
-      var mid = Math.floor((n - 1) / 2);
-      indices.push(mid);
-      var l = mid - 1, r = mid + 1;
-      while (l >= 0 || r < n) {
-        if (l >= 0) indices.push(l--);
-        if (r < n) indices.push(r++);
-      }
-    }
-
-    var total = indices.length;
-    var completed = 0;
-    indices.forEach(function(idx, pos) {
-      var child = children[idx];
-      var delay = baseDelay + pos * staggerDelay;
-      setTimeout(function() {
-        var childFrom = {};
-        for (var k in self._from) childFrom[k] = self._from[k];
-        var childTo = {};
-        for (var k in self._to) childTo[k] = self._to[k];
-        var childConfig = {
-          from: childFrom,
-          to: childTo,
-          over: self._over,
-          easing: self._easingName,
-          fill: 'forwards'
-        };
-        var player = new AnimationPlayer(child, childConfig);
-        player.play();
-        // Track stagger completion
-        var checkDone = setInterval(function() {
-          if (player._completed) {
-            clearInterval(checkDone);
-            completed++;
-            if (completed >= total) {
-              self._completed = true;
-              if (self._callbacks.onComplete) self._callbacks.onComplete();
-              self._onAnimationComplete();
-            }
-          }
-        }, 16);
-      }, delay);
-    });
-  }
-
-  pause() {
-    if (this._waapiAnimation) {
-      this._waapiAnimation.pause();
-    }
-    this._paused = true;
-    this._playing = false;
-    this._pauseTime = performance.now();
-    if (this._rafId) {
-      cancelAnimationFrame(this._rafId);
-      this._rafId = null;
-    }
-  }
-
-  resume() {
-    if (!this._paused || this._killed) return;
-    this._paused = false;
-    this._playing = true;
-    if (this._waapiAnimation) {
-      this._waapiAnimation.play();
-    } else {
-      this._startTime = performance.now();
-      this._runJSAnimation();
-    }
-  }
-
-  reverse() {
-    this._reversed = !this._reversed;
-    if (this._waapiAnimation) {
-      try {
-        this._waapiAnimation.reverse();
-      } catch(e) {
-        // WAAPI reverse() throws InvalidStateError for infinite-iteration
-        // animations. Fall back to cancelling so the element returns to
-        // its pre-animation state.
-        if (this._waapiAnimation) this._waapiAnimation.cancel();
-      }
-    } else {
-      // Swap from/to
-      const tmp = this._from;
-      this._from = this._to;
-      this._to = tmp;
-      this.progress = 1 - this.progress;
-    }
-  }
-
-  seek(p) {
-    // Support seek-by-label-name (string) in addition to numeric progress
-    if (typeof p === 'string' && this._labels && this._labels[p] != null) {
-      const labelTime = this._labels[p];
-      const totalTime = this._over * (this._iterations > 1 ? this._iterations : 1);
-      p = totalTime > 0 ? labelTime / totalTime : 0;
-    }
-    this.progress = Math.max(0, Math.min(1, Number(p) || 0));
-    this._applyProperties(this.progress, this._from, this._to);
-  }
-
-  /** Called when animation completes naturally — triggers queued next (compose). */
-  _onAnimationComplete() {
-    if (AnimationPlayer._activeByElement.get(this.el) === this) {
-      AnimationPlayer._activeByElement.delete(this.el);
-    }
-    if (this._queuedNext) {
-      const next = this._queuedNext;
-      this._queuedNext = null;
-      next.play();
-    }
-  }
-
-  kill() {
-    this._killed = true;
-    // Clean up path animation CSS to avoid permanent layout changes
-    if (this._path) {
-      this.el.style.offsetPath = '';
-      this.el.style.offsetRotate = '';
-    }
-    this._playing = false;
-    this._completed = false;
-    if (this._waapiAnimation) {
-      this._waapiAnimation.cancel();
-      this._waapiAnimation = null;
-    }
-    if (this._rafId) {
-      cancelAnimationFrame(this._rafId);
-      this._rafId = null;
-    }
-    AnimationPlayer._activeByElement.delete(this.el);
-  }
-
-  get playing() {
-    return this._playing && !this._paused;
-  }
-
-  get completed() {
-    return this._completed;
-  }
-
-  get iteration() {
-    return this._iteration;
-  }
-
-  /* --- Internal: WAAPI path --- */
-
-  _runWAAPI() {
-    // Support multi-stop keyframes (25%, 50%, 75%, etc.)
-    if (this._keyframes && this._keyframes.length > 0) {
-      var multiKeyframes = this._keyframes.map(function(kf) {
-        var cssKf = { offset: kf.offset };
-        var transforms = [];
-        for (var key in kf) {
-          if (key === 'offset') continue;
-          var cssKey = PROPERTY_MAP[key];
-          if (!cssKey) continue;
-          if (TRANSFORM_PROPS.has(key)) {
-            if (key === 'scale' || key === 'scaleX' || key === 'scaleY') {
-              transforms.push(cssKey + '(' + kf[key] + ')');
-            } else if (key === 'rotate' || key === 'rotateX' || key === 'rotateY' || key === 'rotateZ') {
-              transforms.push(cssKey + '(' + kf[key] + 'deg)');
-            } else if (key === 'x') {
-              transforms.push('translateX(' + kf[key] + 'px)');
-            } else if (key === 'y') {
-              transforms.push('translateY(' + kf[key] + 'px)');
-            }
-          } else if (key === 'blur') {
-            cssKf.filter = (cssKf.filter || '') + ' blur(' + kf[key] + 'px)';
-          } else if (key === 'brightness') {
-            cssKf.filter = (cssKf.filter || '') + ' brightness(' + kf[key] + ')';
-          } else {
-            cssKf[cssKey] = kf[key];
-          }
-        }
-        if (transforms.length > 0) {
-          cssKf.transform = transforms.join(' ');
-        }
-        return cssKf;
-      });
-      const waapiEasing = this._getWAAPIEasing();
-      const options = {
-        duration: this._over,
-        delay: this._delay,
-        easing: waapiEasing,
-        iterations: this._iterations,
-        direction: this._direction,
-        fill: this._fill,
-      };
-      try {
-        this._waapiAnimation = this.el.animate(multiKeyframes, options);
-        this._setupWAAPIHandlers();
-      } catch (e) {
-        this._runJSAnimation();
-      }
-      return;
-    }
-
-    const keyframes = {};
-    const cssProps = this._toCSSProperties(this._to);
-
-    // Convert _from (Omni property names) to CSS properties for initial state
-    const hasFrom = this._from && Object.keys(this._from).length > 0;
-    const fromCSS = hasFrom ? this._toCSSProperties(this._from) : {};
-
-    // Build keyframe at progress 1
-    for (const [prop, value] of Object.entries(cssProps)) {
-      // Use _from value for the initial keyframe when available (e.g., @enter animations)
-      const initial = fromCSS[prop] != null ? fromCSS[prop] : this._getCurrentCSSValue(prop);
-      keyframes[prop] = [initial, value];
-    }
-
-    // If _from is explicitly set, apply from values as inline styles as well
-    // so that the WAAPI keyframe starts from the correct visual state and so
-    // that the "to" state interpolates from the expected origin.
-    if (hasFrom) {
-      this._applyProperties(0, this._from, this._from);
-    }
-
-    // If there are no animatable properties, fire callback and exit
-    if (Object.keys(keyframes).length === 0) {
-      this._completed = true;
-      this._playing = false;
-      if (this._callbacks.onComplete) this._callbacks.onComplete();
-      this._onAnimationComplete();
-      return;
-    }
-
-    const waapiEasing = this._getWAAPIEasing();
-    const options = {
-      duration: this._over,
-      delay: this._delay,
-      easing: waapiEasing,
-      iterations: this._iterations,
-      direction: this._direction,
-      fill: this._fill,
-    };
-
-    try {
-      this._waapiAnimation = this.el.animate(keyframes, options);
-      this._setupWAAPIHandlers();
-    } catch (e) {
-      // Fallback to JS animation if WAAPI fails
-      this._runJSAnimation();
-    }
-  }
-
-  _setupWAAPIHandlers() {
-    this._waapiAnimation.onfinish = () => {
-      if (this._killed) return;
-      this._completed = true;
-      this._playing = false;
-      this._iteration = this._waapiAnimation.currentTime != null
-        ? Math.floor(this._waapiAnimation.currentTime / this._over) + 1
-        : this._iteration + 1;
-      if (this._callbacks.onComplete) this._callbacks.onComplete();
-      this._onAnimationComplete();
-    };
-
-    this._waapiAnimation.oncancel = () => {
-      this._playing = false;
-    };
-  }
-
-  /* --- Internal: JS requestAnimationFrame path --- */
-
-  _runJSAnimation() {
-    if (this._killed) return;
-
-    var self = this;
-    const from = this._from;
-    const to = this._to;
-    const over = this._over;
-    const delay = this._delay;
-    // If easing is a SpringSolver object, create a duration-aware wrapper
-    const easing = this._easingName && typeof this._easingName === 'object' && typeof this._easingName.solve === 'function'
-      ? (function(solver, dur) {
-          return function(t) { return solver.solve(0, 1, t * (dur / 1000)); };
-        })(this._easingName, this._over)
-      : this._easing;
-    let startTime = performance.now();
-    const fromCache = {};
-
-    // Compute initial from values
-    for (const key of Object.keys(to)) {
-      fromCache[key] = from[key] != null ? from[key] : this._getCurrentValue(key);
-    }
-
-    let delayPassed = false;
-    let delayStartTime = startTime;
-
-    function frame(time, self) {
-      if (self._killed) return;
-
-      // Handle delay (only on first iteration)
-      if (!delayPassed) {
-        if (time - delayStartTime < delay) {
-          self._rafId = requestAnimationFrame(function(t) { frame(t, self); });
-          return;
-        }
-        delayPassed = true;
-        startTime = time - delay;
-      }
-
-      const elapsed = time - startTime;
-      let rawProgress = elapsed / over;
-      let iterationChanged = false;
-
-      // Handle iteration count and direction
-      if (rawProgress >= 1) {
-        self._iteration++;
-        iterationChanged = true;
-        if (self._iteration >= self._iterations) {
-          rawProgress = 1;
-          self.progress = 1;
-          self._applyProperties(1, fromCache, to);
-          self._completed = true;
-          self._playing = false;
-          if (self._callbacks.onComplete) self._callbacks.onComplete();
-          self._onAnimationComplete();
-          return;
-        }
-        // Check for repeatDelay before next iteration
-        if (self._repeatDelay > 0) {
-          clearTimeout(self._repeatTimer);
-          self._repeatTimer = setTimeout(() => {
-            // If repeatRefresh, re-read from values
-            if (self._repeatRefresh) {
-              for (const key of Object.keys(to)) {
-                fromCache[key] = self._getCurrentValue(key);
-              }
-            }
-            startTime = performance.now();
-            rawProgress = 0;
-            self.progress = 0;
-            self._startTime = performance.now();
-            self._rafId = requestAnimationFrame(function(t) { frame(t, self); });
-          }, self._repeatDelay);
-          return;
-        }
-        // If repeatRefresh, re-read from values at iteration boundary
-        if (self._repeatRefresh) {
-          for (const key of Object.keys(to)) {
-            fromCache[key] = self._getCurrentValue(key);
-          }
-        }
-        // Reset for next iteration
-        startTime = time;
-        rawProgress = 0;
-        self.progress = 0;
-        self._startTime = performance.now();
-      }
-
-      self.progress = rawProgress;
-      const easedProgress = easing(rawProgress);
-      self._applyProperties(easedProgress, fromCache, to);
-
-      self._rafId = requestAnimationFrame(function(t) { frame(t, self); });
-    }
-
-    this._rafId = requestAnimationFrame(function(t) { frame(t, self); });
-  }
-
-  /* --- Property handling --- */
-
-  _getCurrentValue(key) {
-    if (!this.el) return 0;
-    const cssKey = PROPERTY_MAP[key] || key;
-    // For transform properties, detect current transform
-    if (TRANSFORM_PROPS.has(key)) {
-      const current = this.el.style.transform;
-      if (current && current !== 'none') {
-        const match = current.match(new RegExp(cssKey.replace(/[A-Z]/g, '-$&').toLowerCase() + '\\(([^)]+)\\)'));
-        if (match) return parseFloat(match[1]) || 0;
-      }
-      return 0;
-    }
-    // For opacity and other simple numeric properties
-    if (key === 'opacity') {
-      const val = this.el.style.opacity;
-      return val !== '' ? parseFloat(val) : 1;
-    }
-    // For filter properties (blur, brightness)
-    if (key === 'blur' || key === 'brightness') {
-      const current = this.el.style.filter;
-      if (current) {
-        const match = current.match(new RegExp(key + '\\(([^)]+)\\)'));
-        if (match) return parseFloat(match[1]) || 0;
-      }
-      return key === 'blur' ? 0 : 1;
-    }
-    // For color/boxShadow properties, read computed value as string for interpolation
-    if (key === 'color' || key === 'backgroundColor' || key === 'borderColor' || key === 'boxShadow') {
-      const inline = this.el.style[cssKey];
-      if (inline && inline !== '') return inline;
-      const computed = getComputedStyle(this.el);
-      return computed[cssKey] || '#000000';
-    }
-    // For other CSS properties
-    const computed = getComputedStyle(this.el);
-    const propKey = cssKey.replace(/[A-Z]/g, function(m) { return '-' + m.toLowerCase(); });
-    const val = computed.getPropertyValue(propKey);
-    const parsed = parseFloat(val);
-    return isNaN(parsed) ? 0 : parsed;
-  }
-
-  _getCurrentCSSValue(propName) {
-    if (!this.el) return propName === 'transform' ? 'none' : '0';
-    const val = this.el.style[propName];
-    if (val && val !== '') return val;
-    const computed = getComputedStyle(this.el);
-    const v = computed[propName];
-    if (v && v !== '') return v;
-    // For transform, 'none' is the correct zero value, not '0'
-    if (propName === 'transform') return 'none';
-    return '0';
-  }
-
-  _toCSSProperties(props) {
-    const result = {};
-    const transforms = [];
-
-    for (const [key, value] of Object.entries(props)) {
-      const cssKey = PROPERTY_MAP[key];
-      if (!cssKey) continue;
-
-      if (TRANSFORM_PROPS.has(key)) {
-        transforms.push({ key, cssKey, value });
-      } else if (key === 'blur') {
-        result.filter = 'blur(' + value + 'px)';
-      } else if (key === 'brightness') {
-        result.filter = 'brightness(' + value + ')';
-      } else {
-        result[cssKey] = this._formatValue(key, value);
-      }
-    }
-
-    // Compose transforms into single transform string
-    if (transforms.length > 0) {
-      const parts = transforms.map(function(t) {
-        if (t.key === 'scale' || t.key === 'scaleX' || t.key === 'scaleY') {
-          return t.cssKey + '(' + t.value + ')';
-        }
-        if (t.key === 'rotate' || t.key === 'rotateX' || t.key === 'rotateY' || t.key === 'rotateZ') {
-          return t.cssKey + '(' + t.value + 'deg)';
-        }
-        if (t.key === 'x') {
-          return 'translateX(' + t.value + 'px)';
-        }
-        if (t.key === 'y') {
-          return 'translateY(' + t.value + 'px)';
-        }
-        return t.cssKey + '(' + t.value + ')';
-      });
-      result.transform = parts.join(' ');
-    }
-
-    return result;
-  }
-
-  _formatValue(key, value) {
-    // If value is already a string (e.g., 'red', '50%'), return as-is
-    if (typeof value === 'string') return value;
-    // For pixel-based properties
-    if (PIXEL_PROPS.has(key)) {
-      return value + 'px';
-    }
-    // For unitless or automatically unit-resolved properties
-    return String(value);
-  }
-
-  _applyProperties(progress, from, to) {
-    if (!this.el) return;
-    const transforms = [];
-    const filters = [];
-
-    for (const key of Object.keys(to)) {
-      const fromVal = from[key] != null ? from[key] : this._getCurrentValue(key);
-      const toVal = to[key];
-      const interpolated = this._interpolate(fromVal, toVal, progress);
-      const cssKey = PROPERTY_MAP[key];
-      if (!cssKey) continue;
-
-      if (TRANSFORM_PROPS.has(key)) {
-        if (key === 'scale' || key === 'scaleX' || key === 'scaleY') {
-          transforms.push(cssKey + '(' + interpolated + ')');
-        } else if (key === 'rotate' || key === 'rotateX' || key === 'rotateY' || key === 'rotateZ') {
-          transforms.push(cssKey + '(' + interpolated + 'deg)');
-        } else if (key === 'x') {
-          transforms.push('translateX(' + interpolated + 'px)');
-        } else if (key === 'y') {
-          transforms.push('translateY(' + interpolated + 'px)');
-        }
-      } else if (key === 'blur') {
-        filters.push('blur(' + interpolated + 'px)');
-      } else if (key === 'brightness') {
-        filters.push('brightness(' + interpolated + ')');
-      } else {
-        this.el.style[cssKey] = this._formatValue(key, interpolated);
-      }
-    }
-
-    if (transforms.length > 0) {
-      this.el.style.transform = transforms.join(' ');
-    }
-    if (filters.length > 0) {
-      this.el.style.filter = filters.join(' ');
-    }
-  }
-
-  _interpolate(from, to, t) {
-    if (typeof from === 'string' || typeof to === 'string') {
-      // Handle hex color interpolation (#RRGGBB or #RGB)
-      const hexMatch = /^#([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})$/;
-      const hexShort = /^#([0-9a-fA-F])([0-9a-fA-F])([0-9a-fA-F])$/;
-      // Handle rgb(r, g, b) format from computed styles
-      const rgbMatch = /^rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)$/;
-      var pr, pg, pb;
-      if (typeof from === 'string' && typeof to === 'string') {
-        // Parse 'from' color
-        var m1 = from.match(hexMatch);
-        if (m1) { pr = parseInt(m1[1],16); pg = parseInt(m1[2],16); pb = parseInt(m1[3],16); }
-        else { m1 = from.match(hexShort);
-          if (m1) { pr = parseInt(m1[1]+m1[1],16); pg = parseInt(m1[2]+m1[2],16); pb = parseInt(m1[3]+m1[3],16); }
-          else { m1 = from.match(rgbMatch);
-            if (m1) { pr = parseInt(m1[1]); pg = parseInt(m1[2]); pb = parseInt(m1[3]); }
-          }
-        }
-        // Parse 'to' color
-        var m2 = to.match(hexMatch);
-        if (m2) { var tr = parseInt(m2[1],16), tg = parseInt(m2[2],16), tb = parseInt(m2[3],16); }
-        else { m2 = to.match(hexShort);
-          if (m2) { var tr = parseInt(m2[1]+m2[1],16), tg = parseInt(m2[2]+m2[2],16), tb = parseInt(m2[3]+m2[3],16); }
-          else { m2 = to.match(rgbMatch);
-            if (m2) { var tr = parseInt(m2[1]), tg = parseInt(m2[2]), tb = parseInt(m2[3]); }
-          }
-        }
-        if (typeof pr !== 'undefined' && typeof tr !== 'undefined') {
-          var r = Math.round(pr + (tr - pr) * t);
-          var g = Math.round(pg + (tg - pg) * t);
-          var b = Math.round(pb + (tb - pb) * t);
-          return '#' + [r,g,b].map(function(c){ return c.toString(16).padStart(2,'0'); }).join('');
-        }
-      }
-      // Fallback: snap at midpoint for unknown string types
-      return t < 0.5 ? from : to;
-    }
-    return from + (to - from) * t;
-  }
-
-  _getWAAPIEasing() {
-    // Convert OmniView easing names to WAAPI-compatible strings
-    const map = {
-      linear: 'linear',
-      easeIn: 'ease-in',
-      easeOut: 'ease-out',
-      easeInOut: 'ease-in-out',
-      ease: 'ease',
-      power1In: 'ease-in',
-      power1Out: 'ease-out',
-      power1InOut: 'ease-in-out',
-      power2In: 'ease-in',
-      power2Out: 'ease-out',
-      power2InOut: 'ease-in-out',
-      easeInCubic: 'cubic-bezier(0.32, 0, 0.67, 0)',
-      easeOutCubic: 'cubic-bezier(0.33, 1, 0.68, 1)',
-      easeInOutCubic: 'cubic-bezier(0.65, 0, 0.35, 1)',
-    };
-    return map[this._easingName] || this._easingName;
-  }
-}
-
-/* --- Property Name Mapping --- */
-
-const PROPERTY_MAP = {
-  x: 'translateX',
-  y: 'translateY',
-  scale: 'scale',
-  scaleX: 'scaleX',
-  scaleY: 'scaleY',
-  rotate: 'rotate',
-  rotateX: 'rotateX',
-  rotateY: 'rotateY',
-  rotateZ: 'rotateZ',
-  opacity: 'opacity',
-  width: 'width',
-  height: 'height',
-  backgroundColor: 'backgroundColor',
-  background: 'backgroundColor',
-  color: 'color',
-  borderColor: 'borderColor',
-  borderRadius: 'borderRadius',
-  margin: 'margin',
-  padding: 'padding',
-  blur: 'blur',
-  brightness: 'brightness',
-  boxShadow: 'boxShadow',
-};
-
-const TRANSFORM_PROPS = new Set([
-  'x', 'y', 'scale', 'scaleX', 'scaleY',
-  'rotate', 'rotateX', 'rotateY', 'rotateZ',
-]);
-
-const PIXEL_PROPS = new Set([
-  'width', 'height', 'margin', 'padding', 'borderRadius',
-  'x', 'y',
-]);
-
-
-/* --- 4. OmniView Runtime Integration --- */
-
-// Global animation registry
-window.__omni_animations = new Map();
-// Timeline labels dictionary (label name → delay offset)
-window.__omni_timeline_labels = new Map();
-
-// Create animation from motion IR config
-function __omni_createAnimation(nid, motionConfig) {
-  var el = __omni_el(nid);
-  if (!el) return null;
-  var player = new AnimationPlayer(el, motionConfig);
-  var key = nid + '_' + (motionConfig.trigger || 'default');
-  __omni_animations.set(key, player);
-  return player;
-}
-
-// Get animation handle for ref API
-function __omni_getAnimation(nid, trigger) {
-  return __omni_animations.get(nid + '_' + (trigger || 'default'));
-}
-
-// Play @enter animations for all child elements within a parent node.
-// Used when an @if branch becomes visible, to replay animations that
-// were skipped during mount because the element was hidden.
-function playBranchEnters(parent) {
-  if (!parent) return;
-  var children = parent.querySelectorAll('[data-nid]');
-  children.forEach(function(child) {
-    var nid = child.dataset.nid;
-    if (!nid) return;
-    var player = __omni_animations.get(nid + '_enter');
-    if (player) player.play();
-  });
-}
-
-// Trigger all animations matching a condition
-function __omni_triggerAnimations(triggerName) {
-  __omni_animations.forEach(function(player, key) {
-    if (key.endsWith('_' + triggerName)) {
-      player.play();
-    }
-  });
-}
-
-// InView observer registry for cleanup
-var __omni_inview_observers = [];
-
-// Parse scroll trigger config string (e.g. "top 80%", "center 50%", "bottom 20%")
-// Returns the absolute scroll Y position where the given edge of the element
-// reaches the given offset within the viewport.
-function __omni_parseScrollTrigger(cfg, el, vh) {
-  if (!cfg || typeof cfg !== 'string') return 0;
-  var parts = cfg.trim().split(/\s+/);
-  if (parts.length < 2) return 0;
-  var edge = parts[0];
-  var offset = parts[1];
-  var rect = el.getBoundingClientRect();
-  var scrollY = window.pageYOffset || window.scrollY;
-
-  var elEdge;
-  if (edge === 'top') elEdge = rect.top;
-  else if (edge === 'center') elEdge = rect.top + rect.height / 2;
-  else if (edge === 'bottom') elEdge = rect.bottom;
-  else elEdge = rect.top;
-
-  var absEdge = scrollY + elEdge;
-
-  if (offset.endsWith('%')) {
-    return absEdge - vh * (parseFloat(offset) / 100);
-  } else if (offset === 'bottom') {
-    return absEdge - vh;
-  } else if (offset === 'top') {
-    return absEdge;
-  }
-  return absEdge - vh * 0.5;
-}
-
-// Cleanup animation resources for a node
-function __omni_removeAnimation(nid) {
-  var prefix = nid + '_';
-  __omni_animations.forEach(function(player, key) {
-    if (key.startsWith(prefix)) {
-      player.kill();
-      __omni_animations.delete(key);
-    }
-  });
-}
-
-// Reduced motion detection
-var __omni_reducedMotion = window.matchMedia &&
-  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-// Listen for changes to reduced motion preference
-if (window.matchMedia) {
-  window.matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', function(e) {
-    __omni_reducedMotion = e.matches;
-    // Reduce all active animations when user enables reduced motion
-    if (e.matches) {
-      __omni_animations.forEach(function(player) {
-        if (player.playing) {
-          // Seek to end instantly
-          player.seek(1);
-          player.kill();
-        }
-      });
-    }
-  });
-}
-
-// Export for codegen use
-window.__omni_createAnimation = __omni_createAnimation;
-window.__omni_getAnimation = __omni_getAnimation;
-window.__omni_triggerAnimations = __omni_triggerAnimations;
-window.__omni_removeAnimation = __omni_removeAnimation;
-window.__omni_reducedMotion = __omni_reducedMotion;
-window.__omni_inview_observers = __omni_inview_observers;
-window.__omni_parseScrollTrigger = __omni_parseScrollTrigger;
-window.playBranchEnters = playBranchEnters;
-
-// FLIP animation for @for list reordering
-window.__omni_flip_state = new Map();
-function __omni_flip_before(containerSelector) {
-  const container = document.querySelector(containerSelector);
-  if (!container) return;
-  container.querySelectorAll('[data-for-key]').forEach(function(el) {
-    window.__omni_flip_state.set(el.getAttribute('data-for-key'), {
-      rect: el.getBoundingClientRect(),
-      element: el
-    });
-  });
-}
-window.__omni_flip_before = __omni_flip_before;
-
-function __omni_flip_after(containerSelector, duration, easing) {
-  duration = duration || 400;
-  easing = easing || 'ease-out';
-  const container = document.querySelector(containerSelector);
-  if (!container) return;
-  container.querySelectorAll('[data-for-key]').forEach(function(el) {
-    const key = el.getAttribute('data-for-key');
-    const prev = window.__omni_flip_state.get(key);
-    if (!prev) return;
-    const newRect = el.getBoundingClientRect();
-    const dx = prev.rect.left - newRect.left;
-    const dy = prev.rect.top - newRect.top;
-    if (dx === 0 && dy === 0) return;
-    el.style.transform = 'translate(' + dx + 'px, ' + dy + 'px)';
-    el.style.transition = 'none';
-    el.offsetHeight; // force reflow
-    el.style.transition = 'transform ' + duration + 'ms ' + easing;
-    el.style.transform = 'translate(0, 0)';
-    el.addEventListener('transitionend', function() {
-      el.style.transition = '';
-      el.style.transform = '';
-    }, { once: true });
-  });
-  window.__omni_flip_state.clear();
-}
-window.__omni_flip_after = __omni_flip_after;
-
-// @hero shared element transition
-window.__omni_hero_state = new Map();
-function __omni_hero_before() {
-  document.querySelectorAll('[data-hero]').forEach(function(el) {
-    var tag = el.getAttribute('data-hero');
-    var isVisible = el.offsetParent !== null || el.getBoundingClientRect().width > 0;
-    if (!isVisible) return;
-    if (!window.__omni_hero_state.has(tag)) {
-      var r = el.getBoundingClientRect();
-      window.__omni_hero_state.set(tag, {
-        rect: r,
-        element: el
-      });
-    }
-  });
-}
-
-function __omni_hero_after() {
-  window.__omni_hero_state.forEach(function(prev, tag) {
-    // Find the VISIBLE element with this hero tag (display !== 'none')
-    var visible = null;
-    document.querySelectorAll('[data-hero="' + tag + '"]').forEach(function(el) {
-      if (el.offsetParent !== null || el.getBoundingClientRect().width > 0) {
-        visible = el;
-      }
-    });
-    if (!visible || visible === prev.element) return;
-    var newRect = visible.getBoundingClientRect();
-    var dx = prev.rect.left - newRect.left;
-    var dy = prev.rect.top - newRect.top;
-    var dw = prev.rect.width / newRect.width || 1;
-    var dh = prev.rect.height / newRect.height || 1;
-    if (dx === 0 && dy === 0 && dw === 1 && dh === 1) return;
-    var dur = 400;
-    var ease = 'ease-out';
-    var trans = visible.getAttribute('data-hero-transition');
-    if (trans) {
-      // Find the motion definition that matches this transition name
-      window.__omni_animations.forEach(function(anim, key) {
-        if (key.indexOf('_' + trans) !== -1 && anim.config && anim.config.over) {
-          dur = anim.config.over;
-          if (anim.config.easing) ease = anim.config.easing;
-        }
-      });
-    }
-    // Apply FLIP: start at old position/scale
-    visible.style.transition = 'none';
-    visible.style.transformOrigin = '0 0';
-    visible.style.transform = 'translate(' + dx + 'px, ' + dy + 'px) scale(' + dw + ', ' + dh + ')';
-    void visible.offsetHeight;
-    // Use WAAPI for the animation instead of CSS transitions.
-    // This avoids the browser optimization issues with CSS transitions
-    // that cause the initial transform to be skipped.
-    if (visible.animate) {
-      try {
-        var waapiEase = ease;
-        var easeMap = {
-          'easeInOut': 'ease-in-out', 'easeIn': 'ease-in', 'easeOut': 'ease-out',
-          'ease': 'ease', 'linear': 'linear',
-          'power1In': 'ease-in', 'power1Out': 'ease-out', 'power1InOut': 'ease-in-out',
-          'power2In': 'ease-in', 'power2Out': 'ease-out', 'power2InOut': 'ease-in-out',
-          'power3In': 'ease-in', 'power3Out': 'ease-out', 'power3InOut': 'ease-in-out',
-          'power4In': 'ease-in', 'power4Out': 'ease-out', 'power4InOut': 'ease-in-out',
-        };
-        if (easeMap[waapiEase]) waapiEase = easeMap[waapiEase];
-        // Use keyframe list with offset 0 and 1
-        var kfs = [
-          { transform: 'translate(' + dx + 'px, ' + dy + 'px) scale(' + dw + ', ' + dh + ')', offset: 0 },
-          { transform: 'translate(0, 0) scale(1, 1)', offset: 1 }
-        ];
-        var flipAnim = visible.animate(kfs, {
-          duration: dur,
-          easing: waapiEase,
-          fill: 'both'
-        });
-        flipAnim.onfinish = function() {
-          visible.style.transition = '';
-          visible.style.transform = '';
-          visible.style.transformOrigin = '';
-        };
-      } catch(e) {}
-    }
-    visible.addEventListener('transitionend', function() {
-      visible.style.transition = '';
-      visible.style.transform = '';
-      visible.style.transformOrigin = '';
-    }, { once: true });
-  });
-  window.__omni_hero_state.clear();
-}
-
-// Watch the root for DOM changes involving data-hero elements
-var __omni_hero_observer = new MutationObserver(function(mutations) {
-  var hasHeroChange = false;
-  mutations.forEach(function(m) {
-    if (m.type === 'childList' || m.type === 'attributes') {
-      m.addedNodes.forEach(function(n) {
-        if (n.nodeType === 1 && (n.getAttribute && n.getAttribute('data-hero'))) hasHeroChange = true;
-      });
-    }
-  });
-  if (hasHeroChange) {
-    __omni_hero_after();
-  }
-});
-// Start observer once DOM is ready
-(function() {
-  var root = document.getElementById('root');
-  if (root) {
-    __omni_hero_observer.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-hero'] });
-  }
-})();
-
-window.__omni_hero_before = __omni_hero_before;
-window.__omni_hero_after = __omni_hero_after;
-window.SpringSolver = SpringSolver;
-window.AnimationPlayer = AnimationPlayer;
-window.EASINGS = EASINGS;
-window.resolveEasing = resolveEasing;
-
-})();
+/// ─── Omni Animation Runtime (WAAPI-based) ───
+// @omni/animation v0.1.0 — load from external script
+// <script src="./omni-animation.js"> should be included in the HTML wrapper
+if (typeof Omni === 'undefined') console.warn('[OmniView] @omni/animation not loaded');
 
 const ThemeStore_mode = __omni_signal("ThemeStore_mode", "light");
 const ThemeStore_toggleCount = __omni_signal("ThemeStore_toggleCount", 0);
@@ -1553,25 +137,25 @@ const ThemeStore_modeLabel = __omni_computed("ThemeStore_modeLabel", () => (Them
 function ThemeStore_load() {
   let raw = localStorage.getItem("theme-mode");
   if (raw !== null) {
-  ThemeStore_mode.set(raw);
+  __omni_subs.get("ThemeStore_mode").set(raw);
   }
 }
 
 function ThemeStore_toggle() {
   if (ThemeStore_mode.value === "dark") {
-  ThemeStore_mode.set("light");
+  __omni_subs.get("ThemeStore_mode").set("light");
   } else {
-  ThemeStore_mode.set("dark");
+  __omni_subs.get("ThemeStore_mode").set("dark");
   }
-  ThemeStore_toggleCount.set(ThemeStore_toggleCount.value + 1);
+  __omni_subs.get("ThemeStore_toggleCount").set(ThemeStore_toggleCount.value + 1);
   localStorage.setItem("theme-mode", ThemeStore_mode.value);
 }
 
 function ThemeStore_setMode(newMode) {
   if (newMode === "dark") {
-  ThemeStore_mode.set("dark");
+  __omni_subs.get("ThemeStore_mode").set("dark");
   } else {
-  ThemeStore_mode.set("light");
+  __omni_subs.get("ThemeStore_mode").set("light");
   }
   localStorage.setItem("theme-mode", ThemeStore_mode.value);
 }
@@ -1582,34 +166,34 @@ const TodoStore_filterStatus = __omni_signal("TodoStore_filterStatus", "all");
 const TodoStore_items = __omni_signal("TodoStore_items", []);
 const TodoStore_totalCount = __omni_computed("TodoStore_totalCount", () => ((TodoStore_items.value || []).length));
 function TodoStore_add(text) {
-  TodoStore_items.set([...TodoStore_items.value, {"id": TodoStore_items.value.length, "text": text, "done": false}]);
-  TodoStore_lastAction.set("added");
+  __omni_subs.get("TodoStore_items").set([...TodoStore_items.value, {"id": TodoStore_items.value.length, "text": text, "done": false}]);
+  __omni_subs.get("TodoStore_lastAction").set("added");
 }
 
 function TodoStore_remove(id) {
-  TodoStore_items.set((TodoStore_items.value).filter(((item) => item.id !== id)));
-  TodoStore_lastAction.set("removed");
+  __omni_subs.get("TodoStore_items").set((TodoStore_items.value).filter(((item) => item.id !== id)));
+  __omni_subs.get("TodoStore_lastAction").set("removed");
 }
 
 function TodoStore_clear() {
-  TodoStore_items.set([]);
-  TodoStore_filterStatus.set("all");
-  TodoStore_lastAction.set("cleared");
+  __omni_subs.get("TodoStore_items").set([]);
+  __omni_subs.get("TodoStore_filterStatus").set("all");
+  __omni_subs.get("TodoStore_lastAction").set("cleared");
 }
 
 function TodoStore_setFilter(status) {
-  TodoStore_filterStatus.set(status);
-  TodoStore_lastAction.set("filter: " + status);
+  __omni_subs.get("TodoStore_filterStatus").set(status);
+  __omni_subs.get("TodoStore_lastAction").set("filter: " + status);
 }
 
 function TodoStore_fetchReminders() {
-  TodoStore_lastAction.set("fetching...");
+  __omni_subs.get("TodoStore_lastAction").set("fetching...");
 }
 
 
 const CartStore_items = __omni_signal("CartStore_items", []);
 function CartStore_add(item) {
-  CartStore_items.set([...CartStore_items.value, item]);
+  __omni_subs.get("CartStore_items").set([...CartStore_items.value, item]);
 }
 
 
@@ -1623,7 +207,7 @@ function NotificationStore_add(message) {
   if ((NotificationStore_notifications.value || []).length >= NotificationStore_maxCount.value) {
   return "max notifications reached";
   }
-  NotificationStore_notifications.value.push(message); NotificationStore_notifications.set(NotificationStore_notifications.value.slice());
+  __omni_subs.get("NotificationStore_notifications").value.push(message); __omni_subs.get("NotificationStore_notifications").set(__omni_subs.get("NotificationStore_notifications").value.slice());
   localStorage.setItem("notification-count", String(NotificationStore_unreadCount.value));
   return "added";
 }
@@ -1631,10 +215,10 @@ function NotificationStore_add(message) {
 function NotificationStore_addWithPriority(title, body, priority) {
   let full = title + ": " + body;
   if (priority > 5) {
-  NotificationStore_notifications.value.push(full); NotificationStore_notifications.set(NotificationStore_notifications.value.slice());
+  __omni_subs.get("NotificationStore_notifications").value.push(full); __omni_subs.get("NotificationStore_notifications").set(__omni_subs.get("NotificationStore_notifications").value.slice());
   return "high priority added";
   }
-  NotificationStore_notifications.value.push(full); NotificationStore_notifications.set(NotificationStore_notifications.value.slice());
+  __omni_subs.get("NotificationStore_notifications").value.push(full); __omni_subs.get("NotificationStore_notifications").set(__omni_subs.get("NotificationStore_notifications").value.slice());
   return "added";
 }
 
@@ -1642,16 +226,16 @@ function NotificationStore_removeLast() {
   if ((NotificationStore_notifications.value || []).length === 0) {
   return "no notifications";
   }
-  NotificationStore_notifications.value.pop(); NotificationStore_notifications.set(NotificationStore_notifications.value.slice());
+  __omni_subs.get("NotificationStore_notifications").value.pop(); __omni_subs.get("NotificationStore_notifications").set(__omni_subs.get("NotificationStore_notifications").value.slice());
   return "removed";
 }
 
 function NotificationStore_clear() {
-  NotificationStore_notifications.set([]);
+  __omni_subs.get("NotificationStore_notifications").set([]);
 }
 
 function NotificationStore_clearAll() {
-  NotificationStore_notifications.set([]);
+  __omni_subs.get("NotificationStore_notifications").set([]);
   localStorage.setItem("notification-count", "0");
 }
 
@@ -1803,8 +387,8 @@ function has_errors(items) {
 // pub fn demo_case
 function demo_case(text) {
   let result = {};
-  result = "upper";
-  result = "lower";
+  result.set("upper", (text).toUpperCase());
+  result.set("lower", (text).toLowerCase());
   return result;
 }
 
@@ -1878,8 +462,8 @@ async function demo_timeout() {
 function parse_config(raw) {
   let map = {};
   if (raw !== "") {
-  map = "parsed";
-  map = "length";
+  map.set("parsed", "true");
+  map.set("length", String((raw || []).length));
   }
   return map;
 }
@@ -1904,9 +488,9 @@ function validate_email(email) {
 function get_date_parts() {
   let now = datetime_now();
   let parts = {};
-  parts = "year";
-  parts = "month";
-  parts = "day";
+  parts.set("year", datetime_year(now));
+  parts.set("month", datetime_month(now));
+  parts.set("day", datetime_day(now));
   return parts;
 }
 
@@ -1997,9 +581,9 @@ function safe_get(map, key) {
 // pub fn demo_trig
 function demo_trig(angle) {
   let result = {};
-  result = "sin";
-  result = "cos";
-  result = "tan";
+  result.set("sin", math_sin(angle));
+  result.set("cos", math_cos(angle));
+  result.set("tan", math_tan(angle));
   return result;
 }
 
@@ -2052,9 +636,9 @@ function demo_replace(text, from, to) {
 function get_time_parts() {
   let now = datetime_now();
   let parts = {};
-  parts = "hour";
-  parts = "minute";
-  parts = "second";
+  parts.set("hour", datetime_hour(now));
+  parts.set("minute", datetime_minute(now));
+  parts.set("second", datetime_second(now));
   return parts;
 }
 
@@ -2117,8 +701,8 @@ function tabular_data() {
 // pub fn demo_math_min_max
 function demo_math_min_max(a, b) {
   let result = {};
-  result = "min";
-  result = "max";
+  result.set("min", Math.min(a, b));
+  result.set("max", Math.max(a, b));
   return result;
 }
 
@@ -2128,7 +712,7 @@ async function fetch_demo(url) {
   if (url === "") {
   return {"_variant": "Err", "error": "url is empty"};
   }
-  let raw = await fetch(url).then(r => r.text());
+  let raw = await fetch(url).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.text(); });
   return {"_variant": "Ok", "data": raw};
 }
 
@@ -2292,10 +876,10 @@ function validate_all(items, min_len) {
   let errors = [];
   for (const item of CartStore_items.value) {
   if (item === "") {
-  errors.value.push("发现空字符串"); errors.set(errors.value.slice());
+  __omni_subs.get("errors").value.push("发现空字符串"); __omni_subs.get("errors").set(__omni_subs.get("errors").value.slice());
   }
   if ((item || []).length < min_len) {
-  errors.value.push("长度不足: " + item); errors.set(errors.value.slice());
+  __omni_subs.get("errors").value.push("长度不足: " + item); __omni_subs.get("errors").set(__omni_subs.get("errors").value.slice());
   }
   }
   return errors;
@@ -2305,8 +889,8 @@ function validate_all(items, min_len) {
 // pub fn demo_constants
 function demo_constants() {
   let result = {};
-  result = "pi";
-  result = "e";
+  result.set("pi", math_pi());
+  result.set("e", math_e());
   return result;
 }
 
@@ -2383,13 +967,13 @@ function test_regex_search() {
 
 // pub fn demo_u64
 function demo_u64() {
-  return 18446744073709551615;
+  return 18446744073709551615n;
 }
 
 
 // pub fn demo_remove
 function demo_remove(arr, idx) {
-  return ((arr).splice(idx, 1), (arr).slice());
+  return (arr).filter((_, _i) => _i !== idx);
 }
 
 
@@ -2414,7 +998,7 @@ function filter_positive(nums) {
   if (n <= 0) {
   continue;
   }
-  result.value.push(n); result.set(result.value.slice());
+  __omni_subs.get("result").value.push(n); __omni_subs.get("result").set(__omni_subs.get("result").value.slice());
   }
   return result;
 }
@@ -2423,9 +1007,9 @@ function filter_positive(nums) {
 // pub fn demo_logs
 function demo_logs(x) {
   let result = {};
-  result = "log";
-  result = "log2";
-  result = "log10";
+  result.set("log", math_log(x));
+  result.set("log2", math_log2(x));
+  result.set("log10", math_log10(x));
   return result;
 }
 
@@ -2459,7 +1043,7 @@ function find_index(values, target) {
 
 // pub fn demo_i64
 function demo_i64() {
-  return 9223372036854775807;
+  return 9223372036854775807n;
 }
 
 
@@ -2574,12 +1158,12 @@ function timestamp_to_string(ts) {
 function all_extractors() {
   let now = datetime_now();
   let result = {};
-  result = "year";
-  result = "month";
-  result = "day";
-  result = "hour";
-  result = "minute";
-  result = "second";
+  result.set("year", datetime_year(now));
+  result.set("month", datetime_month(now));
+  result.set("day", datetime_day(now));
+  result.set("hour", datetime_hour(now));
+  result.set("minute", datetime_minute(now));
+  result.set("second", datetime_second(now));
   return result;
 }
 
@@ -2604,248 +1188,410 @@ function hex_demo() {
 
 /// ── Module Motion Definitions:  ──
 
-const __omni_motion_unbounce = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"to": {"scale": 1.05}, "over": 150, "easing": "easeOut"}, overrides || {}));
-};
-const __omni_motion_focusGlow = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"to": {"boxShadow": "0 0 0 3px rgba(99,102,241,0.4)"}, "over": 200, "easing": "easeOut"}, overrides || {}));
-};
-const __omni_motion_autoSpin = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"to": {"rotate": 360}, "over": 2000, "easing": "linear", "iterations": Infinity}, overrides || {}));
-};
-const __omni_motion_slideInView = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "y": 30}, "to": {"opacity": 1, "y": 0}, "over": 400, "easing": "power2Out"}, overrides || {}));
-};
-const __omni_motion_scrollFade = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0.3, "scale": 0.95}, "to": {"opacity": 1, "scale": 1}, "over": 500, "easing": "easeOut"}, overrides || {}));
-};
-const __omni_motion_dragSlide = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 100}, "over": 300, "easing": "power2Out"}, overrides || {}));
-};
-const __omni_motion_refMotion = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0.5, "scale": 1}, "to": {"opacity": 1, "scale": 1.0}, "over": 400, "easing": "power2Out"}, overrides || {}));
-};
-const __omni_motion_staggerStart = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "y": 15}, "to": {"opacity": 1, "y": 0}, "over": 300, "easing": "power2Out", "delayChildren": 30, "staggerChildren": 25, "staggerFrom": "start"}, overrides || {}));
-};
-const __omni_motion_staggerEnd = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "y": 15}, "to": {"opacity": 1, "y": 0}, "over": 300, "easing": "power2Out", "delayChildren": 30, "staggerChildren": 25, "staggerFrom": "end"}, overrides || {}));
-};
-const __omni_motion_staggerEdges = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "y": 15}, "to": {"opacity": 1, "y": 0}, "over": 300, "easing": "power2Out", "delayChildren": 30, "staggerChildren": 25, "staggerFrom": "edges"}, overrides || {}));
-};
-const __omni_motion_pulseAccent = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"--accent-h": 221}, "to": {"--accent-h": 350}, "over": 600, "easing": "easeInOut", "iterations": Infinity, "direction": "alternate"}, overrides || {}));
-};
-const __omni_motion_heroMove = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "x": -100, "scale": 0.8}, "to": {"opacity": 1, "x": 0, "scale": 1}, "over": 500, "easing": "power3Out"}, overrides || {}));
-};
-const __omni_motion_power1InMove = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 800, "easing": "power1In"}, overrides || {}));
-};
-const __omni_motion_power1OutMove = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 800, "easing": "power1Out"}, overrides || {}));
-};
-const __omni_motion_power1InOutMove = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 800, "easing": "power1InOut"}, overrides || {}));
-};
-const __omni_motion_power2InMove = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 800, "easing": "power2In"}, overrides || {}));
-};
-const __omni_motion_power2InOutMove = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 800, "easing": "power2InOut"}, overrides || {}));
-};
-const __omni_motion_power3InMove = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 800, "easing": "power3In"}, overrides || {}));
-};
-const __omni_motion_power3InOutMove = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 800, "easing": "power3InOut"}, overrides || {}));
-};
-const __omni_motion_power4InMove = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 800, "easing": "power4In"}, overrides || {}));
-};
-const __omni_motion_power4OutMove = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 800, "easing": "power4Out"}, overrides || {}));
-};
-const __omni_motion_power4InOutMove = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 800, "easing": "power4InOut"}, overrides || {}));
-};
-const __omni_motion_easeInMove = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 800, "easing": "easeIn"}, overrides || {}));
-};
-const __omni_motion_backInMove = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 800, "easing": "backIn"}, overrides || {}));
-};
-const __omni_motion_backOutMove = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 800, "easing": "backOut"}, overrides || {}));
-};
-const __omni_motion_backInOutMove = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 800, "easing": "backInOut"}, overrides || {}));
-};
-const __omni_motion_backOutIntensity = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 200}, "over": 800, "easing": "backOut(3.5)"}, overrides || {}));
-};
-const __omni_motion_bounceInMove = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 1000, "easing": "bounceIn"}, overrides || {}));
-};
-const __omni_motion_bounceOutMove = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 1000, "easing": "bounceOut"}, overrides || {}));
-};
-const __omni_motion_bounceInOutMove = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 1000, "easing": "bounceInOut"}, overrides || {}));
-};
-const __omni_motion_elasticInMove = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 1200, "easing": "elasticIn"}, overrides || {}));
-};
-const __omni_motion_elasticOutMove = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 1200, "easing": "elasticOut"}, overrides || {}));
-};
-const __omni_motion_elasticInOutMove = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 1200, "easing": "elasticInOut"}, overrides || {}));
-};
-const __omni_motion_elasticCustomMove = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 200}, "over": 1500, "easing": "elasticOut(2,0.8)"}, overrides || {}));
-};
-const __omni_motion_springDefault = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0.3, "x": 0}, "to": {"opacity": 1, "x": 180}, "over": 1000, "easing": new SpringSolver(180, 12, 1, 0)}, overrides || {}));
-};
-const __omni_motion_springBouncy = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 200}, "over": 1000, "easing": new SpringSolver(120, 8, 1, 2)}, overrides || {}));
-};
-const __omni_motion_springStiff = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"scale": 1}, "to": {"scale": 1.3}, "over": 600, "easing": new SpringSolver(400, 30, 1, 0)}, overrides || {}));
-};
-const __omni_motion_cubicCustom = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 800, "easing": "cubic-bezier(0.68,-0.55,0.27,1.55)"}, overrides || {}));
-};
-const __omni_motion_stepsDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 1000, "easing": "steps(6,end)"}, overrides || {}));
-};
-const __omni_motion_fadeSlideOut = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 1, "x": 0}, "to": {"opacity": 0, "x": 30}, "over": 300, "easing": "easeOut"}, overrides || {}));
-};
-const __omni_motion_fadeEnter = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "y": 10}, "to": {"opacity": 1, "y": 0}, "over": 400, "easing": "power2Out"}, overrides || {}));
-};
-const __omni_motion_scaleGlow = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"to": {"boxShadow": "0 0 0 4px rgba(99,102,241,0.4)", "scale": 1.08}, "over": 200, "easing": "easeOut"}, overrides || {}));
-};
-const __omni_motion_fadeInUp = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "y": 20}, "to": {"opacity": 1, "y": 0}, "over": 400, "easing": "easeOut"}, overrides || {}));
-};
-const __omni_motion_scalePress = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"to": {"scale": 0.95}, "over": 100, "easing": "easeOut"}, overrides || {}));
-};
-const __omni_motion_listItem = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "x": -20}, "to": {"opacity": 1, "x": 0}, "over": 300, "easing": "power2Out"}, overrides || {}));
-};
-const __omni_motion_pulse = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"to": {"scale": 1.05}, "over": 800, "easing": "easeInOut", "iterations": Infinity, "direction": "alternate"}, overrides || {}));
-};
-const __omni_motion_trackedEnter = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "scale": 0.8, "y": -20}, "to": {"opacity": 1, "scale": 1, "y": 0}, "over": 600, "easing": "power2Out", "callbacks": {"onStart": function() { null }, "onComplete": function() { null }}}, overrides || {}));
-};
-const __omni_motion_pulseWithCallback = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0.7, "scale": 1}, "to": {"opacity": 1, "scale": 1.1}, "over": 400, "easing": "easeInOut", "iterations": Infinity, "direction": "alternate", "repeatDelay": 200, "callbacks": {"onStart": function() { null }, "onUpdate": function() { null }, "onRepeat": function() { null }}}, overrides || {}));
-};
-const __omni_motion_interruptWithCallback = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0, "rotate": 0}, "to": {"x": 40, "rotate": 15}, "over": 300, "easing": "power1Out", "interrupt": "replace", "callbacks": {"onStart": function() { null }, "onInterrupt": function() { null }, "onComplete": function() { null }}}, overrides || {}));
-};
-const __omni_motion_scaleXDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"scaleX": 1}, "to": {"scaleX": 1.8}, "over": 600, "easing": "power2Out"}, overrides || {}));
-};
-const __omni_motion_scaleYDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"scaleY": 1}, "to": {"scaleY": 1.5}, "over": 500, "easing": "power2Out"}, overrides || {}));
-};
-const __omni_motion_rotateXDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"rotateX": 0}, "to": {"rotateX": 360}, "over": 2000, "easing": "easeInOut"}, overrides || {}));
-};
-const __omni_motion_rotateYDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"rotateY": 0}, "to": {"rotateY": 360}, "over": 2000, "easing": "easeInOut"}, overrides || {}));
-};
-const __omni_motion_rotateZDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"rotateZ": 0}, "to": {"rotateZ": 360}, "over": 1500, "easing": "power2Out"}, overrides || {}));
-};
-const __omni_motion_blurDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"blur": 0}, "to": {"blur": 6}, "over": 800, "easing": "easeOut"}, overrides || {}));
-};
-const __omni_motion_brightnessDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"brightness": 1}, "to": {"brightness": 2.5}, "over": 700, "easing": "easeOut"}, overrides || {}));
-};
-const __omni_motion_bgColorDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"backgroundColor": "#6366f1", "borderRadius": 4}, "to": {"backgroundColor": "#f97316", "borderRadius": 24}, "over": 1200, "easing": "easeInOut"}, overrides || {}));
-};
-const __omni_motion_textColorDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"borderColor": "#d4d4d8", "color": "#1f2937"}, "to": {"borderColor": "#dc2626", "color": "#dc2626"}, "over": 800, "easing": "power2Out"}, overrides || {}));
-};
-const __omni_motion_widthDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"width": 60}, "to": {"width": 200}, "over": 900, "easing": "easeOut"}, overrides || {}));
-};
-const __omni_motion_heightDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"height": 40}, "to": {"height": 120}, "over": 700, "easing": "power3Out"}, overrides || {}));
-};
-const __omni_motion_spacingDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"padding": 8, "margin": 4}, "to": {"padding": 24, "margin": 16}, "over": 1000, "easing": "easeInOut"}, overrides || {}));
-};
-const __omni_motion_fillDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "x": -20}, "to": {"opacity": 1, "x": 0}, "over": 400, "easing": "easeOut", "fill": "forwards"}, overrides || {}));
-};
-const __omni_motion_delayedEntrance = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "y": 20}, "to": {"opacity": 1, "y": 0}, "over": 300, "easing": "power2Out", "delay": 200, "repeatDelay": 100, "repeatRefresh": true}, overrides || {}));
-};
-const __omni_motion_slowSpin = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"to": {"rotate": 360}, "over": 5000, "easing": "linear", "iterations": Infinity, "timeScale": 0.5}, overrides || {}));
-};
-const __omni_motion_interruptDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"scale": 1}, "to": {"scale": 1.2}, "over": 300, "easing": "easeOut", "interrupt": "compose"}, overrides || {}));
-};
-const __omni_motion_accessibleAnim = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0}, "to": {"opacity": 1}, "over": 400, "easing": "easeOut", "respectReducedMotion": true}, overrides || {}));
-};
-const __omni_motion_staggeredList = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "y": 10}, "to": {"opacity": 1, "y": 0}, "over": 300, "easing": "easeOut", "delayChildren": 50, "staggerChildren": 30, "staggerFrom": "center"}, overrides || {}));
-};
-const __omni_motion_pathAnim = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"offsetDistance": 0}, "to": {"offsetDistance": 1}, "over": 1000, "easing": "easeInOut", "path": "M0,0 C50,-50 100,50 150,0", "pathRotate": true, "paused": true, "path": "M0,0 C50,-50 100,50 150,0", "pathRotate": true}, overrides || {}));
-};
-const __omni_motion_multiStopColor = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "scale": 0.5, "background": "#ff0000"}, "to": {"opacity": 1, "scale": 1, "background": "#0000ff"}, "over": 1000, "easing": "easeInOut"}, overrides || {}));
-};
-const __omni_motion_callbackOnly = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"over": 0.3, "callbacks": {"onStart": function() { null }, "onUpdate": function() { null }, "onComplete": function() { null }, "onRepeat": function() { null }, "onInterrupt": function() { null }}}, overrides || {}));
-};
-const __omni_motion_dirReverse = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0.3, "x": 0}, "to": {"opacity": 1, "x": 160}, "over": 600, "easing": "power2Out", "direction": "reverse"}, overrides || {}));
-};
-const __omni_motion_dirAltReverse = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"scale": 1}, "to": {"scale": 1.4}, "over": 800, "easing": "power2Out", "direction": "alternate-reverse"}, overrides || {}));
-};
-const __omni_motion_fillBackwards = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "x": -20}, "to": {"opacity": 1, "x": 0}, "over": 1000, "easing": "power2Out", "fill": "backwards", "delay": 500}, overrides || {}));
-};
-const __omni_motion_fillBoth = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "scale": 0.8}, "to": {"opacity": 1, "scale": 1.2}, "over": 600, "easing": "power2Out", "fill": "forwards", "delay": 300}, overrides || {}));
-};
-const __omni_motion_intStop = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 400, "easing": "easeOut", "iterations": Infinity, "direction": "alternate", "interrupt": "cancel"}, overrides || {}));
-};
-const __omni_motion_intComplete = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"scale": 1}, "to": {"scale": 1.3}, "over": 400, "easing": "easeOut", "iterations": Infinity, "direction": "alternate", "interrupt": "finish"}, overrides || {}));
-};
-const __omni_motion_intReplace = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 400, "easing": "easeOut", "iterations": Infinity, "direction": "alternate", "interrupt": "replace"}, overrides || {}));
-};
-const __omni_motion_stepCount2 = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0}, "to": {"opacity": 1}, "over": 800, "easing": "steps(2,start)"}, overrides || {}));
-};
-const __omni_motion_stepCount4Start = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "x": -30}, "to": {"opacity": 1, "x": 0}, "over": 1200, "easing": "steps(4,start)"}, overrides || {}));
-};
-const __omni_motion_stepCount4End = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "x": 30}, "to": {"opacity": 1, "x": 0}, "over": 1200, "easing": "steps(4,end)"}, overrides || {}));
-};
-const __omni_motion_stepCount8 = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "y": 20}, "to": {"opacity": 1, "y": 0}, "over": 1600, "easing": "steps(8,start)", "iterations": Infinity}, overrides || {}));
+function __omni_motion_unbounce(el, overrides) {
+  const opts = Object.assign({duration:150,easing:Omni.resolveEasing("easeOut"),fill:"both"}, overrides || {});
+  const kf = [{offset:1,properties:{"scale":1.05}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_focusGlow(el, overrides) {
+  const opts = Object.assign({duration:200,easing:Omni.resolveEasing("easeOut"),fill:"both"}, overrides || {});
+  const kf = [{offset:1,properties:{"boxShadow":"0 0 0 3px rgba(99,102,241,0.4)"}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_autoSpin(el, overrides) {
+  const opts = Object.assign({duration:2000,easing:Omni.resolveEasing("linear"),fill:"both",iterations:Infinity}, overrides || {});
+  const kf = [{offset:1,properties:{"rotate":360}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_slideInView(el, overrides) {
+  const opts = Object.assign({duration:400,easing:Omni.resolveEasing("power2Out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"opacity":0,"y":30}},{offset:1,properties:{"opacity":1,"y":0}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_scrollFade(el, overrides) {
+  const opts = Object.assign({duration:500,easing:Omni.resolveEasing("easeOut"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"opacity":0.3,"scale":0.95}},{offset:1,properties:{"opacity":1,"scale":1}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_dragSlide(el, overrides) {
+  const opts = Object.assign({duration:300,easing:Omni.resolveEasing("power2Out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"x":0}},{offset:1,properties:{"x":100}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_refMotion(el, overrides) {
+  const opts = Object.assign({duration:400,easing:Omni.resolveEasing("power2Out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"opacity":0.5,"scale":1}},{offset:1,properties:{"opacity":1,"scale":1.0}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_staggerStart(el, overrides) {
+  const opts = Object.assign({duration:300,easing:Omni.resolveEasing("power2Out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"opacity":0,"y":15}},{offset:1,properties:{"opacity":1,"y":0}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_staggerEnd(el, overrides) {
+  const opts = Object.assign({duration:300,easing:Omni.resolveEasing("power2Out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"opacity":0,"y":15}},{offset:1,properties:{"opacity":1,"y":0}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_staggerEdges(el, overrides) {
+  const opts = Object.assign({duration:300,easing:Omni.resolveEasing("power2Out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"opacity":0,"y":15}},{offset:1,properties:{"opacity":1,"y":0}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_pulseAccent(el, overrides) {
+  const opts = Object.assign({duration:600,easing:Omni.resolveEasing("easeInOut"),fill:"both",direction:"alternate",iterations:Infinity}, overrides || {});
+  const kf = [{offset:0,properties:{"--accent-h":221}},{offset:1,properties:{"--accent-h":350}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_heroMove(el, overrides) {
+  const opts = Object.assign({duration:500,easing:Omni.resolveEasing("power3Out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"opacity":0,"x":-100,"scale":0.8}},{offset:1,properties:{"opacity":1,"x":0,"scale":1}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_power1InMove(el, overrides) {
+  const opts = Object.assign({duration:800,easing:Omni.resolveEasing("power1In"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"x":0}},{offset:1,properties:{"x":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_power1OutMove(el, overrides) {
+  const opts = Object.assign({duration:800,easing:Omni.resolveEasing("power1Out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"x":0}},{offset:1,properties:{"x":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_power1InOutMove(el, overrides) {
+  const opts = Object.assign({duration:800,easing:Omni.resolveEasing("power1InOut"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"x":0}},{offset:1,properties:{"x":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_power2InMove(el, overrides) {
+  const opts = Object.assign({duration:800,easing:Omni.resolveEasing("power2In"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"x":0}},{offset:1,properties:{"x":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_power2InOutMove(el, overrides) {
+  const opts = Object.assign({duration:800,easing:Omni.resolveEasing("power2InOut"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"x":0}},{offset:1,properties:{"x":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_power3InMove(el, overrides) {
+  const opts = Object.assign({duration:800,easing:Omni.resolveEasing("power3In"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"x":0}},{offset:1,properties:{"x":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_power3InOutMove(el, overrides) {
+  const opts = Object.assign({duration:800,easing:Omni.resolveEasing("power3InOut"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"x":0}},{offset:1,properties:{"x":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_power4InMove(el, overrides) {
+  const opts = Object.assign({duration:800,easing:Omni.resolveEasing("power4In"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"x":0}},{offset:1,properties:{"x":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_power4OutMove(el, overrides) {
+  const opts = Object.assign({duration:800,easing:Omni.resolveEasing("power4Out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"x":0}},{offset:1,properties:{"x":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_power4InOutMove(el, overrides) {
+  const opts = Object.assign({duration:800,easing:Omni.resolveEasing("power4InOut"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"x":0}},{offset:1,properties:{"x":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_easeInMove(el, overrides) {
+  const opts = Object.assign({duration:800,easing:Omni.resolveEasing("easeIn"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"x":0}},{offset:1,properties:{"x":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_backInMove(el, overrides) {
+  const opts = Object.assign({duration:800,easing:Omni.resolveEasing({type:"back",intensity:1.70158,direction:"backIn"}),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"x":0}},{offset:1,properties:{"x":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_backOutMove(el, overrides) {
+  const opts = Object.assign({duration:800,easing:Omni.resolveEasing({type:"back",intensity:1.70158,direction:"backOut"}),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"x":0}},{offset:1,properties:{"x":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_backInOutMove(el, overrides) {
+  const opts = Object.assign({duration:800,easing:Omni.resolveEasing({type:"back",intensity:1.70158,direction:"backInOut"}),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"x":0}},{offset:1,properties:{"x":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_backOutIntensity(el, overrides) {
+  const opts = Object.assign({duration:800,easing:Omni.resolveEasing({type:"back",intensity:3.5,direction:"backOut"}),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"x":0}},{offset:1,properties:{"x":200}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_bounceInMove(el, overrides) {
+  const opts = Object.assign({duration:1000,easing:Omni.resolveEasing("bounceIn"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"x":0}},{offset:1,properties:{"x":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_bounceOutMove(el, overrides) {
+  const opts = Object.assign({duration:1000,easing:Omni.resolveEasing("bounceOut"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"x":0}},{offset:1,properties:{"x":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_bounceInOutMove(el, overrides) {
+  const opts = Object.assign({duration:1000,easing:Omni.resolveEasing("bounceInOut"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"x":0}},{offset:1,properties:{"x":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_elasticInMove(el, overrides) {
+  const opts = Object.assign({duration:1200,easing:Omni.resolveEasing({type:"elastic",amplitude:1,period:0.5,direction:"elasticIn"}),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"x":0}},{offset:1,properties:{"x":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_elasticOutMove(el, overrides) {
+  const opts = Object.assign({duration:1200,easing:Omni.resolveEasing({type:"elastic",amplitude:1,period:0.5,direction:"elasticOut"}),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"x":0}},{offset:1,properties:{"x":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_elasticInOutMove(el, overrides) {
+  const opts = Object.assign({duration:1200,easing:Omni.resolveEasing({type:"elastic",amplitude:1,period:0.5,direction:"elasticInOut"}),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"x":0}},{offset:1,properties:{"x":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_elasticCustomMove(el, overrides) {
+  const opts = Object.assign({duration:1500,easing:Omni.resolveEasing({type:"elastic",amplitude:2,period:0.8,direction:"out"}),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"x":0}},{offset:1,properties:{"x":200}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_springDefault(el, overrides) {
+  const opts = Object.assign({duration:1000,easing:Omni.resolveEasing({type:"spring",tension:180,friction:12,velocity:0}),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"opacity":0.3,"x":0}},{offset:1,properties:{"opacity":1,"x":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_springBouncy(el, overrides) {
+  const opts = Object.assign({duration:1000,easing:Omni.resolveEasing({type:"spring",tension:120,friction:8,velocity:2}),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"x":0}},{offset:1,properties:{"x":200}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_springStiff(el, overrides) {
+  const opts = Object.assign({duration:600,easing:Omni.resolveEasing({type:"spring",tension:400,friction:30,velocity:0}),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"scale":1}},{offset:1,properties:{"scale":1.3}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_cubicCustom(el, overrides) {
+  const opts = Object.assign({duration:800,easing:Omni.resolveEasing({type:"cubicBezier",x1:0.68,y1:-0.55,x2:0.27,y2:1.55}),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"x":0}},{offset:1,properties:{"x":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_stepsDemo(el, overrides) {
+  const opts = Object.assign({duration:1000,easing:Omni.resolveEasing({type:"steps",count:6,direction:"end"}),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"x":0}},{offset:1,properties:{"x":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_fadeSlideOut(el, overrides) {
+  const opts = Object.assign({duration:300,easing:Omni.resolveEasing("easeOut"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"opacity":1,"x":0}},{offset:1,properties:{"opacity":0,"x":30}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_fadeEnter(el, overrides) {
+  const opts = Object.assign({duration:400,easing:Omni.resolveEasing("power2Out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"opacity":0,"y":10}},{offset:1,properties:{"opacity":1,"y":0}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_scaleGlow(el, overrides) {
+  const opts = Object.assign({duration:200,easing:Omni.resolveEasing("easeOut"),fill:"both"}, overrides || {});
+  const kf = [{offset:1,properties:{"boxShadow":"0 0 0 4px rgba(99,102,241,0.4)","scale":1.08}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_fadeInUp(el, overrides) {
+  const opts = Object.assign({duration:400,easing:Omni.resolveEasing("easeOut"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"opacity":0,"y":20}},{offset:1,properties:{"opacity":1,"y":0}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_scalePress(el, overrides) {
+  const opts = Object.assign({duration:100,easing:Omni.resolveEasing("easeOut"),fill:"both"}, overrides || {});
+  const kf = [{offset:1,properties:{"scale":0.95}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_listItem(el, overrides) {
+  const opts = Object.assign({duration:300,easing:Omni.resolveEasing("power2Out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"opacity":0,"x":-20}},{offset:1,properties:{"opacity":1,"x":0}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_pulse(el, overrides) {
+  const opts = Object.assign({duration:800,easing:Omni.resolveEasing("easeInOut"),fill:"both",direction:"alternate",iterations:Infinity}, overrides || {});
+  const kf = [{offset:1,properties:{"scale":1.05}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_trackedEnter(el, overrides) {
+  const opts = Object.assign({duration:600,easing:Omni.resolveEasing("power2Out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"opacity":0,"scale":0.8,"y":-20}},{offset:1,properties:{"opacity":1,"scale":1,"y":0}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_pulseWithCallback(el, overrides) {
+  const opts = Object.assign({duration:400,easing:Omni.resolveEasing("easeInOut"),fill:"both",direction:"alternate",iterations:Infinity}, overrides || {});
+  const kf = [{offset:0,properties:{"opacity":0.7,"scale":1}},{offset:1,properties:{"opacity":1,"scale":1.1}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_interruptWithCallback(el, overrides) {
+  const opts = Object.assign({duration:300,easing:Omni.resolveEasing("power1Out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"x":0,"rotate":0}},{offset:1,properties:{"x":40,"rotate":15}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_scaleXDemo(el, overrides) {
+  const opts = Object.assign({duration:600,easing:Omni.resolveEasing("power2Out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"scaleX":1}},{offset:1,properties:{"scaleX":1.8}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_scaleYDemo(el, overrides) {
+  const opts = Object.assign({duration:500,easing:Omni.resolveEasing("power2Out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"scaleY":1}},{offset:1,properties:{"scaleY":1.5}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_rotateXDemo(el, overrides) {
+  const opts = Object.assign({duration:2000,easing:Omni.resolveEasing("easeInOut"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"rotateX":0}},{offset:1,properties:{"rotateX":360}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_rotateYDemo(el, overrides) {
+  const opts = Object.assign({duration:2000,easing:Omni.resolveEasing("easeInOut"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"rotateY":0}},{offset:1,properties:{"rotateY":360}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_rotateZDemo(el, overrides) {
+  const opts = Object.assign({duration:1500,easing:Omni.resolveEasing("power2Out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"rotateZ":0}},{offset:1,properties:{"rotateZ":360}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_blurDemo(el, overrides) {
+  const opts = Object.assign({duration:800,easing:Omni.resolveEasing("easeOut"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"blur":0}},{offset:1,properties:{"blur":6}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_brightnessDemo(el, overrides) {
+  const opts = Object.assign({duration:700,easing:Omni.resolveEasing("easeOut"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"brightness":1}},{offset:1,properties:{"brightness":2.5}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_bgColorDemo(el, overrides) {
+  const opts = Object.assign({duration:1200,easing:Omni.resolveEasing("easeInOut"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"backgroundColor":"#6366f1","borderRadius":4}},{offset:1,properties:{"backgroundColor":"#f97316","borderRadius":24}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_textColorDemo(el, overrides) {
+  const opts = Object.assign({duration:800,easing:Omni.resolveEasing("power2Out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"borderColor":"#d4d4d8","color":"#1f2937"}},{offset:1,properties:{"borderColor":"#dc2626","color":"#dc2626"}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_widthDemo(el, overrides) {
+  const opts = Object.assign({duration:900,easing:Omni.resolveEasing("easeOut"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"width":60}},{offset:1,properties:{"width":200}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_heightDemo(el, overrides) {
+  const opts = Object.assign({duration:700,easing:Omni.resolveEasing("power3Out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"height":40}},{offset:1,properties:{"height":120}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_spacingDemo(el, overrides) {
+  const opts = Object.assign({duration:1000,easing:Omni.resolveEasing("easeInOut"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"padding":8,"margin":4}},{offset:1,properties:{"padding":24,"margin":16}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_fillDemo(el, overrides) {
+  const opts = Object.assign({duration:400,easing:Omni.resolveEasing("easeOut"),fill:"forwards"}, overrides || {});
+  const kf = [{offset:0,properties:{"opacity":0,"x":-20}},{offset:1,properties:{"opacity":1,"x":0}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_delayedEntrance(el, overrides) {
+  const opts = Object.assign({duration:300,easing:Omni.resolveEasing("power2Out"),fill:"both",delay:200}, overrides || {});
+  const kf = [{offset:0,properties:{"opacity":0,"y":20}},{offset:1,properties:{"opacity":1,"y":0}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_slowSpin(el, overrides) {
+  const opts = Object.assign({duration:5000,easing:Omni.resolveEasing("linear"),fill:"both",iterations:Infinity}, overrides || {});
+  const kf = [{offset:1,properties:{"rotate":360}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_interruptDemo(el, overrides) {
+  const opts = Object.assign({duration:300,easing:Omni.resolveEasing("easeOut"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"scale":1}},{offset:1,properties:{"scale":1.2}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_accessibleAnim(el, overrides) {
+  const opts = Object.assign({duration:400,easing:Omni.resolveEasing("easeOut"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"opacity":0}},{offset:1,properties:{"opacity":1}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_staggeredList(el, overrides) {
+  const opts = Object.assign({duration:300,easing:Omni.resolveEasing("easeOut"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"opacity":0,"y":10}},{offset:1,properties:{"opacity":1,"y":0}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_pathAnim(el, overrides) {
+  const opts = Object.assign({duration:1000,easing:Omni.resolveEasing("easeInOut"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"offsetDistance":0}},{offset:1,properties:{"offsetDistance":1}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_multiStopColor(el, overrides) {
+  const opts = Object.assign({duration:1000,easing:Omni.resolveEasing("easeInOut"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"opacity":0,"scale":0.5,"background":"#ff0000"}},{offset:0.25,properties:{"opacity":0.5,"scale":0.8}},{offset:0.5,properties:{"opacity":1,"scale":1.2,"background":"#00ff00"}},{offset:0.75,properties:{"opacity":1,"scale":1.05}},{offset:1,properties:{"opacity":1,"scale":1,"background":"#0000ff"}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_callbackOnly(el, overrides) {
+  const opts = Object.assign({duration:0.3,callbacks:{"onStart":function(){ null },"onUpdate":function(){ null },"onComplete":function(){ null },"onRepeat":function(){ null },"onInterrupt":function(){ null }}}, overrides || {});
+  const kf = [{offset:0},{offset:1}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_dirReverse(el, overrides) {
+  const opts = Object.assign({duration:600,easing:Omni.resolveEasing("power2Out"),fill:"both",direction:"reverse"}, overrides || {});
+  const kf = [{offset:0,properties:{"opacity":0.3,"x":0}},{offset:1,properties:{"opacity":1,"x":160}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_dirAltReverse(el, overrides) {
+  const opts = Object.assign({duration:800,easing:Omni.resolveEasing("power2Out"),fill:"both",direction:"alternate-reverse"}, overrides || {});
+  const kf = [{offset:0,properties:{"scale":1}},{offset:1,properties:{"scale":1.4}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_fillBackwards(el, overrides) {
+  const opts = Object.assign({duration:1000,easing:Omni.resolveEasing("power2Out"),fill:"backwards",delay:500}, overrides || {});
+  const kf = [{offset:0,properties:{"opacity":0,"x":-20}},{offset:1,properties:{"opacity":1,"x":0}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_fillBoth(el, overrides) {
+  const opts = Object.assign({duration:600,easing:Omni.resolveEasing("power2Out"),fill:"forwards",delay:300}, overrides || {});
+  const kf = [{offset:0,properties:{"opacity":0,"scale":0.8}},{offset:1,properties:{"opacity":1,"scale":1.2}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_intStop(el, overrides) {
+  const opts = Object.assign({duration:400,easing:Omni.resolveEasing("easeOut"),fill:"both",direction:"alternate",iterations:Infinity}, overrides || {});
+  const kf = [{offset:0,properties:{"x":0}},{offset:1,properties:{"x":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_intComplete(el, overrides) {
+  const opts = Object.assign({duration:400,easing:Omni.resolveEasing("easeOut"),fill:"both",direction:"alternate",iterations:Infinity}, overrides || {});
+  const kf = [{offset:0,properties:{"scale":1}},{offset:1,properties:{"scale":1.3}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_intReplace(el, overrides) {
+  const opts = Object.assign({duration:400,easing:Omni.resolveEasing("easeOut"),fill:"both",direction:"alternate",iterations:Infinity}, overrides || {});
+  const kf = [{offset:0,properties:{"x":0}},{offset:1,properties:{"x":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_stepCount2(el, overrides) {
+  const opts = Object.assign({duration:800,easing:Omni.resolveEasing({type:"steps",count:2,direction:"start"}),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"opacity":0}},{offset:1,properties:{"opacity":1}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_stepCount4Start(el, overrides) {
+  const opts = Object.assign({duration:1200,easing:Omni.resolveEasing({type:"steps",count:4,direction:"start"}),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"opacity":0,"x":-30}},{offset:1,properties:{"opacity":1,"x":0}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_stepCount4End(el, overrides) {
+  const opts = Object.assign({duration:1200,easing:Omni.resolveEasing({type:"steps",count:4,direction:"end"}),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"opacity":0,"x":30}},{offset:1,properties:{"opacity":1,"x":0}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_stepCount8(el, overrides) {
+  const opts = Object.assign({duration:1600,easing:Omni.resolveEasing({type:"steps",count:8,direction:"start"}),fill:"both",iterations:Infinity}, overrides || {});
+  const kf = [{offset:0,properties:{"opacity":0,"y":20}},{offset:1,properties:{"opacity":1,"y":0}}];
+  return Omni.animate(el, kf, opts);
 };
 
 /// ── Module Timeline Definitions:  ──
@@ -3502,7 +2248,7 @@ __timeouts.push(setTimeout(function() {
 
 const AnimPropertiesDemo_playAll = __omni_signal("AnimPropertiesDemo_playAll", false);
 function AnimPropertiesDemo_toggleAll() {
-  AnimPropertiesDemo_playAll.set(!AnimPropertiesDemo_playAll.value);
+  __omni_subs.get("AnimPropertiesDemo_playAll").set(!AnimPropertiesDemo_playAll.value);
 }
 
 
@@ -3514,26 +2260,26 @@ const ComponentSpecialsDemo_slotVisible = __omni_signal("ComponentSpecialsDemo_s
 const ComponentSpecialsDemo_progressPct = __omni_signal("ComponentSpecialsDemo_progressPct", 0);
 const ComponentSpecialsDemo_counter = __omni_signal("ComponentSpecialsDemo_counter", 0);
 function ComponentSpecialsDemo_toggle() {
-  ComponentSpecialsDemo_showPanel.set(!ComponentSpecialsDemo_showPanel.value);
+  __omni_subs.get("ComponentSpecialsDemo_showPanel").set(!ComponentSpecialsDemo_showPanel.value);
 }
 
 function ComponentSpecialsDemo_openSlot() {
-  ComponentSpecialsDemo_slotVisible.set(true);
+  __omni_subs.get("ComponentSpecialsDemo_slotVisible").set(true);
 }
 
 function ComponentSpecialsDemo_closeSlot() {
-  ComponentSpecialsDemo_slotVisible.set(false);
+  __omni_subs.get("ComponentSpecialsDemo_slotVisible").set(false);
 }
 
 function ComponentSpecialsDemo_advancePct() {
-  ComponentSpecialsDemo_progressPct.set(ComponentSpecialsDemo_progressPct.value + 10);
+  __omni_subs.get("ComponentSpecialsDemo_progressPct").set(ComponentSpecialsDemo_progressPct.value + 10);
   if (ComponentSpecialsDemo_progressPct.value > 100) {
-  ComponentSpecialsDemo_progressPct.set(0);
+  __omni_subs.get("ComponentSpecialsDemo_progressPct").set(0);
   }
 }
 
 function ComponentSpecialsDemo_increment() {
-  ComponentSpecialsDemo_counter.set(ComponentSpecialsDemo_counter.value + 1);
+  __omni_subs.get("ComponentSpecialsDemo_counter").set(ComponentSpecialsDemo_counter.value + 1);
 }
 
 
@@ -3546,16 +2292,16 @@ const BlockExprDemo_calculation = __omni_computed("BlockExprDemo_calculation", (
 const BlockExprDemo_total = __omni_computed("BlockExprDemo_total", () => ((function(){ let tmp = BlockExprDemo_a.value + BlockExprDemo_b.value;let doubled = tmp * 2;return doubled; })()));
 const BlockExprDemo_simpleSum = __omni_computed("BlockExprDemo_simpleSum", () => (BlockExprDemo_a.value + BlockExprDemo_b.value));
 function BlockExprDemo_incA() {
-  BlockExprDemo_a.set(BlockExprDemo_a.value + 5);
+  __omni_subs.get("BlockExprDemo_a").set(BlockExprDemo_a.value + 5);
 }
 
 function BlockExprDemo_incB() {
-  BlockExprDemo_b.set(BlockExprDemo_b.value + 5);
+  __omni_subs.get("BlockExprDemo_b").set(BlockExprDemo_b.value + 5);
 }
 
 function BlockExprDemo_reset() {
-  BlockExprDemo_a.set(10);
-  BlockExprDemo_b.set(5);
+  __omni_subs.get("BlockExprDemo_a").set(10);
+  __omni_subs.get("BlockExprDemo_b").set(5);
 }
 
 
@@ -3564,7 +2310,7 @@ function BlockExprDemo_reset() {
 
 const TypeSystemDemo_summary = __omni_signal("TypeSystemDemo_summary", "");
 function TypeSystemDemo_loadSummary() {
-  TypeSystemDemo_summary.set(type_system_summary());
+  __omni_subs.get("TypeSystemDemo_summary").set(type_system_summary());
 }
 
 
@@ -3574,15 +2320,15 @@ function TypeSystemDemo_loadSummary() {
 const MotionDemo_count = __omni_signal("MotionDemo_count", 0);
 const MotionDemo_isOpen = __omni_signal("MotionDemo_isOpen", false);
 function MotionDemo_toggleModal() {
-  MotionDemo_isOpen.set(!MotionDemo_isOpen.value);
+  __omni_subs.get("MotionDemo_isOpen").set(!MotionDemo_isOpen.value);
 }
 
 function MotionDemo_addItem() {
-  MotionDemo_count.set(MotionDemo_count.value + 1);
+  __omni_subs.get("MotionDemo_count").set(MotionDemo_count.value + 1);
 }
 
 function MotionDemo_removeItem() {
-  MotionDemo_count.set(MotionDemo_count.value - 1);
+  __omni_subs.get("MotionDemo_count").set(MotionDemo_count.value - 1);
 }
 
 
@@ -3605,19 +2351,19 @@ const CssVarsDemo_accentHue = __omni_signal("CssVarsDemo_accentHue", 221);
 const CssVarsDemo_themeMode = __omni_signal("CssVarsDemo_themeMode", "light");
 function CssVarsDemo_cycleAccent() {
   if (CssVarsDemo_accentColor.value === "#6366f1") {
-  CssVarsDemo_accentColor.set("#ec4899");
+  __omni_subs.get("CssVarsDemo_accentColor").set("#ec4899");
   } else if (CssVarsDemo_accentColor.value === "#ec4899") {
-  CssVarsDemo_accentColor.set("#14b8a6");
+  __omni_subs.get("CssVarsDemo_accentColor").set("#14b8a6");
   } else {
-  CssVarsDemo_accentColor.set("#6366f1");
+  __omni_subs.get("CssVarsDemo_accentColor").set("#6366f1");
   }
 }
 
 function CssVarsDemo_toggleMode() {
   if (CssVarsDemo_themeMode.value === "light") {
-  CssVarsDemo_themeMode.set("dark");
+  __omni_subs.get("CssVarsDemo_themeMode").set("dark");
   } else {
-  CssVarsDemo_themeMode.set("light");
+  __omni_subs.get("CssVarsDemo_themeMode").set("light");
   }
 }
 
@@ -3628,11 +2374,11 @@ function CssVarsDemo_toggleMode() {
 const TimelinePositionDemo_activeDemo = __omni_signal("TimelinePositionDemo_activeDemo", "position");
 const TimelinePositionDemo_playCount = __omni_signal("TimelinePositionDemo_playCount", 0);
 function TimelinePositionDemo_switchDemo(name) {
-  TimelinePositionDemo_activeDemo.set(name);
+  __omni_subs.get("TimelinePositionDemo_activeDemo").set(name);
 }
 
 function TimelinePositionDemo_replayCount() {
-  TimelinePositionDemo_playCount.set(TimelinePositionDemo_playCount.value + 1);
+  __omni_subs.get("TimelinePositionDemo_playCount").set(TimelinePositionDemo_playCount.value + 1);
 }
 
 
@@ -3646,22 +2392,22 @@ const EventDataDemo_mouseY = __omni_signal("EventDataDemo_mouseY", 0);
 const EventDataDemo_wheelDelta = __omni_signal("EventDataDemo_wheelDelta", 0.0);
 const EventDataDemo_ctrlHeld = __omni_signal("EventDataDemo_ctrlHeld", false);
 function EventDataDemo_handleScroll(e) {
-  EventDataDemo_scrollY.set(e.y);
+  __omni_subs.get("EventDataDemo_scrollY").set(e.y);
 }
 
 function EventDataDemo_handleKeyDown(e) {
-  EventDataDemo_keyPressed.set(e.key);
-  EventDataDemo_ctrlHeld.set(e.ctrl);
+  __omni_subs.get("EventDataDemo_keyPressed").set(e.key);
+  __omni_subs.get("EventDataDemo_ctrlHeld").set(e.ctrl);
 }
 
 function EventDataDemo_handleMouseMove(e) {
-  EventDataDemo_mouseX.set(e.x);
-  EventDataDemo_mouseY.set(e.y);
+  __omni_subs.get("EventDataDemo_mouseX").set(e.x);
+  __omni_subs.get("EventDataDemo_mouseY").set(e.y);
 }
 
 function EventDataDemo_handleWheel(e) {
-  EventDataDemo_wheelDelta.set(e.deltaY);
-  EventDataDemo_ctrlHeld.set(e.ctrl);
+  __omni_subs.get("EventDataDemo_wheelDelta").set(e.deltaY);
+  __omni_subs.get("EventDataDemo_ctrlHeld").set(e.ctrl);
 }
 
 
@@ -3673,28 +2419,28 @@ const DataSubmit_body = __omni_signal("DataSubmit_body", "");
 const DataSubmit_submitStatus = __omni_signal("DataSubmit_submitStatus", "idle");
 const DataSubmit_responseText = __omni_signal("DataSubmit_responseText", "");
 function DataSubmit_reset() {
-  DataSubmit_title.set("");
-  DataSubmit_body.set("");
-  DataSubmit_submitStatus.set("idle");
-  DataSubmit_responseText.set("");
+  __omni_subs.get("DataSubmit_title").set("");
+  __omni_subs.get("DataSubmit_body").set("");
+  __omni_subs.get("DataSubmit_submitStatus").set("idle");
+  __omni_subs.get("DataSubmit_responseText").set("");
 }
 
 async function DataSubmit_submitForm() {
   if (DataSubmit_title.value === "") {
-  DataSubmit_submitStatus.set("error");
-  DataSubmit_responseText.set("Title is required");
+  __omni_subs.get("DataSubmit_submitStatus").set("error");
+  __omni_subs.get("DataSubmit_responseText").set("Title is required");
   return undefined;
   }
-  DataSubmit_submitStatus.set("loading");
+  __omni_subs.get("DataSubmit_submitStatus").set("loading");
   let payload = JSON.stringify(DataSubmit_title.value + ":::" + DataSubmit_body.value);
-  let raw = await fetch("https://jsonplaceholder.typicode.com/posts", { method: 'POST', body: payload }).then(r => r.text());
+  let raw = await fetch("https://jsonplaceholder.typicode.com/posts", { method: 'POST', body: payload }).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.text(); });
   if (raw === "") {
-  DataSubmit_submitStatus.set("error");
-  DataSubmit_responseText.set("No response from server");
+  __omni_subs.get("DataSubmit_submitStatus").set("error");
+  __omni_subs.get("DataSubmit_responseText").set("No response from server");
   return undefined;
   }
-  DataSubmit_responseText.set(raw);
-  DataSubmit_submitStatus.set("success");
+  __omni_subs.get("DataSubmit_responseText").set(raw);
+  __omni_subs.get("DataSubmit_submitStatus").set("success");
 }
 
 
@@ -3704,12 +2450,12 @@ async function DataSubmit_submitForm() {
 const HeroTransitionDemo_isExpanded = __omni_signal("HeroTransitionDemo_isExpanded", false);
 const HeroTransitionDemo_progress = __omni_signal("HeroTransitionDemo_progress", 0.0);
 function HeroTransitionDemo_toggle() {
-  HeroTransitionDemo_isExpanded.set(!HeroTransitionDemo_isExpanded.value);
+  __omni_subs.get("HeroTransitionDemo_isExpanded").set(!HeroTransitionDemo_isExpanded.value);
 }
 
 function HeroTransitionDemo_advance() {
   if (HeroTransitionDemo_progress.value < 1.0) {
-  HeroTransitionDemo_progress.set(HeroTransitionDemo_progress.value + 0.1);
+  __omni_subs.get("HeroTransitionDemo_progress").set(HeroTransitionDemo_progress.value + 0.1);
   }
 }
 
@@ -3719,7 +2465,7 @@ function HeroTransitionDemo_advance() {
 
 const StylePseudoDemo_clicked = __omni_signal("StylePseudoDemo_clicked", 0);
 function StylePseudoDemo_increment() {
-  StylePseudoDemo_clicked.set(StylePseudoDemo_clicked.value + 1);
+  __omni_subs.get("StylePseudoDemo_clicked").set(StylePseudoDemo_clicked.value + 1);
 }
 
 
@@ -3758,8 +2504,8 @@ function StringLiteralsDemo_buildGreeting(name, age) {
 }
 
 function StringLiteralsDemo_updateTemplate() {
-  StringLiteralsDemo_userName.set("User" + String(StringLiteralsDemo_version.value));
-  StringLiteralsDemo_interpolated.set("Hello " + StringLiteralsDemo_userName.value + ", v" + StringLiteralsDemo_version.value);
+  __omni_subs.get("StringLiteralsDemo_userName").set("User" + String(StringLiteralsDemo_version.value));
+  __omni_subs.get("StringLiteralsDemo_interpolated").set("Hello " + StringLiteralsDemo_userName.value + ", v" + StringLiteralsDemo_version.value);
 }
 
 
@@ -3768,7 +2514,7 @@ function StringLiteralsDemo_updateTemplate() {
 
 const SlotDefaultDemo_useCustomContent = __omni_signal("SlotDefaultDemo_useCustomContent", false);
 function SlotDefaultDemo_toggleContent() {
-  SlotDefaultDemo_useCustomContent.set(!SlotDefaultDemo_useCustomContent.value);
+  __omni_subs.get("SlotDefaultDemo_useCustomContent").set(!SlotDefaultDemo_useCustomContent.value);
 }
 
 
@@ -3778,7 +2524,7 @@ function SlotDefaultDemo_toggleContent() {
 const TabPanel_activeTab = __omni_signal("TabPanel_activeTab", "home");
 const TabPanel_activeStyle = __omni_computed("TabPanel_activeStyle", () => (TabPanel_activeTab.value === "home" ? "#6366f1" : TabPanel_activeTab.value === "about" ? "#10b981" : "#f59e0b"));
 function TabPanel_switchTo(tab) {
-  TabPanel_activeTab.set(tab);
+  __omni_subs.get("TabPanel_activeTab").set(tab);
 }
 
 function TabPanel_isActive(tab) {
@@ -3809,37 +2555,37 @@ const DataFetching_errorMsg = __omni_signal("DataFetching_errorMsg", "");
 const DataFetching_url = __omni_signal("DataFetching_url", "https://jsonplaceholder.typicode.com/todos/1");
 const DataFetching_apiDemoText = __omni_signal("DataFetching_apiDemoText", "");
 function DataFetching_reset() {
-  DataFetching_status.set("idle");
-  DataFetching_resultText.set("");
-  DataFetching_errorMsg.set("");
+  __omni_subs.get("DataFetching_status").set("idle");
+  __omni_subs.get("DataFetching_resultText").set("");
+  __omni_subs.get("DataFetching_errorMsg").set("");
 }
 
 async function DataFetching_loadData() {
-  DataFetching_status.set("loading");
-  let raw = await fetch(DataFetching_url.value).then(r => r.text());
+  __omni_subs.get("DataFetching_status").set("loading");
+  let raw = await fetch(DataFetching_url.value).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.text(); });
   if (raw === "") {
-  DataFetching_status.set("error");
-  DataFetching_errorMsg.set("Empty response from server");
+  __omni_subs.get("DataFetching_status").set("error");
+  __omni_subs.get("DataFetching_errorMsg").set("Empty response from server");
   console.error(DataFetching_errorMsg.value);
   return undefined;
   }
   let parsed = JSON.parse(raw);
-  DataFetching_resultText.set(JSON.stringify(parsed));
-  DataFetching_status.set("success");
+  __omni_subs.get("DataFetching_resultText").set(JSON.stringify(parsed));
+  __omni_subs.get("DataFetching_status").set("success");
   console.log("Fetch completed");
 }
 
 async function DataFetching_loadViaApi() {
-  DataFetching_status.set("loading");
+  __omni_subs.get("DataFetching_status").set("loading");
   let result = await fetch_demo(DataFetching_url.value);
   let msg = error_message(result);
   if (msg === "") {
-  DataFetching_status.set("success");
-  DataFetching_resultText.set("api.omni fetch_demo OK");
+  __omni_subs.get("DataFetching_status").set("success");
+  __omni_subs.get("DataFetching_resultText").set("api.omni fetch_demo OK");
   console.log("Fetch completed");
   } else {
-  DataFetching_status.set("error");
-  DataFetching_errorMsg.set(msg);
+  __omni_subs.get("DataFetching_status").set("error");
+  __omni_subs.get("DataFetching_errorMsg").set(msg);
   console.error(msg);
   }
 }
@@ -3851,18 +2597,18 @@ async function DataFetching_loadViaApi() {
 const EventShorthand_msg = __omni_signal("EventShorthand_msg", "Click a button");
 const EventShorthand_count = __omni_signal("EventShorthand_count", 0);
 function EventShorthand_greet(name) {
-  EventShorthand_msg.set("Hello " + name + "!");
-  EventShorthand_count.set(EventShorthand_count.value + 1);
+  __omni_subs.get("EventShorthand_msg").set("Hello " + name + "!");
+  __omni_subs.get("EventShorthand_count").set(EventShorthand_count.value + 1);
 }
 
 function EventShorthand_farewell(name) {
-  EventShorthand_msg.set("Goodbye " + name + "!");
-  EventShorthand_count.set(EventShorthand_count.value + 1);
+  __omni_subs.get("EventShorthand_msg").set("Goodbye " + name + "!");
+  __omni_subs.get("EventShorthand_count").set(EventShorthand_count.value + 1);
 }
 
 function EventShorthand_reset() {
-  EventShorthand_msg.set("Click a button");
-  EventShorthand_count.set(0);
+  __omni_subs.get("EventShorthand_msg").set("Click a button");
+  __omni_subs.get("EventShorthand_count").set(0);
 }
 
 
@@ -3872,7 +2618,7 @@ function EventShorthand_reset() {
 const SettingsPage_themeColors = __omni_signal("SettingsPage_themeColors", ["primary", "primaryLight", "success", "warning", "danger", "bgLight", "textLight", "bgDark", "textDark"]);
 const SettingsPage_aboutExpanded = __omni_signal("SettingsPage_aboutExpanded", false);
 function SettingsPage_toggleAbout() {
-  SettingsPage_aboutExpanded.set(!SettingsPage_aboutExpanded.value);
+  __omni_subs.get("SettingsPage_aboutExpanded").set(!SettingsPage_aboutExpanded.value);
 }
 
 
@@ -3897,15 +2643,15 @@ const ThemeSwitcher_buttonLabel = __omni_computed("ThemeSwitcher_buttonLabel", (
 const AdvancedPseudoDemo_isActive = __omni_signal("AdvancedPseudoDemo_isActive", false);
 const AdvancedPseudoDemo_variant = __omni_signal("AdvancedPseudoDemo_variant", "default");
 function AdvancedPseudoDemo_toggle() {
-  AdvancedPseudoDemo_isActive.set(!AdvancedPseudoDemo_isActive.value);
+  __omni_subs.get("AdvancedPseudoDemo_isActive").set(!AdvancedPseudoDemo_isActive.value);
 }
 
 function AdvancedPseudoDemo_setDefault() {
-  AdvancedPseudoDemo_variant.set("default");
+  __omni_subs.get("AdvancedPseudoDemo_variant").set("default");
 }
 
 function AdvancedPseudoDemo_setDark() {
-  AdvancedPseudoDemo_variant.set("dark");
+  __omni_subs.get("AdvancedPseudoDemo_variant").set("dark");
 }
 
 
@@ -3919,25 +2665,25 @@ const FormControlsDemo_rangeVal = __omni_signal("FormControlsDemo_rangeVal", 50)
 const FormControlsDemo_linkClicked = __omni_signal("FormControlsDemo_linkClicked", 0);
 const FormControlsDemo_statusText = __omni_signal("FormControlsDemo_statusText", "");
 function FormControlsDemo_handleSelect() {
-  FormControlsDemo_statusText.set("Selected: " + FormControlsDemo_selected.value);
+  __omni_subs.get("FormControlsDemo_statusText").set("Selected: " + FormControlsDemo_selected.value);
 }
 
 function FormControlsDemo_handleAgree() {
-  FormControlsDemo_agreed.set(!FormControlsDemo_agreed.value);
-  FormControlsDemo_statusText.set(FormControlsDemo_agreed.value ? "Agreed ✓" : "Not agreed");
+  __omni_subs.get("FormControlsDemo_agreed").set(!FormControlsDemo_agreed.value);
+  __omni_subs.get("FormControlsDemo_statusText").set(FormControlsDemo_agreed.value ? "Agreed ✓" : "Not agreed");
 }
 
 function FormControlsDemo_handleAgeChange() {
-  FormControlsDemo_statusText.set("Age set to: " + String(FormControlsDemo_age.value));
+  __omni_subs.get("FormControlsDemo_statusText").set("Age set to: " + String(FormControlsDemo_age.value));
 }
 
 function FormControlsDemo_handleRangeChange() {
-  FormControlsDemo_statusText.set("Range: " + String(FormControlsDemo_rangeVal.value));
+  __omni_subs.get("FormControlsDemo_statusText").set("Range: " + String(FormControlsDemo_rangeVal.value));
 }
 
 function FormControlsDemo_handleLinkClick() {
-  FormControlsDemo_linkClicked.set(FormControlsDemo_linkClicked.value + 1);
-  FormControlsDemo_statusText.set("Link clicked " + String(FormControlsDemo_linkClicked.value) + " times");
+  __omni_subs.get("FormControlsDemo_linkClicked").set(FormControlsDemo_linkClicked.value + 1);
+  __omni_subs.get("FormControlsDemo_statusText").set("Link clicked " + String(FormControlsDemo_linkClicked.value) + " times");
 }
 
 
@@ -3953,13 +2699,13 @@ const Modal_isOpen = __omni_signal("Modal_isOpen", false);
 const Modal_isHovering = __omni_signal("Modal_isHovering", false);
 const Modal_lastAction = __omni_signal("Modal_lastAction", "");
 function Modal_open() {
-  Modal_isOpen.set(true);
-  Modal_lastAction.set("opened");
+  __omni_subs.get("Modal_isOpen").set(true);
+  __omni_subs.get("Modal_lastAction").set("opened");
 }
 
 function Modal_close() {
-  Modal_isOpen.set(false);
-  Modal_lastAction.set("closed");
+  __omni_subs.get("Modal_isOpen").set(false);
+  __omni_subs.get("Modal_lastAction").set("closed");
 }
 
 function Modal_handleKeyDown(e) {
@@ -3969,11 +2715,11 @@ function Modal_handleKeyDown(e) {
 }
 
 function Modal_handleMouseEnter() {
-  Modal_isHovering.set(true);
+  __omni_subs.get("Modal_isHovering").set(true);
 }
 
 function Modal_handleMouseLeave() {
-  Modal_isHovering.set(false);
+  __omni_subs.get("Modal_isHovering").set(false);
 }
 
 function Modal_handleOverlayClick() {
@@ -4007,7 +2753,7 @@ function AddTodo_onAdd(...args) {
 function AddTodo_handleAdd() {
   if (AddTodo_input.value !== "") {
   AddTodo_onAdd(AddTodo_input.value);
-  AddTodo_input.set("");
+  __omni_subs.get("AddTodo_input").set("");
   } else {
   console.warn("Input is empty");
   }
@@ -4023,12 +2769,12 @@ const ComputedFnFormDemo_counter = __omni_signal("ComputedFnFormDemo_counter", 0
 const ComputedFnFormDemo_simple = __omni_computed("ComputedFnFormDemo_simple", () => (ComputedFnFormDemo_firstName.value + " " + ComputedFnFormDemo_lastName.value));
 const ComputedFnFormDemo_fullName = __omni_computed("ComputedFnFormDemo_fullName", () => ((function(){ /* unhandled stmt in block expr */;/* unhandled stmt in block expr */;return ComputedFnFormDemo_firstName.value + " " + ComputedFnFormDemo_lastName.value;return null; })()));
 function ComputedFnFormDemo_clearLast() {
-  ComputedFnFormDemo_lastName.set("");
+  __omni_subs.get("ComputedFnFormDemo_lastName").set("");
 }
 
 function ComputedFnFormDemo_setLast() {
-  ComputedFnFormDemo_lastName.set("San");
-  ComputedFnFormDemo_counter.set(ComputedFnFormDemo_counter.value + 1);
+  __omni_subs.get("ComputedFnFormDemo_lastName").set("San");
+  __omni_subs.get("ComputedFnFormDemo_counter").set(ComputedFnFormDemo_counter.value + 1);
 }
 
 
@@ -4042,13 +2788,13 @@ const UserSettings_savedText = __omni_signal("UserSettings_savedText", "");
 function UserSettings_saveSettings() {
   let payload = JSON.stringify(UserSettings_username.value);
   localStorage.setItem("user-settings", payload);
-  UserSettings_savedText.set("Settings saved at " + "now");
+  __omni_subs.get("UserSettings_savedText").set("Settings saved at " + "now");
 }
 
 function UserSettings_clearSettings() {
   localStorage.setItem("user-settings", "");
-  UserSettings_username.set("");
-  UserSettings_savedText.set("Settings cleared");
+  __omni_subs.get("UserSettings_username").set("");
+  __omni_subs.get("UserSettings_savedText").set("Settings cleared");
 }
 
 
@@ -4062,44 +2808,44 @@ const InlineStoreDemo_itemCount = __omni_computed("InlineStoreDemo_itemCount", (
 const InlineStoreDemo_summary = __omni_computed("InlineStoreDemo_summary", () => ((InlineStoreDemo_items.value || []).length === 0 ? "cart empty" : "total: " + String((InlineStoreDemo_items.value || []).length) + " items"));
 function InlineStoreDemo_addApple() {
   InlineStoreDemo_addItem("Apple", 5.0);
-  InlineStoreDemo_log.set("Added: Apple ¥5.0");
+  __omni_subs.get("InlineStoreDemo_log").set("Added: Apple ¥5.0");
 }
 
 function InlineStoreDemo_addBook() {
   InlineStoreDemo_addItem("OmniView Guide", 39.9);
-  InlineStoreDemo_log.set("Added: OmniView Guide ¥39.9");
+  __omni_subs.get("InlineStoreDemo_log").set("Added: OmniView Guide ¥39.9");
 }
 
 function InlineStoreDemo_addLaptop() {
   InlineStoreDemo_addItem("Laptop", 5999.0);
-  InlineStoreDemo_log.set("Added: Laptop ¥5999.0");
+  __omni_subs.get("InlineStoreDemo_log").set("Added: Laptop ¥5999.0");
 }
 
 function InlineStoreDemo_remove() {
   InlineStoreDemo_removeLast();
-  InlineStoreDemo_log.set("Removed last item");
+  __omni_subs.get("InlineStoreDemo_log").set("Removed last item");
 }
 
 function InlineStoreDemo_clearCart() {
   InlineStoreDemo_clear();
-  InlineStoreDemo_log.set("Cart cleared");
+  __omni_subs.get("InlineStoreDemo_log").set("Cart cleared");
 }
 
 function InlineStoreDemo_addItem(name, price) {
-  InlineStoreDemo_items.value.push(name); InlineStoreDemo_items.set(InlineStoreDemo_items.value.slice());
-  InlineStoreDemo_totalPrice.set(InlineStoreDemo_totalPrice.value + price);
+  __omni_subs.get("InlineStoreDemo_items").value.push(name); __omni_subs.get("InlineStoreDemo_items").set(__omni_subs.get("InlineStoreDemo_items").value.slice());
+  __omni_subs.get("InlineStoreDemo_totalPrice").set(InlineStoreDemo_totalPrice.value + price);
 }
 
 function InlineStoreDemo_removeLast() {
   if ((InlineStoreDemo_items.value || []).length > 0) {
-  InlineStoreDemo_items.value.pop(); InlineStoreDemo_items.set(InlineStoreDemo_items.value.slice());
-  InlineStoreDemo_totalPrice.set(InlineStoreDemo_totalPrice.value - 10.0);
+  __omni_subs.get("InlineStoreDemo_items").value.pop(); __omni_subs.get("InlineStoreDemo_items").set(__omni_subs.get("InlineStoreDemo_items").value.slice());
+  __omni_subs.get("InlineStoreDemo_totalPrice").set(InlineStoreDemo_totalPrice.value - 10.0);
   }
 }
 
 function InlineStoreDemo_clear() {
-  InlineStoreDemo_items.set([]);
-  InlineStoreDemo_totalPrice.set(0.0);
+  __omni_subs.get("InlineStoreDemo_items").set([]);
+  __omni_subs.get("InlineStoreDemo_totalPrice").set(0.0);
 }
 
 
@@ -4111,15 +2857,15 @@ const TernaryExprDemo_score = __omni_signal("TernaryExprDemo_score", 75);
 const TernaryExprDemo_label = __omni_computed("TernaryExprDemo_label", () => (TernaryExprDemo_count.value > 0 ? "Positive" : "Zero or negative"));
 const TernaryExprDemo_grade = __omni_computed("TernaryExprDemo_grade", () => (TernaryExprDemo_score.value >= 90 ? "A" : TernaryExprDemo_score.value >= 80 ? "B" : TernaryExprDemo_score.value >= 70 ? "C" : TernaryExprDemo_score.value >= 60 ? "D" : "F"));
 function TernaryExprDemo_inc() {
-  TernaryExprDemo_count.set(TernaryExprDemo_count.value + 1);
+  __omni_subs.get("TernaryExprDemo_count").set(TernaryExprDemo_count.value + 1);
 }
 
 function TernaryExprDemo_dec() {
-  TernaryExprDemo_count.set(TernaryExprDemo_count.value - 1);
+  __omni_subs.get("TernaryExprDemo_count").set(TernaryExprDemo_count.value - 1);
 }
 
 function TernaryExprDemo_setScore(s) {
-  TernaryExprDemo_score.set(s);
+  __omni_subs.get("TernaryExprDemo_score").set(s);
 }
 
 
@@ -4137,7 +2883,7 @@ function SlotContainer_onClose(...args) {
 const FeatureList_isOpen = __omni_signal("FeatureList_isOpen", true);
 const FeatureList_features = __omni_signal("FeatureList_features", ["Store: 全局状态管理", "Component: 组件声明与组合", "Signal: 响应式信号", "Computed: 计算属性", "Prop: 外部属性传递", "Event: 自定义事件通信", "bind:value: 双向绑定", "if else: 条件渲染", "for empty: 列表渲染加空状态", "onPress: 事件处理加内联回调", "mount effect: 生命周期", "style: 作用域CSS样式", "pub fn: 公开工具函数", "import export: 跨文件模块"]);
 function FeatureList_toggle() {
-  FeatureList_isOpen.set(!FeatureList_isOpen.value);
+  __omni_subs.get("FeatureList_isOpen").set(!FeatureList_isOpen.value);
 }
 
 
@@ -4146,7 +2892,7 @@ function FeatureList_toggle() {
 
 const EasingFunctionsDemo_playAll = __omni_signal("EasingFunctionsDemo_playAll", false);
 function EasingFunctionsDemo_toggleAll() {
-  EasingFunctionsDemo_playAll.set(!EasingFunctionsDemo_playAll.value);
+  __omni_subs.get("EasingFunctionsDemo_playAll").set(!EasingFunctionsDemo_playAll.value);
 }
 
 
@@ -4160,25 +2906,25 @@ const StatsDashboard_counter = __omni_signal("StatsDashboard_counter", 0);
 const StatsDashboard_removed = __omni_signal("StatsDashboard_removed", false);
 const StatsDashboard_randomValue = __omni_signal("StatsDashboard_randomValue", 0.0);
 function StatsDashboard_addFive() {
-  StatsDashboard_counter.set(StatsDashboard_counter.value + 5);
+  __omni_subs.get("StatsDashboard_counter").set(__omni_subs.get("StatsDashboard_counter").value + 5);
 }
 
 function StatsDashboard_subThree() {
-  StatsDashboard_counter.set(StatsDashboard_counter.value - 3);
+  __omni_subs.get("StatsDashboard_counter").set(__omni_subs.get("StatsDashboard_counter").value - 3);
 }
 
 function StatsDashboard_double() {
-  StatsDashboard_counter.set(StatsDashboard_counter.value * 2);
+  __omni_subs.get("StatsDashboard_counter").set(__omni_subs.get("StatsDashboard_counter").value * 2);
 }
 
 function StatsDashboard_halve() {
-  StatsDashboard_counter.set(StatsDashboard_counter.value / 2);
+  __omni_subs.get("StatsDashboard_counter").set(__omni_subs.get("StatsDashboard_counter").value / 2);
 }
 
 function StatsDashboard_modThree() {
   let x = StatsDashboard_counter.value;
   x %= 3;
-  StatsDashboard_counter.set(x);
+  __omni_subs.get("StatsDashboard_counter").set(x);
 }
 
 function StatsDashboard_getModStatus() {
@@ -4194,11 +2940,11 @@ function StatsDashboard_getFirst() {
 }
 
 function StatsDashboard_removeContainer() {
-  StatsDashboard_removed.set(true);
+  __omni_subs.get("StatsDashboard_removed").set(true);
 }
 
 function StatsDashboard_rollDice() {
-  StatsDashboard_randomValue.set(Math.random());
+  __omni_subs.get("StatsDashboard_randomValue").set(Math.random());
 }
 
 // @unmount StatsDashboard
@@ -4215,7 +2961,7 @@ window.__omni_unmount_StatsDashboard = () => {
 
 const PlaybackAdvancedDemo_playDirFill = __omni_signal("PlaybackAdvancedDemo_playDirFill", false);
 function PlaybackAdvancedDemo_toggleDirFill() {
-  PlaybackAdvancedDemo_playDirFill.set(!PlaybackAdvancedDemo_playDirFill.value);
+  __omni_subs.get("PlaybackAdvancedDemo_playDirFill").set(!PlaybackAdvancedDemo_playDirFill.value);
 }
 
 
@@ -4229,22 +2975,22 @@ function PlaybackAdvancedDemo_toggleDirFill() {
 const EmitEventDemo_messages = __omni_signal("EmitEventDemo_messages", []);
 const EmitEventDemo_totalCount = __omni_signal("EmitEventDemo_totalCount", 0);
 function EmitEventDemo_onChildAction(msg) {
-  EmitEventDemo_totalCount.set(EmitEventDemo_totalCount.value + 1);
-  ((EmitEventDemo_messages.value).push(String(EmitEventDemo_totalCount.value) + ": " + msg), (EmitEventDemo_messages.value).slice());
+  __omni_subs.get("EmitEventDemo_totalCount").set(EmitEventDemo_totalCount.value + 1);
+  [...(EmitEventDemo_messages.value), String(EmitEventDemo_totalCount.value) + ": " + msg];
 }
 
 function EmitEventDemo_onOptionalAck(msg) {
-  ((EmitEventDemo_messages.value).push("[ACK] " + msg), (EmitEventDemo_messages.value).slice());
+  [...(EmitEventDemo_messages.value), "[ACK] " + msg];
 }
 
 function EmitEventDemo_onChildCount(n) {
-  EmitEventDemo_totalCount.set(EmitEventDemo_totalCount.value + n);
-  ((EmitEventDemo_messages.value).push("[COUNT] += " + String(n) + ", total=" + String(EmitEventDemo_totalCount.value)), (EmitEventDemo_messages.value).slice());
+  __omni_subs.get("EmitEventDemo_totalCount").set(EmitEventDemo_totalCount.value + n);
+  [...(EmitEventDemo_messages.value), "[COUNT] += " + String(n) + ", total=" + String(EmitEventDemo_totalCount.value)];
 }
 
 function EmitEventDemo_clearLog() {
-  EmitEventDemo_messages.set([]);
-  EmitEventDemo_totalCount.set(0);
+  __omni_subs.get("EmitEventDemo_messages").set([]);
+  __omni_subs.get("EmitEventDemo_totalCount").set(0);
 }
 
 
@@ -4277,14 +3023,14 @@ function ValidationInput_getStatusLabel() {
 }
 
 function ValidationInput_handleValidate() {
-  ValidationInput_isProcessing.set(true);
-  ValidationInput_result.set(ValidationInput_validate(ValidationInput_input.value));
-  ValidationInput_isProcessing.set(false);
+  __omni_subs.get("ValidationInput_isProcessing").set(true);
+  __omni_subs.get("ValidationInput_result").set(ValidationInput_validate(ValidationInput_input.value));
+  __omni_subs.get("ValidationInput_isProcessing").set(false);
 }
 
 function ValidationInput_handleClear() {
-  ValidationInput_input.set("");
-  ValidationInput_result.set("");
+  __omni_subs.get("ValidationInput_input").set("");
+  __omni_subs.get("ValidationInput_result").set("");
 }
 
 function ValidationInput_validate(text) {
@@ -4320,27 +3066,27 @@ function Timer_onComplete(...args) {
   if (el) el.dispatchEvent(new CustomEvent('complete', { detail: args[0], bubbles: false }));
 }
 function Timer_start() {
-  Timer_running.set(true);
-  Timer_count.set(0);
+  __omni_subs.get("Timer_running").set(true);
+  __omni_subs.get("Timer_count").set(0);
   console.log("Timer started");
 }
 
 function Timer_stop() {
-  Timer_running.set(false);
+  __omni_subs.get("Timer_running").set(false);
   console.log("Timer stopped");
 }
 
 function Timer_reset() {
-  Timer_count.set(0);
-  Timer_running.set(false);
+  __omni_subs.get("Timer_count").set(0);
+  __omni_subs.get("Timer_running").set(false);
 }
 
 function Timer_tick() {
   if (Timer_running.value) {
-  Timer_count.set(Timer_count.value + 1);
+  __omni_subs.get("Timer_count").set(Timer_count.value + 1);
   Timer_onTick(Timer_count.value);
   if (Timer_count.value >= 10) {
-  Timer_running.set(false);
+  __omni_subs.get("Timer_running").set(false);
   Timer_onComplete("Timer finished after 10 ticks");
   }
   }
@@ -4348,17 +3094,17 @@ function Timer_tick() {
 
 function Timer_faster() {
   if (Timer_interval.value > 100) {
-  Timer_interval.set(Timer_interval.value - 100);
+  __omni_subs.get("Timer_interval").set(Timer_interval.value - 100);
   }
 }
 
 function Timer_slower() {
-  Timer_interval.set(Timer_interval.value + 100);
+  __omni_subs.get("Timer_interval").set(Timer_interval.value + 100);
 }
 
 // @unmount Timer
 window.__omni_unmount_Timer = () => {
-  Timer_running.set(false);
+  __omni_subs.get("Timer_running").set(false);
   console.log("Timer unmounted, final count: " + String(Timer_count.value));
 };
 
@@ -4375,12 +3121,12 @@ function EmitChild_onFuncClick(...args) {
   if (el) el.dispatchEvent(new CustomEvent('funcclick', { detail: args[0], bubbles: false }));
 }
 function EmitChild_handleEmit() {
-  EmitChild_count.set(EmitChild_count.value + 1);
+  __omni_subs.get("EmitChild_count").set(EmitChild_count.value + 1);
   null;
 }
 
 function EmitChild_handleFunc() {
-  EmitChild_count.set(EmitChild_count.value + 1);
+  __omni_subs.get("EmitChild_count").set(EmitChild_count.value + 1);
   EmitChild_onFuncClick("function #" + String(EmitChild_count.value));
 }
 
@@ -4393,15 +3139,15 @@ const Counter_step = __omni_signal("Counter_step", 1);
 const Counter_doubled = __omni_computed("Counter_doubled", () => (Counter_count.value * 2));
 const Counter_label = __omni_computed("Counter_label", () => (Counter_count.value % 2 === 0 ? "偶数" : "奇数"));
 function Counter_inc() {
-  Counter_count.set(Counter_count.value + Counter_step.value);
+  __omni_subs.get("Counter_count").set(Counter_count.value + Counter_step.value);
 }
 
 function Counter_dec() {
-  Counter_count.set(Counter_count.value - Counter_step.value);
+  __omni_subs.get("Counter_count").set(Counter_count.value - Counter_step.value);
 }
 
 function Counter_reset() {
-  Counter_count.set(0);
+  __omni_subs.get("Counter_count").set(0);
 }
 
 
@@ -4410,7 +3156,7 @@ function Counter_reset() {
 
 const SimpleApp_count = __omni_signal("SimpleApp_count", 0);
 function SimpleApp_increment() {
-  SimpleApp_count.set(SimpleApp_count.value + 1);
+  __omni_subs.get("SimpleApp_count").set(SimpleApp_count.value + 1);
 }
 
 
@@ -4421,16 +3167,16 @@ const DataTable_scrollCount = __omni_signal("DataTable_scrollCount", 0);
 const DataTable_rows = __omni_signal("DataTable_rows", []);
 const DataTable_sortAsc = __omni_signal("DataTable_sortAsc", true);
 function DataTable_initRows() {
-  DataTable_rows.set([{"id": 1, "name": "Alpha", "status": "Active", "score": 95}, {"id": 2, "name": "Bravo", "status": "Active", "score": 87}, {"id": 3, "name": "Charlie", "status": "Inactive", "score": 72}, {"id": 4, "name": "Delta", "status": "Active", "score": 91}, {"id": 5, "name": "Echo", "status": "Active", "score": 84}, {"id": 6, "name": "Foxtrot", "status": "Inactive", "score": 66}, {"id": 7, "name": "Golf", "status": "Active", "score": 78}, {"id": 8, "name": "Hotel", "status": "Active", "score": 93}, {"id": 9, "name": "India", "status": "Inactive", "score": 59}, {"id": 10, "name": "Juliet", "status": "Active", "score": 88}]);
+  __omni_subs.get("DataTable_rows").set([{"id": 1, "name": "Alpha", "status": "Active", "score": 95}, {"id": 2, "name": "Bravo", "status": "Active", "score": 87}, {"id": 3, "name": "Charlie", "status": "Inactive", "score": 72}, {"id": 4, "name": "Delta", "status": "Active", "score": 91}, {"id": 5, "name": "Echo", "status": "Active", "score": 84}, {"id": 6, "name": "Foxtrot", "status": "Inactive", "score": 66}, {"id": 7, "name": "Golf", "status": "Active", "score": 78}, {"id": 8, "name": "Hotel", "status": "Active", "score": 93}, {"id": 9, "name": "India", "status": "Inactive", "score": 59}, {"id": 10, "name": "Juliet", "status": "Active", "score": 88}]);
 }
 
 function DataTable_handleScroll() {
-  DataTable_scrollCount.set(DataTable_scrollCount.value + 1);
+  __omni_subs.get("DataTable_scrollCount").set(DataTable_scrollCount.value + 1);
 }
 
 function DataTable_toggleSort() {
-  DataTable_sortAsc.set(!DataTable_sortAsc.value);
-  DataTable_rows.set(([...DataTable_rows.value]).sort(($0,$1) => { let $ka=((a, b) => a.name)($0,$1); let $kb=((a, b) => a.name)($1,$0); return $ka < $kb ? -1 : $ka > $kb ? 1 : 0; }));
+  __omni_subs.get("DataTable_sortAsc").set(!DataTable_sortAsc.value);
+  __omni_subs.get("DataTable_rows").set(([...DataTable_rows.value]).sort(($0,$1) => { const $ka=((a, b) => a.name)($0,$1); const $kb=((a, b) => a.name)($1,$0); return $ka < $kb ? -1 : $ka > $kb ? 1 : 0; }));
 }
 
 function DataTable_getSortIcon() {
@@ -4506,73 +3252,73 @@ const FormPage_submitted = __omni_signal("FormPage_submitted", false);
 const FormPage_scrollPos = __omni_signal("FormPage_scrollPos", 0);
 const FormPage_focusField = __omni_signal("FormPage_focusField", "");
 function FormPage_handleNameChange() {
-  FormPage_nameError.set("");
+  __omni_subs.get("FormPage_nameError").set("");
 }
 
 function FormPage_handleEmailChange() {
-  FormPage_emailError.set("");
+  __omni_subs.get("FormPage_emailError").set("");
 }
 
 function FormPage_handleMessageChange() {
-  FormPage_scrollPos.set(FormPage_scrollPos.value + 1);
+  __omni_subs.get("FormPage_scrollPos").set(FormPage_scrollPos.value + 1);
 }
 
 function FormPage_handleNameFocus() {
-  FormPage_focusField.set("name");
+  __omni_subs.get("FormPage_focusField").set("name");
 }
 
 function FormPage_handleNameBlur() {
-  FormPage_focusField.set("");
+  __omni_subs.get("FormPage_focusField").set("");
   if (FormPage_name.value === "") {
-  FormPage_nameError.set("Name is required");
+  __omni_subs.get("FormPage_nameError").set("Name is required");
   } else if ((FormPage_name.value).length < 2) {
-  FormPage_nameError.set("Name must be at least 2 characters");
+  __omni_subs.get("FormPage_nameError").set("Name must be at least 2 characters");
   } else if ((FormPage_name.value).startsWith(" ")) {
-  FormPage_nameError.set("Name must not start with a space");
+  __omni_subs.get("FormPage_nameError").set("Name must not start with a space");
   }
 }
 
 function FormPage_handleEmailFocus() {
-  FormPage_focusField.set("email");
+  __omni_subs.get("FormPage_focusField").set("email");
 }
 
 function FormPage_handleEmailBlur() {
-  FormPage_focusField.set("");
+  __omni_subs.get("FormPage_focusField").set("");
   if (FormPage_email.value === "") {
-  FormPage_emailError.set("Email is required");
+  __omni_subs.get("FormPage_emailError").set("Email is required");
   } else if (!(FormPage_email.value).includes("@")) {
-  FormPage_emailError.set("Email must contain @");
+  __omni_subs.get("FormPage_emailError").set("Email must contain @");
   }
 }
 
 function FormPage_handleSubmit() {
   if (FormPage_name.value === "") {
-  FormPage_nameError.set("Name is required");
+  __omni_subs.get("FormPage_nameError").set("Name is required");
   } else if ((FormPage_name.value).length < 2) {
-  FormPage_nameError.set("Name must be at least 2 characters");
+  __omni_subs.get("FormPage_nameError").set("Name must be at least 2 characters");
   }
   if (FormPage_email.value === "") {
-  FormPage_emailError.set("Email is required");
+  __omni_subs.get("FormPage_emailError").set("Email is required");
   } else if (!(FormPage_email.value).includes("@")) {
-  FormPage_emailError.set("Email must contain @");
+  __omni_subs.get("FormPage_emailError").set("Email must contain @");
   }
   if (FormPage_nameError.value === "" && FormPage_emailError.value === "") {
-  FormPage_submitted.set(true);
+  __omni_subs.get("FormPage_submitted").set(true);
   }
 }
 
 function FormPage_handleScroll() {
-  FormPage_scrollPos.set(FormPage_scrollPos.value + 1);
+  __omni_subs.get("FormPage_scrollPos").set(FormPage_scrollPos.value + 1);
 }
 
 function FormPage_handleReset() {
-  FormPage_name.set("");
-  FormPage_email.set("");
-  FormPage_message.set("");
-  FormPage_nameError.set("");
-  FormPage_emailError.set("");
-  FormPage_submitted.set(false);
-  FormPage_scrollPos.set(0);
+  __omni_subs.get("FormPage_name").set("");
+  __omni_subs.get("FormPage_email").set("");
+  __omni_subs.get("FormPage_message").set("");
+  __omni_subs.get("FormPage_nameError").set("");
+  __omni_subs.get("FormPage_emailError").set("");
+  __omni_subs.get("FormPage_submitted").set(false);
+  __omni_subs.get("FormPage_scrollPos").set(0);
 }
 
 function FormPage_getTrimmedMessage() {
@@ -4609,7 +3355,7 @@ function FormPage_isFormValid() {
 
 const MotionPlaybackDemo_play = __omni_signal("MotionPlaybackDemo_play", false);
 function MotionPlaybackDemo_trigger() {
-  MotionPlaybackDemo_play.set(!MotionPlaybackDemo_play.value);
+  __omni_subs.get("MotionPlaybackDemo_play").set(!MotionPlaybackDemo_play.value);
 }
 
 
@@ -4628,17 +3374,17 @@ function FeatureCard_getStats() {
 }
 
 function FeatureCard_handleFocus() {
-  FeatureCard_focusCount.set(FeatureCard_focusCount.value + 1);
-  FeatureCard_status.set("focused");
+  __omni_subs.get("FeatureCard_focusCount").set(FeatureCard_focusCount.value + 1);
+  __omni_subs.get("FeatureCard_status").set("focused");
 }
 
 function FeatureCard_handleBlur() {
-  FeatureCard_status.set("blurred");
+  __omni_subs.get("FeatureCard_status").set("blurred");
 }
 
 function FeatureCard_reset() {
-  FeatureCard_focusCount.set(0);
-  FeatureCard_status.set("idle");
+  __omni_subs.get("FeatureCard_focusCount").set(0);
+  __omni_subs.get("FeatureCard_status").set("idle");
 }
 
 
@@ -4663,9 +3409,9 @@ const FilterBar_filteredFrameworks = __omni_computed("FilterBar_filteredFramewor
 const FilterBar_sortLabel = __omni_computed("FilterBar_sortLabel", () => (FilterBar_sortAsc.value ? "ASC" : "DESC"));
 function FilterBar_handleSortToggle() {
   if (FilterBar_sortAsc.value) {
-  FilterBar_sortAsc.set(false);
+  __omni_subs.get("FilterBar_sortAsc").set(false);
   } else {
-  FilterBar_sortAsc.set(true);
+  __omni_subs.get("FilterBar_sortAsc").set(true);
   }
 }
 
@@ -4688,7 +3434,7 @@ function EmitEventChild_onCount(...args) {
   if (el) el.dispatchEvent(new CustomEvent('count', { detail: args[0], bubbles: false }));
 }
 function EmitEventChild_doAction() {
-  EmitEventChild_clickCount.set(EmitEventChild_clickCount.value + 1);
+  __omni_subs.get("EmitEventChild_clickCount").set(EmitEventChild_clickCount.value + 1);
   EmitEventChild_onAction(EmitEventChild_label.value + " #" + String(EmitEventChild_clickCount.value));
   if (EmitEventChild_onOptionalAck !== null) {
   EmitEventChild_onOptionalAck("ack for " + String(EmitEventChild_clickCount.value));
@@ -4712,8 +3458,8 @@ const ViewAttributesDemo_richText = __omni_signal("ViewAttributesDemo_richText",
 const Dashboard_totalItems = __omni_signal("Dashboard_totalItems", 42);
 const Dashboard_lastUpdated = __omni_signal("Dashboard_lastUpdated", "just now");
 function Dashboard_refresh() {
-  Dashboard_totalItems.set(Dashboard_totalItems.value + 1);
-  Dashboard_lastUpdated.set("updated");
+  __omni_subs.get("Dashboard_totalItems").set(Dashboard_totalItems.value + 1);
+  __omni_subs.get("Dashboard_lastUpdated").set("updated");
 }
 
 
@@ -4751,17 +3497,17 @@ const ThemeCssVarsDemo_boxScale = __omni_signal("ThemeCssVarsDemo_boxScale", 1.0
 const ThemeCssVarsDemo_borderWidth = __omni_signal("ThemeCssVarsDemo_borderWidth", 2);
 function ThemeCssVarsDemo_toggleScale() {
   if (ThemeCssVarsDemo_boxScale.value === 1.0) {
-  ThemeCssVarsDemo_boxScale.set(1.05);
+  __omni_subs.get("ThemeCssVarsDemo_boxScale").set(1.05);
   } else {
-  ThemeCssVarsDemo_boxScale.set(1.0);
+  __omni_subs.get("ThemeCssVarsDemo_boxScale").set(1.0);
   }
 }
 
 function ThemeCssVarsDemo_toggleBorder() {
   if (ThemeCssVarsDemo_borderWidth.value === 2) {
-  ThemeCssVarsDemo_borderWidth.set(4);
+  __omni_subs.get("ThemeCssVarsDemo_borderWidth").set(4);
   } else {
-  ThemeCssVarsDemo_borderWidth.set(2);
+  __omni_subs.get("ThemeCssVarsDemo_borderWidth").set(2);
   }
 }
 
@@ -4773,20 +3519,20 @@ const EmitKeywordDemo_emitLog = __omni_signal("EmitKeywordDemo_emitLog", []);
 const EmitKeywordDemo_funcLog = __omni_signal("EmitKeywordDemo_funcLog", []);
 function EmitKeywordDemo_onEmitReceived(val) {
   let newLog = ((_a) => { _a.push(val); return _a.slice(); })(EmitKeywordDemo_emitLog.value || []);
-  EmitKeywordDemo_emitLog.set(newLog);
+  __omni_subs.get("EmitKeywordDemo_emitLog").set(newLog);
 }
 
 function EmitKeywordDemo_onFuncReceived(val) {
   let newLog = ((_a) => { _a.push(val); return _a.slice(); })(EmitKeywordDemo_funcLog.value || []);
-  EmitKeywordDemo_funcLog.set(newLog);
+  __omni_subs.get("EmitKeywordDemo_funcLog").set(newLog);
 }
 
 function EmitKeywordDemo_recordEmit(val) {
-  EmitKeywordDemo_emitLog.set(EmitKeywordDemo_emitLog.value.concat([val]));
+  __omni_subs.get("EmitKeywordDemo_emitLog").set(EmitKeywordDemo_emitLog.value.concat([val]));
 }
 
 function EmitKeywordDemo_recordFunc(val) {
-  EmitKeywordDemo_funcLog.set(EmitKeywordDemo_funcLog.value.concat([val]));
+  __omni_subs.get("EmitKeywordDemo_funcLog").set(EmitKeywordDemo_funcLog.value.concat([val]));
 }
 
 
@@ -4803,17 +3549,17 @@ const EventsDemo_scrollY = __omni_signal("EventsDemo_scrollY", 0);
 const EventsDemo_scrollCount = __omni_signal("EventsDemo_scrollCount", 0);
 const EventsDemo_deltaY = __omni_signal("EventsDemo_deltaY", 0.0);
 function EventsDemo_addLog(msg) {
-  EventsDemo_eventLog.value.push(msg); EventsDemo_eventLog.set(EventsDemo_eventLog.value.slice());
+  __omni_subs.get("EventsDemo_eventLog").value.push(msg); __omni_subs.get("EventsDemo_eventLog").set(__omni_subs.get("EventsDemo_eventLog").value.slice());
 }
 
 function EventsDemo_handleScroll(e) {
-  EventsDemo_scrollY.set(e.y);
-  EventsDemo_scrollCount.set(EventsDemo_scrollCount.value + 1);
+  __omni_subs.get("EventsDemo_scrollY").set(e.y);
+  __omni_subs.get("EventsDemo_scrollCount").set(EventsDemo_scrollCount.value + 1);
 }
 
 function EventsDemo_handleWheel(e) {
-  EventsDemo_deltaY.set(e.deltaY);
-  EventsDemo_wheelCount.set(EventsDemo_wheelCount.value + 1);
+  __omni_subs.get("EventsDemo_deltaY").set(e.deltaY);
+  __omni_subs.get("EventsDemo_wheelCount").set(EventsDemo_wheelCount.value + 1);
 }
 
 
@@ -4828,29 +3574,29 @@ const MotionCallbackDemo_isPlaying = __omni_signal("MotionCallbackDemo_isPlaying
 const MotionCallbackDemo_isPulsing = __omni_signal("MotionCallbackDemo_isPulsing", false);
 const MotionCallbackDemo_pulseRepeatCount = __omni_signal("MotionCallbackDemo_pulseRepeatCount", 0);
 function MotionCallbackDemo_handleEnterStart() {
-  MotionCallbackDemo_enterCount.set(MotionCallbackDemo_enterCount.value + 1);
-  MotionCallbackDemo_lastEvent.set("onStart @ " + String(MotionCallbackDemo_enterCount.value));
-  MotionCallbackDemo_isPlaying.set(true);
+  __omni_subs.get("MotionCallbackDemo_enterCount").set(MotionCallbackDemo_enterCount.value + 1);
+  __omni_subs.get("MotionCallbackDemo_lastEvent").set("onStart @ " + String(MotionCallbackDemo_enterCount.value));
+  __omni_subs.get("MotionCallbackDemo_isPlaying").set(true);
 }
 
 function MotionCallbackDemo_handleEnterComplete() {
-  MotionCallbackDemo_completeCount.set(MotionCallbackDemo_completeCount.value + 1);
-  MotionCallbackDemo_lastEvent.set("onComplete #" + String(MotionCallbackDemo_completeCount.value));
-  MotionCallbackDemo_isPlaying.set(false);
+  __omni_subs.get("MotionCallbackDemo_completeCount").set(MotionCallbackDemo_completeCount.value + 1);
+  __omni_subs.get("MotionCallbackDemo_lastEvent").set("onComplete #" + String(MotionCallbackDemo_completeCount.value));
+  __omni_subs.get("MotionCallbackDemo_isPlaying").set(false);
 }
 
 function MotionCallbackDemo_handlePulseStart() {
-  MotionCallbackDemo_isPulsing.set(true);
+  __omni_subs.get("MotionCallbackDemo_isPulsing").set(true);
 }
 
 function MotionCallbackDemo_handlePulseRepeat() {
-  MotionCallbackDemo_pulseRepeatCount.set(MotionCallbackDemo_pulseRepeatCount.value + 1);
-  MotionCallbackDemo_lastEvent.set("onRepeat x" + String(MotionCallbackDemo_pulseRepeatCount.value));
+  __omni_subs.get("MotionCallbackDemo_pulseRepeatCount").set(MotionCallbackDemo_pulseRepeatCount.value + 1);
+  __omni_subs.get("MotionCallbackDemo_lastEvent").set("onRepeat x" + String(MotionCallbackDemo_pulseRepeatCount.value));
 }
 
 function MotionCallbackDemo_handleInterrupt() {
-  MotionCallbackDemo_lastEvent.set("onInterrupt — motion was interrupted");
-  MotionCallbackDemo_isPlaying.set(false);
+  __omni_subs.get("MotionCallbackDemo_lastEvent").set("onInterrupt — motion was interrupted");
+  __omni_subs.get("MotionCallbackDemo_isPlaying").set(false);
 }
 
 
@@ -4864,7 +3610,7 @@ function MotionCallbackDemo_handleInterrupt() {
 const App_completionRate = __omni_signal("App_completionRate", 42.0);
 const App_activeTab = __omni_signal("App_activeTab", "home");
 function App_switchTab(tab) {
-  App_activeTab.set(tab);
+  __omni_subs.get("App_activeTab").set(tab);
 }
 
 function App_isActive(tab) {
@@ -4880,15 +3626,15 @@ const OptionalChainDemo_showDetails = __omni_signal("OptionalChainDemo_showDetai
 const OptionalChainDemo_nameLen = __omni_computed("OptionalChainDemo_nameLen", () => ((OptionalChainDemo_user.value || []).length ?? 0));
 const OptionalChainDemo_displayName = __omni_computed("OptionalChainDemo_displayName", () => (OptionalChainDemo_user.value ?? "Guest"));
 function OptionalChainDemo_clearUser() {
-  OptionalChainDemo_user.set(null);
+  __omni_subs.get("OptionalChainDemo_user").set(null);
 }
 
 function OptionalChainDemo_setUser() {
-  OptionalChainDemo_user.set("Bob");
+  __omni_subs.get("OptionalChainDemo_user").set("Bob");
 }
 
 function OptionalChainDemo_toggle() {
-  OptionalChainDemo_showDetails.set(!OptionalChainDemo_showDetails.value);
+  __omni_subs.get("OptionalChainDemo_showDetails").set(!OptionalChainDemo_showDetails.value);
 }
 
 
@@ -9893,7 +8639,7 @@ __omni_effect(() => { const el = __omni_el("el-interp-045"); if (el) try { el.te
 __omni_effect(() => { const el = __omni_el("el-interp-059"); if (el) try { el.textContent = String(StatsPanel_total.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
 __omni_effect(() => { const el = __omni_el("el-interp-065"); if (el) try { el.textContent = String(StatsPanel_total.value > 0 ? "有" : "无"); } catch(e) { __omni_reportError("interpolation:text", e); } });
 __omni_effect(() => { const el = __omni_el("el-interp-070"); if (el) try { el.textContent = String(StatsPanel_total.value === 0 ? "开始添加第一个待办事项" : "已添加 " + format_count(StatsPanel_total.value) + " 个事项"); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { StatsPanel_total.set(Dashboard_totalItems.value); });
+__omni_effect(() => { __omni_subs.get("StatsPanel_total").set(Dashboard_totalItems.value); });
 __omni_effect(() => { const el = __omni_el("el-interp-079"); if (el) try { el.textContent = String(StatsDashboard_MAX_ITEMS.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
 __omni_effect(() => { const el = __omni_el("el-interp-086"); if (el) try { el.textContent = String(StatsDashboard_counter.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
 __omni_effect(() => { const el = __omni_el("el-interp-089"); if (el) try { el.textContent = String(StatsDashboard_getModStatus()); } catch(e) { __omni_reportError("interpolation:text", e); } });
@@ -9925,23 +8671,23 @@ __omni_effect(() => { const el = __omni_el("el-interp-149"); if (el) try { el.te
 __omni_effect(() => { const el = __omni_el("el-interp-156"); if (el) try { el.textContent = String(Counter_step.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
 { const el = __omni_el("el-button-158"); if (el) el.addEventListener("click", (e) => {   Counter_inc({}); }); }
 function __ononPress_el_button_161() {
-  Counter_step.set(1);
+  __omni_subs.get("Counter_step").set(1);
 }
 { const el = __omni_el("el-button-161"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_161({}); }); }
 function __ononPress_el_button_163() {
-  Counter_step.set(5);
+  __omni_subs.get("Counter_step").set(5);
 }
 { const el = __omni_el("el-button-163"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_163({}); }); }
 function __ononPress_el_button_165() {
-  Counter_step.set(10);
+  __omni_subs.get("Counter_step").set(10);
 }
 { const el = __omni_el("el-button-165"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_165({}); }); }
 { const el = __omni_el("el-button-167"); if (el) el.addEventListener("click", (e) => {   Counter_reset({}); }); }
 { const el = __omni_el("el-input-173"); if (el) el.addEventListener("blur", (e) => {   FeatureCard_handleBlur({}); }); }
 { const el = __omni_el("el-input-173"); if (el) el.addEventListener("focus", (e) => {   FeatureCard_handleFocus({}); }); }
 let _guard_value_el_input_173 = false;
-{ const el = __omni_el("el-input-173"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_173) { FeatureCard_status.set(e.target.value); } }); }
-__omni_effect(() => { const el = __omni_el("el-input-173"); if (el) { _guard_value_el_input_173 = true; el.value = FeatureCard_status.value; _guard_value_el_input_173 = false; } });
+{ const el = __omni_el("el-input-173"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_173) { __omni_subs.get("FeatureCard_status").set(e.target.value); } }); }
+__omni_effect(() => { const el = __omni_el("el-input-173"); if (el) { _guard_value_el_input_173 = true; el.value = __omni_subs.get("FeatureCard_status").value; _guard_value_el_input_173 = false; } });
 
 /// ── @if conditional el-if-174 ──
 __omni_effect(() => {
@@ -10050,7 +8796,7 @@ __omni_effect(() => { const el = __omni_el("el-interp-229"); if (el) try { el.te
 __omni_effect(() => { const el = __omni_el("el-interp-232"); if (el) try { el.textContent = String(TodoStore_filterStatus.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
 __omni_effect(() => { const el = __omni_el("el-interp-236"); if (el) try { el.textContent = String(TodoPage_pageLoadCount.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
 function __ononChange_el_input_242() {
-  FilterBar_changeCount.set(FilterBar_changeCount.value + 1);
+  __omni_subs.get("FilterBar_changeCount").set(FilterBar_changeCount.value + 1);
   if (FilterBar_searchText.value === "") {
   TodoStore_setFilter("all");
   } else {
@@ -10059,10 +8805,10 @@ function __ononChange_el_input_242() {
 }
 { const el = __omni_el("el-input-242"); if (el) el.addEventListener("input", (e) => {   __ononChange_el_input_242({}); }); }
 let _guard_value_el_input_242 = false;
-{ const el = __omni_el("el-input-242"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_242) { FilterBar_searchText.set(e.target.value); } }); }
-__omni_effect(() => { const el = __omni_el("el-input-242"); if (el) { _guard_value_el_input_242 = true; el.value = FilterBar_searchText.value; _guard_value_el_input_242 = false; } });
+{ const el = __omni_el("el-input-242"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_242) { __omni_subs.get("FilterBar_searchText").set(e.target.value); } }); }
+__omni_effect(() => { const el = __omni_el("el-input-242"); if (el) { _guard_value_el_input_242 = true; el.value = __omni_subs.get("FilterBar_searchText").value; _guard_value_el_input_242 = false; } });
 function __ononPress_el_button_243() {
-  FilterBar_searchText.set("");
+  __omni_subs.get("FilterBar_searchText").set("");
   TodoStore_setFilter("all");
 }
 { const el = __omni_el("el-button-243"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_243({}); }); }
@@ -10082,11 +8828,11 @@ __omni_effect(() => { const el = __omni_el("el-interp-275"); if (el) try { el.te
 __omni_effect(() => { const el = __omni_el("el-interp-283"); if (el) try { el.textContent = String((TodoList_items.value || []).length); } catch(e) { __omni_reportError("interpolation:text", e); } });
 __omni_effect(() => { const el = __omni_el("el-input-288"); if (el) el.setAttribute('placeholder', AddTodo_hint.value); });
 let _guard_value_el_input_288 = false;
-{ const el = __omni_el("el-input-288"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_288) { AddTodo_input.set(e.target.value); } }); }
-__omni_effect(() => { const el = __omni_el("el-input-288"); if (el) { _guard_value_el_input_288 = true; el.value = AddTodo_input.value; _guard_value_el_input_288 = false; } });
+{ const el = __omni_el("el-input-288"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_288) { __omni_subs.get("AddTodo_input").set(e.target.value); } }); }
+__omni_effect(() => { const el = __omni_el("el-input-288"); if (el) { _guard_value_el_input_288 = true; el.value = __omni_subs.get("AddTodo_input").value; _guard_value_el_input_288 = false; } });
 { const el = __omni_el("el-button-289"); if (el) el.addEventListener("click", (e) => {   AddTodo_handleAdd({}); }); }
 function __ononPress_el_button_291() {
-  AddTodo_input.set("");
+  __omni_subs.get("AddTodo_input").set("");
 }
 { const el = __omni_el("el-button-291"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_291({}); }); }
 __omni_effect(() => { const el = __omni_el("el-interp-295"); if (el) try { el.textContent = String((AddTodo_input.value || []).length); } catch(e) { __omni_reportError("interpolation:text", e); } });
@@ -10221,7 +8967,7 @@ __omni_effect(() => {
     if (_el) try { _el.textContent = String(item.text); } catch(e) { __omni_reportError("for:rebind", e); }
   }
 });
-__omni_effect(() => { TodoList_items.set(TodoStore_items.value); });
+__omni_effect(() => { __omni_subs.get("TodoList_items").set(TodoStore_items.value); });
 function __ononAdd_el_TodoList_278(text) {
   TodoStore_add(text);
 }
@@ -10248,8 +8994,8 @@ __omni_effect(() => {
   else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = "none"; }); }
 });
 let _guard_value_el_input_330 = false;
-{ const el = __omni_el("el-input-330"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_330) { DataFetching_url.set(e.target.value); } }); }
-__omni_effect(() => { const el = __omni_el("el-input-330"); if (el) { _guard_value_el_input_330 = true; el.value = DataFetching_url.value; _guard_value_el_input_330 = false; } });
+{ const el = __omni_el("el-input-330"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_330) { __omni_subs.get("DataFetching_url").set(e.target.value); } }); }
+__omni_effect(() => { const el = __omni_el("el-input-330"); if (el) { _guard_value_el_input_330 = true; el.value = __omni_subs.get("DataFetching_url").value; _guard_value_el_input_330 = false; } });
 { const el = __omni_el("el-button-331"); if (el) el.addEventListener("click", (e) => {   DataFetching_loadData({}); }); }
 { const el = __omni_el("el-button-333"); if (el) el.addEventListener("click", (e) => {   DataFetching_loadViaApi({}); }); }
 { const el = __omni_el("el-button-335"); if (el) el.addEventListener("click", (e) => {   DataFetching_reset({}); }); }
@@ -10266,11 +9012,11 @@ __omni_effect(() => {
   else { _show("el-if-337-else"); }
 });
 let _guard_value_el_input_370 = false;
-{ const el = __omni_el("el-input-370"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_370) { DataSubmit_title.set(e.target.value); } }); }
-__omni_effect(() => { const el = __omni_el("el-input-370"); if (el) { _guard_value_el_input_370 = true; el.value = DataSubmit_title.value; _guard_value_el_input_370 = false; } });
+{ const el = __omni_el("el-input-370"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_370) { __omni_subs.get("DataSubmit_title").set(e.target.value); } }); }
+__omni_effect(() => { const el = __omni_el("el-input-370"); if (el) { _guard_value_el_input_370 = true; el.value = __omni_subs.get("DataSubmit_title").value; _guard_value_el_input_370 = false; } });
 let _guard_value_el_textarea_373 = false;
-{ const el = __omni_el("el-textarea-373"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_textarea_373) { DataSubmit_body.set(e.target.value); } }); }
-__omni_effect(() => { const el = __omni_el("el-textarea-373"); if (el) { _guard_value_el_textarea_373 = true; el.value = DataSubmit_body.value; _guard_value_el_textarea_373 = false; } });
+{ const el = __omni_el("el-textarea-373"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_textarea_373) { __omni_subs.get("DataSubmit_body").set(e.target.value); } }); }
+__omni_effect(() => { const el = __omni_el("el-textarea-373"); if (el) { _guard_value_el_textarea_373 = true; el.value = __omni_subs.get("DataSubmit_body").value; _guard_value_el_textarea_373 = false; } });
 { const el = __omni_el("el-button-375"); if (el) el.addEventListener("click", (e) => {   DataSubmit_submitForm({}); }); }
 { const el = __omni_el("el-button-377"); if (el) el.addEventListener("click", (e) => {   DataSubmit_reset({}); }); }
 __omni_effect(() => { const el = __omni_el("el-interp-389"); if (el) try { el.textContent = String(DataSubmit_responseText.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
@@ -10286,8 +9032,8 @@ __omni_effect(() => {
   else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = "none"; }); }
 });
 let _guard_value_el_input_408 = false;
-{ const el = __omni_el("el-input-408"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_408) { UserSettings_username.set(e.target.value); } }); }
-__omni_effect(() => { const el = __omni_el("el-input-408"); if (el) { _guard_value_el_input_408 = true; el.value = UserSettings_username.value; _guard_value_el_input_408 = false; } });
+{ const el = __omni_el("el-input-408"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_408) { __omni_subs.get("UserSettings_username").set(e.target.value); } }); }
+__omni_effect(() => { const el = __omni_el("el-input-408"); if (el) { _guard_value_el_input_408 = true; el.value = __omni_subs.get("UserSettings_username").value; _guard_value_el_input_408 = false; } });
 { const el = __omni_el("el-button-410"); if (el) el.addEventListener("click", (e) => {   UserSettings_saveSettings({}); }); }
 { const el = __omni_el("el-button-412"); if (el) el.addEventListener("click", (e) => {   UserSettings_clearSettings({}); }); }
 __omni_effect(() => { const el = __omni_el("el-interp-416"); if (el) try { el.textContent = String(UserSettings_savedText.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
@@ -10301,8 +9047,8 @@ __omni_effect(() => {
 });
 __omni_effect(() => { const el = __omni_el("el-interp-428"); if (el) try { el.textContent = String(ValidationInput_getDefaultMessage()); } catch(e) { __omni_reportError("interpolation:text", e); } });
 let _guard_value_el_input_431 = false;
-{ const el = __omni_el("el-input-431"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_431) { ValidationInput_input.set(e.target.value); } }); }
-__omni_effect(() => { const el = __omni_el("el-input-431"); if (el) { _guard_value_el_input_431 = true; el.value = ValidationInput_input.value; _guard_value_el_input_431 = false; } });
+{ const el = __omni_el("el-input-431"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_431) { __omni_subs.get("ValidationInput_input").set(e.target.value); } }); }
+__omni_effect(() => { const el = __omni_el("el-input-431"); if (el) { _guard_value_el_input_431 = true; el.value = __omni_subs.get("ValidationInput_input").value; _guard_value_el_input_431 = false; } });
 { const el = __omni_el("el-button-432"); if (el) el.addEventListener("click", (e) => {   ValidationInput_handleValidate({}); }); }
 __omni_effect(() => { const el = __omni_el("el-interp-433"); if (el) try { el.textContent = String(ValidationInput_isProcessing.value ? "..." : "Validate"); } catch(e) { __omni_reportError("interpolation:text", e); } });
 { const el = __omni_el("el-button-435"); if (el) el.addEventListener("click", (e) => {   ValidationInput_handleClear({}); }); }
@@ -10479,8 +9225,8 @@ __omni_effect(() => { const el = __omni_el("el-interp-656"); if (el) try { el.te
 { const el = __omni_el("el-input-672"); if (el) el.addEventListener("focus", (e) => {   FormPage_handleNameFocus({}); }); }
 { const el = __omni_el("el-input-672"); if (el) el.addEventListener("input", (e) => {   FormPage_handleNameChange({}); }); }
 let _guard_value_el_input_672 = false;
-{ const el = __omni_el("el-input-672"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_672) { FormPage_name.set(e.target.value); } }); }
-__omni_effect(() => { const el = __omni_el("el-input-672"); if (el) { _guard_value_el_input_672 = true; el.value = FormPage_name.value; _guard_value_el_input_672 = false; } });
+{ const el = __omni_el("el-input-672"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_672) { __omni_subs.get("FormPage_name").set(e.target.value); } }); }
+__omni_effect(() => { const el = __omni_el("el-input-672"); if (el) { _guard_value_el_input_672 = true; el.value = __omni_subs.get("FormPage_name").value; _guard_value_el_input_672 = false; } });
 __omni_effect(() => { const el = __omni_el("el-interp-676"); if (el) try { el.textContent = String(FormPage_nameError.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
 
 /// ── @if conditional el-if-673 ──
@@ -10494,8 +9240,8 @@ __omni_effect(() => {
 { const el = __omni_el("el-input-681"); if (el) el.addEventListener("focus", (e) => {   FormPage_handleEmailFocus({}); }); }
 { const el = __omni_el("el-input-681"); if (el) el.addEventListener("input", (e) => {   FormPage_handleEmailChange({}); }); }
 let _guard_value_el_input_681 = false;
-{ const el = __omni_el("el-input-681"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_681) { FormPage_email.set(e.target.value); } }); }
-__omni_effect(() => { const el = __omni_el("el-input-681"); if (el) { _guard_value_el_input_681 = true; el.value = FormPage_email.value; _guard_value_el_input_681 = false; } });
+{ const el = __omni_el("el-input-681"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_681) { __omni_subs.get("FormPage_email").set(e.target.value); } }); }
+__omni_effect(() => { const el = __omni_el("el-input-681"); if (el) { _guard_value_el_input_681 = true; el.value = __omni_subs.get("FormPage_email").value; _guard_value_el_input_681 = false; } });
 __omni_effect(() => { const el = __omni_el("el-interp-685"); if (el) try { el.textContent = String(FormPage_emailError.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
 
 /// ── @if conditional el-if-682 ──
@@ -10508,11 +9254,11 @@ __omni_effect(() => {
 { const el = __omni_el("el-textarea-690"); if (el) el.addEventListener("scroll", (e) => {   FormPage_handleScroll({}); }); }
 { const el = __omni_el("el-textarea-690"); if (el) el.addEventListener("input", (e) => {   FormPage_handleMessageChange({}); }); }
 let _guard_value_el_textarea_690 = false;
-{ const el = __omni_el("el-textarea-690"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_textarea_690) { FormPage_message.set(e.target.value); } }); }
-__omni_effect(() => { const el = __omni_el("el-textarea-690"); if (el) { _guard_value_el_textarea_690 = true; el.value = FormPage_message.value; _guard_value_el_textarea_690 = false; } });
+{ const el = __omni_el("el-textarea-690"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_textarea_690) { __omni_subs.get("FormPage_message").set(e.target.value); } }); }
+__omni_effect(() => { const el = __omni_el("el-textarea-690"); if (el) { _guard_value_el_textarea_690 = true; el.value = __omni_subs.get("FormPage_message").value; _guard_value_el_textarea_690 = false; } });
 let _guard_value_el_input_694 = false;
-{ const el = __omni_el("el-input-694"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_694) { FormPage_name.set(e.target.value); } }); }
-__omni_effect(() => { const el = __omni_el("el-input-694"); if (el) { _guard_value_el_input_694 = true; el.value = FormPage_name.value; _guard_value_el_input_694 = false; } });
+{ const el = __omni_el("el-input-694"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_694) { __omni_subs.get("FormPage_name").set(e.target.value); } }); }
+__omni_effect(() => { const el = __omni_el("el-input-694"); if (el) { _guard_value_el_input_694 = true; el.value = __omni_subs.get("FormPage_name").value; _guard_value_el_input_694 = false; } });
 { const el = __omni_el("el-div-699"); if (el) el.addEventListener("scroll", (e) => {   FormPage_handleScroll({}); }); }
 __omni_effect(() => { const el = __omni_el("el-interp-702"); if (el) try { el.textContent = String(FormPage_scrollPos.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
 __omni_effect(() => { const el = __omni_el("el-interp-717"); if (el) try { el.textContent = String(FormPage_getStatusText()); } catch(e) { __omni_reportError("interpolation:text", e); } });
@@ -10556,7 +9302,7 @@ function __ononPress_el_button_756() {
 { const el = __omni_el("el-button-756"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_756({}); }); }
 function __ononPress_el_button_758() {
   NotificationStore_clear();
-  NotificationsPanel_badgeVisible.set(false);
+  __omni_subs.get("NotificationsPanel_badgeVisible").set(false);
 }
 { const el = __omni_el("el-button-758"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_758({}); }); }
 
@@ -10568,7 +9314,7 @@ __omni_effect(() => {
   else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = "none"; }); }
 });
 function __ononPress_el_div_768() {
-  NotificationsPanel_badgeVisible.set(false);
+  __omni_subs.get("NotificationsPanel_badgeVisible").set(false);
 }
 __omni_forHandlers["__ononPress_el_div_768"] = __ononPress_el_div_768;
 
@@ -11192,11 +9938,11 @@ function __ononPress_el_button_2103() {
 }
 { const el = __omni_el("el-button-2103"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_2103({}); }); }
 function __ononPress_el_button_2109() {
-  EventShorthand_msg.set("onPress");
+  __omni_subs.get("EventShorthand_msg").set("onPress");
 }
 { const el = __omni_el("el-button-2109"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_2109({}); }); }
 function __ononPress_el_button_2111() {
-  EventShorthand_msg.set("@onPress");
+  __omni_subs.get("EventShorthand_msg").set("@onPress");
 }
 { const el = __omni_el("el-button-2111"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_2111({}); }); }
 __omni_effect(() => { const el = __omni_el("el-interp-2115"); if (el) try { el.textContent = String(EventShorthand_msg.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
@@ -11207,8 +9953,8 @@ __omni_effect(() => { const el = __omni_el("el-interp-2123"); if (el) try { el.t
 __omni_effect(() => { const el = __omni_el("el-interp-2139"); if (el) try { el.textContent = String(FormControlsDemo_linkClicked.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
 { const el = __omni_el("el-select-2145"); if (el) el.addEventListener("input", (e) => {   FormControlsDemo_handleSelect({}); }); }
 let _guard_value_el_select_2145 = false;
-{ const el = __omni_el("el-select-2145"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_select_2145) { FormControlsDemo_selected.set(e.target.value); } }); }
-__omni_effect(() => { const el = __omni_el("el-select-2145"); if (el) { _guard_value_el_select_2145 = true; el.value = FormControlsDemo_selected.value; _guard_value_el_select_2145 = false; } });
+{ const el = __omni_el("el-select-2145"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_select_2145) { __omni_subs.get("FormControlsDemo_selected").set(e.target.value); } }); }
+__omni_effect(() => { const el = __omni_el("el-select-2145"); if (el) { _guard_value_el_select_2145 = true; el.value = __omni_subs.get("FormControlsDemo_selected").value; _guard_value_el_select_2145 = false; } });
 __omni_effect(() => { const el = __omni_el("el-interp-2154"); if (el) try { el.textContent = String(FormControlsDemo_selected.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
 __omni_effect(() => { const el = __omni_el("el-input-2160"); if (el) el.checked = !!(FormControlsDemo_agreed.value); });
 { const el = __omni_el("el-input-2160"); if (el) el.addEventListener("input", (e) => {   FormControlsDemo_handleAgree({}); }); }
@@ -11239,8 +9985,8 @@ function __ononCut_el_input_2199() {
 }
 { const el = __omni_el("el-input-2199"); if (el) el.addEventListener("cut", (e) => {   __ononCut_el_input_2199({}); }); }
 let _guard_value_el_input_2199 = false;
-{ const el = __omni_el("el-input-2199"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_2199) { EventsDemo_dragStatus.set(e.target.value); } }); }
-__omni_effect(() => { const el = __omni_el("el-input-2199"); if (el) { _guard_value_el_input_2199 = true; el.value = EventsDemo_dragStatus.value; _guard_value_el_input_2199 = false; } });
+{ const el = __omni_el("el-input-2199"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_2199) { __omni_subs.get("EventsDemo_dragStatus").set(e.target.value); } }); }
+__omni_effect(() => { const el = __omni_el("el-input-2199"); if (el) { _guard_value_el_input_2199 = true; el.value = __omni_subs.get("EventsDemo_dragStatus").value; _guard_value_el_input_2199 = false; } });
 function __ononDoubleClick_el_div_2203() {
   EventsDemo_addLog("double-click");
 }
@@ -11250,19 +9996,19 @@ function __ononContextMenu_el_div_2203() {
 }
 { const el = __omni_el("el-div-2203"); if (el) el.addEventListener("contextmenu", (e) => {   __ononContextMenu_el_div_2203({}); }); }
 function __ononDragOver_el_div_2209() {
-  EventsDemo_dragStatus.set("dragover");
+  __omni_subs.get("EventsDemo_dragStatus").set("dragover");
 }
 { const el = __omni_el("el-div-2209"); if (el) el.addEventListener("dragover", (e) => {   __ononDragOver_el_div_2209(e.detail); }); }
 function __ononDragEnd_el_div_2209() {
-  EventsDemo_dragStatus.set("ended");
+  __omni_subs.get("EventsDemo_dragStatus").set("ended");
 }
 { const el = __omni_el("el-div-2209"); if (el) el.addEventListener("dragend", (e) => {   __ononDragEnd_el_div_2209({}); }); }
 function __ononDrop_el_div_2209() {
-  EventsDemo_dragStatus.set("dropped");
+  __omni_subs.get("EventsDemo_dragStatus").set("dropped");
 }
 { const el = __omni_el("el-div-2209"); if (el) el.addEventListener("drop", (e) => {   __ononDrop_el_div_2209({}); }); }
 function __ononDragStart_el_div_2209() {
-  EventsDemo_dragStatus.set("dragging");
+  __omni_subs.get("EventsDemo_dragStatus").set("dragging");
 }
 { const el = __omni_el("el-div-2209"); if (el) el.addEventListener("dragstart", (e) => {   __ononDragStart_el_div_2209({}); }); }
 __omni_effect(() => { const el = __omni_el("el-interp-2212"); if (el) try { el.textContent = String(EventsDemo_dragStatus.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
@@ -11293,44 +10039,44 @@ function __ononError_el_img_2246() {
 }
 { const el = __omni_el("el-img-2246"); if (el) el.addEventListener("error", (e) => {   __ononError_el_img_2246({}); }); }
 function __ononPause_el_div_2247() {
-  EventsDemo_mediaStatus.set("paused");
+  __omni_subs.get("EventsDemo_mediaStatus").set("paused");
 }
 { const el = __omni_el("el-div-2247"); if (el) el.addEventListener("pause", (e) => {   __ononPause_el_div_2247({}); }); }
 function __ononEnded_el_div_2247() {
-  EventsDemo_mediaStatus.set("ended");
+  __omni_subs.get("EventsDemo_mediaStatus").set("ended");
 }
 { const el = __omni_el("el-div-2247"); if (el) el.addEventListener("ended", (e) => {   __ononEnded_el_div_2247({}); }); }
 function __ononPlay_el_div_2247() {
-  EventsDemo_mediaStatus.set("playing");
+  __omni_subs.get("EventsDemo_mediaStatus").set("playing");
 }
 { const el = __omni_el("el-div-2247"); if (el) el.addEventListener("play", (e) => {   __ononPlay_el_div_2247({}); }); }
 __omni_effect(() => { const el = __omni_el("el-interp-2250"); if (el) try { el.textContent = String(EventsDemo_mediaStatus.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
 function __ononAnimationEnd_el_div_2255() {
-  EventsDemo_animStatus.set("anim-end");
+  __omni_subs.get("EventsDemo_animStatus").set("anim-end");
 }
 { const el = __omni_el("el-div-2255"); if (el) el.addEventListener("animationend", (e) => {   __ononAnimationEnd_el_div_2255({}); }); }
 function __ononAnimationIteration_el_div_2255() {
-  EventsDemo_animStatus.set("anim-iter");
+  __omni_subs.get("EventsDemo_animStatus").set("anim-iter");
 }
 { const el = __omni_el("el-div-2255"); if (el) el.addEventListener("animationiteration", (e) => {   __ononAnimationIteration_el_div_2255({}); }); }
 function __ononAnimationStart_el_div_2255() {
-  EventsDemo_animStatus.set("anim-start");
+  __omni_subs.get("EventsDemo_animStatus").set("anim-start");
 }
 { const el = __omni_el("el-div-2255"); if (el) el.addEventListener("animationstart", (e) => {   __ononAnimationStart_el_div_2255({}); }); }
 function __ononTransitionEnd_el_div_2255() {
-  EventsDemo_animStatus.set("trans-end");
+  __omni_subs.get("EventsDemo_animStatus").set("trans-end");
 }
 { const el = __omni_el("el-div-2255"); if (el) el.addEventListener("transitionend", (e) => {   __ononTransitionEnd_el_div_2255({}); }); }
 __omni_effect(() => { const el = __omni_el("el-interp-2258"); if (el) try { el.textContent = String(EventsDemo_animStatus.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
 function __ononToggle_el_details_2263() {
-  EventsDemo_toggleCount.set(EventsDemo_toggleCount.value + 1);
+  __omni_subs.get("EventsDemo_toggleCount").set(EventsDemo_toggleCount.value + 1);
 }
 { const el = __omni_el("el-details-2263"); if (el) el.addEventListener("toggle", (e) => {   __ononToggle_el_details_2263({}); }); }
 __omni_effect(() => { const el = __omni_el("el-interp-2266"); if (el) try { el.textContent = String(EventsDemo_toggleCount.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
 __omni_effect(() => { const el = __omni_el("el-interp-2276"); if (el) try { el.textContent = String((EventsDemo_eventLog.value || []).length); } catch(e) { __omni_reportError("interpolation:text", e); } });
 let _guard_value_el_input_2352 = false;
-{ const el = __omni_el("el-input-2352"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_2352) { EventsDemo_mediaStatus.set(e.target.value); } }); }
-__omni_effect(() => { const el = __omni_el("el-input-2352"); if (el) { _guard_value_el_input_2352 = true; el.value = EventsDemo_mediaStatus.value; _guard_value_el_input_2352 = false; } });
+{ const el = __omni_el("el-input-2352"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_2352) { __omni_subs.get("EventsDemo_mediaStatus").set(e.target.value); } }); }
+__omni_effect(() => { const el = __omni_el("el-input-2352"); if (el) { _guard_value_el_input_2352 = true; el.value = __omni_subs.get("EventsDemo_mediaStatus").value; _guard_value_el_input_2352 = false; } });
 { const el = __omni_el("el-div-2394"); if (el) el.addEventListener("scroll", (e) => {   EventDataDemo_handleScroll({ y: e.target?.scrollTop ?? 0 }); }); }
 { const el = __omni_el("el-div-2395"); if (el) el.addEventListener("mousemove", (e) => {   EventDataDemo_handleMouseMove({ x: e.clientX ?? 0, y: e.clientY ?? 0 }); }); }
 __omni_effect(() => { const el = __omni_el("el-interp-2398"); if (el) try { el.textContent = String(EventDataDemo_mouseX.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
@@ -11341,8 +10087,8 @@ __omni_effect(() => { const el = __omni_el("el-interp-2411"); if (el) try { el.t
 __omni_effect(() => { const el = __omni_el("el-interp-2415"); if (el) try { el.textContent = String(EventDataDemo_ctrlHeld.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
 { const el = __omni_el("el-input-2417"); if (el) el.addEventListener("keydown", (e) => {   EventDataDemo_handleKeyDown({ key: e.key ?? "", ctrl: e.ctrlKey ?? false }); }); }
 let _guard_value_el_input_2417 = false;
-{ const el = __omni_el("el-input-2417"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_2417) { EventDataDemo_keyPressed.set(e.target.value); } }); }
-__omni_effect(() => { const el = __omni_el("el-input-2417"); if (el) { _guard_value_el_input_2417 = true; el.value = EventDataDemo_keyPressed.value; _guard_value_el_input_2417 = false; } });
+{ const el = __omni_el("el-input-2417"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_2417) { __omni_subs.get("EventDataDemo_keyPressed").set(e.target.value); } }); }
+__omni_effect(() => { const el = __omni_el("el-input-2417"); if (el) { _guard_value_el_input_2417 = true; el.value = __omni_subs.get("EventDataDemo_keyPressed").value; _guard_value_el_input_2417 = false; } });
 __omni_effect(() => { const el = __omni_el("el-interp-2420"); if (el) try { el.textContent = String(EventDataDemo_keyPressed.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
 { const el = __omni_el("el-button-2484"); if (el) el.addEventListener("click", (e) => {   SlotDefaultDemo_toggleContent({}); }); }
 __omni_effect(() => { const el = __omni_el("el-interp-2485"); if (el) try { el.textContent = String(SlotDefaultDemo_useCustomContent.value ? "Reset to Defaults" : "Provide Custom Content"); } catch(e) { __omni_reportError("interpolation:text", e); } });
@@ -11505,7 +10251,7 @@ __omni_effect(() => { const el = __omni_el("el-interp-2647"); if (el) try { el.t
 __omni_effect(() => { const el = __omni_el("el-interp-2651"); if (el) try { el.textContent = String(EmitEventChild_clickCount.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
 { const el = __omni_el("el-button-2653"); if (el) el.addEventListener("click", (e) => {   EmitEventChild_doAction({}); }); }
 { const el = __omni_el("el-button-2655"); if (el) el.addEventListener("click", (e) => {   EmitEventChild_incrementParent({}); }); }
-__omni_effect(() => { EmitEventChild_label.set("Sender A"); });
+__omni_effect(() => { __omni_subs.get("EmitEventChild_label").set("Sender A"); });
 { const el = __omni_el("el-EmitEventChild-2644"); if (el) el.addEventListener("action", (e) => {   EmitEventDemo_onChildAction(e.detail); }); }
 { const el = __omni_el("el-EmitEventChild-2644"); if (el) el.addEventListener("optionalack", (e) => {   EmitEventDemo_onOptionalAck(e.detail); }); }
 { const el = __omni_el("el-EmitEventChild-2644"); if (el) el.addEventListener("count", (e) => {   EmitEventDemo_onChildCount(e.detail); }); }
@@ -11513,7 +10259,7 @@ __omni_effect(() => { const el = __omni_el("el-interp-2660"); if (el) try { el.t
 __omni_effect(() => { const el = __omni_el("el-interp-2664"); if (el) try { el.textContent = String(EmitEventChild_clickCount.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
 { const el = __omni_el("el-button-2666"); if (el) el.addEventListener("click", (e) => {   EmitEventChild_doAction({}); }); }
 { const el = __omni_el("el-button-2668"); if (el) el.addEventListener("click", (e) => {   EmitEventChild_incrementParent({}); }); }
-__omni_effect(() => { EmitEventChild_label.set("Sender B"); });
+__omni_effect(() => { __omni_subs.get("EmitEventChild_label").set("Sender B"); });
 { const el = __omni_el("el-EmitEventChild-2657"); if (el) el.addEventListener("action", (e) => {   EmitEventDemo_onChildAction(e.detail); }); }
 { const el = __omni_el("el-EmitEventChild-2657"); if (el) el.addEventListener("count", (e) => {   EmitEventDemo_onChildCount(e.detail); }); }
 __omni_effect(() => { const el = __omni_el("el-interp-2674"); if (el) try { el.textContent = String(String((EmitEventDemo_messages.value || []).length)); } catch(e) { __omni_reportError("interpolation:text", e); } });
@@ -11623,12 +10369,12 @@ __omni_effect(() => { const el = __omni_el("el-interp-2832"); if (el) try { el.t
 __omni_effect(() => { const el = __omni_el("el-interp-2842"); if (el) try { el.textContent = String(demo_f32()); } catch(e) { __omni_reportError("interpolation:text", e); } });
 __omni_effect(() => { const el = __omni_el("el-interp-2847"); if (el) try { el.textContent = String(TypeSystemDemo_summary.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
 let _guard_checked_el_input_2866 = false;
-{ const el = __omni_el("el-input-2866"); if (el) el.addEventListener("change", (e) => { if (!_guard_checked_el_input_2866) { ViewAttributesDemo_isChecked.set(e.target.checked); } }); }
-__omni_effect(() => { const el = __omni_el("el-input-2866"); if (el) { _guard_checked_el_input_2866 = true; el.checked = ViewAttributesDemo_isChecked.value; _guard_checked_el_input_2866 = false; } });
+{ const el = __omni_el("el-input-2866"); if (el) el.addEventListener("change", (e) => { if (!_guard_checked_el_input_2866) { __omni_subs.get("ViewAttributesDemo_isChecked").set(e.target.checked); } }); }
+__omni_effect(() => { const el = __omni_el("el-input-2866"); if (el) { _guard_checked_el_input_2866 = true; el.checked = __omni_subs.get("ViewAttributesDemo_isChecked").value; _guard_checked_el_input_2866 = false; } });
 __omni_effect(() => { const el = __omni_el("el-interp-2869"); if (el) try { el.textContent = String(String(ViewAttributesDemo_isChecked.value)); } catch(e) { __omni_reportError("interpolation:text", e); } });
 let _guard_value_el_textarea_2874 = false;
-{ const el = __omni_el("el-textarea-2874"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_textarea_2874) { ViewAttributesDemo_richText.set(e.target.value); } }); }
-__omni_effect(() => { const el = __omni_el("el-textarea-2874"); if (el) { _guard_value_el_textarea_2874 = true; el.value = ViewAttributesDemo_richText.value; _guard_value_el_textarea_2874 = false; } });
+{ const el = __omni_el("el-textarea-2874"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_textarea_2874) { __omni_subs.get("ViewAttributesDemo_richText").set(e.target.value); } }); }
+__omni_effect(() => { const el = __omni_el("el-textarea-2874"); if (el) { _guard_value_el_textarea_2874 = true; el.value = __omni_subs.get("ViewAttributesDemo_richText").value; _guard_value_el_textarea_2874 = false; } });
 __omni_effect(() => { const el = __omni_el("el-interp-2877"); if (el) try { el.textContent = String(ViewAttributesDemo_richText.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
 __omni_effect(() => { const el = __omni_el("el-interp-2899"); if (el) try { el.textContent = String("{ }"); } catch(e) { __omni_reportError("interpolation:text", e); } });
 __omni_effect(() => { const el = __omni_el("el-interp-2906"); if (el) try { el.textContent = String(ComputedFnFormDemo_simple.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
@@ -11680,11 +10426,11 @@ function __ononPress_el_button_3021() {
 }
 { const el = __omni_el("el-button-3021"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_3021({}); }); }
 function __ononMouseEnter_el_button_3021() {
-  ThemeSwitcher_isHovered.set(true);
+  __omni_subs.get("ThemeSwitcher_isHovered").set(true);
 }
 { const el = __omni_el("el-button-3021"); if (el) el.addEventListener("mouseenter", (e) => {   __ononMouseEnter_el_button_3021({}); }); }
 function __ononMouseLeave_el_button_3021() {
-  ThemeSwitcher_isHovered.set(false);
+  __omni_subs.get("ThemeSwitcher_isHovered").set(false);
 }
 { const el = __omni_el("el-button-3021"); if (el) el.addEventListener("mouseleave", (e) => {   __ononMouseLeave_el_button_3021({}); }); }
 __omni_effect(() => { const el = __omni_el("el-interp-3022"); if (el) try { el.textContent = String(ThemeSwitcher_buttonLabel.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
@@ -11931,8 +10677,8 @@ __omni_effect(() => { const el = __omni_el("el-interp-3211"); if (el) try { el.t
 { const el = __omni_el("el-button-3218"); if (el) el.addEventListener("click", (e) => {   AdvancedPseudoDemo_setDark({}); }); }
 { const el = __omni_el("el-button-3220"); if (el) el.addEventListener("click", (e) => {   AdvancedPseudoDemo_setDefault({}); }); }
 let _guard_value_el_input_3230 = false;
-{ const el = __omni_el("el-input-3230"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_3230) { AdvancedPseudoDemo_variant.set(e.target.value); } }); }
-__omni_effect(() => { const el = __omni_el("el-input-3230"); if (el) { _guard_value_el_input_3230 = true; el.value = AdvancedPseudoDemo_variant.value; _guard_value_el_input_3230 = false; } });
+{ const el = __omni_el("el-input-3230"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_3230) { __omni_subs.get("AdvancedPseudoDemo_variant").set(e.target.value); } }); }
+__omni_effect(() => { const el = __omni_el("el-input-3230"); if (el) { _guard_value_el_input_3230 = true; el.value = __omni_subs.get("AdvancedPseudoDemo_variant").value; _guard_value_el_input_3230 = false; } });
 
 /// ── @if conditional el-if-3086 ──
 __omni_effect(() => {
@@ -11952,7 +10698,7 @@ __omni_motion_bouncePath(null, {});
 // @mount TypeSystemDemo
   TypeSystemDemo_loadSummary();
 // @mount TodoPage
-  TodoPage_pageLoadCount.set(TodoPage_pageLoadCount.value + 1);
+  __omni_subs.get("TodoPage_pageLoadCount").set(TodoPage_pageLoadCount.value + 1);
 // @effect TodoPage
 __omni_effect(() => {
   console.log("Total items: " + String(TodoStore_totalCount.value));
@@ -11970,13 +10716,13 @@ __omni_effect(() => {
   if (raw !== "") {
   let parsed = JSON.parse(raw);
   if (parsed !== "") {
-  UserSettings_username.set(parsed);
-  UserSettings_savedText.set("Settings loaded from storage");
+  __omni_subs.get("UserSettings_username").set(parsed);
+  __omni_subs.get("UserSettings_savedText").set("Settings loaded from storage");
   } else {
-  UserSettings_savedText.set("No saved settings found");
+  __omni_subs.get("UserSettings_savedText").set("No saved settings found");
   }
   } else {
-  UserSettings_savedText.set("No saved settings found");
+  __omni_subs.get("UserSettings_savedText").set("No saved settings found");
   }
 // @effect UserSettings
 __omni_effect(() => {
@@ -11987,7 +10733,7 @@ __omni_effect(() => {
 // @effect NotificationsPanel
 __omni_effect(() => {
   if (NotificationStore_unreadCount.value > 0) {
-  NotificationsPanel_badgeVisible.set(true);
+  __omni_subs.get("NotificationsPanel_badgeVisible").set(true);
   }
 });
 // @enter trigger
@@ -12031,7 +10777,7 @@ __omni_effect(() => {
    for (const k of Object.keys(targets.to)) from[k] = getComputedStyle(el).getPropertyValue(k);
    el.animate([from, targets.to], {
     duration: targets.over || 150,
-    easing: targets.ease || "ease-out",
+    easing: Omni.resolveEasing(targets.ease || "ease-out"),
     fill: "forwards"
    });
    _state = state;

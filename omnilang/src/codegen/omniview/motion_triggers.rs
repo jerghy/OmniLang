@@ -115,12 +115,13 @@ impl OmniViewGenerator {
                              (function() {{\n\
                              \x20 const el = __omni_el(\"{nid}\");\n\
                              \x20 if (el) {{\n\
-                             \x20\x20 const config = {{ trigger: \"{trigger}\" }};\n\
-                             \x20\x20 __omni_createAnimation(\"{nid}\", config);\n\
+                             \x20\x20 const anim = __omni_motion_{motion}(el, {{ trigger: \"{trigger}\" }});\n\
+                             \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", anim);\n\
                              \x20 }}\n\
                              }})();\n",
                             nid = nid,
-                            trigger = trigger_str
+                            trigger = trigger_str,
+                            motion = motion_name
                         ));
                     }
                     TriggerKind::InView => {
@@ -159,7 +160,7 @@ impl OmniViewGenerator {
                              \x20\x20 }});\n\
                              \x20 }}, {{ threshold: threshold }});\n\
                              \x20 observer.observe(el);\n\
-                             \x20 __omni_inview_observers = __omni_inview_observers || [];\n\
+                             \x20 window.__omni_inview_observers = window.__omni_inview_observers || [];\n\
                              \x20 __omni_inview_observers.push(observer);\n\
                              }})();\n",
                             nid = nid,
@@ -195,12 +196,7 @@ impl OmniViewGenerator {
                              \x20 const endCfg = \"{scroll_end}\";\n\
                              \x20 const scrubDelay = {scrub};\n\
                              \x20 function computeProgress() {{\n\
-                             \x20\x20 const rect = el.getBoundingClientRect();\n\
-                             \x20\x20 const vh = window.innerHeight;\n\
-                             \x20\x20 const startPos = __omni_parseScrollTrigger(startCfg, el, vh);\n\
-                             \x20\x20 const endPos = __omni_parseScrollTrigger(endCfg, el, vh);\n\
-                             \x20\x20 const raw = (window.scrollY - startPos) / (endPos - startPos);\n\
-                             \x20\x20 return Math.max(0, Math.min(1, raw));\n\
+                             \x20\x20 return Omni.scrollProgress(el, startCfg, endCfg);\n\
                              \x20 }}\n\
                              \x20 let currentProgress = 0;\n\
                              \x20 window.addEventListener('scroll', () => {{\n\
@@ -470,7 +466,7 @@ impl OmniViewGenerator {
                              \x20\x20 }});\n\
                              \x20 }}, {{ threshold: threshold }});\n\
                              \x20 observer.observe(el);\n\
-                             \x20 __omni_inview_observers = __omni_inview_observers || [];\n\
+                             \x20 window.__omni_inview_observers = window.__omni_inview_observers || [];\n\
                              \x20 __omni_inview_observers.push(observer);\n\
                              }})();\n",
                             nid = nid,
@@ -507,12 +503,7 @@ impl OmniViewGenerator {
                              \x20 const endCfg = \"{scroll_end}\";\n\
                              \x20 const scrubDelay = {scrub};\n\
                              \x20 function computeProgress() {{\n\
-                             \x20\x20 const rect = el.getBoundingClientRect();\n\
-                             \x20\x20 const vh = window.innerHeight;\n\
-                             \x20\x20 const startPos = __omni_parseScrollTrigger(startCfg, el, vh);\n\
-                             \x20\x20 const endPos = __omni_parseScrollTrigger(endCfg, el, vh);\n\
-                             \x20\x20 const raw = (window.scrollY - startPos) / (endPos - startPos);\n\
-                             \x20\x20 return Math.max(0, Math.min(1, raw));\n\
+                             \x20\x20 return Omni.scrollProgress(el, startCfg, endCfg);\n\
                              \x20 }}\n\
                              \x20 let currentProgress = 0;\n\
                              \x20 window.addEventListener('scroll', () => {{\n\

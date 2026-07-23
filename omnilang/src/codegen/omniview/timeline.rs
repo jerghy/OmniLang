@@ -295,7 +295,8 @@ impl OmniViewGenerator {
                 .map(|(name, pos)| format!("\"{}\": {}", name, pos))
                 .collect();
             self.mount_js.push_str(&format!(
-                "__omni_timeline_labels.set(\"{}\", {{{}}});\n",
+                "window.__omni_timeline_labels = window.__omni_timeline_labels || new Map();\n\
+                 window.__omni_timeline_labels.set(\"{}\", {{{}}});\n",
                 timeline.name,
                 labels_str.join(", ")
             ));
@@ -312,6 +313,9 @@ impl OmniViewGenerator {
              \x20\x20 name: \"{name}\",\n\
              \x20\x20 type: \"timeline\",\n\
              \x20\x20 kill: function() {{\n\
+             \x20\x20\x20 anims.forEach(function(a) {{ if (a && a.cancel) a.cancel(); }});\n\
+             \x20\x20 }},\n\
+             \x20\x20 cancel: function() {{\n\
              \x20\x20\x20 anims.forEach(function(a) {{ if (a && a.cancel) a.cancel(); }});\n\
              \x20\x20 }}\n\
              \x20 }};\n\

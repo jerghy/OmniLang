@@ -1,23 +1,27 @@
 // FLIP animation for @for list reordering
 const flipState = new Map<string, { rect: DOMRect; element: Element }>()
 
-export function flipBefore(containerSelector: string): void {
-  const container = document.querySelector(containerSelector)
-  if (!container) return
-  container.querySelectorAll('[data-for-key]').forEach(el => {
+export function flipBefore(container: Element | string): void {
+  const containerEl = typeof container === 'string'
+    ? document.querySelector(container)
+    : container;
+  if (!containerEl) return
+  containerEl.querySelectorAll('[data-for-key]').forEach(el => {
     const key = el.getAttribute('data-for-key')
     if (key) flipState.set(key, { rect: el.getBoundingClientRect(), element: el })
   })
 }
 
 export function flipAfter(
-  containerSelector: string,
+  container: Element | string,
   duration: number = 400,
   easing: string = 'ease-out'
 ): void {
-  const container = document.querySelector(containerSelector)
-  if (!container) return
-  container.querySelectorAll('[data-for-key]').forEach(el => {
+  const containerEl = typeof container === 'string'
+    ? document.querySelector(container)
+    : container;
+  if (!containerEl) return
+  containerEl.querySelectorAll('[data-for-key]').forEach(el => {
     const key = el.getAttribute('data-for-key')
     if (!key) return
     const prev = flipState.get(key)

@@ -182,7 +182,7 @@ impl OmniViewGenerator {
                 .push_str("        const leavingNid = el.getAttribute('data-nid');\n");
             self.js.push_str("        if (leavingNid) {\n");
             self.js
-                .push_str("          const player = __omni_getAnimation(leavingNid, 'leave');\n");
+                .push_str("          const player = __omni_animations.get(leavingNid + '_leave');\n");
             self.js.push_str("          if (player) {\n");
             self.js.push_str(
                 "            player.play().then(() => { el.remove(); _forKeys.delete(key); });\n",
