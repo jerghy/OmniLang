@@ -229,3 +229,119 @@ export function parseOps(source: string): CodeOp[] {
 
   return ops;
 }
+
+// ── WASM-first parse function ──
+
+export async function parseOpsWasm(source: string): Promise<CodeOp[]> {
+  try {
+    const wasm = await import("../../wasm/omnilang_wasm.js");
+    const result = wasm.parse_code_block(source);
+    const parsed: { success: boolean; stmts: any[]; errors: string[] } =
+      typeof result === "string" ? JSON.parse(result) : result;
+
+    if (!parsed.success && parsed.stmts.length === 0) {
+      // Fall back to JS regex parser
+      return parseOps(source);
+    }
+
+    return stmtsToCodeOps(parsed.stmts);
+  } catch {
+    // WASM not available — fall back to JS regex
+    return parseOps(source);
+  }
+}
+
+function stmtsToCodeOps(stmts: any[]): CodeOp[] {
+  return stmts.map((stmt: any): CodeOp => {
+    // Map Rust AST enum variants to CodeOp
+    // The Rust Stmt enum uses tagged variants: { "VarDecl": { mutable, name, ... } }
+    if (stmt.VarDecl) {
+      const d = stmt.VarDecl;
+      return {
+        kind: "declare_var",
+        pid: uid("op"),
+        mutable: d.mutable ?? false,
+        name: d.name ?? "x",
+        varType: d.var_type ?? d.varType,
+        initValue: d.init_value ?? d.initValue ?? d.init,
+        scope: "fn",
+      };
+    }
+    if (stmt.Assign) {
+      const s = stmt.Assign;
+      return {
+        kind: "set_var",
+        pid: uid("op"),
+        name: s.target?.Name ?? s.name ?? "x",
+        operator: "=",
+        value: s.value ?? "",
+      };
+    }
+    if (stmt.If) {
+      const i = stmt.If;
+      return {
+        kind: "if_block",
+        pid: uid("op"),
+        branches: [
+          {
+            condition: i.condition ?? "",
+            body: stmtsToCodeOps(i.then_body?.stmts ?? []),
+            ...(i.else_body ? { elseBody: stmtsToCodeOps(i.else_body.stmts ?? []) } : {}),
+          },
+        ],
+      };
+    }
+    if (stmt.While) {
+      const w = stmt.While;
+      return {
+        kind: "while",
+        pid: uid("op"),
+        condition: w.condition ?? "true",
+        body: stmtsToCodeOps(w.body?.stmts ?? []),
+      };
+    }
+    if (stmt.ForIn) {
+      const f = stmt.ForIn;
+      return {
+        kind: "for_in",
+        pid: uid("op"),
+        itemName: f.var_name ?? f.itemName ?? "item",
+        collection: f.iterable ?? f.collection ?? "items",
+        body: stmtsToCodeOps(f.body?.stmts ?? []),
+      };
+    }
+    if (stmt.Return) {
+      return {
+        kind: "return",
+        pid: uid("op"),
+        value: stmt.Return.value ?? "",
+      };
+    }
+    if (stmt.Break) {
+      return { kind: "break", pid: uid("op") };
+    }
+    if (stmt.Continue) {
+      return { kind: "continue", pid: uid("op") };
+    }
+    if (stmt.ExprStmt) {
+      // Try to extract a call expression from ExprStmt
+      const expr = stmt.ExprStmt.expr;
+      if (expr.FuncCall) {
+        return {
+          kind: "call_fn",
+          pid: uid("op"),
+          fnName: expr.FuncCall.func?.VarRef ?? "fn",
+          args: (expr.FuncCall.args ?? []).map((a: any) =>
+            typeof a === "object" ? a.Literal?.String ?? a.Literal?.Int ?? JSON.stringify(a) : String(a)
+          ),
+        };
+      }
+    }
+    // Fallback for unmapped stmts
+    return {
+      kind: "raw",
+      pid: uid("op"),
+      source: JSON.stringify(stmt),
+    };
+  });
+}

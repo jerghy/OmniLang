@@ -482,6 +482,45 @@ pub fn compile_multi_to_target(
 }
 
 // ═══════════════════════════════════════════════════════
+// Statement-level parsing (for CodeCard code-block editor)
+// ═══════════════════════════════════════════════════════
+
+/// Result of parsing a sequence of statements (not a full program).
+#[derive(Debug, Serialize)]
+pub struct ParseStmtsResult {
+    pub success: bool,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub stmts: Vec<parser::ast::Stmt>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub errors: Vec<String>,
+}
+
+/// Parse a sequence of statements from source text, returning structured AST nodes.
+///
+/// This is designed for the CodeCard editor's code-block parsing: it wraps the
+/// source in braces so the existing `parse_block` method can handle statement
+/// sequences (including error recovery).  Callers on the JS side fall back to
+/// the regex parser when this returns `success: false`.
+#[must_use]
+pub fn parse_stmts(source: &str) -> ParseStmtsResult {
+    let wrapped = format!("{{ {} }}", source);
+    let tokens = lexer::tokenize(&wrapped);
+    let mut parser = parser::Parser::new(tokens, &wrapped);
+    match parser.parse_block() {
+        Ok(block) => ParseStmtsResult {
+            success: true,
+            stmts: block.stmts,
+            errors: Vec::new(),
+        },
+        Err(e) => ParseStmtsResult {
+            success: false,
+            stmts: Vec::new(),
+            errors: vec![format!("{:?}", e)],
+        },
+    }
+}
+
+// ═══════════════════════════════════════════════════════
 // TS Export (generates TypeScript type definitions)
 // ═══════════════════════════════════════════════════════
 

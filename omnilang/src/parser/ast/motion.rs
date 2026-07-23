@@ -2,6 +2,8 @@
 //!
 //! Contains: MotionDef, TimelineDef, EasingExpr, StaggerCall, PlaybackProp, StoreDef, ThemeDef, etc.
 
+use serde::Serialize;
+
 use crate::lexer::Span;
 
 use super::view::{ActionDef, SignalDecl};
@@ -10,7 +12,7 @@ use super::{Expr, TypeAnnotation};
 // ── Motion / Animation AST ────────────────────────────
 
 /// Top-level or component-scoped motion definition
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct MotionDef {
     pub name: String,
     pub body: MotionBody,
@@ -18,14 +20,14 @@ pub struct MotionDef {
 }
 
 /// Cross-element timeline orchestration
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct TimelineDef {
     pub name: String,
     pub items: Vec<TimelineItem>,
     pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum MotionBody {
     Keyframe(KeyframeBody),
     Timeline(TimelineBody),
@@ -33,7 +35,7 @@ pub enum MotionBody {
 }
 
 /// Keyframe mode: percentage stops with shared over/ease
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct KeyframeBody {
     pub stops: Vec<KeyframeStop>,
     pub over: Expr,
@@ -48,14 +50,14 @@ pub struct KeyframeBody {
     pub callbacks: Vec<CallbackSpec>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct KeyframeStop {
     pub position: StopPosition,
     pub properties: Vec<(String, Expr)>,
     pub ease: Option<EasingExpr>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum StopPosition {
     From,
     To,
@@ -63,19 +65,19 @@ pub enum StopPosition {
 }
 
 /// Timeline mode: sequential/parallel items with independent timing
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct TimelineBody {
     pub items: Vec<TimelineItem>,
     pub playback: Vec<PlaybackProp>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct TimelineItem {
     pub kind: TimelineItemKind,
     pub connector: Connector,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 #[allow(clippy::large_enum_variant)]
 pub enum TimelineItemKind {
     Direction(DirectionItem),
@@ -87,7 +89,7 @@ pub enum TimelineItemKind {
     StartPos(PositionValue),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct DirectionItem {
     pub direction: Direction,
     pub properties: Vec<(String, Expr)>,
@@ -102,20 +104,20 @@ pub struct DirectionItem {
     pub path_rotate: Option<bool>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum Direction {
     To,
     FromTo,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum Connector {
     None,
     Then,
     With,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum PositionValue {
     After,
     WithPrev,
@@ -126,14 +128,14 @@ pub enum PositionValue {
 }
 
 /// Callback-only mode
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct CallbackBody {
     pub callbacks: Vec<CallbackSpec>,
     pub over: Expr,
     pub playback: Vec<PlaybackProp>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum CallbackSpec {
     OnStart(Expr),
     OnUpdate(Expr),
@@ -142,7 +144,7 @@ pub enum CallbackSpec {
     OnInterrupt(Expr),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum PlaybackProp {
     Loop(LoopValue),
     Direction(DirectionValue),
@@ -160,13 +162,13 @@ pub enum PlaybackProp {
     StaggerFrom(StaggerDirection),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum LoopValue {
     Count(u32),
     Infinite,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum DirectionValue {
     Normal,
     Reverse,
@@ -174,7 +176,7 @@ pub enum DirectionValue {
     AlternateReverse,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum FillValue {
     None,
     Forwards,
@@ -182,7 +184,7 @@ pub enum FillValue {
     Both,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum InterruptValue {
     Stop,
     Complete,
@@ -190,7 +192,7 @@ pub enum InterruptValue {
     Replace,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum WhenValue {
     BeforeChildren,
     AfterChildren,
@@ -198,7 +200,7 @@ pub enum WhenValue {
 }
 
 /// Easing expression
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum EasingExpr {
     Named(String),
     CubicBezier {
@@ -228,20 +230,20 @@ pub enum EasingExpr {
 }
 
 /// Stagger call
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct StaggerCall {
     pub motion: Box<Expr>,
     pub timing: StaggerTiming,
     pub from: StaggerDirection,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum StaggerTiming {
     Each(Expr),
     Amount(Expr),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum StaggerDirection {
     Start,
     Center,
@@ -250,13 +252,13 @@ pub enum StaggerDirection {
 }
 
 /// Animation trigger specification (used in @prop attributes)
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct MotionTrigger {
     pub trigger: TriggerKind,
     pub motion_expr: Expr,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum TriggerKind {
     Enter,
     Leave,
@@ -273,7 +275,7 @@ pub enum TriggerKind {
 }
 
 /// State definition for state-based animation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct StateDef {
     pub name: String,
     pub properties: Vec<(String, Expr)>,
@@ -282,7 +284,7 @@ pub struct StateDef {
 }
 
 /// Hero definition for cross-component shared element transitions
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct HeroDef {
     pub name: String,
     pub over: Expr,
@@ -292,7 +294,7 @@ pub struct HeroDef {
 
 // ── Store & Theme ─────────────────────────────────────
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct StoreDef {
     pub name: String,
     pub signals: Vec<SignalDecl>,
@@ -301,19 +303,19 @@ pub struct StoreDef {
     pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct GetterDecl {
     pub name: String,
     pub type_ann: TypeAnnotation,
     pub body: Expr,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ThemeDef {
     pub categories: Vec<ThemeCategory>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ThemeCategory {
     pub name: String,
     pub values: Vec<(String, String)>,

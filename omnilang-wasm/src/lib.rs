@@ -121,6 +121,16 @@ pub fn resolve_styles(source: &str) -> JsValue {
     to_js_value(&omnilang::resolve_styles(source))
 }
 
+/// Parse a code-block source string into structured AST statements.
+/// Returns a JsValue with `{ success, stmts, errors }`.
+#[wasm_bindgen]
+pub fn parse_code_block(source: &str) -> JsValue {
+    let result = omnilang::parse_stmts(source);
+    serde_wasm_bindgen::to_value(&result).unwrap_or_else(|e| {
+        js_error_value(&format!("serialization error: {}", e))
+    })
+}
+
 /// Wrap generated OmniView output in a standalone debug-ready HTML document.
 #[cfg(feature = "codegen-omniview")]
 #[wasm_bindgen]
@@ -214,6 +224,7 @@ pub fn compile_multi_to_omniview(sources: JsValue, editor_mode: bool, debug_mode
         path_mapping,
         editor_mode,
         debug_mode,
+        None,
     );
     to_js_value(&result)
 }
@@ -314,6 +325,7 @@ impl OmniCompiler {
                 FxHashMap::default(),
                 editor_mode,
                 debug_mode,
+                None,
             );
             to_js_value(&result)
         };
