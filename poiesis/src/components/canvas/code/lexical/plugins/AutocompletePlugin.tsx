@@ -1,261 +1,272 @@
 // poiesis/src/components/canvas/code/lexical/plugins/AutocompletePlugin.tsx
-import { useCallback, useEffect, useRef, useState } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import {
   $getSelection,
   $isRangeSelection,
   $isTextNode,
-  $createTextNode,
-  COMMAND_PRIORITY_LOW,
   KEY_ENTER_COMMAND,
   KEY_ESCAPE_COMMAND,
   KEY_ARROW_DOWN_COMMAND,
   KEY_ARROW_UP_COMMAND,
+  COMMAND_PRIORITY_LOW,
+  $getRoot,
+  $createTextNode,
 } from "lexical";
-import { AutocompleteMenu } from "../autocomplete/AutocompleteMenu";
-import { $isSlotTextNode, type SlotType } from "../nodes/SlotTextNode";
-import { $isCardElementNode, type CardKind } from "../nodes/CardElementNode";
-import { getAutocompleteItems, detectCardKindFromItem } from "../autocomplete/autocomplete-rules";
-import type { AutocompleteItem } from "../autocomplete/autocomplete-rules";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  getAutocompleteItems,
+  detectCardKindFromItem,
+  type AutocompleteItem,
+  type AutocompleteContext,
+} from "../autocomplete/autocomplete-rules";
+import { $createCardNode } from "../nodes/CardNode";
+import { $createContainerElementNode, $isContainerElementNode } from "../nodes/ContainerNode";
+import { $createBlockElementNode } from "../nodes/BlockNode";
+import { $createBodyLineNode } from "../nodes/BodyLineNode";
+import { $createInputSlotNode } from "../nodes/InputSlotNode";
+import type { SlotKind } from "../../../../../core/types/editor-node";
 import { uid } from "../../../../../core/utils/id";
-import { $transformTextToCard } from "../transforms/text-to-card";
+import { AutocompleteMenu } from "../autocomplete/AutocompleteMenu";
 
-export function AutocompletePlugin(): React.ReactNode {
+interface Props {
+  /** Called when backslash key creates a new input slot */
+  onCreateSlot?: () => void;
+}
+
+export function AutocompletePlugin({ onCreateSlot }: Props): React.ReactNode {
   const [editor] = useLexicalComposerContext();
-  const [show, setShow] = useState(false);
-  const [items, setItems] = useState<AutocompleteItem[]>([]);
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
-  const lastTokenRef = useRef<string>("");
-  const contextRef = useRef<{ parentKind: CardKind | null; slotType: SlotType | null }>({
-    parentKind: null,
-    slotType: null,
-  });
+  const [acState, setAcState] = useState<{
+    visible: boolean;
+    items: AutocompleteItem[];
+    index: number;
+  }>({ visible: false, items: [], index: 0 });
+  const typingTokenRef = useRef("");
 
-  const close = useCallback(() => {
-    setShow(false);
-    setSelectedIndex(0);
-  }, []);
-
-  // ── Detect token at cursor and trigger autocomplete ──
-  const detectAndShow = useCallback(() => {
-    editor.getEditorState().read(() => {
-      const selection = $getSelection();
-      if (!$isRangeSelection(selection) || !selection.isCollapsed()) {
-        return;
-      }
-
-      const anchor = selection.anchor;
-      const node = anchor.getNode();
-
-      // Determine context: are we in a slot or in a paragraph?
-      let slotType: SlotType | null = null;
-      let parentKind: CardKind | null = null;
-
-      if ($isSlotTextNode(node)) {
-        slotType = node.getSlotType();
-        // Walk up to find parent card
-        let parent = node.getParent();
-        while (parent) {
-          if ($isCardElementNode(parent)) {
-            parentKind = parent.__cardKind;
-            break;
-          }
-          parent = parent.getParent();
-        }
-      } else if ($isTextNode(node)) {
-        let parent = node.getParent();
-        while (parent) {
-          if ($isCardElementNode(parent)) {
-            parentKind = parent.__cardKind;
-            break;
-          }
-          parent = parent.getParent();
-        }
-      }
-
-      // Extract token: text from start of current word to cursor
-      const textContent = node.getTextContent();
-      const offset = anchor.offset;
-      // Find the start of the current token (walk back to space/punctuation)
-      let tokenStart = offset;
-      while (tokenStart > 0 && /[\w.]/.test(textContent[tokenStart - 1])) {
-        tokenStart--;
-      }
-      const token = textContent.slice(tokenStart, offset);
-
-      contextRef.current = { parentKind, slotType };
-
-      const candidates = getAutocompleteItems(token, { parentKind, slotType });
-      if (candidates.length > 0) {
-        lastTokenRef.current = token;
-        setItems(candidates);
-        setSelectedIndex(0);
-        setShow(true);
-        // Position: approximate — below current line
-        // In production, use getBoundingClientRect on the editor + caret position
-        setMenuPos({
-          top: 200 + (anchor.offset || 0),
-          left: 60,
-        });
-      } else {
-        setShow(false);
-      }
-    });
-  }, [editor]);
-
-  // ── Execute autocomplete selection ──
-  const executeSelection = useCallback(
-    (item: AutocompleteItem) => {
-      close();
-      const cardKind = detectCardKindFromItem(item);
-      if (!cardKind) return;
-
-      editor.update(() => {
+  // ── Detect typing and trigger autocomplete ──
+  useEffect(() => {
+    return editor.registerUpdateListener(({ editorState }: any) => {
+      editorState.read(() => {
         const selection = $getSelection();
-        if (!$isRangeSelection(selection)) return;
+        if (!$isRangeSelection(selection)) {
+          setAcState((s) => (s.visible ? { ...s, visible: false } : s));
+          return;
+        }
 
         const anchor = selection.anchor;
         const node = anchor.getNode();
-        const token = lastTokenRef.current;
+        const text = node.getTextContent();
 
-        // Remove the typed token from the TextNode
-        if ($isTextNode(node) || $isSlotTextNode(node)) {
-          const textContent = node.getTextContent();
-          const offset = anchor.offset;
-          let tokenStart = offset;
-          while (tokenStart > 0 && /[\w.]/.test(textContent[tokenStart - 1])) {
-            tokenStart--;
-          }
-          const before = textContent.slice(0, tokenStart);
-          const after = textContent.slice(offset);
-          node.setTextContent(before + after);
+        // Extract current word token from cursor position
+        const offset = anchor.offset;
+        const beforeCursor = text.slice(0, offset);
+        const tokenMatch = beforeCursor.match(/(\S+)$/);
+        const token = tokenMatch ? tokenMatch[1] : "";
+
+        // Determine context
+        const parent = node.getParent();
+        const context: AutocompleteContext = {
+          parentKind: getParentContextKind(parent),
+          precedingCardKind: getPrecedingCardKind(node, offset),
+        };
+
+        const items = getAutocompleteItems(token, context);
+        if (items.length > 0) {
+          setAcState({ visible: true, items, index: 0 });
+          typingTokenRef.current = token;
+        } else {
+          setAcState((s) => (s.visible ? { ...s, visible: false } : s));
         }
+      });
+    });
+  }, [editor]);
 
-        // Create the card
-        const pid = uid("op");
-        const card = $transformTextToCard(cardKind, token, pid);
+  // ── Backslash → insert input slot ──
+  useEffect(() => {
+    const removeRootListener = editor.registerRootListener(
+      (rootElement: HTMLElement | null) => {
+        if (!rootElement) return;
+        const handler = (e: KeyboardEvent) => {
+          if (e.key === "\\") {
+            e.preventDefault();
+            editor.update(() => {
+              const selection = $getSelection();
+              if (!$isRangeSelection(selection)) return;
+              const node = selection.anchor.getNode();
+              const parent = node.getParent();
 
-        // Handle declare_var_mut: set mutable
-        if (item.kind === "declare_var_mut") {
-          // Insert "mut" text node after "let "
-          const firstChild = card.getFirstChild();
-          if (firstChild) {
-            // Find "let " and insert "mut " after it
-            let current = firstChild;
-            while (current) {
-              if (current.getTextContent() === "let") {
-                const next = current.getNextSibling();
-                if (next) {
-                  next.insertBefore($createTextNode("mut "));
-                }
-                break;
+              const parentKind = getParentContextKind(parent);
+              const slotKind = inferSlotKind(parentKind);
+              if (slotKind) {
+                const slotNode = $createInputSlotNode("", slotKind as SlotKind);
+                node.getParent()?.append(slotNode);
+                slotNode.select();
+                onCreateSlot?.();
               }
-              const nextSibling = current.getNextSibling();
-              if (!nextSibling) break;
-              current = nextSibling;
-            }
+            });
           }
+        };
+        rootElement.addEventListener("keydown", handler);
+        return () => rootElement.removeEventListener("keydown", handler);
+      },
+    );
+    return () => removeRootListener?.();
+  }, [editor, onCreateSlot]);
+
+  const executeAutocomplete = useCallback(
+    (item: AutocompleteItem) => {
+      setAcState((s) => ({ ...s, visible: false }));
+
+      editor.update(() => {
+        const token = typingTokenRef.current;
+        const selection = $getSelection();
+        if (!$isRangeSelection(selection)) return;
+
+        const anchorNode = selection.anchor.getNode();
+
+        // Remove the typed token text
+        if ($isTextNode(anchorNode) && anchorNode.getTextContentSize() > 0) {
+          const text = anchorNode.getTextContent();
+          const offset = selection.anchor.offset;
+          const beforeToken = text.slice(0, offset - token.length);
+          const afterToken = text.slice(offset);
+          anchorNode.setTextContent(beforeToken + afterToken);
         }
 
-        // Insert the card at the current selection
-        selection.insertNodes([card]);
+        const { nodeType, kind } = detectCardKindFromItem(item);
+        const pid = uid("cc");
 
-        // Move cursor to the first slot in the card
-        const firstSlot = findFirstSlot(card);
-        if (firstSlot) {
-          firstSlot.select(0, 0);
+        if (nodeType === "inline") {
+          const cardNode = $createCardNode(kind as any, item.label, pid);
+          anchorNode.getParent()?.append(cardNode);
+          // Insert text node after for continued typing
+          const nextText = $createTextNode(" ");
+          cardNode.insertAfter(nextText);
+          nextText.select();
+        } else if (nodeType === "container") {
+          const containerNode = $createContainerElementNode(kind as any, pid);
+          anchorNode.getParent()?.append(containerNode);
+          containerNode.selectStart();
+        } else if (nodeType === "block") {
+          const blockNode = $createBlockElementNode(kind as any, pid);
+          const bodyLine = $createBodyLineNode(uid("bl"));
+          blockNode.append(bodyLine);
+          anchorNode.getParent()?.append(blockNode);
+          bodyLine.selectStart();
         }
       });
     },
-    [editor, close],
+    [editor],
   );
 
-  // ── Keyboard command handlers ──
+  // ── Enter confirms autocomplete selection ──
   useEffect(() => {
     return editor.registerCommand(
       KEY_ENTER_COMMAND,
       (event: KeyboardEvent) => {
-        if (show && items.length > 0) {
-          event.preventDefault();
-          event.stopPropagation();
-          executeSelection(items[selectedIndex]);
-          return true;
-        }
-        return false;
+        if (!acState.visible) return false;
+        event.preventDefault();
+        executeAutocomplete(acState.items[acState.index]);
+        return true;
       },
       COMMAND_PRIORITY_LOW,
     );
-  }, [editor, show, items, selectedIndex, executeSelection]);
+  }, [editor, acState, executeAutocomplete]);
 
+  // ── Escape closes autocomplete ──
   useEffect(() => {
     return editor.registerCommand(
       KEY_ESCAPE_COMMAND,
       () => {
-        if (show) {
-          close();
+        if (acState.visible) {
+          setAcState((s) => ({ ...s, visible: false }));
           return true;
         }
         return false;
       },
       COMMAND_PRIORITY_LOW,
     );
-  }, [editor, show, close]);
+  }, [editor, acState.visible]);
 
+  // ── Arrow down navigates autocomplete list ──
   useEffect(() => {
     return editor.registerCommand(
       KEY_ARROW_DOWN_COMMAND,
       (event: KeyboardEvent) => {
-        if (show) {
-          event.preventDefault();
-          setSelectedIndex(i => Math.min(i + 1, items.length - 1));
-          return true;
-        }
-        return false;
+        if (!acState.visible) return false;
+        event.preventDefault();
+        setAcState((s) => ({
+          ...s,
+          index: Math.min(s.index + 1, s.items.length - 1),
+        }));
+        return true;
       },
       COMMAND_PRIORITY_LOW,
     );
-  }, [editor, show, items]);
+  }, [editor, acState.visible, acState.items.length]);
 
+  // ── Arrow up navigates autocomplete list ──
   useEffect(() => {
     return editor.registerCommand(
       KEY_ARROW_UP_COMMAND,
       (event: KeyboardEvent) => {
-        if (show) {
-          event.preventDefault();
-          setSelectedIndex(i => Math.max(i - 1, 0));
-          return true;
-        }
-        return false;
+        if (!acState.visible) return false;
+        event.preventDefault();
+        setAcState((s) => ({
+          ...s,
+          index: Math.max(s.index - 1, 0),
+        }));
+        return true;
       },
       COMMAND_PRIORITY_LOW,
     );
-  }, [editor, show]);
+  }, [editor, acState.visible]);
 
-  // ── Register text-change listener ──
-  useEffect(() => {
-    return editor.registerTextContentListener(() => {
-      detectAndShow();
-    });
-  }, [editor, detectAndShow]);
-
-  if (!show) return null;
+  if (!acState.visible) return null;
 
   return (
     <AutocompleteMenu
-      items={items}
-      selectedIndex={selectedIndex}
-      onSelect={executeSelection}
-      onClose={close}
-      position={menuPos}
+      items={acState.items}
+      selectedIndex={acState.index}
+      onSelect={executeAutocomplete}
+      onClose={() => setAcState((s) => ({ ...s, visible: false }))}
+      position={{ top: 200, left: 60 }}
     />
   );
 }
 
-function findFirstSlot(card: any): any | null {
-  const children = card.getChildren();
-  for (const child of children) {
-    if ($isSlotTextNode(child)) return child;
-  }
+// ── Context helpers ──
+
+function getParentContextKind(parent: any): string | null {
+  if (!parent || parent === $getRoot()) return null;
+  if ($isContainerElementNode(parent)) return parent.getContainerKind();
+  const grandparent = parent.getParent();
+  if ($isContainerElementNode(grandparent)) return grandparent.getContainerKind();
   return null;
+}
+
+function getPrecedingCardKind(node: any, offset: number): string | null {
+  const text = node.getTextContent();
+  if (offset > 0 && text[offset - 1] === ".") return "dot";
+  return null;
+}
+
+function inferSlotKind(parentKind: string | null): string | null {
+  if (!parentKind) return null;
+  switch (parentKind) {
+    case "let":
+    case "set":
+      return "expression";
+    case "if":
+    case "while":
+      return "condition";
+    case "for":
+      return "name";
+    case "call":
+      return "fn_name";
+    case "return":
+    case "await":
+      return "expression";
+    default:
+      return null;
+  }
 }
