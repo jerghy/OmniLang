@@ -1,0 +1,19 @@
+{
+  "name": "@omni/animation",
+  "version": "0.1.0",
+  "description": "WAAPI-based animation library for OmniLang compiled output",
+  "main": "dist/omni-animation.js",
+  "module": "dist/omni-animation.mjs",
+  "types": "dist/types.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc && node build-bundle.js",
+    "check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  },
+  "license": "MIT"
+}
