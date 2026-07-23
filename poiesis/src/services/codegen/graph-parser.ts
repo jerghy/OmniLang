@@ -10,6 +10,7 @@
 import type { CodeblockElementData } from "../../core/types/element";
 import type { WireData } from "../../core/types/wire";
 import { uid } from "../../core/utils/id";
+import { parseOps } from "./code-op-parser";
 import {
   isAnyAnnotation,
   parsePidAnnotation,
@@ -480,6 +481,15 @@ export function parseCodeFlowGraph(
       props = { branches };
     } else if (seg.type === "code-block") {
       source = seg.code;
+      // Try parsing source into structured operations
+      let operations;
+      try {
+        operations = parseOps(source);
+      } catch {
+        operations = undefined; // keep as raw source only
+      }
+      // Store operations for later use
+      (seg as any)._operations = operations;
     } else if (seg.type === "return") {
       // The return expression is always on the first line (trailing } may
       // follow on subsequent lines if this is the last segment in a block).
@@ -495,6 +505,7 @@ export function parseCodeFlowGraph(
       parentId: null,
       props,
       source,
+      ...((seg as any)._operations && (seg as any)._operations.length > 0 ? { operations: (seg as any)._operations } : {}),
     };
 
     elements.push(el);
