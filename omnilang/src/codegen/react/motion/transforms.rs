@@ -91,7 +91,7 @@ pub(crate) fn emit_inview_effects_tsx(w: &mut CodeWriter, node: &ViewTree) {
     w.indent();
     w.emit("if (entry.isIntersecting) {");
     w.indent();
-    w.emit("el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, easing: 'ease-out', fill: 'both' });");
+    w.emit("animate(el, [{offset:0,properties:{opacity:0}}, {offset:1,properties:{opacity:1}}], {duration:300, easing:'ease-out', fill:'both'});");
     w.emit("observer.disconnect();");
     w.dedent();
     w.emit("}");
