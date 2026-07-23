@@ -154,7 +154,8 @@ type CodeOp =
   | AwaitExprOp
   | BreakStmtOp
   | ContinueStmtOp
-  | CommentOp;
+  | CommentOp
+  | RawCodeOp;
 ```
 
 ### 操作卡片类型定义
@@ -163,6 +164,7 @@ type CodeOp =
 // ── 变量声明 ──
 interface DeclareVarOp {
   kind: "declare_var";
+  pid: string;                 // 唯一标识，对应 .omni 中的 // @pid:xxx
   mutable: boolean;            // false=let, true=let mut
   name: string;
   varType?: string;            // 可选，省略则类型推断
@@ -173,6 +175,7 @@ interface DeclareVarOp {
 // ── 变量赋值 ──
 interface SetVarOp {
   kind: "set_var";
+  pid: string;
   name: string;                // 目标变量名
   operator: "=" | "+=" | "-=" | "*=" | "/=" | "%=";
   value: string;               // 赋值表达式
@@ -181,6 +184,7 @@ interface SetVarOp {
 // ── if / else if / else ──
 interface IfBlockOp {
   kind: "if_block";
+  pid: string;                 // PID 只属于 if 头，elif/else 不发独立 PID
   branches: {
     condition: string;         // if/elif 条件表达式，else 为 ""
     body: CodeOp[];            // 该分支内的子操作列表
@@ -190,6 +194,7 @@ interface IfBlockOp {
 // ── while 循环 ──
 interface WhileLoopOp {
   kind: "while";
+  pid: string;
   condition: string;
   body: CodeOp[];
 }
@@ -197,18 +202,26 @@ interface WhileLoopOp {
 // ── for..in 循环 ──
 interface ForLoopOp {
   kind: "for_in";
+  pid: string;
   itemName: string;            // 循环变量名
   collection: string;          // 被遍历的表达式
   body: CodeOp[];
 }
 
 // ── 其他 ──
-interface ReturnExprOp { kind: "return"; value?: string; }
-interface CallFnOp { kind: "call_fn"; fnName: string; args: string[]; }
-interface AwaitExprOp { kind: "await"; value: string; }
-interface BreakStmtOp { kind: "break"; }
-interface ContinueStmtOp { kind: "continue"; }
-interface CommentOp { kind: "comment"; text: string; }
+interface ReturnExprOp { kind: "return"; pid: string; value?: string; }
+interface CallFnOp { kind: "call_fn"; pid: string; fnName: string; args: string[]; }
+interface AwaitExprOp { kind: "await"; pid: string; value: string; }
+interface BreakStmtOp { kind: "break"; pid: string; }
+interface ContinueStmtOp { kind: "continue"; pid: string; }
+interface CommentOp { kind: "comment"; pid: string; text: string; }
+
+// ── 解析回退 ──
+interface RawCodeOp {
+  kind: "raw";
+  pid: string;
+  source: string;              // 无法结构化的原始源码，编辑器只读展示
+}
 ```
 
 ---
@@ -452,27 +465,77 @@ interface CommentOp { kind: "comment"; text: string; }
 
 ---
 
-## 8. 编译器变更（graph-compiler.ts）
+## 8. 往返机制总览
 
-新增 `emitOp()` 递归函数，与现有的 `emitNode()` 同层：
+code-block 内部的往返机制与顶层 CodeFlow 节点**完全同构**：
+
+```
+                    graph-compiler.ts
+  CodeOp[] + pid  ──────────────────→  .omni 源码（含 // @pid:xxx）
+       ↑                                      │
+       │                                      │
+       │           graph-parser.ts             │
+       └──────────────────────────────────────┘
+         PID 分割 → 类型检测 → 括号深度追踪 → 嵌套组装
+```
+
+顶层已有 `compileCodeFlowGraph()` / `parseCodeFlowGraph()` 这对往返函数。code-block 内部新增对应的 `emitOps()` / `parseOps()` 函数，算法逻辑相同，递归层次更深一层。
+
+### 8.1 数据结构补充
+
+`CodeOp` 接口需要携带 PID 以支持往返：
 
 ```typescript
+// 每个操作卡片有一个唯一 pid（编辑器生成，保存时写入 .omni）
+interface CodeOpBase {
+  pid: string;  // 唯一标识，对应 .omni 中的 // @pid:xxx
+}
+
+interface DeclareVarOp extends CodeOpBase {
+  kind: "declare_var";
+  mutable: boolean;
+  name: string;
+  varType?: string;
+  initValue?: string;
+  scope: "fn" | "container";
+}
+// ... 其他 CodeOp 类型同理
+```
+
+---
+
+## 9. 编译器变更（graph-compiler.ts）
+
+新增 `emitOps()` 函数，与现有的 `compileCodeFlowGraph()` 同层。
+
+**核心规则**：每个操作生成一行 `// @pid:xxx` 注释在对应代码之上，与顶层节点的 PID 格式一致。
+
+```typescript
+function emitPidLine(pid: string): string {
+  return `// @pid:${pid}\n`;
+}
+
 function emitOp(op: CodeOp, indent: number): string {
   const pad = "  ".repeat(indent);
+  let out = emitPidLine(op.pid);
+
   switch (op.kind) {
     case "declare_var": {
       const mut = op.mutable ? " mut" : "";
       const type = op.varType ? `: ${op.varType}` : "";
       const init = op.initValue ? ` = ${op.initValue}` : "";
-      return `${pad}let${mut} ${op.name}${type}${init};\n`;
+      out += `${pad}let${mut} ${op.name}${type}${init};\n`;
+      return out;
     }
     case "set_var": {
-      return `${pad}${op.name} ${op.operator} ${op.value};\n`;
+      out += `${pad}${op.name} ${op.operator} ${op.value};\n`;
+      return out;
     }
     case "if_block": {
-      let out = "";
       for (let i = 0; i < op.branches.length; i++) {
         const br = op.branches[i];
+        // PID 只在第一个分支（if 行）发出，elif/else 不发新 PID
+        if (i > 0) out = ""; // elif/else 不重复发 PID
         const kw = i === 0 ? "if" : br.condition ? "else if" : "else";
         const cond = br.condition ? ` ${br.condition}` : "";
         out += `${pad}${kw}${cond} {\n`;
@@ -482,55 +545,216 @@ function emitOp(op: CodeOp, indent: number): string {
       return out;
     }
     case "while": {
-      let out = `${pad}while ${op.condition} {\n`;
+      out += `${pad}while ${op.condition} {\n`;
       for (const child of op.body) out += emitOp(child, indent + 1);
       out += `${pad}}\n`;
       return out;
     }
     case "for_in": {
-      let out = `${pad}for ${op.itemName} in ${op.collection} {\n`;
+      out += `${pad}for ${op.itemName} in ${op.collection} {\n`;
       for (const child of op.body) out += emitOp(child, indent + 1);
       out += `${pad}}\n`;
       return out;
     }
-    case "return":   return `${pad}return${op.value ? " " + op.value : ""};\n`;
-    case "call_fn":  return `${pad}${op.fnName}(${op.args.join(", ")});\n`;
-    case "await":    return `${pad}await ${op.value};\n`;
-    case "break":    return `${pad}break;\n`;
-    case "continue": return `${pad}continue;\n`;
-    case "comment":  return `${pad}// ${op.text}\n`;
+    case "return": {
+      out += `${pad}return${op.value ? " " + op.value : ""};\n`;
+      return out;
+    }
+    case "call_fn": {
+      out += `${pad}${op.fnName}(${op.args.join(", ")});\n`;
+      return out;
+    }
+    case "await": {
+      out += `${pad}await ${op.value};\n`;
+      return out;
+    }
+    case "break": {
+      out += `${pad}break;\n`;
+      return out;
+    }
+    case "continue": {
+      out += `${pad}continue;\n`;
+      return out;
+    }
+    case "comment": {
+      out += `${pad}// ${op.text}\n`;
+      return out;
+    }
   }
 }
+
+/** 将 CodeOp[] 编译为带 PID 注释的 Omni 源码 */
+function emitOps(ops: CodeOp[]): string {
+  let out = "";
+  for (const op of ops) {
+    out += emitOp(op, 0);
+  }
+  return out;
+}
+```
+
+**emit 示例**：一个简单的 calculate_average 函数体，经过 `emitOps()` 后产生：
+
+```omni
+// @pid:op1
+let sum = 0.0;
+// @pid:op2
+let mut i = 0;
+// @pid:op3
+while i < values.len() {
+    // @pid:op4
+    sum = sum + values.get(i);
+    // @pid:op5
+    i = i + 1;
+}
+// @pid:op6
+if count != 0 {
+    // @pid:op7
+    return sum / count;
+}
+// @pid:op8
+return 0.0;
 ```
 
 ---
 
-## 9. 解析器变更（graph-parser.ts）
+## 10. 解析器变更（graph-parser.ts）
 
-扩展现有 segment 解析，当 segment type 为 `"code-block"` 时，进一步解析其内部为 `CodeOp[]`：
+新增 `parseOps()` 函数，与现有的 `parseCodeFlowGraph()` 同层。算法完全相同：**PID 分割 → 类型检测 → 括号深度追踪 → 嵌套组装**。
 
-**解析策略**：优先使用 OmniLang WASM parser 的 AST 能力（若 TS 侧 API 可用），将 code-block 源码解析为 AST 后映射到 `CodeOp`。如果 WASM AST 暂时不可用，Phase 1 先用 JS-side 正则/LR 解析器做降级方案，后续切换到 WASM AST：
+### 10.1 算法步骤
 
-> **Phase 1 需验证**：WASM parser 是否暴露 AST 节点给 TypeScript 调用方。
+```
+输入: code-block segment 的源码文本（已含 // @pid:xxx）
+输出: CodeOp[]
 
-| AST 节点 | 映射为 CodeOp |
-|----------|--------------|
-| `LetStmt` | `DeclareVarOp` |
-| `AssignExpr` / `CompoundAssignExpr` | `SetVarOp` |
-| `IfExpr` / `IfStmt` | `IfBlockOp` |
-| `WhileStmt` | `WhileLoopOp` |
-| `ForStmt` | `ForLoopOp` |
-| `ReturnStmt` | `ReturnExprOp` |
-| `CallExpr` | `CallFnOp` |
-| `AwaitExpr` | `AwaitExprOp` |
-| `BreakStmt` | `BreakStmtOp` |
-| `ContinueStmt` | `ContinueStmtOp` |
+Step 1 — PID 分割（同 splitByPid）
+  按 // @pid:xxx 行切分为子片段，每段一个 pid
+  同时检测 // @<type> 标注（手写源码兼容）
 
-**向后兼容**：如果 code-block segment 无法解析为结构化操作（太复杂或含不支持语法），回退到现有的 `source` 字段原样存储，编辑器只读显示 source 文本。
+Step 2 — 类型检测（同 detectSegmentType）
+  每段的第一个非空行判断类型：
+    "let" / "let mut"              → declare_var
+    "if" / "else if" / "else"     → if_block
+    "while"                        → while
+    "for"                          → for_in
+    "return"                       → return
+    "break"                        → break
+    "continue"                     → continue
+    "await"                        → await
+    标识符 + "("                    → call_fn
+    标识符 + 赋值运算符             → set_var
+    其他                           → raw (回退文本)
+
+Step 3 — 括号深度追踪（同 computeLineDepths + assignBranchContext）
+  计算整段源码每行的括号深度
+  跟踪当前在哪个 if/while/for 的作用域内
+  判断 elif/else 是已有 if 的分支延续
+
+Step 4 — 嵌套组装
+  根据深度和分支上下文：
+    - 普通操作 → 加入当前层级的 CodeOp[] 列表
+    - if_block → 创建 IfBlockOp，递归解析每个分支的 body
+    - while/for_in → 创建循环 Op，递归解析 body
+```
+
+### 10.2 类型检测详细规则
+
+```typescript
+function detectOpKind(firstLine: string): CodeOp["kind"] | "raw" {
+  const t = firstLine.trim();
+
+  if (/^let\s+mut\s/.test(t) || /^let\s+\w/.test(t)) return "declare_var";
+  if (/^if\s+/.test(t)) return "if_block";
+  if (/^else\s+if\s+/.test(t) || /^else\s*\{/.test(t)) return "if_block"; // elif/else
+  if (/^while\s+/.test(t)) return "while";
+  if (/^for\s+\w+\s+in\s+/.test(t)) return "for_in";
+  if (/^return/.test(t)) return "return";
+  if (/^break\s*;?\s*$/.test(t)) return "break";
+  if (/^continue\s*;?\s*$/.test(t)) return "continue";
+  if (/^await\s+/.test(t)) return "await";
+  // 标识符后跟 ( 为函数调用
+  if (/^\w+\s*\(/.test(t)) return "call_fn";
+  // 标识符后跟赋值运算符（=, +=, -= 等）
+  if (/^\w+\s*(=|\+=|-=|\*=|\/=|%=)/.test(t)) return "set_var";
+  if (/^\/\//.test(t)) return "comment";
+
+  return "raw";  // 无法结构化 → 回退
+}
+```
+
+### 10.3 嵌套组装伪代码
+
+```typescript
+function parseOps(fnBody: string): CodeOp[] {
+  const { segments } = splitByPid(fnBody);  // 复用现有 PID 分割
+  const lineDepths = computeLineDepths(fnBody);
+  const branchCtx = assignBranchContext(segments, lineDepths);
+
+  const ops: CodeOp[] = [];
+  let i = 0;
+
+  while (i < segments.length) {
+    const seg = segments[i];
+    const kind = detectOpKind(seg.code);
+
+    if (kind === "raw") {
+      // 回退：整个 segment 存为 RawCodeOp，只读展示
+      ops.push({ kind: "raw", pid: seg.pid, source: seg.code });
+      i++;
+      continue;
+    }
+
+    if (kind === "if_block") {
+      const { branches, consumedCount } = parseIfBlock(segments, i, branchCtx, lineDepths);
+      ops.push({
+        kind: "if_block",
+        pid: seg.pid,
+        branches: branches.map(br => ({
+          condition: br.condition,
+          body: parseOpsFromLines(br.bodyLines),
+        })),
+      });
+      i += consumedCount;
+      continue;
+    }
+
+    if (kind === "while" || kind === "for_in") {
+      const { bodySegments, consumedCount } = parseBlockBody(
+        segments, i, lineDepths
+      );
+      ops.push({
+        kind,
+        pid: seg.pid,
+        condition: extractCondition(seg.code, kind),
+        ...(kind === "for_in" ? { itemName: extractForItem(seg.code), collection: extractForCollection(seg.code) } : {}),
+        body: parseOpsFromSegments(bodySegments),
+      });
+      i += consumedCount;
+      continue;
+    }
+
+    // 简单操作 (declare_var, set_var, return, call_fn, await, break, continue)
+    ops.push(buildSimpleOp(kind, seg));
+    i++;
+  }
+
+  return ops;
+}
+```
+
+### 10.4 向后兼容与回退
+
+| 场景 | 处理方式 |
+|------|---------|
+| 新项目用卡片编辑器创建 | `emitOps()` 生成带 PID 的源码，`parseOps()` 完美还原 |
+| 旧项目 code-block 无 PID | `splitByPid()` 返回整段作为一个 segment，`detectOpKind()` 尝试识别。成功 → 自动生成 PID；失败 → `raw` 类型 |
+| 部分操作无法结构化 | 单段标记为 `RawCodeOp { kind: "raw", source }`，卡片编辑器以只读文本框展示 |
+| 手写 .omni 用 `// @<type>` 标注 | 复用 `graph-parser.ts` 现有的 `parseTypeAnnotation()` 逻辑，自动转为 PID |
 
 ---
 
-## 10. 编辑器组件架构
+## 11. 编辑器组件架构
 
 ```
 CodeCardEditor (新组件，替换 CodeEditorModal)
@@ -559,7 +783,7 @@ CodeCardEditor (新组件，替换 CodeEditorModal)
 
 ---
 
-## 11. 错误处理
+## 12. 错误处理
 
 - **语法错误**：Expression 槽位实时 WASM 诊断，错误时红色下划线
 - **必填槽位未填**：`set █ = expr` 目标变量为空 → 浅红占位提示，阻止保存
@@ -568,7 +792,7 @@ CodeCardEditor (新组件，替换 CodeEditorModal)
 
 ---
 
-## 12. 向后兼容
+## 13. 向后兼容
 
 1. 现有 `.omni` 源码中已存在的 `// @pid:xxx` + code-block 文本 → 解析时尝试 AST 解析，成功则生成 operations，失败则回退到 source
 2. 保存时始终从 operations 重新生成 source（若 operations 存在），确保 source 与 operations 同步
@@ -577,7 +801,7 @@ CodeCardEditor (新组件，替换 CodeEditorModal)
 
 ---
 
-## 13. 测试策略
+## 14. 测试策略
 
 | 层 | 测试内容 | 工具 |
 |----|---------|------|
@@ -592,7 +816,7 @@ CodeCardEditor (新组件，替换 CodeEditorModal)
 
 ---
 
-## 14. 实现阶段
+## 15. 实现阶段
 
 ### Phase 1：数据模型 + 编译器
 
