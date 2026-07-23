@@ -16,6 +16,23 @@ import { parseStyleValue } from "../../services/codegen/design-value-parser";
 import { uid } from "../../core/utils/id";
 import { EMPTY_DESIGN, type TokenType, tokenTypeToCategory } from "../../core/types/design";
 
+// ── Constants ──
+
+const MENU_ITEM_STYLE: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  width: "100%",
+  padding: "8px 14px",
+  border: "none",
+  background: "transparent",
+  cursor: "pointer",
+  fontSize: 12,
+  color: "#374151",
+  textAlign: "left" as const,
+  fontFamily: "inherit",
+};
+
 export function DesignTabBar() {
   const tabs = usePoiesisStore((s) => s.designPage.openTabs);
   const activeTabId = usePoiesisStore((s) => s.designPage.activeTabId);
@@ -436,21 +453,6 @@ export function DesignTabBar() {
     setDragOverTabId(null);
   }, []);
 
-  const menuItemStyle: React.CSSProperties = {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    width: "100%",
-    padding: "8px 14px",
-    border: "none",
-    background: "transparent",
-    cursor: "pointer",
-    fontSize: 12,
-    color: "#374151",
-    textAlign: "left" as const,
-    fontFamily: "inherit",
-  };
-
   const orderedTabs = tabOrder
     .map((id) => tabs.find((t) => t.id === id))
     .filter((t): t is NonNullable<typeof t> => t !== undefined);
@@ -577,7 +579,7 @@ export function DesignTabBar() {
               >
                 <button type="button"
                   onClick={() => { setShowPlusMenu(false); setShowFilePanel(true); }}
-                  style={menuItemStyle}
+                  style={MENU_ITEM_STYLE}
                   onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "#f1f5f9"; }}
                   onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
                 >
@@ -586,7 +588,7 @@ export function DesignTabBar() {
                 <div style={{ borderTop: "1px solid #f1f5f9" }} />
                 <button type="button"
                   onClick={handleDesignOmni}
-                  style={menuItemStyle}
+                  style={MENU_ITEM_STYLE}
                   onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "#f1f5f9"; }}
                   onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
                 >

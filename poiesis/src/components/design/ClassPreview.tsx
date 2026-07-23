@@ -8,6 +8,8 @@ import type { PseudoState, DesignToken } from "../../core/types/design";
 
 // ── Helpers ──
 
+const ALL_HANDLES: HandleDir[] = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
+
 function segmentsToString(segments: StyleProperty["segments"]): string {
   return segments.map((s) => (s.type === "text" ? s.value : "")).join("");
 }
@@ -289,8 +291,6 @@ export const ClassPreview = React.memo(function ClassPreview({
         return <div ref={refCallback as React.Ref<HTMLDivElement>} {...(simProps as React.HTMLAttributes<HTMLDivElement>)}>{value.content}</div>;
     }
   };
-
-  const ALL_HANDLES: HandleDir[] = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
 
   const previewContent = (
     <div style={{ display: "inline-flex", flexDirection: "column", maxWidth: "100%" }}>

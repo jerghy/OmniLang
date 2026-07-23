@@ -3,6 +3,12 @@
 
 import { useState } from "react";
 
+const CONTAINER_STYLE: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "row",
+  gap: 0,
+};
+
 interface IconButtonGroupProps<T extends string> {
   options: { value: T; label: string; title?: string }[];
   value: T;

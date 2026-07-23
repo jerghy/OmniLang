@@ -21,6 +21,8 @@ import { PropertyRow } from "./PropertyRow";
 // ── Constants ──
 
 const PSEUDO_TABS = ["base", "hover", "focus", "active", "disabled", "focus-visible"] as const;
+const LAYOUT_PROP_NAMES = ["display", "position", "flexDirection", "justifyContent", "alignItems", "alignSelf", "gap", "overflow", "flexWrap"];
+const TYPOGRAPHY_PROP_NAMES = ["color", "fontFamily", "fontSize", "fontWeight", "lineHeight", "textAlign", "textDecoration", "textTransform", "letterSpacing"];
 
 const ADDITIONAL_PSEUDOS = [
   "focus-within", "visited", "placeholder", "first-child",
@@ -315,12 +317,9 @@ export function ClassEditor() {
     return pseudoState?.properties ?? [];
   }, [selectedClass, activePseudo, pseudoState]);
 
-  const layoutPropNames = ["display", "position", "flexDirection", "justifyContent", "alignItems", "alignSelf", "gap", "overflow", "flexWrap"];
-  const typographyPropNames = ["color", "fontFamily", "fontSize", "fontWeight", "lineHeight", "textAlign", "textDecoration", "textTransform", "letterSpacing"];
-
   const layoutSummary = useMemo(() => {
     const parts = currentProps.filter(
-      (p) => layoutPropNames.includes(p.name) && segmentsToString(p.segments),
+      (p) => LAYOUT_PROP_NAMES.includes(p.name) && segmentsToString(p.segments),
     );
     return parts.length > 0
       ? parts.map((p) => `${p.name}:${segmentsToString(p.segments)}`).join(", ")
@@ -329,7 +328,7 @@ export function ClassEditor() {
 
   const typographySummary = useMemo(() => {
     const parts = currentProps.filter(
-      (p) => typographyPropNames.includes(p.name) && segmentsToString(p.segments),
+      (p) => TYPOGRAPHY_PROP_NAMES.includes(p.name) && segmentsToString(p.segments),
     );
     return parts.length > 0
       ? parts.map((p) => `${p.name}:${segmentsToString(p.segments)}`).join(", ")
@@ -1134,7 +1133,7 @@ const renderTokenPicker = () => {
 
                     {/* Layout group for remaining layout properties */}
                     <CollapsibleGroup title="布局 Layout" summary={layoutSummary} defaultOpen={false}>
-                      {layoutPropNames.map((name) => {
+                      {LAYOUT_PROP_NAMES.map((name) => {
                         const value = getPropValue(currentProps, name);
                         const label = PROPERTY_LABELS[name] || name;
                         if (name === "flexDirection") {
@@ -1197,7 +1196,7 @@ const renderTokenPicker = () => {
 
                     {/* Typography group */}
                     <CollapsibleGroup title="文字 Typography" summary={typographySummary} defaultOpen={false}>
-                      {typographyPropNames.map((name) => {
+                      {TYPOGRAPHY_PROP_NAMES.map((name) => {
                         const value = getPropValue(currentProps, name);
                         const label = PROPERTY_LABELS[name] || name;
                         if (["fontSize", "lineHeight", "letterSpacing"].includes(name)) {
