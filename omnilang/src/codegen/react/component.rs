@@ -33,15 +33,44 @@ impl ReactCodegen {
         let has_motion = comp.view.as_ref().is_some_and(|v| view_has_motion_or_effects(v));
 
         // Scan all code paths for signal mutations and function calls
-        let mutated_signals = collect_signal_mutations(comp);
+        // Compute called_fns first — mutations only tracked for called functions
         let called_fns = collect_called_local_fns(comp);
-        let read_signals = comp.view.as_ref()
+        let mutated_signals = collect_signal_mutations(comp, &called_fns);
+
+        // Build comprehensive read-signals set: signals referenced in view, computeds,
+        // effects, lifecycles, and called local functions. States not read anywhere
+        // are skipped to avoid unused-variable warnings.
+        let mut read_signals = comp.view.as_ref()
             .map(|v| collect_view_read_signals(v))
             .unwrap_or_default();
+        for computed in &comp.computeds {
+            collect_expr_identifiers(&computed.body, &mut read_signals);
+        }
+        for effect in &comp.effects {
+            for stmt in &effect.body.statements {
+                collect_stmt_identifiers(stmt, &mut read_signals);
+            }
+        }
+        for lc in &comp.lifecycles {
+            for stmt in &lc.body.statements {
+                collect_stmt_identifiers(stmt, &mut read_signals);
+            }
+        }
+        for fun in &comp.fns {
+            if called_fns.contains(&fun.name) {
+                for stmt in &fun.body.statements {
+                    collect_stmt_identifiers(stmt, &mut read_signals);
+                }
+            }
+        }
+        // Also scan inline event handler bodies in the view tree
+        if let Some(ref view) = comp.view {
+            collect_view_inline_handler_reads(view, &mut read_signals);
+        }
 
         // Determine if any state actually needs useState (has active setter)
         let has_mutable_states = comp.states.iter().any(|s| {
-            mutated_signals.contains(&s.name)
+            read_signals.contains(&s.name) && mutated_signals.contains(&s.name)
         });
         let mut hooks: Vec<&str> = Vec::new();
         if has_mutable_states { hooks.push("useState"); }
@@ -92,17 +121,25 @@ impl ReactCodegen {
         // Only import stores whose signals are actually referenced in the component.
         let all_stores = ir.all_stores();
         let used_store_signals = collect_used_store_signals(comp);
+
+        // Build set of local names (component states + props) that may shadow store signal names.
+        // This prevents confusing a component prop `items` with a store signal `items`.
+        let local_names: FxHashSet<String> = comp.states.iter().map(|s| s.name.clone())
+            .chain(comp.props.keys().cloned())
+            .chain(comp.fns.iter().map(|f| f.name.clone()))
+            .collect();
+
         let mut used_store_refs: FxHashSet<String> = FxHashSet::default();
         for store_ref in &comp.store_refs {
             // Include store if: its ref name is referenced (e.g. `NotificationStore.clear`),
-            // or any of its signals are referenced
+            // or any of its signals are referenced and NOT shadowed by local names
             if used_store_signals.contains(store_ref.as_str()) {
                 used_store_refs.insert(store_ref.clone());
                 continue;
             }
             if let Some(store) = all_stores.get(store_ref.as_str()) {
                 for sig_name in store.signals.keys() {
-                    if used_store_signals.contains(sig_name) {
+                    if !local_names.contains(sig_name) && used_store_signals.contains(sig_name) {
                         used_store_refs.insert(store_ref.clone());
                         break;
                     }
@@ -290,16 +327,28 @@ impl ReactCodegen {
                     }
                 })
                 .collect();
-            // Include event callbacks as destructured props
+            // Include event callbacks as destructured props — only for
+            // events that are actually called as functions (not emitted via `emit`).
             for event_name in &comp.event_names {
-                prop_list.push(event_name.clone());
+                if read_signals.contains(event_name.as_str()) {
+                    prop_list.push(event_name.clone());
+                }
             }
-            w.emit_fmt(format_args!(
-                "export function {}({{ {} }}: {}Props) {{",
-                name,
-                prop_list.join(", "),
-                name
-            ));
+            // If all props were filtered out, use a non-destructured signature
+            // to avoid invalid `({  }: Props)` syntax.
+            if prop_list.is_empty() {
+                w.emit_fmt(format_args!(
+                    "export function {}(_props: {}Props) {{",
+                    name, name
+                ));
+            } else {
+                w.emit_fmt(format_args!(
+                    "export function {}({{ {} }}: {}Props) {{",
+                    name,
+                    prop_list.join(", "),
+                    name
+                ));
+            }
         }
         w.indent();
 
@@ -319,7 +368,11 @@ impl ReactCodegen {
 
         // State hooks (useState) — only generate setter if signal is mutated;
         // non-mutated signals use plain const for cleaner code.
+        // Skip states that are never read in view/computeds/effects/lifecycles/called-fns.
         for state in &comp.states {
+            if !read_signals.contains(&state.name) {
+                continue;
+            }
             let init_val = expr::format_expr_ir_tsx(&state.initial_value);
             if mutated_signals.contains(&state.name) {
                 let setter_base = format!("set{}", capitalize_first(&state.name));
@@ -1141,11 +1194,17 @@ fn view_has_motion_or_effects(node: &ViewTree) -> bool {
 // ═══════════════════════════════════════════════════════════
 
 /// Collect names of all signals that are mutated (assigned to) anywhere in the component.
-fn collect_signal_mutations(comp: &ComponentIR) -> FxHashSet<String> {
+fn collect_signal_mutations(
+    comp: &ComponentIR,
+    called_fns: &FxHashSet<String>,
+) -> FxHashSet<String> {
     let mut acc = FxHashSet::default();
 
-    // Scan component fns
+    // Scan component fns — only those actually called from view/effects/lifecycles
     for fun in &comp.fns {
+        if !called_fns.contains(&fun.name) {
+            continue;
+        }
         for stmt in &fun.body.statements {
             collect_mutation_targets_from_stmt(stmt, &mut acc);
         }
@@ -1315,6 +1374,44 @@ fn collect_view_mutation_targets(node: &ViewTree, acc: &mut FxHashSet<String>) {
             }
             if let Some(ref empty_body) = list.empty_body {
                 collect_view_mutation_targets(empty_body, acc);
+            }
+        }
+        ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => {}
+    }
+}
+
+/// Walk view tree to collect identifier reads from inline event handler bodies.
+/// This catches event props like `onClose(...)` called inside handlers.
+fn collect_view_inline_handler_reads(node: &ViewTree, acc: &mut FxHashSet<String>) {
+    match node {
+        ViewTree::Element(el) => {
+            for handler in el.events.values() {
+                if let EventHandlerIR::InlineFn { body, .. } = handler {
+                    for stmt in &body.statements {
+                        collect_stmt_identifiers(stmt, acc);
+                    }
+                }
+            }
+            for child in &el.children {
+                collect_view_inline_handler_reads(child, acc);
+            }
+        }
+        ViewTree::Conditional(cond) => {
+            for branch in &cond.branches {
+                if let Some(ref body) = branch.body {
+                    collect_view_inline_handler_reads(body, acc);
+                }
+            }
+            if let Some(ref fb) = cond.fallback {
+                collect_view_inline_handler_reads(fb, acc);
+            }
+        }
+        ViewTree::ListRendering(list) => {
+            if let Some(ref body) = list.body {
+                collect_view_inline_handler_reads(body, acc);
+            }
+            if let Some(ref empty_body) = list.empty_body {
+                collect_view_inline_handler_reads(empty_body, acc);
             }
         }
         ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => {}
