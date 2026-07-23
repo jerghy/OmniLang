@@ -105,6 +105,8 @@ OmniView 提供声明式的动画系统，包括 `@motion`（运动定义）和 
 
 ### 命名缓动
 
+Omni 支持丰富的命名缓动函数，编译时通过 `resolveEasing()` 自动转换为 WAAPI 兼容格式：
+
 ```omni
 ease linear
 ease easeIn
@@ -120,6 +122,8 @@ ease power4In      ease power4Out      ease power4InOut
 // Bounce 弹性
 ease bounceIn      ease bounceOut      ease bounceInOut
 ```
+
+> **运行时自动转换**: Omni easing 名称（如 `easeOut`、`power2Out`）会在编译后的 JS 运行时中自动通过 `resolveEasing()` 转换为 WAAPI 原生 easing 格式（`"ease-out"`、`"cubic-bezier(...)"`），无需手动转换。
 
 ### 高级缓动
 
@@ -381,10 +385,57 @@ start: "absolute(0ms)"      // 从时间线绝对位置开始
 
 相同的 `@hero` 标签名使两个元素建立过渡关联。
 
+## 动画运行时架构
+
+OmniView 动画系统基于 **`@omni/animation`** 库（~15KB，基于 WAAPI），提供以下运行时能力：
+
+### 运行时内联
+
+动画运行时在编译时通过 `include_str!` 嵌入到生成的 HTML/JS 中，无需额外加载外部脚本：
+
+```
+<!DOCTYPE html>
+<html>
+<head>...</head>
+<body>
+  ...
+  <script>
+  /// ─── @omni/animation (embedded) ───
+  // ... ~15KB animation runtime ...
+  /// ─── App code ───
+  // ... compiled component code ...
+  </script>
+</body>
+</html>
+```
+
+### 运行时弹性
+
+`@omni/animation` 库内置了多项防御性处理，确保在边缘情况下不崩溃：
+
+| 场景 | 处理方式 |
+|------|----------|
+| 元素不存在（null `el`） | `animate()` 返回 `null`，`timeline()` 跳过该步骤 |
+| 关键帧/配置缺失 | `buildProperties()` 返回空对象，`timeline()` 跳过无 keyframes 的步骤 |
+| 缓动名称转换 | `resolveEasing()` 确保所有 Omni easing 名称变为 WAAPI 合法值 |
+| DOM 元素 vs CSS 选择器 | `flipBefore()`/`flipAfter()` 同时接受 CSS 选择器字符串和 DOM 元素引用 |
+| WAAPI 不支持属性 | 如 `offsetDistance`、`hue-rotate(180)` 等发出警告但不影响整体运行 |
+
+### flipBefore / flipAfter（@for 列表动画）
+
+```typescript
+// 接受 CSS 选择器或 DOM 元素
+flipBefore(container: Element | string): void
+flipAfter(container: Element | string, duration?: number, easing?: string): void
+```
+
+用于 `@for key={...}` 列表重新排序时的 FLIP 动画。列表项变化时自动记录位置差异并创建平滑过渡。
+
 ## 动画注意事项
 
-1. **Motion 运行时按需加载**：仅当项目使用动画功能时，~46KB 的 motion 运行时库才被嵌入
+1. **Motion 运行时约 15KB**：`@omni/animation` 库在编译时嵌入产物，按需使用（仅含动画功能的项目才会嵌入）
 2. **@enter 重播**：当组件的 signal 变化时，`@enter` 动画会自动重播
 3. **性能**：动画属性应优先使用 `transform` 和 `opacity`（GPU 加速）
 4. **Stagger**：`staggerFrom` 控制子元素交错的起始方向（`start`、`end`、`center`、`edges`）
-5. **@for 列表动画**：在 `@for key={...}` 中使用 key 可实现列表项的入场/离场动画
+5. **@for 列表动画**：在 `@for key={...}` 中使用 key 可实现列表项的入场/离场/FLIP 动画
+6. **Easing 兼容性**：所有 Omni easing（包括自定义 cubic-bezier、spring、elastic 等）通过 `resolveEasing()` 统一转换为 WAAPI 合规字符串
