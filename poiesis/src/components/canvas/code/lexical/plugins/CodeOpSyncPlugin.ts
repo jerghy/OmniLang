@@ -6,7 +6,7 @@ import { useEffect, useRef } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { $getRoot, $createParagraphNode, $createTextNode } from "lexical";
 import type { CodeOp } from "../../../../../core/types/code-op";
-import type { EditorNode, ContainerNode, BlockNode, InlineNode, InputSlot, BodyLine } from "../../../../../core/types/editor-node";
+import type { EditorNode, ContainerNode, BlockNode, InlineNode, InputSlot, BodyLine, Branch } from "../../../../../core/types/editor-node";
 import { convertToNodes } from "../transforms/convertToNodes";
 import { convertToOps } from "../transforms/convertToOps";
 import { $createCardNode, $isCardNode } from "../nodes/CardNode";
@@ -80,7 +80,7 @@ function editorNodeToLexical(node: EditorNode) {
       const bNode = node as BlockNode;
 
       // Build branch metadata (serializable head content)
-      let branchMeta: import("../../nodes/BlockNode").BranchMeta[] | undefined;
+      let branchMeta: import("../nodes/BlockNode").BranchMeta[] | undefined;
       if (bNode.branches && bNode.branches.length > 0) {
         branchMeta = bNode.branches.map(br => ({
           kind: br.kind,
@@ -217,7 +217,7 @@ function lexicalToEditorNode(lexicalNode: any): EditorNode | null {
           return { kind: h.kind as any, cardLabel: h.cardLabel || "", pid: h.pid };
         }),
         body: branchBodies.get(bi) || [],
-      }));
+      })) as Branch[];
     }
 
     return {
