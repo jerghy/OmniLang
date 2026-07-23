@@ -332,7 +332,7 @@ fn test_tsx_stmt_if() {
 
 #[test]
 fn test_css_empty_component() {
-    let codegen = ReactCodegen;
+    let codegen = ReactCodegen::default();
     let comp = ComponentIR {
         name: "App".into(),
         generic_params: vec![],
@@ -361,7 +361,7 @@ fn test_css_empty_component() {
 
 #[test]
 fn test_css_with_styles() {
-    let codegen = ReactCodegen;
+    let codegen = ReactCodegen::default();
     let mut props = HashMap::new();
     props.insert(
         "backgroundColor".into(),
@@ -453,7 +453,7 @@ fn make_ir(components: HashMap<String, ComponentIR>) -> IRProgram {
 
 #[test]
 fn test_tsx_interpolation_renders_expr() {
-    let _codegen = ReactCodegen;
+    let _codegen = ReactCodegen::default();
     let comp = make_test_component(
         "Test",
         ViewTree::Element(ElementIR {
@@ -488,7 +488,7 @@ fn test_tsx_interpolation_renders_expr() {
         .get("Test")
         .unwrap();
     let component_map = build_component_map(&ir);
-    let tsx = ReactCodegen.gen_component_tsx("Test", comp_ref, &ir, &component_map);
+    let tsx = ReactCodegen::default().gen_component_tsx("Test", comp_ref, &ir, &component_map);
     assert!(
         !tsx.contains("/* interpolation */"),
         "Interpolation must NOT be a comment placeholder. Got: {}",
@@ -503,7 +503,7 @@ fn test_tsx_interpolation_renders_expr() {
 
 #[test]
 fn test_tsx_empty_component() {
-    let codegen = ReactCodegen;
+    let codegen = ReactCodegen::default();
     let mut components = HashMap::new();
     components.insert(
         "App".into(),
@@ -547,7 +547,7 @@ fn test_tsx_empty_component() {
 
 #[test]
 fn test_tsx_component_with_state() {
-    let codegen = ReactCodegen;
+    let codegen = ReactCodegen::default();
     let state = StateIntent {
         name: "count".into(),
         r#type: TypeIR {
@@ -600,7 +600,7 @@ fn test_tsx_component_with_state() {
 
 #[test]
 fn test_tsx_component_with_props() {
-    let codegen = ReactCodegen;
+    let codegen = ReactCodegen::default();
     let mut props = HashMap::new();
     props.insert(
         "name".into(),
@@ -661,7 +661,7 @@ fn test_tsx_component_with_props() {
 
 #[test]
 fn test_tsx_component_with_effect() {
-    let codegen = ReactCodegen;
+    let codegen = ReactCodegen::default();
     let effect = EffectIntent {
         deps: vec!["count".into()],
         body: BlockIR {
@@ -713,7 +713,7 @@ fn test_tsx_component_with_effect() {
 
 #[test]
 fn test_tsx_component_with_lifecycle_mount() {
-    let codegen = ReactCodegen;
+    let codegen = ReactCodegen::default();
     let lc = LifecycleIntent {
         kind: LifecycleKind::Mount,
         body: BlockIR { statements: vec![] },
@@ -760,7 +760,7 @@ fn test_tsx_component_with_lifecycle_mount() {
 
 #[test]
 fn test_store_hook_empty() {
-    let codegen = ReactCodegen;
+    let codegen = ReactCodegen::default();
     let store = StoreIR {
         name: "AppStore".into(),
         signals: HashMap::new(),
@@ -776,7 +776,7 @@ fn test_store_hook_empty() {
 
 #[test]
 fn test_store_hook_with_signals() {
-    let codegen = ReactCodegen;
+    let codegen = ReactCodegen::default();
     let mut signals = HashMap::new();
     signals.insert(
         "count".into(),
@@ -815,7 +815,7 @@ fn test_store_hook_with_signals() {
 
 #[test]
 fn test_store_hook_with_getters() {
-    let codegen = ReactCodegen;
+    let codegen = ReactCodegen::default();
     let mut getters = HashMap::new();
     getters.insert(
         "doubleCount".into(),
@@ -859,7 +859,7 @@ fn test_store_hook_with_getters() {
 
 #[test]
 fn test_full_pipeline_empty() {
-    let codegen = ReactCodegen;
+    let codegen = ReactCodegen::default();
     let ir = IRProgram {
         version: "0.1".into(),
         modules: HashMap::from([(
@@ -882,7 +882,7 @@ fn test_full_pipeline_empty() {
 
 #[test]
 fn test_full_pipeline_component() {
-    let codegen = ReactCodegen;
+    let codegen = ReactCodegen::default();
     let comp = ComponentIR {
         name: "App".into(),
         generic_params: vec![],
@@ -947,7 +947,7 @@ fn test_full_pipeline_component() {
 
 #[test]
 fn test_full_pipeline_with_store() {
-    let codegen = ReactCodegen;
+    let codegen = ReactCodegen::default();
     let store = StoreIR {
         name: "AppStore".into(),
         signals: HashMap::from([(
@@ -990,7 +990,7 @@ fn test_full_pipeline_with_store() {
 
 #[test]
 fn test_full_pipeline_component_with_store_ref() {
-    let codegen = ReactCodegen;
+    let codegen = ReactCodegen::default();
     let store = StoreIR {
         name: "AppStore".into(),
         signals: HashMap::from([(

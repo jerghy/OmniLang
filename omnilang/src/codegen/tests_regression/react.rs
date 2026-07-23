@@ -6,7 +6,7 @@ use super::*;
 
 #[test]
 fn test_regression_react_empty() {
-    let codegen = ReactCodegen;
+    let codegen = ReactCodegen::default();
     let ir = fixture_empty();
     let sources = HashMap::from([("main.omni".into(), "".into())]);
     let output = codegen.generate(&ir, &sources);
@@ -16,7 +16,7 @@ fn test_regression_react_empty() {
 
 #[test]
 fn test_regression_react_component() {
-    let codegen = ReactCodegen;
+    let codegen = ReactCodegen::default();
     let ir = fixture_component();
     let sources = HashMap::from([("main.omni".into(), "".into())]);
     let output = codegen.generate(&ir, &sources);
@@ -26,7 +26,7 @@ fn test_regression_react_component() {
 
 #[test]
 fn test_regression_react_store() {
-    let codegen = ReactCodegen;
+    let codegen = ReactCodegen::default();
     let ir = fixture_store();
     let sources = HashMap::from([("main.omni".into(), "".into())]);
     let output = codegen.generate(&ir, &sources);
@@ -36,7 +36,7 @@ fn test_regression_react_store() {
 
 #[test]
 fn test_regression_react_component_with_store() {
-    let codegen = ReactCodegen;
+    let codegen = ReactCodegen::default();
     let ir = fixture_component_with_store();
     let sources = HashMap::from([("main.omni".into(), "".into())]);
     let output = codegen.generate(&ir, &sources);
@@ -49,7 +49,7 @@ fn test_regression_react_component_with_store() {
 
 #[test]
 fn test_regression_react_expressions() {
-    let codegen = ReactCodegen;
+    let codegen = ReactCodegen::default();
     let ir = fixture_expressions();
     let sources = HashMap::from([("main.omni".into(), "".into())]);
     let output = codegen.generate(&ir, &sources);

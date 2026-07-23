@@ -150,7 +150,7 @@ impl ReactCodegen {
             let mut body_w = crate::codegen::CodeWriter::new();
             body_w.indent();
             for stmt in &fun.body.statements {
-                expr::generate_statement_tsx(&mut body_w, stmt, &FxHashSet::default());
+                expr::generate_statement_tsx_with_mode(&mut body_w, stmt, &FxHashSet::default(), self.store_mode);
             }
             let mut body_str = body_w.into_string();
             // Rename reserved word identifiers in the body
@@ -247,7 +247,7 @@ impl ReactCodegen {
                 w.emit("(async () => {");
                 w.indent();
                 for stmt in &effect.body.statements {
-                    expr::generate_statement_tsx(&mut w, stmt, &signal_names);
+                    expr::generate_statement_tsx_with_mode(&mut w, stmt, &signal_names, self.store_mode);
                 }
                 w.dedent();
                 w.emit("})();");
@@ -257,7 +257,7 @@ impl ReactCodegen {
                 w.emit("useEffect(() => {");
                 w.indent();
                 for stmt in &effect.body.statements {
-                    expr::generate_statement_tsx(&mut w, stmt, &signal_names);
+                    expr::generate_statement_tsx_with_mode(&mut w, stmt, &signal_names, self.store_mode);
                 }
                 w.dedent();
                 w.emit_fmt(format_args!("}}, [{}]);", deps_str));
@@ -275,7 +275,7 @@ impl ReactCodegen {
                         w.emit("(async () => {");
                         w.indent();
                         for stmt in &lc.body.statements {
-                            expr::generate_statement_tsx(&mut w, stmt, &signal_names);
+                            expr::generate_statement_tsx_with_mode(&mut w, stmt, &signal_names, self.store_mode);
                         }
                         w.dedent();
                         w.emit("})();");
@@ -285,7 +285,7 @@ impl ReactCodegen {
                         w.emit("useEffect(() => {");
                         w.indent();
                         for stmt in &lc.body.statements {
-                            expr::generate_statement_tsx(&mut w, stmt, &signal_names);
+                            expr::generate_statement_tsx_with_mode(&mut w, stmt, &signal_names, self.store_mode);
                         }
                         w.dedent();
                         w.emit("}, []);");
@@ -297,7 +297,7 @@ impl ReactCodegen {
                     w.emit("return () => {");
                     w.indent();
                     for stmt in &lc.body.statements {
-                        expr::generate_statement_tsx(&mut w, stmt, &signal_names);
+                        expr::generate_statement_tsx_with_mode(&mut w, stmt, &signal_names, self.store_mode);
                     }
                     w.dedent();
                     w.emit("};");
@@ -312,7 +312,7 @@ impl ReactCodegen {
                         w.emit("(async () => {");
                         w.indent();
                         for stmt in &lc.body.statements {
-                            expr::generate_statement_tsx(&mut w, stmt, &signal_names);
+                            expr::generate_statement_tsx_with_mode(&mut w, stmt, &signal_names, self.store_mode);
                         }
                         w.dedent();
                         w.emit("})();");
@@ -322,7 +322,7 @@ impl ReactCodegen {
                         w.emit("useEffect(() => {");
                         w.indent();
                         for stmt in &lc.body.statements {
-                            expr::generate_statement_tsx(&mut w, stmt, &signal_names);
+                            expr::generate_statement_tsx_with_mode(&mut w, stmt, &signal_names, self.store_mode);
                         }
                         w.dedent();
                         w.emit("});");
@@ -367,7 +367,7 @@ impl ReactCodegen {
             if let ExprIR::BlockExpr { statements, tail } = &computed.body {
                 // Render preceding statements (let declarations, if/return, etc.)
                 for stmt in statements {
-                    expr::generate_statement_tsx(&mut w, stmt, &signal_names);
+                    expr::generate_statement_tsx_with_mode(&mut w, stmt, &signal_names, self.store_mode);
                 }
                 // Render tail as return value if non-null
                 // (null tail means the block has explicit return statements)
@@ -411,7 +411,7 @@ impl ReactCodegen {
             let mut body_w = crate::codegen::CodeWriter::new();
             body_w.indent();
             for stmt in &fun.body.statements {
-                expr::generate_statement_tsx(&mut body_w, stmt, &signal_names);
+                expr::generate_statement_tsx_with_mode(&mut body_w, stmt, &signal_names, self.store_mode);
             }
             // Build setter renames for states whose setters conflict with function names
             let setter_renames: Vec<(String, String)> = comp

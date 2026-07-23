@@ -118,7 +118,27 @@ pub(crate) fn lower_expr(
                         };
                     }
                     if field == "set" || field == "inc" || field == "dec" {
-                        // Mutation — handled at statement level by try_lower_mutation
+                        // Multi-arg calls like map.set(key, val) are regular method calls,
+                        // not signal mutations (which always have 0-1 args).
+                        if field == "set" && args.len() > 1 {
+                            return ExprIR::MethodCallExpr {
+                                object: Box::new(ExprIR::ident(obj_name)),
+                                method: field.clone(),
+                                args: args
+                                    .iter()
+                                    .map(|e| {
+                                        lower_expr(
+                                            e,
+                                            variant_map,
+                                            event_fields.as_deref_mut(),
+                                            semantics,
+                                        )
+                                    })
+                                    .collect(),
+                                is_optional: false,
+                            };
+                        }
+                        // Single-arg mutation — handled at statement level by try_lower_mutation
                         return ExprIR::ident(obj_name);
                     }
                     // Store field access
@@ -207,8 +227,8 @@ pub(crate) fn lower_expr(
                     )),
                     field: "value".into(),
                 }
-            } else if method == "set" {
-                // signal.set(value) → handled at statement level by try_lower_mutation
+            } else if method == "set" && args.len() <= 1 {
+                // signal.set(value) with 0-1 args → handled at statement level by try_lower_mutation
                 ExprIR::ident("set")
             } else {
                 // General method call: to_string, len, get(i), push, pop, contains, insert, etc.

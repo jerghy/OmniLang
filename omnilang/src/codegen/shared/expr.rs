@@ -130,8 +130,14 @@ pub(crate) trait FormatExpr {
     }
 
     /// Format a single struct field key-value pair.
+    /// Keys that are already JSON string literals (start with `"`) are used as-is
+    /// to avoid double-escaping (e.g., `""id""`).
     fn format_struct_field(&self, key: &str, value: &str) -> String {
-        format!("\"{key}\": {value}")
+        if key.starts_with('"') && key.ends_with('"') {
+            format!("{key}: {value}")
+        } else {
+            format!("\"{key}\": {value}")
+        }
     }
 
     /// Function call expression.

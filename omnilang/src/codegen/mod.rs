@@ -64,6 +64,7 @@ pub fn compile(
     ir: &IRProgram,
     target: Target,
     #[allow(unused_variables)] source_files: &FxHashMap<String, String>,
+    #[allow(unused_variables)] store_mode: Option<&str>,
 ) -> CompileOutput {
     // Validate stdlib imports for the target
     if let Err(errors) = validate_stdlib_imports(ir, target) {
@@ -91,7 +92,13 @@ pub fn compile(
         #[cfg(feature = "codegen-dart")]
         Target::Dart => dart::DartCodegen.generate(ir, source_files),
         #[cfg(feature = "codegen-react")]
-        Target::React => react::ReactCodegen.generate(ir, source_files),
+        Target::React => {
+            let mode: react::ReactStoreMode = store_mode
+                .unwrap_or("hooks")
+                .parse()
+                .unwrap_or_default();
+            react::ReactCodegen { store_mode: mode }.generate(ir, source_files)
+        }
         #[cfg(feature = "codegen-vue")]
         Target::Vue => vue::VueCodegen.generate(ir, source_files),
         #[cfg(feature = "codegen-dioxus")]

@@ -67,7 +67,7 @@ impl FormatExpr for ReactFormatExpr {
                             format!("const {{ {} }} = _v; ", bindings.join(", "))
                         };
                         format!(
-                            "if (_v._variant === \"{}\") {{ {}{}; }}",
+                            "if (_v._variant === \"{}\") {{ {}return {}; }}",
                             name, destructure, body
                         )
                     }
@@ -88,9 +88,11 @@ impl FormatExpr for ReactFormatExpr {
 /// React TSX statement formatter.
 ///
 /// Uses `signal_names` to determine mutation strategy (setter calls vs direct assignment).
+/// In Zustand mode, store-signal mutations use `useStoreName.setState(...)`.
 pub(super) struct ReactStmtFormatter {
     pub expr: ReactFormatExpr,
     pub signal_names: FxHashSet<String>,
+    pub store_mode: super::ReactStoreMode,
 }
 
 impl FormatStmt for ReactStmtFormatter {
@@ -147,130 +149,140 @@ impl FormatStmt for ReactStmtFormatter {
                 let is_component_state =
                     !is_store_signal && self.signal_names.contains(target_str.as_str());
                 let use_setter = is_store_signal || is_component_state;
-                let setter = format!("set{}", capitalize_first(target_str));
-                if use_setter {
+                if is_store_signal && self.store_mode == super::ReactStoreMode::Zustand {
+                    // Zustand mode: useStoreName.setState({ signal: value })
+                    let store_name = target.owner.as_deref().unwrap_or("");
+                    let setter = format!("use{}", capitalize_first(store_name));
+                    w.emit_fmt(format_args!("{}.setState({{ {}: {} }});", setter, target_str, amount));
+                } else if use_setter {
+                    let setter = format!("set{}", capitalize_first(target_str));
                     w.emit_fmt(format_args!("{}({});", setter, amount));
                 } else {
                     w.emit_fmt(format_args!("{} = {};", target_str, amount));
                 }
             }
-            MutationIntent::Increment { target, amount } => {
-                let target_str = &target.name;
-                let amt = amount
-                    .as_ref()
-                    .map(|v| self.expr.format_expr(v))
-                    .unwrap_or_else(|| "0".into());
-                let is_store_signal = target.owner.is_some();
-                let is_component_state =
-                    !is_store_signal && self.signal_names.contains(target_str.as_str());
-                let use_setter = is_store_signal || is_component_state;
-                let setter = format!("set{}", capitalize_first(target_str));
-                if use_setter {
+            _ => {
+                // Increment / Decrement / Multiply / Divide / Modulo / Push / Pop
+                self.format_compound_mutation(w, intent);
+            }
+        }
+    }
+}
+
+/// Helper: emit a Zustand `useStore.setState(...)` mutation from a component context.
+fn zustand_store_setter(target: &SignalRefIR) -> String {
+    let store_name = target.owner.as_deref().unwrap_or("");
+    format!("use{}", capitalize_first(store_name))
+}
+
+impl ReactStmtFormatter {
+    /// Format compound mutations (Increment, Decrement, Push, Pop, etc.) with
+    /// Zustand-aware store signal handling.
+    fn format_compound_mutation(&self, w: &mut CodeWriter, intent: &MutationIntent) {
+        let (target, amount_expr, item_expr) = match intent {
+            MutationIntent::Increment { target, amount } => (target, amount.as_deref(), None),
+            MutationIntent::Decrement { target, amount } => (target, amount.as_deref(), None),
+            MutationIntent::Multiply { target, amount } => (target, amount.as_deref(), None),
+            MutationIntent::Divide { target, amount } => (target, amount.as_deref(), None),
+            MutationIntent::Modulo { target, amount } => (target, amount.as_deref(), None),
+            MutationIntent::Push { target, item } => (target, None, item.as_deref()),
+            MutationIntent::Pop { target } => (target, None, None),
+            _ => return,
+        };
+
+        let target_str = &target.name;
+        let is_store_signal = target.owner.is_some();
+        let is_component_state =
+            !is_store_signal && self.signal_names.contains(target_str.as_str());
+        let use_setter = is_store_signal || is_component_state;
+        let in_zustand = is_store_signal && self.store_mode == super::ReactStoreMode::Zustand;
+
+        let amt = amount_expr
+            .map(|v| self.expr.format_expr(v))
+            .unwrap_or_else(|| "0".into());
+
+        match intent {
+            MutationIntent::Increment { .. } => {
+                if in_zustand {
+                    let s = zustand_store_setter(target);
+                    w.emit_fmt(format_args!("{}.setState((s) => ({{ {}: s.{} + {} }}));", s, target_str, target_str, amt));
+                } else if use_setter {
+                    let setter = format!("set{}", capitalize_first(target_str));
                     w.emit_fmt(format_args!("{}(prev => prev + {});", setter, amt));
                 } else {
                     w.emit_fmt(format_args!("{} = {} + {};", target_str, target_str, amt));
                 }
             }
-            MutationIntent::Decrement { target, amount } => {
-                let target_str = &target.name;
-                let amt = amount
-                    .as_ref()
-                    .map(|v| self.expr.format_expr(v))
-                    .unwrap_or_else(|| "0".into());
-                let is_store_signal = target.owner.is_some();
-                let is_component_state =
-                    !is_store_signal && self.signal_names.contains(target_str.as_str());
-                let use_setter = is_store_signal || is_component_state;
-                let setter = format!("set{}", capitalize_first(target_str));
-                if use_setter {
+            MutationIntent::Decrement { .. } => {
+                if in_zustand {
+                    let s = zustand_store_setter(target);
+                    w.emit_fmt(format_args!("{}.setState((s) => ({{ {}: s.{} - {} }}));", s, target_str, target_str, amt));
+                } else if use_setter {
+                    let setter = format!("set{}", capitalize_first(target_str));
                     w.emit_fmt(format_args!("{}(prev => prev - {});", setter, amt));
                 } else {
                     w.emit_fmt(format_args!("{} = {} - {};", target_str, target_str, amt));
                 }
             }
-            MutationIntent::Multiply { target, amount } => {
-                let target_str = &target.name;
-                let amt = amount
-                    .as_ref()
-                    .map(|v| self.expr.format_expr(v))
-                    .unwrap_or_else(|| "0".into());
-                let is_store_signal = target.owner.is_some();
-                let is_component_state =
-                    !is_store_signal && self.signal_names.contains(target_str.as_str());
-                let use_setter = is_store_signal || is_component_state;
-                let setter = format!("set{}", capitalize_first(target_str));
-                if use_setter {
+            MutationIntent::Multiply { .. } => {
+                if in_zustand {
+                    let s = zustand_store_setter(target);
+                    w.emit_fmt(format_args!("{}.setState((s) => ({{ {}: s.{} * {} }}));", s, target_str, target_str, amt));
+                } else if use_setter {
+                    let setter = format!("set{}", capitalize_first(target_str));
                     w.emit_fmt(format_args!("{}(prev => prev * {});", setter, amt));
                 } else {
                     w.emit_fmt(format_args!("{} = {} * {};", target_str, target_str, amt));
                 }
             }
-            MutationIntent::Divide { target, amount } => {
-                let target_str = &target.name;
-                let amt = amount
-                    .as_ref()
-                    .map(|v| self.expr.format_expr(v))
-                    .unwrap_or_else(|| "0".into());
-                let is_store_signal = target.owner.is_some();
-                let is_component_state =
-                    !is_store_signal && self.signal_names.contains(target_str.as_str());
-                let use_setter = is_store_signal || is_component_state;
-                let setter = format!("set{}", capitalize_first(target_str));
-                if use_setter {
+            MutationIntent::Divide { .. } => {
+                if in_zustand {
+                    let s = zustand_store_setter(target);
+                    w.emit_fmt(format_args!("{}.setState((s) => ({{ {}: s.{} / {} }}));", s, target_str, target_str, amt));
+                } else if use_setter {
+                    let setter = format!("set{}", capitalize_first(target_str));
                     w.emit_fmt(format_args!("{}(prev => prev / {});", setter, amt));
                 } else {
                     w.emit_fmt(format_args!("{} = {} / {};", target_str, target_str, amt));
                 }
             }
-            MutationIntent::Modulo { target, amount } => {
-                let target_str = &target.name;
-                let amt = amount
-                    .as_ref()
-                    .map(|v| self.expr.format_expr(v))
-                    .unwrap_or_else(|| "0".into());
-                let is_store_signal = target.owner.is_some();
-                let is_component_state =
-                    !is_store_signal && self.signal_names.contains(target_str.as_str());
-                let use_setter = is_store_signal || is_component_state;
-                let setter = format!("set{}", capitalize_first(target_str));
-                if use_setter {
+            MutationIntent::Modulo { .. } => {
+                if in_zustand {
+                    let s = zustand_store_setter(target);
+                    w.emit_fmt(format_args!("{}.setState((s) => ({{ {}: s.{} % {} }}));", s, target_str, target_str, amt));
+                } else if use_setter {
+                    let setter = format!("set{}", capitalize_first(target_str));
                     w.emit_fmt(format_args!("{}(prev => prev % {});", setter, amt));
                 } else {
                     w.emit_fmt(format_args!("{} = {} % {};", target_str, target_str, amt));
                 }
             }
-            MutationIntent::Push { target, item } => {
-                let target_str = &target.name;
-                let it = item
-                    .as_ref()
+            MutationIntent::Push { .. } => {
+                let it = item_expr
                     .map(|v| self.expr.format_expr(v))
                     .unwrap_or_else(|| "undefined".into());
-                let is_store_signal = target.owner.is_some();
-                let is_component_state =
-                    !is_store_signal && self.signal_names.contains(target_str.as_str());
-                let use_setter = is_store_signal || is_component_state;
-                let setter = format!("set{}", capitalize_first(target_str));
-                if use_setter {
+                if in_zustand {
+                    let s = zustand_store_setter(target);
+                    w.emit_fmt(format_args!("{}.setState((s) => ({{ {}: [...s.{}, {}] }}));", s, target_str, target_str, it));
+                } else if use_setter {
+                    let setter = format!("set{}", capitalize_first(target_str));
                     w.emit_fmt(format_args!("{}(prev => [...prev, {}]);", setter, it));
                 } else {
-                    // Immutable update — never mutate in place
                     w.emit_fmt(format_args!("{} = [...{}, {}];", target_str, target_str, it));
                 }
             }
-            MutationIntent::Pop { target } => {
-                let target_str = &target.name;
-                let is_store_signal = target.owner.is_some();
-                let is_component_state =
-                    !is_store_signal && self.signal_names.contains(target_str.as_str());
-                let use_setter = is_store_signal || is_component_state;
-                let setter = format!("set{}", capitalize_first(target_str));
-                if use_setter {
+            MutationIntent::Pop { .. } => {
+                if in_zustand {
+                    let s = zustand_store_setter(target);
+                    w.emit_fmt(format_args!("{}.setState((s) => ({{ {}: s.{}.slice(0, -1) }}));", s, target_str, target_str));
+                } else if use_setter {
+                    let setter = format!("set{}", capitalize_first(target_str));
                     w.emit_fmt(format_args!("{}(prev => prev.slice(0, -1));", setter));
                 } else {
-                    // Immutable update — never mutate in place
                     w.emit_fmt(format_args!("{} = {}.slice(0, -1);", target_str, target_str));
                 }
             }
+            _ => {}
         }
     }
 }
@@ -280,9 +292,19 @@ pub(super) fn generate_statement_tsx(
     stmt: &StatementIR,
     signal_names: &FxHashSet<String>,
 ) {
+    generate_statement_tsx_with_mode(w, stmt, signal_names, super::ReactStoreMode::Hooks);
+}
+
+pub(super) fn generate_statement_tsx_with_mode(
+    w: &mut CodeWriter,
+    stmt: &StatementIR,
+    signal_names: &FxHashSet<String>,
+    store_mode: super::ReactStoreMode,
+) {
     let fmt = ReactStmtFormatter {
         expr: ReactFormatExpr,
         signal_names: signal_names.clone(),
+        store_mode,
     };
     fmt.format_stmt(w, stmt);
 }

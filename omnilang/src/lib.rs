@@ -11,7 +11,6 @@ pub mod analyse;
 pub mod codegen;
 pub mod discovery;
 pub mod error;
-#[cfg(not(target_family = "wasm"))]
 pub mod ffi;
 pub mod ir;
 pub mod lexer;
@@ -21,9 +20,6 @@ pub mod semantic;
 pub mod sourcemap;
 pub mod stdlib;
 pub mod validate;
-
-#[cfg(feature = "wasm")]
-pub mod wasm;
 
 #[cfg(feature = "codegen-omniview")]
 use crate::codegen::omniview::{ComponentOutput, StyleResolveResult};
@@ -314,8 +310,9 @@ pub fn compile_to_target_json(
     ir: &ir::IRProgram,
     target: codegen::Target,
     source_files: &FxHashMap<String, String>,
+    store_mode: Option<&str>,
 ) -> String {
-    let output = codegen::compile(ir, target, source_files);
+    let output = codegen::compile(ir, target, source_files, store_mode);
     let files_map: FxHashMap<String, String> = output
         .files
         .into_iter()
@@ -359,9 +356,10 @@ pub fn compile_multi_internal(
     path_mapping: FxHashMap<String, String>,
     editor_mode: bool,
     debug_mode: bool,
+    store_mode: Option<&str>,
 ) -> InternalCompileResult {
     let analysis = crate::analyse::analyse_multi(&sources, &path_mapping);
-    compile_multi_internal_post(analysis, &sources, target, editor_mode, debug_mode)
+    compile_multi_internal_post(analysis, &sources, target, editor_mode, debug_mode, store_mode)
 }
 
 /// Compile multiple .omni sources with incremental cache support.
@@ -377,10 +375,11 @@ pub fn compile_multi_internal_cached(
     path_mapping: FxHashMap<String, String>,
     editor_mode: bool,
     debug_mode: bool,
+    store_mode: Option<&str>,
     cache: &mut crate::analyse::IncrementalCache,
 ) -> InternalCompileResult {
     let analysis = crate::analyse::analyse_multi_cached(&sources, &path_mapping, cache);
-    compile_multi_internal_post(analysis, &sources, target, editor_mode, debug_mode)
+    compile_multi_internal_post(analysis, &sources, target, editor_mode, debug_mode, store_mode)
 }
 
 /// Shared post-analysis codegen + post-processing for compile_multi_* functions.
@@ -392,6 +391,7 @@ fn compile_multi_internal_post(
     target: codegen::Target,
     editor_mode: bool,
     debug_mode: bool,
+    store_mode: Option<&str>,
 ) -> InternalCompileResult {
     let mut diags = analysis.diagnostics;
     let warnings = analysis.warnings;
@@ -424,12 +424,12 @@ fn compile_multi_internal_post(
                 .collect();
             (files, comps)
         } else {
-            (codegen::compile(&merged_ir, target, sources), FxHashMap::default())
+            (codegen::compile(&merged_ir, target, sources, store_mode), FxHashMap::default())
         }
     };
     #[cfg(not(feature = "codegen-omniview"))]
     let (output, components): (_, FxHashMap<String, serde_json::Value>) =
-        (codegen::compile(&merged_ir, target, sources), FxHashMap::default());
+        (codegen::compile(&merged_ir, target, sources, store_mode), FxHashMap::default());
 
     let files_map: FxHashMap<String, String> = output
         .files
@@ -464,8 +464,9 @@ pub fn compile_multi_to_target(
     path_mapping: FxHashMap<String, String>,
     editor_mode: bool,
     debug_mode: bool,
+    store_mode: Option<&str>,
 ) -> String {
-    let result = compile_multi_internal(sources, target, path_mapping, editor_mode, debug_mode);
+    let result = compile_multi_internal(sources, target, path_mapping, editor_mode, debug_mode, store_mode);
     serde_json::to_string(&serde_json::json!({
         "success": result.success,
         "files": result.files,

@@ -26,6 +26,9 @@ pub struct JsonFormatConfig {
     pub array_fmt: JsonArrayFmt,
     pub object_fmt: JsonObjectFmt,
     pub strip_trailing_dot_zero: bool,
+    /// Suffix to append to large integer literals that exceed MAX_SAFE_INTEGER (2^53-1).
+    /// JS-family targets use `"n"` for BigInt; other targets leave this empty.
+    pub large_integer_suffix: &'static str,
 }
 
 /// How to format JSON arrays for the target language.
@@ -64,12 +67,25 @@ pub fn format_json_value(value: &serde_json::Value, cfg: &JsonFormatConfig) -> S
             }
         }
         serde_json::Value::Number(n) => {
-            let s = n.to_string();
+            let mut s = n.to_string();
             if cfg.strip_trailing_dot_zero {
-                s.strip_suffix(".0").unwrap_or(&s).to_string()
-            } else {
-                s
+                s = s.strip_suffix(".0").unwrap_or(&s).to_string();
             }
+            // If the integer exceeds JS MAX_SAFE_INTEGER (2^53 - 1), append BigInt suffix.
+            if !cfg.large_integer_suffix.is_empty() {
+                const MAX_SAFE: u64 = 9007199254740991; // 2^53 - 1
+                let is_large = if let Some(i) = n.as_i64() {
+                    i > MAX_SAFE as i64 || i < -(MAX_SAFE as i64)
+                } else if let Some(u) = n.as_u64() {
+                    u > MAX_SAFE
+                } else {
+                    false
+                };
+                if is_large {
+                    s.push_str(cfg.large_integer_suffix);
+                }
+            }
+            s
         }
         serde_json::Value::String(s) => {
             let escaped = escape_literal_str(s, cfg.quote);
@@ -119,6 +135,7 @@ pub const JSON_JS: JsonFormatConfig = JsonFormatConfig {
     array_fmt: JsonArrayFmt::Bracket,
     object_fmt: JsonObjectFmt::Bracket,
     strip_trailing_dot_zero: false,
+    large_integer_suffix: "n",
 };
 
 /// Config: React (same as JS)
@@ -140,6 +157,7 @@ pub const JSON_DART: JsonFormatConfig = JsonFormatConfig {
     array_fmt: JsonArrayFmt::Bracket,
     object_fmt: JsonObjectFmt::Bracket,
     strip_trailing_dot_zero: true,
+    large_integer_suffix: "",
 };
 
 /// Config: Flutter (same as Dart)
@@ -155,6 +173,7 @@ pub const JSON_RUST: JsonFormatConfig = JsonFormatConfig {
     array_fmt: JsonArrayFmt::VecMacro,
     object_fmt: JsonObjectFmt::Passthrough,
     strip_trailing_dot_zero: true,
+    large_integer_suffix: "",
 };
 
 /// Config: Dioxus (same as Rust)
@@ -170,4 +189,5 @@ pub const JSON_PYTHON: JsonFormatConfig = JsonFormatConfig {
     array_fmt: JsonArrayFmt::Passthrough,
     object_fmt: JsonObjectFmt::Passthrough,
     strip_trailing_dot_zero: true,
+    large_integer_suffix: "",
 };

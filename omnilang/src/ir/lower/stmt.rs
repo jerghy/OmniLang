@@ -182,6 +182,8 @@ pub(super) fn try_lower_mutation(
     semantics: &mut SemanticResult,
 ) -> Option<MutationIntent> {
     // Pattern 1: Expr::MethodCall { object: VarRef("count"), method: "set", args: [value] }
+    // Only single-arg method calls can be signal mutations (.set(v), .push(v), .inc(), .pop()).
+    // Multi-arg calls like map.set(key, val) are regular method calls — do NOT lower to mutation.
     if let Expr::MethodCall {
         object,
         method,
@@ -190,28 +192,36 @@ pub(super) fn try_lower_mutation(
     } = expr
     {
         if let Expr::VarRef(target_name, _) = object.as_ref() {
-            return mutation_for_method(
-                target_name,
-                method,
-                args.first(),
-                variant_map,
-                event_fields,
-                semantics,
-            );
+            if args.len() <= 1 {
+                return mutation_for_method(
+                    target_name,
+                    method,
+                    args.first(),
+                    variant_map,
+                    event_fields,
+                    semantics,
+                );
+            }
+            // Multi-arg method call — not a mutation, fall through to ExprStmt
+            return None;
         }
     }
     // Pattern 2: Expr::FuncCall { func: FieldAccess { VarRef("count"), "set" }, args: [value] }
     if let Expr::FuncCall { func, args, .. } = expr {
         if let Expr::FieldAccess { object, field, .. } = func.as_ref() {
             if let Expr::VarRef(target_name, _) = object.as_ref() {
-                return mutation_for_method(
-                    target_name,
-                    field,
-                    args.first(),
-                    variant_map,
-                    event_fields,
-                    semantics,
-                );
+                if args.len() <= 1 {
+                    return mutation_for_method(
+                        target_name,
+                        field,
+                        args.first(),
+                        variant_map,
+                        event_fields,
+                        semantics,
+                    );
+                }
+                // Multi-arg func call — not a mutation, fall through to ExprStmt
+                return None;
             }
         }
     }
