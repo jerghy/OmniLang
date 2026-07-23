@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "omnic",
     "omnilang",
+    "omnilang-wasm",
     "poiesis/src-tauri",
 ]
 

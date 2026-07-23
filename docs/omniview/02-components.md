@@ -7,7 +7,7 @@
 ```omni
 component ComponentName {
     // 成员声明（顺序任意）
-    // prop / signal / computed / event / fn / action / getter
+    // prop / signal / computed / event / fn / action
     // view { ... }
     // style { ... }
 }
@@ -136,14 +136,11 @@ computed fullName() -> String {
 - computed 必须是**纯**的（不应有副作用）
 - 函数形式的 computed 在 view 中调用：`{fullName()}`
 
-### getter（属性访问器）
+### getter
 
-类似于 computed，但语法更简洁：
+> **注意**：`getter` **不是组件顶层成员**，只能在 `store { }` 块内使用（包括独立 store 文件和组件内的内联 store）。详见 [05-Store 状态管理](05-stores.md)。
 
-```omni
-getter itemCount: i32 = items.len();
-getter isEmpty: bool = items.len() == 0;
-```
+组件内如需派生值，请使用 [`computed`](#computed计算属性)。
 
 ### fn（组件函数）
 
@@ -219,8 +216,8 @@ onSelect("item-1");            // 函数调用形式
 
 ```omni
 component MyComponent {
-    ref myInput: HtmlElement;
-    ref scrollContainer: HtmlElement;
+    ref myInput: Element;
+    ref scrollContainer: Element;
 
     fn focusInput() {
         // 通过 ref 名访问 DOM 元素
@@ -239,17 +236,17 @@ component MyComponent {
 - 画布操作
 - 第三方库 DOM 操作
 
-**ref 类型**：`HtmlElement` 是所有 HTML 元素的基础引用类型。
+**ref 类型**：`Element` 是 DOM 元素引用类型的占位名（当前编译器不强制校验 ref 的具体类型）。
 
 ### const（常量）
 
-组件级别的编译时常量，在 `@` 前缀可选：
+组件级别的编译时常量，带 `$` 前缀可选：
 
 ```omni
 component MyComponent {
     const MAX_ITEMS = 100;
     const API_URL = "https://api.example.com";
-    const logoUrl = "/assets/logo.png";       // 无 @ 前缀也可
+    const logoUrl = "/assets/logo.png";       // 无 $ 前缀也可
 
     signal limit: i32 = MAX_ITEMS;             // 常量可用于初始值
 }

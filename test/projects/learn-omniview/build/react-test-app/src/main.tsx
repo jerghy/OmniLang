@@ -1,8 +1,7 @@
-import React from "react";
-import ReactDOM from "react-dom/client";
-import { App } from "./App";
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import { SimpleApp } from './react-output/SimpleApp';
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  React.createElement(React.StrictMode, null, React.createElement(SimpleApp))
 );

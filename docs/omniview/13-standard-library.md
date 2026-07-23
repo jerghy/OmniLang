@@ -136,30 +136,20 @@ fn validateEmail(input: String) -> bool {
 | `math_round` | `(x: f64) -> i32` | 四舍五入 |
 | `math_sqrt` | `(x: f64) -> f64` | 平方根 |
 | `math_pow` | `(base: f64, exp: f64) -> f64` | 幂运算 |
-| `math_sin` | `(x: f64) -> f64` | 正弦 |
-| `math_cos` | `(x: f64) -> f64` | 余弦 |
-| `math_tan` | `(x: f64) -> f64` | 正切 |
-| `math_log` | `(x: f64) -> f64` | 自然对数 |
-| `math_log2` | `(x: f64) -> f64` | 以 2 为底的对数 |
-| `math_log10` | `(x: f64) -> f64` | 以 10 为底的对数 |
 | `math_min` | `(a: f64, b: f64) -> f64` | 最小值 |
 | `math_max` | `(a: f64, b: f64) -> f64` | 最大值 |
-| `math_clamp` | `(x: f64, min: f64, max: f64) -> f64` | 钳制到范围 |
 | `math_random` | `() -> f64` | 随机数 `[0, 1)` |
-| `math_random_int` | `(min: i32, max: i32) -> i32` | 随机整数 `[min, max]` |
-| `math_pi` | `() -> f64` | π 常量 |
-| `math_e` | `() -> f64` | e 常量 |
 
 ```omni
-import { math_random, math_ceil, math_sqrt, math_clamp } from "std/math";
+import { math_random, math_ceil, math_sqrt, math_max } from "std/math";
 
 fn rollDice() -> i32 {
     let raw = math_random();           // 0.0 ~ 1.0
     return math_ceil(raw * 6);         // 1 ~ 6
 }
 
-fn safeDivide(a: f64, b: f64) -> f64 {
-    return math_clamp(a / b, -9999, 9999);
+fn safeDiv(a: f64, b: f64) -> f64 {
+    return if b == 0.0 { 0.0 } else { a / b };
 }
 ```
 
@@ -189,82 +179,21 @@ fn loadSettings() -> String {
 }
 ```
 
-## std/datetime — 日期时间
+## 内置函数
 
-| 函数 | 签名 | 说明 |
-|------|------|------|
-| `datetime_now` | `() -> i64` | 当前时间戳（毫秒） |
-| `datetime_from_timestamp` | `(ts: i64) -> DateTime` | 从时间戳创建 DateTime |
-| `datetime_format` | `(dt: DateTime, fmt: String) -> String` | 格式化日期 |
-| `datetime_year` | `(dt: DateTime) -> i32` | 年份 |
-| `datetime_month` | `(dt: DateTime) -> i32` | 月份 (1-12) |
-| `datetime_day` | `(dt: DateTime) -> i32` | 日 (1-31) |
-| `datetime_hour` | `(dt: DateTime) -> i32` | 小时 (0-23) |
-| `datetime_minute` | `(dt: DateTime) -> i32` | 分钟 (0-59) |
-| `datetime_second` | `(dt: DateTime) -> i32` | 秒 (0-59) |
+以下是可直接调用的内置函数（无需 import）：
+
+| 函数 | 说明 | 可用目标 |
+|------|------|----------|
+| `datetime_now() -> i64` | 当前时间戳（毫秒） | React |
 
 ```omni
-import { datetime_now, datetime_format } from "std/datetime";
-
-fn getCurrentDate() -> String {
-    let now = datetime_now();
-    return datetime_format(now, "YYYY-MM-DD");
+fn getTimestamp() -> i64 {
+    return datetime_now();
 }
 ```
 
-## std/async — 异步工具
-
-| 函数 | 签名 | 说明 |
-|------|------|------|
-| `async_sleep` | `(ms: i32) -> void` | 延迟指定毫秒 |
-| `async_spawn` | `(fn: () -> T) -> T` | 启动异步任务 |
-| `async_all` | `(tasks: Array<?>) -> Array<?>` | 并行等待所有任务 |
-| `async_race` | `(tasks: Array<?>) -> ?` | 竞速——返回第一个完成的结果 |
-| `async_timeout` | `(fn: () -> T, ms: i32) -> T?` | 超时控制 |
-
-```omni
-import { async_sleep, async_all } from "std/async";
-
-async fn delayedFetch() -> String {
-    await async_sleep(1000);     // 延迟 1 秒
-    return "done";
-}
-```
-
-## std/encode — 编码解码
-
-| 函数 | 说明 |
-|------|------|
-| `encode_base64_encode` | Base64 编码 |
-| `encode_base64_decode` | Base64 解码 |
-| `encode_hex_encode` | Hex 编码 |
-| `encode_hex_decode` | Hex 解码 |
-| `encode_url_encode` | URL 编码 |
-| `encode_url_decode` | URL 解码 |
-
-```omni
-import { encode_base64_encode } from "std/encode";
-
-fn encodeData(data: String) -> String {
-    return encode_base64_encode(data);
-}
-```
-
-## std/regex — 正则表达式
-
-| 函数 | 说明 |
-|------|------|
-| `regex_match` | 完全匹配 |
-| `regex_search` | 搜索匹配 |
-| `regex_replace` | 替换匹配 |
-
-```omni
-import { regex_match, regex_replace } from "std/regex";
-
-fn isValidEmail(email: String) -> bool {
-    return regex_match(email, "^[\\w.]+@[\\w.]+$");
-}
-```
+> **注意**：`datetime_now` 是编译器的内置函数，目前仅 React 目标支持。OmniView 目标请使用 JS interop。
 
 ## 内置方法
 

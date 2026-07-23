@@ -89,6 +89,23 @@ export function createComponentLifecycleSlice(set: SetFn, get: GetFn) {
       }
     },
 
+    // ── Debug signal value overrides ──
+    setDebugSignalValue: (componentName: string, signalName: string, value: unknown) => set((s) => {
+      const compValues = { ...(s.debugSignalValues[componentName] || {}) };
+      if (value === undefined || value === null || value === "") {
+        delete compValues[signalName];
+      } else {
+        compValues[signalName] = value;
+      }
+      return {
+        debugSignalValues: {
+          ...s.debugSignalValues,
+          [componentName]: compValues,
+        },
+        // Debug values don't dirty the project
+      };
+    }),
+
     // ── Component signal CRUD ──
     addComponentSignal: (compName: string, signal: DefEntry) => set((s) => {
       const def = s.componentDefs[compName];

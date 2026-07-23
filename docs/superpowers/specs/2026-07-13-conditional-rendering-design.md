@@ -184,24 +184,167 @@ if (tok.kind === "AT") {
 
 保持现有逻辑：canvas 按当前 signal 值渲染对应激活分支。条件块折叠状态不影响 canvas。调试面板改 signal → canvas 自动切换到对应分支。
 
-## 8. 涉及文件
+## 8. Round-Trip 设计
+
+### 8.1 Save 路径：element tree → .omni 源码
+
+```
+store.elements (ConditionalBlockData + ViewElementData)
+  → buildViewTree (view-tree-builder.ts)
+    → 现仅处理 nodeType==="view" → ElementViewNode
+    → 新增：nodeType==="conditional" → IfViewNode
+  → buildComponentPart (component-builder.ts)
+  → SourceEmitter.emitViewNode
+    → 已处理 kind==="if" ✓
+```
+
+**buildViewTree 需变更**：
+
+```typescript
+// view-tree-builder.ts — 新增条件块处理
+function buildNode(el: ElementData, byId: Map<string, ViewElementData>, compName: string): ViewNode {
+  if (el.nodeType === "conditional") {
+    const cond = el as ConditionalBlockData;
+    const branches = cond.branches.map(b => ({
+      condition: b.condition,
+      body: b.children
+        .map(cid => byId.get(cid))
+        .filter((c): c is ViewElementData => c !== undefined)
+        .map(c => buildNode(c, byId, compName)),
+    }));
+
+    const first = branches[0];
+    const lastBranch = cond.branches[cond.branches.length - 1];
+    const fallback = lastBranch.type === "else" && lastBranch.condition === ""
+      ? branches[branches.length - 1].body : null;
+    const elifBranches = fallback ? branches.slice(1, -1) : branches.slice(1);
+
+    return {
+      kind: "if",
+      id: cond.id,
+      path: compName,
+      condition: first.condition,
+      branches: branches.map(b => ({ condition: b.condition, body: b.body })),
+      fallback,
+      children: branches.flatMap(b => b.body),
+    };
+  }
+  // ... existing view handling
+}
+```
+
+**annotation-data.ts** — 已 walk `IfViewNode.branches[*].body` + `fallback` ✓  
+**collect-styles.ts** — 无条件块相关逻辑 ✓  
+
+### 8.2 Load 路径：.omni 源码 → element tree
+
+```
+.omni source
+  → Parser.parse()
+  → parseViewBody → parseViewDirective (新增)
+    → 解析 @if / @else if / @else → ConditionalBlockData
+    → 分支内子元素通过现有 parseViewElement 递归解析
+  → buildParseResult → designElements[]
+```
+
+**parseViewDirective 入口**：
+
+```typescript
+// parseViewBody 中新增：
+if (tok.kind === "AT") {
+  parseViewDirective(internals);
+  continue;
+}
+```
+
+### 8.3 子元素关系
+
+ConditionalBlockData 的 children 管理采用双轨制：
+
+```
+ConditionalBlockData {
+  branches: [
+    { type: "if",    condition: "num > 1",         children: ["el-a", "el-b"] },
+    { type: "else",  condition: "",                 children: ["el-c"] },
+  ],
+  children: ["el-a", "el-b", "el-c"],  // 扁平化，兼容 element-crud.ts
+}
+```
+
+- 分支内子元素的 `parentId` = `ConditionalBlockData.id`
+- 变更子元素时同时更新 `branch.children` 和扁平 `children`
+- `element-crud.ts` 通过 `"children" in parent` 判断是否可容纳子元素 ✓
+
+### 8.4 元素树渲染
+
+扩展 TreeNode 支持条件块和分支节点：
+
+```typescript
+// tree-utils.ts
+interface TreeNode {
+  id: string;
+  tag: string;
+  displayLabel: string;
+  children: TreeNode[];
+  nodeType?: "view" | "conditional" | "conditional-branch";
+  condition?: string;           // 仅 conditional-branch
+  branchType?: "if" | "elif" | "else";  // 仅 conditional-branch
+}
+```
+
+ComponentTree.buildNode 中：
+
+```typescript
+if (el.nodeType === "conditional") {
+  const cond = el as ConditionalBlockData;
+  return {
+    id: cond.id,
+    tag: "条件渲染",
+    nodeType: "conditional",
+    displayLabel: "",
+    children: cond.branches.map((b, i) => ({
+      id: `${cond.id}.br${i}`,
+      tag: b.type === "else" ? "else" : `(${b.condition})`,
+      nodeType: "conditional-branch",
+      displayLabel: "",
+      condition: b.condition,
+      branchType: b.type,
+      children: b.children.map(cid => buildNode(elMap.get(cid)!)) 
+    })),
+  };
+}
+```
+
+TreeNodeView 识别 `nodeType === "conditional-branch"` 渲染不同样式（🔻 图标、条件文本）。
+
+### 8.5 右键菜单扩展
+
+- `nodeType === "conditional"` → 「添加 @else if 分支」/「添加 @else 分支」/「删除条件块」
+- `nodeType === "conditional-branch"` → 「添加子组件」/「删除分支」(if/else 不可删)
+- 普通元素 → 现有菜单 + 「用条件块包裹」
+
+--- 以下为更新后的章节编号 ---
+
+## 9. 涉及文件 (更新)
 
 | 文件 | 变更 |
 |---|---|
 | `core/types/element.ts` | 新增 `ConditionalBlockData`，扩展 `ElementData` |
 | `services/codegen/types.ts` | 无变更（`IfViewNode` 已存在） |
 | `services/codegen/parser-view.ts` | 新增 `parseViewDirective`，扩展 `parseViewBody` |
-| `services/codegen/source-emitter.ts` | 可能需要适配（验证现有逻辑） |
-| `services/codegen/view-tree-builder.ts` | 新增条件块构建逻辑 |
-| `store/slices/element-crud.ts` | 新增 6 个 CRUD action |
-| `store/types.ts` | 如需，扩展 state 类型 |
-| `store/undo-slice.ts` | 注册新 action 的 undo 逻辑 |
-| `components/panels/ElementTree.tsx` | 条件块节点渲染 |
-| `components/panels/ElementContextMenu.tsx` | 右键菜单扩展 |
+| `services/codegen/view-tree-builder.ts` | 新增 `nodeType==="conditional"` → `IfViewNode` 构建 |
+| `services/codegen/annotation-data.ts` | 已支持 `IfViewNode` 遍历 ✓ |
+| `services/codegen/source-emitter.ts` | 已支持 `kind==="if"` 输出 ✓ |
+| `services/codegen/collect-styles.ts` | 无条件块相关逻辑 ✓ |
+| `components/panels/tree-utils.ts` | TreeNode 新增 `nodeType`/`condition`/`branchType` |
+| `components/panels/ComponentTree.tsx` | 条件块 buildNode + 右键菜单扩展 |
+| `components/panels/TreeNodeRenderer.tsx` | 条件分支节点渲染 |
 | `components/panels/inspector/` | 新增 `BranchConditionEditor.tsx` |
-| `__tests__/` | parser 测试 + element-crud 测试 |
+| `store/slices/element-crud.ts` | 新增 6 个 CRUD action |
+| `store/undo-slice.ts` | 注册新 action 的 undo 逻辑 |
+| `__tests__/` | parser 测试 + element-crud 测试 + round-trip 测试 |
 
-## 9. 测试策略
+## 10. 测试策略
 
 | 测试类型 | 覆盖内容 |
 |---|---|
@@ -210,7 +353,7 @@ if (tok.kind === "AT") {
 | CRUD 单元测试 | 添加/删除/修改分支、子元素进出分支、不变式约束 |
 | UI 测试 (Playwright) | 元素树展示、右键菜单、属性面板编辑、canvas 分支切换 |
 
-## 10. 后续迭代
+## 11. 后续迭代
 
 - `@for` / `@empty` 循环渲染（可复用 ConditionalBlockData 模式，用 `ForBlockData`）
 - `@slot` 插槽

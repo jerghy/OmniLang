@@ -8,7 +8,7 @@
 import type { CompileResult } from './__generated__/CompileResult';
 import type { Diagnostic } from './__generated__/Diagnostic';
 
-declare module '../../public/wasm/omnilang.js' {
+declare module '../../public/wasm/omnilang_wasm.js' {
   const init: (module?: WebAssembly.Module) => Promise<void>;
   export function initSync(buffer: ArrayBuffer): void;
   export function compile_to_ir(source: string): CompileResult;

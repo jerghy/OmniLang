@@ -1,11 +1,74 @@
 // components/panels/inspector/PropsSection.tsx
 // Editable form for element properties (id, class binding, label, etc.).
+// The "label" prop renders as a chip-based segment editor instead of a plain input.
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { usePoiesisStore } from "../../../store";
 import type { ElementData } from "../../../core/types/element";
+import type { SignalPickerItem } from "./SignalSlashPicker";
+import { SignalSlashPicker } from "./SignalSlashPicker";
 
 const KNOWN_PROPS = ["id", "label", "class", "name", "type", "placeholder", "value", "src", "href"];
+
+// ── Label segment types & helpers ──────────────────────────────────────────
+
+type LabelSegment =
+  | { type: "text"; value: string }
+  | { type: "expr"; value: string }; // value is the name inside { }
+
+function parseLabelSegments(label: string): LabelSegment[] {
+  if (!label) return [];
+  const segments: LabelSegment[] = [];
+  const regex = /\{([^}]+)\}|([^{]+)/g;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(label)) !== null) {
+    if (match[1] !== undefined) {
+      segments.push({ type: "expr", value: match[1] });
+    } else if (match[2]) {
+      segments.push({ type: "text", value: match[2] });
+    }
+  }
+  return segments.length > 0 ? segments : [{ type: "text", value: label }];
+}
+
+function serializeSegments(segments: LabelSegment[]): string {
+  return segments
+    .map((s) => (s.type === "expr" ? `{${s.value}}` : s.value))
+    .join("");
+}
+
+// ── Shared chip styles ─────────────────────────────────────────────────────
+
+const CHIP_BASE: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 4,
+  padding: "3px 8px",
+  fontSize: 11,
+  fontFamily: "var(--dp-font-mono, monospace)",
+  borderRadius: 12,
+  border: "1px solid",
+  whiteSpace: "nowrap",
+  lineHeight: "18px",
+};
+
+const EXPR_CHIP_STYLE: React.CSSProperties = {
+  ...CHIP_BASE,
+  background: "#EDE9FE",
+  color: "#6D28D9",
+  borderColor: "#C4B5FD",
+};
+
+const CHIP_DELETE_BTN: React.CSSProperties = {
+  border: "none",
+  background: "none",
+  cursor: "pointer",
+  fontSize: 13,
+  padding: 0,
+  lineHeight: 1,
+  marginLeft: 2,
+  opacity: 0.5,
+};
 
 function buildLocalProps(element: ElementData): Record<string, string> {
   const initial: Record<string, string> = {};
@@ -19,22 +82,32 @@ function buildLocalProps(element: ElementData): Record<string, string> {
   return initial;
 }
 
-interface PropsSectionProps {
-  element: ElementData;
+interface SlashState {
+  propName: string;
+  inputEl: HTMLInputElement;
+  /** Cursor position where "/" was typed (for replacement range) */
+  slashIndex: number;
 }
 
-export function PropsSection({ element }: PropsSectionProps) {
+interface PropsSectionProps {
+  element: ElementData;
+  signalItems?: SignalPickerItem[];
+}
+
+export function PropsSection({ element, signalItems }: PropsSectionProps) {
   const setProp = usePoiesisStore((s) => s.setProp);
 
   // Local editing state to avoid store writes on every keystroke
   const [localProps, setLocalProps] = useState<Record<string, string>>(() =>
     buildLocalProps(element)
   );
+  const [slash, setSlash] = useState<SlashState | null>(null);
 
   const prevElementIdRef = useRef(element.id);
   if (element.id !== prevElementIdRef.current) {
     prevElementIdRef.current = element.id;
     setLocalProps(buildLocalProps(element));
+    setSlash(null);
   }
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -63,8 +136,79 @@ export function PropsSection({ element }: PropsSectionProps) {
     [element.id, debouncedSetProp]
   );
 
+  // Called by PropRow when "/" is typed
+  const handleSlash = useCallback(
+    (propName: string, inputEl: HTMLInputElement) => {
+      const cursorPos = inputEl.selectionStart ?? inputEl.value.length;
+      // The "/" was just typed at cursorPos - 1
+      const slashIndex = cursorPos - 1;
+      setSlash({ propName, inputEl, slashIndex });
+    },
+    []
+  );
+
+  // Close the picker
+  const handleSlashClose = useCallback(() => {
+    // Clean up any label chip editor insert callback
+    if (slash?.inputEl) {
+      delete (slash.inputEl as any).__labelSlashInsert;
+    }
+    setSlash(null);
+  }, [slash]);
+
+  // Handle selection from picker
+  const handleSlashSelect = useCallback(
+    (item: SignalPickerItem) => {
+      if (!slash) return;
+      const { propName, inputEl, slashIndex } = slash;
+
+      // Label chip editor: use the DOM-attached insert callback
+      const labelInsert = (inputEl as any).__labelSlashInsert as
+        | ((signalName: string) => void)
+        | undefined;
+      if (labelInsert) {
+        delete (inputEl as any).__labelSlashInsert;
+        labelInsert(item.insertionText);
+        setSlash(null);
+        return;
+      }
+
+      const currentValue = localProps[propName] ?? "";
+      // Filter text is everything from "/" to end (user may have typed more chars)
+      const newValue = currentValue.slice(0, slashIndex) + `{${item.insertionText}}`;
+      // Update local and debounced store
+      const updated = { ...localProps, [propName]: newValue };
+      setLocalProps(updated);
+      debouncedSetProp(element.id, propName, newValue);
+      // Close picker and refocus input
+      setSlash(null);
+      // Set cursor after the inserted {expr}
+      const cursorTarget = slashIndex + item.insertionText.length + 2; // +2 for { }
+      requestAnimationFrame(() => {
+        inputEl.focus();
+        inputEl.setSelectionRange(cursorTarget, cursorTarget);
+      });
+    },
+    [slash, localProps, element.id, debouncedSetProp]
+  );
+
   // Compute which props are relevant based on tag
   const relevantProps = getRelevantProps("tag" in element ? element.tag : "div");
+
+  // Derived filter text: everything after "/" in the input's actual value.
+  // For the label chip editor, use inputEl.value (segment text) instead of
+  // localProps[propName] (full serialized label) so the filter is correct.
+  const slashFilter = slash
+    ? slash.inputEl.value.slice(slash.slashIndex + 1)
+    : "";
+
+  // Compute picker position from active input
+  const pickerPosition = slash
+    ? (() => {
+        const rect = slash.inputEl.getBoundingClientRect();
+        return { top: rect.bottom + 4, left: rect.left };
+      })()
+    : { top: 0, left: 0 };
 
   return (
     <div style={{ marginBottom: 12 }}>
@@ -85,17 +229,267 @@ export function PropsSection({ element }: PropsSectionProps) {
           label="ID"
           value={localProps["id"] ?? element.id}
           onChange={(v) => handleChange("id", v)}
+          onSlash={(el) => handleSlash("id", el)}
         />
 
-        {relevantProps.map((prop) => (
-          <PropRow
-            key={prop}
-            label={prop}
-            value={localProps[prop] ?? ""}
-            onChange={(v) => handleChange(prop, v)}
-          />
-        ))}
+        {relevantProps.map((prop) => {
+          // Use chip-based LabelEditor for "label" prop
+          if (prop === "label") {
+            return (
+              <LabelPropRow
+                key={prop}
+                label={prop}
+                value={localProps[prop] ?? ""}
+                onChange={(v) => handleChange(prop, v)}
+                onSlash={(el) => handleSlash(prop, el)}
+              />
+            );
+          }
+          return (
+            <PropRow
+              key={prop}
+              label={prop}
+              value={localProps[prop] ?? ""}
+              onChange={(v) => handleChange(prop, v)}
+              onSlash={(el) => handleSlash(prop, el)}
+            />
+          );
+        })}
       </div>
+
+      {/* Signal/Computed/Store slash picker */}
+      {slash && signalItems && signalItems.length > 0 && (
+        <SignalSlashPicker
+          items={signalItems}
+          filter={slashFilter}
+          onSelect={handleSlashSelect}
+          onClose={handleSlashClose}
+          position={pickerPosition}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── LabelEditor: chip-based text segment editor ────────────────────────────
+
+interface LabelEditorProps {
+  value: string;
+  onChange: (v: string) => void;
+  onSlashRequest?: (inputEl: HTMLInputElement) => void;
+}
+
+function LabelEditor({ value, onChange, onSlashRequest }: LabelEditorProps) {
+  const segments = parseLabelSegments(value);
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
+  const editInputRef = useRef<HTMLInputElement>(null);
+  const textInputRefs = useRef<Map<number, HTMLInputElement>>(new Map());
+  const slashPendingRef = useRef(false);
+
+  useEffect(() => {
+    if (editingIdx !== null && editInputRef.current) {
+      editInputRef.current.focus();
+    }
+  }, [editingIdx]);
+
+  const handleDelete = useCallback(
+    (idx: number) => {
+      const updated = [...segments];
+      updated.splice(idx, 1);
+      onChange(serializeSegments(updated));
+    },
+    [segments, onChange],
+  );
+
+  /** Commit a text-segment input: parse its value and replace the segment.
+   *  idx=-1 means the ghost trailing input — append instead of replace. */
+  const commitText = useCallback(
+    (idx: number) => {
+      if (slashPendingRef.current) { slashPendingRef.current = false; return; }
+      const input = textInputRefs.current.get(idx);
+      if (!input) return;
+      const text = input.value;
+      if (idx === -1) {
+        // Ghost trailing input: append if non-empty, else just clear
+        if (text.trim()) {
+          const newSegs = parseLabelSegments(text);
+          if (newSegs.length > 0) {
+            onChange(serializeSegments([...segments, ...newSegs]));
+          }
+        }
+        input.value = "";
+        return;
+      }
+      if (!text.trim()) { handleDelete(idx); return; }
+      const newSegs = parseLabelSegments(text);
+      const updated = [...segments];
+      updated.splice(idx, 1, ...newSegs);
+      onChange(serializeSegments(updated));
+    },
+    [segments, onChange, handleDelete],
+  );
+
+  const handleEditCommit = useCallback(
+    (idx: number) => {
+      if (slashPendingRef.current) { slashPendingRef.current = false; return; }
+      const input = editInputRef.current;
+      if (!input || editingIdx === null) return;
+      const text = input.value;
+      if (!text.trim()) { handleDelete(idx); return; }
+      const newSegs = parseLabelSegments(text);
+      const updated = [...segments];
+      updated.splice(idx, 1, ...newSegs);
+      onChange(serializeSegments(updated));
+      setEditingIdx(null);
+    },
+    [segments, onChange, editingIdx, handleDelete],
+  );
+
+  /** KeyDown for text-segment inline inputs. i=-1 means ghost trailing input. */
+  const onTextKeyDown = useCallback(
+    (i: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Enter") { e.preventDefault(); commitText(i); }
+      else if (e.key === "/" && onSlashRequest) {
+        slashPendingRef.current = true;
+        const input = e.currentTarget;
+        (input as any).__labelSlashInsert = (signalName: string) => {
+          const pos = input.selectionStart ?? input.value.length;
+          const slashPos = input.value.lastIndexOf("/", pos);
+          const before = slashPos >= 0 ? input.value.slice(0, slashPos) : input.value;
+          const after = input.value.slice(pos);
+          input.value = before + `{${signalName}}` + after;
+          const newSegs = parseLabelSegments(input.value);
+          if (i === -1) {
+            // Ghost: append new segments
+            if (newSegs.length > 0) onChange(serializeSegments([...segments, ...newSegs]));
+            input.value = "";
+          } else {
+            const updated = [...segments];
+            updated.splice(i, 1, ...newSegs);
+            onChange(serializeSegments(updated));
+          }
+        };
+        requestAnimationFrame(() => onSlashRequest(input));
+      }
+    },
+    [commitText, onSlashRequest, segments, onChange],
+  );
+
+  /** KeyDown for click-to-edit inputs */
+  const onEditKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Enter") { e.preventDefault(); handleEditCommit(editingIdx!); }
+      else if (e.key === "Escape") { setEditingIdx(null); }
+      else if (e.key === "/" && onSlashRequest) {
+        slashPendingRef.current = true;
+        const input = e.currentTarget;
+        (input as any).__labelSlashInsert = (signalName: string) => {
+          const pos = input.selectionStart ?? input.value.length;
+          const slashPos = input.value.lastIndexOf("/", pos);
+          const before = slashPos >= 0 ? input.value.slice(0, slashPos) : input.value;
+          const after = input.value.slice(pos);
+          input.value = before + `{${signalName}}` + after;
+          input.focus();
+          input.setSelectionRange(before.length + signalName.length + 2, before.length + signalName.length + 2);
+        };
+        requestAnimationFrame(() => onSlashRequest(input));
+      }
+    },
+    [handleEditCommit, editingIdx, onSlashRequest],
+  );
+
+  const hasExpr = segments.some((s) => s.type === "expr");
+
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center", flex: 1 }}>
+      {segments.length === 0 && (
+        <input
+          ref={(el) => { if (el) textInputRefs.current.set(0, el); }}
+          type="text"
+          defaultValue=""
+          onKeyDown={(e) => onTextKeyDown(0, e)}
+          onBlur={() => commitText(0)}
+          placeholder="输入文本，/ 插入信号"
+          style={{
+            flex: 1, padding: "3px 6px", fontSize: 11, outline: "none",
+            border: "1px solid #e2e8f0", borderRadius: 4,
+            fontFamily: "var(--dp-font-mono, monospace)", color: "#1e293b",
+          }}
+        />
+      )}
+      {segments.map((seg, i) => {
+        if (editingIdx === i) {
+          return (
+            <input
+              key={i} ref={editInputRef} type="text"
+              defaultValue={seg.type === "expr" ? `{${seg.value}}` : seg.value}
+              onKeyDown={onEditKeyDown} onBlur={() => handleEditCommit(i)}
+              style={{ ...CHIP_BASE, flex: "0 1 auto", minWidth: 60, outline: "none", borderColor: "#6366F1", background: "#fff", color: "#1e293b" }}
+            />
+          );
+        }
+        if (seg.type === "expr") {
+          return (
+            <span key={i} style={{ ...EXPR_CHIP_STYLE, cursor: "pointer" }} onClick={() => setEditingIdx(i)} title="点击编辑">
+              {`{${seg.value}}`}
+              <button style={{ ...CHIP_DELETE_BTN, color: "#7C3AED" }} onClick={(e) => { e.stopPropagation(); handleDelete(i); }} title="删除">&times;</button>
+            </span>
+          );
+        }
+        // Text segment: inline input
+        return (
+          <input
+            key={i}
+            ref={(el) => { if (el) textInputRefs.current.set(i, el); else textInputRefs.current.delete(i); }}
+            type="text"
+            defaultValue={seg.value}
+            onKeyDown={(e) => onTextKeyDown(i, e)}
+            onBlur={() => commitText(i)}
+            style={{
+              flex: "0 1 auto",
+              minWidth: hasExpr ? 40 : 120,
+              padding: "3px 4px", fontSize: 11, outline: "none",
+              border: hasExpr ? "1px solid transparent" : "1px solid #e2e8f0",
+              borderRadius: hasExpr ? 6 : 4,
+              background: "transparent",
+              fontFamily: "var(--dp-font-mono, monospace)", color: "#1e293b",
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+function LabelPropRow({
+  label,
+  value,
+  onChange,
+  onSlash,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  onSlash?: (inputEl: HTMLInputElement) => void;
+}) {
+  return (
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
+      <label
+        style={{
+          fontSize: 11,
+          color: "#64748b",
+          minWidth: 50,
+          flexShrink: 0,
+          paddingTop: 4,
+        }}
+      >
+        {label}
+      </label>
+      <LabelEditor
+        value={value}
+        onChange={onChange}
+        onSlashRequest={onSlash}
+      />
     </div>
   );
 }
@@ -104,11 +498,31 @@ function PropRow({
   label,
   value,
   onChange,
+  onSlash,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
+  onSlash?: (inputEl: HTMLInputElement) => void;
 }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Track the filter text after "/" when picker is potentially open.
+  // We don't manage picker state here — the parent does.
+  // But we need to let the parent know about text changes after "/".
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "/" && onSlash) {
+        // Let the input update first, then notify
+        const input = e.currentTarget;
+        requestAnimationFrame(() => {
+          onSlash(input);
+        });
+      }
+    },
+    [onSlash]
+  );
+
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
       <label
@@ -122,9 +536,11 @@ function PropRow({
         {label}
       </label>
       <input
+        ref={inputRef}
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onKeyDown={handleKeyDown}
         style={{
           flex: 1,
           padding: "3px 6px",
@@ -132,6 +548,7 @@ function PropRow({
           border: "1px solid #e2e8f0",
           borderRadius: 4,
           outline: "none",
+          fontFamily: "var(--dp-font-mono, monospace)",
         }}
         onFocus={(e) => {
           e.target.style.borderColor = "#6366F1";

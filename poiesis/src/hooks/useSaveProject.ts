@@ -23,6 +23,67 @@ function formatDiagnostics(
   return `OmniLang analyse found ${errors.length} error(s):\n${lines.join("\n")}`;
 }
 
+/**
+ * Collect all known project .omni sources for cross-file WASM validation.
+ * Reads existing files from disk, then overlays generated content on top.
+ */
+async function collectProjectSources(
+  generatedFiles: Record<string, string>,
+  extraSources?: Array<{ path: string; content: string }>,
+): Promise<Record<string, string>> {
+  const { usePoiesisStore } = await import("../store");
+  const store = usePoiesisStore.getState();
+  const sources: Record<string, string> = {};
+
+  // Gather known .omni file paths from all available sources
+  const knownPaths = new Set<string>();
+
+  // 1. Open tabs
+  for (const tab of store.designPage.openTabs) {
+    if (tab.filePath) knownPaths.add(tab.filePath);
+  }
+
+  // 2. Component defs (parsed from .omni, have known file paths)
+  for (const def of Object.values(store.componentDefs)) {
+    if (def.filePath) knownPaths.add(def.filePath);
+  }
+
+  // 3. Generated files
+  for (const path of Object.keys(generatedFiles)) {
+    knownPaths.add(path);
+  }
+
+  // 4. Common paths that might not be in tabs/defs yet
+  knownPaths.add("src/design.omni");
+  knownPaths.add("src/main.omni");
+
+  // Read existing files from disk
+  for (const path of knownPaths) {
+    try {
+      const res = await api.project.readFile(path);
+      if (res.content && !res.error) {
+        sources[path] = res.content;
+      }
+    } catch {
+      // File doesn't exist yet — skip
+    }
+  }
+
+  // Overlay generated files (they take precedence over on-disk content)
+  for (const [path, content] of Object.entries(generatedFiles)) {
+    sources[path] = content;
+  }
+
+  // Overlay extra sources (e.g., freshly generated design source)
+  if (extraSources) {
+    for (const { path, content } of extraSources) {
+      sources[path] = content;
+    }
+  }
+
+  return sources;
+}
+
 export function useSaveProject() {
   const markClean = usePoiesisStore((s) => s.markClean);
   const [saving, setSaving] = useState(false);
@@ -45,15 +106,17 @@ export function useSaveProject() {
         store.activeDesign?.tokens?.length ||
         store.activeDesign?.classes?.length ||
         store.activeDesign?.variants?.length;
+      let designSource: string | null = null;
+      let designFilePath: string | null = null;
       if (hasDesignContent) {
         const { emitDesignSource } = await import("../services/codegen/design-emitter");
-        const source = emitDesignSource(store.activeDesign);
-        const designFilePath = activeTab?.tabType === "design" && activeTab?.filePath
+        designSource = emitDesignSource(store.activeDesign);
+        designFilePath = activeTab?.tabType === "design" && activeTab?.filePath
           ? activeTab.filePath
           : "src/design.omni";
 
         // Validate through WASM analyse before writing
-        const designErrors = await validateSources({ [designFilePath]: source });
+        const designErrors = await validateSources({ [designFilePath]: designSource });
         const designCriticals = designErrors.filter((e) => e.severity === "error");
         if (designCriticals.length > 0) {
           setSaveError(formatDiagnostics(designCriticals));
@@ -61,7 +124,7 @@ export function useSaveProject() {
           return;
         }
 
-        await api.project.writeFile(designFilePath, source);
+        await api.project.writeFile(designFilePath, designSource);
       }
 
       // If we're on the design tab, design.omni save above is sufficient.
@@ -83,8 +146,9 @@ export function useSaveProject() {
           source = `store ${activeTab.componentName} {\n}\n`;
         }
 
-        // Validate through WASM analyse before writing
-        const storeErrors = await validateSources({ [activeTab.filePath]: source });
+        // Validate through WASM analyse before writing (include all project sources for imports)
+        const storeSources = await collectProjectSources({ [activeTab.filePath]: source });
+        const storeErrors = await validateSources(storeSources);
         const storeCriticals = storeErrors.filter((e) => e.severity === "error");
         if (storeCriticals.length > 0) {
           setSaveError(formatDiagnostics(storeCriticals));
@@ -132,7 +196,13 @@ export function useSaveProject() {
 
       if (genResult.value) {
         // ── 3. Validate generated sources through WASM analyse ──
-        const analyseErrors = await validateSources(genResult.value);
+        // Collect all project .omni files so the WASM can resolve cross-file imports
+        const extraSources: Array<{ path: string; content: string }> = [];
+        if (designSource && designFilePath) {
+          extraSources.push({ path: designFilePath, content: designSource });
+        }
+        const allSources = await collectProjectSources(genResult.value, extraSources);
+        const analyseErrors = await validateSources(allSources);
         const criticalErrors = analyseErrors.filter((e) => e.severity === "error");
         if (criticalErrors.length > 0) {
           setSaveError(formatDiagnostics(criticalErrors));

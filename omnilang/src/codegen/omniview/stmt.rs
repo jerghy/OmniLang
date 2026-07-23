@@ -223,7 +223,10 @@ impl OmniViewGenerator {
                     .map(|v| self.expr_to_js(v))
                     .unwrap_or_else(|| "undefined".into());
                 if is_signal {
-                    self.js.push_str(&format!("  {}.set({});\n", t, val));
+                    self.js.push_str(&format!(
+                        "  __omni_subs.get(\"{}\").set({});\n",
+                        t, val
+                    ));
                 } else {
                     self.js.push_str(&format!("  {} = {};\n", t, val));
                 }
@@ -237,8 +240,10 @@ impl OmniViewGenerator {
                     .map(|v| self.expr_to_js(v))
                     .unwrap_or_else(|| "1".into());
                 if is_signal {
-                    self.js
-                        .push_str(&format!("  {}.set({}.value + {});\n", t, t, amt));
+                    self.js.push_str(&format!(
+                        "  __omni_subs.get(\"{0}\").set(__omni_subs.get(\"{0}\").value + {1});\n",
+                        t, amt
+                    ));
                 } else {
                     self.js.push_str(&format!("  {} += {};\n", t, amt));
                 }
@@ -252,8 +257,10 @@ impl OmniViewGenerator {
                     .map(|v| self.expr_to_js(v))
                     .unwrap_or_else(|| "1".into());
                 if is_signal {
-                    self.js
-                        .push_str(&format!("  {}.set({}.value - {});\n", t, t, amt));
+                    self.js.push_str(&format!(
+                        "  __omni_subs.get(\"{0}\").set(__omni_subs.get(\"{0}\").value - {1});\n",
+                        t, amt
+                    ));
                 } else {
                     self.js.push_str(&format!("  {} -= {};\n", t, amt));
                 }
@@ -267,8 +274,10 @@ impl OmniViewGenerator {
                     .map(|v| self.expr_to_js(v))
                     .unwrap_or_else(|| "1".into());
                 if is_signal {
-                    self.js
-                        .push_str(&format!("  {}.set({}.value * {});\n", t, t, amt));
+                    self.js.push_str(&format!(
+                        "  __omni_subs.get(\"{0}\").set(__omni_subs.get(\"{0}\").value * {1});\n",
+                        t, amt
+                    ));
                 } else {
                     self.js.push_str(&format!("  {} *= {};\n", t, amt));
                 }
@@ -282,8 +291,10 @@ impl OmniViewGenerator {
                     .map(|v| self.expr_to_js(v))
                     .unwrap_or_else(|| "1".into());
                 if is_signal {
-                    self.js
-                        .push_str(&format!("  {}.set({}.value / {});\n", t, t, amt));
+                    self.js.push_str(&format!(
+                        "  __omni_subs.get(\"{0}\").set(__omni_subs.get(\"{0}\").value / {1});\n",
+                        t, amt
+                    ));
                 } else {
                     self.js.push_str(&format!("  {} /= {};\n", t, amt));
                 }
@@ -297,8 +308,10 @@ impl OmniViewGenerator {
                     .map(|v| self.expr_to_js(v))
                     .unwrap_or_else(|| "1".into());
                 if is_signal {
-                    self.js
-                        .push_str(&format!("  {}.set({}.value % {});\n", t, t, amt));
+                    self.js.push_str(&format!(
+                        "  __omni_subs.get(\"{0}\").set(__omni_subs.get(\"{0}\").value % {1});\n",
+                        t, amt
+                    ));
                 } else {
                     self.js.push_str(&format!("  {} %= {};\n", t, amt));
                 }
@@ -310,15 +323,15 @@ impl OmniViewGenerator {
                     .map(|v| self.expr_to_js(v))
                     .unwrap_or_else(|| "undefined".into());
                 self.js.push_str(&format!(
-                    "  {}.value.push({}); {}.set({}.value.slice());\n",
-                    t, it, t, t
+                    "  __omni_subs.get(\"{0}\").value.push({1}); __omni_subs.get(\"{0}\").set(__omni_subs.get(\"{0}\").value.slice());\n",
+                    t, it
                 ));
             }
             MutationIntent::Pop { target } => {
                 let t = resolve_target(target);
                 self.js.push_str(&format!(
-                    "  {}.value.pop(); {}.set({}.value.slice());\n",
-                    t, t, t
+                    "  __omni_subs.get(\"{0}\").value.pop(); __omni_subs.get(\"{0}\").set(__omni_subs.get(\"{0}\").value.slice());\n",
+                    t
                 ));
             }
         }

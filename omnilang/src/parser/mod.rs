@@ -683,11 +683,14 @@ mod roundtrip_tests {
 
     #[test]
     fn expr_template_string_simple() {
-        // Template strings without interpolation are parsed as plain strings
+        // Template strings without interpolation are parsed as TemplateString
+        // with a single Literal part.
         let expr = first_expr("`hello world`");
         assert!(matches!(
             expr,
-            Expr::Literal(Literal::String(ref s), _) if s == "hello world"
+            Expr::TemplateString { ref parts, .. }
+                if parts.len() == 1
+                && matches!(parts[0], TemplatePart::Literal(ref s) if s == "hello world")
         ));
     }
 

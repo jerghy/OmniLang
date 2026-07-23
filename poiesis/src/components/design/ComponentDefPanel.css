@@ -145,6 +145,11 @@
   visibility: visible;
 }
 
+/* Always show delete button in debug mode */
+.entry-row.debug-row .entry-delete-btn {
+  visibility: visible;
+}
+
 .entry-delete-btn:hover {
   color: #ef4444;
 }
@@ -222,4 +227,52 @@
   color: #94a3b8;
   font-size: 11px;
   cursor: pointer;
+}
+
+/* Debug mode toggle */
+.debug-toggle-btn {
+  background: none;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  padding: 1px 6px;
+  color: #64748b;
+  line-height: 1.4;
+  transition: all 0.15s;
+}
+
+.debug-toggle-btn:hover {
+  border-color: #7C3AED;
+  color: #7C3AED;
+}
+
+.debug-toggle-btn.active {
+  background: #7C3AED;
+  color: #fff;
+  border-color: #7C3AED;
+}
+
+/* Debug value input */
+.debug-value-input {
+  width: 70px;
+  font-size: 11px;
+  border: 1px solid #7C3AED;
+  border-radius: 3px;
+  padding: 1px 4px;
+  outline: none;
+  background: #f5f3ff;
+  color: #5b21b6;
+  flex: 1;
+  min-width: 0;
+}
+
+.debug-value-input:focus {
+  border-color: #6D28D9;
+  box-shadow: 0 0 0 1px rgba(124, 58, 237, 0.2);
+}
+
+.debug-value-input::placeholder {
+  color: #94a3b8;
+  font-style: italic;
 }

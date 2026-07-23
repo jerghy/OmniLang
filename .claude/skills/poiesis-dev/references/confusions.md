@@ -670,19 +670,19 @@ internals.invoke('plugin:event|listen', {
 
 ### 问题
 
-修改了 `omnilang/src/wasm.rs` → 运行 `build-wasm.sh` → 重启 App → 浏览器仍加载旧 WASM。JS 中新增的函数不存在。
+修改了 `omnilang-wasm/src/lib.rs`（原 `omnilang/src/wasm.rs`）→ 运行 `build-wasm.sh` → 重启 App → 浏览器仍加载旧 WASM。JS 中新增的函数不存在。
 
 ### 原因
 
-`build-wasm.sh` 将 WASM 输出到 `poiesis/public/wasm/`。但 `rustCompiler.ts` L133 用 `import('../wasm/omnilang.js')` 导入，Vite 从 `poiesis/src/wasm/` 解析这个路径。两个目录不同步。
+`build-wasm.sh` 将 WASM 输出到 `poiesis/public/wasm/`。但 `rustCompiler.ts` L134 用 `import('../wasm/omnilang_wasm.js')` 导入，Vite 从 `poiesis/src/wasm/` 解析这个路径。两个目录不同步。
 
 ### 修复
 
 `build-wasm.sh` 末尾追加 cp 命令，构建后自动同步：
 
 ```bash
-cp -f "$REPO_ROOT/poiesis/public/wasm/omnilang_bg.wasm" "$REPO_ROOT/poiesis/src/wasm/"
-cp -f "$REPO_ROOT/poiesis/public/wasm/omnilang.js" "$REPO_ROOT/poiesis/src/wasm/"
+cp -f "$REPO_ROOT/poiesis/public/wasm/omnilang_wasm_bg.wasm" "$REPO_ROOT/poiesis/src/wasm/"
+cp -f "$REPO_ROOT/poiesis/public/wasm/omnilang_wasm.js" "$REPO_ROOT/poiesis/src/wasm/"
 ```
 
 ### 调试
@@ -692,7 +692,7 @@ cp -f "$REPO_ROOT/poiesis/public/wasm/omnilang.js" "$REPO_ROOT/poiesis/src/wasm/
 ### 涉及文件
 
 - `scripts/build-wasm.sh` L15-18 — 同步逻辑
-- `rustCompiler.ts` L133 — `import('../wasm/omnilang.js')` → Vite 解析到 `src/wasm/`
+- `rustCompiler.ts` L134 — `import('../wasm/omnilang_wasm.js')` → Vite 解析到 `src/wasm/`
 
 ## 二十八、子组件 prop 无默认值 → 父组件需手动 emit signal 声明 ★
 
@@ -1074,3 +1074,89 @@ const elifBranches = fallback
 - `annotation-data.ts` L82-86 — walk 逻辑（PidAnnotation 双重赋值风险）
 - `collect-styles.ts` L112-116 — walk 逻辑（样式双重收集风险）
 - `source-emitter.ts` L505-535 — @if/@else 发射（曾用 hasEmittedElse workaround，已移除）
+
+## 三十五、条件渲染 Parser 的 body 循环不处理闭合标签 → parentId 解析到自身 ★
+
+> 前提：已读 §二十七（view-tree-builder 的 findElement）和 §二十八（branches/fallback 重叠）。
+> 这两条覆盖了**保存侧**的条件渲染问题。本条覆盖**解析侧**。
+
+### 问题
+
+保存 `.omni` 文件后刷新重开，条件渲染代码消失。但 `@if`/`@else` 块在磁盘文件中正常存在。
+
+### 根因（三个 bug 叠加）
+
+**Bug 1**：`parseViewDirective()`（`parser-view.ts` L686）的 body 解析循环对**所有** `ANGLE_OPEN` token 无条件调用 `parseViewElement()`，不检查是否闭合标签：
+
+```typescript
+// ❌ 旧代码：</button> 也被当作开标签
+if (tok.kind === "ANGLE_OPEN") {
+    parseViewElement(internals);  // expect("IDENTIFIER") → 遇到 SLASH → 失败
+}
+```
+
+`parseViewElement` 期望 `ANGLE_OPEN + IDENTIFIER`，但 `</button>` 是 `ANGLE_OPEN + SLASH + IDENTIFIER`。`expect("IDENTIFIER")` 不抛异常（返回合成 EOF），导致创建一个名为 `Main.Expected IDENTIFIER.N` 的虚假元素。这个虚假元素被 push 到 `viewParentStack`，污染了栈。
+
+**Bug 2**：`parentId` 在 pop condBlockId **之前**计算：
+
+```typescript
+// ❌ 旧代码：pop 之前计算 parentId
+const parentId = viewParentStack.length > 1
+    ? viewParentStack[viewParentStack.length - 2]  // ← 因为有 Bug 1 的虚假元素，这里拿到的是 condBlock 自己
+    : null;
+// ... 创建 condBlock ...
+viewParentStack.pop();  // ← pop 在 parentId 计算之后
+```
+
+当 Bug 1 导致 `viewParentStack` 多了虚假元素后，`length - 2` 不再指向真正的父元素（如 `<div id="card-...">`），而是指向了 condBlockId 自身。结果 `condBlock.parentId = condBlock.id` → 条件块成为孤儿。
+
+**Bug 3**：即使 parentId 正确，旧代码也没有把它注册到父元素的 `children` 数组。`buildViewTree` 通过 `parent.children` 遍历子节点 → 条件块不可达。
+
+### 修复
+
+1. **Body 循环处理闭合标签**（`parser-view.ts` L686-697）：
+```typescript
+if (tok.kind === "ANGLE_OPEN") {
+    if (internals.stream.peek(1)?.kind === "SLASH") {
+        // 闭合标签：消费 </tagname>，pop viewParentStack
+        internals.stream.consume(); // <
+        internals.stream.consume(); // /
+        internals.stream.consume(); // tag
+        if (internals.stream.peek().kind === "ANGLE_CLOSE") stream.consume();
+        if (internals.ctx.viewParentStack.length > 0) viewParentStack.pop();
+    } else {
+        parseViewElement(internals);
+    }
+}
+```
+
+2. **先 pop 再算 parentId**（`parser-view.ts` L743-748）：
+```typescript
+// ✅ 先 pop condBlockId，栈顶就是真正的父元素
+if (internals.ctx.viewParentStack.length > 0) viewParentStack.pop();
+const parentId = viewParentStack.length > 0
+    ? viewParentStack[viewParentStack.length - 1]
+    : null;
+```
+
+3. **注册到父元素 children**（`parser-view.ts` L760-766）：
+```typescript
+if (parentId) {
+    const parent = internals.ctx.elements.find(e => e.id === parentId);
+    if (parent && "children" in parent && Array.isArray(parent.children)) {
+        parent.children.push(condBlockId);
+    }
+}
+```
+
+### 通用原则
+
+解析 `@if` 体内嵌元素时，body 循环必须镜像 `parseViewBody` 的闭合标签处理。任何只处理开标签的循环都会在遇到 `</tagname>` 时产生虚假元素 → 污染 `viewParentStack` → parentId 算错 → 元素不可达。
+
+### 涉及文件
+
+- `parser-view.ts` L686-697 — body 循环：闭合标签跳过
+- `parser-view.ts` L743-748 — parentId 计算：先 pop 后算
+- `parser-view.ts` L760-766 — 注册 condBlock 到父元素 children
+- `view-tree-builder.ts` L4-8 — `findElement()`（§二十七 修复）
+- `view-tree-builder.ts` L49-63 — branches/fallback 分离（§二十八 修复）

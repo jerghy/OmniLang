@@ -549,10 +549,16 @@ fn lower_element(
 
     // Auto-bind <input> elements to String signals if no explicit bind:value
     // and no existing value={expr} prop (one-way reactive binding).
+    // Skip checkbox/radio inputs — they use "checked" property, not "value".
     let has_value_prop = props.as_ref().is_some_and(|p| p.contains_key("value"));
+    let is_checkbox_or_radio = props.as_ref().is_some_and(|p| {
+        p.get("type").is_some_and(|v| {
+            matches!(v, ExprIR::LiteralExpr { value: serde_json::Value::String(s) } if s == "checkbox" || s == "radio")
+        })
+    });
     if let Some(sig_counter) = sig_idx {
         let idx = sig_counter.get();
-        if el.tag == "input" && !has_value_binding && !has_value_prop && idx < string_signals.len() {
+        if el.tag == "input" && !has_value_binding && !has_value_prop && !is_checkbox_or_radio && idx < string_signals.len() {
             let sig_name = string_signals[idx].clone();
             sig_counter.set(idx + 1);
             bindings.get_or_insert_with(Default::default).insert(

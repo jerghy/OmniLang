@@ -133,6 +133,7 @@ pub fn generate(ir: &IRProgram, editor_mode: bool, css_only: bool, debug_mode: b
         node_counter: 0,
         current_nid_path: Vec::new(),
         signal_names: FxHashSet::default(),
+            signal_defaults: FxHashMap::default(),
         store_signal_names: FxHashSet::default(),
         store_field_names: FxHashSet::default(),
         store_names: FxHashSet::default(),
@@ -407,6 +408,8 @@ struct OmniViewGenerator {
     current_nid_path: Vec<String>,
     /// Set of signal names in the current component (for .value / .set() generation)
     signal_names: FxHashSet<String>,
+    /// Default values for signals (name → JS value string), for editor canvas preview
+    signal_defaults: FxHashMap<String, String>,
     /// Store signal/getter names with prefix (e.g. "TodoStore_items") — need .value access
     store_signal_names: FxHashSet<String>,
     /// All store field names with prefix (e.g. "TodoStore_items", "TodoStore_add") — defined globally
@@ -518,6 +521,7 @@ impl OmniViewGenerator {
             node_counter: 0,
             current_nid_path: Vec::new(),
             signal_names: FxHashSet::default(),
+            signal_defaults: FxHashMap::default(),
             store_signal_names: FxHashSet::default(),
             store_field_names: FxHashSet::default(),
             store_names: FxHashSet::default(),

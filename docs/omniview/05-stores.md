@@ -307,7 +307,7 @@ store TodoStore {
 |------|-----------|-------|
 | 作用域 | 组件内部 | 全局 / 局部 |
 | signal | ✓ | ✓ |
-| getter | ✓ | ✓ |
+| getter | -（用 computed） | ✓ |
 | computed | ✓ | - |
 | action | ✓ (组件内) | ✓ (专用) |
 | fn | ✓ | - |

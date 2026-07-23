@@ -140,18 +140,24 @@ impl OmniViewGenerator {
                         // The signal_names were just restored to the parent's set,
                         // so inserting here persists correctly.
                         if !self.signal_names.contains(&child_prefixed) {
+                        // When the child component already declares this signal
+                        // (via its own prop), skip the const declaration to avoid
+                        // "Identifier has already been declared" errors.
+                        // The child's signal already exists; we just need the effect.
+                        let is_child_prop = child_comp.props.contains_key(prop_name);
+                        if !is_child_prop {
                             self.signal_names.insert(child_prefixed.clone());
-                            self.name_renames
-                                .entry(prop_name.clone())
-                                .or_insert_with(|| child_prefixed.clone());
-                            // Emit signal declaration for the parent component
                             self.js.push_str(&format!(
                                 "const {} = __omni_signal(\"{}\", undefined);\n",
                                 child_prefixed, child_prefixed
                             ));
                         }
+                        self.name_renames
+                            .entry(prop_name.clone())
+                            .or_insert_with(|| child_prefixed.clone());
+                    }
                         self.js.push_str(&format!(
-                            "__omni_effect(() => {{ {}.set({}); }});\n",
+                            "__omni_effect(() => {{ __omni_subs.get(\"{0}\").set({1}); }});\n",
                             child_prefixed, js_value
                         ));
                     }

@@ -23,6 +23,11 @@ export function ComponentDefPanel() {
   const removeComponentComputed = usePoiesisStore((s) => s.removeComponentComputed);
   const updateComponentComputed = usePoiesisStore((s) => s.updateComponentComputed);
 
+  // Debug mode
+  const [debugMode, setDebugMode] = useState(false);
+  const debugSignalValues = usePoiesisStore((s) => s.debugSignalValues);
+  const setDebugSignalValue = usePoiesisStore((s) => s.setDebugSignalValue);
+
   const panelPosition = useCanvasStore((s) => s.panelPosition);
   const isCollapsed = useCanvasStore((s) => s.isPanelCollapsed);
   const setPanelPosition = useCanvasStore((s) => s.setPanelPosition);
@@ -131,6 +136,21 @@ export function ComponentDefPanel() {
         onPointerUp={handlePointerUp}
       >
         <span className="panel-header-title">{componentName}</span>
+        <button
+          className={`debug-toggle-btn${debugMode ? " active" : ""}`}
+          onClick={() => {
+            if (debugMode) {
+              // Clear debug values when turning off debug mode
+              for (const sig of signals) {
+                setDebugSignalValue(componentName, sig.name, undefined);
+              }
+            }
+            setDebugMode((v) => !v);
+          }}
+          title={debugMode ? "Debug mode ON — signal edits are preview-only" : "Enable debug mode to preview signal changes"}
+        >
+          {debugMode ? "🔧 ON" : "🔧"}
+        </button>
         <button className="panel-collapse-btn" onClick={toggleCollapsed}>
           {isCollapsed ? "□" : "－"}
         </button>
@@ -161,12 +181,21 @@ export function ComponentDefPanel() {
             onAdd={handleAdd} onCancelAdd={() => setIsAdding(null)}
             editingPid={editingPid} onDoubleClick={handleDoubleClick}
             onEditSave={handleEditSave} onDelete={handleDelete}
-            renderRow={(s) => (
-              <DefEntryRow key={s.pid} entry={s as DefEntry} kind="signal"
-                isEditing={editingPid === s.pid} onDoubleClick={() => handleDoubleClick(s.pid)}
-                onEditSave={(f, v) => handleEditSave("signal", s.pid, f, v)}
-                onDelete={() => handleDelete("signal", s.pid)} />
-            )}
+            renderRow={(s) => {
+              const entry = s as DefEntry;
+              const debugVal = debugSignalValues[componentName]?.[entry.name];
+              return (
+                <DefEntryRow key={entry.pid} entry={entry} kind="signal"
+                  isEditing={editingPid === entry.pid}
+                  onDoubleClick={() => handleDoubleClick(entry.pid)}
+                  onEditSave={(f, v) => handleEditSave("signal", entry.pid, f, v)}
+                  onDelete={() => handleDelete("signal", entry.pid)}
+                  debugMode={debugMode}
+                  debugValue={debugVal as string | undefined}
+                  onDebugValueChange={(v) => setDebugSignalValue(componentName, entry.name, v || undefined)}
+                />
+              );
+            }}
             emptyText="No signals defined"
           />
 
@@ -200,9 +229,12 @@ interface DefEntryRowProps {
   onDoubleClick: () => void;
   onEditSave: (field: string, value: string) => void;
   onDelete: () => void;
+  debugMode?: boolean;
+  debugValue?: string;
+  onDebugValueChange?: (value: string) => void;
 }
 
-function DefEntryRow({ entry, kind, isEditing, onDoubleClick, onEditSave, onDelete }: DefEntryRowProps) {
+function DefEntryRow({ entry, kind, isEditing, onDoubleClick, onEditSave, onDelete, debugMode, debugValue, onDebugValueChange }: DefEntryRowProps) {
   if (isEditing) {
     return (
       <div className="entry-row">
@@ -236,16 +268,25 @@ function DefEntryRow({ entry, kind, isEditing, onDoubleClick, onEditSave, onDele
     );
   }
 
+  // Display mode — show debug input for signals when debugMode is on
+  const showDebugInput = kind === "signal" && debugMode;
+
   return (
-    <div className="entry-row" onDoubleClick={onDoubleClick}>
+    <div className={`entry-row${showDebugInput ? " debug-row" : ""}`} onDoubleClick={onDoubleClick}>
       <span className="entry-name">{entry.name}</span>
       <span>:</span>
       <span className="entry-type">{entry.type}</span>
-      {kind === "signal" && entry.defaultValue !== undefined && (
-        <>
-          <span>=</span>
-          <span className="entry-default">{String(entry.defaultValue)}</span>
-        </>
+      <span>=</span>
+      {showDebugInput ? (
+        <input
+          className="debug-value-input"
+          value={debugValue ?? ""}
+          placeholder={String(entry.defaultValue ?? "")}
+          onChange={(e) => onDebugValueChange?.(e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+        />
+      ) : (
+        <span className="entry-default">{String(entry.defaultValue ?? "")}</span>
       )}
       <button className="entry-delete-btn" onClick={onDelete}>{String.fromCharCode(0x2715)}</button>
     </div>

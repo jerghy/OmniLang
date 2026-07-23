@@ -822,6 +822,17 @@ pub fn run() {
             }
             Ok(())
         })
+        // Never destroy the debug window — hide it instead.
+        // Recreating via WebviewWindowBuilder::build() blocks IPC responses
+        // on Windows, which freezes the main window.
+        .on_window_event(|window, event| {
+            if window.label() == "debug" {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    window.hide().ok();
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             compile_project,
             analyse_source,

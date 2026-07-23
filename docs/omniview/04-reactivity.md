@@ -123,17 +123,22 @@ view {
 - 只有依赖的 signal 变化时才重新计算
 - 多次读取同一个 computed 不会重复计算
 
-## getter（属性访问器）
+## getter（Store 属性访问器）
 
-getter 是简化的 computed，用于访问派生值：
+`getter` **仅在 `store { }` 块内有效**，用于定义 store 的派生值（类似于组件中的 `computed`）：
 
 ```omni
-getter totalCount: i32 = items.len();
-getter isEmpty: bool = items.len() == 0;
-getter firstItem: String = if items.len() > 0 { items[0] } else { "" };
+store TodoStore {
+    signal items: Array<String> = [];
+    getter totalCount: i32 = items.len();
+    getter isEmpty: bool = items.len() == 0;
+    getter firstItem: String = if items.len() > 0 { items[0] } else { "" };
+}
 ```
 
-在 view 中直接使用 `{totalCount}` 读取 getter 的值。
+在引用该 store 的组件 view 中可以直接通过 `{totalCount}` 读取 getter 的值。
+
+> 在 `component` 顶层请使用 [`computed`](#computed计算属性) 来定义派生值。
 
 ## 数据绑定
 

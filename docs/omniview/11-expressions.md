@@ -328,7 +328,7 @@ view {
     // 多行内联
     <button @onPress={() => {
         count = count + 1;
-        log = "clicked at " + datetime_now().to_string();
+        log = "clicked at count=" + count.to_string();
     }}>Click</button>
 
     // 调用 Store action
@@ -350,8 +350,8 @@ view {
 let mapped = arr.map(|x| x * 2);
 let filtered = arr.filter(|x| x > 1);
 
-// 与 getter 配合
-getter activeCount: i32 = items.filter(|item| !item.done).len();
+// 与 computed 配合（或 store getter）
+computed activeCount: i32 = items.filter(|item| !item.done).len();
 ```
 
 #### 语法区分速查

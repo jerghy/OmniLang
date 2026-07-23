@@ -220,6 +220,14 @@ Debug 窗口（`label: "debug"`）是预创建的隐藏 WebView，通过按钮 s
 - Main → Debug：`debug:compile-result`（全量）、`debug:hot-replace`（增量）、`debug:highlight`（高亮）
 - Debug → Main：`debug:window-ready`（就绪）、`debug:element-click`（元素选择）、`debug:bridge-ready`（bridge 就绪）
 
+**X 按钮拦截**（`lib.rs` L823-830）：`.on_window_event()` 拦截 debug 窗口的 `CloseRequested`，`api.prevent_close()` + `window.hide()` 防止窗口被销毁（销毁后重建会阻塞 IPC）。
+
+**编译推送控制**（`useDebugCompile.ts` L46-52）：`needFullReload` 控制全量/增量推送。`prevIsOpen` ref 追踪 `isOpen` 变化 → 每次 false→true 转换强制 `needFullReload = true`，避免关闭→重开后走 broken hot-replace 路径。
+
+**运行时全局暴露**（`debug.rs` L27-30）：每次编译（包括后续的 hot-replace 编译）将 `__omni_signal`、`__omni_computed`、`__omni_effect`、`__omni_el` 暴露到 `window`。这些在 `_initialized` guard 之前更新 → hot-replace 的 `(0, eval)` 在全局作用域中能找到运行时函数。
+
+**Hot-replace DOM 安全替换**（`debug-window/index.html` L237-250）：`__omni_replaceComponent` 用 `root.cloneNode(true)` + `parentNode.replaceChild(clone, root)` 清除旧事件监听器（`cloneNode` 不复制 `addEventListener` 绑定的 handler），保留 DOM 结构。然后 `eval` 新 factory 代码、恢复 signal 值。
+
 ### 4.1 构建命令
 
 ```bash

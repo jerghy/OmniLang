@@ -9,7 +9,7 @@ OmniView 是 OmniLang 语言的 UI 框架层，用于构建响应式 Web 应用�
 | [01-项目结构与模块](01-project-structure.md) | 文件组织、`import`/`export`、模块系统 |
 | [02-组件](02-components.md) | `component` 定义、signals、computed、functions、lifecycle |
 | [03-模板语法](03-templates.md) | `view` 模板、HTML 元素、`@if`/`@for`/`@slot` 指令 |
-| [04-响应式系统](04-reactivity.md) | `signal`、`computed`、`getter`、数据绑定 |
+| [04-响应式系统](04-reactivity.md) | `signal`、`computed`、store `getter`、数据绑定 |
 | [05-Store 状态管理](05-stores.md) | `store` 定义、全局/内联 store、`@store` 引用 |
 | [06-事件系统](06-events.md) | 事件处理器、`emit`、事件声明、事件类型 |
 | [07-样式系统](07-styling.md) | 组件 `style` 块、CSS 属性、设计类引用 |
@@ -18,7 +18,7 @@ OmniView 是 OmniLang 语言的 UI 框架层，用于构建响应式 Web 应用�
 | [10-类型系统](10-type-system.md) | 基础类型（15+ 种）、`struct`、tagged union、可选类型、类型别名 |
 | [11-表达式系统](11-expressions.md) | 运算符、三元表达式、块表达式、闭包/lambda、空值合并、可选链、match |
 | [12-逻辑与异步](12-logic-and-async.md) | `fn`、控制流、`async`/`await` |
-| [13-标准库参考](13-standard-library.md) | `std/*` 全部 10 个模块 + 内置方法 |
+| [13-标准库参考](13-standard-library.md) | `std/*` 全部 7 个模块 + 内置方法 |
 
 ## 快速入门
 

@@ -19,6 +19,15 @@ impl OmniViewGenerator {
   window.__omni_subs = __omni_subs;
   // Component registry for hot-replace
   window.__omni_components = window.__omni_components || {};
+  // Expose runtime functions globally so (0, eval) in __omni_replaceComponent
+  // (defined in the static debug-window/index.html shell) can access them.
+  // These are the functions referenced by per-component factory code during
+  // hot-replace. Updated on every compile so hot-replaced components use the
+  // latest runtime from the current IIFE.
+  window.__omni_signal = __omni_signal;
+  window.__omni_computed = __omni_computed;
+  window.__omni_effect = __omni_effect;
+  window.__omni_el = __omni_el;
 
   // Guard against re-registration on reload:
   // the Tauri event listeners and click handler only need to be set up once.
@@ -41,7 +50,7 @@ impl OmniViewGenerator {
   }, true);
 
   window.__omni_debug = {
-    _active: true,
+    _active: false,
     _initialized: true,
     _highlightedNid: null,
 

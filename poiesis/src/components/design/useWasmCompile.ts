@@ -41,6 +41,7 @@ function useWasmCompile(): {
   const activeDesign = usePoiesisStore((s) => s.activeDesign);
   const componentDefs = useComponentDefs();
   const codeFlowVisible = usePoiesisStore((s) => s.designPage.codeFlowVisible);
+  const debugSignalValues = usePoiesisStore((s) => s.debugSignalValues);
 
   const [output, setOutput] = useState<OmniViewOutput | null>(null);
   const [isCompiling, setIsCompiling] = useState(false);
@@ -111,6 +112,13 @@ function useWasmCompile(): {
           ? emitDesignSource(activeDesign)
           : null;
         if (designSrc) sources["src/design.omni"] = designSrc;
+
+        // Apply debug signal value overrides before WASM compilation.
+        // This only modifies the in-flight source strings — the store's
+        // original default values and generated .omni code are untouched.
+        if (Object.keys(debugSignalValues).length > 0) {
+          applyDebugSignalOverrides(sources, debugSignalValues);
+        }
 
         // Path mapping is auto-derived by WASM from source keys
         const pathMapping: Record<string, string> = {};
@@ -187,9 +195,66 @@ function useWasmCompile(): {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [elements, wires, rootOrder, activeDesign, componentDefs, codeFlowVisible]);
+  }, [elements, wires, rootOrder, activeDesign, componentDefs, codeFlowVisible, debugSignalValues]);
 
   return { output, isCompiling, errors };
+}
+
+/**
+ * Apply debug signal value overrides to generated .omni source strings.
+ * Uses regex to replace signal default values so the WASM compiler
+ * resolves them with debug values instead of stored defaults.
+ * Original sources are mutated in-place.
+ */
+function applyDebugSignalOverrides(
+  sources: Record<string, string>,
+  debugValues: Record<string, Record<string, unknown>>,
+): void {
+  // Collect all debug signals into a flat map for efficient lookup
+  const flatDebug: Record<string, unknown> = {};
+  for (const signals of Object.values(debugValues)) {
+    Object.assign(flatDebug, signals);
+  }
+  if (Object.keys(flatDebug).length === 0) return;
+
+  for (const path of Object.keys(sources)) {
+    let text = sources[path];
+    for (const [sigName, sigValue] of Object.entries(flatDebug)) {
+      if (sigValue === undefined || sigValue === null) continue;
+      const formatted = formatDebugValue(sigValue);
+      // Match: signal name: Type = "old_default"; or signal name: Type = old_default;
+      const re = new RegExp(
+        `(signal\\s+${escapeRegex(sigName)}\\s*:\\s*\\S+\\s*=\\s*)([^;\\n]+)(;)`,
+        'g',
+      );
+      if (re.test(text)) {
+        // Reset lastIndex after test()
+        re.lastIndex = 0;
+        text = text.replace(re, `$1${formatted}$3`);
+      } else {
+        // Signal has no default value: signal name: Type;
+        const noDefaultRe = new RegExp(
+          `(signal\\s+${escapeRegex(sigName)}\\s*:\\s*\\S+)(\\s*;)`,
+          'g',
+        );
+        text = text.replace(noDefaultRe, `$1 = ${formatted}$2`);
+      }
+    }
+    sources[path] = text;
+  }
+}
+
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function formatDebugValue(value: unknown): string {
+  if (typeof value === 'string') {
+    // Escape quotes inside the string value
+    const escaped = value.replace(/"/g, '\\"');
+    return `"${escaped}"`;
+  }
+  return String(value);
 }
 
 export { useWasmCompile };

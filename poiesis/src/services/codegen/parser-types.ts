@@ -110,6 +110,8 @@ export interface ViewElementAttrs {
   className: string;
   attrs: Record<string, string>;
   events: Record<string, string>;
+  /** Two-way data bindings parsed from bind:xxx={yyy} syntax */
+  bindings: Record<string, string>;
   styleStr: string;
   isSelfClosing: boolean;
 }

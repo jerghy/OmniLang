@@ -33,6 +33,7 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
   selectedElementIds: [],
   tabData: {},
   componentDefs: {},
+  debugSignalValues: {},
   pidIndex: {},
   projectDir: null,
   projectName: DEFAULT_PROJECT_NAME,
@@ -65,7 +66,29 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
   ...createStoreCrudSlice(set, get),
 }));
 
-// Expose store on window for debugging (Victauri MCP access)
+// ── HMR State Preservation ──
+// Vite HMR re-evaluates this module, creating a new Zustand store with empty
+// initial state. This breaks the editor: the canvas shows "空画布" and React
+// fibers hold stale references to the pre-HMR store (zombie state).
+//
+// Fix: persist state via window (which survives HMR). On dispose, snapshot
+// current store state. On re-evaluation, restore it into the new store.
+// Must run BEFORE exposing the store on window.
+const HMR_STATE_KEY = "__POIESIS_HMR_STATE__" as const;
+if (typeof window !== "undefined") {
+  const saved = (window as unknown as Record<string, unknown>)[HMR_STATE_KEY] as PoiesisState | undefined;
+  if (saved) {
+    usePoiesisStore.setState(saved);
+  }
+}
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    (window as unknown as Record<string, unknown>)[HMR_STATE_KEY] = usePoiesisStore.getState();
+  });
+}
+
+// Expose store on window for debugging (Victauri MCP access).
+// Always points to current module's store (overwritten on HMR re-evaluation).
 if (typeof window !== "undefined") {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (window as any).__POIESIS_STORE__ = usePoiesisStore;
@@ -112,6 +135,7 @@ export function getUnifiedComponentMeta(): Record<string, ComponentProtocolEntry
 export type { PoiesisState } from "./types";
 
 // ── Window exposure for E2E / Victauri ──
-if (typeof window !== "undefined" && typeof (window as unknown as Record<string, unknown>).__ZUSTAND_STORE__ === "undefined") {
+// Always update to current module's store (survives HMR re-evaluation).
+if (typeof window !== "undefined") {
   (window as unknown as Record<string, unknown>).__ZUSTAND_STORE__ = usePoiesisStore;
 }

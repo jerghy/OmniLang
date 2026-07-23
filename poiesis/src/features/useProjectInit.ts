@@ -116,14 +116,10 @@ export function useProjectInit(setShowWelcome: (v: boolean) => void) {
 
       (async () => {
         try {
-          const loadResult = await (api.annotation as unknown as { annotatedLoad: (path: string) => Promise<{ success: boolean; source?: string; annotations?: Record<string, unknown> }> }).annotatedLoad("src/main.omni");
-          if (loadResult.success && loadResult.source) {
-            usePoiesisStore.setState({
-              activeFileContent: loadResult.source,
-              activeFilePath: "src/main.omni",
-            });
-
-            const parseResult = parseOmniSource(loadResult.source);
+          const res = await api.project.readFile("src/main.omni");
+          if (res.content) {
+            usePoiesisStore.setState({ activeFileContent: res.content, activeFilePath: "src/main.omni" });
+            const parseResult = parseOmniSource(res.content);
 
             // Populate componentDefs from parsed props/signals/computeds/events
             if (parseResult.props || parseResult.signals || parseResult.computeds || parseResult.events) {
@@ -160,104 +156,14 @@ export function useProjectInit(setShowWelcome: (v: boolean) => void) {
               }
             }
 
-            if (loadResult.annotations && typeof loadResult.annotations === "object" && "viewMarkers" in loadResult.annotations) {
-              const annotations = loadResult.annotations as Record<string, unknown>;
-              const markers = annotations.viewMarkers as Array<{ elementId: string; isFolded?: boolean; renderMode?: string }> | undefined;
-              if (markers) {
-                usePoiesisStore.setState((prev) => ({
-                  elements: prev.elements.map((el) => {
-                    const marker = markers.find((m) => m.elementId === el.id);
-                    if (marker) {
-                      return {
-                        ...el,
-                        ...("isFolded" in el ? { isFolded: marker.isFolded ?? (el as GroupElementData).isFolded } : {}),
-                        ...("renderMode" in el ? { renderMode: marker.renderMode || (el as ViewElementData).renderMode } : {}),
-                      } as ElementData;
-                    }
-                    return el;
-                  }),
-                }));
-              }
-            }
-
-            if (loadResult.annotations && typeof loadResult.annotations === "object" && "chains" in loadResult.annotations) {
-              const annotations = loadResult.annotations as Record<string, unknown>;
-              const chains = annotations.chains as Array<{ nodes?: Array<{ id: string; tag: string; attrs?: Record<string, unknown>; posX?: number; posY?: number }>; wires?: Array<{ id: string; fromId: string; fromPort: string; toId: string; toPort: string }> }> | undefined;
-              const codeElements: ElementData[] = [];
-              const codeWires: WireData[] = [];
-              for (const chain of chains ?? []) {
-                for (const node of chain.nodes || []) {
-                  codeElements.push({
-                    id: node.id,
-                    tag: node.tag,
-                    props: node.attrs || {},
-                    position: { x: node.posX ?? 0, y: node.posY ?? 0 },
-                    nodeType: "codeblock" as const,
-                    source: "",
-                    parentId: null,
-                  } as ElementData);
-                }
-                for (const wire of chain.wires || []) {
-                  codeWires.push({
-                    id: wire.id,
-                    fromId: wire.fromId,
-                    fromPort: wire.fromPort,
-                    toId: wire.toId,
-                    toPort: wire.toPort,
-                  } as WireData);
-                }
-              }
-              if (codeElements.length > 0) {
-                useCodeGraphStore.getState().setElementsAndWires(codeElements, codeWires);
-              }
-            }
-          } else {
-            const res = await api.project.readFile("src/main.omni");
-            if (res.content) {
-              usePoiesisStore.setState({ activeFileContent: res.content, activeFilePath: "src/main.omni" });
-              const parseResult = parseOmniSource(res.content);
-
-              // Populate componentDefs from parsed props/signals/computeds/events
-              if (parseResult.props || parseResult.signals || parseResult.computeds || parseResult.events) {
-                const existing = usePoiesisStore.getState().componentDefs["main"] || {};
-                usePoiesisStore.getState().setComponentDef("main", {
-                  ...existing,
-                  name: "main",
-                  filePath: "src/main.omni",
-                  signals: (parseResult.signals || []).map((s) => ({ pid: uid("sgn"), name: s.name, type: s.type, defaultValue: s.defaultValue })),
-                  props: (parseResult.props || []).map((p) => ({ pid: uid("p"), name: p.name, type: p.type, defaultValue: p.defaultValue })),
-                  computeds: (parseResult.computeds || []).map((c) => ({ pid: uid("c"), name: c.name, returnType: c.type, expression: c.expression })),
-                  events: (parseResult.events || []).map((e) => ({ pid: uid("evt"), name: e.name, payloadType: "" })),
-                  fns: existing.fns || [],
-                });
-              }
-
-              if (parseResult.designElements) {
-                const rootOrder = parseResult.designElements
-                  .filter((e: ElementData) => !e.parentId)
-                  .map((e: ElementData) => e.id);
-                const layout = computeAutoLayout(parseResult.designElements || []) as unknown as Record<string, { x: number; y: number }>;
-                const positionedElements = parseResult.designElements.map((el) => ({
-                  ...el,
-                  position: layout[el.id] ?? ("position" in el ? el.position : undefined) ?? { x: 100, y: 100 },
-                }));
-                usePoiesisStore.setState({
-                  elements: positionedElements,
-                  wires: parseResult.designWires || [],
-                  rootOrder,
-                });
-              }
-              // Load inline store definitions from parsed component file
-              if (parseResult.inlineStoreDefs) {
-                const { loadInlineStoreDef } = usePoiesisStore.getState();
-                for (const def of Object.values(parseResult.inlineStoreDefs)) {
-                  // Re-key: parser uses PascalCase from source (e.g. "Main.TestStore"),
-                  // but we need tab's componentName ("main" from main.omni)
-                  const dotIdx = def.name.indexOf(".");
-                  const storeName = dotIdx >= 0 ? def.name.slice(dotIdx + 1) : def.name;
-                  const rekeyed = { ...def, name: `main.${storeName}` };
-                  loadInlineStoreDef(rekeyed);
-                }
+            // Load inline store definitions from parsed component file
+            if (parseResult.inlineStoreDefs) {
+              const { loadInlineStoreDef } = usePoiesisStore.getState();
+              for (const def of Object.values(parseResult.inlineStoreDefs)) {
+                const dotIdx = def.name.indexOf(".");
+                const storeName = dotIdx >= 0 ? def.name.slice(dotIdx + 1) : def.name;
+                const rekeyed = { ...def, name: `main.${storeName}` };
+                loadInlineStoreDef(rekeyed);
               }
             }
           }

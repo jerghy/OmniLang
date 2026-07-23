@@ -38,6 +38,19 @@ export function useDebugCompile() {
   const activeDesign = usePoiesisStore((s) => s.activeDesign);
   const componentDefs = usePoiesisStore((s) => s.componentDefs);
 
+  // Track isOpen transitions: when the debug window is reopened
+  // (closed → open), force a full page reload. Without this, reopening
+  // uses the hot-replace path which relies on (0, eval) that cannot
+  // access IIFE-scoped runtime functions (__omni_signal, etc.),
+  // causing the debug window to break with a blank page.
+  const prevIsOpen = useRef(isOpen);
+  useEffect(() => {
+    if (isOpen && !prevIsOpen.current) {
+      needFullReload.current = true;
+    }
+    prevIsOpen.current = isOpen;
+  }, [isOpen]);
+
   // When debug window reconnects (windowReadyCounter increments), force full reload
   useEffect(() => {
     if (windowReadyCounter > 0) {

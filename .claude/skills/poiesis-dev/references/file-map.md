@@ -56,7 +56,7 @@
 | `parser.ts` | ★ 主解析器 | .omni 源码 → ElementData + DesignDefinition。`parseSignal()`/`parseComputed()` **不再**创建 codeblock 元素——改为 push 到 `ctx.signals`/`ctx.computeds`。`parsePropDeclaration()` 写入 `ctx.props` |
 | `parser-types.ts` | 解析器类型 | AST 节点类型 |
 | `parser-helpers.ts` | 解析辅助 | 公共解析工具函数 |
-| `parser-view.ts` | view 解析 | view 模板块的专门解析。`parseViewBody` + `parseViewElement` + `parseViewDirective`（@if/@else if/@else） |
+| `parser-view.ts` | view 解析 | view 模板块的专门解析。`parseViewBody` + `parseViewElement` + `parseViewDirective`（@if/@else if/@else）。**注意**：body 循环必须处理 `</tagname>` 闭合标签，否则创建虚假元素污染 viewParentStack |
 | `parser-finalize.ts` | 解析收尾 | cross-reference 修复、PID 补全 |
 | `omni-parser.ts` | Omni 解析入口 | 统一的 parse → program 入口 |
 | `omni-tokenizer.ts` | Tokenizer | .omni 文本 → token 流 |

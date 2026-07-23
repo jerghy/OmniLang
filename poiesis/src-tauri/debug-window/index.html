@@ -225,6 +225,10 @@
   }
 
   // ═══ Hot-replace: update individual components without full page reload ═══
+  // NOTE: hot-replace only updates component JS (signals/effects/event handlers).
+  // It does NOT replace the DOM — the view template's HTML stays in place.
+  // Old event listeners are cleaned up via DOM clone + replace on the
+  // component root before the new factory runs.
   function __omni_replaceComponent(name, factoryCode) {
     var oldComp = window.__omni_components && window.__omni_components[name];
     var savedSignals = {};
@@ -232,8 +236,17 @@
       Object.keys(oldComp.signals).forEach(function(k) {
         try { savedSignals[k] = oldComp.signals[k].peek(); } catch(_) {}
       });
-      if (oldComp.teardown) oldComp.teardown();
     }
+    // Clone and replace the component root element to strip all old
+    // event listeners without losing the DOM structure (innerHTML alone
+    // does not remove addEventListener handlers).
+    var root = document.querySelector('[data-component="' + name + '"]');
+    if (root) {
+      var clone = root.cloneNode(true);
+      if (root.parentNode) root.parentNode.replaceChild(clone, root);
+    }
+    // Eval the new factory code. Runtime functions (__omni_signal, etc.)
+    // are exposed globally by the debug bridge, so (0, eval) can find them.
     try {
       var newComp = (0, eval)(factoryCode);
       if (!window.__omni_components) window.__omni_components = {};

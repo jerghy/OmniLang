@@ -6,6 +6,30 @@ use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 use std::fmt::Write;
 
+/// Extract a human-readable default value string from an ExprIR for editor preview.
+fn expr_default_display(expr: &ExprIR, gen: &OmniViewGenerator) -> String {
+    match expr {
+        ExprIR::LiteralExpr { value } => {
+            let js = serde_value_to_js(&value);
+            // Strip surrounding quotes from string values
+            if js.starts_with('"') && js.ends_with('"') && js.len() >= 2 {
+                js[1..js.len()-1].to_string()
+            } else {
+                js
+            }
+        }
+        _ => {
+            let js = gen.expr_to_js(expr);
+            // Truncate long expressions
+            if js.len() > 40 {
+                format!("{}…", &js[..39])
+            } else {
+                js
+            }
+        }
+    }
+}
+
 impl OmniViewGenerator {
     pub(super) fn emit_store(&mut self, _store_name: &str, store: &StoreIR) {
         let prefix = |field: &str| format!("{}_{}", store.name, field);
@@ -131,6 +155,9 @@ impl OmniViewGenerator {
             self.name_renames
                 .insert(state.name.clone(), prefixed.clone());
             self.signal_names.insert(prefixed);
+            // Collect default value for editor canvas preview
+            let default_str = expr_default_display(&state.initial_value, self);
+            self.signal_defaults.insert(state.name.clone(), default_str);
         }
         for c in &comp.computeds {
             let prefixed = format!("{}_{}", name, c.name);
@@ -146,6 +173,11 @@ impl OmniViewGenerator {
                 for sig_name in store.signals.keys() {
                     let full_name = format!("{}_{}", store_name, sig_name);
                     self.signal_names.insert(full_name);
+                    // Collect store signal default value for editor canvas
+                    if let Some(val) = store.signal_defaults.get(sig_name) {
+                        let key = format!("{}.{}", store_name, sig_name);
+                        self.signal_defaults.insert(key, serde_value_to_js(val));
+                    }
                 }
                 for getter_name in store.getters.keys() {
                     let full_name = format!("{}_{}", store_name, getter_name);

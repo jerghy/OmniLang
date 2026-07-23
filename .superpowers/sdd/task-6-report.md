@@ -1,39 +1,56 @@
-# Task 6: Clean up path mapping duplication - Report
+# Task 6 Report: Add conditional branch node rendering to TreeNodeRenderer
 
 ## Summary
 
-Removed duplicated manual path mapping construction from WASM bindings and Poiesis TypeScript code, delegating to the canonical `derive_path_mapping()` function.
+Added conditional branch node rendering to `TreeNodeRenderer.tsx` — a single-file, mechanical UI change. Conditional-branch nodes render with colored branch labels ("if"/"elif" in purple, "else" in gray), condition expression in monospace, and a "(空条件)" placeholder for empty conditions. Conditional block root nodes show a 🔀 icon.
 
-## Changes Made
+## Code changes
 
-### 1. `omnilang/src/wasm.rs::compile_multi_to_omniview()`
-- Replaced manual loop (basename, `./basename`, `./components/Name` mappings) with:
-  ```rust
-  let path_mapping = crate::path_mapping::derive_path_mapping(&sources_map);
-  ```
-- The derived function generates all previous mappings plus stem, `.omni`-less, and `../`-prefixed variants.
+### `poiesis/src/components/panels/TreeNodeRenderer.tsx`
+- Added early return for `node.nodeType === "conditional-branch"` before the main element rendering
+  - Purple `#8B5CF6` label for `if`/`elif`, gray `#6b7280` for `else`
+  - Condition in monospace font, or "(空条件)" when empty
+  - `else` branches omit the condition text entirely
+  - Supports expand/collapse, drag-and-drop, selection, context menu (same as other nodes)
+  - Recursively renders children when not collapsed
+- Added 🔀 icon span for `node.nodeType === "conditional"` before the element tag
 
-### 2. `omnilang/src/wasm.rs::resolve_styles_multi()`
-- After deserializing the caller-provided `path_map`, merged auto-derived mappings:
-  ```rust
-  let derived = crate::path_mapping::derive_path_mapping(&sources_map);
-  for (k, v) in derived {
-      path_map.entry(k).or_insert(v);
-  }
-  ```
-- Caller overrides take priority (`or_insert` keeps the first entry).
+### `poiesis/src/components/panels/__tests__/TreeNodeRenderer.test.tsx` (NEW)
+- 6 tests covering:
+  - `if` branch: purple label + condition in monospace
+  - `elif` branch: purple label + condition
+  - `else` branch: gray label, no condition text
+  - Empty condition: shows "(空条件)" placeholder
+  - Children rendering: expand/collapse toggle + child nodes visible
+  - Conditional block root: renders tag name, no branch label
 
-### 3. `poiesis/src/commands/rustCompiler.ts`
-- Replaced manual pathMapping construction (basename, `./basename`, component mappings) with empty `{}`.
+### `poiesis/vitest.config.ts`
+- Added `*.test.tsx` to the include pattern (required for JSX test files)
 
-### 4. `poiesis/src/components/design/useWasmCompile.ts`
-- Replaced manual pathMapping (design.omni + component mappings) with empty `{}`.
+## TypeScript Check
 
-## Build Verification
+```
+cd /d/space/OmniLang/poiesis && npx tsc --noEmit --pretty 2>&1 | grep TreeNodeRenderer || echo "No errors"
+```
 
-- **WASM build**: Succeeded (only pre-existing warnings, no new errors)
-- **TypeScript check**: Passes — 46 pre-existing errors in 10 files, none in modified files
+Result: `No errors` — clean compilation.
 
-## Commits
+## Test Results
 
-- `6ebf3a1` refactor: use derive_path_mapping() in WASM, remove TS-side path mapping
+```
+✓ src/components/panels/__tests__/ComponentTree.test.ts (5 tests)
+✓ src/components/panels/__tests__/TreeNodeRenderer.test.tsx (6 tests)
+```
+
+All 11 panel tests pass.
+
+## Commit
+
+```
+436f048a2 feat(poiesis): add conditional branch node rendering in TreeNodeRenderer
+```
+
+Files:
+- `poiesis/src/components/panels/TreeNodeRenderer.tsx` (modified)
+- `poiesis/src/components/panels/__tests__/TreeNodeRenderer.test.tsx` (new)
+- `poiesis/vitest.config.ts` (modified)

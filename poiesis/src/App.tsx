@@ -81,6 +81,20 @@ async function loadOmniFiles(): Promise<void> {
             position: position ?? { x: 100 + idx * 50, y: 100 + idx * 50 },
           };
         });
+
+        // Ensure conditional blocks are registered in their parent's children array.
+        // The parser may create ConditionalBlockData without updating the parent,
+        // since conditional blocks are added to ctx.elements after their siblings.
+        for (const el of positionedElements) {
+          if (el.nodeType === "conditional" && el.parentId) {
+            const parent = positionedElements.find((p) => p.id === el.parentId);
+            if (parent && "children" in parent && Array.isArray(parent.children)) {
+              if (!parent.children.includes(el.id)) {
+                (parent as { children: string[] }).children.push(el.id);
+              }
+            }
+          }
+        }
         const rootOrder = positionedElements
           .filter((e: ElementData) => !e.parentId)
           .map((e: ElementData) => e.id);

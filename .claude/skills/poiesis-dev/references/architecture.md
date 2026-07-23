@@ -19,12 +19,19 @@
          ↕ IPC (invoke_command / events)
 ┌─────────────────────────────────────────────────┐
 │  Tauri Rust Backend (lib.rs)                     │
-│  ├─ compile_project (调 omnilang crate)          │
+│  ├─ compile_project → omnilang crate             │
+│  │   ├─ discovery::discover_omni_sources()       │
+│  │   ├─ Target::from_str() 解析目标              │
+│  │   └─ compile_multi_internal_cached() 增量编译  │
 │  ├─ read_file / write_file (sanitize_path)       │
 │  ├─ save_project / open_project                  │
 │  └─ sync_store_state / get_store_snapshot        │
 ├─────────────────────────────────────────────────┤
 │  OmniLang WASM (OmniCompiler)                    │  ← 浏览器内编译
+│  ├─ compile_to_omniview / compile_to_omniview_full│
+│  ├─ compile_multi_to_omniview                    │
+│  ├─ resolve_styles / resolve_styles_multi         │
+│  └─ wrap_debug_html (v2026-07-12 新增)           │
 └─────────────────────────────────────────────────┘
 ```
 
@@ -74,6 +81,7 @@ DesignPage
 │       │       └─ 宽高比从 useCanvasStore.devicePreset 动态计算，同步 DeviceSelector 选择的设备尺寸
 └─ 右侧面板 (ContextInspector)
     ├─ 属性: ID / label / 自定义 props
+    ├─ 🔗 双向绑定: bind:value prop 选择 + signal 搜索 (仅 input/textarea/select)
     ├─ Class 绑定: 搜索/绑定/解绑 design.omni 中的 class
     ├─ Variant 绑定: 维度选择器 (如 color=[danger] size=[lg])
     ├─ 内联样式: 所有卡片始终可见，属性级自锁——空值灰显(锁)/有值亮起+×清除(token绑定)
@@ -207,6 +215,40 @@ Store 文件 (*.omni) 的往返闭环和 component/design 一样，但走独立�
 必须保留已有 props/signals/computeds (L170-173: currentDef.signals || [])。
 ```
 
+### 3.1.3 bind:value 双向绑定数据流（2026-07-13 新增）
+
+ViewElementData 新增 `bindings?: Record<string, string>` 字段，存储 `{ propName: signalName }` 映射（如 `{ "value": "newTodo" }`）。
+
+```
+解析 (.omni → element.bindings):
+  parser-view.ts L330-339: 遇到 bind:xxx={yyy} → result.bindings[bindName] = bindValue
+  parser-helpers.ts createElement() L121-134: attrs.bindings → element.bindings
+  (bind:xxx 不再进入 element.props，与普通 props 分离)
+
+UI (BindingsSection.tsx):
+  ContextInspector.tsx → <BindingsSection element={el} signalItems={...} />
+  仅 input/textarea/select 显示。Prop 下拉 + SignalPickerPopover (分组搜索)
+  → store.setElementBinding(id, propName, signalName | null)
+  → element-crud.ts L100-116: 更新 element.bindings，含 undo 支持
+
+发射 (element.bindings → .omni):
+  pipeline.ts Phase C (L210-221): 遍历 designElements
+  → 合并 element.bindings 到 elBindings Map (导线优先，elements 补充不重叠项)
+  → source-emitter.ts L654-661: 读取 elementBindings → emit ` bind:${prop}={${sig}}`
+```
+
+⚠️ 关键: 导线绑定优先于 element.bindings —— wire-analyzer 先写入 elBindings，element.bindings 只补充尚未存在的条目。这意味着通过导线连接的 signal→view 覆盖同名 element 绑定。
+
+涉及文件:
+- `core/types/element.ts` — ViewElementData.bindings
+- `parser-types.ts` — ViewElementAttrs.bindings
+- `parser-view.ts` L330-339 — 解析 bind: 语法
+- `parser-helpers.ts` L121-134 — createElement 填充 bindings
+- `pipeline.ts` L210-221 — Phase C 合并
+- `source-emitter.ts` L654-661 — 发射
+- `store/slices/element-crud.ts` L100-116 — setElementBinding
+- 新增 `inspector/BindingsSection.tsx` — UI
+
 ### 3.2 PID 系统
 
 ```omni
@@ -253,6 +295,8 @@ LRU 淘汰:
     ├─ buildViewTree → collectStylesFromEntries → elementInlineMap
     └─ SourceEmitter 发射 style: { key: value } 到 .omni 源
   → rustCompiler.resolveStylesMulti(sources, pathMapping) (rustCompiler.ts:335)
+    └─ WASM 端自动调用 derive_path_mapping(&sources) 补全映射，
+       TS 端只需传 {} 即可（useWasmCompile.ts L115-117, rustCompiler.ts L320-327）
   → 返回 { design_css, component_css, element_tree, element_classes, nid_map }
   → ★ 注入内联样式 (useWasmCompile.ts:135-157):
       从 elements 的 inlineProperties 构建 Map<elementId, styles>
@@ -264,15 +308,21 @@ LRU 淘汰:
 
 **关键**: `resolveStylesMulti` 只处理 design token/class/variant/`style {}` 块，**不处理**元素上的内联 `style: { }`。因此内联样式必须在 WASM 返回后手动注入到 element tree 中（`useWasmCompile.ts` L135-157），否则 canvas 不更新。
 
+**新**: `wrap_debug_html(js, css, body)` 已通过 WASM 导出（`omnilang/src/wasm.rs` L124-129），Poiesis TS 端通过 `rustCompiler.wrapDebugHtml()` 调用（rustCompiler.ts L441-455），替代了 `useCompile.ts` 中手工拼接 HTML 模板的代码。
+
 **路径 2: 项目导出 (Rust 后端)**
 
 ```
 触发: 用户点"导出"或编译按钮
   Store → save_project (写 project.json + .omni 文件)
   → Tauri compile_project(project_path, target)
-  → omnilang crate: walkdir 发现 .omni → lexer → parser → semantic → codegen
+    ├─ target 解析使用 Target::from_str()（poiesis/src-tauri/src/lib.rs L190-195）
+    └─ 文件发现使用 omnilang::discovery::discover_omni_sources() (lib.rs L226-239)
+  → omnilang crate: discovery → lexer → parser → semantic → codegen
   → 输出到目标目录（React/Flutter/Vue/Python...）
 ```
+
+**备注**: 2026-07-12 整合：Poiesis Tauri 端不再直接使用 `walkdir` 依赖，改为调用 `omnilang::discovery::discover_omni_sources()`（`omnilang/src/discovery.rs`），与 `omnic` CLI 共享同一个文件发现实现。目标解析从手动 `match target.as_str()` 改为标准 `Target::from_str()`。
 
 ## 四、Zustand Store 结构
 
