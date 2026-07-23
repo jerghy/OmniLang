@@ -1,16 +1,21 @@
 // poiesis/src/components/canvas/code/CodeCardEditor.tsx
 import { useCallback, useRef, useState } from "react";
 import { LexicalComposer } from "@lexical/react/LexicalComposer";
+import type { InitialConfigType } from "@lexical/react/LexicalComposer";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
 import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
+import type { LexicalEditor } from "lexical";
 import type { CodeOp } from "../../../core/types/code-op";
 import { AutocompletePlugin } from "./lexical/plugins/AutocompletePlugin";
 import { KeyboardPlugin } from "./lexical/plugins/KeyboardPlugin";
 import { CodeOpSyncPlugin } from "./lexical/plugins/CodeOpSyncPlugin";
-import { SlotTextNode } from "./lexical/nodes/SlotTextNode";
-import { CardElementNode } from "./lexical/nodes/CardElementNode";
+import { CardNode } from "./lexical/nodes/CardNode";
+import { ContainerElementNode } from "./lexical/nodes/ContainerNode";
+import { BlockElementNode } from "./lexical/nodes/BlockNode";
+import { BodyLineNode } from "./lexical/nodes/BodyLineNode";
+import { InputSlotNode } from "./lexical/nodes/InputSlotNode";
 import { parseOpsWasm } from "../../../services/codegen/code-op-parser";
 import { CodeEditorModal } from "./CodeEditorModal";
 import styles from "./CodeCardEditor.module.css";
@@ -25,9 +30,9 @@ interface Props {
 }
 
 const lexicalConfig = {
-  namespace: "code-card-editor",
-  nodes: [SlotTextNode, CardElementNode],
-  onError: (error: Error) => {
+  namespace: "code-card-editor-v2",
+  nodes: [CardNode, ContainerElementNode, BlockElementNode, BodyLineNode, InputSlotNode],
+  onError: (error: Error, _editor: LexicalEditor) => {
     console.error("Lexical error:", error);
   },
 };
@@ -103,7 +108,7 @@ export const CodeCardEditor: React.FC<Props> = ({
 
         {/* Editor body */}
         <div className={styles.body}>
-          <LexicalComposer initialConfig={lexicalConfig}>
+          <LexicalComposer initialConfig={lexicalConfig as InitialConfigType}>
             <RichTextPlugin
               ErrorBoundary={LexicalErrorBoundary}
               contentEditable={
