@@ -1,10 +1,10 @@
 # Rust
 target/
+target-wasm/
 Cargo.lock
 
-# Node / Tauri
-poiesis/node_modules/
-poiesis/dist/
+# Node — ignore ALL node_modules (not just poiesis)
+node_modules/
 
 # Python
 __pycache__/
@@ -30,9 +30,22 @@ poiesis/public/wasm/
 # Docs
 docs/screenshots/
 
+# Playwright MCP session cache
+.playwright-mcp/
+
 # Generated build output
 build/
 .claude/worktrees/
 
 # ts-rs auto-generated bindings (default export directory)
 bindings/
+
+# Screenshots and temp files
+*.png
+*.jpg
+*.jpeg
+*.bmp
+
+# OS files
+Thumbs.db
+Desktop.ini
