@@ -613,7 +613,7 @@ parseCodeBlock(omni源码)
 - 自带诊断：`parse_code_block` 可返回语法错误（line/col/message），直接显示在卡片编辑器槽位上
 - 成本低：parser 已存在，只需加 `Serialize` + 暴露函数
 
-### 10.1 算法步骤
+### 10.1 解析流程（WASM parser 优先，JS 正则降级）
 
 ```
 输入: code-block segment 的 Omni 源码文本（无 PID 标注）
