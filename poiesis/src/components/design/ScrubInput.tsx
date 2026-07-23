@@ -24,6 +24,32 @@ function clamp(n: number, lo?: number, hi?: number): number {
   return r;
 }
 
+const VALUE_STYLE: React.CSSProperties = {
+  flex: 1,
+  textAlign: "right",
+};
+
+const INPUT_STYLE: React.CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+  border: "none",
+  outline: "2px solid transparent",
+  padding: 0,
+  fontFamily: "inherit",
+  fontSize: "inherit",
+  textAlign: "right",
+  background: "transparent",
+  color: "var(--dp-accent, #6366f1)",
+};
+
+const UNIT_STYLE: React.CSSProperties = {
+  marginLeft: 2,
+  fontSize: 12,
+  color: "var(--dp-text-muted, #a09db8)",
+  lineHeight: 1,
+  fontWeight: 500,
+};
+
 export const ScrubInput = React.memo(function ScrubInput({
   value,
   unit,
@@ -233,32 +259,6 @@ export const ScrubInput = React.memo(function ScrubInput({
     ...style,
   };
 
-  const valueStyle: React.CSSProperties = {
-    flex: 1,
-    textAlign: "right",
-  };
-
-  const inputStyle: React.CSSProperties = {
-    flex: 1,
-    minWidth: 0,
-    border: "none",
-    outline: "2px solid transparent",
-    padding: 0,
-    fontFamily: "inherit",
-    fontSize: "inherit",
-    textAlign: "right",
-    background: "transparent",
-    color: "var(--dp-accent, #6366f1)",
-  };
-
-  const unitStyle: React.CSSProperties = {
-    marginLeft: 2,
-    fontSize: 12,
-    color: "var(--dp-text-muted, #a09db8)",
-    lineHeight: 1,
-    fontWeight: 500,
-  };
-
   return (
     <div
       style={rootStyle}
@@ -273,7 +273,7 @@ export const ScrubInput = React.memo(function ScrubInput({
       {editing ? (
         <input
           ref={inputRef}
-          style={inputStyle}
+          style={INPUT_STYLE}
           type="text"
           inputMode="decimal"
           autoComplete="off"
@@ -283,9 +283,9 @@ export const ScrubInput = React.memo(function ScrubInput({
           onBlur={commitEdit}
         />
       ) : (
-        <span style={valueStyle}>{clamped}</span>
+        <span style={VALUE_STYLE}>{clamped}</span>
       )}
-      {unit && <span style={unitStyle}>{unit}</span>}
+      {unit && <span style={UNIT_STYLE}>{unit}</span>}
     </div>
   );
 });
