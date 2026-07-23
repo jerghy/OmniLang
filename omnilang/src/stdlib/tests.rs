@@ -335,8 +335,10 @@ fn test_codegen_array_length_js() {
 #[test]
 fn test_codegen_array_push_js() {
     let result = codegen_array_push(&["arr".into(), "item".into()], Target::JavaScript);
-    assert!(result.contains("push"), "Got: {}", result);
+    // Now uses immutable spread: [...arr, item]
+    assert!(result.contains("..."), "Got: {}", result);
     assert!(result.contains("arr"), "Got: {}", result);
+    assert!(result.contains("item"), "Got: {}", result);
 }
 
 #[test]

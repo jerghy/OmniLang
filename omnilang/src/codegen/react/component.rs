@@ -49,15 +49,19 @@ impl ReactCodegen {
             w.emit("");
         }
 
-        // Store hook imports
+        // Store hook imports — use relative paths based on source directories
         let mut store_hook_imports = Vec::new();
+        let all_stores = ir.all_stores();
         for store_ref in &comp.store_refs {
-            if ir.all_stores().contains_key(store_ref.as_str()) {
+            if let Some(store) = all_stores.get(store_ref.as_str()) {
                 let hook_name = format!("use{}", store_ref);
-                store_hook_imports.push(format!(
-                    "import {{ {} }} from './use{}';",
-                    hook_name, store_ref
-                ));
+                let module_name = format!("use{}", store_ref);
+                let import_path = super::relative_import_path(
+                    comp.source_file.as_deref(),
+                    store.source_file.as_deref(),
+                    &module_name,
+                );
+                store_hook_imports.push(format!("import {{ {} }} from '{}';", hook_name, import_path));
             }
         }
         for import_line in &store_hook_imports {
@@ -101,9 +105,17 @@ impl ReactCodegen {
         let mut child_comp_names: Vec<&String> = child_comps.iter().collect();
         child_comp_names.sort();
         for child_name in &child_comp_names {
+            let child_source = component_map
+                .get(child_name.as_str())
+                .and_then(|c| c.source_file.as_deref());
+            let import_path = super::relative_import_path(
+                comp.source_file.as_deref(),
+                child_source,
+                child_name,
+            );
             w.emit_fmt(format_args!(
-                "import {{ {} }} from './{}';",
-                child_name, child_name
+                "import {{ {} }} from '{}';",
+                child_name, import_path
             ));
         }
 

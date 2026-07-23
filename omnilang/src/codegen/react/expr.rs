@@ -104,6 +104,10 @@ impl FormatStmt for ReactStmtFormatter {
         "null"
     }
 
+    fn use_const_for_immutable(&self) -> bool {
+        true
+    }
+
     fn for_in_keyword(&self) -> &str {
         "const"
     }
@@ -249,7 +253,8 @@ impl FormatStmt for ReactStmtFormatter {
                 if use_setter {
                     w.emit_fmt(format_args!("{}(prev => [...prev, {}]);", setter, it));
                 } else {
-                    w.emit_fmt(format_args!("{}.push({});", target_str, it));
+                    // Immutable update — never mutate in place
+                    w.emit_fmt(format_args!("{} = [...{}, {}];", target_str, target_str, it));
                 }
             }
             MutationIntent::Pop { target } => {
@@ -262,7 +267,8 @@ impl FormatStmt for ReactStmtFormatter {
                 if use_setter {
                     w.emit_fmt(format_args!("{}(prev => prev.slice(0, -1));", setter));
                 } else {
-                    w.emit_fmt(format_args!("{}.pop();", target_str));
+                    // Immutable update — never mutate in place
+                    w.emit_fmt(format_args!("{} = {}.slice(0, -1);", target_str, target_str));
                 }
             }
         }
@@ -418,6 +424,40 @@ fn translate_method_call(obj: &str, method: &str, args: &[String]) -> String {
         "join" => format!("{}.join({})", obj, args.join(", ")),
         "trim" => format!("{}.trim()", obj),
         "concat" => format!("{}.concat({})", obj, args.join(", ")),
+        // Array mutation methods → immutable equivalents
+        "push" => {
+            let items = args.join(", ");
+            if items.is_empty() {
+                format!("[...{}]", obj)
+            } else {
+                format!("[...{}, {}]", obj, items)
+            }
+        }
+        "pop" => format!("{}.slice(0, -1)", obj),
+        "reverse" => format!("[...{}].reverse()", obj),
+        "sort" => {
+            if args.is_empty() {
+                format!("[...{}].sort()", obj)
+            } else {
+                format!("[...{}].sort({})", obj, args.join(", "))
+            }
+        }
+        "splice" => {
+            let start = args.first().map(|s| s.as_str()).unwrap_or("0");
+            // Generate: obj.slice(0, start) + items + obj.slice(start + count)
+            // Simplest: [...obj.slice(0,start), ...items, ...obj.slice(start+count)]
+            let items_str = if args.len() > 2 {
+                args[2..].join(", ")
+            } else {
+                String::new()
+            };
+            let delete_count = args.get(1).map(|s| s.as_str()).unwrap_or("0");
+            if items_str.is_empty() {
+                format!("[...{obj}.slice(0, {start}), ...{obj}.slice({start} + {delete_count})]")
+            } else {
+                format!("[...{obj}.slice(0, {start}), {items_str}, ...{obj}.slice({start} + {delete_count})]")
+            }
+        }
         // Default: call as-is
         _ => format!("{}.{}({})", obj, method, args.join(", ")),
     }

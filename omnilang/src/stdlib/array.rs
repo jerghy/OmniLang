@@ -127,7 +127,7 @@ pub(super) fn codegen_array_push(args: &[String], target: Target) -> String {
         | Target::React
         | Target::Vue
         | Target::OmniView => {
-            format!("(({arr}).push({item}), ({arr}).slice())")
+            format!("[...({arr}), {item}]")
         }
         Target::Python => format!("({arr}).append({item}) or {arr}"),
         Target::Rust | Target::Dioxus => format!("{{ ({arr}).push({item}); {arr} }}"),
@@ -143,8 +143,8 @@ pub(super) fn codegen_array_pop(args: &[String], target: Target) -> String {
         | Target::React
         | Target::Vue
         | Target::OmniView => {
-            // Use comma operator: pop() mutates, slice() returns the modified copy
-            format!("(({arr}).pop(), ({arr}).slice())")
+            // Return new array without last element (immutable)
+            format!("({arr}).slice(0, -1)")
         }
         Target::Python => format!("({arr}).pop() or {arr} if len({arr}) > 0 else []"),
         Target::Rust | Target::Dioxus => format!("{{ let mut _v = {arr}.clone(); _v.pop(); _v }}"),
@@ -163,7 +163,7 @@ pub(super) fn codegen_array_remove(args: &[String], target: Target) -> String {
         | Target::React
         | Target::Vue
         | Target::OmniView => {
-            format!("(({arr}).splice({idx}, 1), ({arr}).slice())")
+            format!("({arr}).filter((_, _i) => _i !== {idx})")
         }
         Target::Python => format!("({arr}).pop({idx}) or {arr}"),
         Target::Rust | Target::Dioxus => format!("{{ ({arr}).remove({idx} as usize); {arr} }}"),

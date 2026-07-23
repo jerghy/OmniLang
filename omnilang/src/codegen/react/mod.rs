@@ -34,23 +34,136 @@ impl Codegen for ReactCodegen {
         ir: &IRProgram,
     ) -> Vec<CompiledFile> {
         let component_map = build_component_map(ir);
+        let dir_prefix = source_dir_prefix(comp.source_file.as_deref());
         vec![
             CompiledFile {
-                path: format!("{}.tsx", name),
+                path: format!("{}{}.tsx", dir_prefix, name),
                 content: self.gen_component_tsx(name, comp, ir, &component_map),
             },
             CompiledFile {
-                path: format!("{}.module.css", name),
+                path: format!("{}{}.module.css", dir_prefix, name),
                 content: self.gen_component_css(name, comp),
             },
         ]
     }
     fn gen_store_file(&self, name: &str, store: &StoreIR) -> Vec<CompiledFile> {
+        let dir_prefix = source_dir_prefix(store.source_file.as_deref());
         vec![CompiledFile {
-            path: format!("use{}.ts", name),
+            path: format!("{}use{}.ts", dir_prefix, name),
             content: self.gen_store_hook(name, store),
         }]
     }
+}
+
+/// Extract the output directory prefix from a source file path.
+///
+/// Example: `"src/components/Counter.omni"` → `"components/"`
+/// Example: `"src/stores/TodoStore.omni"` → `"stores/"`
+/// Example: `"src/main.omni"` → `""` (root-level files go to output root)
+fn source_dir_prefix(source_file: Option<&str>) -> String {
+    let path = match source_file {
+        Some(p) => p,
+        None => return String::new(),
+    };
+    // Get the parent directory of the source file
+    let parent = match std::path::Path::new(path).parent() {
+        Some(p) => p,
+        None => return String::new(),
+    };
+    // Strip common source root prefixes
+    let parent_str = parent.to_string_lossy();
+    // Normalize backslashes to forward slashes
+    let normalized = parent_str.replace('\\', "/");
+    // Strip "src/" or "src" prefix if present
+    let stripped = normalized
+        .strip_prefix("src/")
+        .or_else(|| normalized.strip_prefix("src"))
+        .unwrap_or(&normalized);
+    // Strip leading/trailing slashes and "."
+    let trimmed = stripped.trim_matches('/').trim_matches('.');
+    if trimmed.is_empty() {
+        String::new()
+    } else {
+        format!("{}/", trimmed)
+    }
+}
+
+/// Compute the output directory of a source file (without the filename).
+fn output_dir(source_file: Option<&str>) -> String {
+    let path = match source_file {
+        Some(p) => p,
+        None => return String::new(),
+    };
+    let parent = match std::path::Path::new(path).parent() {
+        Some(p) => p.to_string_lossy().replace('\\', "/"),
+        None => return String::new(),
+    };
+    // Strip "src/" or "src" prefix
+    let stripped = parent
+        .strip_prefix("src/")
+        .or_else(|| parent.strip_prefix("src"))
+        .unwrap_or(&parent);
+    let trimmed = stripped.trim_matches('/').trim_matches('.');
+    if trimmed.is_empty() {
+        String::new()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+/// Compute a relative import path from one source file to another component's output.
+///
+/// Example:
+/// - from `src/components/Header.omni` to component `Counter` at `src/components/Counter.omni`
+///   → `"./Counter"`
+/// - from `src/components/Header.omni` to store `TodoStore` at `src/stores/TodoStore.omni`
+///   → `"../stores/useTodoStore"`
+/// - from `src/main.omni` to component `Header` at `src/components/Header.omni`
+///   → `"./components/Header"`
+pub(super) fn relative_import_path(
+    from_source: Option<&str>,
+    to_source: Option<&str>,
+    to_module_name: &str,
+) -> String {
+    let from_dir = output_dir(from_source);
+    let to_dir = output_dir(to_source);
+
+    if from_dir == to_dir {
+        // Same directory — simple relative import
+        return format!("./{}", to_module_name);
+    }
+
+    // Compute relative path from from_dir to to_dir
+    let from_parts: Vec<&str> = from_dir.split('/').filter(|s| !s.is_empty()).collect();
+    let to_parts: Vec<&str> = to_dir.split('/').filter(|s| !s.is_empty()).collect();
+
+    // Find common prefix
+    let mut common_len = 0;
+    for (a, b) in from_parts.iter().zip(to_parts.iter()) {
+        if a == b {
+            common_len += 1;
+        } else {
+            break;
+        }
+    }
+
+    let up_count = from_parts.len() - common_len;
+    let down_path: Vec<&str> = to_parts[common_len..].to_vec();
+
+    let mut result = String::new();
+    if up_count == 0 {
+        result.push_str("./");
+    } else {
+        for _ in 0..up_count {
+            result.push_str("../");
+        }
+    }
+    for part in &down_path {
+        result.push_str(part);
+        result.push('/');
+    }
+    result.push_str(to_module_name);
+    result
 }
 
 impl ReactCodegen {

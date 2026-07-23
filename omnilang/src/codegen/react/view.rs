@@ -419,6 +419,33 @@ pub(super) fn gen_view_node_tsx(
                 }
             }
 
+            // Ensure <button> has explicit type to prevent accidental form submission
+            if html_tag == "button" && !attrs.iter().any(|a| a.starts_with("type=")) {
+                attrs.push("type=\"button\"".into());
+            }
+
+            // Ensure form fields with placeholder have an accessible label
+            let is_form_field = matches!(
+                html_tag.as_str(),
+                "input" | "textarea" | "select"
+            );
+            if is_form_field
+                && attrs.iter().any(|a| a.starts_with("placeholder="))
+                && !attrs.iter().any(|a| a.starts_with("aria-label=") || a.starts_with("aria-labelledby="))
+            {
+                // Extract placeholder text to use as aria-label
+                if let Some(ph_attr) = attrs.iter().find(|a| a.starts_with("placeholder=")) {
+                    // Static placeholder: placeholder="Search..."
+                    if let Some(start) = ph_attr.find("=\"") {
+                        let val_start = start + 2;
+                        if let Some(end) = ph_attr[val_start..].find('"') {
+                            let ph_val = &ph_attr[val_start..val_start + end];
+                            attrs.push(format!("aria-label=\"{}\"", ph_val));
+                        }
+                    }
+                }
+            }
+
             // Emit opening tag
             if attrs.is_empty() && el.children.is_empty() {
                 // Self-closing tag
@@ -538,7 +565,8 @@ pub(super) fn gen_view_node_tsx(
             let key_attr = if let Some(ref ke) = list.key_expr {
                 format!(" key={{{}}}", format_expr_ir_tsx(ke))
             } else {
-                " key={index}".to_string()
+                // Use item identity as key to avoid index-as-key anti-pattern
+                format!(" key={{{}}}", item_name)
             };
             if list.empty_body.is_some() {
                 w.emit("{");

@@ -35,9 +35,9 @@ pub(super) fn codegen_http_send(args: &[String], target: Target) -> String {
         | Target::React
         | Target::Vue
         | Target::OmniView => {
-            // fetch() returns a Response; extract text body so callers get String
+            // fetch() returns a Response; check ok before extracting body
             format!(
-                "fetch({req}.url, {{ method: {req}.method, headers: {req}.headers, body: {req}.body, signal: AbortSignal.timeout({req}.timeout) }}).then(r => r.text())",
+                "fetch({req}.url, {{ method: {req}.method, headers: {req}.headers, body: {req}.body, signal: AbortSignal.timeout({req}.timeout) }}).then(r => {{ if (!r.ok) throw new Error(`HTTP ${{r.status}}`); return r.text(); }})",
                 req = req
             )
         }
@@ -70,8 +70,8 @@ pub(super) fn codegen_http_get(args: &[String], target: Target) -> String {
         | Target::React
         | Target::Vue
         | Target::OmniView => {
-            // fetch() returns a Response; extract text body so callers get String
-            format!("fetch({url}).then(r => r.text())", url = url)
+            // fetch() returns a Response; check ok before extracting body
+            format!("fetch({url}).then(r => {{ if (!r.ok) throw new Error(`HTTP ${{r.status}}`); return r.text(); }})", url = url)
         }
         Target::Python => format!("requests.get({url})", url = url),
         Target::Rust | Target::Dioxus => {
@@ -92,9 +92,9 @@ pub(super) fn codegen_http_post(args: &[String], target: Target) -> String {
         | Target::React
         | Target::Vue
         | Target::OmniView => {
-            // fetch() returns a Response; extract text body so callers get String
+            // fetch() returns a Response; check ok before extracting body
             format!(
-                "fetch({url}, {{ method: 'POST', body: {body} }}).then(r => r.text())",
+                "fetch({url}, {{ method: 'POST', body: {body} }}).then(r => {{ if (!r.ok) throw new Error(`HTTP ${{r.status}}`); return r.text(); }})",
                 url = url,
                 body = body
             )
