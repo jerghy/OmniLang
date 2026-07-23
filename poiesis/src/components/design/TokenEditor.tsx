@@ -5,6 +5,8 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { usePoiesisStore } from "../../store";
 import { ColorPicker } from "../panels/inspector/ColorPicker";
 import type { DesignToken } from "../../core/types/design";
+import styles from "./TokenEditor.module.css";
+import { NewTokenMenu } from "./NewTokenMenu";
 
 // ── Constants ──
 
@@ -183,10 +185,12 @@ export function TokenEditor() {
   }, [filteredTokens]);
 
   const spacingMax = useMemo(() => {
-    const nums = tokens
-      .filter((t) => t.category === "spacing")
-      .map((t) => parseFloat(t.value))
-      .filter((n) => !isNaN(n) && n > 0);
+    const nums: number[] = [];
+    for (const t of tokens) {
+      if (t.category !== "spacing") continue;
+      const n = parseFloat(t.value);
+      if (!isNaN(n) && n > 0) nums.push(n);
+    }
     return nums.length > 0 ? Math.max(...nums) : 1;
   }, [tokens]);
 
@@ -404,45 +408,20 @@ export function TokenEditor() {
                   aria-label={`Scrub value: ${t.value}`}
                   onMouseDown={(e) => handleScrubStart(t.id, t.value, e)}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleScrubStart(t.id, t.value, e as unknown as React.MouseEvent); } }}
-                  style={{
-                    ...INPUT_STYLE,
-                    flex: 1,
-                    minWidth: 0,
-                    cursor: "ew-resize",
-                    userSelect: "none",
-                    background: "#f0fdf4",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 4,
-                    border: "none",
-                    fontFamily: "inherit",
-                    fontSize: "inherit",
-                  }}
+                  className={styles.spacingScrubBtn}
                   title="Drag to scrub value"
                 >
                   <span style={{ fontSize: 12, color: "#64748b", marginRight: 2 }}>&#8596;</span>
                   <span style={{ fontSize: 13, fontFamily: "'Cascadia Code', 'Fira Code', monospace", color: "#374151" }}>
                     {num}{unit}
                   </span>
-                </div>
+                </button>
                 {/* Unit selector */}
                 <select
                   aria-label="Spacing unit"
                   value={unit}
                   onChange={(e) => updateToken(t.id, { value: `${num}${e.target.value}` })}
-                  style={{
-                    padding: "4px 4px",
-                    fontSize: 12,
-                    fontFamily: "'Cascadia Code', 'Fira Code', monospace",
-                    border: "1px solid #d1d5db",
-                    borderRadius: 6,
-                    outline: "2px solid transparent",
-                    background: "#fff",
-                    color: "#374151",
-                    cursor: "pointer",
-                    flexShrink: 0,
-                    width: 56,
-                  }}
+                  className={styles.unitSelect}
                 >
                   <option value="px">px</option>
                   <option value="rem">rem</option>
@@ -454,26 +433,12 @@ export function TokenEditor() {
                   tabIndex={0}
                   onClick={(e) => handleRatioBarClick(t.id, spacingMax, e)}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleRatioBarClick(t.id, spacingMax, e as unknown as React.MouseEvent); } }}
-                  style={{
-                    flexShrink: 0,
-                    width: 56,
-                    height: 10,
-                    borderRadius: 5,
-                    background: "#e2e8f0",
-                    position: "relative",
-                    cursor: "pointer",
-                    overflow: "hidden",
-                  }}
+                  className={styles.ratioBar}
                   title={`${Math.round(ratio * 100)}% of max (${spacingMax}${unit})`}
                 >
                   <div
-                    style={{
-                      width: `${ratio * 100}%`,
-                      height: "100%",
-                      background: "#6366f1",
-                      borderRadius: 5,
-                      transition: "opacity 0.05s",
-                    }}
+                    className={styles.ratioFill}
+                    style={{ width: `${ratio * 100}%` }}
                   />
                 </div>
                 {/* Remove */}
@@ -541,17 +506,11 @@ export function TokenEditor() {
                   aria-label={`Scrub value: ${t.value}`}
                   onMouseDown={(e) => handleScrubStart(t.id, t.value, e)}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleScrubStart(t.id, t.value, e as unknown as React.MouseEvent); } }}
+                  className={styles.spacingScrubBtn}
                   style={{
                     ...INPUT_STYLE,
-                    flex: 1,
-                    minWidth: 0,
                     cursor: isNaN(num) ? "text" : "ew-resize",
-                    userSelect: "none",
                     background: isNaN(num) ? "#fff" : "#f0fdf4",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 4,
-                    border: "none",
                     fontFamily: "inherit",
                     fontSize: "inherit",
                   }}
@@ -563,25 +522,13 @@ export function TokenEditor() {
                   <span style={{ fontSize: 13, fontFamily: "'Cascadia Code', 'Fira Code', monospace", color: "#374151" }}>
                     {num}{unit}
                   </span>
-                </div>
+                </button>
                 {/* Unit selector for radii */}
                 <select
                   aria-label="Radius unit"
                   value={unit}
                   onChange={(e) => updateToken(t.id, { value: `${num}${e.target.value}` })}
-                  style={{
-                    padding: "4px 4px",
-                    fontSize: 12,
-                    fontFamily: "'Cascadia Code', 'Fira Code', monospace",
-                    border: "1px solid #d1d5db",
-                    borderRadius: 6,
-                    outline: "2px solid transparent",
-                    background: "#fff",
-                    color: "#374151",
-                    cursor: "pointer",
-                    flexShrink: 0,
-                    width: 56,
-                  }}
+                  className={styles.unitSelect}
                 >
                   <option value="px">px</option>
                   <option value="rem">rem</option>
@@ -624,17 +571,8 @@ export function TokenEditor() {
             {category === "colors" && catTokens.length > 0 && (
               <button type="button"
                 onClick={() => setPaletteView((v) => !v)}
-                style={{
-                  border: "1px solid #e2e8f0",
-                  borderRadius: 6,
-                  background: paletteView ? "#6366f1" : "#f8fafc",
-                  color: paletteView ? "#fff" : "#64748b",
-                  fontSize: 12,
-                  fontWeight: 500,
-                  padding: "3px 10px",
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                }}
+                className={styles.paletteToggleBtn}
+                style={{ background: paletteView ? "#6366f1" : "#f8fafc", color: paletteView ? "#fff" : "#64748b" }}
               >
                 {paletteView ? "List" : "Palette"}
               </button>
@@ -683,19 +621,7 @@ export function TokenEditor() {
           {searchQuery && (
             <button type="button"
               onClick={() => setSearchQuery("")}
-              style={{
-                position: "absolute",
-                right: 8,
-                top: "50%",
-                transform: "translateY(-50%)",
-                border: "none",
-                background: "none",
-                cursor: "pointer",
-                color: "#64748b",
-                fontSize: 16,
-                padding: 0,
-                lineHeight: 1,
-              }}
+              className={styles.clearSearchBtn}
             >
               &times;
             </button>
@@ -704,70 +630,15 @@ export function TokenEditor() {
         <div style={{ position: "relative" }}>
           <button type="button"
             onClick={() => setShowNewMenu((v) => !v)}
-            style={{
-              padding: "8px 16px",
-              fontSize: 13,
-              border: "none",
-              borderRadius: 8,
-              background: "#6366f1",
-              color: "#fff",
-              cursor: "pointer",
-              fontWeight: 600,
-              whiteSpace: "nowrap",
-              fontFamily: "inherit",
-            }}
+            className={styles.newTokenBtn}
           >
             + New token
           </button>
           {showNewMenu && (
-            <div
-              ref={(el) => {
-                (newMenuRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
-                if (el) {
-                  const btn = el.previousSibling as HTMLElement;
-                  if (btn) {
-                    const r = btn.getBoundingClientRect();
-                    el.style.top = `${r.bottom + 4}px`;
-                    el.style.left = `${r.right - 160}px`;
-                  }
-                }
-              }}
-              style={{
-                position: "fixed",
-                background: "#fff",
-                border: "1px solid #e2e8f0",
-                borderRadius: 10,
-                boxShadow: "0 6px 24px rgba(0,0,0,0.14)",
-                zIndex: 10000,
-                minWidth: 160,
-                overflow: "hidden",
-              }}
-            >{CATEGORY_ORDER.map((cat) => (
-                <button type="button"
-                  key={cat}
-                  onClick={() => handleAddToken(cat)}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    width: "100%",
-                    padding: "9px 16px",
-                    fontSize: 13,
-                    border: "none",
-                    background: "transparent",
-                    color: "#374151",
-                    cursor: "pointer",
-                    textAlign: "left",
-                    fontFamily: "inherit",
-                  }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "#f1f5f9"; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
-                >
-                  <span>{CATEGORY_ICONS[cat]}</span>
-                  <span>{CATEGORY_LABELS[cat]}</span>
-                </button>
-              ))}
-            </div>
+            <NewTokenMenu
+              ref={newMenuRef}
+              onSelect={handleAddToken}
+            />
           )}
         </div>
       </div>
@@ -776,36 +647,42 @@ export function TokenEditor() {
       {CATEGORY_ORDER.map((cat) => renderSection(cat, grouped[cat] || []))}
 
       {/* Unknown categories */}
-      {Object.keys(grouped)
-        .filter((cat) => !CATEGORY_ORDER.includes(cat as (typeof CATEGORY_ORDER)[number]))
-        .map((cat) => (
-          <div key={cat} style={{ ...CARD_STYLE }}>
-            <div style={SECTION_HEADER}>{cat} ({grouped[cat].length})</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 2, marginBottom: 8 }}>
-              {grouped[cat].map((t) => (
-                <div key={t.id} style={ROW_STYLE}>
-                  <input
-                    value={t.name}
-                    onChange={(e) => updateToken(t.id, { name: e.target.value })}
-                    style={{ ...INPUT_STYLE, width: 100, flexShrink: 0 }}
-                    placeholder="name"
-                    aria-label="Token name"
-                  />
-                  <input
-                    value={t.value}
-                    onChange={(e) => updateToken(t.id, { value: e.target.value })}
-                    style={{ ...INPUT_STYLE, flex: 1, minWidth: 0 }}
-                    placeholder="value"
-                    aria-label="Token value"
-                  />
-                  <button type="button" onClick={() => removeToken(t.id)} style={REMOVE_BTN} title="Remove token">
-                    &times;
-                  </button>
+      {(() => {
+        const unknownCats: JSX.Element[] = [];
+        for (const cat of Object.keys(grouped)) {
+          if (!CATEGORY_ORDER.includes(cat as (typeof CATEGORY_ORDER)[number])) {
+            unknownCats.push(
+              <div key={cat} style={{ ...CARD_STYLE }}>
+                <div style={SECTION_HEADER}>{cat} ({grouped[cat].length})</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 2, marginBottom: 8 }}>
+                  {grouped[cat].map((t) => (
+                    <div key={t.id} style={ROW_STYLE}>
+                      <input
+                        value={t.name}
+                        onChange={(e) => updateToken(t.id, { name: e.target.value })}
+                        style={{ ...INPUT_STYLE, width: 100, flexShrink: 0 }}
+                        placeholder="name"
+                        aria-label="Token name"
+                      />
+                      <input
+                        value={t.value}
+                        onChange={(e) => updateToken(t.id, { value: e.target.value })}
+                        style={{ ...INPUT_STYLE, flex: 1, minWidth: 0 }}
+                        placeholder="value"
+                        aria-label="Token value"
+                      />
+                      <button type="button" onClick={() => removeToken(t.id)} style={REMOVE_BTN} title="Remove token">
+                        &times;
+                      </button>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </div>
-        ))}
+              </div>
+            );
+          }
+        }
+        return unknownCats;
+      })()}
 
       {/* Color picker overlay */}
       {colorPickerState &&

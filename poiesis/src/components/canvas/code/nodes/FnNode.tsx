@@ -1,4 +1,5 @@
 import { Handle, Position } from "@xyflow/react";
+import styles from "./FnNode.module.css";
 
 interface Props {
   data: {
@@ -15,21 +16,9 @@ export function FnNode({ data }: Props) {
 
   return (
     <div
-      className="flow-node"
+      className={`flow-node ${styles.node}`}
       data-node-type="fn"
       onDoubleClick={data.onDoubleClick}
-      style={{
-        background: "#EEF2FF",
-        border: "2px solid #6366F1",
-        borderRadius: "12px 12px 4px 4px",
-        padding: "10px 18px",
-        minWidth: 160,
-        textAlign: "center",
-        fontSize: 13,
-        fontWeight: 600,
-        color: "#3730A3",
-        cursor: "pointer",
-      }}
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
         <span style={{ fontSize: 14 }}>ƒ</span>

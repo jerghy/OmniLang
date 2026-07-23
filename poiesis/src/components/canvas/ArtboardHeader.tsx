@@ -1,6 +1,7 @@
 // poiesis/src/components/canvas/ArtboardHeader.tsx
 import React from "react";
 import { useCanvasStore, DEVICE_PRESETS } from "./canvas-store";
+import styles from "./ArtboardHeader.module.css";
 
 export const ArtboardHeader = React.memo(function ArtboardHeader() {
   const devicePreset = useCanvasStore((s) => s.devicePreset);
@@ -8,17 +9,7 @@ export const ArtboardHeader = React.memo(function ArtboardHeader() {
 
   return (
     <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-        padding: "4px 12px",
-        background: "#f1f5f9",
-        borderBottom: "1px solid #e2e8f0",
-        fontSize: 12,
-        color: "#475569",
-        flexShrink: 0,
-      }}
+      className={styles.header}
     >
       <select
         aria-label="Device preset"

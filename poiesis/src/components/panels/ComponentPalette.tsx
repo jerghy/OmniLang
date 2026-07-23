@@ -16,7 +16,6 @@ import styles from "./ComponentPalette.module.css";
 const log = createLogger("ComponentPalette");
 
 // Re-export for backward compatibility
-export { COMPONENT_PROTOCOL };
 export type { EventMeta } from "../../data/componentProtocol";
 
 // ═══════════════════════════════════════════════
@@ -43,7 +42,8 @@ function PaletteDraggableItem({ data }: { data: PaletteItemData }) {
 
   return (
     <div
-      style={{ display: "flex", alignItems: "center", padding: isCustom ? "2px 4px" : "3px 4px", borderRadius: 4, marginBottom: 1 }}
+      className={styles.dragItem}
+      style={{ padding: isCustom ? "2px 4px" : "3px 4px" }}
     >
       {/* Drag handle — spread @dnd-kit listeners & attributes here */}
       <div
@@ -51,19 +51,10 @@ function PaletteDraggableItem({ data }: { data: PaletteItemData }) {
         {...listeners}
         {...attributes}
         title={description || component}
-        className={isDragging ? undefined : styles.dragHandle}
+        className={`${styles.dragHandleStatic}${isDragging ? "" : ` ${styles.dragHandle}`}`}
         style={{
-          flex: 1,
-          padding: "3px 6px",
-          borderRadius: 3,
           cursor: isDragging ? "grabbing" : "grab",
-          fontSize: 12,
-          border: "1px solid transparent",
-          display: "flex",
-          alignItems: "center",
-          gap: 4,
           opacity: isDragging ? 0.4 : 1,
-          touchAction: "none",
         }}
       >
         {/* Icon */}
@@ -199,7 +190,7 @@ export function ComponentPalette() {
   return (
     <div style={{ padding: 8, fontSize: 12, userSelect: "none", display: "flex", flexDirection: "column", height: "100%" }}>
       {/* Header */}
-      <div style={{ fontWeight: 600, marginBottom: 6, fontSize: 12, color: "#6b7280", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 4 }}>
+      <div className={styles.paletteHeader}>
         🧩 组件面板
       </div>
 
@@ -210,10 +201,7 @@ export function ComponentPalette() {
         aria-label="搜索组件"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        style={{
-          padding: "4px 8px", fontSize: 12, border: "1px solid #e5e7eb", borderRadius: 4,
-          marginBottom: 6, outline: "2px solid transparent", width: "100%", boxSizing: "border-box",
-        }}
+        className={styles.searchInput}
         onFocus={(e) => { e.target.style.borderColor = "#4F46E5"; }}
         onBlur={(e) => { e.target.style.borderColor = "#e5e7eb"; }}
       />
@@ -221,11 +209,7 @@ export function ComponentPalette() {
       {/* Create Custom Component Button */}
       <button type="button"
         onClick={() => setShowCreateDialog(true)}
-        style={{
-          width: "100%", padding: "5px 8px", marginBottom: 8, fontSize: 12, fontWeight: 600,
-          border: "1px dashed #4F46E5", borderRadius: 4, background: "#EEF2FF",
-          color: "#4F46E5", cursor: "pointer",
-        }}
+        className={styles.createBtn}
       >
         + 自定义组件
       </button>
@@ -243,14 +227,10 @@ export function ComponentPalette() {
                 tabIndex={0}
                 onClick={() => toggleCollapse(cat)}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleCollapse(cat); } }}
+                className={styles.categoryHeader}
                 style={{
-                  fontSize: 12, color: isCustom ? "#4F46E5" : "#9ca3af",
-                  marginBottom: 2, textTransform: "uppercase",
-                  cursor: "pointer", display: "flex", alignItems: "center", gap: 4,
-                  padding: "1px 0", fontWeight: isCustom ? 700 : 500,
-                  userSelect: "none",
-                  background: "none", border: "none", width: "100%",
-                  fontFamily: "inherit",
+                  color: isCustom ? "#4F46E5" : "#9ca3af",
+                  fontWeight: isCustom ? 700 : 500,
                 }}
               >
                 <span style={{ fontSize: 8, transition: "transform 0.15s", transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)" }}>
@@ -258,7 +238,7 @@ export function ComponentPalette() {
                 </span>
                 {CATEGORY_LABELS[cat] || cat}
                 <span style={{ fontWeight: 400, color: "#d1d5db" }}>({items.length})</span>
-              </div>
+              </button>
 
               {!isCollapsed && items.map((m) => {
                 const isCustomComp = definitions[m.component] !== undefined;
@@ -308,11 +288,7 @@ export function ComponentPalette() {
             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowCreateDialog(false); } }}
             style={{ position: "fixed", inset: 0, zIndex: 9998, background: "transparent", border: "none", cursor: "pointer" }}
           />
-          <div style={{
-            position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
-            zIndex: 9999, background: "#fff", borderRadius: 12, padding: "20px 24px",
-            boxShadow: "0 8px 32px rgba(0,0,0,0.2)", minWidth: 300,
-          }}>
+          <div className={styles.dialog}>
             <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>
               新建自定义组件
             </div>
@@ -343,7 +319,7 @@ export function ComponentPalette() {
                   const input = document.getElementById("new-comp-name") as HTMLInputElement;
                   handleCreate(input?.value || "");
                 }}
-                style={{ padding: "5px 14px", fontSize: 12, border: "none", borderRadius: 6, background: "#4F46E5", color: "#fff", cursor: "pointer", fontWeight: 600 }}
+                className={styles.confirmBtn}
               >
                 创建并编辑
               </button>

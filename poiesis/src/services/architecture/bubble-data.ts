@@ -187,8 +187,8 @@ function extractComponentTagsFromSource(source: string): {
   pascalCaseChildren: string[];
   basicHtmlTags: string[];
 } {
-  const pascalCaseChildren: string[] = [];
-  const basicHtmlTags: string[] = [];
+  const pascalCaseSet = new Set<string>();
+  const basicHtmlSet = new Set<string>();
 
   // Extract the view block content using brace counting
   const viewContent = extractViewBlock(source) || source;
@@ -201,32 +201,26 @@ function extractComponentTagsFromSource(source: string): {
     if (isClosing) continue; // skip closing tags, avoid double-count
     const tag = m[2];
     if (isComponentTag(tag)) {
-      if (!pascalCaseChildren.includes(tag)) {
-        pascalCaseChildren.push(tag);
-      }
+      pascalCaseSet.add(tag);
     } else if (isBasicHtmlTag(tag)) {
-      if (!basicHtmlTags.includes(tag)) {
-        basicHtmlTags.push(tag);
-      }
+      basicHtmlSet.add(tag);
     }
   }
 
-  return { pascalCaseChildren, basicHtmlTags };
+  return { pascalCaseChildren: [...pascalCaseSet], basicHtmlTags: [...basicHtmlSet] };
 }
 
 /**
  * Extract @store references from source text.
  */
 function extractStoreRefsFromSource(source: string): string[] {
-  const refs: string[] = [];
+  const refsSet = new Set<string>();
   const re = /@store\s+(\w+)/g;
   let m;
   while ((m = re.exec(source)) !== null) {
-    if (!refs.includes(m[1])) {
-      refs.push(m[1]);
-    }
+    refsSet.add(m[1]);
   }
-  return refs;
+  return [...refsSet];
 }
 
 // ── Store analysis ──

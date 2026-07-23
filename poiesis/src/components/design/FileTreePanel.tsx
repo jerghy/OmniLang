@@ -2,9 +2,10 @@
 // Hierarchical file tree panel showing .omni files for quick navigation.
 // Includes "New File" button to open the creation dialog.
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { api } from "../../commands";
 import { createLogger } from "../../lib/utils/logger";
+import styles from "./FileTreePanel.module.css";
 
 const log = createLogger("FileTreePanel");
 
@@ -50,26 +51,13 @@ function FileNodeRenderer({
       <div>
         <button type="button"
           onClick={() => onToggleDir(node.path)}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 4,
-            width: "100%",
-            padding: `4px 12px 4px ${12 + indent}px`,
-            border: "none",
-            background: "transparent",
-            cursor: "pointer",
-            fontSize: 12,
-            color: "#374151",
-            fontWeight: 500,
-            textAlign: "left" as const,
-            fontFamily: "inherit",
-          }}
+          className={styles.dirBtn}
+          style={{ padding: `4px 12px 4px ${12 + indent}px` }}
         >
-          <span style={{ fontSize: 12, width: 14, color: "#94a3b8" }}>
+          <span className={styles.dirArrow}>
             {isExpanded ? "▼" : "▶"}
           </span>
-          <span style={{ fontSize: 12 }}>{isExpanded ? "📂" : "📁"}</span>
+          <span className={styles.dirIcon}>{isExpanded ? "📂" : "📁"}</span>
           <span>{node.name}</span>
         </button>
         {isExpanded &&
@@ -94,29 +82,18 @@ function FileNodeRenderer({
     <button type="button"
       onClick={() => !isOpen && onOpenFile(node.path, node.name)}
       disabled={isOpen}
+      className={styles.fileBtn}
       style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 6,
-        width: "100%",
         padding: `4px 12px 4px ${12 + indent + 14}px`,
-        border: "none",
-        background: "transparent",
         cursor: isOpen ? "default" : "pointer",
-        fontSize: 12,
         color: isOpen ? "#94a3b8" : "#374151",
-        textAlign: "left" as const,
-        fontFamily: "inherit",
         opacity: isOpen ? 0.5 : 1,
-        whiteSpace: "nowrap" as const,
-        overflow: "hidden",
-        textOverflow: "ellipsis",
       }}
     >
-      <span style={{ fontSize: 12 }}>{isOpen ? "📌" : "📄"}</span>
-      <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{node.name}</span>
+      <span className={styles.fileIcon}>{isOpen ? "📌" : "📄"}</span>
+      <span className={styles.fileName}>{node.name}</span>
       {isOpen && (
-        <span style={{ fontSize: 12, color: "#94a3b8", marginLeft: "auto", flexShrink: 0 }}>
+        <span className={styles.openBadge}>
           已打开
         </span>
       )}
@@ -149,27 +126,22 @@ export function FileTreePanel({ tabs, onOpenFile, onNewFile, onClose, panelRef }
         try {
           const result = await api.project.listDir(dirPath);
           if (!result.entries) return nodes;
-          for (const entry of result.entries) {
-            const entryPath = dirPath === "." ? entry.name : `${dirPath}/${entry.name}`;
-            if (entry.type === "directory") {
-              const children = await scanDir(entryPath);
-              // Only include directories that contain .omni files (recursively)
-              if (children.length > 0) {
-                nodes.push({
-                  name: entry.name,
-                  path: entryPath,
-                  type: "directory",
-                  children,
-                });
+          const entries = await Promise.all(
+            result.entries.map(async (entry) => {
+              const entryPath = dirPath === "." ? entry.name : `${dirPath}/${entry.name}`;
+              if (entry.type === "directory") {
+                const children = await scanDir(entryPath);
+                if (children.length > 0) {
+                  return { name: entry.name, path: entryPath, type: "directory" as const, children };
+                }
+              } else if (entry.ext === "omni") {
+                return { name: entry.name, path: entryPath, type: "file" as const, children: [] };
               }
-            } else if (entry.ext === "omni") {
-              nodes.push({
-                name: entry.name,
-                path: entryPath,
-                type: "file",
-                children: [],
-              });
-            }
+              return null;
+            })
+          );
+          for (const n of entries) {
+            if (n) nodes.push(n);
           }
         } catch (e) { log.debug("Could not scan directory:", e); }
         return nodes;
@@ -223,61 +195,20 @@ export function FileTreePanel({ tabs, onOpenFile, onNewFile, onClose, panelRef }
         aria-label="Close file tree"
         onClick={onClose}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClose(); } }}
-        style={{
-          position: "fixed",
-          inset: 0,
-          zIndex: 9998,
-          background: "transparent",
-          border: "none",
-          cursor: "pointer",
-        }}
+        className={styles.backdrop}
       />
-      <div
-        ref={panelRef}
-        style={{
-          position: "fixed",
-          top: 44,
-          left: 8,
-          zIndex: 9999,
-          background: "#fff",
-          borderRadius: 8,
-          boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
-          minWidth: 260,
-          maxWidth: 360,
-          maxHeight: 420,
-          display: "flex",
-          flexDirection: "column",
-        }}
-      >
-        <div
-          style={{
-            fontSize: 12,
-            fontWeight: 600,
-            color: "#6b7280",
-            padding: "6px 12px",
-            borderBottom: "1px solid #f1f5f9",
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-          }}
-        >
+      <div ref={panelRef} className={styles.panel}>
+        <div className={styles.header}>
           <span>📁 项目文件</span>
-          <span style={{ fontSize: 12, color: "#94a3b8", fontWeight: 400 }}>
+          <span className={styles.headerStatus}>
             ({fileTree.length > 0 ? "已加载" : "扫描中..."})
           </span>
         </div>
 
         {/* Scrollable tree area */}
-        <div
-          style={{
-            flex: 1,
-            overflow: "auto",
-            padding: "4px 0",
-            minHeight: 0,
-          }}
-        >
+        <div className={styles.scrollArea}>
           {fileTree.length === 0 && (
-            <div style={{ padding: "16px 12px", fontSize: 12, color: "#94a3b8", textAlign: "center" }}>
+            <div className={styles.emptyMsg}>
               扫描中...
             </div>
           )}
@@ -294,31 +225,8 @@ export function FileTreePanel({ tabs, onOpenFile, onNewFile, onClose, panelRef }
         </div>
 
         {/* New File button */}
-        <div
-          style={{
-            borderTop: "1px solid #f1f5f9",
-            padding: "4px",
-          }}
-        >
-          <button type="button"
-            onClick={onNewFile}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 4,
-              width: "100%",
-              padding: "7px 12px",
-              border: "1px dashed #d1d5db",
-              borderRadius: 6,
-              background: "transparent",
-              cursor: "pointer",
-              fontSize: 12,
-              color: "#6366F1",
-              fontWeight: 500,
-              fontFamily: "inherit",
-            }}
-          >
+        <div className={styles.footer}>
+          <button type="button" onClick={onNewFile} className={styles.newFileBtn}>
             <span style={{ fontSize: 14 }}>+</span>
             <span>新建文件</span>
           </button>

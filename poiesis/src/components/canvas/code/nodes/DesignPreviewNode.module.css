@@ -1,0 +1,45 @@
+/* DesignPreviewNode.module.css — extracted from inline styles for react-doctor compliance */
+
+.node {
+  background: #fff;
+  border: 1.5px solid #6366f1;
+  border-radius: 8px;
+  box-shadow: 0 2px 12px rgba(99, 102, 241, 0.15);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  cursor: grab;
+}
+
+.titleBar {
+  padding: 4px 8px;
+  background: #EEF2FF;
+  border-bottom: 1px solid #C7D2FE;
+  font-size: 12px;
+  font-weight: 600;
+  color: #4338CA;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: grab;
+  flex-shrink: 0;
+}
+
+.previewContent {
+  flex: 1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.scaleWrapper {
+  transform-origin: top left;
+}
+
+.emptyState {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #94a3b8;
+  font-size: 13px;
+}

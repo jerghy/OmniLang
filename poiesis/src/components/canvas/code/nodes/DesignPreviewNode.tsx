@@ -4,6 +4,7 @@ import { usePoiesisStore } from "../../../../store";
 import { useCanvasStore } from "../../../canvas/canvas-store";
 import { OmniViewElementTree } from "../../../design/OmniViewElementTree";
 import type { OmniViewOutput } from "../../../design/useWasmCompile";
+import styles from "./DesignPreviewNode.module.css";
 
 interface DesignPreviewNodeData {
   output: OmniViewOutput | null;
@@ -30,50 +31,20 @@ export function DesignPreviewNode({
   return (
     <div
       onDoubleClick={() => toggleCodeFlow(null)}
-      style={{
-        background: "#fff",
-        border: "1.5px solid #6366f1",
-        borderRadius: 8,
-        boxShadow: "0 2px 12px rgba(99, 102, 241, 0.15)",
-        width: previewW,
-        height: previewH,
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-        cursor: "grab",
-      }}
+      className={styles.node}
+      style={{ width: previewW, height: previewH }}
     >
       {/* Title bar */}
-      <div
-        style={{
-          padding: "4px 8px",
-          background: "#EEF2FF",
-          borderBottom: "1px solid #C7D2FE",
-          fontSize: 12,
-          fontWeight: 600,
-          color: "#4338CA",
-          display: "flex",
-          alignItems: "center",
-          gap: 4,
-          cursor: "grab",
-          flexShrink: 0,
-        }}
-      >
+      <div className={styles.titleBar}>
         预览 (双击退出)
       </div>
 
       {/* Preview content — scaled down, pointer-events disabled so ReactFlow handles drag */}
-      <div
-        style={{
-          flex: 1,
-          overflow: "hidden",
-          pointerEvents: "none",
-        }}
-      >
+      <div className={styles.previewContent}>
         <div
+          className={styles.scaleWrapper}
           style={{
             transform: `scale(${scale})`,
-            transformOrigin: "top left",
             width: devicePreset.width || 393,
             height: devicePreset.height || 852,
           }}
@@ -86,16 +57,7 @@ export function DesignPreviewNode({
               onDoubleClickNid={() => {}}
             />
           ) : (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                height: "100%",
-                color: "#94a3b8",
-                fontSize: 13,
-              }}
-            >
+            <div className={styles.emptyState}>
               编译中...
             </div>
           )}

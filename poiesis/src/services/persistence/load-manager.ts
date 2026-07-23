@@ -17,7 +17,7 @@ const log = createLogger("persistence");
  * 4. Merge with project.json metadata (positions, fold state, canvas state)
  * 5. Populate store
  */
-export async function loadProject(projectDir: string, omniFiles: string[]): Promise<{ success: boolean; error?: string }> {
+async function loadProject(projectDir: string, omniFiles: string[]): Promise<{ success: boolean; error?: string }> {
   try {
     // 1. Try to load project.json
     let projectJson: ProjectJson;
@@ -74,7 +74,7 @@ export function loadProjectFromJson(raw: string): { success: boolean; error?: st
  * Restore code flow nodes from project.json's codeFlowGraphs.
  * Called after .omni parsing to overlay persisted graph data on parsed elements.
  */
-export function applyCodeFlowGraphs(
+function applyCodeFlowGraphs(
   _pidIndex: Record<string, { sourceFile: string }>,
   codeFlowGraphs: Record<string, import("../../core/types/project-json").CodeFlowGraph>,
 ): void {
@@ -86,7 +86,7 @@ export function applyCodeFlowGraphs(
  * Validate that project.json PIDs match the .omni files.
  * Returns mismatched PIDs that need regeneration.
  */
-export function validatePidConsistency(
+function validatePidConsistency(
   projectJson: ProjectJson,
   pidIndex: Record<string, { sourceFile: string }>,
 ): string[] {

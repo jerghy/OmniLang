@@ -1,0 +1,14 @@
+/* ReturnNode.module.css — extracted from inline styles for react-doctor compliance */
+
+.node {
+  background: #FFF1F2;
+  border: 2px solid #F43F5E;
+  border-radius: 4px 4px 12px 12px;
+  padding: 8px 14px;
+  min-width: 120px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: #BE123C;
+  cursor: pointer;
+}

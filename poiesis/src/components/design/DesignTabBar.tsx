@@ -9,7 +9,9 @@ import { detectTabType } from "../../core/types/design-page";
 import type { TabType } from "../../core/types/design-page";
 import { FileTreePanel } from "./FileTreePanel";
 import { NewFileModal } from "./NewFileModal";
+import { ConfirmCloseDialog } from "./ConfirmCloseDialog";
 import { api } from "../../commands";
+import styles from "./DesignTabBar.module.css";
 import { emitDesignSource } from "../../services/codegen/design-emitter";
 import { parseOmniSource } from "../../services/codegen/omni-parser";
 import { parseStyleValue } from "../../services/codegen/design-value-parser";
@@ -459,15 +461,7 @@ export function DesignTabBar() {
 
   return (
     <>
-      <div
-        style={{
-          display: "flex",
-          height: 36,
-          background: "#f1f5f9",
-          borderBottom: "1px solid #e2e8f0",
-          overflow: "auto",
-        }}
-      >
+      <div className={styles.tabBar}>
         {orderedTabs.map((tab) => {
           const isActive = tab.id === activeTabId;
           const isDragOver = tab.id === dragOverTabId;
@@ -481,42 +475,21 @@ export function DesignTabBar() {
               onDragOver={(e) => handleDragOver(e, tab.id)}
               onDrop={() => handleDrop(tab.id)}
               onDragEnd={handleDragEnd}
-              onClick={() => switchTab(tab.id)}
+              onClick={(e) => { if ((e.target as HTMLElement).closest('[data-action="close-tab"]')) { handleClose(e as unknown as React.MouseEvent, tab.id); } switchTab(tab.id); }}
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); switchTab(tab.id); } }}
+              className={styles.tabItem}
               style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 4,
-                padding: "0 12px",
-                cursor: "pointer",
-                fontSize: 12,
-                borderRight: "1px solid #e2e8f0",
                 borderTop: isActive ? "2px solid #6366F1" : "2px solid transparent",
                 background: isActive ? "#fff" : "transparent",
                 color: isActive ? "#1e293b" : "#64748b",
                 opacity: isDragOver ? 0.7 : 1,
-                transition: "opacity 150ms, background 150ms",
-                whiteSpace: "nowrap",
-                userSelect: "none",
               }}
             >
               <span>
                 {tab.isDirty && <span style={{ color: "#f59e0b" }}>● </span>}
                 {tab.componentName}.omni
               </span>
-              <span role="button" tabIndex={0}
-                onClick={(e) => handleClose(e, tab.id)}
-                style={{
-                  border: "none",
-                  background: "none",
-                  cursor: "pointer",
-                  fontSize: 14,
-                  color: "#64748b",
-                  padding: "0 2px",
-                  lineHeight: 1,
-                }}
-                title="关闭"
-              >
+              <span data-action="close-tab" className={styles.tabCloseBtn} title="关闭">
                 ×
               </span>
             </div>
@@ -547,18 +520,8 @@ export function DesignTabBar() {
               setShowPlusMenu(!showPlusMenu);
             }}
             title="添加文件"
-            style={{
-              border: "none",
-              background: showPlusMenu ? "#e2e8f0" : "transparent",
-              cursor: "pointer",
-              fontSize: 16,
-              color: "#6366F1",
-              fontWeight: 700,
-              padding: "0 8px",
-              height: 28,
-              borderRadius: 4,
-              lineHeight: 1,
-            }}
+            className={styles.addTabBtn}
+            style={{ background: showPlusMenu ? "#e2e8f0" : "transparent" }}
           >
             +
           </button>
@@ -567,18 +530,8 @@ export function DesignTabBar() {
           {showPlusMenu && (
               <div
                 ref={plusMenuRef}
-                style={{
-                  position: "fixed",
-                  top: plusMenuPos.top,
-                  left: plusMenuPos.left,
-                  background: "#fff",
-                  border: "1px solid #e2e8f0",
-                  borderRadius: 8,
-                  boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
-                  zIndex: 9999,
-                  minWidth: 200,
-                  overflow: "hidden",
-                }}
+                className={styles.plusMenuDropdown}
+                style={{ top: plusMenuPos.top, left: plusMenuPos.left }}
               >
                 <button type="button"
                   onClick={() => { setShowPlusMenu(false); setShowFilePanel(true); }}
@@ -626,74 +579,10 @@ export function DesignTabBar() {
 
       {/* Confirm dialog for dirty tab close */}
       {confirmClose && (
-        <>
-          <button
-            type="button"
-            tabIndex={0}
-            aria-label="Close confirmation"
-            onClick={() => setConfirmClose(null)}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setConfirmClose(null); } }}
-            style={{
-              position: "fixed",
-              inset: 0,
-              background: "rgba(0,0,0,0.3)",
-              zIndex: 10000,
-              border: "none",
-              cursor: "pointer",
-            }}
-          />
-          <div
-            style={{
-              position: "fixed",
-              top: "50%",
-              left: "50%",
-              transform: "translate(-50%, -50%)",
-              zIndex: 10001,
-              background: "#fff",
-              borderRadius: 12,
-              padding: "20px 24px",
-              boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
-              minWidth: 320,
-            }}
-          >
-            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>
-              未保存的更改
-            </div>
-            <div style={{ fontSize: 12, color: "#64748b", marginBottom: 16 }}>
-              此标签页有未保存的更改。确定要关闭吗？
-            </div>
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <button type="button"
-                onClick={() => setConfirmClose(null)}
-                style={{
-                  padding: "5px 14px",
-                  fontSize: 12,
-                  border: "1px solid #d1d5db",
-                  borderRadius: 6,
-                  background: "#fff",
-                  cursor: "pointer",
-                }}
-              >
-                取消
-              </button>
-              <button type="button"
-                onClick={confirmAndClose}
-                style={{
-                  padding: "5px 14px",
-                  fontSize: 12,
-                  border: "none",
-                  borderRadius: 6,
-                  background: "#dc2626",
-                  color: "#fff",
-                  cursor: "pointer",
-                  fontWeight: 600,
-                }}
-              >
-                关闭
-              </button>
-            </div>
-          </div>
-        </>
+        <ConfirmCloseDialog
+          onConfirm={confirmAndClose}
+          onCancel={() => setConfirmClose(null)}
+        />
       )}
     </>
   );

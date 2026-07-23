@@ -48,11 +48,11 @@ export interface ElementStyle {
 
 // ── Variable ↔ Class name conversion (for compiler output) ──
 
-export function variableToClassName(varName: string): string {
+function variableToClassName(varName: string): string {
   return "_v-" + varName.slice(2);
 }
 
-export function classNameToVariable(className: string): string | null {
+function classNameToVariable(className: string): string | null {
   if (className.startsWith("_v-")) {
     return "--" + className.slice(3);
   }

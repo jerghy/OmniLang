@@ -84,17 +84,10 @@ export function BubbleContextMenu({
   return (
     <div
       ref={menuRef}
+      className={styles.menuPanel}
       style={{
-        position: "absolute",
         left: position.x,
         top: position.y,
-        background: "#fff",
-        border: "1px solid #e5e7eb",
-        borderRadius: 8,
-        boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
-        padding: "4px 0",
-        minWidth: 180,
-        zIndex: 1000,
       }}
     >
       <MenuItem onClick={handleFocus}>以该组件为中心</MenuItem>
@@ -119,17 +112,6 @@ function MenuItem({
       onClick={onClick}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
       className={styles.menuItem}
-      style={{
-        padding: "8px 16px",
-        fontSize: 13,
-        cursor: "pointer",
-        color: "#374151",
-        background: "none",
-        border: "none",
-        width: "100%",
-        textAlign: "left",
-        fontFamily: "inherit",
-      }}
     >
       {children}
     </button>

@@ -5,6 +5,7 @@
 import React from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import type { TreeNode } from "./tree-utils";
+import styles from "./TreeNodeRenderer.module.css";
 
 export interface TreeDropState {
   targetId: string;
@@ -80,19 +81,11 @@ export const TreeNodeView = React.memo(function TreeNodeView({
           onClick={(e) => onSelect(node.id, e.ctrlKey || e.metaKey)}
           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(node.id, e.ctrlKey || e.metaKey); } }}
           onContextMenu={(e) => onContextMenu(e, node.id)}
+          className={styles.treeNode}
           style={{
             paddingLeft: depth * 16 + 4,
-            paddingRight: 4,
-            paddingTop: 2,
-            paddingBottom: 2,
-            fontSize: 12,
             cursor: isDragging ? "grabbing" : "pointer",
-            display: "flex",
-            alignItems: "center",
-            gap: 4,
             background: isSelected ? "#EEF2FF" : "transparent",
-            borderRadius: 3,
-            userSelect: "none",
             opacity: isDragging ? 0.35 : 1,
           }}
         >
@@ -102,11 +95,9 @@ export const TreeNodeView = React.memo(function TreeNodeView({
               tabIndex={0}
               onClick={(e) => { e.stopPropagation(); onToggle(node.id); }}
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); e.preventDefault(); onToggle(node.id); } }}
+              className={styles.toggleBtn}
               style={{
-                fontSize: 8, width: 12, cursor: "pointer",
-                transition: "transform 0.15s",
                 transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)",
-                background: "none", border: "none", padding: 0, fontFamily: "inherit",
               }}
             >
               ▼
@@ -159,23 +150,14 @@ export const TreeNodeView = React.memo(function TreeNodeView({
         onClick={(e) => onSelect(node.id, e.ctrlKey || e.metaKey)}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(node.id, e.ctrlKey || e.metaKey); } }}
         onContextMenu={(e) => onContextMenu(e, node.id)}
+        className={styles.treeNode}
         style={{
           paddingLeft: depth * 16 + 4,
-          paddingRight: 4,
-          paddingTop: 2,
-          paddingBottom: 2,
-          fontSize: 12,
           cursor: isDragging ? "grabbing" : "grab",
-          display: "flex",
-          alignItems: "center",
-          gap: 4,
           background: dropInside ? "#EEF2FF" : isSelected ? "#EEF2FF" : "transparent",
-          borderRadius: 3,
-          userSelect: "none",
           opacity: isDragging ? 0.35 : 1,
           outline: dropInside ? "1px solid #4F46E5" : isOver ? "1px dashed #A5B4FC" : "none",
           outlineOffset: "-1px",
-          touchAction: "none",
         }}
       >
         {/* Expand/collapse toggle */}
@@ -188,13 +170,9 @@ export const TreeNodeView = React.memo(function TreeNodeView({
               onToggle(node.id);
             }}
             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); e.preventDefault(); onToggle(node.id); } }}
+            className={styles.toggleBtn}
             style={{
-              fontSize: 8,
-              width: 12,
-              cursor: "pointer",
-              transition: "transform 0.15s",
               transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)",
-              background: "none", border: "none", padding: 0, fontFamily: "inherit",
             }}
           >
             ▼
@@ -259,12 +237,9 @@ export const TreeNodeView = React.memo(function TreeNodeView({
 function DropLine({ depth }: { depth: number }) {
   return (
     <div
+      className={styles.dropLine}
       style={{
-        height: 2,
         marginLeft: depth * 16 + 4,
-        marginRight: 4,
-        background: "#4F46E5",
-        borderRadius: 1,
       }}
     />
   );

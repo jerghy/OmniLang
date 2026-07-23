@@ -5,6 +5,7 @@ import {
 } from "@xyflow/react";
 import type { EdgeProps } from "@xyflow/react";
 import type { BubbleEdge as BubbleEdgeType } from "../../../core/types/architecture";
+import edgeStyles from "./BubbleEdge.module.css";
 
 const EDGE_COLORS: Record<string, string> = {
   composition: "#9ca3af",
@@ -52,18 +53,11 @@ export function BubbleEdge({
       {d?.label && (
         <EdgeLabelRenderer>
           <div
+            className={edgeStyles.edgeLabel}
             style={{
-              position: "absolute",
               transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
-              background: "#fff",
               border: `1px solid ${edgeColor}`,
-              borderRadius: 4,
-              padding: "2px 8px",
-              fontSize: 12,
-              fontWeight: 500,
               color: edgeColor,
-              pointerEvents: "none",
-              whiteSpace: "nowrap",
             }}
           >
             {d.label}

@@ -91,7 +91,7 @@ const severityMap: Record<string, MarkerSeverity> = {
 /**
  * Convert a WASM Diagnostic to a Monaco IMarkerData.
  */
-export function wasmDiagnosticToMarker(
+function wasmDiagnosticToMarker(
   d: WasmDiagnostic,
 ): IEditor.IMarkerData {
   const severity = severityMap[d.severity] ?? MarkerSeverity.Error;

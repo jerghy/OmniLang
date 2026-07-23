@@ -23,14 +23,16 @@ export function createArchitectureSlice(set: SetFn, _get?: GetFn) {
     setArchMode: (mode: "overall" | "local") => set((s) => ({ architecture: { ...s.architecture, mode } })),
 
     expandBubble: (bubbleId: string) => set((s) => {
-      const linkedIds = s.architecture.bubbles
-        .filter(b => b.id === bubbleId)
-        .flatMap(b => {
-          const linked = s.architecture.bubbles.filter(
-            o => o.depth === b.depth && o.type !== b.type && o.parentId === b.parentId,
-          );
-          return [b.id, ...linked.map(l => l.id)];
-        });
+      const linkedIds: string[] = [];
+      for (const b of s.architecture.bubbles) {
+        if (b.id !== bubbleId) continue;
+        linkedIds.push(b.id);
+        for (const o of s.architecture.bubbles) {
+          if (o.depth === b.depth && o.type !== b.type && o.parentId === b.parentId) {
+            linkedIds.push(o.id);
+          }
+        }
+      }
       const unique = [...new Set([...s.architecture.expandedBubbleIds, ...linkedIds])];
       return { architecture: { ...s.architecture, expandedBubbleIds: unique } };
     }),

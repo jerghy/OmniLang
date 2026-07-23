@@ -126,16 +126,16 @@ export function WelcomePage({ onProjectOpened }: WelcomePageProps) {
                 <button type="button"
                   key={proj.path}
                   style={styles.recentItem}
-                  onClick={() => handleOpenRecent(proj)}
+                  onClick={(e) => { if ((e.target as HTMLElement).getAttribute('data-action') === 'remove-recent') { handleRemoveRecent(e as unknown as React.MouseEvent, proj.path); } else { handleOpenRecent(proj); } }}
                 >
                   <span style={styles.recentIcon}>📁</span>
                   <div style={styles.recentInfo}>
                     <div style={styles.recentName}>{proj.name}</div>
                     <div style={styles.recentPath}>{proj.path}</div>
                   </div>
-                  <span role="button" tabIndex={0}
+                  <span
                     style={styles.recentRemove}
-                    onClick={(e) => handleRemoveRecent(e, proj.path)}
+                    data-action="remove-recent"
                     title="移除"
                   >
                     ×

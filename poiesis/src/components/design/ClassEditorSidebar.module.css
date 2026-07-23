@@ -1,0 +1,21 @@
+/* ClassEditorSidebar.module.css — extracted from inline styles for react-doctor compliance */
+
+.addClassBtn {
+  border: 1px dashed var(--dp-border, #e8e5f2);
+  border-radius: var(--dp-radius-sm, 6px);
+  background: transparent;
+  color: var(--dp-text-muted, #a09db8);
+  font-size: 12px;
+  padding: 5px 10px;
+  cursor: pointer;
+  margin: 8px;
+  transition: color 150ms ease, border-color 150ms ease;
+  font-family: inherit;
+}
+
+.classNameSpan {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}

@@ -7,7 +7,7 @@ import { uid } from "../../core/utils/id";
 import type { VariantBranch, VariantDimension } from "../../core/types/design";
 import type { StyleProperty, StyleValueSegment } from "../../core/types/style";
 import { parseStyleValue } from "../../services/codegen/design-value-parser";
-import { LOCKED_INPUT_STYLE } from "./cards/LockIcon";
+import { LOCKED_INPUT_STYLE } from "./cards/lock-icon-utils";
 import { SizeCard } from "./cards/SizeCard";
 import { BackgroundCard } from "./cards/BackgroundCard";
 import { BorderCard } from "./cards/BorderCard";
@@ -19,6 +19,8 @@ import { ScrubInput } from "./ScrubInput";
 import { IconButtonGroup } from "./IconButtonGroup";
 import { ClassPreview } from "./ClassPreview";
 import { TokenSlashPicker } from "./TokenSlashPicker";
+import { VariantSidebar } from "./VariantSidebar";
+import styles from "./VariantEditor.module.css";
 
 // ── Helpers ──
 
@@ -73,44 +75,6 @@ function computeBranchOverrides(
 }
 
 // ── Styles (using --dp-* CSS variables for consistency with TokenEditor/ClassEditor) ──
-
-const SIDEBAR_STYLE: React.CSSProperties = {
-  width: 180,
-  borderRight: "1px solid var(--dp-border, #e8e5f2)",
-  display: "flex",
-  flexDirection: "column",
-  flexShrink: 0,
-  background: "var(--dp-surface, #fff)",
-};
-
-const SIDEBAR_HEADER: React.CSSProperties = {
-  fontSize: 12,
-  fontWeight: 600,
-  color: "var(--dp-text-secondary, #6b6893)",
-  textTransform: "uppercase",
-  letterSpacing: "0.5px",
-  padding: "10px 8px 6px",
-};
-
-const ITEM_BASE: React.CSSProperties = {
-  padding: "6px 12px",
-  fontSize: 13,
-  cursor: "pointer",
-  color: "var(--dp-text-secondary, #6b6893)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  borderRadius: "var(--dp-radius-sm, 6px)",
-  margin: "1px 6px",
-  transition: "background 100ms ease, color 100ms ease",
-};
-
-const ITEM_ACTIVE: React.CSSProperties = {
-  ...ITEM_BASE,
-  background: "var(--dp-accent-subtle, #eef0ff)",
-  color: "var(--dp-accent, #6366f1)",
-  fontWeight: 600,
-};
 
 const INPUT_STYLE: React.CSSProperties = {
   padding: "4px 6px",
@@ -313,6 +277,8 @@ const ENUM_OPTIONS: Record<string, string[]> = {
 
 const layoutPropNames = ["display", "position", "flexDirection", "justifyContent", "alignItems", "alignSelf", "gap", "overflow", "flexWrap"];
 const typographyPropNames = ["color", "fontFamily", "fontSize", "fontWeight", "lineHeight", "textAlign", "textDecoration", "textTransform", "letterSpacing"];
+const layoutPropSet = new Set(layoutPropNames);
+const typographyPropSet = new Set(typographyPropNames);
 
 // ── Helpers for property access ──
 
@@ -398,7 +364,6 @@ export function VariantEditor() {
 
   // ── Local state ──
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
-  const [newVariantName, setNewVariantName] = useState("");
   const [newDimName, setNewDimName] = useState("");
   const [newDimValue, setNewDimValue] = useState("");
   const [activeBranchKey, setActiveBranchKey] = useState<string>("base");
@@ -494,7 +459,7 @@ export function VariantEditor() {
 
   const layoutSummary = useMemo(() => {
     const parts = currentProps.filter(
-      (p) => layoutPropNames.includes(p.name) && segmentsToString(p.segments),
+      (p) => layoutPropSet.has(p.name) && segmentsToString(p.segments),
     );
     return parts.length > 0
       ? parts.map((p) => `${p.name}:${segmentsToString(p.segments)}`).join(", ")
@@ -503,7 +468,7 @@ export function VariantEditor() {
 
   const typographySummary = useMemo(() => {
     const parts = currentProps.filter(
-      (p) => typographyPropNames.includes(p.name) && segmentsToString(p.segments),
+      (p) => typographyPropSet.has(p.name) && segmentsToString(p.segments),
     );
     return parts.length > 0
       ? parts.map((p) => `${p.name}:${segmentsToString(p.segments)}`).join(", ")
@@ -526,12 +491,10 @@ export function VariantEditor() {
     setActiveBranchKey("base");
   }, []);
 
-  const handleAddVariant = useCallback(() => {
-    const name = newVariantName.trim();
-    if (!name) return;
-    addVariant(name);
-    setNewVariantName("");
-  }, [newVariantName, addVariant]);
+  const handleAddVariant = useCallback((name: string) => {
+    if (!name.trim()) return;
+    addVariant(name.trim());
+  }, [addVariant]);
 
   const handleRemoveVariant = useCallback(
     (e: React.MouseEvent, id: string) => {
@@ -638,7 +601,7 @@ export function VariantEditor() {
     setActiveBranchKey(key);
   }, []);
 
-  const inheritedProps = selectedVariant?.inheritedProps ?? [];
+  const inheritedPropsSet = useMemo(() => new Set(selectedVariant?.inheritedProps ?? []), [selectedVariant?.inheritedProps]);
 
   // ── Handlers: Properties ──
 
@@ -770,77 +733,6 @@ export function VariantEditor() {
     [selectedVariant, activeBranchKey, updateVariant, removePropFromList],
   );
 
-  // ── Render: Sidebar ──
-
-  const renderSidebar = () => (
-    <div style={SIDEBAR_STYLE}>
-      <div style={SIDEBAR_HEADER}>Variants ({variants.length})</div>
-      <div style={{ flex: 1, overflow: "auto" }}>
-        {variants.map((v) => (
-          <div
-            key={v.id}
-            role="button"
-            tabIndex={0}
-            onClick={() => handleSelectVariant(v.id)}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSelectVariant(v.id); } }}
-            style={v.id === selectedVariantId ? ITEM_ACTIVE : ITEM_BASE}
-          >
-            <span
-              style={{
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-                flex: 1,
-              }}
-            >
-              {v.name}
-            </span>
-            <span role="button" tabIndex={0}
-              onClick={(e) => handleRemoveVariant(e, v.id)}
-              style={REMOVE_BTN}
-              title="Remove variant"
-            >
-              &times;
-            </span>
-          </div>
-        ))}
-      </div>
-      {/* Add variant */}
-      <div style={{ padding: "6px 8px", display: "flex", gap: 4 }}>
-        <input
-          aria-label="Add variant"
-          value={newVariantName}
-          onChange={(e) => setNewVariantName(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") handleAddVariant();
-          }}
-          placeholder="+ Add Variant"
-          style={{
-            ...INPUT_STYLE,
-            flex: 1,
-            minWidth: 0,
-            fontSize: 12,
-          }}
-        />
-        <button type="button"
-          onClick={handleAddVariant}
-          disabled={!newVariantName.trim()}
-          style={{
-            padding: "3px 8px",
-            fontSize: 12,
-            border: "none",
-            borderRadius: 4,
-            background: newVariantName.trim() ? "var(--dp-accent, #6366f1)" : "var(--dp-border, #e8e5f2)",
-            color: newVariantName.trim() ? "#fff" : "var(--dp-text-muted, #a09db8)",
-            cursor: newVariantName.trim() ? "pointer" : "default",
-          }}
-        >
-          +
-        </button>
-      </div>
-    </div>
-  );
-
   // ── Render: Dimension section ──
 
   const renderDimensions = () => {
@@ -897,11 +789,10 @@ export function VariantEditor() {
                 {dim.values.map((val) => {
                   const isDefault = val === defaultValue;
                   return (
-                    <span
+                    <button
+                      type="button"
                       key={val}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => handleSetDefault(dim.name, val)}
+                      onClick={(e) => { if ((e.target as HTMLElement).getAttribute('data-action') === 'remove-dim-value') { e.stopPropagation(); handleRemoveDimValue(dim.name, val); } else { handleSetDefault(dim.name, val); } }}
                       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSetDefault(dim.name, val); } }}
                       style={isDefault ? VALUE_PILL_DEFAULT : VALUE_PILL}
                       title={
@@ -911,26 +802,19 @@ export function VariantEditor() {
                       }
                     >
                       {val}
-                      <span role="button" tabIndex={0}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRemoveDimValue(dim.name, val);
-                        }}
-                        style={{
-                          border: "none",
-                          background: "none",
-                          cursor: "pointer",
-                          color: isDefault ? "rgba(255,255,255,0.7)" : "var(--dp-text-muted, #a09db8)",
-                          fontSize: 12,
-                          padding: 0,
-                          lineHeight: 1,
-                          marginLeft: 2,
-                        }}
-                        title="Remove value"
-                      >
+                      <span data-action="remove-dim-value" title="Remove value" style={{
+                        border: "none",
+                        background: "none",
+                        cursor: "pointer",
+                        color: isDefault ? "rgba(255,255,255,0.7)" : "var(--dp-text-muted, #a09db8)",
+                        fontSize: 12,
+                        padding: 0,
+                        lineHeight: 1,
+                        marginLeft: 2,
+                      }}>
                         &times;
                       </span>
-                    </span>
+                    </button>
                   );
                 })}
               </div>
@@ -1034,18 +918,7 @@ export function VariantEditor() {
     const branchesExist = branchKeys.length > 0;
 
     return (
-      <div
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: 4,
-          padding: "4px 0",
-          marginBottom: 8,
-          borderBottom: "1px solid var(--dp-border, #e8e5f2)",
-          paddingBottom: 8,
-          alignItems: "center",
-        }}
-      >
+      <div className={styles.branchTabsBar}>
         <button type="button"
           onClick={() => handleSelectBranch("base")}
           style={activeBranchKey === "base" ? BRANCH_TAB_ACTIVE : BRANCH_TAB}
@@ -1096,20 +969,7 @@ export function VariantEditor() {
         {showAddProp && (
           <div
             ref={addPropRef}
-            style={{
-              position: "absolute",
-              top: "100%",
-              left: 0,
-              right: 0,
-              marginTop: 2,
-              background: "var(--dp-surface, #fff)",
-              border: "1px solid var(--dp-border, #e8e5f2)",
-              borderRadius: 6,
-              boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-              zIndex: 100,
-              maxHeight: 200,
-              overflow: "auto",
-            }}
+            className={styles.addPropDropdown}
           >
             <input
               aria-label="Search properties"
@@ -1132,17 +992,7 @@ export function VariantEditor() {
                   setShowAddProp(false);
                   setAddPropSearch("");
                 }}
-                style={{
-                  display: "block",
-                  width: "100%",
-                  padding: "4px 10px",
-                  fontSize: 12,
-                  border: "none",
-                  background: "transparent",
-                  color: "var(--dp-text, #1e1b4b)",
-                  cursor: "pointer",
-                  textAlign: "left",
-                }}
+                className={styles.addPropItem}
                 onMouseEnter={(e) => {
                   (e.currentTarget as HTMLElement).style.background = "var(--dp-surface-hover, #f5f3ff)";
                 }}
@@ -1226,7 +1076,7 @@ export function VariantEditor() {
           {layoutPropNames.map((name) => {
             const value = getPropValue(currentProps, name);
             const label = PROPERTY_LABELS[name] || name;
-            const isInherited = selectedVariant?.inheritedProps?.includes(name);
+            const isInherited = inheritedPropsSet.has(name);
 
             // Inherited prop in branch mode: read-only
             if (isBranchMode && isInherited) {
@@ -1319,7 +1169,7 @@ export function VariantEditor() {
           {typographyPropNames.map((name) => {
             const value = getPropValue(currentProps, name);
             const label = PROPERTY_LABELS[name] || name;
-            const isInherited = selectedVariant?.inheritedProps?.includes(name);
+            const isInherited = inheritedPropsSet.has(name);
 
             // Inherited prop in branch mode: read-only
             if (isBranchMode && isInherited) {
@@ -1405,52 +1255,17 @@ export function VariantEditor() {
   const renderPreview = () => {
     if (!selectedVariant) return null;
     return (
-      <div
-        style={{
-          width: 260,
-          flexShrink: 0,
-          borderLeft: "1px solid var(--dp-border, #e8e5f2)",
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-          background: "var(--dp-surface, #fff)",
-        }}
-      >
+      <div className={styles.previewPanel}>
         {/* Header */}
-        <div
-          style={{
-            padding: "8px 12px",
-            fontSize: 12,
-            fontWeight: 600,
-            color: "var(--dp-text-secondary, #6b6893)",
-            textTransform: "uppercase",
-            letterSpacing: "0.5px",
-            borderBottom: "1px solid var(--dp-border, #e8e5f2)",
-            flexShrink: 0,
-          }}
+        <div className={styles.previewHeader}
         >
           Preview
         </div>
 
         {/* Dimension combination selectors */}
         {selectedVariant.dimensions.map((dim) => (
-          <div
-            key={dim.name}
-            style={{
-              padding: "4px 8px",
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-            }}
-          >
-            <span
-              style={{
-                fontSize: 12,
-                fontWeight: 500,
-                color: "var(--dp-text-secondary, #6b6893)",
-                minWidth: 40,
-              }}
-            >
+          <div key={dim.name} className={styles.previewSelectRow}>
+            <span className={styles.previewSelectLabel}>
               {dim.name}
             </span>
             <select
@@ -1462,18 +1277,7 @@ export function VariantEditor() {
                   [dim.name]: e.target.value,
                 }))
               }
-              style={{
-                flex: 1,
-                padding: "2px 4px",
-                fontSize: 12,
-                fontFamily: "var(--dp-font-mono, monospace)",
-                border: "1px solid var(--dp-border, #e8e5f2)",
-                borderRadius: "var(--dp-radius-sm, 6px)",
-                outline: "2px solid transparent",
-                background: "var(--dp-surface, #fff)",
-                color: "var(--dp-text, #1e1b4b)",
-                cursor: "pointer",
-              }}
+              className={styles.previewSelect}
             >
               <option value="">—</option>
               {dim.values.map((val) => (
@@ -1507,7 +1311,13 @@ export function VariantEditor() {
         position: "relative",
       }}
     >
-      {renderSidebar()}
+      <VariantSidebar
+        variants={variants}
+        selectedVariantId={selectedVariantId}
+        onSelectVariant={handleSelectVariant}
+        onAddVariant={handleAddVariant}
+        onRemoveVariant={handleRemoveVariant}
+      />
 
       <div
         style={{

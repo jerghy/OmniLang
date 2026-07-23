@@ -1,0 +1,29 @@
+/* FnNode.module.css — extracted from inline styles for react-doctor compliance */
+
+.node {
+  background: #EEF2FF;
+  border: 2px solid #6366F1;
+  border-radius: 12px 12px 4px 4px;
+  padding: 10px 18px;
+  min-width: 160px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: #3730A3;
+  cursor: pointer;
+}
+
+.labelRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.fnIcon {
+  font-size: 14px;
+}
+
+.paramsStyle {
+  font-weight: 400;
+}

@@ -7,6 +7,7 @@ import { usePoiesisStore } from "../../../store";
 import type { ElementData } from "../../../core/types/element";
 import type { SignalPickerItem } from "./SignalSlashPicker";
 import { SignalSlashPicker } from "./SignalSlashPicker";
+import styles from "./PropsSection.module.css";
 
 const KNOWN_PROPS = ["id", "label", "class", "name", "type", "placeholder", "value", "src", "href"];
 
@@ -111,7 +112,7 @@ export function PropsSection({ element, signalItems }: PropsSectionProps) {
       // eslint-disable-next-line react-doctor/no-adjust-state-on-prop-change
       setSlash(null);
     }
-  }, [element.id]);
+  }, [element.id, setLocalProps, setSlash, buildLocalProps]);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -414,11 +415,7 @@ function LabelEditor({ value, onChange, onSlashRequest }: LabelEditorProps) {
           onBlur={() => commitText(0)}
           placeholder="输入文本，/ 插入信号"
           aria-label="Text input"
-          style={{
-            flex: 1, padding: "3px 6px", fontSize: 12, outline: "2px solid transparent",
-            border: "1px solid #e2e8f0", borderRadius: 4,
-            fontFamily: "var(--dp-font-mono, monospace)", color: "#1e293b",
-          }}
+          className={styles.emptyInput}
         />
       )}
       {segments.map((seg, i) => {
@@ -435,10 +432,10 @@ function LabelEditor({ value, onChange, onSlashRequest }: LabelEditorProps) {
         }
         if (seg.type === "expr") {
           return (
-            <span key={seg.type + "-" + seg.value} role="button" tabIndex={0} style={{ ...EXPR_CHIP_STYLE, cursor: "pointer" }} onClick={() => setEditingIdx(i)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setEditingIdx(i); } }} title="点击编辑">
+            <button type="button" key={seg.type + "-" + seg.value} style={{ ...EXPR_CHIP_STYLE, cursor: "pointer" }} onClick={(e) => { if ((e.target as HTMLElement).getAttribute('data-action') === 'delete-segment') { handleDelete(i); } else { setEditingIdx(i); } }} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if ((e.target as HTMLElement).getAttribute('data-action') === 'delete-segment') { handleDelete(i); } else { setEditingIdx(i); } } }} title="点击编辑">
               {`{${seg.value}}`}
-              <span role="button" tabIndex={0} style={{ ...CHIP_DELETE_BTN, color: "#7C3AED" }} onClick={(e) => { e.stopPropagation(); handleDelete(i); }} title="删除">&times;</span>
-            </span>
+              <span data-action="delete-segment" style={{ ...CHIP_DELETE_BTN, color: "#7C3AED" }} title="删除">&times;</span>
+            </button>
           );
         }
         // Text segment: inline input
@@ -451,14 +448,11 @@ function LabelEditor({ value, onChange, onSlashRequest }: LabelEditorProps) {
             defaultValue={seg.value}
             onKeyDown={(e) => onTextKeyDown(i, e)}
             onBlur={() => commitText(i)}
+            className={styles.textSegment}
             style={{
-              flex: "0 1 auto",
               minWidth: hasExpr ? 40 : 120,
-              padding: "3px 4px", fontSize: 12, outline: "2px solid transparent",
               border: hasExpr ? "1px solid transparent" : "1px solid #e2e8f0",
               borderRadius: hasExpr ? 6 : 4,
-              background: "transparent",
-              fontFamily: "var(--dp-font-mono, monospace)", color: "#1e293b",
             }}
           />
         );

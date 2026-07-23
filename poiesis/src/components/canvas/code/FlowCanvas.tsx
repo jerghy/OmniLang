@@ -23,6 +23,8 @@ import { CODE_TAGS, TAG_CN, type ContextMenuState } from "./flowConstants";
 import { ContextMenu } from "./CanvasContextMenu";
 import { CodeEditorModal } from "./CodeEditorModal";
 import { FlowInspector } from "./FlowInspector";
+import { NodeContextMenu } from "./NodeContextMenu";
+import { FlowCanvasEmptyState } from "./FlowCanvasEmptyState";
 import styles from "./FlowCanvas.module.css";
 
 const nodeTypes = {
@@ -190,8 +192,9 @@ function FlowCanvasInner() {
       else if (e.key === "ArrowRight") dx = MOVE_STEP;
       else return;
       e.preventDefault();
+      const elMap = new Map(elementsRef.current.map(el => [el.id, el]));
       for (const id of ids) {
-        const el = elementsRef.current.find((x) => x.id === id);
+        const el = elMap.get(id);
         if (el && "position" in el) {
           const pos = el.position ?? { x: 0, y: 0 };
           setElementPosition(id, { x: pos.x + dx, y: pos.y + dy });
@@ -200,7 +203,7 @@ function FlowCanvasInner() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, []); // stable — bind once
+  }, [removeElement, setElementPosition, setSelectedNodeIds]); // stable — bind once
 
   // ── Drag: commit position only on drag end ──
   // During drag, ReactFlow manages node positions internally (uncontrolled for position).
@@ -233,13 +236,14 @@ function FlowCanvasInner() {
   );
 
   const nodes: RFNode[] = useMemo(
-    () =>
-      codeElements.map((el) => ({
+    () => {
+      const selectedSet = new Set(selectedNodeIds);
+      return codeElements.map((el) => ({
         id: el.id,
         type: el.tag,
         position: el.position ?? { x: 0, y: 0 },
-        selected: selectedNodeIds.includes(el.id),
-        className: selectedNodeIds.includes(el.id) ? "flow-node-selected" : "",
+        selected: selectedSet.has(el.id),
+        className: selectedSet.has(el.id) ? "flow-node-selected" : "",
         data: {
           label: TAG_CN[el.tag] || el.tag,
           source: el.source,
@@ -261,7 +265,8 @@ function FlowCanvasInner() {
             }
           },
         },
-      })),
+      }));
+    },
     [codeElements, selectedNodeIds, setEditingNodeId, setProp],
   );
 
@@ -314,26 +319,10 @@ function FlowCanvasInner() {
     <div ref={flowWrapperRef} style={{ width: "100%", height: "100%", display: "flex" }}>
       <div style={{ flex: 1, height: "100%", minWidth: 0 }}>
       {allNodes.length === 0 ? (
-        <div
+        <FlowCanvasEmptyState
+          codeFlowElementId={codeFlowElementId}
           onContextMenu={handlePaneContextMenu}
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            height: "100%",
-            color: "#94a3b8",
-            fontSize: 13,
-            gap: 6,
-          }}
-        >
-          <div>
-            {codeFlowElementId
-              ? "双击组件元素进入代码节点流编辑"
-              : "右键画布添加节点，或从组件标签页双击进入"}
-          </div>
-          <div style={{ fontSize: 12, opacity: 0.7 }}>右键 → 添加节点</div>
-        </div>
+        />
       ) : (
         <ReactFlow
           nodes={allNodes}
@@ -395,44 +384,13 @@ function FlowCanvasInner() {
       )}
 
       {/* Node right-click menu — delete */}
-      {nodeMenu && (
-        <div
-          ref={nodeMenuRef}
-          style={{
-            position: "fixed",
-            top: nodeMenu.y,
-            left: nodeMenu.x,
-            zIndex: 10001,
-            background: "#fff",
-            borderRadius: 6,
-            boxShadow: "0 2px 10px rgba(0,0,0,0.15)",
-            padding: "2px 0",
-            minWidth: 120,
-            fontSize: 12,
-          }}
-          onContextMenu={(e) => e.preventDefault()}
-        >
-          <button type="button"
-            onClick={() => { removeElement(nodeMenu.nodeId); setNodeMenu(null); }}
-            className={styles.deleteBtn}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              width: "100%",
-              padding: "6px 12px",
-              border: "none",
-              cursor: "pointer",
-              fontSize: 12,
-              color: "#dc2626",
-              textAlign: "left" as const,
-              fontFamily: "inherit",
-            }}
-          >
-            🗑 删除节点
-          </button>
-        </div>
-      )}
+      <NodeContextMenu
+        nodeMenu={nodeMenu}
+        menuRef={nodeMenuRef}
+        deleteBtnClass={styles.deleteBtn}
+        onDelete={(nodeId) => removeElement(nodeId)}
+        onClose={() => setNodeMenu(null)}
+      />
       </div>
       {/* Right-side inspector: edits selected FN or Return node */}
       <FlowInspector selectedNodeIds={selectedNodeIds} />

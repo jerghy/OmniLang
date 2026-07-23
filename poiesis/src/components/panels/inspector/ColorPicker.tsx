@@ -2,10 +2,11 @@
 // HUD color picker with saturation/value plane, hue strip, and hex input.
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import styles from "./ColorPicker.module.css";
 
 // ── Color conversion utilities (exported for use by TokenEditor) ──
 
-export function hslToHex(h: number, s: number, l: number): string {
+function hslToHex(h: number, s: number, l: number): string {
   s /= 100;
   l /= 100;
   const a = s * Math.min(l, 1 - l);
@@ -19,7 +20,7 @@ export function hslToHex(h: number, s: number, l: number): string {
   return `#${f(0)}${f(8)}${f(4)}`;
 }
 
-export function hexToHsl(hex: string): { h: number; s: number; l: number } {
+function hexToHsl(hex: string): { h: number; s: number; l: number } {
   const clean = hex.replace("#", "");
   let r = 0;
   let g = 0;
@@ -59,7 +60,7 @@ export function hexToHsl(hex: string): { h: number; s: number; l: number } {
   return { h: Math.round(h * 360), s: Math.round(s * 100), l: Math.round(l * 100) };
 }
 
-export function hexToHsv(hex: string): { h: number; s: number; v: number } {
+function hexToHsv(hex: string): { h: number; s: number; v: number } {
   const clean = hex.replace("#", "");
   let r = 0;
   let g = 0;
@@ -237,18 +238,12 @@ export function ColorPicker({ color: initialColor, onChange, onClose, anchorRect
   return (
     <div
       ref={pickerElRef}
+      className={styles.picker}
       style={{
-        position: "fixed",
         left,
         top: anchorRect.bottom + 4,
-        zIndex: 10000,
-        background: "#1e293b",
-        borderRadius: 12,
         padding: PADDING,
         width: PICKER_WIDTH,
-        boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
-        boxSizing: "border-box",
-        fontFamily: "system-ui, -apple-system, sans-serif",
       }}
     >
       {/* Saturation / Value plane */}
@@ -280,17 +275,10 @@ export function ColorPicker({ color: initialColor, onChange, onClose, anchorRect
         }}
       >
         <div
+          className={styles.svMarker}
           style={{
-            position: "absolute",
             left: svX,
             top: svY,
-            width: 12,
-            height: 12,
-            borderRadius: "50%",
-            border: "2px solid white",
-            transform: "translate(-50%, -50%)",
-            boxShadow: "0 0 4px rgba(0,0,0,0.6)",
-            pointerEvents: "none",
           }}
         />
       </div>
@@ -322,17 +310,9 @@ export function ColorPicker({ color: initialColor, onChange, onClose, anchorRect
         }}
       >
         <div
+          className={styles.hueMarker}
           style={{
-            position: "absolute",
             left: hueMarkerX,
-            top: "50%",
-            transform: "translate(-50%, -50%)",
-            width: 4,
-            height: 12,
-            background: "white",
-            borderRadius: 2,
-            boxShadow: "0 0 4px rgba(0,0,0,0.5)",
-            pointerEvents: "none",
           }}
         />
       </div>
@@ -358,18 +338,7 @@ export function ColorPicker({ color: initialColor, onChange, onClose, anchorRect
             if (e.key === "Enter") onCloseRef.current();
             if (e.key === "Escape") onCloseRef.current();
           }}
-          style={{
-            flex: 1,
-            padding: "4px 8px",
-            fontSize: 12,
-            fontFamily: "monospace",
-            border: "1px solid #475569",
-            borderRadius: 6,
-            background: "#0f172a",
-            color: "#e2e8f0",
-            outline: "2px solid transparent",
-            boxSizing: "border-box",
-          }}
+          className={styles.hexInput}
           placeholder="#000000"
           spellCheck={false}
         />

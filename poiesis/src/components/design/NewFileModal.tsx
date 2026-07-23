@@ -2,6 +2,7 @@
 // Dialog for creating new .omni files (store or code type).
 
 import { useState, useCallback } from "react";
+import styles from "./NewFileModal.module.css";
 
 interface NewFileModalProps {
   onCreate: (name: string, type: "store" | "code") => void;
@@ -26,28 +27,9 @@ export function NewFileModal({ onCreate, onClose }: NewFileModalProps) {
         aria-label="Close new file modal"
         onClick={() => { onClose(); setNewFileName(""); }}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClose(); setNewFileName(""); } }}
-        style={{
-          position: "fixed",
-          inset: 0,
-          zIndex: 9998,
-          background: "transparent",
-          border: "none",
-          cursor: "pointer",
-        }}
+        className={styles.backdrop}
       />
-      <div
-        style={{
-          position: "fixed",
-          top: 44,
-          left: 8,
-          zIndex: 9999,
-          background: "#fff",
-          borderRadius: 8,
-          boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
-          minWidth: 280,
-          padding: "16px",
-        }}
-      >
+      <div className={styles.modal}>
         <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: "#1e293b" }}>
           新建文件
         </div>

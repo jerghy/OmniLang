@@ -50,21 +50,8 @@ export function ContextMenu({
   return (
     <div
       ref={menuRef}
-      style={{
-        position: "fixed",
-        top,
-        left,
-        zIndex: 10000,
-        background: "#fff",
-        borderRadius: 8,
-        boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
-        minWidth: MENU_WIDTH,
-        maxWidth: MENU_WIDTH,
-        maxHeight,
-        overflowY: "auto",
-        fontSize: 12,
-        padding: "2px 0",
-      }}
+      className={styles.menuBox}
+      style={{ top, left, maxHeight }}
       onContextMenu={(e) => e.preventDefault()}
     >
       {MENU_SECTIONS.map((section, i) => {
@@ -74,22 +61,7 @@ export function ContextMenu({
             {i > 0 && <div style={{ height: 1, background: "#e2e8f0", margin: "2px 0" }} />}
             <button type="button"
               onClick={() => onToggleSection(i)}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 4,
-                width: "100%",
-                padding: "4px 10px",
-                border: "none",
-                background: "transparent",
-                cursor: "pointer",
-                fontSize: 12,
-                fontWeight: 600,
-                color: "#64748b",
-                textTransform: "uppercase" as const,
-                letterSpacing: "0.5px",
-                fontFamily: "inherit",
-              }}
+              className={styles.sectionHeader}
             >
               <span style={{ fontSize: 12, width: 10, textAlign: "center" as const }}>
                 {collapsed ? "▶" : "▼"}
@@ -107,21 +79,11 @@ export function ContextMenu({
                     key={item.label}
                     disabled={isDisabled}
                     onClick={() => { if (!isDisabled) { onSelectNode(item.tag); onClose(); } }}
-                    className={styles.menuBtn}
+                    className={`${styles.menuBtn} ${styles.menuBtnStatic}`}
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      width: "100%",
-                      padding: "5px 12px 5px 26px",
-                      border: "none",
-                      background: "transparent",
                       cursor: isDisabled ? "default" : "pointer",
-                      fontSize: 12,
                       color: isDisabled ? "#94a3b8" : "#1e293b",
                       fontStyle: isDisabled ? "italic" : "normal",
-                      textAlign: "left" as const,
-                      fontFamily: "inherit",
                     }}
                   >
                     <span>{item.label}</span>

@@ -25,7 +25,9 @@ export function computeInverse(
       const removedIds = new Set<string>();
       function collectDescendants(eid: string): void {
         removedIds.add(eid);
-        state.elements.filter((e) => e.parentId === eid).forEach((c) => collectDescendants(c.id));
+        for (const c of state.elements) {
+          if (c.parentId === eid) collectDescendants(c.id);
+        }
       }
       const el = state.elements.find((e) => e.id === action.id);
       if (el) collectDescendants(el.id);
@@ -183,7 +185,10 @@ export function computeInverse(
         return {
           elements: action.newElements,
           wires: action.newWires,
-          rootOrder: action.newElements.filter((e) => !e.parentId).map((e) => e.id),
+          rootOrder: action.newElements.reduce<string[]>((acc, e) => {
+            if (!e.parentId) acc.push(e.id);
+            return acc;
+          }, []),
           selectedElementIds: [],
           isDirty: true,
         };
@@ -191,7 +196,10 @@ export function computeInverse(
       return {
         elements: action.prevElements,
         wires: action.prevWires,
-        rootOrder: action.prevElements.filter((e) => !e.parentId).map((e) => e.id),
+        rootOrder: action.prevElements.reduce<string[]>((acc, e) => {
+          if (!e.parentId) acc.push(e.id);
+          return acc;
+        }, []),
         selectedElementIds: [],
         isDirty: true,
       };

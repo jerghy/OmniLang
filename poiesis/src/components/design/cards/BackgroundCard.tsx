@@ -3,9 +3,11 @@
 
 import React, { useCallback } from "react";
 import { CollapsibleGroup } from "../CollapsibleGroup";
-import { HSVPanel, hexToHsv, hsvToHex } from "../HSVPanel";
-import { LockIcon, isPropLocked, LOCKED_INPUT_STYLE } from "./LockIcon";
-import type { HSVColor } from "../HSVPanel";
+import { HSVPanel } from "../HSVPanel";
+import { hexToHsv, hsvToHex } from "../hsv-utils";
+import type { HSVColor } from "../hsv-utils";
+import { LockIcon } from "./LockIcon";
+import { isPropLocked, LOCKED_INPUT_STYLE } from "./lock-icon-utils";
 import type { StyleProperty } from "../../../core/types/style";
 import type { DesignToken } from "../../../core/types/design";
 import { uid } from "../../../core/utils/id";

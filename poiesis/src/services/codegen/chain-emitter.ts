@@ -324,7 +324,7 @@ export function buildCodeFlowGraphs(
  * @param chain  The ChainBlock whose nodeLines are parsed for node IDs.
  * @returns      A string of // @pid:<id> lines, one per node, joined by newline.
  */
-export function formatChainAsPidAnnotations(chain: ChainBlock): string {
+function formatChainAsPidAnnotations(chain: ChainBlock): string {
   const lines: string[] = [];
   for (const nodeLine of chain.nodeLines) {
     const match = nodeLine.match(/@node\s+(\S+)/);

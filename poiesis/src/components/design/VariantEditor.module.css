@@ -1,0 +1,97 @@
+/* VariantEditor.module.css — extracted from inline styles for react-doctor compliance */
+
+.branchTabsBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px 0;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--dp-border, #e8e5f2);
+  padding-bottom: 8px;
+  align-items: center;
+}
+
+.addPropDropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 2px;
+  background: var(--dp-surface, #fff);
+  border: 1px solid var(--dp-border, #e8e5f2);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  z-index: 100;
+  max-height: 200px;
+  overflow: auto;
+}
+
+.addPropItem {
+  display: block;
+  width: 100%;
+  padding: 4px 10px;
+  font-size: 12px;
+  border: none;
+  background: transparent;
+  color: var(--dp-text, #1e1b4b);
+  cursor: pointer;
+  text-align: left;
+}
+
+.previewPanel {
+  width: 260px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--dp-border, #e8e5f2);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--dp-surface, #fff);
+}
+
+.previewHeader {
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dp-text-secondary, #6b6893);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--dp-border, #e8e5f2);
+  flex-shrink: 0;
+}
+
+.previewSelectRow {
+  padding: 4px 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.previewSelectLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--dp-text-secondary, #6b6893);
+  min-width: 40px;
+}
+
+.previewSelect {
+  flex: 1;
+  padding: 2px 4px;
+  font-size: 12px;
+  font-family: var(--dp-font-mono, monospace);
+  border: 1px solid var(--dp-border, #e8e5f2);
+  border-radius: var(--dp-radius-sm, 6px);
+  outline: 2px solid transparent;
+  background: var(--dp-surface, #fff);
+  color: var(--dp-text, #1e1b4b);
+  cursor: pointer;
+}
+
+.defaultComboBox {
+  font-size: 12px;
+  color: var(--dp-text-secondary, #6b6893);
+  padding: 6px 8px;
+  background: var(--dp-bg, #f7f6fa);
+  border-radius: var(--dp-radius-sm, 6px);
+  margin-bottom: 12px;
+  border: 1px solid var(--dp-border, #e8e5f2);
+}

@@ -14,7 +14,7 @@ export interface FlowPortConfig {
 }
 
 /** Per-node-type flow port configuration */
-export const FLOW_NODE_PORTS: Record<FlowNodeType, FlowPortConfig[]> = {
+const FLOW_NODE_PORTS: Record<FlowNodeType, FlowPortConfig[]> = {
   "function-header": [
     { direction: "out", position: "bottom", portType: "flow", label: "entry" },
     { direction: "out", position: "right", portType: "data", label: "params" },
@@ -38,7 +38,7 @@ export const FLOW_NODE_PORTS: Record<FlowNodeType, FlowPortConfig[]> = {
 };
 
 /** Node display colors */
-export const FLOW_NODE_COLORS: Record<FlowNodeType, { bg: string; border: string }> = {
+const FLOW_NODE_COLORS: Record<FlowNodeType, { bg: string; border: string }> = {
   "function-header": { bg: "#EEF2FF", border: "#6366F1" },
   "skeleton":        { bg: "#FFFBEB", border: "#F59E0B" },
   "code-block":      { bg: "#F8FAFC", border: "#94A3B8" },

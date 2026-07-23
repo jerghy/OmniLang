@@ -1,0 +1,34 @@
+.bar {
+  display: flex;
+  height: 24px;
+  align-items: center;
+  padding: 0 12px;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  font-size: 12px;
+  gap: 4px;
+}
+
+.crumbGroup {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.separator {
+  color: #cbd5e1;
+}
+
+.crumbLink {
+  color: #6366f1;
+  cursor: pointer;
+}
+
+.crumbLast {
+  color: #475569;
+  cursor: default;
+}
+
+.emptyMsg {
+  color: #94a3b8;
+}

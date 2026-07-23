@@ -3,6 +3,7 @@
 
 import React, { useRef, useEffect } from "react";
 import type { DesignToken } from "../../core/types/design";
+import styles from "./TokenSlashPicker.module.css";
 
 interface TokenSlashPickerProps {
   tokens: DesignToken[];
@@ -58,53 +59,19 @@ export function TokenSlashPicker({
   return (
     <div
       ref={ref}
-      style={{
-        position: "fixed",
-        top: position.top,
-        left: position.left,
-        background: "#fff",
-        border: "1px solid #e2e8f0",
-        borderRadius: 8,
-        boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
-        zIndex: 1000,
-        minWidth: 200,
-        maxHeight: 260,
-        overflow: "auto",
-        padding: 4,
-      }}
+      className={styles.picker}
+      style={{ top: position.top, left: position.left }}
     >
       {categories.map((cat) => (
         <div key={cat}>
-          <div
-            style={{
-              fontSize: 12,
-              fontWeight: 600,
-              color: "#94a3b8",
-              padding: "4px 8px 2px",
-              textTransform: "uppercase",
-            }}
-          >
+          <div className={styles.categoryLabel}>
             {CATEGORY_LABELS[cat] || cat}
           </div>
           {grouped[cat].map((t) => (
             <button type="button"
               key={t.id}
               onClick={() => onSelect(t.name)}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                width: "100%",
-                padding: "4px 8px",
-                fontSize: 12,
-                border: "none",
-                background: "transparent",
-                color: "var(--dp-text-secondary, #6b6893)",
-                cursor: "pointer",
-                textAlign: "left",
-                fontFamily: "var(--dp-font-mono, monospace)",
-                borderRadius: 4,
-              }}
+              className={styles.tokenBtn}
               onMouseEnter={(e) => {
                 (e.currentTarget as HTMLElement).style.background = "var(--dp-accent-subtle, #eef0ff)";
               }}

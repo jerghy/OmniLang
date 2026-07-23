@@ -1,0 +1,31 @@
+/* SizeCard.module.css — extracted from inline styles for react-doctor compliance */
+
+.miniPreviewBox {
+  width: 100%;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--dp-radius-sm, 6px);
+  background: var(--dp-bg, #f7f6fa);
+  border: 1px dashed var(--dp-border, #e8e5f2);
+}
+
+.miniPreviewInner {
+  border: 2px solid var(--dp-accent, #6366f1);
+  border-radius: 2px;
+  background: rgba(99, 102, 241, 0.06);
+  transition: none;
+  position: relative;
+}
+
+.dimLabel {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 8px;
+  color: var(--dp-text-muted, #a09db8);
+  font-family: var(--dp-font-mono, monospace);
+  white-space: nowrap;
+}

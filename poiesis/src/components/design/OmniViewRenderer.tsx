@@ -9,7 +9,8 @@ import { useWasmCompile } from "./useWasmCompile";
 import { useDebugCompile } from "../../features/debug/useDebugCompile";
 import { useCssScopePool } from "./useCssScopePool";
 import { OmniViewElementTree } from "./OmniViewElementTree";
-import { _lastClickPos } from "./OmniViewElement";
+import { _lastClickPos } from "./omni-view-utils";
+import styles from "./OmniViewRenderer.module.css";
 
 export function OmniViewRenderer() {
   const selectedElementIds = usePoiesisStore((s) => s.selectedElementIds);
@@ -115,23 +116,13 @@ export function OmniViewRenderer() {
       </div>
 
       {errors.length > 0 && (
-        <div style={{
-          position: "absolute", bottom: 8, right: 8,
-          background: "#fef2f2", border: "1px solid #fecaca",
-          borderRadius: 6, padding: "6px 12px", fontSize: 12,
-          color: "#b91c1c", maxWidth: 320, zIndex: 10,
-        }}>
+        <div className={styles.errorBadge}>
           {errors[0]}
         </div>
       )}
 
       {isCompiling && (
-        <div style={{
-          position: "absolute", top: 8, right: 8,
-          background: "#eff6ff", border: "1px solid #bfdbfe",
-          borderRadius: 4, padding: "2px 8px", fontSize: 12,
-          color: "#2563eb", zIndex: 10,
-        }}>
+        <div className={styles.compilingBadge}>
           compiling...
         </div>
       )}

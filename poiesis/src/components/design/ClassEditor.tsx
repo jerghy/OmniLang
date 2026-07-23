@@ -13,10 +13,13 @@ import { BorderCard } from "./cards/BorderCard";
 import { RadiusCard } from "./cards/RadiusCard";
 import { SpacingCard } from "./cards/SpacingCard";
 import { FocusOverlay } from "./FocusOverlay";
+import styles from "./ClassEditor.module.css";
 import { CollapsibleGroup } from "./CollapsibleGroup";
 import { IconButtonGroup } from "./IconButtonGroup";
 import { ScrubInput } from "./ScrubInput";
 import { PropertyRow } from "./PropertyRow";
+import { ClassEditorSidebar } from "./ClassEditorSidebar";
+import { TokenPickerPopover } from "./TokenPickerPopover";
 
 // ── Constants ──
 
@@ -171,44 +174,6 @@ function setPropValue(
 
 // ── Styles ──
 
-const SIDEBAR_STYLE: React.CSSProperties = {
-  width: 180,
-  borderRight: "1px solid var(--dp-border, #e8e5f2)",
-  display: "flex",
-  flexDirection: "column",
-  flexShrink: 0,
-  background: "var(--dp-surface, #fff)",
-};
-
-const SIDEBAR_HEADER: React.CSSProperties = {
-  fontSize: 12,
-  fontWeight: 600,
-  color: "var(--dp-text-secondary, #6b6893)",
-  textTransform: "uppercase",
-  letterSpacing: "0.5px",
-  padding: "10px 10px 6px",
-};
-
-const CLASS_ITEM_BASE: React.CSSProperties = {
-  padding: "6px 10px",
-  fontSize: 12,
-  cursor: "pointer",
-  color: "var(--dp-text-secondary, #6b6893)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  borderRadius: "var(--dp-radius-sm, 6px)",
-  margin: "1px 6px",
-  transition: "background 100ms ease, color 100ms ease",
-};
-
-const CLASS_ITEM_ACTIVE: React.CSSProperties = {
-  ...CLASS_ITEM_BASE,
-  background: "var(--dp-accent-subtle, #eef0ff)",
-  color: "var(--dp-accent, #6366f1)",
-  fontWeight: 600,
-};
-
 const INPUT_STYLE: React.CSSProperties = {
   padding: "3px 6px",
   fontSize: 12,
@@ -237,17 +202,6 @@ const SELECT_STYLE: React.CSSProperties = {
   minWidth: 0,
 };
 
-const REMOVE_BTN: React.CSSProperties = {
-  border: "none",
-  background: "none",
-  cursor: "pointer",
-  color: "var(--dp-text-muted, #a09db8)",
-  fontSize: 14,
-  padding: "2px 4px",
-  lineHeight: 1,
-  flexShrink: 0,
-  borderRadius: 3,
-};
 
 // ── Hook: outside click ──
 
@@ -555,68 +509,6 @@ export function ClassEditor() {
 
   // ── Render helpers ──
 
-  const renderSidebar = () => (
-    <div style={SIDEBAR_STYLE}>
-      <div style={SIDEBAR_HEADER}>Classes ({classes.length})</div>
-      <div style={{ flex: 1, overflow: "auto" }}>
-        {classes.map((cls) => (
-          <div
-            key={cls.id}
-            role="button"
-            tabIndex={0}
-            onClick={() => handleSelectClass(cls.id)}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSelectClass(cls.id); } }}
-            style={cls.id === selectedClassId ? CLASS_ITEM_ACTIVE : CLASS_ITEM_BASE}
-          >
-            <span
-              style={{
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-                flex: 1,
-              }}
-              onDoubleClick={() => setEditingClassName(cls.id)}
-            >
-              {cls.name}
-            </span>
-            <span role="button" tabIndex={0}
-              onClick={(e) => handleRemoveClass(e, cls.id)}
-              style={REMOVE_BTN}
-              title="Remove class"
-            >
-              &times;
-            </span>
-          </div>
-        ))}
-      </div>
-      <button type="button"
-        onClick={handleAddClass}
-        style={{
-          border: "1px dashed var(--dp-border, #e8e5f2)",
-          borderRadius: "var(--dp-radius-sm, 6px)",
-          background: "transparent",
-          color: "var(--dp-text-muted, #a09db8)",
-          fontSize: 12,
-          padding: "5px 10px",
-          cursor: "pointer",
-          margin: "8px",
-          transition: "color 150ms ease, border-color 150ms ease",
-          fontFamily: "inherit",
-        }}
-        onMouseEnter={(e) => {
-          (e.currentTarget as HTMLElement).style.color = "var(--dp-accent, #6366f1)";
-          (e.currentTarget as HTMLElement).style.borderColor = "var(--dp-accent, #6366f1)";
-        }}
-        onMouseLeave={(e) => {
-          (e.currentTarget as HTMLElement).style.color = "var(--dp-text-muted, #a09db8)";
-          (e.currentTarget as HTMLElement).style.borderColor = "var(--dp-border, #e8e5f2)";
-        }}
-      >
-        + Add Class
-      </button>
-    </div>
-  );
-
   const renderPseudoTabs = () => {
     const pseudoExists = pseudoState !== null || activePseudo === "base";
 
@@ -656,16 +548,7 @@ export function ClassEditor() {
         <div style={{ position: "relative" }}>
           <button type="button"
             onClick={() => setShowPseudoMenu((v) => !v)}
-            style={{
-              padding: "5px 6px",
-              fontSize: 14,
-              cursor: "pointer",
-              border: "none",
-              background: "none",
-              color: "var(--dp-text-muted, #a09db8)",
-              lineHeight: 1,
-              fontFamily: "inherit",
-            }}
+            className={styles.pseudoMoreBtn}
             title="More pseudo-classes"
           >
             +
@@ -673,37 +556,13 @@ export function ClassEditor() {
           {showPseudoMenu && (
             <div
               ref={pseudoMenuRef}
-              style={{
-                position: "absolute",
-                top: "100%",
-                left: 0,
-                marginTop: 2,
-                background: "#fff",
-                border: "1px solid #e2e8f0",
-                borderRadius: 6,
-                boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-                zIndex: 100,
-                minWidth: 140,
-                maxHeight: 200,
-                overflow: "auto",
-              }}
+              className={styles.pseudoMenuDropdown}
             >
               {ADDITIONAL_PSEUDOS.map((pseudo) => (
                 <button type="button"
                   key={pseudo}
                   onClick={() => handlePseudoSelect(pseudo)}
-                  style={{
-                    display: "block",
-                    width: "100%",
-                    padding: "6px 12px",
-                    fontSize: 12,
-                    border: "none",
-                    background: "transparent",
-                    color: "var(--dp-text-secondary, #6b6893)",
-                    cursor: "pointer",
-                    textAlign: "left",
-                    fontFamily: "var(--dp-font-mono, monospace)",
-                  }}
+                  className={styles.pseudoMenuItem}
                   onMouseEnter={(e) => {
                     (e.currentTarget as HTMLElement).style.background = "var(--dp-accent-subtle, #eef0ff)";
                   }}
@@ -726,146 +585,6 @@ export function ClassEditor() {
       </div>
     );
   };
-
-const renderTokenPicker = () => {
-    if (!tokenPickerProp) return null;
-
-    return (
-      <div
-        ref={tokenPickerRef}
-        style={{
-          background: "#fff",
-          border: "1px solid #e2e8f0",
-          borderRadius: 8,
-          boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
-          zIndex: 1000,
-          minWidth: 200,
-          maxHeight: 260,
-          overflow: "auto",
-          padding: 4,
-        }}
-      >
-        <div
-          style={{
-            fontSize: 12,
-            fontWeight: 600,
-            color: "#6b7280",
-            padding: "4px 8px",
-            textTransform: "uppercase",
-            letterSpacing: "0.5px",
-          }}
-        >
-          Link Token
-        </div>
-        {tokens.length === 0 && (
-          <div
-            style={{
-              fontSize: 12,
-              color: "#94a3b8",
-              padding: 8,
-              textAlign: "center",
-            }}
-          >
-            No tokens defined
-          </div>
-        )}
-        {["colors", "spacing", "typography", "radii"].map((cat) => {
-          const catTokens = tokens.filter((t) => t.category === cat);
-          if (catTokens.length === 0) return null;
-          return (
-            <div key={cat}>
-              <div
-                style={{
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: "#94a3b8",
-                  padding: "4px 8px 2px",
-                  textTransform: "uppercase",
-                }}
-              >
-                {cat}
-              </div>
-              {catTokens.map((t) => (
-                <button type="button"
-                  key={t.id}
-                  onClick={() => handleSelectToken(t.name)}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    width: "100%",
-                    padding: "4px 8px",
-                    fontSize: 12,
-                    border: "none",
-                    background: "transparent",
-                    color: "var(--dp-text-secondary, #6b6893)",
-                    cursor: "pointer",
-                    textAlign: "left",
-                    fontFamily: "var(--dp-font-mono, monospace)",
-                  }}
-                  onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLElement).style.background = "var(--dp-accent-subtle, #eef0ff)";
-                  }}
-                  onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLElement).style.background = "transparent";
-                  }}
-                >
-                  {t.tokenType === "color" && (
-                    <span
-                      style={{
-                        width: 12,
-                        height: 12,
-                        borderRadius: 2,
-                        background: t.value,
-                        border: "1px solid #cbd5e1",
-                        flexShrink: 0,
-                      }}
-                    />
-                  )}
-                  <span>{t.name}</span>
-                  <span
-                    style={{
-                      marginLeft: "auto",
-                      fontSize: 12,
-                      color: "#94a3b8",
-                      fontFamily: "monospace",
-                    }}
-                  >
-                    {t.value}
-                  </span>
-                </button>
-              ))}
-            </div>
-          );
-        })}
-        <div style={{ borderTop: "1px solid #e2e8f0", marginTop: 4, paddingTop: 4 }}>
-          <button type="button"
-            onClick={handleUnlinkToken}
-            style={{
-              display: "block",
-              width: "100%",
-              padding: "4px 8px",
-              fontSize: 12,
-              border: "none",
-              background: "transparent",
-              color: "#ef4444",
-              cursor: "pointer",
-              textAlign: "left",
-            }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLElement).style.background = "#fef2f2";
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLElement).style.background = "transparent";
-            }}
-          >
-            Unlink token
-          </button>
-        </div>
-      </div>
-    );
-  };
-
   const renderAddProperty = () => {
     const filtered = ALL_PROPERTY_NAMES.filter(
       (n) => n.toLowerCase().includes(addPropSearch.toLowerCase()),
@@ -875,18 +594,7 @@ const renderTokenPicker = () => {
       <div style={{ position: "relative", margin: "4px 8px" }}>
         <button type="button"
           onClick={() => setShowAddProp((v) => !v)}
-          style={{
-            border: "1px dashed var(--dp-border, #e8e5f2)",
-            borderRadius: "var(--dp-radius-sm, 6px)",
-            background: "transparent",
-            color: "var(--dp-text-muted, #a09db8)",
-            fontSize: 12,
-            padding: "6px 10px",
-            cursor: "pointer",
-            width: "100%",
-            fontFamily: "inherit",
-            transition: "color 150ms ease, border-color 150ms ease",
-          }}
+          className={styles.addPropBtn}
           onMouseEnter={(e) => {
             (e.currentTarget as HTMLElement).style.color = "var(--dp-accent, #6366f1)";
             (e.currentTarget as HTMLElement).style.borderColor = "var(--dp-accent, #6366f1)";
@@ -901,20 +609,7 @@ const renderTokenPicker = () => {
         {showAddProp && (
           <div
             ref={addPropRef}
-            style={{
-              position: "absolute",
-              top: "100%",
-              left: 0,
-              right: 0,
-              marginTop: 2,
-              background: "#fff",
-              border: "1px solid #e2e8f0",
-              borderRadius: 6,
-              boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-              zIndex: 100,
-              maxHeight: 200,
-              overflow: "auto",
-            }}
+            className={styles.addPropDropdown}
           >
             <input
               aria-label="Search properties"
@@ -933,17 +628,7 @@ const renderTokenPicker = () => {
               <button type="button"
                 key={name}
                 onClick={() => handleAddProperty(name)}
-                style={{
-                  display: "block",
-                  width: "100%",
-                  padding: "4px 10px",
-                  fontSize: 12,
-                  border: "none",
-                  background: "transparent",
-                  color: "#374151",
-                  cursor: "pointer",
-                  textAlign: "left",
-                }}
+                className={styles.addPropItem}
                 onMouseEnter={(e) => {
                   (e.currentTarget as HTMLElement).style.background = "#f1f5f9";
                 }}
@@ -1021,43 +706,23 @@ const renderTokenPicker = () => {
   // ── Main render ──
 
   return (
-    <div
-      style={{
-        display: "flex",
-        height: "100%",
-        fontSize: 12,
-        color: "#374151",
-        position: "relative",
-      }}
-    >
-      {renderSidebar()}
+    <div className={styles.mainContainer}>
+      <ClassEditorSidebar
+        classes={classes}
+        selectedClassId={selectedClassId}
+        editingClassName={editingClassName}
+        onSelectClass={handleSelectClass}
+        onAddClass={handleAddClass}
+        onRemoveClass={handleRemoveClass}
+        onClassNameDone={handleClassNameDone}
+        onEditingClassNameChange={setEditingClassName}
+      />
 
-      <div
-        style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-          position: "relative",
-        }}
-      >
+      <div className={styles.rightPanel}>
         {selectedClass ? (
           <>
             {/* Class name header */}
-            <div
-              style={{
-                padding: "8px 12px",
-                fontSize: 13,
-                fontWeight: 600,
-                color: "var(--dp-text, #1e1b4b)",
-                borderBottom: "1px solid var(--dp-border, #e8e5f2)",
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                background: "var(--dp-surface, #fff)",
-                flexShrink: 0,
-              }}
-            >
+            <div className={styles.classNameHeader}>
               {editingClassName === selectedClass.id ? (
                 <input
                   aria-label="Class name"
@@ -1106,7 +771,7 @@ const renderTokenPicker = () => {
               {focusMode === null ? (
                 <>
                   {/* Property editor: cards + collapsed groups */}
-                  <div style={{ flex: 1, overflow: "auto", padding: "8px 0", background: "var(--dp-bg, #f7f6fa)" }}>
+                  <div className={styles.editorPanel}>
                     {/* Cards for common properties */}
                     <SizeCard
                       properties={currentProps}
@@ -1288,17 +953,7 @@ const renderTokenPicker = () => {
             </div>
           </>
         ) : (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              height: "100%",
-              color: "var(--dp-text-muted, #a09db8)",
-              fontSize: 12,
-              background: "var(--dp-bg, #f7f6fa)",
-            }}
-          >
+          <div className={styles.emptyEditorState}>
             Select a class to edit
           </div>
         )}
@@ -1313,7 +968,12 @@ const renderTokenPicker = () => {
               zIndex: 999,
             }}
           >
-            {renderTokenPicker()}
+            <TokenPickerPopover
+              ref={tokenPickerRef}
+              tokens={tokens}
+              onSelectToken={handleSelectToken}
+              onUnlinkToken={handleUnlinkToken}
+            />
           </div>
         )}
       </div>

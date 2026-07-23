@@ -44,10 +44,11 @@ export function copySelection(
   const { elements, wires } = usePoiesisStore.getState();
 
   // 递归收集子元素（仅 view 元素有 children 层级）
+  const elMap = new Map(elements.map(e => [e.id, e]));
   const stack = [...selectedIds];
   while (stack.length > 0) {
     const id = stack.pop()!;
-    const el = elements.find((e) => e.id === id);
+    const el = elMap.get(id);
     if (el && "children" in el && el.children.length > 0) {
       for (const childId of el.children) {
         if (!idSet.has(childId)) {

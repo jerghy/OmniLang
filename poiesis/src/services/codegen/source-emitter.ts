@@ -585,8 +585,12 @@ export class SourceEmitter {
     const classParts: string[] = [];
     if (localClass) classParts.push(localClass);
     if (designClasses && designClasses.length > 0) {
+      const classSet = new Set(classParts);
       for (const cls of designClasses) {
-        if (!classParts.includes(cls)) classParts.push(cls);
+        if (!classSet.has(cls)) {
+          classSet.add(cls);
+          classParts.push(cls);
+        }
       }
     }
     // Only emit class: when there are meaningful class names
@@ -631,11 +635,13 @@ export class SourceEmitter {
     // ── Inline styles ──
     const inlineStyles = this.elementInlineMap?.get(elNode.id);
     if (inlineStyles && Object.keys(inlineStyles).length > 0) {
-      const styleStr = Object.entries(inlineStyles)
-        .filter(([, v]) => v !== "" && v !== undefined && v !== null)
-        .map(([k, v]) => `${k}: ${v}`)
-        .join(", ");
-      parts.push(` style: { ${styleStr} }`);
+      const styleParts: string[] = [];
+      for (const [k, v] of Object.entries(inlineStyles)) {
+        if (v !== "" && v !== undefined && v !== null) {
+          styleParts.push(`${k}: ${v}`);
+        }
+      }
+      parts.push(` style: { ${styleParts.join(", ")} }`);
     }
 
     // ── Event bindings ──

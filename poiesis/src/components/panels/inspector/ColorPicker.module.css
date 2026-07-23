@@ -1,0 +1,43 @@
+.picker {
+  position: fixed;
+  z-index: 10000;
+  background: #1e293b;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  box-sizing: border-box;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.svMarker {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid white;
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+
+.hueMarker {
+  position: absolute;
+  top: 50%;
+  width: 4px;
+  height: 12px;
+  background: white;
+  border-radius: 2px;
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+
+.hexInput {
+  flex: 1;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-family: monospace;
+  border: 1px solid #475569;
+  border-radius: 6px;
+  background: #0f172a;
+  color: #e2e8f0;
+  outline: 2px solid transparent;
+  box-sizing: border-box;
+}

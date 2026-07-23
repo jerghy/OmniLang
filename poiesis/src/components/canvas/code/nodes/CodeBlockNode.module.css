@@ -1,0 +1,29 @@
+/* CodeBlockNode.module.css — extracted from inline styles for react-doctor compliance */
+
+.node {
+  background: #F8FAFC;
+  border: 1.5px solid #94A3B8;
+  border-radius: 6px;
+  padding: 10px 14px;
+  min-width: 180px;
+  max-width: 280px;
+  font-size: 12px;
+  font-family: monospace;
+  cursor: pointer;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: #334155;
+  line-height: 1.4;
+}
+
+.description {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid #E2E8F0;
+  font-size: 12px;
+  color: #64748B;
+  font-style: italic;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

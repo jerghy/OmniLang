@@ -1,0 +1,63 @@
+/* BoxModelPreview.module.css — extracted from inline styles for react-doctor compliance */
+
+.wrapper {
+  position: relative;
+  margin: 0 auto;
+}
+
+.marginLayer {
+  position: absolute;
+  inset: 0;
+  background: rgba(249, 115, 22, 0.12);
+  border: 1px solid rgba(249, 115, 22, 0.3);
+  border-radius: 3px;
+}
+
+.paddingLayer {
+  position: absolute;
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  border-radius: 2px;
+}
+
+.contentArea {
+  position: absolute;
+  background: var(--dp-surface, #fff);
+  border: 1px solid var(--dp-border, #e8e5f2);
+  border-radius: 2px;
+}
+
+.label {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-family: var(--dp-font-mono, monospace);
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.legend {
+  position: absolute;
+  bottom: -18px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  font-size: 12px;
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--dp-text-muted, #a09db8);
+}
+
+.legendSwatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 1px;
+}

@@ -1,0 +1,207 @@
+/* ClassEditor.module.css — extracted from inline styles for react-doctor compliance */
+
+.addClassBtn {
+  border: 1px dashed var(--dp-border, #e8e5f2);
+  border-radius: var(--dp-radius-sm, 6px);
+  background: transparent;
+  color: var(--dp-text-muted, #a09db8);
+  font-size: 12px;
+  padding: 5px 10px;
+  cursor: pointer;
+  margin: 8px;
+  transition: color 150ms ease, border-color 150ms ease;
+  font-family: inherit;
+}
+
+.pseudoTabsBar {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--dp-border, #e8e5f2);
+  padding: 4px 6px 0;
+  align-items: center;
+  flex-shrink: 0;
+  background: var(--dp-bg, #f7f6fa);
+}
+
+.pseudoTabBtn {
+  padding: 5px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  border: none;
+  background: none;
+  transition: color 150ms ease, border-color 150ms ease;
+  font-family: var(--dp-font-mono, monospace);
+}
+
+.pseudoMoreBtn {
+  padding: 5px 6px;
+  font-size: 14px;
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: var(--dp-text-muted, #a09db8);
+  line-height: 1;
+  font-family: inherit;
+}
+
+.pseudoMenuDropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 2px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  z-index: 100;
+  min-width: 140px;
+  max-height: 200px;
+  overflow: auto;
+}
+
+.pseudoMenuItem {
+  display: block;
+  width: 100%;
+  padding: 6px 12px;
+  font-size: 12px;
+  border: none;
+  background: transparent;
+  color: var(--dp-text-secondary, #6b6893);
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--dp-font-mono, monospace);
+}
+
+.tokenPickerContainer {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  z-index: 1000;
+  min-width: 200px;
+  max-height: 260px;
+  overflow: auto;
+  padding: 4px;
+}
+
+.tokenPickerHeader {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  padding: 4px 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.tokenBtn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 8px;
+  font-size: 12px;
+  border: none;
+  background: transparent;
+  color: var(--dp-text-secondary, #6b6893);
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--dp-font-mono, monospace);
+}
+
+.unlinkBtn {
+  display: block;
+  width: 100%;
+  padding: 4px 8px;
+  font-size: 12px;
+  border: none;
+  background: transparent;
+  color: #ef4444;
+  cursor: pointer;
+  text-align: left;
+}
+
+.addPropBtn {
+  border: 1px dashed var(--dp-border, #e8e5f2);
+  border-radius: var(--dp-radius-sm, 6px);
+  background: transparent;
+  color: var(--dp-text-muted, #a09db8);
+  font-size: 12px;
+  padding: 6px 10px;
+  cursor: pointer;
+  width: 100%;
+  font-family: inherit;
+  transition: color 150ms ease, border-color 150ms ease;
+}
+
+.addPropDropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 2px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  z-index: 100;
+  max-height: 200px;
+  overflow: auto;
+}
+
+.addPropItem {
+  display: block;
+  width: 100%;
+  padding: 4px 10px;
+  font-size: 12px;
+  border: none;
+  background: transparent;
+  color: #374151;
+  cursor: pointer;
+  text-align: left;
+}
+
+.classNameHeader {
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dp-text, #1e1b4b);
+  border-bottom: 1px solid var(--dp-border, #e8e5f2);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--dp-surface, #fff);
+  flex-shrink: 0;
+}
+
+.emptyEditorState {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--dp-text-muted, #a09db8);
+  font-size: 12px;
+  background: var(--dp-bg, #f7f6fa);
+}
+
+.mainContainer {
+  display: flex;
+  height: 100%;
+  font-size: 12px;
+  color: #374151;
+  position: relative;
+}
+
+.rightPanel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+.editorPanel {
+  flex: 1;
+  overflow: auto;
+  padding: 8px 0;
+  background: var(--dp-bg, #f7f6fa);
+}

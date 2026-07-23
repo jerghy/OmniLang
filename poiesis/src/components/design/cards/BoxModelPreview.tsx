@@ -2,6 +2,8 @@
 // Box-model preview diagram with Poiesis color palette:
 // margin (warm orange) → padding (accent purple) → content (white).
 
+import styles from "./BoxModelPreview.module.css";
+
 interface SpacingValue {
   top: number;
   right: number;
@@ -55,113 +57,45 @@ export function BoxModelPreview({
 
   return (
     <div
-      style={{
-        position: "relative",
-        width: size,
-        height: size,
-        margin: "0 auto",
-        opacity: hasAnySpacing ? 1 : 0.3,
-      }}
+      className={styles.wrapper}
+      style={{ width: size, height: size, opacity: hasAnySpacing ? 1 : 0.3 }}
     >
       {/* Margin layer (outermost) — warm orange */}
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          background: "rgba(249, 115, 22, 0.12)",
-          border: "1px solid rgba(249, 115, 22, 0.3)",
-          borderRadius: 3,
-        }}
-      />
+      <div className={styles.marginLayer} />
 
       {/* Padding layer (middle) — accent purple */}
       <div
-        style={{
-          position: "absolute",
-          top: paddingBox.top,
-          right: paddingBox.right,
-          bottom: paddingBox.bottom,
-          left: paddingBox.left,
-          background: "rgba(99, 102, 241, 0.1)",
-          border: "1px solid rgba(99, 102, 241, 0.3)",
-          borderRadius: 2,
-        }}
+        className={styles.paddingLayer}
+        style={{ top: paddingBox.top, right: paddingBox.right, bottom: paddingBox.bottom, left: paddingBox.left }}
       />
 
       {/* Content area (innermost) */}
       <div
-        style={{
-          position: "absolute",
-          top: contentInset.top,
-          left: contentInset.left,
-          width: contentW,
-          height: contentH,
-          background: "var(--dp-surface, #fff)",
-          border: "1px solid var(--dp-border, #e8e5f2)",
-          borderRadius: 2,
-        }}
+        className={styles.contentArea}
+        style={{ top: contentInset.top, left: contentInset.left, width: contentW, height: contentH }}
       />
 
       {/* Dimension labels */}
       {mTop > 4 && (
         <div
-          style={{
-            position: "absolute",
-            top: 1,
-            left: 0,
-            right: 0,
-            height: mTop - 2,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 12,
-            fontFamily: "var(--dp-font-mono, monospace)",
-            color: "#c2410c",
-            fontWeight: 600,
-            pointerEvents: "none",
-          }}
+          className={styles.label}
+          style={{ top: 1, left: 0, right: 0, height: mTop - 2 }}
         >
           M{mTop}
         </div>
       )}
       {mBottom > 4 && (
         <div
-          style={{
-            position: "absolute",
-            bottom: 1,
-            left: 0,
-            right: 0,
-            height: mBottom - 2,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 12,
-            fontFamily: "var(--dp-font-mono, monospace)",
-            color: "#c2410c",
-            fontWeight: 600,
-            pointerEvents: "none",
-          }}
+          className={styles.label}
+          style={{ bottom: 1, left: 0, right: 0, height: mBottom - 2 }}
         >
           M{mBottom}
         </div>
       )}
       {pTop > 4 && (
         <div
-          style={{
-            position: "absolute",
-            top: mTop + 1,
-            left: 0,
-            right: 0,
-            height: pTop - 2,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 12,
-            fontFamily: "var(--dp-font-mono, monospace)",
-            color: "var(--dp-accent, #6366f1)",
-            fontWeight: 600,
-            pointerEvents: "none",
-          }}
+          className={styles.label}
+          style={{ top: mTop + 1, left: 0, right: 0, height: pTop - 2 }}
         >
           P{pTop}
         </div>
@@ -169,24 +103,13 @@ export function BoxModelPreview({
 
       {/* Legend */}
       {hasAnySpacing && (
-        <div
-          style={{
-            position: "absolute",
-            bottom: -18,
-            left: 0,
-            right: 0,
-            display: "flex",
-            justifyContent: "center",
-            gap: 12,
-            fontSize: 12,
-          }}
-        >
-          <span style={{ display: "flex", alignItems: "center", gap: 3, color: "var(--dp-text-muted, #a09db8)" }}>
-            <span style={{ width: 8, height: 8, borderRadius: 1, background: "rgba(249,115,22,0.3)", border: "1px solid rgba(249,115,22,0.5)" }} />
+        <div className={styles.legend}>
+          <span className={styles.legendItem}>
+            <span className={styles.legendSwatch} style={{ background: "rgba(249,115,22,0.3)", border: "1px solid rgba(249,115,22,0.5)" }} />
             Margin
           </span>
-          <span style={{ display: "flex", alignItems: "center", gap: 3, color: "var(--dp-text-muted, #a09db8)" }}>
-            <span style={{ width: 8, height: 8, borderRadius: 1, background: "rgba(99,102,241,0.2)", border: "1px solid rgba(99,102,241,0.4)" }} />
+          <span className={styles.legendItem}>
+            <span className={styles.legendSwatch} style={{ background: "rgba(99,102,241,0.2)", border: "1px solid rgba(99,102,241,0.4)" }} />
             Padding
           </span>
         </div>

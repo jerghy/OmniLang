@@ -4,3 +4,14 @@
 .deleteBtn:hover {
   background: var(--color-danger-light);
 }
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #94a3b8;
+  font-size: 13px;
+  gap: 6px;
+}

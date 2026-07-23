@@ -31,9 +31,11 @@ import { ComponentPalette } from "../components/panels/ComponentPalette";
 import { ComponentTree } from "../components/panels/ComponentTree";
 import { ContextInspector } from "../components/panels/ContextInspector";
 import { ComponentMembersPanel } from "../components/design/ComponentMembersPanel";
+import { DesignToolbar } from "../components/design/DesignToolbar";
 import { usePoiesisStore } from "../store";
 import { useSaveProject } from "../hooks/useSaveProject";
 import { useDragHandlers } from "../hooks/useDragHandlers";
+import styles from "./DesignPage.module.css";
 
 // Lightweight error boundary to prevent one panel crash from blanking the entire page
 class PanelErrorBoundary extends Component<{ children: ReactNode; name: string }, { error: Error | null }> {
@@ -118,9 +120,12 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
     const componentName = activeTab.componentName || "main";
     // Collect inline stores belonging to this component
     const prefix = `${componentName}.`;
-    const inlineStores = Object.entries(state.inlineStoreDefs)
-      .filter(([key]) => key.startsWith(prefix))
-      .map(([, def]) => def);
+    const inlineStores: Array<unknown> = [];
+    for (const [key, def] of Object.entries(state.inlineStoreDefs)) {
+      if (key.startsWith(prefix)) {
+        inlineStores.push(def);
+      }
+    }
     const codeTabs = [{ id: "code", type: "logic" as const, label: "Preview", icon: "📄",
       graph: { elements: state.elements, wires: state.wires }, variables: [] }];
     const result = componentName === "main"
@@ -213,109 +218,23 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
         }}
       >
         {/* Tab bar spans full width */}
-        <div style={{ gridRow: 1, gridColumn: "1 / -1" }}>
+        <div className={styles.tabBarArea}>
           <DesignTabBar />
         </div>
 
         {/* Toolbar row — undo / save / CSS styles */}
-        <div
-          style={{
-            gridRow: 2,
-            gridColumn: "1 / -1",
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            padding: "0 12px",
-            background: "#fff",
-            borderBottom: "1px solid #e2e8f0",
-          }}
+        <DesignToolbar
+          isDirty={isDirty}
+          saving={saving}
+          onUndo={undo}
+          onSave={handleSave}
+          onOpenProject={() => setShowProjectPanel(true)}
+          showCode={showCode}
+          onToggleCode={() => setShowCode((v) => !v)}
+          saveError={saveError}
         >
-          <button type="button"
-            onClick={undo}
-            title="撤销 (Ctrl+Z)"
-            style={{
-              padding: "2px 8px",
-              fontSize: 13,
-              border: "1px solid transparent",
-              borderRadius: 4,
-              background: "transparent",
-              cursor: "pointer",
-              lineHeight: 1,
-            }}
-          >
-            ↩
-          </button>
-          <button type="button"
-            onClick={handleSave}
-            disabled={saving}
-            title="保存项目 (Ctrl+S)"
-            style={{
-              padding: "2px 8px",
-              fontSize: 13,
-              border: "1px solid transparent",
-              borderRadius: 4,
-              background: "transparent",
-              cursor: saving ? "wait" : "pointer",
-              lineHeight: 1,
-              color: isDirty ? "#DC2626" : "#6B7280",
-              fontWeight: isDirty ? 700 : 400,
-              opacity: saving ? 0.6 : 1,
-            }}
-          >
-            {saving ? "⏳" : "💾"}
-          </button>
-          <button type="button"
-            onClick={() => setShowProjectPanel(true)}
-            title="打开项目"
-            style={{
-              padding: "2px 8px",
-              fontSize: 13,
-              border: "1px solid transparent",
-              borderRadius: 4,
-              background: "transparent",
-              cursor: "pointer",
-              lineHeight: 1,
-              color: "#6B7280",
-            }}
-          >
-            📂
-          </button>
-          <button type="button"
-            onClick={() => setShowCode((v) => !v)}
-            title={showCode ? "Hide generated code" : "Show generated code"}
-            style={{
-              padding: "2px 10px",
-              fontSize: 12,
-              border: showCode ? "1px solid #6366f1" : "1px solid #e2e8f0",
-              borderRadius: 4,
-              background: showCode ? "#6366f1" : "transparent",
-              cursor: "pointer",
-              lineHeight: 1,
-              color: showCode ? "#fff" : "#6B7280",
-              fontWeight: showCode ? 600 : 400,
-              marginLeft: 2,
-            }}
-          >
-            {showCode ? "Code ▾" : "Code ▸"}
-          </button>
           <DebugWindowButton />
-          {saveError && (
-            <span
-              title={saveError}
-              style={{
-                marginLeft: 8,
-                fontSize: 12,
-                color: "#dc2626",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                maxWidth: 300,
-              }}
-            >
-              ⚠ {saveError}
-            </span>
-          )}
-        </div>
+        </DesignToolbar>
 
         {/* Left panel: ComponentPalette + ComponentTree (component tabs, hidden in code-flow mode) */}
         {showDesignPanels && (
@@ -462,18 +381,7 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
         {activeTreeId ? (
           <TreeDragPreview elementId={activeTreeId} />
         ) : activeComponent ? (
-          <div
-            style={{
-              padding: "6px 14px",
-              background: "#4F46E5",
-              color: "#fff",
-              borderRadius: 6,
-              fontSize: 12,
-              fontWeight: 600,
-              boxShadow: "0 4px 12px rgba(79, 70, 229, 0.35)",
-              cursor: "grabbing",
-            }}
-          >
+          <div className={styles.dragOverlay}>
             {activeComponent}
           </div>
         ) : null}
@@ -481,85 +389,41 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
 
       {/* ── Open Project Panel (modal overlay) ── */}
       {showProjectPanel && (
-        <div
-          style={{
-            position: "fixed", inset: 0, zIndex: 200,
-            background: "rgba(0,0,0,0.3)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-          }}
-          onClick={() => setShowProjectPanel(false)}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: "#fff",
-              borderRadius: 16,
-              padding: 28,
-              width: 420,
-              maxWidth: "90vw",
-              boxShadow: "0 20px 60px rgba(0,0,0,0.15)",
-            }}
-          >
-            <div style={{ fontSize: 18, fontWeight: 700, color: "#1f2937", marginBottom: 20 }}>
+        <div className={styles.modalOverlay} onClick={() => setShowProjectPanel(false)}>
+          <div onClick={(e) => e.stopPropagation()} className={styles.modalContent}>
+            <div className={styles.modalTitle}>
               打开项目
             </div>
 
             {/* Open folder button */}
-            <button type="button"
-              onClick={handleOpenProject}
-              style={{
-                display: "flex", alignItems: "center", gap: 8,
-                width: "100%", padding: "16px 20px",
-                background: "#fff", border: "1px solid #e5e7eb",
-                borderRadius: 12, cursor: "pointer",
-                fontFamily: "inherit", textAlign: "left",
-                fontSize: 14, fontWeight: 600, color: "#1f2937",
-              }}
-            >
-              <span style={{ fontSize: 24 }}>📂</span>
+            <button type="button" onClick={handleOpenProject} className={styles.openFolderBtn}>
+              <span className={styles.openFolderIcon}>📂</span>
               <span>打开项目</span>
             </button>
 
             {/* Recent projects */}
             {recentProjects.length > 0 && (
-              <div style={{ marginTop: 20 }}>
-                <div style={{
-                  fontSize: 12, fontWeight: 600, color: "#9ca3af",
-                  textTransform: "uppercase", letterSpacing: 1, marginBottom: 8,
-                }}>
+              <div className={styles.recentSection}>
+                <div className={styles.recentLabel}>
                   最近打开
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <div className={styles.recentList}>
                   {recentProjects.map((proj) => (
                     <button type="button"
                       key={proj.path}
-                      onClick={() => handleOpenRecent(proj)}
-                      style={{
-                        display: "flex", alignItems: "center", gap: 10,
-                        width: "100%", padding: "10px 12px",
-                        background: "#fff", border: "1px solid #f3f4f6",
-                        borderRadius: 8, cursor: "pointer",
-                        fontFamily: "inherit", textAlign: "left",
-                        fontSize: 13, color: "#1f2937", fontWeight: 600,
-                      }}
+                      onClick={(e) => { if ((e.target as HTMLElement).getAttribute('data-action') === 'remove-recent') { handleRemoveRecent(e as unknown as React.MouseEvent, proj.path); } else { handleOpenRecent(proj); } }}
+                      className={styles.recentItemBtn}
                     >
-                      <span style={{ fontSize: 18, flexShrink: 0 }}>📁</span>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 600, color: "#1f2937", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <span className={styles.recentItemIcon}>📁</span>
+                      <div className={styles.recentItemInfo}>
+                        <div className={styles.recentItemName}>
                           {proj.name}
                         </div>
-                        <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        <div className={styles.recentItemPath}>
                           {proj.path}
                         </div>
                       </div>
-                      <span role="button" tabIndex={0}
-                        onClick={(e) => handleRemoveRecent(e, proj.path)}
-                        style={{
-                          fontSize: 16, color: "#d1d5db", padding: "2px 6px",
-                          borderRadius: 4, flexShrink: 0, cursor: "pointer",
-                        }}
-                        title="移除"
-                      >
+                      <span data-action="remove-recent" className={styles.recentItemRemove} title="移除">
                         ×
                       </span>
                     </button>
@@ -569,15 +433,7 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
             )}
 
             {/* Close button */}
-            <button type="button"
-              onClick={() => setShowProjectPanel(false)}
-              style={{
-                marginTop: 16, width: "100%", padding: "8px 0",
-                border: "none", background: "transparent",
-                cursor: "pointer", fontSize: 12, color: "#9ca3af",
-                fontFamily: "inherit",
-              }}
-            >
+            <button type="button" onClick={() => setShowProjectPanel(false)} className={styles.closePanelBtn}>
               取消
             </button>
           </div>
@@ -592,18 +448,7 @@ function TreeDragPreview({ elementId }: { elementId: string }) {
   const el = usePoiesisStore((s) => s.elements.find((e) => e.id === elementId));
   if (!el) return null;
   return (
-    <div
-      style={{
-        padding: "3px 10px",
-        background: "#4F46E5",
-        color: "#fff",
-        borderRadius: 4,
-        fontSize: 12,
-        fontWeight: 500,
-        boxShadow: "0 2px 8px rgba(79, 70, 229, 0.3)",
-        cursor: "grabbing",
-      }}
-    >
+    <div className={styles.treeDragPreview}>
       {"tag" in el ? el.tag : ""}
       {"props" in el && el.props?.label ? ` "${String(el.props.label).slice(0, 20)}"` : ""}
     </div>
@@ -638,26 +483,13 @@ function TopLayer({
 
   return (
     <div
+      className={styles.topLayer}
       style={{
-        position: "absolute",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        zIndex: 1,
-        overflow: "hidden",
-        background: "#fff",
-        // Hide completely when code flow is active — the DesignPreviewNode
-        // inside CodeFlowCanvas already provides a live preview.
         display: codeFlowVisible ? "none" : "flex",
-        flexDirection: "column",
-        transition: "transform 300ms ease, border-radius 300ms ease, box-shadow 300ms ease",
         transform: codeFlowVisible ? "scale(0.4)" : "scale(1)",
         transformOrigin: origin,
         borderRadius: codeFlowVisible ? 8 : 0,
         boxShadow: codeFlowVisible ? "0 4px 16px rgba(0,0,0,0.15)" : "none",
-        // When shrunk, pointer events pass through to CodeFlowCanvas underneath.
-        // The CodeFlowCanvas background handles double-click to dismiss.
         pointerEvents: codeFlowVisible ? "none" : "auto",
       }}
     >

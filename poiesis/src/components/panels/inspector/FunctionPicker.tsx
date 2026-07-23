@@ -3,6 +3,7 @@
 
 import { useState, useMemo, useCallback } from "react";
 import type { HandlerItem } from "./useHandlerItems";
+import styles from "./FunctionPicker.module.css";
 
 interface FunctionPickerProps {
   items: HandlerItem[];
@@ -48,34 +49,10 @@ export function FunctionPicker({
         aria-label="Close function picker"
         onClick={onClose}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClose(); } }}
-        style={{
-          position: "fixed",
-          inset: 0,
-          zIndex: 10000,
-          background: "transparent",
-          border: "none",
-          cursor: "pointer",
-        }}
+        className={styles.backdrop}
       />
       {/* Dropdown panel */}
-      <div
-        style={{
-          position: "absolute",
-          top: "100%",
-          left: 0,
-          right: 0,
-          zIndex: 10001,
-          marginTop: 4,
-          background: "#fff",
-          border: "1px solid #e2e8f0",
-          borderRadius: 8,
-          boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
-          maxHeight: 280,
-          overflow: "hidden",
-          display: "flex",
-          flexDirection: "column",
-        }}
-      >
+      <div className={styles.dropdown}>
         {/* Search */}
         <div style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9" }}>
           <input
@@ -84,16 +61,7 @@ export function FunctionPicker({
             onChange={(e) => setSearch(e.target.value)}
             placeholder="搜索函数/Action..."
             aria-label="搜索函数"
-            style={{
-              width: "100%",
-              padding: "6px 10px",
-              fontSize: 12,
-              border: "1px solid #e2e8f0",
-              borderRadius: 4,
-              outline: "2px solid transparent",
-              fontFamily: "inherit",
-              boxSizing: "border-box",
-            }}
+            className={styles.searchInput}
             onFocus={(e) => (e.target.style.borderColor = "#6366F1")}
             onBlur={(e) => (e.target.style.borderColor = "#e2e8f0")}
           />
@@ -175,18 +143,9 @@ function PickerRow({
   return (
     <button type="button"
       onClick={() => onSelect(item)}
+      className={styles.pickerRow}
       style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        width: "100%",
-        padding: "6px 12px",
-        border: "none",
         background: isSelected ? "#eef2ff" : "transparent",
-        cursor: "pointer",
-        textAlign: "left",
-        fontFamily: "var(--dp-font-mono, monospace)",
-        fontSize: 12,
         color: isSelected ? "#4f46e5" : "#1e293b",
       }}
     >

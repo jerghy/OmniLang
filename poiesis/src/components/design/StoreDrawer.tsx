@@ -3,6 +3,7 @@ import { usePoiesisStore } from "../../store";
 import { StorePage } from "../../pages/StorePage";
 import type { StoreDefinition } from "../../core/types/store";
 import { uid } from "../../core/utils/id";
+import styles from "./StoreDrawer.module.css";
 
 export function StoreDrawer() {
   const visible = usePoiesisStore((s) => s.designPage.storePanelVisible);
@@ -112,49 +113,16 @@ export function StoreDrawer() {
   const currentStore = allStores.find(s => s.key === activeStore);
 
   return (
-    <div style={{
-      position: "absolute",
-      top: 0, right: 0, bottom: 0, left: 0,
-      zIndex: 10,
-      display: "flex",
-      flexDirection: "column",
-      background: "var(--ol-surface, #fff)",
-      borderLeft: "1px solid #e2e8f0",
-      boxShadow: "-4px 0 20px rgba(0,0,0,0.08)",
-      animation: "storeDrawerIn 250ms cubic-bezier(0.16, 1, 0.3, 1)",
-    }}>
-      <style>{`
-        @keyframes storeDrawerIn {
-          from { transform: translateX(100%); }
-          to { transform: translateX(0); }
-        }
-      `}</style>
-
+    <div className={styles.drawer}>
       {/* Header */}
-      <div style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        padding: "6px 12px",
-        borderBottom: "1px solid #e2e8f0",
-        background: "#f8fafc",
-        minHeight: 36,
-      }}>
+      <div className={styles.header}>
         {/* Store switcher */}
-        <div style={{ position: "relative" }}>
+        <div className={styles.switcherWrapper}>
           <button type="button"
             onClick={() => setShowStoreSwitcher(!showStoreSwitcher)}
-            style={{
-              display: "flex", alignItems: "center", gap: 6,
-              padding: "3px 10px",
-              fontSize: 12, fontWeight: 600,
-              border: "1px solid #e2e8f0", borderRadius: 6,
-              background: "#fff", cursor: "pointer",
-              color: "#1e293b",
-              fontFamily: "inherit",
-            }}
+            className={styles.switcherBtn}
           >
-            <span style={{ color: "#6366f1", fontSize: 12 }}>●</span>
+            <span className={styles.switcherDot}>●</span>
             {activeStore ?? "选择 Store"}
           </button>
 
@@ -166,61 +134,33 @@ export function StoreDrawer() {
                 aria-label="Close store switcher"
                 onClick={() => setShowStoreSwitcher(false)}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowStoreSwitcher(false); } }}
-                style={{ position: "fixed", inset: 0, zIndex: 99, border: "none", cursor: "pointer", background: "transparent" }}
+                className={styles.switcherBackdrop}
               />
-              <div style={{
-                position: "absolute", top: "100%", left: 0,
-                marginTop: 4,
-                background: "#fff",
-                border: "1px solid #e2e8f0",
-                borderRadius: 8,
-                boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
-                zIndex: 100,
-                minWidth: 220,
-                overflow: "hidden",
-              }}>
+              <div className={styles.switcherDropdown}>
                 {allStores.map(s => (
-                  <div key={s.key}
-                    role="button"
-                    tabIndex={0}
+                  <button key={s.key}
+                    type="button"
+                    className={styles.storeOption}
                     style={{
-                    display: "flex", alignItems: "center",
-                    padding: "8px 14px",
-                    cursor: "pointer",
-                    fontSize: 12,
-                    color: s.key === activeStore ? "#6366f1" : "#374151",
-                    fontWeight: s.key === activeStore ? 600 : 400,
-                    borderBottom: "1px solid #f1f5f9",
-                  }}
-                    onClick={() => handleSelectStore(s.key)}
+                      color: s.key === activeStore ? "#6366f1" : "#374151",
+                      fontWeight: s.key === activeStore ? 600 : 400,
+                    }}
+                    onClick={(e) => { if ((e.target as HTMLElement).getAttribute('data-action') === 'delete-store') { handleDeleteStore(s.key, s.type); } else { handleSelectStore(s.key); } }}
                     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSelectStore(s.key); } }}
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#f8fafc"; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
                   >
-                    <span style={{ marginRight: 8 }}>
+                    <span className={styles.storeOptionIcon}>
                       {s.key === activeStore ? "●" : "○"}
                     </span>
-                    <span style={{ flex: 1 }}>{s.key}</span>
-                    <span role="button" tabIndex={0}
-                      onClick={e => { e.stopPropagation(); handleDeleteStore(s.key, s.type); }}
-                      style={{
-                        border: "none", background: "transparent",
-                        cursor: "pointer", fontSize: 14,
-                        color: "#94a3b8", padding: "0 4px",
-                      }}
-                    >✕</span>
-                  </div>
+                    <span className={styles.storeOptionName}>{s.key}</span>
+                    <span data-action="delete-store" className={styles.storeDeleteBtn}>✕</span>
+                  </button>
                 ))}
-                <div style={{ borderTop: "1px solid #e2e8f0" }}>
+                <div className={styles.storeDivider}>
                   <button type="button"
                     onClick={() => { setShowStoreSwitcher(false); setShowCreateModal(true); }}
-                    style={{
-                      width: "100%", padding: "8px 14px",
-                      border: "none", background: "transparent",
-                      cursor: "pointer", fontSize: 12,
-                      color: "#6366f1", fontWeight: 600,
-                      textAlign: "left", fontFamily: "inherit",
-                    }}
+                    className={styles.newStoreBtn}
                   >
                     + 新建 Store
                   </button>
@@ -231,29 +171,21 @@ export function StoreDrawer() {
         </div>
 
         {/* Right buttons */}
-        <div style={{ display: "flex", gap: 4 }}>
+        <div className={styles.rightBtns}>
           <button type="button"
             onClick={handleOpenInTab}
             title="在标签页中打开"
-            style={{
-              padding: "2px 8px", fontSize: 13,
-              border: "1px solid #e2e8f0", borderRadius: 4,
-              background: "transparent", cursor: "pointer",
-            }}
+            className={styles.iconBtn}
           >📋</button>
           <button type="button"
             onClick={handleClose}
-            style={{
-              padding: "2px 8px", fontSize: 16,
-              border: "none", background: "transparent",
-              cursor: "pointer", color: "#94a3b8",
-            }}
+            className={styles.closeBtn}
           >✕</button>
         </div>
       </div>
 
       {/* Body */}
-      <div style={{ flex: 1, overflow: "hidden" }}>
+      <div className={styles.bodyArea}>
         {currentStore ? (
           <StorePage
             storeName={currentStore.key}
@@ -278,24 +210,13 @@ export function StoreDrawer() {
 
 function EmptyStoreGuide({ onCreate }: { onCreate: () => void }) {
   return (
-    <div style={{
-      display: "flex", flexDirection: "column",
-      alignItems: "center", justifyContent: "center",
-      height: "100%", color: "#94a3b8", gap: 12,
-    }}>
-      <div style={{ fontSize: 36 }}>📦</div>
-      <div style={{ fontSize: 14, fontWeight: 600 }}>还没有 Store</div>
-      <div style={{ fontSize: 12 }}>使用 Store 管理状态、信号和操作</div>
-      <button type="button"
-        onClick={onCreate}
-        style={{
-          marginTop: 8,
-          padding: "6px 16px", fontSize: 12, fontWeight: 600,
-          border: "none", borderRadius: 6,
-          background: "#4f46e5", color: "#fff",
-          cursor: "pointer", fontFamily: "inherit",
-        }}
-      >+ 新建 Store</button>
+    <div className={styles.emptyGuide}>
+      <div className={styles.emptyIcon}>📦</div>
+      <div className={styles.emptyTitle}>还没有 Store</div>
+      <div className={styles.emptyDesc}>使用 Store 管理状态、信号和操作</div>
+      <button type="button" onClick={onCreate} className={styles.emptyCreateBtn}>
+        + 新建 Store
+      </button>
     </div>
   );
 }
@@ -311,35 +232,27 @@ function CreateStoreModal({
 
   return (
     <>
-      <button type="button" tabIndex={0} aria-label="Close new store modal" onClick={onClose} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClose(); } }} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 1000, border: "none", cursor: "pointer" }} />
-      <div style={{
-        position: "fixed", top: "50%", left: "50%",
-        transform: "translate(-50%, -50%)",
-        zIndex: 1001,
-        background: "#fff", borderRadius: 12,
-        padding: "24px 28px",
-        boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
-        minWidth: 320,
-      }}>
-        <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 16, color: "#1e293b" }}>
+      <button type="button" tabIndex={0} aria-label="Close new store modal" onClick={onClose} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClose(); } }} className={styles.modalBackdrop} />
+      <div className={styles.modal}>
+        <div className={styles.modalTitle}>
           新建 Store
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
-          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, cursor: "pointer" }}>
+        <div className={styles.radioGroup}>
+          <label className={styles.radioLabel}>
             <input type="radio" name="storeType" checked={storeType === "inline"}
               onChange={() => setStoreType("inline")} />
             <div>
-              <div style={{ fontWeight: 600 }}>内联 Store</div>
-              <div style={{ color: "#94a3b8", fontSize: 12 }}>保存在当前组件 .omni 文件中</div>
+              <div className={styles.radioLabelTitle}>内联 Store</div>
+              <div className={styles.radioLabelDesc}>保存在当前组件 .omni 文件中</div>
             </div>
           </label>
-          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, cursor: "pointer" }}>
+          <label className={styles.radioLabel}>
             <input type="radio" name="storeType" checked={storeType === "global"}
               onChange={() => setStoreType("global")} />
             <div>
-              <div style={{ fontWeight: 600 }}>全局 Store</div>
-              <div style={{ color: "#94a3b8", fontSize: 12 }}>独立文件 src/stores/xxx.omni</div>
+              <div className={styles.radioLabelTitle}>全局 Store</div>
+              <div className={styles.radioLabelDesc}>独立文件 src/stores/xxx.omni</div>
             </div>
           </label>
         </div>
@@ -353,26 +266,12 @@ function CreateStoreModal({
             if (e.key === "Enter" && name.trim()) onCreate(name, storeType);
             if (e.key === "Escape") onClose();
           }}
-          style={{
-            width: "100%", padding: "6px 10px", fontSize: 13,
-            border: "1px solid #d1d5db", borderRadius: 6,
-            boxSizing: "border-box", marginBottom: 16,
-            fontFamily: "inherit",
-          }}
+          className={styles.inputField}
         />
 
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-          <button type="button" onClick={onClose} style={{
-            padding: "5px 14px", fontSize: 12,
-            border: "1px solid #d1d5db", borderRadius: 6,
-            background: "#fff", cursor: "pointer", fontFamily: "inherit",
-          }}>取消</button>
-          <button type="button" onClick={() => { if (name.trim()) onCreate(name, storeType); }} style={{
-            padding: "5px 14px", fontSize: 12, fontWeight: 600,
-            border: "none", borderRadius: 6,
-            background: "#4f46e5", color: "#fff",
-            cursor: "pointer", fontFamily: "inherit",
-          }}>创建</button>
+        <div className={styles.btnRow}>
+          <button type="button" onClick={onClose} className={styles.cancelBtn}>取消</button>
+          <button type="button" onClick={() => { if (name.trim()) onCreate(name, storeType); }} className={styles.createBtn}>创建</button>
         </div>
       </div>
     </>

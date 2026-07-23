@@ -6,7 +6,8 @@ import { CollapsibleGroup } from "../CollapsibleGroup";
 import { ScrubInput } from "../ScrubInput";
 import type { StyleProperty } from "../../../core/types/style";
 import { uid } from "../../../core/utils/id";
-import { LockIcon, isPropLocked, LOCKED_INPUT_STYLE } from "./LockIcon";
+import { LockIcon } from "./LockIcon";
+import { isPropLocked, LOCKED_INPUT_STYLE } from "./lock-icon-utils";
 
 // ── Helpers ──
 

@@ -41,7 +41,9 @@ export function createElementCrudSlice(set: SetFn, get: GetFn) {
       const removedIds = new Set<string>();
       function collectDescendants(eid: string): void {
         removedIds.add(eid);
-        s.elements.filter(e => e.parentId === eid).forEach(c => collectDescendants(c.id));
+        for (const c of s.elements) {
+          if (c.parentId === eid) collectDescendants(c.id);
+        }
       }
       const el = s.elements.find(e => e.id === id);
       if (el) collectDescendants(el.id);
@@ -187,7 +189,10 @@ export function createElementCrudSlice(set: SetFn, get: GetFn) {
         ...undoUpdate,
         elements,
         wires,
-        rootOrder: elements.filter(e => !e.parentId).map(e => e.id),
+        rootOrder: elements.reduce<string[]>((acc, e) => {
+          if (!e.parentId) acc.push(e.id);
+          return acc;
+        }, []),
         selectedElementIds: [],
       };
     }),
@@ -452,32 +457,31 @@ export function createElementCrudSlice(set: SetFn, get: GetFn) {
             })
           : {};
 
-        const elements = s.elements
-          .map((e) => {
-            // Update child's parentId
-            if (e.id === childId) {
-              return { ...e, parentId: blockId } as typeof e;
-            }
-            // Remove from old parent's children
-            if (child.parentId && e.id === child.parentId && "children" in e) {
-              return { ...e, children: e.children.filter((c) => c !== childId) };
-            }
-            return e;
-          })
-          .map((e) => {
-            if (e.id !== blockId || e.nodeType !== "conditional") return e;
-            const cond = e as ConditionalBlockData;
+        const elements = s.elements.map((e) => {
+          // Merge both map transforms into a single pass
+          let updated = e;
+          // First map: Update child's parentId / remove from old parent's children
+          if (e.id === childId) {
+            updated = { ...e, parentId: blockId } as typeof e;
+          } else if (child.parentId && e.id === child.parentId && "children" in e) {
+            updated = { ...e, children: e.children.filter((c) => c !== childId) };
+          }
+          // Second map: Update the block element's branches
+          if (updated.id === blockId && updated.nodeType === "conditional") {
+            const cond = updated as ConditionalBlockData;
             const newBranches = cond.branches.map((b, i) => {
               if (i !== branchIndex) return b;
-              if (b.children.includes(childId)) return b; // already there
+              if (b.children.includes(childId)) return b;
               return { ...b, children: [...b.children, childId] };
             });
             return {
               ...cond,
               branches: newBranches,
               children: newBranches.flatMap((b) => b.children),
-            };
-          });
+            } as typeof e;
+          }
+          return updated;
+        });
 
         return { ...s, ...undoUpdate, elements, isDirty: true };
       });

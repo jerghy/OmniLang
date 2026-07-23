@@ -1,0 +1,28 @@
+/* ResizeHandles.module.css — extracted from inline styles for react-doctor compliance */
+
+.handleOuter {
+  position: absolute;
+  z-index: 10;
+}
+
+.handleInner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: #fff;
+  border: 2px solid var(--dp-accent, #6366f1);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+  pointer-events: none;
+}
+
+.outline {
+  position: absolute;
+  inset: -1px;
+  border: 1px dashed var(--dp-accent, #6366f1);
+  border-radius: 2px;
+  pointer-events: none;
+}

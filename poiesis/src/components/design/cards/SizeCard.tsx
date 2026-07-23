@@ -5,8 +5,10 @@ import React, { useState, useCallback } from "react";
 import { CollapsibleGroup } from "../CollapsibleGroup";
 import { ScrubInput } from "../ScrubInput";
 import type { StyleProperty } from "../../../core/types/style";
+import styles from "./SizeCard.module.css";
 import { uid } from "../../../core/utils/id";
-import { LockIcon, isPropLocked, LOCKED_INPUT_STYLE } from "./LockIcon";
+import { LockIcon } from "./LockIcon";
+import { isPropLocked, LOCKED_INPUT_STYLE } from "./lock-icon-utils";
 
 // ── Helpers ──
 
@@ -288,43 +290,14 @@ export const SizeCard = React.memo(function SizeCard({ properties, onChange, onF
 
         {/* Mini preview */}
         {hasSize && (
-          <div
-            style={{
-              width: "100%",
-              height: 60,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              borderRadius: "var(--dp-radius-sm, 6px)",
-              background: "var(--dp-bg, #f7f6fa)",
-              border: "1px dashed var(--dp-border, #e8e5f2)",
-            }}
-          >
+          <div className={styles.miniPreviewBox}>
             <div
-              style={{
-                width: previewW,
-                height: previewH,
-                border: "2px solid var(--dp-accent, #6366f1)",
-                borderRadius: 2,
-                background: "rgba(99, 102, 241, 0.06)",
-                transition: "none",
-                position: "relative",
-              }}
+              className={styles.miniPreviewInner}
+              style={{ width: previewW, height: previewH }}
             >
               {/* Dimension labels */}
               {previewW > 30 && (
-                <span
-                  style={{
-                    position: "absolute",
-                    top: "50%",
-                    left: "50%",
-                    transform: "translate(-50%, -50%)",
-                    fontSize: 8,
-                    color: "var(--dp-text-muted, #a09db8)",
-                    fontFamily: "var(--dp-font-mono, monospace)",
-                    whiteSpace: "nowrap",
-                  }}
-                >
+                <span className={styles.dimLabel}>
                   {`${widthStr} × ${heightStr}`}
                 </span>
               )}

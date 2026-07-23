@@ -31,6 +31,6 @@ export function useComponentDefs() {
   return usePoiesisStore(useShallow((s) => s.componentDefs));
 }
 
-export function useActiveTabId(): string | null {
+function useActiveTabId(): string | null {
   return usePoiesisStore((s) => s.designPage.activeTabId);
 }

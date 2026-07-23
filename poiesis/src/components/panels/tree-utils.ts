@@ -27,7 +27,7 @@ export function getDisplayLabel(props: Record<string, unknown>): string {
   return "";
 }
 
-export function getComponentMeta(_tag: string) {
+function getComponentMeta(_tag: string) {
   return undefined;
 }
 

@@ -1,4 +1,5 @@
 import { usePoiesisStore } from "../../store";
+import styles from "./ArchitectureToolbar.module.css";
 
 interface ArchitectureToolbarProps {
   viewMode: "preview" | "graph";
@@ -20,18 +21,7 @@ export function ArchitectureToolbar({
       : `局部架构: ${focusComponentId ?? "unknown"}`;
 
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        padding: "0 20px",
-        height: 48,
-        background: "#fff",
-        borderBottom: "1px solid #e5e7eb",
-        flexShrink: 0,
-      }}
-    >
+    <div className={styles.toolbar}>
       {/* Left: Logo */}
       <div
         style={{

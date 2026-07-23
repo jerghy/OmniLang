@@ -1,5 +1,6 @@
 import { Handle, Position } from "@xyflow/react";
 import React from "react";
+import styles from "./CodeBlockNode.module.css";
 
 interface Props {
   data: {
@@ -24,40 +25,13 @@ const CodeBlockNode = React.memo(function CodeBlockNode({ data }: Props) {
 
   return (
     <div
-      className="flow-node"
+      className={`flow-node ${styles.node}`}
       data-node-type="code-block"
       onDoubleClick={data.onDoubleClick}
-      style={{
-        background: "#F8FAFC",
-        border: "1.5px solid #94A3B8",
-        borderRadius: 6,
-        padding: "10px 14px",
-        minWidth: 180,
-        maxWidth: 280,
-        fontSize: 12,
-        fontFamily: "monospace",
-        cursor: "pointer",
-        whiteSpace: "pre-wrap",
-        wordBreak: "break-all",
-        color: "#334155",
-        lineHeight: 1.4,
-      }}
     >
       <code>{preview}</code>
       {data.description && (
-        <div
-          style={{
-            marginTop: 6,
-            paddingTop: 6,
-            borderTop: "1px solid #E2E8F0",
-            fontSize: 12,
-            color: "#64748B",
-            fontStyle: "italic",
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-          }}
-        >
+        <div className={styles.description}>
           {data.description}
         </div>
       )}

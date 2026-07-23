@@ -28,7 +28,7 @@ export function detectTabType(filePath: string): TabType {
  * Get tab type for a file path, preferring explicit metadata when available.
  * Falls back to the heuristic-based detectTabType.
  */
-export function getTabType(filePath: string, fileTypeMap?: FileTypeMap): TabType {
+function getTabType(filePath: string, fileTypeMap?: FileTypeMap): TabType {
   if (fileTypeMap && filePath in fileTypeMap) {
     return fileTypeMap[filePath];
   }

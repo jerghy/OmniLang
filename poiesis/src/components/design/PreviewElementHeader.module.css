@@ -1,0 +1,31 @@
+/* PreviewElementHeader.module.css — extracted from inline styles for react-doctor compliance */
+
+.header {
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dp-text-secondary, #6b6893);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--dp-border, #e8e5f2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  background: var(--dp-bg, #f7f6fa);
+}
+
+.elementSelect {
+  padding: 2px 6px;
+  font-size: 12px;
+  font-family: var(--dp-font-mono, monospace);
+  border: 1px solid var(--dp-border, #e8e5f2);
+  border-radius: var(--dp-radius-sm, 6px);
+  outline: 2px solid transparent;
+  background: var(--dp-surface, #fff);
+  color: var(--dp-text, #1e1b4b);
+  cursor: pointer;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: normal;
+}

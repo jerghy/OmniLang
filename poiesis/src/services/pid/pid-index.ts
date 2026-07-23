@@ -60,7 +60,7 @@ function getBlockPrefix(blockType: PidBlockType): string {
  * Build a PidMap from an array of PidEntry values.
  * Populates both the entries lookup and the line-to-pid reverse lookup.
  */
-export function buildPidMap(entries: PidEntry[]): PidMap {
+function buildPidMap(entries: PidEntry[]): PidMap {
   const entriesMap: Record<string, PidEntry> = {};
   const lineToPid: Record<number, string> = {};
   for (const entry of entries) {
@@ -76,7 +76,7 @@ export function buildPidMap(entries: PidEntry[]): PidMap {
  * Resolve a PID to its entry in the map.
  * Returns undefined for error pidMaps.
  */
-export function resolvePid(pidMap: PidMap, pid: string): PidEntry | undefined {
+function resolvePid(pidMap: PidMap, pid: string): PidEntry | undefined {
   if (pidMap.status !== "ok") return undefined;
   return pidMap.entries[pid];
 }
@@ -85,7 +85,7 @@ export function resolvePid(pidMap: PidMap, pid: string): PidEntry | undefined {
  * Resolve a line number to its PidEntry.
  * Returns undefined for error pidMaps.
  */
-export function resolvePidByLine(
+function resolvePidByLine(
   pidMap: PidMap,
   line: number,
 ): PidEntry | undefined {
@@ -98,7 +98,7 @@ export function resolvePidByLine(
  * Merge multiple PidMaps into one.
  * Error pidMaps are skipped. Later maps overwrite earlier ones for the same key.
  */
-export function mergePidMaps(maps: PidMap[]): PidMap {
+function mergePidMaps(maps: PidMap[]): PidMap {
   const entries: Record<string, PidEntry> = {};
   const lineToPid: Record<number, string> = {};
   for (const map of maps) {
@@ -114,7 +114,7 @@ export function mergePidMaps(maps: PidMap[]): PidMap {
  * Returns an array of PID strings that appear more than once.
  * Error pidMaps are skipped.
  */
-export function detectPidConflicts(
+function detectPidConflicts(
   sourcePidMaps: Record<string, PidMap>,
 ): Array<{ pid: string; sources: string[] }> {
   const pidToSources: Record<string, string[]> = {};
@@ -129,7 +129,9 @@ export function detectPidConflicts(
     }
   }
 
-  return Object.entries(pidToSources)
-    .filter(([, sources]) => sources.length > 1)
-    .map(([pid, sources]) => ({ pid, sources }));
+  const result: Array<{ pid: string; sources: string[] }> = [];
+  for (const [pid, sources] of Object.entries(pidToSources)) {
+    if (sources.length > 1) result.push({ pid, sources });
+  }
+  return result;
 }

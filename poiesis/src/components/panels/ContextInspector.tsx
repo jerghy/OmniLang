@@ -4,6 +4,7 @@
 
 import { useMemo } from "react";
 import { useSelectedElementIds, useElements } from "../../store/hooks";
+import styles from "./ContextInspector.module.css";
 import { PropsSection } from "./inspector/PropsSection";
 import { EventsSection } from "./inspector/EventsSection";
 import { BindingsSection } from "./inspector/BindingsSection";
@@ -190,15 +191,11 @@ export function ContextInspector() {
         <button type="button"
           onClick={() => setStorePanelVisible(!storePanelVisible)}
           title={storePanelVisible ? "关闭 Store 面板" : "打开 Store 面板"}
+          className={styles.storeBtn}
           style={{
-            display: "flex", alignItems: "center", gap: 4,
-            padding: "2px 10px", fontSize: 12, fontWeight: 600,
             border: storePanelVisible ? "1px solid #6366f1" : "1px solid #e2e8f0",
-            borderRadius: 4,
             background: storePanelVisible ? "#eef2ff" : "transparent",
-            cursor: "pointer",
             color: storePanelVisible ? "#6366f1" : "#64748b",
-            fontFamily: "inherit",
           }}
         >
           📦 Store

@@ -1,1 +1,6 @@
-{"rules": {"deslop/unused-dev-dependency": "off"}}
+{
+  "$schema": "https://react.doctor/schema/config.json",
+  "rules": {
+    "deslop/unused-dev-dependency": "off"
+  }
+}

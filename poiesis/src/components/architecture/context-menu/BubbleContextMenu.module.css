@@ -1,5 +1,25 @@
+.menuPanel {
+  position: absolute;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  padding: 4px 0;
+  min-width: 180px;
+  z-index: 1000;
+}
+
 .menuItem {
-  background: transparent;
+  display: block;
+  width: 100%;
+  padding: 8px 16px;
+  font-size: 13px;
+  cursor: pointer;
+  color: #374151;
+  background: none;
+  border: none;
+  text-align: left;
+  font-family: inherit;
   transition: background 0.15s;
 }
 .menuItem:hover {

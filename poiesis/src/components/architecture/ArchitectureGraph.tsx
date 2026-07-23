@@ -83,14 +83,13 @@ export function ArchitectureGraph() {
           const srcResult = await api.project.listDir("src");
           if (srcResult.entries) scans.push(srcResult);
 
-          for (const scan of scans) {
-            for (const entry of scan.entries) {
-              if (entry.ext === "omni") {
-                const file = await api.project.readFile(entry.path);
-                if (file.content && !file.error) {
-                  omniFiles.push({ path: entry.path, source: file.content });
-                }
-              }
+          const omniEntries = scans.flatMap(scan => scan.entries.filter(e => e.ext === "omni"));
+          const files = await Promise.all(omniEntries.map(entry =>
+            api.project.readFile(entry.path).then(file => ({ entry, file }))
+          ));
+          for (const { entry, file } of files) {
+            if (file.content && !file.error) {
+              omniFiles.push({ path: entry.path, source: file.content });
             }
           }
         }
@@ -113,7 +112,7 @@ export function ArchitectureGraph() {
     }
     load();
     return () => { cancelled = true; };
-  }, [setBubblesAndEdges]);
+  }, [projectDir, setBubblesAndEdges, setLoading]);
 
   const positions = useBubbleLayout(bubbles, expandedIds);
 
@@ -147,19 +146,21 @@ export function ArchitectureGraph() {
 
   const rfEdges = useMemo(() => {
     const expanded = new Set(expandedIds);
-    return edges
-      .filter(
-        (e) =>
-          expanded.has(e.source) ||
-          bubbles.find((b) => b.id === e.source)?.depth === 0
-      )
-      .map((e): Edge => ({
-        id: e.id,
-        type: "bubble",
-        source: e.source,
-        target: e.target,
-        data: e as unknown as Record<string, unknown>,
-      }));
+    const bubblesById = new Map(bubbles.map((b) => [b.id, b]));
+    const result: Edge[] = [];
+    for (const e of edges) {
+      const sourceBubble = bubblesById.get(e.source);
+      if (expanded.has(e.source) || sourceBubble?.depth === 0) {
+        result.push({
+          id: e.id,
+          type: "bubble",
+          source: e.source,
+          target: e.target,
+          data: e as unknown as Record<string, unknown>,
+        });
+      }
+    }
+    return result;
   }, [edges, expandedIds, bubbles]);
 
   const handleNodeDoubleClick = useCallback(

@@ -224,10 +224,10 @@ export function ComponentMembersPanel({ componentName }: Props) {
     <div style={S.panel}>
       {/* ── Props ── */}
       <div>
-        <div role="button" tabIndex={0} style={S.sectionHeader} onClick={() => toggle("props")} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle("props"); } }}>
+        <button type="button" style={S.sectionHeader} onClick={(e) => { if ((e.target as HTMLElement).getAttribute('data-action') === 'add-prop') { handleAddProp(); } else { toggle("props"); } }} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle("props"); } }}>
           <span>Props</span>
-          <button type="button" style={S.addBtn} onClick={(e) => { e.stopPropagation(); handleAddProp(); }}>+</button>
-        </div>
+          <span style={S.addBtn} data-action="add-prop">+</span>
+        </button>
         {!collapsed.props && def.props.map((prop) => (
           <div key={prop.pid} style={S.itemRow}>
             <div style={S.itemHeader}>
@@ -270,10 +270,10 @@ export function ComponentMembersPanel({ componentName }: Props) {
 
       {/* ── Signals ── */}
       <div>
-        <div role="button" tabIndex={0} style={S.sectionHeader} onClick={() => toggle("signals")} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle("signals"); } }}>
+        <button type="button" style={S.sectionHeader} onClick={(e) => { if ((e.target as HTMLElement).getAttribute('data-action') === 'add-signal') { handleAddSignal(); } else { toggle("signals"); } }} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle("signals"); } }}>
           <span>Signals</span>
-          <button type="button" style={S.addBtn} onClick={(e) => { e.stopPropagation(); handleAddSignal(); }}>+</button>
-        </div>
+          <span style={S.addBtn} data-action="add-signal">+</span>
+        </button>
         {!collapsed.signals && def.signals.map((sig) => (
           <div key={sig.pid} style={S.itemRow}>
             <div style={S.itemHeader}>
@@ -316,10 +316,10 @@ export function ComponentMembersPanel({ componentName }: Props) {
 
       {/* ── Computed ── */}
       <div>
-        <div role="button" tabIndex={0} style={S.sectionHeader} onClick={() => toggle("computeds")} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle("computeds"); } }}>
+        <button type="button" style={S.sectionHeader} onClick={(e) => { if ((e.target as HTMLElement).getAttribute('data-action') === 'add-computed') { handleAddComputed(); } else { toggle("computeds"); } }} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle("computeds"); } }}>
           <span>Computed</span>
-          <button type="button" style={S.addBtn} onClick={(e) => { e.stopPropagation(); handleAddComputed(); }}>+</button>
-        </div>
+          <span style={S.addBtn} data-action="add-computed">+</span>
+        </button>
         {!collapsed.computeds && def.computeds.map((c) => (
           <div key={c.pid} style={S.itemRow}>
             <div style={S.itemHeader}>
@@ -354,7 +354,7 @@ export function ComponentMembersPanel({ componentName }: Props) {
                 {c.expression
                   ? c.expression.slice(0, 40) + (c.expression.length > 40 ? "…" : "")
                   : "click to edit"}
-              </span>
+              </button>
             </div>
           </div>
         ))}

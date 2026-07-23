@@ -277,13 +277,14 @@ export function generateOmniSource(options: GenerateOmniSourceOptions): StageRes
     (e): e is CodeblockElementData => e.nodeType === "codeblock"
   );
   if (codeFlowElements.length > 0) {
+    const fnMap = new Map(phaseB.ctx.lowered.functions.map(f => [f.name, f]));
     for (const fnEl of codeFlowElements) {
       if (fnEl.tag !== "fn") continue;
       const compiledFn = compileCodeFlowGraph(codeFlowElements, options.designWires, fnEl.id);
       if (!compiledFn) continue;
 
       const fnName = (fnEl.props?.name as string) || "unnamed";
-      const existingFn = phaseB.ctx.lowered.functions.find((f) => f.name === fnName);
+      const existingFn = fnMap.get(fnName);
       if (existingFn) {
         // compileCodeFlowGraph returns a full fn definition like:
         //   // @pid:xxx\nfn name(params) {\n  body\n}

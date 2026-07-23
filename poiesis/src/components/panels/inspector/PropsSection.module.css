@@ -1,0 +1,20 @@
+.emptyInput {
+  flex: 1;
+  padding: 3px 6px;
+  font-size: 12px;
+  outline: 2px solid transparent;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  font-family: var(--dp-font-mono, monospace);
+  color: #1e293b;
+}
+
+.textSegment {
+  flex: 0 1 auto;
+  padding: 3px 4px;
+  font-size: 12px;
+  outline: 2px solid transparent;
+  background: transparent;
+  font-family: var(--dp-font-mono, monospace);
+  color: #1e293b;
+}

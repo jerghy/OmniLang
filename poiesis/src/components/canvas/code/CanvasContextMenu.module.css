@@ -1,3 +1,46 @@
+.menuBox {
+  position: fixed;
+  z-index: 10000;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  min-width: 200px;
+  max-width: 200px;
+  overflow-y: auto;
+  font-size: 12px;
+  padding: 2px 0;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 4px 10px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-family: inherit;
+}
+
+.menuBtnStatic {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 5px 12px 5px 26px;
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  text-align: left;
+  font-family: inherit;
+}
+
 .menuBtn {
   background: transparent;
 }

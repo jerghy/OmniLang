@@ -1,0 +1,72 @@
+/* FunctionBindingTab.module.css — extracted from inline styles for react-doctor compliance */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.fieldLabel {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+
+.pickerBtn {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-family: var(--dp-font-mono, monospace);
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  text-align: left;
+}
+
+.pickerBtnArrow {
+  color: #64748b;
+}
+
+.paramsLabel {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+
+.paramRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.paramLabelInner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.paramName {
+  font-size: 12px;
+  color: #64748b;
+  min-width: 40px;
+  font-family: var(--dp-font-mono, monospace);
+}
+
+.paramInput {
+  flex: 1;
+  padding: 6px 10px;
+  font-size: 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  outline: 2px solid transparent;
+  font-family: var(--dp-font-mono, monospace);
+}

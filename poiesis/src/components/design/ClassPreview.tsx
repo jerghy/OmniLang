@@ -5,6 +5,9 @@
 import React, { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import type { StyleProperty } from "../../core/types/style";
 import type { PseudoState, DesignToken } from "../../core/types/design";
+import { PreviewElementHeader } from "./PreviewElementHeader";
+import { ResizeHandles } from "./ResizeHandles";
+import styles from "./ClassPreview.module.css";
 
 // ── Helpers ──
 
@@ -301,100 +304,24 @@ export const ClassPreview = React.memo(function ClassPreview({
   const showLabel = interactive && (displayW > 0 || displayH > 0);
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        width: 260,
-        flexShrink: 0,
-        borderLeft: "1px solid var(--dp-border, #e8e5f2)",
-        background: "var(--dp-surface, #fff)",
-      }}
-    >
+    <div className={styles.previewPanel}>
       {/* Header */}
-      <div
-        style={{
-          padding: "8px 12px",
-          fontSize: 12,
-          fontWeight: 600,
-          color: "var(--dp-text-secondary, #6b6893)",
-          textTransform: "uppercase",
-          letterSpacing: "0.5px",
-          borderBottom: "1px solid var(--dp-border, #e8e5f2)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          flexShrink: 0,
-          background: "var(--dp-bg, #f7f6fa)",
-        }}
-      >
-        Preview
-        <select
-          aria-label="Preview element"
-          value={elementIdx}
-          onChange={(e) => setElementIdx(Number(e.target.value))}
-          style={{
-            padding: "2px 6px",
-            fontSize: 12,
-            fontFamily: "var(--dp-font-mono, monospace)",
-            border: "1px solid var(--dp-border, #e8e5f2)",
-            borderRadius: "var(--dp-radius-sm, 6px)",
-            outline: "2px solid transparent",
-            background: "var(--dp-surface, #fff)",
-            color: "var(--dp-text, #1e1b4b)",
-            cursor: "pointer",
-            fontWeight: 500,
-            textTransform: "none",
-            letterSpacing: "normal",
-          }}
-        >
-          {PREVIEW_ELEMENTS.map((e, i) => (
-            <option key={e.value} value={i}>{e.label}</option>
-          ))}
-        </select>
-      </div>
+      <PreviewElementHeader
+        elementIdx={elementIdx}
+        options={PREVIEW_ELEMENTS}
+        onChange={(idx) => setElementIdx(idx)}
+      />
 
       {/* Preview area */}
       <div
-        style={{
-          flex: 1,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: interactive ? 32 : 24,
-          overflow: "auto",
-          minHeight: 120,
-          background: `
-            linear-gradient(45deg, #f0eef7 25%, transparent 25%),
-            linear-gradient(-45deg, #f0eef7 25%, transparent 25%),
-            linear-gradient(45deg, transparent 75%, #f0eef7 75%),
-            linear-gradient(-45deg, transparent 75%, #f0eef7 75%)
-          `,
-          backgroundSize: "12px 12px",
-          backgroundPosition: "0 0, 0 6px, 6px -6px, -6px 0px",
-        }}
+        className={styles.previewArea}
+        style={{ padding: interactive ? 32 : 24 }}
       >
         {interactive ? (
           <div style={{ position: "relative", display: "inline-block" }}>
             {/* Dimension label */}
             {showLabel && (
-              <div
-                ref={labelRef}
-                style={{
-                  position: "absolute",
-                  top: -20,
-                  left: "50%",
-                  transform: "translateX(-50%)",
-                  fontSize: 12,
-                  fontFamily: "var(--dp-font-mono, monospace)",
-                  color: "var(--dp-accent, #6366f1)",
-                  background: "rgba(255,255,255,0.9)",
-                  padding: "1px 6px",
-                  borderRadius: 3,
-                  whiteSpace: "nowrap",
-                  pointerEvents: "none",
-                }}
-              >
+              <div ref={labelRef} className={styles.dimLabel}>
                 {displayW > 0 ? displayW : "auto"} × {displayH > 0 ? displayH : "auto"}
               </div>
             )}
@@ -418,34 +345,12 @@ export const ClassPreview = React.memo(function ClassPreview({
                   }}
                   onMouseDown={handleMouseDown(dir)}
                 >
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: "50%",
-                      left: "50%",
-                      transform: "translate(-50%, -50%)",
-                      width: HANDLE_SIZE,
-                      height: HANDLE_SIZE,
-                      borderRadius: 2,
-                      background: "#fff",
-                      border: "2px solid var(--dp-accent, #6366f1)",
-                      boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
-                      pointerEvents: "none",
-                    }}
-                  />
+                  <div className={styles.handleVisual} />
                 </div>
               );
             })}
             {/* Outline */}
-            <div
-              style={{
-                position: "absolute",
-                inset: -1,
-                border: "1px dashed var(--dp-accent, #6366f1)",
-                borderRadius: 2,
-                pointerEvents: "none",
-              }}
-            />
+            <div className={styles.outlineBox} />
           </div>
         ) : (
           previewContent
@@ -454,17 +359,7 @@ export const ClassPreview = React.memo(function ClassPreview({
 
       {/* Pseudo state indicator */}
       {simulatedPseudo && (
-        <div
-          style={{
-            textAlign: "center",
-            fontSize: 12,
-            color: "var(--dp-accent, #6366f1)",
-            fontWeight: 600,
-            padding: "4px 0",
-            background: "var(--dp-accent-subtle, #eef0ff)",
-            borderTop: "1px solid var(--dp-border, #e8e5f2)",
-          }}
-        >
+        <div className={styles.pseudoIndicator}>
           :{simulatedPseudo}
         </div>
       )}

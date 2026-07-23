@@ -3,6 +3,7 @@
 // Modeled on TokenSlashPicker (components/design/TokenSlashPicker.tsx).
 
 import { useRef, useEffect, useState, useCallback } from "react";
+import styles from "./SignalSlashPicker.module.css";
 
 export interface SignalPickerItem {
   pid: string;
@@ -137,19 +138,10 @@ export function SignalSlashPicker({
     return (
       <div
         ref={ref}
+        className={styles.emptyState}
         style={{
-          position: "fixed",
           top: position.top,
           left: position.left,
-          background: "#fff",
-          border: "1px solid #e2e8f0",
-          borderRadius: 8,
-          boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
-          zIndex: 1000,
-          minWidth: 200,
-          padding: "8px 12px",
-          fontSize: 12,
-          color: "#64748b",
         }}
       >
         No bindings found
@@ -160,19 +152,10 @@ export function SignalSlashPicker({
   return (
     <div
       ref={ref}
+      className={styles.picker}
       style={{
-        position: "fixed",
         top: position.top,
         left: position.left,
-        background: "#fff",
-        border: "1px solid #e2e8f0",
-        borderRadius: 8,
-        boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
-        zIndex: 1000,
-        minWidth: 220,
-        maxHeight: 300,
-        overflow: "auto",
-        padding: 4,
       }}
     >
       {CATEGORY_ORDER.map((cat) => {
@@ -181,18 +164,7 @@ export function SignalSlashPicker({
 
         return (
           <div key={cat}>
-            <div
-              style={{
-                fontSize: 12,
-                fontWeight: 600,
-                color: "#64748b",
-                padding: "4px 8px 2px",
-                textTransform: "uppercase",
-                display: "flex",
-                alignItems: "center",
-                gap: 4,
-              }}
-            >
+            <div className={styles.categoryHeader}>
               <span>{CATEGORY_ICONS[cat]}</span>
               <span>{CATEGORY_LABELS[cat]}</span>
             </div>
@@ -205,22 +177,12 @@ export function SignalSlashPicker({
                   key={item.pid}
                   onClick={() => onSelect(item)}
                   onMouseEnter={() => setActiveIndex(flatIdx)}
+                  className={styles.itemBtn}
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    width: "100%",
-                    padding: "4px 8px",
-                    fontSize: 12,
-                    border: "none",
                     background: isActive
                       ? "var(--dp-accent-subtle, #eef0ff)"
                       : "transparent",
                     color: "var(--dp-text-secondary, #6b6893)",
-                    cursor: "pointer",
-                    textAlign: "left",
-                    fontFamily: "var(--dp-font-mono, monospace)",
-                    borderRadius: 4,
                   }}
                 >
                   <span style={{ fontWeight: 500 }}>{item.name}</span>

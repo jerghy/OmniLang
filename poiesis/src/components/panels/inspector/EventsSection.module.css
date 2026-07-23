@@ -1,0 +1,63 @@
+.sectionHeader {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.addEventSelect {
+  font-size: 12px;
+  border: 1px solid #e0e7ff;
+  border-radius: 4px;
+  background: #eef2ff;
+  color: #4f46e5;
+  cursor: pointer;
+  padding: 2px 6px;
+  font-family: inherit;
+  max-width: 120px;
+}
+
+.eventNameSelect {
+  font-size: 12px;
+  padding: 3px 4px;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  background: #fff;
+  color: #374151;
+  font-family: var(--dp-font-mono, monospace);
+  min-width: 90px;
+  cursor: pointer;
+}
+
+.handlerBtn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  padding: 3px 8px;
+  font-size: 12px;
+  font-family: var(--dp-font-mono, monospace);
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  text-align: left;
+  min-height: 24px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.removeBtn {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: #ef4444;
+  font-size: 14px;
+  padding: 2px 4px;
+  line-height: 1;
+  font-family: inherit;
+}

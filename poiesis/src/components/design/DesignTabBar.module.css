@@ -1,0 +1,97 @@
+/* DesignTabBar.module.css — extracted from inline styles for react-doctor compliance */
+
+.tabBar {
+  display: flex;
+  height: 36px;
+  background: #f1f5f9;
+  border-bottom: 1px solid #e2e8f0;
+  overflow: auto;
+}
+
+.tabItem {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 12px;
+  cursor: pointer;
+  font-size: 12px;
+  border-right: 1px solid #e2e8f0;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.tabCloseBtn {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 14px;
+  color: #64748b;
+  padding: 0 2px;
+  line-height: 1;
+}
+
+.addTabBtn {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 16px;
+  color: #6366F1;
+  font-weight: 700;
+  padding: 0 8px;
+  height: 28px;
+  border-radius: 4px;
+  line-height: 1;
+}
+
+.plusMenuDropdown {
+  position: fixed;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  z-index: 9999;
+  min-width: 200px;
+  overflow: hidden;
+}
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.3);
+  z-index: 10000;
+  border: none;
+  cursor: pointer;
+}
+
+.confirmDialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10001;
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px 24px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+  min-width: 320px;
+}
+
+.cancelBtn {
+  padding: 5px 14px;
+  font-size: 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.closeConfirmBtn {
+  padding: 5px 14px;
+  font-size: 12px;
+  border: none;
+  border-radius: 6px;
+  background: #dc2626;
+  color: #fff;
+  cursor: pointer;
+  font-weight: 600;
+}

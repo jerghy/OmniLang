@@ -3,8 +3,10 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { DesignToken } from "../../core/types/design";
-import { HSVPanel, hsvToHex, hexToHsv } from "./HSVPanel";
-import type { HSVColor } from "./HSVPanel";
+import { HSVPanel } from "./HSVPanel";
+import { hsvToHex, hexToHsv } from "./hsv-utils";
+import type { HSVColor } from "./hsv-utils";
+import styles from "./ColorHUD.module.css";
 
 // ── ColorHUD ───────────────────────────────────────────────────
 export interface ColorHUDProps {
@@ -101,21 +103,8 @@ export function ColorHUD({
   return (
     <div
       ref={panelRef}
-      style={
-        {
-          position: "fixed",
-          top,
-          left,
-          zIndex: 10000,
-          background: "#fff",
-          borderRadius: 8,
-          boxShadow: "0 4px 16px rgba(0,0,0,0.2)",
-          padding: 10,
-          display: "flex",
-          flexDirection: "column",
-          gap: 8,
-        } as React.CSSProperties
-      }
+      className={styles.panel}
+      style={{ top, left } as React.CSSProperties}
     >
       <HSVPanel
         color={panelColor}

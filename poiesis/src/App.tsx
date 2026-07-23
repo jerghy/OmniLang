@@ -16,6 +16,7 @@ import { ErrorBoundary } from "./components/error/ErrorBoundary";
 import { createLogger } from "./lib/utils/logger";
 import "./styles/tokens.css";
 import "./styles/legacy-bridge.css";
+import styles from "./App.module.css";
 
 const DesignPage = lazy(() => import("./pages/DesignPage").then((m) => ({ default: m.DesignPage })));
 const ArchitecturePage = lazy(() => import("./pages/ArchitecturePage").then((m) => ({ default: m.ArchitecturePage })));
@@ -27,14 +28,17 @@ async function loadOmniFiles(): Promise<void> {
   const scanDirs = [".", "src", "src/components", "src/stores", "src/lib"];
   const omniPaths: string[] = [];
 
-  for (const dir of scanDirs) {
-    try {
-      const result = await api.project.listDir(dir);
-      if (!result.entries) continue;
-      for (const entry of result.entries) {
-        if (entry.ext === "omni") omniPaths.push(entry.path);
-      }
-    } catch (e) { log.warn("Failed to read project directory:", e); }
+  const dirResults = await Promise.all(scanDirs.map(dir =>
+    api.project.listDir(dir).catch(e => {
+      log.warn("Failed to read project directory:", e);
+      return null;
+    })
+  ));
+  for (const result of dirResults) {
+    if (!result?.entries) continue;
+    for (const entry of result.entries) {
+      if (entry.ext === "omni") omniPaths.push(entry.path);
+    }
   }
 
   let mainPath: string | null = null;
@@ -85,19 +89,33 @@ async function loadOmniFiles(): Promise<void> {
         // Ensure conditional blocks are registered in their parent's children array.
         // The parser may create ConditionalBlockData without updating the parent,
         // since conditional blocks are added to ctx.elements after their siblings.
+        const positionedMap = new Map(positionedElements.map(el => [el.id, el]));
+        const childrenSets = new Map<string, Set<string>>();
+        for (const el of positionedElements) {
+          if ("children" in el && Array.isArray(el.children) && el.children.length > 0) {
+            childrenSets.set(el.id, new Set(el.children));
+          }
+        }
         for (const el of positionedElements) {
           if (el.nodeType === "conditional" && el.parentId) {
-            const parent = positionedElements.find((p) => p.id === el.parentId);
+            const parent = positionedMap.get(el.parentId);
             if (parent && "children" in parent && Array.isArray(parent.children)) {
-              if (!parent.children.includes(el.id)) {
+              let childSet = childrenSets.get(el.parentId);
+              if (!childSet) {
+                childSet = new Set(parent.children);
+                childrenSets.set(el.parentId, childSet);
+              }
+              if (!childSet.has(el.id)) {
+                childSet.add(el.id);
                 (parent as { children: string[] }).children.push(el.id);
               }
             }
           }
         }
-        const rootOrder = positionedElements
-          .filter((e: ElementData) => !e.parentId)
-          .map((e: ElementData) => e.id);
+        const rootOrder: string[] = [];
+        for (const e of positionedElements) {
+          if (!e.parentId) rootOrder.push(e.id);
+        }
         return {
           filePath, componentName,
           content: res.content,
@@ -238,8 +256,9 @@ async function loadOmniFiles(): Promise<void> {
     // NOT the last file in scan order (which could be a component definition).
     const mainParsed = parsed.find((p) => p.filePath === mainPath) || parsed[parsed.length - 1];
 
+    const tabByFilePath = new Map(store.designPage.openTabs.map(t => [t.filePath, t]));
     for (const p of parsed) {
-      const tab = store.designPage.openTabs.find((t) => t.filePath === p.filePath);
+      const tab = tabByFilePath.get(p.filePath);
       if (tab) {
         newTabData[tab.id] = {
           elements: p.elements,
@@ -385,42 +404,20 @@ export default function App() {
   return (
     <ErrorBoundary>
       {!projectDir ? (
-        <div style={{ height: "100vh", overflow: "hidden" }}>
+        <div className={styles.welcomeContainer}>
           <WelcomePage onProjectOpened={handleProjectOpened} />
         </div>
       ) : (
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            height: "100vh",
-            overflow: "hidden",
-            position: "relative",
-          }}
-        >
+        <div className={styles.appContainer}>
           {/* Page content */}
-          <div style={{ flex: 1, overflow: "hidden" }}>
-            <Suspense fallback={<div style={{ padding: 40, color: "#6b7280", fontSize: 14 }}>Loading...</div>}>
+          <div className={styles.contentArea}>
+            <Suspense fallback={<div className={styles.suspenseFallback}>Loading...</div>}>
               {currentPage === "architecture" ? <ArchitecturePage /> : <DesignPage onProjectOpened={handleProjectOpened} />}
             </Suspense>
           </div>
 
           {/* Page-switch toggle — top-right floating */}
-          <div
-            style={{
-              position: "absolute",
-              top: 8,
-              right: 12,
-              zIndex: 100,
-              display: "flex",
-              gap: 0,
-              background: "rgba(255,255,255,0.92)",
-              backdropFilter: "blur(8px)",
-              borderRadius: 8,
-              padding: 3,
-              boxShadow: "0 1px 4px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.06)",
-            }}
-          >
+          <div className={styles.pageToggle}>
             <PageToggleButton
               active={currentPage === "design"}
               onClick={() => navigateTo("design")}
@@ -460,17 +457,11 @@ function PageToggleButton({
   return (
     <button type="button"
       onClick={onClick}
+      className={styles.pageToggleBtn}
       style={{
-        padding: "5px 14px",
-        fontSize: 12,
         fontWeight: active ? 600 : 400,
         color: active ? "#6d28d9" : "#6b7280",
         background: active ? "#f5f3ff" : "transparent",
-        border: "none",
-        borderRadius: 6,
-        cursor: "pointer",
-        transition: "border-color 150ms ease, background-color 150ms ease, opacity 150ms ease",
-        whiteSpace: "nowrap",
       }}
     >
       {children}

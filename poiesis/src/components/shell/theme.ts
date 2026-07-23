@@ -15,6 +15,6 @@ export const S = {
   modeBtn: (active: boolean) => ({ padding: "3px 14px", fontSize: 12, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: active ? "var(--ol-color-primary-hover)" : "var(--ol-gray-100)", color: active ? "var(--ol-text-inverse)" : "var(--ol-text)" } as React.CSSProperties),
 };
 
-export const btnStyle: React.CSSProperties = { padding: "4px 12px", fontSize: 12, border: "1px solid var(--ol-border-hover)", borderRadius: 4, background: "var(--ol-surface)", cursor: "pointer" };
+const btnStyle: React.CSSProperties = { padding: "4px 12px", fontSize: 12, border: "1px solid var(--ol-border-hover)", borderRadius: 4, background: "var(--ol-surface)", cursor: "pointer" };
 
-export const iconBtn: React.CSSProperties = { padding: "2px 6px", fontSize: 13, border: "1px solid transparent", borderRadius: 4, background: "transparent", cursor: "pointer", lineHeight: 1 };
+const iconBtn: React.CSSProperties = { padding: "2px 6px", fontSize: 13, border: "1px solid transparent", borderRadius: 4, background: "transparent", cursor: "pointer", lineHeight: 1 };

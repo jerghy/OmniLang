@@ -148,5 +148,5 @@ export function useDebugCompile() {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [isOpen, windowReadyCounter, elements, wires, rootOrder, activeDesign, pushCompileResult, pushHotReplace]);
+  }, [isOpen, windowReadyCounter, elements, wires, rootOrder, activeDesign, componentDefs, pushCompileResult, pushHotReplace]);
 }

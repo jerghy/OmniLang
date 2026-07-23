@@ -1,0 +1,12 @@
+.artboard {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  background: #fff;
+  box-shadow: 0 0 0 1px #e2e8f0, 0 4px 24px rgba(0, 0, 0, 0.08);
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}

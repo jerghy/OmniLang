@@ -4,9 +4,10 @@
 // 2. 写表达式 — write an inline closure via Monaco editor
 
 import { useState, useCallback, useEffect } from "react";
-import { FunctionPicker } from "./FunctionPicker";
 import { ExpressionEditor } from "./ExpressionEditor";
 import type { HandlerItem } from "./useHandlerItems";
+import { FunctionBindingTab } from "./FunctionBindingTab";
+import styles from "./HandlerModal.module.css";
 
 interface HandlerModalProps {
   eventName: string;
@@ -141,33 +142,12 @@ export function HandlerModal({
         aria-label="Close handler modal"
         onClick={onClose}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClose(); } }}
-        style={{
-          position: "fixed",
-          inset: 0,
-          zIndex: 9998,
-          background: "rgba(0,0,0,0.4)",
-          border: "none",
-          cursor: "pointer",
-        }}
+        className={styles.backdrop}
       />
       {/* Modal */}
       <div
         onClick={(e) => e.stopPropagation()}
-        style={{
-          position: "fixed",
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -50%)",
-          zIndex: 9999,
-          background: "#fff",
-          borderRadius: 12,
-          boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
-          width: 560,
-          maxHeight: "80vh",
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-        }}
+        className={styles.modal}
       >
         {/* Title */}
         <div
@@ -221,117 +201,16 @@ export function HandlerModal({
         {/* Tab content */}
         <div style={{ padding: 16, overflowY: "auto", flex: 1 }}>
           {tab === "function" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {/* Function/Action selector */}
-              <div>
-                <span
-                  style={{
-                    display: "block",
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: "#64748b",
-                    marginBottom: 4,
-                  }}
-                >
-                  函数/Action
-                </span>
-                <div style={{ position: "relative" }}>
-                  <button type="button"
-                    onClick={() => setPickerOpen(!pickerOpen)}
-                    style={{
-                      width: "100%",
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      padding: "8px 12px",
-                      fontSize: 13,
-                      fontFamily: "var(--dp-font-mono, monospace)",
-                      border: "1px solid #d1d5db",
-                      borderRadius: 6,
-                      background: "#fff",
-                      cursor: "pointer",
-                      textAlign: "left",
-                      color: selectedFn ? "#1e293b" : "#94a3b8",
-                    }}
-                  >
-                    <span>
-                      {selectedFn ? selectedFn.displayName : "选择函数或 Action..."}
-                    </span>
-                    <span style={{ color: "#64748b" }}>▼</span>
-                  </button>
-                  {pickerOpen && (
-                    <FunctionPicker
-                      items={handlerItems}
-                      selectedName={selectedFn?.name ?? null}
-                      onSelect={handleFnSelect}
-                      onClose={() => setPickerOpen(false)}
-                    />
-                  )}
-                </div>
-              </div>
-
-              {/* Parameter inputs (shown when selected function has params) */}
-              {selectedFn && selectedFn.params.length > 0 && (
-                <div>
-                  <span
-                    style={{
-                      display: "block",
-                      fontSize: 12,
-                      fontWeight: 600,
-                      color: "#64748b",
-                      marginBottom: 4,
-                    }}
-                  >
-                    参数
-                  </span>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    {selectedFn.params.map((p) => (
-                      <div
-                        key={p.name}
-                        style={{ display: "flex", alignItems: "center", gap: 8 }}
-                      >
-                        <label
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            flex: 1,
-                          }}
-                        >
-                          <span
-                            style={{
-                              fontSize: 12,
-                              color: "#64748b",
-                              minWidth: 40,
-                              fontFamily: "var(--dp-font-mono, monospace)",
-                            }}
-                          >
-                            {p.name}
-                          </span>
-                          <input
-                            type="text"
-                            value={fnArgs[p.name] ?? ""}
-                            onChange={(e) => handleArgChange(p.name, e.target.value)}
-                            placeholder={p.type}
-                            style={{
-                              flex: 1,
-                              padding: "6px 10px",
-                              fontSize: 12,
-                              border: "1px solid #d1d5db",
-                              borderRadius: 4,
-                              outline: "2px solid transparent",
-                              fontFamily: "var(--dp-font-mono, monospace)",
-                            }}
-                            onFocus={(e) => (e.target.style.borderColor = "#6366F1")}
-                            onBlur={(e) => (e.target.style.borderColor = "#d1d5db")}
-                          />
-                        </label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+            <FunctionBindingTab
+              selectedFn={selectedFn}
+              fnArgs={fnArgs}
+              pickerOpen={pickerOpen}
+              handlerItems={handlerItems}
+              onTogglePicker={() => setPickerOpen(!pickerOpen)}
+              onSelectFn={handleFnSelect}
+              onPickerClose={() => setPickerOpen(false)}
+              onArgChange={handleArgChange}
+            />
           )}
 
           {tab === "expression" && (
@@ -369,17 +248,7 @@ export function HandlerModal({
           </button>
           <button type="button"
             onClick={handleConfirm}
-            style={{
-              padding: "8px 20px",
-              fontSize: 13,
-              fontWeight: 600,
-              border: "none",
-              borderRadius: 6,
-              background: "#4f46e5",
-              color: "#fff",
-              cursor: "pointer",
-              fontFamily: "inherit",
-            }}
+            className={styles.confirmBtn}
           >
             确认
           </button>

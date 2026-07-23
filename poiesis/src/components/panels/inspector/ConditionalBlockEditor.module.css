@@ -1,0 +1,11 @@
+.addBranchBtn {
+  width: 100%;
+  padding: 8px 0;
+  border: 1px dashed #c4b5fd;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  color: #7c3aed;
+  font-size: 12px;
+  font-weight: 500;
+}

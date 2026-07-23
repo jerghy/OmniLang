@@ -6,6 +6,7 @@ import { useCallback } from "react";
 import { usePoiesisStore } from "../../../store";
 import type { ConditionalBlockData } from "../../../core/types/element";
 import { InlineConditionEditor } from "./InlineConditionEditor";
+import styles from "./ConditionalBlockEditor.module.css";
 
 interface ConditionalBlockEditorProps {
   blockId: string;
@@ -117,11 +118,7 @@ export function ConditionalBlockEditor({ blockId }: ConditionalBlockEditorProps)
       {/* Add branch button */}
       <button type="button"
         onClick={handleAddBranch}
-        style={{
-          width: "100%", padding: "8px 0", border: "1px dashed #C4B5FD",
-          borderRadius: 6, background: "transparent", cursor: "pointer",
-          color: "#7C3AED", fontSize: 12, fontWeight: 500,
-        }}
+        className={styles.addBranchBtn}
       >
         ＋ 添加 @else if 分支
       </button>

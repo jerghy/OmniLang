@@ -1,6 +1,7 @@
 // poiesis/src/components/canvas/ZoomControls.tsx
 import React, { useCallback } from "react";
 import { useCanvasStore } from "./canvas-store";
+import styles from "./ZoomControls.module.css";
 
 export const ZoomControls = React.memo(function ZoomControls() {
   const zoom = useCanvasStore((s) => s.zoom);
@@ -15,24 +16,7 @@ export const ZoomControls = React.memo(function ZoomControls() {
   }, [fitToView]);
 
   return (
-    <div
-      style={{
-        position: "absolute",
-        bottom: 12,
-        right: 12,
-        display: "flex",
-        alignItems: "center",
-        gap: 4,
-        background: "#fff",
-        border: "1px solid #e2e8f0",
-        borderRadius: 8,
-        padding: "4px 8px",
-        boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
-        zIndex: 10,
-        fontSize: 12,
-        fontFamily: "inherit",
-      }}
-    >
+    <div className={styles.container}>
       <button type="button"
         onClick={() => setZoom(zoom - 0.1)}
         style={btnStyle}
@@ -41,7 +25,7 @@ export const ZoomControls = React.memo(function ZoomControls() {
       <button
         type="button"
         tabIndex={0}
-        style={{ minWidth: 48, textAlign: "center", color: "#64748b", cursor: "pointer", background: "none", border: "none", fontFamily: "inherit", fontSize: "inherit" }}
+        className={styles.zoomLabel}
         onClick={resetView}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); resetView(); } }}
         title="Reset zoom"

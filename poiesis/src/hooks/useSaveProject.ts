@@ -58,14 +58,12 @@ async function collectProjectSources(
   knownPaths.add("src/main.omni");
 
   // Read existing files from disk
-  for (const path of knownPaths) {
-    try {
-      const res = await api.project.readFile(path);
-      if (res.content && !res.error) {
-        sources[path] = res.content;
-      }
-    } catch {
-      // File doesn't exist yet — skip
+  const fileResults = await Promise.all([...knownPaths].map(path =>
+    api.project.readFile(path).then(res => ({ path, res })).catch(() => ({ path, res: null }))
+  ));
+  for (const { path, res } of fileResults) {
+    if (res?.content && !res.error) {
+      sources[path] = res.content;
     }
   }
 
@@ -178,9 +176,12 @@ export function useSaveProject() {
       const componentName = activeTab?.componentName ?? "main";
 
       // Collect inline store definitions associated with the current component
-      const inlineStores = Object.entries(store.inlineStoreDefs)
-        .filter(([key]) => key.startsWith(`${componentName}.`))
-        .map(([, def]) => def);
+      const inlineStores: Array<unknown> = [];
+      for (const [key, def] of Object.entries(store.inlineStoreDefs)) {
+        if (key.startsWith(`${componentName}.`)) {
+          inlineStores.push(def);
+        }
+      }
 
       const genResult = generateOmniFiles({
         designElements: store.elements,

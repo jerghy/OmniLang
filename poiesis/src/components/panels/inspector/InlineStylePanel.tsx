@@ -105,12 +105,15 @@ export function InlineStylePanel({ element }: InlineStylePanelProps) {
   const tag = viewEl.tag ?? "";
   const isTextElement = TEXT_TAGS.has(tag);
 
+  const allPropsRef = useRef(allProps);
+  allPropsRef.current = allProps;
+
   const makeCommit = useCallback(
     (cardManaged: Set<string>) => (newCardProps: StyleProperty[]) => {
-      const merged = mergeCardProps(allProps, cardManaged, newCardProps);
+      const merged = mergeCardProps(allPropsRef.current, cardManaged, newCardProps);
       setElementInlineStyles(element.id, merged);
     },
-    [allProps, element.id, setElementInlineStyles],
+    [element.id, setElementInlineStyles, mergeCardProps],
   );
 
   const visibleSections = SECTIONS.filter((s) => s.key !== "typo" || isTextElement);

@@ -10,6 +10,7 @@ import { ColorHUD } from "../../design/ColorHUD";
 import type { StyleProperty } from "../../../core/types/style";
 import type { DesignToken } from "../../../core/types/design";
 import { uid } from "../../../core/utils/id";
+import styles from "./TypographyBasics.module.css";
 
 // ── Helpers ──
 
@@ -181,7 +182,7 @@ export function TypographyBasics({ properties, onChange }: TypographyBasicsProps
             </span>
             {fontSizeRaw !== "" && (
               <button type="button"
-                style={{ border: "none", background: "none", cursor: "pointer", fontSize: 14, padding: "0 2px", color: "var(--dp-text-muted, #a09db8)", lineHeight: 1, flexShrink: 0 }}
+                className={styles.clearBtn}
                 title="清除"
                 onClick={(e) => { e.stopPropagation(); onChange(properties.filter((p) => p.name !== "fontSize")); }}
               >×</button>
@@ -261,7 +262,7 @@ export function TypographyBasics({ properties, onChange }: TypographyBasicsProps
           </span>
           {colorRaw !== "" && (
             <button type="button"
-              style={{ border: "none", background: "none", cursor: "pointer", fontSize: 14, padding: "0 2px", color: "var(--dp-text-muted, #a09db8)", lineHeight: 1, flexShrink: 0 }}
+              className={styles.clearBtn}
               title="清除"
               onClick={(e) => { e.stopPropagation(); onChange(properties.filter((p) => p.name !== "color")); }}
             >×</button>

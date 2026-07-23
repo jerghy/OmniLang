@@ -1,7 +1,6 @@
 // OmniLang runtime type definitions for Monaco IntelliSense.
 // Provides static .d.ts for built-in types/stdlib + dynamic store type generation.
 
-import { languages } from "monaco-editor";
 import type { StoreDefinition } from "../../core/types/store";
 
 // ── Guards ──────────────────────────────────────────────────────────
@@ -305,18 +304,19 @@ function mapOmniTypeToTs(omniType: string): string {
  * In Monaco 0.55+, languages.typescript is deprecated; we access it
  * through the module-level contribution system.
  */
-function getTsDefaults(): {
+async function getTsDefaults(): Promise<{
   addExtraLib: (content: string, filePath?: string) => void;
   setCompilerOptions: (opts: Record<string, unknown>) => void;
-} | null {
+} | null> {
   // Access via the module-level typescript contribution
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const monacoGlobal = (globalThis as Record<string, unknown>).monaco as Record<string, unknown> | undefined;
   if (!monacoGlobal) return null;
 
-  // In Monaco 0.55: monaco.languages.typescript still works at runtime
-  // even though TS types mark it as deprecated
   try {
+    const { languages } = await import("monaco-editor");
+    // In Monaco 0.55: monaco.languages.typescript still works at runtime
+    // even though TS types mark it as deprecated
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const ts = (languages as Record<string, unknown>).typescript as Record<string, unknown> | undefined;
     if (ts && typeof ts === "object" && "typescriptDefaults" in ts) {
@@ -337,8 +337,8 @@ function getTsDefaults(): {
  *
  * Also registers dynamically-generated store types if provided.
  */
-export function injectOmniLangTypes(storeDefs?: StoreDefinition[]): void {
-  const tsDefaults = getTsDefaults();
+export async function injectOmniLangTypes(storeDefs?: StoreDefinition[]): Promise<void> {
+  const tsDefaults = await getTsDefaults();
   if (!tsDefaults) return;
 
   if (!injected) {

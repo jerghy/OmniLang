@@ -41,7 +41,7 @@ export function InfiniteCanvas({ children }: InfiniteCanvasProps) {
       const artboardWidth = devicePreset.width || 393;
       setPanelPosition(artboardWidth + 40, 0);
     }
-  }, []);
+  }, [panelPosition.x, panelPosition.y, devicePreset.width, setPanelPosition]);
 
   // ── Native wheel handler — { passive: false } is REQUIRED for WebView2 ──
   // React's synthetic onWheel may be treated as passive by the browser,

@@ -27,7 +27,7 @@ export function buildProjectJsonFromStore(): string {
  * Update code flow graphs in the store from chain emitter output.
  * Called during the save pipeline before writing project.json.
  */
-export function updateCodeFlowGraphsInStore(
+function updateCodeFlowGraphsInStore(
   parsedGraphs: Record<string, { elements: CodeblockElementData[]; wires: WireData[] }>,
 ): void {
   const graphs = buildCodeFlowGraphs(parsedGraphs);
@@ -39,7 +39,7 @@ export function updateCodeFlowGraphsInStore(
  * In the full implementation, this also triggers the codegen pipeline
  * to write .omni files. For Phase 6, we handle the project.json side.
  */
-export async function saveProject(projectDir: string): Promise<{ success: boolean; error?: string; jsonStr?: string }> {
+async function saveProject(projectDir: string): Promise<{ success: boolean; error?: string; jsonStr?: string }> {
   try {
     const jsonStr = buildProjectJsonFromStore();
 

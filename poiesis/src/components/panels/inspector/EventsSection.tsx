@@ -9,6 +9,7 @@ import type { EventMeta } from "../../../data/componentProtocol";
 import { getComponentEvents } from "../../../data/componentProtocol";
 import type { HandlerItem } from "./useHandlerItems";
 import { HandlerModal } from "./HandlerModal";
+import styles from "./EventsSection.module.css";
 
 interface EventsSectionProps {
   element: ElementData;
@@ -48,17 +49,17 @@ export function EventsSection({ element, handlerItems }: EventsSectionProps) {
 
   const boundEvents = useMemo(() => {
     if (!elementProps) return [];
-    return Object.entries(elementProps)
-      .filter(
-        ([key, val]) =>
-          key.startsWith("on") &&
-          typeof val === "string"
-      )
-      .map(([key, val]) => ({
-        eventName: key,
-        handler: String(val),
-        meta: protocolEvents[key] as EventMeta | undefined,
-      }));
+    const result: Array<{ eventName: string; handler: string; meta: EventMeta | undefined }> = [];
+    for (const [key, val] of Object.entries(elementProps)) {
+      if (key.startsWith("on") && typeof val === "string") {
+        result.push({
+          eventName: key,
+          handler: String(val),
+          meta: protocolEvents[key] as EventMeta | undefined,
+        });
+      }
+    }
+    return result;
   }, [elementProps, protocolEvents]);
 
   const boundEventNames = useMemo(
@@ -68,9 +69,13 @@ export function EventsSection({ element, handlerItems }: EventsSectionProps) {
 
   // Event options for the "add" dropdown (exclude already bound)
   const availableEvents = useMemo(() => {
-    return Object.entries(protocolEvents)
-      .filter(([name]) => !boundEventNames.has(name))
-      .map(([name, meta]) => ({ name, ...meta }));
+    const result: Array<{ name: string } & EventMeta> = [];
+    for (const [name, meta] of Object.entries(protocolEvents)) {
+      if (!boundEventNames.has(name)) {
+        result.push({ name, ...meta });
+      }
+    }
+    return result;
   }, [protocolEvents, boundEventNames]);
 
   // Group available events for optgroup rendering
@@ -128,18 +133,7 @@ export function EventsSection({ element, handlerItems }: EventsSectionProps) {
   return (
     <div style={{ marginBottom: 12 }}>
       {/* Section header */}
-      <div
-        style={{
-          fontSize: 12,
-          fontWeight: 600,
-          color: "#6b7280",
-          textTransform: "uppercase",
-          marginBottom: 6,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
+      <div className={styles.sectionHeader}>
         <span>事件</span>
         {availableEvents.length > 0 && (
           <select
@@ -151,17 +145,7 @@ export function EventsSection({ element, handlerItems }: EventsSectionProps) {
                 e.target.value = "";
               }
             }}
-            style={{
-              fontSize: 12,
-              border: "1px solid #e0e7ff",
-              borderRadius: 4,
-              background: "#eef2ff",
-              color: "#4f46e5",
-              cursor: "pointer",
-              padding: "2px 6px",
-              fontFamily: "inherit",
-              maxWidth: 120,
-            }}
+            className={styles.addEventSelect}
           >
             <option value="">+ 添加事件</option>
             {groupedAvailable.map((g) => (
@@ -208,17 +192,7 @@ export function EventsSection({ element, handlerItems }: EventsSectionProps) {
                   setProp(element.id, newName, handler);
                 }
               }}
-              style={{
-                fontSize: 12,
-                padding: "3px 4px",
-                border: "1px solid #e2e8f0",
-                borderRadius: 4,
-                background: "#fff",
-                color: "#374151",
-                fontFamily: "var(--dp-font-mono, monospace)",
-                minWidth: 90,
-                cursor: "pointer",
-              }}
+              className={styles.eventNameSelect}
             >
               {Object.entries(EVENT_GROUPS).map(([group, names]) => (
                 <optgroup key={group} label={group}>
@@ -243,23 +217,9 @@ export function EventsSection({ element, handlerItems }: EventsSectionProps) {
             <button type="button"
               onClick={() => handleOpenModal(ev.eventName)}
               title={ev.meta ? `${ev.meta.description} — ${ev.handler}` : ev.handler}
+              className={styles.handlerBtn}
               style={{
-                flex: 1,
-                display: "flex",
-                alignItems: "center",
-                padding: "3px 8px",
-                fontSize: 12,
-                fontFamily: "var(--dp-font-mono, monospace)",
-                border: "1px solid #e2e8f0",
-                borderRadius: 4,
-                background: "#fff",
-                cursor: "pointer",
-                textAlign: "left",
                 color: ev.handler ? "#1e293b" : "#cbd5e1",
-                minHeight: 24,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
               }}
             >
               {ev.handler || "点击编辑..."}
@@ -269,16 +229,7 @@ export function EventsSection({ element, handlerItems }: EventsSectionProps) {
             <button type="button"
               onClick={() => handleRemoveEvent(ev.eventName)}
               title="移除事件"
-              style={{
-                border: "none",
-                background: "none",
-                cursor: "pointer",
-                color: "#ef4444",
-                fontSize: 14,
-                padding: "2px 4px",
-                lineHeight: 1,
-                fontFamily: "inherit",
-              }}
+              className={styles.removeBtn}
             >
               ×
             </button>

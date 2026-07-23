@@ -1,6 +1,7 @@
 import { Handle, Position } from "@xyflow/react";
 import type { NodeProps } from "@xyflow/react";
 import React from "react";
+import nodeStyles from "./BubbleNode.module.css";
 
 export interface BubbleNodeData {
   pid: string;
@@ -35,23 +36,14 @@ const BubbleNode = React.memo(function BubbleNode({ data }: NodeProps) {
 
   return (
     <div
+      className={nodeStyles.node}
       style={{
-        width: size,
-        height: size,
-        borderRadius: "50%",
         background: colors.bg,
         border: `3px solid ${colors.border}`,
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        cursor: "pointer",
-        transition: "transform 0.3s ease, box-shadow 0.3s ease",
         transform: d.expanded ? "scale(1.1)" : "scale(1)",
         boxShadow: d.expanded
           ? `0 0 20px ${colors.border}40`
           : "0 2px 8px rgba(0,0,0,0.1)",
-        position: "relative",
       }}
     >
       <Handle
@@ -74,20 +66,9 @@ const BubbleNode = React.memo(function BubbleNode({ data }: NodeProps) {
       </span>
       {d.childCount > 0 && (
         <span
+          className={nodeStyles.badge}
           style={{
-            position: "absolute",
-            top: -4,
-            right: -4,
             background: colors.border,
-            color: "#fff",
-            fontSize: 12,
-            fontWeight: 700,
-            borderRadius: "50%",
-            width: 22,
-            height: 22,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
           }}
         >
           {d.childCount}

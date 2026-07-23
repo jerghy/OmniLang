@@ -2,16 +2,11 @@
 // Shared lock/unlock toggle for property cards.
 
 import React from "react";
+import { LOCKED_INPUT_STYLE, isPropLocked } from "./lock-icon-utils";
 
 const LOCK_BTN: React.CSSProperties = {
   border: "none", background: "none", cursor: "pointer",
   fontSize: 12, padding: "0 2px", flexShrink: 0,
-};
-
-/** Style for a locked (🔒) property input in base mode — greyed out. */
-export const LOCKED_INPUT_STYLE: React.CSSProperties = {
-  opacity: 0.45,
-  pointerEvents: "none",
 };
 
 export interface LockIconProps {
@@ -19,12 +14,6 @@ export interface LockIconProps {
   inheritedProps?: string[];
   onToggleInherited?: (name: string) => void;
   readOnly?: boolean;
-}
-
-/** Returns true when the property is locked in base (not inherited, can be overridden). */
-export function isPropLocked(propName: string, inheritedProps?: string[]): boolean {
-  if (!inheritedProps) return false;
-  return !inheritedProps.includes(propName);
 }
 
 export const LockIcon = React.memo(function LockIcon({

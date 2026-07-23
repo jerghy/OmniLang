@@ -261,8 +261,13 @@ export const ScrubInput = React.memo(function ScrubInput({
 
   return (
     <div
+      role={editing ? undefined : "slider"}
+      aria-label="Scrub value"
+      aria-valuenow={clamped}
+      aria-valuemin={min ?? 0}
+      aria-valuemax={max ?? 100}
       style={rootStyle}
-      tabIndex={disabled ? -1 : 0}
+      tabIndex={disabled || editing ? -1 : 0}
       onMouseDown={handleMouseDown}
       onKeyDown={handleContainerKeyDown}
       onMouseEnter={() => setHover(true)}
@@ -278,6 +283,7 @@ export const ScrubInput = React.memo(function ScrubInput({
           type="text"
           inputMode="decimal"
           autoComplete="off"
+          tabIndex={-1}
           value={editText}
           onChange={(e) => setEditText(e.target.value)}
           onKeyDown={handleInputKeyDown}
