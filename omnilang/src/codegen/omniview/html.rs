@@ -631,7 +631,7 @@ impl OmniViewGenerator {
                 match handler {
                     EventHandlerIR::FnRef { r#ref, .. } => {
                         if self.motion_names.contains(r#ref.as_str()) {
-                            // Motion reference: create AnimationPlayer and play on event
+                            // Motion reference: call factory and play on event
                             let _ = writeln!(self.js, 
                                 "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ if (el.offsetParent !== null) {{ var p = __omni_motion_{motion}(el, {{}}); __omni_animations.set(\"{nid}_{js_event}\", p); p.play(); }} }}); }}",
                                 nid = nid,
@@ -837,9 +837,10 @@ impl OmniViewGenerator {
                 "// @driven-by binding\n\
                  __omni_effect(() => {{\n\
                  \x20 const progress = Math.max(0, Math.min(1, Number({driven})));\n\
-                 \x20 __omni_animations.forEach((player, key) => {{\n\
+                 \x20 __omni_animations.forEach((anim, key) => {{\n\
                  \x20\x20 if (key.startsWith(\"{nid}_\")) {{\n\
-                 \x20\x20\x20 player.seek(progress);\n\
+                 \x20\x20\x20 var dur = (anim.effect && anim.effect.getTiming && anim.effect.getTiming().duration) || 300;\n\
+                 \x20\x20\x20 anim.currentTime = progress * dur;\n\
                  \x20\x20 }}\n\
                  \x20 }});\n\
                  }});\n",
@@ -859,9 +860,9 @@ impl OmniViewGenerator {
                 "// @paused override\n\
                  (function() {{\n\
                  \x20 var _paused = Boolean({paused});\n\
-                 \x20 __omni_animations.forEach((player, key) => {{\n\
+                 \x20 __omni_animations.forEach((anim, key) => {{\n\
                  \x20\x20 if (key.startsWith(\"{nid}_\")) {{\n\
-                 \x20\x20\x20 if (_paused) {{ player.pause(); }} else {{ player.resume(); }}\n\
+                 \x20\x20\x20 if (_paused) {{ anim.pause(); }} else {{ anim.play(); }}\n\
                  \x20\x20 }}\n\
                  \x20 }});\n\
                  }})();\n",

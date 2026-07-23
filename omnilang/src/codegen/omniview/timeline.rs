@@ -19,8 +19,6 @@ impl OmniViewGenerator {
         let mut child_idx: usize = 0;
 
         for (i, item) in timeline.items.iter().enumerate() {
-            let item_label = format!("tl_{}_item_{}", timeline.name, i);
-
             match &item.kind {
                 TimelineItemKindIR::Direction {
                     dir,
@@ -172,45 +170,36 @@ impl OmniViewGenerator {
                     let ci = child_idx;
                     child_idx += 1;
 
+                    let keyframes = match dir {
+                        DirectionIR::To => format!("[{{}}, {{{}}}]", to_props),
+                        DirectionIR::FromTo => {
+                            if from_props.is_empty() {
+                                format!("[{{}}, {{{}}}]", to_props)
+                            } else {
+                                format!("[{{{}}}, {{{}}}]", from_props, to_props)
+                            }
+                        }
+                    };
+
+                    let easing = ease
+                        .as_ref()
+                        .map(|e| self.easing_to_js(e))
+                        .unwrap_or_else(|| "\"easeOut\"".into());
+
+                    let path_extra = if path_config.is_empty() {
+                        String::new()
+                    } else {
+                        format!(", {path}", path = path_config)
+                    };
+
                     self.mount_js.push_str(&format!(
-                        "__timeouts.push(setTimeout(function() {{\n\
-                         \x20 const el = __children[{ci}];\n\
-                         \x20 if (el) {{\n\
-                         \x20\x20 const config = {{\n\
-                         \x20\x20\x20 {from}\
-                         \x20\x20\x20 {to}\
-                         \x20\x20\x20 \"over\": {over},\n\
-                         \x20\x20\x20 \"easing\": {easing}{path_comma}{path}\n\
-                         \x20\x20 }};\n\
-                         \x20\x20 const player = new AnimationPlayer(el, config);\n\
-                         \x20\x20 __omni_animations.set(\"{label}\", player);\n\
-                         \x20\x20 player.play();\n\
-                         \x20 }}\n\
-                         }}, {delay}));\n",
+                        "  steps.push({{ el: children[{ci}], keyframes: {kf}, options: {{ duration: {over}, easing: {easing}{path} }}, at: {delay} }});\n",
                         ci = ci,
-                        from = if from_props.is_empty() {
-                            String::new()
-                        } else {
-                            format!("\"from\": {{{}}},\n", from_props)
-                        },
-                        to = if to_props.is_empty() {
-                            String::new()
-                        } else {
-                            format!("\"to\": {{{}}},\n", to_props)
-                        },
+                        kf = keyframes,
                         over = over_ms,
-                        easing = ease
-                            .as_ref()
-                            .map(|e| self.easing_to_js(e))
-                            .unwrap_or_else(|| "\"easeOut\"".into()),
-                        path_comma = if path_config.is_empty() {
-                            ""
-                        } else {
-                            ",\n\x20\x20\x20\x20"
-                        },
-                        path = path_config,
+                        easing = easing,
+                        path = path_extra,
                         delay = item_delay,
-                        label = item_label,
                     ));
 
                     prev_item_start = item_delay;
@@ -224,10 +213,7 @@ impl OmniViewGenerator {
                     let ci = child_idx;
                     child_idx += 1;
                     self.mount_js.push_str(&format!(
-                        "__timeouts.push(setTimeout(function() {{\n\
-                         \x20 const el = __children[{ci}];\n\
-                         \x20 if (el) el.style.cssText = Object.entries({{{props}}}).map(([k,v]) => k + ':' + v).join(';');\n\
-                         }}, {delay}));\n",
+                        "  steps.push({{ el: children[{ci}], keyframes: [{{{props}}}], options: {{ duration: 0, fill: \"forwards\" }}, at: {delay} }});\n",
                         ci = ci,
                         props = props_str.join(", "),
                         delay = cursor_delay
@@ -236,14 +222,9 @@ impl OmniViewGenerator {
                 }
                 TimelineItemKindIR::MotionRef(motion_name) => {
                     self.mount_js.push_str(&format!(
-                        "__timeouts.push(setTimeout(function() {{\n\
-                         \x20 if (!el) return;\n\
-                         \x20 el.querySelectorAll(\"[data-nid]\").forEach(function(child) {{\n\
-                         \x20\x20 const player = __omni_motion_{motion}(child, {{}});\n\
-                         \x20\x20 __omni_animations.set(child.getAttribute('data-nid') + '_{motion}', player);\n\
-                         \x20\x20 player.play();\n\
-                         \x20 }});\n\
-                         }}, {delay}));\n",
+                        "  children.forEach(function(child) {{\n\
+                         \x20 steps.push({{ el: child, motion: \"{motion}\", at: {delay} }});\n\
+                         \x20 }});\n",
                         motion = motion_name,
                         delay = cursor_delay
                     ));
@@ -277,16 +258,9 @@ impl OmniViewGenerator {
                     };
                     if !motion_name.is_empty() {
                         self.mount_js.push_str(&format!(
-                            "__timeouts.push(setTimeout(function() {{\n\
-                             \x20 if (!el) return;\n\
-                             \x20 el.querySelectorAll(\"[data-nid]\").forEach(function(child, idx) {{\n\
-                             \x20\x20 __timeouts.push(setTimeout(function() {{\n\
-                             \x20\x20\x20 const player = __omni_motion_{motion}(child, {{}});\n\
-                             \x20\x20\x20 __omni_animations.set(child.getAttribute('data-nid') + '_{motion}', player);\n\
-                             \x20\x20\x20 player.play();\n\
-                             \x20\x20 }}, idx * {stagger}));\n\
-                             \x20 }});\n\
-                             }}, {delay}));\n",
+                            "  children.forEach(function(child, idx) {{\n\
+                             \x20 steps.push({{ el: child, motion: \"{motion}\", at: {delay} + idx * {stagger} }});\n\
+                             \x20 }});\n",
                             motion = motion_name,
                             stagger = stagger_delay,
                             delay = cursor_delay
@@ -299,7 +273,7 @@ impl OmniViewGenerator {
                     if let Some(ref expr) = on_enter {
                         let callback_js = self.expr_to_js(expr);
                         self.mount_js.push_str(&format!(
-                            "__timeouts.push(setTimeout(function() {{ {} }}, {}));\n",
+                            "  steps.push({{ call: function() {{ {} }}, at: {} }});\n",
                             callback_js, cursor_delay
                         ));
                     }
@@ -329,19 +303,16 @@ impl OmniViewGenerator {
 
         let timeline_js = self.mount_js.split_off(saved_len);
         self.js.push_str(&format!(
-            "function __omni_motion_{name}(el, config) {{\n\
-             \x20 var __children = el ? Array.from(el.querySelectorAll('[data-nid]')) : [];\n\
-             \x20 var __childIdx = 0;\n\
-             \x20 var __timeouts = [];\n{content}\
+            "function __omni_motion_{name}(el, overrides) {{\n\
+             \x20 if (!el) return {{ kill: function() {{}} }};\n\
+             \x20 var children = Array.from(el.querySelectorAll('[data-nid]'));\n\
+             \x20 var steps = [];\n{content}\
+             \x20 var anims = Omni.timeline(steps);\n\
              \x20 return {{\n\
              \x20\x20 name: \"{name}\",\n\
              \x20\x20 type: \"timeline\",\n\
              \x20\x20 kill: function() {{\n\
-             \x20\x20\x20 __timeouts.forEach(function(t) {{ clearTimeout(t); }});\n\
-             \x20\x20\x20 // Also cancel any running WAAPI animations on children\n\
-             \x20\x20\x20 if (el) el.querySelectorAll('[data-nid]').forEach(function(c) {{\n\
-             \x20\x20\x20\x20 c.getAnimations().forEach(function(a) {{ a.cancel(); }});\n\
-             \x20\x20\x20 }});\n\
+             \x20\x20\x20 anims.forEach(function(a) {{ if (a && a.cancel) a.cancel(); }});\n\
              \x20\x20 }}\n\
              \x20 }};\n\
              }};\n",

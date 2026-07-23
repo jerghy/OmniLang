@@ -268,7 +268,7 @@ impl OmniViewGenerator {
             self.emit_function_named(f, &prefixed_name);
         }
 
-        // Motion definitions — emit JS functions that create AnimationPlayer instances.
+        // Motion definitions — emit JS functions that create WAAPI Animation instances.
         // Each @motion block generates a const __omni_motion_{name} function.
         if !comp.motions.is_empty() {
             let _ = write!(self.js, "\n/// ── Motion Definitions: {} ──\n\n", name);
@@ -410,7 +410,7 @@ impl OmniViewGenerator {
                     " if (el.offsetParent !== null) p.play();".into()
                 };
                 replay_fns.push(format!(
-                    "(function() {{ var el = __omni_el(\"{nid}\"); if (el) {{ var _old = __omni_animations.get(\"{nid}_{kind}\"); if (_old) _old.kill(); var p = __omni_motion_{motion}(el, {{trigger: \"{kind}\"}}); __omni_animations.set(\"{nid}_{kind}\", p);{play} }} }})()",
+                    "(function() {{ var el = __omni_el(\"{nid}\"); if (el) {{ var _old = __omni_animations.get(\"{nid}_{kind}\"); if (_old) _old.cancel(); var p = __omni_motion_{motion}(el, {{trigger: \"{kind}\"}}); __omni_animations.set(\"{nid}_{kind}\", p);{play} }} }})()",
                     nid = nid, motion = motion, kind = trigger_kind, play = play_call
                 ));
             }

@@ -193,19 +193,26 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, wind
                  \x20\x20 if (oldNid === newNid) return;\n\
                  \x20\x20 if (!oldNid) {{ _showNow(newNid); return; }}\n\
                  \x20\x20 // Play @leave on old branch, then show new\n\
-                 \x20\x20 const leavePlayer = __omni_animations.get(oldNid + \"_leave\");\n\
-                 \x20\x20 if (leavePlayer) {{\n\
-                 \x20\x20\x20 leavePlayer.play();\n\
+                 \x20\x20 const leaveAnim = __omni_animations.get(oldNid + \"_leave\");\n\
+                 \x20\x20 if (leaveAnim) {{\n\
+                 \x20\x20\x20 leaveAnim.play();\n\
                  \x20\x20\x20 // Wait for leave animation to complete\n\
-                 \x20\x20\x20 const checkComplete = setInterval(() => {{\n\
-                 \x20\x20\x20\x20 if (leavePlayer.completed || !leavePlayer.playing) {{\n\
-                 \x20\x20\x20\x20\x20 clearInterval(checkComplete);\n\
-                 \x20\x20\x20\x20\x20 _showNow(newNid);\n\
-                 \x20\x20\x20\x20\x20 // Trigger @enter on new branch\n\
-                 \x20\x20\x20\x20\x20 const enterPlayer = __omni_animations.get(newNid + \"_enter\");\n\
-                 \x20\x20\x20\x20\x20 if (enterPlayer && enterPlayer.config?.paused !== false) enterPlayer.play();\n\
-                 \x20\x20\x20\x20 }}\n\
-                 \x20\x20\x20 }}, 16);\n\
+                 \x20\x20\x20 function _onLeaveDone() {{\n\
+                 \x20\x20\x20\x20 _showNow(newNid);\n\
+                 \x20\x20\x20\x20 // Trigger @enter on new branch\n\
+                 \x20\x20\x20\x20 const enterAnim = __omni_animations.get(newNid + \"_enter\");\n\
+                 \x20\x20\x20\x20 if (enterAnim && enterAnim.playState !== \"paused\") enterAnim.play();\n\
+                 \x20\x20\x20 }}\n\
+                 \x20\x20\x20 if (leaveAnim.finished) {{\n\
+                 \x20\x20\x20\x20 leaveAnim.finished.then(_onLeaveDone);\n\
+                 \x20\x20\x20 }} else {{\n\
+                 \x20\x20\x20\x20 const checkComplete = setInterval(() => {{\n\
+                 \x20\x20\x20\x20\x20 if (leaveAnim.playState === \"finished\" || leaveAnim.playState === \"idle\") {{\n\
+                 \x20\x20\x20\x20\x20\x20 clearInterval(checkComplete);\n\
+                 \x20\x20\x20\x20\x20\x20 _onLeaveDone();\n\
+                 \x20\x20\x20\x20\x20 }}\n\
+                 \x20\x20\x20\x20 }}, 16);\n\
+                 \x20\x20\x20 }}\n\
                  \x20\x20 }} else {{\n\
                  \x20\x20\x20 _showNow(newNid);\n\
                  \x20\x20 }}\n\
