@@ -289,6 +289,8 @@ export function FormulaValueInput({ value, onChange, onBlur, variables, placehol
       return (
         <span
           key={tokenKey}
+          role={t.type === "var-ref" ? "button" : undefined}
+          tabIndex={t.type === "var-ref" ? 0 : undefined}
           style={{
             ...ts,
             cursor: t.type === "var-ref" ? "pointer" : "default",
@@ -296,6 +298,7 @@ export function FormulaValueInput({ value, onChange, onBlur, variables, placehol
           }}
           title={t.type === "var-ref" ? `Click to edit` : undefined}
           onClick={() => t.type === "var-ref" && handleTokenClick(t, i)}
+          onKeyDown={(e) => { if (t.type === "var-ref" && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); handleTokenClick(t, i); } }}
         >
           {t.type === "color" && (
             <span style={{
@@ -331,6 +334,7 @@ export function FormulaValueInput({ value, onChange, onBlur, variables, placehol
           onFocus={() => setIsFocused(true)}
           onBlur={handleBlur}
           placeholder={placeholder ?? "输入CSS值，如 16px, var(--primary), #6366f1"}
+          aria-label="CSS value"
           style={{
             flex: 1,
             border: "none",
@@ -378,6 +382,8 @@ export function FormulaValueInput({ value, onChange, onBlur, variables, placehol
           {autocomplete.items.map((v, i) => (
             <div
               key={v.id}
+              role="button"
+              tabIndex={0}
               onMouseDown={(e) => { e.preventDefault(); selectVariable(v.name); }}
               style={{
                 padding: "4px 8px", fontSize: 12, fontFamily: "monospace",

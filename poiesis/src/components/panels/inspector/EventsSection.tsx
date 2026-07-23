@@ -143,6 +143,7 @@ export function EventsSection({ element, handlerItems }: EventsSectionProps) {
         <span>事件</span>
         {availableEvents.length > 0 && (
           <select
+            aria-label="添加事件"
             value=""
             onChange={(e) => {
               if (e.target.value) {
@@ -196,6 +197,7 @@ export function EventsSection({ element, handlerItems }: EventsSectionProps) {
           >
             {/* Event name — also a dropdown to change event type */}
             <select
+              aria-label="Event name"
               value={ev.eventName}
               onChange={(e) => {
                 const newName = e.target.value;

@@ -126,7 +126,7 @@ export function CssStylePanel() {
 
       {/* ── Variables Section ── */}
       <div style={{ ...S.section, maxHeight: "40%", display: "flex", flexDirection: "column" }}>
-        <div style={S.sectionHeader} onClick={() => toggleCollapse("vars")}>
+        <div role="button" tabIndex={0} style={S.sectionHeader} onClick={() => toggleCollapse("vars")} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleCollapse("vars"); } }}>
           <span style={S.sectionTitle}>
             <span style={{ transform: collapsed.has("vars") ? "rotate(-90deg)" : "none", transition: "transform 0.15s", fontSize: 12 }}>▼</span>
             CSS 变量
@@ -155,7 +155,7 @@ export function CssStylePanel() {
 
       {/* ── Classes Section ── */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        <div style={S.sectionHeader} onClick={() => toggleCollapse("classes")}>
+        <div role="button" tabIndex={0} style={S.sectionHeader} onClick={() => toggleCollapse("classes")} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleCollapse("classes"); } }}>
           <span style={S.sectionTitle}>
             <span style={{ transform: collapsed.has("classes") ? "rotate(-90deg)" : "none", transition: "transform 0.15s", fontSize: 12 }}>▼</span>
             CSS Class
@@ -221,6 +221,7 @@ function VariableRow({ variable, componentName }: { variable: CssVariable; compo
         type="text" value={name} onChange={(e) => setName(e.target.value)}
         onBlur={commitName}
         placeholder="--name"
+        aria-label="CSS variable name"
         style={{ width: 110, padding: "2px 4px", fontSize: 12, fontFamily: "monospace", border: "1px solid #E5E7EB", borderRadius: 3, color: "#7C3AED", background: "#FAFAFA" }}
         spellCheck={false}
       />
@@ -294,11 +295,11 @@ function ClassCard({ styleClass, componentName, variables }: {
       background: "#fff", overflow: "hidden",
     }}>
       {/* Card header */}
-      <div style={{
+      <div role="button" tabIndex={0} style={{
         display: "flex", alignItems: "center", gap: 4, padding: "4px 6px",
         background: "#FAFAFA", borderBottom: expanded ? "1px solid #E5E7EB" : "none",
         cursor: "pointer",
-      }} onClick={() => setExpanded(!expanded)}>
+      }} onClick={() => setExpanded(!expanded)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded(!expanded); } }}>
         <span style={{ fontSize: 12, transform: expanded ? "rotate(0deg)" : "rotate(-90deg)", transition: "transform 0.15s" }}>▼</span>
         <span style={{ fontSize: 12, color: "#9CA3AF", fontFamily: "monospace" }}>.</span>
         <input
@@ -306,6 +307,7 @@ function ClassCard({ styleClass, componentName, variables }: {
           onBlur={commitName}
           onClick={(e) => e.stopPropagation()}
           placeholder="class-name"
+          aria-label="Class name"
           style={{
             flex: 1, border: "none", outline: "2px solid transparent", background: "transparent",
             fontSize: 12, fontFamily: "monospace", color: "#374151", fontWeight: 600,
@@ -342,6 +344,7 @@ function ClassCard({ styleClass, componentName, variables }: {
             </div>
             <div style={{ width: 90, flexShrink: 0 }}>
               <select
+                aria-label="Preview tag"
                 value={previewTag}
                 onChange={(e) => setPreviewTag(e.target.value as PreviewTag)}
                 style={{
@@ -374,6 +377,7 @@ function ClassCard({ styleClass, componentName, variables }: {
                 <input
                   type="text" value={propSearch} onChange={(e) => setPropSearch(e.target.value)}
                   placeholder="搜索 CSS 属性..."
+                  aria-label="搜索 CSS 属性"
                   style={{
                     width: "100%", padding: "3px 6px", fontSize: 12, border: "1px solid #6366F1", borderRadius: 3,
                     outline: "2px solid transparent", boxSizing: "border-box",
@@ -388,6 +392,8 @@ function ClassCard({ styleClass, componentName, variables }: {
                   {filteredProps.slice(0, 30).map((p) => (
                     <div
                       key={p}
+                      role="button"
+                      tabIndex={0}
                       onMouseDown={(e) => { e.preventDefault(); addProperty(p); }}
                       style={{
                         padding: "3px 6px", fontSize: 12, fontFamily: "monospace",
@@ -472,6 +478,7 @@ function PropertyRow({ property, classId, componentName, variables }: {
       <div style={{ width: 100, flexShrink: 0 }}>
         {/* Allow editing prop name via click */}
         <select
+          aria-label="Property name"
           value={propName}
           onChange={(e) => { setPropName(e.target.value); commitName(); }}
           onBlur={commitName}
@@ -492,6 +499,7 @@ function PropertyRow({ property, classId, componentName, variables }: {
         {/* If dropdown property, use select */}
         {Array.isArray(dropdownOpts) ? (
           <select
+            aria-label="Property value"
             value={val}
             onChange={(e) => { setVal(e.target.value); }}
             onBlur={commitValue}

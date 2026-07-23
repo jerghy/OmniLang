@@ -412,6 +412,7 @@ function LabelEditor({ value, onChange, onSlashRequest }: LabelEditorProps) {
           onKeyDown={(e) => onTextKeyDown(0, e)}
           onBlur={() => commitText(0)}
           placeholder="输入文本，/ 插入信号"
+          aria-label="Text input"
           style={{
             flex: 1, padding: "3px 6px", fontSize: 12, outline: "2px solid transparent",
             border: "1px solid #e2e8f0", borderRadius: 4,
@@ -424,6 +425,7 @@ function LabelEditor({ value, onChange, onSlashRequest }: LabelEditorProps) {
           return (
             <input
               key={seg.type + "-" + seg.value + "-editing"} ref={editInputRef} type="text"
+              aria-label="Edit segment"
               defaultValue={seg.type === "expr" ? `{${seg.value}}` : seg.value}
               onKeyDown={onEditKeyDown} onBlur={() => handleEditCommit(i)}
               style={{ ...CHIP_BASE, flex: "0 1 auto", minWidth: 60, outline: "2px solid transparent", borderColor: "#6366F1", background: "#fff", color: "#1e293b" }}
@@ -432,7 +434,7 @@ function LabelEditor({ value, onChange, onSlashRequest }: LabelEditorProps) {
         }
         if (seg.type === "expr") {
           return (
-            <span key={seg.type + "-" + seg.value} style={{ ...EXPR_CHIP_STYLE, cursor: "pointer" }} onClick={() => setEditingIdx(i)} title="点击编辑">
+            <span key={seg.type + "-" + seg.value} role="button" tabIndex={0} style={{ ...EXPR_CHIP_STYLE, cursor: "pointer" }} onClick={() => setEditingIdx(i)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setEditingIdx(i); } }} title="点击编辑">
               {`{${seg.value}}`}
               <button type="button" style={{ ...CHIP_DELETE_BTN, color: "#7C3AED" }} onClick={(e) => { e.stopPropagation(); handleDelete(i); }} title="删除">&times;</button>
             </span>
@@ -444,6 +446,7 @@ function LabelEditor({ value, onChange, onSlashRequest }: LabelEditorProps) {
             key={seg.type + "-" + seg.value}
             ref={(el) => { if (el) textInputRefs.current.set(i, el); else textInputRefs.current.delete(i); }}
             type="text"
+            aria-label={`Segment ${i}`}
             defaultValue={seg.value}
             onKeyDown={(e) => onTextKeyDown(i, e)}
             onBlur={() => commitText(i)}
@@ -540,6 +543,7 @@ function PropRow({
       <input
         ref={inputRef}
         type="text"
+        aria-label={label}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={handleKeyDown}

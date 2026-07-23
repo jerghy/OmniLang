@@ -121,6 +121,7 @@ export function ClassesSection({ element }: ClassesSectionProps) {
           onFocus={() => setShowDropdown(true)}
           onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
           placeholder="搜索 class..."
+          aria-label="搜索 class"
           style={{
             width: "100%",
             padding: "3px 6px",
@@ -151,6 +152,8 @@ export function ClassesSection({ element }: ClassesSectionProps) {
             {filteredClasses.map((c) => (
               <div
                 key={c.id}
+                role="button"
+                tabIndex={0}
                 onMouseDown={() => handleAddClass(c.name)}
                 style={{
                   padding: "4px 8px",

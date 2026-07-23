@@ -170,6 +170,7 @@ export function StylesSection({ element }: StylesSectionProps) {
             </label>
             <input
               type="text"
+              aria-label={name}
               value={value}
               onChange={(e) => handleChange(name, e.target.value)}
               placeholder="value"
@@ -212,6 +213,7 @@ export function StylesSection({ element }: StylesSectionProps) {
       {/* Add style controls */}
       <div style={{ marginTop: 6, display: "flex", gap: 4 }}>
         <select
+          aria-label="Add style"
           value={addingStyle}
           onChange={(e) => setAddingStyle(e.target.value)}
           style={{

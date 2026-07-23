@@ -207,6 +207,7 @@ export function ComponentPalette() {
       <input
         type="text"
         placeholder="搜索组件..."
+        aria-label="搜索组件"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         style={{
@@ -238,7 +239,10 @@ export function ComponentPalette() {
             <div key={cat} style={{ marginBottom: 6 }}>
               {/* Category Header */}
               <div
+                role="button"
+                tabIndex={0}
                 onClick={() => toggleCollapse(cat)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleCollapse(cat); } }}
                 style={{
                   fontSize: 12, color: isCustom ? "#4F46E5" : "#9ca3af",
                   marginBottom: 2, textTransform: "uppercase",
@@ -295,7 +299,11 @@ export function ComponentPalette() {
       {showCreateDialog && (
         <>
           <div
+            role="button"
+            tabIndex={0}
+            aria-label="Close create dialog"
             onClick={() => setShowCreateDialog(false)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowCreateDialog(false); } }}
             style={{ position: "fixed", inset: 0, zIndex: 9998, background: "transparent" }}
           />
           <div style={{
@@ -309,6 +317,7 @@ export function ComponentPalette() {
             <input
               id="new-comp-name"
               placeholder="组件名称 (如 MyCard)"
+              aria-label="组件名称"
               style={{
                 width: "100%", padding: "6px 10px", fontSize: 13, border: "1px solid #d1d5db",
                 borderRadius: 6, boxSizing: "border-box", marginBottom: 12,

@@ -330,6 +330,7 @@ function SignalPickerPopover({ items, position, onSelect, onClose }: SignalPicke
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           placeholder="搜索信号..."
+          aria-label="搜索信号"
           style={{
             width: "100%",
             padding: "3px 6px",
@@ -358,8 +359,11 @@ function SignalPickerPopover({ items, position, onSelect, onClose }: SignalPicke
             {catItems.map((item) => (
               <div
                 key={item.pid}
+                role="button"
+                tabIndex={0}
                 style={popoverItemStyle}
                 onClick={() => onSelect(item)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(item); } }}
                 onMouseEnter={(e) => {
                   (e.target as HTMLElement).style.background = "#eef2ff";
                 }}

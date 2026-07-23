@@ -79,7 +79,10 @@ export function InlineConditionEditor({
   const hasContent = value.length > 0;
   return (
     <span
+      role="button"
+      tabIndex={0}
       onClick={() => { setDraft(value); setEditing(true); }}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setDraft(value); setEditing(true); } }}
       title="Click to edit"
       style={{
         ...S.idle,

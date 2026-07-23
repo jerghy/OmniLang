@@ -254,6 +254,9 @@ export function ColorPicker({ color: initialColor, onChange, onClose, anchorRect
       {/* Saturation / Value plane */}
       <div
         ref={svElRef}
+        role="slider"
+        tabIndex={0}
+        aria-label="Color saturation and brightness"
         onMouseDown={(e) => {
           dragRef.current = "sv";
           // Also apply the click position immediately
@@ -295,6 +298,9 @@ export function ColorPicker({ color: initialColor, onChange, onClose, anchorRect
       {/* Hue strip (horizontal) */}
       <div
         ref={hueElRef}
+        role="slider"
+        tabIndex={0}
+        aria-label="Hue"
         onMouseDown={(e) => {
           dragRef.current = "hue";
           const rect = hueElRef.current!.getBoundingClientRect();
@@ -344,6 +350,7 @@ export function ColorPicker({ color: initialColor, onChange, onClose, anchorRect
           }}
         />
         <input
+          aria-label="Hex color"
           value={hexInput}
           onChange={(e) => handleHexChange(e.target.value)}
           onBlur={handleHexBlur}

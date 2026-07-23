@@ -134,8 +134,12 @@ export function ComponentTree({ treeDropState }: ComponentTreeProps) {
       {contextMenu && (
         <>
           <div
+            role="button"
+            tabIndex={0}
+            aria-label="Close context menu"
             style={{ position: "fixed", inset: 0, zIndex: 9998 }}
             onClick={closeMenu}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); closeMenu(); } }}
             onContextMenu={(e) => {
               e.preventDefault();
               closeMenu();
@@ -346,12 +350,15 @@ function ContextMenu({
           >
             {/* 条件块 — 特殊子组件类型 */}
             <div
+              role="button"
+              tabIndex={0}
               className={styles.subMenuItem}
               style={{ ...ST.itemBase, whiteSpace: "nowrap" }}
               onClick={() => {
                 usePoiesisStore.getState().addConditionalBlock(elementId);
                 onClose();
               }}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); usePoiesisStore.getState().addConditionalBlock(elementId); onClose(); } }}
             >
               <span>
                 <span style={{ marginRight: 4, fontSize: 12 }}>🔀</span>
@@ -381,9 +388,12 @@ function ContextMenu({
                     {items.map((comp) => (
                       <div
                         key={comp.component}
+                        role="button"
+                        tabIndex={0}
                         className={styles.subMenuItem}
                         style={{ ...ST.itemBase, whiteSpace: "nowrap" }}
                         onClick={() => handleAddChild(elementId, comp.component)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleAddChild(elementId, comp.component); } }}
                       >
                         <span>
                           <span style={{ marginRight: 4, fontSize: 12 }}>
@@ -481,7 +491,10 @@ function MenuRow({
 }) {
   return (
     <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
       className={styles.menuRow}
       style={{
         padding: "6px 16px",

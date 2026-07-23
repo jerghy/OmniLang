@@ -43,7 +43,11 @@ export function FunctionPicker({
     <>
       {/* Backdrop */}
       <div
+        role="button"
+        tabIndex={0}
+        aria-label="Close function picker"
         onClick={onClose}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClose(); } }}
         style={{
           position: "fixed",
           inset: 0,
@@ -76,6 +80,7 @@ export function FunctionPicker({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="搜索函数/Action..."
+            aria-label="搜索函数"
             style={{
               width: "100%",
               padding: "6px 10px",

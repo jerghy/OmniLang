@@ -72,10 +72,13 @@ export const TreeNodeView = React.memo(function TreeNodeView({
       <div>
         {dropBefore && <DropLine depth={depth} />}
         <div
+          role="treeitem"
+          tabIndex={0}
           ref={setRefs}
           {...listeners}
           {...attributes}
           onClick={(e) => onSelect(node.id, e.ctrlKey || e.metaKey)}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(node.id, e.ctrlKey || e.metaKey); } }}
           onContextMenu={(e) => onContextMenu(e, node.id)}
           style={{
             paddingLeft: depth * 16 + 4,
@@ -95,7 +98,10 @@ export const TreeNodeView = React.memo(function TreeNodeView({
         >
           {hasChildren ? (
             <span
+              role="button"
+              tabIndex={0}
               onClick={(e) => { e.stopPropagation(); onToggle(node.id); }}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); e.preventDefault(); onToggle(node.id); } }}
               style={{
                 fontSize: 8, width: 12, cursor: "pointer",
                 transition: "transform 0.15s",
@@ -144,10 +150,13 @@ export const TreeNodeView = React.memo(function TreeNodeView({
       {dropBefore && <DropLine depth={depth} />}
 
       <div
+        role="treeitem"
+        tabIndex={0}
         ref={setRefs}
         {...listeners}
         {...attributes}
         onClick={(e) => onSelect(node.id, e.ctrlKey || e.metaKey)}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(node.id, e.ctrlKey || e.metaKey); } }}
         onContextMenu={(e) => onContextMenu(e, node.id)}
         style={{
           paddingLeft: depth * 16 + 4,
@@ -171,10 +180,13 @@ export const TreeNodeView = React.memo(function TreeNodeView({
         {/* Expand/collapse toggle */}
         {hasChildren ? (
           <span
+            role="button"
+            tabIndex={0}
             onClick={(e) => {
               e.stopPropagation();
               onToggle(node.id);
             }}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); e.preventDefault(); onToggle(node.id); } }}
             style={{
               fontSize: 8,
               width: 12,

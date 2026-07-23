@@ -209,6 +209,7 @@ export function TypographyBasics({ properties, onChange }: TypographyBasicsProps
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={labelStyle}>字重</span>
           <select
+            aria-label="Font weight"
             value={fontWeightRaw || "400"}
             onChange={handleWeightChange}
             style={selectStyle}
