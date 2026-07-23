@@ -186,7 +186,7 @@ export function HandlerModal({
               background: "none",
               cursor: "pointer",
               fontSize: 18,
-              color: "#94a3b8",
+              color: "#64748b",
               padding: "4px 8px",
             }}
           >
@@ -254,7 +254,7 @@ export function HandlerModal({
                     <span>
                       {selectedFn ? selectedFn.displayName : "选择函数或 Action..."}
                     </span>
-                    <span style={{ color: "#94a3b8" }}>▼</span>
+                    <span style={{ color: "#64748b" }}>▼</span>
                   </button>
                   {pickerOpen && (
                     <FunctionPicker

@@ -142,7 +142,7 @@ export function ConditionNode({ data }: Props) {
               onClick={() => handleAddBranch("elif")}
               style={{
                 fontSize: 12, padding: "2px 6px", border: "1px solid #D97706",
-                borderRadius: 3, background: "#FFF", color: "#D97706", cursor: "pointer",
+                borderRadius: 3, background: "#FFF", color: "#B45309", cursor: "pointer",
               }}
             >
               + elif

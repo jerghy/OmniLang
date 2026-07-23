@@ -111,8 +111,8 @@ function MenuItem({
   children: React.ReactNode;
 }) {
   return (
-    <div
-      role="button"
+    <button
+      type="button"
       tabIndex={0}
       onClick={onClick}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
@@ -122,10 +122,15 @@ function MenuItem({
         fontSize: 13,
         cursor: "pointer",
         color: "#374151",
+        background: "none",
+        border: "none",
+        width: "100%",
+        textAlign: "left",
+        fontFamily: "inherit",
       }}
     >
       {children}
-    </div>
+    </button>
   );
 }
 

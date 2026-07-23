@@ -511,7 +511,7 @@ export function DesignTabBar() {
                   background: "none",
                   cursor: "pointer",
                   fontSize: 14,
-                  color: "#94a3b8",
+                  color: "#64748b",
                   padding: "0 2px",
                   lineHeight: 1,
                 }}
@@ -529,7 +529,7 @@ export function DesignTabBar() {
               alignItems: "center",
               padding: "0 12px",
               fontSize: 12,
-              color: "#94a3b8",
+              color: "#64748b",
             }}
           >
             没有打开的 .omni 文件

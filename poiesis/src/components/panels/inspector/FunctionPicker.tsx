@@ -130,7 +130,7 @@ export function FunctionPicker({
                 padding: 16,
                 textAlign: "center",
                 fontSize: 12,
-                color: "#94a3b8",
+                color: "#64748b",
               }}
             >
               无匹配结果
@@ -149,7 +149,7 @@ function GroupLabel({ children }: { children: React.ReactNode }) {
         padding: "4px 12px",
         fontSize: 12,
         fontWeight: 600,
-        color: "#94a3b8",
+        color: "#64748b",
         textTransform: "uppercase",
         background: "#f8fafc",
         borderTop: "1px solid #f1f5f9",
