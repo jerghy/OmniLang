@@ -2,7 +2,212 @@ import React, { useState, useCallback, useRef, useEffect } from "react";
 import { usePoiesisStore } from "../../store";
 import { useCanvasStore } from "../canvas/canvas-store";
 import type { DefEntry, ComputedEntry } from "../../core/types/project-json";
-import "./ComponentDefPanel.css";
+
+// ── OmniLang common types for dropdown ──
+const OMNI_TYPES = [
+  "String", "i32", "i64", "f64", "f32",
+  "bool", "Array<String>", "Array<i32>", "Array<f64>",
+  "Map<String, String>",
+];
+
+// ── Styles using --ol-* tokens to match Poiesis visual language ──
+//     Matches StoreMembersPanel for visual consistency.
+
+const S = {
+  panel: {
+    position: "absolute" as const,
+    width: 260,
+    background: "var(--ol-surface)",
+    border: "1px solid var(--ol-border)",
+    borderRadius: "var(--ol-radius-lg)",
+    boxShadow: "0 4px 16px rgba(0, 0, 0, 0.08)",
+    fontSize: "var(--ol-font-size-12)",
+    zIndex: 10,
+    userSelect: "none" as const,
+    overflow: "hidden",
+  },
+
+  panelHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "8px 12px",
+    background: "var(--ol-gray-50)",
+    borderBottom: "1px solid var(--ol-border)",
+    cursor: "grab",
+    fontWeight: "var(--ol-font-weight-600)",
+    fontSize: "var(--ol-font-size-12)",
+    color: "var(--ol-text)",
+  } as React.CSSProperties,
+
+  panelHeaderTitle: {
+    display: "flex",
+    alignItems: "center",
+    gap: "var(--ol-space-1p5)",
+  } as React.CSSProperties,
+
+  collapseBtn: {
+    background: "none",
+    border: "none",
+    cursor: "pointer",
+    color: "var(--ol-text-secondary)",
+    fontSize: "var(--ol-font-size-14)",
+    padding: "0 2px",
+    lineHeight: 1,
+  } as React.CSSProperties,
+
+  panelBody: {
+    maxHeight: 400,
+    overflowY: "auto" as const,
+    padding: 0,
+  } as React.CSSProperties,
+
+  section: {
+    borderBottom: "1px solid var(--ol-border-subtle)",
+  } as React.CSSProperties,
+
+  sectionHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "8px 12px",
+    fontWeight: "var(--ol-font-weight-600)",
+    fontSize: "var(--ol-font-size-11)",
+    color: "var(--ol-text-secondary)",
+    textTransform: "uppercase",
+    letterSpacing: "0.05em",
+  } as React.CSSProperties,
+
+  addBtn: {
+    padding: "1px 7px",
+    fontSize: "var(--ol-font-size-11)",
+    fontWeight: "var(--ol-font-weight-600)",
+    border: "1px solid var(--ol-border)",
+    borderRadius: "var(--ol-radius-sm)",
+    background: "var(--ol-surface)",
+    color: "var(--ol-text-secondary)",
+    cursor: "pointer",
+    lineHeight: "18px",
+  } as React.CSSProperties,
+
+  entryRow: {
+    display: "flex",
+    alignItems: "center",
+    padding: "5px 12px",
+    gap: "var(--ol-space-1p5)",
+    fontSize: "var(--ol-font-size-12)",
+    color: "var(--ol-text)",
+    borderTop: "1px solid var(--ol-border-subtle)",
+  } as React.CSSProperties,
+
+  entryName: {
+    fontWeight: "var(--ol-font-weight-600)",
+    color: "var(--ol-text)",
+    flexShrink: 0,
+  } as React.CSSProperties,
+
+  entrySep: {
+    color: "var(--ol-text-muted)",
+    fontSize: "var(--ol-font-size-11)",
+  } as React.CSSProperties,
+
+  entryType: {
+    color: "var(--ol-text-secondary)",
+    fontSize: "var(--ol-font-size-11)",
+    flexShrink: 0,
+  } as React.CSSProperties,
+
+  entryDefault: {
+    color: "var(--ol-text-muted)",
+    fontSize: "var(--ol-font-size-11)",
+    flex: 1,
+    minWidth: 0,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap" as const,
+  } as React.CSSProperties,
+
+  deleteBtn: {
+    background: "none",
+    border: "none",
+    color: "var(--ol-text-muted)",
+    cursor: "pointer",
+    fontSize: "var(--ol-font-size-13)",
+    padding: "0 2px",
+    lineHeight: 1,
+    flexShrink: 0,
+  } as React.CSSProperties,
+
+  input: {
+    border: "1px solid var(--ol-border)",
+    borderRadius: "var(--ol-radius-sm)",
+    padding: "2px 6px",
+    fontSize: "var(--ol-font-size-12)",
+    fontFamily: "var(--ol-font-family-mono)",
+    background: "var(--ol-surface)",
+    color: "var(--ol-text)",
+    outline: "2px solid transparent",
+  } as React.CSSProperties,
+
+  emptyState: {
+    padding: "10px 12px",
+    color: "var(--ol-text-muted)",
+    fontSize: "var(--ol-font-size-12)",
+    fontStyle: "italic",
+  } as React.CSSProperties,
+
+  // Debug mode
+  debugToggle: (active: boolean): React.CSSProperties => ({
+    background: active ? "var(--ol-color-primary)" : "none",
+    color: active ? "var(--ol-text-inverse)" : "var(--ol-text-secondary)",
+    border: active ? "1px solid var(--ol-color-primary)" : "1px solid var(--ol-border)",
+    borderRadius: "var(--ol-radius-sm)",
+    cursor: "pointer",
+    fontSize: "var(--ol-font-size-11)",
+    padding: "1px 6px",
+    lineHeight: 1.4,
+  }),
+
+  debugValueInput: {
+    width: 70,
+    fontSize: "var(--ol-font-size-11)",
+    border: "1px solid var(--ol-color-primary)",
+    borderRadius: "var(--ol-radius-sm)",
+    padding: "1px 4px",
+    outline: "none",
+    background: "var(--ol-color-primary-subtle)",
+    color: "var(--ol-color-primary-active)",
+    flex: 1,
+    minWidth: 0,
+  } as React.CSSProperties,
+
+  // Add form
+  addForm: {
+    display: "flex",
+    gap: "var(--ol-space-1)",
+    padding: "4px 12px",
+    alignItems: "center",
+    borderTop: "1px solid var(--ol-border-subtle)",
+  } as React.CSSProperties,
+
+  addFormConfirm: {
+    background: "var(--ol-color-primary)",
+    color: "var(--ol-text-inverse)",
+    border: "none",
+    borderRadius: "var(--ol-radius-sm)",
+    padding: "2px 6px",
+    fontSize: "var(--ol-font-size-11)",
+    cursor: "pointer",
+  } as React.CSSProperties,
+
+  addFormCancel: {
+    background: "none",
+    border: "none",
+    color: "var(--ol-text-muted)",
+    fontSize: "var(--ol-font-size-11)",
+    cursor: "pointer",
+  } as React.CSSProperties,
+};
 
 /** Generate a simple PID (unique within component) */
 function generatePid(): string {
@@ -151,8 +356,8 @@ export function ComponentDefPanel() {
 
   return (
     <div
-      className="component-def-panel"
       style={{
+        ...S.panel,
         left: panelPosition.x,
         top: panelPosition.y,
       }}
@@ -160,17 +365,16 @@ export function ComponentDefPanel() {
     >
       {/* Header */}
       <div
-        className="panel-header"
+        style={S.panelHeader}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
       >
-        <span className="panel-header-title">{componentName}</span>
+        <span style={S.panelHeaderTitle}>{componentName}</span>
         <button type="button"
-          className={`debug-toggle-btn${debugMode ? " active" : ""}`}
+          style={S.debugToggle(debugMode)}
           onClick={() => {
             if (debugMode) {
-              // Clear debug values when turning off debug mode
               for (const sig of signals) {
                 setDebugSignalValue(componentName, sig.name, undefined);
               }
@@ -181,20 +385,18 @@ export function ComponentDefPanel() {
         >
           {debugMode ? "🔧 ON" : "🔧"}
         </button>
-        <button type="button" className="panel-collapse-btn" onClick={toggleCollapsed}>
+        <button type="button" style={S.collapseBtn} onClick={toggleCollapsed}>
           {isCollapsed ? "□" : "－"}
         </button>
       </div>
 
       {!isCollapsed && (
-        <div className="panel-body">
+        <div style={S.panelBody}>
           <DefSection
             title="Props" sectionKind="prop"
             entries={props} isAdding={isAdding === "prop"}
             onAddToggle={() => setIsAdding(isAdding === "prop" ? null : "prop")}
             onAdd={handleAdd} onCancelAdd={() => setIsAdding(null)}
-            editingPid={editingPid} onDoubleClick={handleDoubleClick}
-            onEditSave={handleEditSave} onDelete={handleDelete}
             renderRow={renderPropsRow}
             emptyText="No props defined"
           />
@@ -204,8 +406,6 @@ export function ComponentDefPanel() {
             entries={signals} isAdding={isAdding === "signal"}
             onAddToggle={() => setIsAdding(isAdding === "signal" ? null : "signal")}
             onAdd={handleAdd} onCancelAdd={() => setIsAdding(null)}
-            editingPid={editingPid} onDoubleClick={handleDoubleClick}
-            onEditSave={handleEditSave} onDelete={handleDelete}
             renderRow={renderSignalsRow}
             emptyText="No signals defined"
           />
@@ -215,8 +415,6 @@ export function ComponentDefPanel() {
             entries={computeds} isAdding={isAdding === "computed"}
             onAddToggle={() => setIsAdding(isAdding === "computed" ? null : "computed")}
             onAdd={handleAdd} onCancelAdd={() => setIsAdding(null)}
-            editingPid={editingPid} onDoubleClick={handleDoubleClick}
-            onEditSave={handleEditSave} onDelete={handleDelete}
             renderRow={renderComputedsRow}
             emptyText="No computeds defined"
           />
@@ -241,30 +439,35 @@ interface DefEntryRowProps {
 }
 
 function DefEntryRow({ entry, kind, isEditing, onDoubleClick, onEditSave, onDelete, debugMode, debugValue, onDebugValueChange }: DefEntryRowProps) {
+  const showDebugInput = kind === "signal" && debugMode;
+
   if (isEditing) {
     return (
-      <div className="entry-row">
+      <div style={S.entryRow}>
         <input
           aria-label="Entry name"
-          className="entry-name-input"
+          style={{ ...S.input, width: 72, fontWeight: "var(--ol-font-weight-600)" }}
           defaultValue={entry.name}
           onBlur={(e) => onEditSave("name", e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") onEditSave("name", e.currentTarget.value); }}
         />
-        <span>:</span>
-        <input
+        <span style={S.entrySep}>:</span>
+        <select
           aria-label="Entry type"
-          className="entry-type-input"
+          style={{ ...S.input, width: 128, cursor: "pointer" }}
           defaultValue={entry.type}
           onBlur={(e) => onEditSave("type", e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") onEditSave("type", e.currentTarget.value); }}
-        />
+          onChange={(e) => onEditSave("type", e.target.value)}
+        >
+          {OMNI_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+          {!OMNI_TYPES.includes(entry.type) && <option value={entry.type}>{entry.type}</option>}
+        </select>
         {kind === "signal" && (
           <>
-            <span>=</span>
+            <span style={S.entrySep}>=</span>
             <input
               aria-label="Default value"
-              className="entry-default-input"
+              style={{ ...S.input, flex: 1 }}
               defaultValue={String(entry.defaultValue ?? "")}
               placeholder="Default"
               onBlur={(e) => onEditSave("defaultValue", e.target.value)}
@@ -272,31 +475,29 @@ function DefEntryRow({ entry, kind, isEditing, onDoubleClick, onEditSave, onDele
             />
           </>
         )}
+        <button type="button" style={S.deleteBtn} onClick={onDelete}>×</button>
       </div>
     );
   }
 
-  // Display mode — show debug input for signals when debugMode is on
-  const showDebugInput = kind === "signal" && debugMode;
-
   return (
-    <div className={`entry-row${showDebugInput ? " debug-row" : ""}`} onDoubleClick={onDoubleClick}>
-      <span className="entry-name">{entry.name}</span>
-      <span>:</span>
-      <span className="entry-type">{entry.type}</span>
-      <span>=</span>
+    <div style={S.entryRow} onDoubleClick={onDoubleClick}>
+      <span style={S.entryName}>{entry.name}</span>
+      <span style={S.entrySep}>:</span>
+      <span style={S.entryType}>{entry.type}</span>
+      <span style={S.entrySep}>=</span>
       {showDebugInput ? (
         <input
-          className="debug-value-input"
+          style={S.debugValueInput}
           value={debugValue ?? ""}
           placeholder={String(entry.defaultValue ?? "")}
           onChange={(e) => onDebugValueChange?.(e.target.value)}
           onClick={(e) => e.stopPropagation()}
         />
       ) : (
-        <span className="entry-default">{String(entry.defaultValue ?? "")}</span>
+        <span style={S.entryDefault}>{String(entry.defaultValue ?? "")}</span>
       )}
-      <button type="button" className="entry-delete-btn" onClick={onDelete}>{String.fromCharCode(0x2715)}</button>
+      <button type="button" style={S.deleteBtn} onClick={onDelete}>×</button>
     </div>
   );
 }
@@ -312,32 +513,36 @@ interface ComputedEntryRowProps {
 function ComputedEntryRow({ entry, isEditing, onDoubleClick, onEditSave, onDelete }: ComputedEntryRowProps) {
   if (isEditing) {
     return (
-      <div className="entry-row">
+      <div style={S.entryRow}>
         <input
           aria-label="Computed name"
-          className="entry-name-input"
+          style={{ ...S.input, width: 72, fontWeight: "var(--ol-font-weight-600)" }}
           defaultValue={entry.name}
           onBlur={(e) => onEditSave("name", e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") onEditSave("name", e.currentTarget.value); }}
         />
-        <span>:</span>
-        <input
+        <span style={S.entrySep}>:</span>
+        <select
           aria-label="Computed return type"
-          className="entry-type-input"
+          style={{ ...S.input, width: 128, cursor: "pointer" }}
           defaultValue={entry.returnType}
           onBlur={(e) => onEditSave("returnType", e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") onEditSave("returnType", e.currentTarget.value); }}
-        />
+          onChange={(e) => onEditSave("returnType", e.target.value)}
+        >
+          {OMNI_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+          {!OMNI_TYPES.includes(entry.returnType) && <option value={entry.returnType}>{entry.returnType}</option>}
+        </select>
+        <button type="button" style={S.deleteBtn} onClick={onDelete}>×</button>
       </div>
     );
   }
 
   return (
-    <div className="entry-row" onDoubleClick={onDoubleClick}>
-      <span className="entry-name">{entry.name}</span>
-      <span>:</span>
-      <span className="entry-type">{entry.returnType}</span>
-      <button type="button" className="entry-delete-btn" onClick={onDelete}>{String.fromCharCode(0x2715)}</button>
+    <div style={S.entryRow} onDoubleClick={onDoubleClick}>
+      <span style={S.entryName}>{entry.name}</span>
+      <span style={S.entrySep}>:</span>
+      <span style={S.entryType}>{entry.returnType}</span>
+      <button type="button" style={S.deleteBtn} onClick={onDelete}>×</button>
     </div>
   );
 }
@@ -352,30 +557,25 @@ interface DefSectionProps {
   onAddToggle: () => void;
   onAdd: (kind: "prop" | "signal" | "computed", name: string, type: string, extra?: string) => void;
   onCancelAdd: () => void;
-  editingPid: string | null;
-  onDoubleClick: (pid: string) => void;
-  onEditSave: (kind: "prop" | "signal" | "computed", pid: string, field: string, value: string) => void;
-  onDelete: (kind: "prop" | "signal" | "computed", pid: string) => void;
   renderRow: (entry: DefEntry | ComputedEntry) => React.ReactNode;
   emptyText: string;
 }
 
 const DefSection = React.memo(function DefSection({
   title, sectionKind, entries, isAdding, onAddToggle,
-  onAdd, onCancelAdd, editingPid, onDoubleClick,
-  onEditSave, onDelete, renderRow, emptyText,
+  onAdd, onCancelAdd, renderRow, emptyText,
 }: DefSectionProps) {
   return (
-    <div className="panel-section">
-      <div className="section-header">
+    <div style={S.section}>
+      <div style={S.sectionHeader}>
         <span>{title}</span>
-        <button type="button" className="section-add-btn" onClick={onAddToggle}>+</button>
+        <button type="button" style={S.addBtn} onClick={onAddToggle}>+</button>
       </div>
       {isAdding && (
         <AddForm kind={sectionKind} onAdd={onAdd} onCancel={onCancelAdd} />
       )}
       {entries.length === 0 && !isAdding && (
-        <div className="empty-state">{emptyText}</div>
+        <div style={S.emptyState}>{emptyText}</div>
       )}
       {entries.map((entry) => renderRow(entry))}
     </div>
@@ -412,24 +612,27 @@ function AddForm({ kind, onAdd, onCancel }: AddFormProps) {
   };
 
   return (
-    <div className="add-form" onKeyDown={handleKeyDown}>
-      <input ref={nameRef} placeholder="Name" aria-label="Add name" className="entry-name-input" />
-      <span>:</span>
-      <input ref={typeRef} placeholder="Type" aria-label="Add type" className="entry-type-input" defaultValue="String" />
+    <div style={S.addForm} onKeyDown={handleKeyDown}>
+      <input ref={nameRef} placeholder="Name" aria-label="Add name" style={{ ...S.input, width: 72, fontWeight: "var(--ol-font-weight-600)" }} />
+      <span style={S.entrySep}>:</span>
+      <select ref={typeRef as React.RefObject<HTMLSelectElement>} defaultValue="String" aria-label="Add type"
+        style={{ ...S.input, width: 96, cursor: "pointer" }}>
+        {OMNI_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+      </select>
       {kind === "signal" && (
         <>
-          <span>=</span>
-          <input ref={extraRef} placeholder="Default" aria-label="Default value" className="entry-default-input" />
+          <span style={S.entrySep}>=</span>
+          <input ref={extraRef} placeholder="Default" aria-label="Default value" style={{ ...S.input, flex: 1 }} />
         </>
       )}
       {kind === "computed" && (
         <>
-          <span>=</span>
-          <input ref={extraRef} placeholder="Expression" aria-label="Expression" className="entry-default-input" />
+          <span style={S.entrySep}>=</span>
+          <input ref={extraRef} placeholder="Expression" aria-label="Expression" style={{ ...S.input, flex: 1 }} />
         </>
       )}
-      <button type="button" className="add-form-confirm" onClick={handleConfirm}>{String.fromCharCode(0x2713)}</button>
-      <button type="button" className="add-form-cancel" onClick={onCancel}>{String.fromCharCode(0x2715)}</button>
+      <button type="button" style={S.addFormConfirm} onClick={handleConfirm}>✓</button>
+      <button type="button" style={S.addFormCancel} onClick={onCancel}>✕</button>
     </div>
   );
 }

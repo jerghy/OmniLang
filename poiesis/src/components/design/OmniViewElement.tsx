@@ -72,7 +72,7 @@ export const OmniViewElement = React.memo(function OmniViewElement({
 
   const style: React.CSSProperties = {
     display: isCustomComponent ? "block" : undefined,
-    outline: showOutline ? "2px solid #7C3AED" : "none",
+    outline: showOutline ? "2px solid var(--ol-color-primary)" : "none",
     outlineOffset: "-2px",
     cursor: isTextNode ? undefined : "pointer",
     ...inlineCss,
@@ -83,7 +83,8 @@ export const OmniViewElement = React.memo(function OmniViewElement({
     ? {}
     : {
         onClick: (e: React.MouseEvent) => {
-          _lastClickPos = { x: e.clientX, y: e.clientY };
+          _lastClickPos.x = e.clientX;
+          _lastClickPos.y = e.clientY;
           e.stopPropagation();
           onSelect(effectiveNid);
         },

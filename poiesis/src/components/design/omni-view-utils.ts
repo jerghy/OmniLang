@@ -3,4 +3,4 @@
 
 /** Module-level: last click position (clientX, clientY), captured by click handlers.
  *  Read by OmniViewRenderer to center the code-flow shrink animation on the click point. */
-export let _lastClickPos = { x: 0, y: 0 };
+export const _lastClickPos = { x: 0, y: 0 };
