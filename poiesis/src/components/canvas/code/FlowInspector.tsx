@@ -188,7 +188,7 @@ function FnInspector({ el, setProp }: FnInspectorProps) {
       {/* Name */}
       <div style={S.field}>
         <div style={S.label}>Name</div>
-        <input style={S.input} value={fnName}
+        <input aria-label="Function name" style={S.input} value={fnName}
           onChange={(e) => handleNameChange(e.target.value)} />
       </div>
 
@@ -201,6 +201,7 @@ function FnInspector({ el, setProp }: FnInspectorProps) {
         {parsedParams.map((p, i) => (
           <div key={p.name + "-" + p.type} style={{ display: "flex", gap: 4, marginBottom: 4, alignItems: "center" }}>
             <input
+              aria-label="Parameter name"
               style={{ ...S.input, width: 72 }}
               value={p.name}
               placeholder="name"
@@ -208,6 +209,7 @@ function FnInspector({ el, setProp }: FnInspectorProps) {
             />
             <span style={{ color: "var(--ol-text-muted)", fontSize: 12 }}>:</span>
             <select
+              aria-label="Parameter type"
               style={{ ...S.select, flex: 1 }}
               value={p.type}
               onChange={(e) => handleParamChange(i, "type", e.target.value)}
@@ -249,6 +251,7 @@ function ReturnInspector({ el, setElementSource }: ReturnInspectorProps) {
           style={S.input}
           value={source}
           placeholder="e.g. items.len()"
+          aria-label="Expression"
           onChange={(e) => setElementSource(el.id, e.target.value)}
         />
       </div>

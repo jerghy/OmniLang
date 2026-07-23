@@ -326,6 +326,7 @@ export function TokenEditor() {
               <div
                 role="button"
                 tabIndex={0}
+                aria-label={`Color swatch for ${t.name}`}
                 onClick={(e) => handleOpenColorPicker(t.id, e)}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleOpenColorPicker(t.id, e as unknown as React.MouseEvent); } }}
                 style={{

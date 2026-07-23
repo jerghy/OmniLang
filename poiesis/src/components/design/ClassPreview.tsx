@@ -330,6 +330,7 @@ export const ClassPreview = React.memo(function ClassPreview({
       >
         Preview
         <select
+          aria-label="Preview element"
           value={elementIdx}
           onChange={(e) => setElementIdx(Number(e.target.value))}
           style={{
@@ -404,6 +405,9 @@ export const ClassPreview = React.memo(function ClassPreview({
               return (
                 <div
                   key={dir}
+                  role="separator"
+                  tabIndex={0}
+                  aria-label={`Resize ${dir}`}
                   style={{
                     position: "absolute",
                     width: HANDLE_HIT,

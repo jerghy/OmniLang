@@ -562,7 +562,10 @@ export function ClassEditor() {
         {classes.map((cls) => (
           <div
             key={cls.id}
+            role="button"
+            tabIndex={0}
             onClick={() => handleSelectClass(cls.id)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSelectClass(cls.id); } }}
             style={cls.id === selectedClassId ? CLASS_ITEM_ACTIVE : CLASS_ITEM_BASE}
           >
             <span
@@ -914,6 +917,7 @@ const renderTokenPicker = () => {
             }}
           >
             <input
+              aria-label="Search properties"
               value={addPropSearch}
               onChange={(e) => setAddPropSearch(e.target.value)}
               placeholder="Search properties..."
@@ -1056,6 +1060,7 @@ const renderTokenPicker = () => {
             >
               {editingClassName === selectedClass.id ? (
                 <input
+                  aria-label="Class name"
                   defaultValue={selectedClass.name}
                   onBlur={(e) => handleClassNameDone(selectedClass.id, e.target.value)}
                   onKeyDown={(e) => {
@@ -1188,6 +1193,7 @@ const renderTokenPicker = () => {
                               onChange={(e) => handleSinglePropChange(name, e.target.value)}
                               style={INPUT_STYLE}
                               placeholder="value"
+                              aria-label={label}
                             />
                           </PropertyRow>
                         );
@@ -1236,6 +1242,7 @@ const renderTokenPicker = () => {
                               onChange={(e) => handleSinglePropChange(name, e.target.value)}
                               style={INPUT_STYLE}
                               placeholder="value"
+                              aria-label={label}
                             />
                           </PropertyRow>
                         );

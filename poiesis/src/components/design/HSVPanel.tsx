@@ -212,6 +212,9 @@ export function HSVPanel({
     >
       {/* SV Plane */}
       <div
+        role="button"
+        tabIndex={0}
+        aria-label="Color saturation and brightness"
         onMouseDown={onSvMouseDown}
         style={
           {
@@ -247,6 +250,9 @@ export function HSVPanel({
 
       {/* Hue Strip */}
       <div
+        role="button"
+        tabIndex={0}
+        aria-label="Hue"
         onMouseDown={onHueMouseDown}
         style={
           {
@@ -281,6 +287,9 @@ export function HSVPanel({
       {/* Opacity Strip */}
       {showAlpha && (
         <div
+          role="button"
+          tabIndex={0}
+          aria-label="Opacity"
           onMouseDown={onAlphaMouseDown}
           style={
             {
@@ -341,6 +350,7 @@ export function HSVPanel({
             }
           />
           <input
+            aria-label="Hex color"
             value={hexInput}
             onChange={(e) => setHexInput(e.target.value)}
             onBlur={handleHexSubmit}

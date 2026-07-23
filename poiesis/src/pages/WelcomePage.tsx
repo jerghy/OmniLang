@@ -170,6 +170,7 @@ export function WelcomePage({ onProjectOpened }: WelcomePageProps) {
               style={styles.dialogInput}
               type="text"
               placeholder="例如：my-omnilang-app"
+              aria-label="项目名称"
               value={newProjectName}
               onChange={(e) => {
                 setNewProjectName(e.target.value);

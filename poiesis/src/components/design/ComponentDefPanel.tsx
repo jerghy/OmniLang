@@ -239,6 +239,7 @@ function DefEntryRow({ entry, kind, isEditing, onDoubleClick, onEditSave, onDele
     return (
       <div className="entry-row">
         <input
+          aria-label="Entry name"
           className="entry-name-input"
           defaultValue={entry.name}
           onBlur={(e) => onEditSave("name", e.target.value)}
@@ -246,6 +247,7 @@ function DefEntryRow({ entry, kind, isEditing, onDoubleClick, onEditSave, onDele
         />
         <span>:</span>
         <input
+          aria-label="Entry type"
           className="entry-type-input"
           defaultValue={entry.type}
           onBlur={(e) => onEditSave("type", e.target.value)}
@@ -255,6 +257,7 @@ function DefEntryRow({ entry, kind, isEditing, onDoubleClick, onEditSave, onDele
           <>
             <span>=</span>
             <input
+              aria-label="Default value"
               className="entry-default-input"
               defaultValue={String(entry.defaultValue ?? "")}
               placeholder="Default"
@@ -305,6 +308,7 @@ function ComputedEntryRow({ entry, isEditing, onDoubleClick, onEditSave, onDelet
     return (
       <div className="entry-row">
         <input
+          aria-label="Computed name"
           className="entry-name-input"
           defaultValue={entry.name}
           onBlur={(e) => onEditSave("name", e.target.value)}
@@ -312,6 +316,7 @@ function ComputedEntryRow({ entry, isEditing, onDoubleClick, onEditSave, onDelet
         />
         <span>:</span>
         <input
+          aria-label="Computed return type"
           className="entry-type-input"
           defaultValue={entry.returnType}
           onBlur={(e) => onEditSave("returnType", e.target.value)}
@@ -402,19 +407,19 @@ function AddForm({ kind, onAdd, onCancel }: AddFormProps) {
 
   return (
     <div className="add-form" onKeyDown={handleKeyDown}>
-      <input ref={nameRef} placeholder="Name" className="entry-name-input" />
+      <input ref={nameRef} placeholder="Name" aria-label="Add name" className="entry-name-input" />
       <span>:</span>
-      <input ref={typeRef} placeholder="Type" className="entry-type-input" defaultValue="String" />
+      <input ref={typeRef} placeholder="Type" aria-label="Add type" className="entry-type-input" defaultValue="String" />
       {kind === "signal" && (
         <>
           <span>=</span>
-          <input ref={extraRef} placeholder="Default" className="entry-default-input" />
+          <input ref={extraRef} placeholder="Default" aria-label="Default value" className="entry-default-input" />
         </>
       )}
       {kind === "computed" && (
         <>
           <span>=</span>
-          <input ref={extraRef} placeholder="Expression" className="entry-default-input" />
+          <input ref={extraRef} placeholder="Expression" aria-label="Expression" className="entry-default-input" />
         </>
       )}
       <button type="button" className="add-form-confirm" onClick={handleConfirm}>{String.fromCharCode(0x2713)}</button>

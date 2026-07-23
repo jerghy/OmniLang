@@ -21,6 +21,7 @@ export const ArtboardHeader = React.memo(function ArtboardHeader() {
       }}
     >
       <select
+        aria-label="Device preset"
         value={devicePreset.name}
         onChange={(e) => {
           const preset = DEVICE_PRESETS.find((p) => p.name === e.target.value);

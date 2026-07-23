@@ -311,17 +311,17 @@ export function StoreMembersPanel({
     <div style={S.panel}>
       {/* ── Signals ── */}
       <div>
-        <div style={S.sectionHeader} onClick={() => toggle("signals")}>
+        <div style={S.sectionHeader} onClick={() => toggle("signals")} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle("signals"); } }}>
           <span>Signals</span>
           <button type="button" style={S.addBtn} onClick={(e) => { e.stopPropagation(); handleAddSignal(); }}>+</button>
         </div>
         {!collapsed.signals && store.signals.map((sig) => (
           <div key={sig.pid} style={S.itemRow}>
             <div style={S.itemHeader}>
-              <input style={{ ...S.input, width: 72 }} value={sig.name}
+              <input aria-label="Signal name" style={{ ...S.input, width: 72 }} value={sig.name}
                 onChange={(e) => updateSignal(sig.pid, { name: e.target.value })} />
               <span style={S.typeSep}>:</span>
-              <select style={{ ...S.select, width: 128 }} value={sig.type}
+              <select aria-label="Signal type" style={{ ...S.select, width: 128 }} value={sig.type}
                 onChange={(e) => updateSignal(sig.pid, { type: e.target.value })}>
                 {OMNI_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
                 {!OMNI_TYPES.includes(sig.type) && <option value={sig.type}>{sig.type}</option>}
@@ -330,7 +330,7 @@ export function StoreMembersPanel({
             </div>
             <div style={S.valueRow}>
               <span style={{ ...S.typeSep, width: 12, textAlign: "center" }}>=</span>
-              <input style={S.input} value={sig.defaultValue !== undefined ? String(sig.defaultValue) : ""}
+              <input aria-label="Signal default value" style={S.input} value={sig.defaultValue !== undefined ? String(sig.defaultValue) : ""}
                 placeholder="default value"
                 onChange={(e) => updateSignal(sig.pid, { defaultValue: e.target.value })} />
             </div>
@@ -345,17 +345,17 @@ export function StoreMembersPanel({
 
       {/* ── Getters ── */}
       <div>
-        <div style={S.sectionHeader} onClick={() => toggle("getters")}>
+        <div style={S.sectionHeader} onClick={() => toggle("getters")} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle("getters"); } }}>
           <span>Getters</span>
           <button type="button" style={S.addBtn} onClick={(e) => { e.stopPropagation(); handleAddGetter(); }}>+</button>
         </div>
         {!collapsed.getters && store.getters.map((g) => (
           <div key={g.pid} style={S.itemRow}>
             <div style={S.itemHeader}>
-              <input style={{ ...S.input, width: 72 }} value={g.name}
+              <input aria-label="Getter name" style={{ ...S.input, width: 72 }} value={g.name}
                 onChange={(e) => updateGetter(g.pid, { name: e.target.value })} />
               <span style={S.typeSep}>:</span>
-              <select style={{ ...S.select, width: 128 }} value={g.returnType}
+              <select aria-label="Getter return type" style={{ ...S.select, width: 128 }} value={g.returnType}
                 onChange={(e) => updateGetter(g.pid, { returnType: e.target.value })}>
                 {OMNI_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
                 {!OMNI_TYPES.includes(g.returnType) && <option value={g.returnType}>{g.returnType}</option>}
@@ -364,7 +364,7 @@ export function StoreMembersPanel({
             </div>
             <div style={S.valueRow}>
               <span style={{ ...S.typeSep, width: 12, textAlign: "center" }}>=</span>
-              <span style={S.getterExpr} onClick={() => setEditingGetterPid(g.pid)} title={g.expression || "Click to edit"}>
+              <span role="button" tabIndex={0} style={S.getterExpr} onClick={() => setEditingGetterPid(g.pid)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setEditingGetterPid(g.pid); } }} title={g.expression || "Click to edit"}>
                 {g.expression ? g.expression.slice(0, 40) + (g.expression.length > 40 ? "…" : "") : "click to edit"}
               </span>
             </div>
@@ -379,7 +379,7 @@ export function StoreMembersPanel({
 
       {/* ── Actions ── */}
       <div>
-        <div style={S.sectionHeader} onClick={() => toggle("actions")}>
+        <div style={S.sectionHeader} onClick={() => toggle("actions")} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle("actions"); } }}>
           <span>Actions</span>
           <button type="button" style={S.addBtn} onClick={(e) => { e.stopPropagation(); handleAddAction(); }}>+</button>
         </div>
@@ -387,7 +387,7 @@ export function StoreMembersPanel({
           const paramsStr = a.params.map((p) => `${p.name}: ${p.type}`).join(", ");
           const isSelected = selectedActionPid === a.pid;
           return (
-            <div key={a.pid} style={S.actionItem(isSelected)} onClick={() => onSelectAction(a.pid)}>
+            <div key={a.pid} style={S.actionItem(isSelected)} onClick={() => onSelectAction(a.pid)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectAction(a.pid); } }}>
               <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", fontFamily: "var(--ol-font-family-mono)" }}>
                 {a.name}({paramsStr}){a.returnType ? `: ${a.returnType}` : ""}{a.isAsync ? " async" : ""}
               </span>

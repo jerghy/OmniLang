@@ -779,7 +779,10 @@ export function VariantEditor() {
         {variants.map((v) => (
           <div
             key={v.id}
+            role="button"
+            tabIndex={0}
             onClick={() => handleSelectVariant(v.id)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSelectVariant(v.id); } }}
             style={v.id === selectedVariantId ? ITEM_ACTIVE : ITEM_BASE}
           >
             <span
@@ -805,6 +808,7 @@ export function VariantEditor() {
       {/* Add variant */}
       <div style={{ padding: "6px 8px", display: "flex", gap: 4 }}>
         <input
+          aria-label="Add variant"
           value={newVariantName}
           onChange={(e) => setNewVariantName(e.target.value)}
           onKeyDown={(e) => {
@@ -895,7 +899,10 @@ export function VariantEditor() {
                   return (
                     <span
                       key={val}
+                      role="button"
+                      tabIndex={0}
                       onClick={() => handleSetDefault(dim.name, val)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSetDefault(dim.name, val); } }}
                       style={isDefault ? VALUE_PILL_DEFAULT : VALUE_PILL}
                       title={
                         isDefault
@@ -931,6 +938,7 @@ export function VariantEditor() {
               {/* Add value input */}
               <div style={{ display: "flex", gap: 4 }}>
                 <input
+                  aria-label="Add dimension value"
                   value={newDimValue}
                   onChange={(e) => setNewDimValue(e.target.value)}
                   onKeyDown={(e) => {
@@ -967,6 +975,7 @@ export function VariantEditor() {
         {selectedVariant.dimensions.length > 0 && <div style={{ height: 4 }} />}
         <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
           <input
+            aria-label="Add dimension"
             value={newDimName}
             onChange={(e) => setNewDimName(e.target.value)}
             onKeyDown={(e) => {
@@ -1103,6 +1112,7 @@ export function VariantEditor() {
             }}
           >
             <input
+              aria-label="Search properties"
               value={addPropSearch}
               onChange={(e) => setAddPropSearch(e.target.value)}
               placeholder="Search properties..."
@@ -1258,6 +1268,7 @@ export function VariantEditor() {
             } else if (isEnumProperty(name)) {
               input = (
                 <select
+                  aria-label={label}
                   value={value}
                   onChange={(e) => handleSinglePropChange(name, e.target.value)}
                   style={SELECT_STYLE}
@@ -1338,6 +1349,7 @@ export function VariantEditor() {
             } else if (isEnumProperty(name)) {
               input = (
                 <select
+                  aria-label={label}
                   value={value}
                   onChange={(e) => handleSinglePropChange(name, e.target.value)}
                   style={SELECT_STYLE}
@@ -1442,6 +1454,7 @@ export function VariantEditor() {
               {dim.name}
             </span>
             <select
+              aria-label={dim.name}
               value={previewSelections[dim.name] || ""}
               onChange={(e) =>
                 setPreviewSelections((prev) => ({

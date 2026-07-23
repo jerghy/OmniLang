@@ -261,6 +261,7 @@ export const ScrubInput = React.memo(function ScrubInput({
 
   return (
     <div
+      role="button"
       style={rootStyle}
       tabIndex={disabled ? -1 : 0}
       onMouseDown={handleMouseDown}
@@ -273,6 +274,7 @@ export const ScrubInput = React.memo(function ScrubInput({
       {editing ? (
         <input
           ref={inputRef}
+          aria-label="Scrub value"
           style={INPUT_STYLE}
           type="text"
           inputMode="decimal"

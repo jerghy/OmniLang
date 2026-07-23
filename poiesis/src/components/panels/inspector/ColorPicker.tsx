@@ -254,7 +254,7 @@ export function ColorPicker({ color: initialColor, onChange, onClose, anchorRect
       {/* Saturation / Value plane */}
       <div
         ref={svElRef}
-        role="slider"
+        role="button"
         tabIndex={0}
         aria-label="Color saturation and brightness"
         onMouseDown={(e) => {
@@ -298,7 +298,7 @@ export function ColorPicker({ color: initialColor, onChange, onClose, anchorRect
       {/* Hue strip (horizontal) */}
       <div
         ref={hueElRef}
-        role="slider"
+        role="button"
         tabIndex={0}
         aria-label="Hue"
         onMouseDown={(e) => {

@@ -104,6 +104,7 @@ export function VariantBindingSection({ element }: VariantBindingSectionProps) {
               {dim.name}
             </label>
             <select
+              aria-label={dim.name}
               value={
                 boundVariant.dimensionValues[dim.name] ?? dim.values[0] ?? ""
               }
@@ -163,6 +164,7 @@ export function VariantBindingSection({ element }: VariantBindingSectionProps) {
 
       <div style={{ display: "flex", gap: 4 }}>
         <select
+          aria-label="Select variant"
           value={selectedVariant}
           onChange={(e) => setSelectedVariant(e.target.value)}
           style={{
