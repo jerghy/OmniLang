@@ -2,6 +2,7 @@
 // Shared element and port type definitions.
 
 import type { ElementStyle } from "./style";
+import type { CodeOp } from "./code-op";
 
 export interface PortData {
   name: string;
@@ -55,6 +56,7 @@ export interface CodeblockElementData extends ElementDataBase {
   props: Record<string, unknown>;
   ports?: PortData[];
   source: string;
+  operations?: CodeOp[];
   outputValue?: unknown;
   position?: { x: number; y: number };
   nodeCategory?: "flow" | "event" | "action" | "data" | "variable" | "code" | "function" | "ui";

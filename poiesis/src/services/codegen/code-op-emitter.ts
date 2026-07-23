@@ -1,4 +1,4 @@
-// poiesi/src/services/codegen/code-op-emitter.ts
+// poiesis/src/services/codegen/code-op-emitter.ts
 import type { CodeOp } from "../../core/types/code-op";
 
 export function emitOp(op: CodeOp, indent: number): string {
@@ -17,9 +17,19 @@ export function emitOp(op: CodeOp, indent: number): string {
       let out = "";
       for (let i = 0; i < op.branches.length; i++) {
         const br = op.branches[i];
-        const kw = i === 0 ? "if" : br.condition ? "else if" : "else";
+        const prefix = i === 0 ? "" : br.condition ? " else if" : " else";
+        // For the first branch there's no prefix; for subsequent ones we
+        // combine the closing brace of the previous branch with the next keyword.
+        if (i === 0) {
+          out += `${pad}if`;
+        } else {
+          // Remove the trailing newline + indent from the previous closing brace
+          // so "} else {" lands on one line.
+          out = out.replace(/\n$/, "");
+          out += `${prefix}`;
+        }
         const cond = br.condition ? ` ${br.condition}` : "";
-        out += `${pad}${kw}${cond} {\n`;
+        out += `${cond} {\n`;
         for (const child of br.body) out += emitOp(child, indent + 1);
         out += `${pad}}\n`;
       }

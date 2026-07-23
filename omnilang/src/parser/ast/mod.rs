@@ -12,11 +12,12 @@ pub use view::*;
 
 use crate::lexer::Span;
 use rustc_hash::FxHashMap;
+use serde::Serialize;
 
 // ── Base types ────────────────────────────────────────
 
 /// Type annotation — used in variable declarations, function signatures, etc.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum TypeAnnotation {
     Named {
         name: String,
@@ -40,7 +41,7 @@ pub enum TypeAnnotation {
 
 // ── Expressions (omnilang + omniview) ─────────────────
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum Expr {
     Literal(Literal, Span),
     VarRef(String, Span),
@@ -169,7 +170,7 @@ pub enum Expr {
     },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum Literal {
     Int(u64),
     Float(f64),
@@ -178,7 +179,7 @@ pub enum Literal {
     Null,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum BinaryOpKind {
     Add,
     Sub,
@@ -229,14 +230,14 @@ impl BinaryOpKind {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum UnaryOpKind {
     Not,
     Neg,
     Await,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum TemplatePart {
     Literal(String),
     Expr(Expr),
@@ -244,7 +245,7 @@ pub enum TemplatePart {
 
 // ── Statements ────────────────────────────────────────
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum Stmt {
     VarDecl {
         name: String,
@@ -316,14 +317,14 @@ pub enum Stmt {
     },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum AssignTarget {
     Name(String),
     Index { object: String, index: Box<Expr> },
     Field { object: String, field: String },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Block {
     pub stmts: Vec<Stmt>,
     pub trailing_expr: Option<Box<Expr>>,
@@ -333,20 +334,20 @@ pub struct Block {
 // ── Match Expression ──────────────────────────────────
 
 /// A single arm in a match expression: Pattern => body
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct MatchArm {
     pub pattern: MatchPattern,
     pub body: Block,
 }
 
 /// A pattern in a match arm: Variant { bindings } or Wildcard
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct MatchPattern {
     pub kind: MatchPatternKind,
     pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum MatchPatternKind {
     /// Variant pattern: Ok { value, response }
     Variant { name: String, bindings: Vec<String> },
@@ -358,13 +359,13 @@ pub enum MatchPatternKind {
 
 // ── Top-Level Declarations ────────────────────────────
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Param {
     pub name: String,
     pub type_ann: Option<TypeAnnotation>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct FunctionDef {
     pub visibility: Visibility,
     pub name: String,
@@ -375,13 +376,13 @@ pub struct FunctionDef {
     pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct StructField {
     pub name: String,
     pub type_ann: TypeAnnotation,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct StructDef {
     pub visibility: Visibility,
     pub name: String,
@@ -390,20 +391,20 @@ pub struct StructDef {
     pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct TaggedUnionDef {
     pub name: String,
     pub variants: Vec<Variant>,
     pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Variant {
     pub name: String,
     pub fields: Vec<StructField>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct TypeAlias {
     pub visibility: Visibility,
     pub name: String,
@@ -419,7 +420,7 @@ pub use crate::ir::visibility::Visibility;
 // ── Import / Export Types ─────────────────────────────
 
 /// Named import: `import { A, B } from "./path.omni";`
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct NamedImport {
     pub names: Vec<String>,
     pub path: String,
@@ -427,7 +428,7 @@ pub struct NamedImport {
 }
 
 /// Namespace import: `import "./path.omni" as name;`
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct NamespaceImport {
     pub path: String,
     pub alias: String,
@@ -435,7 +436,7 @@ pub struct NamespaceImport {
 }
 
 /// Type-only import: `import type { A, B } from "./path.omni";`
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct TypeImport {
     pub names: Vec<String>,
     pub path: String,
@@ -443,7 +444,7 @@ pub struct TypeImport {
 }
 
 /// Re-export: `export { A, B } from "./path.omni";`
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ExportFrom {
     pub names: Vec<String>,
     pub path: String,
@@ -451,7 +452,7 @@ pub struct ExportFrom {
 }
 
 /// All import variants in one enum
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum ImportStmt {
     Named(NamedImport),
     Namespace(NamespaceImport),

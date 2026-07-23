@@ -126,6 +126,11 @@ impl<'a> Parser<'a> {
 
     // ── Helpers ────────────────────────────────────────
 
+    /// Returns true if the parser is at the end of the token stream.
+    pub fn at_eof(&self) -> bool {
+        self.peek_kind() == &TokenKind::Eof
+    }
+
     /// Peek at the string value of the next identifier without consuming it.
     /// Handles both TokenKind::Ident(name) and keyword tokens via keyword_as_ident_name().
     pub fn peek_ident_value(&self) -> Option<String> {

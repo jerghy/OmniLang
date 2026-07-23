@@ -1,5 +1,7 @@
 //! OmniView-specific AST types: ComponentDef, ViewNode, Element, StyleValue, etc.
 
+use serde::Serialize;
+
 use crate::lexer::Span;
 
 use super::motion::{GetterDecl, HeroDef, MotionDef, MotionTrigger, StateDef, TimelineDef};
@@ -7,7 +9,7 @@ use super::{Block, Expr, FunctionDef, Param, TypeAnnotation};
 
 // ── OmniView-Specific AST ─────────────────────────────
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ComponentDef {
     pub name: String,
     pub props: Vec<PropDecl>,
@@ -29,55 +31,55 @@ pub struct ComponentDef {
     pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct PropDecl {
     pub name: String,
     pub type_ann: TypeAnnotation,
     pub default: Option<Expr>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct SignalDecl {
     pub name: String,
     pub type_ann: TypeAnnotation,
     pub init: Expr,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ComputedDecl {
     pub name: String,
     pub type_ann: TypeAnnotation,
     pub body: Expr,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct EventDecl {
     pub name: String,
     pub type_ann: TypeAnnotation,
     pub is_optional: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct RefDecl {
     pub name: String,
     pub type_ann: TypeAnnotation,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct LifecycleHook {
     pub kind: LifecycleKind,
     pub body: Block,
     pub deps: Vec<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum LifecycleKind {
     Mount,
     Unmount,
     Effect,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ActionDef {
     pub name: String,
     pub params: Vec<Param>,
@@ -87,12 +89,12 @@ pub struct ActionDef {
     pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ViewBlock {
     pub children: Vec<ViewNode>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum ViewNode {
     Element(Element),
     IfDirective(IfDirective),
@@ -105,7 +107,7 @@ pub enum ViewNode {
     Interpolation(Expr),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Element {
     pub tag: String,
     pub props: Vec<ElementProp>,
@@ -114,7 +116,7 @@ pub struct Element {
     pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum ElementProp {
     Static {
         name: String,
@@ -185,14 +187,14 @@ pub enum ElementProp {
     HeroTransition(Expr),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum EventHandler {
     InlineFn { params: Vec<Param>, body: Block },
     FnRef(String),
     StoreAction { store: String, action: String },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum ClassValue {
     StyleRef(String),
     StringLiteral(String),
@@ -204,7 +206,7 @@ pub enum ClassValue {
     },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct IfDirective {
     pub condition: Expr,
     pub body: Vec<ViewNode>,
@@ -214,7 +216,7 @@ pub struct IfDirective {
     pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ForDirective {
     pub item_name: String,
     pub iterable: Expr,
@@ -224,14 +226,14 @@ pub struct ForDirective {
     pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct StyleRule {
     pub class_name: String,
     pub properties: Vec<(String, StyleValue)>,
     pub is_tag_selector: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum StyleValue {
     Dimension(f64, String),
     HexColor(String),
@@ -241,7 +243,7 @@ pub enum StyleValue {
     List(Vec<StyleValuePart>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum StyleValuePart {
     Dimension(f64, String),
     Ident(String),

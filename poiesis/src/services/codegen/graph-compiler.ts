@@ -4,6 +4,7 @@
 
 import type { CodeblockElementData } from "../../core/types/element";
 import type { WireData } from "../../core/types/wire";
+import { emitOps } from "./code-op-emitter";
 
 interface GraphNode {
   element: CodeblockElementData;
@@ -113,11 +114,21 @@ function emitNode(
     }
 
     case "code-block": {
-      const source = node.element.source || "";
-      let out = emitPidComment(pid);
-      const lines = source.split("\n");
-      for (const line of lines) {
-        out += `${pad}${line}\n`;
+      // Use structured operations if available, fall back to raw source
+      const operations = (node.element as any).operations as import("../../core/types/code-op").CodeOp[] | undefined;
+      let out: string;
+
+      if (operations && operations.length > 0) {
+        out = emitPidComment(pid);
+        out += emitOps(operations);
+      } else {
+        // Legacy: raw source text
+        const source = node.element.source || "";
+        out = emitPidComment(pid);
+        const lines = source.split("\n");
+        for (const line of lines) {
+          out += `${pad}${line}\n`;
+        }
       }
 
       // Emit successor (control flow continues)
