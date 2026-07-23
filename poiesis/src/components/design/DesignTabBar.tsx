@@ -504,7 +504,7 @@ export function DesignTabBar() {
                 {tab.isDirty && <span style={{ color: "#f59e0b" }}>● </span>}
                 {tab.componentName}.omni
               </span>
-              <span
+              <span role="button" tabIndex={0}
                 onClick={(e) => handleClose(e, tab.id)}
                 style={{
                   border: "none",

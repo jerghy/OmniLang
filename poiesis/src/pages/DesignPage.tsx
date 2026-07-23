@@ -552,7 +552,7 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
                           {proj.path}
                         </div>
                       </div>
-                      <span
+                      <span role="button" tabIndex={0}
                         onClick={(e) => handleRemoveRecent(e, proj.path)}
                         style={{
                           fontSize: 16, color: "#d1d5db", padding: "2px 6px",

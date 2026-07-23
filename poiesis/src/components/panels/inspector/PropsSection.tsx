@@ -437,7 +437,7 @@ function LabelEditor({ value, onChange, onSlashRequest }: LabelEditorProps) {
           return (
             <span key={seg.type + "-" + seg.value} role="button" tabIndex={0} style={{ ...EXPR_CHIP_STYLE, cursor: "pointer" }} onClick={() => setEditingIdx(i)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setEditingIdx(i); } }} title="点击编辑">
               {`{${seg.value}}`}
-              <span style={{ ...CHIP_DELETE_BTN, color: "#7C3AED" }} onClick={(e) => { e.stopPropagation(); handleDelete(i); }} title="删除">&times;</span>
+              <span role="button" tabIndex={0} style={{ ...CHIP_DELETE_BTN, color: "#7C3AED" }} onClick={(e) => { e.stopPropagation(); handleDelete(i); }} title="删除">&times;</span>
             </span>
           );
         }

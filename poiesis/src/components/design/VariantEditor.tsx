@@ -795,7 +795,7 @@ export function VariantEditor() {
             >
               {v.name}
             </span>
-            <span
+            <span role="button" tabIndex={0}
               onClick={(e) => handleRemoveVariant(e, v.id)}
               style={REMOVE_BTN}
               title="Remove variant"
@@ -911,7 +911,7 @@ export function VariantEditor() {
                       }
                     >
                       {val}
-                      <span
+                      <span role="button" tabIndex={0}
                         onClick={(e) => {
                           e.stopPropagation();
                           handleRemoveDimValue(dim.name, val);

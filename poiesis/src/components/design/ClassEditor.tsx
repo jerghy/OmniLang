@@ -579,7 +579,7 @@ export function ClassEditor() {
             >
               {cls.name}
             </span>
-            <span
+            <span role="button" tabIndex={0}
               onClick={(e) => handleRemoveClass(e, cls.id)}
               style={REMOVE_BTN}
               title="Remove class"

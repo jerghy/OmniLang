@@ -133,7 +133,7 @@ export function WelcomePage({ onProjectOpened }: WelcomePageProps) {
                     <div style={styles.recentName}>{proj.name}</div>
                     <div style={styles.recentPath}>{proj.path}</div>
                   </div>
-                  <span
+                  <span role="button" tabIndex={0}
                     style={styles.recentRemove}
                     onClick={(e) => handleRemoveRecent(e, proj.path)}
                     title="移除"
