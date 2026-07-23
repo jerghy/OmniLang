@@ -145,6 +145,8 @@ function buildProperties(props) {
     const cssProps = {};
     const transforms = [];
     const filters = [];
+    if (!props)
+        return cssProps;
     for (const [key, value] of Object.entries(props)) {
         if (TRANSFORM_PROPS.has(key)) {
             const cssName = TRANSFORM_MAP[key];
@@ -198,16 +200,19 @@ function buildKeyframes(stops) {
 
 // animate.js
 
+
 /**
  * Drive a single animation via WAAPI.
  * Returns the native Animation object — caller controls pause/cancel/seek.
  */
 function animate(el, stops, options) {
+    if (!el)
+        return null;
     const keyframes = buildKeyframes(stops);
     const timing = {
         duration: options.duration,
         delay: options.delay ?? 0,
-        easing: options.easing ?? 'ease-out',
+        easing: resolveEasing(options.easing ?? 'ease-out'),
         fill: options.fill ?? 'both',
         direction: options.direction ?? 'normal',
         iterations: options.iterations ?? 1,
@@ -224,7 +229,13 @@ function animate(el, stops, options) {
 function timeline(steps) {
     const animations = [];
     for (const step of steps) {
-        const opts = { ...step.options, delay: (step.options.delay ?? 0) + step.at };
+        // Skip steps with no keyframes (e.g. motion references that failed to resolve)
+        if (!step.keyframes || step.keyframes.length === 0) {
+            animations.push(null);
+            continue;
+        }
+        const stepOptions = step.options ?? {};
+        const opts = { ...stepOptions, delay: (stepOptions.delay ?? 0) + step.at };
         const anim = animate(step.el, step.keyframes, opts);
         animations.push(anim);
     }
@@ -312,21 +323,25 @@ function parseScrollTrigger(cfg, el, vh) {
 // flip.js
 // FLIP animation for @for list reordering
 const flipState = new Map();
-function flipBefore(containerSelector) {
-    const container = document.querySelector(containerSelector);
-    if (!container)
+function flipBefore(container) {
+    const containerEl = typeof container === 'string'
+        ? document.querySelector(container)
+        : container;
+    if (!containerEl)
         return;
-    container.querySelectorAll('[data-for-key]').forEach(el => {
+    containerEl.querySelectorAll('[data-for-key]').forEach(el => {
         const key = el.getAttribute('data-for-key');
         if (key)
             flipState.set(key, { rect: el.getBoundingClientRect(), element: el });
     });
 }
-function flipAfter(containerSelector, duration = 400, easing = 'ease-out') {
-    const container = document.querySelector(containerSelector);
-    if (!container)
+function flipAfter(container, duration = 400, easing = 'ease-out') {
+    const containerEl = typeof container === 'string'
+        ? document.querySelector(container)
+        : container;
+    if (!containerEl)
         return;
-    container.querySelectorAll('[data-for-key]').forEach(el => {
+    containerEl.querySelectorAll('[data-for-key]').forEach(el => {
         const key = el.getAttribute('data-for-key');
         if (!key)
             return;

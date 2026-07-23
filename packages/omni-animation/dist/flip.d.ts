@@ -1,2 +1,2 @@
-export declare function flipBefore(containerSelector: string): void;
-export declare function flipAfter(containerSelector: string, duration?: number, easing?: string): void;
+export declare function flipBefore(container: Element | string): void;
+export declare function flipAfter(container: Element | string, duration?: number, easing?: string): void;

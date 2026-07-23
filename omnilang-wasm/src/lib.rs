@@ -214,6 +214,7 @@ pub fn compile_multi_to_omniview(sources: JsValue, editor_mode: bool, debug_mode
         path_mapping,
         editor_mode,
         debug_mode,
+        None,
     );
     to_js_value(&result)
 }
@@ -314,6 +315,7 @@ impl OmniCompiler {
                 FxHashMap::default(),
                 editor_mode,
                 debug_mode,
+                None,
             );
             to_js_value(&result)
         };

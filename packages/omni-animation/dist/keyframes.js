@@ -30,6 +30,8 @@ export function buildProperties(props) {
     const cssProps = {};
     const transforms = [];
     const filters = [];
+    if (!props)
+        return cssProps;
     for (const [key, value] of Object.entries(props)) {
         if (TRANSFORM_PROPS.has(key)) {
             const cssName = TRANSFORM_MAP[key];

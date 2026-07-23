@@ -6,7 +6,13 @@ import { animate } from './animate';
 export function timeline(steps) {
     const animations = [];
     for (const step of steps) {
-        const opts = { ...step.options, delay: (step.options.delay ?? 0) + step.at };
+        // Skip steps with no keyframes (e.g. motion references that failed to resolve)
+        if (!step.keyframes || step.keyframes.length === 0) {
+            animations.push(null);
+            continue;
+        }
+        const stepOptions = step.options ?? {};
+        const opts = { ...stepOptions, delay: (stepOptions.delay ?? 0) + step.at };
         const anim = animate(step.el, step.keyframes, opts);
         animations.push(anim);
     }

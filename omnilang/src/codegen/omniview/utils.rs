@@ -163,6 +163,12 @@ pub(super) fn escape_html(s: &str) -> String {
 /// Wrap OmniView output in a complete debug-ready HTML document.
 /// Useful for loading directly in a browser for debugging / WASM preview.
 pub fn wrap_debug_html(js: &str, css: &str, body_html: &str) -> String {
+    /// Embedded @omni/animation runtime (compiled into binary at build time).
+    /// Path: workspace_root/packages/omni-animation/dist/omni-animation.js
+    const OMNI_ANIMATION_JS: &str = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../packages/omni-animation/dist/omni-animation.js"
+    ));
     format!(
         r#"<!DOCTYPE html>
 <html lang="en">
@@ -180,10 +186,14 @@ body {{ margin: 0; padding: 8px; font-family: system-ui, sans-serif; }}
 <body>
 {body_html}
 <script>
+/// ─── @omni/animation v0.1.0 (embedded) ───
+{animation_runtime}
+/// ─── App code ───
 {js}
 </script>
 </body>
-</html>"#
+</html>"#,
+        animation_runtime = OMNI_ANIMATION_JS
     )
 }
 
@@ -191,6 +201,11 @@ body {{ margin: 0; padding: 8px; font-family: system-ui, sans-serif; }}
 /// Build `CompileOutput` from an already-generated `OmniViewOutput`.
 /// Separates generation from file-wrapping so callers can extract `components`.
 pub fn build_file_output(gen: &OmniViewOutput) -> CompileOutput {
+    /// Embedded @omni/animation runtime (compiled into binary at build time).
+    const OMNI_ANIMATION_JS: &str = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../packages/omni-animation/dist/omni-animation.js"
+    ));
     let html = format!(
         r#"<!DOCTYPE html>
 <html lang="en">
@@ -202,6 +217,7 @@ pub fn build_file_output(gen: &OmniViewOutput) -> CompileOutput {
 </head>
 <body>
 {}
+<script src="omni-animation.js"></script>
 <script src="index.js"></script>
 </body>
 </html>"#,
@@ -212,6 +228,7 @@ pub fn build_file_output(gen: &OmniViewOutput) -> CompileOutput {
         CompiledFile { path: "index.html".into(), content: html },
         CompiledFile { path: "body.html".into(), content: gen.html.clone() },
         CompiledFile { path: "index.css".into(), content: gen.css.clone() },
+        CompiledFile { path: "omni-animation.js".into(), content: OMNI_ANIMATION_JS.to_string() },
     ])
 }
 

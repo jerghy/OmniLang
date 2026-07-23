@@ -107,9 +107,9 @@ fn do_compile(
     let path_mapping = omnilang::path_mapping::derive_path_mapping(&sources);
     let output = match cache {
         Some(c) => {
-            omnilang::compile_multi_internal_cached(sources, codegen_target, path_mapping, false, false, c)
+            omnilang::compile_multi_internal_cached(sources, codegen_target, path_mapping, false, false, None, c)
         }
-        None => omnilang::compile_multi_internal(sources, codegen_target, path_mapping, false, false),
+        None => omnilang::compile_multi_internal(sources, codegen_target, path_mapping, false, false, None),
     };
     CompileResult {
         success: output.success,
