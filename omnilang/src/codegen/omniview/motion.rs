@@ -3,15 +3,27 @@ use super::OmniViewGenerator;
 use crate::ir::*;
 
 impl OmniViewGenerator {
-    /// Emit a JS function that creates an AnimationPlayer for a named @motion block.
+    /// Emit a JS function that creates a WAAPI animation for a named @motion block.
     pub(super) fn emit_motion_js(&mut self, motion: &MotionIntent) {
-        let config = self.motion_body_to_config(&motion.body);
+        let (kf_js, opts_js) = match &motion.body {
+            MotionBodyIR::Keyframe(kf) => self.keyframe_to_animate_call(kf),
+            MotionBodyIR::Timeline(tl) => {
+                self.timeline_to_factory(&motion.name, tl)
+            }
+            MotionBodyIR::CallbackOnly(cb) => {
+                self.callback_to_animate_call(cb)
+            }
+        };
+
         self.js.push_str(&format!(
-            "const __omni_motion_{name} = function(el, overrides) {{\n\
-             \x20  return new AnimationPlayer(el, Object.assign({{{config}}}, overrides || {{}}));\n\
+            "function __omni_motion_{name}(el, overrides) {{\n\
+             \x20 const opts = Object.assign({{{opts}}}, overrides || {{}});\n\
+             \x20 const kf = {kf};\n\
+             \x20 return Omni.animate(el, kf, opts);\n\
              }};\n",
             name = motion.name,
-            config = config
+            opts = opts_js,
+            kf = kf_js,
         ));
     }
 
@@ -53,7 +65,7 @@ impl OmniViewGenerator {
                  \x20\x20 for (const k of Object.keys(targets.to)) from[k] = getComputedStyle(el).getPropertyValue(k);\n\
                  \x20\x20 el.animate([from, targets.to], {{\n\
                  \x20\x20\x20 duration: targets.over || 150,\n\
-                 \x20\x20\x20 easing: targets.ease || \"ease-out\",\n\
+                 \x20\x20\x20 easing: Omni.resolveEasing(targets.ease || \"ease-out\"),\n\
                  \x20\x20\x20 fill: \"forwards\"\n\
                  \x20\x20 }});\n\
                  \x20\x20 _state = state;\n\
@@ -86,7 +98,7 @@ impl OmniViewGenerator {
                  \x20 for (const k of Object.keys(targets.to)) from[k] = getComputedStyle(el).getPropertyValue(k);\n\
                  \x20 el.animate([from, targets.to], {{\n\
                  \x20\x20 duration: targets.over || 300,\n\
-                 \x20\x20 easing: targets.ease || \"ease-out\",\n\
+                 \x20\x20 easing: Omni.resolveEasing(targets.ease || \"ease-out\"),\n\
                  \x20\x20 fill: \"forwards\"\n\
                  \x20 }});\n\
                  }});\n",

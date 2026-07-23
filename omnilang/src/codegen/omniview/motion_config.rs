@@ -168,66 +168,136 @@ impl OmniViewGenerator {
         parts.join(", ")
     }
 
-    /// Convert an EasingIR to a JS string or expression.
+    /// Convert an EasingIR to a JS expression for Omni.resolveEasing().
+    /// Output format: a string like `"easeOut"` or an object like
+    /// `{type:"spring", tension:180, friction:12}` for structured easings.
     pub(super) fn easing_to_js(&self, easing: &EasingIR) -> String {
         match easing {
             EasingIR::Named(name) => format!("\"{}\"", name),
             EasingIR::CubicBezier { x1, y1, x2, y2 } => {
-                format!("\"cubic-bezier({},{},{},{})\"", x1, y1, x2, y2)
+                format!("{{type:\"cubicBezier\",x1:{},y1:{},x2:{},y2:{}}}", x1, y1, x2, y2)
             }
-            EasingIR::Spring {
-                tension,
-                friction,
-                velocity,
-            } => {
-                format!(
-                    "new SpringSolver({}, {}, 1, {})",
-                    tension,
-                    friction,
-                    velocity.unwrap_or(0.0)
-                )
+            EasingIR::Spring { tension, friction, velocity } => {
+                let vel = velocity.unwrap_or(0.0);
+                format!("{{type:\"spring\",tension:{},friction:{},velocity:{}}}", tension, friction, vel)
             }
-            EasingIR::Back {
-                intensity,
-                direction,
-            } => {
-                let dir = direction.as_deref().unwrap_or("backOut");
-                let name = match dir {
-                    "backIn" | "in" => "backIn",
-                    "backOut" | "out" => "backOut",
-                    "backInOut" | "inOut" => "backInOut",
-                    _ => "backOut",
-                };
-                // Include intensity param when non-default
-                if (*intensity - 1.70158).abs() > f64::EPSILON {
-                    format!("\"{}({})\"", name, intensity)
-                } else {
-                    format!("\"{}\"", name)
-                }
+            EasingIR::Back { intensity, direction } => {
+                let dir = direction.as_deref().unwrap_or("out");
+                format!("{{type:\"back\",intensity:{},direction:\"{}\"}}", intensity, dir)
             }
-            EasingIR::Elastic {
-                amplitude,
-                period,
-                direction,
-            } => {
-                let dir = direction.as_deref().unwrap_or("elasticOut");
-                let name = match dir {
-                    "elasticIn" | "in" => "elasticIn",
-                    "elasticOut" | "out" => "elasticOut",
-                    "elasticInOut" | "inOut" => "elasticInOut",
-                    _ => "elasticOut",
-                };
-                // Include amplitude/period when either is non-default
-                if (amplitude - 1.0).abs() > f64::EPSILON || (period - 0.5).abs() > f64::EPSILON {
-                    format!("\"{}({},{})\"", name, amplitude, period)
-                } else {
-                    format!("\"{}\"", name)
-                }
+            EasingIR::Elastic { amplitude, period, direction } => {
+                let dir = direction.as_deref().unwrap_or("out");
+                format!("{{type:\"elastic\",amplitude:{},period:{},direction:\"{}\"}}", amplitude, period, dir)
             }
             EasingIR::Steps { count, direction } => {
-                format!("\"steps({},{})\"", count, direction)
+                format!("{{type:\"steps\",count:{},direction:\"{}\"}}", count, direction)
             }
         }
+    }
+
+    /// Emit JS code that creates keyframes + options and calls Omni.animate().
+    /// Returns (keyframes_js, options_js) — two JS expressions.
+    pub(super) fn keyframe_to_animate_call(&self, kf: &KeyframeIR) -> (String, String) {
+        // Build keyframes array: [{offset:0,properties:{opacity:"0",transform:"translateY(20px)"}}, ...]
+        let mut kf_items: Vec<String> = Vec::new();
+        for stop in &kf.stops {
+            let mut props: Vec<String> = Vec::new();
+            for (prop, value) in &stop.properties {
+                let val_js = self.expr_to_js(value);
+                props.push(format!("\"{}\":{}", prop, val_js));
+            }
+            let mut item = format!("{{offset:{},properties:{{{}}}}}", stop.position, props.join(","));
+            if let Some(ref ease) = stop.ease {
+                let ease_js = self.easing_to_js(ease);
+                item.push_str(&format!(",easing:{}", ease_js));
+            }
+            kf_items.push(item);
+        }
+        let kf_js = format!("[{}]", kf_items.join(","));
+
+        // Build options object
+        let mut opts: Vec<String> = Vec::new();
+        let dur_js = self.expr_to_js(&kf.over);
+        opts.push(format!("duration:{}", dur_js));
+        if let Some(ref ease) = kf.ease {
+            let ease_js = self.easing_to_js(ease);
+            // resolveEasing at runtime
+            opts.push(format!("easing:Omni.resolveEasing({})", ease_js));
+        }
+        // Playback options (fill, direction, iterations, delay)
+        let fill_str = match &kf.playback.fill {
+            Some(FillValue::None) => "\"none\"",
+            Some(FillValue::Forwards) => "\"forwards\"",
+            Some(FillValue::Backwards) => "\"backwards\"",
+            Some(FillValue::Both) => "\"both\"",
+            None => "\"both\"",
+        };
+        opts.push(format!("fill:{}", fill_str));
+        if let Some(ref dir) = kf.playback.direction {
+            let d = match dir {
+                DirectionValue::Normal => "normal",
+                DirectionValue::Reverse => "reverse",
+                DirectionValue::Alternate => "alternate",
+                DirectionValue::AlternateReverse => "alternate-reverse",
+            };
+            opts.push(format!("direction:\"{}\"", d));
+        }
+        if let Some(ref loop_val) = kf.playback.loop_count {
+            match loop_val {
+                LoopValue::Infinite => opts.push("iterations:Infinity".into()),
+                LoopValue::Count(n) => opts.push(format!("iterations:{}", n)),
+            }
+        }
+        if let Some(ref delay) = kf.playback.delay {
+            let d = self.expr_to_js(delay);
+            opts.push(format!("delay:{}", d));
+        }
+        // No braces around opts — the factory's Object.assign({{{opts}}}) adds them
+        let opts_js = opts.join(",");
+
+        (kf_js, opts_js)
+    }
+
+    /// Emit a factory for timeline-based motion definitions.
+    /// Returns (keyframes_js, opts_js).
+    pub(super) fn timeline_to_factory(&self, _name: &str, tl: &TimelineIR) -> (String, String) {
+        let kf_js = "[{offset:0}]".to_string();
+        let mut opts: Vec<String> = Vec::new();
+        opts.push("duration:300".into());
+        let playback_parts = self.playback_to_config(&tl.playback);
+        opts.extend(playback_parts);
+        // No braces — factory adds them via {{{opts}}}
+        let opts_js = opts.join(",");
+        (kf_js, opts_js)
+    }
+
+    /// Convert a CallbackBodyIR to (keyframes_js, opts_js) for Omni.animate().
+    /// Callback-only animations have no visual properties, just duration and callbacks.
+    pub(super) fn callback_to_animate_call(&self, cb: &CallbackBodyIR) -> (String, String) {
+        let mut opts: Vec<String> = Vec::new();
+        let dur_js = self.expr_to_js(&cb.over);
+        opts.push(format!("duration:{}", dur_js));
+        let playback_parts = self.playback_to_config(&cb.playback);
+        opts.extend(playback_parts);
+        // Callback functions as extra options
+        if !cb.callbacks.is_empty() {
+            let callbacks: Vec<String> = cb.callbacks.iter().map(|(kind, expr)| {
+                let name = match kind {
+                    CallbackKindIR::OnStart => "onStart",
+                    CallbackKindIR::OnUpdate => "onUpdate",
+                    CallbackKindIR::OnComplete => "onComplete",
+                    CallbackKindIR::OnRepeat => "onRepeat",
+                    CallbackKindIR::OnInterrupt => "onInterrupt",
+                };
+                let body_js = self.expr_to_js(expr);
+                format!("\"{}\":function(){{ {} }}", name, body_js)
+            }).collect();
+            opts.push(format!("callbacks:{{{}}}", callbacks.join(",")));
+        }
+        // No braces — factory adds them via {{{opts}}}
+        let opts_js = opts.join(",");
+        let kf_js = "[{offset:0},{offset:1}]".to_string();
+        (kf_js, opts_js)
     }
 
     /// Convert PlaybackIR to a list of JS config property strings.

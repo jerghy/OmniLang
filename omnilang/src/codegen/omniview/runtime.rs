@@ -135,11 +135,14 @@ function __omni_bindText(nid) {
         );
     }
 
-    /// Embed the OmniView animation runtime JS.
+    /// Emit the animation library reference instead of embedding motion-runtime.js.
+    /// The @omni/animation library is loaded from an external script by the HTML wrapper.
     pub(super) fn emit_animation_runtime(&mut self) {
-        self.js.push_str("/// ─── OmniView Motion Runtime ───\n");
-        self.js
-            .push_str(include_str!("../../../../build/omni-motion-runtime.js"));
-        self.js.push('\n');
+        self.js.push_str("/// ─── Omni Animation Runtime (WAAPI-based) ───\n");
+        self.js.push_str(
+            "// @omni/animation v0.1.0 — load from external script\n\
+             // <script src=\"./omni-animation.js\"> should be included in the HTML wrapper\n\
+             if (typeof Omni === 'undefined') console.warn('[OmniView] @omni/animation not loaded');\n\n"
+        );
     }
 }
