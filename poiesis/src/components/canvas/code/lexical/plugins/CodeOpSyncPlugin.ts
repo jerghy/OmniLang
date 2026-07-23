@@ -77,13 +77,30 @@ function editorNodeToLexical(node: EditorNode) {
     case "if":
     case "while":
     case "for": {
-      const block = $createBlockElementNode(node.kind, node.pid);
       const bNode = node as BlockNode;
+
+      // Build branch metadata (serializable head content)
+      let branchMeta: import("../../nodes/BlockNode").BranchMeta[] | undefined;
+      if (bNode.branches && bNode.branches.length > 0) {
+        branchMeta = bNode.branches.map(br => ({
+          kind: br.kind,
+          pid: br.pid,
+          head: br.head.map(h => ({
+            kind: h.kind,
+            cardLabel: (h as any).cardLabel,
+            slotKind: (h as any).slotKind,
+            value: (h as any).value,
+            pid: h.pid,
+          })),
+        }));
+      }
+
+      const block = $createBlockElementNode(node.kind, node.pid, branchMeta);
       // Head line
       for (const headItem of bNode.head) {
         block.append(editorNodeToLexical(headItem));
       }
-      // Body lines
+      // Main body lines
       for (const line of bNode.body) {
         const bl = $createBodyLineNode(line.pid);
         for (const child of line.children) {
@@ -91,22 +108,17 @@ function editorNodeToLexical(node: EditorNode) {
         }
         block.append(bl);
       }
-      // Branches (if)
+      // Branch body lines (marked with branchIndex)
       if (bNode.branches) {
-        for (const br of bNode.branches) {
-          // Represent branch as container with head + body
-          const brContainer = $createContainerElementNode("call" as any, br.pid); // temporary
-          for (const headItem of br.head) {
-            brContainer.append(editorNodeToLexical(headItem));
-          }
+        for (let bi = 0; bi < bNode.branches.length; bi++) {
+          const br = bNode.branches[bi];
           for (const line of br.body) {
-            const bl = $createBodyLineNode(line.pid);
+            const bl = $createBodyLineNode(line.pid, bi);
             for (const child of line.children) {
               bl.append(editorNodeToLexical(child));
             }
-            brContainer.append(bl);
+            block.append(bl);
           }
-          block.append(brContainer);
         }
       }
       return block;
@@ -161,26 +173,60 @@ function lexicalToEditorNode(lexicalNode: any): EditorNode | null {
 
   if ($isBlockElementNode(lexicalNode)) {
     const head: EditorNode[] = [];
-    const body: BodyLine[] = [];
+    const mainBody: BodyLine[] = [];
+    const branchBodies: Map<number, BodyLine[]> = new Map();
+
+    // Read branch metadata
+    const branchMeta = lexicalNode.getBranches();
+
     for (const child of lexicalNode.getChildren()) {
       if ($isBodyLineNode(child)) {
+        const bi = child.getBranchIndex();
         const lineChildren: EditorNode[] = [];
         for (const lc of child.getChildren()) {
           const c = lexicalToEditorNode(lc);
           if (c) lineChildren.push(c);
         }
-        body.push({ pid: child.getBodyLinePid(), children: lineChildren });
+        const line: BodyLine = { pid: child.getBodyLinePid(), children: lineChildren };
+
+        if (bi !== undefined) {
+          // Branch body line
+          const existing = branchBodies.get(bi) || [];
+          existing.push(line);
+          branchBodies.set(bi, existing);
+        } else {
+          // Main body line
+          mainBody.push(line);
+        }
       } else {
         const c = lexicalToEditorNode(child);
         if (c) head.push(c);
       }
     }
+
+    // Reconstruct branches from metadata + body lines
+    let branches: import("../../../../../core/types/editor-node").Branch[] | undefined;
+    if (branchMeta && branchMeta.length > 0) {
+      branches = branchMeta.map((bm, bi) => ({
+        kind: bm.kind,
+        pid: bm.pid,
+        head: bm.head.map(h => {
+          if (h.kind === "slot") {
+            return { kind: "slot" as const, slotKind: h.slotKind || "condition" as const, value: h.value || "", pid: h.pid };
+          }
+          return { kind: h.kind as any, cardLabel: h.cardLabel || "", pid: h.pid };
+        }),
+        body: branchBodies.get(bi) || [],
+      }));
+    }
+
     return {
       kind: lexicalNode.getBlockKind(),
       pid: lexicalNode.getBlockPid(),
       head,
-      body,
+      body: mainBody,
       tail: { pid: "tail-" + lexicalNode.getBlockPid() },
+      branches,
     } as BlockNode;
   }
 
