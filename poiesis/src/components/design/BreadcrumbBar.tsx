@@ -30,11 +30,24 @@ export function BreadcrumbBar() {
           >
             {i > 0 && <span style={{ color: "#cbd5e1" }}>›</span>}
             <span
+              role={isLast ? undefined : "button"}
+              tabIndex={isLast ? undefined : 0}
               onClick={() => {
                 if (crumb.type === "architecture") {
                   navigateTo("architecture");
                 } else if (crumb.type === "component" && crumb.filePath) {
                   switchTab(crumb.id);
+                }
+              }}
+              onKeyDown={(e) => {
+                if (isLast) return;
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  if (crumb.type === "architecture") {
+                    navigateTo("architecture");
+                  } else if (crumb.type === "component" && crumb.filePath) {
+                    switchTab(crumb.id);
+                  }
                 }
               }}
               style={{

@@ -170,6 +170,22 @@ const toggleBtnBase: React.CSSProperties = {
   transition: "border-color 150ms ease, background-color 150ms ease, opacity 150ms ease, 150ms ease",
 };
 
+const CORNER_LABELS = ["上", "右", "下", "左"];
+
+const LINKED_BTN_STYLE: React.CSSProperties = {
+  ...toggleBtnBase,
+  border: "1px solid var(--dp-accent, #6366f1)",
+  background: "var(--dp-accent-subtle, #eef0ff)",
+  color: "var(--dp-accent, #6366f1)",
+};
+
+const UNLINKED_BTN_STYLE: React.CSSProperties = {
+  ...toggleBtnBase,
+  border: "1px solid var(--dp-border, #e8e5f2)",
+  background: "transparent",
+  color: "var(--dp-text-muted, #a09db8)",
+};
+
 function SpacingSection({
   label,
   shorthandName,
@@ -194,8 +210,6 @@ function SpacingSection({
     return true;
   })();
   const unified = userToggled ? !deducedUnified : deducedUnified;
-
-  const cornerLabels = ["上", "右", "下", "左"];
 
   const handleToggle = useCallback(() => {
     if (unified) {
@@ -241,20 +255,6 @@ function SpacingSection({
     const raw = getProp(properties, n);
     return isTokenRef(raw) ? 0 : parsePx(raw);
   }) as [number, number, number, number];
-
-  const linkedBtnStyle: React.CSSProperties = {
-    ...toggleBtnBase,
-    border: "1px solid var(--dp-accent, #6366f1)",
-    background: "var(--dp-accent-subtle, #eef0ff)",
-    color: "var(--dp-accent, #6366f1)",
-  };
-
-  const unlinkedBtnStyle: React.CSSProperties = {
-    ...toggleBtnBase,
-    border: "1px solid var(--dp-border, #e8e5f2)",
-    background: "transparent",
-    color: "var(--dp-text-muted, #a09db8)",
-  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -324,7 +324,7 @@ function SpacingSection({
           <button type="button"
             onClick={handleToggle}
             title="独立设置各方向"
-            style={linkedBtnStyle}
+            style={LINKED_BTN_STYLE}
           >
             🔗
           </button>
@@ -334,7 +334,7 @@ function SpacingSection({
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             {[0, 1].map((i) => (
               <div key={i} style={{ display: "flex", alignItems: "center", gap: 4, flex: 1 }}>
-                <span style={cornerLabelStyle}>{cornerLabels[i]}</span>
+                <span style={cornerLabelStyle}>{CORNER_LABELS[i]}</span>
                 <SpacingValue
                   value={cornerVals[i]}
                   rawValue={getProp(properties, cornerNames[i])}
@@ -346,12 +346,12 @@ function SpacingSection({
                 />
               </div>
             ))}
-            <button type="button" onClick={handleToggle} title="统一设置所有方向" style={unlinkedBtnStyle}>🔓</button>
+            <button type="button" onClick={handleToggle} title="统一设置所有方向" style={UNLINKED_BTN_STYLE}>🔓</button>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             {[2, 3].map((i) => (
               <div key={i} style={{ display: "flex", alignItems: "center", gap: 4, flex: 1 }}>
-                <span style={cornerLabelStyle}>{cornerLabels[i]}</span>
+                <span style={cornerLabelStyle}>{CORNER_LABELS[i]}</span>
                 <SpacingValue
                   value={cornerVals[i]}
                   rawValue={getProp(properties, cornerNames[i])}

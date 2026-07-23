@@ -104,10 +104,14 @@ export function ConditionNode({ data }: Props) {
                   padding: "1px 4px",
                 }}
                 placeholder="条件表达式"
+                aria-label="编辑条件表达式"
               />
             ) : (
               <span
+                role="button"
+                tabIndex={0}
                 onClick={() => br.type !== "else" && handleEditStart(br)}
+                onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && br.type !== "else") { e.preventDefault(); handleEditStart(br); } }}
                 style={{
                   fontFamily: "monospace",
                   fontSize: 12,

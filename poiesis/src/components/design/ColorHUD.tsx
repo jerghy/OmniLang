@@ -142,7 +142,10 @@ export function ColorHUD({
             return (
               <div
                 key={token.id}
+                role="button"
+                tabIndex={0}
                 onClick={() => handleTokenClick(token)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleTokenClick(token); } }}
                 title={`${token.name} (${token.value})`}
                 style={
                   {

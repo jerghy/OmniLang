@@ -224,7 +224,7 @@ export function ComponentMembersPanel({ componentName }: Props) {
     <div style={S.panel}>
       {/* ── Props ── */}
       <div>
-        <div style={S.sectionHeader} onClick={() => toggle("props")}>
+        <div role="button" tabIndex={0} style={S.sectionHeader} onClick={() => toggle("props")} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle("props"); } }}>
           <span>Props</span>
           <button type="button" style={S.addBtn} onClick={(e) => { e.stopPropagation(); handleAddProp(); }}>+</button>
         </div>
@@ -232,12 +232,14 @@ export function ComponentMembersPanel({ componentName }: Props) {
           <div key={prop.pid} style={S.itemRow}>
             <div style={S.itemHeader}>
               <input
+                aria-label="Prop name"
                 style={{ ...S.input, width: 72 }}
                 value={prop.name}
                 onChange={(e) => handleUpdateProp(prop.pid, { name: e.target.value })}
               />
               <span style={S.typeSep}>:</span>
               <select
+                aria-label="Prop type"
                 style={{ ...S.select, width: 128 }}
                 value={prop.type}
                 onChange={(e) => handleUpdateProp(prop.pid, { type: e.target.value })}
@@ -253,6 +255,7 @@ export function ComponentMembersPanel({ componentName }: Props) {
                 style={S.input}
                 value={prop.defaultValue !== undefined ? String(prop.defaultValue) : ""}
                 placeholder="default (empty = required)"
+                aria-label="Prop default value"
                 onChange={(e) => handleUpdateProp(prop.pid, { defaultValue: e.target.value || undefined })}
               />
             </div>
@@ -267,7 +270,7 @@ export function ComponentMembersPanel({ componentName }: Props) {
 
       {/* ── Signals ── */}
       <div>
-        <div style={S.sectionHeader} onClick={() => toggle("signals")}>
+        <div role="button" tabIndex={0} style={S.sectionHeader} onClick={() => toggle("signals")} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle("signals"); } }}>
           <span>Signals</span>
           <button type="button" style={S.addBtn} onClick={(e) => { e.stopPropagation(); handleAddSignal(); }}>+</button>
         </div>
@@ -275,12 +278,14 @@ export function ComponentMembersPanel({ componentName }: Props) {
           <div key={sig.pid} style={S.itemRow}>
             <div style={S.itemHeader}>
               <input
+                aria-label="Signal name"
                 style={{ ...S.input, width: 72 }}
                 value={sig.name}
                 onChange={(e) => handleUpdateSignal(sig.pid, { name: e.target.value })}
               />
               <span style={S.typeSep}>:</span>
               <select
+                aria-label="Signal type"
                 style={{ ...S.select, width: 128 }}
                 value={sig.type}
                 onChange={(e) => handleUpdateSignal(sig.pid, { type: e.target.value })}
@@ -296,6 +301,7 @@ export function ComponentMembersPanel({ componentName }: Props) {
                 style={S.input}
                 value={sig.defaultValue !== undefined ? String(sig.defaultValue) : ""}
                 placeholder="default value"
+                aria-label="Signal default value"
                 onChange={(e) => handleUpdateSignal(sig.pid, { defaultValue: e.target.value })}
               />
             </div>
@@ -310,7 +316,7 @@ export function ComponentMembersPanel({ componentName }: Props) {
 
       {/* ── Computed ── */}
       <div>
-        <div style={S.sectionHeader} onClick={() => toggle("computeds")}>
+        <div role="button" tabIndex={0} style={S.sectionHeader} onClick={() => toggle("computeds")} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle("computeds"); } }}>
           <span>Computed</span>
           <button type="button" style={S.addBtn} onClick={(e) => { e.stopPropagation(); handleAddComputed(); }}>+</button>
         </div>
@@ -318,12 +324,14 @@ export function ComponentMembersPanel({ componentName }: Props) {
           <div key={c.pid} style={S.itemRow}>
             <div style={S.itemHeader}>
               <input
+                aria-label="Computed name"
                 style={{ ...S.input, width: 72 }}
                 value={c.name}
                 onChange={(e) => handleUpdateComputed(c.pid, { name: e.target.value })}
               />
               <span style={S.typeSep}>:</span>
               <select
+                aria-label="Computed return type"
                 style={{ ...S.select, width: 128 }}
                 value={c.returnType}
                 onChange={(e) => handleUpdateComputed(c.pid, { returnType: e.target.value })}
@@ -336,8 +344,11 @@ export function ComponentMembersPanel({ componentName }: Props) {
             <div style={S.valueRow}>
               <span style={{ ...S.typeSep, width: 12, textAlign: "center" }}>=</span>
               <span
+                role="button"
+                tabIndex={0}
                 style={S.exprClickable}
                 onClick={() => setEditingComputedPid(c.pid)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setEditingComputedPid(c.pid); } }}
                 title={c.expression || "Click to edit"}
               >
                 {c.expression

@@ -200,7 +200,10 @@ export function CodeEditorModal({
     <>
       {/* Backdrop */}
       <div
+        role="button"
+        tabIndex={0}
         onClick={onClose}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClose(); } }}
         style={{
           position: "fixed",
           inset: 0,
@@ -210,6 +213,7 @@ export function CodeEditorModal({
       />
       {/* Dialog */}
       <div
+        role="dialog"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={handleKeyDown}
         style={{
@@ -276,10 +280,12 @@ export function CodeEditorModal({
               color: "#64748b",
               marginBottom: 4,
             }}
+          htmlFor="code-description-input"
           >
             功能说明
           </label>
           <input
+            id="code-description-input"
             type="text"
             value={localDescription}
             onChange={(e) => setLocalDescription(e.target.value)}

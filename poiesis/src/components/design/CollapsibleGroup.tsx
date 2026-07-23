@@ -64,7 +64,10 @@ export const CollapsibleGroup = React.memo(function CollapsibleGroup({
       }}
     >
       <div
+        role="button"
+        tabIndex={0}
         onClick={handleHeaderClick}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleHeaderClick(); } }}
         style={{
           display: "flex",
           alignItems: "center",

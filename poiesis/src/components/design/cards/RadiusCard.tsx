@@ -53,6 +53,25 @@ const tokenRemoveBtn: React.CSSProperties = {
   flexShrink: 0,
 };
 
+const LABEL_STYLE: React.CSSProperties = {
+  fontSize: 12,
+  color: "var(--dp-text-secondary, #6b6893)",
+  width: 16,
+  flexShrink: 0,
+  textAlign: "center",
+};
+
+const TOGGLE_BTN_BASE: React.CSSProperties = {
+  borderRadius: "var(--dp-radius-sm, 6px)",
+  cursor: "pointer",
+  fontSize: 13,
+  lineHeight: 1,
+  padding: "3px 5px",
+  fontFamily: "inherit",
+  flexShrink: 0,
+  transition: "border-color 150ms ease, background-color 150ms ease, opacity 150ms ease, 150ms ease",
+};
+
 function setProp(
   props: StyleProperty[],
   name: string,
@@ -180,34 +199,15 @@ export const RadiusCard = React.memo(function RadiusCard({ properties, onChange,
     [properties, onChange],
   );
 
-  const labelStyle: React.CSSProperties = {
-    fontSize: 12,
-    color: "var(--dp-text-secondary, #6b6893)",
-    width: 16,
-    flexShrink: 0,
-    textAlign: "center",
-  };
-
-  const toggleBtnBase: React.CSSProperties = {
-    borderRadius: "var(--dp-radius-sm, 6px)",
-    cursor: "pointer",
-    fontSize: 13,
-    lineHeight: 1,
-    padding: "3px 5px",
-    fontFamily: "inherit",
-    flexShrink: 0,
-    transition: "border-color 150ms ease, background-color 150ms ease, opacity 150ms ease, 150ms ease",
-  };
-
   const linkedBtnStyle: React.CSSProperties = {
-    ...toggleBtnBase,
+    ...TOGGLE_BTN_BASE,
     border: "1px solid var(--dp-accent, #6366f1)",
     background: "var(--dp-accent-subtle, #eef0ff)",
     color: "var(--dp-accent, #6366f1)",
   };
 
   const unlinkedBtnStyle: React.CSSProperties = {
-    ...toggleBtnBase,
+    ...TOGGLE_BTN_BASE,
     border: "1px solid var(--dp-border, #e8e5f2)",
     background: "transparent",
     color: "var(--dp-text-muted, #a09db8)",
@@ -219,7 +219,7 @@ export const RadiusCard = React.memo(function RadiusCard({ properties, onChange,
         {mode === "unified" ? (
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 4, flex: 1 }}>
-              <span style={labelStyle}>R</span>
+              <span style={LABEL_STYLE}>R</span>
               <LockIcon propName="borderRadius" inheritedProps={inheritedProps} onToggleInherited={onToggleInherited} readOnly={readOnly} />
               <span style={isPropLocked("borderRadius", inheritedProps) ? LOCKED_INPUT_STYLE : undefined}>
               {readOnly && inheritedProps?.includes("borderRadius") ? (
