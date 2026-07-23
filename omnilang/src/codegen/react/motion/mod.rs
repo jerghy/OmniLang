@@ -16,12 +16,13 @@ pub(super) use transforms::{
     emit_scroll_effects_tsx,
 };
 
-/// Emit React hooks for @enter motion triggers found in the view tree.
+/// Emit React hooks for @enter, @hover, @press, @focus motion triggers.
 ///
-/// Scans for @enter triggers and emits:
-/// 1. A `_M` constant mapping motion names → `[keyframes[], options{}]` tuples
-/// 2. A `useEffect` that reads `data-motion-name` from each element,
-///    looks up the motion definition, and calls `el.animate(kf, opt)`
+/// Scans for named motion triggers and emits:
+/// 1. An `import { animate }` statement
+/// 2. A `_M` constant mapping motion names → `{kf:..., opts:...}` objects
+/// 3. A `useEffect` that handles @enter (one-shot on mount), @hover, @press,
+///    and @focus (interactive event listeners) by calling `animate(el, kf, opts)`
 ///
 /// `motion_bodies` maps motion name → its MotionBodyIR, from both component
 /// and module-level @motion definitions.
@@ -31,8 +32,8 @@ pub(super) fn emit_motion_effects_tsx(
     motion_bodies: &FxHashMap<String, MotionBodyIR>,
     signal_names: &FxHashSet<String>,
 ) {
-    // Collect all unique motion names referenced by @enter triggers in this tree
-    let motion_refs = collect_enter_motion_refs(node);
+    // Collect all unique motion names referenced by triggers in this tree
+    let motion_refs = collect_all_motion_refs(node);
     if motion_refs.is_empty() {
         return;
     }
@@ -53,16 +54,11 @@ pub(super) fn emit_motion_effects_tsx(
 
     let mut sorted: Vec<&String> = defined_refs.into_iter().collect();
     sorted.sort();
-    let mut motion_warnings: Vec<String> = Vec::new();
     for name in &sorted {
         if let Some(body) = motion_bodies.get(name.as_str()) {
-            let def_js = keyframes::format_motion_to_waapi(body, &mut motion_warnings);
+            let def_js = keyframes::format_motion_to_animate(body);
             w.emit_fmt(format_args!("{}:{},", name, def_js));
         }
-    }
-    // Surface any motion conversion warnings as code comments
-    for warn in &motion_warnings {
-        w.emit_fmt(format_args!("// WARN: {}", warn));
     }
     w.dedent();
     w.emit("};");
@@ -71,15 +67,57 @@ pub(super) fn emit_motion_effects_tsx(
     // ── Emit useEffect that applies animations ──
     w.emit("useEffect(()=>{");
     w.indent();
-    w.emit("const els=document.querySelectorAll('[data-motion-enter]');");
-    w.emit("els.forEach(el=>{");
+    // @enter: one-shot mount animation
+    w.emit("// @enter: mount animations");
+    w.emit("document.querySelectorAll('[data-motion-enter]').forEach(el=>{");
     w.indent();
     w.emit("const n=el.getAttribute('data-motion-name');");
     w.emit("if(n&&_M[n]){");
     w.indent();
-    w.emit("const[kf,opt,setup]=_M[n];");
-    w.emit("if(setup)setup(el);");
-    w.emit("el.animate(kf,opt);");
+    w.emit("const{kf,opts}=_M[n];");
+    w.emit("animate(el,kf,opts);");
+    w.dedent();
+    w.emit("}");
+    w.dedent();
+    w.emit("});");
+    // @hover: mouse enter/leave animations
+    w.emit("// @hover: mouse enter/leave animations");
+    w.emit("document.querySelectorAll('[data-motion-hover]').forEach(el=>{");
+    w.indent();
+    w.emit("const n=el.getAttribute('data-motion-hover-name');");
+    w.emit("if(n&&_M[n]){");
+    w.indent();
+    w.emit("const{kf,opts}=_M[n];");
+    w.emit("el.addEventListener('mouseenter',()=>animate(el,kf,opts));");
+    w.emit("el.addEventListener('mouseleave',()=>animate(el,[...kf].reverse(),opts));");
+    w.dedent();
+    w.emit("}");
+    w.dedent();
+    w.emit("});");
+    // @press: mouse down/up animations
+    w.emit("// @press: mouse down/up animations");
+    w.emit("document.querySelectorAll('[data-motion-press]').forEach(el=>{");
+    w.indent();
+    w.emit("const n=el.getAttribute('data-motion-press-name');");
+    w.emit("if(n&&_M[n]){");
+    w.indent();
+    w.emit("const{kf,opts}=_M[n];");
+    w.emit("el.addEventListener('mousedown',()=>animate(el,kf,opts));");
+    w.emit("el.addEventListener('mouseup',()=>animate(el,[...kf].reverse(),opts));");
+    w.dedent();
+    w.emit("}");
+    w.dedent();
+    w.emit("});");
+    // @focus: focus/blur animations
+    w.emit("// @focus: focus/blur animations");
+    w.emit("document.querySelectorAll('[data-motion-focus]').forEach(el=>{");
+    w.indent();
+    w.emit("const n=el.getAttribute('data-motion-focus-name');");
+    w.emit("if(n&&_M[n]){");
+    w.indent();
+    w.emit("const{kf,opts}=_M[n];");
+    w.emit("el.addEventListener('focus',()=>animate(el,kf,opts));");
+    w.emit("el.addEventListener('blur',()=>animate(el,[...kf].reverse(),opts));");
     w.dedent();
     w.emit("}");
     w.dedent();
@@ -98,46 +136,44 @@ pub(super) fn emit_motion_effects_tsx(
 }
 
 /// ── Helpers ────────────────────────────────────────────────────────────
-/// Collect all unique motion names referenced by @enter triggers in a view tree.
-fn collect_enter_motion_refs(node: &ViewTree) -> FxHashSet<String> {
+/// Collect all unique motion names referenced by any trigger in a view tree.
+fn collect_all_motion_refs(node: &ViewTree) -> FxHashSet<String> {
     let mut refs = FxHashSet::default();
-    collect_enter_motion_refs_inner(node, &mut refs);
+    collect_all_motion_refs_inner(node, &mut refs);
     refs
 }
 
-fn collect_enter_motion_refs_inner(node: &ViewTree, refs: &mut FxHashSet<String>) {
+fn collect_all_motion_refs_inner(node: &ViewTree, refs: &mut FxHashSet<String>) {
     match node {
         ViewTree::Element(el) => {
             for trigger in el
                 .motion_behavior()
                 .map_or(&[] as &[TriggerIntent], |m| &m.triggers)
             {
-                if matches!(trigger.kind, TriggerKind::Enter) {
-                    if let Some(ref name) = trigger.motion_ref {
-                        refs.insert(name.clone());
-                    }
+                if let Some(ref name) = trigger.motion_ref {
+                    refs.insert(name.clone());
                 }
             }
             for child in &el.children {
-                collect_enter_motion_refs_inner(child, refs);
+                collect_all_motion_refs_inner(child, refs);
             }
         }
         ViewTree::Conditional(cond) => {
             for branch in &cond.branches {
                 if let Some(body) = &branch.body {
-                    collect_enter_motion_refs_inner(body, refs);
+                    collect_all_motion_refs_inner(body, refs);
                 }
             }
             if let Some(fb) = &cond.fallback {
-                collect_enter_motion_refs_inner(fb, refs);
+                collect_all_motion_refs_inner(fb, refs);
             }
         }
         ViewTree::ListRendering(list) => {
             if let Some(body) = &list.body {
-                collect_enter_motion_refs_inner(body, refs);
+                collect_all_motion_refs_inner(body, refs);
             }
             if let Some(empty) = &list.empty_body {
-                collect_enter_motion_refs_inner(empty, refs);
+                collect_all_motion_refs_inner(empty, refs);
             }
         }
         _ => {}

@@ -170,16 +170,28 @@ pub(super) fn gen_view_node_tsx(
                         }
                     }
                     TriggerKind::Hover => {
-                        attrs.push("onMouseEnter={(e) => { e.currentTarget.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, easing: 'ease-out' }); }}".into());
-                        attrs.push("onMouseLeave={(e) => { e.currentTarget.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 300, easing: 'ease-out' }); }}".into());
+                        attrs.push("data-motion-hover=\"true\"".into());
+                        if let Some(ref motion_name) = trigger.motion_ref {
+                            attrs.push(format!("data-motion-hover-name=\"{}\"", motion_name));
+                        }
                     }
                     TriggerKind::Press => {
-                        attrs.push("onMouseDown={(e) => { e.currentTarget.animate([{ scale: 1 }, { scale: 0.95 }], { duration: 150, easing: 'ease-out', fill: 'both' }); }}".into());
-                        attrs.push("onMouseUp={(e) => { e.currentTarget.animate([{ scale: 0.95 }, { scale: 1 }], { duration: 150, easing: 'ease-out', fill: 'both' }); }}".into());
+                        attrs.push("data-motion-press=\"true\"".into());
+                        if let Some(ref motion_name) = trigger.motion_ref {
+                            attrs.push(format!("data-motion-press-name=\"{}\"", motion_name));
+                        }
                     }
                     TriggerKind::Focus => {
-                        attrs.push("onFocus={(e) => { e.currentTarget.animate([{ boxShadow: '0 0 0 0 rgba(59,130,246,0)' }, { boxShadow: '0 0 0 3px rgba(59,130,246,0.5)' }], { duration: 200, easing: 'ease-out', fill: 'both' }); }}".into());
-                        attrs.push("onBlur={(e) => { e.currentTarget.animate([{ boxShadow: '0 0 0 3px rgba(59,130,246,0.5)' }, { boxShadow: '0 0 0 0 rgba(59,130,246,0)' }], { duration: 200, easing: 'ease-out', fill: 'both' }); }}".into());
+                        attrs.push("data-motion-focus=\"true\"".into());
+                        if let Some(ref motion_name) = trigger.motion_ref {
+                            attrs.push(format!("data-motion-focus-name=\"{}\"", motion_name));
+                        }
+                    }
+                    TriggerKind::Unhover => {
+                        attrs.push("data-motion-unhover=\"true\"".into());
+                        if let Some(ref motion_name) = trigger.motion_ref {
+                            attrs.push(format!("data-motion-unhover-name=\"{}\"", motion_name));
+                        }
                     }
                     TriggerKind::InView => {
                         let threshold_val = match el

@@ -1,55 +1,43 @@
 // ═══════════════════════════════════════════════════════════
-// Keyframe / WAAPI formatting helpers
+// Keyframe formatting helpers for @omni/animation
 // ═══════════════════════════════════════════════════════════
 
 use crate::codegen::react::expr;
 use crate::ir::*;
 
-/// Format a full MotionBodyIR into a JS tuple `[keyframes[], options{}, setupFn?]`.
-pub(super) fn format_motion_to_waapi(body: &MotionBodyIR, warnings: &mut Vec<String>) -> String {
-    match body {
+/// Format a MotionBodyIR into JS: `{kf:{...},opts:{...}}` for use with animate().
+pub(super) fn format_motion_to_animate(motion: &MotionBodyIR) -> String {
+    match motion {
         MotionBodyIR::Keyframe(kf) => {
-            let keyframes = format_keyframes(kf);
-            let options = format_playback_options(&kf.over, &kf.ease, &kf.playback, warnings);
-            // Path setup: if motion has a path, emit a setup function
-            if let Some(path) = &kf.path {
-                let rot = kf.path_rotate.unwrap_or(false);
-                format!(
-                    "[{},{} ,(el)=>{{el.style.offsetPath='path(\"{}\")';{}}}]",
-                    keyframes,
-                    options,
-                    path,
-                    if rot { "el.style.offsetRotate='auto';" } else { "" }
-                )
-            } else {
-                format!("[{},{}]", keyframes, options)
-            }
+            let kf_items = format_keyframe_stops(kf);
+            let opts = format_animate_options(&kf.over, &kf.ease, &kf.playback);
+            format!("{{kf:{kf},opts:{opts}}}", kf = kf_items, opts = opts)
         }
-        MotionBodyIR::Timeline(_) => {
-            // Timeline animations — basic fallback for now
-            "[[{opacity:0,offset:0},{opacity:1,offset:1}],{duration:300,easing:\"ease-out\",fill:\"both\"}]".to_string()
-        }
-        MotionBodyIR::CallbackOnly(_) => {
-            "[[{opacity:0,offset:0},{opacity:1,offset:1}],{duration:300,easing:\"ease-out\",fill:\"both\"}]".to_string()
+        MotionBodyIR::Timeline(_) | MotionBodyIR::CallbackOnly(_) => {
+            "{kf:[{offset:0,properties:{opacity:0}},{offset:1,properties:{opacity:1}}],opts:{duration:300,easing:\"ease-out\",fill:\"both\"}}".to_string()
         }
     }
 }
 
-/// Format keyframe stops into a WAAPI-compatible keyframes array string.
-///   `[{opacity:0,transform:"translateX(-20px)",offset:0}, ...]`
-fn format_keyframes(kf: &KeyframeIR) -> String {
+/// Format keyframe stops into the KeyframeStop[] format (not WAAPI Keyframe[]).
+fn format_keyframe_stops(kf: &KeyframeIR) -> String {
     let mut items: Vec<String> = Vec::new();
 
     if kf.stops.len() == 1 {
         let stop = &kf.stops[0];
+        let mut prop_pairs: Vec<String> = Vec::new();
+        for (prop, value) in &stop.properties {
+            let val_str = expr::format_expr_ir_tsx(value);
+            prop_pairs.push(format!("\"{}\":{}", prop, val_str));
+        }
         if stop.position >= 0.5 {
             // to-only: synthetic 0% keyframe (start from current state)
-            items.push("{offset:0}".to_string());
-            items.push(format_stop(stop, true));
+            items.push("{offset:0,properties:{}}".to_string());
+            items.push(format!("{{offset:{},properties:{{{}}}}}", stop.position, prop_pairs.join(",")));
         } else {
             // from-only: synthetic 100% keyframe (return to current state)
-            items.push(format_stop(stop, true));
-            items.push("{offset:1}".to_string());
+            items.push(format!("{{offset:{},properties:{{{}}}}}", stop.position, prop_pairs.join(",")));
+            items.push("{offset:1,properties:{}}".to_string());
         }
         return format!("[{}]", items.join(","));
     }
@@ -63,179 +51,62 @@ fn format_keyframes(kf: &KeyframeIR) -> String {
     });
 
     for stop in &sorted_stops {
-        items.push(format_stop(stop, kf.stops.len() <= 2));
+        let mut prop_pairs: Vec<String> = Vec::new();
+        for (prop, value) in &stop.properties {
+            let val_str = expr::format_expr_ir_tsx(value);
+            prop_pairs.push(format!("\"{}\":{}", prop, val_str));
+        }
+        items.push(format!("{{offset:{},properties:{{{}}}}}", stop.position, prop_pairs.join(",")));
     }
 
     format!("[{}]", items.join(","))
 }
 
-/// Format a single keyframe stop into a JS keyframe object like `{opacity:0,transform:"...",offset:0}`.
-fn format_stop(stop: &KeyframeStopIR, is_binary: bool) -> String {
-    let mut css_props: Vec<String> = Vec::new(); // name:value
-    let mut transform_parts: Vec<String> = Vec::new(); // translateX(...) etc
-    let mut filter_parts: Vec<String> = Vec::new(); // blur(...) etc
-
-    for (prop, value) in &stop.properties {
-        let val_str = expr::format_expr_ir_tsx(value);
-        match prop.as_str() {
-            // Transform shortcuts → combined into one `transform` string
-            "x" => transform_parts.push(format!("translateX({}px)", val_str)),
-            "y" => transform_parts.push(format!("translateY({}px)", val_str)),
-            "rotate" => transform_parts.push(format!("rotate({}deg)", val_str)),
-            "rotateX" => transform_parts.push(format!("rotateX({}deg)", val_str)),
-            "rotateY" => transform_parts.push(format!("rotateY({}deg)", val_str)),
-            "rotateZ" => transform_parts.push(format!("rotateZ({}deg)", val_str)),
-            "scale" => transform_parts.push(format!("scale({})", val_str)),
-            "scaleX" => transform_parts.push(format!("scaleX({})", val_str)),
-            "scaleY" => transform_parts.push(format!("scaleY({})", val_str)),
-            "skewX" => transform_parts.push(format!("skewX({}deg)", val_str)),
-            "skewY" => transform_parts.push(format!("skewY({}deg)", val_str)),
-            // Filter shortcuts
-            "blur" => filter_parts.push(format!("blur({}px)", val_str)),
-            "brightness" => filter_parts.push(format!("brightness({})", val_str)),
-            "contrast" => filter_parts.push(format!("contrast({})", val_str)),
-            "saturate" => filter_parts.push(format!("saturate({})", val_str)),
-            "hueRotate" => filter_parts.push(format!("hue-rotate({}deg)", val_str)),
-            "offsetDistance" => {
-                // WAAPI requires a string like "0%" or "100%".
-                // Omni uses 0..=1 range; convert to percentage.
-                if let Ok(n) = val_str.parse::<f64>() {
-                    css_props.push(format!("offsetDistance:\"{}%\"", n * 100.0));
-                } else {
-                    css_props.push(format!("offsetDistance:{}", val_str));
-                }
-            }
-            // Everything else passes through as a camelCase CSS property
-            _ => {
-                if is_length_prop(prop) && is_numeric_str(&val_str) {
-                    css_props.push(format!("{}:\"{}px\"", prop, val_str));
-                } else {
-                    css_props.push(format!("{}:{}", prop, val_str));
-                }
-            }
-        }
-    }
-
-    // Build combined keyframe
-    let mut parts: Vec<String> = Vec::new();
-    parts.extend(css_props);
-    if !transform_parts.is_empty() {
-        parts.push(format!("transform:\"{}\"", transform_parts.join(" ")));
-    }
-    if !filter_parts.is_empty() {
-        parts.push(format!("filter:\"{}\"", filter_parts.join(" ")));
-    }
-    if !is_binary {
-        // Always include explicit offset for multi-stop keyframes
-        parts.push(format!("offset:{}", stop.position));
-    }
-
-    format!("{{{}}}", parts.join(","))
-}
-
-/// Properties that need `px` suffix in WAAPI keyframes when value is numeric.
-fn is_length_prop(prop: &str) -> bool {
-    matches!(
-        prop,
-        "width"
-            | "height"
-            | "margin"
-            | "padding"
-            | "borderRadius"
-            | "borderWidth"
-            | "marginTop"
-            | "marginRight"
-            | "marginBottom"
-            | "marginLeft"
-            | "paddingTop"
-            | "paddingRight"
-            | "paddingBottom"
-            | "paddingLeft"
-            | "borderTopLeftRadius"
-            | "borderTopRightRadius"
-            | "borderBottomLeftRadius"
-            | "borderBottomRightRadius"
-            | "gap"
-            | "rowGap"
-            | "columnGap"
-            | "maxWidth"
-            | "minWidth"
-            | "maxHeight"
-            | "minHeight"
-            | "top"
-            | "left"
-            | "right"
-            | "bottom"
-            | "fontSize"
-            | "letterSpacing"
-            | "wordSpacing"
-    )
-}
-
-/// Check if a formatted JS value string is a bare number (not quoted).
-fn is_numeric_str(s: &str) -> bool {
-    !s.starts_with('"')
-        && !s.starts_with('\'')
-        && s.chars()
-            .all(|c| c.is_ascii_digit() || c == '.' || c == '-' || c == '+')
-}
-
-/// Format playback options into a WAAPI-compatible options object.
-///   `{duration:400,easing:"ease-out",fill:"forwards"}`
-fn format_playback_options(
-    over: &ExprIR,
-    ease: &Option<EasingIR>,
-    playback: &PlaybackIR,
-    warnings: &mut Vec<String>,
-) -> String {
+/// Format motion options for animate() call.
+fn format_animate_options(over: &ExprIR, ease: &Option<EasingIR>, playback: &PlaybackIR) -> String {
     let mut opts: Vec<String> = Vec::new();
-
-    // Duration
-    let dur_str = expr::format_expr_ir_tsx(over);
-    opts.push(format!("duration:{}", dur_str));
-
-    // Easing
-    if let Some(easing) = ease {
-        opts.push(format!("easing:\"{}\"", translate_easing(easing, warnings)));
+    let dur = expr::format_expr_ir_tsx(over);
+    opts.push(format!("duration:{}", dur));
+    if let Some(e) = ease {
+        opts.push(format!("easing:{}", format_easing_to_js(e)));
     }
-
-    // Fill mode
-    if let Some(fill) = &playback.fill {
-        let s = match fill {
-            FillValue::None => "none",
-            FillValue::Forwards => "forwards",
-            FillValue::Backwards => "backwards",
-            FillValue::Both => "both",
-        };
-        opts.push(format!("fill:\"{}\"", s));
-    }
-
-    // Direction
+    // fill
+    let fill = match &playback.fill {
+        Some(FillValue::Forwards) | None => "\"forwards\"",
+        Some(FillValue::None) => "\"none\"",
+        Some(FillValue::Backwards) => "\"backwards\"",
+        Some(FillValue::Both) => "\"both\"",
+    };
+    opts.push(format!("fill:{}", fill));
+    // direction
     if let Some(dir) = &playback.direction {
-        let s = match dir {
+        let d = match dir {
             DirectionValue::Normal => "normal",
             DirectionValue::Reverse => "reverse",
             DirectionValue::Alternate => "alternate",
             DirectionValue::AlternateReverse => "alternate-reverse",
         };
-        opts.push(format!("direction:\"{}\"", s));
+        opts.push(format!("direction:\"{}\"", d));
     }
-
-    // Loop count
+    // iterations
     if let Some(loop_val) = &playback.loop_count {
         match loop_val {
             LoopValue::Infinite => opts.push("iterations:Infinity".into()),
             LoopValue::Count(n) => opts.push(format!("iterations:{}", n)),
         }
     }
-
-    // Delay
+    // delay
     if let Some(delay) = &playback.delay {
-        let d_str = expr::format_expr_ir_tsx(delay);
-        opts.push(format!("delay:{}", d_str));
+        opts.push(format!("delay:{}", expr::format_expr_ir_tsx(delay)));
     }
-
     format!("{{{}}}", opts.join(","))
+}
+
+/// Format easing value as a JS string literal.
+fn format_easing_to_js(ease: &EasingIR) -> String {
+    let mut warnings = Vec::new();
+    let val = translate_easing(ease, &mut warnings);
+    format!("\"{}\"", val)
 }
 
 /// Translate an Omni easing IR to a WAAPI-compatible easing string.

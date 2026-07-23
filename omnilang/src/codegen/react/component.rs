@@ -92,7 +92,10 @@ impl ReactCodegen {
         if has_styles {
             w.emit_fmt(format_args!("import styles from './{}.module.css';", name));
         }
-        if !hooks.is_empty() || has_styles {
+        if has_motion {
+            w.emit("import { animate } from \"@omni/animation\";");
+        }
+        if !hooks.is_empty() || has_styles || has_motion {
             w.emit("");
         }
 
