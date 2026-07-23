@@ -474,12 +474,15 @@ export function DesignTabBar() {
           return (
             <div
               key={tab.id}
+              role="tab"
+              tabIndex={0}
               draggable
               onDragStart={() => handleDragStart(tab.id)}
               onDragOver={(e) => handleDragOver(e, tab.id)}
               onDrop={() => handleDrop(tab.id)}
               onDragEnd={handleDragEnd}
               onClick={() => switchTab(tab.id)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); switchTab(tab.id); } }}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -625,7 +628,11 @@ export function DesignTabBar() {
       {confirmClose && (
         <>
           <div
+            role="button"
+            tabIndex={0}
+            aria-label="Close confirmation"
             onClick={() => setConfirmClose(null)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setConfirmClose(null); } }}
             style={{
               position: "fixed",
               inset: 0,

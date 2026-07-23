@@ -202,6 +202,7 @@ export function CodeEditorModal({
       <div
         role="button"
         tabIndex={0}
+        aria-label="Close modal"
         onClick={onClose}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClose(); } }}
         style={{

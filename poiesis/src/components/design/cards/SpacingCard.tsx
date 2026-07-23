@@ -74,7 +74,7 @@ function SpacingValue({
   if (isTokenRef(rawValue)) {
     return (
       <span style={{ display: "inline-flex", alignItems: "center", gap: 2, flex: 1 }}>
-        <span style={tokenValueStyle} onClick={(e) => onTokenClick?.(e.currentTarget)}>{rawValue}</span>
+        <span role="button" tabIndex={0} style={tokenValueStyle} onClick={(e) => onTokenClick?.(e.currentTarget)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onTokenClick?.(e.currentTarget); } }}>{rawValue}</span>
         <button type="button" style={tokenRemoveBtn} title="Remove token"
           onClick={(e) => { e.stopPropagation(); onRemoveToken?.(); }}
         >&times;</button>
@@ -277,8 +277,11 @@ function SpacingSection({
             {isShorthandToken ? (
               <span style={{ display: "inline-flex", alignItems: "center", gap: 2, flex: 1 }}>
                 <span
+                  role="button"
+                  tabIndex={0}
                   style={tokenValueStyle}
                   onClick={(e) => onPropSlash?.(shorthandName, e.currentTarget)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPropSlash?.(shorthandName, e.currentTarget); } }}
                 >{shorthandRaw}</span>
                 <button type="button" style={tokenRemoveBtn} title="Remove token"
                   onClick={(e) => {

@@ -183,8 +183,11 @@ export const SizeCard = React.memo(function SizeCard({ properties, onChange, onF
             ) : isTokenRef(widthStr) ? (
               <span style={{ display: "inline-flex", alignItems: "center", gap: 2, flex: 1 }}>
                 <span
+                  role="button"
+                  tabIndex={0}
                   style={tokenTextStyle}
                   onClick={(e) => onPropSlash?.("width", e.currentTarget)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPropSlash?.("width", e.currentTarget); } }}
                 >{widthStr}</span>
                 <button type="button"
                   style={tokenRemoveBtn}
@@ -239,8 +242,11 @@ export const SizeCard = React.memo(function SizeCard({ properties, onChange, onF
             ) : isTokenRef(heightStr) ? (
               <span style={{ display: "inline-flex", alignItems: "center", gap: 2, flex: 1 }}>
                 <span
+                  role="button"
+                  tabIndex={0}
                   style={tokenTextStyle}
                   onClick={(e) => onPropSlash?.("height", e.currentTarget)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPropSlash?.("height", e.currentTarget); } }}
                 >{heightStr}</span>
                 <button type="button"
                   style={tokenRemoveBtn}

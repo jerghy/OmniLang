@@ -161,7 +161,11 @@ export function StoreDrawer() {
           {showStoreSwitcher && (
             <>
               <div
+                role="button"
+                tabIndex={0}
+                aria-label="Close store switcher"
                 onClick={() => setShowStoreSwitcher(false)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowStoreSwitcher(false); } }}
                 style={{ position: "fixed", inset: 0, zIndex: 99 }}
               />
               <div style={{
@@ -176,7 +180,10 @@ export function StoreDrawer() {
                 overflow: "hidden",
               }}>
                 {allStores.map(s => (
-                  <div key={s.key} style={{
+                  <div key={s.key}
+                    role="button"
+                    tabIndex={0}
+                    style={{
                     display: "flex", alignItems: "center",
                     padding: "8px 14px",
                     cursor: "pointer",
@@ -186,6 +193,7 @@ export function StoreDrawer() {
                     borderBottom: "1px solid #f1f5f9",
                   }}
                     onClick={() => handleSelectStore(s.key)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSelectStore(s.key); } }}
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#f8fafc"; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
                   >
@@ -303,7 +311,7 @@ function CreateStoreModal({
 
   return (
     <>
-      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 1000 }} />
+      <div role="button" tabIndex={0} aria-label="Close new store modal" onClick={onClose} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClose(); } }} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 1000 }} />
       <div style={{
         position: "fixed", top: "50%", left: "50%",
         transform: "translate(-50%, -50%)",
@@ -338,6 +346,7 @@ function CreateStoreModal({
 
         <input
           placeholder="Store 名称"
+          aria-label="Store name"
           value={name}
           onChange={e => setName(e.target.value)}
           onKeyDown={e => {

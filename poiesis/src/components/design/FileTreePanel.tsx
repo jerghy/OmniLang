@@ -216,7 +216,11 @@ export function FileTreePanel({ tabs, onOpenFile, onNewFile, onClose, panelRef }
   return (
     <>
       <div
+        role="button"
+        tabIndex={0}
+        aria-label="Close file tree"
         onClick={onClose}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClose(); } }}
         style={{
           position: "fixed",
           inset: 0,

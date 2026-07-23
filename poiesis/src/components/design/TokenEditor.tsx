@@ -294,7 +294,10 @@ export function TokenEditor() {
             {catTokens.map((t) => (
               <div key={t.id} style={{ textAlign: "center" }}>
                 <div
+                  role="button"
+                  tabIndex={0}
                   onClick={(e) => handleOpenColorPicker(t.id, e)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleOpenColorPicker(t.id, e as unknown as React.MouseEvent); } }}
                   style={{
                     width: "100%",
                     aspectRatio: "1",
@@ -321,7 +324,10 @@ export function TokenEditor() {
             <div key={t.id} style={ROW_STYLE}>
               {/* Color swatch */}
               <div
+                role="button"
+                tabIndex={0}
                 onClick={(e) => handleOpenColorPicker(t.id, e)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleOpenColorPicker(t.id, e as unknown as React.MouseEvent); } }}
                 style={{
                   width: 24,
                   height: 24,
@@ -338,6 +344,7 @@ export function TokenEditor() {
                 onChange={(e) => updateToken(t.id, { name: e.target.value })}
                 style={{ ...INPUT_STYLE, width: 100, flexShrink: 0 }}
                 placeholder="name"
+              aria-label="Color token name"
               />
               {/* Value (hex) */}
               <input
@@ -345,9 +352,11 @@ export function TokenEditor() {
                 onChange={(e) => updateToken(t.id, { value: e.target.value })}
                 style={{ ...INPUT_STYLE, flex: 1, minWidth: 0 }}
                 placeholder="#000000"
+                aria-label="Color value"
               />
               {/* Token type dropdown */}
               <select
+                aria-label="Token type"
                 value={t.tokenType}
                 onChange={(e) => updateToken(t.id, { tokenType: e.target.value as DesignToken["tokenType"] })}
                 style={{ ...SELECT_STYLE, width: 64 }}
@@ -383,10 +392,15 @@ export function TokenEditor() {
                   onChange={(e) => updateToken(t.id, { name: e.target.value })}
                   style={{ ...INPUT_STYLE, width: 100, flexShrink: 0 }}
                   placeholder="name"
+                  aria-label="Spacing token name"
                 />
                 {/* Value with drag-scrub */}
                 <div
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Scrub value: ${t.value}`}
                   onMouseDown={(e) => handleScrubStart(t.id, t.value, e)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleScrubStart(t.id, t.value, e as unknown as React.MouseEvent); } }}
                   style={{
                     ...INPUT_STYLE,
                     flex: 1,
@@ -407,6 +421,7 @@ export function TokenEditor() {
                 </div>
                 {/* Unit selector */}
                 <select
+                  aria-label="Spacing unit"
                   value={unit}
                   onChange={(e) => updateToken(t.id, { value: `${num}${e.target.value}` })}
                   style={{
@@ -429,7 +444,10 @@ export function TokenEditor() {
                 </select>
                 {/* Ratio bar (clickable) */}
                 <div
+                  role="button"
+                  tabIndex={0}
                   onClick={(e) => handleRatioBarClick(t.id, spacingMax, e)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleRatioBarClick(t.id, spacingMax, e as unknown as React.MouseEvent); } }}
                   style={{
                     flexShrink: 0,
                     width: 56,
@@ -476,12 +494,14 @@ export function TokenEditor() {
                 onChange={(e) => updateToken(t.id, { name: e.target.value })}
                 style={{ ...INPUT_STYLE, width: 100, flexShrink: 0 }}
                 placeholder="name"
+                aria-label="Typography token name"
               />
               <input
                 value={t.value}
                 onChange={(e) => updateToken(t.id, { value: e.target.value })}
                 style={{ ...INPUT_STYLE, flex: 1, minWidth: 0 }}
                 placeholder="value"
+                aria-label="Typography value"
               />
               <button type="button" onClick={() => removeToken(t.id)} style={REMOVE_BTN} title="Remove token">
                 &times;
@@ -507,9 +527,14 @@ export function TokenEditor() {
                   onChange={(e) => updateToken(t.id, { name: e.target.value })}
                   style={{ ...INPUT_STYLE, width: 100, flexShrink: 0 }}
                   placeholder="name"
+                  aria-label="Radius token name"
                 />
                 <div
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Scrub value: ${t.value}`}
                   onMouseDown={(e) => handleScrubStart(t.id, t.value, e)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleScrubStart(t.id, t.value, e as unknown as React.MouseEvent); } }}
                   style={{
                     ...INPUT_STYLE,
                     flex: 1,
@@ -532,6 +557,7 @@ export function TokenEditor() {
                 </div>
                 {/* Unit selector for radii */}
                 <select
+                  aria-label="Radius unit"
                   value={unit}
                   onChange={(e) => updateToken(t.id, { value: `${num}${e.target.value}` })}
                   style={{
@@ -633,6 +659,7 @@ export function TokenEditor() {
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
         <div style={{ position: "relative", flex: 1 }}>
           <input
+            aria-label="Search tokens"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search tokens..."
@@ -753,12 +780,14 @@ export function TokenEditor() {
                     onChange={(e) => updateToken(t.id, { name: e.target.value })}
                     style={{ ...INPUT_STYLE, width: 100, flexShrink: 0 }}
                     placeholder="name"
+                    aria-label="Token name"
                   />
                   <input
                     value={t.value}
                     onChange={(e) => updateToken(t.id, { value: e.target.value })}
                     style={{ ...INPUT_STYLE, flex: 1, minWidth: 0 }}
                     placeholder="value"
+                    aria-label="Token value"
                   />
                   <button type="button" onClick={() => removeToken(t.id)} style={REMOVE_BTN} title="Remove token">
                     &times;

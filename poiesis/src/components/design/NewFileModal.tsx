@@ -21,7 +21,11 @@ export function NewFileModal({ onCreate, onClose }: NewFileModalProps) {
   return (
     <>
       <div
+        role="button"
+        tabIndex={0}
+        aria-label="Close new file modal"
         onClick={() => { onClose(); setNewFileName(""); }}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClose(); setNewFileName(""); } }}
         style={{
           position: "fixed",
           inset: 0,
@@ -103,6 +107,7 @@ export function NewFileModal({ onCreate, onClose }: NewFileModalProps) {
                 }
               }}
               placeholder="my-file"
+              aria-label="File name"
               style={{
                 flex: 1,
                 padding: "5px 8px",
