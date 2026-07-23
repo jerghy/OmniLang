@@ -21,7 +21,7 @@ import { ReturnNode } from "./nodes/ReturnNode";
 import { DesignPreviewNode } from "./nodes/DesignPreviewNode";
 import { CODE_TAGS, TAG_CN, type ContextMenuState } from "./flowConstants";
 import { ContextMenu } from "./CanvasContextMenu";
-import { CodeCardEditor } from "./CodeCardEditor";
+import { CodeCardEditor } from "./card-editor/CodeCardEditor";
 import { emitOps } from "../../../services/codegen/code-op-emitter";
 import { FlowInspector } from "./FlowInspector";
 import { NodeContextMenu } from "./NodeContextMenu";
