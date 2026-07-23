@@ -53,7 +53,7 @@ export function AutocompletePlugin(): React.ReactNode {
       let parentKind: CardKind | null = null;
 
       if ($isSlotTextNode(node)) {
-        slotType = (node as any).__slot;
+        slotType = node.getSlotType();
         // Walk up to find parent card
         let parent = node.getParent();
         while (parent) {
@@ -129,7 +129,7 @@ export function AutocompletePlugin(): React.ReactNode {
           }
           const before = textContent.slice(0, tokenStart);
           const after = textContent.slice(offset);
-          (node as any).setTextContent(before + after);
+          node.setTextContent(before + after);
         }
 
         // Create the card
@@ -138,7 +138,6 @@ export function AutocompletePlugin(): React.ReactNode {
 
         // Handle declare_var_mut: set mutable
         if (item.kind === "declare_var_mut") {
-          card.__cardKind = "declare_var";
           // Insert "mut" text node after "let "
           const firstChild = card.getFirstChild();
           if (firstChild) {

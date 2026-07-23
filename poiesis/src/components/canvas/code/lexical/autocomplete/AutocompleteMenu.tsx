@@ -38,7 +38,7 @@ export const AutocompleteMenu: React.FC<Props> = ({
         zIndex: 1000, fontFamily: "monospace", fontSize: 12,
       }}>
       {items.map((item, i) => (
-        <div key={item.kind}
+        <div key={`${item.kind}-${item.label}`}
           onClick={() => onSelect(item)}
           style={{
             padding: "6px 12px", cursor: "pointer",
