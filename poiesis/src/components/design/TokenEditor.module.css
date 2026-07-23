@@ -8,7 +8,7 @@
   border: none;
   background: none;
   cursor: pointer;
-  color: #64748b;
+  color: var(--ol-text-secondary);
   font-size: 16px;
   padding: 0;
   line-height: 1;
@@ -19,8 +19,8 @@
   font-size: 13px;
   border: none;
   border-radius: 8px;
-  background: #6366f1;
-  color: #fff;
+  background: var(--ol-color-primary);
+  color: var(--ol-surface);
   cursor: pointer;
   font-weight: 600;
   white-space: nowrap;
@@ -29,8 +29,8 @@
 
 .newTokenMenu {
   position: fixed;
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--ol-surface);
+  border: 1px solid var(--ol-border);
   border-radius: 10px;
   box-shadow: 0 6px 24px rgba(0,0,0,0.14);
   z-index: 10000;
@@ -47,7 +47,7 @@
   font-size: 13px;
   border: none;
   background: transparent;
-  color: #374151;
+  color: var(--ol-gray-700);
   cursor: pointer;
   text-align: left;
   font-family: inherit;
@@ -58,7 +58,7 @@
   min-width: 0;
   cursor: ew-resize;
   user-select: none;
-  background: #f0fdf4;
+  background: var(--ol-color-success-subtle);
   display: flex;
   align-items: center;
   gap: 4px;
@@ -71,11 +71,11 @@
   padding: 4px 4px;
   font-size: 12px;
   font-family: 'Cascadia Code', 'Fira Code', monospace;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--ol-border-hover);
   border-radius: 6px;
   outline: 2px solid transparent;
-  background: #fff;
-  color: #374151;
+  background: var(--ol-surface);
+  color: var(--ol-gray-700);
   cursor: pointer;
   flex-shrink: 0;
   width: 56px;
@@ -86,7 +86,7 @@
   width: 56px;
   height: 10px;
   border-radius: 5px;
-  background: #e2e8f0;
+  background: var(--ol-border);
   position: relative;
   cursor: pointer;
   overflow: hidden;
@@ -94,13 +94,13 @@
 
 .ratioFill {
   height: 100%;
-  background: #6366f1;
+  background: var(--ol-color-primary);
   border-radius: 5px;
   transition: opacity 0.05s;
 }
 
 .paletteToggleBtn {
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--ol-border);
   border-radius: 6px;
   font-size: 12px;
   font-weight: 500;

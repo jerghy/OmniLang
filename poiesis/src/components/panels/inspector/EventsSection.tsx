@@ -163,7 +163,7 @@ export function EventsSection({ element, handlerItems }: EventsSectionProps) {
 
       {/* Empty state */}
       {boundEvents.length === 0 && (
-        <div style={{ fontSize: 12, color: "#94a3b8" }}>
+        <div style={{ fontSize: 12, color: "var(--ol-text-muted)" }}>
           暂无事件绑定
         </div>
       )}
@@ -219,7 +219,7 @@ export function EventsSection({ element, handlerItems }: EventsSectionProps) {
               title={ev.meta ? `${ev.meta.description} — ${ev.handler}` : ev.handler}
               className={styles.handlerBtn}
               style={{
-                color: ev.handler ? "#1e293b" : "#cbd5e1",
+                color: ev.handler ? "var(--ol-gray-800)" : "var(--ol-border-hover)",
               }}
             >
               {ev.handler || "点击编辑..."}

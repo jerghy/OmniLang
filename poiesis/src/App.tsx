@@ -460,8 +460,8 @@ function PageToggleButton({
       className={styles.pageToggleBtn}
       style={{
         fontWeight: active ? 600 : 400,
-        color: active ? "#6d28d9" : "#6b7280",
-        background: active ? "#f5f3ff" : "transparent",
+        color: active ? "var(--ol-color-primary)" : "var(--ol-text-secondary)",
+        background: active ? "var(--ol-color-primary-subtle)" : "transparent",
       }}
     >
       {children}

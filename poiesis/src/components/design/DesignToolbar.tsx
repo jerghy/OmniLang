@@ -56,7 +56,7 @@ export function DesignToolbar({
           background: "transparent",
           cursor: saving ? "wait" : "pointer",
           lineHeight: 1,
-          color: isDirty ? "#DC2626" : "#6B7280",
+          color: isDirty ? "var(--ol-color-danger)" : "var(--ol-text-secondary)",
           fontWeight: isDirty ? 700 : 400,
           opacity: saving ? 0.6 : 1,
         }}
@@ -67,7 +67,7 @@ export function DesignToolbar({
         onClick={onOpenProject}
         title="打开项目"
         className={styles.toolBtn}
-        style={{ color: "#6B7280" }}
+        style={{ color: "var(--ol-text-secondary)" }}
       >
         📂
       </button>
@@ -77,12 +77,12 @@ export function DesignToolbar({
         style={{
           padding: "2px 10px",
           fontSize: 12,
-          border: showCode ? "1px solid #6366f1" : "1px solid #e2e8f0",
+          border: showCode ? "1px solid var(--ol-color-primary)" : "1px solid var(--ol-border)",
           borderRadius: 4,
-          background: showCode ? "#6366f1" : "transparent",
+          background: showCode ? "var(--ol-color-primary)" : "transparent",
           cursor: "pointer",
           lineHeight: 1,
-          color: showCode ? "#fff" : "#6B7280",
+          color: showCode ? "var(--ol-surface)" : "var(--ol-text-secondary)",
           fontWeight: showCode ? 600 : 400,
           marginLeft: 2,
         }}
@@ -96,7 +96,7 @@ export function DesignToolbar({
           style={{
             marginLeft: 8,
             fontSize: 12,
-            color: "#dc2626",
+            color: "var(--ol-color-danger)",
             whiteSpace: "nowrap",
             overflow: "hidden",
             textOverflow: "ellipsis",

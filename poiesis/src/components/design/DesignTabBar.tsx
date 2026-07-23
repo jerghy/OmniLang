@@ -30,42 +30,114 @@ const MENU_ITEM_STYLE: React.CSSProperties = {
   background: "transparent",
   cursor: "pointer",
   fontSize: 12,
-  color: "#374151",
+  color: "var(--ol-gray-700)",
   textAlign: "left" as const,
   fontFamily: "inherit",
 };
 
-export function DesignTabBar() {
-  const tabs = usePoiesisStore((s) => s.designPage.openTabs);
-  const activeTabId = usePoiesisStore((s) => s.designPage.activeTabId);
-  const tabOrder = usePoiesisStore((s) => s.designPage.tabOrder);
-  const switchTab = usePoiesisStore((s) => s.switchTab);
-  const closeTab = usePoiesisStore((s) => s.closeTab);
-  const reorderTabs = usePoiesisStore((s) => s.reorderTabs);
-  const openTab = usePoiesisStore((s) => s.openTab);
+// ── Helper functions ──
 
-  const [dragOverTabId, setDragOverTabId] = useState<string | null>(null);
-  const dragIdRef = useRef<string | null>(null);
+/** Transform parsed design result into DesignDefinition input for loadDesign. */
+function mapDesignResultToInput(result: ReturnType<typeof parseOmniSource>) {
+  return {
+    name: result.designName || "AppDesign",
+    tokens: (result.designTokens ?? []).map((t) => ({
+      id: t.id,
+      name: t.name,
+      category: tokenTypeToCategory(t.tokenType),
+      tokenType: t.tokenType as TokenType,
+      value: t.value,
+    })),
+    classes: (result.designClasses ?? []).map((c) => ({
+      id: c.id,
+      name: c.name,
+      properties: (c.properties ?? []).map((p) => ({
+        id: uid("sp"),
+        name: p.name,
+        segments: parseStyleValue(p.value),
+      })),
+      pseudoStates: (c.pseudoStates ?? []).map((ps) => ({
+        id: uid("ps"),
+        pseudo: ps.pseudo,
+        properties: ps.properties.map((p) => ({
+          id: uid("sp"),
+          name: p.name,
+          segments: parseStyleValue(p.value),
+        })),
+      })),
+    })),
+    variants: (result.designVariants ?? []).map((v) => ({
+      id: v.id,
+      name: v.name,
+      dimensions: (v.dimensions ?? []).map((d) => ({
+        name: d.name,
+        values: d.values.map((dv) => dv.name),
+      })),
+      defaults: v.defaults ?? {},
+      baseProperties: (v.baseProperties ?? []).map((p) => ({
+        id: uid("sp"),
+        name: p.name,
+        segments: parseStyleValue(p.value),
+      })),
+      branches: (v.branches ?? []).map((b) => {
+        const dotIdx = b.name.indexOf(".");
+        const dim = dotIdx >= 0 ? b.name.slice(0, dotIdx) : "";
+        const val = dotIdx >= 0 ? b.name.slice(dotIdx + 1) : b.name;
+        const props = b.properties.map((p) => ({
+          id: uid("sp"),
+          name: p.name,
+          segments: parseStyleValue(p.value),
+        }));
+        return { id: uid("vb"), dimension: dim, value: val, properties: props };
+      }),
+    })),
+  };
+}
 
-  // Confirm dialog for dirty tabs
-  const [confirmClose, setConfirmClose] = useState<string | null>(null);
+/** Parse content and load design data into the store if any design items exist. */
+function loadDesignFromParsed(result: ReturnType<typeof parseOmniSource>): void {
+  if ((result.designTokens?.length ?? 0) > 0
+      || (result.designClasses?.length ?? 0) > 0
+      || (result.designVariants?.length ?? 0) > 0) {
+    const { loadDesign } = usePoiesisStore.getState();
+    loadDesign(mapDesignResultToInput(result));
+  }
+}
 
-  // "+" menu
+/** Read an .omni file, parse it, and load design data into the store. */
+async function loadDesignFromFile(filePath: string): Promise<void> {
+  const res = await api.project.readFile(filePath);
+  if (res.content) {
+    loadDesignFromParsed(parseOmniSource(res.content));
+  }
+}
+
+/** Read an .omni file, parse it, and load inline store definitions. */
+async function loadInlineStoresFromFile(filePath: string, componentName: string): Promise<void> {
+  const res = await api.project.readFile(filePath);
+  if (res.content) {
+    const result = parseOmniSource(res.content);
+    if (result.inlineStoreDefs) {
+      const { loadInlineStoreDef } = usePoiesisStore.getState();
+      for (const def of Object.values(result.inlineStoreDefs)) {
+        const dotIdx = def.name.indexOf(".");
+        const storeName = dotIdx >= 0 ? def.name.slice(dotIdx + 1) : def.name;
+        const rekeyed = { ...def, name: `${componentName}.${storeName}` };
+        loadInlineStoreDef(rekeyed);
+      }
+    }
+  }
+}
+
+// ── Hooks ──
+
+/** Manages the "+" button dropdown menu state and outside-click dismissal. */
+function useDesignTabMenu() {
   const [showPlusMenu, setShowPlusMenu] = useState(false);
   const [plusMenuPos, setPlusMenuPos] = useState({ top: 0, left: 0 });
   const plusMenuRef = useRef<HTMLDivElement>(null);
   const plusBtnRef = useRef<HTMLButtonElement>(null);
 
-  // "+" file tree panel
-  const [showFilePanel, setShowFilePanel] = useState(false);
-  const panelRef = useRef<HTMLDivElement>(null);
-
-  // New file sub-panel
-  const [showNewFilePanel, setShowNewFilePanel] = useState(false);
-
-
-
-// Close "+" menu on outside click
   useEffect(() => {
     if (!showPlusMenu) return;
     const handler = (e: MouseEvent) => {
@@ -83,6 +155,98 @@ export function DesignTabBar() {
     };
   }, [showPlusMenu]);
 
+  return { showPlusMenu, setShowPlusMenu, plusMenuPos, setPlusMenuPos, plusMenuRef, plusBtnRef };
+}
+
+/** Manages the confirm-close dialog state and handlers for dirty tabs. */
+function useConfirmCloseDialog(
+  tabs: Array<{ id: string; isDirty?: boolean }>,
+  closeTab: (id: string) => void,
+) {
+  const [confirmClose, setConfirmClose] = useState<string | null>(null);
+
+  const handleClose = useCallback(
+    (e: React.MouseEvent, tabId: string) => {
+      e.stopPropagation();
+      const tab = tabs.find((t) => t.id === tabId);
+      if (tab?.isDirty) {
+        setConfirmClose(tabId);
+      } else {
+        closeTab(tabId);
+      }
+    },
+    [tabs, closeTab]
+  );
+
+  const confirmAndClose = useCallback(() => {
+    if (confirmClose) {
+      closeTab(confirmClose);
+      setConfirmClose(null);
+    }
+  }, [confirmClose, closeTab]);
+
+  return { confirmClose, setConfirmClose, handleClose, confirmAndClose };
+}
+
+/** Manages drag-and-drop tab reordering state and handlers. */
+function useDragReorder(tabOrder: string[], reorderTabs: (order: string[]) => void) {
+  const [dragOverTabId, setDragOverTabId] = useState<string | null>(null);
+  const dragIdRef = useRef<string | null>(null);
+
+  const handleDragStart = useCallback((tabId: string) => {
+    dragIdRef.current = tabId;
+  }, []);
+
+  const handleDragOver = useCallback(
+    (e: React.DragEvent, tabId: string) => {
+      e.preventDefault();
+      setDragOverTabId(tabId);
+    },
+    []
+  );
+
+  const handleDrop = useCallback(
+    (targetId: string) => {
+      const draggedId = dragIdRef.current;
+      if (!draggedId || draggedId === targetId) return;
+      const newOrder = tabOrder.filter((id) => id !== draggedId);
+      const targetIdx = newOrder.indexOf(targetId);
+      newOrder.splice(targetIdx, 0, draggedId);
+      reorderTabs(newOrder);
+      dragIdRef.current = null;
+      setDragOverTabId(null);
+    },
+    [tabOrder, reorderTabs]
+  );
+
+  const handleDragEnd = useCallback(() => {
+    dragIdRef.current = null;
+    setDragOverTabId(null);
+  }, []);
+
+  return { dragOverTabId, handleDragStart, handleDragOver, handleDrop, handleDragEnd };
+}
+
+// ── Component ──
+
+export function DesignTabBar() {
+  const tabs = usePoiesisStore((s) => s.designPage.openTabs);
+  const activeTabId = usePoiesisStore((s) => s.designPage.activeTabId);
+  const tabOrder = usePoiesisStore((s) => s.designPage.tabOrder);
+  const switchTab = usePoiesisStore((s) => s.switchTab);
+  const closeTab = usePoiesisStore((s) => s.closeTab);
+  const reorderTabs = usePoiesisStore((s) => s.reorderTabs);
+  const openTab = usePoiesisStore((s) => s.openTab);
+
+  const { confirmClose, setConfirmClose, handleClose, confirmAndClose } = useConfirmCloseDialog(tabs, closeTab);
+  const { showPlusMenu, setShowPlusMenu, plusMenuPos, setPlusMenuPos, plusMenuRef, plusBtnRef } = useDesignTabMenu();
+  const { dragOverTabId, handleDragStart, handleDragOver, handleDrop, handleDragEnd } = useDragReorder(tabOrder, reorderTabs);
+
+  // File panel state
+  const [showFilePanel, setShowFilePanel] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [showNewFilePanel, setShowNewFilePanel] = useState(false);
+
   const handleOpenFile = useCallback(
     (filePath: string, fileName: string) => {
       const componentName = fileName.replace(/\.omni$/, "");
@@ -92,149 +256,21 @@ export function DesignTabBar() {
         const existingDesignTab = tabs.find((t) => t.tabType === "design");
         if (existingDesignTab) {
           switchTab(existingDesignTab.id);
-          // Load content from the requested file into the design store
-          api.project.readFile(filePath).then((res) => {
-            if (res.content) {
-              const result = parseOmniSource(res.content);
-              if ((result.designTokens?.length ?? 0) > 0 || (result.designClasses?.length ?? 0) > 0 || (result.designVariants?.length ?? 0) > 0) {
-                const { loadDesign } = usePoiesisStore.getState();
-                loadDesign({
-                  name: result.designName || "AppDesign",
-                  tokens: (result.designTokens ?? []).map((t) => ({
-                    id: t.id, name: t.name, category: tokenTypeToCategory(t.tokenType), tokenType: t.tokenType as TokenType, value: t.value,
-                  })),
-                  classes: (result.designClasses ?? []).map((c) => ({
-                    id: c.id,
-                    name: c.name,
-                    properties: (c.properties ?? []).map((p) => ({
-                      id: uid("sp"),
-                      name: p.name,
-                      segments: parseStyleValue(p.value),
-                    })),
-                    pseudoStates: (c.pseudoStates ?? []).map((ps) => ({
-                      id: uid("ps"),
-                      pseudo: ps.pseudo,
-                      properties: ps.properties.map((p) => ({
-                        id: uid("sp"),
-                        name: p.name,
-                        segments: parseStyleValue(p.value),
-                      })),
-                    })),
-                  })),
-                  variants: (result.designVariants ?? []).map((v) => ({
-                    id: v.id,
-                    name: v.name,
-                    dimensions: (v.dimensions ?? []).map((d) => ({
-                      name: d.name,
-                      values: d.values.map((dv) => dv.name),
-                    })),
-                    defaults: v.defaults ?? {},
-                    baseProperties: (v.baseProperties ?? []).map((p) => ({
-                      id: uid("sp"),
-                      name: p.name,
-                      segments: parseStyleValue(p.value),
-                    })),
-                    branches: (v.branches ?? []).map((b) => {
-                      const dotIdx = b.name.indexOf(".");
-                      const dim = dotIdx >= 0 ? b.name.slice(0, dotIdx) : "";
-                      const val = dotIdx >= 0 ? b.name.slice(dotIdx + 1) : b.name;
-                      const props = b.properties.map((p) => ({
-                        id: uid("sp"),
-                        name: p.name,
-                        segments: parseStyleValue(p.value),
-                      }));
-                      return { id: uid("vb"), dimension: dim, value: val, properties: props };
-                    }),
-                  })),
-                });
-              }
-            }
-          }).catch((e) => { console.warn("Tab operation failed", e); });
+          loadDesignFromFile(filePath).catch((e) => { console.warn("Tab operation failed", e); });
           setShowFilePanel(false);
           return;
         }
       }
       openTab(filePath, componentName, tabType);
       setShowFilePanel(false);
-      // If opening a design.omni file, load its content into the design store
+
       if (tabType === "design") {
-        api.project.readFile(filePath).then((res) => {
-          if (res.content) {
-            const result = parseOmniSource(res.content);
-            if ((result.designTokens?.length ?? 0) > 0 || (result.designClasses?.length ?? 0) > 0 || (result.designVariants?.length ?? 0) > 0) {
-              const { loadDesign } = usePoiesisStore.getState();
-              loadDesign({
-                name: result.designName || "AppDesign",
-                tokens: (result.designTokens ?? []).map((t) => ({
-                  id: t.id, name: t.name, category: tokenTypeToCategory(t.tokenType), tokenType: t.tokenType as TokenType, value: t.value,
-                })),
-                classes: (result.designClasses ?? []).map((c) => ({
-                  id: c.id,
-                  name: c.name,
-                  properties: (c.properties ?? []).map((p) => ({
-                    id: uid("sp"),
-                    name: p.name,
-                    segments: parseStyleValue(p.value),
-                  })),
-                  pseudoStates: (c.pseudoStates ?? []).map((ps) => ({
-                    id: uid("ps"),
-                    pseudo: ps.pseudo,
-                    properties: ps.properties.map((p) => ({
-                      id: uid("sp"),
-                      name: p.name,
-                      segments: parseStyleValue(p.value),
-                    })),
-                  })),
-                })),
-                variants: (result.designVariants ?? []).map((v) => ({
-                  id: v.id,
-                  name: v.name,
-                  dimensions: (v.dimensions ?? []).map((d) => ({
-                    name: d.name,
-                    values: d.values.map((dv) => dv.name),
-                  })),
-                  defaults: v.defaults ?? {},
-                  baseProperties: (v.baseProperties ?? []).map((p) => ({
-                    id: uid("sp"),
-                    name: p.name,
-                    segments: parseStyleValue(p.value),
-                  })),
-                  branches: (v.branches ?? []).map((b) => {
-                    const dotIdx = b.name.indexOf(".");
-                    const dim = dotIdx >= 0 ? b.name.slice(0, dotIdx) : "";
-                    const val = dotIdx >= 0 ? b.name.slice(dotIdx + 1) : b.name;
-                    const props = b.properties.map((p) => ({
-                      id: uid("sp"),
-                      name: p.name,
-                      segments: parseStyleValue(p.value),
-                    }));
-                    return { id: uid("vb"), dimension: dim, value: val, properties: props };
-                  }),
-                })),
-              });
-            }
-          }
-        }).catch((e) => { console.warn("Tab operation failed", e); });
+        loadDesignFromFile(filePath).catch((e) => { console.warn("Tab operation failed", e); });
       }
 
       // Load inline store definitions for component files
       if (tabType !== "design" && tabType !== "store") {
-        api.project.readFile(filePath).then((res) => {
-          if (res.content) {
-            const result = parseOmniSource(res.content);
-            if (result.inlineStoreDefs) {
-              const { loadInlineStoreDef } = usePoiesisStore.getState();
-              for (const def of Object.values(result.inlineStoreDefs)) {
-                // Re-key: parser uses PascalCase from source (e.g. "Main.TestStore"),
-                // but tab's componentName may differ in case (e.g. "main" from main.omni).
-                const dotIdx = def.name.indexOf(".");
-                const storeName = dotIdx >= 0 ? def.name.slice(dotIdx + 1) : def.name;
-                const rekeyed = { ...def, name: `${componentName}.${storeName}` };
-                loadInlineStoreDef(rekeyed);
-              }
-            }
-          }
-        }).catch((e) => { console.warn("Failed to load inline stores", e); });
+        loadInlineStoresFromFile(filePath, componentName).catch((e) => { console.warn("Failed to load inline stores", e); });
       }
     },
     [openTab, tabs, switchTab]
@@ -269,191 +305,24 @@ export function DesignTabBar() {
     const existingDesignTab = tabs.find((t) => t.tabType === "design");
     if (existingDesignTab) {
       switchTab(existingDesignTab.id);
-      // If the existing tab has a non-canonical path (e.g. src/design.omni),
-      // read from canonical path
       const readPath = existingDesignTab.filePath !== canonicalPath
         ? canonicalPath
         : existingDesignTab.filePath;
-      const res = await api.project.readFile(readPath);
-      if (res.content) {
-        const result = parseOmniSource(res.content);
-        if ((result.designTokens?.length ?? 0) > 0
-            || (result.designClasses?.length ?? 0) > 0
-            || (result.designVariants?.length ?? 0) > 0) {
-          const { loadDesign } = usePoiesisStore.getState();
-          loadDesign({
-            name: result.designName || "AppDesign",
-            tokens: (result.designTokens ?? []).map((t) => ({
-              id: t.id, name: t.name, category: tokenTypeToCategory(t.tokenType), tokenType: t.tokenType as TokenType, value: t.value,
-            })),
-            classes: (result.designClasses ?? []).map((c) => ({
-              id: c.id,
-              name: c.name,
-              properties: (c.properties ?? []).map((p) => ({
-                id: uid("sp"),
-                name: p.name,
-                segments: parseStyleValue(p.value),
-              })),
-              pseudoStates: (c.pseudoStates ?? []).map((ps) => ({
-                id: uid("ps"),
-                pseudo: ps.pseudo,
-                properties: ps.properties.map((p) => ({
-                  id: uid("sp"),
-                  name: p.name,
-                  segments: parseStyleValue(p.value),
-                })),
-              })),
-            })),
-            variants: (result.designVariants ?? []).map((v) => ({
-              id: v.id,
-              name: v.name,
-              dimensions: (v.dimensions ?? []).map((d) => ({
-                name: d.name,
-                values: d.values.map((dv) => dv.name),
-              })),
-              defaults: v.defaults ?? {},
-              baseProperties: (v.baseProperties ?? []).map((p) => ({
-                id: uid("sp"),
-                name: p.name,
-                segments: parseStyleValue(p.value),
-              })),
-              branches: (v.branches ?? []).map((b) => {
-                const dotIdx = b.name.indexOf(".");
-                const dim = dotIdx >= 0 ? b.name.slice(0, dotIdx) : "";
-                const val = dotIdx >= 0 ? b.name.slice(dotIdx + 1) : b.name;
-                const props = b.properties.map((p) => ({
-                  id: uid("sp"),
-                  name: p.name,
-                  segments: parseStyleValue(p.value),
-                }));
-                return { id: uid("vb"), dimension: dim, value: val, properties: props };
-              }),
-            })),
-          });
-        }
-      }
+      await loadDesignFromFile(readPath);
       return;
     }
 
     // ── Read existing canonical design.omni or create if missing ──
     const existing = await api.project.readFile(canonicalPath);
     if (existing.content && !existing.error) {
-      // File exists with content — parse it
       openTab(canonicalPath, "design", "design");
-      const result = parseOmniSource(existing.content);
-      if ((result.designTokens?.length ?? 0) > 0
-          || (result.designClasses?.length ?? 0) > 0
-          || (result.designVariants?.length ?? 0) > 0) {
-        const { loadDesign } = usePoiesisStore.getState();
-        loadDesign({
-          name: result.designName || "AppDesign",
-          tokens: (result.designTokens ?? []).map((t) => ({
-            id: t.id, name: t.name, category: tokenTypeToCategory(t.tokenType), tokenType: t.tokenType as TokenType, value: t.value,
-          })),
-          classes: (result.designClasses ?? []).map((c) => ({
-            id: c.id,
-            name: c.name,
-            properties: (c.properties ?? []).map((p) => ({
-              id: uid("sp"),
-              name: p.name,
-              segments: parseStyleValue(p.value),
-            })),
-            pseudoStates: (c.pseudoStates ?? []).map((ps) => ({
-              id: uid("ps"),
-              pseudo: ps.pseudo,
-              properties: ps.properties.map((p) => ({
-                id: uid("sp"),
-                name: p.name,
-                segments: parseStyleValue(p.value),
-              })),
-            })),
-          })),
-          variants: (result.designVariants ?? []).map((v) => ({
-            id: v.id,
-            name: v.name,
-            dimensions: (v.dimensions ?? []).map((d) => ({
-              name: d.name,
-              values: d.values.map((dv) => dv.name),
-            })),
-            defaults: v.defaults ?? {},
-            baseProperties: (v.baseProperties ?? []).map((p) => ({
-              id: uid("sp"),
-              name: p.name,
-              segments: parseStyleValue(p.value),
-            })),
-            branches: (v.branches ?? []).map((b) => {
-              const dotIdx = b.name.indexOf(".");
-              const dim = dotIdx >= 0 ? b.name.slice(0, dotIdx) : "";
-              const val = dotIdx >= 0 ? b.name.slice(dotIdx + 1) : b.name;
-              const props = b.properties.map((p) => ({
-                id: uid("sp"),
-                name: p.name,
-                segments: parseStyleValue(p.value),
-              }));
-              return { id: uid("vb"), dimension: dim, value: val, properties: props };
-            }),
-          })),
-        });
-      }
+      await loadDesignFromFile(canonicalPath);
     } else {
-      // File doesn't exist — create empty and open
       const source = emitDesignSource({ ...EMPTY_DESIGN, name: "AppDesign" });
       await api.project.writeFile(canonicalPath, source);
       openTab(canonicalPath, "design", "design");
     }
-  }, [tabs, switchTab, openTab]);
-
-  const handleClose = useCallback(
-    (e: React.MouseEvent, tabId: string) => {
-      e.stopPropagation();
-      const tab = tabs.find((t) => t.id === tabId);
-      if (tab?.isDirty) {
-        setConfirmClose(tabId);
-      } else {
-        closeTab(tabId);
-      }
-    },
-    [tabs, closeTab]
-  );
-
-  const confirmAndClose = useCallback(() => {
-    if (confirmClose) {
-      closeTab(confirmClose);
-      setConfirmClose(null);
-    }
-  }, [confirmClose, closeTab]);
-
-  // Drag reorder
-  const handleDragStart = useCallback((tabId: string) => {
-    dragIdRef.current = tabId;
-  }, []);
-
-  const handleDragOver = useCallback(
-    (e: React.DragEvent, tabId: string) => {
-      e.preventDefault();
-      setDragOverTabId(tabId);
-    },
-    []
-  );
-
-  const handleDrop = useCallback(
-    (targetId: string) => {
-      const draggedId = dragIdRef.current;
-      if (!draggedId || draggedId === targetId) return;
-      const newOrder = tabOrder.filter((id) => id !== draggedId);
-      const targetIdx = newOrder.indexOf(targetId);
-      newOrder.splice(targetIdx, 0, draggedId);
-      reorderTabs(newOrder);
-      dragIdRef.current = null;
-      setDragOverTabId(null);
-    },
-    [tabOrder, reorderTabs]
-  );
-
-  const handleDragEnd = useCallback(() => {
-    dragIdRef.current = null;
-    setDragOverTabId(null);
-  }, []);
+  }, [tabs, switchTab, openTab, setShowPlusMenu]);
 
   const orderedTabs = tabOrder
     .map((id) => tabs.find((t) => t.id === id))
@@ -479,14 +348,14 @@ export function DesignTabBar() {
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); switchTab(tab.id); } }}
               className={styles.tabItem}
               style={{
-                borderTop: isActive ? "2px solid #6366F1" : "2px solid transparent",
-                background: isActive ? "#fff" : "transparent",
-                color: isActive ? "#1e293b" : "#64748b",
+                borderTop: isActive ? "2px solid var(--ol-color-primary)" : "2px solid transparent",
+                background: isActive ? "var(--ol-surface)" : "transparent",
+                color: isActive ? "var(--ol-gray-800)" : "var(--ol-text-secondary)",
                 opacity: isDragOver ? 0.7 : 1,
               }}
             >
               <span>
-                {tab.isDirty && <span style={{ color: "#f59e0b" }}>● </span>}
+                {tab.isDirty && <span style={{ color: "var(--ol-color-warning)" }}>● </span>}
                 {tab.componentName}.omni
               </span>
               <span data-action="close-tab" className={styles.tabCloseBtn} title="关闭">
@@ -502,7 +371,7 @@ export function DesignTabBar() {
               alignItems: "center",
               padding: "0 12px",
               fontSize: 12,
-              color: "#64748b",
+              color: "var(--ol-text-secondary)",
             }}
           >
             没有打开的 .omni 文件
@@ -521,7 +390,7 @@ export function DesignTabBar() {
             }}
             title="添加文件"
             className={styles.addTabBtn}
-            style={{ background: showPlusMenu ? "#e2e8f0" : "transparent" }}
+            style={{ background: showPlusMenu ? "var(--ol-border)" : "transparent" }}
           >
             +
           </button>
@@ -536,16 +405,16 @@ export function DesignTabBar() {
                 <button type="button"
                   onClick={() => { setShowPlusMenu(false); setShowFilePanel(true); }}
                   style={MENU_ITEM_STYLE}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "#f1f5f9"; }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--ol-gray-100)"; }}
                   onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
                 >
                   <span>📁 打开 .omni 文件...</span>
                 </button>
-                <div style={{ borderTop: "1px solid #f1f5f9" }} />
+                <div style={{ borderTop: "1px solid var(--ol-gray-100)" }} />
                 <button type="button"
                   onClick={handleDesignOmni}
                   style={MENU_ITEM_STYLE}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "#f1f5f9"; }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--ol-gray-100)"; }}
                   onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
                 >
                   <span>🎨 打开 design.omni</span>

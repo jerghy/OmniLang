@@ -3,7 +3,7 @@
 // Properties are always visible; empty ones are grayed out (auto-locked),
 // while set properties are normal with a × to clear.
 
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { usePoiesisStore } from "../../../store";
 import { SizeCard } from "../../design/cards/SizeCard";
 import { SpacingCard } from "../../design/cards/SpacingCard";
@@ -85,7 +85,7 @@ function mergeCardProps(
 const sectionHeader: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 600,
-  color: "#6b7280",
+  color: "var(--ol-text-secondary)",
   textTransform: "uppercase",
   marginBottom: 6,
   marginTop: 4,
@@ -106,14 +106,14 @@ export function InlineStylePanel({ element }: InlineStylePanelProps) {
   const isTextElement = TEXT_TAGS.has(tag);
 
   const allPropsRef = useRef(allProps);
-  allPropsRef.current = allProps;
+  useEffect(() => { allPropsRef.current = allProps; });
 
   const makeCommit = useCallback(
     (cardManaged: Set<string>) => (newCardProps: StyleProperty[]) => {
       const merged = mergeCardProps(allPropsRef.current, cardManaged, newCardProps);
       setElementInlineStyles(element.id, merged);
     },
-    [element.id, setElementInlineStyles, mergeCardProps],
+    [element.id, setElementInlineStyles],
   );
 
   const visibleSections = SECTIONS.filter((s) => s.key !== "typo" || isTextElement);

@@ -87,7 +87,7 @@ export function ExpressionEditor({
       style={{
         width: "100%",
         height,
-        border: "1px solid #d1d5db",
+        border: "1px solid var(--ol-border-hover)",
         borderRadius: 6,
         overflow: "hidden",
       }}

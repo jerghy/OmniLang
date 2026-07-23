@@ -14,7 +14,7 @@ const OVERRIDE_DOT_STYLE: React.CSSProperties = {
   width: '6px',
   height: '6px',
   borderRadius: '50%',
-  backgroundColor: 'var(--dp-accent, #6366f1)',
+  backgroundColor: 'var(--dp-accent, var(--ol-color-primary))',
   flexShrink: 0,
 };
 
@@ -62,7 +62,7 @@ export function PropertyRow({
   const labelStyle: React.CSSProperties = {
     width: '60px',
     fontSize: '12px',
-    color: inherited ? 'var(--dp-text-muted, #a09db8)' : 'var(--dp-text-secondary, #6b6893)',
+    color: inherited ? 'var(--dp-text-muted, var(--ol-text-muted))' : 'var(--dp-text-secondary, var(--ol-text-secondary))',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
@@ -70,7 +70,7 @@ export function PropertyRow({
     lineHeight: '28px',
   };
 
-  const tokenColor = hasToken ? 'var(--dp-accent, #6366f1)' : 'var(--dp-text-muted, #a09db8)';
+  const tokenColor = hasToken ? 'var(--dp-accent, var(--ol-color-primary))' : 'var(--dp-text-muted, var(--ol-text-muted))';
 
   return (
     <div style={ROW_STYLE}>
@@ -91,7 +91,7 @@ export function PropertyRow({
       )}
       {onRemove && (
         <button
-          style={{ ...ICON_BUTTON_STYLE, color: 'var(--dp-text-muted, #a09db8)' }}
+          style={{ ...ICON_BUTTON_STYLE, color: 'var(--dp-text-muted, var(--ol-text-muted))' }}
           onClick={onRemove}
           title="Remove"
           type="button"

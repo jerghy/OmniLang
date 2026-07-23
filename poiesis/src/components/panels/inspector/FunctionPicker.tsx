@@ -54,7 +54,7 @@ export function FunctionPicker({
       {/* Dropdown panel */}
       <div className={styles.dropdown}>
         {/* Search */}
-        <div style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9" }}>
+        <div style={{ padding: "8px 10px", borderBottom: "1px solid var(--ol-gray-100)" }}>
           <input
             type="text"
             value={search}
@@ -62,8 +62,8 @@ export function FunctionPicker({
             placeholder="搜索函数/Action..."
             aria-label="搜索函数"
             className={styles.searchInput}
-            onFocus={(e) => (e.target.style.borderColor = "#6366F1")}
-            onBlur={(e) => (e.target.style.borderColor = "#e2e8f0")}
+            onFocus={(e) => (e.target.style.borderColor = "var(--ol-color-primary)")}
+            onBlur={(e) => (e.target.style.borderColor = "var(--ol-border)")}
           />
         </div>
 
@@ -101,7 +101,7 @@ export function FunctionPicker({
                 padding: 16,
                 textAlign: "center",
                 fontSize: 12,
-                color: "#64748b",
+                color: "var(--ol-text-secondary)",
               }}
             >
               无匹配结果
@@ -120,10 +120,10 @@ function GroupLabel({ children }: { children: React.ReactNode }) {
         padding: "4px 12px",
         fontSize: 12,
         fontWeight: 600,
-        color: "#64748b",
+        color: "var(--ol-text-secondary)",
         textTransform: "uppercase",
-        background: "#f8fafc",
-        borderTop: "1px solid #f1f5f9",
+        background: "var(--ol-gray-50)",
+        borderTop: "1px solid var(--ol-gray-100)",
       }}
     >
       {children}
@@ -145,14 +145,14 @@ function PickerRow({
       onClick={() => onSelect(item)}
       className={styles.pickerRow}
       style={{
-        background: isSelected ? "#eef2ff" : "transparent",
-        color: isSelected ? "#4f46e5" : "#1e293b",
+        background: isSelected ? "var(--ol-color-primary-subtle)" : "transparent",
+        color: isSelected ? "var(--ol-color-primary-hover)" : "var(--ol-gray-800)",
       }}
     >
       <span style={{ fontWeight: isSelected ? 600 : 400 }}>
         {item.displayName}
       </span>
-      <span style={{ fontSize: 12, color: "#64748b" }}>
+      <span style={{ fontSize: 12, color: "var(--ol-text-secondary)" }}>
         {item.sourceName}
       </span>
     </button>

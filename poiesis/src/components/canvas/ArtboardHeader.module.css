@@ -1,11 +1,11 @@
 .header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 12px;
-  background: #f1f5f9;
-  border-bottom: 1px solid #e2e8f0;
-  font-size: 12px;
-  color: #475569;
+  gap: var(--ol-space-2);
+  padding: var(--ol-space-1) var(--ol-space-3);
+  background: var(--ol-gray-100);
+  border-bottom: 1px solid var(--ol-border);
+  font-size: var(--ol-font-size-12);
+  color: var(--ol-text-secondary);
   flex-shrink: 0;
 }

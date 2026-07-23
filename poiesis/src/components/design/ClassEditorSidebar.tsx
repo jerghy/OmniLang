@@ -9,17 +9,17 @@ import styles from "./ClassEditorSidebar.module.css";
 
 const SIDEBAR_STYLE: React.CSSProperties = {
   width: 180,
-  borderRight: "1px solid var(--dp-border, #e8e5f2)",
+  borderRight: "1px solid var(--dp-border, var(--ol-border))",
   display: "flex",
   flexDirection: "column",
   flexShrink: 0,
-  background: "var(--dp-surface, #fff)",
+  background: "var(--dp-surface, var(--ol-surface))",
 };
 
 const SIDEBAR_HEADER: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 600,
-  color: "var(--dp-text-secondary, #6b6893)",
+  color: "var(--dp-text-secondary, var(--ol-text-secondary))",
   textTransform: "uppercase",
   letterSpacing: "0.5px",
   padding: "10px 10px 6px",
@@ -29,7 +29,7 @@ const CLASS_ITEM_BASE: React.CSSProperties = {
   padding: "6px 10px",
   fontSize: 12,
   cursor: "pointer",
-  color: "var(--dp-text-secondary, #6b6893)",
+  color: "var(--dp-text-secondary, var(--ol-text-secondary))",
   display: "flex",
   alignItems: "center",
   justifyContent: "space-between",
@@ -40,8 +40,8 @@ const CLASS_ITEM_BASE: React.CSSProperties = {
 
 const CLASS_ITEM_ACTIVE: React.CSSProperties = {
   ...CLASS_ITEM_BASE,
-  background: "var(--dp-accent-subtle, #eef0ff)",
-  color: "var(--dp-accent, #6366f1)",
+  background: "var(--dp-accent-subtle, var(--ol-color-primary-subtle))",
+  color: "var(--dp-accent, var(--ol-color-primary))",
   fontWeight: 600,
 };
 
@@ -49,7 +49,7 @@ const REMOVE_BTN: React.CSSProperties = {
   border: "none",
   background: "none",
   cursor: "pointer",
-  color: "var(--dp-text-muted, #a09db8)",
+  color: "var(--dp-text-muted, var(--ol-text-muted))",
   fontSize: 14,
   padding: "2px 4px",
   lineHeight: 1,
@@ -108,12 +108,12 @@ export function ClassEditorSidebar({
         onClick={onAddClass}
         className={styles.addClassBtn}
         onMouseEnter={(e) => {
-          (e.currentTarget as HTMLElement).style.color = "var(--dp-accent, #6366f1)";
-          (e.currentTarget as HTMLElement).style.borderColor = "var(--dp-accent, #6366f1)";
+          (e.currentTarget as HTMLElement).style.color = "var(--dp-accent, var(--ol-color-primary))";
+          (e.currentTarget as HTMLElement).style.borderColor = "var(--dp-accent, var(--ol-color-primary))";
         }}
         onMouseLeave={(e) => {
-          (e.currentTarget as HTMLElement).style.color = "var(--dp-text-muted, #a09db8)";
-          (e.currentTarget as HTMLElement).style.borderColor = "var(--dp-border, #e8e5f2)";
+          (e.currentTarget as HTMLElement).style.color = "var(--dp-text-muted, var(--ol-text-muted))";
+          (e.currentTarget as HTMLElement).style.borderColor = "var(--dp-border, var(--ol-border))";
         }}
       >
         + Add Class

@@ -35,7 +35,7 @@ function isTokenRef(value: string): boolean {
 const tokenValueStyle: React.CSSProperties = {
   fontSize: 12,
   fontFamily: "var(--dp-font-mono, monospace)",
-  color: "var(--dp-accent, #6366f1)",
+  color: "var(--dp-accent, var(--ol-color-primary))",
   flex: 1,
   cursor: "pointer",
 };
@@ -46,7 +46,7 @@ const tokenRemoveBtn: React.CSSProperties = {
   cursor: "pointer",
   fontSize: 14,
   padding: "0 2px",
-  color: "var(--dp-text-muted, #a09db8)",
+  color: "var(--dp-text-muted, var(--ol-text-muted))",
   lineHeight: 1,
   flexShrink: 0,
 };
@@ -154,7 +154,7 @@ interface SpacingSectionProps {
 const cornerLabelStyle: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 600,
-  color: "var(--dp-text-secondary, #6b6893)",
+  color: "var(--dp-text-secondary, var(--ol-text-secondary))",
   width: 14,
   flexShrink: 0,
   textAlign: "center",
@@ -175,16 +175,16 @@ const CORNER_LABELS = ["上", "右", "下", "左"];
 
 const LINKED_BTN_STYLE: React.CSSProperties = {
   ...toggleBtnBase,
-  border: "1px solid var(--dp-accent, #6366f1)",
-  background: "var(--dp-accent-subtle, #eef0ff)",
-  color: "var(--dp-accent, #6366f1)",
+  border: "1px solid var(--dp-accent, var(--ol-color-primary))",
+  background: "var(--dp-accent-subtle, var(--ol-color-primary-subtle))",
+  color: "var(--dp-accent, var(--ol-color-primary))",
 };
 
 const UNLINKED_BTN_STYLE: React.CSSProperties = {
   ...toggleBtnBase,
-  border: "1px solid var(--dp-border, #e8e5f2)",
+  border: "1px solid var(--dp-border, var(--ol-border))",
   background: "transparent",
-  color: "var(--dp-text-muted, #a09db8)",
+  color: "var(--dp-text-muted, var(--ol-text-muted))",
 };
 
 function SpacingSection({
@@ -263,7 +263,7 @@ function SpacingSection({
         style={{
           fontSize: 12,
           fontWeight: 600,
-          color: "var(--dp-text-secondary, #6b6893)",
+          color: "var(--dp-text-secondary, var(--ol-text-secondary))",
           textTransform: "uppercase",
           letterSpacing: "0.3px",
         }}
@@ -450,7 +450,7 @@ export const SpacingCard = React.memo(function SpacingCard({ properties, onChang
 
         <div
           style={{
-            borderTop: "1px solid var(--dp-border, #e8e5f2)",
+            borderTop: "1px solid var(--dp-border, var(--ol-border))",
             margin: "2px 0",
           }}
         />

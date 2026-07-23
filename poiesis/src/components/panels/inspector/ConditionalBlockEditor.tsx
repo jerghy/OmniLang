@@ -36,7 +36,7 @@ export function ConditionalBlockEditor({ blockId }: ConditionalBlockEditorProps)
   );
 
   if (!condBlock) {
-    return <div style={{ padding: 12, color: "#9CA3AF", fontSize: 12 }}>未选择条件块</div>;
+    return <div style={{ padding: 12, color: "var(--ol-text-muted)", fontSize: 12 }}>未选择条件块</div>;
   }
 
   return (
@@ -53,9 +53,9 @@ export function ConditionalBlockEditor({ blockId }: ConditionalBlockEditorProps)
             style={{
               marginBottom: 8,
               padding: 10,
-              border: "1px solid #E5E7EB",
+              border: "1px solid var(--ol-border)",
               borderRadius: 6,
-              background: "#FAFAFA",
+              background: "var(--ol-gray-50)",
             }}
           >
             {/* Branch header */}
@@ -65,7 +65,7 @@ export function ConditionalBlockEditor({ blockId }: ConditionalBlockEditorProps)
             }}>
               <span style={{
                 fontSize: 12, fontWeight: 600,
-                color: isElse ? "#9CA3AF" : "#7C3AED",
+                color: isElse ? "var(--ol-text-muted)" : "var(--ol-color-primary)",
               }}>
                 {branchLabel}
               </span>
@@ -75,7 +75,7 @@ export function ConditionalBlockEditor({ blockId }: ConditionalBlockEditorProps)
                   title="删除分支"
                   style={{
                     border: "none", background: "transparent", cursor: "pointer",
-                    color: "#9CA3AF", fontSize: 14, padding: "0 4px", lineHeight: 1,
+                    color: "var(--ol-text-muted)", fontSize: 14, padding: "0 4px", lineHeight: 1,
                   }}
                 >
                   ×
@@ -92,9 +92,9 @@ export function ConditionalBlockEditor({ blockId }: ConditionalBlockEditorProps)
             />
 
             {/* Child elements */}
-            <div style={{ marginTop: 8, fontSize: 12, color: "#6b7280" }}>
+            <div style={{ marginTop: 8, fontSize: 12, color: "var(--ol-text-secondary)" }}>
               {branch.children.length === 0 ? (
-                <span style={{ fontStyle: "italic", color: "#9CA3AF", fontSize: 12 }}>
+                <span style={{ fontStyle: "italic", color: "var(--ol-text-muted)", fontSize: 12 }}>
                   空分支 — 右键此分支添加子组件
                 </span>
               ) : (
@@ -102,8 +102,8 @@ export function ConditionalBlockEditor({ blockId }: ConditionalBlockEditorProps)
                   <span style={{ fontSize: 12 }}>子元素:</span>
                   {branch.children.map((cid) => (
                     <span key={cid} style={{
-                      padding: "1px 6px", background: "#EEF2FF", borderRadius: 3,
-                      fontSize: 12, color: "#4F46E5",
+                      padding: "1px 6px", background: "var(--ol-color-primary-subtle)", borderRadius: 3,
+                      fontSize: 12, color: "var(--ol-color-primary-hover)",
                     }}>
                       {cid.split(".").pop()}
                     </span>

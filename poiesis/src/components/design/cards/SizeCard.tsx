@@ -33,7 +33,7 @@ function isTokenRef(value: string): boolean {
 const tokenTextStyle: React.CSSProperties = {
   fontSize: 12,
   fontFamily: "var(--dp-font-mono, monospace)",
-  color: "var(--dp-accent, #6366f1)",
+  color: "var(--dp-accent, var(--ol-color-primary))",
   cursor: "pointer",
 };
 
@@ -43,7 +43,7 @@ const tokenRemoveBtn: React.CSSProperties = {
   cursor: "pointer",
   fontSize: 14,
   padding: "0 2px",
-  color: "var(--dp-text-muted, #a09db8)",
+  color: "var(--dp-text-muted, var(--ol-text-muted))",
   lineHeight: 1,
   flexShrink: 0,
 };
@@ -52,11 +52,11 @@ const INPUT_STYLE: React.CSSProperties = {
   padding: "4px 6px",
   fontSize: 12,
   fontFamily: "var(--dp-font-mono, monospace)",
-  border: "1px solid var(--dp-border, #e8e5f2)",
+  border: "1px solid var(--dp-border, var(--ol-border))",
   borderRadius: "var(--dp-radius-sm, 6px)",
   outline: "2px solid transparent",
-  background: "var(--dp-surface, #fff)",
-  color: "var(--dp-text, #1e1b4b)",
+  background: "var(--dp-surface, var(--ol-surface))",
+  color: "var(--dp-text, var(--ol-gray-700))",
   boxSizing: "border-box",
   flex: 1,
   minWidth: 0,
@@ -103,13 +103,13 @@ interface SizeCardProps {
 const labelStyle: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 600,
-  color: "var(--dp-text-secondary, #6b6893)",
+  color: "var(--dp-text-secondary, var(--ol-text-secondary))",
   width: 14,
   flexShrink: 0,
 };
 
 const linkBtnBase: React.CSSProperties = {
-  border: "1px solid var(--dp-border, #e8e5f2)",
+  border: "1px solid var(--dp-border, var(--ol-border))",
   borderRadius: "var(--dp-radius-sm, 6px)",
   background: "transparent",
   cursor: "pointer",
@@ -167,9 +167,9 @@ export const SizeCard = React.memo(function SizeCard({ properties, onChange, onF
 
   const linkBtnStyle: React.CSSProperties = {
     ...linkBtnBase,
-    borderColor: linked ? "var(--dp-accent, #6366f1)" : "var(--dp-border, #e8e5f2)",
-    background: linked ? "var(--dp-accent-subtle, #eef0ff)" : "transparent",
-    color: linked ? "var(--dp-accent, #6366f1)" : "var(--dp-text-muted, #a09db8)",
+    borderColor: linked ? "var(--dp-accent, var(--ol-color-primary))" : "var(--dp-border, var(--ol-border))",
+    background: linked ? "var(--dp-accent-subtle, var(--ol-color-primary-subtle))" : "transparent",
+    color: linked ? "var(--dp-accent, var(--ol-color-primary))" : "var(--dp-text-muted, var(--ol-text-muted))",
   };
 
   return (
@@ -181,7 +181,7 @@ export const SizeCard = React.memo(function SizeCard({ properties, onChange, onF
             <span style={labelStyle}>W</span>
             <span style={isPropLocked("width", inheritedProps) ? LOCKED_INPUT_STYLE : undefined}>
             {readOnly && inheritedProps?.includes("width") ? (
-              <span style={{ ...INPUT_STYLE, color: "var(--dp-text-muted, #a09db8)", flex: 1, textAlign: "right" }}>{widthStr || "—"}</span>
+              <span style={{ ...INPUT_STYLE, color: "var(--dp-text-muted, var(--ol-text-muted))", flex: 1, textAlign: "right" }}>{widthStr || "—"}</span>
             ) : isTokenRef(widthStr) ? (
               <span style={{ display: "inline-flex", alignItems: "center", gap: 2, flex: 1 }}>
                 <button
@@ -240,7 +240,7 @@ export const SizeCard = React.memo(function SizeCard({ properties, onChange, onF
             <span style={labelStyle}>H</span>
             <span style={isPropLocked("height", inheritedProps) ? LOCKED_INPUT_STYLE : undefined}>
             {readOnly && inheritedProps?.includes("height") ? (
-              <span style={{ ...INPUT_STYLE, color: "var(--dp-text-muted, #a09db8)", flex: 1, textAlign: "right" }}>{heightStr || "—"}</span>
+              <span style={{ ...INPUT_STYLE, color: "var(--dp-text-muted, var(--ol-text-muted))", flex: 1, textAlign: "right" }}>{heightStr || "—"}</span>
             ) : isTokenRef(heightStr) ? (
               <span style={{ display: "inline-flex", alignItems: "center", gap: 2, flex: 1 }}>
                 <button

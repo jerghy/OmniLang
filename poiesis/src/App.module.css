@@ -9,6 +9,7 @@
   height: 100vh;
   overflow: hidden;
   position: relative;
+  background: var(--ol-surface);
 }
 
 .contentArea {
@@ -18,35 +19,33 @@
 
 .suspenseFallback {
   padding: 40px;
-  color: #6b7280;
-  font-size: 14px;
+  color: var(--ol-text-secondary);
+  font-size: var(--ol-font-size-14);
 }
 
 .pageToggle {
   position: absolute;
-  top: 8px;
-  right: 12px;
-  z-index: 100;
+  top: var(--ol-space-2);
+  right: var(--ol-space-3);
+  z-index: var(--ol-z-dropdown);
   display: flex;
   gap: 0;
-  background: rgba(255, 255, 255, 0.92);
+  background: color-mix(in srgb, var(--ol-surface) 92%, transparent);
   backdrop-filter: blur(8px);
-  border-radius: 8px;
+  border-radius: var(--ol-radius-lg);
   padding: 3px;
-  box-shadow:
-    0 1px 4px rgba(0, 0, 0, 0.12),
-    0 0 0 1px rgba(0, 0, 0, 0.06);
+  box-shadow: var(--ol-shadow-dropdown);
 }
 
 .pageToggleBtn {
   padding: 5px 14px;
-  font-size: 12px;
+  font-size: var(--ol-font-size-12);
   border: none;
-  border-radius: 6px;
+  border-radius: var(--ol-radius-md);
   cursor: pointer;
   transition:
-    border-color 150ms ease,
-    background-color 150ms ease,
-    opacity 150ms ease;
+    border-color var(--ol-duration-fast) var(--ol-ease-default),
+    background-color var(--ol-duration-fast) var(--ol-ease-default),
+    opacity var(--ol-duration-fast) var(--ol-ease-default);
   white-space: nowrap;
 }

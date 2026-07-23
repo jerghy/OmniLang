@@ -24,8 +24,10 @@ describe("buildTabSaveEntry", () => {
       wires: [],
       rootOrder: [],
       selectedElementIds: [],
+      filePath: undefined,
       codeFlowVisible: false,
       codeFlowElementId: null,
+      selectedActionPid: null,
     });
   });
 

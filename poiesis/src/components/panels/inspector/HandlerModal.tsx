@@ -156,10 +156,10 @@ export function HandlerModal({
             justifyContent: "space-between",
             alignItems: "center",
             padding: "14px 20px",
-            borderBottom: "1px solid #e2e8f0",
+            borderBottom: "1px solid var(--ol-border)",
           }}
         >
-          <span style={{ fontSize: 14, fontWeight: 600, color: "#1e293b" }}>
+          <span style={{ fontSize: 14, fontWeight: 600, color: "var(--ol-gray-800)" }}>
             编辑 {eventName} 处理器
           </span>
           <button type="button"
@@ -169,7 +169,7 @@ export function HandlerModal({
               background: "none",
               cursor: "pointer",
               fontSize: 18,
-              color: "#64748b",
+              color: "var(--ol-text-secondary)",
               padding: "4px 8px",
             }}
           >
@@ -182,7 +182,7 @@ export function HandlerModal({
           style={{
             display: "flex",
             gap: 0,
-            borderBottom: "1px solid #e2e8f0",
+            borderBottom: "1px solid var(--ol-border)",
             padding: "0 20px",
           }}
         >
@@ -229,7 +229,7 @@ export function HandlerModal({
             justifyContent: "flex-end",
             gap: 8,
             padding: "12px 20px",
-            borderTop: "1px solid #e2e8f0",
+            borderTop: "1px solid var(--ol-border)",
           }}
         >
           <button type="button"
@@ -237,9 +237,9 @@ export function HandlerModal({
             style={{
               padding: "8px 20px",
               fontSize: 13,
-              border: "1px solid #d1d5db",
+              border: "1px solid var(--ol-border-hover)",
               borderRadius: 6,
-              background: "#fff",
+              background: "var(--ol-surface)",
               cursor: "pointer",
               fontFamily: "inherit",
             }}
@@ -275,10 +275,10 @@ function TabButton({
         fontSize: 13,
         fontWeight: active ? 600 : 400,
         border: "none",
-        borderBottom: active ? "2px solid #6366F1" : "2px solid transparent",
+        borderBottom: active ? "2px solid var(--ol-color-primary)" : "2px solid transparent",
         background: "none",
         cursor: "pointer",
-        color: active ? "#6366F1" : "#64748b",
+        color: active ? "var(--ol-color-primary)" : "var(--ol-text-secondary)",
         fontFamily: "inherit",
       }}
     >

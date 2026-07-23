@@ -1,24 +1,24 @@
 .container {
   position: absolute;
-  bottom: 12px;
-  right: 12px;
+  bottom: var(--ol-space-3);
+  right: var(--ol-space-3);
   display: flex;
   align-items: center;
-  gap: 4px;
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 4px 8px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  gap: var(--ol-space-1);
+  background: var(--ol-surface);
+  border: 1px solid var(--ol-border);
+  border-radius: var(--ol-radius-lg);
+  padding: var(--ol-space-1) var(--ol-space-2);
+  box-shadow: var(--ol-shadow-sm);
   z-index: 10;
-  font-size: 12px;
+  font-size: var(--ol-font-size-12);
   font-family: inherit;
 }
 
 .zoomLabel {
   min-width: 48px;
   text-align: center;
-  color: #64748b;
+  color: var(--ol-text-secondary);
   cursor: pointer;
   background: none;
   border: none;

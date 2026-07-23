@@ -19,17 +19,17 @@ export interface ChildBubbleNodeData {
 }
 
 const LAYER_COLORS: Record<string, { border: string; bg: string }> = {
-  interface: { border: "#3b82f6", bg: "#eff6ff" },
-  composition: { border: "#10b981", bg: "#ecfdf5" },
-  "store-deps": { border: "#ef4444", bg: "#fef2f2" },
-  "code-deps": { border: "#8b5cf6", bg: "#f5f3ff" },
-  internal: { border: "#6b7280", bg: "#f9fafb" },
+  interface: { border: "var(--ol-color-info)", bg: "var(--ol-color-info-subtle)" },
+  composition: { border: "var(--ol-color-success)", bg: "var(--ol-color-success-subtle)" },
+  "store-deps": { border: "var(--ol-color-danger)", bg: "var(--ol-color-danger-subtle)" },
+  "code-deps": { border: "var(--ol-color-primary)", bg: "var(--ol-color-primary-subtle)" },
+  internal: { border: "var(--ol-text-secondary)", bg: "var(--ol-gray-50)" },
 };
 
 const TYPE_COLORS: Record<string, { border: string; bg: string }> = {
-  ui: { border: "#3b82f6", bg: "#eff6ff" },
-  store: { border: "#f59e0b", bg: "#fffbeb" },
-  code: { border: "#10b981", bg: "#ecfdf5" },
+  ui: { border: "var(--ol-color-info)", bg: "var(--ol-color-info-subtle)" },
+  store: { border: "var(--ol-color-warning)", bg: "var(--ol-color-warning-subtle)" },
+  code: { border: "var(--ol-color-success)", bg: "var(--ol-color-success-subtle)" },
 };
 
 const ChildBubbleNode = React.memo(function ChildBubbleNode({ data }: NodeProps) {

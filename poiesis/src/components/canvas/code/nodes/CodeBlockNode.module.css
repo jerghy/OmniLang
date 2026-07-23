@@ -1,27 +1,27 @@
-/* CodeBlockNode.module.css — extracted from inline styles for react-doctor compliance */
+/* CodeBlockNode.module.css — uses --ol-* design tokens */
 
 .node {
-  background: #F8FAFC;
-  border: 1.5px solid #94A3B8;
-  border-radius: 6px;
-  padding: 10px 14px;
+  background: var(--ol-gray-50);
+  border: 1.5px solid var(--ol-text-muted);
+  border-radius: var(--ol-radius-md);
+  padding: var(--ol-space-2p5) 14px;
   min-width: 180px;
   max-width: 280px;
-  font-size: 12px;
-  font-family: monospace;
+  font-size: var(--ol-font-size-12);
+  font-family: var(--ol-font-family-mono);
   cursor: pointer;
   white-space: pre-wrap;
   word-break: break-all;
-  color: #334155;
-  line-height: 1.4;
+  color: var(--ol-gray-700);
+  line-height: var(--ol-line-height-normal);
 }
 
 .description {
-  margin-top: 6px;
-  padding-top: 6px;
-  border-top: 1px solid #E2E8F0;
-  font-size: 12px;
-  color: #64748B;
+  margin-top: var(--ol-space-1p5);
+  padding-top: var(--ol-space-1p5);
+  border-top: 1px solid var(--ol-border);
+  font-size: var(--ol-font-size-12);
+  color: var(--ol-text-secondary);
   font-style: italic;
   white-space: nowrap;
   overflow: hidden;

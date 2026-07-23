@@ -116,6 +116,53 @@
   white-space: nowrap;
 }
 
+[data-component="AnimPropertiesDemo"] .card-border-demo {
+  text-align: center;
+  border-radius: 10px;
+  min-width: 120px;
+  flex: 0 0 auto;
+  padding: 14px 16px;
+  background: #f9fafb;
+  border: 2px solid #d4d4d8;
+}
+
+[data-component="AnimPropertiesDemo"] .card-border-demo {
+  margin-bottom: 4px;
+  display: block;
+  font-size: 13px;
+  color: #374151;
+}
+
+[data-component="AnimPropertiesDemo"] .card-border-demo {
+  font-size: 11px;
+  color: #6b7280;
+  margin: 0;
+}
+
+[data-component="AnimPropertiesDemo"] .card-pos {
+  border-radius: 10px;
+  position: relative;
+  flex: 0 0 auto;
+  text-align: center;
+  min-width: 120px;
+  padding: 14px 16px;
+  border: 1px solid #eab308;
+  background: #fef9c3;
+}
+
+[data-component="AnimPropertiesDemo"] .card-pos {
+  margin-bottom: 4px;
+  display: block;
+  font-size: 13px;
+  color: #374151;
+}
+
+[data-component="AnimPropertiesDemo"] .card-pos {
+  font-size: 11px;
+  color: #6b7280;
+  margin: 0;
+}
+
 [data-component="ComponentSpecialsDemo"] .container {
   border-radius: 12px;
   margin: 16px 0;

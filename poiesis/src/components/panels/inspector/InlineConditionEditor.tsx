@@ -26,13 +26,13 @@ const S: Record<string, React.CSSProperties> = {
   },
   disabled: {
     fontSize: 12,
-    color: "#9CA3AF",
+    color: "var(--ol-text-muted)",
     fontStyle: "italic",
   },
   editing: {
     width: "100%",
     padding: "4px 8px",
-    border: "1px solid #818CF8",
+    border: "1px solid var(--ol-color-primary)",
     borderRadius: 4,
     fontSize: 12,
     fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, Monaco, 'Courier New', monospace",
@@ -86,15 +86,15 @@ export function InlineConditionEditor({
       title="Click to edit"
       style={{
         ...S.idle,
-        background: hasContent ? "#EEF0FF" : "#F9FAFB",
-        color: hasContent ? "#6366F1" : "#9CA3AF",
+        background: hasContent ? "var(--ol-color-primary-subtle)" : "var(--ol-gray-50)",
+        color: hasContent ? "var(--ol-color-primary)" : "var(--ol-text-muted)",
         border: "none",
         fontFamily: "inherit",
         fontSize: "inherit",
         cursor: "pointer",
       }}
       onMouseEnter={(e) => {
-        (e.currentTarget as HTMLElement).style.borderColor = "#C4B5FD";
+        (e.currentTarget as HTMLElement).style.borderColor = "var(--ol-color-primary-muted)";
       }}
       onMouseLeave={(e) => {
         (e.currentTarget as HTMLElement).style.borderColor = "transparent";

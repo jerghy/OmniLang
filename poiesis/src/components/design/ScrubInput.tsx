@@ -39,13 +39,13 @@ const INPUT_STYLE: React.CSSProperties = {
   fontSize: "inherit",
   textAlign: "right",
   background: "transparent",
-  color: "var(--dp-accent, #6366f1)",
+  color: "var(--dp-accent, var(--ol-color-primary))",
 };
 
 const UNIT_STYLE: React.CSSProperties = {
   marginLeft: 2,
   fontSize: 12,
-  color: "var(--dp-text-muted, #a09db8)",
+  color: "var(--dp-text-muted, var(--ol-text-muted))",
   lineHeight: 1,
   fontWeight: 500,
 };
@@ -232,10 +232,10 @@ export const ScrubInput = React.memo(function ScrubInput({
 
   // Compute border color based on state
   const borderColor = focus
-    ? "var(--dp-accent, #6366f1)"
+    ? "var(--dp-accent, var(--ol-color-primary))"
     : hover
-      ? "var(--dp-border-active, #6366f1)"
-      : "var(--dp-border, #e8e5f2)";
+      ? "var(--dp-border-active, var(--ol-color-primary))"
+      : "var(--dp-border, var(--ol-border))";
 
   const rootStyle: React.CSSProperties = {
     display: "inline-flex",
@@ -251,8 +251,8 @@ export const ScrubInput = React.memo(function ScrubInput({
     width: 64,
     height: 24,
     boxSizing: "border-box",
-    background: disabled ? "#f5f5f5" : "var(--dp-surface, #fff)",
-    color: disabled ? "#999" : "var(--dp-text, #1e1b4b)",
+    background: disabled ? "var(--ol-gray-100)" : "var(--dp-surface, var(--ol-surface))",
+    color: disabled ? "var(--ol-text-muted)" : "var(--dp-text, var(--ol-gray-700))",
     transition: "border-color 150ms ease, box-shadow 150ms ease",
     boxShadow: focus ? "0 0 0 2px rgba(99,102,241,0.15)" : "none",
     outline: "2px solid transparent",

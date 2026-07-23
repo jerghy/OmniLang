@@ -67,14 +67,14 @@ export const CollapsibleGroup = React.memo(function CollapsibleGroup({
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleHeaderClick(); } }}
         className={styles.headerBtn}
         style={{
-          color: open ? "var(--dp-text, #1e1b4b)" : "var(--dp-text-secondary, #6b6893)",
-          background: hover ? "var(--dp-surface-hover, #f5f3ff)" : "transparent",
+          color: open ? "var(--dp-text, var(--ol-gray-700))" : "var(--dp-text-secondary, var(--ol-text-secondary))",
+          background: hover ? "var(--dp-surface-hover, var(--ol-color-primary-subtle))" : "transparent",
         }}
       >
         <span
           className={styles.arrow}
           style={{
-            color: open ? "var(--dp-accent, #6366f1)" : "var(--dp-text-muted, #a09db8)",
+            color: open ? "var(--dp-accent, var(--ol-color-primary))" : "var(--dp-text-muted, var(--ol-text-muted))",
             transform: open ? "rotate(90deg)" : "rotate(0deg)",
           }}
         >

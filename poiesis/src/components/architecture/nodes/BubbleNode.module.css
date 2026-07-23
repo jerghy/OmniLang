@@ -15,7 +15,7 @@
   position: absolute;
   top: -4px;
   right: -4px;
-  color: #fff;
+  color: var(--ol-surface);
   font-size: 12px;
   font-weight: 700;
   border-radius: 50%;

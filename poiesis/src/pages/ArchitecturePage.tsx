@@ -13,7 +13,7 @@ export function ArchitecturePage() {
         display: "flex",
         flexDirection: "column",
         height: "100vh",
-        background: "#f8fafc",
+        background: "var(--ol-gray-50)",
       }}
     >
       <ArchitectureToolbar
@@ -22,7 +22,7 @@ export function ArchitecturePage() {
       />
       <div style={{ flex: 1, position: "relative" }}>
         {viewMode === "preview" ? <ArchitecturePreview /> : (
-          <Suspense fallback={<div style={{ padding: 40, color: "#6b7280", fontSize: 14 }}>Loading graph...</div>}>
+          <Suspense fallback={<div style={{ padding: 40, color: "var(--ol-text-secondary)", fontSize: 14 }}>Loading graph...</div>}>
             <ArchitectureGraph />
           </Suspense>
         )}

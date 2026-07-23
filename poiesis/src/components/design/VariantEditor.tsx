@@ -74,17 +74,25 @@ function computeBranchOverrides(
   });
 }
 
+/** Pure helper: filter a property list, removing the one with the given name. */
+function removePropFromList(
+  props: StyleProperty[],
+  propName: string,
+): StyleProperty[] {
+  return props.filter((p) => p.name !== propName);
+}
+
 // ── Styles (using --dp-* CSS variables for consistency with TokenEditor/ClassEditor) ──
 
 const INPUT_STYLE: React.CSSProperties = {
   padding: "4px 6px",
   fontSize: 12,
   fontFamily: "var(--dp-font-mono, monospace)",
-  border: "1px solid var(--dp-border, #e8e5f2)",
+  border: "1px solid var(--dp-border, var(--ol-border))",
   borderRadius: "var(--dp-radius-sm, 6px)",
   outline: "2px solid transparent",
-  background: "var(--dp-surface, #fff)",
-  color: "var(--dp-text, #1e1b4b)",
+  background: "var(--dp-surface, var(--ol-surface))",
+  color: "var(--dp-text, var(--ol-gray-700))",
   boxSizing: "border-box",
   flex: 1,
   minWidth: 0,
@@ -94,11 +102,11 @@ const SELECT_STYLE: React.CSSProperties = {
   padding: "3px 4px",
   fontSize: 12,
   fontFamily: "var(--dp-font-mono, monospace)",
-  border: "1px solid var(--dp-border, #e8e5f2)",
+  border: "1px solid var(--dp-border, var(--ol-border))",
   borderRadius: "var(--dp-radius-sm, 6px)",
   outline: "2px solid transparent",
-  background: "var(--dp-surface, #fff)",
-  color: "var(--dp-text, #1e1b4b)",
+  background: "var(--dp-surface, var(--ol-surface))",
+  color: "var(--dp-text, var(--ol-gray-700))",
   cursor: "pointer",
   flex: 1,
   minWidth: 0,
@@ -108,7 +116,7 @@ const REMOVE_BTN: React.CSSProperties = {
   border: "none",
   background: "none",
   cursor: "pointer",
-  color: "var(--dp-text-muted, #a09db8)",
+  color: "var(--dp-text-muted, var(--ol-text-muted))",
   fontSize: 14,
   padding: "2px 4px",
   lineHeight: 1,
@@ -117,10 +125,10 @@ const REMOVE_BTN: React.CSSProperties = {
 };
 
 const DASHED_BTN: React.CSSProperties = {
-  border: "1px dashed var(--dp-border, #e8e5f2)",
+  border: "1px dashed var(--dp-border, var(--ol-border))",
   borderRadius: "var(--dp-radius-sm, 6px)",
   background: "transparent",
-  color: "var(--dp-text-muted, #a09db8)",
+  color: "var(--dp-text-muted, var(--ol-text-muted))",
   fontSize: 12,
   padding: "4px 10px",
   cursor: "pointer",
@@ -136,18 +144,18 @@ const VALUE_PILL: React.CSSProperties = {
   padding: "2px 8px",
   fontSize: 12,
   borderRadius: 12,
-  border: "1px solid var(--dp-border, #e8e5f2)",
-  background: "var(--dp-surface, #fff)",
-  color: "var(--dp-text, #1e1b4b)",
+  border: "1px solid var(--dp-border, var(--ol-border))",
+  background: "var(--dp-surface, var(--ol-surface))",
+  color: "var(--dp-text, var(--ol-gray-700))",
   cursor: "pointer",
   whiteSpace: "nowrap",
 };
 
 const VALUE_PILL_DEFAULT: React.CSSProperties = {
   ...VALUE_PILL,
-  background: "var(--dp-accent, #6366f1)",
-  color: "#fff",
-  borderColor: "var(--dp-accent, #6366f1)",
+  background: "var(--dp-accent, var(--ol-color-primary))",
+  color: "var(--ol-surface)",
+  borderColor: "var(--dp-accent, var(--ol-color-primary))",
 };
 
 const BRANCH_TAB: React.CSSProperties = {
@@ -156,22 +164,22 @@ const BRANCH_TAB: React.CSSProperties = {
   cursor: "pointer",
   border: "none",
   background: "none",
-  color: "var(--dp-text-muted, #a09db8)",
+  color: "var(--dp-text-muted, var(--ol-text-muted))",
   borderRadius: 4,
   fontFamily: "var(--dp-font-mono, monospace)",
 };
 
 const BRANCH_TAB_ACTIVE: React.CSSProperties = {
   ...BRANCH_TAB,
-  background: "var(--dp-accent-subtle, #eef0ff)",
-  color: "var(--dp-accent, #6366f1)",
+  background: "var(--dp-accent-subtle, var(--ol-color-primary-subtle))",
+  color: "var(--dp-accent, var(--ol-color-primary))",
   fontWeight: 600,
 };
 
 const SECTION_HEADER: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 600,
-  color: "var(--dp-text-secondary, #6b6893)",
+  color: "var(--dp-text-secondary, var(--ol-text-secondary))",
   textTransform: "uppercase",
   letterSpacing: "0.5px",
   padding: "12px 0 6px",
@@ -351,9 +359,9 @@ function TokenizedInput({
   return <input value={value} onChange={handleChange} style={style} placeholder={placeholder} />;
 }
 
-// ── Component ──
+// ── Hook: all VariantEditor state and handlers ──
 
-export function VariantEditor() {
+function useVariantEditorState() {
   // ── Store ──
   const variants = usePoiesisStore((s) => s.activeDesign.variants);
   const tokens = usePoiesisStore((s) => s.activeDesign.tokens);
@@ -475,14 +483,22 @@ export function VariantEditor() {
       : "—";
   }, [currentProps]);
 
-  // ── Close add-property popup on outside click ──
+  const inheritedProps = selectedVariant?.inheritedProps ?? [];
+  const inheritedPropsSet = useMemo(
+    () => new Set(selectedVariant?.inheritedProps ?? []),
+    [selectedVariant?.inheritedProps],
+  );
+
+  // ── Handlers: Add-property popup ──
 
   const handleOutsideAddProp = useCallback(() => {
     setShowAddProp(false);
     setAddPropSearch("");
   }, []);
 
-  useOutsideClick(addPropRef, showAddProp, handleOutsideAddProp);
+  const handleToggleAddProp = useCallback(() => {
+    setShowAddProp((v) => !v);
+  }, []);
 
   // ── Handlers: Variant CRUD ──
 
@@ -601,15 +617,7 @@ export function VariantEditor() {
     setActiveBranchKey(key);
   }, []);
 
-  const inheritedPropsSet = useMemo(() => new Set(selectedVariant?.inheritedProps ?? []), [selectedVariant?.inheritedProps]);
-
   // ── Handlers: Properties ──
-
-  const removePropFromList = useCallback(
-    (props: StyleProperty[], propName: string): StyleProperty[] =>
-      props.filter((p) => p.name !== propName),
-    [],
-  );
 
   /** Handle props change from a card — diffs against base to determine overrides. */
   const handleCardPropsChange = useCallback(
@@ -730,574 +738,728 @@ export function VariantEditor() {
         });
       }
     },
-    [selectedVariant, activeBranchKey, updateVariant, removePropFromList],
+    [selectedVariant, activeBranchKey, updateVariant],
   );
 
-  // ── Render: Dimension section ──
+  const handleSelectAddProp = useCallback((name: string) => {
+    handleSinglePropChange(name, "");
+    setShowAddProp(false);
+    setAddPropSearch("");
+  }, [handleSinglePropChange]);
 
-  const renderDimensions = () => {
-    if (!selectedVariant) return null;
+  return {
+    variants, tokens, selectedVariantId, newDimName, newDimValue,
+    activeBranchKey, showAddProp, addPropSearch, previewSelections,
+    slashPicker, addPropRef, selectedVariant, isBranchMode,
+    branchKeys, branch, currentProps, previewProps,
+    defaultComboStr, layoutSummary, typographySummary,
+    inheritedProps, inheritedPropsSet,
+    toggleInheritedProp,
+    setNewDimName, setNewDimValue, setAddPropSearch, setPreviewSelections, setSlashPicker,
+    handleSelectVariant, handleAddVariant, handleRemoveVariant,
+    handleAddDimension, handleRemoveDimension, handleAddDimValue,
+    handleRemoveDimValue, handleSetDefault, handleSelectBranch,
+    handleCardPropsChange, handleSinglePropChange, handleSlashTrigger,
+    handleTokenSelect, handleRemoveProperty,
+    handleOutsideAddProp, handleToggleAddProp, handleSelectAddProp,
+  };
+}
 
-    return (
-      <div style={{ marginBottom: 12 }}>
-        <div style={SECTION_HEADER}>Dimensions</div>
-        {selectedVariant.dimensions.length === 0 && (
-          <div style={{ fontSize: 12, color: "var(--dp-text-muted, #a09db8)", marginBottom: 6 }}>
-            No dimensions yet. Add your first dimension below.
-          </div>
-        )}
-        {selectedVariant.dimensions.map((dim) => {
-          const defaultValue = selectedVariant.defaults[dim.name];
-          return (
-            <div
-              key={dim.name}
-              style={{
-                marginBottom: 8,
-                padding: "6px 8px",
-                background: "var(--dp-bg, #f7f6fa)",
-                borderRadius: 6,
-                border: "1px solid var(--dp-border, #e8e5f2)",
-              }}
-            >
-              {/* Dimension header */}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  marginBottom: 4,
-                }}
-              >
-                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--dp-text, #1e1b4b)" }}>
-                  {dim.name}
-                </span>
-                <span style={{ fontSize: 12, color: "var(--dp-text-muted, #a09db8)" }}>
-                  ({dim.values.length} values)
-                </span>
-                <div style={{ flex: 1 }} />
-                <button type="button"
-                  onClick={() => handleRemoveDimension(dim.name)}
-                  style={REMOVE_BTN}
-                  title="Remove dimension"
-                >
-                  &times;
-                </button>
-              </div>
+// ── Extracted sub-components ──
 
-              {/* Value pills */}
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 4 }}>
-                {dim.values.map((val) => {
-                  const isDefault = val === defaultValue;
-                  return (
-                    <button
-                      type="button"
-                      key={val}
-                      onClick={(e) => { if ((e.target as HTMLElement).getAttribute('data-action') === 'remove-dim-value') { e.stopPropagation(); handleRemoveDimValue(dim.name, val); } else { handleSetDefault(dim.name, val); } }}
-                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSetDefault(dim.name, val); } }}
-                      style={isDefault ? VALUE_PILL_DEFAULT : VALUE_PILL}
-                      title={
-                        isDefault
-                          ? `Default for ${dim.name}`
-                          : `Click to set as default`
-                      }
-                    >
-                      {val}
-                      <span data-action="remove-dim-value" title="Remove value" style={{
-                        border: "none",
-                        background: "none",
-                        cursor: "pointer",
-                        color: isDefault ? "rgba(255,255,255,0.7)" : "var(--dp-text-muted, #a09db8)",
-                        fontSize: 12,
-                        padding: 0,
-                        lineHeight: 1,
-                        marginLeft: 2,
-                      }}>
-                        &times;
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
+function DefaultComboDisplay({
+  selectedVariant,
+  defaultComboStr,
+}: {
+  selectedVariant: { readonly defaults: Record<string, string> } | null;
+  defaultComboStr: string;
+}) {
+  if (!selectedVariant || Object.keys(selectedVariant.defaults).length === 0) return null;
+  return (
+    <div
+      style={{
+        fontSize: 12,
+        color: "var(--dp-text-secondary, var(--ol-text-secondary))",
+        padding: "6px 8px",
+        background: "var(--dp-bg, var(--ol-gray-50))",
+        borderRadius: "var(--dp-radius-sm, 6px)",
+        marginBottom: 12,
+        border: "1px solid var(--dp-border, var(--ol-border))",
+      }}
+    >
+      <span style={{ fontWeight: 500, color: "var(--dp-text, var(--ol-gray-700))" }}>默认组合: </span>
+      {defaultComboStr}
+    </div>
+  );
+}
 
-              {/* Add value input */}
-              <div style={{ display: "flex", gap: 4 }}>
-                <input
-                  aria-label="Add dimension value"
-                  value={newDimValue}
-                  onChange={(e) => setNewDimValue(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleAddDimValue(dim.name);
-                  }}
-                  placeholder="+ value"
-                  style={{
-                    ...INPUT_STYLE,
-                    width: 120,
-                    fontSize: 12,
-                  }}
-                />
-                <button type="button"
-                  onClick={() => handleAddDimValue(dim.name)}
-                  disabled={!newDimValue.trim()}
-                  style={{
-                    padding: "2px 8px",
-                    fontSize: 12,
-                    border: "1px solid var(--dp-border, #e8e5f2)",
-                    borderRadius: "var(--dp-radius-sm, 6px)",
-                    background: newDimValue.trim() ? "var(--dp-accent, #6366f1)" : "var(--dp-bg, #f7f6fa)",
-                    color: newDimValue.trim() ? "#fff" : "var(--dp-text-muted, #a09db8)",
-                    cursor: newDimValue.trim() ? "pointer" : "default",
-                  }}
-                >
-                  +
-                </button>
-              </div>
-            </div>
-          );
-        })}
+function DimensionsSection({
+  selectedVariant,
+  newDimValue,
+  newDimName,
+  onNewDimValueChange,
+  onNewDimNameChange,
+  onAddDimension,
+  onRemoveDimension,
+  onAddDimValue,
+  onRemoveDimValue,
+  onSetDefault,
+}: {
+  selectedVariant: {
+    readonly dimensions: readonly VariantDimension[];
+    readonly defaults: Readonly<Record<string, string>>;
+  } | null;
+  newDimValue: string;
+  newDimName: string;
+  onNewDimValueChange: (v: string) => void;
+  onNewDimNameChange: (v: string) => void;
+  onAddDimension: () => void;
+  onRemoveDimension: (name: string) => void;
+  onAddDimValue: (name: string) => void;
+  onRemoveDimValue: (name: string, value: string) => void;
+  onSetDefault: (name: string, value: string) => void;
+}) {
+  if (!selectedVariant) return null;
 
-        {/* Add dimension input */}
-        {selectedVariant.dimensions.length > 0 && <div style={{ height: 4 }} />}
-        <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-          <input
-            aria-label="Add dimension"
-            value={newDimName}
-            onChange={(e) => setNewDimName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleAddDimension();
-            }}
-            placeholder='+ 添加维度 (e.g. "color", "size")'
-            style={{ ...INPUT_STYLE, flex: 1, minWidth: 0, fontSize: 12 }}
-          />
-          <button type="button"
-            onClick={handleAddDimension}
-            disabled={!newDimName.trim()}
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={SECTION_HEADER}>Dimensions</div>
+      {selectedVariant.dimensions.length === 0 && (
+        <div style={{ fontSize: 12, color: "var(--dp-text-muted, var(--ol-text-muted))", marginBottom: 6 }}>
+          No dimensions yet. Add your first dimension below.
+        </div>
+      )}
+      {selectedVariant.dimensions.map((dim) => {
+        const defaultValue = selectedVariant.defaults[dim.name];
+        return (
+          <div
+            key={dim.name}
             style={{
-              padding: "3px 8px",
-              fontSize: 12,
-              border: "none",
-              borderRadius: 4,
-              background: newDimName.trim() ? "var(--dp-accent, #6366f1)" : "var(--dp-border, #e8e5f2)",
-              color: newDimName.trim() ? "#fff" : "var(--dp-text-muted, #a09db8)",
-              cursor: newDimName.trim() ? "pointer" : "default",
-              whiteSpace: "nowrap",
+              marginBottom: 8,
+              padding: "6px 8px",
+              background: "var(--dp-bg, var(--ol-gray-50))",
+              borderRadius: 6,
+              border: "1px solid var(--dp-border, var(--ol-border))",
             }}
           >
-            + 添加维度
-          </button>
-        </div>
+            {/* Dimension header */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                marginBottom: 4,
+              }}
+            >
+              <span style={{ fontSize: 12, fontWeight: 600, color: "var(--dp-text, var(--ol-gray-700))" }}>
+                {dim.name}
+              </span>
+              <span style={{ fontSize: 12, color: "var(--dp-text-muted, var(--ol-text-muted))" }}>
+                ({dim.values.length} values)
+              </span>
+              <div style={{ flex: 1 }} />
+              <button type="button"
+                onClick={() => onRemoveDimension(dim.name)}
+                style={REMOVE_BTN}
+                title="Remove dimension"
+              >
+                &times;
+              </button>
+            </div>
+
+            {/* Value pills */}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 4 }}>
+              {dim.values.map((val) => {
+                const isDefault = val === defaultValue;
+                return (
+                  <button
+                    type="button"
+                    key={val}
+                    onClick={(e) => { if ((e.target as HTMLElement).getAttribute('data-action') === 'remove-dim-value') { e.stopPropagation(); onRemoveDimValue(dim.name, val); } else { onSetDefault(dim.name, val); } }}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSetDefault(dim.name, val); } }}
+                    style={isDefault ? VALUE_PILL_DEFAULT : VALUE_PILL}
+                    title={
+                      isDefault
+                        ? `Default for ${dim.name}`
+                        : `Click to set as default`
+                    }
+                  >
+                    {val}
+                    <span data-action="remove-dim-value" title="Remove value" style={{
+                      border: "none",
+                      background: "none",
+                      cursor: "pointer",
+                      color: isDefault ? "rgba(255,255,255,0.7)" : "var(--dp-text-muted, var(--ol-text-muted))",
+                      fontSize: 12,
+                      padding: 0,
+                      lineHeight: 1,
+                      marginLeft: 2,
+                    }}>
+                      &times;
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Add value input */}
+            <div style={{ display: "flex", gap: 4 }}>
+              <input
+                aria-label="Add dimension value"
+                value={newDimValue}
+                onChange={(e) => onNewDimValueChange(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") onAddDimValue(dim.name);
+                }}
+                placeholder="+ value"
+                style={{
+                  ...INPUT_STYLE,
+                  width: 120,
+                  fontSize: 12,
+                }}
+              />
+              <button type="button"
+                onClick={() => onAddDimValue(dim.name)}
+                disabled={!newDimValue.trim()}
+                style={{
+                  padding: "2px 8px",
+                  fontSize: 12,
+                  border: "1px solid var(--dp-border, var(--ol-border))",
+                  borderRadius: "var(--dp-radius-sm, 6px)",
+                  background: newDimValue.trim() ? "var(--dp-accent, var(--ol-color-primary))" : "var(--dp-bg, var(--ol-gray-50))",
+                  color: newDimValue.trim() ? "var(--ol-surface)" : "var(--dp-text-muted, var(--ol-text-muted))",
+                  cursor: newDimValue.trim() ? "pointer" : "default",
+                }}
+              >
+                +
+              </button>
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Add dimension input */}
+      {selectedVariant.dimensions.length > 0 && <div style={{ height: 4 }} />}
+      <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+        <input
+          aria-label="Add dimension"
+          value={newDimName}
+          onChange={(e) => onNewDimNameChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") onAddDimension();
+          }}
+          placeholder='+ 添加维度 (e.g. "color", "size")'
+          style={{ ...INPUT_STYLE, flex: 1, minWidth: 0, fontSize: 12 }}
+        />
+        <button type="button"
+          onClick={onAddDimension}
+          disabled={!newDimName.trim()}
+          style={{
+            padding: "3px 8px",
+            fontSize: 12,
+            border: "none",
+            borderRadius: 4,
+            background: newDimName.trim() ? "var(--dp-accent, var(--ol-color-primary))" : "var(--dp-border, var(--ol-border))",
+            color: newDimName.trim() ? "var(--ol-surface)" : "var(--dp-text-muted, var(--ol-text-muted))",
+            cursor: newDimName.trim() ? "pointer" : "default",
+            whiteSpace: "nowrap",
+          }}
+        >
+          + 添加维度
+        </button>
       </div>
-    );
-  };
+    </div>
+  );
+}
 
-  // ── Render: Default combination ──
+function BranchTabs({
+  selectedVariant,
+  branchKeys,
+  activeBranchKey,
+  onSelectBranch,
+}: {
+  selectedVariant: unknown;
+  branchKeys: string[];
+  activeBranchKey: string;
+  onSelectBranch: (key: string) => void;
+}) {
+  if (!selectedVariant) return null;
+  const branchesExist = branchKeys.length > 0;
 
-  const renderDefaultCombo = () => {
-    if (!selectedVariant || Object.keys(selectedVariant.defaults).length === 0) return null;
-    return (
-      <div
-        style={{
-          fontSize: 12,
-          color: "var(--dp-text-secondary, #6b6893)",
-          padding: "6px 8px",
-          background: "var(--dp-bg, #f7f6fa)",
-          borderRadius: "var(--dp-radius-sm, 6px)",
-          marginBottom: 12,
-          border: "1px solid var(--dp-border, #e8e5f2)",
+  return (
+    <div className={styles.branchTabsBar}>
+      <button type="button"
+        onClick={() => onSelectBranch("base")}
+        style={activeBranchKey === "base" ? BRANCH_TAB_ACTIVE : BRANCH_TAB}
+      >
+        base
+      </button>
+      {branchKeys.map((key) => (
+        <button type="button"
+          key={key}
+          onClick={() => onSelectBranch(key)}
+          style={activeBranchKey === key ? BRANCH_TAB_ACTIVE : BRANCH_TAB}
+        >
+          {key}
+        </button>
+      ))}
+      {!branchesExist && (
+        <span style={{ fontSize: 12, color: "var(--dp-text-muted, var(--ol-text-muted))", marginLeft: 4 }}>
+          (add dimension values above)
+        </span>
+      )}
+    </div>
+  );
+}
+
+function AddPropertyDropdown({
+  showAddProp,
+  addPropSearch,
+  onToggleShow,
+  onSearchChange,
+  onSelectProp,
+  addPropRef,
+}: {
+  showAddProp: boolean;
+  addPropSearch: string;
+  onToggleShow: () => void;
+  onSearchChange: (v: string) => void;
+  onSelectProp: (name: string) => void;
+  addPropRef: React.RefObject<HTMLDivElement | null>;
+}) {
+  const filtered = ALL_PROPERTY_NAMES.filter(
+    (n) => n.toLowerCase().includes(addPropSearch.toLowerCase()),
+  );
+
+  return (
+    <div style={{ position: "relative", margin: "4px 8px" }}>
+      <button type="button"
+        onClick={onToggleShow}
+        style={DASHED_BTN}
+        onMouseEnter={(e) => {
+          (e.currentTarget as HTMLElement).style.color = "var(--dp-accent, var(--ol-color-primary))";
+          (e.currentTarget as HTMLElement).style.borderColor = "var(--dp-accent, var(--ol-color-primary))";
+        }}
+        onMouseLeave={(e) => {
+          (e.currentTarget as HTMLElement).style.color = "var(--dp-text-muted, var(--ol-text-muted))";
+          (e.currentTarget as HTMLElement).style.borderColor = "var(--dp-border, var(--ol-border))";
         }}
       >
-        <span style={{ fontWeight: 500, color: "var(--dp-text, #1e1b4b)" }}>默认组合: </span>
-        {defaultComboStr}
-      </div>
-    );
-  };
-
-  // ── Render: Branch tabs ──
-
-  const renderBranchTabs = () => {
-    if (!selectedVariant) return null;
-    const branchesExist = branchKeys.length > 0;
-
-    return (
-      <div className={styles.branchTabsBar}>
-        <button type="button"
-          onClick={() => handleSelectBranch("base")}
-          style={activeBranchKey === "base" ? BRANCH_TAB_ACTIVE : BRANCH_TAB}
+        + Add property
+      </button>
+      {showAddProp && (
+        <div
+          ref={addPropRef}
+          className={styles.addPropDropdown}
         >
-          base
-        </button>
-        {branchKeys.map((key) => (
-          <button type="button"
-            key={key}
-            onClick={() => handleSelectBranch(key)}
-            style={activeBranchKey === key ? BRANCH_TAB_ACTIVE : BRANCH_TAB}
-          >
-            {key}
-          </button>
-        ))}
-        {!branchesExist && (
-          <span style={{ fontSize: 12, color: "var(--dp-text-muted, #a09db8)", marginLeft: 4 }}>
-            (add dimension values above)
-          </span>
-        )}
-      </div>
-    );
-  };
-
-  // ── Render: Add property dropdown ──
-
-  const renderAddProperty = () => {
-    const filtered = ALL_PROPERTY_NAMES.filter(
-      (n) => n.toLowerCase().includes(addPropSearch.toLowerCase()),
-    );
-
-    return (
-      <div style={{ position: "relative", margin: "4px 8px" }}>
-        <button type="button"
-          onClick={() => setShowAddProp((v) => !v)}
-          style={DASHED_BTN}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLElement).style.color = "var(--dp-accent, #6366f1)";
-            (e.currentTarget as HTMLElement).style.borderColor = "var(--dp-accent, #6366f1)";
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLElement).style.color = "var(--dp-text-muted, #a09db8)";
-            (e.currentTarget as HTMLElement).style.borderColor = "var(--dp-border, #e8e5f2)";
-          }}
-        >
-          + Add property
-        </button>
-        {showAddProp && (
-          <div
-            ref={addPropRef}
-            className={styles.addPropDropdown}
-          >
-            <input
-              aria-label="Search properties"
-              value={addPropSearch}
-              onChange={(e) => setAddPropSearch(e.target.value)}
-              placeholder="Search properties..."
-              style={{
-                ...INPUT_STYLE,
-                margin: 4,
-                width: "calc(100% - 8px)",
-                padding: "4px 6px",
-                fontSize: 12,
+          <input
+            aria-label="Search properties"
+            value={addPropSearch}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder="Search properties..."
+            style={{
+              ...INPUT_STYLE,
+              margin: 4,
+              width: "calc(100% - 8px)",
+              padding: "4px 6px",
+              fontSize: 12,
+            }}
+          />
+          {filtered.map((name) => (
+            <button type="button"
+              key={name}
+              onClick={() => onSelectProp(name)}
+              className={styles.addPropItem}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLElement).style.background = "var(--dp-surface-hover, var(--ol-color-primary-subtle))";
               }}
-            />
-            {filtered.map((name) => (
-              <button type="button"
-                key={name}
-                onClick={() => {
-                  handleSinglePropChange(name, "");
-                  setShowAddProp(false);
-                  setAddPropSearch("");
-                }}
-                className={styles.addPropItem}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLElement).style.background = "var(--dp-surface-hover, #f5f3ff)";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLElement).style.background = "transparent";
-                }}
-              >
-                <span style={{ color: "var(--dp-text-muted, #a09db8)", marginRight: 4 }}>+</span>
-                {PROPERTY_LABELS[name] || name}
-              </button>
-            ))}
-            {filtered.length === 0 && (
-              <div
-                style={{
-                  padding: 8,
-                  fontSize: 12,
-                  color: "var(--dp-text-muted, #a09db8)",
-                  textAlign: "center",
-                }}
-              >
-                No matching properties
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  // ── Render: Cards-based property editor ──
-
-  const renderCards = () => {
-    if (!selectedVariant) return null;
-
-    return (
-      <div>
-        {/* Visual editing cards */}
-        <SizeCard
-          properties={currentProps}
-          onChange={handleCardPropsChange}
-          onPropSlash={handleSlashTrigger}
-          inheritedProps={inheritedProps}
-          onToggleInherited={isBranchMode ? undefined : (name) => selectedVariant && toggleInheritedProp(selectedVariant.id, name)}
-          readOnly={isBranchMode}
-        />
-        <BackgroundCard
-          properties={currentProps}
-          tokens={tokens}
-          onChange={handleCardPropsChange}
-          inheritedProps={inheritedProps}
-          onToggleInherited={isBranchMode ? undefined : (name) => selectedVariant && toggleInheritedProp(selectedVariant.id, name)}
-          readOnly={isBranchMode}
-        />
-        <BorderCard
-          properties={currentProps}
-          tokens={tokens}
-          onChange={handleCardPropsChange}
-          inheritedProps={inheritedProps}
-          onToggleInherited={isBranchMode ? undefined : (name) => selectedVariant && toggleInheritedProp(selectedVariant.id, name)}
-          readOnly={isBranchMode}
-        />
-        <RadiusCard
-          properties={currentProps}
-          onChange={handleCardPropsChange}
-          onPropSlash={handleSlashTrigger}
-          inheritedProps={inheritedProps}
-          onToggleInherited={isBranchMode ? undefined : (name) => selectedVariant && toggleInheritedProp(selectedVariant.id, name)}
-          readOnly={isBranchMode}
-        />
-        <SpacingCard
-          properties={currentProps}
-          onChange={handleCardPropsChange}
-          onPropSlash={handleSlashTrigger}
-          inheritedProps={inheritedProps}
-          onToggleInherited={isBranchMode ? undefined : (name) => selectedVariant && toggleInheritedProp(selectedVariant.id, name)}
-          readOnly={isBranchMode}
-        />
-
-        {/* Layout group for remaining layout properties */}
-        <CollapsibleGroup title="布局 Layout" summary={layoutSummary} defaultOpen={false}>
-          {layoutPropNames.map((name) => {
-            const value = getPropValue(currentProps, name);
-            const label = PROPERTY_LABELS[name] || name;
-            const isInherited = inheritedPropsSet.has(name);
-
-            // Inherited prop in branch mode: read-only
-            if (isBranchMode && isInherited) {
-              const baseValue = getPropValue(selectedVariant.baseProperties, name);
-              return (
-                <PropertyRow key={name} label={label} inherited={true}>
-                  <div style={{ ...INPUT_STYLE, background: "var(--dp-bg, #f7f6fa)", color: "var(--dp-text-muted, #a09db8)", cursor: "not-allowed", display: "flex", alignItems: "center", fontSize: 12 }}>
-                    ← base: {baseValue || "—"}
-                  </div>
-                </PropertyRow>
-              );
-            }
-
-            let input: React.ReactNode;
-
-            if (name === "flexDirection") {
-              input = (
-                <IconButtonGroup
-                  options={[
-                    { value: "row", label: "→", title: "row" },
-                    { value: "column", label: "↓", title: "column" },
-                    { value: "row-reverse", label: "←", title: "row-reverse" },
-                    { value: "column-reverse", label: "↑", title: "column-reverse" },
-                  ]}
-                  value={(value || "row") as "row" | "column" | "row-reverse" | "column-reverse"}
-                  onChange={(v) => handleSinglePropChange(name, v as string)}
-                />
-              );
-            } else if (name === "gap") {
-              input = (
-                <ScrubInput
-                  value={parseFloat(value) || 0}
-                  unit="px"
-                  min={0}
-                  max={200}
-                  onChange={(v) => handleSinglePropChange(name, `${v}px`)}
-                />
-              );
-            } else if (isEnumProperty(name)) {
-              input = (
-                <select
-                  aria-label={label}
-                  value={value}
-                  onChange={(e) => handleSinglePropChange(name, e.target.value)}
-                  style={SELECT_STYLE}
-                >
-                  <option value="">—</option>
-                  {ENUM_OPTIONS[name]?.map((opt) => (
-                    <option key={opt} value={opt}>{opt}</option>
-                  )) ?? null}
-                </select>
-              );
-            } else {
-              input = (
-                <TokenizedInput
-                  value={value}
-                  onChange={(v) => handleSinglePropChange(name, v)}
-                  onSlash={(el) => handleSlashTrigger(name, el)}
-                  placeholder="value"
-                  style={INPUT_STYLE}
-                />
-              );
-            }
-
-            const isLockedInBase = !isBranchMode && !isInherited;
-            return (
-              <PropertyRow
-                key={name}
-                label={label}
-                showOverrideDot={isBranchMode && !!branch?.properties.some((p) => p.name === name)}
-                onRemove={() => handleRemoveProperty(name)}
-              >
-                <span style={isLockedInBase ? LOCKED_INPUT_STYLE : undefined}>
-                  {input}
-                </span>
-                {!isBranchMode && (
-                  <button type="button"
-                    onClick={() => selectedVariant && toggleInheritedProp(selectedVariant.id, name)}
-                    title={isInherited ? "已解锁（分支只读）— 点击封锁" : "已封锁（分支可覆盖）— 点击解锁"}
-                    style={{ border: "none", background: "none", cursor: "pointer", fontSize: 12, padding: "0 4px", color: isInherited ? "var(--dp-accent, #6366f1)" : "var(--dp-text-muted, #a09db8)" }}
-                  >{isInherited ? "🔓" : "🔒"}</button>
-                )}
-              </PropertyRow>
-            );
-          })}
-        </CollapsibleGroup>
-
-        {/* Typography group */}
-        <CollapsibleGroup title="文字 Typography" summary={typographySummary} defaultOpen={false}>
-          {typographyPropNames.map((name) => {
-            const value = getPropValue(currentProps, name);
-            const label = PROPERTY_LABELS[name] || name;
-            const isInherited = inheritedPropsSet.has(name);
-
-            // Inherited prop in branch mode: read-only
-            if (isBranchMode && isInherited) {
-              const baseValue = getPropValue(selectedVariant.baseProperties, name);
-              return (
-                <PropertyRow key={name} label={label} inherited={true}>
-                  <div style={{ ...INPUT_STYLE, background: "var(--dp-bg, #f7f6fa)", color: "var(--dp-text-muted, #a09db8)", cursor: "not-allowed", display: "flex", alignItems: "center", fontSize: 12 }}>
-                    ← base: {baseValue || "—"}
-                  </div>
-                </PropertyRow>
-              );
-            }
-
-            let input: React.ReactNode;
-
-            if (["fontSize", "lineHeight", "letterSpacing"].includes(name)) {
-              const unit = name === "fontSize" ? "px" : (name === "letterSpacing" ? "px" : "");
-              input = (
-                <ScrubInput
-                  value={parseFloat(value) || 0}
-                  unit={unit}
-                  min={0}
-                  max={999}
-                  onChange={(v) => handleSinglePropChange(name, unit ? `${v}${unit}` : `${v}`)}
-                />
-              );
-            } else if (isEnumProperty(name)) {
-              input = (
-                <select
-                  aria-label={label}
-                  value={value}
-                  onChange={(e) => handleSinglePropChange(name, e.target.value)}
-                  style={SELECT_STYLE}
-                >
-                  <option value="">—</option>
-                  {ENUM_OPTIONS[name]?.map((opt) => (
-                    <option key={opt} value={opt}>{opt}</option>
-                  )) ?? null}
-                </select>
-              );
-            } else {
-              input = (
-                <TokenizedInput
-                  value={value}
-                  onChange={(v) => handleSinglePropChange(name, v)}
-                  onSlash={(el) => handleSlashTrigger(name, el)}
-                  placeholder="value"
-                  style={INPUT_STYLE}
-                />
-              );
-            }
-
-            const isLockedInBase = !isBranchMode && !isInherited;
-            return (
-              <PropertyRow
-                key={name}
-                label={label}
-                showOverrideDot={isBranchMode && !!branch?.properties.some((p) => p.name === name)}
-                onRemove={() => handleRemoveProperty(name)}
-              >
-                <span style={isLockedInBase ? LOCKED_INPUT_STYLE : undefined}>
-                  {input}
-                </span>
-                {!isBranchMode && (
-                  <button type="button"
-                    onClick={() => selectedVariant && toggleInheritedProp(selectedVariant.id, name)}
-                    title={isInherited ? "已解锁（分支只读）— 点击封锁" : "已封锁（分支可覆盖）— 点击解锁"}
-                    style={{ border: "none", background: "none", cursor: "pointer", fontSize: 12, padding: "0 4px", color: isInherited ? "var(--dp-accent, #6366f1)" : "var(--dp-text-muted, #a09db8)" }}
-                  >{isInherited ? "🔓" : "🔒"}</button>
-                )}
-              </PropertyRow>
-            );
-          })}
-        </CollapsibleGroup>
-
-        {renderAddProperty()}
-      </div>
-    );
-  };
-
-  // ── Render: Preview panel ──
-
-  const renderPreview = () => {
-    if (!selectedVariant) return null;
-    return (
-      <div className={styles.previewPanel}>
-        {/* Header */}
-        <div className={styles.previewHeader}
-        >
-          Preview
-        </div>
-
-        {/* Dimension combination selectors */}
-        {selectedVariant.dimensions.map((dim) => (
-          <div key={dim.name} className={styles.previewSelectRow}>
-            <span className={styles.previewSelectLabel}>
-              {dim.name}
-            </span>
-            <select
-              aria-label={dim.name}
-              value={previewSelections[dim.name] || ""}
-              onChange={(e) =>
-                setPreviewSelections((prev) => ({
-                  ...prev,
-                  [dim.name]: e.target.value,
-                }))
-              }
-              className={styles.previewSelect}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLElement).style.background = "transparent";
+              }}
             >
-              <option value="">—</option>
-              {dim.values.map((val) => (
-                <option key={val} value={val}>
-                  {val}
-                </option>
-              ))}
-            </select>
-          </div>
-        ))}
+              <span style={{ color: "var(--dp-text-muted, var(--ol-text-muted))", marginRight: 4 }}>+</span>
+              {PROPERTY_LABELS[name] || name}
+            </button>
+          ))}
+          {filtered.length === 0 && (
+            <div
+              style={{
+                padding: 8,
+                fontSize: 12,
+                color: "var(--dp-text-muted, var(--ol-text-muted))",
+                textAlign: "center",
+              }}
+            >
+              No matching properties
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
-        <ClassPreview
-          baseProperties={previewProps}
-          pseudoStates={[]}
-          className={selectedVariant.name}
-          tokens={tokens}
-        />
+function CardsEditor({
+  selectedVariant,
+  currentProps,
+  onCardPropsChange,
+  onSlashTrigger,
+  inheritedProps,
+  isBranchMode,
+  onToggleInheritedProp,
+  branch,
+  onSinglePropChange,
+  onRemoveProperty,
+  layoutSummary,
+  typographySummary,
+  tokens,
+  showAddProp,
+  addPropSearch,
+  onToggleShowAddProp,
+  onAddPropSearchChange,
+  addPropRef,
+  onSelectAddProp,
+}: {
+  selectedVariant: {
+    readonly id: string;
+    readonly baseProperties: readonly StyleProperty[];
+  } | null;
+  currentProps: StyleProperty[];
+  onCardPropsChange: (props: StyleProperty[]) => void;
+  onSlashTrigger: (propName: string, el: HTMLElement) => void;
+  inheritedProps: readonly string[];
+  isBranchMode: boolean;
+  onToggleInheritedProp: (id: string, name: string) => void;
+  branch: VariantBranch | null;
+  onSinglePropChange: (name: string, value: string) => void;
+  onRemoveProperty: (name: string) => void;
+  layoutSummary: string;
+  typographySummary: string;
+  tokens: readonly unknown[];
+  showAddProp: boolean;
+  addPropSearch: string;
+  onToggleShowAddProp: () => void;
+  onAddPropSearchChange: (v: string) => void;
+  addPropRef: React.RefObject<HTMLDivElement | null>;
+  onSelectAddProp: (name: string) => void;
+}) {
+  const inheritedPropsSet = useMemo(() => new Set(inheritedProps), [inheritedProps]);
+
+  if (!selectedVariant) return null;
+
+  return (
+    <div>
+      {/* Visual editing cards */}
+      <SizeCard
+        properties={currentProps}
+        onChange={onCardPropsChange}
+        onPropSlash={onSlashTrigger}
+        inheritedProps={inheritedProps}
+        onToggleInherited={isBranchMode ? undefined : (name) => onToggleInheritedProp(selectedVariant.id, name)}
+        readOnly={isBranchMode}
+      />
+      <BackgroundCard
+        properties={currentProps}
+        tokens={tokens}
+        onChange={onCardPropsChange}
+        inheritedProps={inheritedProps}
+        onToggleInherited={isBranchMode ? undefined : (name) => onToggleInheritedProp(selectedVariant.id, name)}
+        readOnly={isBranchMode}
+      />
+      <BorderCard
+        properties={currentProps}
+        tokens={tokens}
+        onChange={onCardPropsChange}
+        inheritedProps={inheritedProps}
+        onToggleInherited={isBranchMode ? undefined : (name) => onToggleInheritedProp(selectedVariant.id, name)}
+        readOnly={isBranchMode}
+      />
+      <RadiusCard
+        properties={currentProps}
+        onChange={onCardPropsChange}
+        onPropSlash={onSlashTrigger}
+        inheritedProps={inheritedProps}
+        onToggleInherited={isBranchMode ? undefined : (name) => onToggleInheritedProp(selectedVariant.id, name)}
+        readOnly={isBranchMode}
+      />
+      <SpacingCard
+        properties={currentProps}
+        onChange={onCardPropsChange}
+        onPropSlash={onSlashTrigger}
+        inheritedProps={inheritedProps}
+        onToggleInherited={isBranchMode ? undefined : (name) => onToggleInheritedProp(selectedVariant.id, name)}
+        readOnly={isBranchMode}
+      />
+
+      {/* Layout group for remaining layout properties */}
+      <CollapsibleGroup title="布局 Layout" summary={layoutSummary} defaultOpen={false}>
+        {layoutPropNames.map((name) => {
+          const value = getPropValue(currentProps, name);
+          const label = PROPERTY_LABELS[name] || name;
+          const isInherited = inheritedPropsSet.has(name);
+
+          // Inherited prop in branch mode: read-only
+          if (isBranchMode && isInherited) {
+            const baseValue = getPropValue(selectedVariant.baseProperties, name);
+            return (
+              <PropertyRow key={name} label={label} inherited={true}>
+                <div style={{ ...INPUT_STYLE, background: "var(--dp-bg, var(--ol-gray-50))", color: "var(--dp-text-muted, var(--ol-text-muted))", cursor: "not-allowed", display: "flex", alignItems: "center", fontSize: 12 }}>
+                  ← base: {baseValue || "—"}
+                </div>
+              </PropertyRow>
+            );
+          }
+
+          let input: React.ReactNode;
+
+          if (name === "flexDirection") {
+            input = (
+              <IconButtonGroup
+                options={[
+                  { value: "row", label: "→", title: "row" },
+                  { value: "column", label: "↓", title: "column" },
+                  { value: "row-reverse", label: "←", title: "row-reverse" },
+                  { value: "column-reverse", label: "↑", title: "column-reverse" },
+                ]}
+                value={(value || "row") as "row" | "column" | "row-reverse" | "column-reverse"}
+                onChange={(v) => onSinglePropChange(name, v as string)}
+              />
+            );
+          } else if (name === "gap") {
+            input = (
+              <ScrubInput
+                value={parseFloat(value) || 0}
+                unit="px"
+                min={0}
+                max={200}
+                onChange={(v) => onSinglePropChange(name, `${v}px`)}
+              />
+            );
+          } else if (isEnumProperty(name)) {
+            input = (
+              <select
+                aria-label={label}
+                value={value}
+                onChange={(e) => onSinglePropChange(name, e.target.value)}
+                style={SELECT_STYLE}
+              >
+                <option value="">—</option>
+                {ENUM_OPTIONS[name]?.map((opt) => (
+                  <option key={opt} value={opt}>{opt}</option>
+                )) ?? null}
+              </select>
+            );
+          } else {
+            input = (
+              <TokenizedInput
+                value={value}
+                onChange={(v) => onSinglePropChange(name, v)}
+                onSlash={(el) => onSlashTrigger(name, el)}
+                placeholder="value"
+                style={INPUT_STYLE}
+              />
+            );
+          }
+
+          const isLockedInBase = !isBranchMode && !isInherited;
+          return (
+            <PropertyRow
+              key={name}
+              label={label}
+              showOverrideDot={isBranchMode && !!branch?.properties.some((p) => p.name === name)}
+              onRemove={() => onRemoveProperty(name)}
+            >
+              <span style={isLockedInBase ? LOCKED_INPUT_STYLE : undefined}>
+                {input}
+              </span>
+              {!isBranchMode && (
+                <button type="button"
+                  onClick={() => onToggleInheritedProp(selectedVariant.id, name)}
+                  title={isInherited ? "已解锁（分支只读）— 点击封锁" : "已封锁（分支可覆盖）— 点击解锁"}
+                  style={{ border: "none", background: "none", cursor: "pointer", fontSize: 12, padding: "0 4px", color: isInherited ? "var(--dp-accent, var(--ol-color-primary))" : "var(--dp-text-muted, var(--ol-text-muted))" }}
+                >{isInherited ? "🔓" : "🔒"}</button>
+              )}
+            </PropertyRow>
+          );
+        })}
+      </CollapsibleGroup>
+
+      {/* Typography group */}
+      <CollapsibleGroup title="文字 Typography" summary={typographySummary} defaultOpen={false}>
+        {typographyPropNames.map((name) => {
+          const value = getPropValue(currentProps, name);
+          const label = PROPERTY_LABELS[name] || name;
+          const isInherited = inheritedPropsSet.has(name);
+
+          // Inherited prop in branch mode: read-only
+          if (isBranchMode && isInherited) {
+            const baseValue = getPropValue(selectedVariant.baseProperties, name);
+            return (
+              <PropertyRow key={name} label={label} inherited={true}>
+                <div style={{ ...INPUT_STYLE, background: "var(--dp-bg, var(--ol-gray-50))", color: "var(--dp-text-muted, var(--ol-text-muted))", cursor: "not-allowed", display: "flex", alignItems: "center", fontSize: 12 }}>
+                  ← base: {baseValue || "—"}
+                </div>
+              </PropertyRow>
+            );
+          }
+
+          let input: React.ReactNode;
+
+          if (["fontSize", "lineHeight", "letterSpacing"].includes(name)) {
+            const unit = name === "fontSize" ? "px" : (name === "letterSpacing" ? "px" : "");
+            input = (
+              <ScrubInput
+                value={parseFloat(value) || 0}
+                unit={unit}
+                min={0}
+                max={999}
+                onChange={(v) => onSinglePropChange(name, unit ? `${v}${unit}` : `${v}`)}
+              />
+            );
+          } else if (isEnumProperty(name)) {
+            input = (
+              <select
+                aria-label={label}
+                value={value}
+                onChange={(e) => onSinglePropChange(name, e.target.value)}
+                style={SELECT_STYLE}
+              >
+                <option value="">—</option>
+                {ENUM_OPTIONS[name]?.map((opt) => (
+                  <option key={opt} value={opt}>{opt}</option>
+                )) ?? null}
+              </select>
+            );
+          } else {
+            input = (
+              <TokenizedInput
+                value={value}
+                onChange={(v) => onSinglePropChange(name, v)}
+                onSlash={(el) => onSlashTrigger(name, el)}
+                placeholder="value"
+                style={INPUT_STYLE}
+              />
+            );
+          }
+
+          const isLockedInBase = !isBranchMode && !isInherited;
+          return (
+            <PropertyRow
+              key={name}
+              label={label}
+              showOverrideDot={isBranchMode && !!branch?.properties.some((p) => p.name === name)}
+              onRemove={() => onRemoveProperty(name)}
+            >
+              <span style={isLockedInBase ? LOCKED_INPUT_STYLE : undefined}>
+                {input}
+              </span>
+              {!isBranchMode && (
+                <button type="button"
+                  onClick={() => onToggleInheritedProp(selectedVariant.id, name)}
+                  title={isInherited ? "已解锁（分支只读）— 点击封锁" : "已封锁（分支可覆盖）— 点击解锁"}
+                  style={{ border: "none", background: "none", cursor: "pointer", fontSize: 12, padding: "0 4px", color: isInherited ? "var(--dp-accent, var(--ol-color-primary))" : "var(--dp-text-muted, var(--ol-text-muted))" }}
+                >{isInherited ? "🔓" : "🔒"}</button>
+              )}
+            </PropertyRow>
+          );
+        })}
+      </CollapsibleGroup>
+
+      <AddPropertyDropdown
+        showAddProp={showAddProp}
+        addPropSearch={addPropSearch}
+        onToggleShow={onToggleShowAddProp}
+        onSearchChange={onAddPropSearchChange}
+        onSelectProp={onSelectAddProp}
+        addPropRef={addPropRef}
+      />
+    </div>
+  );
+}
+
+function PreviewPanel({
+  selectedVariant,
+  previewSelections,
+  onPreviewSelectionsChange,
+  previewProps,
+  tokens,
+}: {
+  selectedVariant: {
+    readonly dimensions: readonly VariantDimension[];
+    readonly name: string;
+  } | null;
+  previewSelections: Record<string, string>;
+  onPreviewSelectionsChange: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  previewProps: StyleProperty[];
+  tokens: readonly unknown[];
+}) {
+  if (!selectedVariant) return null;
+  return (
+    <div className={styles.previewPanel}>
+      {/* Header */}
+      <div className={styles.previewHeader}
+      >
+        Preview
       </div>
-    );
-  };
+
+      {/* Dimension combination selectors */}
+      {selectedVariant.dimensions.map((dim) => (
+        <div key={dim.name} className={styles.previewSelectRow}>
+          <span className={styles.previewSelectLabel}>
+            {dim.name}
+          </span>
+          <select
+            aria-label={dim.name}
+            value={previewSelections[dim.name] || ""}
+            onChange={(e) =>
+              onPreviewSelectionsChange((prev) => ({
+                ...prev,
+                [dim.name]: e.target.value,
+              }))
+            }
+            className={styles.previewSelect}
+          >
+            <option value="">—</option>
+            {dim.values.map((val) => (
+              <option key={val} value={val}>
+                {val}
+              </option>
+            ))}
+          </select>
+        </div>
+      ))}
+
+      <ClassPreview
+        baseProperties={previewProps}
+        pseudoStates={[]}
+        className={selectedVariant.name}
+        tokens={tokens}
+      />
+    </div>
+  );
+}
+
+// ── Component ──
+
+export function VariantEditor() {
+  const {
+    variants, tokens, selectedVariantId, newDimName, newDimValue,
+    activeBranchKey, showAddProp, addPropSearch, previewSelections,
+    slashPicker, addPropRef, selectedVariant, isBranchMode,
+    branchKeys, branch, currentProps, previewProps,
+    defaultComboStr, layoutSummary, typographySummary,
+    inheritedProps, toggleInheritedProp,
+    setNewDimName, setNewDimValue, setAddPropSearch, setPreviewSelections, setSlashPicker,
+    handleSelectVariant, handleAddVariant, handleRemoveVariant,
+    handleAddDimension, handleRemoveDimension, handleAddDimValue,
+    handleRemoveDimValue, handleSetDefault, handleSelectBranch,
+    handleCardPropsChange, handleSinglePropChange, handleSlashTrigger,
+    handleTokenSelect, handleRemoveProperty,
+    handleOutsideAddProp, handleToggleAddProp, handleSelectAddProp,
+  } = useVariantEditorState();
+
+  // ── Close add-property popup on outside click ──
+  useOutsideClick(addPropRef, showAddProp, handleOutsideAddProp);
 
   // ── Main render ──
 
@@ -1307,7 +1469,7 @@ export function VariantEditor() {
         display: "flex",
         height: "100%",
         fontSize: 13,
-        color: "var(--dp-text, #1e1b4b)",
+        color: "var(--dp-text, var(--ol-gray-700))",
         position: "relative",
       }}
     >
@@ -1342,7 +1504,7 @@ export function VariantEditor() {
                 style={{
                   fontSize: 14,
                   fontWeight: 600,
-                  color: "var(--dp-text, #1e1b4b)",
+                  color: "var(--dp-text, var(--ol-gray-700))",
                   marginBottom: 8,
                 }}
               >
@@ -1350,16 +1512,55 @@ export function VariantEditor() {
               </div>
 
               {/* Default combination */}
-              {renderDefaultCombo()}
+              <DefaultComboDisplay
+                selectedVariant={selectedVariant}
+                defaultComboStr={defaultComboStr}
+              />
 
               {/* Dimensions */}
-              {renderDimensions()}
+              <DimensionsSection
+                selectedVariant={selectedVariant}
+                newDimValue={newDimValue}
+                newDimName={newDimName}
+                onNewDimValueChange={setNewDimValue}
+                onNewDimNameChange={setNewDimName}
+                onAddDimension={handleAddDimension}
+                onRemoveDimension={handleRemoveDimension}
+                onAddDimValue={handleAddDimValue}
+                onRemoveDimValue={handleRemoveDimValue}
+                onSetDefault={handleSetDefault}
+              />
 
               {/* Branch tabs */}
-              {renderBranchTabs()}
+              <BranchTabs
+                selectedVariant={selectedVariant}
+                branchKeys={branchKeys}
+                activeBranchKey={activeBranchKey}
+                onSelectBranch={handleSelectBranch}
+              />
 
               {/* Cards-based property editor */}
-              {renderCards()}
+              <CardsEditor
+                selectedVariant={selectedVariant}
+                currentProps={currentProps}
+                onCardPropsChange={handleCardPropsChange}
+                onSlashTrigger={handleSlashTrigger}
+                inheritedProps={inheritedProps}
+                isBranchMode={isBranchMode}
+                onToggleInheritedProp={toggleInheritedProp}
+                branch={branch}
+                onSinglePropChange={handleSinglePropChange}
+                onRemoveProperty={handleRemoveProperty}
+                layoutSummary={layoutSummary}
+                typographySummary={typographySummary}
+                tokens={tokens}
+                showAddProp={showAddProp}
+                addPropSearch={addPropSearch}
+                onToggleShowAddProp={handleToggleAddProp}
+                onAddPropSearchChange={setAddPropSearch}
+                addPropRef={addPropRef}
+                onSelectAddProp={handleSelectAddProp}
+              />
             </div>
           ) : (
             <div
@@ -1368,7 +1569,7 @@ export function VariantEditor() {
                 alignItems: "center",
                 justifyContent: "center",
                 height: "100%",
-                color: "var(--dp-text-muted, #a09db8)",
+                color: "var(--dp-text-muted, var(--ol-text-muted))",
                 fontSize: 13,
               }}
             >
@@ -1376,7 +1577,15 @@ export function VariantEditor() {
             </div>
           )}
         </div>
-        {selectedVariant && renderPreview()}
+        {selectedVariant && (
+          <PreviewPanel
+            selectedVariant={selectedVariant}
+            previewSelections={previewSelections}
+            onPreviewSelectionsChange={setPreviewSelections}
+            previewProps={previewProps}
+            tokens={tokens}
+          />
+        )}
       </div>
       {slashPicker && (
         <TokenSlashPicker

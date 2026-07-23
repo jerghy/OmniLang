@@ -21,8 +21,8 @@ export function StatusBar({
 }: StatusBarProps) {
   return (
     <div style={S.statusBar}>
-      <span style={{ color: status.isError ? "#DC2626" : status.text.startsWith("⚠") ? "#D97706" : "#6B7280" }}>{status.text}</span>
-      <span style={{ color: "#9ca3af" }}>
+      <span style={{ color: status.isError ? "var(--ol-color-danger)" : status.text.startsWith("⚠") ? "var(--ol-color-warning)" : "var(--ol-text-secondary)" }}>{status.text}</span>
+      <span style={{ color: "var(--ol-text-muted)" }}>
         {projectName}{isDirty ? " ●" : ""}
         {projectDir ? ` | 📁 ${projectDir}` : ""}
         {compileErrors && compileErrors.length > 0 ? ` — ${compileErrors.length} 条错误` : ""}

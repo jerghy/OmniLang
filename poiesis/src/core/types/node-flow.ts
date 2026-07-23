@@ -39,8 +39,8 @@ const FLOW_NODE_PORTS: Record<FlowNodeType, FlowPortConfig[]> = {
 
 /** Node display colors */
 const FLOW_NODE_COLORS: Record<FlowNodeType, { bg: string; border: string }> = {
-  "function-header": { bg: "#EEF2FF", border: "#6366F1" },
-  "skeleton":        { bg: "#FFFBEB", border: "#F59E0B" },
-  "code-block":      { bg: "#F8FAFC", border: "#94A3B8" },
-  "return":          { bg: "#ECFDF5", border: "#10B981" },
+  "function-header": { bg: "var(--ol-color-primary-subtle)", border: "var(--ol-color-primary)" },
+  "skeleton":        { bg: "var(--ol-color-warning-subtle)", border: "var(--ol-color-warning)" },
+  "code-block":      { bg: "#F8FAFC", border: "var(--ol-text-muted)" },
+  "return":          { bg: "var(--ol-color-success-subtle)", border: "var(--ol-color-success)" },
 };

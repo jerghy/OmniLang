@@ -58,7 +58,7 @@ export function ContextMenu({
         const collapsed = collapsedSections.has(i);
         return (
           <div key={section.label}>
-            {i > 0 && <div style={{ height: 1, background: "#e2e8f0", margin: "2px 0" }} />}
+            {i > 0 && <div style={{ height: 1, background: "var(--ol-border)", margin: "2px 0" }} />}
             <button type="button"
               onClick={() => onToggleSection(i)}
               className={styles.sectionHeader}
@@ -67,7 +67,7 @@ export function ContextMenu({
                 {collapsed ? "▶" : "▼"}
               </span>
               <span>{section.label}</span>
-              <span style={{ marginLeft: "auto", fontSize: 12, color: "#94a3b8" }}>
+              <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--ol-text-muted)" }}>
                 {collapsed ? section.items.length : ""}
               </span>
             </button>
@@ -82,13 +82,13 @@ export function ContextMenu({
                     className={`${styles.menuBtn} ${styles.menuBtnStatic}`}
                     style={{
                       cursor: isDisabled ? "default" : "pointer",
-                      color: isDisabled ? "#94a3b8" : "#1e293b",
+                      color: isDisabled ? "var(--ol-text-muted)" : "var(--ol-gray-800)",
                       fontStyle: isDisabled ? "italic" : "normal",
                     }}
                   >
                     <span>{item.label}</span>
                     {item.shortcut && (
-                      <span style={{ color: isDisabled ? "#cbd5e1" : "#94a3b8", fontSize: 12, fontFamily: "monospace" }}>
+                      <span style={{ color: isDisabled ? "var(--ol-border-hover)" : "var(--ol-text-muted)", fontSize: 12, fontFamily: "monospace" }}>
                         {item.shortcut}
                       </span>
                     )}

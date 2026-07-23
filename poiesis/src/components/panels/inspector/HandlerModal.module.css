@@ -13,7 +13,7 @@
   left: 50%;
   transform: translate(-50%, -50%);
   z-index: 9999;
-  background: #fff;
+  background: var(--ol-surface);
   border-radius: 12px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
   width: 560px;
@@ -31,9 +31,9 @@
   padding: 8px 12px;
   font-size: 13px;
   font-family: var(--dp-font-mono, monospace);
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--ol-border-hover);
   border-radius: 6px;
-  background: #fff;
+  background: var(--ol-surface);
   cursor: pointer;
   text-align: left;
 }
@@ -44,8 +44,8 @@
   font-weight: 600;
   border: none;
   border-radius: 6px;
-  background: #4f46e5;
-  color: #fff;
+  background: var(--ol-color-primary-hover);
+  color: var(--ol-surface);
   cursor: pointer;
   font-family: inherit;
 }

@@ -4,7 +4,7 @@
   justify-content: space-between;
   padding: 0 20px;
   height: 48px;
-  background: #fff;
-  border-bottom: 1px solid #e5e7eb;
+  background: var(--ol-surface);
+  border-bottom: 1px solid var(--ol-border);
   flex-shrink: 0;
 }

@@ -47,7 +47,7 @@ export const NewTokenMenu = forwardRef<HTMLDivElement, NewTokenMenuProps>(
             key={cat}
             onClick={() => onSelect(cat)}
             className={styles.menuItem}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "#f1f5f9"; }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--ol-gray-100)"; }}
             onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
           >
             <span>{CATEGORY_ICONS[cat]}</span>

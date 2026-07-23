@@ -39,13 +39,13 @@ const CodeBlockNode = React.memo(function CodeBlockNode({ data }: Props) {
         type="target"
         position={Position.Top}
         id="flow-in"
-        style={{ background: "#94A3B8" }}
+        style={{ background: "var(--ol-text-muted)" }}
       />
       <Handle
         type="source"
         position={Position.Bottom}
         id="flow-out"
-        style={{ background: "#94A3B8" }}
+        style={{ background: "var(--ol-text-muted)" }}
       />
     </div>
   );

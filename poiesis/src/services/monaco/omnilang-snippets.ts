@@ -1,8 +1,7 @@
 // OmniLang code snippets for Monaco IntelliSense.
 // Code blocks use TypeScript language mode — we register on "typescript".
 
-import { languages, type IDisposable } from "monaco-editor";
-import type { languages as ILanguages } from "monaco-editor";
+import type { IDisposable, languages as ILanguages } from "monaco-editor";
 
 // ── Guards ──────────────────────────────────────────────────────────
 let registered = false;
@@ -120,9 +119,11 @@ const snippets: SnippetDef[] = [
 
 // ── Registration ────────────────────────────────────────────────────
 
-export function initOmniLangSnippets(): void {
+export async function initOmniLangSnippets(): Promise<void> {
   if (registered) return;
   registered = true;
+
+  const { languages } = await import("monaco-editor");
 
   const disposable = languages.registerCompletionItemProvider("typescript", {
     provideCompletionItems: (
@@ -155,7 +156,7 @@ export function initOmniLangSnippets(): void {
   disposables.push(disposable);
 }
 
-export function disposeSnippets(): void {
+function disposeSnippets(): void {
   for (const d of disposables) d.dispose();
   disposables.length = 0;
   registered = false;

@@ -3,9 +3,9 @@
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  background: #fff;
-  box-shadow: 0 0 0 1px #e2e8f0, 0 4px 24px rgba(0, 0, 0, 0.08);
-  border-radius: 4px;
+  background: var(--ol-surface);
+  box-shadow: 0 0 0 1px var(--ol-border), 0 4px 24px rgba(0, 0, 0, 0.08);
+  border-radius: var(--ol-radius-sm);
   display: flex;
   flex-direction: column;
   overflow: hidden;

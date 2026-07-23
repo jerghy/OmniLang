@@ -32,18 +32,18 @@ export function BranchConditionEditor({ blockId, branchIndex }: BranchConditionE
   }, [blockId, branchIndex]);
 
   if (!condBlock || !branch) {
-    return <div style={{ padding: 12, color: "#9CA3AF", fontSize: 12 }}>未选择分支</div>;
+    return <div style={{ padding: 12, color: "var(--ol-text-muted)", fontSize: 12 }}>未选择分支</div>;
   }
 
   return (
     <div style={{ padding: 12, fontSize: 12 }}>
-      <div style={{ fontWeight: 600, marginBottom: 12, color: "#374151" }}>
+      <div style={{ fontWeight: 600, marginBottom: 12, color: "var(--ol-gray-700)" }}>
         {isIf ? "🔀 @if 分支" : isElse ? "🔀 @else 分支" : "🔀 @else if 分支"}
       </div>
 
       {/* Condition — click to edit */}
       <div style={{ marginBottom: 12 }}>
-        <span style={{ display: "block", marginBottom: 4, color: "#6b7280", fontSize: 12 }}>
+        <span style={{ display: "block", marginBottom: 4, color: "var(--ol-text-secondary)", fontSize: 12 }}>
           条件表达式
         </span>
         <InlineConditionEditor
@@ -56,16 +56,16 @@ export function BranchConditionEditor({ blockId, branchIndex }: BranchConditionE
 
       {/* Child elements */}
       <div style={{ marginBottom: 12 }}>
-        <span style={{ color: "#6b7280", fontSize: 12 }}>子元素 ({branch.children.length})</span>
+        <span style={{ color: "var(--ol-text-secondary)", fontSize: 12 }}>子元素 ({branch.children.length})</span>
         {branch.children.length === 0 ? (
-          <div style={{ color: "#9CA3AF", fontSize: 12, fontStyle: "italic", marginTop: 4 }}>
+          <div style={{ color: "var(--ol-text-muted)", fontSize: 12, fontStyle: "italic", marginTop: 4 }}>
             右键此分支 → 添加子组件
           </div>
         ) : (
-          <div style={{ fontSize: 12, color: "#374151", marginTop: 4, display: "flex", flexWrap: "wrap", gap: 4 }}>
+          <div style={{ fontSize: 12, color: "var(--ol-gray-700)", marginTop: 4, display: "flex", flexWrap: "wrap", gap: 4 }}>
             {branch.children.map((cid) => (
               <span key={cid} style={{
-                padding: "2px 8px", background: "#EEF2FF", borderRadius: 3, color: "#4F46E5",
+                padding: "2px 8px", background: "var(--ol-color-primary-subtle)", borderRadius: 3, color: "var(--ol-color-primary-hover)",
               }}>
                 {cid.split(".").pop()}
               </span>
@@ -79,8 +79,8 @@ export function BranchConditionEditor({ blockId, branchIndex }: BranchConditionE
         <button type="button"
           onClick={handleDeleteBranch}
           style={{
-            padding: "4px 12px", border: "1px solid #FCA5A5", borderRadius: 4,
-            background: "#FEF2F2", color: "#b91c1c", cursor: "pointer", fontSize: 12,
+            padding: "4px 12px", border: "1px solid var(--ol-color-danger-muted)", borderRadius: 4,
+            background: "#FEF2F2", color: "var(--ol-color-danger-hover)", cursor: "pointer", fontSize: 12,
           }}
         >
           删除此分支

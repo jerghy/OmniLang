@@ -86,7 +86,7 @@ function FileNodeRenderer({
       style={{
         padding: `4px 12px 4px ${12 + indent + 14}px`,
         cursor: isOpen ? "default" : "pointer",
-        color: isOpen ? "#94a3b8" : "#374151",
+        color: isOpen ? "var(--ol-text-muted)" : "var(--ol-gray-700)",
         opacity: isOpen ? 0.5 : 1,
       }}
     >

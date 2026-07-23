@@ -80,17 +80,17 @@ const selectStyle: React.CSSProperties = {
   padding: "4px 6px",
   fontSize: 12,
   fontFamily: "var(--dp-font-mono, monospace)",
-  border: "1px solid var(--dp-border, #e8e5f2)",
+  border: "1px solid var(--dp-border, var(--ol-border))",
   borderRadius: "var(--dp-radius-sm, 6px)",
   outline: "2px solid transparent",
-  background: "var(--dp-surface, #fff)",
-  color: "var(--dp-text, #1e1b4b)",
+  background: "var(--dp-surface, var(--ol-surface))",
+  color: "var(--dp-text, var(--ol-gray-700))",
 };
 
 const labelStyle: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 600,
-  color: "var(--dp-text-secondary, #6b6893)",
+  color: "var(--dp-text-secondary, var(--ol-text-secondary))",
   minWidth: 56,
   flexShrink: 0,
 };
@@ -99,11 +99,11 @@ const presetChipBase: React.CSSProperties = {
   padding: "2px 8px",
   fontSize: 12,
   fontFamily: "var(--dp-font-mono, monospace)",
-  border: "1px solid var(--dp-border, #e8e5f2)",
+  border: "1px solid var(--dp-border, var(--ol-border))",
   borderRadius: "var(--dp-radius-sm, 6px)",
   background: "transparent",
   cursor: "pointer",
-  color: "var(--dp-text-secondary, #6b6893)",
+  color: "var(--dp-text-secondary, var(--ol-text-secondary))",
 };
 
 // ── Props ──
@@ -155,8 +155,8 @@ export function TypographyBasics({ properties, onChange }: TypographyBasicsProps
     height: 24,
     borderRadius: "var(--dp-radius-sm, 6px)",
     border: colorIsToken
-      ? "2px solid var(--dp-accent, #6366f1)"
-      : "1px solid var(--dp-border, #e8e5f2)",
+      ? "2px solid var(--dp-accent, var(--ol-color-primary))"
+      : "1px solid var(--dp-border, var(--ol-border))",
     backgroundColor: colorIsToken ? undefined : colorRaw || "transparent",
     cursor: "pointer",
     padding: 0,
@@ -196,9 +196,9 @@ export function TypographyBasics({ properties, onChange }: TypographyBasicsProps
               onClick={() => onChange(setProp(properties, "fontSize", `${size}px`))}
               style={{
                 ...presetChipBase,
-                background: fontSize === size ? "var(--dp-accent-subtle, #eef0ff)" : "transparent",
-                borderColor: fontSize === size ? "var(--dp-accent, #6366f1)" : "var(--dp-border, #e8e5f2)",
-                color: fontSize === size ? "var(--dp-accent, #6366f1)" : "var(--dp-text-secondary, #6b6893)",
+                background: fontSize === size ? "var(--dp-accent-subtle, var(--ol-color-primary-subtle))" : "transparent",
+                borderColor: fontSize === size ? "var(--dp-accent, var(--ol-color-primary))" : "var(--dp-border, var(--ol-border))",
+                color: fontSize === size ? "var(--dp-accent, var(--ol-color-primary))" : "var(--dp-text-secondary, var(--ol-text-secondary))",
               }}
             >
               {size}
@@ -239,7 +239,7 @@ export function TypographyBasics({ properties, onChange }: TypographyBasicsProps
                 <span
                   style={{
                     fontSize: 12,
-                    color: "var(--dp-accent, #6366f1)",
+                    color: "var(--dp-accent, var(--ol-color-primary))",
                     lineHeight: "24px",
                     display: "block",
                     textAlign: "center",
@@ -255,7 +255,7 @@ export function TypographyBasics({ properties, onChange }: TypographyBasicsProps
             style={{
               fontSize: 12,
               fontFamily: "var(--dp-font-mono, monospace)",
-              color: "var(--dp-text-muted, #a09db8)",
+              color: "var(--dp-text-muted, var(--ol-text-muted))",
             }}
           >
             {colorRaw || "—"}
@@ -272,7 +272,7 @@ export function TypographyBasics({ properties, onChange }: TypographyBasicsProps
         {/* Color picker popup */}
         {showColorPicker && swatchRef.current && (
           <ColorHUD
-            hex={colorIsToken ? "#6366f1" : colorRaw || "#000000"}
+            hex={colorIsToken ? "var(--ol-color-primary)" : colorRaw || "var(--ol-gray-950)"}
             tokens={[] as DesignToken[]}
             onChange={handleColorChange}
             onClose={() => setShowColorPicker(false)}
@@ -286,8 +286,8 @@ export function TypographyBasics({ properties, onChange }: TypographyBasicsProps
             style={{
               padding: "8px 12px",
               borderRadius: "var(--dp-radius-sm, 6px)",
-              background: "var(--dp-bg, #f7f6fa)",
-              border: "1px dashed var(--dp-border, #e8e5f2)",
+              background: "var(--dp-bg, var(--ol-gray-50))",
+              border: "1px dashed var(--dp-border, var(--ol-border))",
               textAlign: "center",
             }}
           >
@@ -295,7 +295,7 @@ export function TypographyBasics({ properties, onChange }: TypographyBasicsProps
               style={{
                 fontSize: fontSizeRaw || "14px",
                 fontWeight: (fontWeightRaw || "400") as React.CSSProperties["fontWeight"],
-                color: colorRaw || "var(--dp-text, #1e1b4b)",
+                color: colorRaw || "var(--dp-text, var(--ol-gray-700))",
                 fontFamily: "var(--dp-font-mono, monospace)",
               }}
             >

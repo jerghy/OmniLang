@@ -160,7 +160,7 @@ export function HSVPanel({
           height: SV_SIZE,
           backgroundColor: `hsl(${color.h}, 100%, 50%)`,
           backgroundImage:
-            "linear-gradient(to right, #fff, transparent), linear-gradient(to bottom, transparent, #000)",
+            "linear-gradient(to right, var(--ol-surface), transparent), linear-gradient(to bottom, transparent, #000)",
           backgroundBlendMode: "multiply",
         }}
       >
@@ -203,7 +203,7 @@ export function HSVPanel({
             height: STRIP_HEIGHT,
             backgroundImage: [
               `linear-gradient(to right, transparent, ${currentHex})`,
-              "repeating-conic-gradient(#ccc 0% 25%, #fff 0% 50%)",
+              "repeating-conic-gradient(var(--ol-border-hover) 0% 25%, var(--ol-surface) 0% 50%)",
             ].join(","),
           }}
         >

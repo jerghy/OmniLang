@@ -73,7 +73,7 @@ export function TokenSlashPicker({
               onClick={() => onSelect(t.name)}
               className={styles.tokenBtn}
               onMouseEnter={(e) => {
-                (e.currentTarget as HTMLElement).style.background = "var(--dp-accent-subtle, #eef0ff)";
+                (e.currentTarget as HTMLElement).style.background = "var(--dp-accent-subtle, var(--ol-color-primary-subtle))";
               }}
               onMouseLeave={(e) => {
                 (e.currentTarget as HTMLElement).style.background = "transparent";
@@ -83,12 +83,12 @@ export function TokenSlashPicker({
                 <span
                   style={{
                     width: 12, height: 12, borderRadius: 2,
-                    background: t.value, border: "1px solid #cbd5e1", flexShrink: 0,
+                    background: t.value, border: "1px solid var(--ol-border-hover)", flexShrink: 0,
                   }}
                 />
               )}
               <span>{t.name}</span>
-              <span style={{ marginLeft: "auto", fontSize: 12, color: "#94a3b8" }}>
+              <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--ol-text-muted)" }}>
                 {t.value}
               </span>
             </button>

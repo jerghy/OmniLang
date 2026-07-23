@@ -1,26 +1,26 @@
-/* NodeContextMenu.module.css — extracted from inline styles for react-doctor compliance */
+/* NodeContextMenu.module.css — uses --ol-* design tokens */
 
 .menu {
   position: fixed;
   z-index: 10001;
-  background: #fff;
-  border-radius: 6px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.15);
-  padding: 2px 0;
+  background: var(--ol-surface);
+  border-radius: var(--ol-radius-md);
+  box-shadow: var(--ol-shadow-dropdown);
+  padding: var(--ol-space-0p5) 0;
   min-width: 120px;
-  font-size: 12px;
+  font-size: var(--ol-font-size-12);
 }
 
 .deleteBtn {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--ol-space-1p5);
   width: 100%;
-  padding: 6px 12px;
+  padding: var(--ol-space-1p5) var(--ol-space-3);
   border: none;
   cursor: pointer;
-  font-size: 12px;
-  color: #dc2626;
+  font-size: var(--ol-font-size-12);
+  color: var(--ol-color-danger);
   text-align: left;
   font-family: inherit;
 }

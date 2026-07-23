@@ -63,7 +63,7 @@ function PaletteDraggableItem({ data }: { data: PaletteItemData }) {
         </span>
         <span
           style={{
-            color: isCustom ? "#4F46E5" : "#374151",
+            color: isCustom ? "var(--ol-color-primary-hover)" : "var(--ol-gray-700)",
             fontWeight: isCustom ? 600 : 400,
           }}
         >
@@ -98,7 +98,7 @@ function PaletteDraggableItem({ data }: { data: PaletteItemData }) {
           className={styles.deleteBtn}
           style={{
             padding: "1px 6px", fontSize: 12, border: "none",
-            cursor: "pointer", color: "#dc2626",
+            cursor: "pointer", color: "var(--ol-color-danger)",
             borderRadius: 3,
           }}
           title={`删除 ${component}`}
@@ -138,7 +138,7 @@ export function ComponentPalette() {
     return allMeta.filter((m) =>
       m.component.toLowerCase().includes(q) ||
       m.description.toLowerCase().includes(q) ||
-      (CATEGORY_LABELS[m.category] || m.category).includes(q)
+      (CATEGORY_LABELS[m.category] || m.category).toLowerCase().indexOf(q) !== -1
     );
   }, [allMeta, search]);
 
@@ -202,8 +202,8 @@ export function ComponentPalette() {
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         className={styles.searchInput}
-        onFocus={(e) => { e.target.style.borderColor = "#4F46E5"; }}
-        onBlur={(e) => { e.target.style.borderColor = "#e5e7eb"; }}
+        onFocus={(e) => { e.target.style.borderColor = "var(--ol-color-primary-hover)"; }}
+        onBlur={(e) => { e.target.style.borderColor = "var(--ol-border)"; }}
       />
 
       {/* Create Custom Component Button */}
@@ -229,7 +229,7 @@ export function ComponentPalette() {
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleCollapse(cat); } }}
                 className={styles.categoryHeader}
                 style={{
-                  color: isCustom ? "#4F46E5" : "#9ca3af",
+                  color: isCustom ? "var(--ol-color-primary-hover)" : "var(--ol-text-muted)",
                   fontWeight: isCustom ? 700 : 500,
                 }}
               >
@@ -237,7 +237,7 @@ export function ComponentPalette() {
                   ▼
                 </span>
                 {CATEGORY_LABELS[cat] || cat}
-                <span style={{ fontWeight: 400, color: "#d1d5db" }}>({items.length})</span>
+                <span style={{ fontWeight: 400, color: "var(--ol-border-hover)" }}>({items.length})</span>
               </button>
 
               {!isCollapsed && items.map((m) => {
@@ -271,7 +271,7 @@ export function ComponentPalette() {
           );
         })}
         {filtered.length === 0 && (
-          <div style={{ textAlign: "center", color: "#9CA3AF", fontSize: 12, padding: "16px 0" }}>
+          <div style={{ textAlign: "center", color: "var(--ol-text-muted)", fontSize: 12, padding: "16px 0" }}>
             未找到匹配的组件
           </div>
         )}
@@ -297,7 +297,7 @@ export function ComponentPalette() {
               placeholder="组件名称 (如 MyCard)"
               aria-label="组件名称"
               style={{
-                width: "100%", padding: "6px 10px", fontSize: 13, border: "1px solid #d1d5db",
+                width: "100%", padding: "6px 10px", fontSize: 13, border: "1px solid var(--ol-border-hover)",
                 borderRadius: 6, boxSizing: "border-box", marginBottom: 12,
               }}
               onKeyDown={(e) => {
@@ -310,7 +310,7 @@ export function ComponentPalette() {
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
               <button type="button"
                 onClick={() => setShowCreateDialog(false)}
-                style={{ padding: "5px 14px", fontSize: 12, border: "1px solid #d1d5db", borderRadius: 6, background: "#fff", cursor: "pointer" }}
+                style={{ padding: "5px 14px", fontSize: 12, border: "1px solid var(--ol-border-hover)", borderRadius: 6, background: "var(--ol-surface)", cursor: "pointer" }}
               >
                 取消
               </button>

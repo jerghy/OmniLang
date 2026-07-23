@@ -1,15 +1,15 @@
-/* FnNode.module.css — extracted from inline styles for react-doctor compliance */
+/* FnNode.module.css — uses --ol-* design tokens */
 
 .node {
-  background: #EEF2FF;
-  border: 2px solid #6366F1;
-  border-radius: 12px 12px 4px 4px;
-  padding: 10px 18px;
+  background: var(--ol-color-primary-subtle);
+  border: 2px solid var(--ol-color-primary);
+  border-radius: var(--ol-radius-xl) var(--ol-radius-xl) var(--ol-radius-sm) var(--ol-radius-sm);
+  padding: var(--ol-space-2p5) var(--ol-font-size-18);
   min-width: 160px;
   text-align: center;
-  font-size: 13px;
-  font-weight: 600;
-  color: #3730A3;
+  font-size: var(--ol-font-size-13);
+  font-weight: var(--ol-font-weight-600);
+  color: var(--ol-color-primary-active);
   cursor: pointer;
 }
 
@@ -17,13 +17,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: var(--ol-space-1);
 }
 
 .fnIcon {
-  font-size: 14px;
+  font-size: var(--ol-font-size-14);
 }
 
 .paramsStyle {
-  font-weight: 400;
+  font-weight: var(--ol-font-weight-400);
 }

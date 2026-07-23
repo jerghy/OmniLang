@@ -10,7 +10,7 @@
   display: block;
   font-size: 12px;
   font-weight: 600;
-  color: #64748b;
+  color: var(--ol-text-secondary);
   margin-bottom: 4px;
 }
 
@@ -22,22 +22,22 @@
   padding: 8px 12px;
   font-size: 13px;
   font-family: var(--dp-font-mono, monospace);
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--ol-border-hover);
   border-radius: 6px;
-  background: #fff;
+  background: var(--ol-surface);
   cursor: pointer;
   text-align: left;
 }
 
 .pickerBtnArrow {
-  color: #64748b;
+  color: var(--ol-text-secondary);
 }
 
 .paramsLabel {
   display: block;
   font-size: 12px;
   font-weight: 600;
-  color: #64748b;
+  color: var(--ol-text-secondary);
   margin-bottom: 4px;
 }
 
@@ -56,7 +56,7 @@
 
 .paramName {
   font-size: 12px;
-  color: #64748b;
+  color: var(--ol-text-secondary);
   min-width: 40px;
   font-family: var(--dp-font-mono, monospace);
 }
@@ -65,7 +65,7 @@
   flex: 1;
   padding: 6px 10px;
   font-size: 12px;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--ol-border-hover);
   border-radius: 4px;
   outline: 2px solid transparent;
   font-family: var(--dp-font-mono, monospace);

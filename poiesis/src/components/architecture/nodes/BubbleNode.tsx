@@ -17,9 +17,9 @@ export interface BubbleNodeData {
 }
 
 const COLORS: Record<string, { bg: string; border: string; text: string }> = {
-  ui: { bg: "#eff6ff", border: "#3b82f6", text: "#1e40af" },
-  store: { bg: "#fffbeb", border: "#f59e0b", text: "#92400e" },
-  code: { bg: "#ecfdf5", border: "#10b981", text: "#065f46" },
+  ui: { bg: "var(--ol-color-info-subtle)", border: "var(--ol-color-info)", text: "var(--ol-color-info-active)" },
+  store: { bg: "var(--ol-color-warning-subtle)", border: "var(--ol-color-warning)", text: "var(--ol-color-warning-active)" },
+  code: { bg: "var(--ol-color-success-subtle)", border: "var(--ol-color-success)", text: "var(--ol-color-success-active)" },
 };
 
 const ICONS: Record<string, string> = {

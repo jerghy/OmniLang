@@ -1,20 +1,20 @@
 .emptyState {
   position: fixed;
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--ol-surface);
+  border: 1px solid var(--ol-border);
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
   z-index: 1000;
   min-width: 200px;
   padding: 8px 12px;
   font-size: 12px;
-  color: #64748b;
+  color: var(--ol-text-secondary);
 }
 
 .picker {
   position: fixed;
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--ol-surface);
+  border: 1px solid var(--ol-border);
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
   z-index: 1000;
@@ -27,7 +27,7 @@
 .categoryHeader {
   font-size: 12px;
   font-weight: 600;
-  color: #64748b;
+  color: var(--ol-text-secondary);
   padding: 4px 8px 2px;
   text-transform: uppercase;
   display: flex;

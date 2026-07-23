@@ -207,7 +207,7 @@ export function ArchitectureGraph() {
           alignItems: "center",
           justifyContent: "center",
           height: "100%",
-          color: "#6b7280",
+          color: "var(--ol-text-secondary)",
           fontSize: 14,
         }}
       >

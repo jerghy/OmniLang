@@ -178,11 +178,11 @@ const INPUT_STYLE: React.CSSProperties = {
   padding: "3px 6px",
   fontSize: 12,
   fontFamily: "var(--dp-font-mono, monospace)",
-  border: "1px solid var(--dp-border, #e8e5f2)",
+  border: "1px solid var(--dp-border, var(--ol-border))",
   borderRadius: "var(--dp-radius-sm, 6px)",
   outline: "2px solid transparent",
-  background: "var(--dp-surface, #fff)",
-  color: "var(--dp-text, #1e1b4b)",
+  background: "var(--dp-surface, var(--ol-surface))",
+  color: "var(--dp-text, var(--ol-gray-700))",
   boxSizing: "border-box",
   flex: 1,
   minWidth: 0,
@@ -192,11 +192,11 @@ const SELECT_STYLE: React.CSSProperties = {
   padding: "3px 4px",
   fontSize: 12,
   fontFamily: "var(--dp-font-mono, monospace)",
-  border: "1px solid var(--dp-border, #e8e5f2)",
+  border: "1px solid var(--dp-border, var(--ol-border))",
   borderRadius: "var(--dp-radius-sm, 6px)",
   outline: "2px solid transparent",
-  background: "var(--dp-surface, #fff)",
-  color: "var(--dp-text, #1e1b4b)",
+  background: "var(--dp-surface, var(--ol-surface))",
+  color: "var(--dp-text, var(--ol-gray-700))",
   cursor: "pointer",
   flex: 1,
   minWidth: 0,
@@ -517,11 +517,11 @@ export function ClassEditor() {
         style={{
           display: "flex",
           gap: 0,
-          borderBottom: "1px solid var(--dp-border, #e8e5f2)",
+          borderBottom: "1px solid var(--dp-border, var(--ol-border))",
           padding: "4px 6px 0",
           alignItems: "center",
           flexShrink: 0,
-          background: "var(--dp-bg, #f7f6fa)",
+          background: "var(--dp-bg, var(--ol-gray-50))",
         }}
       >
         {PSEUDO_TABS.map((pseudo) => (
@@ -534,10 +534,10 @@ export function ClassEditor() {
               cursor: "pointer",
               border: "none",
               background: "none",
-              color: activePseudo === pseudo ? "var(--dp-accent, #6366f1)" : "var(--dp-text-muted, #a09db8)",
+              color: activePseudo === pseudo ? "var(--dp-accent, var(--ol-color-primary))" : "var(--dp-text-muted, var(--ol-text-muted))",
               fontWeight: activePseudo === pseudo ? 600 : 400,
               borderBottom:
-                activePseudo === pseudo ? "2px solid var(--dp-accent, #6366f1)" : "2px solid transparent",
+                activePseudo === pseudo ? "2px solid var(--dp-accent, var(--ol-color-primary))" : "2px solid transparent",
               transition: "color 150ms ease, border-color 150ms ease",
               fontFamily: "var(--dp-font-mono, monospace)",
             }}
@@ -564,7 +564,7 @@ export function ClassEditor() {
                   onClick={() => handlePseudoSelect(pseudo)}
                   className={styles.pseudoMenuItem}
                   onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLElement).style.background = "var(--dp-accent-subtle, #eef0ff)";
+                    (e.currentTarget as HTMLElement).style.background = "var(--dp-accent-subtle, var(--ol-color-primary-subtle))";
                   }}
                   onMouseLeave={(e) => {
                     (e.currentTarget as HTMLElement).style.background = "transparent";
@@ -578,7 +578,7 @@ export function ClassEditor() {
         </div>
         <div style={{ flex: 1 }} />
         {!pseudoExists && activePseudo !== "base" && (
-          <span style={{ fontSize: 12, color: "var(--dp-text-muted, #a09db8)", paddingRight: 8 }}>
+          <span style={{ fontSize: 12, color: "var(--dp-text-muted, var(--ol-text-muted))", paddingRight: 8 }}>
             (no overrides yet)
           </span>
         )}
@@ -596,12 +596,12 @@ export function ClassEditor() {
           onClick={() => setShowAddProp((v) => !v)}
           className={styles.addPropBtn}
           onMouseEnter={(e) => {
-            (e.currentTarget as HTMLElement).style.color = "var(--dp-accent, #6366f1)";
-            (e.currentTarget as HTMLElement).style.borderColor = "var(--dp-accent, #6366f1)";
+            (e.currentTarget as HTMLElement).style.color = "var(--dp-accent, var(--ol-color-primary))";
+            (e.currentTarget as HTMLElement).style.borderColor = "var(--dp-accent, var(--ol-color-primary))";
           }}
           onMouseLeave={(e) => {
-            (e.currentTarget as HTMLElement).style.color = "var(--dp-text-muted, #a09db8)";
-            (e.currentTarget as HTMLElement).style.borderColor = "var(--dp-border, #e8e5f2)";
+            (e.currentTarget as HTMLElement).style.color = "var(--dp-text-muted, var(--ol-text-muted))";
+            (e.currentTarget as HTMLElement).style.borderColor = "var(--dp-border, var(--ol-border))";
           }}
         >
           + Add property
@@ -630,13 +630,13 @@ export function ClassEditor() {
                 onClick={() => handleAddProperty(name)}
                 className={styles.addPropItem}
                 onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLElement).style.background = "#f1f5f9";
+                  (e.currentTarget as HTMLElement).style.background = "var(--ol-gray-100)";
                 }}
                 onMouseLeave={(e) => {
                   (e.currentTarget as HTMLElement).style.background = "transparent";
                 }}
               >
-                <span style={{ color: "#64748b", marginRight: 4 }}>+</span>
+                <span style={{ color: "var(--ol-text-secondary)", marginRight: 4 }}>+</span>
                 {PROPERTY_LABELS[name] || name}
               </button>
             ))}
@@ -645,7 +645,7 @@ export function ClassEditor() {
                 style={{
                   padding: 8,
                   fontSize: 12,
-                  color: "#94a3b8",
+                  color: "var(--ol-text-muted)",
                   textAlign: "center",
                 }}
               >
@@ -752,7 +752,7 @@ export function ClassEditor() {
                   border: "none",
                   background: "none",
                   cursor: "pointer",
-                  color: "var(--dp-text-muted, #a09db8)",
+                  color: "var(--dp-text-muted, var(--ol-text-muted))",
                   fontSize: 12,
                   padding: 0,
                   borderRadius: 3,

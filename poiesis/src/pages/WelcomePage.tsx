@@ -206,7 +206,7 @@ export function WelcomePage({ onProjectOpened }: WelcomePageProps) {
 
 // ── Styles ──
 
-const accent = "#6d28d9";
+const accent = "var(--ol-color-primary)";
 
 const styles: Record<string, React.CSSProperties> = {
   container: {
@@ -214,7 +214,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: "center",
     justifyContent: "center",
     height: "100vh",
-    background: "linear-gradient(135deg, #fafafa 0%, #f0f0f5 100%)",
+    background: "linear-gradient(135deg, var(--ol-gray-50) 0%, #f0f0f5 100%)",
     fontFamily: "system-ui, -apple-system, sans-serif",
   },
   content: {
@@ -237,13 +237,13 @@ const styles: Record<string, React.CSSProperties> = {
   title: {
     fontSize: 32,
     fontWeight: 700,
-    color: "#1f2937",
+    color: "var(--ol-gray-800)",
     margin: 0,
     letterSpacing: -1,
   },
   subtitle: {
     fontSize: 14,
-    color: "#9ca3af",
+    color: "var(--ol-text-muted)",
     margin: "8px 0 0",
   },
   actions: {
@@ -258,8 +258,8 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: "center",
     gap: 6,
     padding: "24px 16px",
-    background: "#fff",
-    border: "1px solid #e5e7eb",
+    background: "var(--ol-surface)",
+    border: "1px solid var(--ol-border)",
     borderRadius: 12,
     cursor: "pointer",
     transition: "border-color 150ms ease, background-color 150ms ease, opacity 150ms ease, 0.15s",
@@ -272,11 +272,11 @@ const styles: Record<string, React.CSSProperties> = {
   cardTitle: {
     fontSize: 15,
     fontWeight: 600,
-    color: "#1f2937",
+    color: "var(--ol-gray-800)",
   },
   cardDesc: {
     fontSize: 12,
-    color: "#9ca3af",
+    color: "var(--ol-text-muted)",
   },
   recentSection: {
     width: "100%",
@@ -284,7 +284,7 @@ const styles: Record<string, React.CSSProperties> = {
   recentHeader: {
     fontSize: 12,
     fontWeight: 600,
-    color: "#9ca3af",
+    color: "var(--ol-text-muted)",
     textTransform: "uppercase" as const,
     letterSpacing: 1,
     marginBottom: 8,
@@ -299,8 +299,8 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: "center",
     gap: 10,
     padding: "10px 12px",
-    background: "#fff",
-    border: "1px solid #f3f4f6",
+    background: "var(--ol-surface)",
+    border: "1px solid var(--ol-surface-hover)",
     borderRadius: 8,
     cursor: "pointer",
     fontFamily: "inherit",
@@ -319,14 +319,14 @@ const styles: Record<string, React.CSSProperties> = {
   recentName: {
     fontSize: 13,
     fontWeight: 600,
-    color: "#1f2937",
+    color: "var(--ol-gray-800)",
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap" as const,
   },
   recentPath: {
     fontSize: 12,
-    color: "#9ca3af",
+    color: "var(--ol-text-muted)",
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap" as const,
@@ -334,7 +334,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   recentRemove: {
     fontSize: 16,
-    color: "#d1d5db",
+    color: "var(--ol-border-hover)",
     padding: "2px 6px",
     borderRadius: 4,
     flexShrink: 0,
@@ -351,7 +351,7 @@ const styles: Record<string, React.CSSProperties> = {
     zIndex: 200,
   },
   dialog: {
-    background: "#fff",
+    background: "var(--ol-surface)",
     borderRadius: 16,
     padding: 28,
     width: 400,
@@ -361,13 +361,13 @@ const styles: Record<string, React.CSSProperties> = {
   dialogTitle: {
     fontSize: 18,
     fontWeight: 700,
-    color: "#1f2937",
+    color: "var(--ol-gray-800)",
     marginBottom: 16,
   },
   dialogLabel: {
     fontSize: 12,
     fontWeight: 600,
-    color: "#6b7280",
+    color: "var(--ol-text-secondary)",
     marginBottom: 6,
   },
   dialogLocationRow: {
@@ -380,9 +380,9 @@ const styles: Record<string, React.CSSProperties> = {
     flex: 1,
     padding: "8px 12px",
     fontSize: 12,
-    color: "#9ca3af",
-    background: "#f9fafb",
-    border: "1px solid #e5e7eb",
+    color: "var(--ol-text-muted)",
+    background: "var(--ol-gray-50)",
+    border: "1px solid var(--ol-border)",
     borderRadius: 6,
     overflow: "hidden",
     textOverflow: "ellipsis",
@@ -393,12 +393,12 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "8px 16px",
     fontSize: 12,
     fontWeight: 500,
-    border: "1px solid #d1d5db",
+    border: "1px solid var(--ol-border-hover)",
     borderRadius: 6,
-    background: "#fff",
+    background: "var(--ol-surface)",
     cursor: "pointer",
     fontFamily: "inherit",
-    color: "#374151",
+    color: "var(--ol-gray-700)",
     whiteSpace: "nowrap" as const,
     flexShrink: 0,
   },
@@ -406,7 +406,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: "100%",
     padding: "10px 14px",
     fontSize: 14,
-    border: "1px solid #e5e7eb",
+    border: "1px solid var(--ol-border)",
     borderRadius: 8,
     outline: "2px solid transparent",
     fontFamily: "inherit",
@@ -414,7 +414,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   dialogError: {
     fontSize: 12,
-    color: "#ef4444",
+    color: "var(--ol-color-danger)",
     marginTop: 8,
   },
   dialogButtons: {
@@ -426,12 +426,12 @@ const styles: Record<string, React.CSSProperties> = {
   dialogCancel: {
     padding: "8px 20px",
     fontSize: 13,
-    border: "1px solid #e5e7eb",
+    border: "1px solid var(--ol-border)",
     borderRadius: 8,
-    background: "#fff",
+    background: "var(--ol-surface)",
     cursor: "pointer",
     fontFamily: "inherit",
-    color: "#6b7280",
+    color: "var(--ol-text-secondary)",
   },
   dialogConfirm: {
     padding: "8px 20px",
@@ -440,7 +440,7 @@ const styles: Record<string, React.CSSProperties> = {
     border: "none",
     borderRadius: 8,
     background: accent,
-    color: "#fff",
+    color: "var(--ol-surface)",
     cursor: "pointer",
     fontFamily: "inherit",
   },

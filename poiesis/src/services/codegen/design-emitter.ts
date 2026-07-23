@@ -64,11 +64,11 @@ function compileDesignSegments(segments: StyleValueSegment[]): string {
  *
  * design AppDesign {
  *     // @token id=tk_1
- *     token primary: color = "#6366f1";
+ *     token primary: color = "var(--ol-color-primary)";
  *
  *     // @class id=cls_1
  *     class Card {
- *         background: "#ffffff";
+ *         background: "var(--ol-surface)";
  *         &:hover {
  *             box-shadow: "0 4px 12px rgba(0,0,0,0.08)";
  *         }
@@ -82,7 +82,7 @@ function compileDesignSegments(segments: StyleValueSegment[]): string {
  *         base {
  *             display: inline-flex;
  *         }
- *         color.primary { background: "#6366f1"; }
+ *         color.primary { background: "var(--ol-color-primary)"; }
  *         size.sm { padding: "4px 8px"; }
  *     }
  * }

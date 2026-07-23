@@ -144,10 +144,10 @@ export function ColorHUD({
                     backgroundColor: token.value,
                     cursor: "pointer",
                     border: isSelected
-                      ? "2px solid #fff"
+                      ? "2px solid var(--ol-surface)"
                       : ("1px solid rgba(0,0,0,0.15)" as string),
                     boxShadow: isSelected
-                      ? "0 0 0 2px #666"
+                      ? "0 0 0 2px var(--ol-text-secondary)"
                       : "none",
                     boxSizing: "border-box",
                     padding: 0,

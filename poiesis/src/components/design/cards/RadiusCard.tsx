@@ -39,7 +39,7 @@ function isTokenRef(value: string): boolean {
 const tokenTextStyle: React.CSSProperties = {
   fontSize: 12,
   fontFamily: "var(--dp-font-mono, monospace)",
-  color: "var(--dp-accent, #6366f1)",
+  color: "var(--dp-accent, var(--ol-color-primary))",
   cursor: "pointer",
 };
 
@@ -49,14 +49,14 @@ const tokenRemoveBtn: React.CSSProperties = {
   cursor: "pointer",
   fontSize: 14,
   padding: "0 2px",
-  color: "var(--dp-text-muted, #a09db8)",
+  color: "var(--dp-text-muted, var(--ol-text-muted))",
   lineHeight: 1,
   flexShrink: 0,
 };
 
 const LABEL_STYLE: React.CSSProperties = {
   fontSize: 12,
-  color: "var(--dp-text-secondary, #6b6893)",
+  color: "var(--dp-text-secondary, var(--ol-text-secondary))",
   width: 16,
   flexShrink: 0,
   textAlign: "center",
@@ -75,16 +75,16 @@ const TOGGLE_BTN_BASE: React.CSSProperties = {
 
 const LINKED_BTN_STYLE: React.CSSProperties = {
   ...TOGGLE_BTN_BASE,
-  border: "1px solid var(--dp-accent, #6366f1)",
-  background: "var(--dp-accent-subtle, #eef0ff)",
-  color: "var(--dp-accent, #6366f1)",
+  border: "1px solid var(--dp-accent, var(--ol-color-primary))",
+  background: "var(--dp-accent-subtle, var(--ol-color-primary-subtle))",
+  color: "var(--dp-accent, var(--ol-color-primary))",
 };
 
 const UNLINKED_BTN_STYLE: React.CSSProperties = {
   ...TOGGLE_BTN_BASE,
-  border: "1px solid var(--dp-border, #e8e5f2)",
+  border: "1px solid var(--dp-border, var(--ol-border))",
   background: "transparent",
-  color: "var(--dp-text-muted, #a09db8)",
+  color: "var(--dp-text-muted, var(--ol-text-muted))",
 };
 
 function setProp(
@@ -330,7 +330,7 @@ export const RadiusCard = React.memo(function RadiusCard({ properties, onChange,
             width: "100%",
             height: 48,
             borderRadius: previewRadius,
-            border: "2px solid var(--dp-accent, #6366f1)",
+            border: "2px solid var(--dp-accent, var(--ol-color-primary))",
             background: "rgba(99, 102, 241, 0.06)",
             transition: "border-radius 150ms ease",
           }}
@@ -359,7 +359,7 @@ function CornerInput({ label, value, rawValue, onChange, onSlash, onRemoveToken 
       <span
         style={{
           fontSize: 12,
-          color: "var(--dp-text-secondary, #6b6893)",
+          color: "var(--dp-text-secondary, var(--ol-text-secondary))",
           width: 16,
           flexShrink: 0,
           textAlign: "center",

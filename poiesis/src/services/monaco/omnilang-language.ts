@@ -1,7 +1,7 @@
 // Monarch tokenizer + language registration for OmniLang (.omni) in Monaco.
 // Import this file as a side-effect to register the "omnilang" language.
 
-import { languages } from "monaco-editor";
+import type { languages } from "monaco-editor";
 
 // ── Guards ──────────────────────────────────────────────────────────
 let registered = false;
@@ -208,9 +208,11 @@ const langConfig: languages.LanguageConfiguration = {
 
 // ── Register ───────────────────────────────────────────────────────
 
-export function initOmniLangLanguage(): void {
+export async function initOmniLangLanguage(): Promise<void> {
   if (registered) return;
   registered = true;
+
+  const { languages } = await import("monaco-editor");
 
   languages.register({ id: "omnilang" });
   languages.setMonarchTokensProvider("omnilang", monarchLanguage);

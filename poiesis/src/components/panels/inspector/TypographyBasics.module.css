@@ -4,7 +4,7 @@
   cursor: pointer;
   font-size: 14px;
   padding: 0 2px;
-  color: var(--dp-text-muted, #a09db8);
+  color: var(--ol-text-muted);
   line-height: 1;
   flex-shrink: 0;
 }

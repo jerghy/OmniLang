@@ -142,12 +142,12 @@ export function StoreDrawer() {
                     type="button"
                     className={styles.storeOption}
                     style={{
-                      color: s.key === activeStore ? "#6366f1" : "#374151",
+                      color: s.key === activeStore ? "var(--ol-color-primary)" : "var(--ol-gray-700)",
                       fontWeight: s.key === activeStore ? 600 : 400,
                     }}
                     onClick={(e) => { if ((e.target as HTMLElement).getAttribute('data-action') === 'delete-store') { handleDeleteStore(s.key, s.type); } else { handleSelectStore(s.key); } }}
                     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSelectStore(s.key); } }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#f8fafc"; }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "var(--ol-gray-50)"; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
                   >
                     <span className={styles.storeOptionIcon}>

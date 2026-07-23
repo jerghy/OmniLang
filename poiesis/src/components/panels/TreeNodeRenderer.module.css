@@ -23,6 +23,6 @@
 .dropLine {
   height: 2px;
   margin-right: 4px;
-  background: #4f46e5;
+  background: var(--ol-color-primary-hover);
   border-radius: 1px;
 }

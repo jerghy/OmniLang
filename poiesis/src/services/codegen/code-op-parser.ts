@@ -79,8 +79,10 @@ function extractAwaitExpr(line: string): string {
 function buildBlockBody(lines: string[], startI: number, startDepth: number): { bodyLines: string[]; nextI: number } {
   const bodyLines: string[] = [];
   let i = startI + 1;
-  let depth = startDepth;
+  let depth = startDepth + 1;
   while (i < lines.length) {
+    const trimmed = lines[i].trimStart();
+    if (trimmed.startsWith("}")) break;
     depth += braceDepth(lines[i]);
     if (depth <= startDepth) break;
     bodyLines.push(lines[i]);

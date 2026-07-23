@@ -1,10 +1,10 @@
 /* ClassEditor.module.css — extracted from inline styles for react-doctor compliance */
 
 .addClassBtn {
-  border: 1px dashed var(--dp-border, #e8e5f2);
+  border: 1px dashed var(--ol-border);
   border-radius: var(--dp-radius-sm, 6px);
   background: transparent;
-  color: var(--dp-text-muted, #a09db8);
+  color: var(--ol-text-muted);
   font-size: 12px;
   padding: 5px 10px;
   cursor: pointer;
@@ -16,11 +16,11 @@
 .pseudoTabsBar {
   display: flex;
   gap: 0;
-  border-bottom: 1px solid var(--dp-border, #e8e5f2);
+  border-bottom: 1px solid var(--ol-border);
   padding: 4px 6px 0;
   align-items: center;
   flex-shrink: 0;
-  background: var(--dp-bg, #f7f6fa);
+  background: var(--ol-surface-hover);
 }
 
 .pseudoTabBtn {
@@ -39,7 +39,7 @@
   cursor: pointer;
   border: none;
   background: none;
-  color: var(--dp-text-muted, #a09db8);
+  color: var(--ol-text-muted);
   line-height: 1;
   font-family: inherit;
 }
@@ -49,8 +49,8 @@
   top: 100%;
   left: 0;
   margin-top: 2px;
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--ol-surface);
+  border: 1px solid var(--ol-border);
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.1);
   z-index: 100;
@@ -66,15 +66,15 @@
   font-size: 12px;
   border: none;
   background: transparent;
-  color: var(--dp-text-secondary, #6b6893);
+  color: var(--ol-text-secondary);
   cursor: pointer;
   text-align: left;
   font-family: var(--dp-font-mono, monospace);
 }
 
 .tokenPickerContainer {
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--ol-surface);
+  border: 1px solid var(--ol-border);
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0,0,0,0.12);
   z-index: 1000;
@@ -87,7 +87,7 @@
 .tokenPickerHeader {
   font-size: 12px;
   font-weight: 600;
-  color: #6b7280;
+  color: var(--ol-text-secondary);
   padding: 4px 8px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -102,7 +102,7 @@
   font-size: 12px;
   border: none;
   background: transparent;
-  color: var(--dp-text-secondary, #6b6893);
+  color: var(--ol-text-secondary);
   cursor: pointer;
   text-align: left;
   font-family: var(--dp-font-mono, monospace);
@@ -115,16 +115,16 @@
   font-size: 12px;
   border: none;
   background: transparent;
-  color: #ef4444;
+  color: var(--ol-color-danger);
   cursor: pointer;
   text-align: left;
 }
 
 .addPropBtn {
-  border: 1px dashed var(--dp-border, #e8e5f2);
+  border: 1px dashed var(--ol-border);
   border-radius: var(--dp-radius-sm, 6px);
   background: transparent;
-  color: var(--dp-text-muted, #a09db8);
+  color: var(--ol-text-muted);
   font-size: 12px;
   padding: 6px 10px;
   cursor: pointer;
@@ -139,8 +139,8 @@
   left: 0;
   right: 0;
   margin-top: 2px;
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--ol-surface);
+  border: 1px solid var(--ol-border);
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.1);
   z-index: 100;
@@ -155,7 +155,7 @@
   font-size: 12px;
   border: none;
   background: transparent;
-  color: #374151;
+  color: var(--ol-gray-700);
   cursor: pointer;
   text-align: left;
 }
@@ -164,12 +164,12 @@
   padding: 8px 12px;
   font-size: 13px;
   font-weight: 600;
-  color: var(--dp-text, #1e1b4b);
-  border-bottom: 1px solid var(--dp-border, #e8e5f2);
+  color: var(--ol-text);
+  border-bottom: 1px solid var(--ol-border);
   display: flex;
   align-items: center;
   gap: 8px;
-  background: var(--dp-surface, #fff);
+  background: var(--dp-surface, var(--ol-surface));
   flex-shrink: 0;
 }
 
@@ -178,16 +178,16 @@
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: var(--dp-text-muted, #a09db8);
+  color: var(--ol-text-muted);
   font-size: 12px;
-  background: var(--dp-bg, #f7f6fa);
+  background: var(--ol-surface-hover);
 }
 
 .mainContainer {
   display: flex;
   height: 100%;
   font-size: 12px;
-  color: #374151;
+  color: var(--ol-gray-700);
   position: relative;
 }
 
@@ -203,5 +203,5 @@
   flex: 1;
   overflow: auto;
   padding: 8px 0;
-  background: var(--dp-bg, #f7f6fa);
+  background: var(--ol-surface-hover);
 }

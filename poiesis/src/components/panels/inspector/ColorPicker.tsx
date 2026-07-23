@@ -127,7 +127,7 @@ interface ColorPickerProps {
 }
 
 export function ColorPicker({ color: initialColor, onChange, onClose, anchorRect }: ColorPickerProps) {
-  const validColor = isValidHex(initialColor) ? initialColor : "#6366f1";
+  const validColor = isValidHex(initialColor) ? initialColor : "var(--ol-color-primary)";
   const { h: initH, s: initS, v: initV } = hexToHsv(validColor);
 
   // Mutable refs so mousemove handler never closes over stale state
@@ -270,7 +270,7 @@ export function ColorPicker({ color: initialColor, onChange, onClose, anchorRect
           borderRadius: 8,
           position: "relative",
           cursor: "crosshair",
-          background: `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, hsl(${displayHue}, 100%, 50%))`,
+          background: `linear-gradient(to top, #000, transparent), linear-gradient(to right, var(--ol-surface), hsl(${displayHue}, 100%, 50%))`,
           marginBottom: 8,
         }}
       >
@@ -325,7 +325,7 @@ export function ColorPicker({ color: initialColor, onChange, onClose, anchorRect
             height: 28,
             borderRadius: "50%",
             background: currentColor,
-            border: "2px solid #334155",
+            border: "2px solid var(--ol-gray-700)",
             flexShrink: 0,
           }}
         />
@@ -339,7 +339,7 @@ export function ColorPicker({ color: initialColor, onChange, onClose, anchorRect
             if (e.key === "Escape") onCloseRef.current();
           }}
           className={styles.hexInput}
-          placeholder="#000000"
+          placeholder="var(--ol-gray-950)"
           spellCheck={false}
         />
       </div>

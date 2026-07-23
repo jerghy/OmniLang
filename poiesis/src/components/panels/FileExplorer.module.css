@@ -2,7 +2,7 @@
   background: transparent;
 }
 .fileItem:hover {
-  background: var(--color-surface-hover);
+  background: var(--ol-surface-hover);
 }
 
 .fileItemActive {

@@ -8,11 +8,11 @@ import type { BubbleEdge as BubbleEdgeType } from "../../../core/types/architect
 import edgeStyles from "./BubbleEdge.module.css";
 
 const EDGE_COLORS: Record<string, string> = {
-  composition: "#9ca3af",
-  "store-read": "#3b82f6",
-  "store-write": "#ef4444",
-  "code-call": "#8b5cf6",
-  event: "#f59e0b",
+  composition: "var(--ol-text-muted)",
+  "store-read": "var(--ol-color-info)",
+  "store-write": "var(--ol-color-danger)",
+  "code-call": "var(--ol-color-primary)",
+  event: "var(--ol-color-warning)",
 };
 
 export function BubbleEdge({
@@ -36,8 +36,8 @@ export function BubbleEdge({
 
   const d = data as unknown as BubbleEdgeType | undefined;
   const edgeColor = d?.edgeType
-    ? EDGE_COLORS[d.edgeType] || "#9ca3af"
-    : "#9ca3af";
+    ? EDGE_COLORS[d.edgeType] || "var(--ol-text-muted)"
+    : "var(--ol-text-muted)";
 
   return (
     <>

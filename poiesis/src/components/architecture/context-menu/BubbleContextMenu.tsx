@@ -123,7 +123,7 @@ function MenuDivider() {
     <div
       style={{
         height: 1,
-        background: "#e5e7eb",
+        background: "var(--ol-border)",
         margin: "4px 0",
       }}
     />

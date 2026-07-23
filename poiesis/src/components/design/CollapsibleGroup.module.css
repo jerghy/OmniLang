@@ -1,5 +1,5 @@
 .container {
-  background: var(--dp-surface, #fff);
+  background: var(--dp-surface, var(--ol-surface));
   border-radius: var(--dp-radius, 8px);
   margin: 0 8px 6px;
   transition: box-shadow 150ms ease;
@@ -41,7 +41,7 @@
 }
 
 .summary {
-  color: var(--dp-text-muted, #a09db8);
+  color: var(--ol-text-muted);
   font-weight: 400;
   font-size: 12px;
   font-family: var(--dp-font-mono, monospace);

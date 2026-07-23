@@ -38,7 +38,7 @@ const CATEGORY_CONFIG: Record<
   string,
   { tokenType: DesignToken["tokenType"]; defaultName: string; defaultValue: string }
 > = {
-  colors: { tokenType: "color", defaultName: "color-new", defaultValue: "#6366f1" },
+  colors: { tokenType: "color", defaultName: "color-new", defaultValue: "var(--ol-color-primary)" },
   spacing: { tokenType: "size", defaultName: "space-new", defaultValue: "8px" },
   typography: { tokenType: "font", defaultName: "font-new", defaultValue: "Inter" },
   radii: { tokenType: "size", defaultName: "radius-new", defaultValue: "4px" },
@@ -49,8 +49,8 @@ const TOKEN_TYPE_OPTIONS: DesignToken["tokenType"][] = ["color", "size", "font",
 // ── Shared styles ──
 
 const CARD_STYLE: React.CSSProperties = {
-  background: "#fff",
-  border: "1px solid #e2e8f0",
+  background: "var(--ol-surface)",
+  border: "1px solid var(--ol-border)",
   borderRadius: 10,
   padding: "16px 20px",
   marginBottom: 16,
@@ -59,7 +59,7 @@ const CARD_STYLE: React.CSSProperties = {
 const SECTION_HEADER: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 600,
-  color: "#475569",
+  color: "var(--ol-text-secondary)",
   textTransform: "uppercase",
   letterSpacing: "0.5px",
   marginBottom: 12,
@@ -79,11 +79,11 @@ const INPUT_STYLE: React.CSSProperties = {
   padding: "4px 8px",
   fontSize: 13,
   fontFamily: "'Cascadia Code', 'Fira Code', monospace",
-  border: "1px solid #d1d5db",
+  border: "1px solid var(--ol-border-hover)",
   borderRadius: 6,
   outline: "2px solid transparent",
-  background: "#fff",
-  color: "#374151",
+  background: "var(--ol-surface)",
+  color: "var(--ol-gray-700)",
   boxSizing: "border-box",
   transition: "border-color 150ms",
 };
@@ -92,7 +92,7 @@ const REMOVE_BTN: React.CSSProperties = {
   border: "none",
   background: "none",
   cursor: "pointer",
-  color: "#ef4444",
+  color: "var(--ol-color-danger)",
   fontSize: 16,
   padding: "2px 6px",
   lineHeight: 1,
@@ -103,20 +103,20 @@ const REMOVE_BTN: React.CSSProperties = {
 const SELECT_STYLE: React.CSSProperties = {
   padding: "4px 6px",
   fontSize: 12,
-  border: "1px solid #d1d5db",
+  border: "1px solid var(--ol-border-hover)",
   borderRadius: 6,
   outline: "2px solid transparent",
-  background: "#fff",
-  color: "#374151",
+  background: "var(--ol-surface)",
+  color: "var(--ol-gray-700)",
   cursor: "pointer",
   fontFamily: "inherit",
 };
 
 const ADD_BTN_STYLE: React.CSSProperties = {
-  border: "1px dashed #cbd5e1",
+  border: "1px dashed var(--ol-border-hover)",
   borderRadius: 8,
   background: "transparent",
-  color: "#6366f1",
+  color: "var(--ol-color-primary)",
   fontSize: 12,
   fontWeight: 500,
   padding: "6px 14px",
@@ -142,6 +142,501 @@ interface DragScrubState {
   unit: string;
 }
 
+// ── Custom hooks ──
+
+function useDragScrub() {
+  const scrubRef = useRef<DragScrubState | null>(null);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!scrubRef.current) return;
+      const { tokenId, startX, startValue, unit } = scrubRef.current;
+      const dx = e.clientX - startX;
+      const modifier = e.shiftKey ? 10 : 1;
+      const newVal = Math.max(0, Math.round((startValue + dx * modifier) * 100) / 100);
+      usePoiesisStore.getState().updateToken(tokenId, { value: `${newVal}${unit}` });
+    };
+    const handleMouseUp = () => {
+      scrubRef.current = null;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, []);
+
+  return scrubRef;
+}
+
+// ── Sub-components ──
+
+function ColorTokenList({
+  tokens,
+  paletteView,
+  onOpenColorPicker,
+  onUpdateToken,
+  onRemoveToken,
+}: {
+  tokens: DesignToken[];
+  paletteView: boolean;
+  onOpenColorPicker: (tokenId: string, e: React.MouseEvent) => void;
+  onUpdateToken: (id: string, data: Partial<DesignToken>) => void;
+  onRemoveToken: (id: string) => void;
+}) {
+  if (paletteView) {
+    return (
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(64px, 1fr))", gap: 8, marginBottom: 8 }}>
+        {tokens.map((t) => (
+          <div key={t.id} style={{ textAlign: "center" }}>
+            <button
+              type="button"
+              tabIndex={0}
+              onClick={(e) => onOpenColorPicker(t.id, e)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenColorPicker(t.id, e as unknown as React.MouseEvent); } }}
+              style={{
+                width: "100%",
+                aspectRatio: "1",
+                borderRadius: 8,
+                background: t.value || "var(--ol-border-hover)",
+                border: "2px solid var(--ol-border)",
+                cursor: "pointer",
+                boxSizing: "border-box",
+                padding: 0,
+              }}
+              title={t.name}
+            />
+            <div style={{ fontSize: 12, color: "var(--ol-text-secondary)", marginTop: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {t.name}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 2, marginBottom: 4 }}>
+      {tokens.map((t) => (
+        <div key={t.id} style={ROW_STYLE}>
+          {/* Color swatch */}
+          <button
+            type="button"
+            tabIndex={0}
+            aria-label={`Color swatch for ${t.name}`}
+            onClick={(e) => onOpenColorPicker(t.id, e)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenColorPicker(t.id, e as unknown as React.MouseEvent); } }}
+            style={{
+              width: 24,
+              height: 24,
+              borderRadius: 6,
+              background: t.value || "var(--ol-border-hover)",
+              border: "1px solid var(--ol-border-hover)",
+              cursor: "pointer",
+              flexShrink: 0,
+              padding: 0,
+            }}
+          />
+          {/* Name */}
+          <input
+            value={t.name}
+            onChange={(e) => onUpdateToken(t.id, { name: e.target.value })}
+            style={{ ...INPUT_STYLE, width: 100, flexShrink: 0 }}
+            placeholder="name"
+            aria-label="Color token name"
+          />
+          {/* Value (hex) */}
+          <input
+            value={t.value}
+            onChange={(e) => onUpdateToken(t.id, { value: e.target.value })}
+            style={{ ...INPUT_STYLE, flex: 1, minWidth: 0 }}
+            placeholder="var(--ol-gray-950)"
+            aria-label="Color value"
+          />
+          {/* Token type dropdown */}
+          <select
+            aria-label="Token type"
+            value={t.tokenType}
+            onChange={(e) => onUpdateToken(t.id, { tokenType: e.target.value as DesignToken["tokenType"] })}
+            style={{ ...SELECT_STYLE, width: 64 }}
+          >
+            {TOKEN_TYPE_OPTIONS.map((opt) => (
+              <option key={opt} value={opt}>{opt}</option>
+            ))}
+          </select>
+          {/* Remove */}
+          <button type="button" onClick={() => onRemoveToken(t.id)} style={REMOVE_BTN} title="Remove token">
+            &times;
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SpacingTokenList({
+  tokens,
+  spacingMax,
+  onScrubStart,
+  onRatioBarClick,
+  onUpdateToken,
+  onRemoveToken,
+}: {
+  tokens: DesignToken[];
+  spacingMax: number;
+  onScrubStart: (tokenId: string, currentValue: string, e: React.MouseEvent) => void;
+  onRatioBarClick: (tokenId: string, max: number, e: React.MouseEvent) => void;
+  onUpdateToken: (id: string, data: Partial<DesignToken>) => void;
+  onRemoveToken: (id: string) => void;
+}) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 2, marginBottom: 4 }}>
+      {tokens.map((t) => {
+        const { num, unit } = parseNumberUnit(t.value);
+        const ratio = isNaN(num) || spacingMax === 0 ? 0 : Math.min(num / spacingMax, 1);
+        return (
+          <div key={t.id} style={ROW_STYLE}>
+            {/* Name */}
+            <input
+              value={t.name}
+              onChange={(e) => onUpdateToken(t.id, { name: e.target.value })}
+              style={{ ...INPUT_STYLE, width: 100, flexShrink: 0 }}
+              placeholder="name"
+              aria-label="Spacing token name"
+            />
+            {/* Value with drag-scrub */}
+            <button
+              type="button"
+              tabIndex={0}
+              aria-label={`Scrub value: ${t.value}`}
+              onMouseDown={(e) => onScrubStart(t.id, t.value, e)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onScrubStart(t.id, t.value, e as unknown as React.MouseEvent); } }}
+              className={styles.spacingScrubBtn}
+              title="Drag to scrub value"
+            >
+              <span style={{ fontSize: 12, color: "var(--ol-text-secondary)", marginRight: 2 }}>&#8596;</span>
+              <span style={{ fontSize: 13, fontFamily: "'Cascadia Code', 'Fira Code', monospace", color: "var(--ol-gray-700)" }}>
+                {num}{unit}
+              </span>
+            </button>
+            {/* Unit selector */}
+            <select
+              aria-label="Spacing unit"
+              value={unit}
+              onChange={(e) => onUpdateToken(t.id, { value: `${num}${e.target.value}` })}
+              className={styles.unitSelect}
+            >
+              <option value="px">px</option>
+              <option value="rem">rem</option>
+              <option value="em">em</option>
+            </select>
+            {/* Ratio bar (clickable) */}
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={(e) => onRatioBarClick(t.id, spacingMax, e)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onRatioBarClick(t.id, spacingMax, e as unknown as React.MouseEvent); } }}
+              className={styles.ratioBar}
+              title={`${Math.round(ratio * 100)}% of max (${spacingMax}${unit})`}
+            >
+              <div
+                className={styles.ratioFill}
+                style={{ width: `${ratio * 100}%` }}
+              />
+            </div>
+            {/* Remove */}
+            <button type="button" onClick={() => onRemoveToken(t.id)} style={REMOVE_BTN} title="Remove token">
+              &times;
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function TypographyTokenList({
+  tokens,
+  onUpdateToken,
+  onRemoveToken,
+}: {
+  tokens: DesignToken[];
+  onUpdateToken: (id: string, data: Partial<DesignToken>) => void;
+  onRemoveToken: (id: string) => void;
+}) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 2, marginBottom: 4 }}>
+      {tokens.map((t) => (
+        <div key={t.id} style={ROW_STYLE}>
+          <input
+            value={t.name}
+            onChange={(e) => onUpdateToken(t.id, { name: e.target.value })}
+            style={{ ...INPUT_STYLE, width: 100, flexShrink: 0 }}
+            placeholder="name"
+            aria-label="Typography token name"
+          />
+          <input
+            value={t.value}
+            onChange={(e) => onUpdateToken(t.id, { value: e.target.value })}
+            style={{ ...INPUT_STYLE, flex: 1, minWidth: 0 }}
+            placeholder="value"
+            aria-label="Typography value"
+          />
+          <button type="button" onClick={() => onRemoveToken(t.id)} style={REMOVE_BTN} title="Remove token">
+            &times;
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function RadiiTokenList({
+  tokens,
+  onScrubStart,
+  onUpdateToken,
+  onRemoveToken,
+}: {
+  tokens: DesignToken[];
+  onScrubStart: (tokenId: string, currentValue: string, e: React.MouseEvent) => void;
+  onUpdateToken: (id: string, data: Partial<DesignToken>) => void;
+  onRemoveToken: (id: string) => void;
+}) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 2, marginBottom: 4 }}>
+      {tokens.map((t) => {
+        const { num, unit } = parseNumberUnit(t.value);
+        return (
+          <div key={t.id} style={ROW_STYLE}>
+            <input
+              value={t.name}
+              onChange={(e) => onUpdateToken(t.id, { name: e.target.value })}
+              style={{ ...INPUT_STYLE, width: 100, flexShrink: 0 }}
+              placeholder="name"
+              aria-label="Radius token name"
+            />
+            <button
+              type="button"
+              tabIndex={0}
+              aria-label={`Scrub value: ${t.value}`}
+              onMouseDown={(e) => onScrubStart(t.id, t.value, e)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onScrubStart(t.id, t.value, e as unknown as React.MouseEvent); } }}
+              className={styles.spacingScrubBtn}
+              style={{
+                ...INPUT_STYLE,
+                cursor: isNaN(num) ? "text" : "ew-resize",
+                background: isNaN(num) ? "var(--ol-surface)" : "var(--ol-color-success-subtle)",
+                fontFamily: "inherit",
+                fontSize: "inherit",
+              }}
+              title="Drag to scrub value"
+            >
+              {!isNaN(num) && (
+                <span style={{ fontSize: 12, color: "var(--ol-text-secondary)", marginRight: 2 }}>&#8596;</span>
+              )}
+              <span style={{ fontSize: 13, fontFamily: "'Cascadia Code', 'Fira Code', monospace", color: "var(--ol-gray-700)" }}>
+                {num}{unit}
+              </span>
+            </button>
+            {/* Unit selector for radii */}
+            <select
+              aria-label="Radius unit"
+              value={unit}
+              onChange={(e) => onUpdateToken(t.id, { value: `${num}${e.target.value}` })}
+              className={styles.unitSelect}
+            >
+              <option value="px">px</option>
+              <option value="rem">rem</option>
+              <option value="em">em</option>
+            </select>
+            <button type="button" onClick={() => onRemoveToken(t.id)} style={REMOVE_BTN} title="Remove token">
+              &times;
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function TokenSection({
+  category,
+  tokens,
+  paletteView,
+  onTogglePaletteView,
+  onAddToken,
+  onOpenColorPicker,
+  onScrubStart,
+  onRatioBarClick,
+  onUpdateToken,
+  onRemoveToken,
+  spacingMax,
+}: {
+  category: string;
+  tokens: DesignToken[];
+  paletteView: boolean;
+  onTogglePaletteView: () => void;
+  onAddToken: (category: string) => void;
+  onOpenColorPicker: (tokenId: string, e: React.MouseEvent) => void;
+  onScrubStart: (tokenId: string, currentValue: string, e: React.MouseEvent) => void;
+  onRatioBarClick: (tokenId: string, max: number, e: React.MouseEvent) => void;
+  onUpdateToken: (id: string, data: Partial<DesignToken>) => void;
+  onRemoveToken: (id: string) => void;
+  spacingMax: number;
+}) {
+  let body: JSX.Element | null = null;
+  switch (category) {
+    case "colors":
+      body = (
+        <ColorTokenList
+          tokens={tokens}
+          paletteView={paletteView}
+          onOpenColorPicker={onOpenColorPicker}
+          onUpdateToken={onUpdateToken}
+          onRemoveToken={onRemoveToken}
+        />
+      );
+      break;
+    case "spacing":
+      body = (
+        <SpacingTokenList
+          tokens={tokens}
+          spacingMax={spacingMax}
+          onScrubStart={onScrubStart}
+          onRatioBarClick={onRatioBarClick}
+          onUpdateToken={onUpdateToken}
+          onRemoveToken={onRemoveToken}
+        />
+      );
+      break;
+    case "typography":
+      body = (
+        <TypographyTokenList
+          tokens={tokens}
+          onUpdateToken={onUpdateToken}
+          onRemoveToken={onRemoveToken}
+        />
+      );
+      break;
+    case "radii":
+      body = (
+        <RadiiTokenList
+          tokens={tokens}
+          onScrubStart={onScrubStart}
+          onUpdateToken={onUpdateToken}
+          onRemoveToken={onRemoveToken}
+        />
+      );
+      break;
+    default:
+      return null;
+  }
+
+  const icon = CATEGORY_ICONS[category] || "";
+  const label = CATEGORY_LABELS[category] || category;
+
+  return (
+    <div key={category} style={CARD_STYLE}>
+      {/* Category header */}
+      <div style={SECTION_HEADER}>
+        <span>{icon} {label} ({tokens.length})</span>
+        {/* Palette toggle (colors only) */}
+        {category === "colors" && tokens.length > 0 && (
+          <button type="button"
+            onClick={onTogglePaletteView}
+            className={styles.paletteToggleBtn}
+            style={{ background: paletteView ? "var(--ol-color-primary)" : "var(--ol-gray-50)", color: paletteView ? "var(--ol-surface)" : "var(--ol-text-secondary)" }}
+          >
+            {paletteView ? "List" : "Palette"}
+          </button>
+        )}
+      </div>
+
+      {body}
+
+      {/* Add button */}
+      <button type="button" onClick={() => onAddToken(category)} style={ADD_BTN_STYLE}>
+        + Add {ADD_BTN_SINGULAR[category] || label.toLowerCase().slice(0, -1)}
+      </button>
+    </div>
+  );
+}
+
+function UnknownCategories({
+  groups,
+  onUpdateToken,
+  onRemoveToken,
+}: {
+  groups: Record<string, DesignToken[]>;
+  onUpdateToken: (id: string, data: Partial<DesignToken>) => void;
+  onRemoveToken: (id: string) => void;
+}) {
+  const unknownCats = Object.keys(groups).filter(
+    (cat) => !CATEGORY_ORDER.includes(cat as (typeof CATEGORY_ORDER)[number]),
+  );
+  if (unknownCats.length === 0) return null;
+
+  return (
+    <>
+      {unknownCats.map((cat) => (
+        <div key={cat} style={CARD_STYLE}>
+          <div style={SECTION_HEADER}>{cat} ({groups[cat].length})</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 2, marginBottom: 8 }}>
+            {groups[cat].map((t) => (
+              <div key={t.id} style={ROW_STYLE}>
+                <input
+                  value={t.name}
+                  onChange={(e) => onUpdateToken(t.id, { name: e.target.value })}
+                  style={{ ...INPUT_STYLE, width: 100, flexShrink: 0 }}
+                  placeholder="name"
+                  aria-label="Token name"
+                />
+                <input
+                  value={t.value}
+                  onChange={(e) => onUpdateToken(t.id, { value: e.target.value })}
+                  style={{ ...INPUT_STYLE, flex: 1, minWidth: 0 }}
+                  placeholder="value"
+                  aria-label="Token value"
+                />
+                <button type="button" onClick={() => onRemoveToken(t.id)} style={REMOVE_BTN} title="Remove token">
+                  &times;
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </>
+  );
+}
+
+function ColorPickerOverlay({
+  tokens,
+  colorPickerState,
+  onUpdateToken,
+  onCloseColorPicker,
+}: {
+  tokens: DesignToken[];
+  colorPickerState: { tokenId: string; anchorRect: DOMRect } | null;
+  onUpdateToken: (id: string, data: Partial<DesignToken>) => void;
+  onCloseColorPicker: () => void;
+}) {
+  if (!colorPickerState) return null;
+  const token = tokens.find((t) => t.id === colorPickerState.tokenId);
+  if (!token) return null;
+  return (
+    <ColorPicker
+      color={token.value || "var(--ol-color-primary)"}
+      onChange={(newColor) => onUpdateToken(colorPickerState.tokenId, { value: newColor })}
+      onClose={onCloseColorPicker}
+      anchorRect={colorPickerState.anchorRect}
+    />
+  );
+}
+
 // ── Component ──
 
 export function TokenEditor() {
@@ -162,7 +657,23 @@ export function TokenEditor() {
 
   // Refs
   const newMenuRef = useRef<HTMLDivElement>(null);
-  const scrubRef = useRef<DragScrubState | null>(null);
+  const scrubRef = useDragScrub();
+
+  // ── Close new-token menu on outside click ──
+
+  useEffect(() => {
+    if (!showNewMenu) return;
+    const handleClick = (e: MouseEvent) => {
+      if (newMenuRef.current && !newMenuRef.current.contains(e.target as Node)) {
+        setShowNewMenu(false);
+      }
+    };
+    const timer = setTimeout(() => document.addEventListener("mousedown", handleClick), 0);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("mousedown", handleClick);
+    };
+  }, [showNewMenu]);
 
   // ── Derived data ──
 
@@ -193,46 +704,6 @@ export function TokenEditor() {
     }
     return nums.length > 0 ? Math.max(...nums) : 1;
   }, [tokens]);
-
-  // ── Global drag-scrub event handlers ──
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!scrubRef.current) return;
-      const { tokenId, startX, startValue, unit } = scrubRef.current;
-      const dx = e.clientX - startX;
-      const modifier = e.shiftKey ? 10 : 1;
-      const newVal = Math.max(0, Math.round((startValue + dx * modifier) * 100) / 100);
-      usePoiesisStore.getState().updateToken(tokenId, { value: `${newVal}${unit}` });
-    };
-    const handleMouseUp = () => {
-      scrubRef.current = null;
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-    };
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleMouseUp);
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
-    };
-  }, []);
-
-  // ── Close new-token menu on outside click ──
-
-  useEffect(() => {
-    if (!showNewMenu) return;
-    const handleClick = (e: MouseEvent) => {
-      if (newMenuRef.current && !newMenuRef.current.contains(e.target as Node)) {
-        setShowNewMenu(false);
-      }
-    };
-    const timer = setTimeout(() => document.addEventListener("mousedown", handleClick), 0);
-    return () => {
-      clearTimeout(timer);
-      document.removeEventListener("mousedown", handleClick);
-    };
-  }, [showNewMenu]);
 
   // ── Handlers ──
 
@@ -272,7 +743,7 @@ export function TokenEditor() {
       document.body.style.cursor = "ew-resize";
       document.body.style.userSelect = "none";
     },
-    [],
+    [scrubRef],
   );
 
   const handleRatioBarClick = useCallback(
@@ -288,320 +759,10 @@ export function TokenEditor() {
     [tokens, updateToken],
   );
 
-  // ── Render helpers ──
-
-  const renderColorTokens = useCallback(
-    (catTokens: DesignToken[]) => {
-      if (paletteView) {
-        return (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(64px, 1fr))", gap: 8, marginBottom: 8 }}>
-            {catTokens.map((t) => (
-              <div key={t.id} style={{ textAlign: "center" }}>
-                <button
-                  type="button"
-                  tabIndex={0}
-                  onClick={(e) => handleOpenColorPicker(t.id, e)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleOpenColorPicker(t.id, e as unknown as React.MouseEvent); } }}
-                  style={{
-                    width: "100%",
-                    aspectRatio: "1",
-                    borderRadius: 8,
-                    background: t.value || "#ccc",
-                    border: "2px solid #e2e8f0",
-                    cursor: "pointer",
-                    boxSizing: "border-box",
-                    padding: 0,
-                  }}
-                  title={t.name}
-                />
-                <div style={{ fontSize: 12, color: "#64748b", marginTop: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {t.name}
-                </div>
-              </div>
-            ))}
-          </div>
-        );
-      }
-
-      return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 2, marginBottom: 4 }}>
-          {catTokens.map((t) => (
-            <div key={t.id} style={ROW_STYLE}>
-              {/* Color swatch */}
-              <button
-                type="button"
-                tabIndex={0}
-                aria-label={`Color swatch for ${t.name}`}
-                onClick={(e) => handleOpenColorPicker(t.id, e)}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleOpenColorPicker(t.id, e as unknown as React.MouseEvent); } }}
-                style={{
-                  width: 24,
-                  height: 24,
-                  borderRadius: 6,
-                  background: t.value || "#ccc",
-                  border: "1px solid #cbd5e1",
-                  cursor: "pointer",
-                  flexShrink: 0,
-                  padding: 0,
-                }}
-              />
-              {/* Name */}
-              <input
-                value={t.name}
-                onChange={(e) => updateToken(t.id, { name: e.target.value })}
-                style={{ ...INPUT_STYLE, width: 100, flexShrink: 0 }}
-                placeholder="name"
-              aria-label="Color token name"
-              />
-              {/* Value (hex) */}
-              <input
-                value={t.value}
-                onChange={(e) => updateToken(t.id, { value: e.target.value })}
-                style={{ ...INPUT_STYLE, flex: 1, minWidth: 0 }}
-                placeholder="#000000"
-                aria-label="Color value"
-              />
-              {/* Token type dropdown */}
-              <select
-                aria-label="Token type"
-                value={t.tokenType}
-                onChange={(e) => updateToken(t.id, { tokenType: e.target.value as DesignToken["tokenType"] })}
-                style={{ ...SELECT_STYLE, width: 64 }}
-              >
-                {TOKEN_TYPE_OPTIONS.map((opt) => (
-                  <option key={opt} value={opt}>{opt}</option>
-                ))}
-              </select>
-              {/* Remove */}
-              <button type="button" onClick={() => removeToken(t.id)} style={REMOVE_BTN} title="Remove token">
-                &times;
-              </button>
-            </div>
-          ))}
-        </div>
-      );
-    },
-    [paletteView, handleOpenColorPicker, updateToken, removeToken],
-  );
-
-  const renderSpacingTokens = useCallback(
-    (catTokens: DesignToken[]) => {
-      return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 2, marginBottom: 4 }}>
-          {catTokens.map((t) => {
-            const { num, unit } = parseNumberUnit(t.value);
-            const ratio = isNaN(num) || spacingMax === 0 ? 0 : Math.min(num / spacingMax, 1);
-            return (
-              <div key={t.id} style={ROW_STYLE}>
-                {/* Name */}
-                <input
-                  value={t.name}
-                  onChange={(e) => updateToken(t.id, { name: e.target.value })}
-                  style={{ ...INPUT_STYLE, width: 100, flexShrink: 0 }}
-                  placeholder="name"
-                  aria-label="Spacing token name"
-                />
-                {/* Value with drag-scrub */}
-                <button
-                  type="button"
-                  tabIndex={0}
-                  aria-label={`Scrub value: ${t.value}`}
-                  onMouseDown={(e) => handleScrubStart(t.id, t.value, e)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleScrubStart(t.id, t.value, e as unknown as React.MouseEvent); } }}
-                  className={styles.spacingScrubBtn}
-                  title="Drag to scrub value"
-                >
-                  <span style={{ fontSize: 12, color: "#64748b", marginRight: 2 }}>&#8596;</span>
-                  <span style={{ fontSize: 13, fontFamily: "'Cascadia Code', 'Fira Code', monospace", color: "#374151" }}>
-                    {num}{unit}
-                  </span>
-                </button>
-                {/* Unit selector */}
-                <select
-                  aria-label="Spacing unit"
-                  value={unit}
-                  onChange={(e) => updateToken(t.id, { value: `${num}${e.target.value}` })}
-                  className={styles.unitSelect}
-                >
-                  <option value="px">px</option>
-                  <option value="rem">rem</option>
-                  <option value="em">em</option>
-                </select>
-                {/* Ratio bar (clickable) */}
-                <div
-                  role="button"
-                  tabIndex={0}
-                  onClick={(e) => handleRatioBarClick(t.id, spacingMax, e)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleRatioBarClick(t.id, spacingMax, e as unknown as React.MouseEvent); } }}
-                  className={styles.ratioBar}
-                  title={`${Math.round(ratio * 100)}% of max (${spacingMax}${unit})`}
-                >
-                  <div
-                    className={styles.ratioFill}
-                    style={{ width: `${ratio * 100}%` }}
-                  />
-                </div>
-                {/* Remove */}
-                <button type="button" onClick={() => removeToken(t.id)} style={REMOVE_BTN} title="Remove token">
-                  &times;
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      );
-    },
-    [spacingMax, handleScrubStart, handleRatioBarClick, updateToken, removeToken],
-  );
-
-  const renderTypographyTokens = useCallback(
-    (catTokens: DesignToken[]) => {
-      return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 2, marginBottom: 4 }}>
-          {catTokens.map((t) => (
-            <div key={t.id} style={ROW_STYLE}>
-              <input
-                value={t.name}
-                onChange={(e) => updateToken(t.id, { name: e.target.value })}
-                style={{ ...INPUT_STYLE, width: 100, flexShrink: 0 }}
-                placeholder="name"
-                aria-label="Typography token name"
-              />
-              <input
-                value={t.value}
-                onChange={(e) => updateToken(t.id, { value: e.target.value })}
-                style={{ ...INPUT_STYLE, flex: 1, minWidth: 0 }}
-                placeholder="value"
-                aria-label="Typography value"
-              />
-              <button type="button" onClick={() => removeToken(t.id)} style={REMOVE_BTN} title="Remove token">
-                &times;
-              </button>
-            </div>
-          ))}
-        </div>
-      );
-    },
-    [updateToken, removeToken],
-  );
-
-  const renderRadiiTokens = useCallback(
-    (catTokens: DesignToken[]) => {
-      return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 2, marginBottom: 4 }}>
-          {catTokens.map((t) => {
-            const { num, unit } = parseNumberUnit(t.value);
-            return (
-              <div key={t.id} style={ROW_STYLE}>
-                <input
-                  value={t.name}
-                  onChange={(e) => updateToken(t.id, { name: e.target.value })}
-                  style={{ ...INPUT_STYLE, width: 100, flexShrink: 0 }}
-                  placeholder="name"
-                  aria-label="Radius token name"
-                />
-                <button
-                  type="button"
-                  tabIndex={0}
-                  aria-label={`Scrub value: ${t.value}`}
-                  onMouseDown={(e) => handleScrubStart(t.id, t.value, e)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleScrubStart(t.id, t.value, e as unknown as React.MouseEvent); } }}
-                  className={styles.spacingScrubBtn}
-                  style={{
-                    ...INPUT_STYLE,
-                    cursor: isNaN(num) ? "text" : "ew-resize",
-                    background: isNaN(num) ? "#fff" : "#f0fdf4",
-                    fontFamily: "inherit",
-                    fontSize: "inherit",
-                  }}
-                  title="Drag to scrub value"
-                >
-                  {!isNaN(num) && (
-                    <span style={{ fontSize: 12, color: "#64748b", marginRight: 2 }}>&#8596;</span>
-                  )}
-                  <span style={{ fontSize: 13, fontFamily: "'Cascadia Code', 'Fira Code', monospace", color: "#374151" }}>
-                    {num}{unit}
-                  </span>
-                </button>
-                {/* Unit selector for radii */}
-                <select
-                  aria-label="Radius unit"
-                  value={unit}
-                  onChange={(e) => updateToken(t.id, { value: `${num}${e.target.value}` })}
-                  className={styles.unitSelect}
-                >
-                  <option value="px">px</option>
-                  <option value="rem">rem</option>
-                  <option value="em">em</option>
-                </select>
-                <button type="button" onClick={() => removeToken(t.id)} style={REMOVE_BTN} title="Remove token">
-                  &times;
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      );
-    },
-    [handleScrubStart, updateToken, removeToken],
-  );
-
-  // ── Section rendering dispatch ──
-
-  const renderSection = useCallback(
-    (category: string, catTokens: DesignToken[]) => {
-      const renderMap: Record<string, (t: DesignToken[]) => ReturnType<typeof renderColorTokens>> = {
-        colors: renderColorTokens,
-        spacing: renderSpacingTokens,
-        typography: renderTypographyTokens,
-        radii: renderRadiiTokens,
-      };
-      const renderFn = renderMap[category];
-      if (!renderFn) return null;
-
-      const icon = CATEGORY_ICONS[category] || "";
-      const label = CATEGORY_LABELS[category] || category;
-
-      return (
-        <div key={category} style={CARD_STYLE}>
-          {/* Category header */}
-          <div style={SECTION_HEADER}>
-            <span>{icon} {label} ({catTokens.length})</span>
-            {/* Palette toggle (colors only) */}
-            {category === "colors" && catTokens.length > 0 && (
-              <button type="button"
-                onClick={() => setPaletteView((v) => !v)}
-                className={styles.paletteToggleBtn}
-                style={{ background: paletteView ? "#6366f1" : "#f8fafc", color: paletteView ? "#fff" : "#64748b" }}
-              >
-                {paletteView ? "List" : "Palette"}
-              </button>
-            )}
-          </div>
-
-          {renderFn(catTokens)}
-
-          {/* Add button */}
-          <button type="button" onClick={() => handleAddToken(category)} style={ADD_BTN_STYLE}>
-            + Add {ADD_BTN_SINGULAR[category] || label.toLowerCase().slice(0, -1)}
-          </button>
-        </div>
-      );
-    },
-    [
-      renderColorTokens,
-      renderSpacingTokens,
-      renderTypographyTokens,
-      renderRadiiTokens,
-      paletteView,
-      handleAddToken,
-    ],
-  );
-
   // ── Main render ──
 
   return (
-    <div style={{ fontSize: 13, color: "#374151", position: "relative" }}>
+    <div style={{ fontSize: 13, color: "var(--ol-gray-700)", position: "relative" }}>
       {/* Toolbar: search + new button */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
         <div style={{ position: "relative", flex: 1 }}>
@@ -615,7 +776,7 @@ export function TokenEditor() {
               width: "100%",
               padding: "8px 32px 8px 12px",
               fontSize: 13,
-              borderColor: "#cbd5e1",
+              borderColor: "var(--ol-border-hover)",
             }}
           />
           {searchQuery && (
@@ -644,64 +805,41 @@ export function TokenEditor() {
       </div>
 
       {/* Category sections */}
-      {CATEGORY_ORDER.map((cat) => renderSection(cat, grouped[cat] || []))}
+      {CATEGORY_ORDER.map((cat) => (
+        <TokenSection
+          key={cat}
+          category={cat}
+          tokens={grouped[cat] || []}
+          paletteView={paletteView}
+          onTogglePaletteView={() => setPaletteView((v) => !v)}
+          onAddToken={handleAddToken}
+          onOpenColorPicker={handleOpenColorPicker}
+          onScrubStart={handleScrubStart}
+          onRatioBarClick={handleRatioBarClick}
+          onUpdateToken={updateToken}
+          onRemoveToken={removeToken}
+          spacingMax={spacingMax}
+        />
+      ))}
 
       {/* Unknown categories */}
-      {(() => {
-        const unknownCats: JSX.Element[] = [];
-        for (const cat of Object.keys(grouped)) {
-          if (!CATEGORY_ORDER.includes(cat as (typeof CATEGORY_ORDER)[number])) {
-            unknownCats.push(
-              <div key={cat} style={{ ...CARD_STYLE }}>
-                <div style={SECTION_HEADER}>{cat} ({grouped[cat].length})</div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 2, marginBottom: 8 }}>
-                  {grouped[cat].map((t) => (
-                    <div key={t.id} style={ROW_STYLE}>
-                      <input
-                        value={t.name}
-                        onChange={(e) => updateToken(t.id, { name: e.target.value })}
-                        style={{ ...INPUT_STYLE, width: 100, flexShrink: 0 }}
-                        placeholder="name"
-                        aria-label="Token name"
-                      />
-                      <input
-                        value={t.value}
-                        onChange={(e) => updateToken(t.id, { value: e.target.value })}
-                        style={{ ...INPUT_STYLE, flex: 1, minWidth: 0 }}
-                        placeholder="value"
-                        aria-label="Token value"
-                      />
-                      <button type="button" onClick={() => removeToken(t.id)} style={REMOVE_BTN} title="Remove token">
-                        &times;
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          }
-        }
-        return unknownCats;
-      })()}
+      <UnknownCategories
+        groups={grouped}
+        onUpdateToken={updateToken}
+        onRemoveToken={removeToken}
+      />
 
       {/* Color picker overlay */}
-      {colorPickerState &&
-        (() => {
-          const token = tokens.find((t) => t.id === colorPickerState.tokenId);
-          if (!token) return null;
-          return (
-            <ColorPicker
-              color={token.value || "#6366f1"}
-              onChange={(newColor) => updateToken(colorPickerState.tokenId, { value: newColor })}
-              onClose={handleCloseColorPicker}
-              anchorRect={colorPickerState.anchorRect}
-            />
-          );
-        })()}
+      <ColorPickerOverlay
+        tokens={tokens}
+        colorPickerState={colorPickerState}
+        onUpdateToken={updateToken}
+        onCloseColorPicker={handleCloseColorPicker}
+      />
 
       {/* Empty state */}
       {tokens.length === 0 && !searchQuery && (
-        <div style={{ textAlign: "center", padding: 40, color: "#94a3b8", fontSize: 14 }}>
+        <div style={{ textAlign: "center", padding: 40, color: "var(--ol-text-muted)", fontSize: 14 }}>
           <div style={{ fontSize: 32, marginBottom: 12 }}>🎨</div>
           <div>No design tokens yet.</div>
           <div style={{ marginTop: 4 }}>Click <strong>+ New token</strong> to add colors, spacing, fonts, or radii.</div>
@@ -710,7 +848,7 @@ export function TokenEditor() {
 
       {/* No results */}
       {tokens.length > 0 && filteredTokens.length === 0 && (
-        <div style={{ textAlign: "center", padding: 40, color: "#94a3b8", fontSize: 14 }}>
+        <div style={{ textAlign: "center", padding: 40, color: "var(--ol-text-muted)", fontSize: 14 }}>
           No tokens match "{searchQuery}"
         </div>
       )}

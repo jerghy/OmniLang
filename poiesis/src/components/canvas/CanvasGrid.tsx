@@ -8,7 +8,7 @@ export const CanvasGrid = React.memo(function CanvasGrid() {
         position: "absolute",
         inset: 0,
         backgroundImage: `
-          radial-gradient(circle, #d1d5db 1px, transparent 1px)
+          radial-gradient(circle, var(--ol-border-hover) 1px, transparent 1px)
         `,
         backgroundSize: "20px 20px",
         pointerEvents: "none",

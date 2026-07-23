@@ -12,7 +12,7 @@
   top: 44px;
   left: 8px;
   z-index: 9999;
-  background: #fff;
+  background: var(--ol-surface);
   border-radius: 8px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
   min-width: 260px;
@@ -25,9 +25,9 @@
 .header {
   font-size: 12px;
   font-weight: 600;
-  color: #6b7280;
+  color: var(--ol-text-secondary);
   padding: 6px 12px;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid var(--ol-gray-100);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -35,7 +35,7 @@
 
 .headerStatus {
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--ol-text-muted);
   font-weight: 400;
 }
 
@@ -49,12 +49,12 @@
 .emptyMsg {
   padding: 16px 12px;
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--ol-text-muted);
   text-align: center;
 }
 
 .footer {
-  border-top: 1px solid #f1f5f9;
+  border-top: 1px solid var(--ol-gray-100);
   padding: 4px;
 }
 
@@ -65,12 +65,12 @@
   gap: 4px;
   width: 100%;
   padding: 7px 12px;
-  border: 1px dashed #d1d5db;
+  border: 1px dashed var(--ol-border-hover);
   border-radius: 6px;
   background: transparent;
   cursor: pointer;
   font-size: 12px;
-  color: #6366f1;
+  color: var(--ol-color-primary);
   font-weight: 500;
   font-family: inherit;
 }
@@ -84,7 +84,7 @@
   background: transparent;
   cursor: pointer;
   font-size: 12px;
-  color: #374151;
+  color: var(--ol-gray-700);
   font-weight: 500;
   text-align: left;
   font-family: inherit;
@@ -93,7 +93,7 @@
 .dirArrow {
   font-size: 12px;
   width: 14px;
-  color: #94a3b8;
+  color: var(--ol-text-muted);
 }
 
 .dirIcon {
@@ -126,7 +126,7 @@
 
 .openBadge {
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--ol-text-muted);
   margin-left: auto;
   flex-shrink: 0;
 }

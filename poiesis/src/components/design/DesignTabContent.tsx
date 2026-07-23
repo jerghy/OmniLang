@@ -23,7 +23,7 @@ const TAB_BTN: React.CSSProperties = {
   borderBottomWidth: "2px",
   borderBottomStyle: "solid",
   borderBottomColor: "transparent",
-  color: "var(--dp-text-muted, #a09db8)",
+  color: "var(--dp-text-muted, var(--ol-text-muted))",
   fontSize: 13,
   fontWeight: 500,
   cursor: "pointer",
@@ -33,8 +33,8 @@ const TAB_BTN: React.CSSProperties = {
 
 const TAB_BTN_ACTIVE: React.CSSProperties = {
   ...TAB_BTN,
-  borderBottomColor: "var(--dp-accent, #6366f1)",
-  color: "var(--dp-accent, #6366f1)",
+  borderBottomColor: "var(--dp-accent, var(--ol-color-primary))",
+  color: "var(--dp-accent, var(--ol-color-primary))",
   fontWeight: 600,
 };
 
@@ -122,15 +122,15 @@ export function DesignTabContent() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--dp-bg, #f7f6fa)" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--dp-bg, var(--ol-gray-50))" }}>
       {/* ═══ Outer layer header: main view tabs (Tokens | Classes | Variants) ═══ */}
       <div style={{
         display: "flex",
         gap: 0,
-        borderBottom: "1px solid var(--dp-border, #e8e5f2)",
+        borderBottom: "1px solid var(--dp-border, var(--ol-border))",
         padding: "0 16px",
         alignItems: "center",
-        background: "var(--dp-surface, #fff)",
+        background: "var(--dp-surface, var(--ol-surface))",
         minHeight: 42,
       }}>
         {(["tokens", "classes", "variants"] as const).map((v) => (

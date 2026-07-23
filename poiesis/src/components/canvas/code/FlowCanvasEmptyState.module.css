@@ -1,4 +1,4 @@
-/* FlowCanvasEmptyState.module.css — extracted from inline styles for react-doctor compliance */
+/* FlowCanvasEmptyState.module.css — uses --ol-* design tokens */
 
 .container {
   display: flex;
@@ -6,12 +6,12 @@
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: #94a3b8;
-  font-size: 13px;
-  gap: 6px;
+  color: var(--ol-text-muted);
+  font-size: var(--ol-font-size-13);
+  gap: var(--ol-space-1p5);
 }
 
 .hintText {
-  font-size: 12px;
+  font-size: var(--ol-font-size-12);
   opacity: 0.7;
 }

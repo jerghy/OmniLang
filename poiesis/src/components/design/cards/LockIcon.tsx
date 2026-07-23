@@ -23,7 +23,7 @@ export const LockIcon = React.memo(function LockIcon({
   if (!readOnly && onToggleInherited) {
     return (
       <button type="button"
-        style={{ ...LOCK_BTN, color: isUnlocked ? "var(--dp-accent, #6366f1)" : "var(--dp-text-muted, #a09db8)" }}
+        style={{ ...LOCK_BTN, color: isUnlocked ? "var(--dp-accent, var(--ol-color-primary))" : "var(--dp-text-muted, var(--ol-text-muted))" }}
         onClick={() => onToggleInherited(propName)}
         title={isUnlocked ? "已解锁（继承到分支）— 点击封锁" : "已封锁（分支可覆盖）— 点击解锁"}
       >{isUnlocked ? "🔓" : "🔒"}</button>

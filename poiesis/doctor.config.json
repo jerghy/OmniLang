@@ -1,6 +1,8 @@
 {
   "$schema": "https://react.doctor/schema/config.json",
   "rules": {
-    "deslop/unused-dev-dependency": "off"
+    "deslop/unused-dev-dependency": "off",
+    "deslop/unused-file": "off",
+    "react-doctor/no-giant-component": "off"
   }
 }

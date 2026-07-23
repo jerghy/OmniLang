@@ -59,7 +59,7 @@ export function VariantBindingSection({ element }: VariantBindingSectionProps) {
           style={{
             fontSize: 12,
             fontWeight: 600,
-            color: "#6b7280",
+            color: "var(--ol-text-secondary)",
             textTransform: "uppercase",
             marginBottom: 6,
           }}
@@ -70,11 +70,11 @@ export function VariantBindingSection({ element }: VariantBindingSectionProps) {
         <div
           style={{
             padding: "6px 8px",
-            background: "#f0fdf4",
+            background: "var(--ol-color-success-subtle)",
             borderRadius: 4,
-            border: "1px solid #bbf7d0",
+            border: "1px solid var(--ol-color-success-muted)",
             fontSize: 12,
-            color: "#166534",
+            color: "var(--ol-color-success-active)",
             marginBottom: 6,
             fontWeight: 500,
           }}
@@ -104,7 +104,7 @@ export function VariantBindingSection({ element }: VariantBindingSectionProps) {
               <span
                 style={{
                   fontSize: 12,
-                  color: "#64748b",
+                  color: "var(--ol-text-secondary)",
                   minWidth: 50,
                   flexShrink: 0,
                 }}
@@ -121,10 +121,10 @@ export function VariantBindingSection({ element }: VariantBindingSectionProps) {
                   flex: 1,
                   padding: "3px 6px",
                   fontSize: 12,
-                  border: "1px solid #e2e8f0",
+                  border: "1px solid var(--ol-border)",
                   borderRadius: 4,
                   outline: "2px solid transparent",
-                  background: "#fff",
+                  background: "var(--ol-surface)",
               }}
             >
               {dim.values.map((v) => (
@@ -133,6 +133,7 @@ export function VariantBindingSection({ element }: VariantBindingSectionProps) {
                 </option>
               ))}
             </select>
+            </label>
           </div>
         ))}
 
@@ -142,10 +143,10 @@ export function VariantBindingSection({ element }: VariantBindingSectionProps) {
             marginTop: 6,
             padding: "3px 8px",
             fontSize: 12,
-            border: "1px solid #fca5a5",
+            border: "1px solid var(--ol-color-danger-muted)",
             borderRadius: 4,
-            background: "#fef2f2",
-            color: "#b91c1c",
+            background: "var(--ol-color-danger-subtle)",
+            color: "var(--ol-color-danger-hover)",
             cursor: "pointer",
             fontWeight: 500,
           }}
@@ -162,7 +163,7 @@ export function VariantBindingSection({ element }: VariantBindingSectionProps) {
         style={{
           fontSize: 12,
           fontWeight: 600,
-          color: "#6b7280",
+          color: "var(--ol-text-secondary)",
           textTransform: "uppercase",
           marginBottom: 6,
         }}
@@ -179,11 +180,11 @@ export function VariantBindingSection({ element }: VariantBindingSectionProps) {
             flex: 1,
             padding: "3px 6px",
             fontSize: 12,
-            border: "1px solid #e2e8f0",
+            border: "1px solid var(--ol-border)",
             borderRadius: 4,
             outline: "2px solid transparent",
-            background: "#fff",
-            color: selectedVariant ? "#374151" : "#94a3b8",
+            background: "var(--ol-surface)",
+            color: selectedVariant ? "var(--ol-gray-700)" : "var(--ol-text-muted)",
           }}
         >
           <option value="">选择 variant...</option>
@@ -201,8 +202,8 @@ export function VariantBindingSection({ element }: VariantBindingSectionProps) {
             fontSize: 12,
             border: "none",
             borderRadius: 4,
-            background: selectedVariant ? "#6366F1" : "#e2e8f0",
-            color: selectedVariant ? "#fff" : "#94a3b8",
+            background: selectedVariant ? "var(--ol-color-primary)" : "var(--ol-border)",
+            color: selectedVariant ? "var(--ol-surface)" : "var(--ol-text-muted)",
             cursor: selectedVariant ? "pointer" : "default",
             fontWeight: 600,
           }}

@@ -38,7 +38,7 @@ export function FunctionBindingTab({
           <button type="button"
             onClick={onTogglePicker}
             className={styles.pickerBtn}
-            style={{ color: selectedFn ? "#1e293b" : "#94a3b8" }}
+            style={{ color: selectedFn ? "var(--ol-gray-800)" : "var(--ol-text-muted)" }}
           >
             <span>
               {selectedFn ? selectedFn.displayName : "选择函数或 Action..."}
@@ -75,8 +75,8 @@ export function FunctionBindingTab({
                     onChange={(e) => onArgChange(p.name, e.target.value)}
                     placeholder={p.type}
                     className={styles.paramInput}
-                    onFocus={(e) => (e.target.style.borderColor = "#6366F1")}
-                    onBlur={(e) => (e.target.style.borderColor = "#d1d5db")}
+                    onFocus={(e) => (e.target.style.borderColor = "var(--ol-color-primary)")}
+                    onBlur={(e) => (e.target.style.borderColor = "var(--ol-border-hover)")}
                   />
                 </label>
               </div>

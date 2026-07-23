@@ -13,8 +13,8 @@
   width: 8px;
   height: 8px;
   border-radius: 2px;
-  background: #fff;
-  border: 2px solid var(--dp-accent, #6366f1);
+  background: var(--ol-surface);
+  border: 2px solid var(--dp-accent, var(--ol-color-primary));
   box-shadow: 0 1px 3px rgba(0,0,0,0.15);
   pointer-events: none;
 }
@@ -22,7 +22,7 @@
 .outline {
   position: absolute;
   inset: -1px;
-  border: 1px dashed var(--dp-accent, #6366f1);
+  border: 1px dashed var(--dp-accent, var(--ol-color-primary));
   border-radius: 2px;
   pointer-events: none;
 }

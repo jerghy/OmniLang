@@ -137,7 +137,7 @@ export function InfiniteCanvas({ children }: InfiniteCanvasProps) {
         position: "relative",
         overflow: "hidden",
         cursor: spaceHeld ? "grab" : isPanning.current ? "grabbing" : "default",
-        background: "#f8fafc",
+        background: "var(--ol-gray-50)",
       }}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}

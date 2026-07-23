@@ -85,7 +85,7 @@ export const TreeNodeView = React.memo(function TreeNodeView({
           style={{
             paddingLeft: depth * 16 + 4,
             cursor: isDragging ? "grabbing" : "pointer",
-            background: isSelected ? "#EEF2FF" : "transparent",
+            background: isSelected ? "var(--ol-color-primary-subtle)" : "transparent",
             opacity: isDragging ? 0.35 : 1,
           }}
         >
@@ -105,11 +105,11 @@ export const TreeNodeView = React.memo(function TreeNodeView({
           ) : (
             <span style={{ width: 12 }} />
           )}
-          <span style={{ color: isElse ? "#9CA3AF" : "#7C3AED", fontSize: 12, fontWeight: 500 }}>
+          <span style={{ color: isElse ? "var(--ol-text-muted)" : "var(--ol-color-primary)", fontSize: 12, fontWeight: 500 }}>
             {node.branchType}
           </span>
           {!isElse && (
-            <span style={{ color: "#374151", fontSize: 12, fontFamily: "monospace" }}>
+            <span style={{ color: "var(--ol-gray-700)", fontSize: 12, fontFamily: "monospace" }}>
               {node.condition || "(空条件)"}
             </span>
           )}
@@ -154,9 +154,9 @@ export const TreeNodeView = React.memo(function TreeNodeView({
         style={{
           paddingLeft: depth * 16 + 4,
           cursor: isDragging ? "grabbing" : "grab",
-          background: dropInside ? "#EEF2FF" : isSelected ? "#EEF2FF" : "transparent",
+          background: dropInside ? "var(--ol-color-primary-subtle)" : isSelected ? "var(--ol-color-primary-subtle)" : "transparent",
           opacity: isDragging ? 0.35 : 1,
-          outline: dropInside ? "1px solid #4F46E5" : isOver ? "1px dashed #A5B4FC" : "none",
+          outline: dropInside ? "1px solid var(--ol-color-primary-hover)" : isOver ? "1px dashed #A5B4FC" : "none",
           outlineOffset: "-1px",
         }}
       >
@@ -183,11 +183,11 @@ export const TreeNodeView = React.memo(function TreeNodeView({
 
         {/* ── Conditional block root node extra styling ── */}
         {node.nodeType === "conditional" && (
-          <span style={{ color: "#8B5CF6", fontSize: 13 }}>🔀</span>
+          <span style={{ color: "var(--ol-color-primary)", fontSize: 13 }}>🔀</span>
         )}
 
         {/* Element icon + tag */}
-        <span style={{ color: "#374151", fontSize: 12, fontWeight: 500 }}>
+        <span style={{ color: "var(--ol-gray-700)", fontSize: 12, fontWeight: 500 }}>
           {node.tag}
         </span>
 
@@ -195,7 +195,7 @@ export const TreeNodeView = React.memo(function TreeNodeView({
         {node.displayLabel && (
           <span
             style={{
-              color: "#9ca3af",
+              color: "var(--ol-text-muted)",
               fontSize: 12,
               overflow: "hidden",
               textOverflow: "ellipsis",

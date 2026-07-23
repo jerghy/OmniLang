@@ -14,8 +14,8 @@
   right: 0;
   z-index: 10001;
   margin-top: 4px;
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--ol-surface);
+  border: 1px solid var(--ol-border);
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
   max-height: 280px;
@@ -41,7 +41,7 @@
   width: 100%;
   padding: 6px 10px;
   font-size: 12px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--ol-border);
   border-radius: 4px;
   outline: 2px solid transparent;
   font-family: inherit;

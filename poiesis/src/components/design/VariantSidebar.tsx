@@ -8,17 +8,17 @@ import type { Variant } from "../../core/types/design";
 
 const SIDEBAR_STYLE: React.CSSProperties = {
   width: 180,
-  borderRight: "1px solid var(--dp-border, #e8e5f2)",
+  borderRight: "1px solid var(--dp-border, var(--ol-border))",
   display: "flex",
   flexDirection: "column",
   flexShrink: 0,
-  background: "var(--dp-surface, #fff)",
+  background: "var(--dp-surface, var(--ol-surface))",
 };
 
 const SIDEBAR_HEADER: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 600,
-  color: "var(--dp-text-secondary, #6b6893)",
+  color: "var(--dp-text-secondary, var(--ol-text-secondary))",
   textTransform: "uppercase",
   letterSpacing: "0.5px",
   padding: "10px 8px 6px",
@@ -28,7 +28,7 @@ const ITEM_BASE: React.CSSProperties = {
   padding: "6px 12px",
   fontSize: 13,
   cursor: "pointer",
-  color: "var(--dp-text-secondary, #6b6893)",
+  color: "var(--dp-text-secondary, var(--ol-text-secondary))",
   display: "flex",
   alignItems: "center",
   justifyContent: "space-between",
@@ -39,8 +39,8 @@ const ITEM_BASE: React.CSSProperties = {
 
 const ITEM_ACTIVE: React.CSSProperties = {
   ...ITEM_BASE,
-  background: "var(--dp-accent-subtle, #eef0ff)",
-  color: "var(--dp-accent, #6366f1)",
+  background: "var(--dp-accent-subtle, var(--ol-color-primary-subtle))",
+  color: "var(--dp-accent, var(--ol-color-primary))",
   fontWeight: 600,
 };
 
@@ -48,11 +48,11 @@ const INPUT_STYLE: React.CSSProperties = {
   padding: "4px 6px",
   fontSize: 12,
   fontFamily: "var(--dp-font-mono, monospace)",
-  border: "1px solid var(--dp-border, #e8e5f2)",
+  border: "1px solid var(--dp-border, var(--ol-border))",
   borderRadius: "var(--dp-radius-sm, 6px)",
   outline: "2px solid transparent",
-  background: "var(--dp-surface, #fff)",
-  color: "var(--dp-text, #1e1b4b)",
+  background: "var(--dp-surface, var(--ol-surface))",
+  color: "var(--dp-text, var(--ol-gray-700))",
   boxSizing: "border-box",
   flex: 1,
   minWidth: 0,
@@ -62,7 +62,7 @@ const REMOVE_BTN: React.CSSProperties = {
   border: "none",
   background: "none",
   cursor: "pointer",
-  color: "var(--dp-text-muted, #a09db8)",
+  color: "var(--dp-text-muted, var(--ol-text-muted))",
   fontSize: 14,
   padding: "2px 4px",
   lineHeight: 1,
@@ -148,8 +148,8 @@ export function VariantSidebar({
             fontSize: 12,
             border: "none",
             borderRadius: 4,
-            background: newVariantName.trim() ? "var(--dp-accent, #6366f1)" : "var(--dp-border, #e8e5f2)",
-            color: newVariantName.trim() ? "#fff" : "var(--dp-text-muted, #a09db8)",
+            background: newVariantName.trim() ? "var(--dp-accent, var(--ol-color-primary))" : "var(--dp-border, var(--ol-border))",
+            color: newVariantName.trim() ? "var(--ol-surface)" : "var(--dp-text-muted, var(--ol-text-muted))",
             cursor: newVariantName.trim() ? "pointer" : "default",
           }}
         >

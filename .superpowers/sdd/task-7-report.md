@@ -38,3 +38,34 @@ Implemented the AutocompletePlugin — text monitoring + menu trigger for the le
 
 - Consumes: `autocomplete-rules.ts` (getAutocompleteItems, detectCardKindFromItem), `SlotTextNode`, `CardElementNode`, `$transformTextToCard`
 - Produces: `AutocompletePlugin` component ready to register in LexicalComposer
+
+## Post-Review Fixes
+
+**Status:** DONE
+
+Three issues from Task 7 review were fixed on 2026-07-23:
+
+### Fix 1 (Critical) — `card.__cardKind` mutation
+- **File:** `AutocompletePlugin.tsx`
+- **Change:** Deleted `card.__cardKind = "declare_var";` (was line 141)
+- **Rationale:** `$transformTextToCard` already sets the correct `cardKind` via the `CardElementNode` constructor. The redundant line bypassed `getWritable()` and dangerously mutated a Lexical node internal property directly.
+
+### Fix 2 (High) — `as any` property access on Lexical nodes
+- **File:** `AutocompletePlugin.tsx`
+- **Changes:**
+  - `(node as any).__slot` → `node.getSlotType()` (line 56, in token detection)
+  - `(node as any).setTextContent(...)` → `node.setTextContent(...)` (line 132, in selection execution)
+- **Rationale:** Using `getSlotType()` (a public API on `SlotTextNode`) instead of accessing the internal `__slot` property. Using `TextNode`'s public `setTextContent()` API instead of `(node as any)` cast.
+
+### Fix 3 (High) — Duplicate React keys in AutocompleteMenu
+- **File:** `AutocompleteMenu.tsx`
+- **Change:** `key={item.kind}` → `key={\`${item.kind}-${item.label}\`}`
+- **Rationale:** `TYPE_ITEMS` all have `kind: "type"`, causing duplicate React keys. Including `item.label` makes each key unique.
+
+### Verification
+
+| Check | Result |
+|-------|--------|
+| Vitest (unchanged files) | 26/29 pass, 189/195 pass — 3 failing files (6 tests) are pre-existing in `code-op-roundtrip.test.ts` |
+| TS errors in fixed files | 0 |
+| Total TS errors (unchanged) | 93 (pre-existing baseline) |

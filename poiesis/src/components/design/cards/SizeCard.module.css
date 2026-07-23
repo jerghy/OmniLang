@@ -7,12 +7,12 @@
   align-items: center;
   justify-content: center;
   border-radius: var(--dp-radius-sm, 6px);
-  background: var(--dp-bg, #f7f6fa);
-  border: 1px dashed var(--dp-border, #e8e5f2);
+  background: var(--ol-surface-hover);
+  border: 1px dashed var(--ol-border);
 }
 
 .miniPreviewInner {
-  border: 2px solid var(--dp-accent, #6366f1);
+  border: 2px solid var(--dp-accent, var(--ol-color-primary));
   border-radius: 2px;
   background: rgba(99, 102, 241, 0.06);
   transition: none;
@@ -25,7 +25,7 @@
   left: 50%;
   transform: translate(-50%, -50%);
   font-size: 8px;
-  color: var(--dp-text-muted, #a09db8);
+  color: var(--ol-text-muted);
   font-family: var(--dp-font-mono, monospace);
   white-space: nowrap;
 }

@@ -182,10 +182,10 @@ export function ContextInspector() {
       {/* Title bar */}
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "6px 12px", borderBottom: "1px solid #e2e8f0",
+        padding: "6px 12px", borderBottom: "1px solid var(--ol-border)",
         minHeight: 32,
       }}>
-        <span style={{ fontSize: 12, fontWeight: 600, color: "#64748b" }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: "var(--ol-text-secondary)" }}>
           {titleText}
         </span>
         <button type="button"
@@ -193,9 +193,9 @@ export function ContextInspector() {
           title={storePanelVisible ? "关闭 Store 面板" : "打开 Store 面板"}
           className={styles.storeBtn}
           style={{
-            border: storePanelVisible ? "1px solid #6366f1" : "1px solid #e2e8f0",
-            background: storePanelVisible ? "#eef2ff" : "transparent",
-            color: storePanelVisible ? "#6366f1" : "#64748b",
+            border: storePanelVisible ? "1px solid var(--ol-color-primary)" : "1px solid var(--ol-border)",
+            background: storePanelVisible ? "var(--ol-color-primary-subtle)" : "transparent",
+            color: storePanelVisible ? "var(--ol-color-primary)" : "var(--ol-text-secondary)",
           }}
         >
           📦 Store
@@ -216,7 +216,7 @@ export function ContextInspector() {
           <BranchConditionEditor blockId={branchMatch[1]} branchIndex={parseInt(branchMatch[2], 10)} />
         </div>
       ) : !el ? (
-        <div style={{ padding: 16, color: "#94a3b8", fontSize: 13, textAlign: "center", flex: 1 }}>
+        <div style={{ padding: 16, color: "var(--ol-text-muted)", fontSize: 13, textAlign: "center", flex: 1 }}>
           选择元素以编辑属性
         </div>
       ) : null}
@@ -243,7 +243,7 @@ export function ContextInspector() {
                 fontSize: 13,
                 fontWeight: 600,
                 margin: "0 0 8px",
-                color: "#374151",
+                color: "var(--ol-gray-700)",
               }}
             >
               {tag}

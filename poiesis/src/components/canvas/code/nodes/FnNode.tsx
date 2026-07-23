@@ -29,7 +29,7 @@ export function FnNode({ data }: Props) {
         type="source"
         position={Position.Bottom}
         id="flow-out"
-        style={{ background: "#6366F1" }}
+        style={{ background: "var(--ol-color-primary)" }}
       />
     </div>
   );

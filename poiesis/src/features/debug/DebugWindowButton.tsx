@@ -10,8 +10,8 @@ export function DebugWindowButton() {
       title={isOpen ? "Close debug window" : "Open debug window"}
       className={styles.button}
       style={{
-        background: isOpen ? "#6366f1" : "transparent",
-        color: isOpen ? "#fff" : "inherit",
+        background: isOpen ? "var(--ol-color-primary)" : "transparent",
+        color: isOpen ? "var(--ol-surface)" : "inherit",
       }}
     >
       🐛 {isOpen ? "Debug On" : "Debug"}

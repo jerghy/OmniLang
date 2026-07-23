@@ -59,5 +59,5 @@ const btnStyle: React.CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
   fontSize: 14,
-  color: "#64748b",
+  color: "var(--ol-text-secondary)",
 };

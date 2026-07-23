@@ -27,7 +27,7 @@ export function ArchitectureToolbar({
         style={{
           fontSize: 16,
           fontWeight: 700,
-          color: "#6d28d9",
+          color: "var(--ol-color-primary)",
           letterSpacing: -0.5,
         }}
       >
@@ -39,7 +39,7 @@ export function ArchitectureToolbar({
         style={{
           display: "flex",
           gap: 0,
-          background: "#f3f4f6",
+          background: "var(--ol-surface-hover)",
           borderRadius: 8,
           padding: 3,
         }}
@@ -62,11 +62,11 @@ export function ArchitectureToolbar({
       <div
         style={{
           fontSize: 12,
-          color: "#6b7280",
-          background: "#f9fafb",
+          color: "var(--ol-text-secondary)",
+          background: "var(--ol-gray-50)",
           padding: "4px 12px",
           borderRadius: 12,
-          border: "1px solid #e5e7eb",
+          border: "1px solid var(--ol-border)",
         }}
       >
         {modeLabel}
@@ -91,8 +91,8 @@ function ToggleButton({
         padding: "6px 16px",
         fontSize: 13,
         fontWeight: active ? 600 : 400,
-        color: active ? "#6d28d9" : "#6b7280",
-        background: active ? "#fff" : "transparent",
+        color: active ? "var(--ol-color-primary)" : "var(--ol-text-secondary)",
+        background: active ? "var(--ol-surface)" : "transparent",
         border: "none",
         borderRadius: 6,
         cursor: "pointer",

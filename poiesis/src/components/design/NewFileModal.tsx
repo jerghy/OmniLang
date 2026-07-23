@@ -30,26 +30,26 @@ export function NewFileModal({ onCreate, onClose }: NewFileModalProps) {
         className={styles.backdrop}
       />
       <div className={styles.modal}>
-        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: "#1e293b" }}>
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: "var(--ol-gray-800)" }}>
           新建文件
         </div>
 
         {/* File type selector */}
         <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 6 }}>文件类型</div>
+          <div style={{ fontSize: 12, color: "var(--ol-text-secondary)", marginBottom: 6 }}>文件类型</div>
           <div style={{ display: "flex", gap: 8 }}>
             <button type="button"
               onClick={() => setNewFileType("store")}
               style={{
                 flex: 1,
                 padding: "6px 10px",
-                border: newFileType === "store" ? "2px solid #6366F1" : "1px solid #e2e8f0",
+                border: newFileType === "store" ? "2px solid var(--ol-color-primary)" : "1px solid var(--ol-border)",
                 borderRadius: 6,
-                background: newFileType === "store" ? "#EEF2FF" : "#fff",
+                background: newFileType === "store" ? "#EEF2FF" : "var(--ol-surface)",
                 cursor: "pointer",
                 fontSize: 12,
                 fontWeight: newFileType === "store" ? 600 : 400,
-                color: newFileType === "store" ? "#4338CA" : "#64748b",
+                color: newFileType === "store" ? "#4338CA" : "var(--ol-text-secondary)",
                 fontFamily: "inherit",
               }}
             >
@@ -60,13 +60,13 @@ export function NewFileModal({ onCreate, onClose }: NewFileModalProps) {
               style={{
                 flex: 1,
                 padding: "6px 10px",
-                border: newFileType === "code" ? "2px solid #6366F1" : "1px solid #e2e8f0",
+                border: newFileType === "code" ? "2px solid var(--ol-color-primary)" : "1px solid var(--ol-border)",
                 borderRadius: 6,
-                background: newFileType === "code" ? "#EEF2FF" : "#fff",
+                background: newFileType === "code" ? "#EEF2FF" : "var(--ol-surface)",
                 cursor: "pointer",
                 fontSize: 12,
                 fontWeight: newFileType === "code" ? 600 : 400,
-                color: newFileType === "code" ? "#4338CA" : "#64748b",
+                color: newFileType === "code" ? "#4338CA" : "var(--ol-text-secondary)",
                 fontFamily: "inherit",
               }}
             >
@@ -77,7 +77,7 @@ export function NewFileModal({ onCreate, onClose }: NewFileModalProps) {
 
         {/* File name input */}
         <div style={{ marginBottom: 4 }}>
-          <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 6 }}>文件名</div>
+          <div style={{ fontSize: 12, color: "var(--ol-text-secondary)", marginBottom: 6 }}>文件名</div>
           <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
             <input
               type="text"
@@ -95,14 +95,14 @@ export function NewFileModal({ onCreate, onClose }: NewFileModalProps) {
               style={{
                 flex: 1,
                 padding: "5px 8px",
-                border: "1px solid #d1d5db",
+                border: "1px solid var(--ol-border-hover)",
                 borderRadius: 4,
                 fontSize: 12,
                 fontFamily: "inherit",
                 outline: "2px solid transparent",
               }}
             />
-            <span style={{ fontSize: 12, color: "#94a3b8" }}>.omni</span>
+            <span style={{ fontSize: 12, color: "var(--ol-text-muted)" }}>.omni</span>
           </div>
         </div>
 
@@ -110,7 +110,7 @@ export function NewFileModal({ onCreate, onClose }: NewFileModalProps) {
         <div
           style={{
             fontSize: 12,
-            color: "#94a3b8",
+            color: "var(--ol-text-muted)",
             marginBottom: 12,
             padding: "2px 0",
           }}
@@ -126,9 +126,9 @@ export function NewFileModal({ onCreate, onClose }: NewFileModalProps) {
             style={{
               padding: "5px 14px",
               fontSize: 12,
-              border: "1px solid #d1d5db",
+              border: "1px solid var(--ol-border-hover)",
               borderRadius: 6,
-              background: "#fff",
+              background: "var(--ol-surface)",
               cursor: "pointer",
               fontFamily: "inherit",
             }}
@@ -143,8 +143,8 @@ export function NewFileModal({ onCreate, onClose }: NewFileModalProps) {
               fontSize: 12,
               border: "none",
               borderRadius: 6,
-              background: newFileName.trim() ? "#6366F1" : "#d1d5db",
-              color: "#fff",
+              background: newFileName.trim() ? "var(--ol-color-primary)" : "var(--ol-border-hover)",
+              color: "var(--ol-surface)",
               cursor: newFileName.trim() ? "pointer" : "default",
               fontWeight: 600,
               fontFamily: "inherit",

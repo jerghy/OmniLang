@@ -137,7 +137,7 @@ export function OmniViewRenderer() {
       ) : (
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "center",
-          height: "100%", color: "#64748b", fontSize: 13,
+          height: "100%", color: "var(--ol-text-secondary)", fontSize: 13,
         }}>
           空画布 — 从组件面板拖入元素
         </div>

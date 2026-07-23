@@ -40,7 +40,7 @@ export function ArchitecturePreview() {
         width: "100%",
         height: "100%",
         border: "none",
-        background: "#fff",
+        background: "var(--ol-surface)",
       }}
       title="App Preview"
       sandbox="allow-scripts"

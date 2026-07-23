@@ -78,7 +78,7 @@ export const BackgroundCard = React.memo(function BackgroundCard({
   const isHex = /^#[0-9a-fA-F]{6}$/.test(bgValue);
   const summary = bgValue || "none";
 
-  const hex = isHex ? bgValue : "#ffffff";
+  const hex = isHex ? bgValue : "var(--ol-surface)";
   const hsv = hexToHsv(hex);
   const hsvColor: HSVColor = { h: hsv.h, s: hsv.s, v: hsv.v, a: 1 };
 
@@ -123,7 +123,7 @@ export const BackgroundCard = React.memo(function BackgroundCard({
                 height: 18,
                 borderRadius: "var(--dp-radius-sm, 6px)",
                 background: bgValue,
-                border: "1px solid var(--dp-border, #e8e5f2)",
+                border: "1px solid var(--dp-border, var(--ol-border))",
                 flexShrink: 0,
               }}
             />
@@ -131,7 +131,7 @@ export const BackgroundCard = React.memo(function BackgroundCard({
               style={{
                 fontSize: 12,
                 fontFamily: "var(--dp-font-mono, monospace)",
-                color: "var(--dp-text, #1e1b4b)",
+                color: "var(--dp-text, var(--ol-gray-700))",
               }}
             >
               {bgValue}

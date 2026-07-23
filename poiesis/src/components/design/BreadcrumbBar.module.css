@@ -3,8 +3,8 @@
   height: 24px;
   align-items: center;
   padding: 0 12px;
-  background: #f8fafc;
-  border-top: 1px solid #e2e8f0;
+  background: var(--ol-gray-50);
+  border-top: 1px solid var(--ol-border);
   font-size: 12px;
   gap: 4px;
 }
@@ -16,19 +16,19 @@
 }
 
 .separator {
-  color: #cbd5e1;
+  color: var(--ol-border-hover);
 }
 
 .crumbLink {
-  color: #6366f1;
+  color: var(--ol-color-primary);
   cursor: pointer;
 }
 
 .crumbLast {
-  color: #475569;
+  color: var(--ol-text-secondary);
   cursor: default;
 }
 
 .emptyMsg {
-  color: #94a3b8;
+  color: var(--ol-text-muted);
 }

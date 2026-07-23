@@ -1,19 +1,17 @@
-## Omni Animation Library
+## CodeCard Editor: Lexical Rewrite
 > branch: main | start: 2026-07-23
-> plan: docs/superpowers/plans/2026-07-23-omni-animation-library-plan.md
-> BASE: 3db3f68e558b98290c0c78b6464df3fdb12254bd
-Task 1: complete (commit 6aff038, review clean — Spec ✅ Quality ✅)
-Task 2: complete (commit a6d8230, review clean — Spec ✅ Quality ✅)
-Task 3: complete (commit a647139, review clean — Spec ✅ Quality ✅, tsc passes)
-Task 4: complete (commit 0e10ba4, cargo check passes, 81 Omni.animate calls emitted)
-Task 5: complete (commit b6d9384, cargo check passes, 11 trigger types updated)
-Task 6: complete (commit 61f24ed, cargo check passes, 6 files, 0 old patterns)
-Task 7: complete (commit f23a8b4, 444/444 tests, React bug fixed)
-Task 8: complete (commit 10723cf, cargo check + test pass, 1-line change)
-Task 9: complete (commit 6d952cd, cleanup + bundle build, 0 old patterns)
-FINAL STATUS: ALL 9 TASKS COMPLETE
-Commits: 9 (6aff038..6d952cd)
-Library: 11 TS files, tsc clean
-OmniView: 0 AnimationPlayer refs, 81 Omni.animate calls
-React: import { animate } + bug fixed
-Deleted: motion-runtime.js (1434 lines)
+> plan: docs/superpowers/plans/2026-07-23-codecard-editor-lexical.md
+> BASE: a2d87132fd6de533ca6b613a7a060f240c2eefa3
+Task 1: complete (commit a2d8713..d5b72c3, review clean — Spec ✅ Quality ✅, 2 minor notes)
+Task 2: complete (commit d5b72c3..3e74c83, review clean — Spec ✅ Quality ✅)
+Task 3: complete (commit 3e74c83..8ceef0e, review clean — Spec ✅ Quality ✅, 3 LOW notes)
+Task 4: complete (commit 8ceef0e..9d02ccc, review clean — Spec ✅ Quality ✅)
+Task 5: complete (commit 9d02ccc..3153a59, review clean — Spec ✅ Quality ✅)
+Task 6: complete (commit 3153a59..88e873a, review clean — Spec ✅ Quality ✅)
+Task 7: complete (commit 88e873a..5884ef1, 2 commits, review clean — Spec ✅ Quality ✅, 3 fixes applied)
+Task 8: complete (commit 5884ef1..a0e3557, review clean — Spec ✅ Quality ✅)
+Task 9: complete (commit a0e3557..d60ef00, review clean — Spec ✅ Quality ✅, Approved)
+Task 10: complete (commit d60ef00..b882945, conditionally approved — 1 Important + 1 Minor to fix)
+Task 11: complete (old cards directory removed, no stale references)
+Task 12: complete (commit 76e7a63..HEAD, 4 integration tests, found+fixed parser off-by-one, 141/141 passed)
+Task 13: complete (commit 76e7a63..6ba9c32, E2E skeleton created)

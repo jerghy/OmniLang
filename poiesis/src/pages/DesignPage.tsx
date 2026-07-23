@@ -49,7 +49,7 @@ class PanelErrorBoundary extends Component<{ children: ReactNode; name: string }
   render() {
     if (this.state.error) {
       return (
-        <div style={{ padding: 16, color: "#b91c1c", fontSize: 12, background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 4, margin: 4 }}>
+        <div style={{ padding: 16, color: "var(--ol-color-danger-hover)", fontSize: 12, background: "var(--ol-color-danger-subtle)", border: "1px solid var(--ol-color-danger-muted)", borderRadius: 4, margin: 4 }}>
           <strong>⚠ {this.props.name}</strong>
           <div style={{ marginTop: 4, opacity: 0.7 }}>{this.state.error.message}</div>
         </div>
@@ -57,6 +57,87 @@ class PanelErrorBoundary extends Component<{ children: ReactNode; name: string }
     }
     return this.props.children;
   }
+}
+
+function buildCodeSource(showCode: boolean): string {
+  if (!showCode) return "";
+  const state = usePoiesisStore.getState();
+  const activeTab = state.designPage.openTabs.find((t) => t.id === state.designPage.activeTabId);
+  if (!activeTab) return "";
+  if (activeTab.tabType === "design") {
+    return state.activeDesign ? emitDesignSource(state.activeDesign) : "";
+  }
+  if (activeTab.tabType === "store") {
+    const storeDef = state.storeDefs[activeTab.componentName];
+    return storeDef ? emitStoreDefinition(storeDef) : "// No store definition found";
+  }
+  const componentName = activeTab.componentName || "main";
+  const prefix = `${componentName}.`;
+  const inlineStores: Array<unknown> = [];
+  for (const [key, def] of Object.entries(state.inlineStoreDefs)) {
+    if (key.startsWith(prefix)) inlineStores.push(def);
+  }
+  const codeTabs = [{ id: "code", type: "logic" as const, label: "Preview", icon: "📄",
+    graph: { elements: state.elements, wires: state.wires }, variables: [] }];
+  const result = componentName === "main"
+    ? generateOmniFiles({
+        designElements: state.elements, designWires: state.wires, codeTabs,
+        componentName: "main", rootOrder: state.rootOrder,
+        filePath: activeTab.filePath || "src/main.omni",
+        designName: state.activeDesign?.name, inlineStores,
+      })
+    : generateOmniFragment({
+        componentName, designElements: state.elements, designWires: state.wires,
+        codeTabs, rootOrder: state.rootOrder, fromDefinition: true, inlineStores,
+      });
+  const fileKey = Object.keys(result.value || {}).find((k) => k.includes(componentName));
+  const files = result.value as Record<string, string> | undefined;
+  return (fileKey && files?.[fileKey]) || "// Failed to generate source";
+}
+
+function useProjectPanel(onProjectOpened?: (path: string, name: string) => void) {
+  const [showProjectPanel, setShowProjectPanel] = useState(false);
+  const [recentProjects, setRecentProjects] = useState<RecentProject[]>([]);
+
+  useEffect(() => {
+    if (showProjectPanel) {
+      api.project.getRecentProjects().then(setRecentProjects).catch((e) => { console.warn("Failed to load recent projects", e); });
+    }
+  }, [showProjectPanel]);
+
+  const handleOpenProject = useCallback(async () => {
+    try {
+      const folder = await api.project.openFolderDialog();
+      if (!folder) return;
+      const name = folder.replace(/\\/g, "/").split("/").pop() || folder;
+      await api.project.setProjectDir(folder);
+      await api.project.addRecentProject(name, folder);
+      setShowProjectPanel(false);
+      onProjectOpened?.(folder, name);
+    } catch (e) {
+      /* ignore */
+    }
+  }, [onProjectOpened]);
+
+  const handleOpenRecent = useCallback(async (proj: RecentProject) => {
+    try {
+      await api.project.setProjectDir(proj.path);
+      await api.project.addRecentProject(proj.name, proj.path);
+      setShowProjectPanel(false);
+      onProjectOpened?.(proj.path, proj.name);
+    } catch (e) {
+      /* ignore */
+    }
+  }, [onProjectOpened]);
+
+  const handleRemoveRecent = useCallback(async (e: React.MouseEvent, path: string) => {
+    e.stopPropagation();
+    await api.project.removeRecentProject(path);
+    const list = await api.project.getRecentProjects();
+    setRecentProjects(list);
+  }, []);
+
+  return { showProjectPanel, setShowProjectPanel, recentProjects, handleOpenProject, handleOpenRecent, handleRemoveRecent };
 }
 
 export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: string, name: string) => void }) {
@@ -104,47 +185,8 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
 
   const codeInlineStores = usePoiesisStore((s) => s.inlineStoreDefs);
 
-  const codeSource = useMemo(() => {
-    if (!showCode) return "";
-    const state = usePoiesisStore.getState();
-    const activeTab = state.designPage.openTabs.find((t) => t.id === state.designPage.activeTabId);
-    if (!activeTab) return "";
-    if (activeTab.tabType === "design") {
-      return state.activeDesign ? emitDesignSource(state.activeDesign) : "";
-    }
-    if (activeTab.tabType === "store") {
-      const storeDef = state.storeDefs[activeTab.componentName];
-      return storeDef ? emitStoreDefinition(storeDef) : "// No store definition found";
-    }
-    // component tab
-    const componentName = activeTab.componentName || "main";
-    // Collect inline stores belonging to this component
-    const prefix = `${componentName}.`;
-    const inlineStores: Array<unknown> = [];
-    for (const [key, def] of Object.entries(state.inlineStoreDefs)) {
-      if (key.startsWith(prefix)) {
-        inlineStores.push(def);
-      }
-    }
-    const codeTabs = [{ id: "code", type: "logic" as const, label: "Preview", icon: "📄",
-      graph: { elements: state.elements, wires: state.wires }, variables: [] }];
-    const result = componentName === "main"
-      ? generateOmniFiles({
-          designElements: state.elements, designWires: state.wires, codeTabs,
-          componentName: "main", rootOrder: state.rootOrder,
-          filePath: activeTab.filePath || "src/main.omni",
-          designName: state.activeDesign?.name,
-          inlineStores,
-        })
-      : generateOmniFragment({
-          componentName, designElements: state.elements, designWires: state.wires,
-          codeTabs, rootOrder: state.rootOrder, fromDefinition: true,
-          inlineStores,
-        });
-    const fileKey = Object.keys(result.value || {}).find((k) => k.includes(componentName));
-    const files = result.value as Record<string, string> | undefined;
-    return (fileKey && files?.[fileKey]) || "// Failed to generate source";
-  }, [showCode, codeElements, codeWires, codeRootOrder, codeActiveDesign, codeStoreDefs, codeActiveTabId, codeOpenTabs, codeComponentDefs, codeInlineStores]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const codeSource = useMemo(() => buildCodeSource(showCode), [showCode, codeElements, codeWires, codeRootOrder, codeActiveDesign, codeStoreDefs, codeActiveTabId, codeOpenTabs, codeComponentDefs, codeInlineStores]);
 
   const codeFileName = useMemo(() => {
     if (!showCode) return "";
@@ -154,46 +196,7 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
   }, [showCode, codeActiveTabId, codeOpenTabs]);
 
   // ── Open Project panel ──
-  const [showProjectPanel, setShowProjectPanel] = useState(false);
-  const [recentProjects, setRecentProjects] = useState<RecentProject[]>([]);
-
-  useEffect(() => {
-    if (showProjectPanel) {
-      api.project.getRecentProjects().then(setRecentProjects).catch((e) => { console.warn("Failed to load recent projects", e); });
-    }
-  }, [showProjectPanel]);
-
-  const handleOpenProject = useCallback(async () => {
-    try {
-      const folder = await api.project.openFolderDialog();
-      if (!folder) return;
-      const name = folder.replace(/\\/g, "/").split("/").pop() || folder;
-      await api.project.setProjectDir(folder);
-      await api.project.addRecentProject(name, folder);
-      setShowProjectPanel(false);
-      onProjectOpened?.(folder, name);
-    } catch (e) {
-      /* ignore */
-    }
-  }, [onProjectOpened]);
-
-  const handleOpenRecent = useCallback(async (proj: RecentProject) => {
-    try {
-      await api.project.setProjectDir(proj.path);
-      await api.project.addRecentProject(proj.name, proj.path);
-      setShowProjectPanel(false);
-      onProjectOpened?.(proj.path, proj.name);
-    } catch (e) {
-      /* ignore */
-    }
-  }, [onProjectOpened]);
-
-  const handleRemoveRecent = useCallback(async (e: React.MouseEvent, path: string) => {
-    e.stopPropagation();
-    await api.project.removeRecentProject(path);
-    const list = await api.project.getRecentProjects();
-    setRecentProjects(list);
-  }, []);
+  const { showProjectPanel, setShowProjectPanel, recentProjects, handleOpenProject, handleOpenRecent, handleRemoveRecent } = useProjectPanel(onProjectOpened);
 
   // ── @dnd-kit sensors (unified context handles both palette and tree drags) ──
   const pointerSensor = useSensor(PointerSensor, {
@@ -214,7 +217,7 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
               : "1fr",
           gridTemplateRows: "36px 32px 1fr 24px",
           height: "100vh",
-          background: "#f8fafc",
+          background: "var(--ol-gray-50)",
         }}
       >
         {/* Tab bar spans full width */}
@@ -245,8 +248,8 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
             display: "flex",
             flexDirection: "column",
             overflow: "hidden",
-            background: "#fff",
-            borderRight: "1px solid #e2e8f0",
+            background: "var(--ol-surface)",
+            borderRight: "1px solid var(--ol-border)",
           }}
         >
           <div style={{ flex: "0 0 auto", maxHeight: "50%", overflow: "auto" }}>
@@ -254,7 +257,7 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
               <ComponentPalette />
             </PanelErrorBoundary>
           </div>
-          <div style={{ flex: 1, borderTop: "1px solid #e2e8f0", overflow: "auto" }}>
+          <div style={{ flex: 1, borderTop: "1px solid var(--ol-border)", overflow: "auto" }}>
             <PanelErrorBoundary name="组件树">
               <ComponentTree treeDropState={treeDropState} />
             </PanelErrorBoundary>
@@ -269,8 +272,8 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
             gridRow: 3,
             gridColumn: 1,
             overflow: "hidden",
-            background: "#fff",
-            borderRight: "1px solid #e2e8f0",
+            background: "var(--ol-surface)",
+            borderRight: "1px solid var(--ol-border)",
           }}
         >
           <ComponentMembersPanel componentName={activeTab.componentName} />
@@ -285,7 +288,7 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
             overflow: "hidden",
             display: "flex",
             flexDirection: "column",
-            background: "#f1f5f9",
+            background: "var(--ol-gray-100)",
           }}
         >
           {activeTabType === "design" ? (
@@ -340,8 +343,8 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
             gridColumn: 3,
             overflow: "hidden",
             display: "flex",
-            background: "#fff",
-            borderLeft: "1px solid #e2e8f0",
+            background: "var(--ol-surface)",
+            borderLeft: "1px solid var(--ol-border)",
           }}
         >
           <ContextInspector />
@@ -389,57 +392,60 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
 
       {/* ── Open Project Panel (modal overlay) ── */}
       {showProjectPanel && (
-        <div className={styles.modalOverlay} onClick={() => setShowProjectPanel(false)}>
-          <div onClick={(e) => e.stopPropagation()} className={styles.modalContent}>
-            <div className={styles.modalTitle}>
-              打开项目
-            </div>
-
-            {/* Open folder button */}
-            <button type="button" onClick={handleOpenProject} className={styles.openFolderBtn}>
-              <span className={styles.openFolderIcon}>📂</span>
-              <span>打开项目</span>
-            </button>
-
-            {/* Recent projects */}
-            {recentProjects.length > 0 && (
-              <div className={styles.recentSection}>
-                <div className={styles.recentLabel}>
-                  最近打开
-                </div>
-                <div className={styles.recentList}>
-                  {recentProjects.map((proj) => (
-                    <button type="button"
-                      key={proj.path}
-                      onClick={(e) => { if ((e.target as HTMLElement).getAttribute('data-action') === 'remove-recent') { handleRemoveRecent(e as unknown as React.MouseEvent, proj.path); } else { handleOpenRecent(proj); } }}
-                      className={styles.recentItemBtn}
-                    >
-                      <span className={styles.recentItemIcon}>📁</span>
-                      <div className={styles.recentItemInfo}>
-                        <div className={styles.recentItemName}>
-                          {proj.name}
-                        </div>
-                        <div className={styles.recentItemPath}>
-                          {proj.path}
-                        </div>
-                      </div>
-                      <span data-action="remove-recent" className={styles.recentItemRemove} title="移除">
-                        ×
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Close button */}
-            <button type="button" onClick={() => setShowProjectPanel(false)} className={styles.closePanelBtn}>
-              取消
-            </button>
-          </div>
-        </div>
+        <ProjectPanelModal
+          recentProjects={recentProjects}
+          onOpenProject={handleOpenProject}
+          onOpenRecent={handleOpenRecent}
+          onRemoveRecent={handleRemoveRecent}
+          onClose={() => setShowProjectPanel(false)}
+        />
       )}
     </DndContext>
+  );
+}
+
+/** Project panel modal — extracted to keep DesignPage under 300 lines. */
+function ProjectPanelModal({
+  recentProjects, onOpenProject, onOpenRecent, onRemoveRecent, onClose,
+}: {
+  recentProjects: RecentProject[];
+  onOpenProject: () => void;
+  onOpenRecent: (proj: RecentProject) => void;
+  onRemoveRecent: (e: React.MouseEvent, path: string) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className={styles.modalOverlay} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className={styles.modalContent}>
+        <div className={styles.modalTitle}>打开项目</div>
+        <button type="button" onClick={onOpenProject} className={styles.openFolderBtn}>
+          <span className={styles.openFolderIcon}>📂</span>
+          <span>打开项目</span>
+        </button>
+        {recentProjects.length > 0 && (
+          <div className={styles.recentSection}>
+            <div className={styles.recentLabel}>最近打开</div>
+            <div className={styles.recentList}>
+              {recentProjects.map((proj) => (
+                <button type="button"
+                  key={proj.path}
+                  onClick={(e) => { if ((e.target as HTMLElement).getAttribute('data-action') === 'remove-recent') { onRemoveRecent(e as unknown as React.MouseEvent, proj.path); } else { onOpenRecent(proj); } }}
+                  className={styles.recentItemBtn}
+                >
+                  <span className={styles.recentItemIcon}>📁</span>
+                  <div className={styles.recentItemInfo}>
+                    <div className={styles.recentItemName}>{proj.name}</div>
+                    <div className={styles.recentItemPath}>{proj.path}</div>
+                  </div>
+                  <span data-action="remove-recent" className={styles.recentItemRemove} title="移除">×</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        <button type="button" onClick={onClose} className={styles.closePanelBtn}>取消</button>
+      </div>
+    </div>
   );
 }
 

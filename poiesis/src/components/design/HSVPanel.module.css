@@ -20,7 +20,7 @@
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  border: 2px solid #fff;
+  border: 2px solid var(--ol-surface);
   box-shadow: 0 0 0 1px rgba(0,0,0,0.3), inset 0 0 0 1px rgba(0,0,0,0.3);
   pointer-events: none;
   box-sizing: border-box;
@@ -36,7 +36,7 @@
   position: absolute;
   top: -1px;
   width: 10px;
-  border: 2px solid #fff;
+  border: 2px solid var(--ol-surface);
   border-radius: 3px;
   box-shadow: 0 0 0 1px rgba(0,0,0,0.3);
   pointer-events: none;
@@ -55,7 +55,7 @@
   position: absolute;
   top: -1px;
   width: 10px;
-  border: 2px solid #fff;
+  border: 2px solid var(--ol-surface);
   border-radius: 3px;
   box-shadow: 0 0 0 1px rgba(0,0,0,0.3);
   pointer-events: none;
@@ -79,7 +79,7 @@
 .hexInput {
   width: 72px;
   padding: 2px 4px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--ol-border-hover);
   border-radius: 3px;
   font-family: monospace;
   font-size: 12px;
@@ -87,5 +87,5 @@
 }
 
 .opacityLabel {
-  color: #666;
+  color: var(--ol-text-secondary);
 }

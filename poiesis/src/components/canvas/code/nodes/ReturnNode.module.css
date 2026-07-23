@@ -1,14 +1,14 @@
-/* ReturnNode.module.css — extracted from inline styles for react-doctor compliance */
+/* ReturnNode.module.css — uses --ol-* design tokens */
 
 .node {
-  background: #FFF1F2;
-  border: 2px solid #F43F5E;
-  border-radius: 4px 4px 12px 12px;
-  padding: 8px 14px;
+  background: var(--ol-color-danger-subtle);
+  border: 2px solid var(--ol-color-danger);
+  border-radius: var(--ol-radius-sm) var(--ol-radius-sm) var(--ol-radius-xl) var(--ol-radius-xl);
+  padding: var(--ol-space-2) 14px;
   min-width: 120px;
   text-align: center;
-  font-size: 12px;
-  font-weight: 600;
-  color: #BE123C;
+  font-size: var(--ol-font-size-12);
+  font-weight: var(--ol-font-weight-600);
+  color: var(--ol-color-danger-active);
   cursor: pointer;
 }

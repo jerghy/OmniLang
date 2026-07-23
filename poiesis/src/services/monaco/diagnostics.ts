@@ -1,8 +1,7 @@
 // WASM compiler diagnostics → Monaco markers integration.
 // Uses the WASM OmniCompiler class for fast parse+semantic+lint (no codegen).
 
-import { editor, MarkerSeverity } from "monaco-editor";
-import type { editor as IEditor } from "monaco-editor";
+import type { editor as IEditor, MarkerSeverity } from "monaco-editor";
 
 // ── Diagnostic types (matches WASM Diagnostic shape) ────────────────
 
@@ -20,18 +19,18 @@ export interface WasmDiagnostic {
 
 // ── OmniCompiler wrapper ────────────────────────────────────────────
 
-let omniCompilerInstance: import("../../wasm/omnilang.js").OmniCompiler | null =
+let omniCompilerInstance: import("../../wasm/omnilang_wasm.js").OmniCompiler | null =
   null;
 
 /**
  * Get or create the stateful OmniCompiler WASM instance.
  * The WASM must already be initialized via rustCompiler.init().
  */
-export async function getOmniCompiler(): Promise<import("../../wasm/omnilang.js").OmniCompiler | null> {
+export async function getOmniCompiler(): Promise<import("../../wasm/omnilang_wasm.js").OmniCompiler | null> {
   if (omniCompilerInstance) return omniCompilerInstance;
 
   try {
-    const wasmModule = await import("../../wasm/omnilang.js");
+    const wasmModule = await import("../../wasm/omnilang_wasm.js");
     omniCompilerInstance = new wasmModule.OmniCompiler();
     return omniCompilerInstance;
   } catch {
@@ -51,7 +50,7 @@ export async function getOmniCompiler(): Promise<import("../../wasm/omnilang.js"
  * @param allSources Optional map of ALL project .omni sources for multi-file analysis.
  */
 export function runDiagnostics(
-  compiler: import("../../wasm/omnilang.js").OmniCompiler,
+  compiler: import("../../wasm/omnilang_wasm.js").OmniCompiler,
   allSources?: Record<string, string>,
 ): WasmDiagnostic[] {
   try {
@@ -82,19 +81,15 @@ export function runDiagnostics(
 
 // ── Monaco marker mapping ───────────────────────────────────────────
 
-const severityMap: Record<string, MarkerSeverity> = {
-  error: MarkerSeverity.Error,
-  warning: MarkerSeverity.Warning,
-  info: MarkerSeverity.Info,
-};
-
 /**
  * Convert a WASM Diagnostic to a Monaco IMarkerData.
  */
 function wasmDiagnosticToMarker(
   d: WasmDiagnostic,
+  severityMap: Record<string, MarkerSeverity>,
+  fallbackSeverity: MarkerSeverity,
 ): IEditor.IMarkerData {
-  const severity = severityMap[d.severity] ?? MarkerSeverity.Error;
+  const severity = severityMap[d.severity] ?? fallbackSeverity;
   const message = d.suggestion
     ? `${d.message}\n💡 ${d.suggestion}`
     : d.message;
@@ -127,7 +122,7 @@ export async function validateSources(
   sources: Record<string, string>,
 ): Promise<WasmDiagnostic[]> {
   try {
-    const wasmModule = await import("../../wasm/omnilang.js");
+    const wasmModule = await import("../../wasm/omnilang_wasm.js");
     // compile_multi_to_omniview: standalone multi-file with analyse_multi
     // editor_mode=false, debug_mode=false → bare compile, just for validation
     const result = wasmModule.compile_multi_to_omniview(sources, false, false);
@@ -151,11 +146,19 @@ export async function validateSources(
  * @param diagnostics  Array of WASM Diagnostic objects.
  * @param owner  Marker owner ID (default: "omnilang").
  */
-export function applyDiagnostics(
+export async function applyDiagnostics(
   model: IEditor.ITextModel,
   diagnostics: WasmDiagnostic[],
   owner = "omnilang",
-): void {
-  const markers = diagnostics.map(wasmDiagnosticToMarker);
+): Promise<void> {
+  const { editor, MarkerSeverity } = await import("monaco-editor");
+  const severityMap: Record<string, MarkerSeverity> = {
+    error: MarkerSeverity.Error,
+    warning: MarkerSeverity.Warning,
+    info: MarkerSeverity.Info,
+  };
+  const markers = diagnostics.map((d) =>
+    wasmDiagnosticToMarker(d, severityMap, MarkerSeverity.Error),
+  );
   editor.setModelMarkers(model, owner, markers);
 }

@@ -3,8 +3,8 @@
 .tabBar {
   display: flex;
   height: 36px;
-  background: #f1f5f9;
-  border-bottom: 1px solid #e2e8f0;
+  background: var(--ol-gray-100);
+  border-bottom: 1px solid var(--ol-border);
   overflow: auto;
 }
 
@@ -15,7 +15,7 @@
   padding: 0 12px;
   cursor: pointer;
   font-size: 12px;
-  border-right: 1px solid #e2e8f0;
+  border-right: 1px solid var(--ol-border);
   white-space: nowrap;
   user-select: none;
 }
@@ -25,7 +25,7 @@
   background: none;
   cursor: pointer;
   font-size: 14px;
-  color: #64748b;
+  color: var(--ol-text-secondary);
   padding: 0 2px;
   line-height: 1;
 }
@@ -35,7 +35,7 @@
   background: transparent;
   cursor: pointer;
   font-size: 16px;
-  color: #6366F1;
+  color: var(--ol-color-primary);
   font-weight: 700;
   padding: 0 8px;
   height: 28px;
@@ -45,8 +45,8 @@
 
 .plusMenuDropdown {
   position: fixed;
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--ol-surface);
+  border: 1px solid var(--ol-border);
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0,0,0,0.12);
   z-index: 9999;
@@ -69,7 +69,7 @@
   left: 50%;
   transform: translate(-50%, -50%);
   z-index: 10001;
-  background: #fff;
+  background: var(--ol-surface);
   border-radius: 12px;
   padding: 20px 24px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.2);
@@ -79,9 +79,9 @@
 .cancelBtn {
   padding: 5px 14px;
   font-size: 12px;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--ol-border-hover);
   border-radius: 6px;
-  background: #fff;
+  background: var(--ol-surface);
   cursor: pointer;
 }
 
@@ -90,8 +90,8 @@
   font-size: 12px;
   border: none;
   border-radius: 6px;
-  background: #dc2626;
-  color: #fff;
+  background: var(--ol-color-danger);
+  color: var(--ol-surface);
   cursor: pointer;
   font-weight: 600;
 }

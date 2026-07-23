@@ -49,7 +49,7 @@ export const TokenPickerPopover = forwardRef<HTMLDivElement, TokenPickerPopoverP
                   onClick={() => onSelectToken(t.name)}
                   className={styles.tokenBtn}
                   onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLElement).style.background = "var(--dp-accent-subtle, #eef0ff)";
+                    (e.currentTarget as HTMLElement).style.background = "var(--dp-accent-subtle, var(--ol-color-primary-subtle))";
                   }}
                   onMouseLeave={(e) => {
                     (e.currentTarget as HTMLElement).style.background = "transparent";
@@ -75,7 +75,7 @@ export const TokenPickerPopover = forwardRef<HTMLDivElement, TokenPickerPopoverP
             onClick={onUnlinkToken}
             className={styles.unlinkBtn}
             onMouseEnter={(e) => {
-              (e.currentTarget as HTMLElement).style.background = "#fef2f2";
+              (e.currentTarget as HTMLElement).style.background = "var(--ol-color-danger-subtle)";
             }}
             onMouseLeave={(e) => {
               (e.currentTarget as HTMLElement).style.background = "transparent";

@@ -1,36 +1,36 @@
-# Task 6 Report: OmniView Codegen — Timeline + Remaining Files
+# Task 6 Report: Context-aware autocomplete rules
 
-## Status: COMPLETE
+**Status:** DONE
 
-## Summary
-Rewrote 6 OmniView codegen files to emit calls to the @omni/animation library (Omni.animate, Omni.timeline, Omni.flipBefore/After) instead of the old AnimationPlayer/setTimeout/kill/resume/seek patterns.
+**Files created:**
+- `poiesis/src/components/canvas/code/lexical/autocomplete/autocomplete-rules.ts`
+- `poiesis/src/components/canvas/code/lexical/autocomplete/__tests__/autocomplete-rules.test.ts`
 
-## Files Modified
+**Test results:**
 
-| File | Changes |
-|------|---------|
-| `omnilang/src/codegen/omniview/timeline.rs` | Rewrote `emit_timeline_js()`: setTimeout chains replaced with `steps.push({el, keyframes, options, at})` + `Omni.timeline(steps)`. Kill function uses `anims.forEach(a => a.cancel())`. All timeline cursor math preserved. |
-| `omnilang/src/codegen/omniview/html.rs` | @driven-by: `player.seek(progress)` -> `anim.currentTime = progress * dur`. @paused: `player.resume()` -> `anim.play()`. Stale comment updated. |
-| `omnilang/src/codegen/omniview/component_html.rs` | Comment only (code already used `__omni_motion_{name}` factory). |
-| `omnilang/src/codegen/omniview/editor.rs` | Wait-mode animation: `leavePlayer.completed/playing` -> native `playState`/`.finished` Promise. `enterPlayer.config?.paused` -> `enterPlayer.playState !== "paused"`. |
-| `omnilang/src/codegen/omniview/store.rs` | `.kill()` -> `.cancel()` in @enter replay. Stale comment updated. |
-| `omnilang/src/codegen/omniview/list_render.rs` | Added `Omni.flipBefore(parent)` and `Omni.flipAfter(parent)` for list re-render FLIP animations. |
-
-## Verification
-
-- `cargo check`: PASS (same 12 pre-existing warnings as before)
-- Full project build (`omnic build test/projects/learn-omniview --target omniview`): PASS
-- Old patterns in output (`AnimationPlayer`, `.seek(`, `.resume(`, `.kill(`): 0 occurrences
-- New patterns in output: `Omni.timeline` (6), `Omni.flip*` (2), `Omni.animate` (81), `__omni_motion_` (185)
-
-## Commit
-
+## Step 2 (RED) -- FAIL:
 ```
-61f24ed refactor(omnilang): rewrite remaining OmniView codegen files for @omni/animation
+ RUN  v4.1.9
+ FAIL  src/components/canvas/code/lexical/autocomplete/__tests__/autocomplete-rules.test.ts
+Error: Failed to resolve import "../autocomplete-rules" ... Does the file exist?
+ Tests:  0 tests
 ```
 
-## Concerns
+## Step 4 (GREEN) -- all passed:
+```
+ RUN  v4.1.9
 
-- `__omni_getAnimation` in list_render.rs (used for @leave on @for items) references a runtime helper that must be defined in the @omni/animation runtime library for key-based leave animations to work.
-- Path/motion data in timeline steps like `"path": "M0,0 C..."` is emitted inline within `options: {duration, easing, "path": "..."}`. The Omni.timeline runtime must handle path-based keyframe options.
-- FLIP animations require `Omni.flipBefore/After` to be defined in the runtime library.
+ Test Files  1 passed (1)
+      Tests  6 passed (6)
+```
+
+**Commit:** `88e873a` -- "feat(poiesis): add context-aware autocomplete rules with prefix filtering"
+
+**Summary:**
+- Implemented `AutocompleteItem` and `AutocompleteContext` interfaces
+- `getAutocompleteItems(token, context)` returns filtered candidates based on:
+  - `slotType === "type"` -- type names (i32, String, f64, bool, etc.)
+  - `slotType === "value" | "condition" | "arg"` -- expression literals (true, false, null)
+  - Default -- statement-level items (let, if, while, for, return, etc.)
+- Prefix filtering via `label.toLowerCase().startsWith(lower)`
+- `detectCardKindFromItem()` maps autocomplete kinds to `CardKind` for card creation

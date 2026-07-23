@@ -9,11 +9,11 @@
 
 .editBtn {
   background: transparent;
-  color: #6B7280;
+  color: var(--ol-text-secondary);
 }
 .editBtn:hover {
-  background: var(--color-primary-light);
-  color: var(--color-primary);
+  background: var(--ol-color-primary-subtle);
+  color: var(--ol-color-primary);
 }
 
 .deleteBtn {
@@ -21,7 +21,7 @@
   opacity: 0.5;
 }
 .deleteBtn:hover {
-  background: var(--color-danger-light);
+  background: var(--ol-color-danger-subtle);
   opacity: 1;
 }
 
@@ -36,7 +36,7 @@
   font-weight: 600;
   margin-bottom: 6px;
   font-size: 12px;
-  color: #6b7280;
+  color: var(--ol-text-secondary);
   text-transform: uppercase;
   display: flex;
   align-items: center;
@@ -46,7 +46,7 @@
 .searchInput {
   padding: 4px 8px;
   font-size: 12px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--ol-border);
   border-radius: 4px;
   margin-bottom: 6px;
   outline: 2px solid transparent;
@@ -60,10 +60,10 @@
   margin-bottom: 8px;
   font-size: 12px;
   font-weight: 600;
-  border: 1px dashed #4f46e5;
+  border: 1px dashed var(--ol-color-primary-hover);
   border-radius: 4px;
-  background: #eef2ff;
-  color: #4f46e5;
+  background: var(--ol-color-primary-subtle);
+  color: var(--ol-color-primary-hover);
   cursor: pointer;
 }
 
@@ -89,7 +89,7 @@
   left: 50%;
   transform: translate(-50%, -50%);
   z-index: 9999;
-  background: #fff;
+  background: var(--ol-surface);
   border-radius: 12px;
   padding: 20px 24px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
@@ -101,8 +101,8 @@
   font-size: 12px;
   border: none;
   border-radius: 6px;
-  background: #4f46e5;
-  color: #fff;
+  background: var(--ol-color-primary-hover);
+  color: var(--ol-surface);
   cursor: pointer;
   font-weight: 600;
 }

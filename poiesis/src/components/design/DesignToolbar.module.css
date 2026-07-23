@@ -1,46 +1,46 @@
-/* DesignToolbar.module.css — extracted from inline styles for react-doctor compliance */
+/* DesignToolbar.module.css — uses --ol-* design tokens */
 
 .toolbar {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 0 12px;
-  background: #fff;
-  border-bottom: 1px solid #e2e8f0;
+  gap: var(--ol-space-1p5);
+  padding: 0 var(--ol-space-3);
+  background: var(--ol-surface);
+  border-bottom: 1px solid var(--ol-border);
 }
 
 .toolBtn {
-  padding: 2px 8px;
-  font-size: 13px;
+  padding: var(--ol-space-0p5) var(--ol-space-2);
+  font-size: var(--ol-font-size-13);
   border: 1px solid transparent;
-  border-radius: 4px;
+  border-radius: var(--ol-radius-sm);
   background: transparent;
   cursor: pointer;
   line-height: 1;
 }
 
 .saveBtn {
-  padding: 2px 8px;
-  font-size: 13px;
+  padding: var(--ol-space-0p5) var(--ol-space-2);
+  font-size: var(--ol-font-size-13);
   border: 1px solid transparent;
-  border-radius: 4px;
+  border-radius: var(--ol-radius-sm);
   background: transparent;
   line-height: 1;
 }
 
 .codeBtn {
-  padding: 2px 10px;
-  font-size: 12px;
-  border-radius: 4px;
+  padding: var(--ol-space-0p5) var(--ol-space-2p5);
+  font-size: var(--ol-font-size-12);
+  border-radius: var(--ol-radius-sm);
   cursor: pointer;
   line-height: 1;
-  margin-left: 2px;
+  margin-left: var(--ol-space-0p5);
 }
 
 .errorText {
-  margin-left: 8px;
-  font-size: 12px;
-  color: #dc2626;
+  margin-left: var(--ol-space-2);
+  font-size: var(--ol-font-size-12);
+  color: var(--ol-color-danger);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

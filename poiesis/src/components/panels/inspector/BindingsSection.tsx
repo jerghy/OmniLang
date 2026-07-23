@@ -41,7 +41,7 @@ const CATEGORY_ORDER: SignalPickerItem["category"][] = [
 const sectionHeader: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 600,
-  color: "#6b7280",
+  color: "var(--ol-text-secondary)",
   textTransform: "uppercase",
   marginBottom: 6,
 };
@@ -58,8 +58,8 @@ const badgeStyle: React.CSSProperties = {
   fontWeight: 600,
   padding: "2px 6px",
   borderRadius: 4,
-  background: "#e0e7ff",
-  color: "#3730a3",
+  background: "var(--ol-color-primary-subtle)",
+  color: "var(--ol-color-primary-active)",
   fontFamily: "var(--dp-font-mono, monospace)",
   flexShrink: 0,
 };
@@ -68,12 +68,12 @@ const signalBtnStyle: React.CSSProperties = {
   flex: 1,
   fontSize: 12,
   padding: "3px 6px",
-  border: "1px solid #e2e8f0",
+  border: "1px solid var(--ol-border)",
   borderRadius: 4,
-  background: "#fff",
+  background: "var(--ol-surface)",
   cursor: "pointer",
   textAlign: "left" as const,
-  color: "#1e293b",
+  color: "var(--ol-gray-800)",
   fontFamily: "var(--dp-font-mono, monospace)",
   overflow: "hidden",
   textOverflow: "ellipsis",
@@ -86,7 +86,7 @@ const removeBtnStyle: React.CSSProperties = {
   cursor: "pointer",
   fontSize: 14,
   padding: "0 4px",
-  color: "#94a3b8",
+  color: "var(--ol-text-muted)",
   lineHeight: 1,
 };
 
@@ -96,7 +96,7 @@ const addBtnStyle: React.CSSProperties = {
   cursor: "pointer",
   fontSize: 14,
   padding: "0 2px",
-  color: "#6366f1",
+  color: "var(--ol-color-primary)",
   lineHeight: 1,
   fontWeight: 700,
 };
@@ -104,8 +104,8 @@ const addBtnStyle: React.CSSProperties = {
 const popoverStyle: React.CSSProperties = {
   position: "fixed",
   zIndex: 1000,
-  background: "#fff",
-  border: "1px solid #e2e8f0",
+  background: "var(--ol-surface)",
+  border: "1px solid var(--ol-border)",
   borderRadius: 6,
   boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
   maxHeight: 240,
@@ -127,15 +127,15 @@ const categoryHeaderStyle: React.CSSProperties = {
   padding: "3px 10px",
   fontSize: 12,
   fontWeight: 600,
-  color: "#94a3b8",
+  color: "var(--ol-text-muted)",
   textTransform: "uppercase",
-  background: "#f8fafc",
-  borderBottom: "1px solid #f1f5f9",
+  background: "var(--ol-gray-50)",
+  borderBottom: "1px solid var(--ol-gray-100)",
 };
 
 const emptyStyle: React.CSSProperties = {
   fontSize: 12,
-  color: "#94a3b8",
+  color: "var(--ol-text-muted)",
   padding: "4px 0",
 };
 
@@ -251,7 +251,7 @@ export function BindingsSection({ element, signalItems }: BindingsSectionProps) 
             <button type="button"
               style={{
                 ...signalBtnStyle,
-                color: signalName ? "#1e293b" : "#94a3b8",
+                color: signalName ? "var(--ol-gray-800)" : "var(--ol-text-muted)",
                 fontStyle: signalName ? "normal" : "italic",
               }}
               onClick={(e) => {
@@ -335,7 +335,7 @@ function SignalPickerPopover({ items, position, onSelect, onClose }: SignalPicke
             width: "100%",
             padding: "3px 6px",
             fontSize: 12,
-            border: "1px solid #e2e8f0",
+            border: "1px solid var(--ol-border)",
             borderRadius: 4,
             outline: "2px solid transparent",
             boxSizing: "border-box",
@@ -365,22 +365,22 @@ function SignalPickerPopover({ items, position, onSelect, onClose }: SignalPicke
                 onClick={() => onSelect(item)}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(item); } }}
                 onMouseEnter={(e) => {
-                  (e.target as HTMLElement).style.background = "#eef2ff";
+                  (e.target as HTMLElement).style.background = "var(--ol-color-primary-subtle)";
                 }}
                 onMouseLeave={(e) => {
                   (e.target as HTMLElement).style.background = "transparent";
                 }}
               >
                 <span>{item.name}</span>
-                <span style={{ color: "#94a3b8", fontSize: 12 }}>{item.type}</span>
-              </div>
+                <span style={{ color: "var(--ol-text-muted)", fontSize: 12 }}>{item.type}</span>
+              </button>
             ))}
           </div>
         );
       })}
 
       {filtered.length === 0 && (
-        <div style={{ padding: "8px 10px", fontSize: 12, color: "#94a3b8", textAlign: "center" }}>
+        <div style={{ padding: "8px 10px", fontSize: 12, color: "var(--ol-text-muted)", textAlign: "center" }}>
           无匹配信号
         </div>
       )}

@@ -19,12 +19,12 @@ export const ArtboardHeader = React.memo(function ArtboardHeader() {
           if (preset) setDevicePreset(preset);
         }}
         style={{
-          border: "1px solid #e2e8f0",
+          border: "1px solid var(--ol-border)",
           borderRadius: 4,
           padding: "2px 6px",
           fontSize: 12,
           fontFamily: "inherit",
-          background: "#fff",
+          background: "var(--ol-surface)",
         }}
       >
         {DEVICE_PRESETS.map((p) => (

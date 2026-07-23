@@ -23,7 +23,7 @@ export interface DesignToken {
   name: string;
   category: string;        // "colors", "spacing", "typography"
   tokenType: TokenType;
-  value: string;           // "#6366f1", "16px"
+  value: string;           // "var(--ol-color-primary)", "16px"
 }
 
 // ── Design Class ─────────────────────────────────────────────

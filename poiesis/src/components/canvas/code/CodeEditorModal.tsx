@@ -37,8 +37,8 @@ async function initMonacoServices(storeDefs?: StoreDefinition[]): Promise<void> 
     return;
   }
   monacoServicesInitialized = true;
-  initOmniLangLanguage();
-  initOmniLangSnippets();
+  await initOmniLangLanguage();
+  await initOmniLangSnippets();
   await injectOmniLangTypes(storeDefs);
 }
 
@@ -84,7 +84,7 @@ export function CodeEditorModal({
   );
 
   useEffect(() => {
-    initMonacoServices(storeDefs);
+    void initMonacoServices(storeDefs);
     // Only re-inject when the set of stores changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeNamesKey]);
@@ -113,7 +113,7 @@ export function CodeEditorModal({
       const diagnostics = runDiagnostics(compiler, mergedSources);
       const model = editor.getModel();
       if (model) {
-        applyDiagnostics(model, diagnostics, "omnilang-wasm");
+        await applyDiagnostics(model, diagnostics, "omnilang-wasm");
       }
     };
 

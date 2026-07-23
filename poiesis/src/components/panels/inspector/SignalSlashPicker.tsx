@@ -180,9 +180,9 @@ export function SignalSlashPicker({
                   className={styles.itemBtn}
                   style={{
                     background: isActive
-                      ? "var(--dp-accent-subtle, #eef0ff)"
+                      ? "var(--dp-accent-subtle, var(--ol-color-primary-subtle))"
                       : "transparent",
-                    color: "var(--dp-text-secondary, #6b6893)",
+                    color: "var(--dp-text-secondary, var(--ol-text-secondary))",
                   }}
                 >
                   <span style={{ fontWeight: 500 }}>{item.name}</span>
@@ -190,7 +190,7 @@ export function SignalSlashPicker({
                     style={{
                       marginLeft: "auto",
                       fontSize: 12,
-                      color: "#64748b",
+                      color: "var(--ol-text-secondary)",
                     }}
                   >
                     {item.type}

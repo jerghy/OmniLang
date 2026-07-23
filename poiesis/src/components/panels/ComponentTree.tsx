@@ -90,7 +90,7 @@ export function ComponentTree({ treeDropState }: ComponentTreeProps) {
           fontWeight: 600,
           marginBottom: 6,
           fontSize: 12,
-          color: "#6b7280",
+          color: "var(--ol-text-secondary)",
           textTransform: "uppercase",
           display: "flex",
           alignItems: "center",
@@ -106,7 +106,7 @@ export function ComponentTree({ treeDropState }: ComponentTreeProps) {
           <div
             style={{
               textAlign: "center",
-              color: "#9CA3AF",
+              color: "var(--ol-text-muted)",
               fontSize: 12,
               padding: "16px 0",
             }}
@@ -308,8 +308,8 @@ function ContextMenu({
         left: adjustedX,
         top: adjustedY,
         zIndex: 9999,
-        background: "#fff",
-        border: "1px solid #E5E7EB",
+        background: "var(--ol-surface)",
+        border: "1px solid var(--ol-border)",
         borderRadius: 8,
         boxShadow: "0 4px 16px rgba(0,0,0,0.15)",
         minWidth: 200,
@@ -364,8 +364,8 @@ function ContextMenu({
                 <span style={{ marginRight: 4, fontSize: 12 }}>🔀</span>
                 条件块
               </span>
-            </div>
-            <div style={{ height: 1, background: "#E5E7EB", margin: "3px 8px" }} />
+            </button>
+            <div style={{ height: 1, background: "var(--ol-border)", margin: "3px 8px" }} />
 
             {Array.from(groupedComponents.entries()).map(([cat, items]) => (
               <div
@@ -377,7 +377,7 @@ function ContextMenu({
                 }}
               >
                 <span>{CATEGORY_LABELS[cat] || cat}</span>
-                <span style={{ color: "#9CA3AF", fontSize: 12 }}>▸</span>
+                <span style={{ color: "var(--ol-text-muted)", fontSize: 12 }}>▸</span>
                 {activeCategory === cat && (
                   <div
                     style={ST.subSubmenu}
@@ -402,7 +402,7 @@ function ContextMenu({
                           </span>
                           {comp.component}
                         </span>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 )}
@@ -503,7 +503,7 @@ function MenuRow({
         alignItems: "center",
         justifyContent: "space-between",
         fontSize: 12,
-        color: "#374151",
+        color: "var(--ol-gray-700)",
         background: "none",
         border: "none",
         width: "100%",
@@ -515,7 +515,7 @@ function MenuRow({
       {shortcut && (
         <span
           style={{
-            color: "#9CA3AF",
+            color: "var(--ol-text-muted)",
             fontSize: 12,
             marginLeft: 24,
             whiteSpace: "nowrap",
@@ -524,12 +524,12 @@ function MenuRow({
           {shortcut}
         </span>
       )}
-    </div>
+    </button>
   );
 }
 
 function Separator() {
-  return <div style={{ height: 1, background: "#F3F4F6", margin: "4px 8px" }} />;
+  return <div style={{ height: 1, background: "var(--ol-surface-hover)", margin: "4px 8px" }} />;
 }
 
 const ST = {
@@ -540,15 +540,15 @@ const ST = {
     alignItems: "center",
     justifyContent: "space-between",
     fontSize: 12,
-    color: "#374151",
+    color: "var(--ol-gray-700)",
     position: "relative" as const,
   },
   submenu: {
     position: "absolute" as const,
     left: "100%",
     top: 0,
-    background: "#fff",
-    border: "1px solid #E5E7EB",
+    background: "var(--ol-surface)",
+    border: "1px solid var(--ol-border)",
     borderRadius: 6,
     boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
     minWidth: 160,
@@ -559,8 +559,8 @@ const ST = {
     position: "absolute" as const,
     left: "100%",
     top: 0,
-    background: "#fff",
-    border: "1px solid #E5E7EB",
+    background: "var(--ol-surface)",
+    border: "1px solid var(--ol-border)",
     borderRadius: 6,
     boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
     minWidth: 140,

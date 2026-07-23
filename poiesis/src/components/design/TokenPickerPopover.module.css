@@ -1,8 +1,8 @@
 /* TokenPickerPopover.module.css — extracted from inline styles for react-doctor compliance */
 
 .popover {
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--ol-surface);
+  border: 1px solid var(--ol-border);
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0,0,0,0.12);
   z-index: 1000;
@@ -15,7 +15,7 @@
 .sectionLabel {
   font-size: 12px;
   font-weight: 600;
-  color: #6b7280;
+  color: var(--ol-text-secondary);
   padding: 4px 8px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -23,7 +23,7 @@
 
 .emptyText {
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--ol-text-muted);
   padding: 8px;
   text-align: center;
 }
@@ -31,7 +31,7 @@
 .catLabel {
   font-size: 12px;
   font-weight: 600;
-  color: #94a3b8;
+  color: var(--ol-text-muted);
   padding: 4px 8px 2px;
   text-transform: uppercase;
 }
@@ -45,7 +45,7 @@
   font-size: 12px;
   border: none;
   background: transparent;
-  color: var(--dp-text-secondary, #6b6893);
+  color: var(--ol-text-secondary);
   cursor: pointer;
   text-align: left;
   font-family: var(--dp-font-mono, monospace);
@@ -55,19 +55,19 @@
   width: 12px;
   height: 12px;
   border-radius: 2px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--ol-border-hover);
   flex-shrink: 0;
 }
 
 .tokenValue {
   margin-left: auto;
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--ol-text-muted);
   font-family: monospace;
 }
 
 .unlinkSection {
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid var(--ol-border);
   margin-top: 4px;
   padding-top: 4px;
 }
@@ -79,7 +79,7 @@
   font-size: 12px;
   border: none;
   background: transparent;
-  color: #ef4444;
+  color: var(--ol-color-danger);
   cursor: pointer;
   text-align: left;
 }

@@ -88,10 +88,10 @@ const selectStyle: React.CSSProperties = {
   height: 24,
   fontSize: 12,
   fontFamily: "var(--dp-font-mono, monospace)",
-  border: "1px solid var(--dp-border, #e8e5f2)",
+  border: "1px solid var(--dp-border, var(--ol-border))",
   borderRadius: "var(--dp-radius-sm, 6px)",
-  background: "var(--dp-surface, #fff)",
-  color: "var(--dp-text, #1e1b4b)",
+  background: "var(--dp-surface, var(--ol-surface))",
+  color: "var(--dp-text, var(--ol-gray-700))",
   outline: "2px solid transparent",
   cursor: "pointer",
   padding: "0 4px",
@@ -116,7 +116,7 @@ export const BorderCard = React.memo(function BorderCard({
   const borderStyle = borderStyleFromProp || "solid";
   const borderStyleSet = borderStyleFromProp !== "";
   const borderColorFromProp = getProp(properties, "borderColor");
-  const borderColor = borderColorFromProp || "#000000";
+  const borderColor = borderColorFromProp || "var(--ol-gray-950)";
   const borderColorSet = borderColorFromProp !== "";
 
   const borderColorProp = properties.find((p) => p.name === "borderColor");
@@ -179,8 +179,8 @@ export const BorderCard = React.memo(function BorderCard({
     height: 24,
     borderRadius: "var(--dp-radius-sm, 6px)",
     border: isColorFromToken
-      ? "2px solid var(--dp-accent, #6366f1)"
-      : "1px solid var(--dp-border, #e8e5f2)",
+      ? "2px solid var(--dp-accent, var(--ol-color-primary))"
+      : "1px solid var(--dp-border, var(--ol-border))",
     backgroundColor: isColorFromToken ? undefined : borderColor,
     cursor: "pointer",
     padding: 0,
@@ -196,7 +196,7 @@ export const BorderCard = React.memo(function BorderCard({
         <PropertyRow label="粗细">
           <span style={isPropLocked("border", inheritedProps) ? LOCKED_INPUT_STYLE : (borderWidthEmpty ? { opacity: 0.4 } : {})}>
           {readOnly && inheritedProps?.includes("border") ? (
-            <span style={{ fontSize: 12, color: "var(--dp-text-muted, #a09db8)" }}>{borderWidth || "—"}</span>
+            <span style={{ fontSize: 12, color: "var(--dp-text-muted, var(--ol-text-muted))" }}>{borderWidth || "—"}</span>
           ) : (
             <span style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
               <ScrubInput
@@ -218,7 +218,7 @@ export const BorderCard = React.memo(function BorderCard({
         <PropertyRow label="样式">
           <span style={isPropLocked("borderStyle", inheritedProps) ? LOCKED_INPUT_STYLE : undefined}>
           {readOnly && inheritedProps?.includes("borderStyle") ? (
-            <span style={{ fontSize: 12, color: "var(--dp-text-muted, #a09db8)" }}>{borderStyle}</span>
+            <span style={{ fontSize: 12, color: "var(--dp-text-muted, var(--ol-text-muted))" }}>{borderStyle}</span>
           ) : (
             <span style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
               <select value={borderStyle} onChange={handleStyleChange} style={selectStyle}>
@@ -236,12 +236,12 @@ export const BorderCard = React.memo(function BorderCard({
         <PropertyRow label="颜色">
           <span style={isPropLocked("borderColor", inheritedProps) ? LOCKED_INPUT_STYLE : (!borderColorSet ? { opacity: 0.4 } : {})}>
           {readOnly && inheritedProps?.includes("borderColor") ? (
-            <span style={{ fontSize: 12, color: "var(--dp-text-muted, #a09db8)" }}>{borderColor}</span>
+            <span style={{ fontSize: 12, color: "var(--dp-text-muted, var(--ol-text-muted))" }}>{borderColor}</span>
           ) : (
             <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
               <button ref={swatchRef} onClick={handleColorSwatchClick} type="button" style={swatchStyle}
                 title={isColorFromToken ? `var(--${borderColor})` : borderColor}>
-                {isColorFromToken && (<span style={{ fontSize: 12, color: "var(--dp-accent, #6366f1)", lineHeight: "24px", display: "block", textAlign: "center", fontWeight: 700 }}>T</span>)}
+                {isColorFromToken && (<span style={{ fontSize: 12, color: "var(--dp-accent, var(--ol-color-primary))", lineHeight: "24px", display: "block", textAlign: "center", fontWeight: 700 }}>T</span>)}
               </button>
               {borderColorSet && (
                 <button type="button" style={CLEAR_BTN} title="清除" onClick={(e) => { e.stopPropagation(); handleClearColor(); }}>×</button>
@@ -260,10 +260,10 @@ export const BorderCard = React.memo(function BorderCard({
             borderRadius: "var(--dp-radius-sm, 6px)",
             borderStyle: borderStyle as React.CSSProperties["borderStyle"],
             borderColor: isColorFromToken
-              ? "var(--dp-accent, #6366f1)"
+              ? "var(--dp-accent, var(--ol-color-primary))"
               : borderColor,
             borderWidth: Math.min(widthNum, 4) || 1,
-            background: "var(--dp-bg, #f7f6fa)",
+            background: "var(--dp-bg, var(--ol-gray-50))",
             transition: "background 100ms ease",
           }}
         />
@@ -271,7 +271,7 @@ export const BorderCard = React.memo(function BorderCard({
 
       {showColorPicker && swatchRef.current && (
         <ColorHUD
-          hex={isColorFromToken ? "#6366f1" : borderColor}
+          hex={isColorFromToken ? "var(--ol-color-primary)" : borderColor}
           tokens={tokens}
           onChange={handleColorChange}
           onClose={handleColorHUDClose}

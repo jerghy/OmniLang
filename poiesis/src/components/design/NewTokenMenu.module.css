@@ -2,8 +2,8 @@
 
 .menu {
   position: fixed;
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--ol-surface);
+  border: 1px solid var(--ol-border);
   border-radius: 10px;
   box-shadow: 0 6px 24px rgba(0,0,0,0.14);
   z-index: 10000;
@@ -20,7 +20,7 @@
   font-size: 13px;
   border: none;
   background: transparent;
-  color: #374151;
+  color: var(--ol-gray-700);
   cursor: pointer;
   text-align: left;
   font-family: inherit;

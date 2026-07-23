@@ -2,7 +2,7 @@
   background: transparent;
 }
 .deleteBtn:hover {
-  background: var(--color-danger-light);
+  background: var(--ol-color-danger-subtle);
 }
 
 .emptyState {
@@ -11,7 +11,7 @@
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: #94a3b8;
-  font-size: 13px;
-  gap: 6px;
+  color: var(--ol-text-muted);
+  font-size: var(--ol-font-size-13);
+  gap: var(--ol-space-1p5);
 }

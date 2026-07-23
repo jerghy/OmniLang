@@ -52,7 +52,7 @@ export function ClassesSection({ element }: ClassesSectionProps) {
         style={{
           fontSize: 12,
           fontWeight: 600,
-          color: "#6b7280",
+          color: "var(--ol-text-secondary)",
           textTransform: "uppercase",
           marginBottom: 6,
         }}
@@ -78,10 +78,10 @@ export function ClassesSection({ element }: ClassesSectionProps) {
               gap: 3,
               padding: "2px 8px",
               fontSize: 12,
-              background: "#eef2ff",
-              color: "#4338ca",
+              background: "var(--ol-color-primary-subtle)",
+              color: "var(--ol-color-primary-active)",
               borderRadius: 12,
-              border: "1px solid #c7d2fe",
+              border: "1px solid var(--ol-color-primary-muted)",
             }}
           >
             {cls}
@@ -92,7 +92,7 @@ export function ClassesSection({ element }: ClassesSectionProps) {
                 border: "none",
                 background: "none",
                 cursor: "pointer",
-                color: "#6366f1",
+                color: "var(--ol-color-primary)",
                 fontSize: 12,
                 padding: 0,
                 lineHeight: 1,
@@ -103,7 +103,7 @@ export function ClassesSection({ element }: ClassesSectionProps) {
           </span>
         ))}
         {currentRefs.length === 0 && (
-          <span style={{ fontSize: 12, color: "#94a3b8" }}>
+          <span style={{ fontSize: 12, color: "var(--ol-text-muted)" }}>
             未绑定 class
           </span>
         )}
@@ -126,7 +126,7 @@ export function ClassesSection({ element }: ClassesSectionProps) {
             width: "100%",
             padding: "3px 6px",
             fontSize: 12,
-            border: "1px solid #e2e8f0",
+            border: "1px solid var(--ol-border)",
             borderRadius: 4,
             outline: "2px solid transparent",
             fontFamily: "monospace",
@@ -142,8 +142,8 @@ export function ClassesSection({ element }: ClassesSectionProps) {
               right: 0,
               maxHeight: 160,
               overflow: "auto",
-              background: "#fff",
-              border: "1px solid #e2e8f0",
+              background: "var(--ol-surface)",
+              border: "1px solid var(--ol-border)",
               borderRadius: 4,
               boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
               zIndex: 10,
@@ -159,7 +159,7 @@ export function ClassesSection({ element }: ClassesSectionProps) {
                   padding: "4px 8px",
                   fontSize: 12,
                   cursor: "pointer",
-                  color: "#374151",
+                  color: "var(--ol-gray-700)",
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "center",
@@ -170,17 +170,17 @@ export function ClassesSection({ element }: ClassesSectionProps) {
                   fontFamily: "inherit",
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "#f1f5f9";
+                  e.currentTarget.style.background = "var(--ol-gray-100)";
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.background = "transparent";
                 }}
               >
                 <span>{c.name}</span>
-                <span style={{ color: "#94a3b8", fontSize: 12 }}>
+                <span style={{ color: "var(--ol-text-muted)", fontSize: 12 }}>
                   {c.properties.length + c.pseudoStates.length} 规则
                 </span>
-              </div>
+              </button>
             ))}
           </div>
         )}

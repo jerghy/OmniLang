@@ -23,7 +23,7 @@ export function ReturnNode({ data }: Props) {
         type="target"
         position={Position.Top}
         id="flow-in"
-        style={{ background: "#F43F5E" }}
+        style={{ background: "var(--ol-color-danger)" }}
       />
     </div>
   );

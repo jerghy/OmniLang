@@ -55,9 +55,9 @@ const CHIP_BASE: React.CSSProperties = {
 
 const EXPR_CHIP_STYLE: React.CSSProperties = {
   ...CHIP_BASE,
-  background: "#EDE9FE",
-  color: "#6D28D9",
-  borderColor: "#C4B5FD",
+  background: "var(--ol-color-primary-subtle)",
+  color: "var(--ol-color-primary)",
+  borderColor: "var(--ol-color-primary-muted)",
 };
 
 const CHIP_DELETE_BTN: React.CSSProperties = {
@@ -105,14 +105,20 @@ export function PropsSection({ element, signalItems }: PropsSectionProps) {
   const [slash, setSlash] = useState<SlashState | null>(null);
 
   const prevElementIdRef = useRef(element.id);
+  const elementRef = useRef(element);
+  // Sync element ref after every render — safe: effect, not render phase
   useEffect(() => {
-    if (element.id !== prevElementIdRef.current) {
-      prevElementIdRef.current = element.id;
-      setLocalProps(buildLocalProps(element));
+    elementRef.current = element;
+  });
+  useEffect(() => {
+    const el = elementRef.current;
+    if (el.id !== prevElementIdRef.current) {
+      prevElementIdRef.current = el.id;
+      setLocalProps(buildLocalProps(el));
       // eslint-disable-next-line react-doctor/no-adjust-state-on-prop-change
       setSlash(null);
     }
-  }, [element.id, setLocalProps, setSlash, buildLocalProps]);
+  }, [element.id]); // setLocalProps, setSlash (useState), buildLocalProps (module-level) are stable
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -220,7 +226,7 @@ export function PropsSection({ element, signalItems }: PropsSectionProps) {
         style={{
           fontSize: 12,
           fontWeight: 600,
-          color: "#6b7280",
+          color: "var(--ol-text-secondary)",
           textTransform: "uppercase",
           marginBottom: 6,
         }}
@@ -426,7 +432,7 @@ function LabelEditor({ value, onChange, onSlashRequest }: LabelEditorProps) {
               aria-label="Edit segment"
               defaultValue={seg.type === "expr" ? `{${seg.value}}` : seg.value}
               onKeyDown={onEditKeyDown} onBlur={() => handleEditCommit(i)}
-              style={{ ...CHIP_BASE, flex: "0 1 auto", minWidth: 60, outline: "2px solid transparent", borderColor: "#6366F1", background: "#fff", color: "#1e293b" }}
+              style={{ ...CHIP_BASE, flex: "0 1 auto", minWidth: 60, outline: "2px solid transparent", borderColor: "var(--ol-color-primary)", background: "var(--ol-surface)", color: "var(--ol-gray-800)" }}
             />
           );
         }
@@ -434,7 +440,7 @@ function LabelEditor({ value, onChange, onSlashRequest }: LabelEditorProps) {
           return (
             <button type="button" key={seg.type + "-" + seg.value} style={{ ...EXPR_CHIP_STYLE, cursor: "pointer" }} onClick={(e) => { if ((e.target as HTMLElement).getAttribute('data-action') === 'delete-segment') { handleDelete(i); } else { setEditingIdx(i); } }} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if ((e.target as HTMLElement).getAttribute('data-action') === 'delete-segment') { handleDelete(i); } else { setEditingIdx(i); } } }} title="点击编辑">
               {`{${seg.value}}`}
-              <span data-action="delete-segment" style={{ ...CHIP_DELETE_BTN, color: "#7C3AED" }} title="删除">&times;</span>
+              <span data-action="delete-segment" style={{ ...CHIP_DELETE_BTN, color: "var(--ol-color-primary)" }} title="删除">&times;</span>
             </button>
           );
         }
@@ -451,7 +457,7 @@ function LabelEditor({ value, onChange, onSlashRequest }: LabelEditorProps) {
             className={styles.textSegment}
             style={{
               minWidth: hasExpr ? 40 : 120,
-              border: hasExpr ? "1px solid transparent" : "1px solid #e2e8f0",
+              border: hasExpr ? "1px solid transparent" : "1px solid var(--ol-border)",
               borderRadius: hasExpr ? 6 : 4,
             }}
           />
@@ -477,7 +483,7 @@ function LabelPropRow({
       <span
         style={{
           fontSize: 12,
-          color: "#64748b",
+          color: "var(--ol-text-secondary)",
           minWidth: 50,
           flexShrink: 0,
           paddingTop: 4,
@@ -528,7 +534,7 @@ function PropRow({
       <span
         style={{
           fontSize: 12,
-          color: "#64748b",
+          color: "var(--ol-text-secondary)",
           minWidth: 50,
           flexShrink: 0,
         }}
@@ -546,16 +552,16 @@ function PropRow({
           flex: 1,
           padding: "3px 6px",
           fontSize: 12,
-          border: "1px solid #e2e8f0",
+          border: "1px solid var(--ol-border)",
           borderRadius: 4,
           outline: "2px solid transparent",
           fontFamily: "var(--dp-font-mono, monospace)",
         }}
         onFocus={(e) => {
-          e.target.style.borderColor = "#6366F1";
+          e.target.style.borderColor = "var(--ol-color-primary)";
         }}
         onBlur={(e) => {
-          e.target.style.borderColor = "#e2e8f0";
+          e.target.style.borderColor = "var(--ol-border)";
         }}
       />
     </label>
