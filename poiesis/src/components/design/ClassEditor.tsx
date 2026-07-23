@@ -3,7 +3,7 @@
 
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { usePoiesisStore } from "../../store";
-import { uid } from "../../core/utils";
+import { uid } from "../../core/utils/id";
 import type { StyleProperty, StyleValueSegment } from "../../core/types/style";
 import type { DesignClass, PseudoState } from "../../core/types/design";
 import { ClassPreview } from "./ClassPreview";

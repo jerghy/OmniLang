@@ -5,14 +5,14 @@ import tsWorker from "monaco-editor/esm/vs/language/typescript/ts.worker?worker"
 import cssWorker from "monaco-editor/esm/vs/language/css/css.worker?worker";
 import htmlWorker from "monaco-editor/esm/vs/language/html/html.worker?worker";
 import jsonWorker from "monaco-editor/esm/vs/language/json/json.worker?worker";
+import { initOmniLangLanguage } from "../../../services/monaco/omnilang-language";
+import { initOmniLangSnippets } from "../../../services/monaco/omnilang-snippets";
+import { injectOmniLangTypes } from "../../../services/monaco/omnilang-types";
 import {
-  initOmniLangLanguage,
-  initOmniLangSnippets,
-  injectOmniLangTypes,
   getOmniCompiler,
   runDiagnostics,
   applyDiagnostics,
-} from "../../../services/monaco";
+} from "../../../services/monaco/diagnostics";
 import type { StoreDefinition } from "../../../core/types/store";
 
 // Configure Monaco workers for Vite

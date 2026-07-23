@@ -2,7 +2,8 @@
 // Parse + validate + populate editor state from OmniLang source.
 // Extracted 1:1 from App.tsx's useEffect that calls validate() then parseOmniSource().
 
-import { validate, parseOmniSource } from "../codegen";
+import { validate } from "../codegen/validator";
+import { parseOmniSource } from "../codegen/omni-parser";
 import { parseStyleValue } from "../codegen/design-value-parser";
 import { usePoiesisStore } from "../../store";
 import { loadCodeTabs } from "../../services/codegraph/store";

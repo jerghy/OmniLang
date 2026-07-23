@@ -1,7 +1,7 @@
 // services/project/component-service.ts
 // Custom component definition save/load logic — extracted from project-service.ts.
 
-import { generateOmniSource } from "../codegen";
+import { generateOmniSource } from "../codegen/pipeline";
 import { api } from "../../commands";
 import { uid } from "../../core/utils/id";
 import type { ComputedEntry, DefEntry } from "../../core/types/project-json";

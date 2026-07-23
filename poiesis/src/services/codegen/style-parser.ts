@@ -2,7 +2,7 @@
 // Parse style { } blocks from a component AST and populate ElementStyle on view elements.
 // Called when loading .omni files to populate element styles before storing.
 
-import { uid } from "../../core/utils";
+import { uid } from "../../core/utils/id";
 import type { StyleProperty, ElementData } from "../../core/types";
 import type { ViewNode } from "./types";
 import { parseStyleValue } from "./design-value-parser";

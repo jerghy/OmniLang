@@ -1,7 +1,7 @@
 // services/project/project-service.ts
 // Project save logic — extracted 1:1 from App.tsx saveProject + saveFileEntry.
 
-import { generateOmniSource } from "../codegen";
+import { generateOmniSource } from "../codegen/pipeline";
 import { api } from "../../commands";
 import { usePoiesisStore } from "../../store";
 import { useCodeGraphStore } from "../../services/codegraph/store";

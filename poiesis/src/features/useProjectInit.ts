@@ -1,7 +1,7 @@
 import { useEffect, useCallback } from "react";
 import { usePoiesisStore } from "../store";
 import { useCodeGraphStore, type CodeGraphStoreState } from "../services/codegraph/store";
-import { parseOmniSource } from "../services/codegen";
+import { parseOmniSource } from "../services/codegen/omni-parser";
 import { parseStyleValue } from "../services/codegen/design-value-parser";
 import { uid } from "../core/utils/id";
 import { api } from "../commands";

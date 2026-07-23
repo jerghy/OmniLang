@@ -7,12 +7,12 @@ import { usePoiesisStore, getUnifiedComponentMeta } from "../../store";
 import { useElements, useRootOrder, useSelectedElementIds, useComponentDefs } from "../../store/hooks";
 import type { ElementData } from "../../core/types";
 import styles from "./ComponentTree.module.css";
+import { getDefaultProps } from "../../core/constants/defaults";
 import {
-  getDefaultProps,
   CATEGORY_LABELS,
   CATEGORY_ORDER,
   COMPONENT_ICONS,
-} from "../../core/constants";
+} from "../../core/constants/components";
 import { copySelection, pasteFromClipboard } from "../../core/clipboard";
 import { uid } from "../../lib/utils/id";
 import { buildTreeNode, type TreeNode } from "./tree-utils";

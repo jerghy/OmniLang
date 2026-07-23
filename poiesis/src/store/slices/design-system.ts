@@ -1,7 +1,7 @@
 // ── Design system slice for Poiesis store ──
 
 import type { PoiesisState } from "../types";
-import { uid } from "../../core/utils";
+import { uid } from "../../core/utils/id";
 
 type SetFn = (partial: Partial<PoiesisState> | ((state: PoiesisState) => Partial<PoiesisState>)) => void;
 type GetFn = () => PoiesisState;

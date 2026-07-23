@@ -1,6 +1,6 @@
 import { useCallback, useEffect } from "react";
 import { usePoiesisStore } from "../../store";
-import { parseOmniSource } from "../../services/codegen";
+import { parseOmniSource } from "../../services/codegen/omni-parser";
 import { parseStyleValue } from "../../services/codegen/design-value-parser";
 import { uid } from "../../core/utils/id";
 

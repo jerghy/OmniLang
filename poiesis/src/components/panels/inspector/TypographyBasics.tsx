@@ -9,7 +9,7 @@ import { ScrubInput } from "../../design/ScrubInput";
 import { ColorHUD } from "../../design/ColorHUD";
 import type { StyleProperty } from "../../../core/types/style";
 import type { DesignToken } from "../../../core/types/design";
-import { uid } from "../../../core/utils";
+import { uid } from "../../../core/utils/id";
 
 // ── Helpers ──
 

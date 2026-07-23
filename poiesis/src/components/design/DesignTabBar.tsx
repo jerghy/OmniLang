@@ -11,7 +11,7 @@ import { FileTreePanel } from "./FileTreePanel";
 import { NewFileModal } from "./NewFileModal";
 import { api } from "../../commands";
 import { emitDesignSource } from "../../services/codegen/design-emitter";
-import { parseOmniSource } from "../../services/codegen";
+import { parseOmniSource } from "../../services/codegen/omni-parser";
 import { parseStyleValue } from "../../services/codegen/design-value-parser";
 import { uid } from "../../core/utils/id";
 import { EMPTY_DESIGN, type TokenType, tokenTypeToCategory } from "../../core/types/design";

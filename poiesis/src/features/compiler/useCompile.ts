@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { usePoiesisStore } from "../../store";
 import { serializeCodeTabs } from "../../services/codegraph/store";
-import { extractComponentName } from "../../core/utils";
+import { extractComponentName } from "../../core/utils/omni";
 import { compileProject } from "../../services/compiler/compiler";
 import { compilerCache } from "../../services/compiler/cache";
 import { api, rustCompiler } from "../../commands";

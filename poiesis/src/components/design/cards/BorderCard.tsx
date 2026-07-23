@@ -9,7 +9,7 @@ import { ColorHUD } from "../ColorHUD";
 import { LockIcon, isPropLocked, LOCKED_INPUT_STYLE } from "./LockIcon";
 import type { StyleProperty } from "../../../core/types/style";
 import type { DesignToken } from "../../../core/types/design";
-import { uid } from "../../../core/utils";
+import { uid } from "../../../core/utils/id";
 
 // ── Helpers ──
 
