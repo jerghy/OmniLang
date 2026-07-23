@@ -23,7 +23,79 @@ Poiesis 的 CodeFlow 画布有 4 种节点：`fn`（函数入口）、`condition
 
 ---
 
-## 2. 设计范围
+## 2. 现有方案调研
+
+### 2.1 学术原型
+
+#### Tylr（密歇根大学）— 最接近的交互模型
+
+**[tylr.fun](https://tylr.fun)** | [github.com/hazelgrove/tylr](https://github.com/hazelgrove/tylr)
+
+Tylr 是一个瓦片式结构编辑器（tile-based structure editor）。用键盘打字操作结构化的瓦片（tile），每次编辑保证能重新解析为合法的 AST。
+
+**三层结构**：
+| 层级 | 描述 |
+|------|------|
+| **Term** | 完整 AST 节点，显示为凸六边形轮廓 |
+| **Tile** | 成对分隔符组（如 `let`/`≡`/`in`），term 可分解为 tile |
+| **Shard** | 单个 token 和分隔符，最细粒度 |
+
+**核心机制**：
+- **Grouter**：每次编辑后自动插入/移除 Grout（占位符），维持语法完整性。凸 Grout = 缺操作数的空洞，凹 Grout = 缺运算符的占位
+- **Backpack**：结构感知剪贴板。只允许搬运平衡的 tile 组合，防止括号不匹配
+- **任意选区**：不同于 Scratch/MPS（只能选完整子树），Tylr 支持跨子树的 token 选区（如 `2 + 3 * 4` 中选 `* 4`）
+
+**与 CodeCard Editor 的异同**：
+
+| 维度 | Tylr | CodeCard Editor |
+|------|------|----------------|
+| 输入方式 | 键盘打字 | 键盘打字 |
+| 结构单位 | Tile（瓦片） | Card（卡片） |
+| 占位符 | Grout（自动插入/移除） | `█` 空槽位 |
+| 删除粒度 | 瓦片级 | 逐级：槽值 → 子组件 → 整卡 |
+| 选区能力 | 跨子树任意选区 | 卡片级 + 槽位级 |
+| 实现语言 | Reason/OCaml（不可直接复用） | TypeScript + React |
+| 成熟度 | 研究原型 | 生产功能 |
+
+#### Hazel（hazel.org）
+
+同一实验室（Cyrus Omar 组）的实时函数式编程环境。
+
+**可借鉴的交互**：
+- **关键词即语法前缀**：输入 `let` 自动被识别为 let 绑定结构，无需快捷键或菜单选择
+- **自动空洞插入**：不完整/类型错误的位置自动插入类型化空洞，程序始终保持"可运行"
+- **Node Staging Mode**："先调用再配置"。输入 `let … in` 后按 Backspace 进入 staging，可调整分隔符位置
+
+#### Prong（Projectional JSON GUI）
+
+[JSON DSL 投影编辑器](https://ar5iv.labs.arxiv.org/html/2307.11260)
+
+**可借鉴的交互**：
+- **结构化自动补全**：打字过滤 → 展示当前光标位置合法的结构类型 → 选中后插入带必填字段的完整对象
+- **光标跟随菜单**：补全菜单跟随光标，像 IDE 提示框
+
+### 2.2 工程化 Block Editor 参考
+
+| 项目 | 平台 | 相关能力 |
+|------|------|---------|
+| **@blokhaus/core** | React + Lexical | `/` 命令菜单、自定义 block node、代码高亮（Shiki）、Markdown 快捷输入 |
+| **Cascade Editor** | Kotlin/Compose | 跨平台 block editor、自定义 block、斜杠命令 |
+| **Notion** | Web | `/` 命令触发结构化块插入的标杆体验 |
+
+### 2.3 结论：无可直接复用的库
+
+Tylr 和 Hazel 提供了概念验证和交互灵感，但它们都是学术原型（OCaml/Reason），无法直接集成到 Poiesis 的 React + TypeScript 技术栈中。现有的 Notion-like block editor 库（如 @blokhaus/core）解决的是"文档编辑"问题，而非"代码编辑"问题——它们不处理类型系统、变量作用域、表达式语义等代码领域需求。
+
+**推荐实现策略**：基于 Lexical（Meta 的编辑器框架）自研 CodeCard Editor。理由：
+
+1. Lexical 原生支持在文本流中嵌入自定义 React 组件（DecoratorNode）——这就是卡片
+2. 成熟的 command 系统和 plugin 架构，适合实现键盘优先的补全
+3. @blokhaus/core 已证明在 Lexical 上做 block editor 的可行性
+4. 现有的 Monaco 语言服务（语法高亮、类型注入、WASM 诊断）可复用为槽位诊断
+
+---
+
+## 3. 设计范围（改动边界）
 
 ### 改动范围
 
@@ -58,7 +130,7 @@ graph-parser.ts                → 扩展
 
 ---
 
-## 3. 数据模型：CodeOp 操作类型
+## 4. 数据模型：CodeOp 操作类型
 
 ### 顶层结构
 
@@ -141,7 +213,7 @@ interface CommentOp { kind: "comment"; text: string; }
 
 ---
 
-## 4. 编辑器 UX：卡片式代码编辑
+## 5. 编辑器 UX：卡片式代码编辑
 
 ### 4.1 核心交互模型
 
@@ -293,7 +365,7 @@ Backspace → 整卡删除
 
 ---
 
-## 5. 上下文感知补全
+## 6. 上下文感知补全
 
 编辑器根据光标所在位置自动弹出对应类型的补全提示。
 
@@ -313,7 +385,7 @@ Backspace → 整卡删除
 
 ---
 
-## 6. 数据流
+## 7. 数据流
 
 ```
 ┌──────────────────────────────────────────────────┐
@@ -355,7 +427,7 @@ Backspace → 整卡删除
 
 ---
 
-## 7. 编译器变更（graph-compiler.ts）
+## 8. 编译器变更（graph-compiler.ts）
 
 新增 `emitOp()` 递归函数，与现有的 `emitNode()` 同层：
 
@@ -408,7 +480,7 @@ function emitOp(op: CodeOp, indent: number): string {
 
 ---
 
-## 8. 解析器变更（graph-parser.ts）
+## 9. 解析器变更（graph-parser.ts）
 
 扩展现有 segment 解析，当 segment type 为 `"code-block"` 时，进一步解析其内部为 `CodeOp[]`：
 
@@ -433,7 +505,7 @@ function emitOp(op: CodeOp, indent: number): string {
 
 ---
 
-## 9. 编辑器组件架构
+## 10. 编辑器组件架构
 
 ```
 CodeCardEditor (新组件，替换 CodeEditorModal)
@@ -462,7 +534,7 @@ CodeCardEditor (新组件，替换 CodeEditorModal)
 
 ---
 
-## 10. 错误处理
+## 11. 错误处理
 
 - **语法错误**：Expression 槽位实时 WASM 诊断，错误时红色下划线
 - **必填槽位未填**：`set █ = expr` 目标变量为空 → 浅红占位提示，阻止保存
@@ -471,7 +543,7 @@ CodeCardEditor (新组件，替换 CodeEditorModal)
 
 ---
 
-## 11. 向后兼容
+## 12. 向后兼容
 
 1. 现有 `.omni` 源码中已存在的 `// @pid:xxx` + code-block 文本 → 解析时尝试 AST 解析，成功则生成 operations，失败则回退到 source
 2. 保存时始终从 operations 重新生成 source（若 operations 存在），确保 source 与 operations 同步
@@ -480,7 +552,7 @@ CodeCardEditor (新组件，替换 CodeEditorModal)
 
 ---
 
-## 12. 测试策略
+## 13. 测试策略
 
 | 层 | 测试内容 | 工具 |
 |----|---------|------|
@@ -495,7 +567,7 @@ CodeCardEditor (新组件，替换 CodeEditorModal)
 
 ---
 
-## 13. 实现阶段
+## 14. 实现阶段
 
 ### Phase 1：数据模型 + 编译器
 
