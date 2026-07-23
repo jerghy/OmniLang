@@ -181,7 +181,8 @@ pub(crate) fn emit_scroll_effects_tsx(w: &mut CodeWriter, node: &ViewTree) {
     w.emit("}");
     w.emit("function computeProgress(el) {");
     w.indent();
-    w.emit("const rect = el.getBoundingClientRect();");
+    // rect is fetched inside parseScrollTrigger, not used here
+
     w.emit("const vh = window.innerHeight;");
     w.emit("const startCfg = el.getAttribute('data-scroll-start') || 'top 80%';");
     w.emit("const endCfg = el.getAttribute('data-scroll-end') || 'bottom 20%';");
@@ -336,7 +337,7 @@ pub(crate) fn emit_drag_effects_tsx(w: &mut CodeWriter, node: &ViewTree) {
     w.emit("const constraint = parseConstraint(constraints);");
     w.emit("const maxExtent = Math.abs(constraint.max - constraint.min) || 1;");
     w.emit("let startPos = 0, currentDelta = 0, isDragging = false;");
-    w.emit("let lastMoveTime = 0, lastMovePos = 0, velocity = 0;");
+    w.emit("let lastMoveTime = 0, lastMovePos = 0;");
     w.emit("");
     w.emit("const onPointerDown = (e) => {");
     w.indent();
@@ -356,7 +357,7 @@ pub(crate) fn emit_drag_effects_tsx(w: &mut CodeWriter, node: &ViewTree) {
     w.indent();
     w.emit("const dt = now - lastMoveTime;");
     w.emit("const dp = Math.abs(raw - lastMovePos);");
-    w.emit("if (dt > 0) velocity = Math.min(velocityMax, dp / dt * 1000);");
+    w.emit("if (dt > 0) { const _v = Math.min(velocityMax, dp / dt * 1000); }");
     w.dedent();
     w.emit("}");
     w.emit("lastMoveTime = now;");
