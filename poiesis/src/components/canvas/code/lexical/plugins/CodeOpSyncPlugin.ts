@@ -225,30 +225,33 @@ function extractCardOp(card: ReturnType<typeof $createCardElementNode>): CodeOp 
       };
     }
     case "if_block": {
+      const bodyOps = extractChildCardOps(card);
       return {
         kind: "if_block",
         pid,
         branches: [{
           condition: slotValues.get("condition") ?? "",
-          body: [],
+          body: bodyOps,
         }],
       };
     }
     case "while": {
+      const bodyOps = extractChildCardOps(card);
       return {
         kind: "while",
         pid,
         condition: slotValues.get("condition") ?? "",
-        body: [],
+        body: bodyOps,
       };
     }
     case "for_in": {
+      const bodyOps = extractChildCardOps(card);
       return {
         kind: "for_in",
         pid,
         itemName: slotValues.get("item") ?? "item",
         collection: slotValues.get("collection") ?? "",
-        body: [],
+        body: bodyOps,
       };
     }
     case "return": {
@@ -292,6 +295,17 @@ function extractCardOp(card: ReturnType<typeof $createCardElementNode>): CodeOp 
     default:
       return { kind: "raw", pid, source: card.getTextContent() };
   }
+}
+
+function extractChildCardOps(card: ReturnType<typeof $createCardElementNode>): CodeOp[] {
+  const ops: CodeOp[] = [];
+  const children = card.getChildren();
+  for (const child of children) {
+    if ($isCardElementNode(child)) {
+      ops.push(extractCardOp(child));
+    }
+  }
+  return ops;
 }
 
 function extractSlotValues(card: ReturnType<typeof $createCardElementNode>): Map<SlotType, string> {

@@ -1,4 +1,4 @@
-import { TextNode, type SerializedTextNode, type LexicalNode } from "lexical";
+import { TextNode, type SerializedTextNode, type LexicalNode, type EditorConfig } from "lexical";
 
 export type SlotType =
   | "name"       // variable name
@@ -39,6 +39,12 @@ export class SlotTextNode extends TextNode {
   setSlotType(slotType: SlotType): void {
     const self = this.getWritable();
     (self as SlotTextNode).__slot = slotType;
+  }
+
+  createDOM(config: EditorConfig): HTMLElement {
+    const dom = super.createDOM(config);
+    dom.className = `slot-text slot-text--${this.__slot}`;
+    return dom;
   }
 
   exportJSON(): SerializedSlotTextNode {

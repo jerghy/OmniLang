@@ -2,6 +2,7 @@
 import { useCallback, useRef, useState } from "react";
 import { LexicalComposer } from "@lexical/react/LexicalComposer";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
+import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
 import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
 import type { CodeOp } from "../../../core/types/code-op";
@@ -104,6 +105,7 @@ export const CodeCardEditor: React.FC<Props> = ({
         <div className={styles.body}>
           <LexicalComposer initialConfig={lexicalConfig}>
             <RichTextPlugin
+              ErrorBoundary={LexicalErrorBoundary}
               contentEditable={
                 <ContentEditable className={styles.contentEditable} />
               }

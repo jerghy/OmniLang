@@ -22,6 +22,7 @@ import { DesignPreviewNode } from "./nodes/DesignPreviewNode";
 import { CODE_TAGS, TAG_CN, type ContextMenuState } from "./flowConstants";
 import { ContextMenu } from "./CanvasContextMenu";
 import { CodeCardEditor } from "./CodeCardEditor";
+import { emitOps } from "../../../services/codegen/code-op-emitter";
 import { FlowInspector } from "./FlowInspector";
 import { NodeContextMenu } from "./NodeContextMenu";
 import { FlowCanvasEmptyState } from "./FlowCanvasEmptyState";
@@ -124,6 +125,7 @@ function FlowCanvasInner() {
   const removeElement = usePoiesisStore((s) => s.removeElement);
   const setProp = usePoiesisStore((s) => s.setProp);
   const setElementOperations = usePoiesisStore((s) => s.setElementOperations);
+  const setElementSource = usePoiesisStore((s) => s.setElementSource);
   const addWire = usePoiesisStore((s) => s.addWire);
 
   // ── Connect handler ──
@@ -362,7 +364,9 @@ function FlowCanvasInner() {
           initialSource={(editingElement as CodeblockElementData).source || ""}
           language="omnilang"
           onSave={(operations) => {
+            const source = emitOps(operations);
             setElementOperations(editingNodeId!, operations);
+            setElementSource(editingNodeId!, source);
             setEditingNodeId(null);
           }}
           onClose={() => setEditingNodeId(null)}
