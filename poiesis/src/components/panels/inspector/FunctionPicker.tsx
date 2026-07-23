@@ -193,7 +193,7 @@ function PickerRow({
       <span style={{ fontWeight: isSelected ? 600 : 400 }}>
         {item.displayName}
       </span>
-      <span style={{ fontSize: 12, color: "#94a3b8" }}>
+      <span style={{ fontSize: 12, color: "#64748b" }}>
         {item.sourceName}
       </span>
     </button>

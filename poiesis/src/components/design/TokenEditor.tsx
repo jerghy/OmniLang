@@ -692,6 +692,7 @@ export function TokenEditor() {
                 background: "none",
                 cursor: "pointer",
                 color: "#64748b",
+                fontSize: 16,
                 padding: 0,
                 lineHeight: 1,
               }}

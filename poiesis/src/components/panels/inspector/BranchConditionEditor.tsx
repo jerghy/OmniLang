@@ -80,7 +80,7 @@ export function BranchConditionEditor({ blockId, branchIndex }: BranchConditionE
           onClick={handleDeleteBranch}
           style={{
             padding: "4px 12px", border: "1px solid #FCA5A5", borderRadius: 4,
-            background: "#FEF2F2", color: "#DC2626", cursor: "pointer", fontSize: 12,
+            background: "#FEF2F2", color: "#b91c1c", cursor: "pointer", fontSize: 12,
           }}
         >
           删除此分支

@@ -137,7 +137,7 @@ export function VariantBindingSection({ element }: VariantBindingSectionProps) {
             border: "1px solid #fca5a5",
             borderRadius: 4,
             background: "#fef2f2",
-            color: "#dc2626",
+            color: "#b91c1c",
             cursor: "pointer",
             fontWeight: 500,
           }}

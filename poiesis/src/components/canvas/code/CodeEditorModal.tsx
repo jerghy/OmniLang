@@ -217,6 +217,7 @@ export function CodeEditorModal({
       {/* Dialog */}
       <div
         role="dialog"
+        aria-label="Code Editor Modal"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={handleKeyDown}
         style={{

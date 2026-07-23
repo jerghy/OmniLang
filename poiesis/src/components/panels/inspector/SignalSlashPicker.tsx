@@ -148,7 +148,7 @@ export function SignalSlashPicker({
           minWidth: 200,
           padding: "8px 12px",
           fontSize: 12,
-          color: "#94a3b8",
+          color: "#64748b",
         }}
       >
         No bindings found
@@ -184,7 +184,7 @@ export function SignalSlashPicker({
               style={{
                 fontSize: 12,
                 fontWeight: 600,
-                color: "#94a3b8",
+                color: "#64748b",
                 padding: "4px 8px 2px",
                 textTransform: "uppercase",
                 display: "flex",
@@ -227,7 +227,7 @@ export function SignalSlashPicker({
                     style={{
                       marginLeft: "auto",
                       fontSize: 12,
-                      color: "#94a3b8",
+                      color: "#64748b",
                     }}
                   >
                     {item.type}
