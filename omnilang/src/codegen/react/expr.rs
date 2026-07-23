@@ -23,6 +23,13 @@ impl FormatExpr for ReactFormatExpr {
         &JSON_REACT
     }
 
+    /// Strip `$` prefix from identifier names — `$` is an IR internal
+    /// convention for store signal references and should not appear in
+    /// generated TypeScript/React code.
+    fn format_identifier(&self, name: &str) -> String {
+        name.trim_start_matches('$').to_string()
+    }
+
     fn codegen_target(&self) -> Target {
         Target::React
     }
@@ -39,7 +46,24 @@ impl FormatExpr for ReactFormatExpr {
         if params.is_empty() {
             format!("(() => ({body}))")
         } else {
-            format!("(({params}) => ({body}))")
+            // Prefix unused params with `_` to avoid ESLint no-unused-vars warnings.
+            // Some IR-generated closures (e.g., sort comparators) include params
+            // that aren't referenced in the closure body.
+            let sanitized: Vec<String> = params
+                .split(',')
+                .map(|p| {
+                    let p = p.trim();
+                    if p.is_empty() {
+                        String::new()
+                    } else if body.contains(p) {
+                        p.to_string()
+                    } else {
+                        format!("_{}", p)
+                    }
+                })
+                .collect();
+            let sanitized_params = sanitized.join(", ");
+            format!("(({sanitized_params}) => ({body}))")
         }
     }
 
