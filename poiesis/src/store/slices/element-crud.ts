@@ -170,6 +170,11 @@ export function createElementCrudSlice(set: SetFn, get: GetFn) {
       isDirty: true,
     })),
 
+    setElementOperations: (id: string, operations: import("../../core/types/code-op").CodeOp[]) => set((s) => ({
+      elements: s.elements.map(e => e.id === id ? { ...e, operations } as ElementData : e),
+      isDirty: true,
+    })),
+
     setElementPosition: (id: string, pos: { x: number; y: number }) => set((s) => ({
       elements: s.elements.map(e => e.id === id ? { ...e, position: { ...pos } } as ElementData : e),
       isDirty: true,
