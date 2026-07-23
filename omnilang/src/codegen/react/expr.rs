@@ -64,7 +64,18 @@ impl FormatExpr for ReactFormatExpr {
                         let destructure = if bindings.is_empty() {
                             String::new()
                         } else {
-                            format!("const {{ {} }} = _v; ", bindings.join(", "))
+                            // Prefix unused bindings with _ to suppress ESLint no-unused-vars
+                            let names: Vec<String> = bindings
+                                .iter()
+                                .map(|b| {
+                                    if body.contains(b) {
+                                        b.clone()
+                                    } else {
+                                        format!("_{}", b)
+                                    }
+                                })
+                                .collect();
+                            format!("const {{ {} }} = _v; ", names.join(", "))
                         };
                         format!(
                             "if (_v._variant === \"{}\") {{ {}return {}; }}",

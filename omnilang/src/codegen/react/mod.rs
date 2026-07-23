@@ -564,11 +564,44 @@ fn stmt_mutates_store_signal(stmt: &StatementIR, signal_names: &FxHashSet<String
     }
 }
 
-/// Emit a `const state = get();` line for Zustand action body prologue,
-/// but only if the action body actually mutates store signals.
+/// Emit a `const state = get();` line for Zustand action body prologue.
+/// Only emit when the action uses mutations that need `state.` access
+/// (Increment, Decrement, Push, Pop, Multiply, Divide, Modulo).
+/// DirectAssign uses `set({ key: val })` and does not need state.
 fn emit_zustand_action_prologue(w: &mut CodeWriter, action: &FunctionIR, signal_names: &FxHashSet<String>) {
-    if block_mutates_store_signal(&action.body, signal_names) {
+    if block_needs_zustand_state(&action.body, signal_names) {
         w.emit("const state = get();");
+    }
+}
+
+/// Returns true if any statement in the block needs `state.` access in Zustand mutations.
+/// DirectAssign uses `set({...})` (no state needed); all other compound mutations need state.
+fn block_needs_zustand_state(block: &BlockIR, signal_names: &FxHashSet<String>) -> bool {
+    block.statements.iter().any(|s| stmt_needs_zustand_state(s, signal_names))
+}
+
+fn stmt_needs_zustand_state(stmt: &StatementIR, signal_names: &FxHashSet<String>) -> bool {
+    match stmt {
+        StatementIR::MutationStmt { intent: Some(intent) } => {
+            let target_name = match intent {
+                MutationIntent::Increment { target, .. }
+                | MutationIntent::Decrement { target, .. }
+                | MutationIntent::Multiply { target, .. }
+                | MutationIntent::Divide { target, .. }
+                | MutationIntent::Modulo { target, .. }
+                | MutationIntent::Push { target, .. }
+                | MutationIntent::Pop { target } => &target.name,
+                // DirectAssign uses set({}) and does not need state
+                MutationIntent::DirectAssign { .. } => return false,
+            };
+            signal_names.contains(target_name)
+        }
+        StatementIR::IfStmtIR { then_body, else_ifs, else_body, .. } => {
+            block_needs_zustand_state(then_body, signal_names)
+                || else_ifs.iter().any(|(_, b)| block_needs_zustand_state(b, signal_names))
+                || else_body.as_ref().is_some_and(|b| block_needs_zustand_state(b, signal_names))
+        }
+        _ => false,
     }
 }
 

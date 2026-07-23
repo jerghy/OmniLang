@@ -734,14 +734,18 @@ fn format_inline_handler(
     params: &[String],
 ) -> String {
     let param_str = if params.is_empty() {
-        "e".to_string()
+        String::new()
     } else {
         params.join(", ")
     };
     let config = InlineHandlerConfig {
-        opener: format!("({}) => {{\n", param_str),
+        opener: if param_str.is_empty() {
+            "() => {\n".to_string()
+        } else {
+            format!("({}) => {{\n", param_str)
+        },
         closer: "\n      }".to_string(),
-        empty_handler: format!("({}) => {{}}", param_str),
+        empty_handler: "() => {}".to_string(),
         indent: "        ",
         use_writer: false,
     };
