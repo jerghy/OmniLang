@@ -137,3 +137,168 @@
   border-radius: 2px;
   padding: 0 2px;
 }
+
+/* ── CodeCard v2: Card atoms (inline, non-editable) ── */
+.code-card {
+  display: inline-block;
+  padding: 1px 6px;
+  margin: 1px 2px;
+  border-radius: 5px;
+  font-size: 13px;
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+  line-height: 1.6;
+  cursor: default;
+  user-select: none;
+  white-space: nowrap;
+  transition: box-shadow 0.1s;
+}
+
+.code-card--mut           { background: #fde68a; color: #92400e; }  /* orange */
+.code-card--break,
+.code-card--continue      { background: #e2e8f0; color: #475569; }  /* gray */
+.code-card--operator      { background: #e2e8f0; color: #334155; }  /* gray */
+.code-card--type          { background: #cffafe; color: #155e75; }  /* cyan */
+.code-card--var_ref       { background: #d1fae5; color: #065f46; }  /* green */
+.code-card--literal       { background: #d1fae5; color: #065f46; }  /* green */
+.code-card--dot           { background: #e2e8f0; color: #334155; }
+.code-card--separator     { background: transparent; color: #94a3b8; padding: 1px 2px; }
+.code-card--comment       { background: #f1f5f9; color: #94a3b8; font-style: italic; }
+
+/* ── Card highlight (arrow-key focus) ── */
+.code-card:focus,
+.code-card.focused {
+  outline: 2px solid #6366f1;
+  outline-offset: 1px;
+}
+
+/* ── Containers ── */
+.code-container {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0;
+  padding: 2px 4px 2px 2px;
+  margin: 1px 0;
+  border-radius: 6px;
+  background: rgba(99, 102, 241, 0.04);  /* subtle purple tint */
+  border-left: 3px solid;
+  position: relative;
+}
+
+.code-container--let      { border-color: #a78bfa; }
+.code-container--set      { border-color: #60a5fa; }
+.code-container--return   { border-color: #f87171; }
+.code-container--await    { border-color: #22d3ee; }
+.code-container--call     { border-color: #22d3ee; }
+.code-container--array    { border-color: #a78bfa; }
+.code-container--map      { border-color: #a78bfa; }
+
+/* Container right-edge delete zone indicator */
+.code-container::after {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 100%;
+  min-height: 20px;
+  margin-left: 2px;
+  border-radius: 2px;
+  cursor: default;
+}
+
+/* ── Block cards (if/while/for) ── */
+.code-block-card {
+  display: block;
+  border-left: 4px solid;
+  padding-left: 4px;
+  margin: 2px 0;
+}
+
+.code-block-card--if       { border-color: #fbbf24; }
+.code-block-card--while    { border-color: #f97316; }
+.code-block-card--for      { border-color: #34d399; }
+
+/* Block head line */
+.code-block-head {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 0;
+}
+
+/* Block body lines */
+.code-body-line {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 0 1px 16px;  /* indent */
+  min-height: 22px;
+}
+
+/* Block tail line (thin closing bar) */
+.code-block-tail {
+  height: 3px;
+  margin-left: 0;
+  margin-right: 0;
+  border-radius: 0 0 2px 2px;
+}
+
+.code-block-card--if .code-block-tail    { background: #fbbf24; }
+.code-block-card--while .code-block-tail { background: #f97316; }
+.code-block-card--for .code-block-tail   { background: #34d399; }
+
+/* ── Input slots (backslash-triggered inline input) ── */
+.input-slot {
+  display: inline-block;
+  min-width: 40px;
+  padding: 1px 6px;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 3px;
+  font-size: 13px;
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+  line-height: 1.5;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.input-slot:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+}
+
+/* Empty slot placeholder */
+.input-slot--name:empty::before       { content: "变量名"; color: #fca5a5; }
+.input-slot--type_value:empty::before { content: "类型"; color: #cbd5e1; }
+.input-slot--expression:empty::before { content: "值"; color: #cbd5e1; }
+.input-slot--condition:empty::before  { content: "条件"; color: #cbd5e1; }
+.input-slot--fn_name:empty::before    { content: "函数名"; color: #cbd5e1; }
+
+/* ── Syntax lint ── */
+.code-card.syntax-warn {
+  text-decoration: underline;
+  text-decoration-color: #fbbf24;
+  text-decoration-style: wavy;
+  text-underline-offset: 2px;
+}
+
+/* ── Editor body ── */
+.overlay { /* existing — keep */ }
+.editor { /* existing — keep */ }
+.header { /* existing — keep */ }
+.body {
+  padding: 12px;
+  background: #fafbfc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  min-height: 200px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.contentEditable {
+  outline: none;
+  min-height: 100%;
+  font-size: 13px;
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+  line-height: 1.8;
+}
