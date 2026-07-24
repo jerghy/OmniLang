@@ -1,9 +1,11 @@
 /* poiesis/src/components/canvas/code/CodeCardEditor.module.css */
+
+/* ── Overlay ── */
 .overlay {
   position: fixed;
   inset: 0;
   z-index: 9999;
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(0, 0, 0, 0.25);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -13,292 +15,208 @@
   width: 80vw;
   height: 80vh;
   background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.12);
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
+/* ── Header ── */
 .header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 16px;
-  border-bottom: 1px solid #e2e8f0;
+  padding: 10px 16px;
+  border-bottom: 1px solid #eee;
+  background: #fafafa;
 }
 
 .title {
   margin: 0;
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 500;
+  color: #888;
 }
 
-.actions {
-  display: flex;
-  gap: 8px;
-}
+.actions { display: flex; gap: 6px; }
 
 .saveBtn {
-  padding: 6px 16px;
-  background: #6366f1;
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 13px;
+  padding: 5px 14px; background: #4c4cff; color: #fff;
+  border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 500;
 }
-
 .cancelBtn {
-  padding: 6px 16px;
-  background: #e2e8f0;
-  color: #475569;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 13px;
+  padding: 5px 14px; background: #fff; color: #888;
+  border: 1px solid #ddd; border-radius: 4px; cursor: pointer; font-size: 12px;
 }
-
 .textModeBtn {
-  padding: 6px 16px;
-  background: transparent;
-  color: #6366f1;
-  border: 1px solid #6366f1;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 13px;
-}
-
-.body {
-  flex: 1;
-  overflow: auto;
-  padding: 16px;
-  position: relative;
-}
-
-.contentEditable {
-  min-height: 100%;
-  outline: none;
-  font-family: "Fira Code", "Consolas", monospace;
-  font-size: 13px;
-  line-height: 1.6;
-}
-
-/* ── Card styles ── */
-.contentEditable :global(.code-card) {
-  display: flex;
-  align-items: center;
-  gap: 0;
-  padding: 4px 8px;
-  margin: 2px 0;
-  border-radius: 6px;
-  border: 1px solid #cbd5e1;
-  background: #f8fafc;
-  font-family: inherit;
-  font-size: inherit;
-}
-
-.contentEditable :global(.code-card--declare_var) {
-  border-left: 3px solid #7c3aed;
-}
-
-.contentEditable :global(.code-card--set_var) {
-  border-left: 3px solid #f59e0b;
-}
-
-.contentEditable :global(.code-card--if_block),
-.contentEditable :global(.code-card--while),
-.contentEditable :global(.code-card--for_in) {
-  border-left: 3px solid #06b6d4;
-}
-
-.contentEditable :global(.code-card--return) {
-  border-left: 3px solid #ef4444;
-}
-
-/* ── Slot styles ── */
-.contentEditable :global(.slot-text--name) {
-  background: #dbeafe;
-  color: #1e40af;
-  border-radius: 2px;
-  padding: 0 2px;
-}
-
-.contentEditable :global(.slot-text--type) {
-  background: #d1fae5;
-  color: #065f46;
-  border-radius: 2px;
-  padding: 0 2px;
-}
-
-.contentEditable :global(.slot-text--value) {
-  background: #fef3c7;
-  color: #92400e;
-  border-radius: 2px;
-  padding: 0 2px;
-}
-
-/* ── CodeCard v2: Card atoms (inline, non-editable) ── */
-.code-card {
-  display: inline-block;
-  padding: 1px 6px;
-  margin: 1px 2px;
-  border-radius: 5px;
-  font-size: 13px;
-  font-family: "JetBrains Mono", "Fira Code", monospace;
-  line-height: 1.6;
-  cursor: default;
-  user-select: none;
-  white-space: nowrap;
-  transition: box-shadow 0.1s;
-}
-
-.code-card--mut           { background: #fde68a; color: #92400e; }  /* orange */
-.code-card--break,
-.code-card--continue      { background: #e2e8f0; color: #475569; }  /* gray */
-.code-card--operator      { background: #e2e8f0; color: #334155; }  /* gray */
-.code-card--type          { background: #cffafe; color: #155e75; }  /* cyan */
-.code-card--var_ref       { background: #d1fae5; color: #065f46; }  /* green */
-.code-card--literal       { background: #d1fae5; color: #065f46; }  /* green */
-.code-card--dot           { background: #e2e8f0; color: #334155; }
-.code-card--separator     { background: transparent; color: #94a3b8; padding: 1px 2px; }
-.code-card--comment       { background: #f1f5f9; color: #94a3b8; font-style: italic; }
-
-/* ── Card highlight (arrow-key focus) ── */
-.code-card:focus,
-.code-card.focused {
-  outline: 2px solid #6366f1;
-  outline-offset: 1px;
-}
-
-/* ── Containers ── */
-.code-container {
-  display: inline-flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0;
-  padding: 2px 4px 2px 2px;
-  margin: 1px 0;
-  border-radius: 6px;
-  background: rgba(99, 102, 241, 0.04);  /* subtle purple tint */
-  border-left: 3px solid;
-  position: relative;
-}
-
-.code-container--let      { border-color: #a78bfa; }
-.code-container--set      { border-color: #60a5fa; }
-.code-container--return   { border-color: #f87171; }
-.code-container--await    { border-color: #22d3ee; }
-.code-container--call     { border-color: #22d3ee; }
-.code-container--array    { border-color: #a78bfa; }
-.code-container--map      { border-color: #a78bfa; }
-
-/* Container right-edge delete zone indicator */
-.code-container::after {
-  content: "";
-  display: inline-block;
-  width: 6px;
-  height: 100%;
-  min-height: 20px;
-  margin-left: 2px;
-  border-radius: 2px;
-  cursor: default;
-}
-
-/* ── Block cards (if/while/for) ── */
-.code-block-card {
-  display: block;
-  border-left: 4px solid;
-  padding-left: 4px;
-  margin: 2px 0;
-}
-
-.code-block-card--if       { border-color: #fbbf24; }
-.code-block-card--while    { border-color: #f97316; }
-.code-block-card--for      { border-color: #34d399; }
-
-/* Block head line */
-.code-block-head {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 2px 0;
-}
-
-/* Block body lines */
-.code-body-line {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 1px 0 1px 16px;  /* indent */
-  min-height: 22px;
-}
-
-/* Block tail line (thin closing bar) */
-.code-block-tail {
-  height: 3px;
-  margin-left: 0;
-  margin-right: 0;
-  border-radius: 0 0 2px 2px;
-}
-
-.code-block-card--if .code-block-tail    { background: #fbbf24; }
-.code-block-card--while .code-block-tail { background: #f97316; }
-.code-block-card--for .code-block-tail   { background: #34d399; }
-
-/* ── Input slots (backslash-triggered inline input) ── */
-.input-slot {
-  display: inline-block;
-  min-width: 40px;
-  padding: 1px 6px;
-  background: #fff;
-  border: 1px solid #cbd5e1;
-  border-radius: 3px;
-  font-size: 13px;
-  font-family: "JetBrains Mono", "Fira Code", monospace;
-  line-height: 1.5;
-  outline: none;
-  transition: border-color 0.15s;
-}
-
-.input-slot:focus {
-  border-color: #6366f1;
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
-}
-
-/* Empty slot placeholder */
-.input-slot--name:empty::before       { content: "变量名"; color: #fca5a5; }
-.input-slot--type_value:empty::before { content: "类型"; color: #cbd5e1; }
-.input-slot--expression:empty::before { content: "值"; color: #cbd5e1; }
-.input-slot--condition:empty::before  { content: "条件"; color: #cbd5e1; }
-.input-slot--fn_name:empty::before    { content: "函数名"; color: #cbd5e1; }
-
-/* ── Syntax lint ── */
-.code-card.syntax-warn {
-  text-decoration: underline;
-  text-decoration-color: #fbbf24;
-  text-decoration-style: wavy;
-  text-underline-offset: 2px;
+  padding: 5px 14px; background: #fff; color: #888;
+  border: 1px solid #ddd; border-radius: 4px; cursor: pointer; font-size: 12px;
 }
 
 /* ── Editor body ── */
-.overlay { /* existing — keep */ }
-.editor { /* existing — keep */ }
-.header { /* existing — keep */ }
 .body {
-  padding: 12px;
-  background: #fafbfc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  min-height: 200px;
-  max-height: 70vh;
-  overflow-y: auto;
+  flex: 1;
+  overflow: auto;
+  padding: 14px 16px;
+  position: relative;
 }
 
 .contentEditable {
-  outline: none;
   min-height: 100%;
-  font-size: 13px;
-  font-family: "JetBrains Mono", "Fira Code", monospace;
-  line-height: 1.8;
+  outline: none;
+  font-family: "JetBrains Mono", "Fira Code", "Consolas", monospace;
+  font-size: 13.5px;
+  line-height: 2;
+  color: #333;
+}
+
+/* ══════════════════════════════════════════
+   Containers — colored blocks per kind
+   ══════════════════════════════════════════ */
+.contentEditable :global(.code-container) {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1px;
+  padding: 2px 8px 2px 6px;
+  margin: 1px 0;
+  border-radius: 3px;
+  border-left: 3px solid;
+}
+
+/* let — purple */
+.contentEditable :global(.code-container--let) {
+  background: #f3f0ff; border-color: #7c3aed;
+}
+
+/* set — blue */
+.contentEditable :global(.code-container--set) {
+  background: #eff6ff; border-color: #3b82f6;
+}
+
+/* return — red */
+.contentEditable :global(.code-container--return) {
+  background: #fef2f2; border-color: #ef4444;
+}
+
+/* await / call — teal */
+.contentEditable :global(.code-container--await),
+.contentEditable :global(.code-container--call) {
+  background: #f0fdfa; border-color: #14b8a6;
+}
+
+/* ══════════════════════════════════════════
+   Cards — inline tokens within blocks
+   ══════════════════════════════════════════ */
+.contentEditable :global(.code-card) {
+  display: inline;
+  font-family: inherit;
+  font-size: inherit;
+  padding: 0 3px;
+  border-radius: 2px;
+  white-space: nowrap;
+}
+
+.contentEditable :global(.code-card--mut)       { color: #b45309; background: #fffbeb; }
+.contentEditable :global(.code-card--operator)   { color: #2563eb; background: #eff6ff; }
+.contentEditable :global(.code-card--type)       { color: #0d9488; background: #f0fdfa; }
+.contentEditable :global(.code-card--var_ref)    { color: #7c3aed; }
+.contentEditable :global(.code-card--literal)    { color: #059669; }
+.contentEditable :global(.code-card--break),
+.contentEditable :global(.code-card--continue)   { color: #d97706; background: #fffbeb; }
+.contentEditable :global(.code-card--separator)  { color: #999; padding: 0 1px; background: none; }
+.contentEditable :global(.code-card--comment)    { color: #999; font-style: italic; background: none; }
+.contentEditable :global(.code-card--dot)        { color: #666; background: none; }
+
+/* Card focus */
+.contentEditable :global(.code-card:focus),
+.contentEditable :global(.code-card.focused) {
+  outline: 2px solid #4c4cff;
+  outline-offset: 0;
+}
+
+/* ══════════════════════════════════════════
+   Block cards (if / while / for)
+   ══════════════════════════════════════════ */
+.contentEditable :global(.code-block-card) {
+  display: block;
+  border-radius: 3px;
+  padding: 2px 6px 2px 8px;
+  margin: 2px 0;
+  border-left: 3px solid;
+}
+
+/* if — amber */
+.contentEditable :global(.code-block-card--if) {
+  background: #fffdf5; border-color: #f59e0b;
+}
+/* while — orange */
+.contentEditable :global(.code-block-card--while) {
+  background: #fff7ed; border-color: #f97316;
+}
+/* for — green */
+.contentEditable :global(.code-block-card--for) {
+  background: #f0fdf4; border-color: #22c55e;
+}
+
+/* Block head */
+.contentEditable :global(.code-block-head) {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* Block body — indented */
+.contentEditable :global(.code-body-line) {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-left: 18px;
+  min-height: 24px;
+}
+
+/* Block tail */
+.contentEditable :global(.code-block-tail) {
+  height: 2px;
+  margin-top: 1px;
+  opacity: 0.4;
+}
+.contentEditable :global(.code-block-card--if .code-block-tail)    { background: #f59e0b; }
+.contentEditable :global(.code-block-card--while .code-block-tail) { background: #f97316; }
+.contentEditable :global(.code-block-card--for .code-block-tail)   { background: #22c55e; }
+
+/* ══════════════════════════════════════════
+   Input slots — white inset within blocks
+   ══════════════════════════════════════════ */
+.contentEditable :global(.input-slot) {
+  display: inline-block;
+  min-width: 32px;
+  padding: 0 6px;
+  background: #fff;
+  border: 1px solid #d0d0d0;
+  border-radius: 2px;
+  font-family: inherit;
+  font-size: inherit;
+  color: #333;
+  outline: none;
+  line-height: 1.6;
+}
+
+.contentEditable :global(.input-slot:focus) {
+  border-color: #4c4cff;
+  box-shadow: 0 0 0 1.5px rgba(76,76,255,0.2);
+}
+
+/* Empty slot hint */
+.contentEditable :global(.input-slot--name:empty)::before       { content: "name";  color: #c0c0c0; }
+.contentEditable :global(.input-slot--expression:empty)::before { content: "expr";  color: #c0c0c0; }
+.contentEditable :global(.input-slot--condition:empty)::before  { content: "cond";  color: #c0c0c0; }
+.contentEditable :global(.input-slot--fn_name:empty)::before    { content: "fn";    color: #c0c0c0; }
+.contentEditable :global(.input-slot--type_value:empty)::before { content: "type";  color: #c0c0c0; }
+
+/* ── Syntax warn ── */
+.contentEditable :global(.code-card.syntax-warn) {
+  outline: 1.5px solid #f59e0b;
+  outline-offset: 1px;
 }
