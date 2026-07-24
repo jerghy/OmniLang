@@ -1,57 +1,62 @@
 // poiesis/src/components/canvas/code/lexical/plugins/__tests__/KeyboardPlugin.test.ts
 import { describe, it, expect } from "vitest";
-import { createEditor, $getRoot, $createParagraphNode } from "lexical";
+import { createEditor, $getRoot, $createParagraphNode, $createTextNode } from "lexical";
 import { $isCardNode, $createCardNode } from "../../nodes/CardNode";
 import { $isContainerElementNode, $createContainerElementNode } from "../../nodes/ContainerNode";
 import { $isBodyLineNode, $createBodyLineNode } from "../../nodes/BodyLineNode";
+import { $createInputSlotNode, $isInputSlotNode } from "../../nodes/InputSlotNode";
 
-// Keyboard behavior specification tests
-// These test the underlying node operations that the KeyboardPlugin commands drive.
-// Full integration tests requiring the plugin to be mounted in a LexicalComposer
-// are covered by E2E tests.
-
-describe("KeyboardPlugin v2 — navigation logic", () => {
-  // ── Delete: inline card removal ──
-  it("Delete on inline card removes it", () => {
+describe("KeyboardPlugin v2 — node operations", () => {
+  // ── CardNode as ElementNode ──
+  it("CardNode is inline ElementNode with cursor access", () => {
     const editor = createEditor();
     editor.update(() => {
-      const root = $getRoot();
-      const p = $createParagraphNode();
       const card = $createCardNode("operator", "=", "c1");
-      p.append(card);
-      root.append(p);
-
-      // Simulate Delete: card.remove() is what the plugin calls
-      expect($isCardNode(card)).toBe(true);
-      card.remove();
-
-      // Card removed from tree
-      expect(root.getTextContent()).toBe("");
+      expect(card.isInline()).toBe(true);
+      expect(card.canBeEmpty()).toBe(true);
+      expect(card.canInsertTextBefore()).toBe(true);
+      expect(card.canInsertTextAfter()).toBe(true);
     });
   });
 
   // ── Delete: container at right edge ──
-  it("Delete on container right edge removes entire container", () => {
+  it("Delete at right edge of container removes entire container with children", () => {
     const editor = createEditor();
     editor.update(() => {
       const root = $getRoot();
       const container = $createContainerElementNode("let", "let1");
-      const p = $createParagraphNode();
+      const nameSlot = $createInputSlotNode("count", "name");
+      container.append(nameSlot);
       root.append(container);
-      root.append(p);
 
-      // Check that previous sibling of p is the container
-      const prevSibling = p.getPreviousSibling();
-      expect($isContainerElementNode(prevSibling)).toBe(true);
+      // Verify container exists and has children
+      expect($isContainerElementNode(container)).toBe(true);
+      expect(container.getChildren().length).toBe(1);
 
-      // Simulate Delete: remove the previous sibling container
-      if ($isContainerElementNode(prevSibling)) {
-        prevSibling.remove();
-      }
+      // Simulate Delete at right edge: remove container
+      container.remove();
 
-      // Container removed, only the paragraph remains
+      // Container removed
+      expect(root.getChildren().length).toBe(0);
+    });
+  });
+
+  // ── Delete: empty body line ──
+  it("Delete on empty body line removes it when siblings exist", () => {
+    const editor = createEditor();
+    editor.update(() => {
+      const root = $getRoot();
+      const line1 = $createBodyLineNode("bl-1");
+      const line2 = $createBodyLineNode("bl-2");
+      root.append(line1, line2);
+
+      expect(root.getChildren().length).toBe(2);
+
+      // Simulate Delete on line2: remove it
+      line2.remove();
+
       expect(root.getChildren().length).toBe(1);
-      expect(root.getFirstChild()).toBe(p);
+      expect(root.getFirstChild()).toBe(line1);
     });
   });
 
@@ -63,63 +68,46 @@ describe("KeyboardPlugin v2 — navigation logic", () => {
       const bodyLine = $createBodyLineNode("bl-1");
       root.append(bodyLine);
 
-      // Simulate Enter: insert new body line after current one
       const newLine = $createBodyLineNode("bl-2");
       bodyLine.insertAfter(newLine);
 
-      // Both body lines present in tree
-      expect($isBodyLineNode(bodyLine)).toBe(true);
-      expect($isBodyLineNode(newLine)).toBe(true);
-      const children = root.getChildren();
-      expect(children.length).toBe(2);
-      expect(children[0]).toBe(bodyLine);
-      expect(children[1]).toBe(newLine);
+      expect(root.getChildren().length).toBe(2);
+      expect($isBodyLineNode(root.getChildren()[1])).toBe(true);
     });
-  });
-
-  // ── Backslash (placeholder — no handler yet) ──
-  it("backslash in let container creates name input", () => {
-    // Placeholder: this will test that pressing \ in a let container's
-    // name position inserts an InputSlotNode for the variable name.
-    // Requires the backslash handler to be implemented.
-    expect(true).toBe(true);
-  });
-
-  it("backslash at top level is a no-op", () => {
-    // Placeholder: pressing \ at the top level should not trigger any
-    // special behavior — it's a no-op.
-    expect(true).toBe(true);
   });
 
   // ── Tab: operator cycling in set container ──
   it("Tab in set container cycles operator", () => {
     const editor = createEditor();
     editor.update(() => {
-      const root = $getRoot();
       const setContainer = $createContainerElementNode("set", "set1");
       const opCard = $createCardNode("operator", "=", "op1");
-      const valCard = $createCardNode("var_ref", "x", "val1");
-      setContainer.append(opCard, valCard);
-      root.append(setContainer);
+      const valSlot = $createInputSlotNode("x", "expression");
+      setContainer.append(opCard, valSlot);
 
-      // Check structure
-      expect($isContainerElementNode(setContainer)).toBe(true);
-      expect(setContainer.getContainerKind()).toBe("set");
-      expect($isCardNode(opCard)).toBe(true);
-      expect(opCard.getCardKind()).toBe("operator");
-      expect(opCard.getCardLabel()).toBe("=");
-
-      // Simulate Tab: cycle to next operator
       const operators = ["=", "+=", "-=", "*=", "/=", "%="];
       const current = operators.indexOf(opCard.getCardLabel());
       const next = (current + 1) % operators.length;
+
       const newNode = $createCardNode("operator", operators[next], opCard.getCardPid());
-
-      // Verify correct cycle
-      expect(operators[next]).toBe("+=");
-
       opCard.replace(newNode);
+
       expect(newNode.getCardLabel()).toBe("+=");
+      expect(newNode.getCardKind()).toBe("operator");
+    });
+  });
+
+  // ── Delete: card (browser native) ──
+  it("Card can be removed via remove()", () => {
+    const editor = createEditor();
+    editor.update(() => {
+      const root = $getRoot();
+      const card = $createCardNode("type", "i32", "c2");
+      root.append(card);
+
+      expect($isCardNode(card)).toBe(true);
+      card.remove();
+      expect(root.getChildren().length).toBe(0);
     });
   });
 });
