@@ -86,16 +86,18 @@
 
 /* ── Card styles ── */
 .contentEditable :global(.code-card) {
-  display: flex;
-  align-items: center;
-  gap: 0;
-  padding: 4px 8px;
-  margin: 2px 0;
-  border-radius: 6px;
-  border: 1px solid #cbd5e1;
-  background: #f8fafc;
+  display: inline;
   font-family: inherit;
   font-size: inherit;
+  padding: 0 3px;
+  border-radius: 2px;
+  white-space: nowrap;
+  transition: outline-color 120ms ease, box-shadow 120ms ease, filter 120ms ease;
+  cursor: default;
+}
+
+.contentEditable :global(.code-card:hover) {
+  filter: brightness(0.95);
 }
 
 .contentEditable :global(.code-card--declare_var) {
@@ -167,6 +169,34 @@
 .code-card.focused {
   outline: 2px solid #6366f1;
   outline-offset: 1px;
+}
+
+/* Card highlight — when card is selected as atomic unit (browser selection) */
+.contentEditable :global(.code-card.highlighted) {
+  outline: 2px solid #4c4cff;
+  outline-offset: 0;
+  box-shadow: 0 0 0 1.5px rgba(76, 76, 255, 0.25);
+}
+
+/* Container right-edge block cursor */
+.contentEditable :global(.code-container.at-right-edge) {
+  border-right: 2px solid #4c4cff;
+  padding-right: 6px;
+}
+
+.contentEditable :global(.code-body-line.at-right-edge) {
+  border-right: 2px solid #4c4cff;
+  padding-right: 6px;
+}
+
+/* Right-edge block cursor blink animation */
+@keyframes block-blink {
+  0%, 100% { border-right-color: #4c4cff; }
+  50% { border-right-color: rgba(76, 76, 255, 0.15); }
+}
+
+.contentEditable :global(.code-container.at-right-edge) {
+  animation: block-blink 1.2s ease-in-out infinite;
 }
 
 /* ── Containers ── */
@@ -262,6 +292,11 @@
 .input-slot:focus {
   border-color: #6366f1;
   box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+}
+
+/* Input slot focus transition */
+.contentEditable :global(.input-slot) {
+  transition: border-color 150ms ease, box-shadow 150ms ease;
 }
 
 /* Empty slot placeholder */
