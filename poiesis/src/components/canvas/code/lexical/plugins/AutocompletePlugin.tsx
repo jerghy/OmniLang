@@ -10,6 +10,7 @@ import {
   KEY_ARROW_UP_COMMAND,
   COMMAND_PRIORITY_LOW,
   $getRoot,
+  $isRootNode,
   $createTextNode,
 } from "lexical";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -24,52 +25,66 @@ import { $createContainerElementNode, $isContainerElementNode } from "../nodes/C
 import { $createBlockElementNode, $isBlockElementNode } from "../nodes/BlockNode";
 import { $createBodyLineNode } from "../nodes/BodyLineNode";
 import { $createInputSlotNode } from "../nodes/InputSlotNode";
-import type { SlotKind } from "../../../../../core/types/editor-node";
 import { uid } from "../../../../../core/utils/id";
 import { AutocompleteMenu } from "../autocomplete/AutocompleteMenu";
+import {
+  buildCursorContext,
+  canCreateSlot,
+  createSlotAtCursor,
+} from "../transforms/slot-operations";
 
 interface Props {
   /** Called when backslash key creates a new input slot */
   onCreateSlot?: () => void;
 }
 
+interface AcState {
+  visible: boolean;
+  items: AutocompleteItem[];
+  index: number;
+}
+
+const EMPTY_AC: AcState = { visible: false, items: [], index: 0 };
+
 export function AutocompletePlugin({ onCreateSlot }: Props): React.ReactNode {
   const [editor] = useLexicalComposerContext();
-  const [acState, setAcState] = useState<{
-    visible: boolean;
-    items: AutocompleteItem[];
-    index: number;
-  }>({ visible: false, items: [], index: 0 });
+  const [acState, setAcState] = useState<AcState>(EMPTY_AC);
   const typingTokenRef = useRef("");
+  /** Suppress the update listener from re-opening the menu after executeAutocomplete */
+  const suppressNextUpdateRef = useRef(false);
 
-  // ── Menu position computed from cursor ──
-  const [menuPos, setMenuPos] = useState({ top: 60, left: 60 });
-  const updateMenuPosition = useCallback(() => {
-    const sel = window.getSelection();
-    if (sel && sel.rangeCount > 0) {
-      const range = sel.getRangeAt(0);
-      const rect = range.getBoundingClientRect();
-      const editorEl = document.querySelector('[contenteditable="true"]');
-      if (editorEl) {
-        const editorRect = editorEl.getBoundingClientRect();
-        setMenuPos({
-          top: rect.bottom - editorRect.top + 4,
-          left: rect.left - editorRect.left,
-        });
-        return;
-      }
-    }
-    // Fallback
-    setMenuPos({ top: 60, left: 60 });
+  // ── Ref mirror of acState for synchronous reads in keyboard handlers ──
+  // React setState is async; keyboard events may fire before re-render, so
+  // command handlers MUST read from the ref, never from acState directly.
+  const acRef = useRef<AcState>(EMPTY_AC);
+
+  const updateAc = useCallback((next: AcState) => {
+    acRef.current = next;
+    setAcState(next);
   }, []);
+
+  const patchAc = useCallback((fn: (prev: AcState) => AcState) => {
+    const next = fn(acRef.current);
+    acRef.current = next;
+    setAcState(next);
+  }, []);
+
+  // ── Menu position computed from cursor (viewport-relative for position:fixed) ──
+  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
 
   // ── Detect typing and trigger autocomplete ──
   useEffect(() => {
     return editor.registerUpdateListener(({ editorState }: any) => {
       editorState.read(() => {
+        // Skip if we just executed an autocomplete action (prevent immediate re-open)
+        if (suppressNextUpdateRef.current) {
+          suppressNextUpdateRef.current = false;
+          return;
+        }
+
         const selection = $getSelection();
         if (!$isRangeSelection(selection)) {
-          setAcState((s) => (s.visible ? { ...s, visible: false } : s));
+          patchAc((s) => (s.visible ? { ...s, visible: false } : s));
           return;
         }
 
@@ -91,42 +106,50 @@ export function AutocompletePlugin({ onCreateSlot }: Props): React.ReactNode {
         };
 
         const items = getAutocompleteItems(token, context);
-        if (items.length > 0) {
-          setAcState({ visible: true, items, index: 0 });
+        if (token && items.length > 0) {
+          // Calculate position BEFORE showing menu (avoid flash at 0,0)
+          const sel = window.getSelection();
+          if (sel && sel.rangeCount > 0) {
+            const rect = sel.getRangeAt(0).getBoundingClientRect();
+            setMenuPos({ top: rect.bottom + 4, left: rect.left });
+          } else {
+            const editorEl = document.querySelector('[contenteditable="true"]');
+            if (editorEl) {
+              const editorRect = editorEl.getBoundingClientRect();
+              setMenuPos({ top: editorRect.top + 40, left: editorRect.left + 24 });
+            }
+          }
+          updateAc({ visible: true, items, index: 0 });
           typingTokenRef.current = token;
-          // Schedule cursor-relative menu position update
-          requestAnimationFrame(updateMenuPosition);
         } else {
-          setAcState((s) => (s.visible ? { ...s, visible: false } : s));
+          patchAc((s) => (s.visible ? { ...s, visible: false } : s));
         }
       });
     });
-  }, [editor]);
+  }, [editor, updateAc, patchAc]);
 
-  // ── Backslash → insert input slot ──
+  // ── Backslash → insert input slot (delegated to slot-operations) ──
   useEffect(() => {
     const removeRootListener = editor.registerRootListener(
       (rootElement: HTMLElement | null) => {
         if (!rootElement) return;
         const handler = (e: KeyboardEvent) => {
-          if (e.key === "\\") {
-            e.preventDefault();
-            editor.update(() => {
-              const selection = $getSelection();
-              if (!$isRangeSelection(selection)) return;
-              const node = selection.anchor.getNode();
-              const parent = node.getParent();
+          if (e.key !== "\\") return;
+          e.preventDefault();
+          editor.update(() => {
+            const selection = $getSelection();
+            if (!$isRangeSelection(selection)) return;
 
-              const parentKind = getParentContextKind(parent);
-              const slotKind = inferSlotKind(parentKind);
-              if (slotKind) {
-                const slotNode = $createInputSlotNode("", slotKind as SlotKind);
-                node.getParent()?.append(slotNode);
-                slotNode.select();
-                onCreateSlot?.();
-              }
-            });
-          }
+            const ctx = buildCursorContext(selection);
+            if (!canCreateSlot(ctx)) return;
+
+            const parent = selection.anchor.getNode().getParent();
+            const slot = createSlotAtCursor(ctx, parent);
+            if (slot) {
+              slot.select();
+              onCreateSlot?.();
+            }
+          });
         };
         rootElement.addEventListener("keydown", handler);
         return () => rootElement.removeEventListener("keydown", handler);
@@ -137,7 +160,9 @@ export function AutocompletePlugin({ onCreateSlot }: Props): React.ReactNode {
 
   const executeAutocomplete = useCallback(
     (item: AutocompleteItem) => {
-      setAcState((s) => ({ ...s, visible: false }));
+      // Suppress the update listener from re-opening the menu after this edit
+      suppressNextUpdateRef.current = true;
+      updateAc({ ...acRef.current, visible: false });
 
       editor.update(() => {
         const token = typingTokenRef.current;
@@ -145,6 +170,8 @@ export function AutocompletePlugin({ onCreateSlot }: Props): React.ReactNode {
         if (!$isRangeSelection(selection)) return;
 
         const anchorNode = selection.anchor.getNode();
+        // Save parent BEFORE modifying text (text node may become stale after setTextContent)
+        const parentNode = anchorNode.getParent();
 
         // Remove the typed token text
         if ($isTextNode(anchorNode) && anchorNode.getTextContentSize() > 0) {
@@ -160,64 +187,65 @@ export function AutocompletePlugin({ onCreateSlot }: Props): React.ReactNode {
 
         if (nodeType === "inline") {
           const cardNode = $createCardNode(kind as any, item.label, pid);
-          anchorNode.getParent()?.append(cardNode);
-          // Insert text node after for continued typing
+          parentNode?.append(cardNode);
           const nextText = $createTextNode(" ");
           cardNode.insertAfter(nextText);
           nextText.select();
         } else if (nodeType === "container") {
           const containerNode = $createContainerElementNode(kind as any, pid);
-          anchorNode.getParent()?.append(containerNode);
-          containerNode.selectStart();
+          insertStatementNode(containerNode, parentNode, anchorNode);
+          createDefaultSlot(containerNode, kind);
         } else if (nodeType === "block") {
           const blockNode = $createBlockElementNode(kind as any, pid);
           const bodyLine = $createBodyLineNode(uid("bl"));
           blockNode.append(bodyLine);
-          anchorNode.getParent()?.append(blockNode);
+          insertStatementNode(blockNode, parentNode, anchorNode);
           bodyLine.selectStart();
         }
       });
     },
-    [editor],
+    [editor, updateAc],
   );
 
   // ── Enter confirms autocomplete selection ──
+  // Reads from acRef (not acState) to avoid stale closure after async setState.
   useEffect(() => {
     return editor.registerCommand(
       KEY_ENTER_COMMAND,
       (event: KeyboardEvent) => {
-        if (!acState.visible) return false;
+        const cur = acRef.current;
+        if (!cur.visible) return false;
         event.preventDefault();
-        executeAutocomplete(acState.items[acState.index]);
+        executeAutocomplete(cur.items[cur.index]);
         return true;
       },
       COMMAND_PRIORITY_LOW,
     );
-  }, [editor, acState, executeAutocomplete]);
+  }, [editor, executeAutocomplete]);
 
   // ── Escape closes autocomplete ──
   useEffect(() => {
     return editor.registerCommand(
       KEY_ESCAPE_COMMAND,
       () => {
-        if (acState.visible) {
-          setAcState((s) => ({ ...s, visible: false }));
+        if (acRef.current.visible) {
+          patchAc((s) => ({ ...s, visible: false }));
           return true;
         }
         return false;
       },
       COMMAND_PRIORITY_LOW,
     );
-  }, [editor, acState.visible]);
+  }, [editor, patchAc]);
 
   // ── Arrow down navigates autocomplete list ──
   useEffect(() => {
     return editor.registerCommand(
       KEY_ARROW_DOWN_COMMAND,
       (event: KeyboardEvent) => {
-        if (!acState.visible) return false;
+        if (!acRef.current.visible) return false;
         event.preventDefault();
-        setAcState((s) => ({
+        patchAc((s) => ({
           ...s,
           index: Math.min(s.index + 1, s.items.length - 1),
         }));
@@ -225,16 +253,16 @@ export function AutocompletePlugin({ onCreateSlot }: Props): React.ReactNode {
       },
       COMMAND_PRIORITY_LOW,
     );
-  }, [editor, acState.visible, acState.items.length]);
+  }, [editor, patchAc]);
 
   // ── Arrow up navigates autocomplete list ──
   useEffect(() => {
     return editor.registerCommand(
       KEY_ARROW_UP_COMMAND,
       (event: KeyboardEvent) => {
-        if (!acState.visible) return false;
+        if (!acRef.current.visible) return false;
         event.preventDefault();
-        setAcState((s) => ({
+        patchAc((s) => ({
           ...s,
           index: Math.max(s.index - 1, 0),
         }));
@@ -242,7 +270,7 @@ export function AutocompletePlugin({ onCreateSlot }: Props): React.ReactNode {
       },
       COMMAND_PRIORITY_LOW,
     );
-  }, [editor, acState.visible]);
+  }, [editor, patchAc]);
 
   if (!acState.visible) return null;
 
@@ -251,7 +279,7 @@ export function AutocompletePlugin({ onCreateSlot }: Props): React.ReactNode {
       items={acState.items}
       selectedIndex={acState.index}
       onSelect={executeAutocomplete}
-      onClose={() => setAcState((s) => ({ ...s, visible: false }))}
+      onClose={() => patchAc((s) => ({ ...s, visible: false }))}
       position={menuPos}
     />
   );
@@ -275,23 +303,62 @@ function getPrecedingCardKind(node: any, offset: number): string | null {
   return null;
 }
 
-function inferSlotKind(parentKind: string | null): string | null {
-  if (!parentKind) return null;
-  switch (parentKind) {
+/**
+ * Insert a statement-level node (container or block) at the root level.
+ * If the anchor node is inside an empty paragraph at root, replace the paragraph.
+ */
+function insertStatementNode(
+  node: ReturnType<typeof $createContainerElementNode> | ReturnType<typeof $createBlockElementNode>,
+  parentNode: any,
+  _anchorNode?: any,
+): void {
+  const parent = parentNode;
+  if (!parent) return;
+
+  const grandParent = parent.getParent();
+  if (grandParent && $isRootNode(grandParent)) {
+    // Top-level statement — insert at root
+    if (parent.getTextContentSize() === 0) {
+      parent.replace(node);
+    } else {
+      parent.insertAfter(node);
+    }
+  } else {
+    // Nested inside a container/block — append as child
+    parent.append(node);
+  }
+}
+
+/**
+ * Auto-create the first default slot for a newly created container,
+ * so the user can immediately start typing.
+ */
+function createDefaultSlot(
+  containerNode: ReturnType<typeof $createContainerElementNode>,
+  kind: string,
+): void {
+  switch (kind) {
     case "let":
-    case "set":
-      return "expression";
-    case "if":
-    case "while":
-      return "condition";
-    case "for":
-      return "name";
-    case "call":
-      return "fn_name";
+    case "set": {
+      const nameSlot = $createInputSlotNode("", "name");
+      containerNode.append(nameSlot);
+      nameSlot.select();
+      break;
+    }
     case "return":
-    case "await":
-      return "expression";
+    case "await": {
+      const exprSlot = $createInputSlotNode("", "expression");
+      containerNode.append(exprSlot);
+      exprSlot.select();
+      break;
+    }
+    case "call": {
+      const fnSlot = $createInputSlotNode("", "fn_name");
+      containerNode.append(fnSlot);
+      fnSlot.select();
+      break;
+    }
     default:
-      return null;
+      containerNode.selectStart();
   }
 }
