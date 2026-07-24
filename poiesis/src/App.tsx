@@ -15,7 +15,6 @@ import { uid } from "./core/utils/id";
 import { ErrorBoundary } from "./components/error/ErrorBoundary";
 import { createLogger } from "./lib/utils/logger";
 import "./styles/tokens.css";
-import "./styles/legacy-bridge.css";
 import styles from "./App.module.css";
 
 const DesignPage = lazy(() => import("./pages/DesignPage").then((m) => ({ default: m.DesignPage })));
