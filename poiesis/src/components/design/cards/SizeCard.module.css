@@ -14,7 +14,7 @@
 .miniPreviewInner {
   border: 2px solid var(--dp-accent, var(--ol-color-primary));
   border-radius: 2px;
-  background: rgba(99, 102, 241, 0.06);
+  background: rgba(201, 100, 66, 0.06);
   transition: none;
   position: relative;
 }
