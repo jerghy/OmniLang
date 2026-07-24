@@ -12,7 +12,7 @@
 .editor {
   width: 80vw;
   height: 80vh;
-  background: #fff;
+  background: var(--ol-surface);
   border-radius: 12px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
   display: flex;
@@ -25,7 +25,7 @@
   justify-content: space-between;
   align-items: center;
   padding: 12px 16px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--ol-border);
 }
 
 .title {
@@ -41,8 +41,8 @@
 
 .saveBtn {
   padding: 6px 16px;
-  background: #6366f1;
-  color: #fff;
+  background: var(--ol-color-primary);
+  color: var(--ol-text-inverse);
   border: none;
   border-radius: 6px;
   cursor: pointer;
@@ -51,8 +51,8 @@
 
 .cancelBtn {
   padding: 6px 16px;
-  background: #e2e8f0;
-  color: #475569;
+  background: var(--ol-gray-200);
+  color: var(--ol-text-secondary);
   border: none;
   border-radius: 6px;
   cursor: pointer;
@@ -62,8 +62,8 @@
 .textModeBtn {
   padding: 6px 16px;
   background: transparent;
-  color: #6366f1;
-  border: 1px solid #6366f1;
+  color: var(--ol-color-primary);
+  border: 1px solid var(--ol-color-primary);
   border-radius: 6px;
   cursor: pointer;
   font-size: 13px;
@@ -99,23 +99,17 @@
   filter: brightness(0.95);
 }
 
-.contentEditable :global(.code-card--declare_var) {
-  border-left: 3px solid #7c3aed;
-}
-
-.contentEditable :global(.code-card--set_var) {
-  border-left: 3px solid #f59e0b;
-}
-
-.contentEditable :global(.code-card--if_block),
-.contentEditable :global(.code-card--while),
-.contentEditable :global(.code-card--for_in) {
-  border-left: 3px solid #06b6d4;
-}
-
-.contentEditable :global(.code-card--return) {
-  border-left: 3px solid #ef4444;
-}
+/* v2 card variant colors — match CardNode's global class names */
+.contentEditable :global(.code-card--mut)       { background: #fde68a; color: #92400e; }
+.contentEditable :global(.code-card--break),
+.contentEditable :global(.code-card--continue)  { background: #e2e8f0; color: #475569; }
+.contentEditable :global(.code-card--operator)  { background: #e2e8f0; color: #334155; }
+.contentEditable :global(.code-card--type)      { background: #cffafe; color: #155e75; }
+.contentEditable :global(.code-card--var_ref)   { background: #d1fae5; color: #065f46; }
+.contentEditable :global(.code-card--literal)   { background: #d1fae5; color: #065f46; }
+.contentEditable :global(.code-card--dot)       { background: #e2e8f0; color: #334155; }
+.contentEditable :global(.code-card--separator) { background: transparent; color: #94a3b8; padding: 1px 2px; }
+.contentEditable :global(.code-card--comment)   { background: #f1f5f9; color: #94a3b8; font-style: italic; }
 
 /* ── Slot styles ── */
 .contentEditable :global(.slot-text--name) {
@@ -166,31 +160,31 @@
 /* ── Card highlight (arrow-key focus) ── */
 .code-card:focus,
 .code-card.focused {
-  outline: 2px solid #6366f1;
+  outline: 2px solid var(--ol-color-primary);
   outline-offset: 1px;
 }
 
 /* Card highlight — when card is selected as atomic unit (browser selection) */
 .contentEditable :global(.code-card.highlighted) {
-  outline: 2px solid #4c4cff;
+  outline: 2px solid var(--ol-color-primary-hover);
   outline-offset: 0;
   box-shadow: 0 0 0 1.5px rgba(76, 76, 255, 0.25);
 }
 
 /* Container right-edge block cursor */
 .contentEditable :global(.code-container.at-right-edge) {
-  border-right: 2px solid #4c4cff;
+  border-right: 2px solid var(--ol-color-primary-hover);
   padding-right: 6px;
 }
 
 .contentEditable :global(.code-body-line.at-right-edge) {
-  border-right: 2px solid #4c4cff;
+  border-right: 2px solid var(--ol-color-primary-hover);
   padding-right: 6px;
 }
 
 /* Right-edge block cursor blink animation */
 @keyframes block-blink {
-  0%, 100% { border-right-color: #4c4cff; }
+  0%, 100% { border-right-color: var(--ol-color-primary-hover); }
   50% { border-right-color: rgba(76, 76, 255, 0.15); }
 }
 
@@ -278,8 +272,8 @@
   display: inline-block;
   min-width: 40px;
   padding: 1px 6px;
-  background: #fff;
-  border: 1px solid #cbd5e1;
+  background: var(--ol-surface);
+  border: 1px solid var(--ol-border-hover);
   border-radius: 3px;
   font-size: 13px;
   font-family: "JetBrains Mono", "Fira Code", monospace;
@@ -289,7 +283,7 @@
 }
 
 .input-slot:focus {
-  border-color: #6366f1;
+  border-color: var(--ol-color-primary);
   box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
 }
 
@@ -299,11 +293,11 @@
 }
 
 /* Empty slot placeholder */
-.input-slot--name:empty::before       { content: "变量名"; color: #fca5a5; }
-.input-slot--type_value:empty::before { content: "类型"; color: #cbd5e1; }
-.input-slot--expression:empty::before { content: "值"; color: #cbd5e1; }
-.input-slot--condition:empty::before  { content: "条件"; color: #cbd5e1; }
-.input-slot--fn_name:empty::before    { content: "函数名"; color: #cbd5e1; }
+.input-slot--name:empty::before       { content: "变量名"; color: var(--ol-color-danger-muted); }
+.input-slot--type_value:empty::before { content: "类型"; color: var(--ol-text-muted); }
+.input-slot--expression:empty::before { content: "值"; color: var(--ol-text-muted); }
+.input-slot--condition:empty::before  { content: "条件"; color: var(--ol-text-muted); }
+.input-slot--fn_name:empty::before    { content: "函数名"; color: var(--ol-text-muted); }
 
 /* ── Syntax lint ── */
 .code-card.syntax-warn {
@@ -319,8 +313,8 @@
 .header { /* existing — keep */ }
 .body {
   padding: 12px;
-  background: #fafbfc;
-  border: 1px solid #e2e8f0;
+  background: var(--ol-surface-hover);
+  border: 1px solid var(--ol-border);
   border-radius: 8px;
   min-height: 200px;
   max-height: 70vh;
