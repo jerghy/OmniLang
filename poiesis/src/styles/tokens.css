@@ -193,6 +193,14 @@
   --ol-focus-ring-color:  rgba(201, 100, 66, 0.35);
 
   /* ═══════════════════════════════════════════════
+     Scrollbar
+     ═══════════════════════════════════════════════ */
+  --ol-scrollbar-size:      6px;
+  --ol-scrollbar-track:     transparent;
+  --ol-scrollbar-thumb:     rgba(0, 0, 0, 0.12);
+  --ol-scrollbar-thumb-hover: rgba(0, 0, 0, 0.22);
+
+  /* ═══════════════════════════════════════════════
      Layout
      ═══════════════════════════════════════════════ */
   --ol-header-height:    44px;
@@ -200,6 +208,27 @@
   --ol-statusbar-height: 24px;
   --ol-sidebar-width:    240px;
   --ol-inspector-width:  280px;
+}
+
+/* ── Global scrollbar (light) ── */
+::-webkit-scrollbar {
+  width:  var(--ol-scrollbar-size);
+  height: var(--ol-scrollbar-size);
+}
+::-webkit-scrollbar-track {
+  background: var(--ol-scrollbar-track);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--ol-scrollbar-thumb);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ol-scrollbar-thumb-hover);
+}
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ol-scrollbar-thumb) var(--ol-scrollbar-track);
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -288,4 +317,19 @@
 
   /* ── Focus Ring (brighter in dark) ── */
   --ol-focus-ring-color: rgba(185, 119, 92, 0.4);
+
+  /* ── Scrollbar (dark) ── */
+  --ol-scrollbar-thumb:       rgba(255, 255, 255, 0.13);
+  --ol-scrollbar-thumb-hover: rgba(255, 255, 255, 0.24);
+}
+
+/* ── Global scrollbar (dark) ── */
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: var(--ol-scrollbar-thumb);
+}
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background: var(--ol-scrollbar-thumb-hover);
+}
+[data-theme="dark"] * {
+  scrollbar-color: var(--ol-scrollbar-thumb) var(--ol-scrollbar-track);
 }
