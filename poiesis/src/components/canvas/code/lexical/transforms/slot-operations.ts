@@ -46,12 +46,10 @@ export function buildCursorContext(selection: RangeSelection): CursorContext {
   let precedingCardKind: string | null = null;
   let precedingCardLabel: string | null = null;
 
-  if (offset === 0 && $isCardNode(anchorNode.getPreviousSibling())) {
-    const prev = anchorNode.getPreviousSibling()!;
-    precedingCardKind = prev.getType() === "inline-card"
-      ? (prev as any).getCardKind() : null;
-    precedingCardLabel = prev.getType() === "inline-card"
-      ? (prev as any).getCardLabel() : null;
+  const prev = anchorNode.getPreviousSibling();
+  if (offset === 0 && $isCardNode(prev)) {
+    precedingCardKind = prev.getCardKind();
+    precedingCardLabel = prev.getCardLabel();
   } else {
     // Walk backwards through siblings to find the nearest card
     let sibling = anchorNode.getPreviousSibling();

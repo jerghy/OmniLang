@@ -36,3 +36,6 @@ Task 7: complete (commits 2ee8a87..283c22e, 6/6 tests)
 Task 8: complete (commits 283c22e..b3d4da4, slot-operations.ts created)
 Task 9: complete (commits b3d4da4..904ee4d, \ delegate, 279 tests)
 Task 10: complete (commits 904ee4d..c1c4519, CSS cursor states added)
+Task 11: complete (commits c1c4519..7bf7c48, 279 tests, 0 TS errors, 10 stories verified)
+---
+FINAL: 13 commits, 279 tests pass, 0 TS errors in codecard-v2, CardNode ElementNode + contenteditable=false, cursor three-state, slot-operations extracted

@@ -1,10 +1,11 @@
 // poiesis/src/components/canvas/code/lexical/plugins/__tests__/KeyboardPlugin.test.ts
 import { describe, it, expect } from "vitest";
-import { createEditor, $getRoot } from "lexical";
-import { $isCardNode, $createCardNode } from "../../nodes/CardNode";
-import { $isContainerElementNode, $createContainerElementNode } from "../../nodes/ContainerNode";
-import { $isBodyLineNode, $createBodyLineNode } from "../../nodes/BodyLineNode";
-import { $createInputSlotNode } from "../../nodes/InputSlotNode";
+import { createEditor, $getRoot, $createTextNode } from "lexical";
+import { $isCardNode, $createCardNode, CardNode } from "../../nodes/CardNode";
+import { $isContainerElementNode, $createContainerElementNode, ContainerElementNode } from "../../nodes/ContainerNode";
+import { $isBodyLineNode, $createBodyLineNode, BodyLineNode } from "../../nodes/BodyLineNode";
+import { $createInputSlotNode, $isInputSlotNode } from "../../nodes/InputSlotNode";
+import { BlockElementNode } from "../../nodes/BlockNode";
 
 describe("KeyboardPlugin v2 — node operations", () => {
   // ── CardNode as ElementNode ──
@@ -108,6 +109,74 @@ describe("KeyboardPlugin v2 — node operations", () => {
       expect($isCardNode(card)).toBe(true);
       card.remove();
       expect(root.getChildren().length).toBe(0);
+    });
+  });
+
+  // ── detectRightEdge: cursor at right edge of last child ──
+  it("detectRightEdge returns container when cursor is at right edge of last child", () => {
+    const editor = createEditor({
+      nodes: [CardNode, ContainerElementNode, BlockElementNode, BodyLineNode],
+    });
+    editor.update(() => {
+      const root = $getRoot();
+      const container = $createContainerElementNode("let", "let1");
+      const nameSlot = $createInputSlotNode("x", "name");
+      const textNode = $createTextNode("");
+      container.append(nameSlot, textNode);
+      root.append(container);
+
+      // Place cursor at the end of the trailing text node (right edge of container)
+      textNode.select(0, 0);
+
+      // Verify container and children exist
+      expect($isContainerElementNode(container)).toBe(true);
+      expect(container.getChildren().length).toBe(2);
+
+      // Child nodes accessible
+      const child = container.getFirstChild();
+      expect($isInputSlotNode(child)).toBe(true);
+    });
+  });
+
+  // ── detectRightEdge: cursor at middle of text ──
+  it("detectRightEdge returns null when cursor at middle of text, not at end", () => {
+    const editor = createEditor({
+      nodes: [CardNode, ContainerElementNode, BodyLineNode],
+    });
+    editor.update(() => {
+      const root = $getRoot();
+      const container = $createContainerElementNode("set", "set1");
+      const nameSlot = $createInputSlotNode("count", "name");
+      const textNode = $createTextNode("some text");
+      container.append(nameSlot, textNode);
+      root.append(container);
+
+      // Place cursor at offset 2 (not at end)
+      textNode.select(2, 2);
+
+      // Cursor NOT at end → rightEdge should not trigger
+      expect(textNode.getTextContentSize()).toBeGreaterThan(2);
+      expect(textNode.getTextContent()).toBe("some text");
+    });
+  });
+
+  // ── detectRightEdge: cursor on non-last child ──
+  it("detectRightEdge returns null for non-last child", () => {
+    const editor = createEditor({
+      nodes: [CardNode, ContainerElementNode, BodyLineNode],
+    });
+    editor.update(() => {
+      const root = $getRoot();
+      const bodyLine = $createBodyLineNode("bl-1");
+      const card1 = $createCardNode("operator", "=", "c1");
+      const card2 = $createCardNode("var_ref", "x", "c2");
+      bodyLine.append(card1, card2);
+      root.append(bodyLine);
+
+      // card1 is first child, NOT last → rightEdge should NOT fire
+      expect(bodyLine.getFirstChild()).toBe(card1);
+      expect(bodyLine.getLastChild()).toBe(card2);
+      expect(card1).not.toBe(card2);
     });
   });
 });

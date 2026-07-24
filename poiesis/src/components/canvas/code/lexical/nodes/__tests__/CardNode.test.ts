@@ -96,7 +96,7 @@ describe("CardNode (ElementNode)", () => {
     });
   });
 
-  it("DOM has contenteditable=false", async () => {
+  it("card persists in committed editor state", async () => {
     const editor = createEditor({ nodes: [CardNode] });
     await editor.update(() => {
       const root = $getRoot();
@@ -112,6 +112,21 @@ describe("CardNode (ElementNode)", () => {
       const paragraph = root.getFirstChild();
       const card = paragraph && $isElementNode(paragraph) ? paragraph.getFirstChild() : null;
       expect($isCardNode(card)).toBe(true);
+    });
+  });
+
+  it("creates DOM element with contenteditable=false", () => {
+    const editor = createEditor({ nodes: [CardNode] });
+    editor.update(() => {
+      const card = $createCardNode("operator", "=", "c10");
+      const dom = card.createDOM({
+        namespace: "test",
+        theme: {} as any,
+      } as any);
+      expect(dom.getAttribute("contenteditable")).toBe("false");
+      expect(dom.tagName).toBe("SPAN");
+      expect(dom.getAttribute("data-card-kind")).toBe("operator");
+      expect(dom.getAttribute("data-card-pid")).toBe("c10");
     });
   });
 });

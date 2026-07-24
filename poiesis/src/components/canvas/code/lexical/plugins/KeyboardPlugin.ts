@@ -182,8 +182,15 @@ function detectRightEdge(
   const anchor = selection.anchor;
   const anchorNode = anchor.getNode();
 
-  // Cursor must be at the very end of the anchor node
-  if (anchor.offset !== anchorNode.getTextContentSize()) return null;
+  // Anchor offset is child-index for element anchors, text-index for text anchors
+  if (anchor.type === "element") {
+    if (!$isElementNode(anchorNode)) return null;
+    if (anchor.offset !== anchorNode.getChildrenSize()) return null;
+  } else if (anchor.type === "text") {
+    if (anchor.offset !== anchorNode.getTextContentSize()) return null;
+  } else {
+    return null;
+  }
 
   // Walk up: is this node the last child of a container or body line?
   let node: LexicalNode | null = anchorNode;
