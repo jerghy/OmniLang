@@ -93,7 +93,6 @@
   border-radius: 2px;
   white-space: nowrap;
   transition: outline-color 120ms ease, box-shadow 120ms ease, filter 120ms ease;
-  cursor: default;
 }
 
 .contentEditable :global(.code-card:hover) {
