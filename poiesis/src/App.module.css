@@ -49,3 +49,10 @@
     opacity var(--ol-duration-fast) var(--ol-ease-default);
   white-space: nowrap;
 }
+
+.toggleSep {
+  width: 1px;
+  align-self: stretch;
+  margin: 2px 2px;
+  background: var(--ol-border-subtle);
+}

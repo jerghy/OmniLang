@@ -415,7 +415,7 @@ export default function App() {
             </Suspense>
           </div>
 
-          {/* Page-switch toggle — top-right floating */}
+          {/* Page-switch + Theme toggle — top-right floating */}
           <div className={styles.pageToggle}>
             <PageToggleButton
               active={currentPage === "design"}
@@ -429,6 +429,8 @@ export default function App() {
             >
               🔗 架构
             </PageToggleButton>
+            <div className={styles.toggleSep} />
+            <ThemeToggleButton />
           </div>
 
           <StatusBar
@@ -464,6 +466,41 @@ function PageToggleButton({
       }}
     >
       {children}
+    </button>
+  );
+}
+
+const THEME_ICONS: Record<string, string> = {
+  light: "☀️",
+  dark: "🌙",
+  system: "🖥️",
+};
+
+const THEME_CYCLE: Array<"light" | "dark" | "system"> = ["light", "dark", "system"];
+
+function ThemeToggleButton() {
+  const theme = usePoiesisStore((s) => s.theme);
+  const setTheme = usePoiesisStore((s) => s.setTheme);
+
+  const handleClick = () => {
+    const idx = THEME_CYCLE.indexOf(theme);
+    const next = THEME_CYCLE[(idx + 1) % THEME_CYCLE.length];
+    setTheme(next);
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      className={styles.pageToggleBtn}
+      title={`Theme: ${theme}`}
+      style={{
+        color: "var(--ol-text-secondary)",
+        background: "transparent",
+        padding: "5px 8px",
+      }}
+    >
+      {THEME_ICONS[theme]}
     </button>
   );
 }
