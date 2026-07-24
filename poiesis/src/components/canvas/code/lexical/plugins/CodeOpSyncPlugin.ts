@@ -151,10 +151,40 @@ function extractEditorNodes(root: ReturnType<typeof $getRoot>): EditorNode[] {
   const nodes: EditorNode[] = [];
   const children = root.getChildren();
   for (const child of children) {
-    const node = lexicalToEditorNode(child);
-    if (node) nodes.push(node);
+    const extracted = extractFromNode(child);
+    if (extracted) {
+      if (Array.isArray(extracted)) {
+        nodes.push(...extracted);
+      } else {
+        nodes.push(extracted);
+      }
+    }
   }
   return nodes;
+}
+
+/** Recursively extract EditorNodes from any Lexical node, traversing into paragraphs. */
+function extractFromNode(lexicalNode: any): EditorNode | EditorNode[] | null {
+  const direct = lexicalToEditorNode(lexicalNode);
+  if (direct) return direct;
+
+  // Traverse into ElementNodes (e.g. ParagraphNode) that may wrap our custom nodes
+  if (lexicalNode.getChildren && typeof lexicalNode.getChildren === "function") {
+    const result: EditorNode[] = [];
+    for (const child of lexicalNode.getChildren()) {
+      const extracted = extractFromNode(child);
+      if (extracted) {
+        if (Array.isArray(extracted)) {
+          result.push(...extracted);
+        } else {
+          result.push(extracted);
+        }
+      }
+    }
+    if (result.length > 0) return result;
+  }
+
+  return null;
 }
 
 function lexicalToEditorNode(lexicalNode: any): EditorNode | null {

@@ -3,9 +3,20 @@
     "playwright": "^1.61.1"
   },
   "scripts": {
-    "doctor": "npx react-doctor@latest"
+    "doctor": "npx react-doctor@latest",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build"
   },
   "devDependencies": {
-    "react-doctor": "^0.9.0"
+    "@storybook/addon-essentials": "^8.6.18",
+    "@storybook/addon-interactions": "^8.6.18",
+    "@storybook/react": "^8.6.18",
+    "@storybook/react-vite": "^8.6.18",
+    "@vitest/browser-playwright": "^4.1.10",
+    "@vitest/coverage-v8": "^4.1.10",
+    "prop-types": "^15.8.1",
+    "react-doctor": "^0.9.0",
+    "storybook": "^8.6.18",
+    "vitest": "^4.1.10"
   }
 }

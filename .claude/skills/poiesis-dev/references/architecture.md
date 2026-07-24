@@ -77,11 +77,14 @@ DesignPage
 │       │   ├─ 4 节点: fn / code-block / condition / return（纯控制流连线）
 │       │   ├─ GraphCompiler: 保存时 图 → fn body .omni 源码（含 // @pid:xxx）
 │       │   ├─ GraphParser: 加载时 .omni 源码 → 图（14 tests, graph-parser.test.ts）
-│       │   ├─ CodeCardEditor: ★ 双击 code-block 节点打开逐行编辑器
-│       │   │   ├─ 逐行模型 EditorRow[]：InputRow（<input>）+ CardRow（卡片组件）
-│       │   │   ├─ 补全：前缀过滤，菜单定位在当前行下方
-│       │   │   ├─ 左侧颜色条：紫(let)/橙(set)/青(if-while-for)/红(return)
-│       │   │   ├─ ↑↓ 跳行、Tab 跳槽位、Backspace 空卡 → 退化为文本
+│       │   ├─ CodeCardEditor v2: ★ 双击 code-block 节点打开 Lexical 结构化卡片编辑器
+│       │   │   ├─ EditorNode[] 嵌套树：ContainerNode(let/set/return/call) / BlockNode(if/while/for) / InlineNode / InputSlot
+│       │   │   ├─ Lexical 5 节点：CardNode(DecoratorNode 只读卡片) / ContainerElementNode / BlockElementNode / BodyLineNode / InputSlotNode
+│       │   │   ├─ 打字匹配插入卡片（前缀过滤 + 上下文感知），\ 唤起内联输入框
+│       │   │   ├─ 光标三态：卡片高亮 / 竖线│打字 / 方块▌整组删除
+│       │   │   ├─ 三行封闭色条(if/while/for)：┏ 头行 / ┃ 代码行(Enter扩展) / ┗ 收口行
+│       │   │   ├─ ← → ↑ ↓ 导航、Delete 层级删除、Tab 切换 set 运算符、Ctrl+C/V 复制粘贴
+│       │   │   ├─ CodeOp[] → convertToNodes → EditorNode[] → Lexical 树（加载）/ 反向（保存）→ emitOps → source
 │       │   │   └─ "文本模式"按钮 → CodeEditorModal (Monaco) 双模式 fallback
 │       │   ├─ DesignPreviewNode: 设计缩略图，读 store.previewOutput
 │       │       └─ 宽高比从 useCanvasStore.devicePreset 动态计算，同步 DeviceSelector 选择的设备尺寸

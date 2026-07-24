@@ -30,15 +30,15 @@ export const AutocompleteMenu: React.FC<Props> = ({
   return (
     <div ref={menuRef}
       style={{
-        position: "absolute",
+        position: "fixed",
         top: position.top, left: position.left,
         background: "#fff", borderRadius: 6,
         boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
         minWidth: 200, maxHeight: 240, overflowY: "auto",
-        zIndex: 1000, fontFamily: "monospace", fontSize: 12,
+        zIndex: 10001, fontFamily: "monospace", fontSize: 12,
       }}>
       {items.map((item, i) => (
-        <div key={`${item.kind}-${item.label}`}
+        <div key={`${item.cardKind}-${item.label}`}
           onClick={() => onSelect(item)}
           style={{
             padding: "6px 12px", cursor: "pointer",

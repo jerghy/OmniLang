@@ -104,7 +104,7 @@ export function getAutocompleteItems(
   context: AutocompleteContext,
 ): AutocompleteItem[] {
   const candidates = getCandidatesForContext(context);
-  if (!token) return candidates;
+  if (!token) return [];
   const lower = token.toLowerCase();
   return candidates.filter(item => item.label.toLowerCase().startsWith(lower));
 }

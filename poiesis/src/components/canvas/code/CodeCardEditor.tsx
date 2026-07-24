@@ -47,9 +47,11 @@ export const CodeCardEditor: React.FC<Props> = ({
 }) => {
   const [showMonaco, setShowMonaco] = useState(false);
   const opsRef = useRef<CodeOp[]>(initialOps);
+  const [opsCount, setOpsCount] = useState(initialOps.length);
 
   const handleSync = useCallback((ops: CodeOp[]) => {
     opsRef.current = ops;
+    setOpsCount(ops.length);
   }, []);
 
   const handleSave = useCallback(() => {
@@ -87,7 +89,7 @@ export const CodeCardEditor: React.FC<Props> = ({
         {/* Header */}
         <div className={styles.header}>
           <h3 className={styles.title}>
-            Code Card Editor — {opsRef.current.length} ops
+            Code Card Editor — {opsCount} ops
           </h3>
           <div className={styles.actions}>
             <button

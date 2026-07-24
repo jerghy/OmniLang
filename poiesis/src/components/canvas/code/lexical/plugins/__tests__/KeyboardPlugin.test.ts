@@ -1,10 +1,10 @@
 // poiesis/src/components/canvas/code/lexical/plugins/__tests__/KeyboardPlugin.test.ts
 import { describe, it, expect } from "vitest";
-import { createEditor, $getRoot, $createParagraphNode, $createTextNode } from "lexical";
+import { createEditor, $getRoot } from "lexical";
 import { $isCardNode, $createCardNode } from "../../nodes/CardNode";
 import { $isContainerElementNode, $createContainerElementNode } from "../../nodes/ContainerNode";
 import { $isBodyLineNode, $createBodyLineNode } from "../../nodes/BodyLineNode";
-import { $createInputSlotNode, $isInputSlotNode } from "../../nodes/InputSlotNode";
+import { $createInputSlotNode } from "../../nodes/InputSlotNode";
 
 describe("KeyboardPlugin v2 — node operations", () => {
   // ── CardNode as ElementNode ──

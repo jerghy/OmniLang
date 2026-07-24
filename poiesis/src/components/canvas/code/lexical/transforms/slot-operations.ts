@@ -2,9 +2,8 @@
 // \ (backslash) input slot inference and creation.
 // Extracted from AutocompletePlugin for testability and separation of concerns.
 import {
-  $getSelection,
-  $isRangeSelection,
   $isRootNode,
+  $isElementNode,
   type RangeSelection,
   type LexicalNode,
 } from "lexical";
@@ -12,7 +11,7 @@ import type { SlotKind } from "../../../../../core/types/editor-node";
 import { $isCardNode } from "../nodes/CardNode";
 import { $isContainerElementNode } from "../nodes/ContainerNode";
 import { $isBlockElementNode } from "../nodes/BlockNode";
-import { $isInputSlotNode, $createInputSlotNode, type InputSlotNode } from "../nodes/InputSlotNode";
+import { $createInputSlotNode, type InputSlotNode } from "../nodes/InputSlotNode";
 
 export interface CursorContext {
   parentKind: string | null;
@@ -148,7 +147,7 @@ export function createSlotAtCursor(
   parentNode: LexicalNode | null,
 ): InputSlotNode | null {
   const slotKind = inferSlotKind(ctx);
-  if (!slotKind || parentNode === null) return null;
+  if (!slotKind || parentNode === null || !$isElementNode(parentNode)) return null;
 
   const slot = $createInputSlotNode("", slotKind);
   parentNode.append(slot);

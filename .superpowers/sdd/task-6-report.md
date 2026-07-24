@@ -1,53 +1,44 @@
-# Task 6 Report: ContainerNode + BlockNode + BodyLineNode
+# Task 6 Report: KeyboardPlugin Rewrite
 
 ## STATUS: COMPLETE
 
-## Files Created
+## File Modified
 
-| File | Lines | Description |
-|------|-------|-------------|
-| `poiesis/src/components/canvas/code/lexical/nodes/ContainerNode.ts` | 107 | `ContainerElementNode` -- wraps let/set/return/await/call/array/map children; imports `ContainerKind` |
-| `poiesis/src/components/canvas/code/lexical/nodes/BlockNode.ts` | 101 | `BlockElementNode` -- wraps if/while/for with head/body/tail; imports `BlockKind` |
-| `poiesis/src/components/canvas/code/lexical/nodes/BodyLineNode.ts` | 94 | `BodyLineNode` -- individual code lines within blocks; no special kind, just pid |
-| `poiesis/src/components/canvas/code/lexical/nodes/__tests__/ContainerNode.test.ts` | 157 | 11 tests for ContainerElementNode |
-| `poiesis/src/components/canvas/code/lexical/nodes/__tests__/BlockNode.test.ts` | 136 | 11 tests for BlockElementNode |
+| File | Description |
+|------|-------------|
+| `poiesis/src/components/canvas/code/lexical/plugins/KeyboardPlugin.ts` | Rewrote Delete/Backspace/Enter/Tab handlers for v2 cursor three-state model |
 
-## Files Modified
+## Summary
 
-- `poiesis/src/components/canvas/code/lexical/nodes/index.ts` -- added exports for all three new nodes
+Rewrote `KeyboardPlugin.ts` to align with the v2 cursor model where CardNode is an `ElementNode` with `contenteditable="false"`. The browser now natively handles card selection, arrow-key navigation, and card deletion. The plugin only intercepts edge cases the browser cannot handle.
 
-## Tests
+### Key Changes
 
+- **Delete handler**: Uses `detectRightEdge()` to only intercept when cursor is at container or body-line right-edge. Lets browser handle card deletion natively.
+- **Backspace handler**: New handler that swallows Backspace at container start (no-op). All other cases fall through to native browser.
+- **Enter handler**: Uses `findAncestorBodyLine()` for Enter-in-body-line. Also handles Enter after container right-edge.
+- **Tab handler**: Uses `findCardAtCursor()` helper to detect operator cards adjacent to cursor (not just directly on card), enabling Tab cycling from adjacent text nodes.
+- **Helpers**: Three new functions encapsulating cursor-position detection logic.
+
+### TypeScript
+- 0 new errors in KeyboardPlugin.ts (pre-existing 657 errors unchanged).
+
+### Test Results
+- **6/6 tests passed** (same as baseline):
+  - Delete on inline card removes it
+  - Delete on container right edge removes entire container
+  - Enter at end of body line creates new line
+  - backslash in let container creates name input (placeholder)
+  - backslash at top level is a no-op (placeholder)
+  - Tab in set container cycles operator
+
+### Type Fixes Applied vs. Brief
+Three minor type fixes beyond the exact brief code:
+1. Added `$isCardNode(cardNode)` guard before card-specific methods on `findCardAtCursor` result
+2. Added explicit `LexicalNode | null` type annotation to `parent` in `detectRightEdge` while loop
+3. Added `$isElementNode(parent)` guard before `getLastChild()` (parent is `LexicalNode`, `getLastChild` on `ElementNode`)
+
+### Commit
 ```
-Test Files  2 passed (2)
-     Tests  22 passed (22)
+2ee8a87 refactor(codecard-v2): rewrite KeyboardPlugin with right-edge detection and cursor navigation
 ```
-
-All 22 tests pass (11 per test file):
-- Construction with type/kind/pid
-- Type detection (`$is*` guard)
-- All kind variants (7 container kinds, 3 block kinds)
-- Clone preserves properties
-- JSON serialization (exportJSON) and deserialization (importJSON)
-- DOM creation with correct classnames and data attributes
-- Inline, canBeEmpty, canInsertTextBefore/After predicates
-- updateDOM returns true
-
-## Dependencies Added
-
-- `lexical ^0.47.0` added to poiesis/package.json (was missing, needed for all test files)
-
-## Technical Notes
-
-- All three nodes follow the same pattern as the existing `CardElementNode`:
-  - Extend `ElementNode` from lexical
-  - Private fields prefixed with `__` (Lexical convention)
-  - `getLatest()` used in getters for consistency with Lexical reconciliation
-  - `Spread<{...}, SerializedElementNode>` for serialization types
-  - Static `getType()`, `clone()`, `importJSON()` per Lexical node contract
-- `ContainerElementNode` and `BlockElementNode` have `canBeEmpty() = false` (must contain children)
-- `BodyLineNode` has `canBeEmpty() = true` (lines can be empty/placeholder)
-
-## CONCERNS
-
-1. React Doctor warning on commit about config drift between index and worktree for `poiesis/dist/wasm/package.json`, `poiesis/package.json`, `test/projects/learn-omniview/build/react-test-app/eslint.config.mjs` -- pre-existing issue, not introduced by this task.

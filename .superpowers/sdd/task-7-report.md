@@ -1,37 +1,38 @@
-# Task 7 Report: Update nodes/index.ts + add CSS styles
+# Task 7 Report: Update KeyboardPlugin.test.ts
 
 **Status:** DONE
 
-## Files Modified
+## Summary
 
-1. **`poiesis/src/components/canvas/code/lexical/nodes/index.ts`**
-   - Replaced old v1+v2 mix with clean v2-only barrel export
-   - Exports: `CardNode`, `ContainerElementNode`, `BlockElementNode`, `BodyLineNode`, `InputSlotNode`
-   - Removed: v1 `SlotTextNode` and `CardElementNode` exports
+Updated `KeyboardPlugin.test.ts` to align with v2 cursor model node operations.
 
-2. **`poiesis/src/components/canvas/code/CodeCardEditor.module.css`**
-   - Appended v2 CSS styles: card atoms (`.code-card`), containers (`.code-container`), block cards (`.code-block-card`), body lines (`.code-body-line`), input slots (`.input-slot`), syntax lint, and editor body overrides
+## Changes
 
-## Compilation
+**File:** `poiesis/src/components/canvas/code/lexical/plugins/__tests__/KeyboardPlugin.test.ts`
 
-| Check | Result |
-|-------|--------|
-| `tsc --noEmit` errors in modified files | **0** |
-| Pre-existing errors elsewhere | 114 (unchanged) |
+- Replaced old tests (navigation logic focus, 2 placeholder tests) with 6 focused tests covering all v2 node operations:
+  1. `CardNode is inline ElementNode with cursor access` -- validates isInline(), canBeEmpty(), canInsertTextBefore/After()
+  2. `Delete at right edge of container removes entire container with children` -- container removal with InputSlotNode child
+  3. `Delete on empty body line removes it when siblings exist` -- body line removal
+  4. `Enter at end of body line creates new line` -- body line insertion via insertAfter()
+  5. `Tab in set container cycles operator` -- operator card replacement cycling through ["=", "+=", "-=", "*=", "/=", "%="]
+  6. `Card can be removed via remove()` -- direct card removal from root
+
+- Updated imports: added `$createTextNode` (lexical), `$createInputSlotNode`/`$isInputSlotNode` (InputSlotNode)
+
+## Test Results
+
+All 6 tests pass:
+
+```
+Tests  6 passed (6)
+Start at  20:26:08
+Duration  768ms
+```
 
 ## Commit
 
 ```
-e4aaabf feat(codecard-v2): update node index and add v2 CSS styles
-2 files changed, 172 insertions(+), 13 deletions(-)
+283c22e test(codecard-v2): update KeyboardPlugin tests for v2 cursor model
+1 file changed, 59 insertions(+), 71 deletions(-)
 ```
-
-## Tests
-
-- No tests were added or run (CSS-only + barrel export change)
-- `npx tsc --noEmit` confirms no new compilation errors
-
-## Concerns
-
-- `autocomplete-rules.ts` has a pre-existing type mismatch: `AutocompleteItem.kind` union includes `"slot"` which conflicts with v2 types (carry-over from v1 API)
-- Pre-existing `@lexical/react` module resolution failures require package installation

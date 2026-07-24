@@ -34,11 +34,11 @@ describe("autocomplete rules v2", () => {
   });
 
   it("returns literals inside for container", () => {
-    const items = getAutocompleteItems("", { parentKind: "for", precedingCardKind: null });
+    const items = getAutocompleteItems("t", { parentKind: "for", precedingCardKind: null });
     const labels = items.map(i => i.label);
     expect(labels).toContain("true");
-    expect(labels).toContain("false");
-    expect(labels).toContain("null");
+    expect(labels).not.toContain("false");
+    expect(labels).not.toContain("null");
   });
 
   it("returns arithmetic operators in return context", () => {
@@ -51,13 +51,8 @@ describe("autocomplete rules v2", () => {
     expect(items.some(i => i.label === "&&")).toBe(true);
   });
 
-  it("returns all statement items when no token", () => {
+  it("returns empty when no token (prevent Delete-key spam)", () => {
     const items = getAutocompleteItems("", { parentKind: null, precedingCardKind: null });
-    expect(items.length).toBeGreaterThanOrEqual(11);
-    const labels = items.map(i => i.label);
-    expect(labels).toContain("let");
-    expect(labels).toContain("if");
-    expect(labels).toContain("return");
-    expect(labels).toContain("//");
+    expect(items).toEqual([]);
   });
 });

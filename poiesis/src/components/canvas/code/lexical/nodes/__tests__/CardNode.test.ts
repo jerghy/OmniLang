@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createEditor, $getRoot, $createParagraphNode } from "lexical";
+import { createEditor, $getRoot, $createParagraphNode, $isElementNode } from "lexical";
 import { CardNode, $createCardNode, $isCardNode } from "../CardNode";
 
 describe("CardNode (ElementNode)", () => {
@@ -109,7 +109,8 @@ describe("CardNode (ElementNode)", () => {
     // Check DOM attribute after rendering
     editor.getEditorState().read(() => {
       const root = $getRoot();
-      const card = root.getFirstChild()?.getFirstChild();
+      const paragraph = root.getFirstChild();
+      const card = paragraph && $isElementNode(paragraph) ? paragraph.getFirstChild() : null;
       expect($isCardNode(card)).toBe(true);
     });
   });

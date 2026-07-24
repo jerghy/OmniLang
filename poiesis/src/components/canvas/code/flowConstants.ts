@@ -48,4 +48,3 @@ export const MENU_SECTIONS: MenuSection[] = [
 
 export const MENU_WIDTH = 210;
 export const ITEM_HEIGHT = 30;
-const HEADER_HEIGHT = 26;

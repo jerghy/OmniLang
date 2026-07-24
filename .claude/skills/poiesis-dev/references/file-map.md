@@ -16,6 +16,8 @@
 | `project-json.ts` | 项目元数据 | `ProjectJson`, `ComponentDef`, `NodeMeta`, `WireMeta` |
 | `pid.ts` | PID 索引 | `PidEntry`, `PidMap` |
 | `annotation.ts` | 注解 | 注释解析类型 |
+| `code-op.ts` | ★ CodeOp 操作类型 | `CodeOp` = `DeclareVarOp` \| `SetVarOp` \| `IfBlockOp` \| `WhileLoopOp` \| `ForLoopOp` \| `ReturnExprOp` \| `CallFnOp` \| `AwaitExprOp` \| `BreakStmtOp` \| `ContinueStmtOp` \| `CommentOp` \| `RawCodeOp`。编辑器持久化格式 |
+| `editor-node.ts` | ★ EditorNode 编辑器格式 | `EditorNode` = `ContainerNode` \| `BlockNode` \| `InlineNode` \| `InputSlot`。细粒度嵌套树，CodeCard Editor v2 内部格式 |
 | `codegraph.ts` | 代码图谱 | CodeGraph 节点/边 |
 | `node-flow.ts` | 节点流 | FlowCanvas 类型 |
 | `project.ts` | 项目 | 项目配置类型 |
@@ -100,39 +102,36 @@
 | `code/FlowInspector.tsx` | ★ CodeFlow 右侧面板：选中 FN 节点编辑 name+params，选中 Return 编辑表达式 |
 | `code/CanvasContextMenu.tsx` | 画布右键菜单 |
 | `code/CodeEditorModal.tsx` | ★ 代码块代码编辑器（Monaco Editor 80vw×80vh 模态面板）。集成 `services/monaco/` 提供 OmniLang 语法高亮 + 代码片段 + 类型注入 + WASM 诊断。Props：`language`/`storeDefs`/`omniSourcePath`/`omniSource`（diagnostics 用） |
-| `code/CodeCardEditor.tsx` | 旧入口（已删除，迁移到 card-editor/） |
-| `code/card-editor/` | ★★ CodeCard 逐行编辑器 |
-| `code/card-editor/CodeCardEditor.tsx` | ★ 编辑器入口：EditorRow 状态管理 + 补全触发 + Monaco 双模式 + onSave |
-| `code/card-editor/RowList.tsx` | 行列表渲染：↑↓ 行间导航、Enter 补全选中、Backspace 卡片退化 |
-| `code/card-editor/InputRow.tsx` | `<input>` 文本输入行：前缀过滤补全触发 |
-| `code/card-editor/CardRow.tsx` | 卡片分发器：按 op.kind 渲染对应卡片组件 |
-| `code/card-editor/row-utils.ts` | EditorRow[] ↔ CodeOp[] 双向转换（opsToRows / rowsToOps） |
-| `code/card-editor/AutocompleteMenu.tsx` | 浮动补全菜单：绝对定位到当前行下方，前缀过滤 |
-| `code/card-editor/autocomplete-rules.ts` | 补全规则：11 种语句类型 + 前缀过滤 |
-| `code/card-editor/cards/` (12 files) | ★ 每种 CodeOp 一个卡片组件：`<div>` 内嵌 `<input>` 槽位，Tab 跳槽位 |
-| `code/card-editor/cards/DeclareVarCard.tsx` | let [mut] name [: Type] [= value] |
-| `code/card-editor/cards/SetVarCard.tsx` | set name [operator] value |
-| `code/card-editor/cards/IfBlockCard.tsx` | if condition { ... } 块头 |
-| `code/card-editor/cards/WhileLoopCard.tsx` | while condition { ... } 块头 |
-| `code/card-editor/cards/ForLoopCard.tsx` | for item in collection { ... } 块头 |
-| `code/card-editor/cards/ReturnExprCard.tsx` | return [expr] |
-| `code/card-editor/cards/CallFnCard.tsx` | fnName(args) |
-| `code/card-editor/cards/AwaitExprCard.tsx` | await expr |
-| `code/card-editor/cards/BreakStmtCard.tsx` | break（只读） |
-| `code/card-editor/cards/ContinueStmtCard.tsx` | continue（只读） |
-| `code/card-editor/cards/CommentCard.tsx` | // text |
-| `code/card-editor/cards/RawCodeCard.tsx` | raw自由代码 |
+| `code/CodeCardEditor.tsx` | ★★ CodeCard v2 入口：Lexical 编辑器容器（5 种自定义节点 + 4 插件 + Monaco 双模式） |
+| `code/card-editor/` | ❌ 已删除（2026-07-24，被 Lexical v2 架构取代） |
+| `code/lexical/` | ★★ CodeCard v2 Lexical 层（16 files） |
+| `code/lexical/nodes/CardNode.ts` | 内联卡片：DecoratorNode 只读卡片（mut/operator/type/var_ref/literal/dot/separator/comment），`<span>` 渲染 |
+| `code/lexical/nodes/ContainerNode.ts` | 容器卡片：ElementNode 包裹子卡（let/set/return/await/call/array/map），浅色背景 + 左侧色条 |
+| `code/lexical/nodes/BlockNode.ts` | 块结构卡片：ElementNode 三行封闭色条（if/while/for），含 `__branches` 元数据支持 elif/else |
+| `code/lexical/nodes/BodyLineNode.ts` | 代码行节点：ElementNode 块内缩进行，含 `__branchIndex` 标记分支归属 |
+| `code/lexical/nodes/InputSlotNode.ts` | 输入槽：TextNode 子类 `\` 唤起的内联输入框，`data-slot-kind` 区分 name/type/expression/condition/fn_name |
+| `code/lexical/nodes/index.ts` | 节点 barrel 导出 |
+| `code/lexical/transforms/convertToNodes.ts` | ★ CodeOp[] → EditorNode[]：加载方向转换器 |
+| `code/lexical/transforms/convertToOps.ts` | ★ EditorNode[] → CodeOp[]：保存方向转换器 |
+| `code/lexical/plugins/CodeOpSyncPlugin.ts` | ★ 双向同步：initialOps → EditorNode[] → Lexical 树（加载）；Lexical 树 → EditorNode[] → CodeOp[] → onSync（变更） |
+| `code/lexical/plugins/AutocompletePlugin.tsx` | 补全插件：打字检测 + 上下文感知补全 + `\` 输入框创建 + 卡片插入 |
+| `code/lexical/plugins/KeyboardPlugin.ts` | 键盘导航：← → 卡片间移动、↑ ↓ body line 跳转、Delete 层级删除、Tab 运算符循环、Enter body line 换行 |
+| `code/lexical/autocomplete/autocomplete-rules.ts` | 补全规则：$parentKind 感知的上下文过滤（let→mut/:/type，set→operator，if/while→comparison，dot→methods） |
+| `code/lexical/autocomplete/AutocompleteMenu.tsx` | 浮动补全菜单：window.getSelection 定位，↑↓ Enter/Escape 导航 |
 
-### 快速事实 — CodeCard 编辑器
+### 快速事实 — CodeCard Editor v2
 
 | 事实 | 说明 |
 |------|------|
-| 模型 | 逐行 EditorRow[]：每行是 `<input>`（打字）或卡片组件（已结构化） |
-| 补全 | 前缀过滤，菜单精准定位在当前行下方 |
-| 左侧栏 | 颜色竖条区分 op 类型：紫(let)/橙(set)/青(if/while/for)/红(return) |
-| 键盘 | ↑↓ 跳行、Tab 跳槽位、Enter 选中补全、Backspace 空卡退化 |
+| 模型 | 细粒度 EditorNode[] 嵌套树：Container（容器）/ Block（块结构）/ Inline（内联卡）/ InputSlot（输入框） |
+| 基座 | Lexical 单一 contentEditable 实例，5 种自定义节点 |
+| 补全 | 打字前缀过滤 + 上下文感知（parentKind/precedingCardKind），菜单定位跟随光标 |
+| 视觉 | 统一圆角色块 + 语义色：紫(let)/蓝(set)/橙(mut)/灰(operator)/青(type/call)/绿(var_ref/literal)/红(return) |
+| 容器 | 浅色半透明背景包裹子卡（宽度=内容宽），右侧空白为 ▌ 整组删除区 |
+| 块结构 | 三行封闭色条：┏ 头行 / ┃ 代码行（Enter 扩展）/ ┗ 收口行（细条） |
+| 键盘 | ← → 卡片间移动、↑ ↓ body line 跳转、Delete 层级删除、Tab 切换 set 运算符、Enter body line 换行、\ 唤起输入框 |
 | 双模式 | "文本模式"按钮 → CodeEditorModal (Monaco) 作为 fallback |
-| 数据流 | CodeOp[] → opsToRows → EditorRow[] → 编辑 → rowsToOps → CodeOp[] → emitOps → source |
+| 数据流 | CodeOp[] → convertToNodes → EditorNode[] → Lexical 树 → 编辑 → EditorNode[] → convertToOps → CodeOp[] → emitOps → source |
 | `shared/nodeRegistry.ts` | 节点类型注册表 |
 | `shared/connectionValidators.ts` | 连线验证 |
 | `shared/layoutUtils.ts` | 自动布局工具 |

@@ -49,3 +49,6 @@ bindings/
 # OS files
 Thumbs.db
 Desktop.ini
+
+*storybook.log
+storybook-static
