@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { createEditor } from "lexical";
+import { createEditor, $getRoot, $createParagraphNode } from "lexical";
 import { CardNode, $createCardNode, $isCardNode } from "../CardNode";
 
-describe("CardNode", () => {
+describe("CardNode (ElementNode)", () => {
   it("has correct type", () => {
     const editor = createEditor();
     editor.update(() => {
@@ -33,6 +33,9 @@ describe("CardNode", () => {
       expect(json.cardKind).toBe("literal");
       expect(json.cardLabel).toBe("42");
       expect(json.cardPid).toBe("c3");
+      // ElementNode serialization fields
+      expect(json).toHaveProperty("children");
+      expect(json).toHaveProperty("format");
     });
   });
 
@@ -45,6 +48,10 @@ describe("CardNode", () => {
         cardLabel: "+=",
         cardPid: "c4",
         version: 1,
+        children: [],
+        format: 0,
+        indent: 0,
+        direction: null,
       } as any);
       expect($isCardNode(node)).toBe(true);
       expect(node.getCardKind()).toBe("operator");
@@ -61,14 +68,49 @@ describe("CardNode", () => {
     });
   });
 
-  it("clones preserving all fields", () => {
+  it("can be empty (no Lexical-managed text children)", () => {
     const editor = createEditor();
     editor.update(() => {
       const node = $createCardNode("var_ref", "count", "c6");
+      expect(node.canBeEmpty()).toBe(true);
+    });
+  });
+
+  it("allows cursor before and after", () => {
+    const editor = createEditor();
+    editor.update(() => {
+      const node = $createCardNode("separator", ":", "c7");
+      expect(node.canInsertTextBefore()).toBe(true);
+      expect(node.canInsertTextAfter()).toBe(true);
+    });
+  });
+
+  it("clones preserving all fields", () => {
+    const editor = createEditor();
+    editor.update(() => {
+      const node = $createCardNode("var_ref", "count", "c8");
       const clone = CardNode.clone(node);
-      expect(clone.__cardKind).toBe("var_ref");
-      expect(clone.__cardLabel).toBe("count");
-      expect(clone.__cardPid).toBe("c6");
+      expect(clone.getCardKind()).toBe("var_ref");
+      expect(clone.getCardLabel()).toBe("count");
+      expect(clone.getCardPid()).toBe("c8");
+    });
+  });
+
+  it("DOM has contenteditable=false", async () => {
+    const editor = createEditor({ nodes: [CardNode] });
+    await editor.update(() => {
+      const root = $getRoot();
+      const p = $createParagraphNode();
+      const card = $createCardNode("operator", "=", "c9");
+      p.append(card);
+      root.append(p);
+    });
+
+    // Check DOM attribute after rendering
+    editor.getEditorState().read(() => {
+      const root = $getRoot();
+      const card = root.getFirstChild()?.getFirstChild();
+      expect($isCardNode(card)).toBe(true);
     });
   });
 });
