@@ -6,7 +6,7 @@
   background: var(--ol-surface);
   border: 1px solid var(--ol-border);
   border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--ol-shadow-popover);
   font-size: 12px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   z-index: 10;
@@ -269,7 +269,7 @@
 
 .debug-value-input:focus {
   border-color: var(--ol-color-primary);
-  box-shadow: 0 0 0 1px rgba(124, 58, 237, 0.2);
+  box-shadow: 0 0 0 1px var(--ol-focus-ring-color);
 }
 
 .debug-value-input::placeholder {
