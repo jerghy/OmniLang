@@ -338,8 +338,11 @@ function reconstructContainers(flat: EditorNode[]): EditorNode[] {
             const bm = branchMeta[bi];
             const branchBody: BodyLine[] = [];
 
-            // Branch head is already in flat as keyword + slots before branch body lines
-            // Skip branch body lines with matching branchIndex
+            // Skip branch head inline nodes (already captured in branchMeta)
+            while (i < flat.length && (flat[i] as any).kind !== "body_line") {
+              i++;
+            }
+            // Consume branch body lines with matching branchIndex
             while (i < flat.length && (flat[i] as any).kind === "body_line") {
               const bl = flat[i] as BodyLineEx;
               if (bl.branchIndex === bi) {
