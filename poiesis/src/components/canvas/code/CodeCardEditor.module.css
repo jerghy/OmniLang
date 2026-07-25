@@ -90,7 +90,7 @@
   font-family: inherit;
   font-size: inherit;
   padding: 0 3px;
-  border-radius: 2px;
+  border-radius: 4px;  /* was 2px — slightly softer but still flat */
   white-space: nowrap;
   transition: outline-color 120ms ease, box-shadow 120ms ease, filter 120ms ease;
 }
@@ -111,26 +111,49 @@
 .contentEditable :global(.code-card--separator) { background: transparent; color: #94a3b8; padding: 1px 2px; }
 .contentEditable :global(.code-card--comment)   { background: #f1f5f9; color: #94a3b8; font-style: italic; }
 
-/* ── Slot styles ── */
-.contentEditable :global(.slot-text--name) {
-  background: #dbeafe;
-  color: #1e40af;
-  border-radius: 2px;
-  padding: 0 2px;
+/* ── Slot card display mode (flat, semi-transparent) ── */
+.contentEditable :global(.slot-card) {
+  display: inline-block;
+  padding: 1px 8px;
+  margin: 1px 2px;
+  border-radius: 5px;
+  font-size: 13px;
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+  line-height: 1.6;
+  white-space: nowrap;
+  cursor: default;
+  transition: box-shadow 0.1s;
 }
 
-.contentEditable :global(.slot-text--type) {
-  background: #d1fae5;
-  color: #065f46;
-  border-radius: 2px;
-  padding: 0 2px;
+/* Slot card color variants — lighter than keyword cards, same color family */
+.contentEditable :global(.slot-card--name)       { background: rgba(167, 139, 250, 0.15); color: #7c3aed; }
+.contentEditable :global(.slot-card--type_value) { background: rgba(34, 211, 238, 0.12); color: #0e7490; }
+.contentEditable :global(.slot-card--expression) { background: rgba(96, 165, 250, 0.12); color: #1d4ed8; }
+.contentEditable :global(.slot-card--condition)  { background: rgba(251, 191, 36, 0.15); color: #b45309; }
+.contentEditable :global(.slot-card--fn_name)    { background: rgba(34, 211, 238, 0.12); color: #0e7490; }
+
+/* Empty slot placeholder */
+.contentEditable :global(.slot-card--name[data-empty="true"])::before       { content: "变量名"; color: #cbd5e1; }
+.contentEditable :global(.slot-card--type_value[data-empty="true"])::before { content: "类型"; color: #cbd5e1; }
+.contentEditable :global(.slot-card--expression[data-empty="true"])::before { content: "值"; color: #cbd5e1; }
+.contentEditable :global(.slot-card--condition[data-empty="true"])::before  { content: "条件"; color: #cbd5e1; }
+.contentEditable :global(.slot-card--fn_name[data-empty="true"])::before    { content: "函数名"; color: #cbd5e1; }
+
+/* ── Slot card editing mode ── */
+.contentEditable :global(.slot-card--editing) {
+  background: var(--ol-surface, #ffffff) !important;
+  color: var(--ol-text, #1a1a1a) !important;
+  border: 1.5px solid var(--ol-color-primary, #c96442);
+  box-shadow: 0 0 0 2px rgba(201, 100, 66, 0.15);
+  outline: none;
+  min-width: 60px;
+  cursor: text;
 }
 
-.contentEditable :global(.slot-text--value) {
-  background: #fef3c7;
-  color: #92400e;
-  border-radius: 2px;
-  padding: 0 2px;
+/* ── Slot card highlight (same as card highlight) ── */
+.contentEditable :global(.slot-card.highlighted) {
+  outline: 2px solid var(--ol-color-primary, #c96442);
+  outline-offset: 1px;
 }
 
 /* ── CodeCard v2: Card atoms (inline, non-editable) ── */
@@ -171,133 +194,43 @@
   box-shadow: 0 0 0 1.5px rgba(201, 100, 66, 0.25);
 }
 
-/* Container right-edge block cursor */
-.contentEditable :global(.code-container.at-right-edge) {
-  border-right: 2px solid var(--ol-color-primary-hover, #d68869);
-  padding-right: 6px;
-}
-
-.contentEditable :global(.code-body-line.at-right-edge) {
-  border-right: 2px solid var(--ol-color-primary-hover, #d68869);
-  padding-right: 6px;
-}
-
-/* Right-edge block cursor blink animation */
-@keyframes block-blink {
-  0%, 100% { border-right-color: var(--ol-color-primary-hover, #d68869); }
-  50% { border-right-color: rgba(201, 100, 66, 0.12); }
-}
-
-.contentEditable :global(.code-container.at-right-edge) {
-  animation: block-blink 1.2s ease-in-out infinite;
-}
-
-/* ── Containers ── */
-.code-container {
-  display: inline-flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0;
+/* ── Editor containers (Lexical nodes use global class names) ── */
+.contentEditable :global(.code-container) {
   padding: 2px 4px 2px 2px;
   margin: 1px 0;
   border-radius: 6px;
   background: rgba(201, 100, 66, 0.04);
   border-left: 3px solid;
-  position: relative;
 }
 
-.code-container--let      { border-color: #a78bfa; }
-.code-container--set      { border-color: #60a5fa; }
-.code-container--return   { border-color: #f87171; }
-.code-container--await    { border-color: #22d3ee; }
-.code-container--call     { border-color: #22d3ee; }
-.code-container--array    { border-color: #a78bfa; }
-.code-container--map      { border-color: #a78bfa; }
+.contentEditable :global(.code-container--let)    { border-color: #a78bfa; }
+.contentEditable :global(.code-container--set)    { border-color: #60a5fa; }
+.contentEditable :global(.code-container--return) { border-color: #f87171; }
+.contentEditable :global(.code-container--await)  { border-color: #22d3ee; }
+.contentEditable :global(.code-container--call)   { border-color: #22d3ee; }
+.contentEditable :global(.code-container--array)  { border-color: #a78bfa; }
+.contentEditable :global(.code-container--map)    { border-color: #a78bfa; }
 
-/* Container right-edge delete zone indicator */
-.code-container::after {
-  content: "";
-  display: inline-block;
-  width: 6px;
-  height: 100%;
-  min-height: 20px;
-  margin-left: 2px;
-  border-radius: 2px;
-  cursor: default;
-}
-
-/* ── Block cards (if/while/for) ── */
-.code-block-card {
+/* ── Editor blocks (Lexical nodes use global class names) ── */
+.contentEditable :global(.code-block-card) {
   display: block;
   border-left: 4px solid;
   padding-left: 4px;
   margin: 2px 0;
 }
 
-.code-block-card--if       { border-color: #fbbf24; }
-.code-block-card--while    { border-color: #f97316; }
-.code-block-card--for      { border-color: #34d399; }
-
-/* Block head line */
-.code-block-head {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 2px 0;
-}
+.contentEditable :global(.code-block-card--if)    { border-color: #fbbf24; }
+.contentEditable :global(.code-block-card--while) { border-color: #f97316; }
+.contentEditable :global(.code-block-card--for)   { border-color: #34d399; }
 
 /* Block body lines */
-.code-body-line {
+.contentEditable :global(.code-body-line) {
   display: flex;
   align-items: center;
   gap: 2px;
   padding: 1px 0 1px 16px;  /* indent */
   min-height: 22px;
 }
-
-/* Block tail line (thin closing bar) */
-.code-block-tail {
-  height: 3px;
-  margin-left: 0;
-  margin-right: 0;
-  border-radius: 0 0 2px 2px;
-}
-
-.code-block-card--if .code-block-tail    { background: #fbbf24; }
-.code-block-card--while .code-block-tail { background: #f97316; }
-.code-block-card--for .code-block-tail   { background: #34d399; }
-
-/* ── Input slots (backslash-triggered inline input) ── */
-.input-slot {
-  display: inline-block;
-  min-width: 40px;
-  padding: 1px 6px;
-  background: var(--ol-surface, #fff);
-  border: 1px solid var(--ol-border-hover, #cbd5e1);
-  border-radius: 3px;
-  font-size: 13px;
-  font-family: "JetBrains Mono", "Fira Code", monospace;
-  line-height: 1.5;
-  outline: none;
-  transition: border-color 0.15s;
-}
-
-.input-slot:focus {
-  border-color: var(--ol-color-primary, #c96442);
-  box-shadow: 0 0 0 2px rgba(201, 100, 66, 0.15);
-}
-
-/* Input slot focus transition */
-.contentEditable :global(.input-slot) {
-  transition: border-color 150ms ease, box-shadow 150ms ease;
-}
-
-/* Empty slot placeholder */
-.input-slot--name:empty::before       { content: "变量名"; color: var(--ol-color-danger-muted, #fca5a5); }
-.input-slot--type_value:empty::before { content: "类型"; color: var(--ol-text-muted, #cbd5e1); }
-.input-slot--expression:empty::before { content: "值"; color: var(--ol-text-muted, #cbd5e1); }
-.input-slot--condition:empty::before  { content: "条件"; color: var(--ol-text-muted, #cbd5e1); }
-.input-slot--fn_name:empty::before    { content: "函数名"; color: var(--ol-text-muted, #cbd5e1); }
 
 /* ── Syntax lint ── */
 .code-card.syntax-warn {
