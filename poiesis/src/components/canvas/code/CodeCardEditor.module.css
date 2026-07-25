@@ -244,6 +244,15 @@
   min-height: 22px;
 }
 
+/* Block tail line (closing boundary) */
+.contentEditable :global(.code-body-line--tail) {
+  min-height: 8px;
+  padding: 0 0 0 16px;
+  border-bottom: 2px solid var(--ol-border, #d3d2cc);
+  margin-bottom: 4px;
+  opacity: 0.6;
+}
+
 /* ── Syntax lint ── */
 .code-card.syntax-warn {
   text-decoration: underline;

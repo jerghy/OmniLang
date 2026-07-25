@@ -36,12 +36,23 @@ export function CodeOpSyncPlugin({ initialOps, onSync }: Props): null {
       root.clear();
 
       const nodes = convertToNodes(initialOps);
+      const allLexicalNodes: any[] = [];
       for (const node of nodes) {
         const lexicalNodes = editorNodeToLexical(node);
         if (Array.isArray(lexicalNodes)) {
-          for (const ln of lexicalNodes) root.append(ln);
+          allLexicalNodes.push(...lexicalNodes);
         } else {
-          root.append(lexicalNodes);
+          allLexicalNodes.push(lexicalNodes);
+        }
+      }
+      // Insert text nodes between cards for cursor anchor points
+      for (let i = 0; i < allLexicalNodes.length; i++) {
+        root.append(allLexicalNodes[i]);
+        // Add a space text node between adjacent inline cards (not after body lines)
+        const isInlineCard = allLexicalNodes[i].isInline?.();
+        const isNextInline = i + 1 < allLexicalNodes.length && allLexicalNodes[i + 1].isInline?.();
+        if (isInlineCard && isNextInline) {
+          root.append($createTextNode(" "));
         }
       }
       root.append($createParagraphNode());
@@ -131,6 +142,11 @@ function _editorNodeToLexical(node: EditorNode): any | any[] {
         }
         result.push(bl);
       }
+
+      // Tail line (closing boundary marker)
+      const tail = $createBodyLineNode(bNode.tail.pid);
+      tail.setTailMarker(true);
+      result.push(tail);
 
       // Branch heads as flat inline cards + branch body lines
       if (bNode.branches) {
@@ -270,6 +286,8 @@ function lexicalToEditorNode(lexicalNode: any): EditorNode | null {
   }
 
   if ($isBodyLineNode(lexicalNode)) {
+    // Skip tail markers during extraction (visual only)
+    if ((lexicalNode as any).isTailMarker?.()) return null;
     const lineChildren: EditorNode[] = [];
     for (const lc of lexicalNode.getChildren()) {
       const c = lexicalToEditorNode(lc);

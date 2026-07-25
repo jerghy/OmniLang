@@ -14,19 +14,23 @@ export interface SerializedBodyLineNode extends Spread<
 export class BodyLineNode extends ElementNode {
   __bodyLinePid: string;
   __branchIndex: number | undefined;
+  __isTail: boolean;
 
   static getType(): string {
     return "body-line";
   }
 
   static clone(node: BodyLineNode): BodyLineNode {
-    return new BodyLineNode(node.__bodyLinePid, node.__branchIndex, node.__key);
+    const clone = new BodyLineNode(node.__bodyLinePid, node.__branchIndex, node.__key);
+    clone.__isTail = node.__isTail;
+    return clone;
   }
 
   constructor(pid: string, branchIndex?: number, key?: string) {
     super(key);
     this.__bodyLinePid = pid;
     this.__branchIndex = branchIndex;
+    this.__isTail = false;
   }
 
   getBodyLinePid(): string {
@@ -37,18 +41,34 @@ export class BodyLineNode extends ElementNode {
     return (this.getLatest() as BodyLineNode).__branchIndex;
   }
 
+  setTailMarker(v: boolean): void {
+    const self = this.getWritable();
+    (self as BodyLineNode).__isTail = v;
+  }
+
+  isTailMarker(): boolean {
+    return (this.getLatest() as BodyLineNode).__isTail;
+  }
+
   createDOM(): HTMLElement {
     const el = document.createElement("div");
-    el.className = "code-body-line";
+    el.className = "code-body-line" + (this.__isTail ? " code-body-line--tail" : "");
     el.setAttribute("data-body-line-pid", this.__bodyLinePid);
     if (this.__branchIndex !== undefined) {
       el.setAttribute("data-branch-index", String(this.__branchIndex));
     }
+    if (this.__isTail) {
+      el.setAttribute("data-tail", "true");
+    }
     return el;
   }
 
-  updateDOM(): boolean {
-    return true;
+  updateDOM(_prev: BodyLineNode, dom: HTMLElement): boolean {
+    if (this.__isTail) {
+      dom.classList.add("code-body-line--tail");
+      dom.setAttribute("data-tail", "true");
+    }
+    return false;
   }
 
   exportJSON(): SerializedBodyLineNode {
