@@ -39,38 +39,9 @@ export function CodeOpSyncPlugin({ initialOps, onSync }: Props): null {
       for (const node of nodes) {
         const lexicalNodes = editorNodeToLexical(node);
         if (Array.isArray(lexicalNodes)) {
-          // Group inline cards in a paragraph with cursor text anchors
-          const para = $createParagraphNode();
-          for (let i = 0; i < lexicalNodes.length; i++) {
-            const ln = lexicalNodes[i];
-            if (ln.isInline?.()) {
-              // Add text anchor before inline card if first or after body-line
-              if (i === 0 || !lexicalNodes[i - 1]?.isInline?.()) {
-                para.append($createTextNode("​"));
-              }
-              para.append(ln);
-              para.append($createTextNode("​"));
-            } else {
-              // BodyLineNode or other block — append to root directly
-              if (para.getChildrenSize() > 0) {
-                root.append(para);
-              }
-              root.append(ln);
-            }
-          }
-          if (para.getChildrenSize() > 0) {
-            root.append(para);
-          }
+          for (const ln of lexicalNodes) root.append(ln);
         } else {
-          if (lexicalNodes.isInline?.()) {
-            const para = $createParagraphNode();
-            para.append($createTextNode("​"));
-            para.append(lexicalNodes);
-            para.append($createTextNode("​"));
-            root.append(para);
-          } else {
-            root.append(lexicalNodes);
-          }
+          root.append(lexicalNodes);
         }
       }
       root.append($createParagraphNode());

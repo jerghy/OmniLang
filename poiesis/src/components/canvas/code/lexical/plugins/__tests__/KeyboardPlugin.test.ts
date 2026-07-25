@@ -8,14 +8,14 @@ import { $createContainerElementNode } from "../../nodes/ContainerNode";
 
 describe("KeyboardPlugin v3 — simplified 2-state cursor", () => {
   // ── CardNode as inline ElementNode ──
-  it("CardNode is inline ElementNode with cursor access", () => {
+  it("CardNode is inline ElementNode (visual-only, no cursor)", () => {
     const editor = createEditor();
     editor.update(() => {
       const card = $createCardNode("operator", "=", "c1");
       expect(card.isInline()).toBe(true);
       expect(card.canBeEmpty()).toBe(true);
-      expect(card.canInsertTextBefore()).toBe(true);
-      expect(card.canInsertTextAfter()).toBe(true);
+      expect(card.canInsertTextBefore()).toBe(false);
+      expect(card.canInsertTextAfter()).toBe(false);
     });
   });
 

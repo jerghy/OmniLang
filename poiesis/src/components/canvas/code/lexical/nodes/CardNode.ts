@@ -47,11 +47,11 @@ export class CardNode extends ElementNode {
   }
 
   canInsertTextBefore(): boolean {
-    return true; // cursor can appear before this card (pipe state)
+    return false; // visual-only card — cursor skips over it
   }
 
   canInsertTextAfter(): boolean {
-    return true; // cursor can appear after this card (pipe state)
+    return false; // visual-only card — cursor skips over it
   }
 
   // ── DOM: contenteditable="false" makes the browser treat it as an atomic unit ──
