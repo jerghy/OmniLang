@@ -13,7 +13,7 @@ import { $createCardNode, $isCardNode } from "../nodes/CardNode";
 import { $createContainerElementNode, $isContainerElementNode } from "../nodes/ContainerNode";
 import { $createBlockElementNode, $isBlockElementNode } from "../nodes/BlockNode";
 import { $createBodyLineNode, $isBodyLineNode } from "../nodes/BodyLineNode";
-import { $createInputSlotNode, $isInputSlotNode } from "../nodes/InputSlotNode";
+import { $createSlotCardNode, $isSlotCardNode } from "../nodes/SlotCardNode";
 
 interface Props {
   initialOps: CodeOp[];
@@ -138,7 +138,7 @@ function editorNodeToLexical(node: EditorNode) {
     }
     case "slot": {
       const sl = node as InputSlot;
-      return $createInputSlotNode(sl.value, sl.slotKind);
+      return $createSlotCardNode(sl.value, sl.slotKind, sl.pid);
     }
     default:
       return $createTextNode("");
@@ -268,12 +268,12 @@ function lexicalToEditorNode(lexicalNode: any): EditorNode | null {
     } as InlineNode;
   }
 
-  if ($isInputSlotNode(lexicalNode)) {
+  if ($isSlotCardNode(lexicalNode)) {
     return {
       kind: "slot",
       slotKind: lexicalNode.getSlotKind(),
-      value: lexicalNode.getTextContent(),
-      pid: lexicalNode.getKey(),
+      value: lexicalNode.getValue(),
+      pid: lexicalNode.getPid(),
     } as InputSlot;
   }
 
