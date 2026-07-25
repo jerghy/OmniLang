@@ -79,3 +79,63 @@ sm.onChange = (target) => { ... };
 ```
 
 The `enterSlot`/`exitSlot` methods are defined as API stubs. Implementation of slot sub-navigation is deferred to Task 7 (KeyboardHandler).
+
+---
+
+## Fix Report (Review Findings)
+
+### Fix Commit
+
+```
+5805ac8 fix: resolve 4 review findings in SelectionManager
+```
+
+### Finding 1 (HIGH) — Memory leak: change listener not removed in dispose()
+
+**Root cause:** The `workspace.addChangeListener()` return value was not stored,
+so `dispose()` could not unsubscribe. The listener held a reference to the
+SelectionManager instance, preventing GC.
+
+**Fix:** Stored the return value as `this.changeListenerId`. In `dispose()`,
+calls `this.workspace.removeChangeListener(this.changeListenerId)` before
+cleaning up DOM elements and callback.
+
+### Finding 2 (HIGH) — Coordinate system bug in getTargetBoundingRect
+
+**Root cause:** `getTargetBoundingRect` for blocks mixed coordinate spaces:
+`svgRect.left + xy.x` where `svg.getBoundingClientRect()` returns viewport
+coordinates but `block.getRelativeToSurfaceXY()` returns workspace-surface
+coordinates (which include scroll/window offset differences).
+
+**Fix:** Use `block.getSvgRoot().getBoundingClientRect()` directly, which
+returns the block's viewport-positioned rect in a single call, eliminating
+the coordinate space mismatch entirely.
+
+### Finding 3 (MEDIUM) — Non-null assertion and `as` casts
+
+**Root cause:**
+- `entry.blockId!` in `entryToTarget()` uses a non-null assertion on a
+  nullable field. If a non-gap entry somehow had `blockId: null`, this
+  would produce `{ type: "block", blockId: null }` at runtime.
+- `targetsEqual()` used `as SelectionTarget & { type: "block" }` casts
+  instead of discriminated union narrowing, bypassing the type checker.
+
+**Fix:**
+- Added explicit `if (entry.blockId === null)` guard with a defensive
+  fallback treating it as a gap entry.
+- Replaced all `as` casts with proper discriminated union narrowing:
+  `if (a.type === "block" && b.type === "block")`, etc.
+
+### Finding 4 (MEDIUM) — Empty catch blocks
+
+**Root cause:** Two `catch { }` blocks silently swallowed exceptions,
+making debugging difficult.
+
+**Fix:** Changed both to `catch (error) { console.warn("SelectionManager.<method>:", error); }`:
+- `getTargetBoundingRect` catch block
+- `getSvgParent` catch block
+
+### Verification
+
+- 25/25 tests pass (unchanged from original)
+- 96/96 block tests pass

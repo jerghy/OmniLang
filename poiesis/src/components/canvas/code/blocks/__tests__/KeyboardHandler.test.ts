@@ -166,6 +166,20 @@ describe("KeyboardHandler", () => {
       expect(ctx.callbacks.onFuzzySearch).toHaveBeenNthCalledWith(3, "t", "gap");
       cleanup(ctx);
     });
+
+    it("typing on slot triggers fuzzy search with character and slot context", () => {
+      const ctx = setup([declareVar("x")]);
+      const block = ctx.ws.getTopBlocks(true)[0];
+      const targetSpy = vi.spyOn(ctx.sm, "getCurrentTarget").mockReturnValue({
+        type: "slot",
+        blockId: block.id,
+        inputName: "VALUE",
+      });
+      dispatchKey(getSvg(ctx.ws), "m");
+      expect(ctx.callbacks.onFuzzySearch).toHaveBeenCalledWith("m", "slot");
+      targetSpy.mockRestore();
+      cleanup(ctx);
+    });
   });
 
   describe("special key dispatch", () => {
@@ -195,6 +209,20 @@ describe("KeyboardHandler", () => {
       cleanup(ctx);
     });
 
+    it("Enter on slot opens fuzzy search with empty query", () => {
+      const ctx = setup([declareVar("x")]);
+      const block = ctx.ws.getTopBlocks(true)[0];
+      const targetSpy = vi.spyOn(ctx.sm, "getCurrentTarget").mockReturnValue({
+        type: "slot",
+        blockId: block.id,
+        inputName: "NAME",
+      });
+      dispatchKey(getSvg(ctx.ws), "Enter");
+      expect(ctx.callbacks.onFuzzySearch).toHaveBeenCalledWith("", "slot");
+      targetSpy.mockRestore();
+      cleanup(ctx);
+    });
+
     it("Delete on block disposes block and fires onOpsChanged", () => {
       const ctx = setup([declareVar("x")]);
       dispatchKey(getSvg(ctx.ws), "Delete");
@@ -218,6 +246,71 @@ describe("KeyboardHandler", () => {
       const deleteSpy = vi.spyOn(ctx.gm, "deleteGap");
       dispatchKey(getSvg(ctx.ws), "Delete");
       expect(deleteSpy).toHaveBeenCalled();
+      cleanup(ctx);
+    });
+
+    it("Delete on slot clears the connected child block", () => {
+      const ctx = setup([
+        {
+          kind: "declare_var",
+          pid: "pid-dv",
+          mutable: false,
+          name: { kind: "text", value: "x" },
+          initValue: { kind: "text", value: "42" },
+          scope: "fn",
+        },
+      ]);
+      const block = ctx.ws.getTopBlocks(true)[0];
+      const input = block.getInput("VALUE");
+      expect(input?.connection?.targetBlock()).toBeTruthy();
+      const targetSpy = vi.spyOn(ctx.sm, "getCurrentTarget").mockReturnValue({
+        type: "slot",
+        blockId: block.id,
+        inputName: "VALUE",
+      });
+      dispatchKey(getSvg(ctx.ws), "Delete");
+      expect(input?.connection?.targetBlock()).toBeNull();
+      expect(ctx.callbacks.onOpsChanged).toHaveBeenCalledOnce();
+      targetSpy.mockRestore();
+      cleanup(ctx);
+    });
+
+    it("Backspace on slot clears the connected child block", () => {
+      const ctx = setup([
+        {
+          kind: "declare_var",
+          pid: "pid-dv",
+          mutable: false,
+          name: { kind: "text", value: "x" },
+          initValue: { kind: "text", value: "42" },
+          scope: "fn",
+        },
+      ]);
+      const block = ctx.ws.getTopBlocks(true)[0];
+      const input = block.getInput("VALUE");
+      expect(input?.connection?.targetBlock()).toBeTruthy();
+      const targetSpy = vi.spyOn(ctx.sm, "getCurrentTarget").mockReturnValue({
+        type: "slot",
+        blockId: block.id,
+        inputName: "VALUE",
+      });
+      dispatchKey(getSvg(ctx.ws), "Backspace");
+      expect(input?.connection?.targetBlock()).toBeNull();
+      expect(ctx.callbacks.onOpsChanged).toHaveBeenCalledOnce();
+      targetSpy.mockRestore();
+      cleanup(ctx);
+    });
+
+    it("Backspace on gap deletes gap and moves cursor left", () => {
+      const ctx = setup([declareVar("x"), setVar("x", "5")]);
+      ctx.sm.moveRight(); // move to gap
+      const deleteSpy = vi.spyOn(ctx.gm, "deleteGap");
+      const moveSpy = vi.spyOn(ctx.sm, "moveLeft");
+      dispatchKey(getSvg(ctx.ws), "Backspace");
+      expect(deleteSpy).toHaveBeenCalled();
+      expect(moveSpy).toHaveBeenCalled();
+      // Cursor should now be on the block before the gap
+      expect(ctx.sm.getCurrentTarget()?.type).toBe("block");
       cleanup(ctx);
     });
   });
@@ -248,6 +341,19 @@ describe("KeyboardHandler", () => {
       expect(pasteSpy).toHaveBeenCalledWith(ctx.ws);
       expect(ctx.callbacks.onOpsChanged).toHaveBeenCalledOnce();
       pasteSpy.mockRestore();
+      cleanup(ctx);
+    });
+
+    it("Ctrl+X copies and cuts the selected block", () => {
+      const ctx = setup([declareVar("x")]);
+      const copySpy = vi.spyOn(Blockly.clipboard, "copy").mockImplementation(() => {});
+      const blockCountBefore = ctx.ws.getTopBlocks(true).length;
+      dispatchKey(getSvg(ctx.ws), "x", { ctrlKey: true });
+      expect(copySpy).toHaveBeenCalledWith(ctx.ws);
+      // Block should be removed by cut
+      expect(ctx.ws.getTopBlocks(true).length).toBe(blockCountBefore - 1);
+      expect(ctx.callbacks.onOpsChanged).toHaveBeenCalledOnce();
+      copySpy.mockRestore();
       cleanup(ctx);
     });
   });

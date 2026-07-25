@@ -54,6 +54,20 @@ export class KeyboardHandler {
       svg.setAttribute("tabindex", "0");
       svg.focus();
     }
+
+    // Suppress Blockly's default keyboard handling to prevent interference.
+    // Blockly v13 disables keyboard nav via keyboardAccessibilityOptions;
+    // silently ignore if this API doesn't exist.
+    try {
+      const ws = this.workspace as unknown as Record<string, unknown>;
+      if (ws.keyboardAccessibilityOptions !== undefined) {
+        (ws.keyboardAccessibilityOptions as Record<string, boolean>).enabled =
+          false;
+      }
+    } catch {
+      // Fallback: stopPropagation in each handler prevents event from reaching
+      // document-level Blockly listeners.
+    }
   }
 
   // ── Main keydown handler ──
@@ -84,6 +98,7 @@ export class KeyboardHandler {
         break;
       case "\\":
         e.preventDefault();
+        e.stopPropagation();
         this.callbacks.onRawInput();
         break;
       case "Escape":
@@ -102,18 +117,22 @@ export class KeyboardHandler {
     switch (e.key) {
       case "ArrowLeft":
         e.preventDefault();
+        e.stopPropagation();
         this.selectionMgr.moveLeft();
         return true;
       case "ArrowRight":
         e.preventDefault();
+        e.stopPropagation();
         this.selectionMgr.moveRight();
         return true;
       case "ArrowUp":
         e.preventDefault();
+        e.stopPropagation();
         this.selectionMgr.moveUp();
         return true;
       case "ArrowDown":
         e.preventDefault();
+        e.stopPropagation();
         this.selectionMgr.moveDown();
         return true;
     }
@@ -125,13 +144,16 @@ export class KeyboardHandler {
   private handleModifier(e: KeyboardEvent): void {
     if (e.key === "c" || e.key === "C") {
       e.preventDefault();
+      e.stopPropagation();
       Blockly.clipboard.copy(this.workspace);
     } else if (e.key === "v" || e.key === "V") {
       e.preventDefault();
+      e.stopPropagation();
       Blockly.clipboard.paste(this.workspace);
       this.callbacks.onOpsChanged();
     } else if (e.key === "x" || e.key === "X") {
       e.preventDefault();
+      e.stopPropagation();
       Blockly.clipboard.copy(this.workspace);
       const target = this.selectionMgr.getCurrentTarget();
       if (target?.type === "block") {
@@ -144,10 +166,26 @@ export class KeyboardHandler {
     }
   }
 
+  /**
+   * Clear a slot input by disposing its connected child block (if any).
+   * Called when Delete/Backspace is pressed on a slot target.
+   */
+  private clearSlotInput(blockId: string, inputName: string): void {
+    const block = this.workspace.getBlockById(blockId);
+    if (!block) return;
+    const input = block.getInput(inputName);
+    if (!input?.connection) return;
+    const childBlock = input.connection.targetBlock();
+    if (childBlock && childBlock.isDeletable()) {
+      childBlock.dispose(true);
+    }
+  }
+
   // ── Context-sensitive handlers ──
 
   private handleEnter(target: SelectionTarget, e: KeyboardEvent): void {
     e.preventDefault();
+    e.stopPropagation();
     if (target.type === "slot") {
       // Open fuzzy search with no query (show all options)
       this.callbacks.onFuzzySearch("", "slot");
@@ -161,28 +199,38 @@ export class KeyboardHandler {
 
   private handleDelete(target: SelectionTarget, e: KeyboardEvent): void {
     e.preventDefault();
+    e.stopPropagation();
     if (target.type === "block") {
       const block = this.workspace.getBlockById(target.blockId);
       if (block?.isDeletable()) {
         block.dispose(true);
         this.callbacks.onOpsChanged();
       }
+    } else if (target.type === "slot") {
+      this.clearSlotInput(target.blockId, target.inputName);
+      this.callbacks.onOpsChanged();
     } else if (target.type === "gap") {
       this.gapMgr.deleteGap(target.position);
     }
-    // On slot: no-op (clearing is handled via Backspace in text slot, or via fuzzy search)
   }
 
   private handleBackspace(target: SelectionTarget, e: KeyboardEvent): void {
     e.preventDefault();
+    e.stopPropagation();
     if (target.type === "block") {
       const block = this.workspace.getBlockById(target.blockId);
       if (block?.isDeletable()) {
         block.dispose(true);
         this.callbacks.onOpsChanged();
       }
+    } else if (target.type === "slot") {
+      this.clearSlotInput(target.blockId, target.inputName);
+      this.callbacks.onOpsChanged();
+    } else if (target.type === "gap") {
+      // Merge gap up: delete the gap and move cursor to the previous position
+      this.gapMgr.deleteGap(target.position);
+      this.selectionMgr.moveLeft();
     }
-    // On slot/gap: no special behavior — leave to parent
   }
 
   private handleCharacter(e: KeyboardEvent, target: SelectionTarget): void {
@@ -191,9 +239,11 @@ export class KeyboardHandler {
 
     if (target.type === "slot") {
       e.preventDefault();
+      e.stopPropagation();
       this.callbacks.onFuzzySearch(e.key, "slot");
     } else if (target.type === "gap") {
       e.preventDefault();
+      e.stopPropagation();
       this.callbacks.onFuzzySearch(e.key, "gap");
     }
     // On block: let it pass (no-op in Blockly since blocks aren't editable)
