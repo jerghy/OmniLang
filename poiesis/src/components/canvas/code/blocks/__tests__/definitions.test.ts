@@ -91,10 +91,10 @@ describe("BLOCK_DEFINITIONS", () => {
     expect(defStr).toContain("TEXT");
   });
 
-  it("raw_stmt uses field_multilinetext for SOURCE", () => {
+  it("raw_stmt uses field_input for SOURCE", () => {
     const def = BLOCK_DEFINITIONS["raw_stmt"] as Record<string, unknown>;
     const defStr = JSON.stringify(def);
-    expect(defStr).toContain("field_multilinetext");
+    expect(defStr).toContain("field_input");
     expect(defStr).toContain("SOURCE");
   });
 });

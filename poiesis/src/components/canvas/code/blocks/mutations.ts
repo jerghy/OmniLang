@@ -220,6 +220,9 @@ interface MutatorBlock {
  * companion mutator blocks (container, elif_case, else_case).
  */
 export function registerIfBlockMutator(): void {
+  // Guard against double registration (Blockly throws if re-registered)
+  if (Blockly.Extensions.isRegistered("if_block_mutator")) return;
+
   // Register the mutator extension
   Blockly.Extensions.registerMutator(
     "if_block_mutator",

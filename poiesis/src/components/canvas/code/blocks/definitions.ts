@@ -115,7 +115,7 @@ const rawDef = {
   type: "raw_stmt",
   message0: "raw %1",
   args0: [
-    { type: "field_multilinetext", name: "SOURCE", text: "" },
+    { type: "field_input", name: "SOURCE", text: "" },
   ],
   previousStatement: null,
   nextStatement: null,
