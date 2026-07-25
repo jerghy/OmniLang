@@ -16,6 +16,7 @@ import { ContainerElementNode } from "./lexical/nodes/ContainerNode";
 import { BlockElementNode } from "./lexical/nodes/BlockNode";
 import { BodyLineNode } from "./lexical/nodes/BodyLineNode";
 import { InputSlotNode } from "./lexical/nodes/InputSlotNode";
+import { SlotCardNode } from "./lexical/nodes/SlotCardNode";
 import { parseOpsWasm } from "../../../services/codegen/code-op-parser";
 import { CodeEditorModal } from "./CodeEditorModal";
 import styles from "./CodeCardEditor.module.css";
@@ -31,7 +32,7 @@ interface Props {
 
 const lexicalConfig = {
   namespace: "code-card-editor-v2",
-  nodes: [CardNode, ContainerElementNode, BlockElementNode, BodyLineNode, InputSlotNode],
+  nodes: [CardNode, ContainerElementNode, BlockElementNode, BodyLineNode, InputSlotNode, SlotCardNode],
   onError: (error: Error, _editor: LexicalEditor) => {
     console.error("Lexical error:", error);
   },
