@@ -36,13 +36,31 @@ export function CodeOpSyncPlugin({ initialOps, onSync }: Props): null {
       root.clear();
 
       const nodes = convertToNodes(initialOps);
+      // Group inline cards in paragraph, body lines stay as blocks
+      let currentPara = $createParagraphNode();
       for (const node of nodes) {
         const lexicalNodes = editorNodeToLexical(node);
-        if (Array.isArray(lexicalNodes)) {
-          for (const ln of lexicalNodes) root.append(ln);
-        } else {
-          root.append(lexicalNodes);
+        const flatNodes = Array.isArray(lexicalNodes) ? lexicalNodes : [lexicalNodes];
+
+        for (const ln of flatNodes) {
+          if (ln.isInline?.()) {
+            // Add text node spacer before card if not first in paragraph
+            if (currentPara.getChildrenSize() > 0) {
+              currentPara.append($createTextNode(" "));
+            }
+            currentPara.append(ln);
+          } else {
+            // BodyLineNode or other block — flush paragraph, then append block
+            if (currentPara.getChildrenSize() > 0) {
+              root.append(currentPara);
+              currentPara = $createParagraphNode();
+            }
+            root.append(ln);
+          }
         }
+      }
+      if (currentPara.getChildrenSize() > 0) {
+        root.append(currentPara);
       }
       root.append($createParagraphNode());
     });
