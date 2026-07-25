@@ -21,7 +21,8 @@ import { ReturnNode } from "./nodes/ReturnNode";
 import { DesignPreviewNode } from "./nodes/DesignPreviewNode";
 import { CODE_TAGS, TAG_CN, type ContextMenuState } from "./flowConstants";
 import { ContextMenu } from "./CanvasContextMenu";
-import { CodeEditorModal } from "./CodeEditorModal";
+import { BlockEditor } from "./BlockEditor";
+import { emitOps } from "../../../services/codegen/code-op-emitter";
 import { FlowInspector } from "./FlowInspector";
 import styles from "./FlowCanvas.module.css";
 
@@ -44,12 +45,6 @@ function FlowCanvasInner() {
   // Read preview output from store (set by OmniViewRenderer)
   const previewOutput = usePoiesisStore((s) => s.designPage.previewOutput);
 
-  // Store definitions for type injection into code editor IntelliSense
-  const storeDefsObj = usePoiesisStore((s) => s.storeDefs);
-  const storeDefs = useMemo(
-    () => Object.values(storeDefsObj),
-    [storeDefsObj],
-  );
 
   const { screenToFlowPosition } = useReactFlow();
   const flowWrapperRef = useRef<HTMLDivElement>(null);
@@ -129,6 +124,7 @@ function FlowCanvasInner() {
   const removeElement = usePoiesisStore((s) => s.removeElement);
   const setProp = usePoiesisStore((s) => s.setProp);
   const setElementSource = usePoiesisStore((s) => s.setElementSource);
+  const setElementOperations = usePoiesisStore((s) => s.setElementOperations);
   const addWire = usePoiesisStore((s) => s.addWire);
 
   // ── Connect handler ──
@@ -295,19 +291,20 @@ function FlowCanvasInner() {
     [nodes, previewNode],
   );
 
-  // ── Editing element (for CodeEditorModal) ──
+  // ── Editing element (for BlockEditor / CodeEditorModal) ──
   const editingElement = editingNodeId
     ? elements.find((e) => e.id === editingNodeId && e.nodeType === "codeblock")
     : null;
 
-  const handleSaveCode = useCallback(
-    (source: string, description: string) => {
+  const handleSaveOps = useCallback(
+    (operations: import("../../../core/types/code-op").CodeOp[]) => {
       if (!editingNodeId) return;
+      const source = emitOps(operations);
+      setElementOperations(editingNodeId, operations);
       setElementSource(editingNodeId, source);
-      setProp(editingNodeId, "description", description);
       setEditingNodeId(null);
     },
-    [editingNodeId, setElementSource, setProp],
+    [editingNodeId, setElementOperations, setElementSource],
   );
 
   return (
@@ -382,14 +379,14 @@ function FlowCanvasInner() {
         />
       )}
 
-      {/* Code Editor Modal — double-click code-block node */}
+      {/* Block Editor — double-click code-block node */}
       {editingElement && (
-        <CodeEditorModal
+        <BlockEditor
           elementId={editingElement.id}
-          initialSource={(editingElement as CodeblockElementData).source}
-          initialDescription={((editingElement as CodeblockElementData).props?.description as string) || ""}
-          storeDefs={storeDefs}
-          onSave={handleSaveCode}
+          initialOps={(editingElement as CodeblockElementData).operations || []}
+          initialSource={(editingElement as CodeblockElementData).source || ""}
+          language="omnilang"
+          onSave={handleSaveOps}
           onClose={() => setEditingNodeId(null)}
         />
       )}
