@@ -36,30 +36,31 @@ export function CodeOpSyncPlugin({ initialOps, onSync }: Props): null {
       root.clear();
 
       const nodes = convertToNodes(initialOps);
-      // Group inline cards in paragraph, body lines stay as blocks
+      // Group inline cards in paragraphs, body lines stay as blocks.
+      // Each paragraph gets a zero-width text anchor at start/end so
+      // cursor can cross paragraph boundaries.
       let currentPara = $createParagraphNode();
+      // Start anchor
+      currentPara.append($createTextNode("​"));
       for (const node of nodes) {
         const lexicalNodes = editorNodeToLexical(node);
         const flatNodes = Array.isArray(lexicalNodes) ? lexicalNodes : [lexicalNodes];
-
         for (const ln of flatNodes) {
           if (ln.isInline?.()) {
-            // Add text node spacer before card if not first in paragraph
-            if (currentPara.getChildrenSize() > 0) {
-              currentPara.append($createTextNode(" "));
-            }
             currentPara.append(ln);
           } else {
-            // BodyLineNode or other block — flush paragraph, then append block
-            if (currentPara.getChildrenSize() > 0) {
-              root.append(currentPara);
-              currentPara = $createParagraphNode();
-            }
+            // BodyLineNode or other block — flush paragraph with end anchor, then append block
+            currentPara.append($createTextNode("​"));
+            root.append(currentPara);
             root.append(ln);
+            // Start new paragraph with anchor
+            currentPara = $createParagraphNode();
+            currentPara.append($createTextNode("​"));
           }
         }
       }
-      if (currentPara.getChildrenSize() > 0) {
+      currentPara.append($createTextNode("​"));
+      if (currentPara.getChildrenSize() > 2) { // more than just the two anchors
         root.append(currentPara);
       }
       root.append($createParagraphNode());
