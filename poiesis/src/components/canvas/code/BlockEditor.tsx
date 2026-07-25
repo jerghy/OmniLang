@@ -241,7 +241,7 @@ export const BlockEditor: React.FC<Props> = ({
     if (ws) {
       const block = ws.newBlock("raw_stmt");
       block.setFieldValue(rawInputText, "SOURCE");
-      block.initSvg();
+      if (typeof block.initSvg === "function") block.initSvg();
       block.render();
       block.moveBy(20, 20);
 
