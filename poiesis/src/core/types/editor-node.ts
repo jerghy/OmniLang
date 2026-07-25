@@ -43,7 +43,7 @@ export interface TailLine {
 
 // ── Inline cards (every token that's not a container) ──
 export interface InlineNode {
-  kind: "mut" | "break" | "continue" | "operator" | "type" | "var_ref" | "literal" | "dot" | "separator" | "comment";
+  kind: "keyword" | "mut" | "break" | "continue" | "operator" | "type" | "var_ref" | "literal" | "dot" | "separator" | "comment";
   cardLabel: string;        // displayed text: ">", "+=", "i32", "sum", etc.
   pid: string;
 }

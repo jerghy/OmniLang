@@ -51,6 +51,7 @@ function bodyLine(children: EditorNode[]): BodyLine {
 
 function convertDeclareVar(op: Extract<CodeOp, { kind: "declare_var" }>): ContainerNode {
   const children: EditorNode[] = [];
+  children.push(inline("keyword", "let"));  // keyword card
   if (op.mutable) children.push(inline("mut", "mut"));
   children.push(slot("name", op.name));
   if (op.varType) {
@@ -66,6 +67,7 @@ function convertDeclareVar(op: Extract<CodeOp, { kind: "declare_var" }>): Contai
 
 function convertSetVar(op: Extract<CodeOp, { kind: "set_var" }>): ContainerNode {
   return container("set", [
+    inline("keyword", "set"),
     slot("name", op.name),
     inline("operator", op.operator),
     slot("expression", op.value),
@@ -74,21 +76,25 @@ function convertSetVar(op: Extract<CodeOp, { kind: "set_var" }>): ContainerNode 
 
 function convertIfBlock(op: Extract<CodeOp, { kind: "if_block" }>): BlockNode {
   if (op.branches.length === 0) {
-    return block("if", [], [bodyLine([])], uid("tl"), op.pid);
+    return block("if", [inline("keyword", "if")], [bodyLine([])], uid("tl"), op.pid);
   }
   const first = op.branches[0];
   const branches = op.branches.length > 1
     ? op.branches.slice(1).map(br => ({
         kind: br.condition ? "elif" as const : "else" as const,
         pid: uid("br"),
-        head: br.condition ? [slot("condition", br.condition)] : [],
+        head: br.condition
+          ? [inline("keyword", br.condition ? "elif" : "else"), slot("condition", br.condition)]
+          : [inline("keyword", "else")],
         body: br.body.map(bodyOp => bodyLine([convertOneOp(bodyOp)])),
       }))
     : undefined;
 
   return block(
     "if",
-    first.condition ? [slot("condition", first.condition)] : [],
+    first.condition
+      ? [inline("keyword", "if"), slot("condition", first.condition)]
+      : [inline("keyword", "if")],
     first.body.length > 0
       ? first.body.map(bodyOp => bodyLine([convertOneOp(bodyOp)]))
       : [bodyLine([])],
@@ -101,7 +107,7 @@ function convertIfBlock(op: Extract<CodeOp, { kind: "if_block" }>): BlockNode {
 function convertWhile(op: Extract<CodeOp, { kind: "while" }>): BlockNode {
   return block(
     "while",
-    [slot("condition", op.condition)],
+    [inline("keyword", "while"), slot("condition", op.condition)],
     op.body.length > 0
       ? op.body.map(o => bodyLine([convertOneOp(o)]))
       : [bodyLine([])],
@@ -114,6 +120,7 @@ function convertForIn(op: Extract<CodeOp, { kind: "for_in" }>): BlockNode {
   return block(
     "for",
     [
+      inline("keyword", "for"),
       slot("name", op.itemName),
       inline("separator", "in"),
       slot("expression", op.collection),
@@ -127,11 +134,14 @@ function convertForIn(op: Extract<CodeOp, { kind: "for_in" }>): BlockNode {
 }
 
 function convertReturn(op: Extract<CodeOp, { kind: "return" }>): ContainerNode {
-  return container("return", [slot("expression", op.value ?? "")], op.pid);
+  return container("return", [
+    inline("keyword", "return"),
+    slot("expression", op.value ?? ""),
+  ], op.pid);
 }
 
 function convertCallFn(op: Extract<CodeOp, { kind: "call_fn" }>): ContainerNode {
-  const children: EditorNode[] = [slot("fn_name", op.fnName)];
+  const children: EditorNode[] = [inline("keyword", "call"), slot("fn_name", op.fnName)];
   for (let i = 0; i < op.args.length; i++) {
     if (i > 0) children.push(inline("separator", ","));
     children.push(slot("expression", op.args[i]));
@@ -140,5 +150,8 @@ function convertCallFn(op: Extract<CodeOp, { kind: "call_fn" }>): ContainerNode 
 }
 
 function convertAwait(op: Extract<CodeOp, { kind: "await" }>): ContainerNode {
-  return container("await", [slot("expression", op.value)], op.pid);
+  return container("await", [
+    inline("keyword", "await"),
+    slot("expression", op.value),
+  ], op.pid);
 }

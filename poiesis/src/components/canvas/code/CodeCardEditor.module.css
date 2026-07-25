@@ -99,6 +99,18 @@
   filter: brightness(0.95);
 }
 
+/* ── Keyword cards ── */
+.contentEditable :global(.code-card--keyword[data-card-label="let"])    { background: #ddd6fe; color: #5b21b6; }
+.contentEditable :global(.code-card--keyword[data-card-label="set"])    { background: #dbeafe; color: #1d4ed8; }
+.contentEditable :global(.code-card--keyword[data-card-label="if"])     { background: #fef3c7; color: #92400e; }
+.contentEditable :global(.code-card--keyword[data-card-label="elif"])   { background: #fef3c7; color: #92400e; }
+.contentEditable :global(.code-card--keyword[data-card-label="else"])   { background: #fef3c7; color: #92400e; }
+.contentEditable :global(.code-card--keyword[data-card-label="while"])  { background: #ffedd5; color: #9a3412; }
+.contentEditable :global(.code-card--keyword[data-card-label="for"])    { background: #d1fae5; color: #065f46; }
+.contentEditable :global(.code-card--keyword[data-card-label="return"]) { background: #fee2e2; color: #991b1b; }
+.contentEditable :global(.code-card--keyword[data-card-label="await"])  { background: #cffafe; color: #0e7490; }
+.contentEditable :global(.code-card--keyword[data-card-label="call"])   { background: #cffafe; color: #0e7490; }
+
 /* v2 card variant colors — match CardNode's global class names */
 .contentEditable :global(.code-card--mut)       { background: #fde68a; color: #92400e; }
 .contentEditable :global(.code-card--break),

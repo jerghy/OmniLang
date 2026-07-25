@@ -139,15 +139,19 @@ describe("convertToNodes", () => {
     expect(labels.filter(l => l === "slot:expression").length).toBe(3);
   });
 
-  it("converts await to await container with expression slot", () => {
+  it("converts await to await container with keyword + expression slot", () => {
     const ops: CodeOp[] = [{ kind: "await", pid: "aw1", value: "fetchData()" }];
     const nodes = convertToNodes(ops);
     const awaitNode = nodes[0] as ContainerNode;
     expect(awaitNode.kind).toBe("await");
-    const firstChild = awaitNode.children[0];
-    expect(firstChild.kind).toBe("slot");
-    expect((firstChild as InputSlot).slotKind).toBe("expression");
-    expect((firstChild as InputSlot).value).toBe("fetchData()");
+    // First child is keyword card, second is expression slot
+    const kwChild = awaitNode.children[0] as InlineNode;
+    expect(kwChild.kind).toBe("keyword");
+    expect(kwChild.cardLabel).toBe("await");
+    const exprChild = awaitNode.children[1];
+    expect(exprChild.kind).toBe("slot");
+    expect((exprChild as InputSlot).slotKind).toBe("expression");
+    expect((exprChild as InputSlot).value).toBe("fetchData()");
   });
 
   it("converts raw to inline comment node with source as label", () => {
@@ -166,7 +170,7 @@ describe("convertToNodes", () => {
     expect(nodes.length).toBe(1);
     const ifNode = nodes[0] as BlockNode;
     expect(ifNode.kind).toBe("if");
-    expect(ifNode.head.length).toBe(0);
+    expect(ifNode.head.length).toBe(1); // keyword "if" card
     expect(ifNode.body.length).toBe(1);
   });
 

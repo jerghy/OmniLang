@@ -59,6 +59,7 @@ export class CardNode extends ElementNode {
     const el = document.createElement("span");
     el.className = `code-card code-card--${this.__cardKind}`;
     el.setAttribute("data-card-kind", this.__cardKind);
+    el.setAttribute("data-card-label", this.__cardLabel);
     el.setAttribute("data-card-pid", this.__cardPid);
     el.setAttribute("contenteditable", "false");
     el.tabIndex = -1;
