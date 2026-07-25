@@ -66,9 +66,19 @@ export function CodeOpSyncPlugin({ initialOps, onSync }: Props): null {
 
 // ── EditorNode → Lexical node(s) ──
 // Containers and blocks are FLATTENED: no wrapping ElementNode.
-// Returns either a single LexicalNode or an array (for blocks with body lines).
 
+/** Convert a single EditorNode to zero or more LexicalNodes (may be nested). */
 function editorNodeToLexical(node: EditorNode): any | any[] {
+  return _editorNodeToLexical(node);
+}
+
+/** Flatten to a flat array of LexicalNodes. */
+function editorNodeToLexicalFlat(node: EditorNode): any[] {
+  const r = _editorNodeToLexical(node);
+  return Array.isArray(r) ? r.flat(Infinity) : [r];
+}
+
+function _editorNodeToLexical(node: EditorNode): any | any[] {
   switch (node.kind) {
     case "let":
     case "set":
@@ -89,7 +99,7 @@ function editorNodeToLexical(node: EditorNode): any | any[] {
 
       // Head as flat inline cards
       for (const headItem of bNode.head) {
-        result.push(editorNodeToLexical(headItem));
+        result.push(...editorNodeToLexicalFlat(headItem));
       }
 
       // Branch metadata stored on first body line for reconstruction
@@ -116,7 +126,9 @@ function editorNodeToLexical(node: EditorNode): any | any[] {
           (bl as any).__branchMeta = branchMeta;
         }
         for (const child of line.children) {
-          bl.append(editorNodeToLexical(child));
+          for (const ln of editorNodeToLexicalFlat(child)) {
+            bl.append(ln);
+          }
         }
         result.push(bl);
       }
@@ -127,13 +139,15 @@ function editorNodeToLexical(node: EditorNode): any | any[] {
           const br = bNode.branches[bi];
           // Branch head keywords + slots as flat inline cards
           for (const headItem of br.head) {
-            result.push(editorNodeToLexical(headItem));
+            result.push(...editorNodeToLexicalFlat(headItem));
           }
           // Branch body lines
           for (const line of br.body) {
             const bl = $createBodyLineNode(line.pid, bi);
             for (const child of line.children) {
-              bl.append(editorNodeToLexical(child));
+              for (const ln of editorNodeToLexicalFlat(child)) {
+                bl.append(ln);
+              }
             }
             result.push(bl);
           }
