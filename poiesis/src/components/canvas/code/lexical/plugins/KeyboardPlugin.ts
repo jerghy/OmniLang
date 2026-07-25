@@ -1,6 +1,7 @@
 // poiesis/src/components/canvas/code/lexical/plugins/KeyboardPlugin.ts
-// v2 cursor keyboard: browser handles ←→↑↓ natively via contenteditable="false" cards.
-// We handle: Delete/Backspace at container right-edge, Enter for new body lines, Tab for operator cycling.
+// v3: Simplified 2-state cursor (pipe | and card highlight).
+// No more container right-edge detection or container-level delete.
+// Enter activates SlotCardNode editing, or creates new body line.
 import { useEffect } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import {
@@ -12,52 +13,32 @@ import {
   $getSelection,
   $isRangeSelection,
   $isTextNode,
-  $isElementNode,
   type RangeSelection,
   type LexicalNode,
 } from "lexical";
 import { $isCardNode, $createCardNode } from "../nodes/CardNode";
+import { $isSlotCardNode, type SlotCardNode } from "../nodes/SlotCardNode";
 import { $isContainerElementNode } from "../nodes/ContainerNode";
-import { $isBlockElementNode } from "../nodes/BlockNode";
 import { $isBodyLineNode, $createBodyLineNode } from "../nodes/BodyLineNode";
 
 export function KeyboardPlugin(): null {
   const [editor] = useLexicalComposerContext();
 
   // ── Delete ──
+  // v3: No container right-edge logic. Browser handles card deletion natively.
+  // We only intercept to prevent Lexical from doing its own paragraph deletion.
   useEffect(() => {
     return editor.registerCommand(
       KEY_DELETE_COMMAND,
-      (event: KeyboardEvent) => {
+      (_event: KeyboardEvent) => {
         const selection = $getSelection();
         if (!$isRangeSelection(selection)) return false;
 
-        const rightEdgeNode = detectRightEdge(selection);
-        if (rightEdgeNode !== null) {
-          event.preventDefault();
-          if ($isContainerElementNode(rightEdgeNode)) {
-            // Container right-edge block cursor → delete whole container
-            rightEdgeNode.remove();
-            return true;
-          }
-          if ($isBodyLineNode(rightEdgeNode)) {
-            // Body line right-edge → delete this line (keep at least one child)
-            const parent = rightEdgeNode.getParent();
-            if (parent !== null) {
-              const siblingCount = parent.getChildren().filter(
-                (c) => $isBodyLineNode(c),
-              ).length;
-              if (siblingCount > 1) {
-                rightEdgeNode.remove();
-              }
-            }
-            return true;
-          }
-        }
-
-        // If a card is selected (browser's atomic selection via contenteditable="false"),
-        // the browser will handle deletion natively. Return false to let it through.
-        return false;
+        // If the selection has a highlighted card (contenteditable="false" span),
+        // the browser will handle deletion natively. Let it through.
+        // Lexical's default Delete behavior would try to delete a character,
+        // which fails on contenteditable="false" elements anyway.
+        return false; // let browser handle
       },
       COMMAND_PRIORITY_LOW,
     );
@@ -67,11 +48,11 @@ export function KeyboardPlugin(): null {
   useEffect(() => {
     return editor.registerCommand(
       KEY_BACKSPACE_COMMAND,
-      (event: KeyboardEvent) => {
+      (_event: KeyboardEvent) => {
         const selection = $getSelection();
         if (!$isRangeSelection(selection)) return false;
 
-        // Backspace at very start of a container → no-op (cannot delete container prefix)
+        // Backspace at very start of a container → no-op
         const anchor = selection.anchor;
         const anchorNode = anchor.getNode();
         if (anchor.offset === 0 && $isTextNode(anchorNode)) {
@@ -79,20 +60,18 @@ export function KeyboardPlugin(): null {
           if (parent !== null && $isContainerElementNode(parent)) {
             const firstChild = parent.getFirstChild();
             if (firstChild === anchorNode) {
-              event.preventDefault();
-              return true; // swallow backspace at container start
+              return true; // swallow
             }
           }
         }
 
-        // Otherwise let browser handle (card deletion, text deletion, etc.)
-        return false;
+        return false; // let browser handle
       },
       COMMAND_PRIORITY_LOW,
     );
   }, [editor]);
 
-  // ── Enter: new body line ──
+  // ── Enter: activate SlotCardNode editing, or create new body line ──
   useEffect(() => {
     return editor.registerCommand(
       KEY_ENTER_COMMAND,
@@ -100,22 +79,28 @@ export function KeyboardPlugin(): null {
         const selection = $getSelection();
         if (!$isRangeSelection(selection)) return false;
 
-        // Enter at body line right-edge or inside body line → insert new line below
-        const withinBodyLine = findAncestorBodyLine(selection);
-        if (withinBodyLine !== null) {
+        // Check if a SlotCardNode is highlighted (selected)
+        const anchorNode = selection.anchor.getNode();
+        const slotCard = findSlotCardAtCursor(anchorNode);
+        if (slotCard !== null) {
           event?.preventDefault();
-          const newLine = $createBodyLineNode("bl-" + Date.now());
-          withinBodyLine.insertAfter(newLine);
-          newLine.selectStart();
+          // Activate editing on the slot card's DOM element
+          const editorEl = document.querySelector('[contenteditable="true"]');
+          const slotDom = editorEl?.querySelector(
+            `[data-slot-pid="${slotCard.getPid()}"]`
+          ) as HTMLElement | null;
+          if (slotDom) {
+            slotCard.activateEditing(editor, slotDom);
+          }
           return true;
         }
 
-        // Enter after a container (right-edge) → insert paragraph after
-        const rightEdge = detectRightEdge(selection);
-        if (rightEdge !== null && $isContainerElementNode(rightEdge)) {
+        // Enter inside a body line or at the right edge of one → create new line below
+        const bodyLine = findAncestorBodyLine(selection);
+        if (bodyLine !== null) {
           event?.preventDefault();
           const newLine = $createBodyLineNode("bl-" + Date.now());
-          rightEdge.insertAfter(newLine);
+          bodyLine.insertAfter(newLine);
           newLine.selectStart();
           return true;
         }
@@ -135,7 +120,6 @@ export function KeyboardPlugin(): null {
         if (!$isRangeSelection(selection)) return false;
         const anchorNode = selection.anchor.getNode();
 
-        // Check if the node at cursor or its neighboring sibling is an operator card
         const cardNode = findCardAtCursor(anchorNode, selection);
         if (cardNode !== null && $isCardNode(cardNode) && cardNode.getCardKind() === "operator") {
           const parent = cardNode.getParent();
@@ -170,50 +154,6 @@ export function KeyboardPlugin(): null {
 
 // ── Helpers ──
 
-/**
- * Detect if the collapsed cursor is at the rightmost edge of a container or body line.
- * Returns the container/body-line node if so, or null.
- */
-function detectRightEdge(
-  selection: RangeSelection,
-): LexicalNode | null {
-  if (!selection.isCollapsed()) return null;
-
-  const anchor = selection.anchor;
-  const anchorNode = anchor.getNode();
-
-  // Anchor offset is child-index for element anchors, text-index for text anchors
-  if (anchor.type === "element") {
-    if (!$isElementNode(anchorNode)) return null;
-    if (anchor.offset !== anchorNode.getChildrenSize()) return null;
-  } else if (anchor.type === "text") {
-    if (anchor.offset !== anchorNode.getTextContentSize()) return null;
-  } else {
-    return null;
-  }
-
-  // Walk up: is this node the last child of a container or body line?
-  let node: LexicalNode | null = anchorNode;
-  while (node !== null) {
-    const parent: LexicalNode | null = node.getParent();
-    if (parent === null) return null;
-    if (!$isElementNode(parent)) return null;
-
-    const lastChild = parent.getLastChild();
-    if (lastChild !== node) return null; // not the last child → not at right edge
-
-    if ($isContainerElementNode(parent)) return parent;
-    if ($isBodyLineNode(parent)) return parent;
-    if ($isBlockElementNode(parent)) return null; // don't delete block from inside
-
-    node = parent;
-  }
-  return null;
-}
-
-/**
- * Find the closest ancestor BodyLineNode that contains the selection.
- */
 function findAncestorBodyLine(selection: RangeSelection): LexicalNode | null {
   const anchorNode = selection.anchor.getNode();
   let node: LexicalNode | null = anchorNode;
@@ -225,15 +165,27 @@ function findAncestorBodyLine(selection: RangeSelection): LexicalNode | null {
 }
 
 /**
+ * Find a SlotCardNode at or near the cursor position.
+ */
+function findSlotCardAtCursor(anchorNode: LexicalNode): SlotCardNode | null {
+  if ($isSlotCardNode(anchorNode)) return anchorNode;
+
+  const parent = anchorNode.getParent();
+  if (parent === null) return null;
+
+  // Check if we're inside a SlotCardNode (it traps cursor in display mode)
+  if ($isSlotCardNode(parent)) return parent;
+
+  return null;
+}
+
+/**
  * Find a CardNode at or near the cursor position.
- * Since cards are contenteditable="false", the cursor may be at a text node
- * adjacent to the card rather than inside it.
  */
 function findCardAtCursor(
   anchorNode: LexicalNode,
   selection: RangeSelection,
 ): LexicalNode | null {
-  // Direct hit: cursor is somehow on a card node
   if ($isCardNode(anchorNode)) return anchorNode;
 
   const parent = anchorNode.getParent();
@@ -241,19 +193,16 @@ function findCardAtCursor(
 
   const offset = selection.anchor.offset;
 
-  // Cursor at start of text node → check previous sibling
   if (offset === 0) {
     const prev = anchorNode.getPreviousSibling();
     if ($isCardNode(prev)) return prev;
   }
 
-  // Cursor at end of text node → check next sibling
   if (offset === anchorNode.getTextContentSize()) {
     const next = anchorNode.getNextSibling();
     if ($isCardNode(next)) return next;
   }
 
-  // Check if parent itself is a card node
   if ($isCardNode(parent)) return parent;
 
   return null;
