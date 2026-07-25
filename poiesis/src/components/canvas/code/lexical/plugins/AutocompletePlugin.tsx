@@ -24,7 +24,7 @@ import { $createCardNode } from "../nodes/CardNode";
 import { $createContainerElementNode, $isContainerElementNode } from "../nodes/ContainerNode";
 import { $createBlockElementNode, $isBlockElementNode } from "../nodes/BlockNode";
 import { $createBodyLineNode } from "../nodes/BodyLineNode";
-import { $createInputSlotNode } from "../nodes/InputSlotNode";
+import { $createSlotCardNode } from "../nodes/SlotCardNode";
 import { uid } from "../../../../../core/utils/id";
 import { AutocompleteMenu } from "../autocomplete/AutocompleteMenu";
 import {
@@ -340,22 +340,22 @@ function createDefaultSlot(
   switch (kind) {
     case "let":
     case "set": {
-      const nameSlot = $createInputSlotNode("", "name");
+      const nameSlot = $createSlotCardNode("", "name", uid("sc"));
       containerNode.append(nameSlot);
-      nameSlot.select();
+      nameSlot.selectStart();
       break;
     }
     case "return":
     case "await": {
-      const exprSlot = $createInputSlotNode("", "expression");
+      const exprSlot = $createSlotCardNode("", "expression", uid("sc"));
       containerNode.append(exprSlot);
-      exprSlot.select();
+      exprSlot.selectStart();
       break;
     }
     case "call": {
-      const fnSlot = $createInputSlotNode("", "fn_name");
+      const fnSlot = $createSlotCardNode("", "fn_name", uid("sc"));
       containerNode.append(fnSlot);
-      fnSlot.select();
+      fnSlot.selectStart();
       break;
     }
     default:
