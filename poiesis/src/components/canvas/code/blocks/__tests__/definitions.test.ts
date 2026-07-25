@@ -10,7 +10,7 @@ describe("BLOCK_DEFINITIONS", () => {
     "if_block", "while_loop", "for_in",
   ];
 
-  it("has all 13 block types", () => {
+  it("has all 12 block types", () => {
     expect(Object.keys(BLOCK_DEFINITIONS).sort()).toEqual(expectedBlocks.sort());
   });
 

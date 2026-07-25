@@ -75,10 +75,14 @@ export const IF_BLOCK_MUTATOR_MIXIN = {
       }
     }
 
-    // Remove the else body input if present (it's built into the static def,
-    // but we may want to hide it when hasElse_ is false)
-    if (self.getInput("ELSE_BODY")) {
-      // We keep ELSE_BODY but clear its connection when hasElse_ is false
+    // Unplug the else body's children when hasElse_ is false,
+    // but keep the input itself (it's part of the static def).
+    const elseInput = self.getInput("ELSE_BODY");
+    if (elseInput && !self.hasElse_) {
+      const conn = elseInput.connection;
+      if (conn && conn.targetBlock()) {
+        conn.targetBlock()!.unplug();
+      }
     }
 
     // Re-add elif inputs
@@ -138,17 +142,9 @@ export const IF_BLOCK_MUTATOR_MIXIN = {
       }
     }
 
-    // Show/hide the else section label and input
-    if (self.hasElse_) {
-      // Ensure the else body input exists and is visible
-      // It's part of the static def (message2) so it already exists
-    }
+    // else body input visibility: handled by static def (message2).
+    // Children are reconnected above based on hasElse_ state.
   },
-
-  /**
-   * Provide a block for the mutator flyout given an element name.
-   */
-  blockToDom?: (this: Blockly.Block) => Element;
 
   /**
    * Compose the if_block from the mutator workspace.

@@ -1,5 +1,6 @@
 // poiesis/src/components/canvas/code/blocks/definitions.ts
 import * as Blockly from "blockly";
+import { registerIfBlockMutator } from "./mutations";
 
 // ── Color palette (Zelos/Scratch 3.0 defaults) ──
 const C = {
@@ -199,4 +200,5 @@ export function registerAllBlocks(): void {
       },
     };
   }
+  registerIfBlockMutator();
 }
