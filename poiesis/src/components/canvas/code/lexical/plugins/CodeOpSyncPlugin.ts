@@ -1,6 +1,7 @@
 // poiesis/src/components/canvas/code/lexical/plugins/CodeOpSyncPlugin.ts
-// Renamed internally to NodeSyncPlugin — file name kept for git history.
-// Now syncs EditorNode[] instead of directly converting to CodeOp[].
+// v3 flat: containers and blocks are unfolded to flat inline card sequences.
+// Only BodyLineNode (for block body indentation) remains as a structural node.
+// Keyword cards act as delimiters for reconstruction during extraction.
 
 import { useEffect, useRef } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
@@ -10,10 +11,12 @@ import type { EditorNode, ContainerNode, BlockNode, InlineNode, InputSlot, BodyL
 import { convertToNodes } from "../transforms/convertToNodes";
 import { convertToOps } from "../transforms/convertToOps";
 import { $createCardNode, $isCardNode } from "../nodes/CardNode";
-import { $createContainerElementNode, $isContainerElementNode } from "../nodes/ContainerNode";
-import { $createBlockElementNode, $isBlockElementNode } from "../nodes/BlockNode";
 import { $createBodyLineNode, $isBodyLineNode } from "../nodes/BodyLineNode";
 import { $createSlotCardNode, $isSlotCardNode } from "../nodes/SlotCardNode";
+
+const CONTAINER_KEYWORDS = new Set(["let", "set", "return", "await", "call", "array", "map"]);
+const BLOCK_KEYWORDS = new Set(["if", "while", "for"]);
+const BRANCH_KEYWORDS = new Set(["elif", "else"]);
 
 interface Props {
   initialOps: CodeOp[];
@@ -35,8 +38,12 @@ export function CodeOpSyncPlugin({ initialOps, onSync }: Props): null {
 
       const nodes = convertToNodes(initialOps);
       for (const node of nodes) {
-        const lexicalNode = editorNodeToLexical(node);
-        root.append(lexicalNode);
+        const lexicalNodes = editorNodeToLexical(node);
+        if (Array.isArray(lexicalNodes)) {
+          for (const ln of lexicalNodes) root.append(ln);
+        } else {
+          root.append(lexicalNodes);
+        }
       }
       root.append($createParagraphNode());
     });
@@ -57,9 +64,11 @@ export function CodeOpSyncPlugin({ initialOps, onSync }: Props): null {
   return null;
 }
 
-// ── EditorNode → Lexical node ──
+// ── EditorNode → Lexical node(s) ──
+// Containers and blocks are FLATTENED: no wrapping ElementNode.
+// Returns either a single LexicalNode or an array (for blocks with body lines).
 
-function editorNodeToLexical(node: EditorNode) {
+function editorNodeToLexical(node: EditorNode): any | any[] {
   switch (node.kind) {
     case "let":
     case "set":
@@ -68,60 +77,70 @@ function editorNodeToLexical(node: EditorNode) {
     case "call":
     case "array":
     case "map": {
-      const container = $createContainerElementNode(node.kind, node.pid);
-      for (const child of (node as ContainerNode).children) {
-        container.append(editorNodeToLexical(child));
-      }
-      return container;
+      // Flat: just return children as inline cards, no container wrapper
+      const children = (node as ContainerNode).children;
+      return children.map(c => editorNodeToLexical(c));
     }
     case "if":
     case "while":
     case "for": {
       const bNode = node as BlockNode;
+      const result: any[] = [];
 
-      // Build branch metadata (serializable head content)
-      let branchMeta: import("../nodes/BlockNode").BranchMeta[] | undefined;
+      // Head as flat inline cards
+      for (const headItem of bNode.head) {
+        result.push(editorNodeToLexical(headItem));
+      }
+
+      // Branch metadata stored on first body line for reconstruction
+      let branchMeta: any = undefined;
       if (bNode.branches && bNode.branches.length > 0) {
         branchMeta = bNode.branches.map(br => ({
           kind: br.kind,
           pid: br.pid,
-          head: br.head.map(h => ({
+          head: br.head.map((h: any) => ({
             kind: h.kind,
-            cardLabel: (h as any).cardLabel,
-            slotKind: (h as any).slotKind,
-            value: (h as any).value,
+            cardLabel: h.cardLabel,
+            slotKind: h.slotKind,
+            value: h.value,
             pid: h.pid,
           })),
         }));
       }
 
-      const block = $createBlockElementNode(node.kind, node.pid, branchMeta);
-      // Head line
-      for (const headItem of bNode.head) {
-        block.append(editorNodeToLexical(headItem));
-      }
       // Main body lines
       for (const line of bNode.body) {
         const bl = $createBodyLineNode(line.pid);
+        // Attach branch meta to first body line for reconstruction
+        if (branchMeta && !bl.__branchMeta) {
+          (bl as any).__branchMeta = branchMeta;
+        }
         for (const child of line.children) {
           bl.append(editorNodeToLexical(child));
         }
-        block.append(bl);
+        result.push(bl);
       }
-      // Branch body lines (marked with branchIndex)
+
+      // Branch heads as flat inline cards + branch body lines
       if (bNode.branches) {
         for (let bi = 0; bi < bNode.branches.length; bi++) {
           const br = bNode.branches[bi];
+          // Branch head keywords + slots as flat inline cards
+          for (const headItem of br.head) {
+            result.push(editorNodeToLexical(headItem));
+          }
+          // Branch body lines
           for (const line of br.body) {
             const bl = $createBodyLineNode(line.pid, bi);
             for (const child of line.children) {
               bl.append(editorNodeToLexical(child));
             }
-            block.append(bl);
+            result.push(bl);
           }
         }
       }
-      return block;
+
+      return result;
     }
     case "keyword":
     case "mut":
@@ -147,29 +166,31 @@ function editorNodeToLexical(node: EditorNode) {
 }
 
 // ── Lexical nodes → EditorNode[] ──
+// Reconstruct containers/blocks from flat keyword-delimited card sequences.
 
 function extractEditorNodes(root: ReturnType<typeof $getRoot>): EditorNode[] {
-  const nodes: EditorNode[] = [];
+  // First, collect all flat EditorNodes from the Lexical tree
+  const flatNodes: EditorNode[] = [];
   const children = root.getChildren();
   for (const child of children) {
     const extracted = extractFromNode(child);
     if (extracted) {
       if (Array.isArray(extracted)) {
-        nodes.push(...extracted);
+        flatNodes.push(...extracted);
       } else {
-        nodes.push(extracted);
+        flatNodes.push(extracted);
       }
     }
   }
-  return nodes;
+
+  // Second, reconstruct containers and blocks from flat keyword-delimited nodes
+  return reconstructContainers(flatNodes);
 }
 
-/** Recursively extract EditorNodes from any Lexical node, traversing into paragraphs. */
 function extractFromNode(lexicalNode: any): EditorNode | EditorNode[] | null {
   const direct = lexicalToEditorNode(lexicalNode);
   if (direct) return direct;
 
-  // Traverse into ElementNodes (e.g. ParagraphNode) that may wrap our custom nodes
   if (lexicalNode.getChildren && typeof lexicalNode.getChildren === "function") {
     const result: EditorNode[] = [];
     for (const child of lexicalNode.getChildren()) {
@@ -189,78 +210,6 @@ function extractFromNode(lexicalNode: any): EditorNode | EditorNode[] | null {
 }
 
 function lexicalToEditorNode(lexicalNode: any): EditorNode | null {
-  if ($isContainerElementNode(lexicalNode)) {
-    const children: EditorNode[] = [];
-    for (const child of lexicalNode.getChildren()) {
-      const c = lexicalToEditorNode(child);
-      if (c) children.push(c);
-    }
-    return {
-      kind: lexicalNode.getContainerKind(),
-      pid: lexicalNode.getContainerPid(),
-      children,
-    } as ContainerNode;
-  }
-
-  if ($isBlockElementNode(lexicalNode)) {
-    const head: EditorNode[] = [];
-    const mainBody: BodyLine[] = [];
-    const branchBodies: Map<number, BodyLine[]> = new Map();
-
-    // Read branch metadata
-    const branchMeta = lexicalNode.getBranches();
-
-    for (const child of lexicalNode.getChildren()) {
-      if ($isBodyLineNode(child)) {
-        const bi = child.getBranchIndex();
-        const lineChildren: EditorNode[] = [];
-        for (const lc of child.getChildren()) {
-          const c = lexicalToEditorNode(lc);
-          if (c) lineChildren.push(c);
-        }
-        const line: BodyLine = { pid: child.getBodyLinePid(), children: lineChildren };
-
-        if (bi !== undefined) {
-          // Branch body line
-          const existing = branchBodies.get(bi) || [];
-          existing.push(line);
-          branchBodies.set(bi, existing);
-        } else {
-          // Main body line
-          mainBody.push(line);
-        }
-      } else {
-        const c = lexicalToEditorNode(child);
-        if (c) head.push(c);
-      }
-    }
-
-    // Reconstruct branches from metadata + body lines
-    let branches: import("../../../../../core/types/editor-node").Branch[] | undefined;
-    if (branchMeta && branchMeta.length > 0) {
-      branches = branchMeta.map((bm, bi) => ({
-        kind: bm.kind,
-        pid: bm.pid,
-        head: bm.head.map(h => {
-          if (h.kind === "slot") {
-            return { kind: "slot" as const, slotKind: h.slotKind || "condition" as const, value: h.value || "", pid: h.pid };
-          }
-          return { kind: h.kind as any, cardLabel: h.cardLabel || "", pid: h.pid };
-        }),
-        body: branchBodies.get(bi) || [],
-      })) as Branch[];
-    }
-
-    return {
-      kind: lexicalNode.getBlockKind(),
-      pid: lexicalNode.getBlockPid(),
-      head,
-      body: mainBody,
-      tail: { pid: "tail-" + lexicalNode.getBlockPid() },
-      branches,
-    } as BlockNode;
-  }
-
   if ($isCardNode(lexicalNode)) {
     return {
       kind: lexicalNode.getCardKind(),
@@ -278,5 +227,148 @@ function lexicalToEditorNode(lexicalNode: any): EditorNode | null {
     } as InputSlot;
   }
 
+  if ($isBodyLineNode(lexicalNode)) {
+    const lineChildren: EditorNode[] = [];
+    for (const lc of lexicalNode.getChildren()) {
+      const c = lexicalToEditorNode(lc);
+      if (c) lineChildren.push(c);
+    }
+    const bl: any = {
+      kind: "body_line" as any,
+      pid: lexicalNode.getBodyLinePid(),
+      children: lineChildren,
+    };
+    // Carry branch metadata for reconstruction
+    const bi = lexicalNode.getBranchIndex();
+    if (bi !== undefined) bl.branchIndex = bi;
+    if ((lexicalNode as any).__branchMeta) bl.__branchMeta = (lexicalNode as any).__branchMeta;
+    return bl;
+  }
+
   return null;
+}
+
+// ── Reconstruction: flat nodes → containers + blocks ──
+
+function isInline(n: EditorNode): n is InlineNode {
+  return "cardLabel" in n;
+}
+
+function isSlot(n: EditorNode): n is InputSlot {
+  return n.kind === "slot";
+}
+
+interface BodyLineEx extends BodyLine {
+  branchIndex?: number;
+  __branchMeta?: any;
+}
+
+function reconstructContainers(flat: EditorNode[]): EditorNode[] {
+  const result: EditorNode[] = [];
+  let i = 0;
+
+  while (i < flat.length) {
+    const node = flat[i];
+
+    // Check if this is the start of a container or block (keyword card)
+    if (isInline(node) && node.kind === "keyword") {
+      const kw = node.cardLabel;
+
+      if (CONTAINER_KEYWORDS.has(kw)) {
+        // Container: consume children until next keyword or end of current context
+        const children: EditorNode[] = [node];
+        i++;
+        while (i < flat.length) {
+          const next = flat[i];
+          if (isInline(next) && next.kind === "keyword") break;
+          if (next.kind === "body_line") break;
+          children.push(next);
+          i++;
+        }
+        result.push({
+          kind: kw as ContainerNode["kind"],
+          pid: node.pid,
+          children,
+        } as ContainerNode);
+      } else if (BLOCK_KEYWORDS.has(kw)) {
+        // Block: consume head, then body lines
+        const head: EditorNode[] = [node];
+        const body: BodyLine[] = [];
+        const branches: Branch[] = [];
+        i++;
+
+        // Consume head cards until first BodyLine
+        while (i < flat.length && (flat[i] as any).kind !== "body_line") {
+          head.push(flat[i]);
+          i++;
+        }
+
+        // Collect branch metadata from first body line
+        let branchMeta: any = undefined;
+        const firstBodyLine = flat[i] as BodyLineEx | undefined;
+        if (firstBodyLine?.__branchMeta) {
+          branchMeta = firstBodyLine.__branchMeta;
+        }
+
+        // Consume main body lines
+        while (i < flat.length && (flat[i] as any).kind === "body_line") {
+          const bl = flat[i] as BodyLineEx;
+          if (bl.branchIndex !== undefined) break; // branch body lines handled below
+          body.push({ pid: bl.pid, children: bl.children });
+          i++;
+        }
+
+        // If there are branches, consume them
+        if (branchMeta && branchMeta.length > 0) {
+          for (let bi = 0; bi < branchMeta.length; bi++) {
+            const bm = branchMeta[bi];
+            const branchBody: BodyLine[] = [];
+
+            // Branch head is already in flat as keyword + slots before branch body lines
+            // Skip branch body lines with matching branchIndex
+            while (i < flat.length && (flat[i] as any).kind === "body_line") {
+              const bl = flat[i] as BodyLineEx;
+              if (bl.branchIndex === bi) {
+                branchBody.push({ pid: bl.pid, children: bl.children });
+                i++;
+              } else {
+                break;
+              }
+            }
+
+            branches.push({
+              kind: bm.kind,
+              pid: bm.pid,
+              head: bm.head.map((h: any) => {
+                if (h.kind === "slot") {
+                  return { kind: "slot" as const, slotKind: h.slotKind || "condition", value: h.value || "", pid: h.pid };
+                }
+                return { kind: h.kind as any, cardLabel: h.cardLabel || "", pid: h.pid };
+              }),
+              body: branchBody,
+            });
+          }
+        }
+
+        result.push({
+          kind: kw as BlockNode["kind"],
+          pid: node.pid,
+          head,
+          body,
+          tail: { pid: "tail-" + node.pid },
+          branches: branches.length > 0 ? branches : undefined,
+        } as BlockNode);
+      } else {
+        // Standalone keyword (e.g. break, continue — not containers/blocks)
+        result.push(node);
+        i++;
+      }
+    } else {
+      // Non-keyword node (e.g. break, continue inline, or standalone slots)
+      result.push(node);
+      i++;
+    }
+  }
+
+  return result;
 }

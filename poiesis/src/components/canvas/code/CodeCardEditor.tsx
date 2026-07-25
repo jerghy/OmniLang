@@ -12,8 +12,6 @@ import { AutocompletePlugin } from "./lexical/plugins/AutocompletePlugin";
 import { KeyboardPlugin } from "./lexical/plugins/KeyboardPlugin";
 import { CodeOpSyncPlugin } from "./lexical/plugins/CodeOpSyncPlugin";
 import { CardNode } from "./lexical/nodes/CardNode";
-import { ContainerElementNode } from "./lexical/nodes/ContainerNode";
-import { BlockElementNode } from "./lexical/nodes/BlockNode";
 import { BodyLineNode } from "./lexical/nodes/BodyLineNode";
 import { SlotCardNode } from "./lexical/nodes/SlotCardNode";
 import { parseOpsWasm } from "../../../services/codegen/code-op-parser";
@@ -31,7 +29,7 @@ interface Props {
 
 const lexicalConfig = {
   namespace: "code-card-editor-v2",
-  nodes: [CardNode, ContainerElementNode, BlockElementNode, BodyLineNode, SlotCardNode],
+  nodes: [CardNode, BodyLineNode, SlotCardNode],
   onError: (error: Error, _editor: LexicalEditor) => {
     console.error("Lexical error:", error);
   },

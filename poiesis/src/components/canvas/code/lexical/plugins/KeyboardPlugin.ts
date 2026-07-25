@@ -12,13 +12,11 @@ import {
   COMMAND_PRIORITY_LOW,
   $getSelection,
   $isRangeSelection,
-  $isTextNode,
   type RangeSelection,
   type LexicalNode,
 } from "lexical";
 import { $isCardNode, $createCardNode } from "../nodes/CardNode";
 import { $isSlotCardNode, type SlotCardNode } from "../nodes/SlotCardNode";
-import { $isContainerElementNode } from "../nodes/ContainerNode";
 import { $isBodyLineNode, $createBodyLineNode } from "../nodes/BodyLineNode";
 
 export function KeyboardPlugin(): null {
@@ -49,22 +47,6 @@ export function KeyboardPlugin(): null {
     return editor.registerCommand(
       KEY_BACKSPACE_COMMAND,
       (_event: KeyboardEvent) => {
-        const selection = $getSelection();
-        if (!$isRangeSelection(selection)) return false;
-
-        // Backspace at very start of a container → no-op
-        const anchor = selection.anchor;
-        const anchorNode = anchor.getNode();
-        if (anchor.offset === 0 && $isTextNode(anchorNode)) {
-          const parent = anchorNode.getParent();
-          if (parent !== null && $isContainerElementNode(parent)) {
-            const firstChild = parent.getFirstChild();
-            if (firstChild === anchorNode) {
-              return true; // swallow
-            }
-          }
-        }
-
         return false; // let browser handle
       },
       COMMAND_PRIORITY_LOW,
