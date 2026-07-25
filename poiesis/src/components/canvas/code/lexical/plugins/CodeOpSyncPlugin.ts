@@ -16,7 +16,6 @@ import { $createSlotCardNode, $isSlotCardNode } from "../nodes/SlotCardNode";
 
 const CONTAINER_KEYWORDS = new Set(["let", "set", "return", "await", "call", "array", "map"]);
 const BLOCK_KEYWORDS = new Set(["if", "while", "for"]);
-const BRANCH_KEYWORDS = new Set(["elif", "else"]);
 
 interface Props {
   initialOps: CodeOp[];
@@ -122,7 +121,7 @@ function _editorNodeToLexical(node: EditorNode): any | any[] {
       for (const line of bNode.body) {
         const bl = $createBodyLineNode(line.pid);
         // Attach branch meta to first body line for reconstruction
-        if (branchMeta && !bl.__branchMeta) {
+        if (branchMeta && !(bl as any).__branchMeta) {
           (bl as any).__branchMeta = branchMeta;
         }
         for (const child of line.children) {
@@ -198,7 +197,36 @@ function extractEditorNodes(root: ReturnType<typeof $getRoot>): EditorNode[] {
   }
 
   // Second, reconstruct containers and blocks from flat keyword-delimited nodes
-  return reconstructContainers(flatNodes);
+  const topLevel = reconstructContainers(flatNodes);
+
+  // Third, recursively reconstruct containers inside body lines and blocks
+  return topLevel.map(node => {
+    if (node.kind === "body_line" as any) {
+      const bl = node as any as BodyLineEx;
+      return {
+        pid: bl.pid,
+        children: reconstructContainers(bl.children),
+      } as BodyLine;
+    }
+    if (node.kind === "if" || node.kind === "while" || node.kind === "for") {
+      const b = node as BlockNode;
+      return {
+        ...b,
+        body: b.body.map(line => ({
+          pid: line.pid,
+          children: reconstructContainers(line.children),
+        })),
+        branches: b.branches?.map(br => ({
+          ...br,
+          body: br.body.map(line => ({
+            pid: line.pid,
+            children: reconstructContainers(line.children),
+          })),
+        })),
+      };
+    }
+    return node;
+  }) as EditorNode[];
 }
 
 function extractFromNode(lexicalNode: any): EditorNode | EditorNode[] | null {
@@ -268,10 +296,6 @@ function isInline(n: EditorNode): n is InlineNode {
   return "cardLabel" in n;
 }
 
-function isSlot(n: EditorNode): n is InputSlot {
-  return n.kind === "slot";
-}
-
 interface BodyLineEx extends BodyLine {
   branchIndex?: number;
   __branchMeta?: any;
@@ -295,7 +319,7 @@ function reconstructContainers(flat: EditorNode[]): EditorNode[] {
         while (i < flat.length) {
           const next = flat[i];
           if (isInline(next) && next.kind === "keyword") break;
-          if (next.kind === "body_line") break;
+          if ((next as any).kind === "body_line") break;
           children.push(next);
           i++;
         }
