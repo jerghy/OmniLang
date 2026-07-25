@@ -11,7 +11,7 @@ import type { SlotKind } from "../../../../../core/types/editor-node";
 import { $isCardNode } from "../nodes/CardNode";
 import { $isContainerElementNode } from "../nodes/ContainerNode";
 import { $isBlockElementNode } from "../nodes/BlockNode";
-import { $createInputSlotNode, type InputSlotNode } from "../nodes/InputSlotNode";
+import { $createSlotCardNode, type SlotCardNode } from "../nodes/SlotCardNode";
 
 export interface CursorContext {
   parentKind: string | null;
@@ -136,18 +136,18 @@ export function canCreateSlot(ctx: CursorContext): boolean {
 }
 
 /**
- * Create an InputSlotNode at the cursor position.
+ * Create a SlotCardNode at the cursor position.
  * Returns the created node or null if slot cannot be created.
  * Must be called inside editor.update().
  */
 export function createSlotAtCursor(
   ctx: CursorContext,
   parentNode: LexicalNode | null,
-): InputSlotNode | null {
+): SlotCardNode | null {
   const slotKind = inferSlotKind(ctx);
   if (!slotKind || parentNode === null || !$isElementNode(parentNode)) return null;
 
-  const slot = $createInputSlotNode("", slotKind);
+  const slot = $createSlotCardNode("", slotKind, `slot-${Date.now()}`);
   parentNode.append(slot);
   return slot;
 }
