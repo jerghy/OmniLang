@@ -178,13 +178,13 @@ export const IF_BLOCK_MUTATOR_MIXIN = {
 
     // Create the container block
     const containerBlock = workspace.newBlock("if_block_container");
-    containerBlock.initSvg();
+    if (typeof containerBlock.initSvg === "function") containerBlock.initSvg();
 
     // Add elif case blocks
     let connection = containerBlock.getInput("STACK")?.connection;
     for (let i = 0; i < self.elifCount_; i++) {
       const elifBlock = workspace.newBlock("if_block_elif_case");
-      elifBlock.initSvg();
+      if (typeof elifBlock.initSvg === "function") elifBlock.initSvg();
       if (connection) {
         connection.connect(elifBlock.previousConnection!);
       }
@@ -194,7 +194,7 @@ export const IF_BLOCK_MUTATOR_MIXIN = {
     // Add else case block if needed
     if (self.hasElse_) {
       const elseBlock = workspace.newBlock("if_block_else_case");
-      elseBlock.initSvg();
+      if (typeof elseBlock.initSvg === "function") elseBlock.initSvg();
       if (connection) {
         connection.connect(elseBlock.previousConnection!);
       }

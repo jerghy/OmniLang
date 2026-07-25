@@ -45,6 +45,33 @@ export class BlockAdapter {
   }
 
   /**
+   * Set a text value on a slot input by creating/replacing a _value child block.
+   * Exposed publicly so the BlockEditor can set slot values from fuzzy search
+   * selections without knowing the _value block internals.
+   */
+  setSlotValue(
+    block: Blockly.Block,
+    inputName: string,
+    text: string,
+  ): void {
+    const input = block.getInput(inputName);
+    if (!input) return;
+
+    // Dispose any existing child block
+    const existing = input.connection?.targetBlock();
+    if (existing && existing.isDeletable()) {
+      existing.dispose(true);
+    }
+
+    const child = block.workspace.newBlock("_value");
+    child.setFieldValue(text, "TEXT");
+    const conn = input.connection;
+    if (conn && child.outputConnection) {
+      conn.connect(child.outputConnection);
+    }
+  }
+
+  /**
    * Convert the top-level blocks on a workspace back into CodeOp[].
    */
   fromBlocks(workspace: Blockly.Workspace): CodeOp[] {

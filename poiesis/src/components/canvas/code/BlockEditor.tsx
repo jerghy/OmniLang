@@ -80,7 +80,7 @@ export const BlockEditor: React.FC<Props> = ({
         snap: false,
       },
       zoom: { controls: true, wheel: true, startScale: 1.0 },
-      move: { scrollbars: true, drag: true, wheel: true },
+      move: { scrollbars: true, drag: false, wheel: true },
     });
 
     // 2. Populate with initial ops
@@ -100,38 +100,73 @@ export const BlockEditor: React.FC<Props> = ({
         const popup = new FuzzySearchPopup(
           items,
           (item: SearchItem) => {
-            // Create block at current position
-            const block = ws.newBlock(item.blockType);
-            block.initSvg();
-            block.render();
-            block.moveBy(20, 20);
-
-            // If the current target is a gap, insert the block there
-            const target = sm.getCurrentTarget();
-            if (target?.type === "gap") {
-              // Place block at the gap position
+            if (context === "gap") {
+              // ── Gap context: create a new block ──
+              // Capture before/after blocks BEFORE creating the new block,
+              // so getTopBlocks gives the correct indices.
+              const target = sm.getCurrentTarget();
               const topBlocks = ws.getTopBlocks(true);
-              const gapPos = target.position;
-              const afterIndex = Math.floor(gapPos);
+              let beforeBlock: Blockly.Block | null = null;
+              let afterBlock: Blockly.Block | null = null;
 
-              if (afterIndex < topBlocks.length - 1) {
-                // Connect to the chain at the gap position
-                const beforeBlock = topBlocks[afterIndex];
-                const afterBlock = topBlocks[afterIndex + 1];
+              if (target?.type === "gap") {
+                const gapPos = target.position;
+                const afterIndex = Math.floor(gapPos);
+                if (afterIndex < topBlocks.length) {
+                  beforeBlock = topBlocks[afterIndex];
+                }
+                const beforeIndex = Math.ceil(gapPos);
+                if (beforeIndex < topBlocks.length) {
+                  afterBlock = topBlocks[beforeIndex];
+                }
+              }
 
-                if (beforeBlock.nextConnection && afterBlock.previousConnection) {
-                  // Disconnect the existing chain, insert new block
+              // Create the new block
+              const block = ws.newBlock(item.blockType);
+              if (typeof block.initSvg === "function") block.initSvg();
+              block.render();
+              block.moveBy(20, 20);
+
+              // Connect the new block between beforeBlock and afterBlock
+              if (beforeBlock && afterBlock && afterBlock !== beforeBlock) {
+                // Disconnect existing connection and insert
+                if (
+                  beforeBlock.nextConnection &&
+                  afterBlock.previousConnection
+                ) {
                   beforeBlock.nextConnection.disconnect();
                   beforeBlock.nextConnection.connect(
                     block.previousConnection!,
                   );
-                  block.nextConnection?.connect(afterBlock.previousConnection);
+                  block.nextConnection?.connect(
+                    afterBlock.previousConnection,
+                  );
                 }
-              } else if (topBlocks.length > 0) {
+              } else if (beforeBlock && !afterBlock) {
                 // Append at the end
-                const lastBlock = topBlocks[topBlocks.length - 1];
-                if (lastBlock.nextConnection && block.previousConnection) {
-                  lastBlock.nextConnection.connect(block.previousConnection);
+                if (beforeBlock.nextConnection && block.previousConnection) {
+                  beforeBlock.nextConnection.connect(
+                    block.previousConnection,
+                  );
+                }
+              } else if (!beforeBlock && afterBlock) {
+                // Prepend at the beginning
+                if (block.nextConnection && afterBlock.previousConnection) {
+                  block.nextConnection.connect(afterBlock.previousConnection);
+                }
+              }
+            } else {
+              // ── Slot context: set slot value on the current target ──
+              const slotTarget = sm.getCurrentTarget();
+              if (slotTarget?.type === "slot") {
+                const parentBlock = ws.getBlockById(slotTarget.blockId);
+                if (parentBlock) {
+                  const adapter = adapterRef.current;
+                  adapter.setSlotValue(
+                    parentBlock,
+                    slotTarget.inputName,
+                    item.label,
+                  );
                 }
               }
             }

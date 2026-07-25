@@ -145,16 +145,16 @@ export class KeyboardHandler {
     if (e.key === "c" || e.key === "C") {
       e.preventDefault();
       e.stopPropagation();
-      Blockly.clipboard.copy(this.workspace);
+      Blockly.clipboard.copy();
     } else if (e.key === "v" || e.key === "V") {
       e.preventDefault();
       e.stopPropagation();
-      Blockly.clipboard.paste(this.workspace);
+      Blockly.clipboard.paste();
       this.callbacks.onOpsChanged();
     } else if (e.key === "x" || e.key === "X") {
       e.preventDefault();
       e.stopPropagation();
-      Blockly.clipboard.copy(this.workspace);
+      Blockly.clipboard.copy();
       const target = this.selectionMgr.getCurrentTarget();
       if (target?.type === "block") {
         const block = this.workspace.getBlockById(target.blockId);

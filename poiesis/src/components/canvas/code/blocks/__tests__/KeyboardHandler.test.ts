@@ -147,8 +147,8 @@ describe("KeyboardHandler", () => {
 
     it("typing on gap triggers fuzzy search with character and gap context", () => {
       const ctx = setup([declareVar("x"), setVar("x", "5")]);
-      // Move cursor to gap
-      ctx.sm.moveRight();
+      // Navigate past 3 slots (NAME, VARTYPE, VALUE) to reach the gap
+      for (let i = 0; i < 4; i++) ctx.sm.moveRight();
       dispatchKey(getSvg(ctx.ws), "a");
       expect(ctx.callbacks.onFuzzySearch).toHaveBeenCalledWith("a", "gap");
       cleanup(ctx);
@@ -156,7 +156,7 @@ describe("KeyboardHandler", () => {
 
     it("typing on gap triggers fuzzy search for each character typed", () => {
       const ctx = setup([declareVar("x"), setVar("x", "5")]);
-      ctx.sm.moveRight();
+      for (let i = 0; i < 4; i++) ctx.sm.moveRight();
       dispatchKey(getSvg(ctx.ws), "s");
       dispatchKey(getSvg(ctx.ws), "e");
       dispatchKey(getSvg(ctx.ws), "t");
@@ -201,7 +201,7 @@ describe("KeyboardHandler", () => {
 
     it("Enter on gap inserts gap and opens fuzzy search", () => {
       const ctx = setup([declareVar("x"), setVar("x", "5")]);
-      ctx.sm.moveRight(); // move to gap
+      for (let i = 0; i < 4; i++) ctx.sm.moveRight(); // navigate to gap
       const insertSpy = vi.spyOn(ctx.gm, "insertGap");
       dispatchKey(getSvg(ctx.ws), "Enter");
       expect(insertSpy).toHaveBeenCalled();
@@ -242,7 +242,7 @@ describe("KeyboardHandler", () => {
 
     it("Delete on gap calls deleteGap", () => {
       const ctx = setup([declareVar("x"), setVar("x", "5")]);
-      ctx.sm.moveRight(); // move to gap
+      for (let i = 0; i < 4; i++) ctx.sm.moveRight(); // navigate to gap
       const deleteSpy = vi.spyOn(ctx.gm, "deleteGap");
       dispatchKey(getSvg(ctx.ws), "Delete");
       expect(deleteSpy).toHaveBeenCalled();
@@ -303,14 +303,14 @@ describe("KeyboardHandler", () => {
 
     it("Backspace on gap deletes gap and moves cursor left", () => {
       const ctx = setup([declareVar("x"), setVar("x", "5")]);
-      ctx.sm.moveRight(); // move to gap
+      for (let i = 0; i < 4; i++) ctx.sm.moveRight(); // navigate to gap
       const deleteSpy = vi.spyOn(ctx.gm, "deleteGap");
       const moveSpy = vi.spyOn(ctx.sm, "moveLeft");
       dispatchKey(getSvg(ctx.ws), "Backspace");
       expect(deleteSpy).toHaveBeenCalled();
       expect(moveSpy).toHaveBeenCalled();
-      // Cursor should now be on the block before the gap
-      expect(ctx.sm.getCurrentTarget()?.type).toBe("block");
+      // Cursor should now be on the slot before the gap (VALUE slot of declare_var)
+      expect(ctx.sm.getCurrentTarget()?.type).toBe("slot");
       cleanup(ctx);
     });
   });
@@ -320,7 +320,7 @@ describe("KeyboardHandler", () => {
       const ctx = setup([declareVar("x")]);
       const copySpy = vi.spyOn(Blockly.clipboard, "copy").mockImplementation(() => {});
       dispatchKey(getSvg(ctx.ws), "c", { ctrlKey: true });
-      expect(copySpy).toHaveBeenCalledWith(ctx.ws);
+      expect(copySpy).toHaveBeenCalledWith();
       copySpy.mockRestore();
       cleanup(ctx);
     });
@@ -329,7 +329,7 @@ describe("KeyboardHandler", () => {
       const ctx = setup([declareVar("x")]);
       const copySpy = vi.spyOn(Blockly.clipboard, "copy").mockImplementation(() => {});
       dispatchKey(getSvg(ctx.ws), "c", { metaKey: true });
-      expect(copySpy).toHaveBeenCalledWith(ctx.ws);
+      expect(copySpy).toHaveBeenCalledWith();
       copySpy.mockRestore();
       cleanup(ctx);
     });
@@ -338,7 +338,7 @@ describe("KeyboardHandler", () => {
       const ctx = setup([declareVar("x")]);
       const pasteSpy = vi.spyOn(Blockly.clipboard, "paste").mockImplementation(() => {});
       dispatchKey(getSvg(ctx.ws), "v", { ctrlKey: true });
-      expect(pasteSpy).toHaveBeenCalledWith(ctx.ws);
+      expect(pasteSpy).toHaveBeenCalledWith();
       expect(ctx.callbacks.onOpsChanged).toHaveBeenCalledOnce();
       pasteSpy.mockRestore();
       cleanup(ctx);
@@ -349,7 +349,7 @@ describe("KeyboardHandler", () => {
       const copySpy = vi.spyOn(Blockly.clipboard, "copy").mockImplementation(() => {});
       const blockCountBefore = ctx.ws.getTopBlocks(true).length;
       dispatchKey(getSvg(ctx.ws), "x", { ctrlKey: true });
-      expect(copySpy).toHaveBeenCalledWith(ctx.ws);
+      expect(copySpy).toHaveBeenCalledWith();
       // Block should be removed by cut
       expect(ctx.ws.getTopBlocks(true).length).toBe(blockCountBefore - 1);
       expect(ctx.callbacks.onOpsChanged).toHaveBeenCalledOnce();

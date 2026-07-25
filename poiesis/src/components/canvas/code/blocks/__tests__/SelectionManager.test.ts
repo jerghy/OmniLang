@@ -95,21 +95,35 @@ describe("SelectionManager — grid model", () => {
     if (parent) parent.remove();
   });
 
-  it("grid has correct structure (block, gap, block, gap, block) for 3 blocks", () => {
+  it("grid has correct structure (block, slots, gap, block, slots, gap, block, slots) for 3 blocks", () => {
     const { sm, ws } = setupWorkspace([
       declareVar("x"),
       setVar("x", "5"),
       returnStmt("x"),
     ]);
+    // declare_var has 3 slots (NAME, VARTYPE, VALUE), set_var has 2, return_stmt has 1
+    // Grid: block(dv), slot(NAME), slot(VARTYPE), slot(VALUE), gap, block(sv), slot(NAME-sv), slot(VALUE-sv), gap, block(ret), slot(VALUE-ret)
     expect(sm.getCurrentTarget()!.type).toBe("block");
+    sm.moveRight();
+    expect(sm.getCurrentTarget()!.type).toBe("slot");
+    sm.moveRight();
+    expect(sm.getCurrentTarget()!.type).toBe("slot");
+    sm.moveRight();
+    expect(sm.getCurrentTarget()!.type).toBe("slot");
     sm.moveRight();
     expect(sm.getCurrentTarget()!.type).toBe("gap");
     sm.moveRight();
     expect(sm.getCurrentTarget()!.type).toBe("block");
     sm.moveRight();
+    expect(sm.getCurrentTarget()!.type).toBe("slot");
+    sm.moveRight();
+    expect(sm.getCurrentTarget()!.type).toBe("slot");
+    sm.moveRight();
     expect(sm.getCurrentTarget()!.type).toBe("gap");
     sm.moveRight();
     expect(sm.getCurrentTarget()!.type).toBe("block");
+    sm.moveRight();
+    expect(sm.getCurrentTarget()!.type).toBe("slot");
     ws.dispose();
     const parent = ws.getParentSvg()?.parentElement;
     if (parent) parent.remove();
@@ -117,13 +131,12 @@ describe("SelectionManager — grid model", () => {
 });
 
 describe("SelectionManager — moveLeft / moveRight", () => {
-  it("moveRight on single block stays on same block", () => {
+  it("moveRight on single block goes to first slot", () => {
     const { sm, ws } = setupWorkspace([declareVar("x")]);
-    const before = sm.getCurrentTarget();
+    // declare_var has 3 slots: NAME, VARTYPE, VALUE
     sm.moveRight();
     const after = sm.getCurrentTarget();
-    expect(after!.type).toBe("block");
-    expect(after).toEqual(before);
+    expect(after!.type).toBe("slot");
     ws.dispose();
     const parent = ws.getParentSvg()?.parentElement;
     if (parent) parent.remove();
@@ -138,20 +151,25 @@ describe("SelectionManager — moveLeft / moveRight", () => {
     if (parent) parent.remove();
   });
 
-  it("moveRight goes to gap between two blocks", () => {
+  it("moveRight on first block goes to first slot (2 blocks)", () => {
     const { sm, ws } = setupWorkspace([declareVar("x"), setVar("x", "5")]);
+    // Grid: block(dv), slot(NAME), slot(VARTYPE), slot(VALUE), gap, block(sv), ...
     sm.moveRight();
     const target = sm.getCurrentTarget();
-    expect(target!.type).toBe("gap");
+    expect(target!.type).toBe("slot");
     ws.dispose();
     const parent = ws.getParentSvg()?.parentElement;
     if (parent) parent.remove();
   });
 
-  it("moveRight from gap goes to second block", () => {
+  it("moveRight through slots and gap reaches second block", () => {
     const { sm, ws } = setupWorkspace([declareVar("x"), setVar("x", "5")]);
-    sm.moveRight(); // block -> gap
-    sm.moveRight(); // gap -> second block
+    // Grid: block(dv), slot(NAME), slot(VARTYPE), slot(VALUE), gap, block(sv)
+    sm.moveRight(); // slot(NAME)
+    sm.moveRight(); // slot(VARTYPE)
+    sm.moveRight(); // slot(VALUE)
+    sm.moveRight(); // gap
+    sm.moveRight(); // block(sv)
     expect(sm.getCurrentTarget()!.type).toBe("block");
     ws.dispose();
     const parent = ws.getParentSvg()?.parentElement;
@@ -160,20 +178,28 @@ describe("SelectionManager — moveLeft / moveRight", () => {
 
   it("moveLeft from second block goes to gap", () => {
     const { sm, ws } = setupWorkspace([declareVar("x"), setVar("x", "5")]);
-    sm.moveRight(); // block -> gap
-    sm.moveRight(); // gap -> second block
-    sm.moveLeft(); // second block -> gap
+    // Grid: block(dv), slot(NAME), slot(VARTYPE), slot(VALUE), gap, block(sv)
+    sm.moveRight(); // slot(NAME)
+    sm.moveRight(); // slot(VARTYPE)
+    sm.moveRight(); // slot(VALUE)
+    sm.moveRight(); // gap
+    sm.moveRight(); // block(sv)
+    sm.moveLeft(); // block(sv) -> gap
     expect(sm.getCurrentTarget()!.type).toBe("gap");
     ws.dispose();
     const parent = ws.getParentSvg()?.parentElement;
     if (parent) parent.remove();
   });
 
-  it("moveLeft from gap goes to first block", () => {
+  it("moveLeft from gap goes to last slot of preceding block", () => {
     const { sm, ws } = setupWorkspace([declareVar("x"), setVar("x", "5")]);
-    sm.moveRight(); // block -> gap
-    sm.moveLeft(); // gap -> block
-    expect(sm.getCurrentTarget()!.type).toBe("block");
+    // Grid: block(dv), slot(NAME), slot(VARTYPE), slot(VALUE), gap, block(sv)
+    sm.moveRight(); // slot(NAME)
+    sm.moveRight(); // slot(VARTYPE)
+    sm.moveRight(); // slot(VALUE)
+    sm.moveRight(); // gap
+    sm.moveLeft(); // gap -> slot(VALUE)
+    expect(sm.getCurrentTarget()!.type).toBe("slot");
     ws.dispose();
     const parent = ws.getParentSvg()?.parentElement;
     if (parent) parent.remove();
@@ -201,8 +227,12 @@ describe("SelectionManager — moveUp / moveDown", () => {
 
   it("moveDown on last block stays", () => {
     const { sm, ws } = setupWorkspace([declareVar("x"), setVar("x", "5")]);
-    sm.moveRight(); // to gap
-    sm.moveRight(); // to second block (last)
+    // Grid: block(dv), slot(NAME), slot(VARTYPE), slot(VALUE), gap, block(sv)
+    sm.moveRight(); // slot(NAME)
+    sm.moveRight(); // slot(VARTYPE)
+    sm.moveRight(); // slot(VALUE)
+    sm.moveRight(); // gap
+    sm.moveRight(); // block(sv — last)
     sm.moveDown();
     expect(sm.getCurrentTarget()!.type).toBe("block");
     ws.dispose();
@@ -210,10 +240,10 @@ describe("SelectionManager — moveUp / moveDown", () => {
     if (parent) parent.remove();
   });
 
-  it("moveUp skips gap to previous block", () => {
+  it("moveUp skips slots and gap to previous block", () => {
     const { sm, ws } = setupWorkspace([declareVar("x"), setVar("x", "5")]);
-    sm.moveRight(); // to gap
-    sm.moveUp(); // should skip gap and go to first block
+    sm.moveRight(); // slot(NAME)
+    sm.moveUp(); // should skip slots+gap and go to first block
     expect(sm.getCurrentTarget()!.type).toBe("block");
     ws.dispose();
     const parent = ws.getParentSvg()?.parentElement;
@@ -244,15 +274,13 @@ describe("SelectionManager — moveUp / moveDown", () => {
       setVar("a", "1"),
       setVar("b", "2"),
     ]);
-    // Navigate to last block
-    sm.moveRight(); // gap
-    sm.moveRight(); // block 1
-    sm.moveRight(); // gap
-    sm.moveRight(); // block 2 (last)
-    // moveUp skips gap 1.5 and goes to block 1
+    // Grid: block(da), slot(NAME), slot(VARTYPE), slot(VALUE), gap, block(sa), slot(NAME), slot(VALUE), gap, block(sb), slot(VALUE)
+    // Navigate to last block (index 9)
+    for (let i = 0; i < 9; i++) sm.moveRight();
+    // moveUp skips gap+slots and goes to block 1
     sm.moveUp();
     expect(sm.getCurrentTarget()!.type).toBe("block");
-    // moveUp again skips gap 0.5 and goes to block 0
+    // moveUp again skips gap+slots and goes to block 0
     sm.moveUp();
     expect(sm.getCurrentTarget()!.type).toBe("block");
     ws.dispose();
@@ -365,9 +393,13 @@ describe("SelectionManager — refresh", () => {
     }
 
     sm.refresh();
-    // After refresh with 2 blocks, grid is [block, gap, block]
+    // After refresh with 2 blocks, grid is:
+    // block(dv), slot(NAME), slot(VARTYPE), slot(VALUE), gap, block(sv), slot(NAME), slot(VALUE)
+    const first = sm.getCurrentTarget()!;
+    expect(first.type).toBe("block");
     sm.moveRight();
-    expect(sm.getCurrentTarget()!.type).toBe("gap");
+    const second = sm.getCurrentTarget()!;
+    expect(second.type).toBe("slot"); // first slot after the block
     ws.dispose();
     const parent = ws.getParentSvg()?.parentElement;
     if (parent) parent.remove();

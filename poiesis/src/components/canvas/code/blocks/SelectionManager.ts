@@ -18,6 +18,8 @@ export type SelectionTarget =
 interface GridEntry {
   blockId: string | null;
   isGap: boolean;
+  /** Input name for slot entries; null for block and gap entries. */
+  inputName: string | null;
   position: number;
 }
 
@@ -77,11 +79,11 @@ export class SelectionManager {
     this.afterMove();
   }
 
-  /** Move cursor up (previous block, skipping gap entries). */
+  /** Move cursor up (previous block, skipping slot and gap entries). */
   moveUp(): void {
     if (this.grid.length === 0) return;
     let idx = this.currentIndex - 1;
-    while (idx >= 0 && this.grid[idx].isGap) {
+    while (idx >= 0 && (this.grid[idx].isGap || this.grid[idx].inputName !== null)) {
       idx--;
     }
     if (idx >= 0) {
@@ -90,11 +92,11 @@ export class SelectionManager {
     this.afterMove();
   }
 
-  /** Move cursor down (next block, skipping gap entries). */
+  /** Move cursor down (next block, skipping slot and gap entries). */
   moveDown(): void {
     if (this.grid.length === 0) return;
     let idx = this.currentIndex + 1;
-    while (idx < this.grid.length && this.grid[idx].isGap) {
+    while (idx < this.grid.length && (this.grid[idx].isGap || this.grid[idx].inputName !== null)) {
       idx++;
     }
     if (idx < this.grid.length) {
@@ -133,18 +135,38 @@ export class SelectionManager {
     const newGrid: GridEntry[] = [];
 
     for (let i = 0; i < topBlocks.length; i++) {
+      const block = topBlocks[i];
+
       // Block entry
       newGrid.push({
-        blockId: topBlocks[i].id,
+        blockId: block.id,
         isGap: false,
+        inputName: null,
         position: i,
       });
+
+      // Slot entries for each visible value input on this block
+      const inputs = block.inputList || [];
+      const valueInputs = inputs.filter(
+        (input) => input.type === Blockly.INPUT_VALUE && input.name,
+      );
+      // Sort by index to maintain consistent left-to-right order
+      valueInputs.sort((a, b) => a.index - b.index);
+      for (const input of valueInputs) {
+        newGrid.push({
+          blockId: block.id,
+          isGap: false,
+          inputName: input.name,
+          position: i + 0.01 * (valueInputs.indexOf(input) + 1),
+        });
+      }
 
       // Gap entry between blocks (not after the last one)
       if (i < topBlocks.length - 1) {
         newGrid.push({
           blockId: null,
           isGap: true,
+          inputName: null,
           position: i + 0.5,
         });
       }
@@ -245,8 +267,11 @@ export class SelectionManager {
     if (entry.isGap) {
       return { type: "gap", parentBlockId: null, position: entry.position };
     }
+    if (entry.inputName !== null) {
+      return { type: "slot", blockId: entry.blockId!, inputName: entry.inputName };
+    }
     if (entry.blockId === null) {
-      // Should not happen for non-gap entries, but guard defensively
+      // Should not happen for non-gap, non-slot entries, but guard defensively
       return { type: "gap", parentBlockId: null, position: entry.position };
     }
     return { type: "block", blockId: entry.blockId };
