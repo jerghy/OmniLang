@@ -10,5 +10,5 @@ export type { SerializedBlockElementNode } from "./BlockNode";
 export { BodyLineNode, $createBodyLineNode, $isBodyLineNode } from "./BodyLineNode";
 export type { SerializedBodyLineNode } from "./BodyLineNode";
 
-export { InputSlotNode, $createInputSlotNode, $isInputSlotNode } from "./InputSlotNode";
-export type { SerializedInputSlotNode } from "./InputSlotNode";
+export { SlotCardNode, $createSlotCardNode, $isSlotCardNode } from "./SlotCardNode";
+export type { SerializedSlotCardNode } from "./SlotCardNode";
