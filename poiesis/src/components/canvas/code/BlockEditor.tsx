@@ -163,6 +163,7 @@ export const BlockEditor: React.FC<Props> = ({
     return () => {
       kh.dispose();
       sm.dispose();
+      gm.dispose();
       ws.dispose();
       wsRef.current = null;
       smRef.current = null;
