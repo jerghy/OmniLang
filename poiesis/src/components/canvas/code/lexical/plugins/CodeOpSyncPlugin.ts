@@ -123,6 +123,7 @@ function editorNodeToLexical(node: EditorNode) {
       }
       return block;
     }
+    case "keyword":
     case "mut":
     case "break":
     case "continue":
