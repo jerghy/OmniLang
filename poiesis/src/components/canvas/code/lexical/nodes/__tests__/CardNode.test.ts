@@ -76,12 +76,12 @@ describe("CardNode (ElementNode)", () => {
     });
   });
 
-  it("blocks cursor before and after (visual-only card)", () => {
+  it("allows cursor before and after", () => {
     const editor = createEditor();
     editor.update(() => {
       const node = $createCardNode("separator", ":", "c7");
-      expect(node.canInsertTextBefore()).toBe(false);
-      expect(node.canInsertTextAfter()).toBe(false);
+      expect(node.canInsertTextBefore()).toBe(true);
+      expect(node.canInsertTextAfter()).toBe(true);
     });
   });
 
