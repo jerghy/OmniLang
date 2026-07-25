@@ -14,16 +14,6 @@ export interface SerializedSlotCardNode extends Spread<
   SerializedElementNode
 > {}
 
-const SLOT_PLACEHOLDERS: Record<SlotKind, string> = {
-  name: "变量名",       // 变量名
-  type_value: "类型",        // 类型
-  expression: "值",              // 值
-  condition: "条件",         // 条件
-  fn_name: "函数名",     // 函数名
-};
-// Placeholder map reserved for future CSS ::before content usage.
-void SLOT_PLACEHOLDERS;
-
 export class SlotCardNode extends ElementNode {
   __slotKind: SlotKind;
   __value: string;
@@ -125,6 +115,9 @@ export class SlotCardNode extends ElementNode {
     dom.classList.add("slot-card--editing");
     dom.focus();
 
+    // Capture original value before closure to avoid stale __value access
+    const originalValue = this.getValue();
+
     // Place cursor at end of text
     const range = document.createRange();
     const sel = window.getSelection();
@@ -150,7 +143,7 @@ export class SlotCardNode extends ElementNode {
         e.preventDefault();
         e.stopPropagation();
         // Restore original value
-        dom.textContent = this.__value || "";
+        dom.textContent = originalValue;
         this.deactivateEditing(dom);
       } else if (e.key === "ArrowLeft" || e.key === "ArrowRight" ||
                  e.key === "ArrowUp" || e.key === "ArrowDown") {

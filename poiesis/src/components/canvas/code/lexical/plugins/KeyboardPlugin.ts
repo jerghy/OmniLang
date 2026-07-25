@@ -91,8 +91,9 @@ export function KeyboardPlugin(): null {
           ) as HTMLElement | null;
           if (slotDom) {
             slotCard.activateEditing(editor, slotDom);
+            return true;
           }
-          return true;
+          // Fall through to body-line creation if DOM query failed
         }
 
         // Enter inside a body line or at the right edge of one → create new line below
