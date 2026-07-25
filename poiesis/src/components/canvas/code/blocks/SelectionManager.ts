@@ -39,6 +39,7 @@ export class SelectionManager {
   private currentIndex = 0;
   private cursorEl: HTMLDivElement | null = null;
   private styleEl: HTMLStyleElement | null = null;
+  private changeListenerId: string | undefined;
 
   /** Callback fired when cursor position changes. */
   onChange: ((target: SelectionTarget | null) => void) | null = null;
@@ -48,7 +49,7 @@ export class SelectionManager {
     this.refresh();
 
     // Auto-refresh grid when workspace changes
-    workspace.addChangeListener(() => {
+    this.changeListenerId = workspace.addChangeListener(() => {
       this.refresh();
     });
   }
@@ -159,8 +160,12 @@ export class SelectionManager {
     this.renderCursor();
   }
 
-  /** Cleanup: remove DOM elements and reset callback. */
+  /** Cleanup: remove DOM elements, unsubscribe listener, reset callback. */
   dispose(): void {
+    if (this.changeListenerId !== undefined) {
+      this.workspace.removeChangeListener(this.changeListenerId);
+      this.changeListenerId = undefined;
+    }
     if (this.cursorEl?.parentElement) {
       this.cursorEl.parentElement.removeChild(this.cursorEl);
     }
@@ -180,17 +185,9 @@ export class SelectionManager {
         case "block": {
           const block = this.workspace.getBlockById(target.blockId);
           if (!block) return null;
-          const svg = this.workspace.getParentSvg();
-          if (!svg) return null;
-          const svgRect = svg.getBoundingClientRect();
-          const xy = block.getRelativeToSurfaceXY();
-          const hw = block.getHeightWidth();
-          return new DOMRect(
-            svgRect.left + xy.x,
-            svgRect.top + xy.y,
-            hw.width,
-            hw.height,
-          );
+          const svgRoot = block.getSvgRoot();
+          if (!svgRoot) return null;
+          return svgRoot.getBoundingClientRect();
         }
         case "slot": {
           const block = this.workspace.getBlockById(target.blockId);
@@ -236,7 +233,8 @@ export class SelectionManager {
           return null;
         }
       }
-    } catch {
+    } catch (error) {
+      console.warn("SelectionManager.getTargetBoundingRect:", error);
       return null;
     }
   }
@@ -247,21 +245,22 @@ export class SelectionManager {
     if (entry.isGap) {
       return { type: "gap", parentBlockId: null, position: entry.position };
     }
-    return { type: "block", blockId: entry.blockId! };
+    if (entry.blockId === null) {
+      // Should not happen for non-gap entries, but guard defensively
+      return { type: "gap", parentBlockId: null, position: entry.position };
+    }
+    return { type: "block", blockId: entry.blockId };
   }
 
   private targetsEqual(a: SelectionTarget, b: SelectionTarget): boolean {
-    if (a.type !== b.type) return false;
-    if (a.type === "block") {
-      return a.blockId === (b as SelectionTarget & { type: "block" }).blockId;
+    if (a.type === "block" && b.type === "block") {
+      return a.blockId === b.blockId;
     }
-    if (a.type === "slot") {
-      const sb = b as SelectionTarget & { type: "slot" };
-      return a.blockId === sb.blockId && a.inputName === sb.inputName;
+    if (a.type === "slot" && b.type === "slot") {
+      return a.blockId === b.blockId && a.inputName === b.inputName;
     }
-    if (a.type === "gap") {
-      const gb = b as SelectionTarget & { type: "gap" };
-      return Math.abs(a.position - gb.position) < GAP_EPSILON;
+    if (a.type === "gap" && b.type === "gap") {
+      return Math.abs(a.position - b.position) < GAP_EPSILON;
     }
     return false;
   }
@@ -351,7 +350,8 @@ export class SelectionManager {
     try {
       const svg = this.workspace.getParentSvg();
       return svg?.parentElement || null;
-    } catch {
+    } catch (error) {
+      console.warn("SelectionManager.getSvgParent:", error);
       return null;
     }
   }

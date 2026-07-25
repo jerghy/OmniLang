@@ -1,49 +1,81 @@
-# Task 5 Report: OmniView codegen — motion_triggers.rs rewrite
+# Task 5 Report: SelectionManager — Cursor Navigation System
 
 ## Status: COMPLETE
 
 ## Summary
 
-Rewrote `omnilang/src/codegen/omniview/motion_triggers.rs` and supporting `motion_config.rs` to migrate from the old AnimationPlayer runtime to `@omni/animation` (WAAPI-based) API.
+Implemented `SelectionManager` — a game-controller-style cursor navigation system for the Block Editor. Builds a spatial grid model on top of Blockly, tracks cursor position, renders a visual selection box overlay, and fires `onChange` callbacks.
 
-## Changes Made
+## Files Created
 
-### `omnilang/src/codegen/omniview/motion_config.rs`
-- Changed `motion_body_to_config()` return type from `String` (config fragment) to `(String, String)` (keyframes_js, opts_js), delegating to `keyframe_to_animate_call()`, `timeline_to_factory()`, and `callback_to_animate_call()` respectively.
+### `poiesis/src/components/canvas/code/blocks/SelectionManager.ts`
 
-### `omnilang/src/codegen/omniview/motion_triggers.rs`
-Applied mechanical replacements to ALL 11 trigger handlers (Enter, Hover, Press, Focus, Leave, InView, Scroll, Drag, Animate, Timeline, and default catch-all):
+**Core type** — `SelectionTarget` union:
+- `{ type: "block"; blockId: string }`
+- `{ type: "slot"; blockId: string; inputName: string }`
+- `{ type: "gap"; parentBlockId: string | null; position: number }`
 
-| Change | Old | New |
-|--------|-----|-----|
-| Variable rename | `const player = ...` | `const anim = ...` |
-| Factory function (named) | `__omni_motion_{name}(el, config)` | `__omni_motion_{name}(el, { trigger: ... })` (inlined config) |
-| Inline motion creation | `new AnimationPlayer(el, config)` | `Omni.animate(el, kf, opts)` |
-| Playback control | `player.play()` / `.pause()` / `.reverse()` | `anim.play()` / `.pause()` / `.reverse()` |
-| Seek replacement | `player.seek(progress)` | `anim.currentTime = progress * dur` |
-| Animation lookup | `__omni_getAnimation(nid, trigger)` | `__omni_animations.get(nid + "_" + trigger)` |
-| Duration fetch (scroll/drag) | n/a | `const dur = anim.effect?.getTiming()?.duration \|\| 300;` |
+**Grid model:**
+- `refresh()` scans `workspace.getTopBlocks(true)` and builds a flat list: for N blocks, the grid has N block entries and N-1 gap entries between them
+- Gap positions use N+0.5 numbering (0.5, 1.5, etc.)
 
-### Key implementation details
+**Navigation methods:**
+| Method | Behavior |
+|--------|----------|
+| `moveLeft()` | Previous grid entry (clamped at start) |
+| `moveRight()` | Next grid entry (clamped at end) |
+| `moveUp()` | Previous block, skipping gap entries |
+| `moveDown()` | Next block, skipping gap entries |
+| `moveTo(target)` | Jump directly to a specific target |
+| `enterSlot()` | Stub for Task 7 KeyboardHandler |
+| `exitSlot()` | Stub for Task 7 KeyboardHandler |
 
-1. **Named motion path** (motion_ref): Config object inlined into factory call, eliminating the intermediate `const config = {...}` line.
-2. **Inline motion path** (inline_motion): Switched from `new AnimationPlayer(el, config)` to `Omni.animate(el, kf, {{opts}})`, using the `motion_body_to_config()` tuple return.
-3. **Scroll and drag handlers**: Both need to seek the animation to a progress value. Since WAAPI `Animation.currentTime` is in milliseconds (not normalized 0-1), the handlers fetch the actual duration dynamically via `anim.effect?.getTiming()?.duration || 300` before computing `currentTime = progress * dur`.
-4. **Event listener lookups**: All `__omni_getAnimation(nid, trigger)` calls replaced with `__omni_animations.get(nid + "_" + trigger)`.
-5. **Leave trigger**: Left unchanged as it uses `__omni_createAnimation` (a different runtime helper not covered by this migration).
+**Visual rendering:**
+- Absolutely-positioned `<div>` overlaid on the Blockly SVG parent
+- Block: 2px solid terracotta (`#cc6b4a`) outline, offset 2px, rounded corners
+- Slot: 2px dashed terracotta border, rounded corners
+- Gap: horizontal terracotta line with CSS blink animation (`selectionManagerBlink`)
+- Auto-creates blink keyframes via `<style>` element
+- Gracefully falls back to a small indicator when coordinates are unavailable (jsdom)
+- `dispose()` removes DOM elements and resets callback
+
+### `poiesis/src/components/canvas/code/blocks/__tests__/SelectionManager.test.ts`
+
+25 tests across 6 describe blocks:
+
+| Group | Tests | What it covers |
+|-------|-------|----------------|
+| grid model | 4 | Initial target, empty workspace, 3-block grid structure (block-gap-block-gap-block) |
+| moveLeft/moveRight | 6 | Single block stays, boundary clamping, gap navigation, 2-block cycle |
+| moveUp/moveDown | 6 | Block-only navigation, gap skipping, multi-block skip |
+| moveTo | 2 | Direct navigation to block by ID and gap by position |
+| onChange | 4 | Callback fires after each move direction |
+| refresh | 1 | Grid rebuilds when blocks change |
+| dispose | 2 | Cleanup and double-dispose safety |
 
 ## Verification
 
-- `cargo check`: PASS (0 new warnings, only pre-existing warnings)
-- Existing warnings: 12 (all pre-existing, unrelated to these changes)
-- The `__omni_createAnimation` call in the Leave handler was intentionally preserved (it doesn't use AnimationPlayer)
+- `npx vitest run src/components/canvas/code/blocks/` — **3 suites, 96 tests, all passed**
+- Full project test suite: 26 suites, 245/246 passed (1 pre-existing failure in `editor-helpers.test.ts`, unrelated)
 
 ## Commit
 
 ```
-b6d9384 refactor(omnilang): rewrite OmniView motion triggers to use @omni/animation
+c1e2db7 feat: add SelectionManager — game-controller cursor navigation for Block Editor
 ```
 
-## Concerns
+## API Surface for Downstream Consumers (Task 7 KeyboardHandler)
 
-None. All changes are mechanical and the build passes cleanly.
+```typescript
+const sm = new SelectionManager(workspace);
+sm.getCurrentTarget();           // SelectionTarget | null
+sm.moveLeft/Right/Up/Down();     // void
+sm.moveTo(target);               // void
+sm.enterSlot(inputName);         // void (stub)
+sm.exitSlot();                   // void (stub)
+sm.refresh();                    // void
+sm.dispose();                    // void
+sm.onChange = (target) => { ... };
+```
+
+The `enterSlot`/`exitSlot` methods are defined as API stubs. Implementation of slot sub-navigation is deferred to Task 7 (KeyboardHandler).
