@@ -21,11 +21,9 @@ import { ReturnNode } from "./nodes/ReturnNode";
 import { DesignPreviewNode } from "./nodes/DesignPreviewNode";
 import { CODE_TAGS, TAG_CN, type ContextMenuState } from "./flowConstants";
 import { ContextMenu } from "./CanvasContextMenu";
-import { CodeCardEditor } from "./CodeCardEditor";
+import { BlockEditor } from "./BlockEditor";
 import { emitOps } from "../../../services/codegen/code-op-emitter";
 import { FlowInspector } from "./FlowInspector";
-import { NodeContextMenu } from "./NodeContextMenu";
-import { FlowCanvasEmptyState } from "./FlowCanvasEmptyState";
 import styles from "./FlowCanvas.module.css";
 
 const nodeTypes = {
@@ -46,6 +44,7 @@ function FlowCanvasInner() {
 
   // Read preview output from store (set by OmniViewRenderer)
   const previewOutput = usePoiesisStore((s) => s.designPage.previewOutput);
+
 
   const { screenToFlowPosition } = useReactFlow();
   const flowWrapperRef = useRef<HTMLDivElement>(null);
@@ -124,8 +123,8 @@ function FlowCanvasInner() {
   const setElementPosition = usePoiesisStore((s) => s.setElementPosition);
   const removeElement = usePoiesisStore((s) => s.removeElement);
   const setProp = usePoiesisStore((s) => s.setProp);
-  const setElementOperations = usePoiesisStore((s) => s.setElementOperations);
   const setElementSource = usePoiesisStore((s) => s.setElementSource);
+  const setElementOperations = usePoiesisStore((s) => s.setElementOperations);
   const addWire = usePoiesisStore((s) => s.addWire);
 
   // ── Connect handler ──
@@ -164,9 +163,9 @@ function FlowCanvasInner() {
   // ── Keyboard: arrow keys to move selected nodes, Delete to remove ──
   const MOVE_STEP = 10;
   const selectedNodeIdsRef = useRef(selectedNodeIds);
+  selectedNodeIdsRef.current = selectedNodeIds;
   const elementsRef = useRef(elements);
-  useEffect(() => { selectedNodeIdsRef.current = selectedNodeIds; });
-  useEffect(() => { elementsRef.current = elements; });
+  elementsRef.current = elements;
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -187,9 +186,8 @@ function FlowCanvasInner() {
       else if (e.key === "ArrowRight") dx = MOVE_STEP;
       else return;
       e.preventDefault();
-      const elMap = new Map(elementsRef.current.map(el => [el.id, el]));
       for (const id of ids) {
-        const el = elMap.get(id);
+        const el = elementsRef.current.find((x) => x.id === id);
         if (el && "position" in el) {
           const pos = el.position ?? { x: 0, y: 0 };
           setElementPosition(id, { x: pos.x + dx, y: pos.y + dy });
@@ -198,7 +196,7 @@ function FlowCanvasInner() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [removeElement, setElementPosition, setSelectedNodeIds]); // stable — bind once
+  }, []); // stable — bind once
 
   // ── Drag: commit position only on drag end ──
   // During drag, ReactFlow manages node positions internally (uncontrolled for position).
@@ -231,14 +229,13 @@ function FlowCanvasInner() {
   );
 
   const nodes: RFNode[] = useMemo(
-    () => {
-      const selectedSet = new Set(selectedNodeIds);
-      return codeElements.map((el) => ({
+    () =>
+      codeElements.map((el) => ({
         id: el.id,
         type: el.tag,
         position: el.position ?? { x: 0, y: 0 },
-        selected: selectedSet.has(el.id),
-        className: selectedSet.has(el.id) ? "flow-node-selected" : "",
+        selected: selectedNodeIds.includes(el.id),
+        className: selectedNodeIds.includes(el.id) ? "flow-node-selected" : "",
         data: {
           label: TAG_CN[el.tag] || el.tag,
           source: el.source,
@@ -260,8 +257,7 @@ function FlowCanvasInner() {
             }
           },
         },
-      }));
-    },
+      })),
     [codeElements, selectedNodeIds, setEditingNodeId, setProp],
   );
 
@@ -295,19 +291,46 @@ function FlowCanvasInner() {
     [nodes, previewNode],
   );
 
-  // ── Editing element (for CodeCardEditor) ──
+  // ── Editing element (for BlockEditor / CodeEditorModal) ──
   const editingElement = editingNodeId
     ? elements.find((e) => e.id === editingNodeId && e.nodeType === "codeblock")
     : null;
+
+  const handleSaveOps = useCallback(
+    (operations: import("../../../core/types/code-op").CodeOp[]) => {
+      if (!editingNodeId) return;
+      const source = emitOps(operations);
+      setElementOperations(editingNodeId, operations);
+      setElementSource(editingNodeId, source);
+      setEditingNodeId(null);
+    },
+    [editingNodeId, setElementOperations, setElementSource],
+  );
 
   return (
     <div ref={flowWrapperRef} style={{ width: "100%", height: "100%", display: "flex" }}>
       <div style={{ flex: 1, height: "100%", minWidth: 0 }}>
       {allNodes.length === 0 ? (
-        <FlowCanvasEmptyState
-          codeFlowElementId={codeFlowElementId}
+        <div
           onContextMenu={handlePaneContextMenu}
-        />
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            height: "100%",
+            color: "#94a3b8",
+            fontSize: 13,
+            gap: 6,
+          }}
+        >
+          <div>
+            {codeFlowElementId
+              ? "双击组件元素进入代码节点流编辑"
+              : "右键画布添加节点，或从组件标签页双击进入"}
+          </div>
+          <div style={{ fontSize: 11, opacity: 0.7 }}>右键 → 添加节点</div>
+        </div>
       ) : (
         <ReactFlow
           nodes={allNodes}
@@ -356,31 +379,57 @@ function FlowCanvasInner() {
         />
       )}
 
-      {/* Code Card Editor — double-click code-block node */}
+      {/* Block Editor — double-click code-block node */}
       {editingElement && (
-        <CodeCardEditor
+        <BlockEditor
           elementId={editingElement.id}
           initialOps={(editingElement as CodeblockElementData).operations || []}
           initialSource={(editingElement as CodeblockElementData).source || ""}
           language="omnilang"
-          onSave={(operations) => {
-            const source = emitOps(operations);
-            setElementOperations(editingNodeId!, operations);
-            setElementSource(editingNodeId!, source);
-            setEditingNodeId(null);
-          }}
+          onSave={handleSaveOps}
           onClose={() => setEditingNodeId(null)}
         />
       )}
 
       {/* Node right-click menu — delete */}
-      <NodeContextMenu
-        nodeMenu={nodeMenu}
-        menuRef={nodeMenuRef}
-        deleteBtnClass={styles.deleteBtn}
-        onDelete={(nodeId) => removeElement(nodeId)}
-        onClose={() => setNodeMenu(null)}
-      />
+      {nodeMenu && (
+        <div
+          ref={nodeMenuRef}
+          style={{
+            position: "fixed",
+            top: nodeMenu.y,
+            left: nodeMenu.x,
+            zIndex: 10001,
+            background: "#fff",
+            borderRadius: 6,
+            boxShadow: "0 2px 10px rgba(0,0,0,0.15)",
+            padding: "2px 0",
+            minWidth: 120,
+            fontSize: 12,
+          }}
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          <button
+            onClick={() => { removeElement(nodeMenu.nodeId); setNodeMenu(null); }}
+            className={styles.deleteBtn}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              width: "100%",
+              padding: "6px 12px",
+              border: "none",
+              cursor: "pointer",
+              fontSize: 12,
+              color: "#dc2626",
+              textAlign: "left" as const,
+              fontFamily: "inherit",
+            }}
+          >
+            🗑 删除节点
+          </button>
+        </div>
+      )}
       </div>
       {/* Right-side inspector: edits selected FN or Return node */}
       <FlowInspector selectedNodeIds={selectedNodeIds} />

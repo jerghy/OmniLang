@@ -149,6 +149,7 @@ export interface PoiesisState {
   clearSelection: () => void;
   addWire: (w: WireData) => void;
   removeWire: (id: string) => void;
+  setElementOperations: (id: string, operations: import("../core/types/code-op").CodeOp[]) => void;
   setElementSource: (id: string, source: string) => void;
   setElementOperations: (id: string, operations: import("../core/types/code-op").CodeOp[]) => void;
   setElementPosition: (id: string, pos: { x: number; y: number }) => void;
