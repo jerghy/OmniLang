@@ -524,6 +524,45 @@ impl OmniViewGenerator {
         }
     }
 
+    /// Emit two-way bindings (bind:value / bind:checked).
+    ///
+    /// For each binding on `value` or `checked`, this emits a guard variable and
+    /// two pieces of JS:
+    /// 1. A DOM event listener that writes the new value back to the signal.
+    /// 2. A reactive effect that reads the signal and updates the DOM, protected
+    ///    by the guard flag to prevent infinite loops.
+    fn emit_element_bindings(&mut self, el: &ElementIR, nid: &str) {
+        for (prop_name, binding) in &el.bindings {
+            if prop_name == "value" || prop_name == "checked" {
+                // Resolve signal name through renames (component-prefixed or global)
+                let sig_name = self
+                    .name_renames
+                    .get(&binding.name)
+                    .or_else(|| self.global_renames.get(&binding.name))
+                    .cloned()
+                    .unwrap_or_else(|| binding.name.clone());
+                // Prevent infinite loop: guard flag to stop the effect from re-triggering input event
+                self.guard_counter += 1;
+                let guard_name = format!("_guard_{}_{}", prop_name, nid.replace('-', "_"));
+                let _ = writeln!(self.js, "let {} = false;", guard_name);
+                let (event_name, dom_prop) = if prop_name == "checked" {
+                    ("change", "checked")
+                } else {
+                    ("input", "value")
+                };
+                let _ = writeln!(self.js,
+                    "{{ const el = __omni_el(\"{0}\"); if (el) el.addEventListener(\"{1}\", (e) => {{ if (!{2}) {{ __omni_subs.get(\"{3}\").set(e.target.{4}); }} }}); }}",
+                    nid, event_name, guard_name, sig_name, dom_prop
+                );
+                // Reactive binding: signal → DOM (guard against programmatic updates)
+                let _ = writeln!(self.js,
+                    "__omni_effect(() => {{ const el = __omni_el(\"{0}\"); if (el) {{ {1} = true; el.{2} = __omni_subs.get(\"{3}\").value; {1} = false; }} }});",
+                    nid, guard_name, prop_name, sig_name
+                );
+            }
+        }
+    }
+
     /// Convert a single `ElementIR` node into its HTML representation.
     ///
     /// Generates the opening tag (with data-nid, static attrs, variant classes,
@@ -605,36 +644,7 @@ impl OmniViewGenerator {
 
         self.emit_element_events(el, &nid, &mut attrs);
 
-        // Bindings (two-way)
-        for (prop_name, binding) in &el.bindings {
-            if prop_name == "value" || prop_name == "checked" {
-                // Resolve signal name through renames (component-prefixed or global)
-                let sig_name = self
-                    .name_renames
-                    .get(&binding.name)
-                    .or_else(|| self.global_renames.get(&binding.name))
-                    .cloned()
-                    .unwrap_or_else(|| binding.name.clone());
-                // Prevent infinite loop: guard flag to stop the effect from re-triggering input event
-                self.guard_counter += 1;
-                let guard_name = format!("_guard_{}_{}", prop_name, nid.replace('-', "_"));
-                let _ = writeln!(self.js, "let {} = false;", guard_name);
-                let (event_name, dom_prop) = if prop_name == "checked" {
-                    ("change", "checked")
-                } else {
-                    ("input", "value")
-                };
-                let _ = writeln!(self.js,
-                    "{{ const el = __omni_el(\"{0}\"); if (el) el.addEventListener(\"{1}\", (e) => {{ if (!{2}) {{ __omni_subs.get(\"{3}\").set(e.target.{4}); }} }}); }}",
-                    nid, event_name, guard_name, sig_name, dom_prop
-                );
-                // Reactive binding: signal → DOM (guard against programmatic updates)
-                let _ = writeln!(self.js,
-                    "__omni_effect(() => {{ const el = __omni_el(\"{0}\"); if (el) {{ {1} = true; el.{2} = __omni_subs.get(\"{3}\").value; {1} = false; }} }});",
-                    nid, guard_name, prop_name, sig_name
-                );
-            }
-        }
+        self.emit_element_bindings(el, &nid);
 
         // Pre-scan children for interpolations → add data-bind-text to attrs
         // This MUST happen BEFORE writing the opening tag.
