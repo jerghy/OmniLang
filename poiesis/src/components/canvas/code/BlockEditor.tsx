@@ -324,27 +324,27 @@ export const BlockEditor: React.FC<Props> = ({
           style={{ overflowY: "auto", height: "100%" }}
         >
           <svg width="100%" height="100%">
-            {/* Gap rows — before first block, between blocks, and after last block */}
+            {/* Gap rows + blocks */}
         <g transform={`translate(8, 8)`}>
           {/* Gap before first block */}
           <rect
             data-gap-position={0}
             x={0} y={0}
             width="100%"
-            height={12}
+            height={24}
             fill="transparent"
           />
           {model.getOps().map((op, i) => (
             <g key={op.pid}>
-              <g transform={`translate(0, ${i * 48 + 12})`}>
+              <g transform={`translate(0, ${i * 48 + 24})`}>
                 {renderBlock(op)}
               </g>
-              {/* Gap between blocks and after last block */}
-              <g transform={`translate(0, ${i * 48 + 12 + 36})`}>
+              {/* Gap between blocks */}
+              <g transform={`translate(0, ${i * 48 + 24 + 36})`}>
                 <rect
                   data-gap-position={i + 0.5}
                   width="100%"
-                  height={12}
+                  height={24}
                   fill="transparent"
                 />
               </g>
@@ -353,9 +353,9 @@ export const BlockEditor: React.FC<Props> = ({
           {/* Gap after last block */}
           <rect
             data-gap-position={model.getOps().length}
-            x={0} y={model.getOps().length * 48 + 12}
+            x={0} y={model.getOps().length * 48 + 24}
             width="100%"
-            height={12}
+            height={24}
             fill="transparent"
           />
         </g>

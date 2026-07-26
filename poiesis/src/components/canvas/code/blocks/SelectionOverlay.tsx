@@ -77,19 +77,25 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
         el.style.outlineOffset = "3px";
         el.style.border = "none";
         el.style.borderRadius = "6px";
+        el.style.background = "rgba(204, 107, 74, 0.1)";
+        el.style.boxShadow = "0 0 0 6px rgba(204, 107, 74, 0.15)";
         el.style.animation = "none";
         break;
       case "slot":
         el.style.outline = "none";
         el.style.border = "3px dashed #cc6b4a";
         el.style.borderRadius = "4px";
+        el.style.background = "rgba(204, 107, 74, 0.08)";
+        el.style.boxShadow = "none";
         el.style.animation = "none";
         break;
       case "gap":
         el.style.outline = "none";
         el.style.border = "none";
-        el.style.borderTop = "3px solid #cc6b4a";
-        el.style.animation = "sel-gap-blink 1s step-end infinite";
+        el.style.background = "rgba(204, 107, 74, 0.18)";
+        el.style.borderRadius = "4px";
+        el.style.boxShadow = "none";
+        el.style.animation = "sel-gap-blink 1.2s step-end infinite";
         break;
     }
   }, [target, getElement]);
