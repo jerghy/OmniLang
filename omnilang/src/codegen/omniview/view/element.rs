@@ -714,6 +714,166 @@ impl OmniViewGenerator {
         }
     }
 
+    /// Emit the HTML closing portion for an element: handle void tags, fragment
+    /// wrappers, normal tags with children, css_only mode, interpolation effects,
+    /// class map dynamic bindings, and source map recording.
+    ///
+    /// This is the second half of `element_to_html`, extracted as its own method.
+    fn emit_element_html_close(
+        &mut self, el: &ElementIR, nid: &str, html_tag: &str,
+        attrs: &str, class_name_parts: &[String],
+        interp_effects: &[String], indent: usize,
+    ) -> String {
+        let pad = "  ".repeat(indent);
+        let mut out = String::new();
+
+        // Self-closing tags (after motion/driven-by/states emit so animations are set up)
+        let void_tags = [
+            "br", "hr", "img", "input", "meta", "link", "area", "base", "col", "embed", "source",
+            "track", "wbr",
+        ];
+        if void_tags.contains(&html_tag) {
+            if self.css_only {
+                let design_id = el.props.get("id")
+                    .and_then(|v| {
+                        if let ExprIR::LiteralExpr { value } = v {
+                            value.as_str().map(|s| s.to_string())
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap_or_else(|| nid.to_string());
+                // Resolve design class references ("AppDesign.card" → "card")
+                let resolved_classes: Vec<String> = class_name_parts.iter().map(|c| {
+                    if let Some(dot_pos) = c.find('.') {
+                        c[dot_pos + 1..].to_string()
+                    } else {
+                        c.clone()
+                    }
+                }).collect();
+                self.element_classes
+                    .insert(nid.to_string(), resolved_classes);
+                self.element_tags
+                    .insert(nid.to_string(), html_tag.to_string());
+                // Record nid → design element ID mapping for editor selection
+                self.nid_map.insert(nid.to_string(), design_id);
+                self.tree_pop();
+                return String::new();
+            }
+            let _ = writeln!(out, "{}<{}{} />", pad, html_tag, attrs);
+            // Emit any interpolation _effect() calls
+            for effect in interp_effects {
+                self.js.push_str(effect);
+            }
+            // Class map dynamic bindings
+            if !self.in_for_template && !el.class_map_bindings.is_empty() {
+                for (class_name, expr) in &el.class_map_bindings {
+                    let js_expr = self.expr_to_js(expr);
+                    let js_access = if self.signal_names.contains(&js_expr) {
+                        format!("{}.value", js_expr)
+                    } else {
+                        js_expr
+                    };
+                    let _ = writeln!(self.js,
+                            "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) el.classList.toggle(\"{}\", !!({})); }});",
+                            nid, class_name, js_access
+                        );
+                }
+            }
+            self.tree_pop();
+            return out;
+        }
+
+        // For <fragment> wrapper inside @for template: emit children without wrapper.
+        if self.in_for_template && html_tag == "fragment" {
+            for child in &el.children {
+                let child_html = self.view_to_html(child, indent + 1);
+                out.push_str(&child_html);
+            }
+            self.tree_pop(); // fragment has no wrapper, pop after children
+        } else {
+            let _ = writeln!(out, "{}<{}{}>", pad, html_tag, attrs);
+
+            // Children
+            for child in &el.children {
+                let child_html = self.view_to_html(child, indent + 1);
+                out.push_str(&child_html);
+            }
+
+            // In css_only mode: capture element mappings now that children are done,
+            // then return empty string (no HTML/JS needed).
+            if self.css_only {
+                let design_id = el.props.get("id")
+                    .and_then(|v| {
+                        if let ExprIR::LiteralExpr { value } = v {
+                            value.as_str().map(|s| s.to_string())
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap_or_else(|| nid.to_string());
+                // Resolve design class references ("AppDesign.card" → "card")
+                let resolved_classes: Vec<String> = class_name_parts.iter().map(|c| {
+                    if let Some(dot_pos) = c.find('.') {
+                        c[dot_pos + 1..].to_string()
+                    } else {
+                        c.clone()
+                    }
+                }).collect();
+                self.element_classes
+                    .insert(nid.to_string(), resolved_classes);
+                self.element_tags
+                    .insert(nid.to_string(), html_tag.to_string());
+                self.nid_map.insert(nid.to_string(), design_id);
+                self.tree_pop();
+                return String::new();
+            }
+
+            let _ = writeln!(out, "{}</{}>", pad, html_tag);
+            self.tree_pop();
+        }
+
+        // Emit any interpolation _effect() calls
+        for effect in interp_effects {
+            self.js.push_str(effect);
+        }
+
+        // Class map dynamic bindings: for each dynamic class, emit an effect
+        if !self.in_for_template && !el.class_map_bindings.is_empty() {
+            for (class_name, expr) in &el.class_map_bindings {
+                let js_expr = self.expr_to_js(expr);
+                let js_access = if self.signal_names.contains(&js_expr) {
+                    format!("{}.value", js_expr)
+                } else {
+                    js_expr
+                };
+                let _ = writeln!(self.js,
+                    "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) el.classList.toggle(\"{}\", !!({})); }});",
+                    nid, class_name, js_access
+                );
+            }
+        }
+
+        // Record source map entry
+        self.source_map.push(SourceMapEntry {
+            node_id: nid.to_string(),
+            omni_span: SourceSpan {
+                line: el.source_line,
+                col: el.source_col,
+                len: 0,
+            },
+            target_spans: vec![TargetSpan {
+                file: "index.html".into(),
+                line: 0,
+                col: 0,
+                len: 0,
+                kind: TargetSpanKind::DomElement,
+            }],
+        });
+
+        out
+    }
+
     /// Convert a single `ElementIR` node into its HTML representation.
     ///
     /// Generates the opening tag (with data-nid, static attrs, variant classes,
@@ -732,8 +892,6 @@ impl OmniViewGenerator {
         let pad = "  ".repeat(indent);
         let _pad_inner = "  ".repeat(indent + 1);
         let nid = self.next_nid(&el.tag);
-        let mut out = String::new();
-
         // Map omni tags to HTML tags
         let html_tag = map_tag(&el.tag);
         self.tree_push(nid.clone(), html_tag.clone());
@@ -836,150 +994,9 @@ impl OmniViewGenerator {
             }
         }
 
-        // Self-closing tags (after motion/driven-by/states emit so animations are set up)
-        let void_tags = [
-            "br", "hr", "img", "input", "meta", "link", "area", "base", "col", "embed", "source",
-            "track", "wbr",
-        ];
-        if void_tags.contains(&html_tag.as_str()) {
-            if self.css_only {
-                let design_id = el.props.get("id")
-                    .and_then(|v| {
-                        if let ExprIR::LiteralExpr { value } = v {
-                            value.as_str().map(|s| s.to_string())
-                        } else {
-                            None
-                        }
-                    })
-                    .unwrap_or_else(|| nid.clone());
-                // Resolve design class references ("AppDesign.card" → "card")
-                let resolved_classes: Vec<String> = class_name_parts.iter().map(|c| {
-                    if let Some(dot_pos) = c.find('.') {
-                        c[dot_pos + 1..].to_string()
-                    } else {
-                        c.clone()
-                    }
-                }).collect();
-                self.element_classes
-                    .insert(nid.clone(), resolved_classes);
-                self.element_tags
-                    .insert(nid.clone(), html_tag.to_string());
-                // Record nid → design element ID mapping for editor selection
-                self.nid_map.insert(nid.clone(), design_id);
-                self.tree_pop();
-                return String::new();
-            }
-            let _ = writeln!(out, "{}<{}{} />", pad, html_tag, attrs);
-            // Emit any interpolation _effect() calls
-            for effect in &interp_effects {
-                self.js.push_str(effect);
-            }
-            // Class map dynamic bindings
-            if !self.in_for_template && !el.class_map_bindings.is_empty() {
-                for (class_name, expr) in &el.class_map_bindings {
-                    let js_expr = self.expr_to_js(expr);
-                    let js_access = if self.signal_names.contains(&js_expr) {
-                        format!("{}.value", js_expr)
-                    } else {
-                        js_expr
-                    };
-                    let _ = writeln!(self.js,
-                            "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) el.classList.toggle(\"{}\", !!({})); }});",
-                            nid, class_name, js_access
-                        );
-                }
-            }
-            self.tree_pop();
-            return out;
-        }
-
-        // For <fragment> wrapper inside @for template: emit children without wrapper.
-        if self.in_for_template && html_tag == "fragment" {
-            for child in &el.children {
-                let child_html = self.view_to_html(child, indent + 1);
-                out.push_str(&child_html);
-            }
-            self.tree_pop(); // fragment has no wrapper, pop after children
-        } else {
-            let _ = writeln!(out, "{}<{}{}>", pad, html_tag, attrs);
-
-            // Children
-            for child in &el.children {
-                let child_html = self.view_to_html(child, indent + 1);
-                out.push_str(&child_html);
-            }
-
-            // In css_only mode: capture element mappings now that children are done,
-            // then return empty string (no HTML/JS needed).
-            if self.css_only {
-                let design_id = el.props.get("id")
-                    .and_then(|v| {
-                        if let ExprIR::LiteralExpr { value } = v {
-                            value.as_str().map(|s| s.to_string())
-                        } else {
-                            None
-                        }
-                    })
-                    .unwrap_or_else(|| nid.clone());
-                // Resolve design class references ("AppDesign.card" → "card")
-                let resolved_classes: Vec<String> = class_name_parts.iter().map(|c| {
-                    if let Some(dot_pos) = c.find('.') {
-                        c[dot_pos + 1..].to_string()
-                    } else {
-                        c.clone()
-                    }
-                }).collect();
-                self.element_classes
-                    .insert(nid.clone(), resolved_classes);
-                self.element_tags
-                    .insert(nid.clone(), html_tag.to_string());
-                self.nid_map.insert(nid.clone(), design_id);
-                self.tree_pop();
-                return String::new();
-            }
-
-            let _ = writeln!(out, "{}</{}>", pad, html_tag);
-            self.tree_pop();
-        }
-
-        // Emit any interpolation _effect() calls
-        for effect in &interp_effects {
-            self.js.push_str(effect);
-        }
-
-        // Class map dynamic bindings: for each dynamic class, emit an effect
-        if !self.in_for_template && !el.class_map_bindings.is_empty() {
-            for (class_name, expr) in &el.class_map_bindings {
-                let js_expr = self.expr_to_js(expr);
-                let js_access = if self.signal_names.contains(&js_expr) {
-                    format!("{}.value", js_expr)
-                } else {
-                    js_expr
-                };
-                let _ = writeln!(self.js,
-                    "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) el.classList.toggle(\"{}\", !!({})); }});",
-                    nid, class_name, js_access
-                );
-            }
-        }
-
-        // Record source map entry
-        self.source_map.push(SourceMapEntry {
-            node_id: nid.clone(),
-            omni_span: SourceSpan {
-                line: el.source_line,
-                col: el.source_col,
-                len: 0,
-            },
-            target_spans: vec![TargetSpan {
-                file: "index.html".into(),
-                line: 0,
-                col: 0,
-                len: 0,
-                kind: TargetSpanKind::DomElement,
-            }],
-        });
-
-        out
+        let result = self.emit_element_html_close(
+            el, &nid, &html_tag, &attrs, &class_name_parts, &interp_effects, indent
+        );
+        return result;
     }
 }
