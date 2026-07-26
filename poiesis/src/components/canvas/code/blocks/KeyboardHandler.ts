@@ -97,7 +97,11 @@ export class KeyboardHandler {
 
   private handleDelete(target: SelectionTarget): void {
     if (target.type === "block") {
-      this.model.deleteBlock(target.blockIndex);
+      if (target.bodyPath && target.bodyPath.length > 0) {
+        this.model.deleteBodyBlock(target.blockIndex, target.bodyPath);
+      } else {
+        this.model.deleteBlock(target.blockIndex);
+      }
       this.callbacks.onOpsChanged();
     } else if (target.type === "slot") {
       this.model.clearSlot(target.blockIndex, target.slotName);
@@ -109,7 +113,11 @@ export class KeyboardHandler {
 
   private handleBackspace(target: SelectionTarget): void {
     if (target.type === "block") {
-      this.model.deleteBlock(target.blockIndex);
+      if (target.bodyPath && target.bodyPath.length > 0) {
+        this.model.deleteBodyBlock(target.blockIndex, target.bodyPath);
+      } else {
+        this.model.deleteBlock(target.blockIndex);
+      }
       this.callbacks.onOpsChanged();
     } else if (target.type === "slot") {
       this.model.clearSlot(target.blockIndex, target.slotName);
@@ -180,13 +188,13 @@ export class KeyboardHandler {
     }
   }
 
-  private entryToTarget(entry: { kind: string; blockIndex: number; slotName?: string; position: number }): SelectionTarget | null {
+  private entryToTarget(entry: { kind: string; blockIndex: number; slotName?: string; position: number; bodyPath?: number[] }): SelectionTarget | null {
     const ops = this.model.getOps();
     switch (entry.kind) {
       case "block":
-        return { type: "block", blockIndex: entry.blockIndex, blockId: ops[entry.blockIndex]?.pid || "" };
+        return { type: "block", blockIndex: entry.blockIndex, blockId: ops[entry.blockIndex]?.pid || "", bodyPath: entry.bodyPath };
       case "slot":
-        return { type: "slot", blockIndex: entry.blockIndex, blockId: ops[entry.blockIndex]?.pid || "", slotName: entry.slotName || "" };
+        return { type: "slot", blockIndex: entry.blockIndex, blockId: ops[entry.blockIndex]?.pid || "", slotName: entry.slotName || "", bodyPath: entry.bodyPath };
       case "gap":
         return { type: "gap", position: entry.position };
       default:

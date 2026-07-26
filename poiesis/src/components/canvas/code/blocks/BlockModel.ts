@@ -4,8 +4,8 @@ import type { SlotValue } from "../../../../core/types/slot-value";
 import { createBodyId } from "../../../../core/types/code-op";
 
 export type SelectionTarget =
-  | { type: "block"; blockIndex: number; blockId: string }
-  | { type: "slot"; blockIndex: number; blockId: string; slotName: string }
+  | { type: "block"; blockIndex: number; blockId: string; bodyPath?: number[] }
+  | { type: "slot"; blockIndex: number; blockId: string; slotName: string; bodyPath?: number[] }
   | { type: "gap"; position: number };
 
 export interface NavEntry {
@@ -14,26 +14,106 @@ export interface NavEntry {
   slotName?: string;
   position: number;
   op?: CodeOp;
+  bodyPath?: number[];
 }
 
 /** The list of slot names for each block type. */
 const SLOT_MAP: Record<string, string[]> = {
   declare_var: ["NAME", "VARTYPE", "VALUE"],
   set_var: ["NAME", "VALUE"],
-  return_stmt: ["VALUE"],
+  return: ["VALUE"],
   call_fn: ["FN_NAME", "ARGS"],
-  await_expr: ["VALUE"],
+  await: ["VALUE"],
   if_block: ["CONDITION"],
-  while_loop: ["CONDITION"],
+  while: ["CONDITION"],
   for_in: ["ITEM", "COLLECTION"],
-  break_stmt: [],
-  continue_stmt: [],
-  comment_stmt: [],
-  raw_stmt: [],
+  break: [],
+  continue: [],
+  comment: [],
+  raw: [],
 };
 
 function getBlockSlots(op: CodeOp): string[] {
   return SLOT_MAP[op.kind] || [];
+}
+
+// ── Block path helpers ──
+
+interface BlockInfo {
+  op: CodeOp;
+  topIndex: number;
+  bodyPath: number[];
+}
+
+/**
+ * Flatten all blocks (top-level + nested body blocks) into a list.
+ * bodyPath identifies the location: empty for top-level, [branchIdx, bodyIdx] for if body, [bodyIdx] for while/for body.
+ */
+function collectAllBlocks(ops: CodeOp[]): BlockInfo[] {
+  const result: BlockInfo[] = [];
+
+  function walk(opList: CodeOp[], topIndex: number, pathPrefix: number[]) {
+    for (let i = 0; i < opList.length; i++) {
+      const op = opList[i];
+      result.push({ op, topIndex, bodyPath: [...pathPrefix] });
+
+      // Recurse into body blocks
+      if (op.kind === "if_block") {
+        for (let bi = 0; bi < op.branches.length; bi++) {
+          walk(op.branches[bi].body, topIndex, [...pathPrefix, bi, ...op.branches[bi].body]);
+          // Actually, we need to walk each branch's body
+        }
+        for (let bi = 0; bi < op.branches.length; bi++) {
+          for (let bbi = 0; bbi < op.branches[bi].body.length; bbi++) {
+            walk([op.branches[bi].body[bbi]], result.length > 0 ? result[result.length - 1].topIndex : 0, [bi, bbi]);
+          }
+        }
+      } else if (op.kind === "while" || op.kind === "for_in") {
+        const body = (op as { body: CodeOp[] }).body;
+        for (let bbi = 0; bbi < body.length; bbi++) {
+          walk([body[bbi]], result.length > 0 ? topIndex : 0, [bbi]);
+        }
+      }
+    }
+  }
+
+  // Collect top-level blocks with empty bodyPath
+  for (let i = 0; i < ops.length; i++) {
+    const op = ops[i];
+    result.push({ op, topIndex: i, bodyPath: [] });
+
+    if (op.kind === "if_block") {
+      for (let bi = 0; bi < op.branches.length; bi++) {
+        for (let bbi = 0; bbi < op.branches[bi].body.length; bbi++) {
+          result.push({ op: op.branches[bi].body[bbi], topIndex: i, bodyPath: [bi, bbi] });
+        }
+      }
+    } else if (op.kind === "while" || op.kind === "for_in") {
+      const body = (op as { body: CodeOp[] }).body;
+      for (let bbi = 0; bbi < body.length; bbi++) {
+        result.push({ op: body[bbi], topIndex: i, bodyPath: [bbi] });
+      }
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Get the body blocks for a given CodeOp.
+ */
+function getBodyBlocks(op: CodeOp): CodeOp[] {
+  if (op.kind === "if_block") {
+    const all: CodeOp[] = [];
+    for (const branch of op.branches) {
+      all.push(...branch.body);
+    }
+    return all;
+  }
+  if (op.kind === "while" || op.kind === "for_in") {
+    return (op as { body: CodeOp[] }).body;
+  }
+  return [];
 }
 
 export class BlockModel {
@@ -54,7 +134,10 @@ export class BlockModel {
   }
 
   getNavEntries(): NavEntry[] {
+    const allBlocks = collectAllBlocks(this.ops);
+
     const entries: NavEntry[] = [];
+
     if (this.ops.length === 0) {
       entries.push({ kind: "gap", blockIndex: -1, position: 0 });
       return entries;
@@ -65,13 +148,11 @@ export class BlockModel {
 
     for (let i = 0; i < this.ops.length; i++) {
       const op = this.ops[i];
-      entries.push({
-        kind: "block",
-        blockIndex: i,
-        position: i + 1,
-        op,
-      });
-      // slots
+
+      // Block entry (top-level)
+      entries.push({ kind: "block", blockIndex: i, position: i + 1, op, bodyPath: [] });
+
+      // Slots for this block
       const slotNames = getBlockSlots(op);
       for (let s = 0; s < slotNames.length; s++) {
         entries.push({
@@ -79,9 +160,18 @@ export class BlockModel {
           blockIndex: i,
           slotName: slotNames[s],
           position: i + 1 + (s + 1) * 0.01,
+          bodyPath: [],
         });
       }
-      // gap between blocks (only if there's a gap at this position)
+
+      // ── Body entries for C-blocks (after slots, before gap) ──
+      const bodyBlocks = getBodyBlocks(op);
+      if (bodyBlocks.length > 0) {
+        const bodyEntries = this.buildBodyNavEntries(op, i);
+        entries.push(...bodyEntries);
+      }
+
+      // Gap between top-level blocks (only if there's a gap at this position)
       if (i < this.ops.length - 1) {
         const gapPos = i + 0.5;
         if (this.gaps.has(gapPos)) {
@@ -91,12 +181,65 @@ export class BlockModel {
     }
 
     // gap after last block
-    const lastGapPos = this.ops.length;
-    entries.push({
-      kind: "gap",
-      blockIndex: this.ops.length - 1,
-      position: lastGapPos,
-    });
+    entries.push({ kind: "gap", blockIndex: this.ops.length - 1, position: this.ops.length });
+
+    return entries;
+  }
+
+  private buildBodyNavEntries(parentOp: CodeOp, topIndex: number): NavEntry[] {
+    const entries: NavEntry[] = [];
+
+    if (parentOp.kind === "if_block") {
+      for (let bi = 0; bi < parentOp.branches.length; bi++) {
+        for (let bbi = 0; bbi < parentOp.branches[bi].body.length; bbi++) {
+          const bodyOp = parentOp.branches[bi].body[bbi];
+          const bodyPath = [bi, bbi];
+          entries.push({
+            kind: "block",
+            blockIndex: topIndex,
+            position: entries.length + 1,
+            op: bodyOp,
+            bodyPath,
+          });
+          // Slots for this body block — carry op ref so entryToTarget resolves blockId correctly
+          const slotNames = getBlockSlots(bodyOp);
+          for (let s = 0; s < slotNames.length; s++) {
+            entries.push({
+              kind: "slot",
+              blockIndex: topIndex,
+              slotName: slotNames[s],
+              position: entries.length + 1 + (s + 1) * 0.01,
+              op: bodyOp,
+              bodyPath,
+            });
+          }
+        }
+      }
+    } else if (parentOp.kind === "while" || parentOp.kind === "for_in") {
+      const body = (parentOp as { body: CodeOp[] }).body;
+      for (let bbi = 0; bbi < body.length; bbi++) {
+        const bodyOp = body[bbi];
+        const bodyPath = [bbi];
+        entries.push({
+          kind: "block",
+          blockIndex: topIndex,
+          position: entries.length + 1,
+          op: bodyOp,
+          bodyPath,
+        });
+        const slotNames = getBlockSlots(bodyOp);
+        for (let s = 0; s < slotNames.length; s++) {
+          entries.push({
+            kind: "slot",
+            blockIndex: topIndex,
+            slotName: slotNames[s],
+            position: entries.length + 1 + (s + 1) * 0.01,
+            op: bodyOp,
+            bodyPath,
+          });
+        }
+      }
+    }
 
     return entries;
   }
@@ -160,6 +303,27 @@ export class BlockModel {
     }
   }
 
+  /** Delete a body block identified by its path from the parent block. */
+  deleteBodyBlock(topIndex: number, bodyPath: number[]): void {
+    const parentOp = this.ops[topIndex];
+    if (!parentOp) return;
+
+    if (parentOp.kind === "if_block" && bodyPath.length === 2) {
+      const [bi, bbi] = bodyPath;
+      if (bi >= 0 && bi < parentOp.branches.length) {
+        parentOp.branches[bi].body.splice(bbi, 1);
+        this.ops = [...this.ops]; // trigger immutability
+      }
+    } else if ((parentOp.kind === "while" || parentOp.kind === "for_in") && bodyPath.length === 1) {
+      const body = (parentOp as { body: CodeOp[] }).body;
+      body.splice(bodyPath[0], 1);
+      this.ops = [...this.ops];
+    }
+
+    this.rebuildGaps();
+    this.onChange?.();
+  }
+
   deleteGap(position: number): void {
     this.gaps.delete(position);
     this.onChange?.();
@@ -173,18 +337,17 @@ export class BlockModel {
   setSlotValue(blockIndex: number, slotName: string, value: SlotValue): void {
     const op = this.ops[blockIndex];
     if (!op) return;
-    // Map slotName to the CodeOp field
+
     const slotFieldMap: Record<string, Record<string, string>> = {
       declare_var: { NAME: "name", VARTYPE: "varType", VALUE: "initValue" },
       set_var: { NAME: "name", VALUE: "value" },
-      return_stmt: { VALUE: "value" },
+      return: { VALUE: "value" },
       call_fn: { FN_NAME: "fnName", ARGS: "args" },
-      await_expr: { VALUE: "value" },
-      while_loop: { CONDITION: "condition" },
+      await: { VALUE: "value" },
+      while: { CONDITION: "condition" },
       for_in: { ITEM: "itemName", COLLECTION: "collection" },
     };
 
-    // Special handling for if_block: condition lives in branches[0].condition
     if (op.kind === "if_block") {
       if (slotName === "CONDITION") {
         this.ops[blockIndex] = {
@@ -202,7 +365,6 @@ export class BlockModel {
     const fieldMap = slotFieldMap[op.kind];
     if (!fieldMap || !fieldMap[slotName]) return;
     const field = fieldMap[slotName];
-    // Create a new object (immutable update) instead of mutating in-place
     this.ops[blockIndex] = { ...op, [field]: value } as CodeOp;
     this.onChange?.();
   }
@@ -234,25 +396,34 @@ export class BlockModel {
     }
   }
 
-  private entryToTarget(
+  entryToTarget(
     entry: NavEntry,
     ops: CodeOp[],
   ): SelectionTarget | null {
+    // For body blocks/slots, use the entry's op (body block) instead of ops[blockIndex] (parent)
+    const hasBodyPath = entry.bodyPath && entry.bodyPath.length > 0;
+
     switch (entry.kind) {
       case "block": {
-        const op = ops[entry.blockIndex];
+        const blockId = hasBodyPath && entry.op
+          ? entry.op.pid
+          : (ops[entry.blockIndex]?.pid || "");
         return {
           type: "block",
           blockIndex: entry.blockIndex,
-          blockId: op?.pid || "",
+          blockId,
+          bodyPath: entry.bodyPath,
         };
       }
       case "slot":
         return {
           type: "slot",
           blockIndex: entry.blockIndex,
-          blockId: ops[entry.blockIndex]?.pid || "",
+          blockId: hasBodyPath && entry.op
+            ? entry.op.pid
+            : (ops[entry.blockIndex]?.pid || ""),
           slotName: entry.slotName || "",
+          bodyPath: entry.bodyPath,
         };
       case "gap":
         return { type: "gap", position: entry.position };

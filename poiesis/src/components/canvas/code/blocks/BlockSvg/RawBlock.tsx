@@ -2,7 +2,8 @@
 // RawBlock — dual-mode display/edit component for RawCodeOp.
 
 import React, { useRef, useEffect } from "react";
-import { BlockSvg, Keyword, BLOCK_COLORS } from "../BlockSvg";
+import { BlockSvg, BLOCK_COLORS } from "../BlockSvg";
+import type { LayoutItem } from "../BlockSvg";
 import type { RawCodeOp } from "../../../../../core/types/code-op";
 
 interface RawBlockProps {
@@ -29,14 +30,15 @@ export const RawBlock = React.forwardRef<SVGGElement, RawBlockProps>(
       }
     };
 
+    const items: LayoutItem[] = [
+      { kind: "keyword", text: "raw " + (op.source || "") },
+    ];
+
     return (
       <g ref={ref} data-block-id={op.pid}>
-        <BlockSvg
-          colour={BLOCK_COLORS.RAW}
-          blockId={op.pid}
-        >
-          {isEditing ? (
-            <foreignObject x={0} y={-10} width={300} height={24}>
+        {isEditing ? (
+          <BlockSvg colour={BLOCK_COLORS.RAW} blockId={op.pid} items={items}>
+            <foreignObject x={40} y={-11} width={300} height={22}>
               <input
                 ref={inputRef}
                 defaultValue={op.source}
@@ -54,15 +56,10 @@ export const RawBlock = React.forwardRef<SVGGElement, RawBlockProps>(
                 }}
               />
             </foreignObject>
-          ) : (
-            <text dominantBaseline="middle">
-              <Keyword text="raw" />
-              <tspan fill="#fff" fontSize="12" fontFamily="monospace">
-                {op.source || "(empty)"}
-              </tspan>
-            </text>
-          )}
-        </BlockSvg>
+          </BlockSvg>
+        ) : (
+          <BlockSvg colour={BLOCK_COLORS.RAW} blockId={op.pid} ref={ref} items={items} />
+        )}
       </g>
     );
   },

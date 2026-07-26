@@ -3,14 +3,13 @@
 // Wires together BlockModel + KeyboardHandler + ClipboardManager +
 // SelectionOverlay + FuzzySearchPopup + raw input modal.
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CodeOp } from "../../../core/types/code-op";
 import { BlockModel } from "./blocks/BlockModel";
 import type { SelectionTarget } from "./blocks/BlockModel";
 import { KeyboardHandler } from "./blocks/KeyboardHandler";
 import type { KBCallbacks } from "./blocks/KeyboardHandler";
 import { ClipboardManager } from "./blocks/ClipboardManager";
-import { SelectionOverlay } from "./blocks/SelectionOverlay";
 import {
   FuzzySearchPopup,
   getItemsForContext,
@@ -31,6 +30,38 @@ import {
   WhileBlock,
   ForInBlock,
 } from "./blocks/BlockSvg/index";
+import { BLOCK_H } from "./blocks/BlockSvg";
+
+// ── Body block spacing (used in C-shaped blocks: if/while/for) ──
+
+const BODY_BLOCK_SPACING = BLOCK_H + 4;
+const BODY_GAP = 3;
+const BRANCH_GAP = 2;
+
+/** Calculate the total SVG height of a CodeOp including its body blocks. */
+function getBlockHeight(op: CodeOp): number {
+  switch (op.kind) {
+    case "if_block": {
+      let cum = 0;
+      for (const branch of op.branches) {
+        cum += BLOCK_H + BODY_GAP + branch.body.length * BODY_BLOCK_SPACING + 4 + BRANCH_GAP;
+      }
+      return cum + 5 + 5; // arm extension + bottom cap
+    }
+    case "while":
+    case "for_in": {
+      const body = (op as { body: CodeOp[] }).body;
+      const hasBody = body.length > 0;
+      const bodyContentH = hasBody ? body.length * BODY_BLOCK_SPACING : 0;
+      const bodyAreaH = bodyContentH + 6;
+      const armHeight = BLOCK_H + BODY_GAP + bodyAreaH;
+      return armHeight + 5; // bottom cap
+    }
+    default:
+      return BLOCK_H;
+  }
+}
+
 import styles from "./BlockEditor.module.css";
 
 // ── Props (unchanged external interface) ──
@@ -63,11 +94,13 @@ export const BlockEditor: React.FC<Props> = ({
   const [showRawInput, setShowRawInput] = useState(false);
   const [rawInputText, setRawInputText] = useState("");
   const [opsCount, setOpsCount] = useState(initialOps.length);
-  const [, forceUpdate] = useState(0);
+  const [renderTick, forceUpdate] = useState(0);
   const [editingRawPid, setEditingRawPid] = useState<string | null>(null);
 
   const khRef = useRef<KeyboardHandler | null>(null);
   const blockRefs = useRef<Map<string, SVGGElement>>(new Map());
+  const selRectRef = useRef<SVGRectElement>(null);
+  const svgGroupRef = useRef<SVGGElement>(null);
 
   // ── Initialize model (lazily, once via useState initializer) ──
 
@@ -76,6 +109,87 @@ export const BlockEditor: React.FC<Props> = ({
     m.onChange = () => { setOpsCount(m.getOps().length); forceUpdate((n) => n + 1); };
     return m;
   });
+
+  // ── Imperative selection cursor positioning ──
+  // Reads actual DOM positions via getBoundingClientRect to handle
+  // body blocks at any nesting depth, then updates the SVG <rect> directly.
+
+  useLayoutEffect(() => {
+    const rect = selRectRef.current;
+    const group = svgGroupRef.current;
+    if (!rect || !group) return;
+
+    const target = model.getCurrentTarget();
+    if (!target) {
+      rect.style.display = "none";
+      return;
+    }
+
+    let el: HTMLElement | SVGElement | null = null;
+    switch (target.type) {
+      case "block": {
+        el = document.querySelector(`[data-block-id="${target.blockId}"]`);
+        // For body blocks with data-block-id on an inner <g>, use the first rect child for accurate bbox
+        if (el && el.tagName === "g") {
+          const firstRect = el.querySelector("rect");
+          if (firstRect) el = firstRect as SVGRectElement;
+        }
+        break;
+      }
+      case "slot": {
+        const blockEl = document.querySelector(`[data-block-id="${target.blockId}"]`);
+        if (blockEl) {
+          el = blockEl.querySelector(`[data-slot-id="${target.slotName}"]`) as SVGElement | null;
+        }
+        break;
+      }
+      case "gap": {
+        el = document.querySelector(`[data-gap-position="${target.position}"]`) as HTMLElement | null;
+        break;
+      }
+    }
+
+    if (!el) {
+      rect.style.display = "none";
+      return;
+    }
+
+    const targetRect = el.getBoundingClientRect();
+    const groupRect = group.getBoundingClientRect();
+
+    const localX = target.type === "slot" ? targetRect.left - groupRect.left : 0;
+    const localY = targetRect.top - groupRect.top;
+    const localW = target.type === "slot" ? targetRect.width : groupRect.width;
+    const localH = target.type === "gap" ? 4 : targetRect.height;
+
+    rect.setAttribute("x", String(localX));
+    rect.setAttribute("y", String(localY));
+    rect.setAttribute("width", String(localW));
+    rect.setAttribute("height", String(localH));
+
+    // Softer highlight for gaps, bolder for blocks/slots
+    if (target.type === "gap") {
+      // Gap cursor: barely visible thin line
+      rect.setAttribute("fill", "transparent");
+      rect.setAttribute("stroke", "rgba(204, 107, 74, 0.12)");
+      rect.setAttribute("stroke-width", "0.5");
+      rect.setAttribute("rx", "0");
+    } else if (target.type === "slot") {
+      rect.setAttribute("fill", "rgba(204, 107, 74, 0.10)");
+      rect.setAttribute("stroke", "#cc6b4a");
+      rect.setAttribute("stroke-width", "2");
+      rect.setAttribute("rx", "4");
+      rect.setAttribute("stroke-dasharray", "4,3");
+    } else {
+      rect.setAttribute("fill", "rgba(204, 107, 74, 0.08)");
+      rect.setAttribute("stroke", "#cc6b4a");
+      rect.setAttribute("stroke-width", "2");
+      rect.setAttribute("rx", "6");
+      rect.removeAttribute("stroke-dasharray");
+    }
+
+    rect.style.display = "block";
+  }, [opsCount, renderTick, model]);
 
   // ── getElement callback: maps SelectionTarget -> DOM element ──
 
@@ -244,7 +358,13 @@ export const BlockEditor: React.FC<Props> = ({
               key={op.pid}
               op={op}
               ref={setRef}
-              renderBody={(body: CodeOp[]) => body.map(renderBlock)}
+              renderBody={(body: CodeOp[]) =>
+            body.map((op, i) => (
+              <g key={op.pid} transform={`translate(0, ${i * BODY_BLOCK_SPACING})`}>
+                {renderBlock(op)}
+              </g>
+            ))
+          }
             />
           );
         case "while":
@@ -253,7 +373,13 @@ export const BlockEditor: React.FC<Props> = ({
               key={op.pid}
               op={op}
               ref={setRef}
-              renderBody={(body: CodeOp[]) => body.map(renderBlock)}
+              renderBody={(body: CodeOp[]) =>
+            body.map((op, i) => (
+              <g key={op.pid} transform={`translate(0, ${i * BODY_BLOCK_SPACING})`}>
+                {renderBlock(op)}
+              </g>
+            ))
+          }
             />
           );
         case "for_in":
@@ -262,7 +388,13 @@ export const BlockEditor: React.FC<Props> = ({
               key={op.pid}
               op={op}
               ref={setRef}
-              renderBody={(body: CodeOp[]) => body.map(renderBlock)}
+              renderBody={(body: CodeOp[]) =>
+            body.map((op, i) => (
+              <g key={op.pid} transform={`translate(0, ${i * BODY_BLOCK_SPACING})`}>
+                {renderBlock(op)}
+              </g>
+            ))
+          }
             />
           );
         default:
@@ -324,76 +456,73 @@ export const BlockEditor: React.FC<Props> = ({
           className={styles.container}
           style={{ overflowY: "auto", height: "100%" }}
         >
-          <svg width="100%" height="100%">
-            {/* Gap rows + blocks */}
-            <g transform={`translate(8, 8)`}>
-              {/* Gap before first block */}
-              <rect
-                data-gap-position={0}
-                x={0} y={0}
-                width="100%"
-                height={24}
-                fill="transparent"
-              />
-              {model.getOps().map((op, i) => (
-                <g key={op.pid}>
-                  <g transform={`translate(0, ${i * 48 + 24})`}>
-                    {renderBlock(op)}
-                  </g>
-                  {/* Gap between blocks */}
-                  <g transform={`translate(0, ${i * 48 + 24 + 36})`}>
-                    <rect
-                      data-gap-position={i + 0.5}
-                      width="100%"
-                      height={24}
-                      fill="transparent"
-                    />
-                  </g>
-                </g>
-              ))}
-              {/* Gap after last block */}
-              <rect
-                data-gap-position={model.getOps().length}
-                x={0} y={model.getOps().length * 48 + 24}
-                width="100%"
-                height={24}
-                fill="transparent"
-              />
+          {(() => {
+            const GAP_H = 24;
+            const MARGIN = 16;
+            let cumY = GAP_H;
+            for (const op of model.getOps()) cumY += getBlockHeight(op) + GAP_H;
+            const totalH = cumY + GAP_H + MARGIN;
 
-              {/* ── Selection cursor (SVG overlay, always on top) ── */}
-              {(() => {
-                const target = model.getCurrentTarget();
-                if (!target) return null;
-                // Compute Y position from nav entry position
-                const y = target.type === "gap"
-                  ? target.position * 48
-                  : target.type === "slot"
-                    ? target.blockIndex * 48 + 24 + 8
-                    : target.blockIndex * 48 + 24;
-                const h = target.type === "gap" ? 24 : target.type === "slot" ? 20 : 36;
-                const w = target.type === "slot" ? 80 : "100%";
-                const x = target.type === "slot" ? 8 : 0;
-                const fill = "none";
-                const stroke = "#cc6b4a";
-                const strokeW = 3;
-                const dash = target.type === "slot" ? "6,4" : "none";
-                const rx = 6;
-                return (
+            return (
+              <svg width="100%" height={totalH}>
+                <g ref={svgGroupRef} transform={`translate(8, 8)`}>
+                  {/* Gap before first block */}
                   <rect
-                    x={x}
-                    y={y}
-                    width={w}
-                    height={h}
-                    fill="rgba(204, 107, 74, 0.12)"
-                    stroke={stroke}
-                    strokeWidth={strokeW}
-                    strokeDasharray={dash}
-                    rx={rx}
+                    data-gap-position={0}
+                    x={0} y={0}
+                    width="100%"
+                    height={GAP_H}
+                    fill="transparent"
                   />
-                );
-              })()}
+                  {(() => {
+                    let cy = GAP_H;
+                    return model.getOps().map((op, i) => {
+                      const y = cy;
+                      const blockH = getBlockHeight(op);
+                      cy += blockH + GAP_H;
+                      return (
+                        <g key={op.pid}>
+                          <g transform={`translate(0, ${y})`}>
+                            {renderBlock(op)}
+                          </g>
+                          <g transform={`translate(0, ${y + blockH})`}>
+                            <rect
+                              data-gap-position={i + 0.5}
+                              width="100%"
+                              height={GAP_H}
+                              fill="transparent"
+                            />
+                          </g>
+                        </g>
+                      );
+                    });
+                  })()}
+                  {/* Gap after last block */}
+                  <rect
+                    data-gap-position={model.getOps().length}
+                    x={0} y={cumY}
+                    width="100%"
+                    height={GAP_H}
+                    fill="transparent"
+                  />
+
+              {/* ── Selection cursor (ref-driven, positioned via useLayoutEffect) ── */}
+              <rect
+                ref={selRectRef}
+                x={0}
+                y={0}
+                width="100%"
+                height={36}
+                fill="rgba(204, 107, 74, 0.12)"
+                stroke="#cc6b4a"
+                strokeWidth={3}
+                rx={6}
+                style={{ display: "none" }}
+              />
             </g>
           </svg>
+          );
+          })()}
         </div>
 
         {showRawInput && (
