@@ -139,4 +139,42 @@ describe("BlockModel — CRUD", () => {
     model.moveLeft();
     expect(model.getCurrentTarget()?.type).toBe("block");
   });
+
+  it("setSlotValue on if_block writes to branches[0].condition", () => {
+    const model = new BlockModel([
+      {
+        kind: "if_block",
+        pid: "if-1",
+        bodyId: "body-1",
+        branches: [
+          {
+            condition: { kind: "empty" },
+            body: [],
+          },
+        ],
+      } as CodeOp,
+    ]);
+    model.setSlotValue(0, "CONDITION", { kind: "text", value: "x > 0" });
+    const op = model.getOps()[0];
+    expect(op.kind).toBe("if_block");
+    if (op.kind === "if_block") {
+      expect(op.branches[0].condition).toEqual({ kind: "text", value: "x > 0" });
+    }
+  });
+
+  it("setSlotValue does not mutate op in-place (immutability)", () => {
+    const original: CodeOp = {
+      kind: "declare_var",
+      pid: "dv-1",
+      mutable: false,
+      name: { kind: "empty" },
+      scope: "fn",
+    };
+    const model = new BlockModel([original]);
+    model.setSlotValue(0, "NAME", { kind: "text", value: "count" });
+    // The original object should be unchanged
+    if (original.kind === "declare_var") {
+      expect(original.name).toEqual({ kind: "empty" });
+    }
+  });
 });

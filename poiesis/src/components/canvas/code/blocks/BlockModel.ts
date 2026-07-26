@@ -171,14 +171,30 @@ export class BlockModel {
       return_stmt: { VALUE: "value" },
       call_fn: { FN_NAME: "fnName", ARGS: "args" },
       await_expr: { VALUE: "value" },
-      if_block: { CONDITION: "condition" },
       while_loop: { CONDITION: "condition" },
       for_in: { ITEM: "itemName", COLLECTION: "collection" },
     };
+
+    // Special handling for if_block: condition lives in branches[0].condition
+    if (op.kind === "if_block") {
+      if (slotName === "CONDITION") {
+        this.ops[blockIndex] = {
+          ...op,
+          branches: [
+            { ...op.branches[0], condition: value },
+            ...op.branches.slice(1),
+          ],
+        } as CodeOp;
+        this.onChange?.();
+      }
+      return;
+    }
+
     const fieldMap = slotFieldMap[op.kind];
     if (!fieldMap || !fieldMap[slotName]) return;
     const field = fieldMap[slotName];
-    (op as Record<string, unknown>)[field] = value;
+    // Create a new object (immutable update) instead of mutating in-place
+    this.ops[blockIndex] = { ...op, [field]: value } as CodeOp;
     this.onChange?.();
   }
 
