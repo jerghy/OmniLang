@@ -10,3 +10,4 @@ export { CommentBlock } from "./CommentBlock";
 export { IfBlock } from "./IfBlock";
 export { WhileBlock } from "./WhileBlock";
 export { ForInBlock } from "./ForInBlock";
+export { RawBlock } from "./RawBlock";
