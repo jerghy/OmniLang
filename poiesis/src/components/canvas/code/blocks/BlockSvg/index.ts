@@ -7,3 +7,6 @@ export { AwaitBlock } from "./AwaitBlock";
 export { BreakBlock } from "./BreakBlock";
 export { ContinueBlock } from "./ContinueBlock";
 export { CommentBlock } from "./CommentBlock";
+export { IfBlock } from "./IfBlock";
+export { WhileBlock } from "./WhileBlock";
+export { ForInBlock } from "./ForInBlock";
