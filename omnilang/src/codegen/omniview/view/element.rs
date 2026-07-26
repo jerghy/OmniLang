@@ -1,17 +1,28 @@
-use rustc_hash::FxHashMap;
+//! Element rendering: HTML element generation with props, events,
+//! bindings, inline styles, motion triggers, and element tree recording.
+//!
+//! The primary entry point is `element_to_html`, which converts an `ElementIR`
+//! into its full HTML representation (including deferred JS bindings written
+//! to `self.js` / `self.mount_js` etc.).
 
-use super::utils::{escape_html, map_event, map_tag};
-use super::ElementTreeNode;
-use super::OmniViewGenerator;
+use rustc_hash::FxHashMap;
+use std::fmt::Write;
+
+use super::super::utils::{escape_html, map_event, map_tag, parse_attr_template};
+use super::super::ElementTreeNode;
+use super::super::OmniViewGenerator;
 use crate::codegen::emit_event_object;
 use crate::codegen::{camel_to_kebab, sanitize_css_value};
 use crate::ir::*;
 use crate::sourcemap::{SourceMapEntry, SourceSpan, TargetSpan, TargetSpanKind};
-use std::fmt::Write;
 
 impl OmniViewGenerator {
+    // ═══════════════════════════════════════════════════════════════
+    // Element Tree Helpers
+    // ═══════════════════════════════════════════════════════════════
+
     /// Begin recording a tree node. Called when we emit an opening tag.
-    fn tree_push(&mut self, nid: String, tag: String) {
+    pub(super) fn tree_push(&mut self, nid: String, tag: String) {
         self.element_tree_stack.push(ElementTreeNode {
             nid,
             tag,
@@ -21,7 +32,7 @@ impl OmniViewGenerator {
     }
 
     /// Add a text leaf node to the current parent's children.
-    fn tree_text(&mut self, nid: String, text: String) {
+    pub(super) fn tree_text(&mut self, nid: String, text: String) {
         let node = ElementTreeNode {
             nid,
             tag: "#text".to_string(),
@@ -36,7 +47,7 @@ impl OmniViewGenerator {
     }
 
     /// Finish recording a tree node. Pops the stack and appends to parent.
-    fn tree_pop(&mut self) {
+    pub(super) fn tree_pop(&mut self) {
         if let Some(node) = self.element_tree_stack.pop() {
             if let Some(parent) = self.element_tree_stack.last_mut() {
                 parent.children.push(node);
@@ -46,142 +57,33 @@ impl OmniViewGenerator {
         }
     }
 
-    pub(super) fn next_nid(&mut self, tag: &str) -> String {
+    /// Allocate the next node ID (nid) for a given HTML tag.
+    ///
+    /// `pub(crate)` so that `editor.rs` (outside `view/`) can call it
+    /// via `self.next_nid()`. Sibling modules within `view/` also see it.
+    pub(crate) fn next_nid(&mut self, tag: &str) -> String {
         self.node_counter += 1;
         format!("el-{}-{:03}", tag, self.node_counter)
     }
 
-    pub(super) fn view_to_html(&mut self, view: &ViewTree, indent: usize) -> String {
-        let pad = "  ".repeat(indent);
-        match view {
-            ViewTree::Element(el) => self.element_to_html(el, indent),
-            ViewTree::Text(text) => {
-                if text.trim().is_empty() {
-                    String::new()
-                } else {
-                    let tnid = self.next_nid("text");
-                    self.tree_text(tnid, escape_html(text));
-                    format!("{}{}\n", pad, escape_html(text))
-                }
-            }
-            ViewTree::Interpolation(expr) => {
-                // Determine display text for the element tree (editor canvas preview).
-                // Prefer the signal's default value, fall back to the expression label.
-                let expr_label = self.expr_label(expr);
-                let tree_text_content = self.signal_defaults
-                    .get(&expr_label)
-                    .cloned()
-                    .unwrap_or_else(|| expr_label.clone());
+    // ═══════════════════════════════════════════════════════════════
+    // Element → HTML
+    // ═══════════════════════════════════════════════════════════════
 
-                if self.in_for_template {
-                    // Inside @for template: collect pre-compiled binding
-                    let nid = self.next_nid("interp");
-                    let js_expr = self.expr_to_js(expr);
-                    self.for_text_bindings.push((nid.clone(), js_expr));
-                    // Add to element tree: span with value/default text
-                    let text_nid = self.next_nid("text");
-                    self.tree_push(nid.clone(), "span".to_string());
-                    self.tree_text(text_nid, tree_text_content);
-                    self.tree_pop();
-                    format!("{}<span data-nid=\"{}\"></span>\n", pad, nid)
-                } else {
-                    // Emit placeholder span + deferred _effect() binding
-                    let nid = self.next_nid("interp");
-                    let js_expr = self.expr_to_js(expr);
-                    // Strip trailing () for signal/computed name lookup
-                    let js_expr_base = js_expr.trim_end_matches("()");
-                    let value_access = if self.signal_names.contains(js_expr_base) {
-                        format!("{}.value", js_expr_base)
-                    } else {
-                        js_expr
-                    };
-                    // Write to self.js (which is the deferred buffer after emit_view swap)
-                    let _ = writeln!(self.js,
-                        "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) try {{ el.textContent = String({}); }} catch(e) {{ __omni_reportError(\"interpolation:text\", e); }} }});",
-                        nid, value_access
-                    );
-                    // Add to element tree: span with value/default text
-                    let text_nid = self.next_nid("text");
-                    self.tree_push(nid.clone(), "span".to_string());
-                    self.tree_text(text_nid, tree_text_content);
-                    self.tree_pop();
-                    format!("{}<span data-nid=\"{}\"></span>\n", pad, nid)
-                }
-            }
-            ViewTree::Conditional(cond) => {
-                if self.css_only {
-                    self.emit_conditional_css_only(cond, indent)
-                } else {
-                    self.emit_conditional_html(cond, indent)
-                }
-            }
-            ViewTree::ListRendering(list) => self.emit_list_rendering_html(list, indent),
-            ViewTree::Slot(name) => match name {
-                Some(ref n) => format!("{}<slot name=\"{}\"></slot>\n", pad, n),
-                None => format!("{}<slot></slot>\n", pad),
-            },
-        }
-    }
-
-    /// Generate element tree entries for only the active conditional branch
-    /// when in css_only (canvas preview) mode.
+    /// Convert a single `ElementIR` node into its HTML representation.
     ///
-    /// Evaluates each branch's condition against `signal_defaults` (which
-    /// reflect the debug-patched signal values from the store). Only the
-    /// first matching branch is rendered; unmatched branches are skipped.
-    /// Complex conditions that can't be statically evaluated fall back to
-    /// the `else` branch (or nothing if no `else` exists).
+    /// Generates the opening tag (with data-nid, static attrs, variant classes,
+    /// hero attrs, inline style, event data-attrs, motion data-attrs), then
+    /// recurses into children, and finally writes the closing tag.
     ///
-    /// Branch bodies are wrapped in a synthetic `<fragment>` element by the
-    /// IR lowerer. We unwrap it here so branch children bypass the fragment.
-    ///
-    /// Each active branch is wrapped in a `<div>` container node in the
-    /// element tree. This matches the non-css_only path (`emit_conditional_html`)
-    /// which wraps each branch in a `<div>` for display toggling. Without this
-    /// wrapper, conditional children flow inline with adjacent elements instead
-    /// of occupying their own block row.
-    fn emit_conditional_css_only(
-        &mut self,
-        cond: &ConditionalIntent,
-        indent: usize,
-    ) -> String {
-        for branch in &cond.branches {
-            if eval_condition_for_canvas(&branch.condition, &self.signal_defaults) {
-                if let Some(ref body) = branch.body {
-                    let wrapper_nid = self.next_nid("if-branch");
-                    self.tree_push(wrapper_nid, "div".to_string());
-                    self.render_branch_body(body, indent);
-                    self.tree_pop();
-                }
-                return String::new();
-            }
-        }
-        // No condition matched — render fallback (else branch) if present
-        if let Some(ref fallback) = cond.fallback {
-            let wrapper_nid = self.next_nid("if-else");
-            self.tree_push(wrapper_nid, "div".to_string());
-            self.render_branch_body(fallback, indent);
-            self.tree_pop();
-        }
-        String::new()
-    }
-
-    /// Render a branch body into the element tree, unwrapping any synthetic
-    /// `<fragment>` wrapper so children appear at the correct nesting level.
-    fn render_branch_body(&mut self, body: &ViewTree, indent: usize) {
-        match body {
-            ViewTree::Element(el) if el.tag == "fragment" => {
-                // Unwrap fragment: render each child directly
-                for child in &el.children {
-                    self.view_to_html(child, indent);
-                }
-            }
-            _ => {
-                self.view_to_html(body, indent);
-            }
-        }
-    }
-
+    /// Side-effects:
+    /// - Writes deferred JS (events, reactive effects, motion triggers) to
+    ///   `self.js` / `self.mount_js`.
+    /// - Accumulates element classes and tags in `self.element_classes` /
+    ///   `self.element_tags` (used in css_only mode and for the React editor).
+    /// - Builds the structured element tree in `self.element_tree_stack`.
+    /// - Records source-map entries in `self.source_map`.
+    /// - Pushes warnings for unknown/unresolved class references.
     pub(super) fn element_to_html(&mut self, el: &ElementIR, indent: usize) -> String {
         let pad = "  ".repeat(indent);
         let _pad_inner = "  ".repeat(indent + 1);
@@ -241,7 +143,6 @@ impl OmniViewGenerator {
                     }
                 }
                 // Real HTML attributes — emit as-is, not data-*
-                // "class" is handled separately to support merging with variant-expanded class names
                 "id" | "placeholder" | "type" | "value" | "disabled" | "checked" | "required"
                 | "readonly" | "href" | "src" | "alt" | "title" | "name" | "rows" | "cols"
                 | "max" | "min" | "step" | "autocomplete" | "autofocus" | "multiple"
@@ -318,7 +219,7 @@ impl OmniViewGenerator {
                         } else {
                             format!("data-{}", name)
                         };
-                        let parts = super::utils::parse_attr_template(&val_str);
+                        let parts = parse_attr_template(&val_str);
                         self.for_attr_bindings.push((nid.clone(), attr_name, parts));
                     } else if name.starts_with("aria-") || name.starts_with("data-") {
                         // Real HTML aria/data attributes — emit as-is
@@ -340,7 +241,7 @@ impl OmniViewGenerator {
                     value.get("variant_name").and_then(|v| v.as_str()),
                     value.get("dimension_values"),
                 ) {
-                    let dim_map: rustc_hash::FxHashMap<String, String> = dim_values
+                    let dim_map: FxHashMap<String, String> = dim_values
                         .as_object()
                         .map(|obj| {
                             obj.iter()
@@ -443,7 +344,7 @@ impl OmniViewGenerator {
                                 // Use camelCase for JS el.style, not kebab-case
                                 let js_prop = prop;
                                 let _ =
-                                    write!(self.js, 
+                                    write!(self.js,
                                     "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) ",
                                     nid
                                 );
@@ -473,7 +374,7 @@ impl OmniViewGenerator {
                                 }
                                 let js_prop = prop; // camelCase for el.style
                                 let _ =
-                                    write!(self.js, 
+                                    write!(self.js,
                                     "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) ",
                                     nid
                                 );
@@ -510,7 +411,7 @@ impl OmniViewGenerator {
                                         }
                                     }
                                     let js_prop = prop; // camelCase for el.style
-                                    let _ = write!(self.js, 
+                                    let _ = write!(self.js,
                                         "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) ",
                                         nid
                                     );
@@ -632,7 +533,7 @@ impl OmniViewGenerator {
                     EventHandlerIR::FnRef { r#ref, .. } => {
                         if self.motion_names.contains(r#ref.as_str()) {
                             // Motion reference: call factory and play on event
-                            let _ = writeln!(self.js, 
+                            let _ = writeln!(self.js,
                                 "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ if (el.offsetParent !== null) {{ var p = __omni_motion_{motion}(el, {{}}); __omni_animations.set(\"{nid}_{js_event}\", p); p.play(); }} }}); }}",
                                 nid = nid,
                                 js_event = js_event,
@@ -642,7 +543,7 @@ impl OmniViewGenerator {
                             let prefixed = format!("{}_{}", self.current_component, r#ref);
                             let event_obj =
                                 emit_event_object(handler.event_data(), handler.used_fields(), "e");
-                            let _ = writeln!(self.js, 
+                            let _ = writeln!(self.js,
                                 "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ {sp} {pd} {prefixed}({event_obj}); }}); }}",
                                 nid = nid, js_event = js_event, sp = sp, pd = pd, prefixed = prefixed, event_obj = event_obj
                             );
@@ -650,7 +551,7 @@ impl OmniViewGenerator {
                     }
                     EventHandlerIR::StoreAction { r#ref, .. } => {
                         let var_name = r#ref.replace('.', "_");
-                        let _ = writeln!(self.js, 
+                        let _ = writeln!(self.js,
                             "{{ const el = __omni_el(\"{}\"); if (el) el.addEventListener(\"{}\", (e) => {{ {} {} {}(); }}); }}",
                             nid, js_event, sp, pd, var_name
                         );
@@ -665,7 +566,7 @@ impl OmniViewGenerator {
                         self.js.push_str("}\n");
                         let event_obj =
                             emit_event_object(handler.event_data(), handler.used_fields(), "e");
-                        let _ = writeln!(self.js, 
+                        let _ = writeln!(self.js,
                             "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ {sp} {pd} {wrapper_name}({event_obj}); }}); }}",
                             nid = nid, js_event = js_event, sp = sp, pd = pd, wrapper_name = wrapper_name, event_obj = event_obj
                         );
@@ -707,10 +608,6 @@ impl OmniViewGenerator {
 
         // Pre-scan children for interpolations → add data-bind-text to attrs
         // This MUST happen BEFORE writing the opening tag.
-        // Note: under normal lowering, {expr} becomes ViewTree::Interpolation, not
-        // ViewTree::Text. This pre-scan is a defense-in-depth fallback that should
-        // never trigger for well-formed IR. If it does trigger, we validate that
-        // the expression is a safe identifier before injecting into JS code.
         let mut interp_effects: Vec<String> = Vec::new();
         for child in &el.children {
             if let ViewTree::Text(ref text) = child {
@@ -730,15 +627,11 @@ impl OmniViewGenerator {
                             nid, expr
                         ));
                     }
-                    // If not safe and not in template, silently skip — this fallback
-                    // should never trigger for well-formed IR.
                 }
             }
         }
 
         // Motion triggers — emit animation setup for @enter, @hover, @press, @focus, @leave
-        // IMPORTANT: MUST be before the void element return below, otherwise void
-        // elements like <input> never get their motion triggers emitted!
         if el.motion_behavior().is_some_and(|m| !m.triggers.is_empty()) {
             // Also emit HTML data attributes for each trigger so runtime can discover them
             for trigger in el
@@ -924,8 +817,6 @@ impl OmniViewGenerator {
                 self.js.push_str(effect);
             }
             // Class map dynamic bindings
-            // Note: for @for templates, bindings are already collected in for_class_bindings
-            // at the class map section above — no need to emit data-class-expr.
             if !self.in_for_template && !el.class_map_bindings.is_empty() {
                 for (class_name, expr) in &el.class_map_bindings {
                     let js_expr = self.expr_to_js(expr);
@@ -945,16 +836,12 @@ impl OmniViewGenerator {
         }
 
         // For <fragment> wrapper inside @for template: emit children without wrapper.
-        // The <fragment> custom element would strip <tr>/<td> children when parsed
-        // by the browser inside a table context (<tbody>, <template> within <tbody>).
         if self.in_for_template && html_tag == "fragment" {
             for child in &el.children {
                 let child_html = self.view_to_html(child, indent + 1);
                 out.push_str(&child_html);
             }
             self.tree_pop(); // fragment has no wrapper, pop after children
-            // Fragment attrs like data-class-expr are handled via data-* on inner elements
-            // Skip the closing tag since we didn't emit an opening tag.
         } else {
             let _ = writeln!(out, "{}<{}{}>", pad, html_tag, attrs);
 
@@ -977,7 +864,6 @@ impl OmniViewGenerator {
                     })
                     .unwrap_or_else(|| nid.clone());
                 // Resolve design class references ("AppDesign.card" → "card")
-                // so the CSS class name matches the generated selector `.card`.
                 let resolved_classes: Vec<String> = class_name_parts.iter().map(|c| {
                     if let Some(dot_pos) = c.find('.') {
                         c[dot_pos + 1..].to_string()
@@ -985,8 +871,6 @@ impl OmniViewGenerator {
                         c.clone()
                     }
                 }).collect();
-                // Key element_classes and element_tags by nid (not id prop)
-                // because the React OmniViewElementTree looks up by node.nid.
                 self.element_classes
                     .insert(nid.clone(), resolved_classes);
                 self.element_tags
@@ -1006,8 +890,6 @@ impl OmniViewGenerator {
         }
 
         // Class map dynamic bindings: for each dynamic class, emit an effect
-        // that toggles it reactively via classList.toggle().
-        // When inside @for template, this is handled by data-class-expr attrs instead.
         if !self.in_for_template && !el.class_map_bindings.is_empty() {
             for (class_name, expr) in &el.class_map_bindings {
                 let js_expr = self.expr_to_js(expr);
@@ -1016,7 +898,7 @@ impl OmniViewGenerator {
                 } else {
                     js_expr
                 };
-                let _ = writeln!(self.js, 
+                let _ = writeln!(self.js,
                     "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) el.classList.toggle(\"{}\", !!({})); }});",
                     nid, class_name, js_access
                 );
@@ -1042,133 +924,4 @@ impl OmniViewGenerator {
 
         out
     }
-}
-
-// ══════════════════════════════════════════════════════════
-// Canvas conditional evaluation (css_only mode)
-// ══════════════════════════════════════════════════════════
-
-/// Statically evaluate a conditional branch expression against signal default values.
-///
-/// Used in `css_only` (canvas preview) mode to determine which `@if` / `@else if`
-/// branch to render. Signal default values are patched by the TS-side debug signal
-/// panel before WASM compilation, so they reflect the user's debug overrides.
-///
-/// Returns `false` for any expression that can't be statically evaluated, causing
-/// a fallback to the `@else` branch (or empty output).
-fn eval_condition_for_canvas(
-    expr: &ExprIR,
-    signal_defaults: &FxHashMap<String, String>,
-) -> bool {
-    match expr {
-        ExprIR::LiteralExpr { value } => is_truthy_str(&literal_to_string(value)),
-        ExprIR::IdentifierExpr { name, .. } => signal_defaults
-            .get(name)
-            .map(|v| is_truthy_str(v))
-            .unwrap_or(false),
-        ExprIR::BinaryOpExpr { op, left, right } => match op {
-            BinaryOpIR::Eq => {
-                let l = signal_or_literal_value(left, signal_defaults);
-                let r = signal_or_literal_value(right, signal_defaults);
-                matches!((l, r), (Some(lv), Some(rv)) if lv == rv)
-            }
-            BinaryOpIR::Neq => {
-                let l = signal_or_literal_value(left, signal_defaults);
-                let r = signal_or_literal_value(right, signal_defaults);
-                matches!((l, r), (Some(lv), Some(rv)) if lv != rv)
-            }
-            BinaryOpIR::And => {
-                eval_condition_for_canvas(left, signal_defaults)
-                    && eval_condition_for_canvas(right, signal_defaults)
-            }
-            BinaryOpIR::Or => {
-                eval_condition_for_canvas(left, signal_defaults)
-                    || eval_condition_for_canvas(right, signal_defaults)
-            }
-            // Gt, Lt, GtEq, LtEq — numeric comparison
-            BinaryOpIR::Gt | BinaryOpIR::Lt | BinaryOpIR::GtEq | BinaryOpIR::LtEq => {
-                let l = signal_or_literal_value(left, signal_defaults);
-                let r = signal_or_literal_value(right, signal_defaults);
-                match (l.and_then(|v| v.parse::<f64>().ok()), r.and_then(|v| v.parse::<f64>().ok())) {
-                    (Some(ln), Some(rn)) => match op {
-                        BinaryOpIR::Gt => ln > rn,
-                        BinaryOpIR::Lt => ln < rn,
-                        BinaryOpIR::GtEq => ln >= rn,
-                        BinaryOpIR::LtEq => ln <= rn,
-                        _ => false,
-                    },
-                    _ => false,
-                }
-            }
-            _ => false,
-        },
-        ExprIR::UnaryOpExpr { op: UnaryOpIR::Not, operand } => {
-            !eval_condition_for_canvas(operand, signal_defaults)
-        }
-        // Field access like `Store.field` — look up "Store.field" in signal_defaults
-        ExprIR::FieldAccessExpr { object, field } => {
-            if let ExprIR::IdentifierExpr { name, .. } = object.as_ref() {
-                let key = format!("{}.{}", name, field);
-                signal_defaults
-                    .get(&key)
-                    .map(|v| is_truthy_str(v))
-                    .unwrap_or(false)
-            } else {
-                false
-            }
-        }
-        _ => false, // Complex expression — can't evaluate, default to inactive
-    }
-}
-
-/// Extract a comparable string value from an expression.
-///
-/// For `IdentifierExpr`: looks up the signal's debug-patched default value.
-/// For `LiteralExpr`: extracts the raw value (strings without quotes, numbers
-/// as decimal strings, booleans as "true"/"false").
-/// Returns `None` for complex expressions that can't be statically resolved.
-fn signal_or_literal_value(
-    expr: &ExprIR,
-    signal_defaults: &FxHashMap<String, String>,
-) -> Option<String> {
-    match expr {
-        ExprIR::IdentifierExpr { name, .. } => signal_defaults.get(name).cloned(),
-        ExprIR::LiteralExpr { value } => Some(literal_to_string(value)),
-        ExprIR::FieldAccessExpr { object, field } => {
-            if let ExprIR::IdentifierExpr { name, .. } = object.as_ref() {
-                let key = format!("{}.{}", name, field);
-                signal_defaults.get(&key).cloned()
-            } else {
-                None
-            }
-        }
-        _ => None,
-    }
-}
-
-/// Convert a JSON literal value to a stripped string for comparison.
-///
-/// Strings are returned without surrounding quotes to match the format
-/// used by `expr_default_display` when populating `signal_defaults`.
-fn literal_to_string(value: &serde_json::Value) -> String {
-    match value {
-        serde_json::Value::String(s) => s.clone(),
-        serde_json::Value::Bool(b) => b.to_string(),
-        serde_json::Value::Number(n) => n.to_string(),
-        serde_json::Value::Null => "null".to_string(),
-        _ => value.to_string(),
-    }
-}
-
-/// Check if a string value from `signal_defaults` is truthy.
-///
-/// Handles values stored by `expr_default_display`: strings are unquoted,
-/// numbers and booleans are their literal JS representations.
-fn is_truthy_str(v: &str) -> bool {
-    !v.is_empty()
-        && v != "false"
-        && v != "null"
-        && v != "undefined"
-        && v != "0"
-        && v != "0.0"
 }

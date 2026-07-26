@@ -13,7 +13,6 @@ mod component_html;
 pub mod design;
 mod editor;
 mod expr;
-mod html;
 mod list;
 mod list_render;
 mod motion;
