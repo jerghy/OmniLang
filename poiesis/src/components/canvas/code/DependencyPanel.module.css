@@ -1,0 +1,126 @@
+/* DependencyPanel.module.css — uses --ol-* design tokens */
+
+.panel {
+  width: 260px;
+  min-width: 260px;
+  height: 100%;
+  border-left: 1px solid var(--ol-border);
+  background: var(--ol-surface);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-size: var(--ol-font-size-12);
+  color: var(--ol-text);
+}
+
+.placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--ol-text-muted);
+  font-size: var(--ol-font-size-13);
+}
+
+.scrollArea {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.section {
+  padding: var(--ol-space-3) var(--ol-space-3);
+}
+
+.section + .section {
+  border-top: 1px solid var(--ol-border-subtle);
+}
+
+.sectionHeader {
+  font-size: var(--ol-font-size-11);
+  font-weight: var(--ol-font-weight-600);
+  color: var(--ol-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: var(--ol-space-2);
+}
+
+.entry {
+  display: flex;
+  align-items: center;
+  gap: var(--ol-space-2);
+  padding: var(--ol-space-1) 0;
+  min-height: 22px;
+}
+
+.entryName {
+  font-family: var(--ol-font-family-mono);
+  font-size: var(--ol-font-size-12);
+  color: var(--ol-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+.kindBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--ol-space-1p5);
+  border-radius: var(--ol-radius-sm);
+  font-size: var(--ol-font-size-10);
+  line-height: 1.6;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.kindParam {
+  background: var(--ol-color-primary-muted);
+  color: var(--ol-color-primary-active);
+}
+
+.kindSignal {
+  background: var(--ol-color-warning-muted);
+  color: var(--ol-color-warning-active);
+}
+
+.kindComputed {
+  background: var(--ol-color-info-muted);
+  color: var(--ol-color-info-active);
+}
+
+.kindProp {
+  background: var(--ol-color-success-muted);
+  color: var(--ol-color-success-active);
+}
+
+.kindStore {
+  background: var(--ol-color-danger-muted);
+  color: var(--ol-color-danger-active);
+}
+
+.kindLocal {
+  background: var(--ol-gray-300);
+  color: var(--ol-gray-700);
+}
+
+.kindFunction {
+  background: var(--ol-color-primary-subtle);
+  color: var(--ol-color-primary);
+}
+
+.kindUnknown {
+  background: var(--ol-gray-200);
+  color: var(--ol-text-muted);
+}
+
+.sourceLine {
+  margin-left: auto;
+  font-size: var(--ol-font-size-10);
+  font-family: var(--ol-font-family-mono);
+  color: var(--ol-text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+  padding-left: var(--ol-space-1);
+}
