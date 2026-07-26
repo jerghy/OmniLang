@@ -36,22 +36,19 @@ component TodoPage {
     }
 
     view {
-        <div class: todo-page>
-            <!-- 页面标题区 -->
+        <div class: LearnDesign.Container>
             <header class: page-header>
-                <h2 class: page-title>Todo List</h2>
-                <p class: page-subtitle>
+                <h2 class: LearnDesign.PageTitle>Todo List</h2>
+                <p class: LearnDesign.PageSubtitle>
                     {TodoStore.totalCount} tasks · Filter: {TodoStore.filterStatus}
                 </p>
                 <span class: load-badge>Loaded ×{pageLoadCount}</span>
             </header>
 
-            <!-- 过滤工具栏（Phase 5：Store 驱动过滤 UI） -->
             <section class: LearnDesign.Section>
                 <FilterBar />
             </section>
 
-            <!-- 待办列表（@for/@empty + 组件组合） -->
             <section class: LearnDesign.Section>
                 <TodoList
                     items={TodoStore.items}
@@ -60,30 +57,16 @@ component TodoPage {
                 />
             </section>
 
-            <!-- 快捷操作区 -->
             <footer class: page-footer>
-                <button
-                    variant: LearnDesign.Button(color=danger, size=sm)
-                    @onPress={() => { TodoStore.clear(); }}
-                >Clear All</button>
-                <button
-                    variant: LearnDesign.Button(color=primary, size=sm)
-                    @onPress={() => { TodoStore.fetchReminders(); }}
-                >Sync Reminders</button>
-                <span class: LearnDesign.Hint style: { margin-left: "auto" }>
-                    Last: {TodoStore.lastAction}
-                </span>
+                <button variant: LearnDesign.Button(color=danger, size=sm) @onPress={() => { TodoStore.clear(); }}>Clear All</button>
+                <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={() => { TodoStore.fetchReminders(); }}>Sync Reminders</button>
+                <span class: LearnDesign.Hint style: { margin-left: "auto" }>Last: {TodoStore.lastAction}</span>
             </footer>
         </div>
     }
     style {
-        // 待办页面特有的布局（页面容器、头部、页脚）
-        .todo-page { background: #fff; border: 1px solid #d4d4d8; border-radius: 12px; margin: 16px 0; overflow: hidden; max-width: 90vw; }
-        .page-header { padding: 20px; background: #f9fafb; border-bottom: 1px solid #e5e7eb; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
-        .page-title { font-size: 22px; font-weight: 700; color: #111; margin: 0; }
-        .page-subtitle { font-size: 13px; color: #888; margin: 0; flex: 1; }
+        .page-header { padding: 20px; background: var(--surfaceMuted); border-bottom: 1px solid var(--borderLight); display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
         .load-badge { font-size: 11px; background: #dbf0ff; color: #1d40d0; padding: 3px 10px; border-radius: 10px; }
-        .page-footer { padding: 12px 20px; background: #f9fafb; border-top: 1px solid #e5e7eb; display: flex; align-items: center; gap: 8px; }
-        // .action-btn / .clear-btn / .sync-btn / .footer-hint 已由 LearnDesign.Button / Hint 提供
+        .page-footer { padding: 12px 20px; background: var(--surfaceMuted); border-top: 1px solid var(--borderLight); display: flex; align-items: center; gap: 8px; }
     }
 }

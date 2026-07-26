@@ -1,0 +1,30 @@
+// TabBar — 浏览器风格标签页导航组件
+import omniview;
+
+component TabBar {
+    prop activeTab: String = "home";
+    event onSwitch: String;
+
+    fn isActive(tab: String) -> bool { return activeTab == tab; }
+
+    view {
+        <div class: tab-strip>
+            <button class: { tab: true, tabActive: isActive("home") } @onPress={() => { onSwitch("home"); }}>首页</button>
+            <button class: { tab: true, tabActive: isActive("todo") } @onPress={() => { onSwitch("todo"); }}>待办</button>
+            <button class: { tab: true, tabActive: isActive("interactive") } @onPress={() => { onSwitch("interactive"); }}>基础交互</button>
+            <button class: { tab: true, tabActive: isActive("compiler") } @onPress={() => { onSwitch("compiler"); }}>编译器特性</button>
+            <button class: { tab: true, tabActive: isActive("motion") } @onPress={() => { onSwitch("motion"); }}>运动动画</button>
+            <button class: { tab: true, tabActive: isActive("css") } @onPress={() => { onSwitch("css"); }}>CSS 特性</button>
+            <button class: { tab: true, tabActive: isActive("events") } @onPress={() => { onSwitch("events"); }}>事件/表单</button>
+            <button class: { tab: true, tabActive: isActive("language") } @onPress={() => { onSwitch("language"); }}>语言特性</button>
+            <button class: { tab: true, tabActive: isActive("settings") } @onPress={() => { onSwitch("settings"); }}>设置</button>
+            <button class: { tab: true, tabActive: isActive("supplement") } @onPress={() => { onSwitch("supplement"); }}>补充</button>
+        </div>
+    }
+    style {
+        .tab-strip { display: flex; gap: 0; padding: 0 8px; border-bottom: 1px solid var(--border); }
+        .tab { padding: 10px 18px; border: 1px solid transparent; border-bottom: none; border-radius: 8px 8px 0 0; background: transparent; color: var(--textSecondary); font-size: 13px; font-weight: 500; cursor: pointer; position: relative; transition: all 150ms; white-space: nowrap; }
+        .tab:hover { background: var(--surfaceSubtle); border-color: var(--borderLight); color: var(--textPrimary); }
+        .tabActive { background: var(--surface); border-color: var(--border); color: var(--primary); font-weight: 600; padding-bottom: 11px; }
+    }
+}

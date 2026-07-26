@@ -218,6 +218,31 @@ design LearnDesign {
         color: token(textPrimary);
     }
 
+    // ── Demo 通用容器（替代各处硬编码 .container / .box）──
+    class Container {
+        background: token(surface);
+        border: "1px solid " token(border);
+        border-radius: token(radiusLg);
+        padding-top: token(spaceLg);
+        padding-bottom: token(spaceLg);
+        padding-left: token(spaceMd);
+        padding-right: token(spaceMd);
+        margin: "16px 0";
+    }
+
+    class Subtitle {
+        font-size: token(fontSizeSm);
+        color: token(textMuted);
+        margin: "0 0 16px 0";
+    }
+
+    class Label {
+        font-size: token(fontSizeMd);
+        font-weight: token(fontWeightSemibold);
+        color: token(textPrimary);
+        margin: "0 0 8px 0";
+    }
+
     // ── Footer ──
     class Footer {
         text-align: center;

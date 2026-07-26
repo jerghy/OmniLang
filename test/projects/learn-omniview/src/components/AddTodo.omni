@@ -45,9 +45,9 @@ component AddTodo {
     }
 
     view {
-        <div class: container>
-            <div class: row>
-                <input bind:value={input} placeholder={hint} class: input />
+        <div class: add-todo-container>
+            <div class: LearnDesign.Row>
+                <input bind:value={input} placeholder={hint} class: LearnDesign.Input style: { flex: 1 } />
                 <button variant: LearnDesign.Button(color=primary, size=md) @onPress={handleAdd}>添加</button>
                 <button variant: LearnDesign.Button(color=danger, size=md) @onPress={() => { input = ""; }}>清空</button>
             </div>
@@ -55,11 +55,6 @@ component AddTodo {
         </div>
     }
     style {
-        // 组件特有的输入框布局（非通用模式，保留在组件级）
-        .container { padding: 0 16px 16px 16px; }
-        .row { display: flex; gap: 8px; }
-        .input { flex: 1; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 16px; outline: none; }
-        .input:focus { border-color: #6366f1; box-shadow: 0 0 0 3px #a5b4fc; }
-        // .btn-add / .btn-clear / .counter 已由 LearnDesign.Button 变体 / Hint 类提供
+        .add-todo-container { padding: 0 16px 16px 16px; }
     }
 }

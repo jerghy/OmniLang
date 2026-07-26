@@ -1,4 +1,5 @@
 import omniview;
+import { LearnDesign } from "../design";
 
 // @pid:c5
 component TodoItem {

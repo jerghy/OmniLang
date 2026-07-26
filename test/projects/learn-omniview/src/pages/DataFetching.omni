@@ -53,15 +53,15 @@ component DataFetching {
     }
 
     view {
-        <div class: data-fetching>
-            <h3 class: title>HTTP GET Demo</h3>
-            <p class: desc>async action + await http_get + json_parse + match</p>
+        <div class: LearnDesign.Container>
+            <h3 class: LearnDesign.CardTitle>HTTP GET Demo</h3>
+            <p class: LearnDesign.Subtitle>async action + await http_get + json_parse + match</p>
 
             <div class: controls>
                 <input bind:value={url} class: url-input></input>
-                <button class: btn-load @onPress={loadData}>Load</button>
-                <button class: btn-api @onPress={loadViaApi}>API</button>
-                <button class: btn-reset @onPress={reset}>Reset</button>
+                <button variant: LearnDesign.Button(color=primary, size=md) @onPress={loadData}>Load</button>
+                <button variant: LearnDesign.Button(color=accent, size=md) @onPress={loadViaApi}>API</button>
+                <button variant: LearnDesign.Button(color=ghost, size=md) @onPress={reset}>Reset</button>
             </div>
 
             @if status == "loading" {
@@ -71,13 +71,13 @@ component DataFetching {
             }
             @else if status == "success" {
                 <div class: status-box success-box>
-                    <p class: label>Response:</p>
+                    <p class: LearnDesign.Label>Response:</p>
                     <pre class: result>{resultText}</pre>
                 </div>
             }
             @else if status == "error" {
                 <div class: status-box error-box>
-                    <p class: label>Error:</p>
+                    <p class: LearnDesign.Label>Error:</p>
                     <p class: error-text>{errorMsg}</p>
                 </div>
             }
@@ -89,23 +89,15 @@ component DataFetching {
         </div>
     }
     style {
-        .data-fetching { background: #fff; border: 1px solid #ddd; border-radius: 12px; padding: 20px 16px; margin: 16px 0; }
-        .title { font-size: 18px; color: #1f2937; margin: 0 0 4px 0; }
-        .desc { font-size: 13px; color: #6b7280; margin: 0 0 12px 0; }
         .controls { display: flex; gap: 8px; margin-bottom: 12px; }
-        .url-input { flex: 1; padding: 8px 12px; border: 1px solid #d4d4d8; border-radius: 6px; font-size: 13px; }
-        .btn-load { padding: 8px 16px; background: #6366f1; color: #fff; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; }
-        .btn-api { padding: 8px 16px; background: #8b5cf6; color: #fff; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; }
-        .btn-reset { padding: 8px 16px; background: #6b7280; color: #fff; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; }
-        .status-box { padding: 12px; border-radius: 8px; background: #f9fafb; border: 1px solid #d4d4d8; }
-        .loading-box { border-color: #6366f1; background: #f0f4ff; }
-        .success-box { border-color: #22c55d; background: #f0fdf4; }
-        .error-box { border-color: #f97316; background: #fff5f0; }
-        .idle-box { }
-        .label { font-size: 13px; font-weight: 600; color: #374151; margin: 0 0 4px 0; }
-        .result { font-size: 12px; color: #333; margin: 0; max-height: 200px; overflow-y: auto; background: #fff; padding: 8px; border-radius: 4px; }
-        .loading-text { color: #6366f1; font-size: 14px; margin: 0; }
-        .idle-text { color: #6b7280; font-size: 14px; margin: 0; }
-        .error-text { color: #f97316; font-size: 14px; margin: 0; }
+        .url-input { flex: 1; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radiusMd); font-size: 13px; }
+        .status-box { padding: 12px; border-radius: 8px; background: var(--surfaceMuted); border: 1px solid var(--border); }
+        .loading-box { border-color: var(--primary); background: #f0f4ff; }
+        .success-box { border-color: var(--success); background: #f0fdf4; }
+        .error-box { border-color: var(--warning); background: #fff5f0; }
+        .result { font-size: 12px; color: #333; margin: 0; max-height: 200px; overflow-y: auto; background: var(--surface); padding: 8px; border-radius: var(--radiusSm); }
+        .loading-text { color: var(--primary); font-size: 14px; margin: 0; }
+        .idle-text { color: var(--textSecondary); font-size: 14px; margin: 0; }
+        .error-text { color: var(--warning); font-size: 14px; margin: 0; }
     }
 }

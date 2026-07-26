@@ -1,0 +1,16 @@
+// CompilerPage — 编译器特性：HTTP、数据提交、用户设置
+import omniview;
+import { LearnDesign } from "../design";
+import { DataFetching } from "./DataFetching";
+import { DataSubmit } from "./DataSubmit";
+import { UserSettings } from "./UserSettings";
+
+component CompilerPage {
+    view {
+        <section class: LearnDesign.DemoSection>
+            <div class: LearnDesign.DemoFull><DataFetching /></div>
+            <div class: LearnDesign.DemoFull><DataSubmit /></div>
+            <div class: LearnDesign.DemoFull><UserSettings /></div>
+        </section>
+    }
+}

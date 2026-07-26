@@ -82,17 +82,16 @@ component ThemeSwitcher {
         </div>
     }
     style {
-        // 主题切换器特有的布局和色板展示
+        // 主题切换器特有的布局样式
         .indicator-row { display: flex; align-items: center; gap: 12px; margin: 0 0 12px 0; }
-        .mode-indicator { padding: 8px 14px; border-radius: 8px; }
+        .mode-indicator { padding: 8px 14px; border-radius: var(--radiusMd); }
         .mode-label { font-size: 14px; font-weight: 600; }
-        .toggle-info { font-size: 12px; color: #6b7280; margin: 0; }
-        .toggle-btn { padding: 10px 20px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; width: 100%; margin: 0 0 12px 0; }
-        .palette { padding: 12px; border-radius: 8px; margin: 0 0 12px 0; }
+        .toggle-info { font-size: 12px; color: var(--textSecondary); margin: 0; }
+        .toggle-btn { padding: 10px 20px; border: none; border-radius: var(--radiusMd); font-size: 14px; font-weight: 600; cursor: pointer; width: 100%; margin: 0 0 12px 0; }
+        .palette { padding: 12px; border-radius: var(--radiusMd); margin: 0 0 12px 0; }
         .palette-label { font-size: 12px; margin: 0 0 8px 0; }
         .swatches { display: flex; gap: 6px; }
-        .swatch { padding: 4px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; }
+        .swatch { padding: 4px 8px; border-radius: var(--radiusSm); font-size: 10px; font-weight: 600; }
         .quick-actions { display: flex; gap: 8px; }
-        // .theme-switcher / .quick-btn / .dark-btn 已由 LearnDesign.Card / Button 变体提供
     }
 }

@@ -4,6 +4,7 @@
 // ╚══════════════════════════════════════════════════════════════╝
 
 import omniview;
+import { LearnDesign } from "../design";
 
 component InlineStoreDemo {
     // 内联 store 定义在 component 内部，不导出到外部
@@ -64,5 +65,21 @@ component InlineStoreDemo {
         log = "Cart cleared";
     }
 
-    view { <div class: container><h3>Inline Store Demo</h3><p>Items: {itemCount}</p><p>Summary: {summary}</p><p>Total: {totalPrice}</p><button @onPress={addApple}>Add Apple</button><button @onPress={remove}>Remove</button><p>{log}</p></div> }
+    view {
+        <div class: LearnDesign.Container>
+            <h3 class: LearnDesign.CardTitle>Inline Store Demo</h3>
+            <p>Items: {itemCount}</p>
+            <p>Summary: {summary}</p>
+            <p>Total: {totalPrice}</p>
+            <div class: LearnDesign.Row>
+                <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={addApple}>
+                    Add Apple
+                </button>
+                <button variant: LearnDesign.Button(color=danger, size=sm) @onPress={remove}>
+                    Remove
+                </button>
+            </div>
+            <p class: LearnDesign.Hint>{log}</p>
+        </div>
+    }
 }

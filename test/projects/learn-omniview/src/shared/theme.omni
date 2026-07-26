@@ -1,109 +1,13 @@
-// ╔══════════════════════════════════════════════════════════════╗
-// ║  theme.omni —— 主题设计令牌（Phase 6）                          ║
-// ║  演示：theme 关键字定义颜色、间距、排版                          ║
-// ╚══════════════════════════════════════════════════════════════╝
-
-import omniview;
-
-// theme 关键字定义全局设计令牌，按分类组织
-theme AppTheme {
-    colors {
-        // 品牌色
-        primary: "#6366f1",
-        primaryLight: "#a5b4fc",
-        primaryDark: "#4338ca",
-
-        // 语义色
-        success: "#10b981",
-        warning: "#f59e0b",
-        danger: "#ef4444",
-
-        // 中性色（浅色模式）
-        bgLight: "#ffffff",
-        bgMuted: "#f9fafb",
-        bgSubtle: "#f3f4f6",
-        textLight: "#111827",
-        textMuted: "#6b7280",
-        borderLight: "#d4d4d8",
-
-        // 深色模式
-        bgDark: "#111827",
-        bgDarkMuted: "#1f2937",
-        bgDarkSubtle: "#374151",
-        textDark: "#f9fafb",
-        textDarkMuted: "#9ca3af",
-        borderDark: "#4b5563",
-    }
-
-    spacing {
-        xs: "4px",
-        sm: "8px",
-        md: "16px",
-        lg: "24px",
-        xl: "32px",
-        xxl: "48px",
-    }
-
-    typography {
-        heading: "24px",
-        subheading: "18px",
-        body: "14px",
-        caption: "12px",
-        fontFamily: "system-ui, sans-serif",
-    }
-
-        // 非颜色设计令牌——圆角、阴影等
-    radii {
-        sm: "4px",
-        md: "8px",
-        lg: "12px",
-        full: "9999px",
-    }
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// CSS 变量映射参考（用于 style 块中的 --* 声明）
+// ═══════════════════════════════════════════════════════════════
+// theme.omni — 已迁移至 design.omni
 //
-// 编译器支持在 style 块中声明 --* 自定义属性（parse_css_property_name @ view.rs:1134）
-// 并在代码生成时对 -- 属性用 setProperty() 输出（emit_style_assignment @ omniview.rs:692）
+// 原先的 `theme AppTheme` 块已被 `design LearnDesign` 取代。
+// 设计令牌（颜色、间距、排版等）现在定义在 ../design.omni 中。
 //
-// 以下展示如何将 theme 令牌转化为 CSS 变量形式，在组件 style 块中使用：
+// 组件引用方式：
+//   import { LearnDesign } from "../design";
+//   class: LearnDesign.Card
+//   variant: LearnDesign.Button(color=primary, size=md)
 //
-//   style {
-//       .themed-component {
-//           // 从 theme 令牌映射到 CSS 变量
-//           --app-primary: #6366f1;
-//           --app-bg: #ffffff;
-//           --app-text: #111827;
-//           --app-spacing: 16px;
-//
-//           // 子元素用 var() 引用
-//           background: var(--app-bg);
-//           color: var(--app-text);
-//       }
-//       .themed-component h2 {
-//           color: var(--app-primary);
-//           margin: var(--app-spacing);
-//       }
-//   }
-//
-// 这种方式实现 CSS 变量级联 —— 父节点设置 --*，子节点用 var() 继承，
-// 配合 ThemeStore 的动态信号可在运行时切换主题，触发 setProperty() 响应式更新。
-// ═══════════════════════════════════════════════════════════════════
-
-// CSS 变量形式的设计令牌常量（供组件 style 块中直接使用）
-// 这些常量与上方 theme AppTheme 的值一一对应
-// 组件中引用方式：style { .comp { --color: var(--app-primary); ... } }
-const APP_PRIMARY = "#6366f1";
-const APP_PRIMARY_LIGHT = "#a5b4fc";
-const APP_PRIMARY_DARK = "#4338ca";
-const APP_SUCCESS = "#10b981";
-const APP_WARNING = "#f59e0b";
-const APP_DANGER = "#ef4444";
-const APP_BG_LIGHT = "#ffffff";
-const APP_BG_MUTED = "#f9fafb";
-const APP_BG_SUBTLE = "#f3f4f6";
-const APP_TEXT_LIGHT = "#111827";
-const APP_TEXT_MUTED = "#6b7280";
-const APP_BORDER_LIGHT = "#d4d4d8";
-const APP_FONT = "system-ui, sans-serif";
+// 如需运行时主题切换，参见 stores/ThemeStore.omni。
+// ═══════════════════════════════════════════════════════════════

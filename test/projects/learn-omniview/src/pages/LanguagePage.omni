@@ -1,0 +1,32 @@
+// LanguagePage — 语言特性：内联 store、nullish、字符串、类型系统、视图属性
+import omniview;
+import { LearnDesign } from "../design";
+import { InlineStoreDemo } from "../components/InlineStoreDemo";
+import { NullishDemo } from "../components/NullishDemo";
+import { StringLiteralsDemo } from "../components/StringLiteralsDemo";
+import { TypeSystemDemo } from "../components/TypeSystemDemo";
+import { ViewAttributesDemo } from "../components/ViewAttributesDemo";
+import { ComputedFnFormDemo } from "../components/ComputedFnFormDemo";
+import { OptionalChainDemo } from "../components/OptionalChainDemo";
+import { StylePseudoDemo } from "../components/StylePseudoDemo";
+
+component LanguagePage {
+    view {
+        <section class: LearnDesign.DemoSection>
+            <div class: LearnDesign.Row>
+                <div class: LearnDesign.Col><InlineStoreDemo /></div>
+                <div class: LearnDesign.Col><NullishDemo /></div>
+            </div>
+            <div class: LearnDesign.DemoFull><StringLiteralsDemo /></div>
+            <div class: LearnDesign.Row>
+                <div class: LearnDesign.Col><TypeSystemDemo /></div>
+                <div class: LearnDesign.Col><ViewAttributesDemo /></div>
+            </div>
+            <div class: LearnDesign.Row>
+                <div class: LearnDesign.Col><ComputedFnFormDemo /></div>
+                <div class: LearnDesign.Col><OptionalChainDemo /></div>
+            </div>
+            <div class: LearnDesign.DemoFull><StylePseudoDemo /></div>
+        </section>
+    }
+}

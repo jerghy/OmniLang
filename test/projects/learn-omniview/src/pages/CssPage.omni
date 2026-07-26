@@ -1,0 +1,16 @@
+// CssPage — CSS 特性：单位、变量、主题变量
+import omniview;
+import { LearnDesign } from "../design";
+import { CssUnitsDemo } from "../components/CssUnitsDemo";
+import { CssVarsDemo } from "../components/CssVarsDemo";
+import { ThemeCssVarsDemo } from "../components/ThemeCssVarsDemo";
+
+component CssPage {
+    view {
+        <section class: LearnDesign.DemoSection>
+            <div class: LearnDesign.DemoFull><CssUnitsDemo /></div>
+            <div class: LearnDesign.DemoFull><CssVarsDemo /></div>
+            <div class: LearnDesign.DemoFull><ThemeCssVarsDemo /></div>
+        </section>
+    }
+}

@@ -1,4 +1,5 @@
 import omniview;
+import { LearnDesign } from "../design";
 
 @motion fadeInUp {
   from { opacity: 0, y: 20 }
@@ -32,15 +33,15 @@ component MotionDemo {
   signal count: i32 = 0
   signal isOpen: bool = false
 
-  action toggleModal {
+  fn toggleModal() {
     isOpen = !isOpen
   }
 
-  action addItem {
+  fn addItem() {
     count = count + 1
   }
 
-  action removeItem {
+  fn removeItem() {
     count = count - 1
   }
 

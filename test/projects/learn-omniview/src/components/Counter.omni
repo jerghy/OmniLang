@@ -21,16 +21,16 @@ component Counter {
     fn reset() { count = 0; }
 
     view {
-        <div class: box>
-            <h3 class: title>计数器演示</h3>
+        <div class: LearnDesign.Container>
+            <h3 class: LearnDesign.CardTitle>计数器演示</h3>
             <p class: big-number>{count}</p>
             <p class: info>翻倍：{doubled} | {label}</p>
-            <div class: row>
+            <div class: LearnDesign.Row>
                 <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={dec}>-</button>
                 <span class: step-text>步长 {step}</span>
                 <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={inc}>+</button>
             </div>
-            <div class: row>
+            <div class: LearnDesign.Row>
                 <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={() => { step = 1; }}>步长1</button>
                 <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={() => { step = 5; }}>步长5</button>
                 <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={() => { step = 10; }}>步长10</button>
@@ -39,13 +39,8 @@ component Counter {
         </div>
     }
     style {
-        // 组件特有的布局样式（非通用，保留在组件级）
-        .box { background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px 16px; margin: 16px 0; text-align: center; min-height: 30vh; }
-        .title { font-size: 18px; margin: 0 0 12px 0; color: #1f2937; }
-        .big-number { font-size: 48px; font-weight: bold; color: #6366f1; margin: 8px 0; }
-        .info { font-size: 14px; color: #6b7280; }
-        .row { display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 12px; }
-        .step-text { font-size: 14px; color: #6b7280; }
-        // 按钮样式已全部由 LearnDesign.Button 变体提供
+        .big-number { font-size: 48px; font-weight: bold; color: var(--primary); margin: 8px 0; }
+        .info { font-size: 14px; color: var(--textSecondary); }
+        .step-text { font-size: 14px; color: var(--textSecondary); }
     }
 }

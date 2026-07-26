@@ -6,6 +6,7 @@
 // ║  时间线特性：   MotionRef（引用 @motion）                          ║
 // ╚══════════════════════════════════════════════════════════════════════╝
 import omniview;
+import { LearnDesign } from "../design";
 
 // ╔══════════════════════════════════════════════════════════════╗
 // ║  🧪 Playwright Test                                         ║
@@ -97,9 +98,9 @@ import omniview;
 // ══════════════════════════════════════════════════════════════════════
 component StaggerAndTimelineDemo {
     view {
-        <div class: container>
-            <h3 class: title>Stagger 方向 + 时间线连接器</h3>
-            <p class: subtitle>staggerFrom start/end/edges · then · with · MotionRef</p>
+        <div class: LearnDesign.Container>
+            <h3 class: LearnDesign.CardTitle>Stagger 方向 + 时间线连接器</h3>
+            <p class: LearnDesign.Subtitle>staggerFrom start/end/edges · then · with · MotionRef</p>
 
             <!-- ═══ Stagger 方向组 ═══ -->
             <h4 class: group-title>Stagger 方向（start / end / edges — center 已测）</h4>
@@ -151,19 +152,13 @@ component StaggerAndTimelineDemo {
     }
 
     style {
-        .container { background: white; border: 1px solid #d4d4d8; border-radius: 12px; padding: 20px 16px; margin: 16px 0; }
-        .title { font-size: 18px; color: #1f2937; margin: 0 0 4px 0; }
-        .subtitle { font-size: 12px; color: #9ca3af; margin: 0 0 14px 0; }
-
-        .group-title { font-size: 14px; font-weight: 600; color: #374151; margin: 20px 0 10px 0; padding-bottom: 4px; border-bottom: 1px solid #e5e7eb; }
-
+        .group-title { font-size: 14px; font-weight: 600; color: var(--textPrimary); margin: 20px 0 10px 0; padding-bottom: 4px; border-bottom: 1px solid var(--borderLight); }
         .stagger-section { margin-bottom: 14px; }
-        .stagger-section strong { font-size: 12px; color: #374151; display: block; margin-bottom: 6px; }
+        .stagger-section strong { font-size: 12px; color: var(--textPrimary); display: block; margin-bottom: 6px; }
         .stagger-row { display: flex; gap: 8px; flex-wrap: wrap; }
-        .dot { width: 36px; height: 36px; border-radius: 50%; background: #6366f1; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; }
-
-        .timeline-area { padding: 14px; background: #f9fafb; border-radius: 10px; border: 1px solid #e5e7eb; display: flex; flex-direction: column; gap: 8px; }
-        .tl-label { font-size: 11px; font-weight: 600; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; }
-        .tl-box { padding: 10px 14px; background: #eef2ff; border-radius: 8px; border: 1px solid #c7d2fe; font-size: 12px; color: #4338ca; }
+        .dot { width: 36px; height: 36px; border-radius: 50%; background: var(--primary); color: var(--surface); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; }
+        .timeline-area { padding: 14px; background: var(--surfaceMuted); border-radius: var(--radiusLg); border: 1px solid var(--borderLight); display: flex; flex-direction: column; gap: 8px; }
+        .tl-label { font-size: 11px; font-weight: 600; color: var(--textMuted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; }
+        .tl-box { padding: 10px 14px; background: var(--surfaceSubtle); border-radius: var(--radiusMd); border: 1px solid var(--borderLight); font-size: 12px; color: var(--primaryDark); }
     }
 }
