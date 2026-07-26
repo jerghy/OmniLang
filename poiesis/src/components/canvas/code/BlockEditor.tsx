@@ -324,24 +324,41 @@ export const BlockEditor: React.FC<Props> = ({
           style={{ overflowY: "auto", height: "100%" }}
         >
           <svg width="100%" height="100%">
-            <g transform="translate(8, 8)">
-              {model.getOps().map((op, i) => (
-                <g key={op.pid} transform={`translate(0, ${i * 48})`}>
-                  {renderBlock(op)}
-                </g>
-              ))}
-              {/* Gap rows */}
-              {model.getOps().map((_op, i) => (
-                <g key={`gap-${i}`} transform={`translate(0, ${i * 48 + 36})`}>
-                  <rect
-                    data-gap-position={i + 0.5}
-                    width="100%"
-                    height={12}
-                    fill="transparent"
-                  />
-                </g>
-              ))}
+            {/* Gap rows — before first block, between blocks, and after last block */}
+        <g transform={`translate(8, 8)`}>
+          {/* Gap before first block */}
+          <rect
+            data-gap-position={0}
+            x={0} y={0}
+            width="100%"
+            height={12}
+            fill="transparent"
+          />
+          {model.getOps().map((op, i) => (
+            <g key={op.pid}>
+              <g transform={`translate(0, ${i * 48 + 12})`}>
+                {renderBlock(op)}
+              </g>
+              {/* Gap between blocks and after last block */}
+              <g transform={`translate(0, ${i * 48 + 12 + 36})`}>
+                <rect
+                  data-gap-position={i + 0.5}
+                  width="100%"
+                  height={12}
+                  fill="transparent"
+                />
+              </g>
             </g>
+          ))}
+          {/* Gap after last block */}
+          <rect
+            data-gap-position={model.getOps().length}
+            x={0} y={model.getOps().length * 48 + 12}
+            width="100%"
+            height={12}
+            fill="transparent"
+          />
+        </g>
           </svg>
         </div>
 
