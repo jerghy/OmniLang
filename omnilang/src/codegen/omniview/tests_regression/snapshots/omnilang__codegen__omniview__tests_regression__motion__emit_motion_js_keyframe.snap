@@ -1,0 +1,9 @@
+---
+source: omnilang/src/codegen/omniview/tests_regression/motion.rs
+expression: "&gen.js"
+---
+function __omni_motion_fadeIn(el, overrides) {
+  const opts = Object.assign({duration:300,easing:Omni.resolveEasing("ease-out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"opacity":0}},{offset:1,properties:{"opacity":1}}];
+  return Omni.animate(el, kf, opts);
+};

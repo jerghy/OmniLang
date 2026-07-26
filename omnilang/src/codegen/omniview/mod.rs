@@ -620,3 +620,6 @@ impl UiCodegen for OmniViewGenerator {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod tests_regression;
