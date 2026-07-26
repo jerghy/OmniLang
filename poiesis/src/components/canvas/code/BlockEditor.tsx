@@ -81,10 +81,19 @@ export const BlockEditor: React.FC<Props> = ({
   const getElement = useCallback(
     (target: SelectionTarget): HTMLElement | SVGElement | null => {
       switch (target.type) {
-        case "block":
-        case "slot": {
+        case "block": {
           const el = document.querySelector(
             `[data-block-id="${target.blockId}"]`,
+          );
+          return el as SVGElement | null;
+        }
+        case "slot": {
+          const blockEl = document.querySelector(
+            `[data-block-id="${target.blockId}"]`,
+          );
+          if (!blockEl) return null;
+          const el = blockEl.querySelector(
+            `[data-slot-id="${target.slotName}"]`,
           );
           return el as SVGElement | null;
         }

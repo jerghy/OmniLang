@@ -90,7 +90,7 @@ export const BlockSvg = React.forwardRef<SVGGElement, BlockSvgProps>(
 
 BlockSvg.displayName = "BlockSvg";
 
-/** A text slot within a block. */
+/** A text slot within a block — wrapped in <g> so it has a measurable bounding box for selection. */
 export const TextSlot: React.FC<{
   slotId: string;
   value: string;
@@ -99,15 +99,16 @@ export const TextSlot: React.FC<{
   const display = value || placeholder;
   const isPlaceholder = !value;
   return (
-    <tspan
-      data-slot-id={slotId}
-      fill={isPlaceholder ? "#999" : "#fff"}
-      fontSize="13"
-      fontFamily="monospace"
-      fontWeight={isPlaceholder ? "normal" : "bold"}
-    >
-      {display}
-    </tspan>
+    <g data-slot-id={slotId}>
+      <tspan
+        fill={isPlaceholder ? "#999" : "#fff"}
+        fontSize="13"
+        fontFamily="monospace"
+        fontWeight={isPlaceholder ? "normal" : "bold"}
+      >
+        {display}
+      </tspan>
+    </g>
   );
 };
 

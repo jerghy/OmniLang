@@ -72,7 +72,7 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
       <div
         ref={overlayRef}
         style={{
-          position: "absolute",
+          position: "fixed",
           pointerEvents: "none",
           zIndex: 1000,
           transition: "all 150ms ease",
