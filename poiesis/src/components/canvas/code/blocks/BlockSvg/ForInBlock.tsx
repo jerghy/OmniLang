@@ -9,10 +9,13 @@ interface ForInBlockProps {
   renderBody: (ops: CodeOp[]) => React.ReactNode;
 }
 
+const BODY_BLOCK_HEIGHT = 48;
+
 export const ForInBlock = React.forwardRef<SVGGElement, ForInBlockProps>(
   ({ op, renderBody }, ref) => {
     const itemName = slotToText(op.itemName);
     const collection = slotToText(op.collection);
+    const bottomY = 36 + op.body.length * BODY_BLOCK_HEIGHT + 8;
     return (
       <g ref={ref} data-block-id={op.pid}>
         {/* Header */}
@@ -43,10 +46,10 @@ export const ForInBlock = React.forwardRef<SVGGElement, ForInBlockProps>(
           <g transform="translate(24, 36)">{renderBody(op.body)}</g>
         )}
 
-        {/* Bottom connector */}
+        {/* Bottom connector — dynamically positioned after body blocks */}
         <rect
           x={0}
-          y={84}
+          y={bottomY}
           width={200}
           height={8}
           fill={BLOCK_COLORS.CONTROL}

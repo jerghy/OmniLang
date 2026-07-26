@@ -9,8 +9,19 @@ interface IfBlockProps {
   renderBody: (ops: CodeOp[]) => React.ReactNode;
 }
 
+const BODY_BLOCK_HEIGHT = 48;
+
 export const IfBlock = React.forwardRef<SVGGElement, IfBlockProps>(
   ({ op, renderBody }, ref) => {
+    // Compute cumulative branch Y offsets and total height
+    let cumY = 0;
+    const branchY: number[] = [];
+    op.branches.forEach((branch) => {
+      branchY.push(cumY);
+      cumY += 36 + branch.body.length * BODY_BLOCK_HEIGHT;
+    });
+    const bottomY = cumY + 8;
+
     return (
       <g ref={ref} data-block-id={op.pid}>
         {op.branches.map((branch, i) => {
@@ -19,7 +30,7 @@ export const IfBlock = React.forwardRef<SVGGElement, IfBlockProps>(
           const cond = slotToText(branch.condition);
 
           return (
-            <g key={i} transform={`translate(0, ${i * 60})`}>
+            <g key={i} transform={`translate(0, ${branchY[i]})`}>
               {/* Branch header */}
               <BlockSvg
                 colour={BLOCK_COLORS.CONTROL}
@@ -47,10 +58,10 @@ export const IfBlock = React.forwardRef<SVGGElement, IfBlockProps>(
           );
         })}
 
-        {/* Bottom connector */}
+        {/* Bottom connector — dynamically positioned after all branch bodies */}
         <rect
           x={0}
-          y={op.branches.length * 60 + 24}
+          y={bottomY}
           width={200}
           height={8}
           fill={BLOCK_COLORS.CONTROL}

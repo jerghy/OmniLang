@@ -116,6 +116,31 @@ describe("IfBlock", () => {
   it("has displayName", () => {
     expect(IfBlock.displayName).toBe("IfBlock");
   });
+
+  it("positions bottom connector after body blocks across all branches", () => {
+    // Branch 0: 0 body blocks, Branch 1: 2 body blocks
+    const op: IfBlockOp = {
+      ...baseIf,
+      branches: [
+        { condition: { kind: "text", value: "a" }, body: [] },
+        {
+          condition: { kind: "text", value: "b" },
+          body: [
+            { pid: "b0", kind: "set_var", name: { kind: "text", value: "x" }, operator: "=", value: { kind: "text", value: "1" } } as CodeOp,
+            { pid: "b1", kind: "set_var", name: { kind: "text", value: "y" }, operator: "=", value: { kind: "text", value: "2" } } as CodeOp,
+          ],
+        },
+      ],
+    };
+    // Branch 0: 36 + 0*48 = 36, Branch 1: 36 + 2*48 = 132, total = 168, bottomY = 168 + 8 = 176
+    const { container } = render(
+      <svg>
+        <IfBlock op={op} renderBody={renderBody} />
+      </svg>,
+    );
+    const connectorRect = container.querySelector("rect[height='8']");
+    expect(connectorRect?.getAttribute("y")).toBe("176");
+  });
 });
 
 // ── WhileBlock ──
@@ -170,6 +195,25 @@ describe("WhileBlock", () => {
 
   it("has displayName", () => {
     expect(WhileBlock.displayName).toBe("WhileBlock");
+  });
+
+  it("positions bottom connector dynamically based on body block count", () => {
+    const op: WhileLoopOp = {
+      ...baseWhile,
+      body: [
+        { pid: "wb-x", kind: "set_var", name: { kind: "text", value: "a" }, operator: "=", value: { kind: "text", value: "1" } } as CodeOp,
+        { pid: "wb-y", kind: "set_var", name: { kind: "text", value: "b" }, operator: "=", value: { kind: "text", value: "2" } } as CodeOp,
+        { pid: "wb-z", kind: "set_var", name: { kind: "text", value: "c" }, operator: "=", value: { kind: "text", value: "3" } } as CodeOp,
+      ],
+    };
+    // bottomY = 36 + 3*48 + 8 = 188
+    const { container } = render(
+      <svg>
+        <WhileBlock op={op} renderBody={renderBody} />
+      </svg>,
+    );
+    const connectorRect = container.querySelector("rect[height='8']");
+    expect(connectorRect?.getAttribute("y")).toBe("188");
   });
 });
 
@@ -230,5 +274,20 @@ describe("ForInBlock", () => {
 
   it("has displayName", () => {
     expect(ForInBlock.displayName).toBe("ForInBlock");
+  });
+
+  it("positions bottom connector dynamically when body is empty", () => {
+    const op: ForLoopOp = {
+      ...baseFor,
+      body: [],
+    };
+    // bottomY = 36 + 0*48 + 8 = 44
+    const { container } = render(
+      <svg>
+        <ForInBlock op={op} renderBody={renderBody} />
+      </svg>,
+    );
+    const connectorRect = container.querySelector("rect[height='8']");
+    expect(connectorRect?.getAttribute("y")).toBe("44");
   });
 });
