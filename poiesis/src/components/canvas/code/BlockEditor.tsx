@@ -63,6 +63,7 @@ export const BlockEditor: React.FC<Props> = ({
   const [showRawInput, setShowRawInput] = useState(false);
   const [rawInputText, setRawInputText] = useState("");
   const [opsCount, setOpsCount] = useState(initialOps.length);
+  const [, forceUpdate] = useState(0);
   const [editingRawPid, setEditingRawPid] = useState<string | null>(null);
 
   const khRef = useRef<KeyboardHandler | null>(null);
@@ -72,7 +73,7 @@ export const BlockEditor: React.FC<Props> = ({
 
   const [model] = useState(() => {
     const m = new BlockModel(initialOps);
-    m.onChange = () => setOpsCount(m.getOps().length);
+    m.onChange = () => { setOpsCount(m.getOps().length); forceUpdate((n) => n + 1); };
     return m;
   });
 
