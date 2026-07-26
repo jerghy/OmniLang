@@ -7,13 +7,42 @@ import type { SelectionTarget } from "./BlockModel";
 
 interface SelectionOverlayProps {
   target: SelectionTarget | null;
-  /** Map from target key to DOM element for positioning. */
+  /** Maps a SelectionTarget to a DOM element for positioning. */
   getElement: (target: SelectionTarget) => HTMLElement | SVGElement | null;
 }
 
 const BLINK_KEYFRAMES = `
 @keyframes sel-gap-blink { 50% { opacity: 0; } }
 `;
+
+function getTargetRect(
+  target: SelectionTarget,
+  getElement: (t: SelectionTarget) => HTMLElement | SVGElement | null,
+): DOMRect | null {
+  const el = getElement(target);
+  if (!el) return null;
+
+  // SVG <g> elements have no intrinsic bounding box — use the first
+  // visible child rect instead.
+  if (el instanceof SVGGElement && el.children.length > 0) {
+    try {
+      const bbox = (el as SVGGElement).getBBox();
+      const ctm = (el as SVGGElement).getScreenCTM();
+      if (ctm && bbox.width > 0 && bbox.height > 0) {
+        const p = (el as SVGGElement).ownerSVGElement!.createSVGPoint();
+        p.x = bbox.x; p.y = bbox.y;
+        const screenP = p.matrixTransform(ctm);
+        return new DOMRect(screenP.x, screenP.y, bbox.width * ctm.a, bbox.height * ctm.d);
+      }
+    } catch {
+      // fall through to getBoundingClientRect
+    }
+  }
+
+  const rect = el.getBoundingClientRect();
+  if (rect.width > 0 && rect.height > 0) return rect;
+  return null;
+}
 
 export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
   target,
@@ -30,13 +59,12 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
       return;
     }
 
-    const domEl = getElement(target);
-    if (!domEl) {
+    const rect = getTargetRect(target, getElement);
+    if (!rect || rect.width === 0 || rect.height === 0) {
       el.style.display = "none";
       return;
     }
 
-    const rect = domEl.getBoundingClientRect();
     el.style.display = "block";
     el.style.left = `${rect.x}px`;
     el.style.top = `${rect.y}px`;
@@ -45,22 +73,22 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
 
     switch (target.type) {
       case "block":
-        el.style.outline = "2px solid #cc6b4a";
-        el.style.outlineOffset = "2px";
+        el.style.outline = "3px solid #cc6b4a";
+        el.style.outlineOffset = "3px";
         el.style.border = "none";
-        el.style.borderRadius = "4px";
+        el.style.borderRadius = "6px";
         el.style.animation = "none";
         break;
       case "slot":
         el.style.outline = "none";
-        el.style.border = "2px dashed #cc6b4a";
+        el.style.border = "3px dashed #cc6b4a";
         el.style.borderRadius = "4px";
         el.style.animation = "none";
         break;
       case "gap":
         el.style.outline = "none";
         el.style.border = "none";
-        el.style.borderTop = "2px solid #cc6b4a";
+        el.style.borderTop = "3px solid #cc6b4a";
         el.style.animation = "sel-gap-blink 1s step-end infinite";
         break;
     }
@@ -75,7 +103,7 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
           position: "fixed",
           pointerEvents: "none",
           zIndex: 1000,
-          transition: "all 150ms ease",
+          transition: "left 150ms ease, top 150ms ease, width 150ms ease, height 150ms ease",
         }}
       />
     </>
