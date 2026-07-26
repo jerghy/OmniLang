@@ -50,7 +50,7 @@ export class BlockModel {
   }
 
   getOps(): CodeOp[] {
-    return this.ops;
+    return [...this.ops];
   }
 
   getNavEntries(): NavEntry[] {
@@ -141,6 +141,15 @@ export class BlockModel {
     this.rebuildGaps();
     this.onChange?.();
     return op;
+  }
+
+  /** Insert an already-constructed CodeOp (e.g., from paste) directly into ops at the position. */
+  insertCodeOp(op: CodeOp, atPosition: number): void {
+    const insertIdx = Math.round(atPosition);
+    const clampedIdx = Math.min(insertIdx, this.ops.length);
+    this.ops.splice(clampedIdx, 0, op);
+    this.rebuildGaps();
+    this.onChange?.();
   }
 
   deleteBlock(blockIndex: number): void {

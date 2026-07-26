@@ -10,11 +10,7 @@ export const ReturnBlock = React.forwardRef<SVGGElement, { op: ReturnExprOp }>(
       <BlockSvg colour={BLOCK_COLORS.CONTROL} blockId={op.pid} ref={ref}>
         <text dominantBaseline="middle">
           <Keyword text="return" />
-          {op.value && slotToText(op.value) ? (
-            <TextSlot slotId="VALUE" value={slotToText(op.value)} placeholder="value" />
-          ) : (
-            <TextSlot slotId="VALUE" value="" placeholder="value" />
-          )}
+          <TextSlot slotId="VALUE" value={op.value ? slotToText(op.value) : ""} placeholder="value" />
         </text>
       </BlockSvg>
     );

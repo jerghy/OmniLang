@@ -1,25 +1,39 @@
 // poiesis/src/components/canvas/code/BlockEditor.tsx
-// Task 9: BlockEditor — the React component that replaces CodeCardEditor.
-// Wires together Blockly workspace + BlockAdapter + SelectionManager +
-// GapManager + KeyboardHandler + FuzzySearchPopup + raw input modal.
+// Task 8: Rewritten — pure SVG blocks with BlockModel, no Blockly dependency.
+// Wires together BlockModel + KeyboardHandler + ClipboardManager +
+// SelectionOverlay + FuzzySearchPopup + raw input modal.
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import * as Blockly from "blockly";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { CodeOp } from "../../../core/types/code-op";
-import { BlockAdapter } from "./blocks/BlockAdapter";
-import { SelectionManager } from "./blocks/SelectionManager";
-import { GapManager } from "./blocks/GapManager";
+import { BlockModel } from "./blocks/BlockModel";
+import type { SelectionTarget } from "./blocks/BlockModel";
 import { KeyboardHandler } from "./blocks/KeyboardHandler";
-import type { KeyboardHandlerCallbacks } from "./blocks/KeyboardHandler";
+import type { KBCallbacks } from "./blocks/KeyboardHandler";
+import { ClipboardManager } from "./blocks/ClipboardManager";
+import { SelectionOverlay } from "./blocks/SelectionOverlay";
 import {
   FuzzySearchPopup,
   getItemsForContext,
 } from "./blocks/fields/FuzzySearchPopup";
 import type { SearchItem } from "./blocks/fields/FuzzySearchPopup";
 import { CodeEditorModal } from "./CodeEditorModal";
+import {
+  LetVarBlock,
+  SetVarBlock,
+  ReturnBlock,
+  CallBlock,
+  AwaitBlock,
+  BreakBlock,
+  ContinueBlock,
+  CommentBlock,
+  RawBlock,
+  IfBlock,
+  WhileBlock,
+  ForInBlock,
+} from "./blocks/BlockSvg/index";
 import styles from "./BlockEditor.module.css";
 
-// ── Props ──
+// ── Props (unchanged external interface) ──
 
 interface Props {
   elementId: string;
@@ -29,6 +43,10 @@ interface Props {
   onSave: (operations: CodeOp[]) => void;
   onClose: () => void;
 }
+
+// ── Shared ClipboardManager (module-level, stable instance) ──
+
+const clipboard = new ClipboardManager();
 
 // ── BlockEditor component ──
 
@@ -43,135 +61,72 @@ export const BlockEditor: React.FC<Props> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const [showMonaco, setShowMonaco] = useState(false);
   const [showRawInput, setShowRawInput] = useState(false);
+  const [rawInputText, setRawInputText] = useState("");
   const [opsCount, setOpsCount] = useState(initialOps.length);
+  const [editingRawPid, setEditingRawPid] = useState<string | null>(null);
 
-  // Refs for manager instances (stable across renders)
-  const wsRef = useRef<Blockly.WorkspaceSvg | null>(null);
-  const adapterRef = useRef<BlockAdapter>(new BlockAdapter());
-  const smRef = useRef<SelectionManager | null>(null);
-  const gmRef = useRef<GapManager | null>(null);
   const khRef = useRef<KeyboardHandler | null>(null);
-  const opsRef = useRef<CodeOp[]>(initialOps);
+  const blockRefs = useRef<Map<string, SVGGElement>>(new Map());
 
-  // ── Sync CodeOp[] from workspace ──
+  // ── Initialize model (lazily, once via useState initializer) ──
 
-  const syncOps = useCallback(() => {
-    const ws = wsRef.current;
-    if (!ws) return;
-    const ops = adapterRef.current.fromBlocks(ws);
-    opsRef.current = ops;
-    setOpsCount(ops.length);
-  }, []);
+  const [model] = useState(() => {
+    const m = new BlockModel(initialOps);
+    m.onChange = () => setOpsCount(m.getOps().length);
+    return m;
+  });
 
-  // ── Initialize Blockly workspace ──
+  // ── getElement callback: maps SelectionTarget -> DOM element ──
+
+  const getElement = useCallback(
+    (target: SelectionTarget): HTMLElement | SVGElement | null => {
+      switch (target.type) {
+        case "block":
+        case "slot": {
+          const el = document.querySelector(
+            `[data-block-id="${target.blockId}"]`,
+          );
+          return el as SVGElement | null;
+        }
+        case "gap": {
+          const el = containerRef.current?.querySelector(
+            `[data-gap-position="${target.position}"]`,
+          );
+          return el as HTMLElement | null;
+        }
+        default:
+          return null;
+      }
+    },
+    [],
+  );
+
+  // ── Keyboard handler ──
 
   useEffect(() => {
     const container = containerRef.current;
-    if (!container || wsRef.current) return;
+    if (!container) return;
 
-    // 1. Create workspace with Zelos renderer, no toolbox (keyboard-only)
-    const ws = Blockly.inject(container, {
-      renderer: "zelos",
-      scrollbars: true,
-      grid: {
-        spacing: 20,
-        length: 3,
-        colour: "#e8e7e2",
-        snap: false,
-      },
-      zoom: { controls: true, wheel: true, startScale: 1.0 },
-      move: { scrollbars: true, drag: false, wheel: true },
-    });
-
-    // 2. Populate with initial ops
-    if (initialOps.length > 0) {
-      adapterRef.current.toBlocks(initialOps, ws);
-    }
-
-    // 3. Create managers
-    const sm = new SelectionManager(ws);
-    const gm = new GapManager(ws);
-    gm.initializeForBlockCount(ws.getTopBlocks(true).length);
-
-    // 4. Create KeyboardHandler with callbacks
-    const callbacks: KeyboardHandlerCallbacks = {
+    const callbacks: KBCallbacks = {
       onFuzzySearch: (query: string, context: "slot" | "gap") => {
         const items = getItemsForContext(context);
         const popup = new FuzzySearchPopup(
           items,
           (item: SearchItem) => {
             if (context === "gap") {
-              // ── Gap context: create a new block ──
-              // Capture before/after blocks BEFORE creating the new block,
-              // so getTopBlocks gives the correct indices.
-              const target = sm.getCurrentTarget();
-              const topBlocks = ws.getTopBlocks(true);
-              let beforeBlock: Blockly.Block | null = null;
-              let afterBlock: Blockly.Block | null = null;
-
+              const target = model.getCurrentTarget();
               if (target?.type === "gap") {
-                const gapPos = target.position;
-                const afterIndex = Math.floor(gapPos);
-                if (afterIndex < topBlocks.length) {
-                  beforeBlock = topBlocks[afterIndex];
-                }
-                const beforeIndex = Math.ceil(gapPos);
-                if (beforeIndex < topBlocks.length) {
-                  afterBlock = topBlocks[beforeIndex];
-                }
-              }
-
-              // Create the new block
-              const block = ws.newBlock(item.blockType);
-              if (typeof block.initSvg === "function") block.initSvg();
-              block.render();
-              block.moveBy(20, 20);
-
-              // Connect the new block between beforeBlock and afterBlock
-              if (beforeBlock && afterBlock && afterBlock !== beforeBlock) {
-                // Disconnect existing connection and insert
-                if (
-                  beforeBlock.nextConnection &&
-                  afterBlock.previousConnection
-                ) {
-                  beforeBlock.nextConnection.disconnect();
-                  beforeBlock.nextConnection.connect(
-                    block.previousConnection!,
-                  );
-                  block.nextConnection?.connect(
-                    afterBlock.previousConnection,
-                  );
-                }
-              } else if (beforeBlock && !afterBlock) {
-                // Append at the end
-                if (beforeBlock.nextConnection && block.previousConnection) {
-                  beforeBlock.nextConnection.connect(
-                    block.previousConnection,
-                  );
-                }
-              } else if (!beforeBlock && afterBlock) {
-                // Prepend at the beginning
-                if (block.nextConnection && afterBlock.previousConnection) {
-                  block.nextConnection.connect(afterBlock.previousConnection);
-                }
+                model.insertBlock(item.blockType, target.position);
               }
             } else {
-              // ── Slot context: set slot value on the current target ──
-              const slotTarget = sm.getCurrentTarget();
-              if (slotTarget?.type === "slot") {
-                const parentBlock = ws.getBlockById(slotTarget.blockId);
-                if (parentBlock) {
-                  const adapter = adapterRef.current;
-                  adapter.setSlotValue(
-                    parentBlock,
-                    slotTarget.inputName,
-                    item.label,
-                  );
-                }
+              const target = model.getCurrentTarget();
+              if (target?.type === "slot") {
+                model.setSlotValue(target.blockIndex, target.slotName, {
+                  kind: "text",
+                  value: item.label,
+                });
               }
             }
-
-            syncOps();
           },
           () => {
             /* close — no-op */
@@ -180,93 +135,149 @@ export const BlockEditor: React.FC<Props> = ({
         popup.open(query);
       },
       onRawInput: () => setShowRawInput(true),
-      onOpsChanged: () => syncOps(),
+      onOpsChanged: () => setOpsCount(model.getOps().length),
     };
 
-    const kh = new KeyboardHandler(ws, sm, gm, callbacks);
+    // Wire up clipboard Ctrl+C/Ctrl+X/Ctrl+V in the container (capture phase
+    // so these fire before KeyboardHandler and consume the event).
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key === "c" || e.key === "C") {
+          e.preventDefault();
+          const target = model.getCurrentTarget();
+          if (target?.type === "block") {
+            clipboard.copy(model.getOps()[target.blockIndex]);
+          }
+        } else if (e.key === "x" || e.key === "X") {
+          e.preventDefault();
+          const target = model.getCurrentTarget();
+          if (target?.type === "block") {
+            clipboard.copy(model.getOps()[target.blockIndex]);
+            model.deleteBlock(target.blockIndex);
+          }
+        } else if (e.key === "v" || e.key === "V") {
+          e.preventDefault();
+          clipboard.paste().then((op) => {
+            if (op) {
+              const target = model.getCurrentTarget();
+              if (target?.type === "gap") {
+                model.insertCodeOp(op, target.position);
+              }
+            }
+          });
+        }
+      }
+    };
+    container.addEventListener("keydown", onKeyDown, { capture: true });
 
-    // Store refs
-    smRef.current = sm;
-    gmRef.current = gm;
+    const kh = new KeyboardHandler(container, model, getElement, callbacks);
     khRef.current = kh;
-    wsRef.current = ws;
 
-    // Initial ops sync
-    syncOps();
-
-    // Cleanup on unmount
     return () => {
       kh.dispose();
-      sm.dispose();
-      gm.dispose();
-      ws.dispose();
-      wsRef.current = null;
-      smRef.current = null;
-      gmRef.current = null;
-      khRef.current = null;
+      container.removeEventListener("keydown", onKeyDown, { capture: true });
     };
+  }, [elementId, model, getElement]);
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [elementId]);
-
-  // ── Handle save ──
+  // ── Save ──
 
   const handleSave = useCallback(() => {
-    onSave(opsRef.current);
-  }, [onSave]);
+    onSave(model.getOps());
+  }, [onSave, model]);
 
-  // ── Monaco fallback save handler ──
+  // ── Render a single block from CodeOp ──
 
-  const handleMonacoSave = useCallback(
-    async (_source: string, _desc: string) => {
-      // In Monaco mode, we save the source text
-      onSave(initialOps);
-      setShowMonaco(false);
+  const renderBlock = useCallback(
+    (op: CodeOp): React.ReactNode => {
+      const setRef = (el: SVGGElement | null) => {
+        if (el) blockRefs.current.set(op.pid, el);
+      };
+
+      switch (op.kind) {
+        case "declare_var":
+          return <LetVarBlock key={op.pid} op={op} ref={setRef} />;
+        case "set_var":
+          return <SetVarBlock key={op.pid} op={op} ref={setRef} />;
+        case "return":
+          return <ReturnBlock key={op.pid} op={op} ref={setRef} />;
+        case "call_fn":
+          return <CallBlock key={op.pid} op={op} ref={setRef} />;
+        case "await":
+          return <AwaitBlock key={op.pid} op={op} ref={setRef} />;
+        case "break":
+          return <BreakBlock key={op.pid} op={op} ref={setRef} />;
+        case "continue":
+          return <ContinueBlock key={op.pid} op={op} ref={setRef} />;
+        case "comment":
+          return <CommentBlock key={op.pid} op={op} ref={setRef} />;
+        case "raw":
+          return (
+            <RawBlock
+              key={op.pid}
+              op={op}
+              ref={setRef}
+              isEditing={editingRawPid === op.pid}
+              onToggleEdit={() =>
+                setEditingRawPid(
+                  editingRawPid === op.pid ? null : op.pid,
+                )
+              }
+              onEdit={(src: string) => {
+                op.source = src;
+                setEditingRawPid(null);
+              }}
+            />
+          );
+        case "if_block":
+          return (
+            <IfBlock
+              key={op.pid}
+              op={op}
+              ref={setRef}
+              renderBody={(body: CodeOp[]) => body.map(renderBlock)}
+            />
+          );
+        case "while":
+          return (
+            <WhileBlock
+              key={op.pid}
+              op={op}
+              ref={setRef}
+              renderBody={(body: CodeOp[]) => body.map(renderBlock)}
+            />
+          );
+        case "for_in":
+          return (
+            <ForInBlock
+              key={op.pid}
+              op={op}
+              ref={setRef}
+              renderBody={(body: CodeOp[]) => body.map(renderBlock)}
+            />
+          );
+        default:
+          return null;
+      }
     },
-    [onSave, initialOps],
+    [editingRawPid],
   );
 
-  // ── Raw input ──
-
-  const [rawInputText, setRawInputText] = useState("");
+  // ── Raw input commit ──
 
   const commitRawInput = useCallback(() => {
     if (!rawInputText.trim()) {
       setShowRawInput(false);
       return;
     }
-
-    // Add raw operation to workspace blocks
-    const ws = wsRef.current;
-    if (ws) {
-      const block = ws.newBlock("raw_stmt");
-      block.setFieldValue(rawInputText, "SOURCE");
-      if (typeof block.initSvg === "function") block.initSvg();
-      block.render();
-      block.moveBy(20, 20);
-
-      // Append to the end of top blocks
-      const topBlocks = ws.getTopBlocks(true);
-      if (topBlocks.length > 1) {
-        const lastBlock = topBlocks[topBlocks.length - 2]; // before the one we just added
-        if (lastBlock.nextConnection && block.previousConnection) {
-          lastBlock.nextConnection.connect(block.previousConnection);
-        }
-      }
-
-      syncOps();
-    }
-
+    model.insertBlock("raw_stmt", model.getOps().length);
+    const ops = model.getOps();
+    const lastOp = ops[ops.length - 1];
+    if (lastOp.kind === "raw") lastOp.source = rawInputText;
     setShowRawInput(false);
     setRawInputText("");
-  }, [rawInputText, syncOps]);
+  }, [rawInputText, model]);
 
-  const cancelRawInput = useCallback(() => {
-    setShowRawInput(false);
-    setRawInputText("");
-  }, []);
-
-  // ── Monaco fallback mode ──
+  // ── Monaco fallback ──
 
   if (showMonaco) {
     return (
@@ -275,7 +286,10 @@ export const BlockEditor: React.FC<Props> = ({
         initialSource={initialSource}
         initialDescription=""
         language={language}
-        onSave={handleMonacoSave}
+        onSave={async () => {
+          onSave(initialOps);
+          setShowMonaco(false);
+        }}
         onClose={() => setShowMonaco(false)}
       />
     );
@@ -286,67 +300,58 @@ export const BlockEditor: React.FC<Props> = ({
   return (
     <div className={styles.overlay}>
       <div className={styles.editor}>
-        {/* Header */}
         <div className={styles.header}>
-          <h3 className={styles.title}>
-            Block Editor — {opsCount} ops
-          </h3>
-          <div className={styles.actions}>
-            <button
-              type="button"
-              className={styles.textModeBtn}
-              onClick={() => setShowMonaco(true)}
-            >
-              文本模式
-            </button>
-            <button
-              type="button"
-              className={styles.saveBtn}
-              onClick={handleSave}
-            >
-              Save
-            </button>
-            <button
-              type="button"
-              className={styles.cancelBtn}
-              onClick={onClose}
-            >
-              Cancel
-            </button>
+          <h3>Block Editor — {opsCount} ops</h3>
+          <div>
+            <button type="button" onClick={() => setShowMonaco(true)}>文本模式</button>
+            <button type="button" onClick={handleSave}>Save</button>
+            <button type="button" onClick={onClose}>Cancel</button>
           </div>
         </div>
 
-        {/* Blockly workspace container */}
-        <div ref={containerRef} className={styles.blocklyContainer} />
+        <div
+          ref={containerRef}
+          className={styles.container}
+          style={{ overflowY: "auto", height: "100%" }}
+        >
+          <svg width="100%" height="auto">
+            <g transform="translate(8, 8)">
+              {model.getOps().map((op, i) => (
+                <g key={op.pid} transform={`translate(0, ${i * 48})`}>
+                  {renderBlock(op)}
+                </g>
+              ))}
+              {/* Gap rows */}
+              {model.getOps().map((_op, i) => (
+                <g key={`gap-${i}`} transform={`translate(0, ${i * 48 + 36})`}>
+                  <rect
+                    data-gap-position={i + 0.5}
+                    width="100%"
+                    height={12}
+                    fill="transparent"
+                  />
+                </g>
+              ))}
+            </g>
+          </svg>
+        </div>
 
-        {/* Raw input modal */}
+        <SelectionOverlay
+          target={model.getCurrentTarget()}
+          getElement={getElement}
+        />
+
         {showRawInput && (
-          <div className={styles.rawInputOverlay}>
-            <div className={styles.rawInputModal}>
-              <textarea
-                className={styles.rawInputTextarea}
-                value={rawInputText}
-                onChange={(e) => setRawInputText(e.target.value)}
-                placeholder="Enter raw OmniLang code..."
-                autoFocus
-              />
-              <div className={styles.rawInputActions}>
-                <button
-                  type="button"
-                  className={styles.rawInputCancelBtn}
-                  onClick={cancelRawInput}
-                >
-                  Esc 取消
-                </button>
-                <button
-                  type="button"
-                  className={styles.rawInputSubmitBtn}
-                  onClick={commitRawInput}
-                >
-                  Enter 提交
-                </button>
-              </div>
-            </div>
+          <div className={styles.rawOverlay}>
+            <textarea
+              autoFocus
+              value={rawInputText}
+              onChange={(e) => setRawInputText(e.target.value)}
+              placeholder="Enter raw OmniLang code..."
+              aria-label="Raw code input"
+            />
+            <button type="button" onClick={() => setShowRawInput(false)}>Esc 取消</button>
+            <button type="button" onClick={commitRawInput}>Enter 提交</button>
           </div>
         )}
       </div>

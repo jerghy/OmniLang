@@ -38,12 +38,6 @@ export class KeyboardHandler {
     const target = this.model.getCurrentTarget();
     if (!target) return;
 
-    // ── Modifier keys ──
-    if (e.ctrlKey || e.metaKey) {
-      this.handleModifier(e, target);
-      return;
-    }
-
     // ── Navigation ──
     if (e.key === "ArrowLeft") {
       e.preventDefault();
@@ -88,23 +82,6 @@ export class KeyboardHandler {
         if (e.key.length === 1) {
           this.handleCharacter(e.key, target);
         }
-    }
-  }
-
-  private handleModifier(e: KeyboardEvent, target: SelectionTarget): void {
-    // Simplified clipboard — will be replaced by ClipboardManager in Task 6
-    if (e.key === "c" || e.key === "C") {
-      e.preventDefault();
-      // clipboard copy placeholder
-    } else if (e.key === "x" || e.key === "X") {
-      e.preventDefault();
-      if (target.type === "block") {
-        this.model.deleteBlock(target.blockIndex);
-        this.callbacks.onOpsChanged();
-      }
-    } else if (e.key === "v" || e.key === "V") {
-      e.preventDefault();
-      // clipboard paste placeholder
     }
   }
 
