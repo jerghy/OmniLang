@@ -22,11 +22,23 @@ use super::types::*;
 use super::types_motion::*;
 use crate::parser::ast::{ImportStmt, Program};
 use crate::semantic::SemanticResult;
+use crate::sourcemap::{SourceMapEntry, SourceSpan};
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
+
+/// Convert a lexer Span to a SourceSpan for source map entries.
+fn span_to_source_span(span: &crate::lexer::Span) -> SourceSpan {
+    SourceSpan {
+        line: span.line,
+        col: span.col,
+        len: (span.end.saturating_sub(span.start)) as u32,
+    }
+}
+
 /// Lower AST -> IR.
 pub fn lower(program: &Program, semantics: &mut SemanticResult) -> IRProgram {
     let mut modules = FxHashMap::default();
+    let mut source_map: FxHashMap<String, SourceMapEntry> = FxHashMap::default();
 
     // Build variant → union name lookup for tagged union construction
     let mut variant_map: FxHashMap<String, String> = FxHashMap::default();
@@ -54,6 +66,15 @@ pub fn lower(program: &Program, semantics: &mut SemanticResult) -> IRProgram {
                 .push_scope(&format!("component:{}", comp.name));
             let ir = lower_component(comp, &variant_map, semantics);
             semantics.symbols.pop_scope();
+            let node_id = format!("{}:component:{}", module_name, comp.name);
+            source_map.insert(
+                node_id,
+                SourceMapEntry {
+                    node_id: format!("{}:component:{}", module_name, comp.name),
+                    omni_span: span_to_source_span(&comp.span),
+                    target_spans: Vec::new(),
+                },
+            );
             components.insert(comp.name.clone(), ir);
         }
 
@@ -63,6 +84,15 @@ pub fn lower(program: &Program, semantics: &mut SemanticResult) -> IRProgram {
                 .push_scope(&format!("store:{}", store.name));
             let ir = lower_store(store, &variant_map, semantics);
             semantics.symbols.pop_scope();
+            let node_id = format!("{}:store:{}", module_name, store.name);
+            source_map.insert(
+                node_id.clone(),
+                SourceMapEntry {
+                    node_id,
+                    omni_span: span_to_source_span(&store.span),
+                    target_spans: Vec::new(),
+                },
+            );
             stores.insert(store.name.clone(), ir);
         }
 
@@ -70,6 +100,15 @@ pub fn lower(program: &Program, semantics: &mut SemanticResult) -> IRProgram {
             semantics.symbols.push_scope(&format!("fn:{}", func.name));
             let ir = super::lower_logic::lower_function(func, &variant_map, semantics);
             semantics.symbols.pop_scope();
+            let node_id = format!("{}:fn:{}", module_name, func.name);
+            source_map.insert(
+                node_id.clone(),
+                SourceMapEntry {
+                    node_id,
+                    omni_span: span_to_source_span(&func.span),
+                    target_spans: Vec::new(),
+                },
+            );
             functions.insert(func.name.clone(), ir);
         }
 
@@ -99,13 +138,35 @@ pub fn lower(program: &Program, semantics: &mut SemanticResult) -> IRProgram {
         let motions: Vec<MotionIntent> = module
             .motions
             .iter()
-            .map(|m| lower_motion_def(m, &variant_map, semantics))
+            .map(|m| {
+                let node_id = format!("{}:motion:{}", module_name, m.name);
+                source_map.insert(
+                    node_id.clone(),
+                    SourceMapEntry {
+                        node_id,
+                        omni_span: span_to_source_span(&m.span),
+                        target_spans: Vec::new(),
+                    },
+                );
+                lower_motion_def(m, &variant_map, semantics)
+            })
             .collect();
 
         let timelines: Vec<TimelineIntent> = module
             .timelines
             .iter()
-            .map(|t| lower_timeline_def(t, &variant_map, semantics))
+            .map(|t| {
+                let node_id = format!("{}:timeline:{}", module_name, t.name);
+                source_map.insert(
+                    node_id.clone(),
+                    SourceMapEntry {
+                        node_id,
+                        omni_span: span_to_source_span(&t.span),
+                        target_spans: Vec::new(),
+                    },
+                );
+                lower_timeline_def(t, &variant_map, semantics)
+            })
             .collect();
 
         // Validate design blocks before lowering
@@ -195,7 +256,7 @@ pub fn lower(program: &Program, semantics: &mut SemanticResult) -> IRProgram {
     IRProgram {
         version: "1.0".to_string(),
         modules,
-        source_map: FxHashMap::default(),
+        source_map,
         stdlib_imports,
     }
 }
