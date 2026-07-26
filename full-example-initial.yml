@@ -1,0 +1,234 @@
+- generic [ref=f170e3]:
+  - main [ref=f170e5]:
+    - generic [ref=f170e7]:
+      - generic [ref=f170e8]:
+        - button "Remount component" [ref=f170e9] [cursor=pointer]
+        - button "Zoom in" [ref=f170e12] [cursor=pointer]
+        - button "Zoom out" [ref=f170e16] [cursor=pointer]
+        - button "Reset zoom" [ref=f170e20] [cursor=pointer]
+        - button "Change the background of the preview" [ref=f170e143] [cursor=pointer]
+        - button "Apply a grid to the preview" [ref=f170e24] [cursor=pointer]
+        - button "Change the size of the preview" [ref=f170e28] [cursor=pointer]
+        - button "Enable measure" [ref=f170e33] [cursor=pointer]
+        - button "Apply outlines to the preview" [ref=f170e37] [cursor=pointer]
+      - generic [ref=f170e40]:
+        - button "Go full screen" [ref=f170e41] [cursor=pointer]
+        - link "Open canvas in new tab" [ref=f170e44] [cursor=pointer]:
+          - /url: iframe.html?globals=&id=blockeditor-blockeditor--full-example
+        - button "Copy canvas link" [ref=f170e48] [cursor=pointer]
+    - generic [ref=f170e56]:
+      - link "Skip to sidebar" [ref=f170e57] [cursor=pointer]:
+        - /url: "#blockeditor-blockeditor--full-example"
+      - iframe [active] [ref=f170e58]:
+        - generic [ref=f171e2]:
+          - generic [ref=f171e3]:
+            - heading "Block Editor — 7 ops" [level=3] [ref=f171e4]
+            - generic [ref=f171e5]:
+              - button "文本模式" [ref=f171e6]
+              - button "Save" [ref=f171e7]
+              - button "Cancel" [ref=f171e8]
+          - img [ref=f171e10]:
+            - generic [ref=f171e11]:
+              - generic [ref=f171e17]:
+                - generic [ref=f171e18]: let
+                - generic [ref=f171e20]: count
+                - generic [ref=f171e23]: ":"
+                - generic [ref=f171e25]: i32
+                - generic [ref=f171e28]: =
+                - generic [ref=f171e30]: "0"
+              - generic [ref=f171e39]:
+                - generic [ref=f171e40]: count
+                - generic [ref=f171e43]: +=
+                - generic [ref=f171e45]: "1"
+              - generic [ref=f171e52]:
+                - generic [ref=f171e54]:
+                  - generic [ref=f171e58]:
+                    - generic [ref=f171e59]: if
+                    - generic [ref=f171e61]: x > 0
+                  - generic [ref=f171e64]:
+                    - generic [ref=f171e68]:
+                      - generic [ref=f171e69]: print
+                      - generic [ref=f171e72]: (
+                      - generic [ref=f171e74]: 1 args
+                      - generic [ref=f171e77]: )
+                    - generic [ref=f171e82]:
+                      - generic [ref=f171e83]: return
+                      - generic [ref=f171e85]: "1"
+                - generic [ref=f171e88]:
+                  - generic [ref=f171e92]:
+                    - generic [ref=f171e93]: elif
+                    - generic [ref=f171e95]: x < 0
+                  - generic [ref=f171e102]:
+                    - generic [ref=f171e103]: return
+                    - generic [ref=f171e105]: "-1"
+                - generic [ref=f171e108]:
+                  - generic [ref=f171e109]: else
+                  - generic [ref=f171e119]:
+                    - generic [ref=f171e120]: return
+                    - generic [ref=f171e122]: "0"
+              - generic [ref=f171e133]:
+                - generic [ref=f171e134]: let mut
+                - generic [ref=f171e136]: sum
+                - generic [ref=f171e139]: ":"
+                - generic [ref=f171e141]: f64
+                - generic [ref=f171e144]: =
+                - generic [ref=f171e146]: "0.0"
+              - generic [ref=f171e155]:
+                - generic [ref=f171e156]: let mut
+                - generic [ref=f171e158]: i
+                - generic [ref=f171e161]: ":"
+                - generic [ref=f171e163]: i32
+                - generic [ref=f171e166]: =
+                - generic [ref=f171e168]: "0"
+              - generic [ref=f171e175]:
+                - generic [ref=f171e180]:
+                  - generic [ref=f171e181]: while
+                  - generic [ref=f171e183]: i < values.len()
+                - generic [ref=f171e186]:
+                  - generic [ref=f171e190]:
+                    - generic [ref=f171e191]: sum
+                    - generic [ref=f171e194]: +=
+                    - generic [ref=f171e196]: values.get(i)
+                  - generic [ref=f171e202]:
+                    - generic [ref=f171e203]: i
+                    - generic [ref=f171e206]: +=
+                    - generic [ref=f171e208]: "1"
+              - generic [ref=f171e219]:
+                - generic [ref=f171e220]: return
+                - generic [ref=f171e222]: sum
+  - navigation [ref=f170e61]:
+    - generic [ref=f170e64]:
+      - generic [ref=f170e65]:
+        - generic [ref=f170e66]:
+          - link "Skip to canvas" [ref=f170e67] [cursor=pointer]:
+            - /url: "#storybook-preview-wrapper"
+          - link "Storybook" [ref=f170e69] [cursor=pointer]:
+            - /url: ./
+            - img "Storybook" [ref=f170e70]
+          - button "Shortcuts" [ref=f170e76] [cursor=pointer]
+        - generic [ref=f170e80]: Search for components
+        - generic [ref=f170e81]:
+          - combobox [ref=f170e82]:
+            - searchbox "Search for components" [ref=f170e83]
+            - code: ⌃ K
+            - button "Tag filters" [ref=f170e150] [cursor=pointer]
+          - button [ref=f170e85] [cursor=pointer]
+        - generic [ref=f170e88]:
+          - generic [ref=f170e153]:
+            - generic [ref=f170e154]:
+              - button [expanded] [ref=f170e155] [cursor=pointer]
+              - button "Expand" [ref=f170e159] [cursor=pointer]
+            - button [expanded] [ref=f170e163] [cursor=pointer]
+            - link [ref=f170e171] [cursor=pointer]:
+              - /url: /?path=/docs/blockeditor-blockeditor--docs
+            - link [ref=f170e176] [cursor=pointer]:
+              - /url: /?path=/story/blockeditor-blockeditor--empty
+            - link [ref=f170e181] [cursor=pointer]:
+              - /url: /?path=/story/blockeditor-blockeditor--let-and-set
+            - link [ref=f170e186] [cursor=pointer]:
+              - /url: /?path=/story/blockeditor-blockeditor--if-block
+            - link [ref=f170e191] [cursor=pointer]:
+              - /url: /?path=/story/blockeditor-blockeditor--while-loop
+            - link [ref=f170e196] [cursor=pointer]:
+              - /url: /?path=/story/blockeditor-blockeditor--for-loop
+            - link [ref=f170e201] [cursor=pointer]:
+              - /url: /?path=/story/blockeditor-blockeditor--break-continue
+            - link [ref=f170e206] [cursor=pointer]:
+              - /url: /?path=/story/blockeditor-blockeditor--await-call
+            - link [ref=f170e211] [cursor=pointer]:
+              - /url: /?path=/story/blockeditor-blockeditor--comment-raw
+            - generic [ref=f170e215]:
+              - link [ref=f170e216] [cursor=pointer]:
+                - /url: /?path=/story/blockeditor-blockeditor--full-example
+              - link "Skip to canvas" [ref=f170e220] [cursor=pointer]:
+                - /url: "#storybook-preview-wrapper"
+            - link [ref=f170e222] [cursor=pointer]:
+              - /url: /?path=/story/blockeditor-blockeditor--typescript-mode
+          - text: /
+      - link "Storybook 10.4 Learn what's new in Storybook" [ref=f170e228] [cursor=pointer]:
+        - /url: /?path=/settings/whats-new
+        - generic [ref=f170e232]:
+          - generic "Storybook 10.4" [ref=f170e233]
+          - generic [ref=f170e234]: Learn what's new in Storybook
+        - button "Dismiss notification" [ref=f170e235]
+  - generic [ref=f170e112]:
+    - generic [ref=f170e114]:
+      - tablist [ref=f170e116]:
+        - tab "Controls 4" [ref=f170e238] [cursor=pointer]:
+          - generic [ref=f170e119]:
+            - generic [ref=f170e120]: Controls
+            - generic [ref=f170e239]: "4"
+        - tab "Actions" [ref=f170e121] [cursor=pointer]
+        - tab "Interactions" [ref=f170e126] [cursor=pointer]
+      - generic [ref=f170e132]:
+        - button "Change addon orientation [alt D]" [ref=f170e133] [cursor=pointer]
+        - button "Hide addons [alt A]" [ref=f170e137] [cursor=pointer]
+    - table [ref=f170e244]:
+      - rowgroup [ref=f170e245]:
+        - row [ref=f170e246]:
+          - columnheader "Name" [ref=f170e247]
+          - columnheader [ref=f170e248]:
+            - generic [ref=f170e249]:
+              - text: Control
+              - button "Reset controls" [ref=f170e250] [cursor=pointer]
+      - rowgroup [ref=f170e253]:
+        - row [ref=f170e254]:
+          - cell "elementId*" [ref=f170e255]
+          - cell [ref=f170e256]:
+            - textbox [ref=f170e258]:
+              - /placeholder: Edit string...
+              - text: story-full
+        - row [ref=f170e259]:
+          - cell "initialOps*" [ref=f170e260]
+          - 'cell "RAW initialOps : [ 0 : {...} 7 keys 1 : {...} 5 keys 2 : {...} 4 keys 3 : {...} 7 keys 4 : {...} 7 keys 5 : {...} 5 keys 6 : {...} 3 keys ]" [ref=f170e261]':
+            - generic [ref=f170e262]:
+              - button "RAW" [ref=f170e263] [cursor=pointer]
+              - generic [ref=f170e269]:
+                - generic [ref=f170e270]: "initialOps :"
+                - generic [ref=f170e272]:
+                  - text: "["
+                  - list [ref=f170e276]:
+                    - generic [ref=f170e277]:
+                      - generic [ref=f170e278]: "0 :"
+                      - generic [ref=f170e280]: "{...} 7 keys"
+                    - generic [ref=f170e285]:
+                      - generic [ref=f170e286]: "1 :"
+                      - generic [ref=f170e288]: "{...} 5 keys"
+                    - generic [ref=f170e293]:
+                      - generic [ref=f170e294]: "2 :"
+                      - generic [ref=f170e296]: "{...} 4 keys"
+                    - generic [ref=f170e301]:
+                      - generic [ref=f170e302]: "3 :"
+                      - generic [ref=f170e304]: "{...} 7 keys"
+                    - generic [ref=f170e309]:
+                      - generic [ref=f170e310]: "4 :"
+                      - generic [ref=f170e312]: "{...} 7 keys"
+                    - generic [ref=f170e317]:
+                      - generic [ref=f170e318]: "5 :"
+                      - generic [ref=f170e320]: "{...} 5 keys"
+                    - generic [ref=f170e325]:
+                      - generic [ref=f170e326]: "6 :"
+                      - generic [ref=f170e328]: "{...} 3 keys"
+                  - text: "]"
+        - row [ref=f170e336]:
+          - cell "initialSource*" [ref=f170e337]
+          - cell [ref=f170e338]:
+            - textbox [ref=f170e340]:
+              - /placeholder: Edit string...
+              - text: "let count: i32 = 0; count += 1; if x > 0 { print(\"positive\"); return 1; } else if x < 0 { return -1; } else { return 0; } let mut sum: f64 = 0.0; let mut i: i32 = 0; while i < values.len() { sum += values.get(i); i += 1; } return sum;"
+        - row [ref=f170e341]:
+          - cell "onSave*" [ref=f170e342]
+          - cell "-" [ref=f170e343]
+        - row [ref=f170e344]:
+          - cell "onClose*" [ref=f170e345]
+          - cell "-" [ref=f170e346]
+        - row [ref=f170e347]:
+          - cell "language" [ref=f170e348]
+          - cell "typescript omnilang" [ref=f170e349]:
+            - generic [ref=f170e350]:
+              - generic [ref=f170e351]:
+                - radio "typescript" [ref=f170e352]
+                - generic [ref=f170e353]: typescript
+              - generic [ref=f170e354]:
+                - radio "omnilang" [ref=f170e355]
+                - generic [ref=f170e356]: omnilang

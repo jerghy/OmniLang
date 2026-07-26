@@ -39,6 +39,8 @@ export interface NodeMeta {
   nodeType?: string;
   /** Owning fn/action name, used for PID-based matching during parse */
   blockName?: string;
+  /** WASM semantic dependency analysis result for code-block nodes */
+  dependencies?: import("./dependency-info").DependencyInfo;
 }
 
 export interface WireMeta {

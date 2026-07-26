@@ -16,7 +16,9 @@
 | `project-json.ts` | 项目元数据 | `ProjectJson`, `ComponentDef`, `NodeMeta`, `WireMeta` |
 | `pid.ts` | PID 索引 | `PidEntry`, `PidMap` |
 | `annotation.ts` | 注解 | 注释解析类型 |
-| `code-op.ts` | ★ CodeOp 操作类型 | `CodeOp` = `DeclareVarOp` \| `SetVarOp` \| `IfBlockOp` \| `WhileLoopOp` \| `ForLoopOp` \| `ReturnExprOp` \| `CallFnOp` \| `AwaitExprOp` \| `BreakStmtOp` \| `ContinueStmtOp` \| `CommentOp` \| `RawCodeOp`。编辑器持久化格式 |
+| `code-op.ts` | ★ CodeOp 操作类型 | `CodeOp` = `DeclareVarOp` \| `SetVarOp` \| ... \| `RawCodeOp`。字段类型已迁移至 `SlotValue` |
+| `slot-value.ts` | Slot 值类型 | `SlotValue` = `{ kind: "text" \| "expr" \| "empty" }`。`fromLegacyString()` / `slotToText()` 辅助 |
+| `dependency-info.ts` | ★ v5 依赖分析结果 | `DependencyInfo`（codeBlockPid + reads/writes/calls）、`DepEntry`、`CallEntry` |
 | `editor-node.ts` | ★ EditorNode 编辑器格式 | `EditorNode` = `ContainerNode` \| `BlockNode` \| `InlineNode` \| `InputSlot`。细粒度嵌套树，CodeCard Editor v2 内部格式 |
 | `codegraph.ts` | 代码图谱 | CodeGraph 节点/边 |
 | `node-flow.ts` | 节点流 | FlowCanvas 类型 |
@@ -93,7 +95,7 @@
 | `ArtboardHeader.tsx` | 设备选择下拉 + 尺寸显示 |
 | `ZoomControls.tsx` | 缩放按钮 + 百分比 |
 | `canvas-store.ts` | Canvas 专用 Zustand slice |
-| `code/FlowCanvas.tsx` | ★ 代码流画布（ReactFlow），4 节点：fn/code-block/condition/return |
+| `code/FlowCanvas.tsx` | ★ 代码流画布（ReactFlow），4 节点：fn/code-block/condition/return。双击 code-block → CodeBlockEditor（Monaco + WASM） |
 | `code/nodes/FnNode.tsx` | fn 节点：函数入口，单出口 flow-out |
 | `code/nodes/ConditionNode.tsx` | condition 节点：if/elif/else 组合判断，每分支独立出口 |
 | `code/nodes/CodeBlockNode.tsx` | code-block 节点：自由 OmniView 代码文本，flow-in + flow-out |
@@ -101,37 +103,26 @@
 | `code/nodes/DesignPreviewNode.tsx` | ★ CodeFlow 中的设计缩略图节点 |
 | `code/FlowInspector.tsx` | ★ CodeFlow 右侧面板：选中 FN 节点编辑 name+params，选中 Return 编辑表达式 |
 | `code/CanvasContextMenu.tsx` | 画布右键菜单 |
-| `code/CodeEditorModal.tsx` | ★ 代码块代码编辑器（Monaco Editor 80vw×80vh 模态面板）。集成 `services/monaco/` 提供 OmniLang 语法高亮 + 代码片段 + 类型注入 + WASM 诊断。Props：`language`/`storeDefs`/`omniSourcePath`/`omniSource`（diagnostics 用） |
-| `code/CodeCardEditor.tsx` | ★★ CodeCard v2 入口：Lexical 编辑器容器（5 种自定义节点 + 4 插件 + Monaco 双模式） |
-| `code/card-editor/` | ❌ 已删除（2026-07-24，被 Lexical v2 架构取代） |
-| `code/lexical/` | ★★ CodeCard v2 Lexical 层（16 files） |
-| `code/lexical/nodes/CardNode.ts` | 内联卡片：DecoratorNode 只读卡片（mut/operator/type/var_ref/literal/dot/separator/comment），`<span>` 渲染 |
-| `code/lexical/nodes/ContainerNode.ts` | 容器卡片：ElementNode 包裹子卡（let/set/return/await/call/array/map），浅色背景 + 左侧色条 |
-| `code/lexical/nodes/BlockNode.ts` | 块结构卡片：ElementNode 三行封闭色条（if/while/for），含 `__branches` 元数据支持 elif/else |
-| `code/lexical/nodes/BodyLineNode.ts` | 代码行节点：ElementNode 块内缩进行，含 `__branchIndex` 标记分支归属 |
-| `code/lexical/nodes/InputSlotNode.ts` | 输入槽：TextNode 子类 `\` 唤起的内联输入框，`data-slot-kind` 区分 name/type/expression/condition/fn_name |
-| `code/lexical/nodes/index.ts` | 节点 barrel 导出 |
-| `code/lexical/transforms/convertToNodes.ts` | ★ CodeOp[] → EditorNode[]：加载方向转换器 |
-| `code/lexical/transforms/convertToOps.ts` | ★ EditorNode[] → CodeOp[]：保存方向转换器 |
-| `code/lexical/plugins/CodeOpSyncPlugin.ts` | ★ 双向同步：initialOps → EditorNode[] → Lexical 树（加载）；Lexical 树 → EditorNode[] → CodeOp[] → onSync（变更） |
-| `code/lexical/plugins/AutocompletePlugin.tsx` | 补全插件：打字检测 + 上下文感知补全 + `\` 输入框创建 + 卡片插入 |
-| `code/lexical/plugins/KeyboardPlugin.ts` | 键盘导航：← → 卡片间移动、↑ ↓ body line 跳转、Delete 层级删除、Tab 运算符循环、Enter body line 换行 |
-| `code/lexical/autocomplete/autocomplete-rules.ts` | 补全规则：$parentKind 感知的上下文过滤（let→mut/:/type，set→operator，if/while→comparison，dot→methods） |
-| `code/lexical/autocomplete/AutocompleteMenu.tsx` | 浮动补全菜单：window.getSelection 定位，↑↓ Enter/Escape 导航 |
+| `code/CodeBlockEditor.tsx` | ★★ v5 代码块编辑器（~280 行）：Monaco + WASM `analyse_dependencies()` → DependencyPanel。替代 blocks/ + lexical/ |
+| `code/CodeBlockEditor.module.css` | 编辑器样式（全部使用 --ol-* Token） |
+| `code/CodeBlockEditor.stories.tsx` | 5 个 Storybook stories（含 WASM 分析验证） |
+| `code/DependencyPanel.tsx` | 依赖面板：三态 loading/ready/unavailable + reads/writes/calls |
+| `code/DependencyPanel.module.css` | 面板样式（三态 placeholder、badge、滚动条） |
+| `code/CodeEditorModal.tsx` | ★ 代码块 Monaco 模态面板（80vw×80vh）。OmniLang 语法高亮 + 代码片段 + WASM 诊断 |
+| `code/CodeCardEditor.tsx` | CodeCard v3 入口：逐行编辑器 + 补全菜单（不再依赖 Lexical） |
+| `code/blocks/` | ❌ 已删除（2026-07-26，被 CodeBlockEditor v5 替代） |
+| `code/lexical/` | ❌ 已删除（2026-07-26，npm 未安装，无消费者） |
+| `code/card-editor/` | ❌ 已删除（2026-07-24） |
 
-### 快速事实 — CodeCard Editor v2
+### 快速事实 — CodeBlock Editor v5
 
 | 事实 | 说明 |
 |------|------|
-| 模型 | 细粒度 EditorNode[] 嵌套树：Container（容器）/ Block（块结构）/ Inline（内联卡）/ InputSlot（输入框） |
-| 基座 | Lexical 单一 contentEditable 实例，5 种自定义节点 |
-| 补全 | 打字前缀过滤 + 上下文感知（parentKind/precedingCardKind），菜单定位跟随光标 |
-| 视觉 | 统一圆角色块 + 语义色：紫(let)/蓝(set)/橙(mut)/灰(operator)/青(type/call)/绿(var_ref/literal)/红(return) |
-| 容器 | 浅色半透明背景包裹子卡（宽度=内容宽），右侧空白为 ▌ 整组删除区 |
-| 块结构 | 三行封闭色条：┏ 头行 / ┃ 代码行（Enter 扩展）/ ┗ 收口行（细条） |
-| 键盘 | ← → 卡片间移动、↑ ↓ body line 跳转、Delete 层级删除、Tab 切换 set 运算符、Enter body line 换行、\ 唤起输入框 |
-| 双模式 | "文本模式"按钮 → CodeEditorModal (Monaco) 作为 fallback |
-| 数据流 | CodeOp[] → convertToNodes → EditorNode[] → Lexical 树 → 编辑 → EditorNode[] → convertToOps → CodeOp[] → emitOps → source |
+| 范式 | Monaco 文本编辑 + WASM 语义分析，回归专业开发者体验 |
+| 依赖分析 | WASM `analyse_dependencies()` → DependencyPanel 三态展示 reads/writes/calls |
+| 数据流 | FlowCanvas 双击 → CodeBlockEditor → pipeline.ts 全量 .omni → WASM → DependencyPanel |
+| 架构连线 | 依赖写回 `store.nodeMeta` → ArchitecturePage 泡泡自动连线 |
+| Token | 全面使用 `--ol-*` CSS 变量 |
 | `shared/nodeRegistry.ts` | 节点类型注册表 |
 | `shared/connectionValidators.ts` | 连线验证 |
 | `shared/layoutUtils.ts` | 自动布局工具 |
@@ -258,10 +249,11 @@
 | 文件 | 职责 |
 |------|------|
 | `index.ts` | 统一导出入口 |
+| `useMonacoEditor.ts` | ★ v5 共享 Monaco 初始化 hook（CodeBlockEditor + CodeEditorModal 共用） |
 | `omnilang-language.ts` | Monarch tokenizer 注册 `omnilang` 语言：70+ 关键字、50+ 注解（`@pid`/`@dim`/`@if` 等）、13 种设计 token 类型、双字符串/模板字符串、行+块注释 |
 | `omnilang-types.ts` | 静态 `.d.ts`（11 个 std 模块 + 基本类型 + 实例方法）+ `generateStoreTypes(storeDefs)` 动态生成 Store 类型 → `addExtraLib()` 注入 TS IntelliSense |
 | `omnilang-snippets.ts` | `CompletionItemProvider` — 16 个代码逻辑片段（if/for/while/let/match/try/import/lambda/arrow 等），注册在 `typescript` 语言上 |
-| `diagnostics.ts` | WASM `OmniCompiler.diagnostics()` 接入：`getOmniCompiler()` 实例管理 + `wasmDiagnosticToMarker()` 映射 + `applyDiagnostics()` → `setModelMarkers()` |
+| `diagnostics.ts` | WASM `OmniCompiler.diagnostics()` 接入：`getOmniCompiler()` + `ensureWasmInit()` 自初始化 + `wasmDiagnosticToMarker()` 映射 + `applyDiagnostics()` → `setModelMarkers()` |
 
 ### 5.5 其他服务
 

@@ -2,32 +2,18 @@
 // Right-side panel displaying live data dependencies for a code block.
 
 import styles from "./DependencyPanel.module.css";
+import type { DependencyInfo, DepEntry, CallEntry } from "../../../core/types/dependency-info";
 
-// ── Public Types ──
-
-export interface DependencyInfo {
-  codeBlockPid: string;
-  reads:  DepEntry[];
-  writes: DepEntry[];
-  calls:  CallEntry[];
-}
-
-export interface DepEntry {
-  name: string;
-  kind: "param" | "signal" | "computed" | "prop" | "store" | "local" | "function" | "unknown";
-  sourceLine: number;
-}
-
-export interface CallEntry {
-  storeName: string;
-  actionName?: string;
-  sourceLine: number;
-}
+// Re-export for consumers that already import from here
+export type { DependencyInfo, DepEntry, CallEntry };
 
 // ── Component ──
 
+export type AnalysisStatus = "loading" | "ready" | "unavailable";
+
 interface DependencyPanelProps {
   deps: DependencyInfo | null;
+  status?: AnalysisStatus;
 }
 
 const KIND_LABELS: Record<DepEntry["kind"], string> = {
@@ -60,15 +46,40 @@ function KindBadge({ kind }: { kind: DepEntry["kind"] }) {
   );
 }
 
-export function DependencyPanel({ deps }: DependencyPanelProps) {
+/** Show appropriate placeholder based on analysis status. */
+function StatusPlaceholder({ status }: { status?: AnalysisStatus }) {
+  switch (status) {
+    case "unavailable":
+      return (
+        <div className={styles.placeholder}>
+          <div className={styles.statusIcon}>⚡</div>
+          <div className={styles.statusText}>WASM 编译服务未就绪</div>
+          <div className={styles.statusHint}>
+            依赖分析需要 omnic WASM 二进制文件。请运行 <code>wasm-pack build</code>。
+          </div>
+        </div>
+      );
+    case "loading":
+    default:
+      return (
+        <div className={styles.placeholder}>
+          解析中...
+        </div>
+      );
+  }
+}
+
+export function DependencyPanel({ deps, status }: DependencyPanelProps) {
+  // Loading / unavailable state — deps is null
   if (!deps) {
     return (
       <div className={styles.panel}>
-        <div className={styles.placeholder}>解析中...</div>
+        <StatusPlaceholder status={status} />
       </div>
     );
   }
 
+  // Ready state — deps has data (possibly empty)
   return (
     <div className={styles.panel}>
       <div className={styles.scrollArea}>
@@ -77,7 +88,7 @@ export function DependencyPanel({ deps }: DependencyPanelProps) {
           <div className={styles.section}>
             <div className={styles.sectionHeader}>📖 读取</div>
             {deps.reads.map((entry, i) => (
-              <div key={`r-${entry.name}-${i}`} className={styles.entry}>
+              <div key={`r-${entry.name}-${entry.kind}-${entry.sourceLine}`} className={styles.entry}>
                 <span className={styles.entryName}>{entry.name}</span>
                 <KindBadge kind={entry.kind} />
                 <span className={styles.sourceLine}>L{entry.sourceLine}</span>
@@ -91,7 +102,7 @@ export function DependencyPanel({ deps }: DependencyPanelProps) {
           <div className={styles.section}>
             <div className={styles.sectionHeader}>✏️ 写入</div>
             {deps.writes.map((entry, i) => (
-              <div key={`w-${entry.name}-${i}`} className={styles.entry}>
+              <div key={`w-${entry.name}-${entry.kind}-${entry.sourceLine}`} className={styles.entry}>
                 <span className={styles.entryName}>{entry.name}</span>
                 <KindBadge kind={entry.kind} />
                 <span className={styles.sourceLine}>L{entry.sourceLine}</span>
@@ -105,7 +116,7 @@ export function DependencyPanel({ deps }: DependencyPanelProps) {
           <div className={styles.section}>
             <div className={styles.sectionHeader}>📞 调用</div>
             {deps.calls.map((entry, i) => (
-              <div key={`c-${entry.storeName}-${i}`} className={styles.entry}>
+              <div key={`c-${entry.storeName}-${entry.actionName ?? ""}-${entry.sourceLine}`} className={styles.entry}>
                 <span className={styles.entryName}>
                   {entry.actionName
                     ? `${entry.storeName}.${entry.actionName}`
@@ -117,9 +128,9 @@ export function DependencyPanel({ deps }: DependencyPanelProps) {
           </div>
         )}
 
-        {/* All sections empty */}
+        {/* All sections empty — analysis succeeded but no deps found */}
         {deps.reads.length === 0 && deps.writes.length === 0 && deps.calls.length === 0 && (
-          <div className={styles.placeholder}>无依赖</div>
+          <div className={styles.placeholder}>当前代码块无外部依赖</div>
         )}
       </div>
     </div>

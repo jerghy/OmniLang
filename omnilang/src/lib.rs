@@ -560,6 +560,32 @@ pub fn compile_multi_to_target(
 // ═══════════════════════════════════════════════════════
 
 /// Export all `#[derive(TS)]` types as TypeScript definition files.
+// ── Code-block parsing ──────────────────────────────────────
+
+/// Result of parsing code-block source into structured AST statements.
+/// NOTE: Code-block parsing returns empty stmts — structured code-block
+/// AST parsing is deferred to the Projection Editor (方案 3).
+/// Code blocks are currently stored and emitted as raw text via Monaco.
+#[derive(Debug, Serialize)]
+pub struct ParseStmtsResult {
+    pub success: bool,
+    pub stmts: Vec<serde_json::Value>,
+    pub errors: Vec<error::Diagnostic>,
+}
+
+/// Parse a code-block source string into a list of AST statements.
+/// Used by WASM/JS `parse_code_block()`.
+///
+/// Currently returns an empty success result. Structured code-block
+/// parsing will be implemented as part of the Projection Editor.
+pub fn parse_stmts(_source: &str) -> ParseStmtsResult {
+    ParseStmtsResult {
+        success: true,
+        stmts: vec![],
+        errors: vec![],
+    }
+}
+
 ///
 /// Generated files go to `poiesis/src/commands/__generated__/`.
 /// Dependencies of each root type are exported automatically.

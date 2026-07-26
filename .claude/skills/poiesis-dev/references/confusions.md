@@ -1160,3 +1160,47 @@ if (parentId) {
 - `parser-view.ts` L760-766 — 注册 condBlock 到父元素 children
 - `view-tree-builder.ts` L4-8 — `findElement()`（§二十七 修复）
 - `view-tree-builder.ts` L49-63 — branches/fallback 分离（§二十八 修复）
+
+## 三十五、CodeBlockEditor WASM 分析陷阱（三个） ★
+
+### 35.1 AnalysisStatus 三态：null 同时代表 loading 和 failed
+
+**问题**：DependencyPanel 永远显示"解析中..."。
+
+**原因**：`deps` 状态初始值为 `null`，WASM 分析成功或失败时都只 `setDeps(result)`。失败时 result 为 null → deps 保持 null。`null` 同时代表两个状态：正在加载 和 分析失败。UI 无法区分，永远卡在 loading。
+
+**修复**：新增 `AnalysisStatus` 类型 `"loading" | "ready" | "unavailable"`（`DependencyPanel.tsx`）。初始化 `"loading"`，成功 → `"ready"`，失败/不可用 → `"unavailable"`。DependencyPanel 根据三态渲染不同 placeholder。
+
+**涉及文件**：`CodeBlockEditor.tsx` L82-83, L104-149；`DependencyPanel.tsx`。
+
+### 35.2 Effect deps 中的 `getValue` 每次渲染创建新引用
+
+**问题**：WASM 分析 effect 反复触发（24 次），每 500ms 循环。
+
+**原因**：Monaco editor 的 `getValue` 方法每次渲染创建新引用。把 `getValue` 放在 `useEffect` 的 deps 数组中 → 每次渲染 deps 变化 → effect 重跑。effect 内部 `clearTimeout` + 新 `setTimeout` 永远赶不上 → 500ms 循环。
+
+**修复**：从 deps 移除 `getValue`，通过 `sourceRef.current` 读取最新值。`CodeBlockEditor.tsx` L84（`sourceRef`）+ L98（`onChange` 同步）+ 注释 L154-155。
+
+**涉及文件**：`CodeBlockEditor.tsx` L98-99, L155-156。
+
+### 35.3 WASM 初始化：Storybook 中 `ensureWasmInit()` 自举
+
+**问题**：Storybook stories 中 CodeBlockEditor 的 WASM 分析失败。Tauri app 中正常。
+
+**原因**：Tauri app 中 `App.tsx` 的初始化 useEffect 调用了 `rustCompiler.init()`。Storybook 不加载 App.tsx → `getOmniCompiler()` 返回未初始化的实例 → `analyse_dependencies()` 不可用。
+
+**修复**：`diagnostics.ts` 新增 `ensureWasmInit()` 函数 —— 检查 `rustCompiler.init()` 是否已调用，未调用则自动初始化。CodeBlockEditor 通过 `getOmniCompiler()` 间接调用。
+
+**涉及文件**：`services/monaco/diagnostics.ts` — `ensureWasmInit()`；`CodeBlockEditor.tsx` L108。
+
+## 三十六、Storybook Token 注入：preview.tsx + preview-head.html 均不可用 ★
+
+**问题**：Storybook stories 中 `--ol-*` CSS 变量全部为空，组件无样式。
+
+**原因**：尝试了两种注入方式均失败：
+1. `preview.tsx` import tokens.css → CSS 注入到 **manager** 上下文（Storybook UI），而不是 **preview iframe**。`:root` 变量不可达。
+2. `preview-head.html` → Storybook 10.x 中该文件未被注入 iframe head。
+
+**修复**：在 story 文件（`CodeBlockEditor.stories.tsx`）中**直接 import tokens.css**。这样 CSS 跟随 story 模块加载，进入 preview iframe。
+
+**涉及文件**：`CodeBlockEditor.stories.tsx` L1 — `import "../../../styles/tokens.css"`。

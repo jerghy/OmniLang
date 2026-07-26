@@ -1,13 +1,17 @@
 import { describe, it, expect } from "vitest";
 import { emitOp, emitOps } from "../code-op-emitter";
 import type { CodeOp } from "../../../core/types/code-op";
+import type { SlotValue } from "../../../core/types/slot-value";
 import { uid } from "../../../core/utils/id";
+
+// Helper: create a text SlotValue from a plain string
+const tv = (s: string): SlotValue => ({ kind: "text", value: s });
 
 describe("emitOp", () => {
   it("emits let declaration with type and init", () => {
     const op: CodeOp = {
       kind: "declare_var", pid: uid("test"),
-      mutable: false, name: "sum", varType: "f64", initValue: "0.0",
+      mutable: false, name: tv("sum"), varType: tv("f64"), initValue: tv("0.0"),
       scope: "fn",
     };
     expect(emitOp(op, 0)).toBe("let sum: f64 = 0.0;\n");
@@ -16,7 +20,7 @@ describe("emitOp", () => {
   it("emits let mut without type (inferred)", () => {
     const op: CodeOp = {
       kind: "declare_var", pid: uid("test"),
-      mutable: true, name: "i", initValue: "0",
+      mutable: true, name: tv("i"), initValue: tv("0"),
       scope: "fn",
     };
     expect(emitOp(op, 0)).toBe("let mut i = 0;\n");
@@ -25,7 +29,7 @@ describe("emitOp", () => {
   it("emits set_var with += operator", () => {
     const op: CodeOp = {
       kind: "set_var", pid: uid("test"),
-      name: "count", operator: "+=", value: "1",
+      name: tv("count"), operator: "+=", value: tv("1"),
     };
     expect(emitOp(op, 0)).toBe("count += 1;\n");
   });
@@ -33,10 +37,10 @@ describe("emitOp", () => {
   it("emits while loop with nested body", () => {
     const op: CodeOp = {
       kind: "while", pid: uid("test"),
-      condition: "i < n",
+      condition: tv("i < n"),
       body: [{
         kind: "set_var", pid: uid("test"),
-        name: "sum", operator: "+=", value: "i",
+        name: tv("sum"), operator: "+=", value: tv("i"),
       }],
     };
     const result = emitOp(op, 0);
@@ -49,8 +53,8 @@ describe("emitOp", () => {
     const op: CodeOp = {
       kind: "if_block", pid: uid("test"),
       branches: [
-        { condition: "x > 0", body: [{ kind: "return", pid: uid("test"), value: "1" }] },
-        { condition: "", body: [{ kind: "return", pid: uid("test"), value: "0" }] },
+        { condition: tv("x > 0"), body: [{ kind: "return", pid: uid("test"), value: tv("1") }] },
+        { condition: tv(""), body: [{ kind: "return", pid: uid("test"), value: tv("0") }] },
       ],
     };
     const result = emitOp(op, 0);
@@ -61,7 +65,7 @@ describe("emitOp", () => {
   });
 
   it("emits return with and without value", () => {
-    expect(emitOp({ kind: "return", pid: uid("test"), value: "x" }, 0))
+    expect(emitOp({ kind: "return", pid: uid("test"), value: tv("x") }, 0))
       .toBe("return x;\n");
     expect(emitOp({ kind: "return", pid: uid("test") }, 0))
       .toBe("return;\n");
@@ -71,8 +75,8 @@ describe("emitOp", () => {
 describe("emitOps", () => {
   it("joins multiple ops", () => {
     const ops: CodeOp[] = [
-      { kind: "declare_var", pid: uid("test"), mutable: false, name: "x", initValue: "1", scope: "fn" },
-      { kind: "return", pid: uid("test"), value: "x" },
+      { kind: "declare_var", pid: uid("test"), mutable: false, name: tv("x"), initValue: tv("1"), scope: "fn" },
+      { kind: "return", pid: uid("test"), value: tv("x") },
     ];
     expect(emitOps(ops)).toBe("let x = 1;\nreturn x;\n");
   });

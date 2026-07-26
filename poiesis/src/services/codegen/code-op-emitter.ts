@@ -1,6 +1,6 @@
 // poiesis/src/services/codegen/code-op-emitter.ts
 // Converts CodeOp[] back into OmniLang source text.
-// Used by BlockEditor to produce .omni source from Blockly blocks.
+// Used by graph-compiler to produce .omni source from CodeOp arrays.
 
 import type { CodeOp } from "../../core/types/code-op";
 import type { SlotValue } from "../../core/types/slot-value";

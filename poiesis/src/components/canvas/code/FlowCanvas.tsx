@@ -13,7 +13,9 @@ import "@xyflow/react/dist/style.css";
 import { usePoiesisStore } from "../../../store";
 import { useCodeElements, useWires } from "../../../store/hooks";
 import { uid } from "../../../core/utils/id";
-import type { CodeblockElementData } from "../../../core/types/element";
+import type { CodeblockElementData, ElementData } from "../../../core/types/element";
+import type { WireData } from "../../../core/types/wire";
+import type { CodeTab } from "../../../core/types/codegraph";
 import { FnNode } from "./nodes/FnNode";
 import { ConditionNode } from "./nodes/ConditionNode";
 import { CodeBlockNode } from "./nodes/CodeBlockNode";
@@ -21,8 +23,9 @@ import { ReturnNode } from "./nodes/ReturnNode";
 import { DesignPreviewNode } from "./nodes/DesignPreviewNode";
 import { CODE_TAGS, TAG_CN, type ContextMenuState } from "./flowConstants";
 import { ContextMenu } from "./CanvasContextMenu";
-import { BlockEditor } from "./BlockEditor";
-import { emitOps } from "../../../services/codegen/code-op-emitter";
+import { CodeBlockEditor } from "./CodeBlockEditor";
+import type { CodeBlockEditorContext } from "./CodeBlockEditor";
+import type { DependencyInfo } from "../../../core/types/dependency-info";
 import { FlowInspector } from "./FlowInspector";
 import styles from "./FlowCanvas.module.css";
 
@@ -124,8 +127,13 @@ function FlowCanvasInner() {
   const removeElement = usePoiesisStore((s) => s.removeElement);
   const setProp = usePoiesisStore((s) => s.setProp);
   const setElementSource = usePoiesisStore((s) => s.setElementSource);
-  const setElementOperations = usePoiesisStore((s) => s.setElementOperations);
+  const setNodeMeta = usePoiesisStore((s) => s.setNodeMeta);
   const addWire = usePoiesisStore((s) => s.addWire);
+  // ── Context for CodeBlockEditor WASM analysis ──
+  const activeTabId = usePoiesisStore((s) => s.designPage.activeTabId);
+  const openTabs = usePoiesisStore((s) => s.designPage.openTabs);
+  const componentDefs = usePoiesisStore((s) => s.componentDefs);
+  const storeReferences = usePoiesisStore((s) => s.storeReferences);
 
   // ── Connect handler ──
   const onConnect = useCallback(
@@ -291,20 +299,56 @@ function FlowCanvasInner() {
     [nodes, previewNode],
   );
 
-  // ── Editing element (for BlockEditor / CodeEditorModal) ──
+  // ── Editing element (for CodeBlockEditor) ──
   const editingElement = editingNodeId
     ? elements.find((e) => e.id === editingNodeId && e.nodeType === "codeblock")
     : null;
 
-  const handleSaveOps = useCallback(
-    (operations: import("../../../core/types/code-op").CodeOp[]) => {
+  // ── CodeBlockEditor WASM analysis context ──
+  const editorContext = useMemo<CodeBlockEditorContext | null>(() => {
+    const activeTab = openTabs.find((t) => t.id === activeTabId);
+    if (!activeTab) return null;
+
+    const compDef = componentDefs[activeTab.componentName];
+    // Extract fn params from the parent fn element
+    const fnParams = getFnParams(editingElement, elements);
+
+    // Resolve store names referenced by this component
+    const stores = storeReferences[activeTab.componentName] ?? [];
+
+    // Build code tabs from current code-flow elements + wires
+    const codeTabs = buildCodeTabs(codeElements, wires);
+
+    return {
+      fnParams,
+      componentName: activeTab.componentName,
+      omniSourcePath: activeTab.filePath,
+      signals: compDef?.signals?.map((s) => s.name) ?? [],
+      stores,
+      // allSources is intentionally empty here — full project source collection
+      // requires async file reads (see useSaveProject.ts:collectProjectSources).
+      // The CodeBlockEditor uses pipeline.ts generateFullOmniSource() instead,
+      // which synthesizes the full .omni source from designElements + designWires.
+      allSources: {},
+      designElements: elements,
+      designWires: wires,
+      codeTabs,
+    };
+  }, [activeTabId, openTabs, componentDefs, storeReferences, editingElement, elements, wires, codeElements]);
+
+  const handleSaveSource = useCallback(
+    (source: string, deps: DependencyInfo | null) => {
       if (!editingNodeId) return;
-      const source = emitOps(operations);
-      setElementOperations(editingNodeId, operations);
       setElementSource(editingNodeId, source);
+      if (deps) {
+        setNodeMeta(editingNodeId, {
+          pos: { x: 0, y: 0 },
+          dependencies: deps,
+        });
+      }
       setEditingNodeId(null);
     },
-    [editingNodeId, setElementOperations, setElementSource],
+    [editingNodeId, setElementSource, setNodeMeta],
   );
 
   return (
@@ -379,14 +423,13 @@ function FlowCanvasInner() {
         />
       )}
 
-      {/* Block Editor — double-click code-block node */}
-      {editingElement && (
-        <BlockEditor
+      {/* CodeBlockEditor — double-click code-block node */}
+      {editingElement && editorContext && (
+        <CodeBlockEditor
           elementId={editingElement.id}
-          initialOps={(editingElement as CodeblockElementData).operations || []}
           initialSource={(editingElement as CodeblockElementData).source || ""}
-          language="omnilang"
-          onSave={handleSaveOps}
+          context={editorContext}
+          onSave={handleSaveSource}
           onClose={() => setEditingNodeId(null)}
         />
       )}
@@ -435,6 +478,57 @@ function FlowCanvasInner() {
       <FlowInspector selectedNodeIds={selectedNodeIds} />
     </div>
   );
+}
+
+// ── Helpers ──
+
+/** Extract function parameter names from the parent fn element of a code block. */
+function getFnParams(
+  editingElement: ElementData | null | undefined,
+  allElements: ElementData[],
+): string[] {
+  if (!editingElement) return [];
+  const codeEl = editingElement as CodeblockElementData;
+  if (codeEl.tag === "fn") return [];
+  // Find the parent fn node by traversing up the parentId chain
+  let current: ElementData | null = editingElement;
+  while (current) {
+    if (current.parentId) {
+      const parent = allElements.find((e) => e.id === current!.parentId);
+      if (parent) {
+        const parentCode = parent as CodeblockElementData;
+        if (parentCode.tag === "fn") {
+          try {
+            return JSON.parse((parentCode.props.params as string) || "[]");
+          } catch {
+            return [];
+          }
+        }
+      }
+      current = parent ?? null;
+    } else {
+      break;
+    }
+  }
+  return [];
+}
+
+/** Build CodeTab[] from the current code-flow elements and wires. */
+function buildCodeTabs(
+  codeElements: CodeblockElementData[],
+  wires: WireData[],
+): CodeTab[] {
+  if (codeElements.length === 0 && wires.length === 0) return [];
+  return [
+    {
+      id: "main",
+      type: "logic",
+      label: "Logic",
+      icon: "code",
+      graph: { elements: codeElements, wires },
+      variables: [],
+    },
+  ];
 }
 
 export function FlowCanvas() {

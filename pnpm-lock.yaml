@@ -69,9 +69,6 @@ importers:
       '@xyflow/react':
         specifier: ^12.11.0
         version: 12.11.2(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
-      blockly:
-        specifier: ^13.1.1
-        version: 13.1.1(jsdom@29.1.1)
       mitt:
         specifier: ^3.0.1
         version: 3.0.1
@@ -2166,12 +2163,6 @@ packages:
   binary-extensions@2.3.0:
     resolution: {integrity: sha512-Ceh+7ox5qe7LJuLHoY0feh3pHuUDHAcRUeyL2VYghZwfpkNIy/+8Ocg0a3UuSoYzavmylwuLWQOf3hl0jjMMIw==}
     engines: {node: '>=8'}
-
-  blockly@13.1.1:
-    resolution: {integrity: sha512-0h3YDzlGclLKaZi9VHxyPjRJ9OFV6vw2+TMcolLZO1ZlgfY1Q79qDlGpH2nUYnTNiEVuJu9K6u6NHxqiPeRYOA==}
-    engines: {node: '>=22'}
-    peerDependencies:
-      jsdom: ^27.4.0
 
   brace-expansion@2.1.2:
     resolution: {integrity: sha512-w5JZcKgdhDOgOwm8H+KgbosopHMuGcl6qbulwjtz3SM7I7P3yW1eAjzMPLrIE+NQ9vjgANKHWeMHnrT0OXW1oA==}
@@ -5729,10 +5720,6 @@ snapshots:
       require-from-string: 2.0.2
 
   binary-extensions@2.3.0: {}
-
-  blockly@13.1.1(jsdom@29.1.1):
-    dependencies:
-      jsdom: 29.1.1
 
   brace-expansion@2.1.2:
     dependencies:

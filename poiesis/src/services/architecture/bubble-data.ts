@@ -14,6 +14,7 @@
  */
 
 import type { BubbleNode, BubbleEdge } from "../../core/types/architecture";
+import type { NodeMeta } from "../../core/types/project-json";
 
 // ── Types ──
 
@@ -663,4 +664,98 @@ export async function buildBubbleGraph(
   buildCodeBubbles(libs, bubbles, idCounter);
 
   return { bubbles, edges };
+}
+
+// ── Dependency edges from WASM semantic analysis ───────────────
+
+/**
+ * Build additional edges from nodeMeta.dependencies (populated by
+ * CodeBlockEditor WASM analysis). Matches dependency names against
+ * bubble labels to create data-flow edges in the architecture graph.
+ *
+ * Edge mapping:
+ *   reads signal/computed  → signal bubble → parent store bubble
+ *   writes signal/variable  → parent store bubble → signal bubble
+ *   calls store.action      → store bubble → action bubble
+ */
+export function buildDependencyEdges(
+  nodeMeta: Record<string, NodeMeta>,
+  bubbles: BubbleNode[],
+  existingEdgeCount: number,
+): BubbleEdge[] {
+  const edges: BubbleEdge[] = [];
+  let ec = existingEdgeCount;
+
+  // Index bubbles by label for fast lookup
+  const bubblesByLabel = new Map<string, BubbleNode[]>();
+  for (const b of bubbles) {
+    const list = bubblesByLabel.get(b.label) || [];
+    list.push(b);
+    bubblesByLabel.set(b.label, list);
+  }
+
+  for (const meta of Object.values(nodeMeta)) {
+    if (!meta.dependencies) continue;
+    const deps = meta.dependencies;
+
+    // Reads: signal/computed/prop → draw edge FROM the internal item to parent store
+    for (const read of deps.reads) {
+      if (read.kind === "signal" || read.kind === "computed" || read.kind === "prop" || read.kind === "store") {
+        const matches = bubblesByLabel.get(read.name) || [];
+        for (const match of matches) {
+          if (match.layer === "internal" && match.parentId) {
+            edges.push({
+              id: `dep-${ec++}`,
+              source: match.id,
+              target: match.parentId,
+              label: `读:${read.name}`,
+              edgeType: "store-read",
+            });
+          }
+        }
+      }
+    }
+
+    // Writes: signal/variable → draw edge FROM parent store TO internal item
+    for (const write of deps.writes) {
+      const matches = bubblesByLabel.get(write.name) || [];
+      for (const match of matches) {
+        if (match.layer === "internal" && match.parentId) {
+          edges.push({
+            id: `dep-${ec++}`,
+            source: match.parentId,
+            target: match.id,
+            label: `写:${write.name}`,
+            edgeType: "store-write",
+          });
+        }
+      }
+    }
+
+    // Calls: store.action → draw edge FROM store bubble TO action bubble
+    for (const call of deps.calls) {
+      const storeMatches = bubblesByLabel.get(call.storeName) || [];
+      for (const match of storeMatches) {
+        if (match.type === "store" && match.depth === 1) {
+          if (call.actionName) {
+            const actionLabel = `${call.actionName}()`;
+            const actionMatches = bubblesByLabel.get(actionLabel) || [];
+            for (const actionBubble of actionMatches) {
+              if (actionBubble.layer === "internal" && actionBubble.parentId === match.id) {
+                edges.push({
+                  id: `dep-${ec++}`,
+                  source: match.id,
+                  target: actionBubble.id,
+                  label: "调用",
+                  edgeType: "store-write",
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return edges;
 }

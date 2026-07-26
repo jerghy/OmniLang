@@ -1,0 +1,16 @@
+- generic [ref=f55e2]:
+  - generic [ref=f55e3]:
+    - heading "Block Editor — 1 ops" [level=3] [ref=f55e4]
+    - generic [ref=f55e5]:
+      - button "文本模式" [ref=f55e6]
+      - button "Save" [ref=f55e7]
+      - button "Cancel" [ref=f55e8]
+  - img [ref=f55e10]:
+    - generic [ref=f55e15]:
+      - generic [ref=f55e19]:
+        - generic [ref=f55e20]: while
+        - generic [ref=f55e22]: i < 10
+      - generic [ref=f55e30]:
+        - generic [ref=f55e31]: i
+        - generic [ref=f55e34]: +=
+        - generic [ref=f55e36]: "1"

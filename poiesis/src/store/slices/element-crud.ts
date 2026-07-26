@@ -165,18 +165,8 @@ export function createElementCrudSlice(set: SetFn, get: GetFn) {
       return { ...undoUpdate, wires, isDirty: true };
     }),
 
-    setElementOperations: (id: string, operations: import("../../core/types/code-op").CodeOp[]) => set((s) => ({
-      elements: s.elements.map(e => e.id === id ? { ...e, operations } as ElementData : e),
-      isDirty: true,
-    })),
-
     setElementSource: (id: string, source: string) => set((s) => ({
       elements: s.elements.map(e => e.id === id ? { ...e, source } as ElementData : e),
-      isDirty: true,
-    })),
-
-    setElementOperations: (id: string, operations: import("../../core/types/code-op").CodeOp[]) => set((s) => ({
-      elements: s.elements.map(e => e.id === id ? { ...e, operations } as ElementData : e),
       isDirty: true,
     })),
 

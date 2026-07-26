@@ -4,7 +4,7 @@ import type { ComponentType } from "react";
 import type { NodeProps, EdgeProps, Edge } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { usePoiesisStore } from "../../store";
-import { buildBubbleGraph } from "../../services/architecture";
+import { buildBubbleGraph, buildDependencyEdges } from "../../services/architecture";
 import type { OmniFileInfo } from "../../services/architecture";
 import { useBubbleLayout } from "../../hooks/useBubbleLayout";
 import { BubbleNode } from "./nodes/BubbleNode";
@@ -49,11 +49,18 @@ export function ArchitectureGraph() {
   const expandBubble = usePoiesisStore((s) => s.expandBubble);
   const openTab = usePoiesisStore((s) => s.openTab);
   const projectDir = usePoiesisStore((s) => s.projectDir);
+  const nodeMeta = usePoiesisStore((s) => s.nodeMeta);
 
   const [contextMenu, setContextMenu] = useState<{
     position: { x: number; y: number };
     bubbleId: string;
   } | null>(null);
+
+  // Content hash of nodeMeta for cache invalidation when dependencies change
+  const nodeMetaHash = useMemo(
+    () => computeNodeMetaHash(nodeMeta),
+    [nodeMeta],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -66,8 +73,13 @@ export function ArchitectureGraph() {
         return;
       }
 
-      // Check cache: if same projectDir and within TTL, skip scan
-      if (cache && cache.projectDir === projectDir && Date.now() - cache.timestamp < CACHE_TTL) {
+      // Check cache: skip if projectDir + nodeMeta unchanged and within TTL
+      if (
+        cache &&
+        cache.projectDir === projectDir &&
+        (cache as CacheData & { nodeMetaHash?: string }).nodeMetaHash === nodeMetaHash &&
+        Date.now() - cache.timestamp < CACHE_TTL
+      ) {
         if (!cancelled) {
           setBubblesAndEdges(cache.bubbles, cache.edges);
           setLoading(false);
@@ -98,21 +110,26 @@ export function ArchitectureGraph() {
       }
 
       const data = await buildBubbleGraph(projectDir, omniFiles);
+
+      // Merge dependency edges from WASM semantic analysis
+      const depEdges = buildDependencyEdges(nodeMeta, data.bubbles, data.edges.length);
+      const allEdges = [...data.edges, ...depEdges];
+
       if (!cancelled) {
-        // Cache the result
         cache = {
           bubbles: data.bubbles,
-          edges: data.edges,
+          edges: allEdges,
           projectDir,
           timestamp: Date.now(),
-        };
-        setBubblesAndEdges(data.bubbles, data.edges);
+          nodeMetaHash,
+        } as CacheData & { nodeMetaHash: string };
+        setBubblesAndEdges(data.bubbles, allEdges);
         setLoading(false);
       }
     }
     load();
     return () => { cancelled = true; };
-  }, [projectDir, setBubblesAndEdges, setLoading]);
+  }, [projectDir, nodeMetaHash, setBubblesAndEdges, setLoading]);
 
   const positions = useBubbleLayout(bubbles, expandedIds);
 
@@ -237,4 +254,15 @@ export function ArchitectureGraph() {
       />
     </div>
   );
+}
+
+// ── Helpers ──
+
+/** Content hash of nodeMeta for cache invalidation when dependencies change. */
+function computeNodeMetaHash(nodeMeta: Record<string, unknown>): string {
+  const depEntries = Object.entries(nodeMeta)
+    .filter(([, meta]) => (meta as { dependencies?: unknown }).dependencies)
+    .sort(([a], [b]) => a.localeCompare(b));
+  if (depEntries.length === 0) return "empty";
+  return JSON.stringify(depEntries);
 }

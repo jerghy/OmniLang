@@ -1,0 +1,456 @@
+- generic [ref=f146e3]:
+  - main [ref=f146e6]:
+    - generic [ref=f146e8]:
+      - generic [ref=f146e66]:
+        - button "Change the background of the preview" [ref=f146e68] [cursor=pointer]
+        - button "Apply a grid to the preview" [ref=f146e72] [cursor=pointer]
+        - button "Apply outlines to the preview" [ref=f146e75] [cursor=pointer]
+      - button "Go full screen" [ref=f146e79] [cursor=pointer]
+    - generic [ref=f146e13]:
+      - link "Skip to sidebar" [ref=f146e82] [cursor=pointer]:
+        - /url: "#blockeditor-blockeditor--docs"
+      - iframe [active] [ref=f146e14]:
+        - generic [ref=f147e4]:
+          - heading "BlockEditor" [level=1] [ref=f147e5]
+          - generic [ref=f147e7]:
+            - generic [ref=f147e11]:
+              - button "Zoom in" [ref=f147e12] [cursor=pointer]
+              - button "Zoom out" [ref=f147e16] [cursor=pointer]
+              - button "Reset zoom" [ref=f147e20] [cursor=pointer]
+            - generic:
+              - generic [ref=f147e24]:
+                - heading "Block Editor — 0 ops" [level=3] [ref=f147e25]
+                - generic [ref=f147e26]:
+                  - button "文本模式" [ref=f147e27]
+                  - button "Save" [ref=f147e28]
+                  - button "Cancel" [ref=f147e29]
+              - button "Show code" [ref=f147e36] [cursor=pointer]
+          - table [ref=f147e38]:
+            - rowgroup [ref=f147e39]:
+              - row [ref=f147e40]:
+                - columnheader "Name" [ref=f147e41]
+                - columnheader "Description" [ref=f147e42]
+                - columnheader "Default" [ref=f147e43]
+                - columnheader [ref=f147e44]:
+                  - generic [ref=f147e45]:
+                    - text: Control
+                    - button "Reset controls" [ref=f147e46] [cursor=pointer]
+            - rowgroup [ref=f147e49]:
+              - row [ref=f147e50]:
+                - cell "elementId*" [ref=f147e51]
+                - cell "string" [ref=f147e52]
+                - cell "-" [ref=f147e56]
+                - cell [ref=f147e57]:
+                  - textbox [ref=f147e59]:
+                    - /placeholder: Edit string...
+                    - text: story-empty
+              - row [ref=f147e60]:
+                - cell "initialOps*" [ref=f147e61]
+                - cell "CodeOp[]" [ref=f147e62]
+                - cell "-" [ref=f147e64]
+                - 'cell "RAW initialOps : [ ]" [ref=f147e65]':
+                  - generic [ref=f147e66]:
+                    - button "RAW" [ref=f147e67] [cursor=pointer]
+                    - generic [ref=f147e73]:
+                      - generic [ref=f147e74]: "initialOps :"
+                      - generic [ref=f147e76]:
+                        - text: "["
+                        - list
+                        - text: "]"
+              - row [ref=f147e83]:
+                - cell "initialSource*" [ref=f147e84]
+                - cell "string" [ref=f147e85]
+                - cell "-" [ref=f147e89]
+                - cell [ref=f147e90]:
+                  - textbox [ref=f147e92]:
+                    - /placeholder: Edit string...
+              - row [ref=f147e93]:
+                - cell "onSave*" [ref=f147e94]
+                - 'cell "(operations: CodeOp[]) => void" [ref=f147e95]'
+                - cell "-" [ref=f147e97]
+                - cell "-" [ref=f147e98]
+              - row [ref=f147e99]:
+                - cell "onClose*" [ref=f147e100]
+                - cell "() => void" [ref=f147e101]
+                - cell "-" [ref=f147e103]
+                - cell "-" [ref=f147e104]
+              - row [ref=f147e105]:
+                - cell "language" [ref=f147e106]
+                - cell "union" [ref=f147e107]
+                - cell "\"omnilang\"" [ref=f147e111]
+                - cell "typescript omnilang" [ref=f147e114]:
+                  - generic [ref=f147e115]:
+                    - generic [ref=f147e116]:
+                      - radio "typescript" [ref=f147e117]
+                      - generic [ref=f147e118]: typescript
+                    - generic [ref=f147e119]:
+                      - radio "omnilang" [ref=f147e120]
+                      - generic [ref=f147e121]: omnilang
+          - heading "Stories" [level=2] [ref=f147e122]:
+            - link [ref=f147e123] [cursor=pointer]:
+              - /url: "#stories"
+            - text: Stories
+          - generic [ref=f147e124]:
+            - heading "Empty editor" [level=3] [ref=f147e125]:
+              - link [ref=f147e126] [cursor=pointer]:
+                - /url: "#empty-editor"
+              - text: Empty editor
+            - generic [ref=f147e127]:
+              - generic:
+                - generic [ref=f147e129]:
+                  - heading "Block Editor — 0 ops" [level=3] [ref=f147e130]
+                  - generic [ref=f147e131]:
+                    - button "文本模式" [ref=f147e132]
+                    - button "Save" [ref=f147e133]
+                    - button "Cancel" [ref=f147e134]
+                - button "Show code" [ref=f147e141] [cursor=pointer]
+          - generic [ref=f147e142]:
+            - heading "let + set" [level=3] [ref=f147e143]:
+              - link [ref=f147e144] [cursor=pointer]:
+                - /url: "#let--set"
+              - text: let + set
+            - generic [ref=f147e145]:
+              - generic:
+                - generic [ref=f147e146]:
+                  - generic [ref=f147e147]:
+                    - heading "Block Editor — 2 ops" [level=3] [ref=f147e148]
+                    - generic [ref=f147e149]:
+                      - button "文本模式" [ref=f147e150]
+                      - button "Save" [ref=f147e151]
+                      - button "Cancel" [ref=f147e152]
+                  - img [ref=f147e154]:
+                    - generic [ref=f147e155]:
+                      - generic [ref=f147e161]:
+                        - generic [ref=f147e162]: let
+                        - generic [ref=f147e164]: count
+                        - generic [ref=f147e167]: ":"
+                        - generic [ref=f147e169]: i32
+                        - generic [ref=f147e172]: =
+                        - generic [ref=f147e174]: "0"
+                      - generic [ref=f147e183]:
+                        - generic [ref=f147e184]: count
+                        - generic [ref=f147e187]: +=
+                        - generic [ref=f147e189]: "1"
+                - button "Show code" [ref=f147e196] [cursor=pointer]
+          - generic [ref=f147e197]:
+            - heading "if / else block" [level=3] [ref=f147e198]:
+              - link [ref=f147e199] [cursor=pointer]:
+                - /url: "#if--else-block"
+              - text: if / else block
+            - generic [ref=f147e200]:
+              - generic:
+                - generic [ref=f147e201]:
+                  - generic [ref=f147e202]:
+                    - heading "Block Editor — 1 ops" [level=3] [ref=f147e203]
+                    - generic [ref=f147e204]:
+                      - button "文本模式" [ref=f147e205]
+                      - button "Save" [ref=f147e206]
+                      - button "Cancel" [ref=f147e207]
+                  - img [ref=f147e209]:
+                    - generic [ref=f147e214]:
+                      - generic [ref=f147e216]:
+                        - generic [ref=f147e220]:
+                          - generic [ref=f147e221]: if
+                          - generic [ref=f147e223]: x > 0
+                        - generic [ref=f147e230]:
+                          - generic [ref=f147e231]: return
+                          - generic [ref=f147e233]: "1"
+                      - generic [ref=f147e236]:
+                        - generic [ref=f147e237]: else
+                        - generic [ref=f147e247]:
+                          - generic [ref=f147e248]: return
+                          - generic [ref=f147e250]: "0"
+                - button "Show code" [ref=f147e259] [cursor=pointer]
+          - generic [ref=f147e260]:
+            - heading "while loop" [level=3] [ref=f147e261]:
+              - link [ref=f147e262] [cursor=pointer]:
+                - /url: "#while-loop"
+              - text: while loop
+            - generic [ref=f147e263]:
+              - generic:
+                - generic [ref=f147e264]:
+                  - generic [ref=f147e265]:
+                    - heading "Block Editor — 1 ops" [level=3] [ref=f147e266]
+                    - generic [ref=f147e267]:
+                      - button "文本模式" [ref=f147e268]
+                      - button "Save" [ref=f147e269]
+                      - button "Cancel" [ref=f147e270]
+                  - img [ref=f147e272]:
+                    - generic [ref=f147e277]:
+                      - generic [ref=f147e282]:
+                        - generic [ref=f147e283]: while
+                        - generic [ref=f147e285]: i < 10
+                      - generic [ref=f147e292]:
+                        - generic [ref=f147e293]: i
+                        - generic [ref=f147e296]: +=
+                        - generic [ref=f147e298]: "1"
+                - button "Show code" [ref=f147e307] [cursor=pointer]
+          - generic [ref=f147e308]:
+            - heading "for..in loop" [level=3] [ref=f147e309]:
+              - link [ref=f147e310] [cursor=pointer]:
+                - /url: "#forin-loop"
+              - text: for..in loop
+            - generic [ref=f147e311]:
+              - generic:
+                - generic [ref=f147e312]:
+                  - generic [ref=f147e313]:
+                    - heading "Block Editor — 1 ops" [level=3] [ref=f147e314]
+                    - generic [ref=f147e315]:
+                      - button "文本模式" [ref=f147e316]
+                      - button "Save" [ref=f147e317]
+                      - button "Cancel" [ref=f147e318]
+                  - img [ref=f147e320]:
+                    - generic [ref=f147e325]:
+                      - generic [ref=f147e330]:
+                        - generic [ref=f147e331]: for
+                        - generic [ref=f147e333]: item
+                        - generic [ref=f147e336]: in
+                        - generic [ref=f147e338]: items
+                      - generic [ref=f147e345]:
+                        - generic [ref=f147e346]: print
+                        - generic [ref=f147e349]: (
+                        - generic [ref=f147e351]: 1 args
+                        - generic [ref=f147e354]: )
+                - button "Show code" [ref=f147e362] [cursor=pointer]
+          - generic [ref=f147e363]:
+            - heading "break / continue" [level=3] [ref=f147e364]:
+              - link [ref=f147e365] [cursor=pointer]:
+                - /url: "#break--continue"
+              - text: break / continue
+            - generic [ref=f147e366]:
+              - generic:
+                - generic [ref=f147e367]:
+                  - generic [ref=f147e368]:
+                    - heading "Block Editor — 1 ops" [level=3] [ref=f147e369]
+                    - generic [ref=f147e370]:
+                      - button "文本模式" [ref=f147e371]
+                      - button "Save" [ref=f147e372]
+                      - button "Cancel" [ref=f147e373]
+                  - img [ref=f147e375]:
+                    - generic [ref=f147e380]:
+                      - generic [ref=f147e385]:
+                        - generic [ref=f147e386]: while
+                        - generic [ref=f147e388]: "true"
+                      - generic [ref=f147e393]:
+                        - generic [ref=f147e395]:
+                          - generic [ref=f147e399]:
+                            - generic [ref=f147e400]: if
+                            - generic [ref=f147e402]: x == "stop"
+                          - generic [ref=f147e405]: break
+                        - generic [ref=f147e412]:
+                          - generic [ref=f147e416]:
+                            - generic [ref=f147e417]: elif
+                            - generic [ref=f147e419]: x == "skip"
+                          - generic [ref=f147e422]: continue
+                - button "Show code" [ref=f147e437] [cursor=pointer]
+          - generic [ref=f147e438]:
+            - heading "await + call" [level=3] [ref=f147e439]:
+              - link [ref=f147e440] [cursor=pointer]:
+                - /url: "#await--call"
+              - text: await + call
+            - generic [ref=f147e441]:
+              - generic:
+                - generic [ref=f147e442]:
+                  - generic [ref=f147e443]:
+                    - heading "Block Editor — 2 ops" [level=3] [ref=f147e444]
+                    - generic [ref=f147e445]:
+                      - button "文本模式" [ref=f147e446]
+                      - button "Save" [ref=f147e447]
+                      - button "Cancel" [ref=f147e448]
+                  - img [ref=f147e450]:
+                    - generic [ref=f147e451]:
+                      - generic [ref=f147e457]:
+                        - generic [ref=f147e458]: await
+                        - generic [ref=f147e460]: fetchUser(id)
+                      - generic [ref=f147e469]:
+                        - generic [ref=f147e470]: process
+                        - generic [ref=f147e473]: (
+                        - generic [ref=f147e475]: 1 args
+                        - generic [ref=f147e478]: )
+                - button "Show code" [ref=f147e484] [cursor=pointer]
+          - generic [ref=f147e485]:
+            - heading "comment + raw fallback" [level=3] [ref=f147e486]:
+              - link [ref=f147e487] [cursor=pointer]:
+                - /url: "#comment--raw-fallback"
+              - text: comment + raw fallback
+            - generic [ref=f147e488]:
+              - generic:
+                - generic [ref=f147e489]:
+                  - generic [ref=f147e490]:
+                    - heading "Block Editor — 2 ops" [level=3] [ref=f147e491]
+                    - generic [ref=f147e492]:
+                      - button "文本模式" [ref=f147e493]
+                      - button "Save" [ref=f147e494]
+                      - button "Cancel" [ref=f147e495]
+                  - img [ref=f147e497]:
+                    - generic [ref=f147e498]:
+                      - generic [ref=f147e500]: // this is a comment
+                      - generic [ref=f147e509]: "raw // legacy code: do not touch"
+                - button "Show code" [ref=f147e521] [cursor=pointer]
+          - generic [ref=f147e522]:
+            - heading "Full example" [level=3] [ref=f147e523]:
+              - link [ref=f147e524] [cursor=pointer]:
+                - /url: "#full-example"
+              - text: Full example
+            - generic [ref=f147e525]:
+              - generic:
+                - generic [ref=f147e526]:
+                  - generic [ref=f147e527]:
+                    - heading "Block Editor — 7 ops" [level=3] [ref=f147e528]
+                    - generic [ref=f147e529]:
+                      - button "文本模式" [ref=f147e530]
+                      - button "Save" [ref=f147e531]
+                      - button "Cancel" [ref=f147e532]
+                  - img [ref=f147e534]:
+                    - generic [ref=f147e535]:
+                      - generic [ref=f147e541]:
+                        - generic [ref=f147e542]: let
+                        - generic [ref=f147e544]: count
+                        - generic [ref=f147e547]: ":"
+                        - generic [ref=f147e549]: i32
+                        - generic [ref=f147e552]: =
+                        - generic [ref=f147e554]: "0"
+                      - generic [ref=f147e563]:
+                        - generic [ref=f147e564]: count
+                        - generic [ref=f147e567]: +=
+                        - generic [ref=f147e569]: "1"
+                      - generic [ref=f147e576]:
+                        - generic [ref=f147e578]:
+                          - generic [ref=f147e582]:
+                            - generic [ref=f147e583]: if
+                            - generic [ref=f147e585]: x > 0
+                          - generic [ref=f147e588]:
+                            - generic [ref=f147e592]:
+                              - generic [ref=f147e593]: print
+                              - generic [ref=f147e596]: (
+                              - generic [ref=f147e598]: 1 args
+                              - generic [ref=f147e601]: )
+                            - generic [ref=f147e606]:
+                              - generic [ref=f147e607]: return
+                              - generic [ref=f147e609]: "1"
+                        - generic [ref=f147e612]:
+                          - generic [ref=f147e616]:
+                            - generic [ref=f147e617]: elif
+                            - generic [ref=f147e619]: x < 0
+                          - generic [ref=f147e626]:
+                            - generic [ref=f147e627]: return
+                            - generic [ref=f147e629]: "-1"
+                        - generic [ref=f147e632]:
+                          - generic [ref=f147e633]: else
+                          - generic [ref=f147e643]:
+                            - generic [ref=f147e644]: return
+                            - generic [ref=f147e646]: "0"
+                      - generic [ref=f147e657]:
+                        - generic [ref=f147e658]: let mut
+                        - generic [ref=f147e660]: sum
+                        - generic [ref=f147e663]: ":"
+                        - generic [ref=f147e665]: f64
+                        - generic [ref=f147e668]: =
+                        - generic [ref=f147e670]: "0.0"
+                      - generic [ref=f147e679]:
+                        - generic [ref=f147e680]: let mut
+                        - generic [ref=f147e682]: i
+                        - generic [ref=f147e685]: ":"
+                        - generic [ref=f147e687]: i32
+                        - generic [ref=f147e690]: =
+                        - generic [ref=f147e692]: "0"
+                      - generic [ref=f147e699]:
+                        - generic [ref=f147e704]:
+                          - generic [ref=f147e705]: while
+                          - generic [ref=f147e707]: i < values.len()
+                        - generic [ref=f147e710]:
+                          - generic [ref=f147e714]:
+                            - generic [ref=f147e715]: sum
+                            - generic [ref=f147e718]: +=
+                            - generic [ref=f147e720]: values.get(i)
+                          - generic [ref=f147e726]:
+                            - generic [ref=f147e727]: i
+                            - generic [ref=f147e730]: +=
+                            - generic [ref=f147e732]: "1"
+                      - generic [ref=f147e743]:
+                        - generic [ref=f147e744]: return
+                        - generic [ref=f147e746]: sum
+                - button "Show code" [ref=f147e753] [cursor=pointer]
+          - generic [ref=f147e754]:
+            - heading "TypeScript mode" [level=3] [ref=f147e755]:
+              - link [ref=f147e756] [cursor=pointer]:
+                - /url: "#typescript-mode"
+              - text: TypeScript mode
+            - generic [ref=f147e757]:
+              - generic:
+                - generic [ref=f147e758]:
+                  - generic [ref=f147e759]:
+                    - heading "Block Editor — 2 ops" [level=3] [ref=f147e760]
+                    - generic [ref=f147e761]:
+                      - button "文本模式" [ref=f147e762]
+                      - button "Save" [ref=f147e763]
+                      - button "Cancel" [ref=f147e764]
+                  - img [ref=f147e766]:
+                    - generic [ref=f147e767]:
+                      - generic [ref=f147e773]:
+                        - generic [ref=f147e774]: let
+                        - generic [ref=f147e776]: count
+                        - generic [ref=f147e779]: ":"
+                        - generic [ref=f147e781]: number
+                        - generic [ref=f147e784]: =
+                        - generic [ref=f147e786]: "0"
+                      - generic [ref=f147e795]:
+                        - generic [ref=f147e796]: count
+                        - generic [ref=f147e799]: +=
+                        - generic [ref=f147e801]: "1"
+                - button "Show code" [ref=f147e808] [cursor=pointer]
+  - navigation [ref=f146e17]:
+    - generic [ref=f146e20]:
+      - generic [ref=f146e21]:
+        - generic [ref=f146e22]:
+          - link "Skip to canvas" [ref=f146e23] [cursor=pointer]:
+            - /url: "#storybook-preview-wrapper"
+          - link "Storybook" [ref=f146e25] [cursor=pointer]:
+            - /url: ./
+            - img "Storybook" [ref=f146e26]
+          - button "Shortcuts" [ref=f146e32] [cursor=pointer]
+        - generic [ref=f146e36]: Search for components
+        - generic [ref=f146e37]:
+          - combobox [ref=f146e38]:
+            - searchbox "Search for components" [ref=f146e39]
+            - code: ⌃ K
+            - button "Tag filters" [ref=f146e86] [cursor=pointer]
+          - button [ref=f146e41] [cursor=pointer]
+        - generic [ref=f146e44]:
+          - generic [ref=f146e89]:
+            - generic [ref=f146e90]:
+              - button [expanded] [ref=f146e91] [cursor=pointer]
+              - button "Expand" [ref=f146e95] [cursor=pointer]
+            - button [expanded] [ref=f146e99] [cursor=pointer]
+            - generic [ref=f146e106]:
+              - link [ref=f146e107] [cursor=pointer]:
+                - /url: /?path=/docs/blockeditor-blockeditor--docs
+              - link "Skip to canvas" [ref=f146e111] [cursor=pointer]:
+                - /url: "#storybook-preview-wrapper"
+            - link [ref=f146e113] [cursor=pointer]:
+              - /url: /?path=/story/blockeditor-blockeditor--empty
+            - link [ref=f146e118] [cursor=pointer]:
+              - /url: /?path=/story/blockeditor-blockeditor--let-and-set
+            - link [ref=f146e123] [cursor=pointer]:
+              - /url: /?path=/story/blockeditor-blockeditor--if-block
+            - link [ref=f146e128] [cursor=pointer]:
+              - /url: /?path=/story/blockeditor-blockeditor--while-loop
+            - link [ref=f146e133] [cursor=pointer]:
+              - /url: /?path=/story/blockeditor-blockeditor--for-loop
+            - link [ref=f146e138] [cursor=pointer]:
+              - /url: /?path=/story/blockeditor-blockeditor--break-continue
+            - link [ref=f146e143] [cursor=pointer]:
+              - /url: /?path=/story/blockeditor-blockeditor--await-call
+            - link [ref=f146e148] [cursor=pointer]:
+              - /url: /?path=/story/blockeditor-blockeditor--comment-raw
+            - link [ref=f146e153] [cursor=pointer]:
+              - /url: /?path=/story/blockeditor-blockeditor--full-example
+            - link [ref=f146e158] [cursor=pointer]:
+              - /url: /?path=/story/blockeditor-blockeditor--typescript-mode
+          - text: /
+      - link "Storybook 10.4 Learn what's new in Storybook" [ref=f146e164] [cursor=pointer]:
+        - /url: /?path=/settings/whats-new
+        - generic [ref=f146e168]:
+          - generic "Storybook 10.4" [ref=f146e169]
+          - generic [ref=f146e170]: Learn what's new in Storybook
+        - button "Dismiss notification" [ref=f146e171]

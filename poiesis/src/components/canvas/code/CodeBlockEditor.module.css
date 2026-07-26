@@ -1,0 +1,143 @@
+/* CodeBlockEditor.module.css
+   All values driven by Poiesis --ol-* design tokens.
+   Light + dark modes are automatic via CSS custom properties. */
+
+/* ── Overlay ── */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--ol-z-modal);
+  background: rgba(0, 0, 0, 0.46); /* backdrop dim — not tokenised because it's a functional alpha */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--ol-font-family-ui);
+}
+
+/* ── Editor shell ── */
+
+.editor {
+  width: 80vw;
+  max-width: 960px;
+  height: 70vh;
+  max-height: 720px;
+  background: var(--ol-surface);
+  border: 1px solid var(--ol-border);
+  border-radius: var(--ol-radius-lg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: var(--ol-shadow-modal);
+}
+
+/* ── Header ── */
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--ol-space-2) var(--ol-space-4);
+  border-bottom: 1px solid var(--ol-border);
+  background: var(--ol-surface-raised);
+  flex-shrink: 0;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--ol-font-size-14);
+  font-weight: var(--ol-font-weight-600);
+  color: var(--ol-text);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--ol-space-2);
+}
+
+/* ── Buttons ── */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--ol-space-1) var(--ol-space-3);
+  border: 1px solid var(--ol-border);
+  border-radius: var(--ol-radius-md);
+  font-family: var(--ol-font-family-ui);
+  font-size: var(--ol-font-size-13);
+  font-weight: var(--ol-font-weight-500);
+  line-height: var(--ol-line-height-normal);
+  cursor: pointer;
+  background: var(--ol-surface);
+  color: var(--ol-text);
+  transition:
+    background var(--ol-duration-fast) var(--ol-ease-default),
+    border-color var(--ol-duration-fast) var(--ol-ease-default),
+    color var(--ol-duration-fast) var(--ol-ease-default);
+}
+
+.btn:hover {
+  background: var(--ol-surface-hover);
+  border-color: var(--ol-border-hover);
+}
+
+.btn:focus-visible {
+  outline: var(--ol-focus-ring-width) solid var(--ol-focus-ring-color);
+  outline-offset: var(--ol-focus-ring-offset);
+}
+
+/* ── Save (primary action) ── */
+
+.btnSave {
+  background: var(--ol-color-primary);
+  color: #fff;
+  border-color: var(--ol-color-primary);
+}
+
+.btnSave:hover {
+  background: var(--ol-color-primary-active);
+  border-color: var(--ol-color-primary-active);
+}
+
+/* ── Cancel (secondary action) ── */
+
+.btnCancel {
+  background: var(--ol-surface);
+  color: var(--ol-text-secondary);
+}
+
+.btnCancel:hover {
+  background: var(--ol-surface-hover);
+}
+
+/* ── Panel toggle ── */
+
+.btnToggle {
+  background: transparent;
+  border-color: transparent;
+  color: var(--ol-text-muted);
+  font-size: var(--ol-font-size-12);
+  padding: var(--ol-space-1) var(--ol-space-1p5);
+  margin-right: auto;
+}
+
+.btnToggle:hover {
+  color: var(--ol-text-secondary);
+  background: var(--ol-surface-hover);
+  border-color: var(--ol-border);
+}
+
+/* ── Body layout ── */
+
+.body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.monacoArea {
+  flex: 1;
+  min-width: 0;
+}

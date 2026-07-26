@@ -1,4 +1,6 @@
-/* DependencyPanel.module.css — uses --ol-* design tokens */
+/* DependencyPanel.module.css
+   All values driven by Poiesis --ol-* design tokens.
+   Light + dark modes are automatic via CSS custom properties. */
 
 .panel {
   width: 260px;
@@ -9,24 +11,77 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  font-family: var(--ol-font-family-ui);
   font-size: var(--ol-font-size-12);
+  line-height: var(--ol-line-height-normal);
   color: var(--ol-text);
 }
 
-.placeholder {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  color: var(--ol-text-muted);
-  font-size: var(--ol-font-size-13);
-}
+/* ── Scrollbar ── */
 
 .scrollArea {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
 }
+
+.scrollArea::-webkit-scrollbar {
+  width: var(--ol-scrollbar-size);
+}
+
+.scrollArea::-webkit-scrollbar-track {
+  background: var(--ol-scrollbar-track);
+}
+
+.scrollArea::-webkit-scrollbar-thumb {
+  background: var(--ol-scrollbar-thumb);
+  border-radius: 9999px;
+}
+
+.scrollArea::-webkit-scrollbar-thumb:hover {
+  background: var(--ol-scrollbar-thumb-hover);
+}
+
+/* ── Placeholder states ── */
+
+.placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ol-space-2);
+  height: 100%;
+  padding: var(--ol-space-6);
+  color: var(--ol-text-muted);
+  font-size: var(--ol-font-size-13);
+  text-align: center;
+}
+
+.statusIcon {
+  font-size: var(--ol-font-size-28);
+  line-height: 1;
+}
+
+.statusText {
+  font-weight: var(--ol-font-weight-600);
+  color: var(--ol-text-secondary);
+}
+
+.statusHint {
+  font-size: var(--ol-font-size-12);
+  color: var(--ol-text-muted);
+  line-height: var(--ol-line-height-relaxed);
+}
+
+.statusHint code {
+  font-family: var(--ol-font-family-mono);
+  font-size: var(--ol-font-size-11);
+  background: var(--ol-surface-hover);
+  padding: var(--ol-space-0p5) var(--ol-space-1);
+  border-radius: var(--ol-radius-sm);
+}
+
+/* ── Sections ── */
 
 .section {
   padding: var(--ol-space-3) var(--ol-space-3);
@@ -44,6 +99,8 @@
   letter-spacing: 0.05em;
   margin-bottom: var(--ol-space-2);
 }
+
+/* ── Entries ── */
 
 .entry {
   display: flex;
@@ -64,12 +121,25 @@
   min-width: 0;
 }
 
+.sourceLine {
+  margin-left: auto;
+  font-size: var(--ol-font-size-10);
+  font-family: var(--ol-font-family-mono);
+  color: var(--ol-text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+  padding-left: var(--ol-space-1);
+}
+
+/* ── Kind badges ── */
+
 .kindBadge {
   display: inline-flex;
   align-items: center;
   padding: 0 var(--ol-space-1p5);
   border-radius: var(--ol-radius-sm);
   font-size: var(--ol-font-size-10);
+  font-weight: var(--ol-font-weight-500);
   line-height: 1.6;
   white-space: nowrap;
   flex-shrink: 0;
@@ -113,14 +183,4 @@
 .kindUnknown {
   background: var(--ol-gray-200);
   color: var(--ol-text-muted);
-}
-
-.sourceLine {
-  margin-left: auto;
-  font-size: var(--ol-font-size-10);
-  font-family: var(--ol-font-family-mono);
-  color: var(--ol-text-muted);
-  white-space: nowrap;
-  flex-shrink: 0;
-  padding-left: var(--ol-space-1);
 }

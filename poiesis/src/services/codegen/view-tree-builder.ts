@@ -121,10 +121,10 @@ export function buildViewTree(
   if (rootOrder) {
     rootElements = rootOrder
       .map((id) => elements.find((el) => el.id === id))
-      .filter((el): el is ElementData => el !== undefined);
+      .filter((el): el is ElementData => el !== undefined && el.nodeType !== "codeblock");
   } else {
     rootElements = elements.filter(
-      (el): el is ElementData => el.parentId === null
+      (el): el is ElementData => el.parentId === null && el.nodeType !== "codeblock"
     );
   }
   const roots = rootElements.map((el) => buildNode(el, compName));

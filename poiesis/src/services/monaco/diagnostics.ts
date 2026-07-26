@@ -21,15 +21,37 @@ export interface WasmDiagnostic {
 
 let omniCompilerInstance: import("../../wasm/omnilang_wasm.js").OmniCompiler | null =
   null;
+let wasmInitialized = false;
+
+/**
+ * Initialize the WASM module (idempotent). Must be called once before any
+ * OmniCompiler usage. In the Tauri app, rustCompiler.init() handles this;
+ * in Storybook/test contexts, this function self-initializes.
+ */
+async function ensureWasmInit(): Promise<boolean> {
+  if (wasmInitialized) return true;
+  try {
+    const wasmModule = await import("../../wasm/omnilang_wasm.js");
+    await wasmModule.default(); // wasm-pack __wbg_init
+    wasmInitialized = true;
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Get or create the stateful OmniCompiler WASM instance.
- * The WASM must already be initialized via rustCompiler.init().
+ * In the Tauri app this reuses the already-initialized WASM;
+ * in Storybook/test it self-initializes on first call.
  */
 export async function getOmniCompiler(): Promise<import("../../wasm/omnilang_wasm.js").OmniCompiler | null> {
   if (omniCompilerInstance) return omniCompilerInstance;
 
   try {
+    const initialized = await ensureWasmInit();
+    if (!initialized) return null;
+
     const wasmModule = await import("../../wasm/omnilang_wasm.js");
     omniCompilerInstance = new wasmModule.OmniCompiler();
     return omniCompilerInstance;
