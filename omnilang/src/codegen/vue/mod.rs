@@ -16,6 +16,7 @@ use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
 use crate::codegen::format_json_value;
 use crate::codegen::shared::expr::FormatExpr;
 use crate::codegen::shared::types::{FormatType, JsTypeFormatter};
+use crate::codegen::shared::ui_codegen::UiCodegen;
 use crate::codegen::JSON_VUE;
 use crate::ir::*;
 use rustc_hash::FxHashMap;
@@ -354,5 +355,27 @@ impl VueCodegen {
         w.dedent();
         w.emit("}");
         w.into_string()
+    }
+}
+
+// ═══════════════════════════════════════════════════════════
+// UiCodegen trait implementation — thin delegation to existing methods
+// ═══════════════════════════════════════════════════════════
+
+impl UiCodegen for VueCodegen {
+    fn generate_component_code(&self, name: &str, comp: &ComponentIR, ir: &IRProgram) -> String {
+        self.gen_component_sfc(name, comp, ir)
+    }
+
+    fn generate_store_code(&self, name: &str, store: &StoreIR) -> String {
+        self.gen_store_hook(name, store)
+    }
+
+    fn component_file_extension(&self) -> &str {
+        ".vue"
+    }
+
+    fn store_file_extension(&self) -> &str {
+        ".ts"
     }
 }

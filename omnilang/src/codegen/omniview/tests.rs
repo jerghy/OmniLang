@@ -5,23 +5,23 @@
 //! HTML, CSS, and JS from an IRProgram.
 
 use super::*;
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 
 // ── Helpers ─────────────────────────────────────────
 
 fn make_element(tag: &str) -> ElementIR {
     ElementIR {
         tag: tag.into(),
-        props: HashMap::new(),
-        bindings: HashMap::new(),
-        events: HashMap::new(),
+        props: FxHashMap::default(),
+        bindings: FxHashMap::default(),
+        events: FxHashMap::default(),
         style_classes: None,
         inline_style: None,
         children: vec![],
         test_id: None,
         ref_name: None,
         construction_kind: ConstructionKind::Static,
-        class_map_bindings: HashMap::new(),
+        class_map_bindings: FxHashMap::default(),
         source_line: 0,
         source_col: 0,
         motion: None,
@@ -34,12 +34,12 @@ fn make_element(tag: &str) -> ElementIR {
 fn make_module(name: &str) -> ModuleIR {
     ModuleIR {
         name: name.into(),
-        functions: HashMap::new(),
-        structs: HashMap::new(),
-        enums: HashMap::new(),
-        type_aliases: HashMap::new(),
-        components: HashMap::new(),
-        stores: HashMap::new(),
+        functions: FxHashMap::default(),
+        structs: FxHashMap::default(),
+        enums: FxHashMap::default(),
+        type_aliases: FxHashMap::default(),
+        components: FxHashMap::default(),
+        stores: FxHashMap::default(),
         themes: vec![],
         imports: vec![],
         exports: vec![],
@@ -54,8 +54,8 @@ fn make_component(name: &str) -> ComponentIR {
         name: name.into(),
         source_file: None,
         generic_params: vec![],
-        props: HashMap::new(),
-        prop_defaults: HashMap::new(),
+        props: FxHashMap::default(),
+        prop_defaults: FxHashMap::default(),
         states: vec![],
         computeds: vec![],
         effects: vec![],
@@ -73,11 +73,11 @@ fn make_component(name: &str) -> ComponentIR {
     }
 }
 
-fn make_program(modules: HashMap<String, ModuleIR>) -> IRProgram {
+fn make_program(modules: FxHashMap<String, ModuleIR>) -> IRProgram {
     IRProgram {
         version: "0.1".into(),
         modules,
-        source_map: HashMap::new(),
+        source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
     }
 }
@@ -108,7 +108,7 @@ fn test_store_signals_with_defaults() {
         "AppStore".to_string(),
         StoreIR {
             name: "AppStore".to_string(),
-            signals: HashMap::from([
+            signals: FxHashMap::from_iter([
                 (
                     "count".into(),
                     TypeIR {
@@ -126,16 +126,16 @@ fn test_store_signals_with_defaults() {
                     },
                 ),
             ]),
-            signal_defaults: HashMap::from([
+            signal_defaults: FxHashMap::from_iter([
                 ("count".into(), serde_json::json!(0)),
                 ("name".into(), serde_json::json!("world")),
             ]),
-            getters: HashMap::new(),
+            getters: FxHashMap::default(),
             actions: vec![],
             ..Default::default()
         },
     );
-    let ir = make_program(HashMap::from([("main".into(), module)]));
+    let ir = make_program(FxHashMap::from_iter([("main".into(), module)]));
     let output = generate(&ir, false, false, false);
     assert!(output.js.contains("AppStore_count"));
     assert!(output.js.contains("__omni_signal"));
@@ -150,7 +150,7 @@ fn test_store_getters() {
         "CalcStore".to_string(),
         StoreIR {
             name: "CalcStore".to_string(),
-            signals: HashMap::from([(
+            signals: FxHashMap::from_iter([(
                 "x".into(),
                 TypeIR {
                     kind: "i32".into(),
@@ -158,8 +158,8 @@ fn test_store_getters() {
                     is_nullable: false,
                 },
             )]),
-            signal_defaults: HashMap::from([("x".into(), serde_json::json!(10))]),
-            getters: HashMap::from([(
+            signal_defaults: FxHashMap::from_iter([("x".into(), serde_json::json!(10))]),
+            getters: FxHashMap::from_iter([(
                 "doubled".into(),
                 ExprIR::BinaryOpExpr {
                     op: BinaryOpIR::Mul,
@@ -176,7 +176,7 @@ fn test_store_getters() {
             ..Default::default()
         },
     );
-    let ir = make_program(HashMap::from([("main".into(), module)]));
+    let ir = make_program(FxHashMap::from_iter([("main".into(), module)]));
     let output = generate(&ir, false, false, false);
     assert!(output.js.contains("CalcStore_doubled"));
     assert!(output.js.contains("__omni_computed"));
@@ -190,7 +190,7 @@ fn test_store_actions() {
         "TodoStore".to_string(),
         StoreIR {
             name: "TodoStore".to_string(),
-            signals: HashMap::from([(
+            signals: FxHashMap::from_iter([(
                 "items".into(),
                 TypeIR {
                     kind: "Vec".into(),
@@ -198,8 +198,8 @@ fn test_store_actions() {
                     is_nullable: false,
                 },
             )]),
-            signal_defaults: HashMap::from([("items".into(), serde_json::json!([]))]),
-            getters: HashMap::new(),
+            signal_defaults: FxHashMap::from_iter([("items".into(), serde_json::json!([]))]),
+            getters: FxHashMap::default(),
             actions: vec![FunctionIR {
                 name: "addItem".into(),
                 visibility: Visibility::Public,
@@ -220,7 +220,7 @@ fn test_store_actions() {
             ..Default::default()
         },
     );
-    let ir = make_program(HashMap::from([("main".into(), module)]));
+    let ir = make_program(FxHashMap::from_iter([("main".into(), module)]));
     let output = generate(&ir, false, false, false);
     assert!(output.js.contains("function TodoStore_addItem"));
     assert!(output.js.contains("item"));
@@ -470,9 +470,9 @@ fn test_expr_block() {
     let js = gen.expr_to_js(&ExprIR::BlockExpr {
         statements: vec![StatementIR::LetStmtIR {
             name: "x".into(),
-            value: Some(Box::new(ExprIR::LiteralExpr {
+            value: Some(ExprIR::LiteralExpr {
                 value: serde_json::json!(42),
-            })),
+            }),
             r#type: None,
         }],
         tail: Box::new(ExprIR::IdentifierExpr {
@@ -509,9 +509,9 @@ fn test_stmt_let() {
     let mut gen = OmniViewGenerator::test_new();
     gen.emit_statement(&StatementIR::LetStmtIR {
         name: "x".into(),
-        value: Some(Box::new(ExprIR::LiteralExpr {
+        value: Some(ExprIR::LiteralExpr {
             value: serde_json::json!(42),
-        })),
+        }),
         r#type: None,
     });
     assert!(gen.js.contains("let x = 42"));
@@ -540,9 +540,9 @@ fn test_stmt_if_else() {
         then_body: BlockIR {
             statements: vec![StatementIR::LetStmtIR {
                 name: "x".into(),
-                value: Some(Box::new(ExprIR::LiteralExpr {
+                value: Some(ExprIR::LiteralExpr {
                     value: serde_json::json!(1),
-                })),
+                }),
                 r#type: None,
             }],
         },
@@ -550,9 +550,9 @@ fn test_stmt_if_else() {
         else_body: Some(BlockIR {
             statements: vec![StatementIR::LetStmtIR {
                 name: "y".into(),
-                value: Some(Box::new(ExprIR::LiteralExpr {
+                value: Some(ExprIR::LiteralExpr {
                     value: serde_json::json!(2),
-                })),
+                }),
                 r#type: None,
             }],
         }),
@@ -617,7 +617,6 @@ fn test_stmt_mutation_assign() {
             value: Some(Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!(42),
             })),
-            item: None,
         }),
     });
     assert!(gen.js.contains("count = 42"));
@@ -636,7 +635,6 @@ fn test_stmt_mutation_increment() {
             amount: Some(Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!(1),
             })),
-            item: None,
         }),
     });
     assert!(gen.js.contains("count += 1"));
@@ -657,7 +655,6 @@ fn test_stmt_mutation_signal_set() {
             value: Some(Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!(99),
             })),
-            item: None,
         }),
     });
     assert!(gen.js.contains(".set(99)"));
@@ -737,7 +734,7 @@ fn test_component_with_states() {
             ..make_component("Counter")
         },
     );
-    let ir = make_program(HashMap::from([("main".into(), module)]));
+    let ir = make_program(FxHashMap::from_iter([("main".into(), module)]));
     let output = generate(&ir, false, false, false);
     assert!(output.js.contains("Counter_count"));
     assert!(output.js.contains("__omni_signal"));
@@ -783,7 +780,7 @@ fn test_component_with_computed() {
             ..make_component("Calc")
         },
     );
-    let ir = make_program(HashMap::from([("main".into(), module)]));
+    let ir = make_program(FxHashMap::from_iter([("main".into(), module)]));
     let output = generate(&ir, false, false, false);
     assert!(output.js.contains("Calc_doubled"));
     assert!(output.js.contains("__omni_computed"));
@@ -825,7 +822,7 @@ fn test_component_with_functions() {
             ..make_component("App")
         },
     );
-    let ir = make_program(HashMap::from([("main".into(), module)]));
+    let ir = make_program(FxHashMap::from_iter([("main".into(), module)]));
     let output = generate(&ir, false, false, false);
     assert!(output.js.contains("function App_greet"));
     assert!(output.js.contains("name"));
@@ -867,7 +864,7 @@ fn test_component_with_lifecycle_mount() {
             ..make_component("App")
         },
     );
-    let ir = make_program(HashMap::from([("main".into(), module)]));
+    let ir = make_program(FxHashMap::from_iter([("main".into(), module)]));
     let output = generate(&ir, false, false, false);
     assert!(output.js.contains("@mount App"));
     assert!(output.js.contains("console.log"));
@@ -880,7 +877,7 @@ fn test_component_with_store_ref() {
         "AppStore".to_string(),
         StoreIR {
             name: "AppStore".to_string(),
-            signals: HashMap::from([(
+            signals: FxHashMap::from_iter([(
                 "count".into(),
                 TypeIR {
                     kind: "i32".into(),
@@ -888,8 +885,8 @@ fn test_component_with_store_ref() {
                     is_nullable: false,
                 },
             )]),
-            signal_defaults: HashMap::from([("count".into(), serde_json::json!(0))]),
-            getters: HashMap::new(),
+            signal_defaults: FxHashMap::from_iter([("count".into(), serde_json::json!(0))]),
+            getters: FxHashMap::default(),
             actions: vec![],
             ..Default::default()
         },
@@ -901,7 +898,7 @@ fn test_component_with_store_ref() {
             ..make_component("App")
         },
     );
-    let ir = make_program(HashMap::from([("main".into(), module)]));
+    let ir = make_program(FxHashMap::from_iter([("main".into(), module)]));
     let output = generate(&ir, false, false, false);
     assert!(output.js.contains("AppStore_count"));
 }
@@ -941,7 +938,7 @@ fn test_component_with_effect() {
             ..make_component("App")
         },
     );
-    let ir = make_program(HashMap::from([("main".into(), module)]));
+    let ir = make_program(FxHashMap::from_iter([("main".into(), module)]));
     let output = generate(&ir, false, false, false);
     assert!(output.js.contains("__omni_effect"));
 }
@@ -973,7 +970,7 @@ fn test_html_element_with_attributes() {
             ..make_component("App")
         },
     );
-    let ir = make_program(HashMap::from([("main".into(), module)]));
+    let ir = make_program(FxHashMap::from_iter([("main".into(), module)]));
     let output = generate(&ir, true, false, false);
     assert!(output.html.contains("class=\"container\""));
     assert!(output.html.contains("id=\"label\""));
@@ -990,7 +987,7 @@ fn test_html_data_nid_present() {
             ..make_component("App")
         },
     );
-    let ir = make_program(HashMap::from([("main".into(), module)]));
+    let ir = make_program(FxHashMap::from_iter([("main".into(), module)]));
     let output = generate(&ir, true, false, false);
     assert!(output.html.contains("data-nid=\"el-button-"));
 }
@@ -1022,7 +1019,7 @@ fn test_html_interpolation() {
             ..make_component("App")
         },
     );
-    let ir = make_program(HashMap::from([("main".into(), module)]));
+    let ir = make_program(FxHashMap::from_iter([("main".into(), module)]));
     let output = generate(&ir, true, false, false);
     assert!(output.html.contains("<span"));
     assert!(output.html.contains("data-nid="));
@@ -1053,7 +1050,7 @@ fn test_html_conditional() {
             ..make_component("App")
         },
     );
-    let ir = make_program(HashMap::from([("main".into(), module)]));
+    let ir = make_program(FxHashMap::from_iter([("main".into(), module)]));
     let output = generate(&ir, true, false, false);
     assert!(output.html.contains("Visible"));
     assert!(output.html.contains("Hidden"));
@@ -1092,7 +1089,7 @@ fn test_full_pipeline_component_only() {
             ..make_component("App")
         },
     );
-    let ir = make_program(HashMap::from([("main".into(), module)]));
+    let ir = make_program(FxHashMap::from_iter([("main".into(), module)]));
     let output = generate(&ir, true, false, false);
     assert!(output.js.contains("App_count"));
     assert!(output.js.contains("__omni_signal"));
@@ -1106,7 +1103,7 @@ fn test_full_pipeline_store_only() {
         "DataStore".to_string(),
         StoreIR {
             name: "DataStore".to_string(),
-            signals: HashMap::from([(
+            signals: FxHashMap::from_iter([(
                 "value".into(),
                 TypeIR {
                     kind: "i32".into(),
@@ -1114,13 +1111,13 @@ fn test_full_pipeline_store_only() {
                     is_nullable: false,
                 },
             )]),
-            signal_defaults: HashMap::from([("value".into(), serde_json::json!(5))]),
-            getters: HashMap::new(),
+            signal_defaults: FxHashMap::from_iter([("value".into(), serde_json::json!(5))]),
+            getters: FxHashMap::default(),
             actions: vec![],
             ..Default::default()
         },
     );
-    let ir = make_program(HashMap::from([("main".into(), module)]));
+    let ir = make_program(FxHashMap::from_iter([("main".into(), module)]));
     let output = generate(&ir, false, false, false);
     assert!(output.js.contains("DataStore_value"));
     assert!(output.js.contains("__omni_signal(\"DataStore_value\", 5)"));
@@ -1133,7 +1130,7 @@ fn test_full_pipeline_component_with_store() {
         "AppStore".to_string(),
         StoreIR {
             name: "AppStore".to_string(),
-            signals: HashMap::from([(
+            signals: FxHashMap::from_iter([(
                 "count".into(),
                 TypeIR {
                     kind: "i32".into(),
@@ -1141,8 +1138,8 @@ fn test_full_pipeline_component_with_store() {
                     is_nullable: false,
                 },
             )]),
-            signal_defaults: HashMap::from([("count".into(), serde_json::json!(0))]),
-            getters: HashMap::new(),
+            signal_defaults: FxHashMap::from_iter([("count".into(), serde_json::json!(0))]),
+            getters: FxHashMap::default(),
             actions: vec![],
             ..Default::default()
         },
@@ -1155,7 +1152,7 @@ fn test_full_pipeline_component_with_store() {
             ..make_component("App")
         },
     );
-    let ir = make_program(HashMap::from([("main".into(), module)]));
+    let ir = make_program(FxHashMap::from_iter([("main".into(), module)]));
     let output = generate(&ir, true, false, false);
     assert!(output.js.contains("AppStore_count"));
 }
@@ -1192,7 +1189,7 @@ fn test_event_binding_click() {
             ..make_component("App")
         },
     );
-    let ir = make_program(HashMap::from([("main".into(), module)]));
+    let ir = make_program(FxHashMap::from_iter([("main".into(), module)]));
     let output = generate(&ir, true, false, false);
     assert!(output.js.contains("click"));
     assert!(output.js.contains("App_handleClick"));
@@ -1210,7 +1207,7 @@ fn test_style_emission() {
             view: Some(ViewTree::Element(make_element("div"))),
             styles: vec![StyleRuleIR {
                 class_name: "myClass".into(),
-                properties: HashMap::from([(
+                properties: FxHashMap::from_iter([(
                     "color".into(),
                     ExprIR::LiteralExpr {
                         value: serde_json::json!("red"),
@@ -1222,7 +1219,7 @@ fn test_style_emission() {
             ..make_component("App")
         },
     );
-    let ir = make_program(HashMap::from([("main".into(), module)]));
+    let ir = make_program(FxHashMap::from_iter([("main".into(), module)]));
     let output = generate(&ir, true, false, false);
     assert!(output.css.contains("myClass"));
     assert!(output.css.contains("color: red"));
@@ -1244,7 +1241,7 @@ fn test_source_map_entries() {
             ..make_component("App")
         },
     );
-    let ir = make_program(HashMap::from([("main".into(), module)]));
+    let ir = make_program(FxHashMap::from_iter([("main".into(), module)]));
     let output = generate(&ir, true, false, false);
     assert!(
         !output.source_map.is_empty(),
@@ -1282,7 +1279,7 @@ fn test_runtime_error_reporting() {
             ..make_component("App")
         },
     );
-    let ir = make_program(HashMap::from([("main".into(), module)]));
+    let ir = make_program(FxHashMap::from_iter([("main".into(), module)]));
     let output = generate(&ir, true, false, false);
     assert!(
         output.js.contains("__omni_reportError"),

@@ -342,7 +342,12 @@ impl OmniViewGenerator {
                             name, name, body_js
                         );
                     }
-                    LifecycleKind::Effect => {}
+                    LifecycleKind::Effect => {
+                        debug_assert!(
+                            false,
+                            "LifecycleKind::Effect should not reach codegen; filtered during IR lowering"
+                        );
+                    }
                 }
             }
             self.signal_names = saved_signal_names;
@@ -358,6 +363,10 @@ impl OmniViewGenerator {
                 let prefixed = format!("{}_{}", name, state.name);
                 self.signal_names.insert(prefixed);
             }
+
+            // Collect body JS for all effects first, then emit to buffer.
+            // This avoids a borrow conflict between &mut self.mount_js and self.emit_statement().
+            let mut effect_bodies: Vec<String> = Vec::with_capacity(comp.effects.len());
             for effect in &comp.effects {
                 let old_js_len = self.js.len();
                 for stmt in &effect.body.statements {
@@ -365,24 +374,67 @@ impl OmniViewGenerator {
                 }
                 let body_js = self.js[old_js_len..].to_string();
                 self.js.truncate(old_js_len);
+                effect_bodies.push(body_js);
+            }
 
-                // Emit reactive effect via __omni_effect, which auto-tracks
-                // signal dependencies and re-runs when they change.
-                // Placed in mount_js so DOM elements are available.
-                if self.editor_mode {
+            // Emit reactive effect via __omni_effect, which auto-tracks
+            // signal dependencies and re-runs when they change.
+            // Capture the return value (cleanup function) so it can be
+            // called on unmount to unsubscribe from signal subscriptions.
+            // Placed in mount_js so DOM elements are available.
+
+            // Open IIFE for scope isolation — prevents variable name conflicts
+            // between multiple components' effect collections in mount_js.
+            if self.editor_mode {
+                let _ = write!(
+                    self.comp_mount_js,
+                    "// @effect {}\n(function() {{\n  var __c = [];\n",
+                    name
+                );
+                for body_js in &effect_bodies {
                     let _ = write!(
                         self.comp_mount_js,
-                        "// @effect {}\n__omni_effect(() => {{\n{}}});\n",
-                        name, body_js
-                    );
-                } else {
-                    let _ = write!(
-                        self.mount_js,
-                        "// @effect {}\n__omni_effect(() => {{\n{}}});\n",
-                        name, body_js
+                        "  __c.push(__omni_effect(() => {{\n{}}}));\n",
+                        body_js
                     );
                 }
+                // Chain all captured cleanups into the unmount handler.
+                // Wraps any existing window.__omni_unmount_{name} so @unmount
+                // lifecycle handlers are also preserved.
+                let _ = write!(
+                    self.comp_mount_js,
+                    "  var _p = window.__omni_unmount_{name};\n\
+                     window.__omni_unmount_{name} = _p\n\
+                     \x20  ? function() {{ _p(); __c.forEach(function(f){{f();}}); }}\n\
+                     \x20  : function() {{ __c.forEach(function(f){{f();}}); }};\n\
+                     }})();\n",
+                    name = name
+                );
+            } else {
+                let _ = write!(
+                    self.mount_js,
+                    "// @effect {}\n(function() {{\n  var __c = [];\n",
+                    name
+                );
+                for body_js in &effect_bodies {
+                    let _ = write!(
+                        self.mount_js,
+                        "  __c.push(__omni_effect(() => {{\n{}}}));\n",
+                        body_js
+                    );
+                }
+                // Chain all captured cleanups into the unmount handler.
+                let _ = write!(
+                    self.mount_js,
+                    "  var _p = window.__omni_unmount_{name};\n\
+                     window.__omni_unmount_{name} = _p\n\
+                     \x20  ? function() {{ _p(); __c.forEach(function(f){{f();}}); }}\n\
+                     \x20  : function() {{ __c.forEach(function(f){{f();}}); }};\n\
+                     }})();\n",
+                    name = name
+                );
             }
+
             self.signal_names = saved_signal_names;
             self.current_component = saved_component;
         }

@@ -77,7 +77,9 @@ pub(super) fn lower_component(
             kind: match lc.kind {
                 ParserLifecycleKind::Mount => IRLifecycleKind::Mount,
                 ParserLifecycleKind::Unmount => IRLifecycleKind::Unmount,
-                ParserLifecycleKind::Effect => IRLifecycleKind::Effect,
+                ParserLifecycleKind::Effect => unreachable!(
+                    "Effect lifecycle should not reach codegen; filtered into comp.effects during IR lowering"
+                ),
             },
             body: lower_block(&lc.body, variant_map, None, semantics),
         })
