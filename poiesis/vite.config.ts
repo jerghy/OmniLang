@@ -26,9 +26,10 @@ export default defineConfig(async () => ({
           "vendor-flow": ["@xyflow/react"],
           "vendor-dnd": ["@dnd-kit/core", "@dnd-kit/utilities"],
           "vendor-layout": ["dagre"],
+          "vendor-monaco": ["monaco-editor", "@monaco-editor/react"],
         },
       },
     },
-    chunkSizeWarningLimit: 500,
+    chunkSizeWarningLimit: 200,
   },
 }));

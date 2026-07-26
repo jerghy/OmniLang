@@ -21,7 +21,7 @@ export function createThemeSlice(set: SetFn, _get?: GetFn): ThemeSlice {
         ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
         : theme;
       document.documentElement.setAttribute("data-theme", resolved);
-      set({ theme, resolvedTheme: resolved } as any);
+      set({ theme, resolvedTheme: resolved });
     },
   };
 }

@@ -375,7 +375,7 @@ export default function App() {
       if (current === "system") {
         const next = e.matches ? "dark" : "light";
         document.documentElement.setAttribute("data-theme", next);
-        usePoiesisStore.setState({ resolvedTheme: next } as any);
+        usePoiesisStore.setState({ resolvedTheme: next });
       }
     };
     mq.addEventListener("change", handler);

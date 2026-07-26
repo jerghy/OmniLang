@@ -24,7 +24,7 @@ insta = { version = "1", features = ["glob"] }
 proptest = "1"
 
 [features]
-default = []
+default = ["codegen-omniview", "codegen-react", "codegen-flutter"]
 
 # Per-backend codegen feature flags — gate compilation of individual targets.
 codegen-react = []

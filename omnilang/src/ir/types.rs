@@ -20,6 +20,7 @@ fn is_false(b: &bool) -> bool {
 // BinaryOpIR — strongly-typed binary operator
 // ═══════════════════════════════════════════════════════
 
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, IntoStaticStr)]
 #[strum(serialize_all = "snake_case")]
 pub enum BinaryOpIR {
@@ -124,6 +125,7 @@ impl std::fmt::Display for UnaryOpIR {
 // Expression IR
 // ═══════════════════════════════════════════════════════
 
+#[non_exhaustive]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "_kind")]
 pub enum ExprIR {
@@ -251,6 +253,7 @@ pub struct MatchPatternIR {
     pub kind: MatchPatternKindIR,
 }
 
+#[non_exhaustive]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum MatchPatternKindIR {
@@ -270,6 +273,7 @@ pub enum MatchPatternKindIR {
 ///
 /// Serde round-trips as a flat string for backward compatibility
 /// (e.g. `"kind": "int"` or `"kind": "MyCustomType"`).
+#[non_exhaustive]
 #[derive(Debug, Clone)]
 pub enum TypeKind {
     String,
@@ -369,6 +373,7 @@ pub struct BindingIR {
 // Event Handler IR
 // ═══════════════════════════════════════════════════════
 
+#[non_exhaustive]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum EventHandlerIR {
@@ -467,6 +472,7 @@ impl EventHandlerIR {
 
 /// Event payload categories. Each variant has a fixed set of fields
 /// defined in `event_data_schema()`.
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EventDataKind {
     PointerEvent,
@@ -725,6 +731,7 @@ pub struct BlockIR {
     pub statements: Vec<StatementIR>,
 }
 
+#[non_exhaustive]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "_kind")]
 pub enum StatementIR {
@@ -817,6 +824,7 @@ impl std::fmt::Display for MutationOp {
     }
 }
 
+#[non_exhaustive]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "operation")]
 pub enum MutationIntent {
@@ -991,6 +999,7 @@ impl ElementIR {
 // ViewTree recursive type
 // ═══════════════════════════════════════════════════════
 
+#[non_exhaustive]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 #[allow(clippy::large_enum_variant)]
@@ -1031,6 +1040,7 @@ pub struct ParamIR {
 // Top-Level IR
 // ═══════════════════════════════════════════════════════
 
+#[non_exhaustive]
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ComponentIR {
     pub name: String,

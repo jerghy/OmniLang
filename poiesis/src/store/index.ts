@@ -67,31 +67,55 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
 }));
 
 // ── HMR State Preservation ──
+interface WindowWithPoiesis {
+  __POIESIS_HMR_STATE__?: Partial<PoiesisState>;
+  __POIESIS_STORE__?: typeof usePoiesisStore;
+  __ZUSTAND_STORE__?: unknown;
+}
+
 // Vite HMR re-evaluates this module, creating a new Zustand store with empty
 // initial state. This breaks the editor: the canvas shows "空画布" and React
 // fibers hold stale references to the pre-HMR store (zombie state).
 //
-// Fix: persist state via window (which survives HMR). On dispose, snapshot
-// current store state. On re-evaluation, restore it into the new store.
+// Fix: persist only serializable data via window (which survives HMR).
+// On dispose, snapshot current store state (excluding functions and undo stacks).
+// On re-evaluation, restore data fields into the new store.
 // Must run BEFORE exposing the store on window.
-const HMR_STATE_KEY = "__POIESIS_HMR_STATE__" as const;
 if (typeof window !== "undefined") {
-  const saved = (window as unknown as Record<string, unknown>)[HMR_STATE_KEY] as PoiesisState | undefined;
+  const win = window as unknown as WindowWithPoiesis;
+  const saved = win.__POIESIS_HMR_STATE__;
   if (saved) {
     usePoiesisStore.setState(saved);
   }
 }
+
+/** Extract only serializable data from store state for HMR persistence. */
+function getSerializableState(state: PoiesisState): Partial<PoiesisState> {
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(state) as Array<[string, unknown]>) {
+    if (typeof value === "function") continue;
+    if (key === "undoStacks") continue;
+    try {
+      JSON.stringify(value);
+      result[key] = value;
+    } catch {
+      // Skip non-serializable values
+    }
+  }
+  return result as Partial<PoiesisState>;
+}
+
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
-    (window as unknown as Record<string, unknown>)[HMR_STATE_KEY] = usePoiesisStore.getState();
+    (window as unknown as WindowWithPoiesis).__POIESIS_HMR_STATE__ =
+      getSerializableState(usePoiesisStore.getState());
   });
 }
 
 // Expose store on window for debugging (Victauri MCP access).
 // Always points to current module's store (overwritten on HMR re-evaluation).
 if (typeof window !== "undefined") {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (window as any).__POIESIS_STORE__ = usePoiesisStore;
+  (window as unknown as WindowWithPoiesis).__POIESIS_STORE__ = usePoiesisStore;
 }
 
 // ── Utility accessors (used by codegen services and UI components) ──

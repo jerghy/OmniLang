@@ -77,6 +77,44 @@ impl CompileResult {
     }
 }
 
+/// Convert an omnilang diagnostic to the CompileDiagnostic struct.
+fn omnilang_diagnostic_into_compile(d: omnilang::error::Diagnostic) -> CompileDiagnostic {
+    CompileDiagnostic {
+        severity: match d.severity {
+            omnilang::error::Severity::Error => "error",
+            omnilang::error::Severity::Warning => "warning",
+            omnilang::error::Severity::Info => "info",
+        }
+        .to_string(),
+        code: d.kind.code_str().to_string(),
+        message: d.message,
+        file: d.file,
+        line: d.line,
+        col: d.col,
+        end_line: d.end_line.unwrap_or(0),
+        end_col: d.end_col.unwrap_or(0),
+        suggestion: d.suggestion,
+    }
+}
+
+/// Convert an omnilang diagnostic to a JSON Value (useful for FFI or dynamic output).
+#[allow(dead_code)]
+fn diagnostic_to_json(d: &omnilang::error::Diagnostic) -> serde_json::Value {
+    serde_json::json!({
+        "severity": match d.severity {
+            omnilang::error::Severity::Error => "error",
+            omnilang::error::Severity::Warning => "warning",
+            omnilang::error::Severity::Info => "info",
+        },
+        "code": d.kind.code_str(),
+        "message": d.message,
+        "file": d.file,
+        "line": d.line,
+        "col": d.col,
+        "suggestion": d.suggestion,
+    })
+}
+
 fn do_compile(
     sources: FxHashMap<String, String>,
     codegen_target: omnilang::codegen::Target,
@@ -117,42 +155,12 @@ fn do_compile(
         errors: output
             .errors
             .into_iter()
-            .map(|d| CompileDiagnostic {
-                severity: match d.severity {
-                    omnilang::error::Severity::Error => "error",
-                    omnilang::error::Severity::Warning => "warning",
-                    omnilang::error::Severity::Info => "info",
-                }
-                .to_string(),
-                code: d.kind.code_str().to_string(),
-                message: d.message,
-                file: d.file,
-                line: d.line,
-                col: d.col,
-                end_line: d.end_line.unwrap_or(0),
-                end_col: d.end_col.unwrap_or(0),
-                suggestion: d.suggestion,
-            })
+            .map(omnilang_diagnostic_into_compile)
             .collect(),
         warnings: output
             .warnings
             .into_iter()
-            .map(|d| CompileDiagnostic {
-                severity: match d.severity {
-                    omnilang::error::Severity::Error => "error",
-                    omnilang::error::Severity::Warning => "warning",
-                    omnilang::error::Severity::Info => "info",
-                }
-                .to_string(),
-                code: d.kind.code_str().to_string(),
-                message: d.message,
-                file: d.file,
-                line: d.line,
-                col: d.col,
-                end_line: d.end_line.unwrap_or(0),
-                end_col: d.end_col.unwrap_or(0),
-                suggestion: d.suggestion,
-            })
+            .map(omnilang_diagnostic_into_compile)
             .collect(),
     }
 }
@@ -264,8 +272,23 @@ pub struct Diagnostic {
     pub col: u32,
 }
 
+const MAX_SOURCE_SIZE: usize = 10 * 1024 * 1024; // 10 MB
+
 #[tauri::command]
 fn analyse_source(source: String, file_path: String) -> AnalyseResult {
+    if source.len() > MAX_SOURCE_SIZE {
+        return AnalyseResult {
+            success: false,
+            diagnostics: vec![Diagnostic {
+                severity: "error".to_string(),
+                code: "INPUT_TOO_LARGE".to_string(),
+                message: format!("Source exceeds maximum size of {} bytes", MAX_SOURCE_SIZE),
+                file: file_path,
+                line: 0,
+                col: 0,
+            }],
+        };
+    }
     let tokens = omnilang::lexer::tokenize(&source);
     let program = match omnilang::parser::parse(tokens, &source) {
         Ok(p) => p,
@@ -501,7 +524,7 @@ fn open_project(
     }
     let canonical = p
         .canonicalize()
-        .unwrap_or_else(|_| p.to_path_buf())
+        .map_err(|e| format!("Failed to resolve project path '{}': {e}", path))?
         .to_string_lossy()
         .to_string();
     *state.project_dir.lock().map_err(|e| e.to_string())? = Some(canonical.clone());
@@ -613,6 +636,9 @@ fn write_file(
     content: String,
     state: tauri::State<ProjectState>,
 ) -> Result<serde_json::Value, String> {
+    if content.len() > MAX_SOURCE_SIZE {
+        return Err(format!("Content exceeds maximum size of {} bytes", MAX_SOURCE_SIZE));
+    }
     let dir = state
         .project_dir
         .lock()
@@ -767,11 +793,11 @@ fn close_debug_window(app: tauri::AppHandle) -> Result<(), String> {
 fn dw_log(message: String) -> Result<(), String> {
     use std::io::Write;
     use std::time::{SystemTime, UNIX_EPOCH};
-    let path = "/tmp/poiesis-debug.log";
+    let path = std::env::temp_dir().join("poiesis-debug.log");
     let mut file = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
-        .open(path)
+        .open(&path)
         .map_err(|e| format!("Failed to open log file: {e}"))?;
     let ms = SystemTime::now()
         .duration_since(UNIX_EPOCH)

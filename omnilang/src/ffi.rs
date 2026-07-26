@@ -10,6 +10,22 @@ use serde::Deserialize;
 
 use crate::compile_multi_to_target;
 
+fn diagnostic_to_json_value(d: &crate::error::Diagnostic) -> serde_json::Value {
+    serde_json::json!({
+        "severity": match d.severity {
+            crate::error::Severity::Error => "error",
+            crate::error::Severity::Warning => "warning",
+            crate::error::Severity::Info => "info",
+        },
+        "code": d.kind.code_str(),
+        "message": d.message,
+        "file": d.file,
+        "line": d.line,
+        "col": d.col,
+        "suggestion": d.suggestion,
+    })
+}
+
 fn rust_to_c_string(s: String) -> *mut c_char {
     // If the string contains an interior NUL byte, replace it
     // with a placeholder rather than silently returning "{}"
@@ -118,19 +134,7 @@ pub unsafe extern "C" fn omni_analyse(
     let mut diagnostics: Vec<serde_json::Value> = Vec::new();
 
     for d in &analysis.diagnostics {
-        diagnostics.push(serde_json::json!({
-            "severity": match d.severity {
-                crate::error::Severity::Error => "error",
-                crate::error::Severity::Warning => "warning",
-                crate::error::Severity::Info => "info",
-            },
-            "code": d.kind.code_str(),
-            "message": d.message,
-            "file": d.file,
-            "line": d.line,
-            "col": d.col,
-            "suggestion": d.suggestion,
-        }));
+        diagnostics.push(diagnostic_to_json_value(d));
     }
 
     for w in &analysis.warnings {
