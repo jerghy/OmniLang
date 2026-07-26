@@ -6,6 +6,7 @@ use super::*;
 use crate::codegen::{format_json_value, CodeWriter, JSON_DART};
 use crate::ir::*;
 use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 
 /// Helper: create a DartVisitor for test use.
 fn visitor() -> super::visitor::DartVisitor {
@@ -306,8 +307,8 @@ fn test_generate_component_empty() {
     let comp = ComponentIR {
         name: "App".into(),
         generic_params: vec![],
-        props: HashMap::new(),
-        prop_defaults: HashMap::new(),
+        props: FxHashMap::default(),
+        prop_defaults: FxHashMap::default(),
         states: vec![],
         computeds: vec![],
         effects: vec![],
@@ -337,8 +338,8 @@ fn test_generate_component_with_function() {
     let comp = ComponentIR {
         name: "App".into(),
         generic_params: vec![],
-        props: HashMap::new(),
-        prop_defaults: HashMap::new(),
+        props: FxHashMap::default(),
+        prop_defaults: FxHashMap::default(),
         states: vec![],
         computeds: vec![],
         effects: vec![],
@@ -374,8 +375,8 @@ fn test_generate_component_with_state() {
     let comp = ComponentIR {
         name: "Counter".into(),
         generic_params: vec![],
-        props: HashMap::new(),
-        prop_defaults: HashMap::new(),
+        props: FxHashMap::default(),
+        prop_defaults: FxHashMap::default(),
         states: vec![StateIntent {
             name: "count".into(),
             r#type: TypeIR {
@@ -416,7 +417,7 @@ fn test_generate_store() {
     let mut w = CodeWriter::new();
     let store = StoreIR {
         name: "AppStore".into(),
-        signals: HashMap::from([
+        signals: FxHashMap::from_iter([
             (
                 "count".into(),
                 TypeIR {
@@ -434,11 +435,11 @@ fn test_generate_store() {
                 },
             ),
         ]),
-        signal_defaults: HashMap::from([
+        signal_defaults: FxHashMap::from_iter([
             ("count".into(), serde_json::json!(0)),
             ("name".into(), serde_json::json!("world")),
         ]),
-        getters: HashMap::new(),
+        getters: FxHashMap::default(),
         actions: vec![],
         ..Default::default()
     };
@@ -454,9 +455,9 @@ fn test_generate_store_empty() {
     let mut w = CodeWriter::new();
     let store = StoreIR {
         name: "EmptyStore".into(),
-        signals: HashMap::new(),
-        signal_defaults: HashMap::new(),
-        getters: HashMap::new(),
+        signals: FxHashMap::default(),
+        signal_defaults: FxHashMap::default(),
+        getters: FxHashMap::default(),
         actions: vec![],
         ..Default::default()
     };
@@ -473,9 +474,9 @@ fn test_generate_statement_let() {
     let mut w = CodeWriter::new();
     let stmt = StatementIR::LetStmtIR {
         name: "x".into(),
-        value: Some(Box::new(ExprIR::LiteralExpr {
+        value: Some(ExprIR::LiteralExpr {
             value: serde_json::json!(42),
-        })),
+        }),
         r#type: None,
     };
     generate_statement(&mut w, &stmt);
@@ -508,7 +509,6 @@ fn test_generate_statement_mutation_increment() {
             amount: Some(Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!(1),
             })),
-            item: None,
         }),
     };
     generate_statement(&mut w, &stmt);
@@ -528,7 +528,6 @@ fn test_generate_statement_mutation_assign() {
             value: Some(Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!("hello"),
             })),
-            item: None,
         }),
     };
     generate_statement(&mut w, &stmt);
@@ -548,7 +547,6 @@ fn test_generate_statement_mutation_decrement() {
             amount: Some(Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!(1),
             })),
-            item: None,
         }),
     };
     generate_statement(&mut w, &stmt);
@@ -566,9 +564,9 @@ fn test_generate_statement_if() {
         then_body: BlockIR {
             statements: vec![StatementIR::LetStmtIR {
                 name: "x".into(),
-                value: Some(Box::new(ExprIR::LiteralExpr {
+                value: Some(ExprIR::LiteralExpr {
                     value: serde_json::json!(1),
-                })),
+                }),
                 r#type: None,
             }],
         },
@@ -576,9 +574,9 @@ fn test_generate_statement_if() {
         else_body: Some(BlockIR {
             statements: vec![StatementIR::LetStmtIR {
                 name: "x".into(),
-                value: Some(Box::new(ExprIR::LiteralExpr {
+                value: Some(ExprIR::LiteralExpr {
                     value: serde_json::json!(2),
-                })),
+                }),
                 r#type: None,
             }],
         }),
@@ -599,17 +597,17 @@ fn test_full_pipeline_through_trait() {
     let codegen = DartCodegen;
     let ir = IRProgram {
         version: "0.1".into(),
-        modules: HashMap::from([(
+        modules: FxHashMap::from_iter([(
             "main".to_string(),
             ModuleIR {
                 name: "main".to_string(),
-                components: HashMap::from([(
+                components: FxHashMap::from_iter([(
                     "App".into(),
                     ComponentIR {
                         name: "App".into(),
                         generic_params: vec![],
-                        props: HashMap::new(),
-                        prop_defaults: HashMap::new(),
+                        props: FxHashMap::default(),
+                        prop_defaults: FxHashMap::default(),
                         states: vec![],
                         computeds: vec![],
                         effects: vec![],
@@ -634,14 +632,14 @@ fn test_full_pipeline_through_trait() {
                         ..Default::default()
                     },
                 )]),
-                stores: HashMap::new(),
+                stores: FxHashMap::default(),
                 ..Default::default()
             },
         )]),
-        source_map: HashMap::new(),
+        source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
     };
-    let sources = HashMap::from([("main.omni".into(), "".into())]);
+    let sources = FxHashMap::from_iter([("main.omni".into(), "".into())]);
     let output = codegen.generate(&ir, &sources);
     assert!(output.errors.is_empty());
     assert_eq!(output.files.len(), 1);
@@ -656,16 +654,16 @@ fn test_full_pipeline_with_store() {
     let codegen = DartCodegen;
     let ir = IRProgram {
         version: "0.1".into(),
-        modules: HashMap::from([(
+        modules: FxHashMap::from_iter([(
             "main".to_string(),
             ModuleIR {
                 name: "main".to_string(),
-                components: HashMap::new(),
-                stores: HashMap::from([(
+                components: FxHashMap::default(),
+                stores: FxHashMap::from_iter([(
                     "AppStore".into(),
                     StoreIR {
                         name: "AppStore".into(),
-                        signals: HashMap::from([(
+                        signals: FxHashMap::from_iter([(
                             "count".into(),
                             TypeIR {
                                 kind: "i32".into(),
@@ -673,8 +671,8 @@ fn test_full_pipeline_with_store() {
                                 is_nullable: false,
                             },
                         )]),
-                        signal_defaults: HashMap::from([("count".into(), serde_json::json!(0))]),
-                        getters: HashMap::new(),
+                        signal_defaults: FxHashMap::from_iter([("count".into(), serde_json::json!(0))]),
+                        getters: FxHashMap::default(),
                         actions: vec![],
                         ..Default::default()
                     },
@@ -682,10 +680,10 @@ fn test_full_pipeline_with_store() {
                 ..Default::default()
             },
         )]),
-        source_map: HashMap::new(),
+        source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
     };
-    let sources = HashMap::from([("main.omni".into(), "".into())]);
+    let sources = FxHashMap::from_iter([("main.omni".into(), "".into())]);
     let output = codegen.generate(&ir, &sources);
     assert!(output.errors.is_empty());
     assert_eq!(output.files.len(), 1);

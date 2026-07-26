@@ -4,6 +4,7 @@ mod tests {
     use crate::codegen::camel_to_kebab;
     use crate::codegen::capitalize_first;
     use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 
     // ── Helper tests ─────────────────────────────────────────
 
@@ -188,9 +189,9 @@ mod tests {
         let mut w = CodeWriter::new();
         let stmt = StatementIR::LetStmtIR {
             name: "x".into(),
-            value: Some(Box::new(ExprIR::LiteralExpr {
+            value: Some(ExprIR::LiteralExpr {
                 value: serde_json::json!(42),
-            })),
+            }),
             r#type: None,
         };
         generate_statement_vue(&mut w, &stmt);
@@ -223,7 +224,6 @@ mod tests {
                 amount: Some(Box::new(ExprIR::LiteralExpr {
                     value: serde_json::json!(1),
                 })),
-                item: None,
             }),
         };
         generate_statement_vue(&mut w, &stmt);
@@ -243,7 +243,6 @@ mod tests {
                 value: Some(Box::new(ExprIR::LiteralExpr {
                     value: serde_json::json!("alice"),
                 })),
-                item: None,
             }),
         };
         generate_statement_vue(&mut w, &stmt);
@@ -261,9 +260,9 @@ mod tests {
             then_body: BlockIR {
                 statements: vec![StatementIR::LetStmtIR {
                     name: "x".into(),
-                    value: Some(Box::new(ExprIR::LiteralExpr {
+                    value: Some(ExprIR::LiteralExpr {
                         value: serde_json::json!(1),
-                    })),
+                    }),
                     r#type: None,
                 }],
             },
@@ -280,10 +279,10 @@ mod tests {
     // ── gen_component_sfc tests ──────────────────────────────
 
     /// Build IRProgram with a single module containing the given components.
-    fn make_ir(components: HashMap<String, ComponentIR>) -> IRProgram {
+    fn make_ir(components: FxHashMap<String, ComponentIR>) -> IRProgram {
         IRProgram {
             version: "1.0".into(),
-            modules: HashMap::from([(
+            modules: FxHashMap::from_iter([(
                 "main".to_string(),
                 ModuleIR {
                     name: "main".to_string(),
@@ -292,21 +291,21 @@ mod tests {
                 },
             )]),
             stdlib_imports: Default::default(),
-            source_map: HashMap::new(),
+            source_map: FxHashMap::default(),
         }
     }
 
     #[test]
     fn test_vue_empty_component() {
         let codegen = VueCodegen;
-        let mut components = HashMap::new();
+        let mut components = FxHashMap::default();
         components.insert(
             "App".into(),
             ComponentIR {
                 name: "App".into(),
                 generic_params: vec![],
-                props: HashMap::new(),
-                prop_defaults: HashMap::new(),
+                props: FxHashMap::default(),
+                prop_defaults: FxHashMap::default(),
                 states: vec![],
                 computeds: vec![],
                 effects: vec![],
@@ -359,14 +358,14 @@ mod tests {
             },
             is_copy: false,
         };
-        let mut components = HashMap::new();
+        let mut components = FxHashMap::default();
         components.insert(
             "Counter".into(),
             ComponentIR {
                 name: "Counter".into(),
                 generic_params: vec![],
-                props: HashMap::new(),
-                prop_defaults: HashMap::new(),
+                props: FxHashMap::default(),
+                prop_defaults: FxHashMap::default(),
                 states: vec![state],
                 computeds: vec![],
                 effects: vec![],
@@ -403,7 +402,7 @@ mod tests {
     #[test]
     fn test_vue_component_with_props() {
         let codegen = VueCodegen;
-        let mut props = HashMap::new();
+        let mut props = FxHashMap::default();
         props.insert(
             "name".into(),
             TypeIR {
@@ -420,14 +419,14 @@ mod tests {
                 is_nullable: false,
             },
         );
-        let mut components = HashMap::new();
+        let mut components = FxHashMap::default();
         components.insert(
             "Greeting".into(),
             ComponentIR {
                 name: "Greeting".into(),
                 generic_params: vec![],
                 props,
-                prop_defaults: HashMap::new(),
+                prop_defaults: FxHashMap::default(),
                 states: vec![],
                 computeds: vec![],
                 effects: vec![],
@@ -473,14 +472,14 @@ mod tests {
                 }],
             },
         };
-        let mut components = HashMap::new();
+        let mut components = FxHashMap::default();
         components.insert(
             "Watcher".into(),
             ComponentIR {
                 name: "Watcher".into(),
                 generic_params: vec![],
-                props: HashMap::new(),
-                prop_defaults: HashMap::new(),
+                props: FxHashMap::default(),
+                prop_defaults: FxHashMap::default(),
                 states: vec![],
                 computeds: vec![],
                 effects: vec![effect],
@@ -518,14 +517,14 @@ mod tests {
             kind: LifecycleKind::Mount,
             body: BlockIR { statements: vec![] },
         };
-        let mut components = HashMap::new();
+        let mut components = FxHashMap::default();
         components.insert(
             "App".into(),
             ComponentIR {
                 name: "App".into(),
                 generic_params: vec![],
-                props: HashMap::new(),
-                prop_defaults: HashMap::new(),
+                props: FxHashMap::default(),
+                prop_defaults: FxHashMap::default(),
                 states: vec![],
                 computeds: vec![],
                 effects: vec![],
@@ -563,9 +562,9 @@ mod tests {
         let codegen = VueCodegen;
         let store = StoreIR {
             name: "AppStore".into(),
-            signals: HashMap::new(),
-            signal_defaults: HashMap::new(),
-            getters: HashMap::new(),
+            signals: FxHashMap::default(),
+            signal_defaults: FxHashMap::default(),
+            getters: FxHashMap::default(),
             actions: vec![],
             ..Default::default()
         };
@@ -577,7 +576,7 @@ mod tests {
     #[test]
     fn test_vue_store_hook_with_signals() {
         let codegen = VueCodegen;
-        let mut signals = HashMap::new();
+        let mut signals = FxHashMap::default();
         signals.insert(
             "count".into(),
             TypeIR {
@@ -594,14 +593,14 @@ mod tests {
                 is_nullable: false,
             },
         );
-        let mut defaults = HashMap::new();
+        let mut defaults = FxHashMap::default();
         defaults.insert("count".into(), serde_json::json!(0));
         defaults.insert("name".into(), serde_json::json!("world"));
         let store = StoreIR {
             name: "AppStore".into(),
             signals,
             signal_defaults: defaults,
-            getters: HashMap::new(),
+            getters: FxHashMap::default(),
             actions: vec![],
             ..Default::default()
         };
@@ -617,7 +616,7 @@ mod tests {
     #[test]
     fn test_vue_store_hook_with_getters() {
         let codegen = VueCodegen;
-        let mut getters = HashMap::new();
+        let mut getters = FxHashMap::default();
         getters.insert(
             "doubleCount".into(),
             ExprIR::BinaryOpExpr {
@@ -631,7 +630,7 @@ mod tests {
                 }),
             },
         );
-        let mut signals = HashMap::new();
+        let mut signals = FxHashMap::default();
         signals.insert(
             "count".into(),
             TypeIR {
@@ -640,7 +639,7 @@ mod tests {
                 is_nullable: false,
             },
         );
-        let mut defaults = HashMap::new();
+        let mut defaults = FxHashMap::default();
         defaults.insert("count".into(), serde_json::json!(0));
         let store = StoreIR {
             name: "CalcStore".into(),
@@ -664,19 +663,19 @@ mod tests {
         let codegen = VueCodegen;
         let ir = IRProgram {
             version: "0.1".into(),
-            modules: HashMap::from([(
+            modules: FxHashMap::from_iter([(
                 "main".to_string(),
                 ModuleIR {
                     name: "main".to_string(),
-                    components: HashMap::new(),
-                    stores: HashMap::new(),
+                    components: FxHashMap::default(),
+                    stores: FxHashMap::default(),
                     ..Default::default()
                 },
             )]),
-            source_map: HashMap::new(),
+            source_map: FxHashMap::default(),
             stdlib_imports: Default::default(),
         };
-        let sources = HashMap::from([("main.omni".into(), "".into())]);
+        let sources = FxHashMap::from_iter([("main.omni".into(), "".into())]);
         let output = codegen.generate(&ir, &sources);
         assert!(output.errors.is_empty());
         assert!(output.files.is_empty());
@@ -688,8 +687,8 @@ mod tests {
         let comp = ComponentIR {
             name: "App".into(),
             generic_params: vec![],
-            props: HashMap::new(),
-            prop_defaults: HashMap::new(),
+            props: FxHashMap::default(),
+            prop_defaults: FxHashMap::default(),
             states: vec![StateIntent {
                 name: "count".into(),
                 r#type: TypeIR {
@@ -719,19 +718,19 @@ mod tests {
         };
         let ir = IRProgram {
             version: "0.1".into(),
-            modules: HashMap::from([(
+            modules: FxHashMap::from_iter([(
                 "main".to_string(),
                 ModuleIR {
                     name: "main".to_string(),
-                    components: HashMap::from([("App".into(), comp)]),
-                    stores: HashMap::new(),
+                    components: FxHashMap::from_iter([("App".into(), comp)]),
+                    stores: FxHashMap::default(),
                     ..Default::default()
                 },
             )]),
-            source_map: HashMap::new(),
+            source_map: FxHashMap::default(),
             stdlib_imports: Default::default(),
         };
-        let sources = HashMap::from([("main.omni".into(), "".into())]);
+        let sources = FxHashMap::from_iter([("main.omni".into(), "".into())]);
         let output = codegen.generate(&ir, &sources);
         assert!(output.errors.is_empty());
         assert_eq!(output.files.len(), 1); // just App.vue
@@ -748,7 +747,7 @@ mod tests {
         let codegen = VueCodegen;
         let store = StoreIR {
             name: "AppStore".into(),
-            signals: HashMap::from([(
+            signals: FxHashMap::from_iter([(
                 "count".into(),
                 TypeIR {
                     kind: "i32".into(),
@@ -756,26 +755,26 @@ mod tests {
                     is_nullable: false,
                 },
             )]),
-            signal_defaults: HashMap::from([("count".into(), serde_json::json!(0))]),
-            getters: HashMap::new(),
+            signal_defaults: FxHashMap::from_iter([("count".into(), serde_json::json!(0))]),
+            getters: FxHashMap::default(),
             actions: vec![],
             ..Default::default()
         };
         let ir = IRProgram {
             version: "0.1".into(),
-            modules: HashMap::from([(
+            modules: FxHashMap::from_iter([(
                 "main".to_string(),
                 ModuleIR {
                     name: "main".to_string(),
-                    components: HashMap::new(),
-                    stores: HashMap::from([("AppStore".into(), store)]),
+                    components: FxHashMap::default(),
+                    stores: FxHashMap::from_iter([("AppStore".into(), store)]),
                     ..Default::default()
                 },
             )]),
-            source_map: HashMap::new(),
+            source_map: FxHashMap::default(),
             stdlib_imports: Default::default(),
         };
-        let sources = HashMap::from([("main.omni".into(), "".into())]);
+        let sources = FxHashMap::from_iter([("main.omni".into(), "".into())]);
         let output = codegen.generate(&ir, &sources);
         assert!(output.errors.is_empty());
         assert_eq!(output.files.len(), 1); // just useAppStore.ts
@@ -791,7 +790,7 @@ mod tests {
         let codegen = VueCodegen;
         let store = StoreIR {
             name: "AppStore".into(),
-            signals: HashMap::from([(
+            signals: FxHashMap::from_iter([(
                 "count".into(),
                 TypeIR {
                     kind: "i32".into(),
@@ -799,16 +798,16 @@ mod tests {
                     is_nullable: false,
                 },
             )]),
-            signal_defaults: HashMap::from([("count".into(), serde_json::json!(0))]),
-            getters: HashMap::new(),
+            signal_defaults: FxHashMap::from_iter([("count".into(), serde_json::json!(0))]),
+            getters: FxHashMap::default(),
             actions: vec![],
             ..Default::default()
         };
         let comp = ComponentIR {
             name: "App".into(),
             generic_params: vec![],
-            props: HashMap::new(),
-            prop_defaults: HashMap::new(),
+            props: FxHashMap::default(),
+            prop_defaults: FxHashMap::default(),
             states: vec![],
             computeds: vec![],
             effects: vec![],
@@ -827,19 +826,19 @@ mod tests {
         };
         let ir = IRProgram {
             version: "0.1".into(),
-            modules: HashMap::from([(
+            modules: FxHashMap::from_iter([(
                 "main".to_string(),
                 ModuleIR {
                     name: "main".to_string(),
-                    components: HashMap::from([("App".into(), comp)]),
-                    stores: HashMap::from([("AppStore".into(), store)]),
+                    components: FxHashMap::from_iter([("App".into(), comp)]),
+                    stores: FxHashMap::from_iter([("AppStore".into(), store)]),
                     ..Default::default()
                 },
             )]),
-            source_map: HashMap::new(),
+            source_map: FxHashMap::default(),
             stdlib_imports: Default::default(),
         };
-        let sources = HashMap::from([("main.omni".into(), "".into())]);
+        let sources = FxHashMap::from_iter([("main.omni".into(), "".into())]);
         let output = codegen.generate(&ir, &sources);
         assert!(output.errors.is_empty());
         // Expect App.vue + useAppStore.ts

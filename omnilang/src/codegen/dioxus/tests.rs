@@ -2,6 +2,7 @@
 mod tests {
     use super::super::*;
     use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 
     // ── Helper tests ─────────────────────────────────────────
 
@@ -184,9 +185,9 @@ mod tests {
         let mut w = CodeWriter::new();
         let stmt = StatementIR::LetStmtIR {
             name: "x".into(),
-            value: Some(Box::new(ExprIR::LiteralExpr {
+            value: Some(ExprIR::LiteralExpr {
                 value: serde_json::json!(42),
-            })),
+            }),
             r#type: None,
         };
         generate_statement_dioxus(&mut w, &stmt);
@@ -198,9 +199,9 @@ mod tests {
         let mut w = CodeWriter::new();
         let stmt = StatementIR::LetStmtIR {
             name: "name".into(),
-            value: Some(Box::new(ExprIR::LiteralExpr {
+            value: Some(ExprIR::LiteralExpr {
                 value: serde_json::json!("hello"),
-            })),
+            }),
             r#type: Some(TypeIR {
                 kind: "string".into(),
                 type_args: vec![],
@@ -240,7 +241,6 @@ mod tests {
                 value: Some(Box::new(ExprIR::LiteralExpr {
                     value: serde_json::json!("alice"),
                 })),
-                item: None,
             }),
         };
         generate_statement_dioxus(&mut w, &stmt);
@@ -260,7 +260,6 @@ mod tests {
                 amount: Some(Box::new(ExprIR::LiteralExpr {
                     value: serde_json::json!(1),
                 })),
-                item: None,
             }),
         };
         generate_statement_dioxus(&mut w, &stmt);
@@ -280,7 +279,6 @@ mod tests {
                 amount: Some(Box::new(ExprIR::LiteralExpr {
                     value: serde_json::json!(1),
                 })),
-                item: None,
             }),
         };
         generate_statement_dioxus(&mut w, &stmt);
@@ -298,9 +296,9 @@ mod tests {
             then_body: BlockIR {
                 statements: vec![StatementIR::LetStmtIR {
                     name: "x".into(),
-                    value: Some(Box::new(ExprIR::LiteralExpr {
+                    value: Some(ExprIR::LiteralExpr {
                         value: serde_json::json!(1),
-                    })),
+                    }),
                     r#type: None,
                 }],
             },
@@ -317,10 +315,10 @@ mod tests {
     // ── gen_component_rs tests ──────────────────────────────
 
     /// Build IRProgram with a single module containing the given components.
-    fn make_ir(components: HashMap<String, ComponentIR>) -> IRProgram {
+    fn make_ir(components: FxHashMap<String, ComponentIR>) -> IRProgram {
         IRProgram {
             version: "1.0".into(),
-            modules: HashMap::from([(
+            modules: FxHashMap::from_iter([(
                 "main".to_string(),
                 ModuleIR {
                     name: "main".to_string(),
@@ -329,21 +327,21 @@ mod tests {
                 },
             )]),
             stdlib_imports: Default::default(),
-            source_map: HashMap::new(),
+            source_map: FxHashMap::default(),
         }
     }
 
     #[test]
     fn test_empty_component() {
         let codegen = DioxusCodegen;
-        let mut components = HashMap::new();
+        let mut components = FxHashMap::default();
         components.insert(
             "App".into(),
             ComponentIR {
                 name: "App".into(),
                 generic_params: vec![],
-                props: HashMap::new(),
-                prop_defaults: HashMap::new(),
+                props: FxHashMap::default(),
+                prop_defaults: FxHashMap::default(),
                 states: vec![],
                 computeds: vec![],
                 effects: vec![],
@@ -392,14 +390,14 @@ mod tests {
             },
             is_copy: false,
         };
-        let mut components = HashMap::new();
+        let mut components = FxHashMap::default();
         components.insert(
             "Counter".into(),
             ComponentIR {
                 name: "Counter".into(),
                 generic_params: vec![],
-                props: HashMap::new(),
-                prop_defaults: HashMap::new(),
+                props: FxHashMap::default(),
+                prop_defaults: FxHashMap::default(),
                 states: vec![state],
                 computeds: vec![],
                 effects: vec![],
@@ -433,7 +431,7 @@ mod tests {
     #[test]
     fn test_component_with_props() {
         let codegen = DioxusCodegen;
-        let mut props = HashMap::new();
+        let mut props = FxHashMap::default();
         props.insert(
             "name".into(),
             TypeIR {
@@ -450,14 +448,14 @@ mod tests {
                 is_nullable: false,
             },
         );
-        let mut components = HashMap::new();
+        let mut components = FxHashMap::default();
         components.insert(
             "Greeting".into(),
             ComponentIR {
                 name: "Greeting".into(),
                 generic_params: vec![],
                 props,
-                prop_defaults: HashMap::new(),
+                prop_defaults: FxHashMap::default(),
                 states: vec![],
                 computeds: vec![],
                 effects: vec![],
@@ -505,14 +503,14 @@ mod tests {
                 }],
             },
         };
-        let mut components = HashMap::new();
+        let mut components = FxHashMap::default();
         components.insert(
             "Watcher".into(),
             ComponentIR {
                 name: "Watcher".into(),
                 generic_params: vec![],
-                props: HashMap::new(),
-                prop_defaults: HashMap::new(),
+                props: FxHashMap::default(),
+                prop_defaults: FxHashMap::default(),
                 states: vec![],
                 computeds: vec![],
                 effects: vec![effect],
@@ -564,14 +562,14 @@ mod tests {
             },
             deps: vec!["count".into()],
         };
-        let mut components = HashMap::new();
+        let mut components = FxHashMap::default();
         components.insert(
             "Calc".into(),
             ComponentIR {
                 name: "Calc".into(),
                 generic_params: vec![],
-                props: HashMap::new(),
-                prop_defaults: HashMap::new(),
+                props: FxHashMap::default(),
+                prop_defaults: FxHashMap::default(),
                 states: vec![],
                 computeds: vec![computed],
                 effects: vec![],
@@ -609,9 +607,9 @@ mod tests {
         let codegen = DioxusCodegen;
         let store = StoreIR {
             name: "EmptyStore".into(),
-            signals: HashMap::new(),
-            signal_defaults: HashMap::new(),
-            getters: HashMap::new(),
+            signals: FxHashMap::default(),
+            signal_defaults: FxHashMap::default(),
+            getters: FxHashMap::default(),
             actions: vec![],
             ..Default::default()
         };
@@ -623,7 +621,7 @@ mod tests {
     #[test]
     fn test_store_module_with_signals() {
         let codegen = DioxusCodegen;
-        let mut signals = HashMap::new();
+        let mut signals = FxHashMap::default();
         signals.insert(
             "count".into(),
             TypeIR {
@@ -640,14 +638,14 @@ mod tests {
                 is_nullable: false,
             },
         );
-        let mut defaults = HashMap::new();
+        let mut defaults = FxHashMap::default();
         defaults.insert("count".into(), serde_json::json!(0));
         defaults.insert("name".into(), serde_json::json!("world"));
         let store = StoreIR {
             name: "AppStore".into(),
             signals,
             signal_defaults: defaults,
-            getters: HashMap::new(),
+            getters: FxHashMap::default(),
             actions: vec![],
             ..Default::default()
         };
@@ -667,19 +665,19 @@ mod tests {
         let codegen = DioxusCodegen;
         let ir = IRProgram {
             version: "0.1".into(),
-            modules: HashMap::from([(
+            modules: FxHashMap::from_iter([(
                 "main".to_string(),
                 ModuleIR {
                     name: "main".to_string(),
-                    components: HashMap::new(),
-                    stores: HashMap::new(),
+                    components: FxHashMap::default(),
+                    stores: FxHashMap::default(),
                     ..Default::default()
                 },
             )]),
-            source_map: HashMap::new(),
+            source_map: FxHashMap::default(),
             stdlib_imports: Default::default(),
         };
-        let sources = HashMap::from([("main.omni".into(), "".into())]);
+        let sources = FxHashMap::from_iter([("main.omni".into(), "".into())]);
         let output = codegen.generate(&ir, &sources);
         assert!(output.errors.is_empty());
         assert!(output.files.is_empty());
@@ -691,8 +689,8 @@ mod tests {
         let comp = ComponentIR {
             name: "App".into(),
             generic_params: vec![],
-            props: HashMap::new(),
-            prop_defaults: HashMap::new(),
+            props: FxHashMap::default(),
+            prop_defaults: FxHashMap::default(),
             states: vec![StateIntent {
                 name: "count".into(),
                 r#type: TypeIR {
@@ -722,19 +720,19 @@ mod tests {
         };
         let ir = IRProgram {
             version: "0.1".into(),
-            modules: HashMap::from([(
+            modules: FxHashMap::from_iter([(
                 "main".to_string(),
                 ModuleIR {
                     name: "main".to_string(),
-                    components: HashMap::from([("App".into(), comp)]),
-                    stores: HashMap::new(),
+                    components: FxHashMap::from_iter([("App".into(), comp)]),
+                    stores: FxHashMap::default(),
                     ..Default::default()
                 },
             )]),
-            source_map: HashMap::new(),
+            source_map: FxHashMap::default(),
             stdlib_imports: Default::default(),
         };
-        let sources = HashMap::from([("main.omni".into(), "".into())]);
+        let sources = FxHashMap::from_iter([("main.omni".into(), "".into())]);
         let output = codegen.generate(&ir, &sources);
         assert!(output.errors.is_empty());
         assert_eq!(output.files.len(), 1);
@@ -750,7 +748,7 @@ mod tests {
         let codegen = DioxusCodegen;
         let store = StoreIR {
             name: "AppStore".into(),
-            signals: HashMap::from([(
+            signals: FxHashMap::from_iter([(
                 "count".into(),
                 TypeIR {
                     kind: "i32".into(),
@@ -758,26 +756,26 @@ mod tests {
                     is_nullable: false,
                 },
             )]),
-            signal_defaults: HashMap::from([("count".into(), serde_json::json!(0))]),
-            getters: HashMap::new(),
+            signal_defaults: FxHashMap::from_iter([("count".into(), serde_json::json!(0))]),
+            getters: FxHashMap::default(),
             actions: vec![],
             ..Default::default()
         };
         let ir = IRProgram {
             version: "0.1".into(),
-            modules: HashMap::from([(
+            modules: FxHashMap::from_iter([(
                 "main".to_string(),
                 ModuleIR {
                     name: "main".to_string(),
-                    components: HashMap::new(),
-                    stores: HashMap::from([("AppStore".into(), store)]),
+                    components: FxHashMap::default(),
+                    stores: FxHashMap::from_iter([("AppStore".into(), store)]),
                     ..Default::default()
                 },
             )]),
-            source_map: HashMap::new(),
+            source_map: FxHashMap::default(),
             stdlib_imports: Default::default(),
         };
-        let sources = HashMap::from([("main.omni".into(), "".into())]);
+        let sources = FxHashMap::from_iter([("main.omni".into(), "".into())]);
         let output = codegen.generate(&ir, &sources);
         assert!(output.errors.is_empty());
         assert_eq!(output.files.len(), 1);
@@ -793,7 +791,7 @@ mod tests {
         let codegen = DioxusCodegen;
         let store = StoreIR {
             name: "AppStore".into(),
-            signals: HashMap::from([(
+            signals: FxHashMap::from_iter([(
                 "count".into(),
                 TypeIR {
                     kind: "i32".into(),
@@ -801,16 +799,16 @@ mod tests {
                     is_nullable: false,
                 },
             )]),
-            signal_defaults: HashMap::from([("count".into(), serde_json::json!(0))]),
-            getters: HashMap::new(),
+            signal_defaults: FxHashMap::from_iter([("count".into(), serde_json::json!(0))]),
+            getters: FxHashMap::default(),
             actions: vec![],
             ..Default::default()
         };
         let comp = ComponentIR {
             name: "App".into(),
             generic_params: vec![],
-            props: HashMap::new(),
-            prop_defaults: HashMap::new(),
+            props: FxHashMap::default(),
+            prop_defaults: FxHashMap::default(),
             states: vec![],
             computeds: vec![],
             effects: vec![],
@@ -829,19 +827,19 @@ mod tests {
         };
         let ir = IRProgram {
             version: "0.1".into(),
-            modules: HashMap::from([(
+            modules: FxHashMap::from_iter([(
                 "main".to_string(),
                 ModuleIR {
                     name: "main".to_string(),
-                    components: HashMap::from([("App".into(), comp)]),
-                    stores: HashMap::from([("AppStore".into(), store)]),
+                    components: FxHashMap::from_iter([("App".into(), comp)]),
+                    stores: FxHashMap::from_iter([("AppStore".into(), store)]),
                     ..Default::default()
                 },
             )]),
-            source_map: HashMap::new(),
+            source_map: FxHashMap::default(),
             stdlib_imports: Default::default(),
         };
-        let sources = HashMap::from([("main.omni".into(), "".into())]);
+        let sources = FxHashMap::from_iter([("main.omni".into(), "".into())]);
         let output = codegen.generate(&ir, &sources);
         assert!(output.errors.is_empty());
         assert_eq!(output.files.len(), 2); // App.rs + app_store.rs

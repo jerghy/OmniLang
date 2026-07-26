@@ -4,6 +4,7 @@ use super::*;
 use crate::codegen::shared::generator::build_component_map;
 use crate::codegen::{format_json_value, JSON_FLUTTER};
 use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 
 // ── Helper tests ──────────────────────────────────────────
 
@@ -196,9 +197,9 @@ fn test_stmt_let() {
     let mut w = CodeWriter::new();
     let stmt = StatementIR::LetStmtIR {
         name: "x".into(),
-        value: Some(Box::new(ExprIR::LiteralExpr {
+        value: Some(ExprIR::LiteralExpr {
             value: serde_json::json!(42),
-        })),
+        }),
         r#type: None,
     };
     generate_statement_flutter(&mut w, &stmt);
@@ -231,7 +232,6 @@ fn test_stmt_mutation_increment() {
             amount: Some(Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!(1),
             })),
-            item: None,
         }),
     };
     generate_statement_flutter(&mut w, &stmt);
@@ -254,7 +254,6 @@ fn test_stmt_mutation_assign() {
             value: Some(Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!("hello"),
             })),
-            item: None,
         }),
     };
     generate_statement_flutter(&mut w, &stmt);
@@ -277,7 +276,6 @@ fn test_stmt_mutation_decrement() {
             amount: Some(Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!(1),
             })),
-            item: None,
         }),
     };
     generate_statement_flutter(&mut w, &stmt);
@@ -298,9 +296,9 @@ fn test_stmt_if() {
         then_body: BlockIR {
             statements: vec![StatementIR::LetStmtIR {
                 name: "x".into(),
-                value: Some(Box::new(ExprIR::LiteralExpr {
+                value: Some(ExprIR::LiteralExpr {
                     value: serde_json::json!(1),
-                })),
+                }),
                 r#type: None,
             }],
         },
@@ -308,9 +306,9 @@ fn test_stmt_if() {
         else_body: Some(BlockIR {
             statements: vec![StatementIR::LetStmtIR {
                 name: "x".into(),
-                value: Some(Box::new(ExprIR::LiteralExpr {
+                value: Some(ExprIR::LiteralExpr {
                     value: serde_json::json!(2),
-                })),
+                }),
                 r#type: None,
             }],
         }),
@@ -330,7 +328,7 @@ fn test_stmt_if() {
 fn test_format_text_node() {
     let node = ViewTree::Text("Hello".into());
     assert_eq!(
-        format_view_tree(&node, &[], &HashMap::new()),
+        format_view_tree(&node, &[], &FxHashMap::default()),
         "Text('Hello')"
     );
 }
@@ -339,7 +337,7 @@ fn test_format_text_node() {
 fn test_format_text_with_interpolation() {
     let node = ViewTree::Text("{name}".into());
     assert_eq!(
-        format_view_tree(&node, &[], &HashMap::new()),
+        format_view_tree(&node, &[], &FxHashMap::default()),
         "Text('$name')"
     );
 }
@@ -347,11 +345,11 @@ fn test_format_text_with_interpolation() {
 #[test]
 fn test_format_element_empty() {
     let el = ElementIR {
-        class_map_bindings: HashMap::new(),
+        class_map_bindings: FxHashMap::default(),
         tag: "div".into(),
-        props: HashMap::new(),
-        bindings: HashMap::new(),
-        events: HashMap::new(),
+        props: FxHashMap::default(),
+        bindings: FxHashMap::default(),
+        events: FxHashMap::default(),
         style_classes: None,
         inline_style: None,
         children: vec![],
@@ -366,7 +364,7 @@ fn test_format_element_empty() {
         hero: None,
     };
     assert_eq!(
-        format_view_tree(&ViewTree::Element(el), &[], &HashMap::new()),
+        format_view_tree(&ViewTree::Element(el), &[], &FxHashMap::default()),
         "Container()"
     );
 }
@@ -374,11 +372,11 @@ fn test_format_element_empty() {
 #[test]
 fn test_format_element_with_text_child() {
     let el = ElementIR {
-        class_map_bindings: HashMap::new(),
+        class_map_bindings: FxHashMap::default(),
         tag: "div".into(),
-        props: HashMap::new(),
-        bindings: HashMap::new(),
-        events: HashMap::new(),
+        props: FxHashMap::default(),
+        bindings: FxHashMap::default(),
+        events: FxHashMap::default(),
         style_classes: None,
         inline_style: None,
         children: vec![ViewTree::Text("Hello".into())],
@@ -392,18 +390,18 @@ fn test_format_element_with_text_child() {
         drag: None,
         hero: None,
     };
-    let expr = format_view_tree(&ViewTree::Element(el), &[], &HashMap::new());
+    let expr = format_view_tree(&ViewTree::Element(el), &[], &FxHashMap::default());
     assert_eq!(expr, "Container(child: Text('Hello'))");
 }
 
 #[test]
 fn test_format_element_with_multiple_children() {
     let el = ElementIR {
-        class_map_bindings: HashMap::new(),
+        class_map_bindings: FxHashMap::default(),
         tag: "column".into(),
-        props: HashMap::new(),
-        bindings: HashMap::new(),
-        events: HashMap::new(),
+        props: FxHashMap::default(),
+        bindings: FxHashMap::default(),
+        events: FxHashMap::default(),
         style_classes: None,
         inline_style: None,
         children: vec![
@@ -420,13 +418,13 @@ fn test_format_element_with_multiple_children() {
         drag: None,
         hero: None,
     };
-    let expr = format_view_tree(&ViewTree::Element(el), &[], &HashMap::new());
+    let expr = format_view_tree(&ViewTree::Element(el), &[], &FxHashMap::default());
     assert_eq!(expr, "Column(children: [Text('First'), Text('Second')])");
 }
 
 #[test]
 fn test_format_element_with_event() {
-    let mut events = HashMap::new();
+    let mut events = FxHashMap::default();
     events.insert(
         "click".into(),
         EventHandlerIR::FnRef {
@@ -439,10 +437,10 @@ fn test_format_element_with_event() {
         },
     );
     let el = ElementIR {
-        class_map_bindings: HashMap::new(),
+        class_map_bindings: FxHashMap::default(),
         tag: "button".into(),
-        props: HashMap::new(),
-        bindings: HashMap::new(),
+        props: FxHashMap::default(),
+        bindings: FxHashMap::default(),
         events,
         style_classes: None,
         inline_style: None,
@@ -457,7 +455,7 @@ fn test_format_element_with_event() {
         drag: None,
         hero: None,
     };
-    let expr = format_view_tree(&ViewTree::Element(el), &[], &HashMap::new());
+    let expr = format_view_tree(&ViewTree::Element(el), &[], &FxHashMap::default());
     assert!(expr.contains("ElevatedButton("));
     assert!(expr.contains("onPressed: () { handleClick(); }"));
 }
@@ -499,7 +497,6 @@ fn test_generate_function_with_mutation() {
                     amount: Some(Box::new(ExprIR::LiteralExpr {
                         value: serde_json::json!(1),
                     })),
-                    item: None,
                 }),
             }],
         },
@@ -516,10 +513,10 @@ fn test_generate_function_with_mutation() {
 // ── gen_component_dart tests ──────────────────────────────
 
 /// Build IRProgram with a single module containing the given components.
-fn make_ir(components: HashMap<String, ComponentIR>) -> IRProgram {
+fn make_ir(components: FxHashMap<String, ComponentIR>) -> IRProgram {
     IRProgram {
         version: "1.0".into(),
-        modules: HashMap::from([(
+        modules: FxHashMap::from_iter([(
             "main".to_string(),
             ModuleIR {
                 name: "main".to_string(),
@@ -528,21 +525,21 @@ fn make_ir(components: HashMap<String, ComponentIR>) -> IRProgram {
             },
         )]),
         stdlib_imports: Default::default(),
-        source_map: HashMap::new(),
+        source_map: FxHashMap::default(),
     }
 }
 
 #[test]
 fn test_empty_component() {
     let codegen = FlutterCodegen;
-    let mut components = HashMap::new();
+    let mut components = FxHashMap::default();
     components.insert(
         "App".into(),
         ComponentIR {
             name: "App".into(),
             generic_params: vec![],
-            props: HashMap::new(),
-            prop_defaults: HashMap::new(),
+            props: FxHashMap::default(),
+            prop_defaults: FxHashMap::default(),
             states: vec![],
             computeds: vec![],
             effects: vec![],
@@ -597,14 +594,14 @@ fn test_component_with_state() {
         },
         is_copy: false,
     };
-    let mut components = HashMap::new();
+    let mut components = FxHashMap::default();
     components.insert(
         "Counter".into(),
         ComponentIR {
             name: "Counter".into(),
             generic_params: vec![],
-            props: HashMap::new(),
-            prop_defaults: HashMap::new(),
+            props: FxHashMap::default(),
+            prop_defaults: FxHashMap::default(),
             states: vec![state],
             computeds: vec![],
             effects: vec![],
@@ -625,7 +622,6 @@ fn test_component_with_state() {
                             amount: Some(Box::new(ExprIR::LiteralExpr {
                                 value: serde_json::json!(1),
                             })),
-                            item: None,
                         }),
                     }],
                 },
@@ -664,7 +660,7 @@ fn test_component_with_state() {
 #[test]
 fn test_component_with_props() {
     let codegen = FlutterCodegen;
-    let mut props = HashMap::new();
+    let mut props = FxHashMap::default();
     props.insert(
         "name".into(),
         TypeIR {
@@ -681,14 +677,14 @@ fn test_component_with_props() {
             is_nullable: false,
         },
     );
-    let mut components = HashMap::new();
+    let mut components = FxHashMap::default();
     components.insert(
         "Greeting".into(),
         ComponentIR {
             name: "Greeting".into(),
             generic_params: vec![],
             props,
-            prop_defaults: HashMap::new(),
+            prop_defaults: FxHashMap::default(),
             states: vec![],
             computeds: vec![],
             effects: vec![],
@@ -736,14 +732,14 @@ fn test_component_with_mount_lifecycle() {
             }],
         },
     };
-    let mut components = HashMap::new();
+    let mut components = FxHashMap::default();
     components.insert(
         "App".into(),
         ComponentIR {
             name: "App".into(),
             generic_params: vec![],
-            props: HashMap::new(),
-            prop_defaults: HashMap::new(),
+            props: FxHashMap::default(),
+            prop_defaults: FxHashMap::default(),
             states: vec![],
             computeds: vec![],
             effects: vec![],
@@ -791,14 +787,14 @@ fn test_component_with_unmount_lifecycle() {
             }],
         },
     };
-    let mut components = HashMap::new();
+    let mut components = FxHashMap::default();
     components.insert(
         "App".into(),
         ComponentIR {
             name: "App".into(),
             generic_params: vec![],
-            props: HashMap::new(),
-            prop_defaults: HashMap::new(),
+            props: FxHashMap::default(),
+            prop_defaults: FxHashMap::default(),
             states: vec![],
             computeds: vec![],
             effects: vec![],
@@ -838,9 +834,9 @@ fn test_store_dart_empty() {
     let codegen = FlutterCodegen;
     let store = StoreIR {
         name: "EmptyStore".into(),
-        signals: HashMap::new(),
-        signal_defaults: HashMap::new(),
-        getters: HashMap::new(),
+        signals: FxHashMap::default(),
+        signal_defaults: FxHashMap::default(),
+        getters: FxHashMap::default(),
         actions: vec![],
         ..Default::default()
     };
@@ -852,7 +848,7 @@ fn test_store_dart_empty() {
 #[test]
 fn test_store_dart_with_signals() {
     let codegen = FlutterCodegen;
-    let mut signals = HashMap::new();
+    let mut signals = FxHashMap::default();
     signals.insert(
         "count".into(),
         TypeIR {
@@ -869,14 +865,14 @@ fn test_store_dart_with_signals() {
             is_nullable: false,
         },
     );
-    let mut defaults = HashMap::new();
+    let mut defaults = FxHashMap::default();
     defaults.insert("count".into(), serde_json::json!(0));
     defaults.insert("name".into(), serde_json::json!("world"));
     let store = StoreIR {
         name: "AppStore".into(),
         signals,
         signal_defaults: defaults,
-        getters: HashMap::new(),
+        getters: FxHashMap::default(),
         actions: vec![],
         ..Default::default()
     };
@@ -895,7 +891,7 @@ fn test_store_dart_with_signals() {
 #[test]
 fn test_store_dart_with_getters() {
     let codegen = FlutterCodegen;
-    let mut getters = HashMap::new();
+    let mut getters = FxHashMap::default();
     getters.insert(
         "doubleCount".into(),
         ExprIR::BinaryOpExpr {
@@ -909,7 +905,7 @@ fn test_store_dart_with_getters() {
             }),
         },
     );
-    let mut signals = HashMap::new();
+    let mut signals = FxHashMap::default();
     signals.insert(
         "count".into(),
         TypeIR {
@@ -918,7 +914,7 @@ fn test_store_dart_with_getters() {
             is_nullable: false,
         },
     );
-    let mut defaults = HashMap::new();
+    let mut defaults = FxHashMap::default();
     defaults.insert("count".into(), serde_json::json!(0));
     let store = StoreIR {
         name: "CalcStore".into(),
@@ -940,19 +936,19 @@ fn test_full_pipeline_empty() {
     let codegen = FlutterCodegen;
     let ir = IRProgram {
         version: "0.1".into(),
-        modules: HashMap::from([(
+        modules: FxHashMap::from_iter([(
             "main".to_string(),
             ModuleIR {
                 name: "main".to_string(),
-                components: HashMap::new(),
-                stores: HashMap::new(),
+                components: FxHashMap::default(),
+                stores: FxHashMap::default(),
                 ..Default::default()
             },
         )]),
-        source_map: HashMap::new(),
+        source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
     };
-    let sources = HashMap::from([("main.omni".into(), "".into())]);
+    let sources = FxHashMap::from_iter([("main.omni".into(), "".into())]);
     let output = codegen.generate(&ir, &sources);
     assert!(output.errors.is_empty());
     assert!(output.files.is_empty());
@@ -964,8 +960,8 @@ fn test_full_pipeline_component() {
     let comp = ComponentIR {
         name: "App".into(),
         generic_params: vec![],
-        props: HashMap::new(),
-        prop_defaults: HashMap::new(),
+        props: FxHashMap::default(),
+        prop_defaults: FxHashMap::default(),
         states: vec![],
         computeds: vec![],
         effects: vec![],
@@ -984,19 +980,19 @@ fn test_full_pipeline_component() {
     };
     let ir = IRProgram {
         version: "0.1".into(),
-        modules: HashMap::from([(
+        modules: FxHashMap::from_iter([(
             "main".to_string(),
             ModuleIR {
                 name: "main".to_string(),
-                components: HashMap::from([("App".into(), comp)]),
-                stores: HashMap::new(),
+                components: FxHashMap::from_iter([("App".into(), comp)]),
+                stores: FxHashMap::default(),
                 ..Default::default()
             },
         )]),
-        source_map: HashMap::new(),
+        source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
     };
-    let sources = HashMap::from([("main.omni".into(), "".into())]);
+    let sources = FxHashMap::from_iter([("main.omni".into(), "".into())]);
     let output = codegen.generate(&ir, &sources);
     assert!(output.errors.is_empty());
     assert_eq!(output.files.len(), 1);
@@ -1012,7 +1008,7 @@ fn test_full_pipeline_with_store() {
     let codegen = FlutterCodegen;
     let store = StoreIR {
         name: "AppStore".into(),
-        signals: HashMap::from([(
+        signals: FxHashMap::from_iter([(
             "count".into(),
             TypeIR {
                 kind: "i32".into(),
@@ -1020,26 +1016,26 @@ fn test_full_pipeline_with_store() {
                 is_nullable: false,
             },
         )]),
-        signal_defaults: HashMap::from([("count".into(), serde_json::json!(0))]),
-        getters: HashMap::new(),
+        signal_defaults: FxHashMap::from_iter([("count".into(), serde_json::json!(0))]),
+        getters: FxHashMap::default(),
         actions: vec![],
         ..Default::default()
     };
     let ir = IRProgram {
         version: "0.1".into(),
-        modules: HashMap::from([(
+        modules: FxHashMap::from_iter([(
             "main".to_string(),
             ModuleIR {
                 name: "main".to_string(),
-                components: HashMap::new(),
-                stores: HashMap::from([("AppStore".into(), store)]),
+                components: FxHashMap::default(),
+                stores: FxHashMap::from_iter([("AppStore".into(), store)]),
                 ..Default::default()
             },
         )]),
-        source_map: HashMap::new(),
+        source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
     };
-    let sources = HashMap::from([("main.omni".into(), "".into())]);
+    let sources = FxHashMap::from_iter([("main.omni".into(), "".into())]);
     let output = codegen.generate(&ir, &sources);
     assert!(output.errors.is_empty());
     assert_eq!(output.files.len(), 1);
@@ -1055,7 +1051,7 @@ fn test_full_pipeline_component_with_store_ref() {
     let codegen = FlutterCodegen;
     let store = StoreIR {
         name: "AppStore".into(),
-        signals: HashMap::from([(
+        signals: FxHashMap::from_iter([(
             "count".into(),
             TypeIR {
                 kind: "i32".into(),
@@ -1063,16 +1059,16 @@ fn test_full_pipeline_component_with_store_ref() {
                 is_nullable: false,
             },
         )]),
-        signal_defaults: HashMap::from([("count".into(), serde_json::json!(0))]),
-        getters: HashMap::new(),
+        signal_defaults: FxHashMap::from_iter([("count".into(), serde_json::json!(0))]),
+        getters: FxHashMap::default(),
         actions: vec![],
         ..Default::default()
     };
     let comp = ComponentIR {
         name: "App".into(),
         generic_params: vec![],
-        props: HashMap::new(),
-        prop_defaults: HashMap::new(),
+        props: FxHashMap::default(),
+        prop_defaults: FxHashMap::default(),
         states: vec![],
         computeds: vec![],
         effects: vec![],
@@ -1091,19 +1087,19 @@ fn test_full_pipeline_component_with_store_ref() {
     };
     let ir = IRProgram {
         version: "0.1".into(),
-        modules: HashMap::from([(
+        modules: FxHashMap::from_iter([(
             "main".to_string(),
             ModuleIR {
                 name: "main".to_string(),
-                components: HashMap::from([("App".into(), comp)]),
-                stores: HashMap::from([("AppStore".into(), store)]),
+                components: FxHashMap::from_iter([("App".into(), comp)]),
+                stores: FxHashMap::from_iter([("AppStore".into(), store)]),
                 ..Default::default()
             },
         )]),
-        source_map: HashMap::new(),
+        source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
     };
-    let sources = HashMap::from([("main.omni".into(), "".into())]);
+    let sources = FxHashMap::from_iter([("main.omni".into(), "".into())]);
     let output = codegen.generate(&ir, &sources);
     assert!(output.errors.is_empty());
     assert_eq!(output.files.len(), 2); // App.dart + AppStore_store.dart
