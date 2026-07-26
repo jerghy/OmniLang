@@ -19,6 +19,7 @@ impl OmniViewGenerator {
 let __omni_activeEffect = null;
 const __omni_subs = new Map();
 const __omni_forHandlers = {};
+const __omni_animations = new Map();
 
 function __omni_signal(name, init) {
   let val = init;
