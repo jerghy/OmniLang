@@ -657,6 +657,63 @@ impl OmniViewGenerator {
         }
     }
 
+    /// Emit motion bindings — @driven-by external progress control,
+    /// @paused per-element pause override, and states: animation map.
+    ///
+    /// These are deferred JS bindings written to `self.mount_js` that connect
+    /// runtime animation state to signals and external controllers.
+    fn emit_element_motion_bindings(&mut self, el: &ElementIR, nid: &str) {
+        // @driven-by — external progress control for animations on this element
+        if let Some(driven_by_expr) = el.motion_behavior().and_then(|m| m.driven_by.as_ref()) {
+            let driven_js = self.expr_to_js(driven_by_expr);
+            // When driven-by is set, the animation progress is bound to the signal value.
+            // We seek ALL animations on this element whenever the signal changes.
+            // The signal is auto-tracked by __omni_effect.
+            let _ = write!(
+                self.mount_js,
+                "// @driven-by binding\n\
+                 __omni_effect(() => {{\n\
+                 \x20 const progress = Math.max(0, Math.min(1, Number({driven})));\n\
+                 \x20 __omni_animations.forEach((anim, key) => {{\n\
+                 \x20\x20 if (key.startsWith(\"{nid}_\")) {{\n\
+                 \x20\x20\x20 var dur = (anim.effect && anim.effect.getTiming && anim.effect.getTiming().duration) || 300;\n\
+                 \x20\x20\x20 anim.currentTime = progress * dur;\n\
+                 \x20\x20 }}\n\
+                 \x20 }});\n\
+                 }});\n",
+                nid = nid,
+                driven = driven_js
+            );
+        }
+
+        // @paused override — per-element pause override for all animations
+        if let Some(paused) = el
+            .motion_behavior()
+            .and_then(|m| m.paused_override.as_ref())
+        {
+            let paused_js = self.expr_to_js(paused);
+            let _ = write!(
+                self.mount_js,
+                "// @paused override\n\
+                 (function() {{\n\
+                 \x20 var _paused = Boolean({paused});\n\
+                 \x20 __omni_animations.forEach((anim, key) => {{\n\
+                 \x20\x20 if (key.startsWith(\"{nid}_\")) {{\n\
+                 \x20\x20\x20 if (_paused) {{ anim.pause(); }} else {{ anim.play(); }}\n\
+                 \x20\x20 }}\n\
+                 \x20 }});\n\
+                 }})();\n",
+                nid = nid,
+                paused = paused_js
+            );
+        }
+
+        // states: — multi-state animation map (reserved or custom signal-driven)
+        if let Some(states_ir) = el.motion_behavior().and_then(|m| m.states.as_ref()) {
+            self.emit_states_js(nid, states_ir);
+        }
+    }
+
     /// Convert a single `ElementIR` node into its HTML representation.
     ///
     /// Generates the opening tag (with data-nid, static attrs, variant classes,
@@ -768,55 +825,7 @@ impl OmniViewGenerator {
         // Motion triggers — emit animation setup for @enter, @hover, @press, @focus, @leave
         self.emit_element_motion_attrs(el, &nid, &mut attrs);
 
-        // @driven-by — external progress control for animations on this element
-        if let Some(driven_by_expr) = el.motion_behavior().and_then(|m| m.driven_by.as_ref()) {
-            let driven_js = self.expr_to_js(driven_by_expr);
-            // When driven-by is set, the animation progress is bound to the signal value.
-            // We seek ALL animations on this element whenever the signal changes.
-            // The signal is auto-tracked by __omni_effect.
-            let _ = write!(
-                self.mount_js,
-                "// @driven-by binding\n\
-                 __omni_effect(() => {{\n\
-                 \x20 const progress = Math.max(0, Math.min(1, Number({driven})));\n\
-                 \x20 __omni_animations.forEach((anim, key) => {{\n\
-                 \x20\x20 if (key.startsWith(\"{nid}_\")) {{\n\
-                 \x20\x20\x20 var dur = (anim.effect && anim.effect.getTiming && anim.effect.getTiming().duration) || 300;\n\
-                 \x20\x20\x20 anim.currentTime = progress * dur;\n\
-                 \x20\x20 }}\n\
-                 \x20 }});\n\
-                 }});\n",
-                nid = nid,
-                driven = driven_js
-            );
-        }
-
-        // @paused override — per-element pause override for all animations
-        if let Some(paused) = el
-            .motion_behavior()
-            .and_then(|m| m.paused_override.as_ref())
-        {
-            let paused_js = self.expr_to_js(paused);
-            let _ = write!(
-                self.mount_js,
-                "// @paused override\n\
-                 (function() {{\n\
-                 \x20 var _paused = Boolean({paused});\n\
-                 \x20 __omni_animations.forEach((anim, key) => {{\n\
-                 \x20\x20 if (key.startsWith(\"{nid}_\")) {{\n\
-                 \x20\x20\x20 if (_paused) {{ anim.pause(); }} else {{ anim.play(); }}\n\
-                 \x20\x20 }}\n\
-                 \x20 }});\n\
-                 }})();\n",
-                nid = nid,
-                paused = paused_js
-            );
-        }
-
-        // states: — multi-state animation map (reserved or custom signal-driven)
-        if let Some(states_ir) = el.motion_behavior().and_then(|m| m.states.as_ref()) {
-            self.emit_states_js(&nid, states_ir);
-        }
+        self.emit_element_motion_bindings(el, &nid);
 
         // Class map dynamic bindings for @for templates: collect pre-compiled bindings
         if self.in_for_template && !el.class_map_bindings.is_empty() {
