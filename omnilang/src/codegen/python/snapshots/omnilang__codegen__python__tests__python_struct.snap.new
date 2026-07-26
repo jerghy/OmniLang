@@ -1,6 +1,0 @@
----
-source: omnilang/src/codegen/python/tests.rs
-assertion_line: 154
-expression: fmt(&expr)
----
-Point(x=1, y=2)

@@ -1,6 +1,0 @@
----
-source: omnilang/src/codegen/python/tests.rs
-assertion_line: 255
-expression: fmt(&expr)
----
-(target in items)
