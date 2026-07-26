@@ -10,4 +10,5 @@ pub(crate) mod html;
 pub(crate) mod inline_handler;
 pub(crate) mod stmt;
 pub(crate) mod types;
+pub mod ui_codegen;
 pub(crate) mod visitor;

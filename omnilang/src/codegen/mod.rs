@@ -49,6 +49,7 @@ pub use json::{
 };
 use rustc_hash::FxHashMap;
 pub use sanitize::{sanitize_css_value, sanitize_js_ident, sanitize_module_name};
+pub use shared::ui_codegen::UiCodegen;
 pub use stdlib::{try_format_stdlib_call, validate_stdlib_imports};
 pub use target::Target;
 pub use traits::Codegen;
