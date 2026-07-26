@@ -5,8 +5,6 @@ import { SelectionOverlay } from "../SelectionOverlay";
 import type { SelectionTarget } from "../BlockModel";
 
 describe("SelectionOverlay", () => {
-  let container: HTMLElement;
-
   beforeEach(() => {
     // Clean up any injected <style> elements between tests
     document.querySelectorAll("style").forEach((s) => s.remove());
@@ -183,7 +181,7 @@ describe("SelectionOverlay", () => {
     };
 
     const getElement = vi.fn((t: SelectionTarget) => {
-      const rect = t.blockId === "b-1" ? rectA : rectB;
+      const rect = (t.type !== "gap" && t.blockId === "b-1") ? rectA : rectB;
       return { getBoundingClientRect: () => rect } as HTMLElement;
     });
 

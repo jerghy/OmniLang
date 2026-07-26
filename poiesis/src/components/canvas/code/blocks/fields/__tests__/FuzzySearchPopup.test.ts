@@ -140,12 +140,12 @@ describe("getItemsForContext", () => {
 
 describe("FuzzySearchPopup", () => {
   let popup: FuzzySearchPopup;
-  let onSelect: ReturnType<typeof vi.fn>;
-  let onClose: ReturnType<typeof vi.fn>;
+  let onSelect: (item: SearchItem) => void;
+  let onClose: () => void;
 
   beforeEach(() => {
-    onSelect = vi.fn();
-    onClose = vi.fn();
+    onSelect = vi.fn() as (item: SearchItem) => void;
+    onClose = vi.fn() as () => void;
     popup = new FuzzySearchPopup(TEST_ITEMS, onSelect, onClose);
   });
 

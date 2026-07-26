@@ -70,38 +70,29 @@
   font-size: 13px;
 }
 
-.blocklyContainer {
+.container {
   flex: 1;
   min-height: 0;
   position: relative;
 }
 
-/* ── Raw input modal ── */
+/* ── Raw input overlay (simplified) ── */
 
-.rawInputOverlay {
+.rawOverlay {
   position: fixed;
   inset: 0;
   z-index: 10000;
   background: rgba(0, 0, 0, 0.25);
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-}
-
-.rawInputModal {
-  background: var(--ol-surface, #fff);
-  border-radius: 10px;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
   gap: 12px;
-  min-width: 420px;
-  max-width: 600px;
 }
 
-.rawInputTextarea {
-  width: 100%;
+.rawOverlay textarea {
+  width: 420px;
+  max-width: 90vw;
   min-height: 120px;
   padding: 10px 12px;
   border: 1px solid var(--ol-border, #d3d2cc);
@@ -111,28 +102,11 @@
   line-height: 1.5;
   resize: vertical;
   box-sizing: border-box;
+  background: var(--ol-surface, #fff);
 }
 
-.rawInputActions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.rawInputSubmitBtn {
+.rawOverlay button {
   padding: 6px 16px;
-  background: var(--ol-color-primary, #c96442);
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 13px;
-}
-
-.rawInputCancelBtn {
-  padding: 6px 16px;
-  background: var(--ol-gray-200, #d3d2cc);
-  color: var(--ol-text-secondary, #5e5d59);
   border: none;
   border-radius: 6px;
   cursor: pointer;

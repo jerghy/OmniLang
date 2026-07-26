@@ -1,2 +1,4 @@
+allowBuilds:
+  esbuild: set this to true or false
 minimumReleaseAge: 10080
 trustedDependencies: semver

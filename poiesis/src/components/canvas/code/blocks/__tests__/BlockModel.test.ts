@@ -1,8 +1,7 @@
 // poiesis/src/components/canvas/code/blocks/BlockModel.test.ts
 import { describe, it, expect } from "vitest";
 import { BlockModel } from "../BlockModel";
-import type { CodeOp } from "../../../../core/types/code-op";
-import { createBodyId } from "../../../../core/types/code-op";
+import type { CodeOp } from "../../../../../core/types/code-op";
 
 describe("BlockModel — nav entries", () => {
   it("empty ops => single gap entry", () => {

@@ -1,7 +1,7 @@
 // poiesis/src/components/canvas/code/blocks/BlockSvg/RawBlock.tsx
 // RawBlock — dual-mode display/edit component for RawCodeOp.
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useRef, useEffect } from "react";
 import { BlockSvg, Keyword, BLOCK_COLORS } from "../BlockSvg";
 import type { RawCodeOp } from "../../../../../core/types/code-op";
 
@@ -41,6 +41,7 @@ export const RawBlock = React.forwardRef<SVGGElement, RawBlockProps>(
                 ref={inputRef}
                 defaultValue={op.source}
                 onKeyDown={handleKeyDown}
+                aria-label="Edit raw code"
                 style={{
                   width: "100%",
                   height: "100%",

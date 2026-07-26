@@ -314,7 +314,7 @@ export const BlockEditor: React.FC<Props> = ({
           className={styles.container}
           style={{ overflowY: "auto", height: "100%" }}
         >
-          <svg width="100%" height="auto">
+          <svg width="100%" height="100%">
             <g transform="translate(8, 8)">
               {model.getOps().map((op, i) => (
                 <g key={op.pid} transform={`translate(0, ${i * 48})`}>

@@ -22,7 +22,6 @@
     "@tauri-apps/plugin-fs": "^2",
     "@tauri-apps/plugin-store": "^2",
     "@xyflow/react": "^12.11.0",
-    "blockly": "^13.1.1",
     "mitt": "^3.0.1",
     "monaco-editor": "^0.55.1",
     "react": "^19.2.6",

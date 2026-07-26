@@ -1,0 +1,170 @@
+{
+  "name": "Design System Inspired by Claude (Anthropic)",
+  "tagline": "Warm terracotta accent, clean editorial layout — a literary salon reimagined as a product page.",
+  "description": "Claude's interface is built on a parchment-toned canvas with warm, yellow-brown neutrals and organic illustrations. Terracotta brand accent, serif headlines, sans UI, and a ring-shadow depth system that avoids traditional drop shadows. Every detail evokes high-quality paper, not a digital surface.",
+  "sourceUrl": "designmd://design-system-inspired-by-claude-anthropic",
+  "logo": {
+    "primary": null,
+    "alternates": [],
+    "notes": "Claude wordmark in Near Black (#141413). No logo file available — use Georgia serif wordmark as substitute."
+  },
+  "colors": [
+    {
+      "role": "background",
+      "hex": "#f5f4ed",
+      "oklch": "oklch(0.968 0.008 95)",
+      "name": "Parchment",
+      "usage": "Page canvas — warm cream evoking premium paper"
+    },
+    {
+      "role": "foreground",
+      "hex": "#141413",
+      "oklch": "oklch(0.113 0.005 90)",
+      "name": "Near Black",
+      "usage": "Body text, headings, dark-theme background"
+    },
+    {
+      "role": "accent",
+      "hex": "#c96442",
+      "oklch": "oklch(0.549 0.141 40)",
+      "name": "Terracotta Brand",
+      "usage": "Primary CTAs, highest-signal brand moments"
+    },
+    {
+      "role": "surface",
+      "hex": "#30302e",
+      "oklch": "oklch(0.253 0.005 90)",
+      "name": "Dark Surface",
+      "usage": "Cards, panels, dark-theme elevated surfaces"
+    },
+    {
+      "role": "muted",
+      "hex": "#5e5d59",
+      "oklch": "oklch(0.427 0.008 90)",
+      "name": "Olive Gray",
+      "usage": "Secondary text, metadata, captions"
+    },
+    {
+      "role": "border",
+      "hex": "#f0eee6",
+      "oklch": "oklch(0.95 0.008 95)",
+      "name": "Border Cream",
+      "usage": "Rules, dividers, standard card borders"
+    }
+  ],
+  "typography": {
+    "display": {
+      "family": "Georgia",
+      "fallbacks": [
+        "'Times New Roman'",
+        "serif"
+      ],
+      "weights": [
+        400,
+        700
+      ]
+    },
+    "body": {
+      "family": "system-ui",
+      "fallbacks": [
+        "-apple-system",
+        "BlinkMacSystemFont",
+        "'Segoe UI'",
+        "Helvetica",
+        "Arial",
+        "sans-serif"
+      ],
+      "weights": [
+        400,
+        500,
+        600
+      ]
+    },
+    "mono": {
+      "family": "'SF Mono'",
+      "fallbacks": [
+        "'SFMono-Regular'",
+        "Consolas",
+        "'Liberation Mono'",
+        "Menlo",
+        "Courier",
+        "monospace"
+      ],
+      "weights": [
+        400
+      ]
+    }
+  },
+  "voice": {
+    "adjectives": [
+      "warm",
+      "unhurried",
+      "intellectual",
+      "editorial",
+      "trustworthy",
+      "human"
+    ],
+    "tone": "Thoughtful and quiet. Like a magazine editor who also happens to build AI — every word is chosen with care, every surface feels considered. Never shouts.",
+    "messagingPillars": [
+      "Thoughtful companion — the interface invites conversation, not command",
+      "Warmth as differentiation — parchment tones and terracotta say 'human' in a cold AI landscape",
+      "Editorial quality — pages paced like magazine features with serif-driven hierarchy"
+    ],
+    "vocabulary": {
+      "use": [
+        "thoughtful",
+        "carefully",
+        "designed",
+        "considered",
+        "warm",
+        "human",
+        "quiet",
+        "editorial",
+        "companion",
+        "trustworthy"
+      ],
+      "avoid": [
+        "revolutionary",
+        "disruptive",
+        "powerful",
+        "cutting-edge",
+        "unleash",
+        "supercharge",
+        "master",
+        "dominate",
+        "one-click"
+      ]
+    }
+  },
+  "imagery": {
+    "style": "Organic, hand-drawn-feeling vector illustrations in terracotta, black, and muted green. Abstract and conceptual — not literal product diagrams.",
+    "subjects": [
+      "Conceptual AI interaction illustrations",
+      "Product screenshots of chat interface",
+      "Dark UI screenshots for contrast against warm canvas"
+    ],
+    "treatment": "Generous border-radius (16–32px) on media. Embedded media with rounded corners. No heavy drop shadows.",
+    "avoid": [
+      "3D renders",
+      "Geometric tech icons",
+      "Generic stock photography",
+      "Purple gradients",
+      "Emoji as hero visuals"
+    ],
+    "samples": []
+  },
+  "layout": {
+    "radius": "Standard: 8px. Scale: 4px → 6px → 8px → 12px → 16px → 24px → 32px.",
+    "borderWeight": "1px",
+    "spacing": "8px baseline grid. Scale: 3, 4, 6, 8, 10, 12, 16, 20, 24, 30, 32, 48, 64, 80, 120px.",
+    "postureRules": [
+      "Alternate light/dark sections — Parchment → Near Black → Parchment, like chapters in a book",
+      "Ring-shadow depth system: 0px 0px 0px 1px warm rings instead of drop shadows",
+      "Asymmetric button padding: secondary 0px 12px 0px 8px (icon-first), primary 8px 16px",
+      "Input focus uses Focus Blue (#3898ec) — the only cool color, for accessibility only",
+      "Generous border-radius: buttons 8–12px, cards 8px, featured 16–32px",
+      "No cool neutrals — every border, fill, and shadow carries a yellow-brown undertone",
+      "Serif headings at weight 500 only — no bold, consistent editorial voice"
+    ]
+  }
+}

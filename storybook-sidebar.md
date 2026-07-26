@@ -1,0 +1,143 @@
+- generic [ref=e3]:
+  - main [ref=e6]:
+    - generic [ref=e8]:
+      - generic [ref=e66]:
+        - button "Remount component" [ref=e174] [cursor=pointer]
+        - button "Zoom in" [ref=e177] [cursor=pointer]
+        - button "Zoom out" [ref=e181] [cursor=pointer]
+        - button "Reset zoom" [ref=e185] [cursor=pointer]
+        - button "Change the background of the preview" [ref=e190] [cursor=pointer]
+        - button "Apply a grid to the preview" [ref=e72] [cursor=pointer]
+        - button "Change the size of the preview" [ref=e195] [cursor=pointer]
+        - button "Enable measure" [ref=e200] [cursor=pointer]
+        - button "Apply outlines to the preview" [ref=e75] [cursor=pointer]
+      - generic [ref=e78]:
+        - button "Go full screen" [ref=e79] [cursor=pointer]
+        - link "Open canvas in new tab" [ref=e204] [cursor=pointer]:
+          - /url: iframe.html?globals=&args=&id=codecard-codecardeditor--empty
+        - button "Copy canvas link" [ref=e208] [cursor=pointer]
+    - generic [ref=e13]:
+      - link "Skip to sidebar" [ref=e82] [cursor=pointer]:
+        - /url: "#codecard-codecardeditor--empty"
+      - iframe [ref=e14]:
+        - generic [ref=f1e426]:
+          - generic [ref=f1e427]:
+            - heading "Code Card Editor — 0 ops" [level=3] [ref=f1e428]
+            - generic [ref=f1e429]:
+              - button "文本模式" [ref=f1e430] [cursor=pointer]
+              - button "Save" [ref=f1e431] [cursor=pointer]
+              - button "Cancel" [ref=f1e432] [cursor=pointer]
+          - generic [ref=f1e433]:
+            - textbox [ref=f1e434]:
+              - paragraph [ref=f1e435]
+            - generic [ref=f1e436]: Type to add operations...
+  - navigation [ref=e17]:
+    - generic [ref=e20]:
+      - generic [ref=e21]:
+        - generic [ref=e22]:
+          - link "Skip to canvas" [ref=e23] [cursor=pointer]:
+            - /url: "#storybook-preview-wrapper"
+          - link "Storybook" [ref=e25] [cursor=pointer]:
+            - /url: ./
+            - img "Storybook" [ref=e26]
+          - button "Shortcuts" [ref=e32] [cursor=pointer]
+        - generic [ref=e36]: Search for components
+        - generic [ref=e37]:
+          - combobox [ref=e38]:
+            - searchbox "Search for components" [ref=e39]
+            - code: ⌃ K
+            - button "Tag filters" [ref=e86] [cursor=pointer]
+          - button [ref=e41] [cursor=pointer]
+        - generic [ref=e44]:
+          - generic [ref=e89]:
+            - generic [ref=e90]:
+              - button [expanded] [ref=e91] [cursor=pointer]
+              - button "Expand" [ref=e95] [cursor=pointer]
+            - button [expanded] [ref=e99] [cursor=pointer]
+            - link [ref=e107] [cursor=pointer]:
+              - /url: /?path=/docs/codecard-codecardeditor--docs
+            - generic [ref=e112]:
+              - link [active] [ref=e113] [cursor=pointer]:
+                - /url: /?path=/story/codecard-codecardeditor--empty
+              - link "Skip to canvas" [ref=e212] [cursor=pointer]:
+                - /url: "#storybook-preview-wrapper"
+            - link [ref=e118] [cursor=pointer]:
+              - /url: /?path=/story/codecard-codecardeditor--let-and-set
+            - link [ref=e123] [cursor=pointer]:
+              - /url: /?path=/story/codecard-codecardeditor--if-block
+            - link [ref=e128] [cursor=pointer]:
+              - /url: /?path=/story/codecard-codecardeditor--while-loop
+            - link [ref=e133] [cursor=pointer]:
+              - /url: /?path=/story/codecard-codecardeditor--for-loop
+            - link [ref=e138] [cursor=pointer]:
+              - /url: /?path=/story/codecard-codecardeditor--break-continue
+            - link [ref=e143] [cursor=pointer]:
+              - /url: /?path=/story/codecard-codecardeditor--await-call
+            - link [ref=e148] [cursor=pointer]:
+              - /url: /?path=/story/codecard-codecardeditor--comment-raw
+            - link [ref=e153] [cursor=pointer]:
+              - /url: /?path=/story/codecard-codecardeditor--full-example
+            - link [ref=e158] [cursor=pointer]:
+              - /url: /?path=/story/codecard-codecardeditor--typescript-mode
+          - text: /
+      - link "Storybook 10.4 Learn what's new in Storybook" [ref=e164] [cursor=pointer]:
+        - /url: /?path=/settings/whats-new
+        - generic [ref=e168]:
+          - generic "Storybook 10.4" [ref=e169]
+          - generic [ref=e170]: Learn what's new in Storybook
+        - button "Dismiss notification" [ref=e171]
+  - generic [ref=e215]:
+    - generic [ref=e217]:
+      - tablist [ref=e219]:
+        - tab "Controls 4" [ref=e220] [cursor=pointer]:
+          - generic [ref=e222]:
+            - generic [ref=e223]: Controls
+            - generic [ref=e224]: "4"
+        - tab "Actions" [ref=e225] [cursor=pointer]
+        - tab "Interactions" [ref=e229] [cursor=pointer]
+      - generic [ref=e235]:
+        - button "Change addon orientation [alt D]" [ref=e236] [cursor=pointer]
+        - button "Hide addons [alt A]" [ref=e240] [cursor=pointer]
+    - table [ref=e248]:
+      - rowgroup [ref=e249]:
+        - row [ref=e250]:
+          - columnheader "Name" [ref=e251]
+          - columnheader [ref=e252]:
+            - generic [ref=e253]:
+              - text: Control
+              - button "Reset controls" [ref=e254] [cursor=pointer]
+      - rowgroup [ref=e257]:
+        - row [ref=e258]:
+          - cell "elementId" [ref=e259]
+          - cell [ref=e260]:
+            - textbox [ref=e262]:
+              - /placeholder: Edit string...
+              - text: story-empty
+        - row [ref=e263]:
+          - cell "initialOps" [ref=e264]
+          - 'cell "RAW initialOps : [ ]" [ref=e265]':
+            - generic [ref=e266]:
+              - button "RAW" [ref=e267] [cursor=pointer]
+              - generic [ref=e273]:
+                - generic [ref=e274]: "initialOps :"
+                - generic [ref=e276]:
+                  - text: "["
+                  - list
+                  - text: "]"
+        - row [ref=e283]:
+          - cell "initialSource" [ref=e284]
+          - cell [ref=e285]:
+            - textbox [ref=e287]:
+              - /placeholder: Edit string...
+        - row [ref=e288]:
+          - cell "language" [ref=e289]
+          - cell [ref=e290]:
+            - textbox [ref=e292]:
+              - /placeholder: Edit string...
+              - text: omnilang
+        - row [ref=e293]:
+          - cell "onSave" [ref=e294]
+          - cell "-" [ref=e295]
+        - row [ref=e296]:
+          - cell "onClose" [ref=e297]
+          - cell "-" [ref=e298]
