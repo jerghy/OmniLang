@@ -563,6 +563,100 @@ impl OmniViewGenerator {
         }
     }
 
+    /// Emit motion trigger data-* attributes and sub-attributes (in-view, scroll, drag).
+    ///
+    /// Writes HTML data attributes for @enter, @hover, @press, @focus, @leave triggers
+    /// and their sub-attributes (data-in-view-*, data-scroll-*, data-drag-*) to `attrs`,
+    /// and calls `emit_motion_triggers_for_element` for deferred JS setup.
+    fn emit_element_motion_attrs(&mut self, el: &ElementIR, nid: &str, attrs: &mut String) {
+        if el.motion_behavior().is_some_and(|m| !m.triggers.is_empty()) {
+            // Also emit HTML data attributes for each trigger so runtime can discover them
+            for trigger in el
+                .motion_behavior()
+                .map_or(&[] as &[TriggerIntent], |m| &m.triggers)
+            {
+                let data_attr = match trigger.kind {
+                    TriggerKind::Enter => "data-enter",
+                    TriggerKind::Leave => "data-leave",
+                    TriggerKind::Hover => "data-hover",
+                    TriggerKind::Unhover => "data-unhover",
+                    TriggerKind::Press => "data-press",
+                    TriggerKind::Focus => "data-focus",
+                    TriggerKind::Animate => "data-animate",
+                    TriggerKind::InView => "data-in-view",
+                    TriggerKind::Scroll => "data-scroll",
+                    TriggerKind::DragHorizontal => "data-drag-horizontal",
+                    TriggerKind::DragVertical => "data-drag-vertical",
+                    TriggerKind::Timeline => "data-timeline",
+                };
+                if let Some(ref motion_name) = trigger.motion_ref {
+                    let _ = write!(attrs, " {}=\"{}\"", data_attr, escape_html(motion_name));
+                }
+            }
+            // Sub-attributes for in-view
+            if let Some(once) = el.motion_behavior().and_then(|m| m.in_view_once.as_ref()) {
+                let js_val = self.expr_to_js(once);
+                let _ = write!(attrs, " data-in-view-once=\"{}\"", escape_html(&js_val));
+            }
+            if let Some(repeat) = el.motion_behavior().and_then(|m| m.in_view_repeat.as_ref()) {
+                let js_val = self.expr_to_js(repeat);
+                let _ = write!(attrs, " data-in-view-repeat=\"{}\"", escape_html(&js_val));
+            }
+            if let Some(threshold) = el
+                .motion_behavior()
+                .and_then(|m| m.in_view_threshold.as_ref())
+            {
+                let js_val = self.expr_to_js(threshold);
+                let _ = write!(
+                    attrs,
+                    " data-in-view-threshold=\"{}\"",
+                    escape_html(&js_val)
+                );
+            }
+            // Sub-attributes for scroll
+            if let Some(s) = el.scroll_behavior().and_then(|sb| sb.start.as_ref()) {
+                let _ = write!(attrs, " data-scroll-start=\"{}\"", escape_html(s));
+            }
+            if let Some(s) = el.scroll_behavior().and_then(|sb| sb.end.as_ref()) {
+                let _ = write!(attrs, " data-scroll-end=\"{}\"", escape_html(s));
+            }
+            if let Some(scrub) = el.scroll_behavior().and_then(|sb| sb.scrub.as_ref()) {
+                let js_val = self.expr_to_js(scrub);
+                let _ = write!(attrs, " data-scroll-scrub=\"{}\"", escape_html(&js_val));
+            }
+            // Sub-attributes for drag
+            if let Some(s) = el.drag_behavior().and_then(|db| db.constraints.as_ref()) {
+                let _ = write!(attrs, " data-drag-constraints=\"{}\"", escape_html(s));
+            }
+            if let Some(elastic) = el.drag_behavior().and_then(|db| db.elastic.as_ref()) {
+                let js_val = self.expr_to_js(elastic);
+                let _ = write!(attrs, " data-drag-elastic=\"{}\"", escape_html(&js_val));
+            }
+            if let Some(scrub) = el.drag_behavior().and_then(|db| db.scrub.as_ref()) {
+                let js_val = self.expr_to_js(scrub);
+                let _ = write!(attrs, " data-drag-scrub=\"{}\"", escape_html(&js_val));
+            }
+            if let Some(momentum) = el.drag_behavior().and_then(|db| db.momentum.as_ref()) {
+                let js_val = self.expr_to_js(momentum);
+                let _ = write!(attrs, " data-drag-momentum=\"{}\"", escape_html(&js_val));
+            }
+            if let Some(threshold) = el.drag_behavior().and_then(|db| db.threshold.as_ref()) {
+                let js_val = self.expr_to_js(threshold);
+                let _ = write!(attrs, " data-drag-threshold=\"{}\"", escape_html(&js_val));
+            }
+            if let Some(vel) = el.drag_behavior().and_then(|db| db.velocity_max.as_ref()) {
+                let js_val = self.expr_to_js(vel);
+                let _ = write!(
+                    attrs,
+                    " data-drag-velocity-max=\"{}\"",
+                    escape_html(&js_val)
+                );
+            }
+
+            self.emit_motion_triggers_for_element(nid, el);
+        }
+    }
+
     /// Convert a single `ElementIR` node into its HTML representation.
     ///
     /// Generates the opening tag (with data-nid, static attrs, variant classes,
@@ -672,92 +766,7 @@ impl OmniViewGenerator {
         }
 
         // Motion triggers — emit animation setup for @enter, @hover, @press, @focus, @leave
-        if el.motion_behavior().is_some_and(|m| !m.triggers.is_empty()) {
-            // Also emit HTML data attributes for each trigger so runtime can discover them
-            for trigger in el
-                .motion_behavior()
-                .map_or(&[] as &[TriggerIntent], |m| &m.triggers)
-            {
-                let data_attr = match trigger.kind {
-                    TriggerKind::Enter => "data-enter",
-                    TriggerKind::Leave => "data-leave",
-                    TriggerKind::Hover => "data-hover",
-                    TriggerKind::Unhover => "data-unhover",
-                    TriggerKind::Press => "data-press",
-                    TriggerKind::Focus => "data-focus",
-                    TriggerKind::Animate => "data-animate",
-                    TriggerKind::InView => "data-in-view",
-                    TriggerKind::Scroll => "data-scroll",
-                    TriggerKind::DragHorizontal => "data-drag-horizontal",
-                    TriggerKind::DragVertical => "data-drag-vertical",
-                    TriggerKind::Timeline => "data-timeline",
-                };
-                if let Some(ref motion_name) = trigger.motion_ref {
-                    let _ = write!(attrs, " {}=\"{}\"", data_attr, escape_html(motion_name));
-                }
-            }
-            // Sub-attributes for in-view
-            if let Some(once) = el.motion_behavior().and_then(|m| m.in_view_once.as_ref()) {
-                let js_val = self.expr_to_js(once);
-                let _ = write!(attrs, " data-in-view-once=\"{}\"", escape_html(&js_val));
-            }
-            if let Some(repeat) = el.motion_behavior().and_then(|m| m.in_view_repeat.as_ref()) {
-                let js_val = self.expr_to_js(repeat);
-                let _ = write!(attrs, " data-in-view-repeat=\"{}\"", escape_html(&js_val));
-            }
-            if let Some(threshold) = el
-                .motion_behavior()
-                .and_then(|m| m.in_view_threshold.as_ref())
-            {
-                let js_val = self.expr_to_js(threshold);
-                let _ = write!(
-                    attrs,
-                    " data-in-view-threshold=\"{}\"",
-                    escape_html(&js_val)
-                );
-            }
-            // Sub-attributes for scroll
-            if let Some(s) = el.scroll_behavior().and_then(|sb| sb.start.as_ref()) {
-                let _ = write!(attrs, " data-scroll-start=\"{}\"", escape_html(s));
-            }
-            if let Some(s) = el.scroll_behavior().and_then(|sb| sb.end.as_ref()) {
-                let _ = write!(attrs, " data-scroll-end=\"{}\"", escape_html(s));
-            }
-            if let Some(scrub) = el.scroll_behavior().and_then(|sb| sb.scrub.as_ref()) {
-                let js_val = self.expr_to_js(scrub);
-                let _ = write!(attrs, " data-scroll-scrub=\"{}\"", escape_html(&js_val));
-            }
-            // Sub-attributes for drag
-            if let Some(s) = el.drag_behavior().and_then(|db| db.constraints.as_ref()) {
-                let _ = write!(attrs, " data-drag-constraints=\"{}\"", escape_html(s));
-            }
-            if let Some(elastic) = el.drag_behavior().and_then(|db| db.elastic.as_ref()) {
-                let js_val = self.expr_to_js(elastic);
-                let _ = write!(attrs, " data-drag-elastic=\"{}\"", escape_html(&js_val));
-            }
-            if let Some(scrub) = el.drag_behavior().and_then(|db| db.scrub.as_ref()) {
-                let js_val = self.expr_to_js(scrub);
-                let _ = write!(attrs, " data-drag-scrub=\"{}\"", escape_html(&js_val));
-            }
-            if let Some(momentum) = el.drag_behavior().and_then(|db| db.momentum.as_ref()) {
-                let js_val = self.expr_to_js(momentum);
-                let _ = write!(attrs, " data-drag-momentum=\"{}\"", escape_html(&js_val));
-            }
-            if let Some(threshold) = el.drag_behavior().and_then(|db| db.threshold.as_ref()) {
-                let js_val = self.expr_to_js(threshold);
-                let _ = write!(attrs, " data-drag-threshold=\"{}\"", escape_html(&js_val));
-            }
-            if let Some(vel) = el.drag_behavior().and_then(|db| db.velocity_max.as_ref()) {
-                let js_val = self.expr_to_js(vel);
-                let _ = write!(
-                    attrs,
-                    " data-drag-velocity-max=\"{}\"",
-                    escape_html(&js_val)
-                );
-            }
-
-            self.emit_motion_triggers_for_element(&nid, el);
-        }
+        self.emit_element_motion_attrs(el, &nid, &mut attrs);
 
         // @driven-by — external progress control for animations on this element
         if let Some(driven_by_expr) = el.motion_behavior().and_then(|m| m.driven_by.as_ref()) {
