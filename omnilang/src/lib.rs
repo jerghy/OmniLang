@@ -27,6 +27,17 @@ use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
+/// A single symbol from semantic analysis — variable, signal, prop, store, etc.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, ts_rs::TS)]
+#[ts(export)]
+pub struct SymbolInfo {
+    pub name: String,
+    pub kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub type_ann: Option<String>,
+    pub mutable: bool,
+}
+
 /// Top-level compile result — returned as JSON by WASM/native bindings.
 #[derive(Debug, Serialize, Deserialize, TS)]
 pub struct CompileResult {
@@ -36,6 +47,10 @@ pub struct CompileResult {
     pub ir: Option<ir::IRProgram>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub errors: Vec<error::Diagnostic>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub symbols: Vec<SymbolInfo>,
+    #[serde(default, skip_serializing_if = "FxHashMap::is_empty")]
+    pub dependencies: FxHashMap<String, Vec<String>>,
 }
 
 /// Compile .omni source -> IR. Core function shared by WASM and native.
@@ -46,11 +61,15 @@ pub fn compile(source: &str) -> CompileResult {
             success: false,
             ir: None,
             errors,
+            symbols: Vec::new(),
+            dependencies: FxHashMap::default(),
         },
         Ok(output) => CompileResult {
             success: !output.has_errors,
             ir: Some(output.ir),
             errors: output.diagnostics,
+            symbols: output.symbols,
+            dependencies: output.dependencies,
         },
     }
 }
@@ -64,6 +83,8 @@ struct PipelineOutput {
     ir: ir::IRProgram,
     diagnostics: Vec<error::Diagnostic>,
     has_errors: bool,
+    symbols: Vec<SymbolInfo>,
+    dependencies: FxHashMap<String, Vec<String>>,
 }
 
 /// Run the shared compilation pipeline: lex -> parse -> semantic -> IR lowering.
@@ -73,6 +94,22 @@ fn run_pipeline(source: &str) -> Result<PipelineOutput, Vec<error::Diagnostic>> 
     let tokens = lexer::tokenize(source);
     let program = parser::parse(tokens, source).map_err(|e| vec![e.into()])?;
     let mut semantics = semantic::analyze(&program);
+
+    // Extract symbols before ir::lower() which borrows semantics mutably
+    let symbols: Vec<SymbolInfo> = semantics
+        .symbols
+        .scopes()
+        .iter()
+        .flat_map(|scope| scope.symbols.values())
+        .map(|sym| SymbolInfo {
+            name: sym.name.clone(),
+            kind: format!("{:?}", sym.kind).to_lowercase(),
+            type_ann: sym.type_ann.clone(),
+            mutable: sym.mutable,
+        })
+        .collect();
+    let dependencies = std::mem::take(&mut semantics.dependencies);
+
     let has_errors = semantics
         .diagnostics
         .iter()
@@ -82,6 +119,8 @@ fn run_pipeline(source: &str) -> Result<PipelineOutput, Vec<error::Diagnostic>> 
         ir,
         diagnostics: semantics.diagnostics,
         has_errors,
+        symbols,
+        dependencies,
     })
 }
 
@@ -129,7 +168,8 @@ pub fn compile_omniview(source: &str, editor_mode: bool, debug_mode: bool) -> Om
             errors,
         },
         Ok(pipeline) => {
-            let gen_output = codegen::omniview::generate(&pipeline.ir, editor_mode, false, debug_mode);
+            let gen_output =
+                codegen::omniview::generate(&pipeline.ir, editor_mode, false, debug_mode);
             OmniViewResult {
                 success: !pipeline.has_errors,
                 files: Some(OmniViewFiles {
@@ -180,7 +220,11 @@ pub struct OmniViewFullResult {
 /// Eliminates the double lex->parse->semantic->IR when both IR and codegen are needed.
 #[cfg(feature = "codegen-omniview")]
 #[must_use]
-pub fn compile_omniview_full(source: &str, editor_mode: bool, debug_mode: bool) -> OmniViewFullResult {
+pub fn compile_omniview_full(
+    source: &str,
+    editor_mode: bool,
+    debug_mode: bool,
+) -> OmniViewFullResult {
     match run_pipeline(source) {
         Err(errors) => OmniViewFullResult {
             success: false,
@@ -191,7 +235,8 @@ pub fn compile_omniview_full(source: &str, editor_mode: bool, debug_mode: bool) 
             errors,
         },
         Ok(pipeline) => {
-            let gen_output = codegen::omniview::generate(&pipeline.ir, editor_mode, false, debug_mode);
+            let gen_output =
+                codegen::omniview::generate(&pipeline.ir, editor_mode, false, debug_mode);
             OmniViewFullResult {
                 success: !pipeline.has_errors,
                 ir: Some(pipeline.ir),
@@ -278,7 +323,9 @@ pub fn resolve_styles_multi(
         Some(ir) => {
             let output = codegen::omniview::generate(&ir, true, /* css_only= */ true, false);
             StyleResolveResult {
-                success: errors.iter().all(|d| d.severity != crate::error::Severity::Error)
+                success: errors
+                    .iter()
+                    .all(|d| d.severity != crate::error::Severity::Error)
                     && output.warnings.is_empty(),
                 design_css: output.css,
                 component_css: output.per_component_css,
@@ -300,7 +347,7 @@ pub fn resolve_styles_multi(
             nid_map: FxHashMap::default(),
             warnings: Vec::new(),
             errors,
-        }
+        },
     }
 }
 
@@ -359,7 +406,14 @@ pub fn compile_multi_internal(
     store_mode: Option<&str>,
 ) -> InternalCompileResult {
     let analysis = crate::analyse::analyse_multi(&sources, &path_mapping);
-    compile_multi_internal_post(analysis, &sources, target, editor_mode, debug_mode, store_mode)
+    compile_multi_internal_post(
+        analysis,
+        &sources,
+        target,
+        editor_mode,
+        debug_mode,
+        store_mode,
+    )
 }
 
 /// Compile multiple .omni sources with incremental cache support.
@@ -379,7 +433,14 @@ pub fn compile_multi_internal_cached(
     cache: &mut crate::analyse::IncrementalCache,
 ) -> InternalCompileResult {
     let analysis = crate::analyse::analyse_multi_cached(&sources, &path_mapping, cache);
-    compile_multi_internal_post(analysis, &sources, target, editor_mode, debug_mode, store_mode)
+    compile_multi_internal_post(
+        analysis,
+        &sources,
+        target,
+        editor_mode,
+        debug_mode,
+        store_mode,
+    )
 }
 
 /// Shared post-analysis codegen + post-processing for compile_multi_* functions.
@@ -415,7 +476,8 @@ fn compile_multi_internal_post(
     #[cfg(feature = "codegen-omniview")]
     let (output, components) = {
         if matches!(target, codegen::Target::OmniView) {
-            let gen_output = codegen::omniview::generate(&merged_ir, editor_mode, false, debug_mode);
+            let gen_output =
+                codegen::omniview::generate(&merged_ir, editor_mode, false, debug_mode);
             let files = codegen::omniview::build_file_output(&gen_output);
             let comps: FxHashMap<String, serde_json::Value> = gen_output
                 .components
@@ -424,12 +486,17 @@ fn compile_multi_internal_post(
                 .collect();
             (files, comps)
         } else {
-            (codegen::compile(&merged_ir, target, sources, store_mode), FxHashMap::default())
+            (
+                codegen::compile(&merged_ir, target, sources, store_mode),
+                FxHashMap::default(),
+            )
         }
     };
     #[cfg(not(feature = "codegen-omniview"))]
-    let (output, components): (_, FxHashMap<String, serde_json::Value>) =
-        (codegen::compile(&merged_ir, target, sources, store_mode), FxHashMap::default());
+    let (output, components): (_, FxHashMap<String, serde_json::Value>) = (
+        codegen::compile(&merged_ir, target, sources, store_mode),
+        FxHashMap::default(),
+    );
 
     let files_map: FxHashMap<String, String> = output
         .files
@@ -466,7 +533,14 @@ pub fn compile_multi_to_target(
     debug_mode: bool,
     store_mode: Option<&str>,
 ) -> String {
-    let result = compile_multi_internal(sources, target, path_mapping, editor_mode, debug_mode, store_mode);
+    let result = compile_multi_internal(
+        sources,
+        target,
+        path_mapping,
+        editor_mode,
+        debug_mode,
+        store_mode,
+    );
     serde_json::to_string(&serde_json::json!({
         "success": result.success,
         "files": result.files,
