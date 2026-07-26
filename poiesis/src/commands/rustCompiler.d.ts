@@ -26,6 +26,11 @@ declare module '../../public/wasm/omnilang_wasm.js' {
     remove_source(path: string): void;
     compile_to_omniview(editor_mode: boolean): any;
     diagnostics(): Diagnostic[];
+    analyse_dependencies(): {
+      symbols: Array<{ name: string; kind: string; type_ann?: string; mutable: boolean }>;
+      dependencies: Record<string, string[]>;
+      diagnostics: Diagnostic[];
+    };
     version(): string;
   }
   export function version(): string;

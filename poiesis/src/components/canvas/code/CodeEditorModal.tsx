@@ -1,19 +1,15 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import type * as monaco from "monaco-editor";
+import { useState, useEffect, useCallback, useRef } from "react";
 import editorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
 import tsWorker from "monaco-editor/esm/vs/language/typescript/ts.worker?worker";
 import cssWorker from "monaco-editor/esm/vs/language/css/css.worker?worker";
 import htmlWorker from "monaco-editor/esm/vs/language/html/html.worker?worker";
 import jsonWorker from "monaco-editor/esm/vs/language/json/json.worker?worker";
-import styles from "./CodeEditorModal.module.css";
-import { initOmniLangLanguage } from "../../../services/monaco/omnilang-language";
-import { initOmniLangSnippets } from "../../../services/monaco/omnilang-snippets";
-import { injectOmniLangTypes } from "../../../services/monaco/omnilang-types";
 import {
   getOmniCompiler,
   runDiagnostics,
   applyDiagnostics,
-} from "../../../services/monaco/diagnostics";
+} from "../../../services/monaco";
+import { useMonacoEditor } from "../../../services/monaco/useMonacoEditor";
 import type { StoreDefinition } from "../../../core/types/store";
 
 // Configure Monaco workers for Vite
@@ -26,21 +22,6 @@ import type { StoreDefinition } from "../../../core/types/store";
     return new editorWorker();
   },
 };
-
-// ── One-time initialization (guards prevent duplicate calls) ────────
-let monacoServicesInitialized = false;
-
-async function initMonacoServices(storeDefs?: StoreDefinition[]): Promise<void> {
-  if (monacoServicesInitialized) {
-    // Still refresh dynamic store types on each call
-    if (storeDefs) await injectOmniLangTypes(storeDefs);
-    return;
-  }
-  monacoServicesInitialized = true;
-  await initOmniLangLanguage();
-  await initOmniLangSnippets();
-  await injectOmniLangTypes(storeDefs);
-}
 
 interface CodeEditorModalProps {
   elementId: string;
@@ -72,28 +53,31 @@ export function CodeEditorModal({
 }: CodeEditorModalProps) {
   const [localDescription, setLocalDescription] = useState(initialDescription);
   const sourceRef = useRef(initialSource);
-  const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const savedSourceRef = useRef(initialSource);
 
-  // ── Initialize Monaco services (once per session) ─────────────
-  // Use a stable key derived from store names to control re-injection
-  const storeNamesKey = useMemo(
-    () => storeDefs?.map((s) => s.name).sort().join(",") ?? "",
-    [storeDefs],
-  );
+  // ── Monaco editor via shared hook ──────────────────────────────
+  const { editor } = useMonacoEditor({
+    containerRef,
+    initialValue: initialSource,
+    language,
+    storeDefs,
+    onChange: (value) => {
+      sourceRef.current = value;
+    },
+  });
 
+  // Debug: expose editor globally for Victauri testing
   useEffect(() => {
-    void initMonacoServices(storeDefs);
-    // Only re-inject when the set of stores changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storeNamesKey]);
+    (window as unknown as Record<string, unknown>).__monacoEditor = editor;
+    return () => {
+      (window as unknown as Record<string, unknown>).__monacoEditor = undefined;
+    };
+  }, [editor]);
 
   // ── WASM diagnostics via OmniCompiler ─────────────────────────
   useEffect(() => {
-    if (!omniSource || !omniSourcePath) return;
-    const editor = editorRef.current;
-    if (!editor) return;
+    if (!editor || !omniSource || !omniSourcePath) return;
 
     let timer: ReturnType<typeof setTimeout>;
 
@@ -113,7 +97,7 @@ export function CodeEditorModal({
       const diagnostics = runDiagnostics(compiler, mergedSources);
       const model = editor.getModel();
       if (model) {
-        await applyDiagnostics(model, diagnostics, "omnilang-wasm");
+        applyDiagnostics(model, diagnostics, "omnilang-wasm");
       }
     };
 
@@ -130,59 +114,16 @@ export function CodeEditorModal({
       clearTimeout(timer);
       disposable.dispose();
     };
-  }, [omniSource, omniSourcePath, allSources]);
-
-  // Initialize Monaco editor (mount once)
-  useEffect(() => {
-    if (!containerRef.current) return;
-    let cancelled = false;
-    let editor: monaco.editor.IStandaloneCodeEditor | null = null;
-
-    import("monaco-editor").then((monacoModule) => {
-      if (cancelled || !containerRef.current) return;
-      editor = monacoModule.editor.create(containerRef.current, {
-        value: initialSource,
-        language,
-        theme: "vs-dark",
-        fontSize: 13,
-        minimap: { enabled: false },
-        lineNumbers: "on",
-        scrollBeyondLastLine: false,
-        automaticLayout: true,
-      });
-      editorRef.current = editor;
-      sourceRef.current = initialSource;
-
-      // Debug: expose editor globally for Victauri testing
-      (window as unknown as Record<string, unknown>).__monacoEditor = editor;
-
-      editor.onDidChangeModelContent(() => {
-        sourceRef.current = editor!.getValue();
-      });
-    }).catch((err: unknown) => {
-      console.error("CodeEditorModal: failed to load Monaco", err);
-    });
-
-    return () => {
-      cancelled = true;
-      (window as unknown as Record<string, unknown>).__monacoEditor = undefined;
-      if (editor) {
-        editor.dispose();
-        editorRef.current = null;
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [editor, omniSource, omniSourcePath, allSources]);
 
   // Sync external value changes into the editor
   useEffect(() => {
-    const editor = editorRef.current;
     if (!editor) return;
     if (initialSource !== savedSourceRef.current) {
       savedSourceRef.current = initialSource;
       editor.setValue(initialSource);
     }
-  }, [initialSource]);
+  }, [editor, initialSource]);
 
   // Escape to close
   useEffect(() => {
@@ -211,28 +152,60 @@ export function CodeEditorModal({
   return (
     <>
       {/* Backdrop */}
-      <button
-        type="button"
-        tabIndex={0}
-        aria-label="Close modal"
+      <div
         onClick={onClose}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClose(); } }}
-        className={styles.backdrop}
+        style={{
+          position: "fixed",
+          inset: 0,
+          zIndex: 9998,
+          background: "rgba(0,0,0,0.4)",
+        }}
       />
       {/* Dialog */}
-      <dialog
-        open
-        aria-label="Code Editor Modal"
+      <div
         onClick={(e) => e.stopPropagation()}
         onKeyDown={handleKeyDown}
-        className={styles.dialog}
+        style={{
+          position: "fixed",
+          top: "50%",
+          left: "50%",
+          transform: "translate(-50%,-50%)",
+          zIndex: 9999,
+          background: "#fff",
+          borderRadius: 12,
+          boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
+          width: "80vw",
+          height: "80vh",
+          maxWidth: 1200,
+          maxHeight: 900,
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+        }}
       >
         {/* Title bar */}
-        <div className={styles.titleBar}>
-          <span className={styles.titleText}>编辑代码块</span>
-          <button type="button"
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            padding: "14px 20px",
+            borderBottom: "1px solid #e2e8f0",
+          }}
+        >
+          <span style={{ fontSize: 14, fontWeight: 600, color: "#1e293b" }}>
+            编辑代码块
+          </span>
+          <button
             onClick={onClose}
-            className={styles.closeBtn}
+            style={{
+              border: "none",
+              background: "none",
+              cursor: "pointer",
+              fontSize: 18,
+              color: "#94a3b8",
+              padding: "4px 8px",
+            }}
           >
             ✕
           </button>
@@ -242,36 +215,82 @@ export function CodeEditorModal({
         <div ref={containerRef} style={{ flex: 1, minHeight: 0 }} />
 
         {/* Description field */}
-        <div className={styles.descBar}>
-          <label className={styles.descLabel} htmlFor="code-description-input">
+        <div
+          style={{
+            padding: "12px 20px",
+            borderTop: "1px solid #e2e8f0",
+          }}
+        >
+          <label
+            style={{
+              display: "block",
+              fontSize: 11,
+              fontWeight: 600,
+              color: "#64748b",
+              marginBottom: 4,
+            }}
+          >
             功能说明
           </label>
           <input
-            id="code-description-input"
             type="text"
             value={localDescription}
             onChange={(e) => setLocalDescription(e.target.value)}
             placeholder="描述此代码块的功能..."
-            className={styles.descInput}
+            style={{
+              width: "100%",
+              padding: "8px 12px",
+              fontSize: 13,
+              border: "1px solid #d1d5db",
+              borderRadius: 6,
+              fontFamily: "inherit",
+              boxSizing: "border-box",
+            }}
           />
         </div>
 
         {/* Action buttons */}
-        <div className={styles.actionBar}>
-          <button type="button"
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: 8,
+            padding: "12px 20px",
+            borderTop: "1px solid #e2e8f0",
+          }}
+        >
+          <button
             onClick={onClose}
-            className={styles.cancelBtn}
+            style={{
+              padding: "8px 20px",
+              fontSize: 13,
+              border: "1px solid #d1d5db",
+              borderRadius: 6,
+              background: "#fff",
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
           >
             取消
           </button>
-          <button type="button"
+          <button
             onClick={handleSave}
-            className={styles.saveBtn}
+            style={{
+              padding: "8px 20px",
+              fontSize: 13,
+              fontWeight: 600,
+              border: "none",
+              borderRadius: 6,
+              background: "#6366F1",
+              color: "#fff",
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
           >
             保存
           </button>
         </div>
-      </dialog>
+      </div>
     </>
   );
 }

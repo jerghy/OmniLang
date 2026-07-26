@@ -106,7 +106,11 @@ pub fn compile_to_omniview_full(source: &str, editor_mode: bool, debug_mode: boo
     if source.len() > MAX_INPUT_SIZE {
         return js_error_value("Input exceeds 10MB limit");
     }
-    to_js_value(&omnilang::compile_omniview_full(source, editor_mode, debug_mode))
+    to_js_value(&omnilang::compile_omniview_full(
+        source,
+        editor_mode,
+        debug_mode,
+    ))
 }
 
 /// Resolve per-element computed styles for editor canvas rendering.
@@ -286,7 +290,8 @@ impl OmniCompiler {
             }))
             .unwrap_or_else(|e| js_error_value(&format!("serialization error: {}", e)));
         }
-        if let Some((ref cached_editor, ref cached_debug, ref cached)) = self.cached_compile_result {
+        if let Some((ref cached_editor, ref cached_debug, ref cached)) = self.cached_compile_result
+        {
             if *cached_editor == editor_mode && *cached_debug == debug_mode {
                 return cached.clone();
             }
@@ -360,6 +365,35 @@ impl OmniCompiler {
         result_value
     }
 
+    /// Run semantic analysis on all registered sources and return
+    /// symbols + dependencies in addition to diagnostics.
+    /// Returns JsValue with { symbols, dependencies, diagnostics }.
+    pub fn analyse_dependencies(&mut self) -> JsValue {
+        let mut all_symbols: Vec<serde_json::Value> = Vec::new();
+        let mut all_deps: FxHashMap<String, Vec<String>> = FxHashMap::default();
+        let mut all_errors: Vec<serde_json::Value> = Vec::new();
+
+        for source in self.sources.values() {
+            let result = compile(source);
+            for sym in &result.symbols {
+                all_symbols.push(serde_json::to_value(sym).unwrap_or_default());
+            }
+            for (k, v) in &result.dependencies {
+                all_deps.entry(k.clone()).or_default().extend(v.clone());
+            }
+            for err in &result.errors {
+                all_errors.push(err.to_json_value());
+            }
+        }
+
+        serde_wasm_bindgen::to_value(&serde_json::json!({
+            "symbols": all_symbols,
+            "dependencies": all_deps,
+            "diagnostics": all_errors,
+        }))
+        .unwrap_or_else(|e| js_error_value(&format!("serialization error: {}", e)))
+    }
+
     /// Return the compiler version string.
     pub fn version(&self) -> String {
         env!("CARGO_PKG_VERSION").to_string()
@@ -373,8 +407,11 @@ mod tests {
     #[cfg(feature = "codegen-omniview")]
     #[test]
     fn test_compile_to_omniview_full_success() {
-        let result =
-            compile_to_omniview_full("component App { view { Text { \"hello\" } } }", false, false);
+        let result = compile_to_omniview_full(
+            "component App { view { Text { \"hello\" } } }",
+            false,
+            false,
+        );
         let parsed: serde_json::Value = serde_wasm_bindgen::from_value(result).unwrap();
         assert!(parsed["success"].as_bool().unwrap());
         assert!(parsed["files"]["js"].as_str().unwrap().len() > 0);
@@ -397,8 +434,10 @@ mod tests {
     #[cfg(feature = "codegen-omniview")]
     #[test]
     fn test_compile_to_omniview_full_editor_mode() {
-        let result1 = compile_to_omniview_full("component App { view { Text { \"hi\" } } }", false, false);
-        let result2 = compile_to_omniview_full("component App { view { Text { \"hi\" } } }", true, false);
+        let result1 =
+            compile_to_omniview_full("component App { view { Text { \"hi\" } } }", false, false);
+        let result2 =
+            compile_to_omniview_full("component App { view { Text { \"hi\" } } }", true, false);
         let p1: serde_json::Value = serde_wasm_bindgen::from_value(result1).unwrap();
         let p2: serde_json::Value = serde_wasm_bindgen::from_value(result2).unwrap();
         // Both should compile successfully
