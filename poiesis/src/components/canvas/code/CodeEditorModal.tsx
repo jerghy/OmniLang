@@ -1,18 +1,15 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import * as monaco from "monaco-editor";
+import { useState, useEffect, useCallback, useRef } from "react";
 import editorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
 import tsWorker from "monaco-editor/esm/vs/language/typescript/ts.worker?worker";
 import cssWorker from "monaco-editor/esm/vs/language/css/css.worker?worker";
 import htmlWorker from "monaco-editor/esm/vs/language/html/html.worker?worker";
 import jsonWorker from "monaco-editor/esm/vs/language/json/json.worker?worker";
 import {
-  initOmniLangLanguage,
-  initOmniLangSnippets,
-  injectOmniLangTypes,
   getOmniCompiler,
   runDiagnostics,
   applyDiagnostics,
 } from "../../../services/monaco";
+import { useMonacoEditor } from "../../../services/monaco/useMonacoEditor";
 import type { StoreDefinition } from "../../../core/types/store";
 
 // Configure Monaco workers for Vite
@@ -25,21 +22,6 @@ import type { StoreDefinition } from "../../../core/types/store";
     return new editorWorker();
   },
 };
-
-// ── One-time initialization (guards prevent duplicate calls) ────────
-let monacoServicesInitialized = false;
-
-function initMonacoServices(storeDefs?: StoreDefinition[]): void {
-  if (monacoServicesInitialized) {
-    // Still refresh dynamic store types on each call
-    if (storeDefs) injectOmniLangTypes(storeDefs);
-    return;
-  }
-  monacoServicesInitialized = true;
-  initOmniLangLanguage();
-  initOmniLangSnippets();
-  injectOmniLangTypes(storeDefs);
-}
 
 interface CodeEditorModalProps {
   elementId: string;
@@ -71,28 +53,31 @@ export function CodeEditorModal({
 }: CodeEditorModalProps) {
   const [localDescription, setLocalDescription] = useState(initialDescription);
   const sourceRef = useRef(initialSource);
-  const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const savedSourceRef = useRef(initialSource);
 
-  // ── Initialize Monaco services (once per session) ─────────────
-  // Use a stable key derived from store names to control re-injection
-  const storeNamesKey = useMemo(
-    () => storeDefs?.map((s) => s.name).sort().join(",") ?? "",
-    [storeDefs],
-  );
+  // ── Monaco editor via shared hook ──────────────────────────────
+  const { editor } = useMonacoEditor({
+    containerRef,
+    initialValue: initialSource,
+    language,
+    storeDefs,
+    onChange: (value) => {
+      sourceRef.current = value;
+    },
+  });
 
+  // Debug: expose editor globally for Victauri testing
   useEffect(() => {
-    initMonacoServices(storeDefs);
-    // Only re-inject when the set of stores changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storeNamesKey]);
+    (window as unknown as Record<string, unknown>).__monacoEditor = editor;
+    return () => {
+      (window as unknown as Record<string, unknown>).__monacoEditor = undefined;
+    };
+  }, [editor]);
 
   // ── WASM diagnostics via OmniCompiler ─────────────────────────
   useEffect(() => {
-    if (!omniSource || !omniSourcePath) return;
-    const editor = editorRef.current;
-    if (!editor) return;
+    if (!editor || !omniSource || !omniSourcePath) return;
 
     let timer: ReturnType<typeof setTimeout>;
 
@@ -129,48 +114,16 @@ export function CodeEditorModal({
       clearTimeout(timer);
       disposable.dispose();
     };
-  }, [omniSource, omniSourcePath, allSources]);
-
-  // Initialize Monaco editor (mount once)
-  useEffect(() => {
-    if (!containerRef.current) return;
-    const editor = monaco.editor.create(containerRef.current, {
-      value: initialSource,
-      language,
-      theme: "vs-dark",
-      fontSize: 13,
-      minimap: { enabled: false },
-      lineNumbers: "on",
-      scrollBeyondLastLine: false,
-      automaticLayout: true,
-    });
-    editorRef.current = editor;
-    sourceRef.current = initialSource;
-
-    // Debug: expose editor globally for Victauri testing
-    (window as unknown as Record<string, unknown>).__monacoEditor = editor;
-
-    editor.onDidChangeModelContent(() => {
-      sourceRef.current = editor.getValue();
-    });
-
-    return () => {
-      (window as unknown as Record<string, unknown>).__monacoEditor = undefined;
-      editor.dispose();
-      editorRef.current = null;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [editor, omniSource, omniSourcePath, allSources]);
 
   // Sync external value changes into the editor
   useEffect(() => {
-    const editor = editorRef.current;
     if (!editor) return;
     if (initialSource !== savedSourceRef.current) {
       savedSourceRef.current = initialSource;
       editor.setValue(initialSource);
     }
-  }, [initialSource]);
+  }, [editor, initialSource]);
 
   // Escape to close
   useEffect(() => {
