@@ -267,83 +267,10 @@ impl OmniViewGenerator {
         (attrs, class_name_parts)
     }
 
-    /// Convert a single `ElementIR` node into its HTML representation.
-    ///
-    /// Generates the opening tag (with data-nid, static attrs, variant classes,
-    /// hero attrs, inline style, event data-attrs, motion data-attrs), then
-    /// recurses into children, and finally writes the closing tag.
-    ///
-    /// Side-effects:
-    /// - Writes deferred JS (events, reactive effects, motion triggers) to
-    ///   `self.js` / `self.mount_js`.
-    /// - Accumulates element classes and tags in `self.element_classes` /
-    ///   `self.element_tags` (used in css_only mode and for the React editor).
-    /// - Builds the structured element tree in `self.element_tree_stack`.
-    /// - Records source-map entries in `self.source_map`.
-    /// - Pushes warnings for unknown/unresolved class references.
-    pub(super) fn element_to_html(&mut self, el: &ElementIR, indent: usize) -> String {
-        let pad = "  ".repeat(indent);
-        let _pad_inner = "  ".repeat(indent + 1);
-        let nid = self.next_nid(&el.tag);
-        let mut out = String::new();
-
-        // Map omni tags to HTML tags
-        let html_tag = map_tag(&el.tag);
-        self.tree_push(nid.clone(), html_tag.clone());
-
-        // Try to inline a known component's view HTML.
-        // When inside a @for template, props are mapped to their value
-        // expressions so that data-bind-text markers reference the @for
-        // loop variable; event handlers and prop-wiring effects are skipped
-        // (they cannot work correctly for dynamically-cloned elements).
-        if let Some(inlined) = self.try_inline_component(el, indent, &nid, &pad) {
-            // Record nid_map + element_tags for the component wrapper so the
-            // editor can select custom components (not just their children).
-            let design_id = el
-                .props
-                .get("id")
-                .and_then(|v| {
-                    if let ExprIR::LiteralExpr { value } = v {
-                        value.as_str().map(|s| s.to_string())
-                    } else {
-                        None
-                    }
-                })
-                .unwrap_or_else(|| nid.clone());
-            self.element_tags
-                .insert(nid.clone(), html_tag.to_string());
-            self.nid_map.insert(nid.clone(), design_id);
-            self.tree_pop(); // pop the placeholder node; inlined component pushes its own
-            return inlined;
-        }
-
-        let (mut attrs, class_name_parts) = self.emit_element_props(el, &nid);
-
-        // Emit merged class attribute if any class names accumulated
-        if !class_name_parts.is_empty() {
-            let _ = write!(
-                attrs,
-                " class=\"{}\"",
-                escape_html(&class_name_parts.join(" "))
-            );
-        }
-
-        // Hero shared element transition tag — emit as data attribute
-        if let Some(hero) = el.hero_behavior().and_then(|h| h.tag.as_ref()) {
-            let _ = write!(attrs, " data-hero=\"{}\"", escape_html(hero));
-        }
-        // Optional custom transition motion name
-        if let Some(transition) = el.hero_behavior().and_then(|h| h.transition.as_ref()) {
-            let trans_str = self.expr_to_static_str(transition);
-            if !trans_str.is_empty() {
-                let _ = write!(
-                    attrs,
-                    " data-hero-transition=\"{}\"",
-                    escape_html(&trans_str)
-                );
-            }
-        }
-
+    /// Emit inline style: static values are appended to `attrs`, dynamic signals
+    /// (via `$signal`, `$concat`, `$call`) generate deferred JS effects written
+    /// to `self.js`.
+    fn emit_element_inline_style(&mut self, el: &ElementIR, nid: &str, attrs: &mut String) {
         // Inline style: { key: value, ... } — generate static style attr + dynamic JS effects
         if let Some(ref inline_style) = el.inline_style {
             if let Some(style_obj) = inline_style.as_object() {
@@ -460,6 +387,86 @@ impl OmniViewGenerator {
                 }
             }
         }
+    }
+
+    /// Convert a single `ElementIR` node into its HTML representation.
+    ///
+    /// Generates the opening tag (with data-nid, static attrs, variant classes,
+    /// hero attrs, inline style, event data-attrs, motion data-attrs), then
+    /// recurses into children, and finally writes the closing tag.
+    ///
+    /// Side-effects:
+    /// - Writes deferred JS (events, reactive effects, motion triggers) to
+    ///   `self.js` / `self.mount_js`.
+    /// - Accumulates element classes and tags in `self.element_classes` /
+    ///   `self.element_tags` (used in css_only mode and for the React editor).
+    /// - Builds the structured element tree in `self.element_tree_stack`.
+    /// - Records source-map entries in `self.source_map`.
+    /// - Pushes warnings for unknown/unresolved class references.
+    pub(super) fn element_to_html(&mut self, el: &ElementIR, indent: usize) -> String {
+        let pad = "  ".repeat(indent);
+        let _pad_inner = "  ".repeat(indent + 1);
+        let nid = self.next_nid(&el.tag);
+        let mut out = String::new();
+
+        // Map omni tags to HTML tags
+        let html_tag = map_tag(&el.tag);
+        self.tree_push(nid.clone(), html_tag.clone());
+
+        // Try to inline a known component's view HTML.
+        // When inside a @for template, props are mapped to their value
+        // expressions so that data-bind-text markers reference the @for
+        // loop variable; event handlers and prop-wiring effects are skipped
+        // (they cannot work correctly for dynamically-cloned elements).
+        if let Some(inlined) = self.try_inline_component(el, indent, &nid, &pad) {
+            // Record nid_map + element_tags for the component wrapper so the
+            // editor can select custom components (not just their children).
+            let design_id = el
+                .props
+                .get("id")
+                .and_then(|v| {
+                    if let ExprIR::LiteralExpr { value } = v {
+                        value.as_str().map(|s| s.to_string())
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or_else(|| nid.clone());
+            self.element_tags
+                .insert(nid.clone(), html_tag.to_string());
+            self.nid_map.insert(nid.clone(), design_id);
+            self.tree_pop(); // pop the placeholder node; inlined component pushes its own
+            return inlined;
+        }
+
+        let (mut attrs, class_name_parts) = self.emit_element_props(el, &nid);
+
+        // Emit merged class attribute if any class names accumulated
+        if !class_name_parts.is_empty() {
+            let _ = write!(
+                attrs,
+                " class=\"{}\"",
+                escape_html(&class_name_parts.join(" "))
+            );
+        }
+
+        // Hero shared element transition tag — emit as data attribute
+        if let Some(hero) = el.hero_behavior().and_then(|h| h.tag.as_ref()) {
+            let _ = write!(attrs, " data-hero=\"{}\"", escape_html(hero));
+        }
+        // Optional custom transition motion name
+        if let Some(transition) = el.hero_behavior().and_then(|h| h.transition.as_ref()) {
+            let trans_str = self.expr_to_static_str(transition);
+            if !trans_str.is_empty() {
+                let _ = write!(
+                    attrs,
+                    " data-hero-transition=\"{}\"",
+                    escape_html(&trans_str)
+                );
+            }
+        }
+
+        self.emit_element_inline_style(el, &nid, &mut attrs);
 
         // Events → generate JS bindings
         for (event_name, handler) in &el.events {
