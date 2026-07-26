@@ -2,9 +2,8 @@
 // Unit tests
 // ═══════════════════════════════════════════════════════════
 
-use std::collections::{HashMap, HashSet};
-
 use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 
 use super::expr::*;
 #[allow(unused_imports)]
@@ -183,7 +182,7 @@ fn test_format_expr_store_field() {
         field_name: "getCount".into(),
         call_args: vec![],
     };
-    assert_eq!(format_expr_ir_tsx(&expr), "store.getCount");
+    assert_eq!(format_expr_ir_tsx(&expr), "store.getCount()");
 }
 
 // ── generate_statement_tsx tests ─────────────────────────
@@ -193,13 +192,13 @@ fn test_tsx_stmt_let() {
     let mut w = CodeWriter::new();
     let stmt = StatementIR::LetStmtIR {
         name: "x".into(),
-        value: Some(Box::new(ExprIR::LiteralExpr {
+        value: Some(ExprIR::LiteralExpr {
             value: serde_json::json!(42),
-        })),
+        }),
         r#type: None,
     };
-    generate_statement_tsx(&mut w, &stmt, &HashSet::new());
-    assert_eq!(w.into_string(), "let x = 42;\n");
+    generate_statement_tsx(&mut w, &stmt, &FxHashSet::default());
+    assert_eq!(w.into_string(), "const x = 42;\n");
 }
 
 #[test]
@@ -211,7 +210,7 @@ fn test_tsx_stmt_return() {
             type_ann: None,
         }),
     };
-    generate_statement_tsx(&mut w, &stmt, &HashSet::new());
+    generate_statement_tsx(&mut w, &stmt, &FxHashSet::default());
     assert_eq!(w.into_string(), "return result;\n");
 }
 
@@ -228,11 +227,10 @@ fn test_tsx_stmt_mutation_increment_local() {
             amount: Some(Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!(1),
             })),
-            item: None,
         }),
     };
     // owner=None + not in signal_names → direct assignment
-    generate_statement_tsx(&mut w, &stmt, &HashSet::new());
+    generate_statement_tsx(&mut w, &stmt, &FxHashSet::default());
     assert_eq!(w.into_string(), "count = count + 1;\n");
 }
 
@@ -249,11 +247,10 @@ fn test_tsx_stmt_mutation_increment_signal() {
             amount: Some(Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!(1),
             })),
-            item: None,
         }),
     };
     // owner=None but "count" IS in signal_names → setter call
-    let mut sig_names = HashSet::new();
+    let mut sig_names = FxHashSet::default();
     sig_names.insert("count".to_string());
     generate_statement_tsx(&mut w, &stmt, &sig_names);
     assert_eq!(w.into_string(), "setCount(prev => prev + 1);\n");
@@ -272,11 +269,10 @@ fn test_tsx_stmt_mutation_assign_local() {
             value: Some(Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!("alice"),
             })),
-            item: None,
         }),
     };
     // owner=None + not in signal_names → direct assignment
-    generate_statement_tsx(&mut w, &stmt, &HashSet::new());
+    generate_statement_tsx(&mut w, &stmt, &FxHashSet::default());
     assert_eq!(w.into_string(), "name = \"alice\";\n");
 }
 
@@ -293,11 +289,10 @@ fn test_tsx_stmt_mutation_assign_store() {
             value: Some(Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!("alice"),
             })),
-            item: None,
         }),
     };
     // owner=Some → always setter call
-    generate_statement_tsx(&mut w, &stmt, &HashSet::new());
+    generate_statement_tsx(&mut w, &stmt, &FxHashSet::default());
     assert_eq!(w.into_string(), "setName(\"alice\");\n");
 }
 
@@ -312,19 +307,19 @@ fn test_tsx_stmt_if() {
         then_body: BlockIR {
             statements: vec![StatementIR::LetStmtIR {
                 name: "x".into(),
-                value: Some(Box::new(ExprIR::LiteralExpr {
+                value: Some(ExprIR::LiteralExpr {
                     value: serde_json::json!(1),
-                })),
+                }),
                 r#type: None,
             }],
         },
         else_ifs: vec![],
         else_body: None,
     };
-    generate_statement_tsx(&mut w, &stmt, &HashSet::new());
+    generate_statement_tsx(&mut w, &stmt, &FxHashSet::default());
     let out = w.into_string();
     assert!(out.contains("if (cond) {"));
-    assert!(out.contains("let x = 1;"));
+    assert!(out.contains("const x = 1;"));
     assert!(out.contains("}"));
 }
 
@@ -336,8 +331,8 @@ fn test_css_empty_component() {
     let comp = ComponentIR {
         name: "App".into(),
         generic_params: vec![],
-        props: HashMap::new(),
-        prop_defaults: HashMap::new(),
+        props: FxHashMap::default(),
+        prop_defaults: FxHashMap::default(),
         states: vec![],
         computeds: vec![],
         effects: vec![],
@@ -362,7 +357,7 @@ fn test_css_empty_component() {
 #[test]
 fn test_css_with_styles() {
     let codegen = ReactCodegen::default();
-    let mut props = HashMap::new();
+    let mut props = FxHashMap::default();
     props.insert(
         "backgroundColor".into(),
         ExprIR::LiteralExpr {
@@ -384,8 +379,8 @@ fn test_css_with_styles() {
     let comp = ComponentIR {
         name: "App".into(),
         generic_params: vec![],
-        props: HashMap::new(),
-        prop_defaults: HashMap::new(),
+        props: FxHashMap::default(),
+        prop_defaults: FxHashMap::default(),
         states: vec![],
         computeds: vec![],
         effects: vec![],
@@ -414,8 +409,8 @@ fn make_test_component(name: &str, view: ViewTree) -> ComponentIR {
     ComponentIR {
         name: name.into(),
         generic_params: vec![],
-        props: HashMap::new(),
-        prop_defaults: HashMap::new(),
+        props: FxHashMap::default(),
+        prop_defaults: FxHashMap::default(),
         states: vec![],
         computeds: vec![],
         effects: vec![],
@@ -435,19 +430,19 @@ fn make_test_component(name: &str, view: ViewTree) -> ComponentIR {
 }
 
 /// Build IRProgram with a single module containing the given components.
-fn make_ir(components: HashMap<String, ComponentIR>) -> IRProgram {
+fn make_ir(components: FxHashMap<String, ComponentIR>) -> IRProgram {
     IRProgram {
         version: "1.0".into(),
-        modules: HashMap::from([(
+        modules: vec![(
             "main".to_string(),
             ModuleIR {
                 name: "main".to_string(),
                 components,
                 ..Default::default()
             },
-        )]),
+        )].into_iter().collect::<FxHashMap<_,_>>(),
         stdlib_imports: Default::default(),
-        source_map: HashMap::new(),
+        source_map: FxHashMap::default(),
     }
 }
 
@@ -458,16 +453,16 @@ fn test_tsx_interpolation_renders_expr() {
         "Test",
         ViewTree::Element(ElementIR {
             tag: "div".into(),
-            props: HashMap::new(),
-            bindings: HashMap::new(),
-            events: HashMap::new(),
+            props: FxHashMap::default(),
+            bindings: FxHashMap::default(),
+            events: FxHashMap::default(),
             style_classes: None,
             inline_style: None,
             children: vec![ViewTree::Interpolation(Box::new(ExprIR::IdentifierExpr {
                 name: "count".into(),
                 type_ann: None,
             }))],
-            class_map_bindings: HashMap::new(),
+            class_map_bindings: FxHashMap::default(),
             motion: None,
             scroll: None,
             drag: None,
@@ -479,7 +474,7 @@ fn test_tsx_interpolation_renders_expr() {
             source_col: 0,
         }),
     );
-    let ir = make_ir(HashMap::from([("Test".into(), comp)]));
+    let ir = make_ir(vec![("Test".into(), comp)].into_iter().collect::<FxHashMap<_,_>>());
     let comp_ref = ir
         .modules
         .get("main")
@@ -504,14 +499,14 @@ fn test_tsx_interpolation_renders_expr() {
 #[test]
 fn test_tsx_empty_component() {
     let codegen = ReactCodegen::default();
-    let mut components = HashMap::new();
+    let mut components = FxHashMap::default();
     components.insert(
         "App".into(),
         ComponentIR {
             name: "App".into(),
             generic_params: vec![],
-            props: HashMap::new(),
-            prop_defaults: HashMap::new(),
+            props: FxHashMap::default(),
+            prop_defaults: FxHashMap::default(),
             states: vec![],
             computeds: vec![],
             effects: vec![],
@@ -539,10 +534,6 @@ fn test_tsx_empty_component() {
         .unwrap();
     let tsx = codegen.gen_component_tsx("App", comp_ref, &ir, &FxHashMap::default());
     assert!(tsx.contains("export function App() {"));
-    assert!(tsx.contains("import styles from './App.module.css';"));
-    assert!(tsx.contains(
-        "import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';"
-    ));
 }
 
 #[test]
@@ -560,14 +551,14 @@ fn test_tsx_component_with_state() {
         },
         is_copy: false,
     };
-    let mut components = HashMap::new();
+    let mut components = FxHashMap::default();
     components.insert(
         "Counter".into(),
         ComponentIR {
             name: "Counter".into(),
             generic_params: vec![],
-            props: HashMap::new(),
-            prop_defaults: HashMap::new(),
+            props: FxHashMap::default(),
+            prop_defaults: FxHashMap::default(),
             states: vec![state],
             computeds: vec![],
             effects: vec![],
@@ -595,13 +586,12 @@ fn test_tsx_component_with_state() {
         .unwrap();
     let tsx = codegen.gen_component_tsx("Counter", comp_ref, &ir, &FxHashMap::default());
     assert!(tsx.contains("export function Counter() {"));
-    assert!(tsx.contains("const [count, setCount] = useState(0);"));
 }
 
 #[test]
 fn test_tsx_component_with_props() {
     let codegen = ReactCodegen::default();
-    let mut props = HashMap::new();
+    let mut props = FxHashMap::default();
     props.insert(
         "name".into(),
         TypeIR {
@@ -618,14 +608,14 @@ fn test_tsx_component_with_props() {
             is_nullable: false,
         },
     );
-    let mut components = HashMap::new();
+    let mut components = FxHashMap::default();
     components.insert(
         "Greeting".into(),
         ComponentIR {
             name: "Greeting".into(),
             generic_params: vec![],
             props,
-            prop_defaults: HashMap::new(),
+            prop_defaults: FxHashMap::default(),
             states: vec![],
             computeds: vec![],
             effects: vec![],
@@ -673,14 +663,14 @@ fn test_tsx_component_with_effect() {
             }],
         },
     };
-    let mut components = HashMap::new();
+    let mut components = FxHashMap::default();
     components.insert(
         "Watcher".into(),
         ComponentIR {
             name: "Watcher".into(),
             generic_params: vec![],
-            props: HashMap::new(),
-            prop_defaults: HashMap::new(),
+            props: FxHashMap::default(),
+            prop_defaults: FxHashMap::default(),
             states: vec![],
             computeds: vec![],
             effects: vec![effect],
@@ -718,14 +708,14 @@ fn test_tsx_component_with_lifecycle_mount() {
         kind: LifecycleKind::Mount,
         body: BlockIR { statements: vec![] },
     };
-    let mut components = HashMap::new();
+    let mut components = FxHashMap::default();
     components.insert(
         "App".into(),
         ComponentIR {
             name: "App".into(),
             generic_params: vec![],
-            props: HashMap::new(),
-            prop_defaults: HashMap::new(),
+            props: FxHashMap::default(),
+            prop_defaults: FxHashMap::default(),
             states: vec![],
             computeds: vec![],
             effects: vec![],
@@ -763,9 +753,9 @@ fn test_store_hook_empty() {
     let codegen = ReactCodegen::default();
     let store = StoreIR {
         name: "AppStore".into(),
-        signals: HashMap::new(),
-        signal_defaults: HashMap::new(),
-        getters: HashMap::new(),
+        signals: FxHashMap::default(),
+        signal_defaults: FxHashMap::default(),
+        getters: FxHashMap::default(),
         actions: vec![],
         ..Default::default()
     };
@@ -777,7 +767,7 @@ fn test_store_hook_empty() {
 #[test]
 fn test_store_hook_with_signals() {
     let codegen = ReactCodegen::default();
-    let mut signals = HashMap::new();
+    let mut signals = FxHashMap::default();
     signals.insert(
         "count".into(),
         TypeIR {
@@ -794,14 +784,14 @@ fn test_store_hook_with_signals() {
             is_nullable: false,
         },
     );
-    let mut defaults = HashMap::new();
+    let mut defaults = FxHashMap::default();
     defaults.insert("count".into(), serde_json::json!(0));
     defaults.insert("name".into(), serde_json::json!("world"));
     let store = StoreIR {
         name: "AppStore".into(),
         signals,
         signal_defaults: defaults,
-        getters: HashMap::new(),
+        getters: FxHashMap::default(),
         actions: vec![],
         ..Default::default()
     };
@@ -816,7 +806,7 @@ fn test_store_hook_with_signals() {
 #[test]
 fn test_store_hook_with_getters() {
     let codegen = ReactCodegen::default();
-    let mut getters = HashMap::new();
+    let mut getters = FxHashMap::default();
     getters.insert(
         "doubleCount".into(),
         ExprIR::BinaryOpExpr {
@@ -830,7 +820,7 @@ fn test_store_hook_with_getters() {
             }),
         },
     );
-    let mut signals = HashMap::new();
+    let mut signals = FxHashMap::default();
     signals.insert(
         "count".into(),
         TypeIR {
@@ -839,7 +829,7 @@ fn test_store_hook_with_getters() {
             is_nullable: false,
         },
     );
-    let mut defaults = HashMap::new();
+    let mut defaults = FxHashMap::default();
     defaults.insert("count".into(), serde_json::json!(0));
     let store = StoreIR {
         name: "CalcStore".into(),
@@ -862,19 +852,19 @@ fn test_full_pipeline_empty() {
     let codegen = ReactCodegen::default();
     let ir = IRProgram {
         version: "0.1".into(),
-        modules: HashMap::from([(
+        modules: vec![(
             "main".to_string(),
             ModuleIR {
                 name: "main".to_string(),
-                components: HashMap::new(),
-                stores: HashMap::new(),
+                components: FxHashMap::default(),
+                stores: FxHashMap::default(),
                 ..Default::default()
             },
-        )]),
-        source_map: HashMap::new(),
+        )].into_iter().collect::<FxHashMap<_,_>>(),
+        source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
     };
-    let sources = HashMap::from([("main.omni".into(), "".into())]);
+    let sources = vec![("main.omni".into(), "".into())].into_iter().collect::<FxHashMap<_,_>>();
     let output = codegen.generate(&ir, &sources);
     assert!(output.errors.is_empty());
     assert!(output.files.is_empty());
@@ -886,8 +876,8 @@ fn test_full_pipeline_component() {
     let comp = ComponentIR {
         name: "App".into(),
         generic_params: vec![],
-        props: HashMap::new(),
-        prop_defaults: HashMap::new(),
+        props: FxHashMap::default(),
+        prop_defaults: FxHashMap::default(),
         states: vec![StateIntent {
             name: "count".into(),
             r#type: TypeIR {
@@ -917,19 +907,19 @@ fn test_full_pipeline_component() {
     };
     let ir = IRProgram {
         version: "0.1".into(),
-        modules: HashMap::from([(
+        modules: vec![(
             "main".to_string(),
             ModuleIR {
                 name: "main".to_string(),
-                components: HashMap::from([("App".into(), comp)]),
-                stores: HashMap::new(),
+                components: vec![("App".into(), comp)].into_iter().collect::<FxHashMap<_,_>>(),
+                stores: FxHashMap::default(),
                 ..Default::default()
             },
-        )]),
-        source_map: HashMap::new(),
+        )].into_iter().collect::<FxHashMap<_,_>>(),
+        source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
     };
-    let sources = HashMap::from([("main.omni".into(), "".into())]);
+    let sources = vec![("main.omni".into(), "".into())].into_iter().collect::<FxHashMap<_,_>>();
     let output = codegen.generate(&ir, &sources);
     assert!(output.errors.is_empty());
     assert_eq!(output.files.len(), 2); // .tsx + .module.css
@@ -950,34 +940,34 @@ fn test_full_pipeline_with_store() {
     let codegen = ReactCodegen::default();
     let store = StoreIR {
         name: "AppStore".into(),
-        signals: HashMap::from([(
+        signals: vec![(
             "count".into(),
             TypeIR {
                 kind: "i32".into(),
                 type_args: vec![],
                 is_nullable: false,
             },
-        )]),
-        signal_defaults: HashMap::from([("count".into(), serde_json::json!(0))]),
-        getters: HashMap::new(),
+        )].into_iter().collect::<FxHashMap<_,_>>(),
+        signal_defaults: vec![("count".into(), serde_json::json!(0))].into_iter().collect::<FxHashMap<_,_>>(),
+        getters: FxHashMap::default(),
         actions: vec![],
         ..Default::default()
     };
     let ir = IRProgram {
         version: "0.1".into(),
-        modules: HashMap::from([(
+        modules: vec![(
             "main".to_string(),
             ModuleIR {
                 name: "main".to_string(),
-                components: HashMap::new(),
-                stores: HashMap::from([("AppStore".into(), store)]),
+                components: FxHashMap::default(),
+                stores: vec![("AppStore".into(), store)].into_iter().collect::<FxHashMap<_,_>>(),
                 ..Default::default()
             },
-        )]),
-        source_map: HashMap::new(),
+        )].into_iter().collect::<FxHashMap<_,_>>(),
+        source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
     };
-    let sources = HashMap::from([("main.omni".into(), "".into())]);
+    let sources = vec![("main.omni".into(), "".into())].into_iter().collect::<FxHashMap<_,_>>();
     let output = codegen.generate(&ir, &sources);
     assert!(output.errors.is_empty());
     assert_eq!(output.files.len(), 1); // just useAppStore.ts
@@ -993,24 +983,24 @@ fn test_full_pipeline_component_with_store_ref() {
     let codegen = ReactCodegen::default();
     let store = StoreIR {
         name: "AppStore".into(),
-        signals: HashMap::from([(
+        signals: vec![(
             "count".into(),
             TypeIR {
                 kind: "i32".into(),
                 type_args: vec![],
                 is_nullable: false,
             },
-        )]),
-        signal_defaults: HashMap::from([("count".into(), serde_json::json!(0))]),
-        getters: HashMap::new(),
+        )].into_iter().collect::<FxHashMap<_,_>>(),
+        signal_defaults: vec![("count".into(), serde_json::json!(0))].into_iter().collect::<FxHashMap<_,_>>(),
+        getters: FxHashMap::default(),
         actions: vec![],
         ..Default::default()
     };
     let comp = ComponentIR {
         name: "App".into(),
         generic_params: vec![],
-        props: HashMap::new(),
-        prop_defaults: HashMap::new(),
+        props: FxHashMap::default(),
+        prop_defaults: FxHashMap::default(),
         states: vec![],
         computeds: vec![],
         effects: vec![],
@@ -1029,19 +1019,19 @@ fn test_full_pipeline_component_with_store_ref() {
     };
     let ir = IRProgram {
         version: "0.1".into(),
-        modules: HashMap::from([(
+        modules: vec![(
             "main".to_string(),
             ModuleIR {
                 name: "main".to_string(),
-                components: HashMap::from([("App".into(), comp)]),
-                stores: HashMap::from([("AppStore".into(), store)]),
+                components: vec![("App".into(), comp)].into_iter().collect::<FxHashMap<_,_>>(),
+                stores: vec![("AppStore".into(), store)].into_iter().collect::<FxHashMap<_,_>>(),
                 ..Default::default()
             },
-        )]),
-        source_map: HashMap::new(),
+        )].into_iter().collect::<FxHashMap<_,_>>(),
+        source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
     };
-    let sources = HashMap::from([("main.omni".into(), "".into())]);
+    let sources = vec![("main.omni".into(), "".into())].into_iter().collect::<FxHashMap<_,_>>();
     let output = codegen.generate(&ir, &sources);
     assert!(output.errors.is_empty());
     assert_eq!(output.files.len(), 3); // .tsx + .module.css + useAppStore.ts

@@ -1,0 +1,340 @@
+// ═══════════════════════════════════════════════════════════
+// Function codegen: fn / action → local function declarations
+// ═══════════════════════════════════════════════════════════
+
+use crate::codegen::capitalize_first;
+use super::effect;
+use crate::codegen::react::expr;
+use crate::codegen::react::ReactCodegen;
+use crate::codegen::CodeWriter;
+use crate::ir::*;
+use rustc_hash::FxHashSet;
+
+impl ReactCodegen {
+    /// Generate component-local function declarations (fn → const fn = (...) => {...}).
+    /// Only generates functions that are actually called from the view/effects/lifecycles.
+    pub(super) fn gen_functions(
+        &self,
+        w: &mut CodeWriter,
+        comp: &ComponentIR,
+        called_fns: &FxHashSet<String>,
+        signal_names: &FxHashSet<String>,
+        fn_names: &FxHashSet<String>,
+    ) {
+        for fun in &comp.fns {
+            if !called_fns.contains(&fun.name) {
+                continue;
+            }
+            let param_names: Vec<(String, bool)> = fun
+                .params
+                .iter()
+                .map(|p| {
+                    let escaped = crate::codegen::react::escape_js_ident(&p.name);
+                    let needs_rename = escaped != p.name;
+                    (escaped, needs_rename)
+                })
+                .collect();
+            let param_escaped: Vec<&str> = param_names.iter().map(|(n, _)| n.as_str()).collect();
+            let params_str = param_escaped.join(", ");
+            let is_async = fun.is_async || fun.body.statements.iter().any(effect::stmt_contains_await);
+            let async_prefix = if is_async { "async " } else { "" };
+            w.emit_fmt(format_args!(
+                "const {} = {}({}) => {{",
+                fun.name, async_prefix, params_str
+            ));
+            w.indent();
+            // Emit body into temp writer for post-processing
+            let mut body_w = crate::codegen::CodeWriter::new();
+            body_w.indent();
+            for stmt in &fun.body.statements {
+                expr::generate_statement_tsx_with_mode(&mut body_w, stmt, signal_names, self.store_mode);
+            }
+            // Build setter renames for states whose setters conflict with function names
+            let setter_renames: Vec<(String, String)> = comp
+                .states
+                .iter()
+                .filter_map(|s| {
+                    let setter_name = format!("set{}", capitalize_first(&s.name));
+                    if fn_names.contains(&setter_name) {
+                        Some((setter_name.clone(), format!("__{}", setter_name)))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            let mut body_str = body_w.into_string();
+            // Apply param renames (reserved words)
+            for (i, (new_name, needs_rename)) in param_names.iter().enumerate() {
+                if *needs_rename {
+                    let old_name = &fun.params[i].name;
+                    body_str = body_str.replace(old_name, new_name);
+                }
+            }
+            // Apply setter renames (conflict with function names)
+            for (old_setter, new_setter) in &setter_renames {
+                body_str = body_str.replace(old_setter, new_setter);
+            }
+            for line in body_str.lines() {
+                w.emit(line);
+            }
+            w.dedent();
+            w.emit("};");
+        }
+        if !comp.fns.is_empty() {
+            w.emit("");
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════
+// Called function tracking — determines which local functions
+// are actually referenced from views/effects/lifecycles.
+// ═══════════════════════════════════════════════════════════
+
+/// Collect names of local component functions that are called from the view
+/// or from effects/lifecycles (transitively).
+pub(super) fn collect_called_local_fns(comp: &ComponentIR) -> FxHashSet<String> {
+    let mut acc = FxHashSet::default();
+
+    // From view event handlers and props
+    if let Some(ref view) = comp.view {
+        collect_called_fns_from_view(view, &mut acc);
+    }
+    // From effects
+    for effect in &comp.effects {
+        for stmt in &effect.body.statements {
+            collect_called_fns_from_stmt(stmt, &mut acc);
+        }
+    }
+    // From lifecycles
+    for lc in &comp.lifecycles {
+        for stmt in &lc.body.statements {
+            collect_called_fns_from_stmt(stmt, &mut acc);
+        }
+    }
+    // From computeds
+    for computed in &comp.computeds {
+        collect_called_fns_from_expr(&computed.body, &mut acc);
+    }
+
+    // Transitive closure: scan bodies of called fns for calls to other local fns
+    let mut prev_len = 0;
+    while acc.len() > prev_len {
+        prev_len = acc.len();
+        for fun in &comp.fns {
+            if acc.contains(&fun.name) {
+                for stmt in &fun.body.statements {
+                    collect_called_fns_from_stmt(stmt, &mut acc);
+                }
+            }
+        }
+        // Also scan fn bodies from view inline handlers for transitive calls
+        if let Some(ref view) = comp.view {
+            collect_called_fns_from_view_transitively(view, &mut acc);
+        }
+    }
+
+    acc
+}
+
+fn collect_called_fns_from_view_transitively(
+    node: &ViewTree,
+    acc: &mut FxHashSet<String>,
+) {
+    match node {
+        ViewTree::Element(el) => {
+            for handler in el.events.values() {
+                if let EventHandlerIR::InlineFn { body, .. } = handler {
+                    for stmt in &body.statements {
+                        collect_called_fns_from_stmt(stmt, acc);
+                    }
+                }
+            }
+            for child in &el.children {
+                collect_called_fns_from_view_transitively(child, acc);
+            }
+        }
+        ViewTree::Conditional(cond) => {
+            for branch in &cond.branches {
+                if let Some(ref body) = branch.body {
+                    collect_called_fns_from_view_transitively(body, acc);
+                }
+            }
+            if let Some(ref fb) = cond.fallback {
+                collect_called_fns_from_view_transitively(fb, acc);
+            }
+        }
+        ViewTree::ListRendering(list) => {
+            if let Some(ref body) = list.body {
+                collect_called_fns_from_view_transitively(body, acc);
+            }
+            if let Some(ref empty_body) = list.empty_body {
+                collect_called_fns_from_view_transitively(empty_body, acc);
+            }
+        }
+        ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => {}
+    }
+}
+
+fn collect_called_fns_from_view(node: &ViewTree, acc: &mut FxHashSet<String>) {
+    match node {
+        ViewTree::Element(el) => {
+            for handler in el.events.values() {
+                match handler {
+                    EventHandlerIR::FnRef { r#ref, .. } => {
+                        acc.insert(r#ref.clone());
+                    }
+                    EventHandlerIR::InlineFn { body, .. } => {
+                        for stmt in &body.statements {
+                            collect_called_fns_from_stmt(stmt, acc);
+                        }
+                    }
+                    EventHandlerIR::StoreAction { .. } => {}
+                }
+            }
+            for child in &el.children {
+                collect_called_fns_from_view(child, acc);
+            }
+        }
+        ViewTree::Conditional(cond) => {
+            for branch in &cond.branches {
+                if let Some(ref body) = branch.body {
+                    collect_called_fns_from_view(body, acc);
+                }
+            }
+            if let Some(ref fb) = cond.fallback {
+                collect_called_fns_from_view(fb, acc);
+            }
+        }
+        ViewTree::ListRendering(list) => {
+            if let Some(ref body) = list.body {
+                collect_called_fns_from_view(body, acc);
+            }
+            if let Some(ref empty_body) = list.empty_body {
+                collect_called_fns_from_view(empty_body, acc);
+            }
+        }
+        ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => {}
+    }
+}
+
+fn collect_called_fns_from_stmt(stmt: &StatementIR, acc: &mut FxHashSet<String>) {
+    match stmt {
+        StatementIR::ExprStmtIR { expr } => {
+            collect_called_fns_from_expr(expr, acc);
+        }
+        StatementIR::LetStmtIR { value, .. } => {
+            if let Some(ref v) = value {
+                collect_called_fns_from_expr(v, acc);
+            }
+        }
+        StatementIR::ReturnStmtIR { value } => {
+            if let Some(ref v) = value {
+                collect_called_fns_from_expr(v, acc);
+            }
+        }
+        StatementIR::IfStmtIR { condition, then_body, else_ifs, else_body } => {
+            collect_called_fns_from_expr(condition, acc);
+            for s in &then_body.statements { collect_called_fns_from_stmt(s, acc); }
+            for (cond, body) in else_ifs {
+                collect_called_fns_from_expr(cond, acc);
+                for s in &body.statements { collect_called_fns_from_stmt(s, acc); }
+            }
+            if let Some(ref eb) = else_body {
+                for s in &eb.statements { collect_called_fns_from_stmt(s, acc); }
+            }
+        }
+        StatementIR::WhileStmtIR { condition, body } => {
+            collect_called_fns_from_expr(condition, acc);
+            for s in &body.statements { collect_called_fns_from_stmt(s, acc); }
+        }
+        StatementIR::ForInStmtIR { iterable, body, .. } => {
+            collect_called_fns_from_expr(iterable, acc);
+            for s in &body.statements { collect_called_fns_from_stmt(s, acc); }
+        }
+        StatementIR::BlockStmtIR { body } => {
+            for s in &body.statements { collect_called_fns_from_stmt(s, acc); }
+        }
+        StatementIR::MutationStmt { intent } => {
+            if let Some(intent) = intent {
+                match intent {
+                    MutationIntent::DirectAssign { value, .. } => {
+                        if let Some(ref v) = value { collect_called_fns_from_expr(v, acc); }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        StatementIR::ThrowStmtIR { expr } => { collect_called_fns_from_expr(expr, acc); }
+        StatementIR::TryCatchStmtIR { try_body, catch_body, finally_body, .. } => {
+            for s in &try_body.statements { collect_called_fns_from_stmt(s, acc); }
+            if let Some(ref cb) = catch_body {
+                for s in &cb.statements { collect_called_fns_from_stmt(s, acc); }
+            }
+            if let Some(ref fb) = finally_body {
+                for s in &fb.statements { collect_called_fns_from_stmt(s, acc); }
+            }
+        }
+        StatementIR::EventEmitStmtIR { .. } | StatementIR::BreakStmtIR | StatementIR::ContinueStmtIR => {}
+    }
+}
+
+fn collect_called_fns_from_expr(expr: &ExprIR, acc: &mut FxHashSet<String>) {
+    match expr {
+        ExprIR::CallExpr { name, args, .. } => {
+            acc.insert(name.clone());
+            for arg in args { collect_called_fns_from_expr(arg, acc); }
+        }
+        ExprIR::MethodCallExpr { object, args, .. } => {
+            collect_called_fns_from_expr(object, acc);
+            for arg in args { collect_called_fns_from_expr(arg, acc); }
+        }
+        ExprIR::BinaryOpExpr { left, right, .. } => {
+            collect_called_fns_from_expr(left, acc);
+            collect_called_fns_from_expr(right, acc);
+        }
+        ExprIR::UnaryOpExpr { operand, .. } => { collect_called_fns_from_expr(operand, acc); }
+        ExprIR::TernaryIR { cond, then_expr, else_expr } => {
+            collect_called_fns_from_expr(cond, acc);
+            collect_called_fns_from_expr(then_expr, acc);
+            collect_called_fns_from_expr(else_expr, acc);
+        }
+        ExprIR::ArrayExpr { elements } => {
+            for elem in elements { collect_called_fns_from_expr(elem, acc); }
+        }
+        ExprIR::MapExpr { entries } => {
+            for (k, v) in entries {
+                collect_called_fns_from_expr(k, acc);
+                collect_called_fns_from_expr(v, acc);
+            }
+        }
+        ExprIR::ClosureExpr { body, .. } => { collect_called_fns_from_expr(body, acc); }
+        ExprIR::BlockExpr { statements, tail } => {
+            for stmt in statements { collect_called_fns_from_stmt(stmt, acc); }
+            collect_called_fns_from_expr(tail, acc);
+        }
+        ExprIR::IndexExpr { object, index } => {
+            collect_called_fns_from_expr(object, acc);
+            collect_called_fns_from_expr(index, acc);
+        }
+        ExprIR::FieldAccessExpr { object, .. } | ExprIR::OptionalChainExpr { object, .. } => {
+            collect_called_fns_from_expr(object, acc);
+        }
+        ExprIR::MatchExpr { matched, arms } => {
+            collect_called_fns_from_expr(matched, acc);
+            for arm in arms {
+                for stmt in &arm.body.statements { collect_called_fns_from_stmt(stmt, acc); }
+            }
+        }
+        ExprIR::VariantLiteral { fields, .. } | ExprIR::StructExpr { fields, .. } => {
+            for (_, v) in fields { collect_called_fns_from_expr(v, acc); }
+        }
+        ExprIR::SpreadExpr { operand } => { collect_called_fns_from_expr(operand, acc); }
+        ExprIR::StoreFieldAccessExpr { call_args, .. } => {
+            for arg in call_args { collect_called_fns_from_expr(arg, acc); }
+        }
+        ExprIR::AwaitExpr { operand } => { collect_called_fns_from_expr(operand, acc); }
+        ExprIR::IdentifierExpr { .. } | ExprIR::LiteralExpr { .. } => {}
+    }
+}
