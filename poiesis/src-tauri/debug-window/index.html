@@ -74,7 +74,15 @@
 </style>
 </head>
 <body>
-<div id="root"></div>
+<!-- Sandboxed iframe for compiled OmniView output (P38: security isolation) -->
+<iframe id="omni-preview" sandbox="allow-scripts"
+  style="width:100vw;height:100vh;border:none;position:fixed;top:0;left:0;"
+  title="OmniView compiled output"></iframe>
+
+<!-- Inspector overlay (stays outside sandbox for security) -->
+<div id="inspector-overlay" style="position:fixed;top:0;left:0;pointer-events:none;z-index:99998;">
+  <div id="root"></div>
+</div>
 
 <!-- Floating Debug Ball -->
 <div id="debug-ball" title="Toggle inspector">🔍</div>
@@ -284,7 +292,9 @@
     compileInfo.textContent = 'Hot-replace listen FAILED: ' + JSON.stringify(err);
   });
 
-  // ═══ Compile result handler (full page replacement) ═══
+  // ═══ Compile result handler — renders into sandboxed iframe (P38) ═══
+  var omniPreview = document.getElementById('omni-preview');
+
   var compileCb = internals.transformCallback(function(e) {
     try {
       var payload = typeof e.payload === 'string' ? JSON.parse(e.payload) : e.payload;
@@ -295,32 +305,23 @@
         ' HTML:' + (payload.html ? payload.html.length + 'B' : '0') +
         ' CSS:' + (payload.css ? payload.css.length + 'B' : '0') + ')';
 
-      // Apply CSS
-      var styleEl = document.getElementById('omni-css');
-      if (!styleEl) { styleEl = document.createElement('style'); styleEl.id = 'omni-css'; document.head.appendChild(styleEl); }
-      styleEl.textContent = payload.css || '';
-
-      // Replace root HTML
-      rootEl.innerHTML = payload.html || '';
-
-      // Execute JS
-      var oldScript = document.getElementById('omni-js');
-      if (oldScript) oldScript.remove();
-      // Reset component registry before new JS runs
-      window.__omni_components = {};
-      if (payload.js) {
-        try {
-          var script = document.createElement('script');
-          script.id = 'omni-js';
-          script.textContent = payload.js;
-          document.body.appendChild(script);
-        } catch (jsErr) {
-          compileInfo.textContent += ' JS_ERR:' + jsErr;
-        }
+      // Build complete HTML document for sandboxed iframe
+      var doc = '<!DOCTYPE html>\n<html>\n<head>\n';
+      if (payload.css) {
+        doc += '<style>' + payload.css + '</style>\n';
       }
+      doc += '</head>\n<body>\n';
+      doc += (payload.html || '') + '\n';
+      if (payload.js) {
+        doc += '<script>' + payload.js + '</script>\n';
+      }
+      doc += '</body>\n</html>';
 
-      // Refresh inspector after new signals load
-      if (debugActive) setTimeout(refreshInspector, 150);
+      // Load into sandboxed iframe — compiled code runs isolated from Tauri APIs
+      omniPreview.srcdoc = doc;
+
+      // Note: inspector panel (signals, actions) cannot access sandboxed iframe
+      // content. Future enhancement: postMessage-based inspector bridge.
     } catch (err) {
       compileInfo.textContent = 'Handler error: ' + err.message;
     }
