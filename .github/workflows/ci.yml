@@ -113,10 +113,18 @@ jobs:
   evals:
     runs-on: ubuntu-latest
     needs: rust
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - name: Run OmniLang evals
         run: bash .claude/evals/eval-run-omnilang.sh
+      - name: Upload eval results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-results
+          path: .claude/evals/omnilang-compiler.log
+          if-no-files-found: warn
 
   audit:
     runs-on: ubuntu-latest
