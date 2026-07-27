@@ -1,8 +1,12 @@
 # ADR-009: P36 Codegen Parallelization — Cross-Backend Strategy
 
+> **Superseded in remediation cleanup (commit 9d30834).** Rationale: single-backend WASM compilation path is the production bottleneck; multi-target parallelization via rayon is YAGNI until profiling data shows codegen is the bottleneck.
+>
+> **Superseded by**: Remediation cleanup (2026-07-27) — `compile_multi_target` removed as unused
+
 ## Status
 
-Accepted
+Superseded
 
 ## Context
 

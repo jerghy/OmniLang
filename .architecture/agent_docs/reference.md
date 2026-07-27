@@ -90,7 +90,7 @@
 | 项目 | 状态 | 计划阶段 |
 |------|------|---------|
 | P35 Crate 拆分 | 立即执行 | Phase 3 Task 3.1 |
-| P36 Codegen 并行化 | 立即执行 | Phase 3 Task 3.2 |
+| P36 Codegen 并行化 | 已拒绝（ADR-009） | — |
 | P38b TAURI_INTERNALS | 立即执行（能力收紧 P1 + XSS 链 P2） | Phase 2 Tasks 2.1-2.3 |
 | P39 IR 优化 | 立即执行（MVP） | Phase 3 Task 3.3 |
 | P34 AI 补全 | 继续搁置 | — |
@@ -133,10 +133,10 @@ cargo clippy --lib -p omnilang 2>&1 | tail -5                       # 查看剩�
 ### CI 未运行某些检查
 
 本项目已知 CI 缺口：
-- `cargo clippy` 未在 CI 中运行（Phase 2 Task 2.5 修复）
+- `cargo clippy` 已在 CI 中运行（`ci.yml:26`：`cargo clippy --workspace -- -D warnings`）
 - `cargo fmt --check` 未在 CI 中运行（同上）
 - `cargo audit` 缺少 `--deny warnings`（同上）
-- eval 脚本未接入 CI
+- eval 在 CI 中运行但结果未持久化到 artifact（已修复——见 ci.yml:107-113）
 
 ---
 
@@ -159,7 +159,7 @@ cargo clippy --lib -p omnilang 2>&1 | tail -5                       # 查看剩�
 | # | 策略 | ADR | 禁止建议 |
 |---|------|-----|---------|
 | 6 | **P33 source_span 仅填充 6 站点**（ComponentIR/StoreIR/3×FunctionIR/HeroIntent）。29 个延迟；ModuleIR/IRProgram 物理上无法填充 | ADR-008 | ❌ 禁止建议"填充所有 37 个结构体的 source_span" |
-| 7 | **P36 跨后端并行**（`compile_multi_target` + rayon），**不是**跨组件并行 | ADR-009 | ❌ 禁止建议"在单个后端内并行化组件代码生成" |
+| 7 | ~~P36 跨后端并行（`compile_multi_target` + rayon）~~  | ADR-009（已作废） | ~~❌ 禁止建议"在单个后端内并行化组件代码生成"~~ |
 | 8 | **P38b：修复 XSS 链 + 能力收紧**。`__TAURI_INTERNALS__` **不能完全剥离**（调试窗口需要事件 IPC 通信）；真正有价值的是**能力收紧**（`core:default`→`core:event:allow-emit`+`core:event:allow-listen`）。postMessage/innerHTML 的安全风险被**严重高估**——调试窗口加载的是本地开发者自己写的 .omni 应用，运行在本地 Tauri webview 里，不存在远程攻击面。详见下方「调试窗口安全威胁模型」。 | ADR-010 | ❌ 禁止建议"完全移除 `__TAURI_INTERNALS__`"；❌ 禁止将 postMessage/innerHTML 标记为 CRITICAL |
 | 9 | **P39 MVP 是消除未使用计算属性**（~200行），暂不消除信号 | ADR-010 | ❌ 禁止在 motion 95% 覆盖率达成前建议"消除未使用信号" |
 | 10 | P35 Crate 拆分为 `omnilang-core` + `omnilang-codegen-omniview` + facade。7 个暂停后端保持不动 | ADR-006, ADR-009 | ❌ 禁止建议"一次拆分所有 9 个后端" |
