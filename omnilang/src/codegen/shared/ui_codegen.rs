@@ -17,7 +17,6 @@
 //! Implementations delegate to existing methods on each backend —
 //! code is NOT moved into the trait methods (that is a follow-up refactor).
 
-use crate::codegen::writer::CompiledFile;
 use crate::ir::{ComponentIR, IRProgram, StoreIR};
 
 /// Trait for UI-target code generators (React, OmniView, Vue, etc.).
@@ -63,44 +62,3 @@ pub trait UiCodegen {
     }
 }
 
-/// Default implementations for building output files from trait methods.
-///
-/// These are provided as free functions rather than default trait methods
-/// so backends can opt in by calling them explicitly, or override completely.
-pub mod defaults {
-    use super::*;
-
-    /// Build component output files using the trait's code + CSS methods.
-    pub fn build_component_output<T: UiCodegen + ?Sized>(
-        this: &T,
-        name: &str,
-        comp: &ComponentIR,
-        ir: &IRProgram,
-    ) -> Vec<CompiledFile> {
-        let code = this.generate_component_code(name, comp, ir);
-        let css = this.generate_component_css(name, comp);
-        let mut files = vec![CompiledFile {
-            path: format!("{}{}", name, this.component_file_extension()),
-            content: code,
-        }];
-        if !css.is_empty() {
-            files.push(CompiledFile {
-                path: format!("{}.module.css", name),
-                content: css,
-            });
-        }
-        files
-    }
-
-    /// Build store output files using the trait's store code method.
-    pub fn build_store_output<T: UiCodegen + ?Sized>(
-        this: &T,
-        name: &str,
-        store: &StoreIR,
-    ) -> Vec<CompiledFile> {
-        vec![CompiledFile {
-            path: format!("use{}{}", name, this.store_file_extension()),
-            content: this.generate_store_code(name, store),
-        }]
-    }
-}
