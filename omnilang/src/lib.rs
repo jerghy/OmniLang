@@ -8,9 +8,11 @@
 //!   5. Codegen / JSON serialization
 
 // ── Facade-specific modules (NOT in omnilang-core) ──
-pub mod analyse;
 pub mod codegen;
 pub mod ffi;
+
+// ── Re-exported from omnilang-core (P35 dedup) ──
+pub use omnilang_core::analyse;
 
 // ── Re-exported from omnilang-core (P35 dedup) ──
 pub use omnilang_core::discovery;
