@@ -9,7 +9,7 @@ use crate::ir::*;
 ///
 /// This map can be shared across per-component codegen calls to avoid
 /// per-component cloning of `ComponentIR` values.
-pub(crate) fn build_component_map(ir: &IRProgram) -> FxHashMap<String, ComponentIR> {
+pub fn build_component_map(ir: &IRProgram) -> FxHashMap<String, ComponentIR> {
     ir.all_components()
         .into_iter()
         .map(|(n, c)| (n.to_string(), c.clone()))
@@ -24,7 +24,7 @@ pub(crate) fn build_component_map(ir: &IRProgram) -> FxHashMap<String, Component
 ///
 /// `constructor_name` is the constructor keyword — the class name in Dart
 /// (e.g. `"MyComponent"`) or `"constructor"` in JavaScript/TypeScript.
-pub(crate) fn emit_constructor_init(
+pub fn emit_constructor_init(
     w: &mut CodeWriter,
     constructor_name: &str,
     comp: &ComponentIR,
@@ -49,7 +49,7 @@ pub(crate) fn emit_constructor_init(
 /// or `"constructor"` in JavaScript/TypeScript.
 ///
 /// Returns early without emitting anything when the store has no signals.
-pub(crate) fn emit_store_constructor_init(
+pub fn emit_store_constructor_init(
     w: &mut CodeWriter,
     constructor_name: &str,
     store: &StoreIR,

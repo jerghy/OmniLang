@@ -10,19 +10,6 @@
 //! | `RustTypeFormatter` | Rust (Rust, Dioxus) | `i32`, `f64`, `String`, `()` |
 //! | `PythonTypeFormatter` | Python | `int`, `float`, `str`, `None` |
 
-#[cfg_attr(
-    not(any(
-        feature = "codegen-javascript",
-        feature = "codegen-react",
-        feature = "codegen-vue",
-        feature = "codegen-dart",
-        feature = "codegen-flutter",
-        feature = "codegen-rust",
-        feature = "codegen-dioxus",
-        feature = "codegen-python"
-    )),
-    allow(unused_imports)
-)]
 use crate::ir::*;
 
 // ═══════════════════════════════════════════════════════════
@@ -30,17 +17,7 @@ use crate::ir::*;
 // ═══════════════════════════════════════════════════════════
 
 /// Trait for mapping OmniLang types to a target language type representation.
-#[cfg(any(
-    feature = "codegen-javascript",
-    feature = "codegen-react",
-    feature = "codegen-vue",
-    feature = "codegen-dart",
-    feature = "codegen-flutter",
-    feature = "codegen-rust",
-    feature = "codegen-dioxus",
-    feature = "codegen-python"
-))]
-pub(crate) trait FormatType {
+pub trait FormatType {
     /// Map an OmniLang `kind` + `type_args` to the target language type string.
     fn format_type(&self, kind: &str, type_args: &[TypeIR]) -> String;
 }
@@ -50,18 +27,8 @@ pub(crate) trait FormatType {
 // ═══════════════════════════════════════════════════════════
 
 /// JS-family type formatter.
-#[cfg(any(
-    feature = "codegen-javascript",
-    feature = "codegen-react",
-    feature = "codegen-vue"
-))]
-pub(crate) struct JsTypeFormatter;
+pub struct JsTypeFormatter;
 
-#[cfg(any(
-    feature = "codegen-javascript",
-    feature = "codegen-react",
-    feature = "codegen-vue"
-))]
 impl FormatType for JsTypeFormatter {
     fn format_type(&self, kind: &str, type_args: &[TypeIR]) -> String {
         match kind {
@@ -117,10 +84,8 @@ impl FormatType for JsTypeFormatter {
 // ═══════════════════════════════════════════════════════════
 
 /// Dart-family type formatter.
-#[cfg(any(feature = "codegen-dart", feature = "codegen-flutter"))]
-pub(crate) struct DartTypeFormatter;
+pub struct DartTypeFormatter;
 
-#[cfg(any(feature = "codegen-dart", feature = "codegen-flutter"))]
 impl FormatType for DartTypeFormatter {
     fn format_type(&self, kind: &str, type_args: &[TypeIR]) -> String {
         match kind {
@@ -177,10 +142,8 @@ impl FormatType for DartTypeFormatter {
 // ═══════════════════════════════════════════════════════════
 
 /// Rust-family type formatter.
-#[cfg(any(feature = "codegen-rust", feature = "codegen-dioxus"))]
-pub(crate) struct RustTypeFormatter;
+pub struct RustTypeFormatter;
 
-#[cfg(any(feature = "codegen-rust", feature = "codegen-dioxus"))]
 impl FormatType for RustTypeFormatter {
     fn format_type(&self, kind: &str, type_args: &[TypeIR]) -> String {
         match kind {
@@ -241,10 +204,8 @@ impl FormatType for RustTypeFormatter {
 // ═══════════════════════════════════════════════════════════
 
 /// Python type formatter.
-#[cfg(feature = "codegen-python")]
-pub(crate) struct PythonTypeFormatter;
+pub struct PythonTypeFormatter;
 
-#[cfg(feature = "codegen-python")]
 impl FormatType for PythonTypeFormatter {
     fn format_type(&self, kind: &str, type_args: &[TypeIR]) -> String {
         match kind {

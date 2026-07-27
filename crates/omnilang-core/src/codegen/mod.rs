@@ -1,7 +1,9 @@
 //! Codegen module -- multi-target code generation from Intent IR.
 //!
-//! This is the core crate's shared codegen infrastructure.
-//! Individual codegen backends live in separate crates.
+//! Currently supported targets:
+//! - OmniView: JS/HTML/CSS with inline signal runtime
+//! - Python, JavaScript, Rust, Dart: pure-logic codegen
+//! - React, Vue, Dioxus, Flutter: framework-based codegen
 
 pub mod event;
 pub mod helpers;
@@ -14,7 +16,10 @@ pub mod traits;
 pub mod writer;
 
 use crate::ir::IRProgram;
-pub use event::{emit_event_object, field_extract_js};
+#[cfg(any(feature = "codegen-omniview", feature = "codegen-vue"))]
+pub(crate) use event::emit_event_object;
+#[cfg(any(feature = "codegen-react", feature = "codegen-vue"))]
+pub(crate) use helpers::generate_css_style_block;
 pub use helpers::{
     binary_op_to_str, camel_to_kebab, camel_to_separated, capitalize_first, format_block_as_expr,
     format_css_value,
@@ -26,7 +31,6 @@ pub use json::{
 };
 use rustc_hash::FxHashMap;
 pub use sanitize::{sanitize_css_value, sanitize_js_ident, sanitize_module_name};
-pub use shared::html::{to_html_attr, to_html_tag};
 pub use shared::ui_codegen::UiCodegen;
 pub use stdlib::{try_format_stdlib_call, validate_stdlib_imports};
 pub use target::Target;
@@ -35,8 +39,9 @@ pub use writer::{CodeWriter, CompileOutput, CompiledFile};
 
 /// Compile IR to the specified target.
 ///
-/// Routes to each target's codegen module. In the core crate, no backends
-/// are compiled in. Backend crates provide their own `Codegen` implementations.
+/// Routes to each target's codegen module. All 10 targets are now
+/// implemented (OmniView, Python, JavaScript, TypeScript, Rust, Dart,
+/// React, Vue, Dioxus, Flutter).
 #[must_use]
 pub fn compile(
     ir: &IRProgram,
@@ -55,16 +60,49 @@ pub fn compile(
     }
     #[allow(unreachable_patterns)]
     let mut output = match target {
-        // No backends compiled into the core crate
+        #[cfg(feature = "codegen-omniview")]
+        Target::OmniView => omniview::OmniViewCodegen::default().generate(ir, source_files),
+        #[cfg(feature = "codegen-python")]
+        Target::Python => python::PythonCodegen.generate(ir, source_files),
+        #[cfg(feature = "codegen-javascript")]
+        Target::JavaScript => {
+            javascript::JavaScriptCodegen::new(false).generate(ir, source_files)
+        }
+        #[cfg(feature = "codegen-javascript")]
+        Target::TypeScript => {
+            javascript::JavaScriptCodegen::new(true).generate(ir, source_files)
+        }
+        #[cfg(feature = "codegen-rust")]
+        Target::Rust => rust::RustCodegen.generate(ir, source_files),
+        #[cfg(feature = "codegen-dart")]
+        Target::Dart => dart::DartCodegen.generate(ir, source_files),
+        #[cfg(feature = "codegen-react")]
+        Target::React => {
+            let mode: react::ReactStoreMode = store_mode
+                .unwrap_or("hooks")
+                .parse()
+                .unwrap_or_default();
+            react::ReactCodegen { store_mode: mode }.generate(ir, source_files)
+        }
+        #[cfg(feature = "codegen-vue")]
+        Target::Vue => vue::VueCodegen.generate(ir, source_files),
+        #[cfg(feature = "codegen-dioxus")]
+        Target::Dioxus => dioxus::DioxusCodegen.generate(ir, source_files),
+        #[cfg(feature = "codegen-flutter")]
+        Target::Flutter => flutter::FlutterCodegen.generate(ir, source_files),
         _ => CompileOutput::error(format!(
-            "Backend for '{:?}' is not enabled (use the corresponding codegen crate)",
+            "Backend for '{:?}' is not enabled (compile with the corresponding codegen-* feature flag)",
             target
         )),
     };
-    // Thread source_map from IR through to CompileOutput
-    output.source_map = ir.source_map.values().cloned().collect();
+    // Thread source_map from IR through to CompileOutput — extend to preserve
+    // per-element (NID-level) entries produced by OmniView codegen
+    output.source_map.extend(ir.source_map.values().cloned());
     output
 }
 
-// tests_property module removed — it contained backend-specific proptest code
-// that is not part of the core crate.
+#[cfg(test)]
+mod tests_property;
+
+#[cfg(all(test, any(feature = "codegen-omniview", feature = "codegen-react", feature = "codegen-flutter")))]
+mod tests_regression;

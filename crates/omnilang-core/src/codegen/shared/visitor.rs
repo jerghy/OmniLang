@@ -15,13 +15,7 @@ use crate::ir::*;
 /// language-specific output, or override an entire collection method
 /// (e.g., Python's `generate_functions` to add `if __name__ == "__main__"`).
 ///
-/// # Note
-/// `#[allow(dead_code)]` is required because no codegen backends are enabled
-/// by default (Cargo.toml `default = []`). Each backend is behind a feature
-/// flag — the trait is only used when at least one of `codegen-dart`,
-/// `codegen-javascript`, `codegen-rust`, or `codegen-python` is active.
-#[allow(dead_code)]
-pub(crate) trait CodegenVisitor {
+pub trait CodegenVisitor {
     /// Generate code for all containers in a module. Default iterates all 6 container types.
     fn generate_module(&mut self, w: &mut CodeWriter, module: &ModuleIR) {
         self.generate_type_aliases(w, module);

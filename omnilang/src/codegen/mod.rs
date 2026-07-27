@@ -113,8 +113,9 @@ pub fn compile(
             target
         )),
     };
-    // Thread source_map from IR through to CompileOutput
-    output.source_map = ir.source_map.values().cloned().collect();
+    // Thread source_map from IR through to CompileOutput — extend to preserve
+    // per-element (NID-level) entries produced by OmniView codegen
+    output.source_map.extend(ir.source_map.values().cloned());
     output
 }
 

@@ -1,6 +1,6 @@
 //! Lowering for expressions.
 //!
-//! Includes: `lower_expr`, `lower_expr_to_json`, `lower_expr_to_json_from_ir`.
+//! Includes: `lower_expr`, `lower_expr_to_json_from_ir`.
 
 use super::stmt::lower_block;
 use crate::ir::types::*;
@@ -536,15 +536,6 @@ pub(crate) fn lower_expr(
                 value: serde_json::Value::Null,
             }
         }
-    }
-}
-
-/// Lower an expression to a serde_json::Value (for literal extraction).
-pub(super) fn lower_expr_to_json(expr: &Expr, semantics: &mut SemanticResult) -> serde_json::Value {
-    match lower_expr(expr, &FxHashMap::default(), None, semantics) {
-        ExprIR::LiteralExpr { value } => value,
-        ExprIR::IdentifierExpr { name, .. } => serde_json::Value::String(name),
-        other => serde_json::Value::String(format!("{:?}", other)),
     }
 }
 

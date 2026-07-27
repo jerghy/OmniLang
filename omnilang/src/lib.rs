@@ -25,6 +25,7 @@ pub mod validate;
 use crate::codegen::omniview::{ComponentOutput, StyleResolveResult};
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
+
 use ts_rs::TS;
 
 /// A single symbol from semantic analysis — variable, signal, prop, store, etc.
@@ -563,6 +564,48 @@ pub fn compile_multi_to_target(
     })
 }
 
+/// Compile IR to multiple targets in parallel.
+///
+/// Phase 1-3 (parse, semantic, IR lowering) run once.
+/// Phase 4 (codegen) runs in parallel per target via rayon.
+/// All codegen backends are Send+Sync (verified: zero RefCell/Cell/Mutex in codegen/).
+#[must_use]
+pub fn compile_multi_target(
+    sources: FxHashMap<String, String>,
+    targets: Vec<codegen::Target>,
+    path_mapping: FxHashMap<String, String>,
+    store_mode: Option<&str>,
+) -> FxHashMap<codegen::Target, codegen::CompileOutput> {
+    use rayon::prelude::*;
+
+    // Phase 1-3: Parse + analyse once (already parallel internally via rayon)
+    let analysis = crate::analyse::analyse_multi(&sources, &path_mapping);
+
+    // If no IR was produced, return errors for all targets
+    let ir = match analysis.ir {
+        Some(ir) => ir,
+        None => {
+            let msg = format!(
+                "Analysis failed with {} diagnostics",
+                analysis.diagnostics.len()
+            );
+            return targets
+                .into_iter()
+                .map(|t| (t, codegen::CompileOutput::error(msg.clone())))
+                .collect();
+        }
+    };
+
+    // Phase 4: Codegen in parallel per target
+    targets
+        .par_iter()
+        .map(|&target| {
+            let output = codegen::compile(&ir, target, &sources, store_mode);
+            (target, output)
+        })
+        .collect()
+}
+
 // ═══════════════════════════════════════════════════════
 // TS Export (generates TypeScript type definitions)
 // ═══════════════════════════════════════════════════════
@@ -651,5 +694,40 @@ mod source_map_integration_tests {
             "compile_to_target_json output should contain sourceMap key.\nGot: {}",
             json
         );
+    }
+}
+
+#[cfg(test)]
+mod compile_multi_target_tests {
+    use crate::codegen::Target;
+    use rustc_hash::FxHashMap;
+
+    #[test]
+    fn test_compile_multi_target_parallel() {
+        let mut sources = FxHashMap::default();
+        sources.insert(
+            "test.omni".to_string(),
+            r#"
+            component App {
+                view { <div>"Hello"</div> }
+            }
+            "#
+            .to_string(),
+        );
+
+        let targets = vec![Target::OmniView, Target::React];
+        let results = crate::compile_multi_target(
+            sources,
+            targets,
+            FxHashMap::default(),
+            None,
+        );
+        assert_eq!(results.len(), 2, "should return one result per target");
+        for (target, output) in &results {
+            assert!(
+                !output.files.is_empty() || !output.errors.is_empty(),
+                "Target {target:?} produced neither files nor errors"
+            );
+        }
     }
 }

@@ -1,0 +1,19 @@
+---
+source: omnilang/src/codegen/omniview/tests_regression/motion.rs
+expression: "&output"
+---
+// === mount_js ===
+// @enter trigger
+(function() {
+  const el = __omni_el("el-paused-001");
+  if (el) {
+   const anim = __omni_motion_fadeIn(el, { trigger: "enter" });
+   __omni_animations.set("el-paused-001_enter", anim);
+   if (el.offsetParent !== null) anim.play();
+  }
+})();
+
+// === js ===
+
+// === enter_trigger_nids ===
+[("el-paused-001", "fadeIn", "enter")]

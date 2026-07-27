@@ -4,11 +4,15 @@
 //! (Pointer, Touch, Wheel, Key, Scroll, Input, etc.) used by multiple
 //! codegen backends (OmniView, Vue, JavaScript).
 
+#[cfg(any(feature = "codegen-omniview", feature = "codegen-vue"))]
 use crate::ir::event_data_schema;
+#[cfg(any(feature = "codegen-omniview", feature = "codegen-vue"))]
 use crate::ir::EventDataKind;
 
 /// Emit JS extraction code for a single event data field.
 /// Returns (extraction_expression, fallback_value_literal).
+/// `pub` so other codegen targets (Vue, JS) can reuse the DOM-based mapping.
+#[cfg(any(feature = "codegen-omniview", feature = "codegen-vue"))]
 #[must_use]
 pub fn field_extract_js(kind: &EventDataKind, field: &str, raw: &str) -> (String, String) {
     match (kind, field) {
@@ -150,6 +154,8 @@ pub fn field_extract_js(kind: &EventDataKind, field: &str, raw: &str) -> (String
 
 /// Emit a JS object literal for event data extraction from a raw event variable.
 /// Only emits fields in `used_fields` (or all fields from schema if None).
+/// `pub` so other codegen targets (Vue, JS) can reuse the DOM-based mapping.
+#[cfg(any(feature = "codegen-omniview", feature = "codegen-vue"))]
 #[must_use]
 pub fn emit_event_object(
     event_data: &Option<EventDataKind>,

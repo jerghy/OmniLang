@@ -307,3 +307,53 @@ fn serde_roundtrip_binary_op_expr_in_context() {
         _ => panic!("Expected BinaryOpExpr"),
     }
 }
+
+// ── TypeKind serde round-trip tests ──
+
+#[test]
+fn test_typekind_serialize_preserves_type_args() {
+    let array_string = TypeKind::Named {
+        name: "Array".into(),
+        type_args: vec![TypeKind::Named {
+            name: "String".into(),
+            type_args: vec![],
+        }],
+    };
+
+    let json = serde_json::to_string(&array_string).expect("serialize");
+    assert!(
+        json.contains("\"name\""),
+        "Expected structured JSON: {json}"
+    );
+    assert!(
+        json.contains("\"type_args\""),
+        "Expected type_args in: {json}"
+    );
+
+    let roundtripped: TypeKind = serde_json::from_str(&json).expect("deserialize");
+    assert_eq!(
+        roundtripped, array_string,
+        "Round-trip must preserve type_args"
+    );
+}
+
+#[test]
+fn test_typekind_deserialize_backward_compat() {
+    let old_json = r#""Array""#;
+    let ty: TypeKind = serde_json::from_str(old_json).expect("deserialize old format");
+    assert_eq!(
+        ty,
+        TypeKind::Named {
+            name: "Array".into(),
+            type_args: vec![],
+        },
+        "Old flat-string format must still deserialize"
+    );
+}
+
+#[test]
+fn test_typekind_simple_variants_still_flat() {
+    let int_ty = TypeKind::Int;
+    let json = serde_json::to_string(&int_ty).expect("serialize");
+    assert_eq!(json, r#""int""#, "Simple types stay flat strings");
+}

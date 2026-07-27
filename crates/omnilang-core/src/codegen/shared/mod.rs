@@ -3,12 +3,11 @@
 //! Contains the `FormatExpr`, `FormatStmt`, `FormatType` traits and their
 //! language-family implementations.
 
-pub(crate) mod cache;
 pub mod expr;
-pub(crate) mod generator;
-pub(crate) mod html;
-pub(crate) mod inline_handler;
-pub(crate) mod stmt;
-pub(crate) mod types;
+pub mod generator;
+pub mod html;
+pub mod inline_handler;
+pub mod stmt;
+pub mod types;
 pub mod ui_codegen;
-pub(crate) mod visitor;
+pub mod visitor;

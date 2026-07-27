@@ -9,7 +9,7 @@ use crate::ir::StatementIR;
 
 /// Configuration for building an inline handler (closure / arrow function) string
 /// from a `BlockIR` body.
-pub(crate) struct InlineHandlerConfig {
+pub struct InlineHandlerConfig {
     /// Opening delimiter, e.g. `"() => {\n"` or `"() {"`.
     pub opener: String,
     /// Closing delimiter, e.g. `"\n      }"` or `"}"`.
@@ -26,7 +26,7 @@ pub(crate) struct InlineHandlerConfig {
 /// Build an inline handler (closure / arrow function / callback) string
 /// from a `BlockIR` body, parameterised by `config` and an `emit_stmt`
 /// callback that renders each statement into the `CodeWriter`.
-pub(crate) fn build_inline_handler(
+pub fn build_inline_handler(
     body: &BlockIR,
     config: &InlineHandlerConfig,
     emit_stmt: impl Fn(&mut CodeWriter, &StatementIR),
