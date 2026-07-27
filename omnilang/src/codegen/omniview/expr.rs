@@ -228,9 +228,6 @@ impl OmniViewGenerator {
             ExprIR::SpreadExpr { operand } => {
                 format!("...{}", self.expr_to_js(operand))
             }
-            ExprIR::SpreadExpr { operand } => {
-                format!("...{}", self.expr_to_js(operand))
-            }
             ExprIR::StructExpr { fields, .. } => {
                 let entries: Vec<String> = fields
                     .iter()

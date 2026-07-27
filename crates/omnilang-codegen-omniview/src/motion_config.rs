@@ -15,6 +15,7 @@ impl OmniViewGenerator {
     }
 
     /// Convert a KeyframeIR to a JS config object fragment.
+    #[allow(dead_code)]
     pub(super) fn keyframe_to_config(&self, kf: &KeyframeIR) -> String {
         let mut parts: Vec<String> = Vec::new();
 
@@ -110,61 +111,6 @@ impl OmniViewGenerator {
             parts.push(format!("\"callbacks\": {{{}}}", callbacks.join(", ")));
         }
 
-        parts.join(", ")
-    }
-
-    /// Convert a TimelineIR body to a JS config fragment.
-    pub(super) fn timeline_body_to_config(&self, tl: &TimelineIR) -> String {
-        // For inline timeline in a motion definition, we serialize as a
-        // keyframe-like structure. The timeline orchestration is handled
-        // at the element trigger level via emit_timeline_js.
-        let mut parts: Vec<String> = Vec::new();
-        parts.push("\"type\": \"timeline\"".into());
-        if !tl.items.is_empty() {
-            parts.push(format!("\"itemCount\": {}", tl.items.len()));
-        }
-        let playback_parts = self.playback_to_config(&tl.playback);
-        parts.extend(playback_parts);
-        parts.join(", ")
-    }
-
-    /// Convert a CallbackBodyIR to a JS config fragment.
-    pub(super) fn callback_to_config(&self, cb: &CallbackBodyIR) -> String {
-        let mut parts: Vec<String> = Vec::new();
-        // `over` duration
-        match &cb.over {
-            ExprIR::LiteralExpr { value } => {
-                if let Some(n) = value.as_f64() {
-                    parts.push(format!("\"over\": {}", n));
-                }
-            }
-            _ => {
-                let js = self.expr_to_js(&cb.over);
-                parts.push(format!("\"over\": {}", js));
-            }
-        }
-        // Callback functions
-        if !cb.callbacks.is_empty() {
-            let callbacks: Vec<String> = cb
-                .callbacks
-                .iter()
-                .map(|(kind, expr)| {
-                    let name = match kind {
-                        CallbackKindIR::OnStart => "onStart",
-                        CallbackKindIR::OnUpdate => "onUpdate",
-                        CallbackKindIR::OnComplete => "onComplete",
-                        CallbackKindIR::OnRepeat => "onRepeat",
-                        CallbackKindIR::OnInterrupt => "onInterrupt",
-                    };
-                    // Callback body is an expression that becomes a function body
-                    let body_js = self.expr_to_js(expr);
-                    format!("\"{}\": function() {{ {} }}", name, body_js)
-                })
-                .collect();
-            parts.push(format!("\"callbacks\": {{{}}}", callbacks.join(", ")));
-        }
-        let playback_parts = self.playback_to_config(&cb.playback);
-        parts.extend(playback_parts);
         parts.join(", ")
     }
 

@@ -18,7 +18,7 @@ impl OmniViewGenerator {
         let mut labels: Vec<(String, f64)> = Vec::new();
         let mut child_idx: usize = 0;
 
-        for (_i, item) in timeline.items.iter().enumerate() {
+        for item in timeline.items.iter() {
             match &item.kind {
                 TimelineItemKindIR::Direction {
                     dir,

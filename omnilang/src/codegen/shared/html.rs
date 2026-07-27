@@ -35,6 +35,7 @@ pub(crate) fn to_html_tag(tag: &str) -> String {
 ///
 /// Handles React-specific casing (`className` -> `class`, `htmlFor` -> `for`)
 /// as well as Omni-to-HTML attribute renames.
+#[allow(dead_code)]
 pub(crate) fn to_html_attr(prop_name: &str) -> &str {
     match prop_name {
         "className" | "class" => "class",

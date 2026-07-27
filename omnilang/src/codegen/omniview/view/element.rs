@@ -198,13 +198,12 @@ impl OmniViewGenerator {
         // ── Expand design variant binding into CSS class names ──
         // Variant bindings are stored as a synthetic `_design_variant` prop
         // during IR lowering, encoded as a JSON object.
-        if let Some(variant_prop) = el.props.get("_design_variant") {
-            if let ExprIR::LiteralExpr { value } = variant_prop {
-                if let (Some(design_name), Some(variant_name), Some(dim_values)) = (
-                    value.get("design_name").and_then(|v| v.as_str()),
-                    value.get("variant_name").and_then(|v| v.as_str()),
-                    value.get("dimension_values"),
-                ) {
+        if let Some(ExprIR::LiteralExpr { value }) = el.props.get("_design_variant") {
+            if let (Some(design_name), Some(variant_name), Some(dim_values)) = (
+                value.get("design_name").and_then(|v| v.as_str()),
+                value.get("variant_name").and_then(|v| v.as_str()),
+                value.get("dimension_values"),
+            ) {
                     let dim_map: FxHashMap<String, String> = dim_values
                         .as_object()
                         .map(|obj| {
@@ -236,7 +235,6 @@ impl OmniViewGenerator {
                             design_name
                         ));
                     }
-                }
             }
         }
 
@@ -720,6 +718,7 @@ impl OmniViewGenerator {
     /// class map dynamic bindings, and source map recording.
     ///
     /// This is the second half of `element_to_html`, extracted as its own method.
+    #[allow(clippy::too_many_arguments)]
     fn emit_element_html_close(
         &mut self,
         el: &ElementIR,
@@ -1009,7 +1008,7 @@ impl OmniViewGenerator {
             }
         }
 
-        let result = self.emit_element_html_close(
+        self.emit_element_html_close(
             el,
             &nid,
             &html_tag,
@@ -1017,7 +1016,6 @@ impl OmniViewGenerator {
             &class_name_parts,
             &interp_effects,
             indent,
-        );
-        result
+        )
     }
 }

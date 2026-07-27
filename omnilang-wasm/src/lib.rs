@@ -240,9 +240,9 @@ pub fn resolve_styles_multi(sources: JsValue, path_mapping: JsValue) -> JsValue 
     to_js_value(&omnilang::resolve_styles_multi(sources_map, path_map))
 }
 
-/// Thread-local incremental analysis cache that persists across WASM calls
-/// within the same module lifetime.  This is the backing store for the
-/// serialized cache_state string that flows through the JS side.
+// Thread-local incremental analysis cache that persists across WASM calls
+// within the same module lifetime.  This is the backing store for the
+// serialized cache_state string that flows through the JS side.
 thread_local! {
     static ANALYSIS_CACHE: RefCell<IncrementalCache> = RefCell::new(IncrementalCache::new());
 }
@@ -476,6 +476,7 @@ pub fn compile_multi_to_omniview(sources: JsValue, editor_mode: bool, debug_mode
 
 /// Stateful compiler instance that caches sources and compilation results across calls.
 #[wasm_bindgen]
+#[derive(Default)]
 pub struct OmniCompiler {
     sources: FxHashMap<String, String>,
     cached_compile_result: Option<(bool, bool, JsValue)>, // (editor_mode, debug_mode, result JsValue)

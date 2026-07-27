@@ -22,7 +22,6 @@ pub enum DiscoveryMode {
 /// # Errors
 ///
 /// Returns `Err(String)` if the root path does not exist or no .omni files are found.
-#[must_use]
 pub fn discover_omni_sources(
     root: &Path,
     mode: DiscoveryMode,

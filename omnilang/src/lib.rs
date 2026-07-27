@@ -612,7 +612,7 @@ pub fn compile_multi_target(
 // TS Export (generates TypeScript type definitions)
 // ═══════════════════════════════════════════════════════
 
-/// Export all `#[derive(TS)]` types as TypeScript definition files.
+// Export all `#[derive(TS)]` types as TypeScript definition files.
 // ── Code-block parsing ──────────────────────────────────────
 
 /// Result of parsing code-block source into structured AST statements.

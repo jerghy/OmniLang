@@ -650,8 +650,7 @@ impl OmniViewGenerator {
 // Value Serialization
 // ══════════════════════════════════════════════════════════
 
-/// Convert a serde_json::Value to JavaScript syntax.
-
+// Convert a serde_json::Value to JavaScript syntax.
 // ═══════════════════════════════════════════════════════════
 // UiCodegen trait implementation — thin delegation to existing functions
 // ═══════════════════════════════════════════════════════════

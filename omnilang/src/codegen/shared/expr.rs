@@ -83,6 +83,7 @@ pub(crate) trait FormatExpr {
     }
 
     /// Whether TypeScript-style type annotations should be emitted.
+    #[allow(dead_code)]
     fn ts_mode(&self) -> bool {
         false
     }

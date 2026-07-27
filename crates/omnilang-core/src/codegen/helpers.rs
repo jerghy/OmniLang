@@ -4,6 +4,7 @@
 //! and expression block helpers used by multiple backends.
 
 use crate::codegen::sanitize_css_value;
+#[cfg(any(feature = "codegen-react", feature = "codegen-vue"))]
 use crate::codegen::CodeWriter;
 
 /// Map an OMNI binary operator IR to the target language's operator symbol.

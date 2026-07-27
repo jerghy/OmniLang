@@ -390,33 +390,38 @@ pub(super) fn generate_statement_tsx_with_mode(
 ) {
     // Intercept array_push / array_pop calls on signals — these should
     // be emitted as setter-based mutations, not pure expressions.
-    if let StatementIR::ExprStmtIR { expr } = stmt {
-        if let ExprIR::CallExpr { name, args } = expr {
-            if name == "array_push" || name == "array_pop" {
-                if let Some(ExprIR::IdentifierExpr {
-                    name: target_name, ..
-                }) = args.first()
-                {
-                    if signal_names.contains(target_name.as_str()) {
-                        let setter = format!("set{}", capitalize_first(target_name));
-                        match name.as_str() {
-                            "array_push" => {
-                                let item = args
-                                    .get(1)
-                                    .map(format_expr_ir_tsx)
-                                    .unwrap_or_else(|| "undefined".into());
-                                w.emit_fmt(format_args!(
-                                    "{}(prev => [...prev, {}]);",
-                                    setter, item
-                                ));
-                                return;
-                            }
-                            "array_pop" => {
-                                w.emit_fmt(format_args!("{}(prev => prev.slice(0, -1));", setter));
-                                return;
-                            }
-                            _ => {}
+    if let StatementIR::ExprStmtIR {
+        expr:
+            ExprIR::CallExpr {
+                name,
+                args,
+            },
+    } = stmt
+    {
+        if name == "array_push" || name == "array_pop" {
+            if let Some(ExprIR::IdentifierExpr {
+                name: target_name, ..
+            }) = args.first()
+            {
+                if signal_names.contains(target_name.as_str()) {
+                    let setter = format!("set{}", capitalize_first(target_name));
+                    match name.as_str() {
+                        "array_push" => {
+                            let item = args
+                                .get(1)
+                                .map(format_expr_ir_tsx)
+                                .unwrap_or_else(|| "undefined".into());
+                            w.emit_fmt(format_args!(
+                                "{}(prev => [...prev, {}]);",
+                                setter, item
+                            ));
+                            return;
                         }
+                        "array_pop" => {
+                            w.emit_fmt(format_args!("{}(prev => prev.slice(0, -1));", setter));
+                            return;
+                        }
+                        _ => {}
                     }
                 }
             }

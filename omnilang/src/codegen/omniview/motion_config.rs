@@ -20,6 +20,7 @@ impl OmniViewGenerator {
     /// NOTE: Only used by tests (`tests_regression/motion.rs:533`).
     /// Production code uses `keyframe_to_animate_call` instead.
     /// TODO: Migrate test to `keyframe_to_animate_call` and delete this.
+    #[allow(dead_code)]
     pub(super) fn keyframe_to_config(&self, kf: &KeyframeIR) -> String {
         let mut parts: Vec<String> = Vec::new();
 

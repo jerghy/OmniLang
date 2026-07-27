@@ -549,35 +549,6 @@ fn rewrite_signal_refs_for_zustand(expr_str: &str, signal_names: &FxHashSet<Stri
     result
 }
 
-/// Check if any statement in a block mutates any of the given store signal names.
-fn block_mutates_store_signal(block: &BlockIR, signal_names: &FxHashSet<String>) -> bool {
-    block
-        .statements
-        .iter()
-        .any(|s| stmt_mutates_store_signal(s, signal_names))
-}
-
-fn stmt_mutates_store_signal(stmt: &StatementIR, signal_names: &FxHashSet<String>) -> bool {
-    match stmt {
-        StatementIR::MutationStmt {
-            intent: Some(intent),
-        } => {
-            let target_name = match intent {
-                MutationIntent::DirectAssign { target, .. }
-                | MutationIntent::Increment { target, .. }
-                | MutationIntent::Decrement { target, .. }
-                | MutationIntent::Multiply { target, .. }
-                | MutationIntent::Divide { target, .. }
-                | MutationIntent::Modulo { target, .. }
-                | MutationIntent::Push { target, .. }
-                | MutationIntent::Pop { target } => &target.name,
-            };
-            signal_names.contains(target_name)
-        }
-        _ => false,
-    }
-}
-
 /// Emit a `const state = get();` line for Zustand action body prologue.
 /// Only emit when the action uses mutations that need `state.` access
 /// (Increment, Decrement, Push, Pop, Multiply, Divide, Modulo).
