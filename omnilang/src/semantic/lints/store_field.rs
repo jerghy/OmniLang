@@ -174,8 +174,9 @@ mod tests {
                         }],
                     },
                     is_async: false,
-                
-                source_span: None,}],
+
+                    source_span: None,
+                }],
                 store_refs: vec!["MyStore".into()],
                 refs: vec![],
                 event_names: vec![],
@@ -247,8 +248,9 @@ mod tests {
                         }],
                     },
                     is_async: false,
-                
-                source_span: None,}],
+
+                    source_span: None,
+                }],
                 store_refs: vec![],
                 refs: vec![],
                 event_names: vec![],

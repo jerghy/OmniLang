@@ -215,11 +215,7 @@ impl OmniViewGenerator {
                         .unwrap_or_default();
 
                     if let Some(design) = self.design_map.get(design_name) {
-                        match crate::design::expand_variant(
-                            design,
-                            variant_name,
-                            &dim_map,
-                        ) {
+                        match crate::design::expand_variant(design, variant_name, &dim_map) {
                             Ok((variant_classes, _extra_css)) => {
                                 class_name_parts.extend(variant_classes);
                             }

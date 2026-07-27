@@ -395,7 +395,9 @@ pub struct InternalCompileResult {
     pub components: FxHashMap<String, serde_json::Value>,
     /// Source map entries mapping generated code back to .omni source positions.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(type = "Array<{ node_id: string; omni_span: { line: number; col: number; len: number }; target_spans: Array<{ file: string; line: number; col: number; len: number; kind: string }> }>")]
+    #[ts(
+        type = "Array<{ node_id: string; omni_span: { line: number; col: number; len: number }; target_spans: Array<{ file: string; line: number; col: number; len: number; kind: string }> }>"
+    )]
     pub source_map: Vec<crate::sourcemap::SourceMapEntry>,
 }
 
@@ -716,12 +718,7 @@ mod compile_multi_target_tests {
         );
 
         let targets = vec![Target::OmniView, Target::React];
-        let results = crate::compile_multi_target(
-            sources,
-            targets,
-            FxHashMap::default(),
-            None,
-        );
+        let results = crate::compile_multi_target(sources, targets, FxHashMap::default(), None);
         assert_eq!(results.len(), 2, "should return one result per target");
         for (target, output) in &results {
             assert!(

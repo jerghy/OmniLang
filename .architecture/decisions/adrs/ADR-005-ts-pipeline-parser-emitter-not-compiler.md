@@ -2,7 +2,9 @@
 
 ## Status
 
-Proposed
+Accepted (2026-07-27)
+
+> This ADR is cited as authoritative by ADR-007, agent_docs/reference.md, and multiple workspace reviews.
 
 ## Context
 
@@ -49,6 +51,25 @@ Proposed
 - 在 omnilang/README.md 中明确标注"OmniLang 的唯一官方编译器"
 - 确保后续 AI 辅助分析（包括架构评审子代理）能读取到这篇 ADR
 
+## Decision Drivers
+
+- 7/11 architecture review specialists independently identified the dual-implementation risk
+- Mislabeling as "dual compiler" inflated perceived complexity and confused review findings
+- Precise terminology is required for AI-assisted architecture analysis to produce accurate results
+
+## Validation
+
+- [x] ADR-007 (Three-Layer Review Methodology) references this decision as settled
+- [x] agent_docs/reference.md "Decided Decisions" list includes this terminology
+- [x] full-workspace-review-2026-07-26.md has updated "双编译器" → "双解析器"
+- [x] No subsequent architecture review has mischaracterized the TS pipeline as a compiler
+
+## References
+
+- [[ADR-004-architecture-review-2026-07-26]] — originating review
+- [[ADR-007-three-layer-review-methodology]] — cites this as settled terminology
+- [[subagent-reliability-issues]] — subagent error patterns in terminology confusion
+
 ## Date
 
-2026-07-26
+2026-07-26 (proposed), 2026-07-27 (accepted)

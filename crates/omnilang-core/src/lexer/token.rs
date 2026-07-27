@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 /// All token kinds produced by the lexer.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[non_exhaustive]
+
 pub enum TokenKind {
     // Keywords (omnilang)
     Fn,

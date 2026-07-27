@@ -5,8 +5,8 @@
 
 use rustc_hash::FxHashMap;
 
-use crate::codegen::{CompileOutput, CompiledFile};
 use crate::codegen::omniview;
+use crate::codegen::{CompileOutput, CompiledFile};
 use crate::ir::IRProgram;
 
 // ═════════════════════════════════════════════════════════════════════════════

@@ -22,8 +22,7 @@ pub(super) mod utils;
 pub(crate) mod view;
 
 /// How stores are generated for React targets.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ReactStoreMode {
     /// Generate custom React hooks with useState/useCallback/useMemo.
     #[default]
@@ -44,7 +43,6 @@ impl std::str::FromStr for ReactStoreMode {
         }
     }
 }
-
 
 pub struct ReactCodegen {
     pub store_mode: ReactStoreMode,

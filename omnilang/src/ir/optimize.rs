@@ -4,8 +4,8 @@
 //! Walks all expressions, blocks, and view trees to find which computed
 //! properties are actually referenced, then removes the unreferenced ones.
 
-use rustc_hash::FxHashSet;
 use crate::ir::*;
+use rustc_hash::FxHashSet;
 
 /// Walk an ExprIR tree and collect all IdentifierExpr names into `used`.
 fn walk_expr_for_idents(expr: &ExprIR, used: &mut FxHashSet<String>) {
@@ -341,7 +341,10 @@ fn walk_timeline_items(items: &[TimelineItemIR], used: &mut FxHashSet<String>) {
     for item in items {
         match &item.kind {
             TimelineItemKindIR::Direction {
-                properties, over, delay, ..
+                properties,
+                over,
+                delay,
+                ..
             } => {
                 for expr in properties.values() {
                     walk_expr_for_idents(expr, used);
@@ -499,12 +502,10 @@ mod tests {
                 },
             ],
             // The view references "used" via IdentifierExpr
-            view: Some(ViewTree::Interpolation(Box::new(
-                ExprIR::IdentifierExpr {
-                    name: "used".to_string(),
-                    type_ann: None,
-                },
-            ))),
+            view: Some(ViewTree::Interpolation(Box::new(ExprIR::IdentifierExpr {
+                name: "used".to_string(),
+                type_ann: None,
+            }))),
             ..ComponentIR::default()
         };
 

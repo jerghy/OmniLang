@@ -132,9 +132,8 @@ pub fn resolve_styles(source: &str) -> JsValue {
 #[wasm_bindgen]
 pub fn parse_code_block(source: &str) -> JsValue {
     let result = omnilang::parse_stmts(source);
-    serde_wasm_bindgen::to_value(&result).unwrap_or_else(|e| {
-        js_error_value(&format!("serialization error: {}", e))
-    })
+    serde_wasm_bindgen::to_value(&result)
+        .unwrap_or_else(|e| js_error_value(&format!("serialization error: {}", e)))
 }
 
 /// Internal parse function (not WASM-exported) — lex + parse in one call.
@@ -256,7 +255,9 @@ fn seed_cache_from_state(cache_state: &JsValue) {
     if cache_state.is_null() || cache_state.is_undefined() {
         return;
     }
-    let Some(json_str) = cache_state.as_string() else { return };
+    let Some(json_str) = cache_state.as_string() else {
+        return;
+    };
     if json_str.is_empty() {
         return;
     }
@@ -390,7 +391,9 @@ pub fn resolve_styles_multi_cached(
     let result_value = match analysis_result.ir {
         Some(ref ir) => {
             let output = omnilang::codegen::omniview::generate(ir, true, true, false);
-            let success = errors.iter().all(|d| d.severity != omnilang::error::Severity::Error)
+            let success = errors
+                .iter()
+                .all(|d| d.severity != omnilang::error::Severity::Error)
                 && output.warnings.is_empty();
             serde_json::json!({
                 "success": success,
@@ -805,8 +808,7 @@ mod tests {
 
     #[test]
     fn test_parse_source_function() {
-        let result =
-            parse_source_internal("pub fn add(a: i32, b: i32) -> i32 { return a + b; }");
+        let result = parse_source_internal("pub fn add(a: i32, b: i32) -> i32 { return a + b; }");
         assert!(result["success"].as_bool().unwrap());
         assert!(result["program"]["modules"].is_object());
     }

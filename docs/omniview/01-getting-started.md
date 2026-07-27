@@ -1,5 +1,32 @@
 # 01 — 快速入门
 
+## 安装 omnic
+
+在开始之前，你需要安装 `omnic` 命令行工具：
+
+```bash
+# 从源码构建（推荐）
+git clone <repo-url> && cd OmniLang
+cargo build -p omnilang -p omnic
+
+# 构建完成后，将 omnic 加入 PATH
+# Windows: 将 target/debug/omnic.exe 所在目录加入 Path 环境变量
+# macOS/Linux: export PATH="$PWD/target/debug:$PATH"
+```
+
+> **系统要求**: Rust 工具链（1.70+）、Node.js（18+，用于 React/Vue 目标 runtime）
+
+验证安装：
+
+```bash
+omnic --version
+# 输出: omnic 0.1.0
+```
+
+如果 `omnic` 命令找不到，请确认 Rust 构建产物在 `PATH` 中，或使用 `cargo run -p omnic --` 代替。
+
+---
+
 ## 最小 OmniView 组件
 
 一个完整的 OmniView 组件包含信号（状态）、函数（行为）和视图（UI）：

@@ -20,8 +20,13 @@ pub fn cmd_build(
         .parse()
         .map_err(|_| anyhow::anyhow!("unknown target: {target_str}"))?;
 
-    let store_mode_opt = if store_mode == "hooks" { None } else { Some(store_mode) };
-    let result_json = omnilang::compile_multi_to_target(sources, t, path_mapping, false, false, store_mode_opt);
+    let store_mode_opt = if store_mode == "hooks" {
+        None
+    } else {
+        Some(store_mode)
+    };
+    let result_json =
+        omnilang::compile_multi_to_target(sources, t, path_mapping, false, false, store_mode_opt);
     let data: serde_json::Value = serde_json::from_str(&result_json)?;
 
     // Python checks result.success (cli.py:173)

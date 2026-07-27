@@ -145,7 +145,7 @@ Lexer → Parser → Semantic Analysis → IR Lowering → Codegen → Output
 ## References
 
 - [architecture-review-2026-07-26](../reviews/full-workspace-review-2026-07-26.md) — 全工作区评审
-- [omnilang-codegen](../../../C:/Users/XHT/.claude/projects/D--space-OmniLang/memory/omnilang-codegen.md) — Codegen 模式与陷阱
-- [omniview-compiler-internals](../../../C:/Users/XHT/.claude/projects/D--space-OmniLang/memory/omniview-compiler-internals.md) — OmniView 编译器 21 模块
+- [[omnilang-codegen]] — Codegen 模式与陷阱
+- [[omniview-compiler-internals]] — OmniView 编译器 21 模块
 - [[ADR-002]] — 编辑器范式演进
 - [[ADR-003]] — 代码生成目标优先级

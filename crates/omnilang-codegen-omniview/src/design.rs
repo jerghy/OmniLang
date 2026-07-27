@@ -221,24 +221,27 @@ mod tests {
             TokenIR {
                 value: "#ffffff".to_string(),
                 token_type: TokenTypeIR::Color,
-            
-            source_span: None,},
+
+                source_span: None,
+            },
         );
         tokens.insert(
             "primary".to_string(),
             TokenIR {
                 value: "#6366f1".to_string(),
                 token_type: TokenTypeIR::Color,
-            
-            source_span: None,},
+
+                source_span: None,
+            },
         );
         tokens.insert(
             "radiusMd".to_string(),
             TokenIR {
                 value: "8px".to_string(),
                 token_type: TokenTypeIR::Size,
-            
-            source_span: None,},
+
+                source_span: None,
+            },
         );
 
         let classes = vec![ClassIR {
@@ -257,10 +260,12 @@ mod tests {
                 )]
                 .into_iter()
                 .collect(),
-            
-            source_span: None,}],
-        
-        source_span: None,}];
+
+                source_span: None,
+            }],
+
+            source_span: None,
+        }];
 
         let variants = vec![VariantIR {
             name: "Button".to_string(),
@@ -268,13 +273,15 @@ mod tests {
                 VariantDimIR {
                     name: "color".to_string(),
                     values: vec!["primary".to_string(), "danger".to_string()],
-                
-                source_span: None,},
+
+                    source_span: None,
+                },
                 VariantDimIR {
                     name: "size".to_string(),
                     values: vec!["sm".to_string(), "md".to_string()],
-                
-                source_span: None,},
+
+                    source_span: None,
+                },
             ],
             defaults: vec![
                 ("color".to_string(), "primary".to_string()),
@@ -294,10 +301,12 @@ mod tests {
                 properties: vec![("background".to_string(), "#6366f1".to_string())]
                     .into_iter()
                     .collect(),
-            
-            source_span: None,}],
-        
-        source_span: None,}];
+
+                source_span: None,
+            }],
+
+            source_span: None,
+        }];
 
         DesignIR {
             name: "AppDesign".to_string(),
@@ -365,8 +374,9 @@ mod tests {
             tokens: FxHashMap::default(),
             classes: vec![],
             variants: vec![],
-        
-        source_span: None,};
+
+            source_span: None,
+        };
         let css = emit_design_css(&design, "Empty").expect("should emit empty CSS");
         assert!(css.is_empty(), "empty design should produce no CSS");
     }

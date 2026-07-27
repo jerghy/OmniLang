@@ -224,8 +224,9 @@ fn test_generate_function_empty() {
         return_type: None,
         body: BlockIR { statements: vec![] },
         is_async: false,
-    
-    source_span: None,};
+
+        source_span: None,
+    };
     generate_function(&mut w, &func);
     let out = w.into_string();
     assert!(out.contains("doSomething() {"));
@@ -245,8 +246,9 @@ fn test_generate_function_with_return_type() {
         }),
         body: BlockIR { statements: vec![] },
         is_async: false,
-    
-    source_span: None,};
+
+        source_span: None,
+    };
     generate_function(&mut w, &func);
     let out = w.into_string();
     assert!(out.contains("int getValue() {"));
@@ -266,8 +268,9 @@ fn test_generate_function_with_void_return() {
         }),
         body: BlockIR { statements: vec![] },
         is_async: false,
-    
-    source_span: None,};
+
+        source_span: None,
+    };
     generate_function(&mut w, &func);
     let out = w.into_string();
     // void return type is implicit — no annotation emitted
@@ -295,8 +298,9 @@ fn test_generate_function_with_params() {
         }),
         body: BlockIR { statements: vec![] },
         is_async: false,
-    
-    source_span: None,};
+
+        source_span: None,
+    };
     generate_function(&mut w, &func);
     let out = w.into_string();
     // Note: dart_type("string") = "String", so the param type annotation looks like "name  String "
@@ -355,8 +359,9 @@ fn test_generate_component_with_function() {
             return_type: None,
             body: BlockIR { statements: vec![] },
             is_async: false,
-        
-        source_span: None,}],
+
+            source_span: None,
+        }],
         store_refs: vec![],
         refs: vec![],
         event_names: vec![],
@@ -624,8 +629,9 @@ fn test_full_pipeline_through_trait() {
                             return_type: None,
                             body: BlockIR { statements: vec![] },
                             is_async: false,
-                        
-                        source_span: None,}],
+
+                            source_span: None,
+                        }],
                         store_refs: vec![],
                         refs: vec![],
                         event_names: vec![],
@@ -720,8 +726,9 @@ fn test_dart_generate_struct() {
                     is_nullable: false,
                 },
                 visibility: Visibility::Public,
-            
-            source_span: None,},
+
+                source_span: None,
+            },
             FieldIR {
                 name: "y".into(),
                 r#type: TypeIR {
@@ -730,11 +737,13 @@ fn test_dart_generate_struct() {
                     is_nullable: false,
                 },
                 visibility: Visibility::Public,
-            
-            source_span: None,},
+
+                source_span: None,
+            },
         ],
-    
-    source_span: None,};
+
+        source_span: None,
+    };
     visitor().generate_struct(&mut w, &struct_ir);
     let out = w.into_string();
     assert!(out.contains("class Point {"));
@@ -750,8 +759,9 @@ fn test_dart_generate_empty_struct() {
         name: "Empty".into(),
         visibility: Visibility::Public,
         fields: vec![],
-    
-    source_span: None,};
+
+        source_span: None,
+    };
     visitor().generate_struct(&mut w, &struct_ir);
     let out = w.into_string();
     assert!(out.contains("class Empty {"));
@@ -769,18 +779,21 @@ fn test_dart_generate_enum() {
             VariantIR {
                 name: "Red".into(),
                 payload: None,
-            
-            source_span: None,},
+
+                source_span: None,
+            },
             VariantIR {
                 name: "Green".into(),
                 payload: None,
-            
-            source_span: None,},
+
+                source_span: None,
+            },
             VariantIR {
                 name: "Blue".into(),
                 payload: None,
-            
-            source_span: None,},
+
+                source_span: None,
+            },
         ],
         source_span: None,
     };
@@ -798,8 +811,9 @@ fn test_dart_generate_empty_enum() {
         name: "Empty".into(),
         visibility: Visibility::Public,
         variants: vec![],
-    
-    source_span: None,};
+
+        source_span: None,
+    };
     visitor().generate_enum(&mut w, &enum_ir);
     let out = w.into_string();
     assert!(out.contains("enum Empty {"));
@@ -816,8 +830,9 @@ fn test_dart_generate_type_alias() {
             type_args: vec![],
             is_nullable: false,
         },
-    
-    source_span: None,};
+
+        source_span: None,
+    };
     visitor().generate_type_alias(&mut w, &alias);
     assert_eq!(w.into_string(), "typedef UserId = int;\n");
 }
@@ -832,8 +847,9 @@ fn test_dart_generate_standalone_function() {
         return_type: None,
         body: BlockIR { statements: vec![] },
         is_async: false,
-    
-    source_span: None,};
+
+        source_span: None,
+    };
     visitor().generate_function(&mut w, &func);
     let out = w.into_string();
     assert!(out.contains("main() {"));
@@ -860,8 +876,9 @@ fn test_dart_generate_standalone_function_with_return_type() {
         }),
         body: BlockIR { statements: vec![] },
         is_async: false,
-    
-    source_span: None,};
+
+        source_span: None,
+    };
     visitor().generate_function(&mut w, &func);
     let out = w.into_string();
     assert!(out.contains("int add(int a) {"));
@@ -905,8 +922,9 @@ fn test_generate_async_function_dart() {
         }),
         body: BlockIR { statements: vec![] },
         is_async: true,
-    
-    source_span: None,};
+
+        source_span: None,
+    };
     generate_function(&mut w, &func);
     let out = w.into_string();
     assert!(
@@ -926,8 +944,9 @@ fn test_generate_async_function_dart_void() {
         return_type: None,
         body: BlockIR { statements: vec![] },
         is_async: true,
-    
-    source_span: None,};
+
+        source_span: None,
+    };
     generate_function(&mut w, &func);
     let out = w.into_string();
     assert!(

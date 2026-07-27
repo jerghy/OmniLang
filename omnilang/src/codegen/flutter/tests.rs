@@ -468,8 +468,9 @@ fn test_generate_function_empty() {
         return_type: None,
         body: BlockIR { statements: vec![] },
         is_async: false,
-    
-    source_span: None,};
+
+        source_span: None,
+    };
     generate_function_flutter(&mut w, &func);
     let out = w.into_string();
     assert!(out.contains("doSomething() {"));
@@ -498,8 +499,9 @@ fn test_generate_function_with_mutation() {
             }],
         },
         is_async: false,
-    
-    source_span: None,};
+
+        source_span: None,
+    };
     generate_function_flutter(&mut w, &func);
     let out = w.into_string();
     assert!(out.contains("increment() {"));
@@ -625,8 +627,9 @@ fn test_component_with_state() {
                     }],
                 },
                 is_async: false,
-            
-            source_span: None,}],
+
+                source_span: None,
+            }],
             store_refs: vec![],
             refs: vec![],
             event_names: vec![],

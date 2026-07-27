@@ -91,7 +91,7 @@
 |------|------|---------|
 | P35 Crate 拆分 | 立即执行 | Phase 3 Task 3.1 |
 | P36 Codegen 并行化 | 立即执行 | Phase 3 Task 3.2 |
-| P38b TAURI_INTERNALS | 立即执行（XSS 链修复） | Phase 2 Tasks 2.1-2.3 |
+| P38b TAURI_INTERNALS | 立即执行（能力收紧 P1 + XSS 链 P2） | Phase 2 Tasks 2.1-2.3 |
 | P39 IR 优化 | 立即执行（MVP） | Phase 3 Task 3.3 |
 | P34 AI 补全 | 继续搁置 | — |
 
@@ -160,7 +160,7 @@ cargo clippy --lib -p omnilang 2>&1 | tail -5                       # 查看剩�
 |---|------|-----|---------|
 | 6 | **P33 source_span 仅填充 6 站点**（ComponentIR/StoreIR/3×FunctionIR/HeroIntent）。29 个延迟；ModuleIR/IRProgram 物理上无法填充 | ADR-008 | ❌ 禁止建议"填充所有 37 个结构体的 source_span" |
 | 7 | **P36 跨后端并行**（`compile_multi_target` + rayon），**不是**跨组件并行 | ADR-009 | ❌ 禁止建议"在单个后端内并行化组件代码生成" |
-| 8 | **P38b 修复 XSS 链**（innerHTML→textContent + origin 验证 + 能力收紧），**不是**剥离 TAURI_INTERNALS | ADR-010 | ❌ 禁止建议"完全移除 `__TAURI_INTERNALS__`" |
+| 8 | **P38b：修复 XSS 链 + 能力收紧**。`__TAURI_INTERNALS__` **不能完全剥离**（调试窗口需要事件 IPC 通信）；真正有价值的是**能力收紧**（`core:default`→`core:event:allow-emit`+`core:event:allow-listen`）。postMessage/innerHTML 的安全风险被**严重高估**——调试窗口加载的是本地开发者自己写的 .omni 应用，运行在本地 Tauri webview 里，不存在远程攻击面。详见下方「调试窗口安全威胁模型」。 | ADR-010 | ❌ 禁止建议"完全移除 `__TAURI_INTERNALS__`"；❌ 禁止将 postMessage/innerHTML 标记为 CRITICAL |
 | 9 | **P39 MVP 是消除未使用计算属性**（~200行），暂不消除信号 | ADR-010 | ❌ 禁止在 motion 95% 覆盖率达成前建议"消除未使用信号" |
 | 10 | P35 Crate 拆分为 `omnilang-core` + `omnilang-codegen-omniview` + facade。7 个暂停后端保持不动 | ADR-006, ADR-009 | ❌ 禁止建议"一次拆分所有 9 个后端" |
 
@@ -191,6 +191,58 @@ cargo clippy --lib -p omnilang 2>&1 | tail -5                       # 查看剩�
 | 21 | source_map 覆盖 bug：`codegen/mod.rs:117` 用 `=` 覆盖逐元素源映射，应为 `extend` | 深度复审 Finding #1 |
 | 22 | TypeKind 序列化丢失 `type_args`——注释明确说 "Not serialized"，`Array<String>` 序列化后变为 `Array` | 深度复审 Finding #3 |
 | 23 | 测试基准：Rust `656 passed / 0 failed`（lib），TS `20 files / 144 tests` | 上次会话 |
+
+---
+
+---
+
+## 调试窗口安全威胁模型
+
+> **作用**：防止未来安全审查再次将 postMessage/innerHTML 标记为 CRITICAL。
+
+### 架构
+
+```
+┌─ 主窗口（Tauri main webview）──────────────────┐
+│  __TAURI_INTERNALS__ 可用（完整 IPC）            │
+│                                                  │
+│  ┌─ 调试窗口（debug webview）──────────────────┐ │
+│  │  __TAURI_INTERNALS__ 可用（仅事件 IPC）     │ │
+│  │  debug-window capability: emit + listen     │ │
+│  │                                             │ │
+│  │  ┌─ iframe #omni-preview ────────────────┐ │ │
+│  │  │  sandbox="allow-scripts"               │ │ │
+│  │  │  __TAURI_INTERNALS__ ❌ 不可访问       │ │ │
+│  │  │  加载开发者自己的 .omni 编译产物       │ │ │
+│  │  └────────────────────────────────────────┘ │ │
+│  └─────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────┘
+```
+
+### 威胁模型评估
+
+| 因素 | 现实 | 安全审查的误判 |
+|------|------|---------------|
+| **加载的内容** | 开发者**自己写的** `.omni` 应用，不是用户输入 | 被错误当作"不可信第三方内容" |
+| **运行环境** | 本地 Tauri webview，无网络暴露 | 被按 Web 公网服务标准要求 |
+| **攻击前提** | 需要同一台机器上的另一个恶意进程或已被入侵的窗口 | 攻击前提本身就意味着系统已被攻破 |
+| **沙箱状态** | `sandbox="allow-scripts"` 已阻止 iframe 内代码访问 Tauri API | 沙箱已正确实现隔离目标 |
+
+### 各项修复的务实优先级
+
+| 原评级 | 修复项 | 实际优先级 | 理由 |
+|--------|--------|-----------|------|
+| P0 CRITICAL | innerHTML→textContent | **P2**（顺手改） | 自己写的应用不会 XSS 自己，但改用 textContent 也不费事 |
+| P0 CRITICAL | postMessage origin 验证 | **P3**（可有可无） | 本地 webview，没有跨域攻击面。`e.source !== omniPreview.contentWindow` 已经足够 |
+| P1 HIGH | postMessage `'*'` → 特定 origin | **P3** | 同上 |
+| P1 HIGH | capability: `core:default` → 2 原子权限 | **P1**（该修） | 唯一真正有价值的修复——调试窗口不需要 menu/tray/window/app 等 7 个权限包 |
+
+### 安全审查时的正确结论
+
+1. **沙箱架构是正确的**——iframe `sandbox="allow-scripts"` 已阻止用户编译代码访问 Tauri API
+2. **`__TAURI_INTERNALS__` 不能剥离**——调试窗口需要事件 IPC 与主窗口通信（转发编译结果、热替换、元素点击）
+3. **唯一值得修的**：收紧 debug-window capability，从 9 个权限包减少到 2 个原子权限
+4. **postMessage/innerHTML 是纵深防御的最外层**——在本地桌面应用场景下，不应该列为 CRITICAL 或 HIGH
 
 ---
 

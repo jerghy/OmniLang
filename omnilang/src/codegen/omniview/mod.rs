@@ -126,14 +126,12 @@ pub struct StyleResolveResult {
 /// Carries OmniView-specific configuration (`editor_mode`, `css_only`, `debug_mode`)
 /// that other backends don't need. `OmniViewOutput` remains available for WASM/FFI
 /// paths that need the full structured metadata (element_classes, element_tree, etc.).
-#[derive(Debug, Clone, Copy)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct OmniViewCodegen {
     pub editor_mode: bool,
     pub css_only: bool,
     pub debug_mode: bool,
 }
-
 
 impl crate::codegen::Codegen for OmniViewCodegen {
     fn generate(

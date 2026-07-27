@@ -1,6 +1,6 @@
 //! Standalone utility functions for OmniView codegen.
-use omnilang_core::codegen::{CompileOutput, CompiledFile};
 use super::OmniViewOutput;
+use omnilang_core::codegen::{CompileOutput, CompiledFile};
 use omnilang_core::ir::*;
 use rustc_hash::FxHashMap;
 pub(super) fn serde_value_to_js(value: &serde_json::Value) -> String {

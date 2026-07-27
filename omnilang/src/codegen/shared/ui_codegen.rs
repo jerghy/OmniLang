@@ -61,4 +61,3 @@ pub trait UiCodegen {
         self.component_file_extension()
     }
 }
-

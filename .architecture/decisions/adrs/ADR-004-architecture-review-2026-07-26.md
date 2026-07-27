@@ -138,8 +138,8 @@ Sprint 1 (安全基线) → Sprint 2 (测试骨架) → Sprint 3 (编译器健�
 - [architecture-review-2026-07-26](../reviews/full-workspace-review-2026-07-26.md) — 11 专家全工作区评审
 - [plan-review-2026-07-26](../reviews/plan-review-2026-07-26.md) — 实现计划 3 专家评审
 - [implementation-plan-2026-07-26](../reviews/implementation-plan-2026-07-26.md) — 修订后实现计划
-- [poiesis-tauri-security-model](../../../C:/Users/XHT/.claude/projects/D--space-OmniLang/memory/poiesis-tauri-security-model.md) — Tauri 安全模型
-- [architecture-review-2026-07-26](../../../C:/Users/XHT/.claude/projects/D--space-OmniLang/memory/architecture-review-2026-07-26.md) — 评审记忆
+- [[poiesis-tauri-security-model]] — Tauri 安全模型
+- [[architecture-review-2026-07-26]] — 评审记忆
 - [[ADR-001]] — 编译器管线架构
 - [[ADR-002]] — 编辑器范式演进
 - [[ADR-003]] — 代码生成目标优先级

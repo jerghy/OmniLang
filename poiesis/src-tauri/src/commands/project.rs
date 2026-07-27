@@ -192,7 +192,9 @@ pub(crate) fn save_project(state: tauri::State<ProjectState>) -> Result<serde_js
 }
 
 #[tauri::command]
-pub(crate) fn close_project(state: tauri::State<ProjectState>) -> Result<serde_json::Value, String> {
+pub(crate) fn close_project(
+    state: tauri::State<ProjectState>,
+) -> Result<serde_json::Value, String> {
     *state.project_dir.lock().map_err(|e| e.to_string())? = None;
     *state.file_list_cache.lock().map_err(|e| e.to_string())? = None;
     state
@@ -206,10 +208,7 @@ pub(crate) fn close_project(state: tauri::State<ProjectState>) -> Result<serde_j
 }
 
 #[tauri::command]
-pub(crate) fn read_file(
-    path: String,
-    state: tauri::State<ProjectState>,
-) -> Result<String, String> {
+pub(crate) fn read_file(path: String, state: tauri::State<ProjectState>) -> Result<String, String> {
     let dir = state
         .project_dir
         .lock()

@@ -119,5 +119,5 @@ Fully reversible — revert `Some(span)` to `None` if a populated span causes is
 ## References
 
 - [Deep Technical Review 2026-07-27](../reviews/deep-review-2026-07-27.md) — Finding #1 and #2
-- [Source Map Implementation](../../../C:/Users/XHT/.claude/projects/D--space-OmniLang/memory/source-map-implementation.md)
+- [[source-map-implementation]]
 - [[ADR-004]] — Original review highlighting source_map as CRITICAL

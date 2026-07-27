@@ -270,6 +270,34 @@ members:
       - "Animation/motion DSLs"
     perspective: "Evaluates language design decisions for soundness and expressiveness. Assesses compiler pipeline correctness, multi-target codegen consistency, and the semantic gap between source language and compilation targets."
 
+  - id: documentation_expert
+    name: "Samantha Quill"
+    title: "Technical Writing & Documentation Expert"
+    specialties:
+      - "Documentation architecture"
+      - "Information hierarchy"
+      - "Developer onboarding paths"
+      - "API documentation design"
+      - "Multi-audience content strategy"
+    disciplines:
+      - "Technical writing"
+      - "UX writing"
+      - "Content design"
+      - "Documentation engineering"
+    skillsets:
+      - "Tutorial and cookbook design"
+      - "API reference completeness audits"
+      - "Diátaxis framework"
+      - "ADR clarity and consistency"
+      - "Multi-target documentation management"
+    domains:
+      - "Programming language documentation"
+      - "Framework adoption guides"
+      - "Developer experience (DX)"
+      - "Open source project docs"
+    perspective: "Evaluates documentation as a product in its own right. Asks: can a new user go from zero to productive without external help? Are tutorials, how-to guides, references, and explanations properly separated? Does the information architecture scale across 9 compilation targets? Judges whether ADRs communicate decisions clearly to future maintainers."
+
+
 review_process:
   individual_phase:
     description: "Each member reviews the architecture independently, focusing on their area of expertise."

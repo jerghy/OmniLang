@@ -320,19 +320,16 @@ pub(super) fn view_has_motion_or_effects(node: &ViewTree) -> bool {
             el.children.iter().any(view_has_motion_or_effects)
         }
         ViewTree::Conditional(cond) => {
-            cond.branches.iter().any(|b| {
-                b.body
+            cond.branches
+                .iter()
+                .any(|b| b.body.as_ref().is_some_and(view_has_motion_or_effects))
+                || cond
+                    .fallback
                     .as_ref()
                     .is_some_and(view_has_motion_or_effects)
-            }) || cond
-                .fallback
-                .as_ref()
-                .is_some_and(view_has_motion_or_effects)
         }
         ViewTree::ListRendering(list) => {
-            list.body
-                .as_ref()
-                .is_some_and(view_has_motion_or_effects)
+            list.body.as_ref().is_some_and(view_has_motion_or_effects)
                 || list
                     .empty_body
                     .as_ref()

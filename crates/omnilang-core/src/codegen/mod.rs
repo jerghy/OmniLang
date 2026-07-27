@@ -9,15 +9,14 @@ pub mod event;
 pub mod helpers;
 pub mod json;
 pub mod sanitize;
-pub(crate) mod shared;
+pub mod shared;
 pub mod stdlib;
 pub mod target;
 pub mod traits;
 pub mod writer;
 
-use crate::ir::IRProgram;
 #[cfg(any(feature = "codegen-omniview", feature = "codegen-vue"))]
-pub(crate) use event::emit_event_object;
+pub use event::emit_event_object;
 #[cfg(any(feature = "codegen-react", feature = "codegen-vue"))]
 pub(crate) use helpers::generate_css_style_block;
 pub use helpers::{
@@ -29,80 +28,27 @@ pub use json::{
     JSON_DART, JSON_DIOXUS, JSON_FLUTTER, JSON_JS, JSON_OMNIVIEW, JSON_PYTHON, JSON_REACT,
     JSON_RUST, JSON_VUE,
 };
-use rustc_hash::FxHashMap;
 pub use sanitize::{sanitize_css_value, sanitize_js_ident, sanitize_module_name};
+pub use shared::html::to_html_tag;
 pub use shared::ui_codegen::UiCodegen;
 pub use stdlib::{try_format_stdlib_call, validate_stdlib_imports};
 pub use target::Target;
 pub use traits::Codegen;
 pub use writer::{CodeWriter, CompileOutput, CompiledFile};
 
-/// Compile IR to the specified target.
-///
-/// Routes to each target's codegen module. All 10 targets are now
-/// implemented (OmniView, Python, JavaScript, TypeScript, Rust, Dart,
-/// React, Vue, Dioxus, Flutter).
-#[must_use]
-pub fn compile(
-    ir: &IRProgram,
-    target: Target,
-    #[allow(unused_variables)] source_files: &FxHashMap<String, String>,
-    #[allow(unused_variables)] store_mode: Option<&str>,
-) -> CompileOutput {
-    // Validate stdlib imports for the target
-    if let Err(errors) = validate_stdlib_imports(ir, target) {
-        return CompileOutput {
-            files: vec![],
-            errors,
-            source_map: vec![],
-            warnings: vec![],
-        };
-    }
-    #[allow(unreachable_patterns)]
-    let mut output = match target {
-        #[cfg(feature = "codegen-omniview")]
-        Target::OmniView => omniview::OmniViewCodegen::default().generate(ir, source_files),
-        #[cfg(feature = "codegen-python")]
-        Target::Python => python::PythonCodegen.generate(ir, source_files),
-        #[cfg(feature = "codegen-javascript")]
-        Target::JavaScript => {
-            javascript::JavaScriptCodegen::new(false).generate(ir, source_files)
-        }
-        #[cfg(feature = "codegen-javascript")]
-        Target::TypeScript => {
-            javascript::JavaScriptCodegen::new(true).generate(ir, source_files)
-        }
-        #[cfg(feature = "codegen-rust")]
-        Target::Rust => rust::RustCodegen.generate(ir, source_files),
-        #[cfg(feature = "codegen-dart")]
-        Target::Dart => dart::DartCodegen.generate(ir, source_files),
-        #[cfg(feature = "codegen-react")]
-        Target::React => {
-            let mode: react::ReactStoreMode = store_mode
-                .unwrap_or("hooks")
-                .parse()
-                .unwrap_or_default();
-            react::ReactCodegen { store_mode: mode }.generate(ir, source_files)
-        }
-        #[cfg(feature = "codegen-vue")]
-        Target::Vue => vue::VueCodegen.generate(ir, source_files),
-        #[cfg(feature = "codegen-dioxus")]
-        Target::Dioxus => dioxus::DioxusCodegen.generate(ir, source_files),
-        #[cfg(feature = "codegen-flutter")]
-        Target::Flutter => flutter::FlutterCodegen.generate(ir, source_files),
-        _ => CompileOutput::error(format!(
-            "Backend for '{:?}' is not enabled (compile with the corresponding codegen-* feature flag)",
-            target
-        )),
-    };
-    // Thread source_map from IR through to CompileOutput — extend to preserve
-    // per-element (NID-level) entries produced by OmniView codegen
-    output.source_map.extend(ir.source_map.values().cloned());
-    output
-}
+// The `compile` dispatch function lives in the omnilang crate (facade).
+// omnilang-core only provides shared codegen infrastructure — backends
+// are implemented in separate crates (omnilang-codegen-omniview, etc.)
 
 #[cfg(test)]
 mod tests_property;
 
-#[cfg(all(test, any(feature = "codegen-omniview", feature = "codegen-react", feature = "codegen-flutter")))]
+#[cfg(all(
+    test,
+    any(
+        feature = "codegen-omniview",
+        feature = "codegen-react",
+        feature = "codegen-flutter"
+    )
+))]
 mod tests_regression;

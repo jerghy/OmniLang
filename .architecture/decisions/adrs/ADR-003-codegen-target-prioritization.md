@@ -128,6 +128,6 @@ OmniLang 编译器原有 9 个代码生成目标：OmniView、React、Flutter、
 - [architecture-review-2026-07-26](../reviews/full-workspace-review-2026-07-26.md) — 全工作区评审（主题 2：过度扩展）
 - [plan-review-2026-07-26](../reviews/plan-review-2026-07-26.md) — 实现计划评审
 - [implementation-plan-2026-07-26](../reviews/implementation-plan-2026-07-26.md) — P15 实施步骤
-- [omnilang-codegen](../../../C:/Users/XHT/.claude/projects/D--space-OmniLang/memory/omnilang-codegen.md) — 后端优先级（原有记录）
+- [[omnilang-codegen]] — 后端优先级（原有记录）
 - [[ADR-001]] — 编译器管线架构
 - [[ADR-004]] — 架构评审结论

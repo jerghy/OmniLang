@@ -4,7 +4,7 @@
 
 OmniLang is a general-purpose language + code translation engine.  
 OmniView is its UI library — `import omniview` activates component/styling capability.  
-Modeled after Dart + Flutter.
+Language modeled after Dart; OmniView UI framework modeled after Flutter.
 
 ## Quickstart
 
@@ -32,24 +32,26 @@ omnilang/          # Language core: lexer, parser, semantic, IR, multi-target co
 omnic/             # CLI tool (Rust)
   src/main.rs
 
-poiesis/           # Visual editor (TypeScript/React, Vite)
+poiesis/           # Visual editor (Tauri + React, Vite)
   src/
     components/    # React components
     services/      # Codegen, compiler services
     store/         # State management
 
 docs/              # Documentation
-  adr/             # Architecture Decision Records
-  cookbook/        # Cookbook guides
+  omniview/        # OmniView language reference (13 chapters)
   design/          # Design documents
-  tutorial/        # Tutorials
+  research/        # Research reports
 
 test/              # Test projects (.omni examples)
   projects/
     learn-omniview/  # .omni examples: todo, dashboard, form, style, etc.
     poiesis-test/
 
-omni-test/         # Standalone test files
+.architecture/     # Architecture Decision Records & reviews
+  decisions/adrs/  # 10 ADRs
+  reviews/         # Workspace reviews
+  metrics/         # CSP, motion, WASM analysis
 ```
 
 ## Targets
@@ -80,12 +82,12 @@ omni-test/         # Standalone test files
 ## Key Documents
 
 - [QUICKSTART.md](QUICKSTART.md) — 3-command onboarding
-- [ADR-001](docs/adr/001-omnilang-omniview-unification.md) — Architecture decision (OmniLang = Dart, OmniView = Flutter)
-- [E2E Validation Report](docs/E2E_VALIDATION_REPORT.md) — Real-world testing results
-- [Real World Gaps](docs/REAL_WORLD_GAPS.md) — Known limitations
+- [OmniView Language Reference](docs/omniview/README.md) — 13-chapter tutorial
+- [Architecture Decisions](.architecture/decisions/adrs/) — 10 ADRs (compiler pipeline, editor evolution, codegen targets, etc.)
 - [Document Index](docs/README.md) — Full doc directory
+- [Design System](Design-System/DESIGN.md) — Brand & component design specs
 
 ## Known Limitations
 
-See [REAL_WORLD_GAPS.md](docs/REAL_WORLD_GAPS.md). All 8 CRITICAL bugs found during validation are fixed. 12 non-critical gaps remain (CSS shorthand, Unicode in text, etc.).
+Some language features are still under development. See the architecture reviews and ADRs in `.architecture/` for the current status of known gaps and the remediation roadmap. As of the 2026-07-27 architecture review, all CRITICAL items from prior audits have been addressed, with remaining work tracked via ADR-006, ADR-009, and ADR-010.
 

@@ -122,5 +122,12 @@ pub fn compile(
 #[cfg(test)]
 mod tests_property;
 
-#[cfg(all(test, any(feature = "codegen-omniview", feature = "codegen-react", feature = "codegen-flutter")))]
+#[cfg(all(
+    test,
+    any(
+        feature = "codegen-omniview",
+        feature = "codegen-react",
+        feature = "codegen-flutter"
+    )
+))]
 mod tests_regression;

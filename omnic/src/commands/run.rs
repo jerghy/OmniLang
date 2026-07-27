@@ -80,7 +80,8 @@ fn compile_to_temp(file: &Option<String>, run_target: &str) -> anyhow::Result<(P
         .parse()
         .map_err(|_| anyhow::anyhow!("unknown target: {run_target}"))?;
 
-    let result_json = omnilang::compile_multi_to_target(sources, t, path_mapping, false, false, None);
+    let result_json =
+        omnilang::compile_multi_to_target(sources, t, path_mapping, false, false, None);
     let data: serde_json::Value = serde_json::from_str(&result_json)?;
 
     if !data["success"].as_bool().unwrap_or(false) {

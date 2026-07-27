@@ -108,10 +108,7 @@ fn do_compile(
             errors: vec![CompileDiagnostic {
                 severity: "error".into(),
                 code: "INPUT_TOO_LARGE".into(),
-                message: format!(
-                    "Total source size {} exceeds maximum of 10 MB",
-                    total_bytes
-                ),
+                message: format!("Total source size {} exceeds maximum of 10 MB", total_bytes),
                 file: None,
                 line: 0,
                 col: 0,
@@ -218,9 +215,7 @@ pub(crate) fn compile_project(
                 root_mtime,
             });
         }
-    } else if project_dir.is_file()
-        && project_dir.extension().is_some_and(|e| e == "omni")
-    {
+    } else if project_dir.is_file() && project_dir.extension().is_some_and(|e| e == "omni") {
         match omnilang::discovery::discover_omni_sources(
             project_dir,
             omnilang::discovery::DiscoveryMode::SingleFileWithSiblings,
@@ -251,10 +246,7 @@ pub(crate) fn compile_project(
 /// Compile a single .omni source string via Tauri IPC (fallback for WASM).
 /// Used when the WASM compiler module is unavailable in the Tauri webview.
 #[tauri::command]
-pub(crate) fn compile_source(
-    source: String,
-    target: Option<String>,
-) -> CompileResult {
+pub(crate) fn compile_source(source: String, target: Option<String>) -> CompileResult {
     let target_str = target.unwrap_or_else(|| "react".to_string());
     let codegen_target: omnilang::codegen::Target = match target_str.parse() {
         Ok(t) => t,

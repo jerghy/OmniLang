@@ -128,9 +128,9 @@ v5 迁移已完成。积木编辑器文件已删除。**该决策已实施**—�
 
 ## References
 
-- [poiesis-codecard](../../../C:/Users/XHT/.claude/projects/D--space-OmniLang/memory/poiesis-codecard.md) — v3 失败教训
-- [poiesis-codeblock-editor-v5](../../../C:/Users/XHT/.claude/projects/D--space-OmniLang/memory/poiesis-codeblock-editor-v5.md) — v5 设计决策
-- [poiesis-structural-projection-editor](../../../C:/Users/XHT/.claude/projects/D--space-OmniLang/memory/poiesis-structural-projection-editor.md) — 长期愿景
+- [[poiesis-codecard]] — v3 失败教训
+- [[poiesis-codeblock-editor-v5]] — v5 设计决策
+- [[poiesis-structural-projection-editor]] — 长期愿景
 - [architecture-review-2026-07-26](../reviews/full-workspace-review-2026-07-26.md) — 全工作区评审
 - [[ADR-001]] — 编译器管线架构
 - [[ADR-003]] — 代码生成目标优先级

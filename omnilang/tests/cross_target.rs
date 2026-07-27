@@ -119,7 +119,11 @@ fn cross_target_no_errors_on_all_backends() {
                     rel_path,
                     target_name,
                     output.errors.len(),
-                    output.errors.first().map(|e| e.message.as_str()).unwrap_or("unknown"),
+                    output
+                        .errors
+                        .first()
+                        .map(|e| e.message.as_str())
+                        .unwrap_or("unknown"),
                 ));
                 continue;
             }
@@ -185,7 +189,11 @@ fn cross_target_component_files_produce_output() {
                     "{} → {}: errors — {}",
                     rel_path,
                     target_name,
-                    output.errors.first().map(|e| e.message.as_str()).unwrap_or("unknown"),
+                    output
+                        .errors
+                        .first()
+                        .map(|e| e.message.as_str())
+                        .unwrap_or("unknown"),
                 ));
                 continue;
             }

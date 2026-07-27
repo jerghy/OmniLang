@@ -207,8 +207,9 @@ mod tests {
                         }],
                     },
                     is_async: false,
-                
-                source_span: None,}],
+
+                    source_span: None,
+                }],
                 store_refs: vec![],
                 refs: vec![],
                 event_names: vec![],

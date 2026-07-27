@@ -153,7 +153,12 @@ mod tests {
             ref_name: None,
             construction_kind: ConstructionKind::Normal,
             class_map_bindings: FxHashMap::default(),
-            source_span: Some(Span { start: 0, end: 0, line: 5, col: 3 }),
+            source_span: Some(Span {
+                start: 0,
+                end: 0,
+                line: 5,
+                col: 3,
+            }),
             motion: None,
             scroll: None,
             drag: None,

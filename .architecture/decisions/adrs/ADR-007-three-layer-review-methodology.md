@@ -135,5 +135,5 @@ Fully reversible — revert to single-layer reviews if cost proves too high. Eac
 
 - [Full Workspace Re-Review 2026-07-27](../reviews/full-workspace-review-2026-07-27.md)
 - [Deep Technical Review 2026-07-27](../reviews/deep-review-2026-07-27.md)
-- [Subagent Reliability Issues](../../../C:/Users/XHT/.claude/projects/D--space-OmniLang/memory/subagent-reliability-issues.md)
+- [[subagent-reliability-issues]]
 - [[ADR-004]] — Original review methodology

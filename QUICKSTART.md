@@ -98,16 +98,16 @@ omnic run src/main.omni
 
 ## 下一步
 
-- **[完整教程](docs/README.md)** — 14 章引导式学习路径，从零到生产
-- **[语言基础](docs/tutorial/02-language-basics.md)** — 变量、类型、函数、控制流
-- **[OmniView 组件](docs/tutorial/07-omniview-components.md)** — 用组件和模板构建 UI
-- **[CLI 参考手册](docs/tutorial/11-cli-reference.md)** — 每个 `omnic` 命令详解
-- **[实战食谱](docs/cookbook/README.md)** — 即用型常见模式
+- **[OmniView 语法参考](docs/omniview/README.md)** — 13 章引导式学习路径，从零到生产
+- **[类型与值](docs/omniview/02-types-and-values.md)** — 变量、类型、字符串、数组、映射
+- **[组件](docs/omniview/05-components.md)** — 用组件和模板构建 UI
+- **[项目结构](docs/omniview/13-project-structure.md)** — 多文件项目、编译目标配置
+- **[标准库 API](docs/stdlib.md)** — `omni/math`、`omni/string`、`omni/async` 参考
 
 ## 需要帮助？
 
 - 语法错误？OmniLang 会提示常见错误（例如引导将 `or` 改为 `||`）
 - 忘记 `import omniview;`？编译器会警告并继续
-- 查看[语法规范](docs/omni-grammar-spec.md)了解正式语言参考
-- 查看[架构决策记录](docs/adr/001-omnilang-omniview-unification.md)了解架构细节
-- 查看[差距报告](docs/REAL_WORLD_GAPS.md)了解已知限制
+- 查看[架构决策记录](.architecture/decisions/adrs/)了解架构细节
+- 查看[架构审查](.architecture/reviews/)了解已知限制和修复路线图
+

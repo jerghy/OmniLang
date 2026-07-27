@@ -244,7 +244,7 @@ impl OmniViewGenerator {
                 "  const el = document.querySelector('[data-component=\"{}\"]');",
                 name
             );
-            let _ = writeln!(self.js, 
+            let _ = writeln!(self.js,
                 "  if (el) el.dispatchEvent(new CustomEvent('{}', {{ detail: args[0], bubbles: false }}));",
                 dom_event
             );
@@ -467,7 +467,7 @@ impl OmniViewGenerator {
                 ));
             }
             let replay_fns_str = replay_fns.join("; ");
-            let _ = write!(self.mount_js, 
+            let _ = write!(self.mount_js,
                 "// @enter replay (watches all signals)\n__omni_effect(function __omni_enter_replay() {{\n\
                  \x20 {all_sig_reads}\n\
                  \x20 {replay_fns}\n\
@@ -503,7 +503,7 @@ impl OmniViewGenerator {
 
             let signal_entries_str = signal_entries.join(", ");
 
-            let _ = write!(self.js, 
+            let _ = write!(self.js,
                 "  return {{\n    signals: {{ {} }},\n    teardown: function() {{\n      var root = document.querySelector('[data-component=\"{}\"]');\n      if (root) root.remove();\n    }}\n  }};\n}})();\n",
                 signal_entries_str, name
             );

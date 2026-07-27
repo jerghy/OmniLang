@@ -329,8 +329,9 @@ fn test_keyframe_animate_call_basic() {
                     },
                 )]),
                 ease: None,
-            
-            source_span: None,},
+
+                source_span: None,
+            },
             KeyframeStopIR {
                 position: 1.0,
                 properties: FxHashMap::from_iter([(
@@ -340,8 +341,9 @@ fn test_keyframe_animate_call_basic() {
                     },
                 )]),
                 ease: None,
-            
-            source_span: None,},
+
+                source_span: None,
+            },
         ],
         over: ExprIR::LiteralExpr {
             value: serde_json::json!(300),
@@ -352,8 +354,9 @@ fn test_keyframe_animate_call_basic() {
         path: None,
         path_rotate: None,
         callbacks: vec![],
-    
-    source_span: None,};
+
+        source_span: None,
+    };
 
     let (kf_js, opts_js) = gen.keyframe_to_animate_call(&kf);
 
@@ -401,8 +404,9 @@ fn test_keyframe_animate_call_edge_cases() {
         path: None,
         path_rotate: None,
         callbacks: vec![],
-    
-    source_span: None,};
+
+        source_span: None,
+    };
     let (kf_js, _) = gen.keyframe_to_animate_call(&empty);
     assert_eq!(kf_js, "[]", "empty stops should produce empty JS array");
 
@@ -417,8 +421,9 @@ fn test_keyframe_animate_call_edge_cases() {
                 },
             )]),
             ease: None,
-        
-        source_span: None,}],
+
+            source_span: None,
+        }],
         over: ExprIR::LiteralExpr {
             value: serde_json::json!(500),
         },
@@ -428,8 +433,9 @@ fn test_keyframe_animate_call_edge_cases() {
         path: None,
         path_rotate: None,
         callbacks: vec![],
-    
-    source_span: None,};
+
+        source_span: None,
+    };
     let (kf_js_fo, opts_fo) = gen.keyframe_to_animate_call(&from_only);
     assert!(
         kf_js_fo.contains("offset:0"),
@@ -449,8 +455,9 @@ fn test_keyframe_animate_call_edge_cases() {
                     },
                 )]),
                 ease: Some(EasingIR::Named("ease-in".into())),
-            
-            source_span: None,},
+
+                source_span: None,
+            },
             KeyframeStopIR {
                 position: 1.0,
                 properties: FxHashMap::from_iter([(
@@ -460,8 +467,9 @@ fn test_keyframe_animate_call_edge_cases() {
                     },
                 )]),
                 ease: Some(EasingIR::Named("ease-out".into())),
-            
-            source_span: None,},
+
+                source_span: None,
+            },
         ],
         over: ExprIR::LiteralExpr {
             value: serde_json::json!(300),
@@ -472,8 +480,9 @@ fn test_keyframe_animate_call_edge_cases() {
         path: None,
         path_rotate: None,
         callbacks: vec![],
-    
-    source_span: None,};
+
+        source_span: None,
+    };
     let (kf_js_we, _) = gen.keyframe_to_animate_call(&with_ease);
     assert!(
         kf_js_we.contains("easing:"),
@@ -504,8 +513,9 @@ fn test_keyframe_to_config_with_path() {
                     },
                 )]),
                 ease: None,
-            
-            source_span: None,},
+
+                source_span: None,
+            },
             KeyframeStopIR {
                 position: 1.0,
                 properties: FxHashMap::from_iter([(
@@ -515,8 +525,9 @@ fn test_keyframe_to_config_with_path() {
                     },
                 )]),
                 ease: None,
-            
-            source_span: None,},
+
+                source_span: None,
+            },
         ],
         over: ExprIR::LiteralExpr {
             value: serde_json::json!(1000),
@@ -527,8 +538,9 @@ fn test_keyframe_to_config_with_path() {
         path: Some("M0,0 C100,200 200,200 300,0".into()),
         path_rotate: Some(true),
         callbacks: vec![],
-    
-    source_span: None,};
+
+        source_span: None,
+    };
 
     let config = gen.keyframe_to_config(&kf);
     assert!(config.contains("from"), "config should contain 'from' stop");
@@ -571,8 +583,9 @@ fn test_emit_motion_js_keyframe() {
                         },
                     )]),
                     ease: None,
-                
-                source_span: None,},
+
+                    source_span: None,
+                },
                 KeyframeStopIR {
                     position: 1.0,
                     properties: FxHashMap::from_iter([(
@@ -582,8 +595,9 @@ fn test_emit_motion_js_keyframe() {
                         },
                     )]),
                     ease: None,
-                
-                source_span: None,},
+
+                    source_span: None,
+                },
             ],
             over: ExprIR::LiteralExpr {
                 value: serde_json::json!(300),
@@ -594,10 +608,12 @@ fn test_emit_motion_js_keyframe() {
             path: None,
             path_rotate: None,
             callbacks: vec![],
-        
-        source_span: None,}),
-    
-    source_span: None,};
+
+            source_span: None,
+        }),
+
+        source_span: None,
+    };
     gen.emit_motion_js(&motion);
     insta::assert_snapshot!("emit_motion_js_keyframe", &gen.js);
 }
@@ -620,10 +636,12 @@ fn test_emit_motion_js_callback_only() {
                 value: serde_json::json!(500),
             },
             playback: PlaybackIR::default(),
-        
-        source_span: None,}),
-    
-    source_span: None,};
+
+            source_span: None,
+        }),
+
+        source_span: None,
+    };
     gen.emit_motion_js(&motion);
     insta::assert_snapshot!("emit_motion_js_callback_only", &gen.js);
 }
@@ -637,10 +655,12 @@ fn test_emit_motion_js_timeline() {
         body: MotionBodyIR::Timeline(TimelineIR {
             items: vec![],
             playback: PlaybackIR::default(),
-        
-        source_span: None,}),
-    
-    source_span: None,};
+
+            source_span: None,
+        }),
+
+        source_span: None,
+    };
     gen.emit_motion_js(&motion);
     insta::assert_snapshot!("emit_motion_js_timeline", &gen.js);
 }
@@ -663,8 +683,9 @@ fn test_emit_states_js_reserved() {
                     )]),
                     over: None,
                     ease: None,
-                
-                source_span: None,},
+
+                    source_span: None,
+                },
             ),
             (
                 "hover".into(),
@@ -687,8 +708,9 @@ fn test_emit_states_js_reserved() {
                         value: serde_json::json!(200),
                     }),
                     ease: Some(EasingIR::Named("ease-out".into())),
-                
-                source_span: None,},
+
+                    source_span: None,
+                },
             ),
             (
                 "pressed".into(),
@@ -711,13 +733,15 @@ fn test_emit_states_js_reserved() {
                         value: serde_json::json!(100),
                     }),
                     ease: Some(EasingIR::Named("ease-in".into())),
-                
-                source_span: None,},
+
+                    source_span: None,
+                },
             ),
         ]),
         signal: None,
-    
-    source_span: None,};
+
+        source_span: None,
+    };
     gen.emit_states_js("el-card-001", &states);
 
     // The function emits to both mount_js (event bindings) and js (lookup table).
@@ -752,8 +776,9 @@ fn test_motion_trigger_enter_named() {
                 kind: TriggerKind::Enter,
                 motion_ref: Some("fadeIn".into()),
                 inline_motion: None,
-            
-            source_span: None,}],
+
+                source_span: None,
+            }],
             states: None,
             paused_override: None,
             driven_by: None,
@@ -818,8 +843,9 @@ fn test_motion_trigger_hover_named() {
                 kind: TriggerKind::Hover,
                 motion_ref: Some("scaleUp".into()),
                 inline_motion: None,
-            
-            source_span: None,}],
+
+                source_span: None,
+            }],
             states: None,
             paused_override: None,
             driven_by: None,

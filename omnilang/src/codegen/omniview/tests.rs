@@ -218,8 +218,9 @@ fn test_store_actions() {
                     }],
                 },
                 is_async: false,
-            
-            source_span: None,}],
+
+                source_span: None,
+            }],
             ..Default::default()
         },
     );
@@ -821,8 +822,9 @@ fn test_component_with_functions() {
                     }],
                 },
                 is_async: false,
-            
-            source_span: None,}],
+
+                source_span: None,
+            }],
             ..make_component("App")
         },
     );
@@ -1188,8 +1190,9 @@ fn test_event_binding_click() {
                 return_type: None,
                 body: BlockIR { statements: vec![] },
                 is_async: false,
-            
-            source_span: None,}],
+
+                source_span: None,
+            }],
             view: Some(ViewTree::Element(el)),
             ..make_component("App")
         },
@@ -1237,7 +1240,12 @@ fn test_style_emission() {
 fn test_source_map_entries() {
     let mut module = make_module("main");
     let mut el = make_element("div");
-    el.source_span = Some(crate::lexer::Span { start: 0, end: 0, line: 5, col: 3 });
+    el.source_span = Some(crate::lexer::Span {
+        start: 0,
+        end: 0,
+        line: 5,
+        col: 3,
+    });
     module.components.insert(
         "App".to_string(),
         ComponentIR {
