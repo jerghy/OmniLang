@@ -1,6 +1,6 @@
 import { Component, type ReactNode } from "react";
 import { Logger } from "../../lib/utils/logger";
-import { showToast } from "../../lib/toast";
+import { toast as sonnerToast } from "sonner";
 import styles from "./ErrorBoundary.module.css";
 
 const log = new Logger({ prefix: "ErrorBoundary" });
@@ -25,7 +25,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
     log.error("Uncaught error:", error, errorInfo);
-    showToast("应用发生错误，请刷新页面重试", "error");
+    sonnerToast.error("应用发生错误，请刷新页面重试");
   }
 
   handleRefresh = (): void => {
