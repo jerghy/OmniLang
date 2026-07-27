@@ -466,41 +466,38 @@ pub fn optimize(ir: &mut IRProgram) {
 mod tests {
     use super::*;
 
+    // ── helpers ──
+
+    fn int_computed(name: &str) -> ComputedIntent {
+        ComputedIntent {
+            name: name.to_string(),
+            r#type: TypeIR {
+                kind: TypeKind::Int,
+                type_args: vec![],
+                is_nullable: false,
+            },
+            body: ExprIR::LiteralExpr {
+                value: serde_json::Value::Number(42.into()),
+            },
+            deps: vec![],
+        }
+    }
+
+    fn ident(name: &str) -> ExprIR {
+        ExprIR::IdentifierExpr {
+            name: name.to_string(),
+            type_ann: None,
+        }
+    }
+
+    // ── existing tests ──
+
     #[test]
     fn removes_unused_computed() {
         let mut comp = ComponentIR {
             name: "TestComp".to_string(),
-            computeds: vec![
-                ComputedIntent {
-                    name: "unused".to_string(),
-                    r#type: TypeIR {
-                        kind: TypeKind::Int,
-                        type_args: vec![],
-                        is_nullable: false,
-                    },
-                    body: ExprIR::LiteralExpr {
-                        value: serde_json::Value::Number(42.into()),
-                    },
-                    deps: vec![],
-                },
-                ComputedIntent {
-                    name: "used".to_string(),
-                    r#type: TypeIR {
-                        kind: TypeKind::Int,
-                        type_args: vec![],
-                        is_nullable: false,
-                    },
-                    body: ExprIR::LiteralExpr {
-                        value: serde_json::Value::Number(0.into()),
-                    },
-                    deps: vec![],
-                },
-            ],
-            // The view references "used" via IdentifierExpr
-            view: Some(ViewTree::Interpolation(Box::new(ExprIR::IdentifierExpr {
-                name: "used".to_string(),
-                type_ann: None,
-            }))),
+            computeds: vec![int_computed("unused"), int_computed("used")],
+            view: Some(ViewTree::Interpolation(Box::new(ident("used")))),
             ..ComponentIR::default()
         };
 
@@ -512,27 +509,437 @@ mod tests {
 
     #[test]
     fn removes_unused_computed_without_motion_ref() {
-        // Motions are now canonical in ModuleIR, not ComponentIR.
-        // A computed with no references from view/lifecycles/etc. should be eliminated.
         let mut comp = ComponentIR {
             name: "TestComp".to_string(),
-            computeds: vec![ComputedIntent {
-                name: "motion_val".to_string(),
-                r#type: TypeIR {
-                    kind: TypeKind::Int,
-                    type_args: vec![],
-                    is_nullable: false,
-                },
-                body: ExprIR::LiteralExpr {
-                    value: serde_json::Value::Number(42.into()),
-                },
-                deps: vec![],
-            }],
+            computeds: vec![int_computed("motion_val")],
             ..ComponentIR::default()
         };
 
         eliminate_dead_computeds(&mut comp);
 
+        assert_eq!(comp.computeds.len(), 0);
+    }
+
+    // ── new tests: reference-site coverage ──
+
+    #[test]
+    fn computed_referenced_from_function_survives() {
+        // A computed referenced by an IdentifierExpr inside a function body
+        // should survive dead-computed elimination.
+        let mut comp = ComponentIR {
+            name: "TestComp".to_string(),
+            computeds: vec![int_computed("helper")],
+            fns: vec![FunctionIR {
+                name: "myFn".to_string(),
+                visibility: Visibility::Private,
+                params: vec![],
+                return_type: None,
+                body: BlockIR {
+                    statements: vec![StatementIR::ReturnStmtIR {
+                        value: Some(ident("helper")),
+                    }],
+                },
+                is_async: false,
+                source_span: None,
+            }],
+            ..ComponentIR::default()
+        };
+
+        eliminate_dead_computeds(&mut comp);
+        assert_eq!(comp.computeds.len(), 1);
+    }
+
+    #[test]
+    fn computed_referenced_from_effect_survives() {
+        // A computed referenced inside an effect body should survive.
+        let mut comp = ComponentIR {
+            name: "TestComp".to_string(),
+            computeds: vec![int_computed("tracked")],
+            effects: vec![EffectIntent {
+                deps: vec![],
+                body: BlockIR {
+                    statements: vec![StatementIR::ExprStmtIR {
+                        expr: ident("tracked"),
+                    }],
+                },
+            }],
+            ..ComponentIR::default()
+        };
+
+        eliminate_dead_computeds(&mut comp);
+        assert_eq!(comp.computeds.len(), 1);
+    }
+
+    #[test]
+    fn computed_referenced_from_lifecycle_survives() {
+        // A computed referenced inside a lifecycle hook (mount) should survive.
+        let mut comp = ComponentIR {
+            name: "TestComp".to_string(),
+            computeds: vec![int_computed("init_val")],
+            lifecycles: vec![LifecycleIntent {
+                kind: LifecycleKind::Mount,
+                body: BlockIR {
+                    statements: vec![StatementIR::ExprStmtIR {
+                        expr: ident("init_val"),
+                    }],
+                },
+            }],
+            ..ComponentIR::default()
+        };
+
+        eliminate_dead_computeds(&mut comp);
+        assert_eq!(comp.computeds.len(), 1);
+    }
+
+    #[test]
+    fn computed_referenced_from_another_computed_survives() {
+        // A computed that depends on another computed (chain) should keep
+        // its dependency alive.
+        let mut comp = ComponentIR {
+            name: "TestComp".to_string(),
+            computeds: vec![
+                ComputedIntent {
+                    name: "base".to_string(),
+                    r#type: TypeIR {
+                        kind: TypeKind::Int,
+                        type_args: vec![],
+                        is_nullable: false,
+                    },
+                    body: ExprIR::LiteralExpr {
+                        value: serde_json::Value::Number(1.into()),
+                    },
+                    deps: vec![],
+                },
+                ComputedIntent {
+                    name: "derived".to_string(),
+                    r#type: TypeIR {
+                        kind: TypeKind::Int,
+                        type_args: vec![],
+                        is_nullable: false,
+                    },
+                    body: ident("base"),
+                    deps: vec!["base".to_string()],
+                },
+            ],
+            view: Some(ViewTree::Interpolation(Box::new(ident("derived")))),
+            ..ComponentIR::default()
+        };
+
+        eliminate_dead_computeds(&mut comp);
+        assert_eq!(comp.computeds.len(), 2);
+    }
+
+    #[test]
+    fn computed_referenced_from_event_handler_survives() {
+        // A computed referenced inside an inline event handler body should survive.
+        let mut comp = ComponentIR {
+            name: "TestComp".to_string(),
+            computeds: vec![int_computed("click_handler")],
+            view: Some(ViewTree::Element(ElementIR {
+                tag: "button".to_string(),
+                props: FxHashMap::default(),
+                bindings: FxHashMap::default(),
+                events: {
+                    let mut events = FxHashMap::default();
+                    events.insert(
+                        "click".to_string(),
+                        EventHandlerIR::InlineFn {
+                            params: vec![],
+                            body: BlockIR {
+                                statements: vec![StatementIR::ExprStmtIR {
+                                    expr: ident("click_handler"),
+                                }],
+                            },
+                            event_data: None,
+                            used_fields: None,
+                            needs_prevent_default: false,
+                            needs_stop_propagation: false,
+                        },
+                    );
+                    events
+                },
+                style_classes: None,
+                inline_style: None,
+                children: vec![],
+                test_id: None,
+                ref_name: None,
+                construction_kind: ConstructionKind::Normal,
+                class_map_bindings: FxHashMap::default(),
+                source_span: None,
+                motion: None,
+                scroll: None,
+                drag: None,
+                hero: None,
+            })),
+            ..ComponentIR::default()
+        };
+
+        eliminate_dead_computeds(&mut comp);
+        assert_eq!(comp.computeds.len(), 1);
+    }
+
+    #[test]
+    fn computed_referenced_from_element_prop_survives() {
+        // A computed used as an element prop value should survive.
+        let mut comp = ComponentIR {
+            name: "TestComp".to_string(),
+            computeds: vec![int_computed("dynamic_src")],
+            view: Some(ViewTree::Element(ElementIR {
+                tag: "img".to_string(),
+                props: {
+                    let mut props = FxHashMap::default();
+                    props.insert("src".to_string(), ident("dynamic_src"));
+                    props
+                },
+                bindings: FxHashMap::default(),
+                events: FxHashMap::default(),
+                style_classes: None,
+                inline_style: None,
+                children: vec![],
+                test_id: None,
+                ref_name: None,
+                construction_kind: ConstructionKind::Normal,
+                class_map_bindings: FxHashMap::default(),
+                source_span: None,
+                motion: None,
+                scroll: None,
+                drag: None,
+                hero: None,
+            })),
+            ..ComponentIR::default()
+        };
+
+        eliminate_dead_computeds(&mut comp);
+        assert_eq!(comp.computeds.len(), 1);
+    }
+
+    #[test]
+    fn computed_referenced_from_class_map_survives() {
+        // A computed used as a class-map binding expression should survive.
+        let mut comp = ComponentIR {
+            name: "TestComp".to_string(),
+            computeds: vec![int_computed("is_active")],
+            view: Some(ViewTree::Element(ElementIR {
+                tag: "div".to_string(),
+                props: FxHashMap::default(),
+                bindings: FxHashMap::default(),
+                events: FxHashMap::default(),
+                style_classes: None,
+                inline_style: None,
+                children: vec![],
+                test_id: None,
+                ref_name: None,
+                construction_kind: ConstructionKind::Normal,
+                class_map_bindings: {
+                    let mut map = FxHashMap::default();
+                    map.insert("active".to_string(), ident("is_active"));
+                    map
+                },
+                source_span: None,
+                motion: None,
+                scroll: None,
+                drag: None,
+                hero: None,
+            })),
+            ..ComponentIR::default()
+        };
+
+        eliminate_dead_computeds(&mut comp);
+        assert_eq!(comp.computeds.len(), 1);
+    }
+
+    #[test]
+    fn computed_referenced_from_conditional_survives() {
+        // A computed used as a conditional branch condition should survive.
+        let mut comp = ComponentIR {
+            name: "TestComp".to_string(),
+            computeds: vec![int_computed("show_banner")],
+            view: Some(ViewTree::Conditional(Box::new(ConditionalIntent {
+                branches: vec![ConditionalBranch {
+                    condition: ident("show_banner"),
+                    body: Some(ViewTree::Text("visible".to_string())),
+                }],
+                fallback: None,
+                transition_mode: None,
+            }))),
+            ..ComponentIR::default()
+        };
+
+        eliminate_dead_computeds(&mut comp);
+        assert_eq!(comp.computeds.len(), 1);
+    }
+
+    #[test]
+    fn computed_referenced_from_list_iterable_survives() {
+        // A computed used as the iterable expression of a list rendering
+        // should survive.
+        let mut comp = ComponentIR {
+            name: "TestComp".to_string(),
+            computeds: vec![int_computed("items")],
+            view: Some(ViewTree::ListRendering(Box::new(ListRenderingIntent {
+                iterable: ident("items"),
+                item_binding: BindingIR {
+                    name: "item".to_string(),
+                    r#type: None,
+                },
+                body: None,
+                key_expr: None,
+                empty_body: None,
+            }))),
+            ..ComponentIR::default()
+        };
+
+        eliminate_dead_computeds(&mut comp);
+        assert_eq!(comp.computeds.len(), 1);
+    }
+
+    #[test]
+    fn computed_referenced_from_prop_default_survives() {
+        // A computed used as a prop default value should survive.
+        let mut comp = ComponentIR {
+            name: "TestComp".to_string(),
+            computeds: vec![int_computed("default_title")],
+            prop_defaults: {
+                let mut defaults = FxHashMap::default();
+                defaults.insert("title".to_string(), ident("default_title"));
+                defaults
+            },
+            ..ComponentIR::default()
+        };
+
+        eliminate_dead_computeds(&mut comp);
+        assert_eq!(comp.computeds.len(), 1);
+    }
+
+    #[test]
+    fn computed_referenced_from_style_property_survives() {
+        // A computed used as a style property value should survive.
+        let mut comp = ComponentIR {
+            name: "TestComp".to_string(),
+            computeds: vec![int_computed("dynamic_color")],
+            styles: vec![StyleRuleIR {
+                class_name: "box".to_string(),
+                properties: {
+                    let mut props = FxHashMap::default();
+                    props.insert("color".to_string(), ident("dynamic_color"));
+                    props
+                },
+                output_mode: "css".to_string(),
+                is_tag_selector: false,
+            }],
+            ..ComponentIR::default()
+        };
+
+        eliminate_dead_computeds(&mut comp);
+        assert_eq!(comp.computeds.len(), 1);
+    }
+
+    #[test]
+    fn multiple_unused_computeds_all_eliminated() {
+        // When multiple computeds exist and none are referenced, all should
+        // be eliminated.
+        let mut comp = ComponentIR {
+            name: "TestComp".to_string(),
+            computeds: vec![int_computed("a"), int_computed("b"), int_computed("c")],
+            ..ComponentIR::default()
+        };
+
+        eliminate_dead_computeds(&mut comp);
+        assert_eq!(comp.computeds.len(), 0);
+    }
+
+    #[test]
+    fn all_used_computeds_survive() {
+        // When all computeds are referenced from the view, none should be
+        // eliminated.
+        let mut comp = ComponentIR {
+            name: "TestComp".to_string(),
+            computeds: vec![int_computed("x"), int_computed("y")],
+            view: Some(ViewTree::Element(ElementIR {
+                tag: "div".to_string(),
+                props: {
+                    let mut props = FxHashMap::default();
+                    props.insert("data-x".to_string(), ident("x"));
+                    props.insert("data-y".to_string(), ident("y"));
+                    props
+                },
+                bindings: FxHashMap::default(),
+                events: FxHashMap::default(),
+                style_classes: None,
+                inline_style: None,
+                children: vec![],
+                test_id: None,
+                ref_name: None,
+                construction_kind: ConstructionKind::Normal,
+                class_map_bindings: FxHashMap::default(),
+                source_span: None,
+                motion: None,
+                scroll: None,
+                drag: None,
+                hero: None,
+            })),
+            ..ComponentIR::default()
+        };
+
+        eliminate_dead_computeds(&mut comp);
+        assert_eq!(comp.computeds.len(), 2);
+    }
+
+    #[test]
+    fn optimize_iterates_all_modules_and_components() {
+        // The top-level `optimize()` function should walk every component
+        // in every module and eliminate dead computeds from each.
+        let mut prog = IRProgram {
+            version: "0.1".to_string(),
+            modules: {
+                let mut modules = FxHashMap::default();
+                for (mod_name, comp_name) in [("mod_a", "CompA"), ("mod_b", "CompB")] {
+                    let mut comps = FxHashMap::default();
+                    comps.insert(
+                        comp_name.to_string(),
+                        ComponentIR {
+                            name: comp_name.to_string(),
+                            computeds: vec![int_computed("dead")],
+                            ..ComponentIR::default()
+                        },
+                    );
+                    modules.insert(
+                        mod_name.to_string(),
+                        ModuleIR {
+                            name: mod_name.to_string(),
+                            components: comps,
+                            ..Default::default()
+                        },
+                    );
+                }
+                modules
+            },
+            ..Default::default()
+        };
+
+        optimize(&mut prog);
+
+        for module in prog.modules.values() {
+            for comp in module.components.values() {
+                assert!(
+                    comp.computeds.is_empty(),
+                    "component '{}' in module '{}' should have no computeds left",
+                    comp.name,
+                    module.name
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn no_computeds_no_panic() {
+        // optimize() should not panic when a component has zero computeds.
+        let mut comp = ComponentIR {
+            name: "Empty".to_string(),
+            ..ComponentIR::default()
+        };
+
+        eliminate_dead_computeds(&mut comp);
         assert_eq!(comp.computeds.len(), 0);
     }
 }
