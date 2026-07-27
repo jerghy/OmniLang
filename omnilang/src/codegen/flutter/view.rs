@@ -56,10 +56,10 @@ pub(crate) fn format_view_tree(
 fn format_element(
     el: &ElementIR,
     motions: &[MotionIntent],
-    component_map: &FxHashMap<String, ComponentIR>,
+    component_map: &FxHashMap<&str, &ComponentIR>,
 ) -> String {
     // Component composition: check if tag is a known component
-    if let Some(_child_comp) = component_map.get(&el.tag) {
+    if let Some(_child_comp) = component_map.get(el.tag.as_str()) {
         let mut child_args: Vec<String> = Vec::new();
         // Props become constructor parameters
         for (prop_name, prop_value) in &el.props {
@@ -417,7 +417,7 @@ fn format_element(
 fn format_conditional(
     cond: &ConditionalIntent,
     motions: &[MotionIntent],
-    component_map: &FxHashMap<String, ComponentIR>,
+    component_map: &FxHashMap<&str, &ComponentIR>,
 ) -> String {
     if cond.branches.is_empty() {
         if let Some(ref fb) = cond.fallback {
@@ -469,7 +469,7 @@ fn format_conditional(
 fn format_list_rendering(
     list: &ListRenderingIntent,
     motions: &[MotionIntent],
-    component_map: &FxHashMap<String, ComponentIR>,
+    component_map: &FxHashMap<&str, &ComponentIR>,
 ) -> String {
     let iterable_str = format_expr_ir_flutter(&list.iterable);
     let item_name = &list.item_binding.name;
