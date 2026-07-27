@@ -193,6 +193,7 @@ pub(crate) fn fixture_store() -> IRProgram {
                 }],
             },
             is_async: false,
+            source_span: None,
         }],
         ..Default::default()
     };
@@ -245,6 +246,7 @@ pub(crate) fn fixture_component_with_store() -> IRProgram {
                 }],
             },
             is_async: false,
+            source_span: None,
         }],
         ..Default::default()
     };
@@ -640,6 +642,7 @@ pub(crate) fn fixture_expressions() -> IRProgram {
             ],
         },
         is_async: false,
+        source_span: None,
     };
     IRProgram {
         version: "0.1".into(),
