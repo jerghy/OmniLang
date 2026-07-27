@@ -343,10 +343,8 @@ fn test_css_empty_component() {
         event_names: vec![],
         view: None,
         styles: vec![],
-        motions: vec![],
         if_mode_default: None,
         hero_defs: vec![],
-        timelines: vec![],
         ..Default::default()
     };
     let css = codegen.gen_component_css("App", &comp);
@@ -391,10 +389,8 @@ fn test_css_with_styles() {
         event_names: vec![],
         view: None,
         styles: vec![style],
-        motions: vec![],
         if_mode_default: None,
         hero_defs: vec![],
-        timelines: vec![],
         ..Default::default()
     };
     let css = codegen.gen_component_css("App", &comp);
@@ -421,10 +417,8 @@ fn make_test_component(name: &str, view: ViewTree) -> ComponentIR {
         event_names: vec![],
         view: Some(view),
         styles: vec![],
-        motions: vec![],
         if_mode_default: None,
         hero_defs: vec![],
-        timelines: vec![],
         ..Default::default()
     }
 }
@@ -523,10 +517,8 @@ fn test_tsx_empty_component() {
             event_names: vec![],
             view: None,
             styles: vec![],
-            motions: vec![],
             if_mode_default: None,
             hero_defs: vec![],
-            timelines: vec![],
             ..Default::default()
         },
     );
@@ -575,10 +567,8 @@ fn test_tsx_component_with_state() {
             event_names: vec![],
             view: None,
             styles: vec![],
-            motions: vec![],
             if_mode_default: None,
             hero_defs: vec![],
-            timelines: vec![],
             ..Default::default()
         },
     );
@@ -632,10 +622,8 @@ fn test_tsx_component_with_props() {
             event_names: vec![],
             view: None,
             styles: vec![],
-            motions: vec![],
             if_mode_default: None,
             hero_defs: vec![],
-            timelines: vec![],
             ..Default::default()
         },
     );
@@ -687,10 +675,8 @@ fn test_tsx_component_with_effect() {
             event_names: vec![],
             view: None,
             styles: vec![],
-            motions: vec![],
             if_mode_default: None,
             hero_defs: vec![],
-            timelines: vec![],
             ..Default::default()
         },
     );
@@ -732,10 +718,8 @@ fn test_tsx_component_with_lifecycle_mount() {
             event_names: vec![],
             view: None,
             styles: vec![],
-            motions: vec![],
             if_mode_default: None,
             hero_defs: vec![],
-            timelines: vec![],
             ..Default::default()
         },
     );
@@ -910,10 +894,8 @@ fn test_full_pipeline_component() {
         event_names: vec![],
         view: None,
         styles: vec![],
-        motions: vec![],
         if_mode_default: None,
         hero_defs: vec![],
-        timelines: vec![],
         ..Default::default()
     };
     let ir = IRProgram {
@@ -1044,10 +1026,8 @@ fn test_full_pipeline_component_with_store_ref() {
         event_names: vec![],
         view: None,
         styles: vec![],
-        motions: vec![],
         if_mode_default: None,
         hero_defs: vec![],
-        timelines: vec![],
         ..Default::default()
     };
     let ir = IRProgram {

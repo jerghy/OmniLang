@@ -439,12 +439,7 @@ pub fn eliminate_dead_computeds(comp: &mut ComponentIR) {
     for hero in &comp.hero_defs {
         walk_expr_for_idents(&hero.over, &mut used);
     }
-    for motion in &comp.motions {
-        walk_motion_body(&motion.body, &mut used);
-    }
-    for timeline in &comp.timelines {
-        walk_timeline_items(&timeline.items, &mut used);
-    }
+    // motions and timelines are now canonical in ModuleIR, not ComponentIR
 
     let before = comp.computeds.len();
     comp.computeds.retain(|c| used.contains(&c.name));

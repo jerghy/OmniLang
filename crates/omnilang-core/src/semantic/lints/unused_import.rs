@@ -143,8 +143,6 @@ mod tests {
                 stores: vec![],
                 themes: vec![],
                 designs: vec![],
-                motions: vec![],
-                timelines: vec![],
                 imports: vec![ImportStmt::Named(NamedImport {
                     names: vec!["unusedSymbol".into()],
                     path: "./utils.omni".into(),
@@ -222,8 +220,6 @@ mod tests {
                 stores: vec![],
                 themes: vec![],
                 designs: vec![],
-                motions: vec![],
-                timelines: vec![],
                 imports: vec![ImportStmt::Named(NamedImport {
                     names: vec!["usedSymbol".into()],
                     path: "./utils.omni".into(),

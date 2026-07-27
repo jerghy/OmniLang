@@ -44,7 +44,7 @@ pub(crate) fn fixture_component() -> IRProgram {
             is_nullable: false,
         },
     );
-    let state = StateIntent {
+    let state = SignalIntent {
         name: "count".into(),
         r#type: TypeIR {
             kind: "i32".into(),
@@ -126,10 +126,8 @@ pub(crate) fn fixture_component() -> IRProgram {
             source_span: None,
         })),
         styles: vec![],
-        motions: vec![],
         if_mode_default: None,
         hero_defs: vec![],
-        timelines: vec![],
         ..Default::default()
     };
     IRProgram {
@@ -297,10 +295,8 @@ pub(crate) fn fixture_component_with_store() -> IRProgram {
             source_span: None,
         })),
         styles: vec![],
-        motions: vec![],
         if_mode_default: None,
         hero_defs: vec![],
-        timelines: vec![],
         ..Default::default()
     };
     IRProgram {

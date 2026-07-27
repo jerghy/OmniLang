@@ -317,10 +317,8 @@ mod tests {
                 event_names: vec![],
                 view: None,
                 styles: vec![],
-                motions: vec![],
                 if_mode_default: None,
                 hero_defs: vec![],
-                timelines: vec![],
                 ..Default::default()
             },
         );
@@ -377,10 +375,8 @@ mod tests {
                 event_names: vec![],
                 view: None,
                 styles: vec![],
-                motions: vec![],
                 if_mode_default: None,
                 hero_defs: vec![],
-                timelines: vec![],
                 ..Default::default()
             },
         );
@@ -438,10 +434,8 @@ mod tests {
                 event_names: vec![],
                 view: None,
                 styles: vec![],
-                motions: vec![],
                 if_mode_default: None,
                 hero_defs: vec![],
-                timelines: vec![],
                 ..Default::default()
             },
         );
@@ -491,10 +485,8 @@ mod tests {
                 event_names: vec![],
                 view: None,
                 styles: vec![],
-                motions: vec![],
                 if_mode_default: None,
                 hero_defs: vec![],
-                timelines: vec![],
                 ..Default::default()
             },
         );
@@ -536,10 +528,8 @@ mod tests {
                 event_names: vec![],
                 view: None,
                 styles: vec![],
-                motions: vec![],
                 if_mode_default: None,
                 hero_defs: vec![],
-                timelines: vec![],
                 ..Default::default()
             },
         );
@@ -712,10 +702,8 @@ mod tests {
             event_names: vec![],
             view: None,
             styles: vec![],
-            motions: vec![],
             if_mode_default: None,
             hero_defs: vec![],
-            timelines: vec![],
             ..Default::default()
         };
         let ir = IRProgram {
@@ -822,10 +810,8 @@ mod tests {
             event_names: vec![],
             view: None,
             styles: vec![],
-            motions: vec![],
             if_mode_default: None,
             hero_defs: vec![],
-            timelines: vec![],
             ..Default::default()
         };
         let ir = IRProgram {

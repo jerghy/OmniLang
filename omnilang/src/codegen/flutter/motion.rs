@@ -10,8 +10,8 @@ use rustc_hash::FxHashSet;
 // ═══════════════════════════════════════════════════════════════════
 
 /// Check if any motion in the component uses spring easing (needs physics import).
-pub(crate) fn comp_has_spring_motion(comp: &ComponentIR) -> bool {
-    comp.motions.iter().any(|m| {
+pub(crate) fn comp_has_spring_motion(ir: &IRProgram) -> bool {
+    ir.modules.values().flat_map(|m| &m.motions).any(|m| {
         if let MotionBodyIR::Keyframe(kf) = &m.body {
             matches!(&kf.ease, Some(EasingIR::Spring { .. }))
         } else {
@@ -21,8 +21,8 @@ pub(crate) fn comp_has_spring_motion(comp: &ComponentIR) -> bool {
 }
 
 /// Check if any motion in the component uses path animation (needs dart:ui import).
-pub(crate) fn comp_has_path_motion(comp: &ComponentIR) -> bool {
-    comp.motions.iter().any(motion_has_path)
+pub(crate) fn comp_has_path_motion(ir: &IRProgram) -> bool {
+    ir.modules.values().flat_map(|m| &m.motions).any(motion_has_path)
 }
 
 /// Check if a single motion uses path animation.

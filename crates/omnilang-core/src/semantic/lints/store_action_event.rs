@@ -105,10 +105,8 @@ mod tests {
                 event_names: vec![],
                 view,
                 styles: vec![],
-                motions: vec![],
                 if_mode_default: None,
                 hero_defs: vec![],
-                timelines: vec![],
                 ..Default::default()
             },
         );

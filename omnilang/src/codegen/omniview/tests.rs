@@ -40,10 +40,10 @@ fn make_module(name: &str) -> ModuleIR {
         components: FxHashMap::default(),
         stores: FxHashMap::default(),
         themes: vec![],
-        imports: vec![],
-        exports: vec![],
         motions: vec![],
         timelines: vec![],
+        imports: vec![],
+        exports: vec![],
         designs: vec![],
         source_span: None,
     }
@@ -68,8 +68,6 @@ fn make_component(name: &str) -> ComponentIR {
         styles: vec![],
         if_mode_default: None,
         hero_defs: vec![],
-        motions: vec![],
-        timelines: vec![],
         source_span: None,
     }
 }

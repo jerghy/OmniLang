@@ -225,7 +225,7 @@ impl ReactCodegen {
         // Motion animation names — used to filter motion refs from event handlers
         // Include both component-level and module-level motions
         let mut motion_names: FxHashSet<String> =
-            comp.motions.iter().map(|m| m.name.clone()).collect();
+            ir.modules.values().flat_map(|m| &m.motions).map(|m| m.name.clone()).collect();
         for module in ir.modules.values() {
             for motion in &module.motions {
                 motion_names.insert(motion.name.clone());
@@ -477,7 +477,7 @@ impl ReactCodegen {
         if let Some(ref view) = comp.view {
             // Build complete motion definition map (component-level + module-level)
             let mut motion_map: FxHashMap<String, MotionBodyIR> = FxHashMap::default();
-            for m in &comp.motions {
+            for m in ir.modules.values().flat_map(|m| &m.motions) {
                 motion_map.insert(m.name.clone(), m.body.clone());
             }
             for module in ir.modules.values() {

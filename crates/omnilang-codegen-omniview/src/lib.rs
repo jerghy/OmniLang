@@ -426,7 +426,7 @@ fn project_uses_motion(ir: &IRProgram) -> bool {
             return true;
         }
         for comp in module.components.values() {
-            if !comp.motions.is_empty() || !comp.timelines.is_empty() || !comp.hero_defs.is_empty()
+            if !ir.modules.values().all(|m| m.motions.is_empty()) || !ir.modules.values().all(|m| m.timelines.is_empty()) || !comp.hero_defs.is_empty()
             {
                 return true;
             }

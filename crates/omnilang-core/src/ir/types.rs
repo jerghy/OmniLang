@@ -1120,12 +1120,6 @@ pub struct ComponentIR {
     /// Source location in .omni file
     #[serde(default)]
     pub source_span: Option<Span>,
-    /// Motion animation definitions (@motion blocks)
-    #[serde(default)]
-    pub motions: Vec<MotionIntent>,
-    /// Timeline animation definitions (@timeline blocks)
-    #[serde(default)]
-    pub timelines: Vec<TimelineIntent>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -1155,6 +1149,22 @@ pub struct IRProgram {
     /// Source location in .omni file
     #[serde(default)]
     pub source_span: Option<Span>,
+}
+
+impl IRProgram {
+    /// Find a motion definition by name across all modules.
+    pub fn find_motion(&self, name: &str) -> Option<&MotionIntent> {
+        self.modules
+            .values()
+            .find_map(|m| m.motions.iter().find(|mo| mo.name == name))
+    }
+
+    /// Find a timeline definition by name across all modules.
+    pub fn find_timeline(&self, name: &str) -> Option<&TimelineIntent> {
+        self.modules
+            .values()
+            .find_map(|m| m.timelines.iter().find(|t| t.name == name))
+    }
 }
 
 impl Default for IRProgram {

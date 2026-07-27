@@ -35,7 +35,7 @@ impl OmniViewGenerator {
                     // States are NOT added to signal_names — instead they go into
                     // for_state_names so expr_to_js emits element-scoped expressions
                     // (__omni_forGetState) rather than .value reads on global signals.
-                    for state in &child_comp.states {
+                    for state in &child_comp.signals {
                         let prefixed = format!("{}_{}", child_comp.name, state.name);
                         let default_js = self.expr_to_js(&state.initial_value);
                         self.name_renames
@@ -75,7 +75,7 @@ impl OmniViewGenerator {
                     }
                 } else {
                     // Normal (non-@for) mode: use prefixed signal names.
-                    for state in &child_comp.states {
+                    for state in &child_comp.signals {
                         let prefixed = format!("{}_{}", child_comp.name, state.name);
                         self.name_renames
                             .insert(state.name.clone(), prefixed.clone());
@@ -111,9 +111,9 @@ impl OmniViewGenerator {
 
                 // Emit wrapper div with nid for event bindings on this component
                 // For @for, add data-for-state-names for per-instance state sync
-                let for_states_attr = if self.in_for_template && !child_comp.states.is_empty() {
+                let for_states_attr = if self.in_for_template && !child_comp.signals.is_empty() {
                     let names: Vec<&str> =
-                        child_comp.states.iter().map(|s| s.name.as_str()).collect();
+                        child_comp.signals.iter().map(|s| s.name.as_str()).collect();
                     format!(" data-for-state-names=\"{}\"", names.join(","))
                 } else if self.in_for_template {
                     " data-for-state-names=\"\"".to_string()

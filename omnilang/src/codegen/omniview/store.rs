@@ -270,18 +270,18 @@ impl OmniViewGenerator {
 
         // Motion definitions — emit JS functions that create WAAPI Animation instances.
         // Each @motion block generates a const __omni_motion_{name} function.
-        if !comp.motions.is_empty() {
+        if !ir.modules.values().all(|m| m.motions.is_empty()) {
             let _ = write!(self.js, "\n/// ── Motion Definitions: {} ──\n\n", name);
-            for motion in &comp.motions {
+            for motion in ir.modules.values().flat_map(|m| &m.motions) {
                 self.motion_names.insert(motion.name.clone());
                 self.emit_motion_js(motion);
             }
         }
 
         // Timeline definitions — emit JS that orchestrates animations by element ID.
-        if !comp.timelines.is_empty() {
+        if !ir.modules.values().all(|m| m.timelines.is_empty()) {
             let _ = write!(self.js, "\n/// ── Timeline Definitions: {} ──\n\n", name);
-            for timeline in &comp.timelines {
+            for timeline in ir.modules.values().flat_map(|m| &m.timelines) {
                 self.motion_names.insert(timeline.name.clone());
                 self.emit_timeline_js(timeline);
             }

@@ -551,10 +551,8 @@ fn test_empty_component() {
             event_names: vec![],
             view: None,
             styles: vec![],
-            motions: vec![],
             if_mode_default: None,
             hero_defs: vec![],
-            timelines: vec![],
             ..Default::default()
         },
     );
@@ -635,10 +633,8 @@ fn test_component_with_state() {
             event_names: vec![],
             view: None,
             styles: vec![],
-            motions: vec![],
             if_mode_default: None,
             hero_defs: vec![],
-            timelines: vec![],
             ..Default::default()
         },
     );
@@ -698,10 +694,8 @@ fn test_component_with_props() {
             event_names: vec![],
             view: None,
             styles: vec![],
-            motions: vec![],
             if_mode_default: None,
             hero_defs: vec![],
-            timelines: vec![],
             ..Default::default()
         },
     );
@@ -753,10 +747,8 @@ fn test_component_with_mount_lifecycle() {
             event_names: vec![],
             view: None,
             styles: vec![],
-            motions: vec![],
             if_mode_default: None,
             hero_defs: vec![],
-            timelines: vec![],
             ..Default::default()
         },
     );
@@ -808,10 +800,8 @@ fn test_component_with_unmount_lifecycle() {
             event_names: vec![],
             view: None,
             styles: vec![],
-            motions: vec![],
             if_mode_default: None,
             hero_defs: vec![],
-            timelines: vec![],
             ..Default::default()
         },
     );
@@ -976,10 +966,8 @@ fn test_full_pipeline_component() {
         event_names: vec![],
         view: None,
         styles: vec![],
-        motions: vec![],
         if_mode_default: None,
         hero_defs: vec![],
-        timelines: vec![],
         ..Default::default()
     };
     let ir = IRProgram {
@@ -1085,10 +1073,8 @@ fn test_full_pipeline_component_with_store_ref() {
         event_names: vec![],
         view: None,
         styles: vec![],
-        motions: vec![],
         if_mode_default: None,
         hero_defs: vec![],
-        timelines: vec![],
         ..Default::default()
     };
     let ir = IRProgram {

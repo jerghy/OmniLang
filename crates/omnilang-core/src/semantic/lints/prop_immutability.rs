@@ -114,8 +114,6 @@ mod tests {
                 stores: vec![],
                 themes: vec![],
                 designs: vec![],
-                motions: vec![],
-                timelines: vec![],
                 imports: vec![],
                 exports: vec![],
                 components: vec![ComponentDef {
@@ -160,8 +158,6 @@ mod tests {
                     }],
                     actions: vec![],
                     getters: vec![],
-                    motions: vec![],
-                    timelines: vec![],
                     view: None,
                     styles: vec![],
                     span: span.clone(),

@@ -56,7 +56,7 @@ fn make_component(name: &str) -> ComponentIR {
         generic_params: vec![],
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
-        states: vec![],
+        signals: vec![],
         computeds: vec![],
         effects: vec![],
         lifecycles: vec![],
@@ -723,7 +723,7 @@ fn test_component_with_states() {
     module.components.insert(
         "Counter".to_string(),
         ComponentIR {
-            states: vec![StateIntent {
+            signals: vec![SignalIntent {
                 name: "count".into(),
                 r#type: TypeIR {
                     kind: "i32".into(),
@@ -750,7 +750,7 @@ fn test_component_with_computed() {
     module.components.insert(
         "Calc".to_string(),
         ComponentIR {
-            states: vec![StateIntent {
+            signals: vec![SignalIntent {
                 name: "x".into(),
                 r#type: TypeIR {
                     kind: "i32".into(),
@@ -841,7 +841,7 @@ fn test_component_with_lifecycle_mount() {
     module.components.insert(
         "App".to_string(),
         ComponentIR {
-            states: vec![StateIntent {
+            signals: vec![SignalIntent {
                 name: "count".into(),
                 r#type: TypeIR {
                     kind: "i32".into(),
@@ -915,7 +915,7 @@ fn test_component_with_effect() {
     module.components.insert(
         "App".to_string(),
         ComponentIR {
-            states: vec![StateIntent {
+            signals: vec![SignalIntent {
                 name: "count".into(),
                 r#type: TypeIR {
                     kind: "i32".into(),
@@ -1009,7 +1009,7 @@ fn test_html_interpolation() {
     module.components.insert(
         "App".to_string(),
         ComponentIR {
-            states: vec![StateIntent {
+            signals: vec![SignalIntent {
                 name: "name".into(),
                 r#type: TypeIR {
                     kind: "string".into(),
@@ -1079,7 +1079,7 @@ fn test_full_pipeline_component_only() {
     module.components.insert(
         "App".to_string(),
         ComponentIR {
-            states: vec![StateIntent {
+            signals: vec![SignalIntent {
                 name: "count".into(),
                 r#type: TypeIR {
                     kind: "i32".into(),
@@ -1275,7 +1275,7 @@ fn test_runtime_error_reporting() {
     module.components.insert(
         "App".to_string(),
         ComponentIR {
-            states: vec![StateIntent {
+            signals: vec![SignalIntent {
                 name: "name".into(),
                 r#type: TypeIR {
                     kind: "string".into(),

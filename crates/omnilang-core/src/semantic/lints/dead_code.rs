@@ -235,10 +235,8 @@ mod tests {
                 event_names: vec![],
                 view: None,
                 styles: vec![],
-                motions: vec![],
                 if_mode_default: None,
                 hero_defs: vec![],
-                timelines: vec![],
                 ..Default::default()
             },
         );
@@ -268,8 +266,6 @@ mod tests {
                 stores: vec![],
                 themes: vec![],
                 designs: vec![],
-                motions: vec![],
-                timelines: vec![],
                 imports: vec![],
                 exports: vec![],
                 components: vec![ComponentDef {
@@ -294,8 +290,6 @@ mod tests {
                     fns: vec![],
                     actions: vec![],
                     getters: vec![],
-                    motions: vec![],
-                    timelines: vec![],
                     view: Some(ViewBlock {
                         children: vec![ViewNode::Text("hello".into())],
                     }),
@@ -339,8 +333,6 @@ mod tests {
                 stores: vec![],
                 themes: vec![],
                 designs: vec![],
-                motions: vec![],
-                timelines: vec![],
                 imports: vec![],
                 exports: vec![],
                 components: vec![ComponentDef {
@@ -369,8 +361,6 @@ mod tests {
                     }],
                     actions: vec![],
                     getters: vec![],
-                    motions: vec![],
-                    timelines: vec![],
                     view: Some(ViewBlock {
                         children: vec![ViewNode::Text("hello".into())],
                     }),

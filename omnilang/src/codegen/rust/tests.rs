@@ -315,10 +315,8 @@ mod tests {
             event_names: vec![],
             view: None,
             styles: vec![],
-            motions: vec![],
             if_mode_default: None,
             hero_defs: vec![],
-            timelines: vec![],
             ..Default::default()
         };
         generate_component(&mut w, "App", &comp);
@@ -352,10 +350,8 @@ mod tests {
             event_names: vec![],
             view: None,
             styles: vec![],
-            motions: vec![],
             if_mode_default: None,
             hero_defs: vec![],
-            timelines: vec![],
             ..Default::default()
         };
         generate_component(&mut w, "App", &comp);
@@ -394,10 +390,8 @@ mod tests {
             event_names: vec![],
             view: None,
             styles: vec![],
-            motions: vec![],
             if_mode_default: None,
             hero_defs: vec![],
-            timelines: vec![],
             ..Default::default()
         };
         generate_component(&mut w, "Counter", &comp);
@@ -657,10 +651,8 @@ mod tests {
                             event_names: vec![],
                             view: None,
                             styles: vec![],
-                            motions: vec![],
                             if_mode_default: None,
                             hero_defs: vec![],
-                            timelines: vec![],
                             ..Default::default()
                         },
                     )]),

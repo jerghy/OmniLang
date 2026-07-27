@@ -394,10 +394,8 @@ fn test_js_empty_component() {
         event_names: vec![],
         view: None,
         styles: vec![],
-        motions: vec![],
         if_mode_default: None,
         hero_defs: vec![],
-        timelines: vec![],
         ..Default::default()
     };
     generate_component(&mut w, "App", &comp, false);
@@ -424,10 +422,8 @@ fn test_ts_empty_component() {
         event_names: vec![],
         view: None,
         styles: vec![],
-        motions: vec![],
         if_mode_default: None,
         hero_defs: vec![],
-        timelines: vec![],
         ..Default::default()
     };
     generate_component(&mut w, "App", &comp, true);
@@ -462,10 +458,8 @@ fn test_js_component_with_function() {
         event_names: vec![],
         view: None,
         styles: vec![],
-        motions: vec![],
         if_mode_default: None,
         hero_defs: vec![],
-        timelines: vec![],
         ..Default::default()
     };
     generate_component(&mut w, "App", &comp, false);
@@ -503,10 +497,8 @@ fn test_js_component_with_state() {
         event_names: vec![],
         view: None,
         styles: vec![],
-        motions: vec![],
         if_mode_default: None,
         hero_defs: vec![],
-        timelines: vec![],
         ..Default::default()
     };
     generate_component(&mut w, "Counter", &comp, false);
@@ -545,10 +537,8 @@ fn test_ts_component_with_state() {
         event_names: vec![],
         view: None,
         styles: vec![],
-        motions: vec![],
         if_mode_default: None,
         hero_defs: vec![],
-        timelines: vec![],
         ..Default::default()
     };
     generate_component(&mut w, "Counter", &comp, true);
@@ -729,10 +719,8 @@ fn test_js_full_pipeline_through_trait() {
                         event_names: vec![],
                         view: None,
                         styles: vec![],
-                        motions: vec![],
                         if_mode_default: None,
                         hero_defs: vec![],
-                        timelines: vec![],
                         ..Default::default()
                     },
                 )]),
@@ -792,10 +780,8 @@ fn test_ts_full_pipeline_through_trait() {
                         event_names: vec![],
                         view: None,
                         styles: vec![],
-                        motions: vec![],
                         if_mode_default: None,
                         hero_defs: vec![],
-                        timelines: vec![],
                         ..Default::default()
                     },
                 )]),

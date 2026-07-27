@@ -327,10 +327,8 @@ fn test_generate_component_empty() {
         event_names: vec![],
         view: None,
         styles: vec![],
-        motions: vec![],
         if_mode_default: None,
         hero_defs: vec![],
-        timelines: vec![],
         ..Default::default()
     };
     generate_component(&mut w, "App", &comp);
@@ -367,10 +365,8 @@ fn test_generate_component_with_function() {
         event_names: vec![],
         view: None,
         styles: vec![],
-        motions: vec![],
         if_mode_default: None,
         hero_defs: vec![],
-        timelines: vec![],
         ..Default::default()
     };
     generate_component(&mut w, "App", &comp);
@@ -408,10 +404,8 @@ fn test_generate_component_with_state() {
         event_names: vec![],
         view: None,
         styles: vec![],
-        motions: vec![],
         if_mode_default: None,
         hero_defs: vec![],
-        timelines: vec![],
         ..Default::default()
     };
     generate_component(&mut w, "Counter", &comp);
@@ -637,10 +631,8 @@ fn test_full_pipeline_through_trait() {
                         event_names: vec![],
                         view: None,
                         styles: vec![],
-                        motions: vec![],
                         if_mode_default: None,
                         hero_defs: vec![],
-                        timelines: vec![],
                         ..Default::default()
                     },
                 )]),
