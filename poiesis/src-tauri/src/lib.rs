@@ -7,6 +7,12 @@ use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 use tauri::Manager;
 
+mod path;
+mod state;
+
+use path::sanitize_path;
+use state::{CachedFileList, ProjectState};
+
 // ── Compile project ──
 
 /// Structured diagnostic from the omnilang compiler (matches omnilang::error::Diagnostic JSON).
@@ -493,36 +499,6 @@ fn project_export(
     }
 }
 
-// ── Project state management ──
-
-use std::sync::Mutex;
-use std::time::SystemTime;
-
-struct CachedFileList {
-    sources: FxHashMap<String, String>,
-    root_mtime: Option<SystemTime>,
-}
-
-struct ProjectState {
-    project_dir: Mutex<Option<String>>,
-    file_list_cache: Mutex<Option<CachedFileList>>,
-    compile_cache: Mutex<omnilang::analyse::IncrementalCache>,
-    store_snapshot: Mutex<String>,
-    pid_index: Mutex<String>,
-}
-
-impl Default for ProjectState {
-    fn default() -> Self {
-        Self {
-            project_dir: Mutex::new(None),
-            file_list_cache: Mutex::new(None),
-            compile_cache: Mutex::new(omnilang::analyse::IncrementalCache::new()),
-            store_snapshot: Mutex::new(String::new()),
-            pid_index: Mutex::new("{}".to_string()),
-        }
-    }
-}
-
 // ── Project lifecycle commands ──
 
 #[tauri::command]
@@ -599,57 +575,6 @@ fn read_file(path: String, state: tauri::State<ProjectState>) -> Result<String, 
     // Prevent path traversal via canonicalize + prefix verification.
     let full = sanitize_path(std::path::Path::new(&dir), &path)?;
     std::fs::read_to_string(&full).map_err(|e| format!("Failed to read {}: {}", full.display(), e))
-}
-
-/// Validate and canonicalize a user-supplied relative path against a base directory.
-/// Returns the canonicalized path if it is within the base directory.
-/// Resolves symlinks, `..`, and other path traversal attempts.
-///
-/// # Safety note (TOCTOU)
-/// There is a time-of-check-time-of-use window between path validation and
-/// the subsequent file operation. This is acceptable because the project
-/// directory is assumed to be under the user's control and not shared with
-/// untrusted writers. On production deployments, consider using handle-based
-/// operations (e.g. O_NOFOLLOW on Unix) for stronger guarantees.
-#[must_use = "sanitized path must be used or path traversal checks are bypassed"]
-fn sanitize_path(base: &std::path::Path, user_path: &str) -> Result<std::path::PathBuf, String> {
-    // Reject empty paths
-    if user_path.is_empty() {
-        return Err("Empty path is not allowed".to_string());
-    }
-
-    // Reject paths that are already absolute
-    let p = std::path::Path::new(user_path);
-    if p.is_absolute() {
-        return Err("Absolute paths are not allowed".to_string());
-    }
-
-    // Join with base and canonicalize (resolves symlinks, .., etc.)
-    let full = base.join(p);
-
-    // Canonicalize the base for comparison (must exist)
-    let base_canonical = base
-        .canonicalize()
-        .map_err(|e| format!("Base directory error: {}", e))?;
-
-    // Try canonicalizing the full path first (works for existing files)
-    // If the file doesn't exist yet, canonicalize the parent directory
-    // and append the filename (handles write_file creating new files)
-    let resolved = full.canonicalize().or_else(|_| {
-        full.parent()
-            .and_then(|parent| parent.canonicalize().ok())
-            .map(|parent_canon| {
-                parent_canon.join(full.file_name().unwrap_or(std::ffi::OsStr::new("unknown")))
-            })
-            .ok_or_else(|| format!("Invalid path (cannot resolve): {}", full.display()))
-    })?;
-
-    // Verify the resolved path is within the base directory
-    if !resolved.starts_with(&base_canonical) {
-        return Err("Path traversal detected".to_string());
-    }
-
-    Ok(resolved)
 }
 
 #[tauri::command]
