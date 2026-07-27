@@ -1018,6 +1018,6 @@ impl OmniViewGenerator {
             &interp_effects,
             indent,
         );
-        return result;
+        result
     }
 }

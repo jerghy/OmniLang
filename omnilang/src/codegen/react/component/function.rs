@@ -278,13 +278,10 @@ fn collect_called_fns_from_stmt(stmt: &StatementIR, acc: &mut FxHashSet<String>)
         }
         StatementIR::MutationStmt { intent } => {
             if let Some(intent) = intent {
-                match intent {
-                    MutationIntent::DirectAssign { value, .. } => {
-                        if let Some(ref v) = value {
-                            collect_called_fns_from_expr(v, acc);
-                        }
+                if let MutationIntent::DirectAssign { value, .. } = intent {
+                    if let Some(ref v) = value {
+                        collect_called_fns_from_expr(v, acc);
                     }
-                    _ => {}
                 }
             }
         }

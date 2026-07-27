@@ -60,9 +60,7 @@ pub fn parse_design_body(input: &str) -> ParseResult<DesignDef> {
             let (var, rest) = parse_variant(remaining)?;
             variants.push(var);
             remaining = rest;
-        } else if remaining.starts_with("}") {
-            break;
-        } else if remaining.is_empty() {
+        } else if remaining.starts_with("}") || remaining.is_empty() {
             break;
         } else {
             return Err(err_at(
@@ -151,8 +149,8 @@ fn parse_ident(input: &str) -> ParseResult<(String, &str)> {
 
 fn parse_string_or_ident(input: &str) -> ParseResult<(String, &str)> {
     let input = input.trim_start();
-    if input.starts_with('"') {
-        let end = input[1..]
+    if let Some(stripped) = input.strip_prefix('"') {
+        let end = stripped
             .find('"')
             .map(|i| i + 2)
             .ok_or_else(|| err("expected closing '\"'"))?;

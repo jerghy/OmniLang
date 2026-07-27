@@ -37,7 +37,7 @@ impl ReactCodegen {
         let has_motion = comp
             .view
             .as_ref()
-            .is_some_and(|v| effect::view_has_motion_or_effects(v));
+            .is_some_and(effect::view_has_motion_or_effects);
 
         // Scan all code paths for signal mutations and function calls
         // Compute called_fns first — mutations only tracked for called functions
@@ -50,7 +50,7 @@ impl ReactCodegen {
         let mut read_signals = comp
             .view
             .as_ref()
-            .map(|v| state::collect_view_read_signals(v))
+            .map(state::collect_view_read_signals)
             .unwrap_or_default();
         for computed in &comp.computeds {
             collect_expr_identifiers(&computed.body, &mut read_signals);
@@ -108,7 +108,7 @@ impl ReactCodegen {
         let used_style_classes = comp
             .view
             .as_ref()
-            .map(|v| jsx::collect_used_style_classes(v))
+            .map(jsx::collect_used_style_classes)
             .unwrap_or_default();
         let has_styles = !comp.styles.is_empty()
             && used_style_classes
