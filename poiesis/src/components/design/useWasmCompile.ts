@@ -114,24 +114,24 @@ function useWasmCompile(): {
         if (designSrc) sources["src/design.omni"] = designSrc;
 
         // Apply debug signal value overrides before WASM compilation.
-        // This only modifies the in-flight source strings — the store's
-        // original default values and generated .omni code are untouched.
-        if (Object.keys(debugSignalValues).length > 0) {
-          applyDebugSignalOverrides(sources, debugSignalValues);
-        }
+        // Returns a new object — the store's original defaults are untouched.
+        const effectiveSources =
+          Object.keys(debugSignalValues).length > 0
+            ? applyDebugSignalOverrides(sources, debugSignalValues)
+            : sources;
 
         // Path mapping is auto-derived by WASM from source keys
         const pathMapping: Record<string, string> = {};
 
         // Skip compile if sources haven't changed
-        const sourcesKey = JSON.stringify(sources);
+        const sourcesKey = JSON.stringify(effectiveSources);
         if (sourcesKey === lastSourcesRef.current) {
           setIsCompiling(false);
           return;
         }
         lastSourcesRef.current = sourcesKey;
 
-        const result = rustCompiler.resolveStylesMultiCached(sources, pathMapping);
+        const result = rustCompiler.resolveStylesMultiCached(effectiveSources, pathMapping);
 
         const actualErrors = (result.errors || []).filter(
           (e: any) => e.severity === "error",
@@ -207,16 +207,17 @@ function useWasmCompile(): {
  * Original sources are mutated in-place.
  */
 function applyDebugSignalOverrides(
-  sources: Record<string, string>,
+  sources: Readonly<Record<string, string>>,
   debugValues: Record<string, Record<string, unknown>>,
-): void {
+): Record<string, string> {
   // Collect all debug signals into a flat map for efficient lookup
   const flatDebug: Record<string, unknown> = {};
   for (const signals of Object.values(debugValues)) {
     Object.assign(flatDebug, signals);
   }
-  if (Object.keys(flatDebug).length === 0) return;
+  if (Object.keys(flatDebug).length === 0) return { ...sources };
 
+  const result: Record<string, string> = {};
   for (const path of Object.keys(sources)) {
     let text = sources[path];
     for (const [sigName, sigValue] of Object.entries(flatDebug)) {
@@ -240,8 +241,9 @@ function applyDebugSignalOverrides(
         text = text.replace(noDefaultRe, `$1 = ${formatted}$2`);
       }
     }
-    sources[path] = text;
+    result[path] = text;
   }
+  return result;
 }
 
 function escapeRegex(str: string): string {
