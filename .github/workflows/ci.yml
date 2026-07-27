@@ -95,10 +95,23 @@ jobs:
         run: cd poiesis && npm audit --audit-level=high
       - name: Type check
         run: cd poiesis && npx tsc --noEmit
+      - name: Check debug-window HTML sync
+        run: |
+          diff poiesis/src-tauri/debug-window/index.html poiesis/public/debug-window/index.html || \
+            (echo "ERROR: debug-window HTML files differ!" && exit 1)
       - name: Unit tests (golden + codegen)
         run: cd poiesis && npx vitest run --config vitest.config.js src/services/codegen/__tests__/
       - name: Build
         run: cd poiesis && npm run build
+
+  evals:
+    runs-on: ubuntu-latest
+    needs: rust
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run OmniLang evals
+        run: bash .claude/evals/eval-run-omnilang.sh
+        continue-on-error: true
 
   audit:
     runs-on: ubuntu-latest

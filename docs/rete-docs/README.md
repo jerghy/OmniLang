@@ -1,5 +1,8 @@
-# Rete.js Documentation (Local Copy)
+# ⚠️ DEPRECATED — Rete.js Documentation (Historical Reference)
 
+> Rete.js has been removed from the Poiesis tech stack. These files are retained only as historical reference.
+> See `docs/design/DESIGN_DOCS_INDEX.md` for current architecture.
+>
 > Downloaded from https://retejs.org/docs/
 
 ## Table of Contents

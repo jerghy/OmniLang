@@ -1,4 +1,4 @@
-# ADR 1: 澄清：TypeScript 管线不是编译器，是编辑器往返翻译层
+# ADR-005: 澄清：TypeScript 管线不是编译器，是编辑器往返翻译层
 
 ## Status
 
