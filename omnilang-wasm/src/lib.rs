@@ -146,11 +146,12 @@ fn parse_source_internal(source: &str) -> serde_json::Value {
             "success": false,
             "program": null,
             "errors": [{
+                "severity": "error",
+                "code": "E_PARSE",
                 "message": "Input exceeds 10MB limit",
+                "file": null,
                 "line": 0,
                 "col": 0,
-                "start": 0,
-                "end": 0,
             }],
         });
     }
@@ -168,11 +169,12 @@ fn parse_source_internal(source: &str) -> serde_json::Value {
                 "success": false,
                 "program": null,
                 "errors": [{
+                    "severity": "error",
+                    "code": "E_PARSE",
                     "message": err.message,
+                    "file": null,
                     "line": err.span.line,
                     "col": err.span.col,
-                    "start": err.span.start,
-                    "end": err.span.end,
                 }],
             })
         }
