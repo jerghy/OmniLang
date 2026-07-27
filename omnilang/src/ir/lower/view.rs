@@ -447,6 +447,7 @@ fn lower_element(
                     },
                     motion_ref,
                     inline_motion: None,
+                    source_span: None,
                 });
             }
             // States map: states: { visible: { ... }, hidden: { ... } }
@@ -469,6 +470,7 @@ fn lower_element(
                             properties,
                             over,
                             ease,
+                            source_span: None,
                         },
                     );
                 }
@@ -611,6 +613,7 @@ fn lower_element(
                     states: states_map.map(|s| StatesIR {
                         states: s,
                         signal: animate_signal,
+                        source_span: None,
                     }),
                     paused_override,
                     driven_by,
@@ -618,6 +621,7 @@ fn lower_element(
                     in_view_once,
                     in_view_repeat,
                     in_view_threshold,
+                    source_span: None,
                 }))
             } else {
                 None
@@ -629,6 +633,7 @@ fn lower_element(
                     start: scroll_start,
                     end: scroll_end,
                     scrub: scroll_scrub,
+                    source_span: None,
                 }))
             } else {
                 None
@@ -649,6 +654,7 @@ fn lower_element(
                     momentum: drag_momentum,
                     threshold: drag_threshold,
                     velocity_max: drag_velocity_max,
+                    source_span: None,
                 }))
             } else {
                 None
@@ -659,6 +665,7 @@ fn lower_element(
                 Some(Box::new(HeroBehavior {
                     tag: hero_tag,
                     transition: hero_transition,
+                    source_span: None,
                 }))
             } else {
                 None

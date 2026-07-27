@@ -7,6 +7,9 @@
 
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
+
+use crate::lexer::Span;
+
 /// A fully lowered design block.
 ///
 /// Tokens are resolved into a `FxHashMap<String, TokenIR>` for O(1) lookup.
@@ -18,6 +21,8 @@ pub struct DesignIR {
     pub tokens: FxHashMap<String, TokenIR>,
     pub classes: Vec<ClassIR>,
     pub variants: Vec<VariantIR>,
+    #[serde(default)]
+    pub source_span: Option<Span>,
 }
 
 /// A single design token with its resolved value and type annotation.
@@ -25,6 +30,8 @@ pub struct DesignIR {
 pub struct TokenIR {
     pub value: String,
     pub token_type: TokenTypeIR,
+    #[serde(default)]
+    pub source_span: Option<Span>,
 }
 
 /// Token type annotation mirroring the AST `TokenType` — 13 recognized types.
@@ -53,6 +60,8 @@ pub struct ClassIR {
     pub properties: FxHashMap<String, String>,
     /// Pseudo-state overrides (e.g. `:hover`, `:focus`).
     pub pseudo_states: Vec<PseudoStateIR>,
+    #[serde(default)]
+    pub source_span: Option<Span>,
 }
 
 /// A pseudo-state variant of a class (e.g. `&:hover { ... }`).
@@ -60,6 +69,8 @@ pub struct ClassIR {
 pub struct PseudoStateIR {
     pub pseudo: String,
     pub properties: FxHashMap<String, String>,
+    #[serde(default)]
+    pub source_span: Option<Span>,
 }
 
 /// A design variant — a parameterised group of CSS customisations
@@ -71,6 +82,8 @@ pub struct VariantIR {
     pub defaults: FxHashMap<String, String>,
     pub base: FxHashMap<String, String>,
     pub branches: Vec<VariantBranchIR>,
+    #[serde(default)]
+    pub source_span: Option<Span>,
 }
 
 /// A dimension axis of a variant (e.g. `@dim color: primary | danger`).
@@ -78,6 +91,8 @@ pub struct VariantIR {
 pub struct VariantDimIR {
     pub name: String,
     pub values: Vec<String>,
+    #[serde(default)]
+    pub source_span: Option<Span>,
 }
 
 /// A single branch of a variant (e.g. `color.primary { ... }`).
@@ -86,4 +101,6 @@ pub struct VariantBranchIR {
     pub dimension: String,
     pub value: String,
     pub properties: FxHashMap<String, String>,
+    #[serde(default)]
+    pub source_span: Option<Span>,
 }

@@ -2,6 +2,7 @@
 
 pub use super::visibility::Visibility;
 use super::*;
+use crate::lexer::Span;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
@@ -14,6 +15,8 @@ pub struct FunctionIR {
     pub body: BlockIR,
     #[serde(default)]
     pub is_async: bool,
+    #[serde(default)]
+    pub source_span: Option<Span>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -21,6 +24,8 @@ pub struct StructIR {
     pub name: String,
     pub visibility: Visibility,
     pub fields: Vec<FieldIR>,
+    #[serde(default)]
+    pub source_span: Option<Span>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -28,6 +33,8 @@ pub struct FieldIR {
     pub name: String,
     pub r#type: TypeIR,
     pub visibility: Visibility,
+    #[serde(default)]
+    pub source_span: Option<Span>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -35,12 +42,16 @@ pub struct EnumIR {
     pub name: String,
     pub visibility: Visibility,
     pub variants: Vec<VariantIR>,
+    #[serde(default)]
+    pub source_span: Option<Span>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VariantIR {
     pub name: String,
     pub payload: Option<TypeIR>,
+    #[serde(default)]
+    pub source_span: Option<Span>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -48,6 +59,8 @@ pub struct TypeAliasIR {
     pub name: String,
     pub visibility: Visibility,
     pub target: TypeIR,
+    #[serde(default)]
+    pub source_span: Option<Span>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -65,12 +78,16 @@ pub struct ImportIR {
     pub names: Vec<String>,
     pub alias: Option<String>,
     pub kind: ImportKind,
+    #[serde(default)]
+    pub source_span: Option<Span>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExportIR {
     pub names: Vec<String>,
     pub path: Option<String>,
+    #[serde(default)]
+    pub source_span: Option<Span>,
 }
 
 /// A single module in the IR — corresponds to one .omni source file.
@@ -101,6 +118,8 @@ pub struct ModuleIR {
     pub timelines: Vec<super::TimelineIntent>,
     #[serde(default)]
     pub designs: Vec<super::DesignIR>,
+    #[serde(default)]
+    pub source_span: Option<Span>,
 }
 
 #[cfg(test)]

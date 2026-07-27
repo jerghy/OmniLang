@@ -38,6 +38,7 @@ pub(super) fn lower_motion_def(
     MotionIntent {
         name: def.name.clone(),
         body,
+        source_span: None,
     }
 }
 
@@ -51,6 +52,7 @@ pub(super) fn lower_timeline_def(
     TimelineIntent {
         name: tl.name.clone(),
         items,
+        source_span: None,
     }
 }
 
@@ -79,6 +81,7 @@ pub(super) fn lower_keyframe_body(
                 position,
                 properties,
                 ease,
+                source_span: None,
             }
         })
         .collect();
@@ -120,6 +123,7 @@ pub(super) fn lower_keyframe_body(
         path: kf.path.clone(),
         path_rotate: kf.path_rotate,
         callbacks,
+        source_span: None,
     }
 }
 
@@ -131,7 +135,11 @@ pub(super) fn lower_timeline_body(
 ) -> TimelineIR {
     let items = lower_timeline_items(&tl.items, variant_map, semantics);
     let playback = lower_playback_props(&tl.playback, variant_map, semantics);
-    TimelineIR { items, playback }
+    TimelineIR {
+        items,
+        playback,
+        source_span: None,
+    }
 }
 
 /// Lower timeline items (Vec<TimelineItem>) to Vec<TimelineItemIR>.
@@ -177,6 +185,7 @@ pub(super) fn lower_timeline_items(
                     result.push(TimelineItemIR {
                         kind: TimelineItemKindIR::Label("__start_pos__".into(), None),
                         connector: lower_connector(&item.connector),
+                        source_span: None,
                     });
                 }
             }
@@ -204,6 +213,7 @@ pub(super) fn lower_timeline_items(
                         path_rotate: di.path_rotate,
                     },
                     connector: lower_connector(&item.connector),
+                    source_span: None,
                 });
             }
             _ => {
@@ -211,6 +221,7 @@ pub(super) fn lower_timeline_items(
                 result.push(TimelineItemIR {
                     kind,
                     connector: lower_connector(&item.connector),
+                    source_span: None,
                 });
             }
         }
@@ -268,6 +279,7 @@ pub(super) fn lower_timeline_item_kind_simple(
                     }
                 },
                 from: Some(lower_stagger_direction(&sc.from)),
+                source_span: None,
             },
             lower_stagger_direction(&sc.from),
         ),
@@ -320,6 +332,7 @@ pub(super) fn lower_callback_body(
         callbacks,
         over,
         playback,
+        source_span: None,
     }
 }
 

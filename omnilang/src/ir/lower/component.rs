@@ -104,6 +104,7 @@ pub(super) fn lower_component(
                 return_type: f.return_type.as_ref().map(lower_type),
                 body: lower_block(&f.body, variant_map, None, semantics),
                 is_async: f.is_async,
+                source_span: None,
             };
             semantics.symbols.pop_scope();
             result
@@ -126,6 +127,7 @@ pub(super) fn lower_component(
             return_type: a.return_type.as_ref().map(lower_type),
             body: lower_block(&a.body, variant_map, None, semantics),
             is_async: a.is_async,
+            source_span: None,
         });
         semantics.symbols.pop_scope();
     }
@@ -255,6 +257,7 @@ pub(super) fn lower_component(
             name: h.name.clone(),
             over: lower_expr(&h.over, variant_map, None, semantics),
             ease: h.ease.as_ref().map(lower_easing),
+            source_span: None,
         })
         .collect();
 
@@ -613,6 +616,7 @@ pub(super) fn lower_store(
                 return_type: action.return_type.as_ref().map(lower_type),
                 body: lower_block(&action.body, variant_map, None, semantics),
                 is_async: action.is_async,
+                source_span: None,
             };
             semantics.symbols.pop_scope();
             result

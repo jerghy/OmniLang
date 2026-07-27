@@ -2,6 +2,7 @@
 //! Extracted from types.rs to keep each file under 800 lines.
 
 use super::*;
+use crate::lexer::Span;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
@@ -13,6 +14,8 @@ use serde::{Deserialize, Serialize};
 pub struct MotionIntent {
     pub name: String,
     pub body: MotionBodyIR,
+    #[serde(default)]
+    pub source_span: Option<Span>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -38,6 +41,8 @@ pub struct KeyframeIR {
     /// Callback blocks (onStart, onUpdate, onComplete, onRepeat, onInterrupt)
     #[serde(default)]
     pub callbacks: Vec<(CallbackKindIR, ExprIR)>,
+    #[serde(default)]
+    pub source_span: Option<Span>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -45,18 +50,24 @@ pub struct KeyframeStopIR {
     pub position: f64,
     pub properties: FxHashMap<String, ExprIR>,
     pub ease: Option<EasingIR>,
+    #[serde(default)]
+    pub source_span: Option<Span>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TimelineIR {
     pub items: Vec<TimelineItemIR>,
     pub playback: PlaybackIR,
+    #[serde(default)]
+    pub source_span: Option<Span>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TimelineItemIR {
     pub kind: TimelineItemKindIR,
     pub connector: ConnectorIR,
+    #[serde(default)]
+    pub source_span: Option<Span>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -99,6 +110,8 @@ pub struct CallbackBodyIR {
     pub callbacks: Vec<(CallbackKindIR, ExprIR)>,
     pub over: ExprIR,
     pub playback: PlaybackIR,
+    #[serde(default)]
+    pub source_span: Option<Span>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -126,6 +139,8 @@ pub struct PlaybackIR {
     pub delay_children: Option<ExprIR>,
     pub stagger_children: Option<ExprIR>,
     pub stagger_from: Option<StaggerDirection>,
+    #[serde(default)]
+    pub source_span: Option<Span>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -163,6 +178,8 @@ pub struct HeroIntent {
     pub name: String,
     pub over: ExprIR,
     pub ease: Option<EasingIR>,
+    #[serde(default)]
+    pub source_span: Option<Span>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -170,6 +187,8 @@ pub struct TriggerIntent {
     pub kind: TriggerKind,
     pub motion_ref: Option<String>,
     pub inline_motion: Option<MotionBodyIR>,
+    #[serde(default)]
+    pub source_span: Option<Span>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -192,6 +211,8 @@ pub enum TriggerKind {
 pub struct StatesIR {
     pub states: FxHashMap<String, StateTweenIR>,
     pub signal: Option<ExprIR>,
+    #[serde(default)]
+    pub source_span: Option<Span>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -199,6 +220,8 @@ pub struct StateTweenIR {
     pub properties: FxHashMap<String, ExprIR>,
     pub over: Option<ExprIR>,
     pub ease: Option<EasingIR>,
+    #[serde(default)]
+    pub source_span: Option<Span>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -212,6 +235,8 @@ pub enum MotionExprIR {
 pub struct TimelineIntent {
     pub name: String,
     pub items: Vec<TimelineItemIR>,
+    #[serde(default)]
+    pub source_span: Option<Span>,
 }
 
 /// Value type for loop_count.
@@ -271,6 +296,8 @@ pub enum StaggerDirection {
 pub struct StaggerTimingIR {
     pub each: ExprIR,
     pub from: Option<StaggerDirection>,
+    #[serde(default)]
+    pub source_span: Option<Span>,
 }
 
 // ═══════════════════════════════════════════════════════
@@ -287,6 +314,8 @@ pub struct MotionBehavior {
     pub in_view_once: Option<ExprIR>,
     pub in_view_repeat: Option<ExprIR>,
     pub in_view_threshold: Option<ExprIR>,
+    #[serde(default)]
+    pub source_span: Option<Span>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -294,6 +323,8 @@ pub struct ScrollBehavior {
     pub start: Option<String>,
     pub end: Option<String>,
     pub scrub: Option<ExprIR>,
+    #[serde(default)]
+    pub source_span: Option<Span>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -304,12 +335,16 @@ pub struct DragBehavior {
     pub momentum: Option<ExprIR>,
     pub threshold: Option<ExprIR>,
     pub velocity_max: Option<ExprIR>,
+    #[serde(default)]
+    pub source_span: Option<Span>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct HeroBehavior {
     pub tag: Option<String>,
     pub transition: Option<ExprIR>,
+    #[serde(default)]
+    pub source_span: Option<Span>,
 }
 
 #[cfg(test)]

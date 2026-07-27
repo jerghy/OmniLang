@@ -203,6 +203,7 @@ pub fn lower(program: &Program, semantics: &mut SemanticResult) -> IRProgram {
             motions,
             timelines,
             designs,
+            source_span: None,
         };
 
         modules.insert(module_name.clone(), module_ir);

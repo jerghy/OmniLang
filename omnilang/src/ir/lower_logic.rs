@@ -24,6 +24,7 @@ pub fn lower_function(
         return_type: func.return_type.as_ref().map(lower_type),
         body: lower_block(&func.body, variant_map, None, semantics),
         is_async: func.is_async,
+        source_span: None,
     }
 }
 
@@ -38,8 +39,10 @@ pub fn lower_struct(s: &StructDef) -> StructIR {
                 name: f.name.clone(),
                 r#type: lower_type(&f.type_ann),
                 visibility: Visibility::Public,
+                source_span: None,
             })
             .collect(),
+        source_span: None,
     }
 }
 
@@ -53,8 +56,10 @@ pub fn lower_enum(tu: &TaggedUnionDef) -> EnumIR {
             .map(|v| VariantIR {
                 name: v.name.clone(),
                 payload: v.fields.first().map(|f| lower_type(&f.type_ann)),
+                source_span: None,
             })
             .collect(),
+        source_span: None,
     }
 }
 
@@ -63,6 +68,7 @@ pub fn lower_type_alias(ta: &TypeAlias) -> TypeAliasIR {
         name: ta.name.clone(),
         visibility: ta.visibility,
         target: lower_type(&ta.type_ann),
+        source_span: None,
     }
 }
 
@@ -73,24 +79,28 @@ pub fn lower_import(imp: &ImportStmt) -> ImportIR {
             names: n.names.clone(),
             alias: None,
             kind: ImportKind::Named,
+            source_span: None,
         },
         ImportStmt::Namespace(ns) => ImportIR {
             path: ns.path.clone(),
             names: vec![],
             alias: Some(ns.alias.clone()),
             kind: ImportKind::Namespace,
+            source_span: None,
         },
         ImportStmt::TypeOnly(t) => ImportIR {
             path: t.path.clone(),
             names: t.names.clone(),
             alias: None,
             kind: ImportKind::TypeOnly,
+            source_span: None,
         },
         ImportStmt::Lib(name) => ImportIR {
             path: name.clone(),
             names: vec![],
             alias: None,
             kind: ImportKind::Lib,
+            source_span: None,
         },
     }
 }
@@ -99,6 +109,7 @@ pub fn lower_export(exp: &ExportFrom) -> ExportIR {
     ExportIR {
         names: exp.names.clone(),
         path: Some(exp.path.clone()),
+        source_span: None,
     }
 }
 

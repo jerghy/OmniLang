@@ -41,6 +41,7 @@ pub fn lower_design(ast: &DesignDef) -> DesignIR {
                 TokenIR {
                     value: t.value.clone(),
                     token_type,
+                    source_span: None,
                 },
             )
         })
@@ -65,6 +66,7 @@ pub fn lower_design(ast: &DesignDef) -> DesignIR {
         tokens,
         classes,
         variants,
+        source_span: None,
     }
 }
 
@@ -123,6 +125,7 @@ fn lower_class(class: &DesignClassDef, tokens: &FxHashMap<String, TokenIR>) -> C
         .map(|ps| PseudoStateIR {
             pseudo: ps.pseudo.clone(),
             properties: resolve_properties(&ps.properties, tokens),
+            source_span: None,
         })
         .collect();
 
@@ -130,6 +133,7 @@ fn lower_class(class: &DesignClassDef, tokens: &FxHashMap<String, TokenIR>) -> C
         name: class.name.clone(),
         properties,
         pseudo_states,
+        source_span: None,
     }
 }
 
@@ -144,6 +148,7 @@ fn lower_variant(variant: &VariantDef, tokens: &FxHashMap<String, TokenIR>) -> V
         .map(|d| VariantDimIR {
             name: d.name.clone(),
             values: d.values.clone(),
+            source_span: None,
         })
         .collect();
 
@@ -157,6 +162,7 @@ fn lower_variant(variant: &VariantDef, tokens: &FxHashMap<String, TokenIR>) -> V
             dimension: b.dimension.clone(),
             value: b.value.clone(),
             properties: resolve_properties(&b.properties, tokens),
+            source_span: None,
         })
         .collect();
 
@@ -166,6 +172,7 @@ fn lower_variant(variant: &VariantDef, tokens: &FxHashMap<String, TokenIR>) -> V
         defaults,
         base,
         branches,
+        source_span: None,
     }
 }
 
