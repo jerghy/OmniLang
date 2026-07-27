@@ -220,7 +220,9 @@ pub fn lower(program: &Program, semantics: &mut SemanticResult) -> IRProgram {
     // For each module, scan its Named imports.  If an imported name matches
     // a design in all_designs, clone the DesignIR into the importing module.
     for (module_name, module) in program.modules.iter() {
-        let module_ir = modules.get_mut(module_name).unwrap();
+        let module_ir = modules
+            .get_mut(module_name)
+            .expect("module must exist in modules map (populated above)");
         let mut imported_designs: Vec<super::DesignIR> = Vec::new();
 
         for imp in &module.imports {
