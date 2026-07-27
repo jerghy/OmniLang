@@ -403,7 +403,7 @@ pub(super) fn generate_statement_tsx_with_mode(
                             "array_push" => {
                                 let item = args
                                     .get(1)
-                                    .map(|e| format_expr_ir_tsx(e))
+                                    .map(format_expr_ir_tsx)
                                     .unwrap_or_else(|| "undefined".into());
                                 w.emit_fmt(format_args!(
                                     "{}(prev => [...prev, {}]);",

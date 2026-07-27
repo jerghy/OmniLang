@@ -317,26 +317,26 @@ pub(super) fn view_has_motion_or_effects(node: &ViewTree) -> bool {
                 return true;
             }
             // Check children
-            el.children.iter().any(|c| view_has_motion_or_effects(c))
+            el.children.iter().any(view_has_motion_or_effects)
         }
         ViewTree::Conditional(cond) => {
             cond.branches.iter().any(|b| {
                 b.body
                     .as_ref()
-                    .is_some_and(|b| view_has_motion_or_effects(b))
+                    .is_some_and(view_has_motion_or_effects)
             }) || cond
                 .fallback
                 .as_ref()
-                .is_some_and(|fb| view_has_motion_or_effects(fb))
+                .is_some_and(view_has_motion_or_effects)
         }
         ViewTree::ListRendering(list) => {
             list.body
                 .as_ref()
-                .is_some_and(|b| view_has_motion_or_effects(b))
+                .is_some_and(view_has_motion_or_effects)
                 || list
                     .empty_body
                     .as_ref()
-                    .is_some_and(|eb| view_has_motion_or_effects(eb))
+                    .is_some_and(view_has_motion_or_effects)
         }
         ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => false,
     }

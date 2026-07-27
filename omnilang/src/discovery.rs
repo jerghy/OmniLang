@@ -88,7 +88,7 @@ fn discover_single_with_siblings(file_path: &Path) -> Result<FxHashMap<String, S
         return Err(format!("File not found: {}", file_path.display()));
     }
 
-    if file_path.extension().map_or(true, |e| e != "omni") {
+    if file_path.extension().is_none_or(|e| e != "omni") {
         return Err(format!("Not a .omni file: {}", file_path.display()));
     }
 

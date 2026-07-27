@@ -23,8 +23,10 @@ pub(crate) mod view;
 
 /// How stores are generated for React targets.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Default)]
 pub enum ReactStoreMode {
     /// Generate custom React hooks with useState/useCallback/useMemo.
+    #[default]
     Hooks,
     /// Generate Zustand stores using `create()` from zustand.
     Zustand,
@@ -43,11 +45,6 @@ impl std::str::FromStr for ReactStoreMode {
     }
 }
 
-impl Default for ReactStoreMode {
-    fn default() -> Self {
-        Self::Hooks
-    }
-}
 
 pub struct ReactCodegen {
     pub store_mode: ReactStoreMode,
@@ -391,7 +388,7 @@ impl ReactCodegen {
         w.indent();
 
         // Signal defaults
-        for (sig_name, _sig_type) in &store.signals {
+        for sig_name in store.signals.keys() {
             let init = store
                 .signal_defaults
                 .get(sig_name)
@@ -465,7 +462,7 @@ fn gen_zustand_action_stmt(
         } => {
             let rhs = value
                 .as_ref()
-                .map(|v| expr::format_expr_ir_tsx(v))
+                .map(expr::format_expr_ir_tsx)
                 .unwrap_or_else(|| "null".into());
             w.emit_fmt(format_args!("const {} = {};", name, rhs));
         }
@@ -504,7 +501,7 @@ fn gen_zustand_action_stmt(
         StatementIR::ReturnStmtIR { value } => {
             let v = value
                 .as_ref()
-                .map(|v| expr::format_expr_ir_tsx(v))
+                .map(expr::format_expr_ir_tsx)
                 .unwrap_or_else(|| "null".into());
             w.emit_fmt(format_args!("return {};", v));
         }
