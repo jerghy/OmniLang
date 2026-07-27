@@ -1,0 +1,17 @@
+---
+source: omnilang/src/codegen/tests_regression/javascript.rs
+assertion_line: 87
+expression: "&format_output(&output)"
+---
+=== main.ts ===
+// Generated from main.omni
+
+class AppStore {
+    count: number;
+    constructor() {
+        this.count = 0;
+    }
+}
+
+class CounterWithStore {
+}

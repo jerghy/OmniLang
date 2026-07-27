@@ -1,0 +1,17 @@
+---
+source: omnilang/src/codegen/tests_regression/javascript.rs
+assertion_line: 34
+expression: "&format_output(&output)"
+---
+=== main.js ===
+// Generated from main.omni
+
+class Counter {
+    constructor() {
+        this.name = null;  // prop
+        this.count = 0;
+    }
+    get doubled(){
+        return count * 2;
+    }
+}
