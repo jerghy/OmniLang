@@ -303,10 +303,10 @@ impl From<String> for TypeKind {
 
 impl From<&str> for TypeKind {
     fn from(s: &str) -> Self {
-        match s {
+        match s.to_lowercase().as_str() {
             "string" => Self::String,
-            "int" => Self::Int,
-            "float" => Self::Float,
+            "int" | "i32" | "i64" => Self::Int,
+            "float" | "f32" | "f64" => Self::Float,
             "bool" => Self::Bool,
             "void" => Self::Void,
             "any" => Self::Any,

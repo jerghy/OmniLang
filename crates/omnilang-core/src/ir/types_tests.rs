@@ -315,7 +315,7 @@ fn test_typekind_serialize_preserves_type_args() {
     let array_string = TypeKind::Named {
         name: "Array".into(),
         type_args: vec![TypeKind::Named {
-            name: "String".into(),
+            name: "CustomType".into(),
             type_args: vec![],
         }],
     };
