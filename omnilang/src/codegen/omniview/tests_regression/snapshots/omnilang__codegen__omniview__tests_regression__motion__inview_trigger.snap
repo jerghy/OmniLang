@@ -1,0 +1,28 @@
+---
+source: omnilang/src/codegen/omniview/tests_regression/motion.rs
+expression: "&output"
+---
+// === mount_js ===
+
+// === js ===
+// @in-view trigger
+(function() {
+  const el = __omni_el("el-inview-001");
+  if (!el) return;
+  const anim = __omni_motion_reveal(el, { trigger: "inView" });
+  __omni_animations.set("el-inview-001_inView", anim);
+  const threshold = 0.5;
+  const observer = new IntersectionObserver((entries) => {
+   entries.forEach(entry => {
+    if (entry.isIntersecting) {
+     anim.play();
+     if (true) {
+      observer.disconnect();
+     }
+    }
+   });
+  }, { threshold: threshold });
+  observer.observe(el);
+  window.__omni_inview_observers = window.__omni_inview_observers || [];
+  __omni_inview_observers.push(observer);
+})();

@@ -1,0 +1,91 @@
+---
+source: omnilang/src/codegen/omniview/tests_regression/motion.rs
+expression: "&output"
+---
+// === mount_js ===
+
+// === js ===
+// @drag-x trigger
+(function() {
+  const el = __omni_el("el-drag-001");
+  if (!el) return;
+  const anim = __omni_motion_fadeIn(el, { trigger: "dragHorizontal" });
+  __omni_animations.set("el-drag-001_dragHorizontal", anim);
+  anim.pause();
+  const dur = anim.effect?.getTiming()?.duration || 300;
+  let startPos = 0, currentDelta = 0;
+  let isDragging = false;
+  let lastMoveTime = 0, lastMovePos = 0;
+  let velocity = 0;
+  const constraints = "left: 0; right: 300; top: 0; bottom: 0";
+  const elastic = 0.1;
+  const threshold = 0;
+  const velocityMax = 2000;
+  function parseConstraint(cfg) {
+   if (!cfg) return { min: -Infinity, max: Infinity };
+   if (cfg === 'parent') {
+    const parent = el.parentElement;
+    if (!parent) return { min: -Infinity, max: Infinity };
+    const elRect = el.getBoundingClientRect();
+    const parentRect = parent.getBoundingClientRect();
+    return { min: 0, max: parentRect.width - elRect.width };
+   }
+   if (cfg.startsWith('ref:')) {
+    const refId = cfg.slice(4);
+    const refEl = __omni_el(refId);
+    if (!refEl) return { min: -Infinity, max: Infinity };
+    const elRect = el.getBoundingClientRect();
+    const refRect = refEl.getBoundingClientRect();
+    return { min: 0, max: refRect.width - elRect.width };
+   }
+   const parts = cfg.split(' ');
+   let min = -Infinity, max = Infinity;
+   parts.forEach(p => {
+    const [key, val] = p.split(':');
+    if (key === 'left') min = parseFloat(val) || 0;
+    if (key === 'right') max = parseFloat(val) || Infinity;
+   });
+   return { min, max };
+  }
+  const constraint = parseConstraint(constraints);
+  const maxExtent = Math.abs(constraint.max - constraint.min) || 1;
+  el.addEventListener('pointerdown', (e) => {
+   isDragging = true;
+   startPos = e.clientX;
+   currentDelta = 0;
+   el.setPointerCapture(e.pointerId);
+  });
+  el.addEventListener('pointermove', (e) => {
+   if (!isDragging) return;
+   const now = performance.now();
+   const raw = e.clientX - startPos;
+   if (lastMoveTime > 0) {
+    const dt = now - lastMoveTime;
+    const dp = Math.abs(raw - lastMovePos);
+    if (dt > 0) velocity = Math.min(velocityMax, dp / dt * 1000);
+   }
+   lastMoveTime = now;
+   lastMovePos = raw;
+   let constrained = raw;
+   if (raw < constraint.min) {
+    const overshoot = constraint.min - raw;
+    constrained = constraint.min - overshoot * (1 - elastic);
+   } else if (raw > constraint.max) {
+    const overshoot = raw - constraint.max;
+    constrained = constraint.max + overshoot * (1 - elastic);
+   }
+   currentDelta = raw;
+   const progress = Math.abs(constrained) / maxExtent;
+   anim.currentTime = Math.min(1, progress) * dur;
+  });
+  el.addEventListener('pointerup', (e) => {
+   isDragging = false;
+   el.releasePointerCapture(e.pointerId);
+   const progress = Math.abs(currentDelta) / maxExtent;
+   if (progress >= threshold && maxExtent > 0) {
+    anim.play();
+   } else {
+    anim.reverse();
+   }
+  });
+})();

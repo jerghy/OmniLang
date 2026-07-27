@@ -1,0 +1,33 @@
+---
+source: omnilang/src/codegen/omniview/tests_regression/motion.rs
+expression: "&output"
+---
+// === mount_js ===
+
+// === js ===
+// @scroll trigger
+(function() {
+  const el = __omni_el("el-scroll-001");
+  if (!el) return;
+  const anim = __omni_motion_fadeIn(el, { trigger: "scroll" });
+  __omni_animations.set("el-scroll-001_scroll", anim);
+  anim.pause();
+  const dur = anim.effect?.getTiming()?.duration || 300;
+  const startCfg = "0";
+  const endCfg = "500";
+  const scrubDelay = true;
+  function computeProgress() {
+   return Omni.scrollProgress(el, startCfg, endCfg);
+  }
+  let currentProgress = 0;
+  window.addEventListener('scroll', () => {
+   const target = computeProgress();
+   if (scrubDelay > 0) {
+    currentProgress += (target - currentProgress) * Math.min(1, 16.67 / (scrubDelay * 1000));
+   } else {
+    currentProgress = target;
+   }
+   anim.currentTime = currentProgress * dur;
+  }, { passive: true });
+  anim.currentTime = computeProgress() * dur;
+})();
