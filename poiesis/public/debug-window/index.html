@@ -111,6 +111,7 @@
   var signalList = document.getElementById('signal-list');
   var actionList = document.getElementById('action-list');
   var compileInfo = document.getElementById('compile-info');
+  var omniPreview = document.getElementById('omni-preview');
   var debugActive = false;
   var refreshTimer = null;
 
@@ -165,17 +166,47 @@
   ball.addEventListener('click', function() { setDebugActive(true); });
   document.getElementById('panel-close').addEventListener('click', function() { setDebugActive(false); });
 
-  // ═══ Refresh inspector ═══
+  // ═══ postMessage bridge: parent <-> sandboxed iframe ═══
+  // The iframe runs in an isolated origin, so Tauri APIs are not available inside.
+  // All debug features (inspect, highlight, hot-replace, clicks) go through postMessage.
+
+  // ── Outbound: parent → iframe ──
+  function postToIframe(msg) {
+    if (omniPreview.contentWindow) {
+      omniPreview.contentWindow.postMessage(msg, '*');
+    }
+  }
+
+  // ── Inbound: iframe → parent ──
+  window.addEventListener('message', function(e) {
+    var msg = e.data;
+    if (!msg || !msg.source || msg.source !== 'omni-preview') return;
+
+    switch (msg.type) {
+      case 'element-click':
+        internals.invoke('plugin:event|emit', {
+          event: 'debug:element-click',
+          payload: { nid: msg.nid, tag: msg.tag }
+        }).catch(function() {});
+        break;
+
+      case 'signal-state':
+        updateSignalDisplay(msg.signals || {});
+        break;
+    }
+  });
+
+  // ═══ Refresh inspector (via postMessage) ═══
   function refreshInspector() {
-    // Signals
-    var signals = window.__omni_signals || {};
+    postToIframe({ source: 'debug-window', type: 'inspect', id: Date.now() });
+  }
+
+  function updateSignalDisplay(signals) {
     var signalKeys = Object.keys(signals);
     if (signalKeys.length > 0) {
       var html = '';
       signalKeys.forEach(function(k) {
-        var s = signals[k];
-        var val;
-        try { val = typeof s.peek === 'function' ? s.peek() : s; } catch(_) { val = s; }
+        var val = signals[k];
         if (typeof val === 'object') val = JSON.stringify(val).substring(0, 60);
         else if (typeof val === 'function') val = '[fn]';
         else val = String(val);
@@ -186,7 +217,6 @@
       signalList.innerHTML = '<div class="empty-hint">(no signals)</div>';
     }
 
-    // Actions — extract store names from signal keys (format: storeName_signalName)
     var storeNames = new Set();
     signalKeys.forEach(function(k) {
       var parts = k.split('_');
@@ -202,28 +232,11 @@
     }
   }
 
-  // ═══ Element click → emit to main window ═══
-  document.addEventListener('click', function(e) {
-    if (!debugActive) return;
-    var el = e.target.closest('[data-nid]');
-    if (!el) return;
-    e.stopPropagation();
-    e.preventDefault();
-    internals.invoke('plugin:event|emit', {
-      event: 'debug:element-click',
-      payload: { nid: el.getAttribute('data-nid'), tag: el.tagName.toLowerCase() }
-    }).catch(function() {});
-  }, true);
-
-  // ═══ Listen for highlight from main window ═══
+  // ═══ Highlight: forward Tauri event → iframe via postMessage ═══
   if (internals.transformCallback) {
     var highlightCb = internals.transformCallback(function(e) {
       var payload = typeof e.payload === 'string' ? JSON.parse(e.payload) : e.payload;
-      document.querySelectorAll('[data-nid]').forEach(function(el) { el.style.outline = ''; });
-      if (payload && payload.nid) {
-        var el = document.querySelector('[data-nid="' + payload.nid + '"]');
-        if (el) { el.style.outline = '3px solid #6366f1'; el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
-      }
+      postToIframe({ source: 'debug-window', type: 'highlight', nid: payload && payload.nid });
     });
     internals.invoke('plugin:event|listen', {
       event: 'debug:highlight',
@@ -232,47 +245,7 @@
     }).catch(function() {});
   }
 
-  // ═══ Hot-replace: update individual components without full page reload ═══
-  // NOTE: hot-replace only updates component JS (signals/effects/event handlers).
-  // It does NOT replace the DOM — the view template's HTML stays in place.
-  // Old event listeners are cleaned up via DOM clone + replace on the
-  // component root before the new factory runs.
-  function __omni_replaceComponent(name, factoryCode) {
-    var oldComp = window.__omni_components && window.__omni_components[name];
-    var savedSignals = {};
-    if (oldComp && oldComp.signals) {
-      Object.keys(oldComp.signals).forEach(function(k) {
-        try { savedSignals[k] = oldComp.signals[k].peek(); } catch(_) {}
-      });
-    }
-    // Clone and replace the component root element to strip all old
-    // event listeners without losing the DOM structure (innerHTML alone
-    // does not remove addEventListener handlers).
-    var root = document.querySelector('[data-component="' + name + '"]');
-    if (root) {
-      var clone = root.cloneNode(true);
-      if (root.parentNode) root.parentNode.replaceChild(clone, root);
-    }
-    // Eval the new factory code. Runtime functions (__omni_signal, etc.)
-    // are exposed globally by the debug bridge, so (0, eval) can find them.
-    try {
-      var newComp = (0, eval)(factoryCode);
-      if (!window.__omni_components) window.__omni_components = {};
-      window.__omni_components[name] = newComp;
-    } catch(e) {
-      compileInfo.textContent = '[HotReplace] Eval error for ' + name + ': ' + (e && e.message);
-      return;
-    }
-    if (newComp && newComp.signals) {
-      Object.keys(savedSignals).forEach(function(k) {
-        try {
-          if (newComp.signals[k]) newComp.signals[k].set(savedSignals[k]);
-        } catch(_) {}
-      });
-    }
-  }
-
-  // Listen for per-component JS deltas
+  // ═══ Hot-replace: forward component JS → iframe via postMessage ═══
   internals.invoke('plugin:event|listen', {
     event: 'debug:hot-replace',
     target: { kind: 'Any' },
@@ -281,20 +254,13 @@
       if (!payload || !payload.components) return;
       var names = Object.keys(payload.components);
       compileInfo.textContent = 'Hot-replace: ' + names.join(', ') + ' @ ' + new Date().toLocaleTimeString();
-      names.forEach(function(name) {
-        var comp = payload.components[name];
-        if (comp && comp.js) {
-          __omni_replaceComponent(name, comp.js);
-        }
-      });
+      postToIframe({ source: 'debug-window', type: 'hot-replace', components: payload.components });
     })
   }).catch(function(err) {
     compileInfo.textContent = 'Hot-replace listen FAILED: ' + JSON.stringify(err);
   });
 
   // ═══ Compile result handler — renders into sandboxed iframe (P38) ═══
-  var omniPreview = document.getElementById('omni-preview');
-
   var compileCb = internals.transformCallback(function(e) {
     try {
       var payload = typeof e.payload === 'string' ? JSON.parse(e.payload) : e.payload;
@@ -305,23 +271,71 @@
         ' HTML:' + (payload.html ? payload.html.length + 'B' : '0') +
         ' CSS:' + (payload.css ? payload.css.length + 'B' : '0') + ')';
 
-      // Build complete HTML document for sandboxed iframe
+      // Build complete HTML document with postMessage bridge injected
+      var bridgeScript = '<script>(function(){'
+        + 'var signals=window.__omni_signals||{};'
+        + 'window.addEventListener("message",function(e){'
+        + 'var m=e.data;if(!m||m.source!=="debug-window")return;'
+        + 'switch(m.type){'
+        + 'case"inspect":'
+        + '  signals=window.__omni_signals||{};'
+        + '  var snap={};Object.keys(signals).forEach(function(k){'
+        + '    try{snap[k]=typeof signals[k].peek==="function"?signals[k].peek():signals[k];}catch(_){snap[k]=signals[k];}'
+        + '  });'
+        + '  e.source.postMessage({source:"omni-preview",type:"signal-state",signals:snap},"*");'
+        + '  break;'
+        + 'case"highlight":'
+        + '  document.querySelectorAll("[data-nid]").forEach(function(el){el.style.outline="";});'
+        + '  if(m.nid){var el=document.querySelector("[data-nid=\\""+m.nid+"\\"]");'
+        + '    if(el){el.style.outline="3px solid #6366f1";el.scrollIntoView({behavior:"smooth",block:"center"});}}'
+        + '  break;'
+        + 'case"hot-replace":'
+        + '  if(!m.components)return;'
+        + '  Object.keys(m.components).forEach(function(name){'
+        + '    var comp=m.components[name];if(!comp||!comp.js)return;'
+        + '    var old=window.__omni_components&&window.__omni_components[name];'
+        + '    var saved={};'
+        + '    if(old&&old.signals){Object.keys(old.signals).forEach(function(k){'
+        + '      try{saved[k]=old.signals[k].peek();}catch(_){}'
+        + '    });}'
+        + '    var root=document.querySelector("[data-component=\\""+name+"\\"]");'
+        + '    if(root){var clone=root.cloneNode(true);'
+        + '      if(root.parentNode)root.parentNode.replaceChild(clone,root);}'
+        + '    try{var newComp=(0,eval)(comp.js);'
+        + '      if(!window.__omni_components)window.__omni_components={};'
+        + '      window.__omni_components[name]=newComp;'
+        + '      if(newComp&&newComp.signals){'
+        + '        Object.keys(saved).forEach(function(k){'
+        + '          try{if(newComp.signals[k])newComp.signals[k].set(saved[k]);}catch(_){}'
+        + '        });}'
+        + '    }catch(_){}'
+        + '  });'
+        + '  break;'
+        + '}})'
+        + 'document.addEventListener("click",function(e){'
+        + 'var el=e.target.closest("[data-nid]");'
+        + 'if(!el)return;'
+        + 'e.stopPropagation();e.preventDefault();'
+        + 'window.parent.postMessage({source:"omni-preview",type:"element-click",'
+        + 'nid:el.getAttribute("data-nid"),tag:el.tagName.toLowerCase()},"*");'
+        + '},true);'
+        + '})();<' + '/script>';
+
       var doc = '<!DOCTYPE html>\n<html>\n<head>\n';
       if (payload.css) {
         doc += '<style>' + payload.css + '</style>\n';
       }
       doc += '</head>\n<body>\n';
       doc += (payload.html || '') + '\n';
+      doc += bridgeScript + '\n';
       if (payload.js) {
         doc += '<script>' + payload.js + '</script>\n';
       }
       doc += '</body>\n</html>';
 
-      // Load into sandboxed iframe — compiled code runs isolated from Tauri APIs
+      // Load into sandboxed iframe — compiled code runs isolated from Tauri APIs.
+      // postMessage bridge restores: inspect, highlight, hot-replace, element click.
       omniPreview.srcdoc = doc;
-
-      // Note: inspector panel (signals, actions) cannot access sandboxed iframe
-      // content. Future enhancement: postMessage-based inspector bridge.
     } catch (err) {
       compileInfo.textContent = 'Handler error: ' + err.message;
     }
