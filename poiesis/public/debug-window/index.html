@@ -179,6 +179,8 @@
 
   // ── Inbound: iframe → parent ──
   window.addEventListener('message', function(e) {
+    // Verify sender is the sandboxed iframe (origin is 'null' with sandbox="allow-scripts")
+    if (e.source !== omniPreview.contentWindow || e.origin !== 'null') return;
     var msg = e.data;
     if (!msg || !msg.source || msg.source !== 'omni-preview') return;
 
@@ -300,6 +302,8 @@
       var bridgeScript = '<script>(function(){'
         + 'var signals=window.__omni_signals||{};'
         + 'window.addEventListener("message",function(e){'
+        + 'if(e.source!==window.parent)return;'
+        + 'if(e.origin!==window.parent.origin)return;'
         + 'var m=e.data;if(!m||m.source!=="debug-window")return;'
         + 'switch(m.type){'
         + 'case"inspect":'
