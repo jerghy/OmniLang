@@ -252,7 +252,7 @@ mod tests {
             ]
             .into_iter()
             .collect(),
-            pseudo_signals: vec![PseudoStateIR {
+            pseudo_states: vec![PseudoStateIR {
                 pseudo: "hover".to_string(),
                 properties: vec![(
                     "box-shadow".to_string(),
