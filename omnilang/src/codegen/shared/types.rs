@@ -139,7 +139,7 @@ impl FormatType for DartTypeFormatter {
                     "List".into()
                 }
             }
-            "FxHashMap" | "Map" | "Dict" => {
+            "FxHashMap" | "HashMap" | "Map" | "Dict" => {
                 if type_args.len() >= 2 {
                     format!(
                         "Map<{}, {}>",

@@ -261,9 +261,13 @@ pub(crate) trait FormatExpr {
                 call_args,
             } => {
                 let args: Vec<String> = call_args.iter().map(|a| self.format_expr(a)).collect();
-                // Always emit () for store action calls — an action ref without
-                // parens in a statement context is a no-op expression (ESLint error).
-                format!("{store_alias}.{field_name}({})", args.join(", "))
+                if args.is_empty() {
+                    // Field/getter access — no parens needed (Dart/Rust property syntax)
+                    format!("{store_alias}.{field_name}")
+                } else {
+                    // Action call with arguments — emit parens with args
+                    format!("{store_alias}.{field_name}({})", args.join(", "))
+                }
             }
             ExprIR::ArrayExpr { elements } => {
                 let items: Vec<String> = elements.iter().map(|e| self.format_expr(e)).collect();
