@@ -29,11 +29,11 @@ jobs:
       - name: Run Rust tests
         run: cargo test --workspace
       - name: Check ts-rs bindings freshness
+        if: runner.os == 'Linux'
         shell: bash
         run: |
-          cargo test export_bindings --lib -p omnilang
           git diff --exit-code poiesis/src/commands/__generated__/ || {
-            echo "ERROR: ts-rs generated files are stale. Run 'cargo test export_bindings --lib' and commit the changes."
+            echo "ERROR: ts-rs generated files are stale. Run 'cargo test export_bindings --lib -p omnilang' and commit the changes."
             exit 1
           }
       - name: Upload CLI artifacts
