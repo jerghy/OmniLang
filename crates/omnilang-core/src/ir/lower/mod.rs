@@ -189,13 +189,6 @@ pub fn lower(program: &Program, semantics: &mut SemanticResult) -> IRProgram {
 
         let designs: Vec<super::DesignIR> = module.designs.iter().map(lower_design).collect();
 
-        // Phase: theme lowering — convert ThemeDef AST to JSON for IR
-        let themes: Vec<serde_json::Value> = module
-            .themes
-            .iter()
-            .map(|t| serde_json::to_value(t).unwrap_or_default())
-            .collect();
-
         let module_ir = ModuleIR {
             name: module_name.clone(),
             functions,
@@ -204,7 +197,6 @@ pub fn lower(program: &Program, semantics: &mut SemanticResult) -> IRProgram {
             type_aliases,
             components,
             stores,
-            themes,
             imports,
             exports,
             motions,

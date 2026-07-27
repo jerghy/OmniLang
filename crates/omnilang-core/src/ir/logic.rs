@@ -107,8 +107,6 @@ pub struct ModuleIR {
     #[serde(default)]
     pub stores: FxHashMap<String, super::StoreIR>,
     #[serde(default)]
-    pub themes: Vec<serde_json::Value>,
-    #[serde(default)]
     pub imports: Vec<ImportIR>,
     #[serde(default)]
     pub exports: Vec<ExportIR>,

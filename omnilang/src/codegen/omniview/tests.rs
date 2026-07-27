@@ -39,7 +39,6 @@ fn make_module(name: &str) -> ModuleIR {
         type_aliases: FxHashMap::default(),
         components: FxHashMap::default(),
         stores: FxHashMap::default(),
-        themes: vec![],
         motions: vec![],
         timelines: vec![],
         imports: vec![],
