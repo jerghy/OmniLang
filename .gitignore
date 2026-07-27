@@ -52,3 +52,6 @@ Desktop.ini
 
 *storybook.log
 storybook-static
+
+# Brainstorm state files (ephemeral session data)
+.superpowers/brainstorm/
