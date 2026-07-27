@@ -3,6 +3,11 @@
 //! Pass 1: Dead computed-property elimination.
 //! Walks all expressions, blocks, and view trees to find which computed
 //! properties are actually referenced, then removes the unreferenced ones.
+//!
+//! Pass 2: Unreachable code elimination.
+//! After encountering an unconditional return/break/continue/throw statement,
+//! removes all subsequent statements in that block. Also recursively cleans
+//! nested blocks inside if/while/for/try-catch statements.
 
 use crate::ir::*;
 use rustc_hash::FxHashSet;
@@ -453,11 +458,148 @@ pub fn eliminate_dead_computeds(comp: &mut ComponentIR) {
     }
 }
 
+// ── Pass 2: Unreachable code elimination ──
+
+/// Returns `true` if the statement is an unconditional terminator (return, break,
+/// continue, or throw). Statements after one of these in the same block are dead.
+fn is_unconditional_terminator(stmt: &StatementIR) -> bool {
+    matches!(
+        stmt,
+        StatementIR::ReturnStmtIR { .. }
+            | StatementIR::BreakStmtIR
+            | StatementIR::ContinueStmtIR
+            | StatementIR::ThrowStmtIR { .. }
+    )
+}
+
+/// Recursively eliminate unreachable code inside a single statement's nested blocks.
+/// Returns `true` if any change was made.
+fn eliminate_unreachable_in_stmt(stmt: &mut StatementIR) -> bool {
+    let mut changed = false;
+    match stmt {
+        StatementIR::IfStmtIR {
+            then_body,
+            else_ifs,
+            else_body,
+            ..
+        } => {
+            changed |= eliminate_unreachable_block(then_body);
+            for (_, body) in else_ifs.iter_mut() {
+                changed |= eliminate_unreachable_block(body);
+            }
+            if let Some(body) = else_body.as_mut() {
+                changed |= eliminate_unreachable_block(body);
+            }
+        }
+        StatementIR::BlockStmtIR { body } => {
+            changed |= eliminate_unreachable_block(body);
+        }
+        StatementIR::WhileStmtIR { body, .. } => {
+            changed |= eliminate_unreachable_block(body);
+        }
+        StatementIR::ForInStmtIR { body, .. } => {
+            changed |= eliminate_unreachable_block(body);
+        }
+        StatementIR::TryCatchStmtIR {
+            try_body,
+            catch_body,
+            finally_body,
+            ..
+        } => {
+            changed |= eliminate_unreachable_block(try_body);
+            if let Some(body) = catch_body.as_mut() {
+                changed |= eliminate_unreachable_block(body);
+            }
+            if let Some(body) = finally_body.as_mut() {
+                changed |= eliminate_unreachable_block(body);
+            }
+        }
+        _ => {}
+    }
+    changed
+}
+
+/// Remove all statements in `block` that follow an unconditional terminator
+/// (return/break/continue/throw). Also recursively cleans nested blocks
+/// (if/while/for/try-catch) for their own unreachable code.
+///
+/// Returns `true` if any statement was removed or any nested block was changed.
+fn eliminate_unreachable_block(block: &mut BlockIR) -> bool {
+    let mut changed = false;
+    let mut i = 0;
+    while i < block.statements.len() {
+        // First, recursively clean any nested blocks inside this statement
+        changed |= eliminate_unreachable_in_stmt(&mut block.statements[i]);
+
+        // Then check if this statement is an unconditional terminator
+        if is_unconditional_terminator(&block.statements[i]) {
+            if i + 1 < block.statements.len() {
+                block.statements.truncate(i + 1);
+                changed = true;
+            }
+            break;
+        }
+        i += 1;
+    }
+    changed
+}
+
+/// Walk the view tree and clean inline event handler bodies.
+fn eliminate_unreachable_in_view(view: &mut ViewTree) -> bool {
+    let mut changed = false;
+    match view {
+        ViewTree::Element(el) => {
+            for handler in el.events.values_mut() {
+                if let EventHandlerIR::InlineFn { body, .. } = handler {
+                    changed |= eliminate_unreachable_block(body);
+                }
+            }
+            for child in &mut el.children {
+                changed |= eliminate_unreachable_in_view(child);
+            }
+        }
+        ViewTree::ListRendering(lr) => {
+            if let Some(ref mut body) = lr.body {
+                changed |= eliminate_unreachable_in_view(body);
+            }
+            if let Some(ref mut empty) = lr.empty_body {
+                changed |= eliminate_unreachable_in_view(empty);
+            }
+        }
+        ViewTree::Conditional(cond) => {
+            for branch in &mut cond.branches {
+                if let Some(ref mut body) = branch.body {
+                    changed |= eliminate_unreachable_in_view(body);
+                }
+            }
+            if let Some(ref mut fallback) = cond.fallback {
+                changed |= eliminate_unreachable_in_view(fallback);
+            }
+        }
+        ViewTree::Interpolation(_) | ViewTree::Text(_) | ViewTree::Slot(_) => {}
+    }
+    changed
+}
+
 /// Run all optimization passes on a merged IR program.
 pub fn optimize(ir: &mut IRProgram) {
     for module in ir.modules.values_mut() {
         for comp in module.components.values_mut() {
             eliminate_dead_computeds(comp);
+
+            // Pass 2: Eliminate unreachable code in all code bodies
+            for f in &mut comp.fns {
+                eliminate_unreachable_block(&mut f.body);
+            }
+            for effect in &mut comp.effects {
+                eliminate_unreachable_block(&mut effect.body);
+            }
+            for lc in &mut comp.lifecycles {
+                eliminate_unreachable_block(&mut lc.body);
+            }
+            if let Some(ref mut view) = comp.view {
+                eliminate_unreachable_in_view(view);
+            }
         }
     }
 }
@@ -941,5 +1083,338 @@ mod tests {
 
         eliminate_dead_computeds(&mut comp);
         assert_eq!(comp.computeds.len(), 0);
+    }
+
+    // ── unreachable code elimination tests ──
+
+    fn make_expr_stmt() -> StatementIR {
+        StatementIR::ExprStmtIR {
+            expr: ExprIR::LiteralExpr {
+                value: serde_json::Value::Number(0.into()),
+            },
+        }
+    }
+
+    fn make_return_stmt(value: u32) -> StatementIR {
+        StatementIR::ReturnStmtIR {
+            value: Some(ExprIR::LiteralExpr {
+                value: serde_json::Value::Number(value.into()),
+            }),
+        }
+    }
+
+    fn make_break_stmt() -> StatementIR {
+        StatementIR::BreakStmtIR
+    }
+
+    fn make_continue_stmt() -> StatementIR {
+        StatementIR::ContinueStmtIR
+    }
+
+    fn make_throw_stmt(value: u32) -> StatementIR {
+        StatementIR::ThrowStmtIR {
+            expr: ExprIR::LiteralExpr {
+                value: serde_json::Value::Number(value.into()),
+            },
+        }
+    }
+
+    #[test]
+    fn return_kills_rest() {
+        // { stmt1; return x; stmt2; } -> { stmt1; return x; } (stmt2 removed)
+        let mut block = BlockIR {
+            statements: vec![make_expr_stmt(), make_return_stmt(42), make_expr_stmt()],
+        };
+
+        let changed = eliminate_unreachable_block(&mut block);
+
+        assert!(changed);
+        assert_eq!(block.statements.len(), 2);
+        assert!(matches!(block.statements[1], StatementIR::ReturnStmtIR { .. }));
+    }
+
+    #[test]
+    fn break_kills_rest() {
+        // { stmt1; break; stmt2; } -> { stmt1; break; }
+        let mut block = BlockIR {
+            statements: vec![make_expr_stmt(), make_break_stmt(), make_expr_stmt()],
+        };
+
+        let changed = eliminate_unreachable_block(&mut block);
+
+        assert!(changed);
+        assert_eq!(block.statements.len(), 2);
+        assert!(matches!(block.statements[1], StatementIR::BreakStmtIR));
+    }
+
+    #[test]
+    fn continue_kills_rest() {
+        // { stmt1; continue; stmt2; } -> { stmt1; continue; }
+        let mut block = BlockIR {
+            statements: vec![
+                make_expr_stmt(),
+                make_continue_stmt(),
+                make_expr_stmt(),
+            ],
+        };
+
+        let changed = eliminate_unreachable_block(&mut block);
+
+        assert!(changed);
+        assert_eq!(block.statements.len(), 2);
+        assert!(matches!(
+            block.statements[1],
+            StatementIR::ContinueStmtIR
+        ));
+    }
+
+    #[test]
+    fn throw_kills_rest() {
+        // { stmt1; throw x; stmt2; } -> { stmt1; throw x; }
+        let mut block = BlockIR {
+            statements: vec![make_expr_stmt(), make_throw_stmt(99), make_expr_stmt()],
+        };
+
+        let changed = eliminate_unreachable_block(&mut block);
+
+        assert!(changed);
+        assert_eq!(block.statements.len(), 2);
+        assert!(matches!(block.statements[1], StatementIR::ThrowStmtIR { .. }));
+    }
+
+    #[test]
+    fn no_terminator_no_change() {
+        // { stmt1; stmt2; stmt3; } -> unchanged
+        let mut block = BlockIR {
+            statements: vec![make_expr_stmt(), make_expr_stmt(), make_expr_stmt()],
+        };
+
+        let changed = eliminate_unreachable_block(&mut block);
+
+        assert!(!changed);
+        assert_eq!(block.statements.len(), 3);
+    }
+
+    #[test]
+    fn terminator_at_end_no_change() {
+        // { stmt1; return x; } -> unchanged (nothing to remove)
+        let mut block = BlockIR {
+            statements: vec![make_expr_stmt(), make_return_stmt(1)],
+        };
+
+        let changed = eliminate_unreachable_block(&mut block);
+
+        assert!(!changed);
+        assert_eq!(block.statements.len(), 2);
+    }
+
+    #[test]
+    fn nested_block_cleaned() {
+        // Inside the if-body there is a return followed by dead code.
+        // The outer block's statement after the if should remain.
+        // { if cond { return x; dead_stmt; } surviving_stmt; }
+        let mut block = BlockIR {
+            statements: vec![
+                StatementIR::IfStmtIR {
+                    condition: ExprIR::LiteralExpr {
+                        value: serde_json::Value::Bool(true),
+                    },
+                    then_body: BlockIR {
+                        statements: vec![make_return_stmt(1), make_expr_stmt()],
+                    },
+                    else_ifs: vec![],
+                    else_body: None,
+                },
+                make_expr_stmt(), // should survive
+            ],
+        };
+
+        let changed = eliminate_unreachable_block(&mut block);
+
+        assert!(changed);
+        // Outer block stays 2 stmts (if + surviving)
+        assert_eq!(block.statements.len(), 2);
+        // Inner block should have been cleaned to 1 stmt (just the return)
+        if let StatementIR::IfStmtIR { then_body, .. } = &block.statements[0] {
+            assert_eq!(then_body.statements.len(), 1);
+            assert!(matches!(
+                then_body.statements[0],
+                StatementIR::ReturnStmtIR { .. }
+            ));
+        } else {
+            panic!("expected IfStmtIR");
+        }
+    }
+
+    #[test]
+    fn conditional_return_does_not_affect_outer_block() {
+        // { if cond { return; } surviving; } -> surviving stays because
+        // the return is inside a conditional branch.
+        let mut block = BlockIR {
+            statements: vec![
+                StatementIR::IfStmtIR {
+                    condition: ExprIR::LiteralExpr {
+                        value: serde_json::Value::Bool(true),
+                    },
+                    then_body: BlockIR {
+                        statements: vec![make_return_stmt(1)],
+                    },
+                    else_ifs: vec![],
+                    else_body: None,
+                },
+                make_expr_stmt(), // must survive -- return was inside if, not flat
+            ],
+        };
+
+        let changed = eliminate_unreachable_block(&mut block);
+
+        assert!(!changed, "outer block should not change");
+        assert_eq!(block.statements.len(), 2);
+    }
+
+    #[test]
+    fn while_body_cleaned() {
+        // { while cond { return; dead_stmt; } surviving; }
+        let mut block = BlockIR {
+            statements: vec![
+                StatementIR::WhileStmtIR {
+                    condition: ExprIR::LiteralExpr {
+                        value: serde_json::Value::Bool(true),
+                    },
+                    body: BlockIR {
+                        statements: vec![make_return_stmt(1), make_expr_stmt()],
+                    },
+                },
+                make_expr_stmt(),
+            ],
+        };
+
+        let changed = eliminate_unreachable_block(&mut block);
+
+        assert!(changed);
+        // Outer block unchanged (while + surviving)
+        assert_eq!(block.statements.len(), 2);
+        // While body should be cleaned
+        if let StatementIR::WhileStmtIR { body, .. } = &block.statements[0] {
+            assert_eq!(body.statements.len(), 1);
+        } else {
+            panic!("expected WhileStmtIR");
+        }
+    }
+
+    #[test]
+    fn for_in_body_cleaned() {
+        // { for item in iter { return; dead_stmt; } surviving; }
+        let mut block = BlockIR {
+            statements: vec![
+                StatementIR::ForInStmtIR {
+                    var_name: "item".to_string(),
+                    iterable: ExprIR::LiteralExpr {
+                        value: serde_json::Value::String("test".to_string()),
+                    },
+                    body: BlockIR {
+                        statements: vec![make_return_stmt(1), make_expr_stmt()],
+                    },
+                },
+                make_expr_stmt(),
+            ],
+        };
+
+        let changed = eliminate_unreachable_block(&mut block);
+
+        assert!(changed);
+        // Outer block unchanged
+        assert_eq!(block.statements.len(), 2);
+        // For-in body should be cleaned
+        if let StatementIR::ForInStmtIR { body, .. } = &block.statements[0] {
+            assert_eq!(body.statements.len(), 1);
+        } else {
+            panic!("expected ForInStmtIR");
+        }
+    }
+
+    #[test]
+    fn optimize_function_bodies() {
+        // Integration test: `optimize()` should walk function bodies and
+        // eliminate unreachable code across all components.
+        let mut prog = IRProgram {
+            version: "0.1".to_string(),
+            modules: {
+                let mut modules = FxHashMap::default();
+                let mut comps = FxHashMap::default();
+                comps.insert(
+                    "Comp".to_string(),
+                    ComponentIR {
+                        name: "Comp".to_string(),
+                        fns: vec![FunctionIR {
+                            name: "bad".to_string(),
+                            visibility: Visibility::Private,
+                            params: vec![],
+                            return_type: None,
+                            body: BlockIR {
+                                statements: vec![
+                                    make_expr_stmt(),
+                                    make_return_stmt(1),
+                                    make_expr_stmt(), // dead
+                                ],
+                            },
+                            is_async: false,
+                            source_span: None,
+                        }],
+                        effects: vec![EffectIntent {
+                            deps: vec![],
+                            body: BlockIR {
+                                statements: vec![
+                                    make_expr_stmt(),
+                                    make_throw_stmt(2),
+                                    make_expr_stmt(), // dead
+                                ],
+                            },
+                        }],
+                        ..ComponentIR::default()
+                    },
+                );
+                modules.insert(
+                    "mod".to_string(),
+                    ModuleIR {
+                        name: "mod".to_string(),
+                        components: comps,
+                        ..Default::default()
+                    },
+                );
+                modules
+            },
+            ..Default::default()
+        };
+
+        optimize(&mut prog);
+
+        // Function body should have 2 statements (expr + return)
+        let comp = &prog.modules["mod"].components["Comp"];
+        assert_eq!(comp.fns[0].body.statements.len(), 2);
+        // Effect body should have 2 statements (expr + throw)
+        assert_eq!(comp.effects[0].body.statements.len(), 2);
+    }
+
+    #[test]
+    fn multiple_returns_only_first_triggers() {
+        // { return 1; return 2; return 3; } -> { return 1; }
+        // Only the first return (and anything before it) survives.
+        let mut block = BlockIR {
+            statements: vec![
+                make_return_stmt(1),
+                make_return_stmt(2),
+                make_return_stmt(3),
+            ],
+        };
+
+        let changed = eliminate_unreachable_block(&mut block);
+
+        assert!(changed);
+        assert_eq!(block.statements.len(), 1);
+        assert!(matches!(
+            &block.statements[0],
+            StatementIR::ReturnStmtIR { .. }
+        ));
     }
 }
