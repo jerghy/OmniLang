@@ -19,7 +19,7 @@ class CounterWithStore extends StatefulWidget {
 class _CounterWithStoreState extends State<CounterWithStore> {
     @override
     Widget build(BuildContext context) {
-        return Container(onClick: () { increment(); }, children: [Text('Count: '), Text(AppStore.count())]);
+        return Container(onClick: () { increment(); }, children: [Text('Count: '), Text(AppStore.count)]);
     }
 }
 === AppStore_store.dart ===

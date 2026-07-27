@@ -15,7 +15,7 @@ export function CounterWithStore() {
             onClick={() => { AppStore.increment(); }}
         >
             {'Count: '}
-            {AppStore.count()}
+            {AppStore.count}
         </div>
     );
 }

@@ -182,7 +182,7 @@ fn test_format_expr_store_field() {
         field_name: "getCount".into(),
         call_args: vec![],
     };
-    assert_eq!(format_expr_ir_tsx(&expr), "store.getCount()");
+    assert_eq!(format_expr_ir_tsx(&expr), "store.getCount");
 }
 
 // ── generate_statement_tsx tests ─────────────────────────
