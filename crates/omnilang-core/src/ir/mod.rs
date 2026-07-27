@@ -6,9 +6,9 @@ pub mod design;
 pub mod logic;
 mod lower;
 pub mod lower_logic;
+pub mod optimize;
 mod types;
 mod types_motion;
-pub mod optimize;
 pub mod visibility;
 
 pub use lower::lower;

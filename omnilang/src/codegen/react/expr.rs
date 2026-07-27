@@ -391,11 +391,7 @@ pub(super) fn generate_statement_tsx_with_mode(
     // Intercept array_push / array_pop calls on signals — these should
     // be emitted as setter-based mutations, not pure expressions.
     if let StatementIR::ExprStmtIR {
-        expr:
-            ExprIR::CallExpr {
-                name,
-                args,
-            },
+        expr: ExprIR::CallExpr { name, args },
     } = stmt
     {
         if name == "array_push" || name == "array_pop" {
@@ -411,10 +407,7 @@ pub(super) fn generate_statement_tsx_with_mode(
                                 .get(1)
                                 .map(format_expr_ir_tsx)
                                 .unwrap_or_else(|| "undefined".into());
-                            w.emit_fmt(format_args!(
-                                "{}(prev => [...prev, {}]);",
-                                setter, item
-                            ));
+                            w.emit_fmt(format_args!("{}(prev => [...prev, {}]);", setter, item));
                             return;
                         }
                         "array_pop" => {

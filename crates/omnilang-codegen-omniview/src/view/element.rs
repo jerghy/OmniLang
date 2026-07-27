@@ -204,33 +204,33 @@ impl OmniViewGenerator {
                 value.get("variant_name").and_then(|v| v.as_str()),
                 value.get("dimension_values"),
             ) {
-                    let dim_map: FxHashMap<String, String> = dim_values
-                        .as_object()
-                        .map(|obj| {
-                            obj.iter()
-                                .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
-                                .collect()
-                        })
-                        .unwrap_or_default();
+                let dim_map: FxHashMap<String, String> = dim_values
+                    .as_object()
+                    .map(|obj| {
+                        obj.iter()
+                            .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
+                            .collect()
+                    })
+                    .unwrap_or_default();
 
-                    if let Some(design) = self.design_map.get(design_name) {
-                        match crate::design::expand_variant(design, variant_name, &dim_map) {
-                            Ok((variant_classes, _extra_css)) => {
-                                class_name_parts.extend(variant_classes);
-                            }
-                            Err(e) => {
-                                self.warnings.push(format!(
-                                    "variant '{}' not found in design '{}': {}",
-                                    variant_name, design_name, e
-                                ));
-                            }
+                if let Some(design) = self.design_map.get(design_name) {
+                    match crate::design::expand_variant(design, variant_name, &dim_map) {
+                        Ok((variant_classes, _extra_css)) => {
+                            class_name_parts.extend(variant_classes);
                         }
-                    } else {
-                        self.warnings.push(format!(
-                            "design '{}' not found for variant binding",
-                            design_name
-                        ));
+                        Err(e) => {
+                            self.warnings.push(format!(
+                                "variant '{}' not found in design '{}': {}",
+                                variant_name, design_name, e
+                            ));
+                        }
                     }
+                } else {
+                    self.warnings.push(format!(
+                        "design '{}' not found for variant binding",
+                        design_name
+                    ));
+                }
             }
         }
 
