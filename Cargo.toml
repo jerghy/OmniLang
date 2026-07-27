@@ -14,6 +14,9 @@ lto = true
 opt-level = "s"
 strip = true
 
+[workspace.dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+
 [profile.wasm-release]
 inherits = "release"
 codegen-units = 1

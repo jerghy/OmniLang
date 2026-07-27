@@ -30,3 +30,12 @@ codegen-flutter = []
 [dev-dependencies]
 insta = { version = "1", features = ["glob"] }
 proptest = "1"
+criterion = { workspace = true }
+
+[[bench]]
+name = "lexer_bench"
+harness = false
+
+[[bench]]
+name = "pipeline_bench"
+harness = false
