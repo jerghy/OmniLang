@@ -4,6 +4,7 @@ members = [
     "omnic",
     "omnilang",
     "omnilang-wasm",
+    "crates/omnilang-core",
     "poiesis/src-tauri",
 ]
 
