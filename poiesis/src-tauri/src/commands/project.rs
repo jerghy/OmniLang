@@ -154,6 +154,74 @@ pub(crate) fn get_project_dir(state: tauri::State<ProjectState>) -> Result<Strin
         .ok_or_else(|| "No project open".to_string())
 }
 
+// ── Path validation helpers ──
+
+/// Check if a canonicalized path resides within a system directory.
+#[cfg(target_os = "windows")]
+fn is_in_system_directory(path: &std::path::Path) -> bool {
+    // Windows canonicalize may prepend \\?\ for long-path support
+    let raw = path.to_string_lossy();
+    let norm = raw.strip_prefix(r"\\?\").unwrap_or(&raw).to_lowercase();
+    let bad_prefixes: &[&str] = &[
+        "c:\\windows",
+        "c:\\program files",
+        "c:\\program files (x86)",
+        "c:\\system32",
+    ];
+    bad_prefixes
+        .iter()
+        .any(|prefix| norm == *prefix || norm.starts_with(&format!("{}\\", prefix)))
+}
+
+/// Check if a canonicalized path resides within a system directory.
+#[cfg(not(target_os = "windows"))]
+fn is_in_system_directory(path: &std::path::Path) -> bool {
+    let norm = path.to_string_lossy().to_lowercase();
+    let bad_prefixes: &[&str] = &[
+        "/etc", "/usr", "/bin", "/sbin", "/sys", "/proc", "/dev",
+    ];
+    bad_prefixes
+        .iter()
+        .any(|prefix| norm == *prefix || norm.starts_with(&format!("{}/", prefix)))
+}
+
+/// Collect allowed project root directories from environment variables.
+fn get_allowed_directories() -> Vec<std::path::PathBuf> {
+    let mut dirs: Vec<std::path::PathBuf> = Vec::new();
+
+    let mut try_add = |var: &str| {
+        if let Ok(val) = std::env::var(var) {
+            if val.is_empty() {
+                return;
+            }
+            let p = std::path::Path::new(&val);
+            // Try canonicalized version; fall back to raw path
+            match p.canonicalize() {
+                Ok(c) => {
+                    if !dirs.contains(&c) {
+                        dirs.push(c);
+                    }
+                }
+                Err(_) => {
+                    let buf = p.to_path_buf();
+                    if !dirs.contains(&buf) {
+                        dirs.push(buf);
+                    }
+                }
+            }
+        }
+    };
+
+    try_add("HOME");
+    #[cfg(target_os = "windows")]
+    {
+        try_add("APPDATA");
+        try_add("USERPROFILE");
+    }
+
+    dirs
+}
+
 #[tauri::command]
 pub(crate) fn open_project(
     path: String,
@@ -165,11 +233,27 @@ pub(crate) fn open_project(
     }
     let canonical = p
         .canonicalize()
-        .map_err(|e| format!("Failed to resolve project path '{}': {e}", path))?
-        .to_string_lossy()
-        .to_string();
-    *state.project_dir.lock().map_err(|e| e.to_string())? = Some(canonical.clone());
-    Ok(serde_json::json!({"success": true, "path": canonical}))
+        .map_err(|e| format!("Failed to resolve project path '{}': {e}", path))?;
+
+    // Security: reject system directories
+    if is_in_system_directory(&canonical) {
+        return Err("System directories are not allowed as project locations".to_string());
+    }
+
+    // Security: require project directory within user's home or appdata
+    let allowed = get_allowed_directories();
+    if allowed.is_empty() {
+        return Err(
+            "Project must be within your home directory, but $HOME is not set".to_string(),
+        );
+    }
+    if !allowed.iter().any(|dir| canonical.starts_with(dir)) {
+        return Err("Project must be within your home directory".to_string());
+    }
+
+    let canonical_str = canonical.to_string_lossy().to_string();
+    *state.project_dir.lock().map_err(|e| e.to_string())? = Some(canonical_str.clone());
+    Ok(serde_json::json!({"success": true, "path": canonical_str}))
 }
 
 #[tauri::command]
