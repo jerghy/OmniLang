@@ -9,7 +9,7 @@ use super::expr::*;
 #[allow(unused_imports)]
 use super::utils::*;
 use super::ReactCodegen;
-use crate::codegen::shared::generator::build_component_map;
+use crate::codegen::shared::build_component_map;
 use crate::codegen::{
     binary_op_to_str, camel_to_kebab, capitalize_first, format_json_value, CodeWriter, Codegen,
     JSON_REACT,

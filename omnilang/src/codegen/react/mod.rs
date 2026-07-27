@@ -5,7 +5,7 @@
 //! custom hook file.
 
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
-use crate::codegen::shared::generator::build_component_map;
+use crate::codegen::shared::build_component_map;
 use crate::codegen::shared::types::{FormatType, JsTypeFormatter};
 use crate::codegen::shared::ui_codegen::UiCodegen;
 use crate::codegen::{format_json_value, JSON_REACT};

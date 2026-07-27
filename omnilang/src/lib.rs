@@ -31,7 +31,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 // ── Re-exported from omnilang-core (P35 dedup) ──
-pub use omnilang_core::{CompileResult, SymbolInfo, compile};
+pub use omnilang_core::{compile, CompileResult, SymbolInfo};
 
 // ═══════════════════════════════════════════════════════
 // Shared Pipeline
@@ -595,4 +595,3 @@ mod source_map_integration_tests {
         );
     }
 }
-

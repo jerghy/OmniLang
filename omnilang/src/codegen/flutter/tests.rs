@@ -1,7 +1,7 @@
 //! Unit tests for flutter codegen.
 
 use super::*;
-use crate::codegen::shared::generator::build_component_map;
+use crate::codegen::shared::build_component_map;
 use crate::codegen::{format_json_value, JSON_FLUTTER};
 use rustc_hash::FxHashMap;
 use std::collections::HashMap;

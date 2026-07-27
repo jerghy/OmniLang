@@ -13,8 +13,8 @@ use crate::codegen::shared::visitor::CodegenVisitor;
 
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
 use crate::codegen::shared::expr::{DartFormatExpr, FormatExpr};
-use crate::codegen::shared::generator::{emit_constructor_init, emit_store_constructor_init};
 use crate::codegen::shared::stmt::FormatStmt;
+use crate::codegen::shared::{emit_constructor_init, emit_store_constructor_init};
 use crate::codegen::{format_json_value, JSON_DART};
 use crate::ir::*;
 use rustc_hash::FxHashMap;

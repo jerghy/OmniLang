@@ -24,7 +24,7 @@ pub(crate) use view::*;
 mod tests;
 
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
-use crate::codegen::shared::generator::build_component_map;
+use crate::codegen::shared::build_component_map;
 use crate::codegen::{format_json_value, JSON_FLUTTER};
 use crate::ir::*;
 use rustc_hash::FxHashMap;
