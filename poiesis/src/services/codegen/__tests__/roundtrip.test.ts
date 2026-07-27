@@ -1,3 +1,5 @@
+// @vitest-environment node
+/// <reference types="node" />
 // poiesis/src/services/codegen/__tests__/roundtrip.test.ts
 // Round-trip tests — verify parser→emitter consistency for .omni files.
 //
@@ -10,7 +12,6 @@ import { describe, it, expect } from "vitest";
 import * as path from "path";
 import * as fs from "fs";
 import { parseOmniSource } from "../omni-parser";
-import { SourceEmitter, CodeWriter } from "../source-emitter";
 import { tokenize } from "../omni-tokenizer";
 import { TokenStream } from "../token-stream";
 import { Parser } from "../parser";
@@ -62,7 +63,7 @@ function tokenRoundtrip(source: string): {
   const tokens1 = tokenize(source);
   const stream1 = new TokenStream(tokens1);
   const parser1 = new Parser(stream1);
-  const result1 = parser1.parse();
+  parser1.parse();
 
   // Re-tokenize and re-parse the SAME source (idempotency check)
   const tokens2 = tokenize(source);

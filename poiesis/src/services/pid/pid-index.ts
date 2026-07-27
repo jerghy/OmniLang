@@ -2,7 +2,7 @@
 // PID generation and management utilities.
 // PID (Persistent IDentifier) is a stable identifier for each semantic block in .omni files.
 
-import type { PidEntry, PidMap, PidBlockType } from "../../core/types/pid";
+import type { PidBlockType } from "../../core/types/pid";
 
 /**
  * Generate a PID for a top-level or sub-block.
@@ -56,82 +56,3 @@ function getBlockPrefix(blockType: PidBlockType): string {
   }
 }
 
-/**
- * Build a PidMap from an array of PidEntry values.
- * Populates both the entries lookup and the line-to-pid reverse lookup.
- */
-function buildPidMap(entries: PidEntry[]): PidMap {
-  const entriesMap: Record<string, PidEntry> = {};
-  const lineToPid: Record<number, string> = {};
-  for (const entry of entries) {
-    entriesMap[entry.pid] = entry;
-    for (let line = entry.startLine; line <= entry.endLine; line++) {
-      lineToPid[line] = entry.pid;
-    }
-  }
-  return { status: "ok", entries: entriesMap, lineToPid };
-}
-
-/**
- * Resolve a PID to its entry in the map.
- * Returns undefined for error pidMaps.
- */
-function resolvePid(pidMap: PidMap, pid: string): PidEntry | undefined {
-  if (pidMap.status !== "ok") return undefined;
-  return pidMap.entries[pid];
-}
-
-/**
- * Resolve a line number to its PidEntry.
- * Returns undefined for error pidMaps.
- */
-function resolvePidByLine(
-  pidMap: PidMap,
-  line: number,
-): PidEntry | undefined {
-  if (pidMap.status !== "ok") return undefined;
-  const pid = pidMap.lineToPid[line];
-  return pid ? pidMap.entries[pid] : undefined;
-}
-
-/**
- * Merge multiple PidMaps into one.
- * Error pidMaps are skipped. Later maps overwrite earlier ones for the same key.
- */
-function mergePidMaps(maps: PidMap[]): PidMap {
-  const entries: Record<string, PidEntry> = {};
-  const lineToPid: Record<number, string> = {};
-  for (const map of maps) {
-    if (map.status !== "ok") continue;
-    Object.assign(entries, map.entries);
-    Object.assign(lineToPid, map.lineToPid);
-  }
-  return { status: "ok", entries, lineToPid };
-}
-
-/**
- * Detect duplicate PIDs across multiple PidMaps.
- * Returns an array of PID strings that appear more than once.
- * Error pidMaps are skipped.
- */
-function detectPidConflicts(
-  sourcePidMaps: Record<string, PidMap>,
-): Array<{ pid: string; sources: string[] }> {
-  const pidToSources: Record<string, string[]> = {};
-
-  for (const [sourceName, pidMap] of Object.entries(sourcePidMaps)) {
-    if (pidMap.status !== "ok") continue;
-    for (const pid of Object.keys(pidMap.entries)) {
-      if (!pidToSources[pid]) {
-        pidToSources[pid] = [];
-      }
-      pidToSources[pid].push(sourceName);
-    }
-  }
-
-  const result: Array<{ pid: string; sources: string[] }> = [];
-  for (const [pid, sources] of Object.entries(pidToSources)) {
-    if (sources.length > 1) result.push({ pid, sources });
-  }
-  return result;
-}

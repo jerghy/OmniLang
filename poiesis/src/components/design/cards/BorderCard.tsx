@@ -9,6 +9,16 @@ import { ColorHUD } from "../ColorHUD";
 import { LockIcon } from "./LockIcon";
 import { isPropLocked, LOCKED_INPUT_STYLE } from "./lock-icon-utils";
 import type { StyleProperty } from "../../../core/types/style";
+
+const CLEAR_BTN: React.CSSProperties = {
+  background: "none",
+  border: "none",
+  cursor: "pointer",
+  color: "var(--dp-text-muted, var(--ol-gray-500))",
+  fontSize: 14,
+  padding: "0 4px",
+  lineHeight: 1,
+};
 import type { DesignToken } from "../../../core/types/design";
 import { uid } from "../../../core/utils/id";
 

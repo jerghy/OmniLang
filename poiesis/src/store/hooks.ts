@@ -30,7 +30,3 @@ export function useSelectedElementIds(): string[] {
 export function useComponentDefs() {
   return usePoiesisStore(useShallow((s) => s.componentDefs));
 }
-
-function useActiveTabId(): string | null {
-  return usePoiesisStore((s) => s.designPage.activeTabId);
-}

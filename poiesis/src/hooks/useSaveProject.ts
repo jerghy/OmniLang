@@ -8,6 +8,7 @@ import { generateOmniFiles } from "../services/codegen/pipeline";
 import { emitStoreDefinition } from "../services/codegen/source-emitter";
 import { validateSources } from "../services/monaco/diagnostics";
 import type { CodeTab } from "../core/types/codegraph";
+import type { StoreDefinition } from "../core/types/store";
 import { createLogger } from "../lib/utils/logger";
 
 const log = createLogger("save");
@@ -191,7 +192,7 @@ export function useSaveProject() {
         rootOrder: store.rootOrder,
         // forSave removed — pipeline always emits clean code
         filePath: activeTab?.filePath,
-        inlineStores, // NEW
+        inlineStores: inlineStores as StoreDefinition[], // NEW
         designName: store.activeDesign?.name && (store.activeDesign.tokens?.length || store.activeDesign.classes?.length || store.activeDesign.variants?.length) ? store.activeDesign.name : undefined,
       });
 

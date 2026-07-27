@@ -2,6 +2,7 @@
 // Uses the WASM OmniCompiler class for fast parse+semantic+lint (no codegen).
 
 import type { editor as IEditor, MarkerSeverity } from "monaco-editor";
+import { Logger } from "../../lib/utils/logger";
 
 // ── Diagnostic types (matches WASM Diagnostic shape) ────────────────
 
@@ -56,7 +57,7 @@ export async function getOmniCompiler(): Promise<import("../../wasm/omnilang_was
     omniCompilerInstance = new wasmModule.OmniCompiler();
     return omniCompilerInstance;
   } catch {
-    console.warn("[OmniLang] OmniCompiler not available — WASM not loaded");
+    new Logger({ prefix: "Diagnostics" }).warn("[OmniLang] OmniCompiler not available — WASM not loaded");
     return null;
   }
 }
@@ -96,7 +97,7 @@ export function runDiagnostics(
     }
     return [];
   } catch (e) {
-    console.warn("[OmniLang] diagnostics() failed:", e);
+    new Logger({ prefix: "Diagnostics" }).warn("[OmniLang] diagnostics() failed:", e);
     return [];
   }
 }
@@ -156,7 +157,7 @@ export async function validateSources(
     }
     return [];
   } catch (e) {
-    console.warn("[OmniLang] validateSources failed:", e);
+    new Logger({ prefix: "Diagnostics" }).warn("[OmniLang] validateSources failed:", e);
     return [];
   }
 }

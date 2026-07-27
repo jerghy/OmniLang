@@ -125,7 +125,7 @@ function runPhaseA(
   const hasDesignClassUsage = options.designElements.some(
     (el) =>
       ("classRefs" in el && Array.isArray(el.classRefs) && el.classRefs.length > 0) ||
-      (el.style && "classRefs" in el.style && Array.isArray(el.style.classRefs) && el.style.classRefs.length > 0) ||
+      ("style" in el && el.style && "classRefs" in el.style && Array.isArray(el.style.classRefs) && el.style.classRefs.length > 0) ||
       ("variantRef" in el && el.variantRef != null && typeof el.variantRef === "object" && "designName" in el.variantRef && typeof el.variantRef.designName === "string"),
   );
 

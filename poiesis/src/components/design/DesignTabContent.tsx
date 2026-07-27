@@ -1,4 +1,5 @@
 import { useCallback, useEffect } from "react";
+import { Logger } from "../../lib/utils/logger";
 import { usePoiesisStore } from "../../store";
 import { parseOmniSource } from "../../services/codegen/omni-parser";
 import { parseStyleValue } from "../../services/codegen/design-value-parser";
@@ -40,7 +41,6 @@ const TAB_BTN_ACTIVE: React.CSSProperties = {
 
 export function DesignTabContent() {
   const designView = usePoiesisStore((s) => s.designPage.designView);
-  const activeDesign = usePoiesisStore((s) => s.activeDesign);
 
   const setDesignView = useCallback((v: DesignView) => {
     usePoiesisStore.setState((s) => ({
@@ -118,7 +118,7 @@ export function DesignTabContent() {
           })),
         });
       }
-    }).catch((e) => { console.warn("Design load failed", e); });
+    }).catch((e) => { new Logger({ prefix: "DesignTabContent" }).warn("Design load failed", e); });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (

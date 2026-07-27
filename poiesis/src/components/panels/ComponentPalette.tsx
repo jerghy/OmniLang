@@ -8,7 +8,7 @@ import { useDraggable } from "@dnd-kit/core";
 import { getUnifiedComponentMeta } from "../../store";
 import { useComponentDefs } from "../../store/hooks";
 import { usePoiesisStore } from "../../store";
-import { COMPONENT_PROTOCOL } from "../../data/componentProtocol";
+import { COMPONENT_PROTOCOL as _COMPONENT_PROTOCOL } from "../../data/componentProtocol";
 import { CATEGORY_LABELS, CATEGORY_ORDER, COMPONENT_ICONS } from "../../core/constants/components";
 import { createLogger } from "../../lib/utils/logger";
 import styles from "./ComponentPalette.module.css";

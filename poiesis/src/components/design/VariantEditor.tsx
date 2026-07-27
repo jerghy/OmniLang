@@ -4,7 +4,7 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { usePoiesisStore } from "../../store";
 import { uid } from "../../core/utils/id";
-import type { VariantBranch, VariantDimension } from "../../core/types/design";
+import type { VariantBranch, VariantDimension, DesignToken } from "../../core/types/design";
 import type { StyleProperty, StyleValueSegment } from "../../core/types/style";
 import { parseStyleValue } from "../../services/codegen/design-value-parser";
 import { LOCKED_INPUT_STYLE } from "./cards/lock-icon-utils";
@@ -1122,12 +1122,12 @@ function CardsEditor({
 }: {
   selectedVariant: {
     readonly id: string;
-    readonly baseProperties: readonly StyleProperty[];
+    readonly baseProperties: StyleProperty[];
   } | null;
   currentProps: StyleProperty[];
   onCardPropsChange: (props: StyleProperty[]) => void;
   onSlashTrigger: (propName: string, el: HTMLElement) => void;
-  inheritedProps: readonly string[];
+  inheritedProps: string[];
   isBranchMode: boolean;
   onToggleInheritedProp: (id: string, name: string) => void;
   branch: VariantBranch | null;
@@ -1135,7 +1135,7 @@ function CardsEditor({
   onRemoveProperty: (name: string) => void;
   layoutSummary: string;
   typographySummary: string;
-  tokens: readonly unknown[];
+  tokens: DesignToken[];
   showAddProp: boolean;
   addPropSearch: string;
   onToggleShowAddProp: () => void;
@@ -1391,7 +1391,7 @@ function PreviewPanel({
   previewSelections: Record<string, string>;
   onPreviewSelectionsChange: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   previewProps: StyleProperty[];
-  tokens: readonly unknown[];
+  tokens: DesignToken[];
 }) {
   if (!selectedVariant) return null;
   return (

@@ -24,17 +24,6 @@ export function detectTabType(filePath: string): TabType {
   return "component";
 }
 
-/**
- * Get tab type for a file path, preferring explicit metadata when available.
- * Falls back to the heuristic-based detectTabType.
- */
-function getTabType(filePath: string, fileTypeMap?: FileTypeMap): TabType {
-  if (fileTypeMap && filePath in fileTypeMap) {
-    return fileTypeMap[filePath];
-  }
-  return detectTabType(filePath);
-}
-
 export interface DesignTab {
   id: string;
   filePath: string;        // relative to project root, e.g. "src/components/TodoItem.omni"

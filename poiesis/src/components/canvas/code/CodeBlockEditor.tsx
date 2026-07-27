@@ -7,6 +7,7 @@
 // Design: docs/superpowers/specs/2026-07-26-codeblock-text-editor-design.md
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Logger } from "../../../lib/utils/logger";
 import editorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
 import tsWorker from "monaco-editor/esm/vs/language/typescript/ts.worker?worker";
 import cssWorker from "monaco-editor/esm/vs/language/css/css.worker?worker";
@@ -144,7 +145,7 @@ export function CodeBlockEditor({
           setAnalysisStatus("unavailable");
         }
       } catch (err) {
-        console.warn("[CodeBlockEditor] WASM analysis failed:", err);
+        new Logger({ prefix: "CodeBlockEditor" }).warn("[CodeBlockEditor] WASM analysis failed:", err);
         setAnalysisStatus("unavailable");
       }
     }, DEBOUNCE_MS);

@@ -1,10 +1,9 @@
 // components/design/cards/LockIcon.tsx
 // Shared lock/unlock toggle for property cards.
 
-import React from "react";
-import { LOCKED_INPUT_STYLE, isPropLocked } from "./lock-icon-utils";
+import { memo, type CSSProperties } from "react";
 
-const LOCK_BTN: React.CSSProperties = {
+const LOCK_BTN: CSSProperties = {
   border: "none", background: "none", cursor: "pointer",
   fontSize: 12, padding: "0 2px", flexShrink: 0,
 };
@@ -16,7 +15,7 @@ export interface LockIconProps {
   readOnly?: boolean;
 }
 
-export const LockIcon = React.memo(function LockIcon({
+export const LockIcon = memo(function LockIcon({
   propName, inheritedProps, onToggleInherited, readOnly,
 }: LockIconProps) {
   const isUnlocked = inheritedProps?.includes(propName);

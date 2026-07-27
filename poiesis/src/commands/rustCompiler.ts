@@ -174,7 +174,7 @@ class RustCompiler {
         compile_multi_to_omniview: wasmModule.compile_multi_to_omniview as unknown as (sources: Record<string, string>, editor_mode: boolean, debug_mode: boolean) => any,
         resolve_styles: wasmModule.resolve_styles as unknown as (source: string) => any,
         resolve_styles_multi: wasmModule.resolve_styles_multi as unknown as (sources: Record<string, string>, path_mapping: Record<string, string>) => any,
-        resolve_styles_multi_cached: wasmModule.resolve_styles_multi_cached as unknown as (sources: Record<string, string>, path_mapping: Record<string, string>, cache_state: string | null) => any,
+        resolve_styles_multi_cached: (wasmModule as any).resolve_styles_multi_cached as unknown as (sources: Record<string, string>, path_mapping: Record<string, string>, cache_state: string | null) => any,
         wrap_debug_html: wasmModule.wrap_debug_html as unknown as (js: string, css: string, body_html: string) => string,
       };
       this.ready = true;

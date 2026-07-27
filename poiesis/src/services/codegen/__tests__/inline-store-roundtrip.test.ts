@@ -6,7 +6,6 @@ import { describe, it, expect } from "vitest";
 import { parseOmniSource } from "../omni-parser";
 import { SourceEmitter } from "../source-emitter";
 import type { EmitInput } from "../types";
-import type { StoreDefinition } from "../../../core/types/store";
 
 // ---------------------------------------------------------------------------
 // Helper: emit an EmitInput with inlineStores back to source via SourceEmitter.

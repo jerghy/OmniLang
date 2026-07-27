@@ -2,8 +2,13 @@
 // Parse Omni source text into structured CodeOp[] for the CodeCard Editor.
 // JS regex-based parser with WASM extension for Phase 2.
 
-import type { CodeOp } from "../../core/types/code-op";
+import type { CodeOp, SetVarOp } from "../../core/types/code-op";
+import { createBodyId } from "../../core/types/code-op";
+import type { SlotValue } from "../../core/types/slot-value";
 import { uid } from "../../core/utils/id";
+
+// Helper: create a text SlotValue from a plain string
+const textSlot = (s: string): SlotValue => ({ kind: "text", value: s });
 
 /** Detect the CodeOp kind from the first non-empty line of Omni source. */
 export function detectOpKind(firstLine: string): CodeOp["kind"] | "raw" {
@@ -161,8 +166,9 @@ export function parseOps(source: string): CodeOp[] {
         const info = extractDeclareVar(trimmed);
         ops.push({
           kind: "declare_var", pid: uid("op"),
-          mutable: info.mutable, name: info.name,
-          varType: info.varType, initValue: info.initValue,
+          mutable: info.mutable, name: textSlot(info.name),
+          varType: info.varType ? textSlot(info.varType) : undefined,
+          initValue: info.initValue ? textSlot(info.initValue) : undefined,
           scope: "fn",
         });
         i++;
@@ -170,13 +176,13 @@ export function parseOps(source: string): CodeOp[] {
       }
       case "set_var": {
         const info = extractSetVar(trimmed);
-        ops.push({ kind: "set_var", pid: uid("op"), ...info });
+        ops.push({ kind: "set_var", pid: uid("op"), name: textSlot(info.name), operator: info.operator as SetVarOp["operator"], value: textSlot(info.value) });
         i++;
         break;
       }
       case "if_block": {
         const { branches, nextI } = buildIfBranches(lines, i);
-        ops.push({ kind: "if_block", pid: uid("op"), branches });
+        ops.push({ kind: "if_block", pid: uid("op"), branches: branches.map(b => ({ ...b, condition: textSlot(b.condition) })), bodyId: createBodyId() });
         i = nextI;
         break;
       }
@@ -184,7 +190,7 @@ export function parseOps(source: string): CodeOp[] {
         const condition = extractWhileCondition(trimmed);
         const startDepth = braceDepth(line);
         const { bodyLines, nextI } = buildBlockBody(lines, i, startDepth);
-        ops.push({ kind: "while", pid: uid("op"), condition, body: parseOps(bodyLines.join("\n")) });
+        ops.push({ kind: "while", pid: uid("op"), condition: textSlot(condition), body: parseOps(bodyLines.join("\n")), bodyId: createBodyId() });
         i = nextI;
         break;
       }
@@ -192,22 +198,24 @@ export function parseOps(source: string): CodeOp[] {
         const { itemName, collection } = extractForParts(trimmed);
         const startDepth = braceDepth(line);
         const { bodyLines, nextI } = buildBlockBody(lines, i, startDepth);
-        ops.push({ kind: "for_in", pid: uid("op"), itemName, collection, body: parseOps(bodyLines.join("\n")) });
+        ops.push({ kind: "for_in", pid: uid("op"), itemName: textSlot(itemName), collection: textSlot(collection), body: parseOps(bodyLines.join("\n")), bodyId: createBodyId() });
         i = nextI;
         break;
       }
-      case "return":
-        ops.push({ kind: "return", pid: uid("op"), value: extractReturnExpr(trimmed) });
+      case "return": {
+        const retVal = extractReturnExpr(trimmed);
+        ops.push({ kind: "return", pid: uid("op"), value: retVal ? textSlot(retVal) : undefined });
         i++;
         break;
+      }
       case "call_fn": {
         const info = extractCallFn(trimmed);
-        ops.push({ kind: "call_fn", pid: uid("op"), ...info });
+        ops.push({ kind: "call_fn", pid: uid("op"), fnName: textSlot(info.fnName), args: info.args.map(a => textSlot(a)) });
         i++;
         break;
       }
       case "await":
-        ops.push({ kind: "await", pid: uid("op"), value: extractAwaitExpr(trimmed) });
+        ops.push({ kind: "await", pid: uid("op"), value: textSlot(extractAwaitExpr(trimmed)) });
         i++;
         break;
       case "break":
@@ -291,6 +299,7 @@ function stmtsToCodeOps(stmts: any[]): CodeOp[] {
             ...(i.else_body ? { elseBody: stmtsToCodeOps(i.else_body.stmts ?? []) } : {}),
           },
         ],
+        bodyId: createBodyId(),
       };
     }
     if (stmt.While) {
@@ -300,6 +309,7 @@ function stmtsToCodeOps(stmts: any[]): CodeOp[] {
         pid: uid("op"),
         condition: w.condition ?? "true",
         body: stmtsToCodeOps(w.body?.stmts ?? []),
+        bodyId: createBodyId(),
       };
     }
     if (stmt.ForIn) {
@@ -310,6 +320,7 @@ function stmtsToCodeOps(stmts: any[]): CodeOp[] {
         itemName: f.var_name ?? f.itemName ?? "item",
         collection: f.iterable ?? f.collection ?? "items",
         body: stmtsToCodeOps(f.body?.stmts ?? []),
+        bodyId: createBodyId(),
       };
     }
     if (stmt.Return) {

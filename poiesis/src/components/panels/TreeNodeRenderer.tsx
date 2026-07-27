@@ -73,8 +73,6 @@ export const TreeNodeView = React.memo(function TreeNodeView({
       <div>
         {dropBefore && <DropLine depth={depth} />}
         <div
-          role="treeitem"
-          tabIndex={0}
           ref={setRefs}
           {...listeners}
           {...attributes}
@@ -142,8 +140,6 @@ export const TreeNodeView = React.memo(function TreeNodeView({
       {dropBefore && <DropLine depth={depth} />}
 
       <div
-        role="treeitem"
-        tabIndex={0}
         ref={setRefs}
         {...listeners}
         {...attributes}

@@ -207,7 +207,7 @@ export function computeInverse(
 
     case "restoreConditionalBlock": {
       return {
-        elements: state.elements.map((e) =>
+        elements: state.elements.map((e): ElementData =>
           e.id === action.blockId && e.nodeType === "conditional"
             ? { ...e, branches: action.prevBranches, children: action.prevChildren }
             : e

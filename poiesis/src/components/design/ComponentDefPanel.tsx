@@ -325,14 +325,18 @@ export function ComponentDefPanel() {
   }, [componentName, removeComponentProp, removeComponentSignal, removeComponentComputed]);
 
   // Stabilized renderRow callbacks for memoized DefSection children
-  const renderPropsRow = useCallback((p: DefEntry) => (
-    <DefEntryRow key={p.pid} entry={p} kind="prop"
-      isEditing={editingPid === p.pid} onDoubleClick={() => handleDoubleClick(p.pid)}
-      onEditSave={(f, v) => handleEditSave("prop", p.pid, f, v)}
-      onDelete={() => handleDelete("prop", p.pid)} />
-  ), [editingPid, handleDoubleClick, handleEditSave, handleDelete]);
+  const renderPropsRow = useCallback((entry: DefEntry | ComputedEntry) => {
+    const p = entry as DefEntry;
+    return (
+      <DefEntryRow key={p.pid} entry={p} kind="prop"
+        isEditing={editingPid === p.pid} onDoubleClick={() => handleDoubleClick(p.pid)}
+        onEditSave={(f, v) => handleEditSave("prop", p.pid, f, v)}
+        onDelete={() => handleDelete("prop", p.pid)} />
+    );
+  }, [editingPid, handleDoubleClick, handleEditSave, handleDelete]);
 
-  const renderSignalsRow = useCallback((s: DefEntry) => {
+  const renderSignalsRow = useCallback((entry: DefEntry | ComputedEntry) => {
+    const s = entry as DefEntry;
     const debugVal = debugSignalValues[componentName]?.[s.name];
     return (
       <DefEntryRow key={s.pid} entry={s} kind="signal"
@@ -347,12 +351,15 @@ export function ComponentDefPanel() {
     );
   }, [editingPid, handleDoubleClick, handleEditSave, handleDelete, debugMode, debugSignalValues, componentName, setDebugSignalValue]);
 
-  const renderComputedsRow = useCallback((c: ComputedEntry) => (
-    <ComputedEntryRow key={c.pid} entry={c}
-      isEditing={editingPid === c.pid} onDoubleClick={() => handleDoubleClick(c.pid)}
-      onEditSave={(f, v) => handleEditSave("computed", c.pid, f, v)}
-      onDelete={() => handleDelete("computed", c.pid)} />
-  ), [editingPid, handleDoubleClick, handleEditSave, handleDelete]);
+  const renderComputedsRow = useCallback((entry: DefEntry | ComputedEntry) => {
+    const c = entry as ComputedEntry;
+    return (
+      <ComputedEntryRow key={c.pid} entry={c}
+        isEditing={editingPid === c.pid} onDoubleClick={() => handleDoubleClick(c.pid)}
+        onEditSave={(f, v) => handleEditSave("computed", c.pid, f, v)}
+        onDelete={() => handleDelete("computed", c.pid)} />
+    );
+  }, [editingPid, handleDoubleClick, handleEditSave, handleDelete]);
 
   return (
     <div
@@ -615,7 +622,7 @@ function AddForm({ kind, onAdd, onCancel }: AddFormProps) {
     <div style={S.addForm} onKeyDown={handleKeyDown}>
       <input ref={nameRef} placeholder="Name" aria-label="Add name" style={{ ...S.input, width: 72, fontWeight: "var(--ol-font-weight-600)" }} />
       <span style={S.entrySep}>:</span>
-      <select ref={typeRef as React.RefObject<HTMLSelectElement>} defaultValue="String" aria-label="Add type"
+      <select ref={typeRef as unknown as React.RefObject<HTMLSelectElement>} defaultValue="String" aria-label="Add type"
         style={{ ...S.input, width: 96, cursor: "pointer" }}>
         {OMNI_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
       </select>

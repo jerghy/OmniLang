@@ -27,10 +27,6 @@ export function getDisplayLabel(props: Record<string, unknown>): string {
   return "";
 }
 
-function getComponentMeta(_tag: string) {
-  return undefined;
-}
-
 /**
  * Build a TreeNode from an ElementData, recursively resolving children via elMap.
  * Handles conditional blocks, view elements, codeblocks, and groups.

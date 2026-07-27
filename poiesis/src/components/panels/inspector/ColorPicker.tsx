@@ -4,7 +4,9 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import styles from "./ColorPicker.module.css";
 
-// ── Color conversion utilities (exported for use by TokenEditor) ──
+/**
+ * Color conversion utilities (exported for use by TokenEditor).
+ */
 
 function hslToHex(h: number, s: number, l: number): string {
   s /= 100;
@@ -20,7 +22,7 @@ function hslToHex(h: number, s: number, l: number): string {
   return `#${f(0)}${f(8)}${f(4)}`;
 }
 
-function hexToHsl(hex: string): { h: number; s: number; l: number } {
+export function hexToHsl(hex: string): { h: number; s: number; l: number } {
   const clean = hex.replace("#", "");
   let r = 0;
   let g = 0;

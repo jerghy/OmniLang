@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { generateOmniSource } from "../pipeline";
-import type { ElementData, WireData, CodeTab } from "../../../core/types";
+import type { ElementData, CodeTab } from "../../../core/types";
 
 // Shared minimal code tab used across tests so the pipeline always has a main tab.
 const basicCodeTabs: CodeTab[] = [

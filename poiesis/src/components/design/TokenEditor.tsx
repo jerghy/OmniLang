@@ -1,7 +1,7 @@
 // components/design/TokenEditor.tsx
 // Token editor with color/spacing/typography/radii support, HUD color picker, drag-scrub, and palette view.
 
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback, type JSX } from "react";
 import { usePoiesisStore } from "../../store";
 import { ColorPicker } from "../panels/inspector/ColorPicker";
 import type { DesignToken } from "../../core/types/design";

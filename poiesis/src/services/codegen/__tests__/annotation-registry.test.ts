@@ -3,12 +3,12 @@ import {
   parsePidAnnotation,
   parseTypeAnnotation,
   parseAnyAnnotation,
-  isPidAnnotation,
-  isTypeAnnotation,
+  isPidAnnotation as _isPidAnnotation,
+  isTypeAnnotation as _isTypeAnnotation,
   isAnyAnnotation,
   emitPidAnnotation,
-  PID_REGEX,
-  TYPE_REGEX,
+  PID_REGEX as _PID_REGEX,
+  TYPE_REGEX as _TYPE_REGEX,
   VALID_TYPES,
 } from "../annotation-registry";
 

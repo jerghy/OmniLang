@@ -2,7 +2,7 @@
 // Sidebar listing CSS variant groups with selection, add, and remove.
 
 import { useState } from "react";
-import type { Variant } from "../../core/types/design";
+import type { VariantDefinition } from "../../core/types/design";
 
 // ── Styles ──
 
@@ -73,7 +73,7 @@ const REMOVE_BTN: React.CSSProperties = {
 // ── Props ──
 
 interface VariantSidebarProps {
-  variants: Variant[];
+  variants: VariantDefinition[];
   selectedVariantId: string | null;
   onSelectVariant: (id: string) => void;
   onAddVariant: (name: string) => void;

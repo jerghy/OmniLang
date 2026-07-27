@@ -17,7 +17,7 @@ describe("conditional block CRUD", () => {
       designPage: {
         ...createInitialDesignPageState(),
         activeTabId: "tab-1",
-        openTabs: [{ id: "tab-1", filePath: "TestComp.omni", tabType: "component", componentName: "TestComp", isDirty: false, pidMap: {} }],
+        openTabs: [{ id: "tab-1", filePath: "TestComp.omni", tabType: "component", componentName: "TestComp", isDirty: false, pidMap: { status: "ok", entries: {}, lineToPid: {} } }],
       },
     });
   });

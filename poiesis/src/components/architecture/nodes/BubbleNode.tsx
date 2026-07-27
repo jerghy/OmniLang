@@ -32,8 +32,6 @@ const BubbleNode = React.memo(function BubbleNode({ data }: NodeProps) {
   const d = data as unknown as BubbleNodeData;
   const colors = COLORS[d.type] || COLORS.ui;
   const icon = ICONS[d.type] || "🔵";
-  const size = 120;
-
   return (
     <div
       className={nodeStyles.node}

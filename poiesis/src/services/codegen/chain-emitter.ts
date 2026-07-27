@@ -5,7 +5,6 @@
 import type { ElementData, WireData } from "../../core/types";
 import type { CodeTab } from "../../core/types";
 import type { ChainBlock, LoweredCode } from "./types";
-import { emitPidAnnotation } from "./annotation-registry";
 import type { CodeFlowGraph } from "../../core/types/project-json";
 import type { CodeblockElementData } from "../../core/types/element";
 
@@ -314,23 +313,4 @@ export function buildCodeFlowGraphs(
   }
 
   return graphs;
-}
-
-/**
- * Format chain block node IDs as // @pid annotation lines.
- * Replaces the old // @chain/@node/@wire comment block format.
- * Each node line in the chain produces a // @pid:<id> annotation.
- *
- * @param chain  The ChainBlock whose nodeLines are parsed for node IDs.
- * @returns      A string of // @pid:<id> lines, one per node, joined by newline.
- */
-function formatChainAsPidAnnotations(chain: ChainBlock): string {
-  const lines: string[] = [];
-  for (const nodeLine of chain.nodeLines) {
-    const match = nodeLine.match(/@node\s+(\S+)/);
-    if (match) {
-      lines.push(emitPidAnnotation(match[1]));
-    }
-  }
-  return lines.join("\n");
 }

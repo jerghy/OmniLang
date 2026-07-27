@@ -4,6 +4,7 @@
 // Includes "New File" button for creating store or code files.
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import { Logger } from "../../lib/utils/logger";
 import { usePoiesisStore } from "../../store";
 import { detectTabType } from "../../core/types/design-page";
 import type { TabType } from "../../core/types/design-page";
@@ -256,7 +257,7 @@ export function DesignTabBar() {
         const existingDesignTab = tabs.find((t) => t.tabType === "design");
         if (existingDesignTab) {
           switchTab(existingDesignTab.id);
-          loadDesignFromFile(filePath).catch((e) => { console.warn("Tab operation failed", e); });
+          loadDesignFromFile(filePath).catch((e) => { new Logger({ prefix: "DesignTabBar" }).warn("Tab operation failed", e); });
           setShowFilePanel(false);
           return;
         }
@@ -265,12 +266,12 @@ export function DesignTabBar() {
       setShowFilePanel(false);
 
       if (tabType === "design") {
-        loadDesignFromFile(filePath).catch((e) => { console.warn("Tab operation failed", e); });
+        loadDesignFromFile(filePath).catch((e) => { new Logger({ prefix: "DesignTabBar" }).warn("Tab operation failed", e); });
       }
 
       // Load inline store definitions for component files
       if (tabType !== "design" && tabType !== "store") {
-        loadInlineStoresFromFile(filePath, componentName).catch((e) => { console.warn("Failed to load inline stores", e); });
+        loadInlineStoresFromFile(filePath, componentName).catch((e) => { new Logger({ prefix: "DesignTabBar" }).warn("Failed to load inline stores", e); });
       }
     },
     [openTab, tabs, switchTab]
@@ -291,7 +292,7 @@ export function DesignTabBar() {
         ? `store ${sanitized} {\n}\n`
         : `// ${sanitized}.omni\n`;
       api.project.writeFile(filePath, stubContent).catch((e) => {
-        console.warn("Failed to write stub file:", e);
+        new Logger({ prefix: "DesignTabBar" }).warn("Failed to write stub file:", e);
       });
     },
     [openTab]

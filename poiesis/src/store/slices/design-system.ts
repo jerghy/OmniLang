@@ -110,8 +110,8 @@ export function createDesignSystemSlice(set: SetFn, _get?: GetFn) {
     bindVariantToElement: (elementId: string, variantName: string, dimensionValues: Record<string, string>) => set((s) => {
       // Sync variantRef.params on the element so source emitter picks up dimension changes
       const elements = s.elements.map((el) =>
-        el.id === elementId && el.variantRef
-          ? { ...el, variantRef: { ...el.variantRef, params: { ...dimensionValues } } }
+        el.id === elementId && "variantRef" in el && el.variantRef
+          ? { ...el, variantRef: { ...(el.variantRef as NonNullable<typeof el.variantRef>), params: { ...dimensionValues } } }
           : el,
       );
       return {

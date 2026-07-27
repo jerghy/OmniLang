@@ -155,9 +155,3 @@ export async function initOmniLangSnippets(): Promise<void> {
   });
   disposables.push(disposable);
 }
-
-function disposeSnippets(): void {
-  for (const d of disposables) d.dispose();
-  disposables.length = 0;
-  registered = false;
-}

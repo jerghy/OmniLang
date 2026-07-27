@@ -1,3 +1,5 @@
+// @vitest-environment node
+/// <reference types="node" />
 // poiesis/src/services/codegen/__tests__/golden.test.ts
 // Golden file parse tests — verify the TypeScript parser successfully parses
 // a representative corpus of .omni files, establishing a baseline for

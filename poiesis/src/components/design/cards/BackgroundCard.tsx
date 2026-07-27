@@ -12,6 +12,16 @@ import type { StyleProperty } from "../../../core/types/style";
 import type { DesignToken } from "../../../core/types/design";
 import { uid } from "../../../core/utils/id";
 
+const CLEAR_BTN: React.CSSProperties = {
+  background: "none",
+  border: "none",
+  cursor: "pointer",
+  color: "var(--dp-text-muted, var(--ol-gray-500))",
+  fontSize: 14,
+  padding: "0 4px",
+  lineHeight: 1,
+};
+
 // ── Helpers ──
 
 function getProp(props: StyleProperty[], name: string): string {

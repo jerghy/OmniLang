@@ -3,6 +3,7 @@
 // Drag-and-drop from palette to canvas uses @dnd-kit/core (pointer events, not native HTML5 DnD).
 
 import { Component, useState, useEffect, useRef, useLayoutEffect, useCallback, useMemo, type ReactNode } from "react";
+import { Logger } from "../lib/utils/logger";
 import {
   DndContext,
   DragOverlay,
@@ -16,6 +17,7 @@ import { DesignTabBar } from "../components/design/DesignTabBar";
 import { DebugWindowButton } from "../features/debug/DebugWindowButton";
 import { api } from "../commands";
 import type { RecentProject } from "../commands/project-api";
+import type { StoreDefinition } from "../core/types/store";
 import { DesignTabContent } from "../components/design/DesignTabContent";
 import { InfiniteCanvas } from "../components/canvas/InfiniteCanvas";
 import { OmniViewRenderer } from "../components/design/OmniViewRenderer";
@@ -84,11 +86,11 @@ function buildCodeSource(showCode: boolean): string {
         designElements: state.elements, designWires: state.wires, codeTabs,
         componentName: "main", rootOrder: state.rootOrder,
         filePath: activeTab.filePath || "src/main.omni",
-        designName: state.activeDesign?.name, inlineStores,
+        designName: state.activeDesign?.name, inlineStores: inlineStores as StoreDefinition[],
       })
     : generateOmniFragment({
         componentName, designElements: state.elements, designWires: state.wires,
-        codeTabs, rootOrder: state.rootOrder, fromDefinition: true, inlineStores,
+        codeTabs, rootOrder: state.rootOrder, fromDefinition: true, inlineStores: inlineStores as StoreDefinition[],
       });
   const fileKey = Object.keys(result.value || {}).find((k) => k.includes(componentName));
   const files = result.value as Record<string, string> | undefined;
@@ -101,7 +103,7 @@ function useProjectPanel(onProjectOpened?: (path: string, name: string) => void)
 
   useEffect(() => {
     if (showProjectPanel) {
-      api.project.getRecentProjects().then(setRecentProjects).catch((e) => { console.warn("Failed to load recent projects", e); });
+      api.project.getRecentProjects().then(setRecentProjects).catch((e) => { new Logger({ prefix: "DesignPage" }).warn("Failed to load recent projects", e); });
     }
   }, [showProjectPanel]);
 
@@ -115,7 +117,7 @@ function useProjectPanel(onProjectOpened?: (path: string, name: string) => void)
       setShowProjectPanel(false);
       onProjectOpened?.(folder, name);
     } catch (e) {
-      console.error("Failed to create project", e);
+      new Logger({ prefix: "DesignPage" }).error("Failed to create project", e);
     }
   }, [onProjectOpened]);
 
@@ -126,7 +128,7 @@ function useProjectPanel(onProjectOpened?: (path: string, name: string) => void)
       setShowProjectPanel(false);
       onProjectOpened?.(proj.path, proj.name);
     } catch (e) {
-      console.error("Failed to open recent project", e);
+      new Logger({ prefix: "DesignPage" }).error("Failed to open recent project", e);
     }
   }, [onProjectOpened]);
 

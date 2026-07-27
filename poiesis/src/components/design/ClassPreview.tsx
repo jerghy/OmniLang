@@ -6,7 +6,6 @@ import React, { useState, useMemo, useRef, useCallback, useEffect } from "react"
 import type { StyleProperty } from "../../core/types/style";
 import type { PseudoState, DesignToken } from "../../core/types/design";
 import { PreviewElementHeader } from "./PreviewElementHeader";
-import { ResizeHandles } from "./ResizeHandles";
 import styles from "./ClassPreview.module.css";
 
 // ── Helpers ──
@@ -60,7 +59,6 @@ const PREVIEW_ELEMENTS = [
 
 type HandleDir = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
 
-const HANDLE_SIZE = 8;
 const HANDLE_HIT = 12;
 
 interface DragState {

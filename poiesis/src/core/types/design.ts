@@ -7,6 +7,7 @@ export type TokenType =
   | "color"
   | "size"
   | "radius"
+  | "font"
   | "fontFamily"
   | "fontSize"
   | "fontWeight"

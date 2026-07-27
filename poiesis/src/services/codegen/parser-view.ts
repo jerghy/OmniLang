@@ -705,8 +705,7 @@ export function parseViewDirective(internals: ParserInternals): void {
       } else if (
         tok.kind === "IDENTIFIER" ||
         tok.kind === "TEXT" ||
-        tok.kind === "STRING" ||
-        tok.kind === "BRACE_OPEN"
+        tok.kind === "STRING"
       ) {
         parseViewTextContent(internals);
       } else {

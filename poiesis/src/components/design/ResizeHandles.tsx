@@ -8,7 +8,6 @@ type HandleDir = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
 
 const ALL_HANDLES: HandleDir[] = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
 
-const HANDLE_SIZE = 8;
 const HANDLE_HIT = 12;
 
 interface DragState {

@@ -1,7 +1,23 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render } from "@testing-library/react";
 import { TreeNodeView } from "../TreeNodeRenderer";
 import type { TreeNode } from "../tree-utils";
+
+/** Minimal query helper — checks container textContent for a substring. */
+function hasText(container: HTMLElement, text: string): boolean {
+  return container.textContent?.includes(text) ?? false;
+}
+
+/** Query helper — returns the first element whose textContent matches. */
+function findByText(container: HTMLElement, text: string): Element | null {
+  // Walk all children looking for an exact-text leaf match
+  const treeWalker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  let node: Text | null;
+  while ((node = treeWalker.nextNode() as Text | null)) {
+    if (node.textContent?.trim() === text) return node.parentElement;
+  }
+  return null;
+}
 
 // Helper: minimal props for TreeNodeView
 function defaultProps(overrides: Partial<Parameters<typeof TreeNodeView>[0]> = {}) {
@@ -36,11 +52,11 @@ describe("TreeNodeView — conditional branch nodes", () => {
     );
 
     // Should show "if" label
-    expect(screen.getByText("if")).toBeTruthy();
+    expect(hasText(container, "if")).toBe(true);
     // Should show condition in monospace
-    const condEl = screen.getByText("x > 0");
+    const condEl = findByText(container, "x > 0");
     expect(condEl).toBeTruthy();
-    expect(condEl.tagName).toBe("SPAN");
+    expect(condEl!.tagName).toBe("SPAN");
   });
 
   it("renders 'elif' branch with purple label and condition", () => {
@@ -56,9 +72,9 @@ describe("TreeNodeView — conditional branch nodes", () => {
       children: [],
     };
 
-    render(<TreeNodeView node={node} {...defaultProps()} />);
-    expect(screen.getByText("elif")).toBeTruthy();
-    expect(screen.getByText("b > 0")).toBeTruthy();
+    const { container } = render(<TreeNodeView node={node} {...defaultProps()} />);
+    expect(hasText(container, "elif")).toBe(true);
+    expect(hasText(container, "b > 0")).toBe(true);
   });
 
   it("renders 'else' branch with gray label and no condition", () => {
@@ -74,10 +90,10 @@ describe("TreeNodeView — conditional branch nodes", () => {
       children: [],
     };
 
-    render(<TreeNodeView node={node} {...defaultProps()} />);
-    expect(screen.getByText("else")).toBeTruthy();
+    const { container } = render(<TreeNodeView node={node} {...defaultProps()} />);
+    expect(hasText(container, "else")).toBe(true);
     // "else" branch should NOT show "(空条件)" — condition empty => no text rendered
-    expect(screen.queryByText("(空条件)")).toBeNull();
+    expect(hasText(container, "(空条件)")).toBe(false);
   });
 
   it("shows '(空条件)' placeholder when if/elif condition is empty", () => {
@@ -93,8 +109,8 @@ describe("TreeNodeView — conditional branch nodes", () => {
       children: [],
     };
 
-    render(<TreeNodeView node={node} {...defaultProps()} />);
-    expect(screen.getByText("(空条件)")).toBeTruthy();
+    const { container } = render(<TreeNodeView node={node} {...defaultProps()} />);
+    expect(hasText(container, "(空条件)")).toBe(true);
   });
 
   it("shows expand/collapse toggle when conditional-branch has children", () => {
@@ -123,9 +139,9 @@ describe("TreeNodeView — conditional branch nodes", () => {
     );
 
     // The toggle arrow (▼) should be present
-    expect(screen.getByText("▼")).toBeTruthy();
+    expect(hasText(container, "▼")).toBe(true);
     // The child should be rendered
-    expect(screen.getByText("div")).toBeTruthy();
+    expect(hasText(container, "div")).toBe(true);
   });
 
   it("renders conditional block root node with 🔀 icon", () => {
@@ -143,9 +159,9 @@ describe("TreeNodeView — conditional branch nodes", () => {
     );
 
     // Should render the tag
-    expect(screen.getByText("条件渲染")).toBeTruthy();
+    expect(hasText(container, "条件渲染")).toBe(true);
     // Should not render branch label (not a conditional-branch)
-    expect(screen.queryByText("if")).toBeNull();
-    expect(screen.queryByText("else")).toBeNull();
+    expect(hasText(container, "if")).toBe(false);
+    expect(hasText(container, "else")).toBe(false);
   });
 });

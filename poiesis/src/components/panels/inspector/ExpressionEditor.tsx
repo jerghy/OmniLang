@@ -3,6 +3,7 @@
 // Shares Monaco initialization pattern with CodeEditorModal but is NOT a modal.
 
 import { useEffect, useRef } from "react";
+import { Logger } from "../../../lib/utils/logger";
 import type * as monaco from "monaco-editor";
 
 interface ExpressionEditorProps {
@@ -49,10 +50,10 @@ export function ExpressionEditor({
           }
         });
       } catch (err) {
-        console.error("ExpressionEditor: failed to create Monaco editor", err);
+        new Logger({ prefix: "ExpressionEditor" }).error("ExpressionEditor: failed to create Monaco editor", err);
       }
     }).catch((err) => {
-      console.error("ExpressionEditor: failed to load Monaco module", err);
+      new Logger({ prefix: "ExpressionEditor" }).error("ExpressionEditor: failed to load Monaco module", err);
     });
 
     return () => {

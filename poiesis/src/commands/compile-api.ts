@@ -87,7 +87,7 @@ export function createCompileApi() {
       // Check if running inside a Tauri webview
       const isTauri =
         typeof window !== "undefined" &&
-        typeof (window as Record<string, unknown>).__TAURI_INTERNALS__ !==
+        typeof (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ !==
           "undefined";
 
       if (!isTauri) {

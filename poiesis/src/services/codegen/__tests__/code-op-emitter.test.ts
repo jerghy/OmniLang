@@ -42,6 +42,7 @@ describe("emitOp", () => {
         kind: "set_var", pid: uid("test"),
         name: tv("sum"), operator: "+=", value: tv("i"),
       }],
+      bodyId: "test-body",
     };
     const result = emitOp(op, 0);
     expect(result).toContain("while i < n {");
@@ -56,6 +57,7 @@ describe("emitOp", () => {
         { condition: tv("x > 0"), body: [{ kind: "return", pid: uid("test"), value: tv("1") }] },
         { condition: tv(""), body: [{ kind: "return", pid: uid("test"), value: tv("0") }] },
       ],
+      bodyId: "test-body",
     };
     const result = emitOp(op, 0);
     expect(result).toContain("if x > 0 {");

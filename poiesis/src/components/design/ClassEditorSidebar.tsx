@@ -1,7 +1,6 @@
 // components/design/ClassEditorSidebar.tsx
 // Sidebar listing CSS classes with selection, rename, add, and remove.
 
-import { useMemo } from "react";
 import type { DesignClass } from "../../core/types/design";
 import styles from "./ClassEditorSidebar.module.css";
 

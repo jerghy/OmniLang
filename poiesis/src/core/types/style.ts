@@ -45,16 +45,3 @@ export interface ElementStyle {
   classRefs: string[];                // ["wrapper", "card"]
   inlineProperties: StyleProperty[];  // inline props (may contain signal bindings)
 }
-
-// ── Variable ↔ Class name conversion (for compiler output) ──
-
-function variableToClassName(varName: string): string {
-  return "_v-" + varName.slice(2);
-}
-
-function classNameToVariable(className: string): string | null {
-  if (className.startsWith("_v-")) {
-    return "--" + className.slice(3);
-  }
-  return null;
-}

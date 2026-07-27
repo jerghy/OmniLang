@@ -4,9 +4,9 @@
 
 import { describe, it, expect } from "vitest";
 import { parseOmniSource } from "../omni-parser";
-import { SourceEmitter, CodeWriter } from "../source-emitter";
+import { SourceEmitter, CodeWriter as _CodeWriter } from "../source-emitter";
 import type { EmitInput } from "../types";
-import type { StoreDefinition, StoreSignalDef, StoreGetterDef, StoreActionDef } from "../../../core/types/store";
+import type { StoreDefinition, StoreSignalDef as _StoreSignalDef, StoreGetterDef as _StoreGetterDef, StoreActionDef as _StoreActionDef } from "../../../core/types/store";
 
 // ---------------------------------------------------------------------------
 // Sample store source with @pid annotations BEFORE each declaration
