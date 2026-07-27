@@ -4,6 +4,7 @@
 
 use super::expr::lower_expr;
 use super::stmt::lower_block;
+use crate::ir::logic::FunctionIR;
 use crate::ir::types::*;
 use crate::ir::types_motion::*;
 use crate::ir::TriggerKind;
@@ -22,6 +23,7 @@ pub(super) fn lower_view_block(
     string_signals: &[String],
     variant_map: &FxHashMap<String, String>,
     semantics: &mut SemanticResult,
+    fns: &[FunctionIR],
 ) -> ViewTree {
     if let Some(first) = view.children.first() {
         let sig_idx = Cell::new(0usize);
@@ -31,6 +33,7 @@ pub(super) fn lower_view_block(
             Some(&sig_idx),
             variant_map,
             semantics,
+            fns,
         )
     } else {
         ViewTree::Text("".into())
@@ -181,19 +184,20 @@ pub(super) fn lower_view_node(
     sig_idx: Option<&Cell<usize>>,
     variant_map: &FxHashMap<String, String>,
     semantics: &mut SemanticResult,
+    fns: &[FunctionIR],
 ) -> ViewTree {
     match node {
-        ViewNode::Element(el) => lower_element(el, string_signals, sig_idx, variant_map, semantics),
+        ViewNode::Element(el) => lower_element(el, string_signals, sig_idx, variant_map, semantics, fns),
         ViewNode::Text(s) => ViewTree::Text(s.clone()),
         ViewNode::Interpolation(expr) => {
             // Lower the inner expression to ExprIR so codegen can emit proper JS
             ViewTree::Interpolation(Box::new(lower_expr(expr, variant_map, None, semantics)))
         }
         ViewNode::IfDirective(if_dir) => {
-            lower_if_directive(if_dir, string_signals, variant_map, semantics)
+            lower_if_directive(if_dir, string_signals, variant_map, semantics, fns)
         }
         ViewNode::ForDirective(for_dir) => {
-            lower_for_directive(for_dir, string_signals, variant_map, semantics)
+            lower_for_directive(for_dir, string_signals, variant_map, semantics, fns)
         }
         ViewNode::SlotDirective {
             name,
@@ -213,6 +217,7 @@ fn lower_element(
     sig_idx: Option<&Cell<usize>>,
     variant_map: &FxHashMap<String, String>,
     semantics: &mut SemanticResult,
+    fns: &[FunctionIR],
 ) -> ViewTree {
     let mut props: Option<FxHashMap<String, ExprIR>> = None;
     let mut bindings: Option<FxHashMap<String, SignalRefIR>> = None;
@@ -299,12 +304,34 @@ fn lower_element(
                         }
                     }
                     EventHandler::FnRef(fn_name) => {
-                        // Defer used_fields to Pass 2 (fn_ref backfill)
+                        // Look up the referenced function's body to find which
+                        // event fields are used (e.g. `e.value`, `e.key`).
+                        let used_fields = event_data.as_ref().and_then(|kind| {
+                            let schema = event_data_schema(kind);
+                            let valid_names: Vec<&str> =
+                                schema.iter().map(|f| f.name.as_str()).collect();
+
+                            let func_ir = fns.iter().find(|f| f.name == *fn_name).or_else(|| {
+                                fns.iter().find(|f| {
+                                    f.name == *fn_name
+                                        || f.name.ends_with(&format!("_{}", fn_name))
+                                })
+                            });
+
+                            func_ir.map(|func| {
+                                let mut used = Vec::new();
+                                collect_ir_event_fields(&func.body, &mut used);
+                                used.into_iter()
+                                    .filter(|f| valid_names.contains(&f.as_str()))
+                                    .collect()
+                            })
+                        });
+
                         EventHandlerIR::FnRef {
                             r#ref: fn_name.clone(),
                             params: vec![],
                             event_data: event_data.clone(),
-                            used_fields: None, // backfilled in Pass 2
+                            used_fields,
                             needs_prevent_default: needs_pd,
                             needs_stop_propagation: needs_sp,
                         }
@@ -581,7 +608,7 @@ fn lower_element(
     let children: Vec<ViewTree> = el
         .children
         .iter()
-        .map(|c| lower_view_node(c, string_signals, sig_idx, variant_map, semantics))
+        .map(|c| lower_view_node(c, string_signals, sig_idx, variant_map, semantics, fns))
         .collect();
 
     ViewTree::Element(ElementIR {
@@ -683,6 +710,7 @@ fn lower_if_directive(
     string_signals: &[String],
     variant_map: &FxHashMap<String, String>,
     semantics: &mut SemanticResult,
+    fns: &[FunctionIR],
 ) -> ViewTree {
     let branches: Vec<ConditionalBranch> = std::iter::once(ConditionalBranch {
         condition: lower_expr(&if_dir.condition, variant_map, None, semantics),
@@ -690,7 +718,7 @@ fn lower_if_directive(
             if_dir
                 .body
                 .iter()
-                .map(|n| lower_view_node(n, string_signals, None, variant_map, semantics))
+                .map(|n| lower_view_node(n, string_signals, None, variant_map, semantics, fns))
                 .collect(),
             ConstructionKind::Conditional,
         )),
@@ -700,7 +728,7 @@ fn lower_if_directive(
             condition: lower_expr(cond, variant_map, None, semantics),
             body: Some(make_fragment_element(
                 body.iter()
-                    .map(|n| lower_view_node(n, string_signals, None, variant_map, semantics))
+                    .map(|n| lower_view_node(n, string_signals, None, variant_map, semantics, fns))
                     .collect(),
                 ConstructionKind::Conditional,
             )),
@@ -711,7 +739,7 @@ fn lower_if_directive(
     let fallback = if_dir.else_body.as_ref().map(|body| {
         make_fragment_element(
             body.iter()
-                .map(|n| lower_view_node(n, string_signals, None, variant_map, semantics))
+                .map(|n| lower_view_node(n, string_signals, None, variant_map, semantics, fns))
                 .collect(),
             ConstructionKind::Conditional,
         )
@@ -733,6 +761,7 @@ fn lower_for_directive(
     string_signals: &[String],
     variant_map: &FxHashMap<String, String>,
     semantics: &mut SemanticResult,
+    fns: &[FunctionIR],
 ) -> ViewTree {
     let lower_body = |nodes: &[ViewNode], s: &mut SemanticResult| -> Option<ViewTree> {
         if nodes.is_empty() {
@@ -741,7 +770,7 @@ fn lower_for_directive(
             Some(make_fragment_element(
                 nodes
                     .iter()
-                    .map(|n| lower_view_node(n, string_signals, None, variant_map, s))
+                    .map(|n| lower_view_node(n, string_signals, None, variant_map, s, fns))
                     .collect(),
                 ConstructionKind::List,
             ))
@@ -764,6 +793,202 @@ fn lower_for_directive(
             .as_ref()
             .and_then(|nodes| lower_body(nodes.as_slice(), semantics)),
     }))
+}
+
+// ═══════════════════════════════════════════════════════
+// Event field helpers (moved from component.rs — inline
+// fn_ref backfill replaces the old two-phase mutation pass)
+// ═══════════════════════════════════════════════════════
+
+/// Walk a BlockIR statement list for FieldAccessExpr where object is IdentifierExpr("e").
+fn collect_ir_event_fields(block: &BlockIR, fields: &mut Vec<String>) {
+    for stmt in &block.statements {
+        match stmt {
+            StatementIR::ExprStmtIR { expr } => {
+                walk_expr_event_fields(expr, fields);
+            }
+            StatementIR::IfStmtIR {
+                condition,
+                then_body,
+                else_ifs,
+                else_body,
+            } => {
+                walk_expr_event_fields(condition, fields);
+                collect_ir_event_fields(then_body, fields);
+                for (_, block) in else_ifs {
+                    collect_ir_event_fields(block, fields);
+                }
+                if let Some(block) = else_body {
+                    collect_ir_event_fields(block, fields);
+                }
+            }
+            StatementIR::LetStmtIR {
+                value: Some(expr), ..
+            } => {
+                walk_expr_event_fields(expr, fields);
+            }
+            StatementIR::ReturnStmtIR { value: Some(expr) } => {
+                walk_expr_event_fields(expr, fields);
+            }
+            StatementIR::BlockStmtIR { body } => {
+                collect_ir_event_fields(body, fields);
+            }
+            StatementIR::WhileStmtIR { condition, body } => {
+                walk_expr_event_fields(condition, fields);
+                collect_ir_event_fields(body, fields);
+            }
+            StatementIR::ForInStmtIR { iterable, body, .. } => {
+                walk_expr_event_fields(iterable, fields);
+                collect_ir_event_fields(body, fields);
+            }
+            StatementIR::ThrowStmtIR { expr } => {
+                walk_expr_event_fields(expr, fields);
+            }
+            StatementIR::TryCatchStmtIR {
+                try_body,
+                catch_body,
+                finally_body,
+                ..
+            } => {
+                collect_ir_event_fields(try_body, fields);
+                if let Some(body) = catch_body {
+                    collect_ir_event_fields(body, fields);
+                }
+                if let Some(body) = finally_body {
+                    collect_ir_event_fields(body, fields);
+                }
+            }
+            StatementIR::EventEmitStmtIR { args, .. } => {
+                for arg in args {
+                    walk_expr_event_fields(arg, fields);
+                }
+            }
+            StatementIR::MutationStmt {
+                intent: Some(intent),
+            } => match intent {
+                MutationIntent::DirectAssign { value, .. } => {
+                    if let Some(value) = value {
+                        walk_expr_event_fields(value, fields);
+                    }
+                }
+                MutationIntent::Increment { amount, .. }
+                | MutationIntent::Decrement { amount, .. }
+                | MutationIntent::Multiply { amount, .. }
+                | MutationIntent::Divide { amount, .. }
+                | MutationIntent::Modulo { amount, .. } => {
+                    if let Some(amount) = amount {
+                        walk_expr_event_fields(amount, fields);
+                    }
+                }
+                MutationIntent::Push { item, .. } => {
+                    if let Some(item) = item {
+                        walk_expr_event_fields(item, fields);
+                    }
+                }
+                MutationIntent::Pop { .. } => {}
+            },
+            _ => {}
+        }
+    }
+}
+
+/// Walk an ExprIR tree for `FieldAccessExpr { object: Box(IdentifierExpr("e")), field }`.
+fn walk_expr_event_fields(expr: &ExprIR, fields: &mut Vec<String>) {
+    match expr {
+        ExprIR::FieldAccessExpr { object, field } => {
+            if let ExprIR::IdentifierExpr { name, .. } = object.as_ref() {
+                if name == "e" && !fields.contains(field) {
+                    fields.push(field.clone());
+                }
+            }
+            walk_expr_event_fields(object, fields);
+        }
+        ExprIR::OptionalChainExpr { object, .. } => {
+            walk_expr_event_fields(object, fields);
+        }
+        ExprIR::MethodCallExpr { object, args, .. } => {
+            walk_expr_event_fields(object, fields);
+            for arg in args {
+                walk_expr_event_fields(arg, fields);
+            }
+        }
+        ExprIR::CallExpr { args, .. } => {
+            for arg in args {
+                walk_expr_event_fields(arg, fields);
+            }
+        }
+        ExprIR::BinaryOpExpr { left, right, .. } => {
+            walk_expr_event_fields(left, fields);
+            walk_expr_event_fields(right, fields);
+        }
+        ExprIR::UnaryOpExpr { operand, .. } => walk_expr_event_fields(operand, fields),
+        ExprIR::TernaryIR {
+            cond,
+            then_expr,
+            else_expr,
+        } => {
+            walk_expr_event_fields(cond, fields);
+            walk_expr_event_fields(then_expr, fields);
+            walk_expr_event_fields(else_expr, fields);
+        }
+        ExprIR::StructExpr {
+            fields: map_fields, ..
+        } => {
+            for (_, v) in map_fields {
+                walk_expr_event_fields(v, fields);
+            }
+        }
+        ExprIR::ArrayExpr { elements, .. } => {
+            for e in elements {
+                walk_expr_event_fields(e, fields);
+            }
+        }
+        ExprIR::IndexExpr { object, index } => {
+            walk_expr_event_fields(object, fields);
+            walk_expr_event_fields(index, fields);
+        }
+        ExprIR::ClosureExpr { body, .. } => {
+            walk_expr_event_fields(body, fields);
+        }
+        ExprIR::BlockExpr { statements, tail } => {
+            for stmt in statements {
+                match stmt {
+                    StatementIR::ExprStmtIR { expr } => {
+                        walk_expr_event_fields(expr, fields);
+                    }
+                    StatementIR::LetStmtIR {
+                        value: Some(expr), ..
+                    } => {
+                        walk_expr_event_fields(expr, fields);
+                    }
+                    _ => {}
+                }
+            }
+            walk_expr_event_fields(tail, fields);
+        }
+        ExprIR::AwaitExpr { operand } => walk_expr_event_fields(operand, fields),
+        ExprIR::SpreadExpr { operand } => walk_expr_event_fields(operand, fields),
+        ExprIR::MatchExpr { matched, arms } => {
+            walk_expr_event_fields(matched, fields);
+            for arm in arms {
+                collect_ir_event_fields(&arm.body, fields);
+            }
+        }
+        ExprIR::VariantLiteral {
+            fields: variant_fields,
+            ..
+        } => {
+            for (_, v) in variant_fields {
+                walk_expr_event_fields(v, fields);
+            }
+        }
+        ExprIR::StoreFieldAccessExpr { call_args, .. } => {
+            for arg in call_args {
+                walk_expr_event_fields(arg, fields);
+            }
+        }
+        _ => {}
+    }
 }
 
 // ── Helper factories ─────────────────────────────────────
