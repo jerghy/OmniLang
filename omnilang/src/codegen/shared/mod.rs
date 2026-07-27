@@ -12,7 +12,7 @@ pub(crate) mod html;
 pub(crate) mod inline_handler;
 pub(crate) mod stmt;
 pub(crate) mod types;
-pub mod ui_codegen;
+pub use omnilang_core::codegen::shared::ui_codegen;
 pub(crate) mod visitor;
 
 // ── Re-exported from omnilang-core (P-gen dedup) ──
