@@ -22,8 +22,8 @@ jobs:
         run: cargo check --workspace
       - name: Check formatting
         run: cargo fmt --all -- --check
-      - name: Run clippy
-        run: cargo clippy --lib -p omnilang -- -D warnings
+      - name: Clippy (strict)
+        run: cargo clippy --workspace -- -D warnings
       - name: Build workspace (release)
         run: cargo build --release --workspace
       - name: Run Rust tests
