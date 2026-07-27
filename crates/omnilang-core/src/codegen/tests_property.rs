@@ -1,6 +1,6 @@
-//! Tests for `binary_op_to_str` — the operator mapping function
-//! that translates OmniLang's internal operator names into target
-//! language symbols.
+// Tests for `binary_op_to_str` — the operator mapping function
+// that translates OmniLang's internal operator names into target
+// language symbols.
 
 use crate::codegen::binary_op_to_str;
 use crate::ir::BinaryOpIR;
