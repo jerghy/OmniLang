@@ -107,7 +107,7 @@ jobs:
         run: |
           grep -q 'sandbox="allow-scripts"' poiesis/dist/debug-window/index.html || \
             (echo "ERROR: dist debug-window missing sandboxed iframe!" && exit 1)
-          grep -qv 'rootEl.innerHTML = payload.html' poiesis/dist/debug-window/index.html || \
+          ! grep -q 'rootEl.innerHTML = payload.html' poiesis/dist/debug-window/index.html || \
             (echo "ERROR: dist debug-window uses direct innerHTML injection (old P38-bypass pattern)!" && exit 1)
 
   evals:
