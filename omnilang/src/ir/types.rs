@@ -275,7 +275,7 @@ pub enum MatchPatternKindIR {
 /// Serde round-trips as a flat string for backward compatibility
 /// (e.g. `"kind": "int"` or `"kind": "MyCustomType"`).
 #[non_exhaustive]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TypeKind {
     String,
     Int,
@@ -332,18 +332,59 @@ impl TypeKind {
     }
 }
 
-// Custom Serialize: write as a flat string  (e.g. `"int"`, `"MyType"`)
+// Custom Serialize: write as a flat string for simple types and empty-args Named,
+// or as {name, type_args} object when type_args is non-empty.
 impl Serialize for TypeKind {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.serialize_str(self.as_str())
+        match self {
+            TypeKind::Named { name, type_args } if !type_args.is_empty() => {
+                use serde::ser::SerializeMap;
+                let mut map = serializer.serialize_map(Some(2))?;
+                map.serialize_entry("name", name)?;
+                map.serialize_entry("type_args", type_args)?;
+                map.end()
+            }
+            _ => serializer.serialize_str(self.as_str()),
+        }
     }
 }
 
-// Custom Deserialize: read a flat string and convert via From<String>
+// Custom Deserialize: read either a flat string (old format) or {name, type_args} object.
 impl<'de> Deserialize<'de> for TypeKind {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let s = String::deserialize(deserializer)?;
-        Ok(TypeKind::from(s))
+        use serde::de::{MapAccess, Visitor};
+
+        struct TypeKindVisitor;
+
+        impl<'de> Visitor<'de> for TypeKindVisitor {
+            type Value = TypeKind;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("a string or a {name, type_args} object")
+            }
+
+            fn visit_str<E: serde::de::Error>(self, s: &str) -> Result<TypeKind, E> {
+                Ok(TypeKind::from(s.to_string()))
+            }
+
+            fn visit_map<M: MapAccess<'de>>(self, mut map: M) -> Result<TypeKind, M::Error> {
+                let mut name = None;
+                let mut type_args = Vec::new();
+                while let Some(key) = map.next_key::<String>()? {
+                    match key.as_str() {
+                        "name" => name = Some(map.next_value()?),
+                        "type_args" => type_args = map.next_value()?,
+                        _ => {
+                            let _: serde::de::IgnoredAny = map.next_value()?;
+                        }
+                    }
+                }
+                let name = name.ok_or_else(|| serde::de::Error::missing_field("name"))?;
+                Ok(TypeKind::Named { name, type_args })
+            }
+        }
+
+        deserializer.deserialize_any(TypeKindVisitor)
     }
 }
 
