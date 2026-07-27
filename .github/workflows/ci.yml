@@ -20,10 +20,22 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Check workspace
         run: cargo check --workspace
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+      - name: Run clippy
+        run: cargo clippy --lib -p omnilang -- -D warnings
       - name: Build workspace (release)
         run: cargo build --release --workspace
       - name: Run Rust tests
         run: cargo test --workspace
+      - name: Check ts-rs bindings freshness
+        shell: bash
+        run: |
+          cargo test export_bindings --lib -p omnilang
+          git diff --exit-code poiesis/src/commands/__generated__/ || {
+            echo "ERROR: ts-rs generated files are stale. Run 'cargo test export_bindings --lib' and commit the changes."
+            exit 1
+          }
       - name: Upload CLI artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -96,7 +108,7 @@ jobs:
       - name: Install cargo-audit
         run: cargo install cargo-audit
       - name: Run cargo audit
-        run: cargo audit
+        run: cargo audit --deny warnings
 
   e2e:
     runs-on: ubuntu-latest
