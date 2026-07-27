@@ -18,4 +18,4 @@ rustc-hash = "2"
 
 [dependencies.omnilang]
 path = "../omnilang"
-features = ["all-backends"]
+features = ["codegen-omniview", "codegen-react", "codegen-flutter"]
