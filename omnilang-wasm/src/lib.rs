@@ -137,6 +137,57 @@ pub fn parse_code_block(source: &str) -> JsValue {
     })
 }
 
+/// Internal parse function (not WASM-exported) — lex + parse in one call.
+/// Returns a serde_json::Value for easy testing and serialization.
+fn parse_source_internal(source: &str) -> serde_json::Value {
+    const MAX_INPUT_SIZE: usize = 10 * 1024 * 1024; // 10MB
+    if source.len() > MAX_INPUT_SIZE {
+        return serde_json::json!({
+            "success": false,
+            "program": null,
+            "errors": [{
+                "message": "Input exceeds 10MB limit",
+                "line": 0,
+                "col": 0,
+                "start": 0,
+                "end": 0,
+            }],
+        });
+    }
+    let tokens = omnilang::lexer::tokenize(source);
+    match omnilang::parser::parse(tokens, source) {
+        Ok(program) => {
+            serde_json::json!({
+                "success": true,
+                "program": program,
+                "errors": [],
+            })
+        }
+        Err(err) => {
+            serde_json::json!({
+                "success": false,
+                "program": null,
+                "errors": [{
+                    "message": err.message,
+                    "line": err.span.line,
+                    "col": err.span.col,
+                    "start": err.span.start,
+                    "end": err.span.end,
+                }],
+            })
+        }
+    }
+}
+
+/// Parse complete .omni source text (lex + parse in one call).
+///
+/// Returns `{ success: bool, program: Program | null, errors: ParseError[] }` as JsValue.
+#[wasm_bindgen]
+pub fn parse_source(source: &str) -> JsValue {
+    serde_wasm_bindgen::to_value(&parse_source_internal(source))
+        .unwrap_or_else(|e| js_error_value(&format!("serialization error: {}", e)))
+}
+
 /// Wrap generated OmniView output in a standalone debug-ready HTML document.
 #[cfg(feature = "codegen-omniview")]
 #[wasm_bindgen]
@@ -737,5 +788,47 @@ mod tests {
         let parsed: serde_json::Value = serde_wasm_bindgen::from_value(d).unwrap();
         assert!(parsed["success"].as_bool().unwrap());
         assert!(parsed["errors"].is_array());
+    }
+
+    // ── parse_source tests ─────────────────────────────────
+
+    #[test]
+    fn test_parse_source_component() {
+        let result = parse_source_internal("component App { view { Text { \"hello\" } } }");
+        assert!(result["success"].as_bool().unwrap());
+        let program = &result["program"];
+        assert!(program.is_object());
+        assert!(program["modules"].is_object());
+    }
+
+    #[test]
+    fn test_parse_source_function() {
+        let result =
+            parse_source_internal("pub fn add(a: i32, b: i32) -> i32 { return a + b; }");
+        assert!(result["success"].as_bool().unwrap());
+        assert!(result["program"]["modules"].is_object());
+    }
+
+    #[test]
+    fn test_parse_source_invalid_syntax() {
+        let result = parse_source_internal("this is definitely not valid omni @@@");
+        assert!(!result["success"].as_bool().unwrap());
+        assert!(result["program"].is_null());
+        let errors = result["errors"].as_array().unwrap();
+        assert!(!errors.is_empty());
+    }
+
+    #[test]
+    fn test_parse_source_empty() {
+        let result = parse_source_internal("");
+        // Empty source is valid — produces empty module
+        assert!(result["success"].as_bool().unwrap());
+        assert!(result["program"]["modules"].is_object());
+    }
+
+    #[test]
+    fn test_parse_source_store() {
+        let result = parse_source_internal("store Counter { signal count: i32 = 0 }");
+        assert!(result["success"].as_bool().unwrap());
     }
 }

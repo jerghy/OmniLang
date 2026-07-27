@@ -324,7 +324,7 @@ pub fn diagnostics_to_json(diagnostics: &[Diagnostic]) -> Vec<serde_json::Value>
 }
 
 /// A raw parse error before conversion to Diagnostic.
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct ParseError {
     pub message: String,
     pub span: Span,

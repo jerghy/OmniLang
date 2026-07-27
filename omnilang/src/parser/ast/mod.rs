@@ -463,7 +463,7 @@ pub enum ImportStmt {
 // ── Module & Program ──────────────────────────────────
 
 /// A single source module — corresponds to one .omni file.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize)]
 pub struct Module {
     pub name: String,
     pub functions: Vec<FunctionDef>,
@@ -480,7 +480,7 @@ pub struct Module {
     pub timelines: Vec<TimelineDef>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize)]
 pub struct Program {
     pub modules: FxHashMap<String, Module>,
 }
