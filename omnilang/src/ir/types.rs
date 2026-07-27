@@ -272,8 +272,10 @@ pub enum MatchPatternKindIR {
 
 /// Typed representation of a type kind, replacing the old `String` field.
 ///
-/// Serde round-trips as a flat string for backward compatibility
+/// Simple variants and empty-args `Named` serialize as a flat string
 /// (e.g. `"kind": "int"` or `"kind": "MyCustomType"`).
+/// `Named` with non-empty `type_args` serializes as a structured
+/// `{name, type_args}` object (e.g. `Array<String>`).
 #[non_exhaustive]
 #[derive(Debug, Clone, PartialEq)]
 pub enum TypeKind {
@@ -286,8 +288,9 @@ pub enum TypeKind {
     Named {
         name: String,
         /// Recursive type arguments (e.g., `Array<String>` → `[String]`).
-        /// Not serialized — the custom `Serialize`/`Deserialize` impls preserve
-        /// backward-compatible flat-string serialization.
+        /// Serialized as part of a structured `{name, type_args}` JSON object
+        /// when non-empty. Omitted (flat-string format) when empty for backward
+        /// compatibility.
         type_args: Vec<TypeKind>,
     },
 }
