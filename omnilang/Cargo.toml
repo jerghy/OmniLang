@@ -23,15 +23,16 @@ proptest = "1"
 default = ["codegen-omniview", "codegen-react", "codegen-flutter"]
 
 # Per-backend codegen feature flags — gate compilation of individual targets.
-codegen-react = []
-codegen-vue = ["codegen-javascript"]
+# Forward to omnilang-core for shared utilities (event helpers, CSS block gen, etc.).
+codegen-react = ["omnilang-core/codegen-react"]
+codegen-vue = ["codegen-javascript", "omnilang-core/codegen-vue"]
 codegen-dioxus = []
-codegen-flutter = ["codegen-dart"]
+codegen-flutter = ["codegen-dart", "omnilang-core/codegen-flutter"]
 codegen-dart = []
 codegen-rust = []
 codegen-python = []
 codegen-javascript = []
-codegen-omniview = []
+codegen-omniview = ["omnilang-core/codegen-omniview"]
 
 # Convenience meta-feature enabling all backends.
 all-backends = [

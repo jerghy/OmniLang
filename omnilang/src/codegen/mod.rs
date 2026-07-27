@@ -9,10 +9,10 @@
 pub mod dart;
 #[cfg(feature = "codegen-dioxus")]
 pub mod dioxus;
-pub mod event;
+pub use omnilang_core::codegen::event;
 #[cfg(feature = "codegen-flutter")]
 pub mod flutter;
-pub mod helpers;
+pub(crate) use omnilang_core::codegen::helpers;
 #[cfg(feature = "codegen-javascript")]
 pub mod javascript;
 pub use omnilang_core::codegen::json;
