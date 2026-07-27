@@ -874,8 +874,8 @@ impl OmniViewGenerator {
         self.source_map.push(SourceMapEntry {
             node_id: nid.to_string(),
             omni_span: SourceSpan {
-                line: el.source_line,
-                col: el.source_col,
+                line: el.source_span.map_or(0, |s| s.line),
+                col: el.source_span.map_or(0, |s| s.col),
                 len: 0,
             },
             target_spans: vec![TargetSpan {

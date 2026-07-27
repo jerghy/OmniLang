@@ -596,8 +596,7 @@ fn lower_element(
         ref_name: None,
         construction_kind: ConstructionKind::TagMapping,
         class_map_bindings: class_map_bindings_from_prop.unwrap_or_default(),
-        source_line: el.span.line,
-        source_col: el.span.col,
+        source_span: Some(el.span),
         motion: {
             let has_any = !motion_triggers.is_empty()
                 || states_map.is_some()
@@ -784,8 +783,7 @@ fn make_fragment_element(children: Vec<ViewTree>, construction_kind: Constructio
         ref_name: None,
         construction_kind,
         class_map_bindings: FxHashMap::default(),
-        source_line: 0,
-        source_col: 0,
+        source_span: None,
         motion: None,
         scroll: None,
         drag: None,

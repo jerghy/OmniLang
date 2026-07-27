@@ -356,8 +356,7 @@ fn test_format_element_empty() {
         test_id: None,
         ref_name: None,
         construction_kind: ConstructionKind::TagMapping,
-        source_line: 0,
-        source_col: 0,
+        source_span: None,
         motion: None,
         scroll: None,
         drag: None,
@@ -383,8 +382,7 @@ fn test_format_element_with_text_child() {
         test_id: None,
         ref_name: None,
         construction_kind: ConstructionKind::TagMapping,
-        source_line: 0,
-        source_col: 0,
+        source_span: None,
         motion: None,
         scroll: None,
         drag: None,
@@ -411,8 +409,7 @@ fn test_format_element_with_multiple_children() {
         test_id: None,
         ref_name: None,
         construction_kind: ConstructionKind::TagMapping,
-        source_line: 0,
-        source_col: 0,
+        source_span: None,
         motion: None,
         scroll: None,
         drag: None,
@@ -448,8 +445,7 @@ fn test_format_element_with_event() {
         test_id: None,
         ref_name: None,
         construction_kind: ConstructionKind::TagMapping,
-        source_line: 0,
-        source_col: 0,
+        source_span: None,
         motion: None,
         scroll: None,
         drag: None,
@@ -528,6 +524,7 @@ fn make_ir(components: FxHashMap<String, ComponentIR>) -> IRProgram {
         )]),
         stdlib_imports: Default::default(),
         source_map: FxHashMap::default(),
+        source_span: None,
     }
 }
 
@@ -950,6 +947,7 @@ fn test_full_pipeline_empty() {
         )]),
         source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
+        source_span: None,
     };
     let sources = FxHashMap::from_iter([("main.omni".into(), "".into())]);
     let output = codegen.generate(&ir, &sources);
@@ -994,6 +992,7 @@ fn test_full_pipeline_component() {
         )]),
         source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
+        source_span: None,
     };
     let sources = FxHashMap::from_iter([("main.omni".into(), "".into())]);
     let output = codegen.generate(&ir, &sources);
@@ -1037,6 +1036,7 @@ fn test_full_pipeline_with_store() {
         )]),
         source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
+        source_span: None,
     };
     let sources = FxHashMap::from_iter([("main.omni".into(), "".into())]);
     let output = codegen.generate(&ir, &sources);
@@ -1101,6 +1101,7 @@ fn test_full_pipeline_component_with_store_ref() {
         )]),
         source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
+        source_span: None,
     };
     let sources = FxHashMap::from_iter([("main.omni".into(), "".into())]);
     let output = codegen.generate(&ir, &sources);

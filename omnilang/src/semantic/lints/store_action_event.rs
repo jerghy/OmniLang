@@ -63,8 +63,8 @@ fn check_view_store_actions(
                             r#ref
                         ),
                         file: comp_file.to_string(),
-                        line: el.source_line,
-                        col: el.source_col,
+                        line: el.source_span.map_or(0, |s| s.line),
+                        col: el.source_span.map_or(0, |s| s.col),
                     });
                 }
             }
@@ -81,6 +81,7 @@ mod tests {
         BlockIR, ComponentIR, ConstructionKind, ElementIR, EventDataKind, EventHandlerIR,
         IRProgram, ModuleIR, ViewTree,
     };
+    use crate::lexer::Span;
     use rustc_hash::FxHashMap;
 
     use super::*;
@@ -126,6 +127,7 @@ mod tests {
             modules,
             source_map: FxHashMap::default(),
             stdlib_imports: Default::default(),
+            source_span: None,
         }
     }
 
@@ -151,8 +153,7 @@ mod tests {
             ref_name: None,
             construction_kind: ConstructionKind::Normal,
             class_map_bindings: FxHashMap::default(),
-            source_line: 5,
-            source_col: 3,
+            source_span: Some(Span { start: 0, end: 0, line: 5, col: 3 }),
             motion: None,
             scroll: None,
             drag: None,
@@ -170,8 +171,8 @@ mod tests {
             "Message should mention store action path: {}",
             diags[0].message
         );
-        assert_eq!(diags[0].line, 5, "Line should match ElementIR.source_line");
-        assert_eq!(diags[0].col, 3, "Col should match ElementIR.source_col");
+        assert_eq!(diags[0].line, 5, "Line should match ElementIR.source_span");
+        assert_eq!(diags[0].col, 3, "Col should match ElementIR.source_span");
     }
 
     #[test]
@@ -196,8 +197,7 @@ mod tests {
             ref_name: None,
             construction_kind: ConstructionKind::Normal,
             class_map_bindings: FxHashMap::default(),
-            source_line: 0,
-            source_col: 0,
+            source_span: None,
             motion: None,
             scroll: None,
             drag: None,
@@ -238,8 +238,7 @@ mod tests {
             ref_name: None,
             construction_kind: ConstructionKind::Normal,
             class_map_bindings: FxHashMap::default(),
-            source_line: 0,
-            source_col: 0,
+            source_span: None,
             motion: None,
             scroll: None,
             drag: None,

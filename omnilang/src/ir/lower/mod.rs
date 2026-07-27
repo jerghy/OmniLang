@@ -261,6 +261,7 @@ pub fn lower(program: &Program, semantics: &mut SemanticResult) -> IRProgram {
         modules,
         source_map,
         stdlib_imports,
+        source_span: None,
     }
 }
 

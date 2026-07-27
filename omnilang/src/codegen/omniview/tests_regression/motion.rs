@@ -746,8 +746,7 @@ fn test_motion_trigger_enter_named() {
         ref_name: None,
         construction_kind: ConstructionKind::Static,
         class_map_bindings: FxHashMap::default(),
-        source_line: 0,
-        source_col: 0,
+        source_span: None,
         motion: Some(Box::new(MotionBehavior {
             triggers: vec![TriggerIntent {
                 kind: TriggerKind::Enter,
@@ -813,8 +812,7 @@ fn test_motion_trigger_hover_named() {
         ref_name: None,
         construction_kind: ConstructionKind::Static,
         class_map_bindings: FxHashMap::default(),
-        source_line: 0,
-        source_col: 0,
+        source_span: None,
         motion: Some(Box::new(MotionBehavior {
             triggers: vec![TriggerIntent {
                 kind: TriggerKind::Hover,

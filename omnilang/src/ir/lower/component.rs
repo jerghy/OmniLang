@@ -286,6 +286,7 @@ pub(super) fn lower_component(
         timelines,
         if_mode_default: comp.if_mode_default.clone(),
         hero_defs,
+        source_span: None,
     }
 }
 
@@ -630,6 +631,7 @@ pub(super) fn lower_store(
         signal_defaults,
         getters,
         actions,
+        source_span: None,
     }
 }
 

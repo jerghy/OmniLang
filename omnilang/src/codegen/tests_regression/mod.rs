@@ -29,6 +29,7 @@ pub(crate) fn fixture_empty() -> IRProgram {
         )]),
         source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
+        source_span: None,
     }
 }
 
@@ -122,8 +123,7 @@ pub(crate) fn fixture_component() -> IRProgram {
             test_id: None,
             ref_name: None,
             construction_kind: ConstructionKind::Static,
-            source_line: 0,
-            source_col: 0,
+            source_span: None,
         })),
         styles: vec![],
         motions: vec![],
@@ -144,6 +144,7 @@ pub(crate) fn fixture_component() -> IRProgram {
         )]),
         source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
+        source_span: None,
     }
 }
 
@@ -209,6 +210,7 @@ pub(crate) fn fixture_store() -> IRProgram {
         )]),
         source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
+        source_span: None,
     }
 }
 
@@ -292,8 +294,7 @@ pub(crate) fn fixture_component_with_store() -> IRProgram {
             test_id: None,
             ref_name: None,
             construction_kind: ConstructionKind::Static,
-            source_line: 0,
-            source_col: 0,
+            source_span: None,
         })),
         styles: vec![],
         motions: vec![],
@@ -315,6 +316,7 @@ pub(crate) fn fixture_component_with_store() -> IRProgram {
         )]),
         source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
+        source_span: None,
     }
 }
 
@@ -656,6 +658,7 @@ pub(crate) fn fixture_expressions() -> IRProgram {
         )]),
         source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
+        source_span: None,
     }
 }
 

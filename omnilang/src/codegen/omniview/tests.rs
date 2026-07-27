@@ -22,8 +22,7 @@ fn make_element(tag: &str) -> ElementIR {
         ref_name: None,
         construction_kind: ConstructionKind::Static,
         class_map_bindings: FxHashMap::default(),
-        source_line: 0,
-        source_col: 0,
+        source_span: None,
         motion: None,
         scroll: None,
         drag: None,
@@ -71,6 +70,7 @@ fn make_component(name: &str) -> ComponentIR {
         hero_defs: vec![],
         motions: vec![],
         timelines: vec![],
+        source_span: None,
     }
 }
 
@@ -80,6 +80,7 @@ fn make_program(modules: FxHashMap<String, ModuleIR>) -> IRProgram {
         modules,
         source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
+        source_span: None,
     }
 }
 
@@ -1236,8 +1237,7 @@ fn test_style_emission() {
 fn test_source_map_entries() {
     let mut module = make_module("main");
     let mut el = make_element("div");
-    el.source_line = 5;
-    el.source_col = 3;
+    el.source_span = Some(crate::lexer::Span { start: 0, end: 0, line: 5, col: 3 });
     module.components.insert(
         "App".to_string(),
         ComponentIR {

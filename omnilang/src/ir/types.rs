@@ -1,6 +1,7 @@
 //! Intent IR type definitions — all types used in the IR layer.
 //! Mirrors Python omniview/ir_types.py. Serializes to/from JSON via serde.
 
+use crate::lexer::Span;
 use crate::sourcemap::SourceMapEntry;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
@@ -974,9 +975,7 @@ pub struct ElementIR {
     pub class_map_bindings: FxHashMap<String, ExprIR>,
     /// Source location in .omni file
     #[serde(default)]
-    pub source_line: u32,
-    #[serde(default)]
-    pub source_col: u32,
+    pub source_span: Option<Span>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub motion: Option<Box<MotionBehavior>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1080,6 +1079,9 @@ pub struct ComponentIR {
     /// Hero definitions for cross-component shared element transitions
     #[serde(default)]
     pub hero_defs: Vec<HeroIntent>,
+    /// Source location in .omni file
+    #[serde(default)]
+    pub source_span: Option<Span>,
     /// Motion animation definitions (@motion blocks)
     #[serde(default)]
     pub motions: Vec<MotionIntent>,
@@ -1099,6 +1101,9 @@ pub struct StoreIR {
     pub signal_defaults: FxHashMap<String, serde_json::Value>,
     pub getters: FxHashMap<String, ExprIR>,
     pub actions: Vec<FunctionIR>,
+    /// Source location in .omni file
+    #[serde(default)]
+    pub source_span: Option<Span>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1109,6 +1114,9 @@ pub struct IRProgram {
     /// Stdlib modules imported via `import { ... } from "std/<module>"`
     #[serde(default)]
     pub stdlib_imports: FxHashSet<String>,
+    /// Source location in .omni file
+    #[serde(default)]
+    pub source_span: Option<Span>,
 }
 
 impl Default for IRProgram {
@@ -1118,6 +1126,7 @@ impl Default for IRProgram {
             modules: FxHashMap::default(),
             source_map: FxHashMap::default(),
             stdlib_imports: FxHashSet::default(),
+            source_span: None,
         }
     }
 }

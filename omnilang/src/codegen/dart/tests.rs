@@ -644,6 +644,7 @@ fn test_full_pipeline_through_trait() {
         )]),
         source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
+        source_span: None,
     };
     let sources = FxHashMap::from_iter([("main.omni".into(), "".into())]);
     let output = codegen.generate(&ir, &sources);
@@ -691,6 +692,7 @@ fn test_full_pipeline_with_store() {
         )]),
         source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
+        source_span: None,
     };
     let sources = FxHashMap::from_iter([("main.omni".into(), "".into())]);
     let output = codegen.generate(&ir, &sources);

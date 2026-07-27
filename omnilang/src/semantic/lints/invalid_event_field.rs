@@ -66,8 +66,8 @@ fn check_view_invalid_fields(
                                     schema.iter().map(|f| f.name.as_str()).collect::<Vec<_>>()
                                 ),
                                 file: comp_file.to_string(),
-                                line: el.source_line,
-                                col: el.source_col,
+                                line: el.source_span.map_or(0, |s| s.line),
+                                col: el.source_span.map_or(0, |s| s.col),
                             });
                         }
                     }
@@ -105,6 +105,7 @@ mod tests {
         BlockIR, ComponentIR, ConstructionKind, ElementIR, EventDataKind, EventHandlerIR,
         IRProgram, ModuleIR, ViewTree,
     };
+    use crate::lexer::Span;
     use rustc_hash::FxHashMap;
 
     use super::*;
@@ -150,6 +151,7 @@ mod tests {
             modules,
             source_map: FxHashMap::default(),
             stdlib_imports: Default::default(),
+            source_span: None,
         }
     }
 
@@ -179,8 +181,7 @@ mod tests {
             ref_name: None,
             construction_kind: ConstructionKind::Normal,
             class_map_bindings: FxHashMap::default(),
-            source_line: 10,
-            source_col: 5,
+            source_span: Some(Span { start: 0, end: 0, line: 10, col: 5 }),
             motion: None,
             scroll: None,
             drag: None,
@@ -203,8 +204,8 @@ mod tests {
             "Message should mention the event data kind: {}",
             diags[0].message
         );
-        assert_eq!(diags[0].line, 10, "Line should match ElementIR.source_line");
-        assert_eq!(diags[0].col, 5, "Col should match ElementIR.source_col");
+        assert_eq!(diags[0].line, 10, "Line should match ElementIR.source_span");
+        assert_eq!(diags[0].col, 5, "Col should match ElementIR.source_span");
     }
 
     #[test]
@@ -233,8 +234,7 @@ mod tests {
             ref_name: None,
             construction_kind: ConstructionKind::Normal,
             class_map_bindings: FxHashMap::default(),
-            source_line: 0,
-            source_col: 0,
+            source_span: None,
             motion: None,
             scroll: None,
             drag: None,
@@ -275,8 +275,7 @@ mod tests {
             ref_name: None,
             construction_kind: ConstructionKind::Normal,
             class_map_bindings: FxHashMap::default(),
-            source_line: 0,
-            source_col: 0,
+            source_span: None,
             motion: None,
             scroll: None,
             drag: None,

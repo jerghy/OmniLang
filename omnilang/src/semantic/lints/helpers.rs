@@ -814,6 +814,7 @@ pub(super) mod test_helpers {
             modules,
             source_map: FxHashMap::default(),
             stdlib_imports: Default::default(),
+            source_span: None,
         }
     }
 }

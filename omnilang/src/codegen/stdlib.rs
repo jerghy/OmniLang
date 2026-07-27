@@ -128,6 +128,7 @@ mod tests {
             version: "1.0".into(),
             modules: FxHashMap::default(),
             source_map: FxHashMap::default(),
+            source_span: None,
             stdlib_imports: FxHashSet::from_iter(["storage".to_string()]),
         };
         let result = validate_stdlib_imports(&ir, Target::Rust);
@@ -147,6 +148,7 @@ mod tests {
             version: "1.0".into(),
             modules: FxHashMap::default(),
             source_map: FxHashMap::default(),
+            source_span: None,
             stdlib_imports: FxHashSet::from_iter(["http".to_string(), "json".to_string()]),
         };
         let result = validate_stdlib_imports(&ir, Target::JavaScript);
@@ -163,6 +165,7 @@ mod tests {
             version: "1.0".into(),
             modules: FxHashMap::default(),
             source_map: FxHashMap::default(),
+            source_span: None,
             stdlib_imports: Default::default(),
         };
         let result = validate_stdlib_imports(&ir, Target::Rust);

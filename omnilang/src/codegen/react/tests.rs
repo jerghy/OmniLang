@@ -445,6 +445,7 @@ fn make_ir(components: FxHashMap<String, ComponentIR>) -> IRProgram {
         .collect::<FxHashMap<_, _>>(),
         stdlib_imports: Default::default(),
         source_map: FxHashMap::default(),
+        source_span: None,
     }
 }
 
@@ -472,8 +473,7 @@ fn test_tsx_interpolation_renders_expr() {
             test_id: None,
             ref_name: None,
             construction_kind: ConstructionKind::Static,
-            source_line: 0,
-            source_col: 0,
+            source_span: None,
         }),
     );
     let ir = make_ir(
@@ -871,6 +871,7 @@ fn test_full_pipeline_empty() {
         .collect::<FxHashMap<_, _>>(),
         source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
+        source_span: None,
     };
     let sources = vec![("main.omni".into(), "".into())]
         .into_iter()
@@ -932,6 +933,7 @@ fn test_full_pipeline_component() {
         .collect::<FxHashMap<_, _>>(),
         source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
+        source_span: None,
     };
     let sources = vec![("main.omni".into(), "".into())]
         .into_iter()
@@ -990,6 +992,7 @@ fn test_full_pipeline_with_store() {
         .collect::<FxHashMap<_, _>>(),
         source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
+        source_span: None,
     };
     let sources = vec![("main.omni".into(), "".into())]
         .into_iter()
@@ -1066,6 +1069,7 @@ fn test_full_pipeline_component_with_store_ref() {
         .collect::<FxHashMap<_, _>>(),
         source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
+        source_span: None,
     };
     let sources = vec![("main.omni".into(), "".into())]
         .into_iter()
