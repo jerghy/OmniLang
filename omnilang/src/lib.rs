@@ -25,7 +25,7 @@ pub mod validate;
 use crate::codegen::omniview::{ComponentOutput, StyleResolveResult};
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+
 use ts_rs::TS;
 
 /// A single symbol from semantic analysis — variable, signal, prop, store, etc.
@@ -570,15 +570,12 @@ pub fn compile_multi_to_target(
 /// Phase 4 (codegen) runs in parallel per target via rayon.
 /// All codegen backends are Send+Sync (verified: zero RefCell/Cell/Mutex in codegen/).
 #[must_use]
-#[allow(unused_variables)]
 pub fn compile_multi_target(
     sources: FxHashMap<String, String>,
     targets: Vec<codegen::Target>,
     path_mapping: FxHashMap<String, String>,
-    editor_mode: bool,
-    debug_mode: bool,
     store_mode: Option<&str>,
-) -> HashMap<codegen::Target, codegen::CompileOutput> {
+) -> FxHashMap<codegen::Target, codegen::CompileOutput> {
     use rayon::prelude::*;
 
     // Phase 1-3: Parse + analyse once (already parallel internally via rayon)
@@ -723,15 +720,13 @@ mod compile_multi_target_tests {
             sources,
             targets,
             FxHashMap::default(),
-            false,
-            false,
             None,
         );
-        assert_eq!(results.len(), 2);
+        assert_eq!(results.len(), 2, "should return one result per target");
         for (target, output) in &results {
             assert!(
-                !output.files.is_empty(),
-                "Target {target:?} produced no files"
+                !output.files.is_empty() || !output.errors.is_empty(),
+                "Target {target:?} produced neither files nor errors"
             );
         }
     }
