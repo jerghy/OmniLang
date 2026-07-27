@@ -102,6 +102,9 @@ pub struct CompileOutput {
     pub files: Vec<CompiledFile>,
     pub errors: Vec<Diagnostic>,
     pub source_map: Vec<SourceMapEntry>,
+    /// Non-fatal warnings collected during codegen (e.g., unknown variant references).
+    /// OmniView populates this; other backends may use it in the future.
+    pub warnings: Vec<String>,
 }
 
 impl CompileOutput {
@@ -112,6 +115,7 @@ impl CompileOutput {
             files,
             errors: vec![],
             source_map: vec![],
+            warnings: vec![],
         }
     }
 
@@ -132,6 +136,7 @@ impl CompileOutput {
                 suggestion: None,
             }],
             source_map: vec![],
+            warnings: vec![],
         }
     }
 }

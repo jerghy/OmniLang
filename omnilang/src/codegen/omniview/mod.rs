@@ -119,6 +119,79 @@ pub struct StyleResolveResult {
     pub errors: Vec<Diagnostic>,
 }
 
+/// Codegen adapter — makes OmniView participate in the standard `Codegen` trait
+/// system like every other backend, instead of using a special-cased `compile_files()`
+/// path in `codegen::compile()`.
+///
+/// Carries OmniView-specific configuration (`editor_mode`, `css_only`, `debug_mode`)
+/// that other backends don't need. `OmniViewOutput` remains available for WASM/FFI
+/// paths that need the full structured metadata (element_classes, element_tree, etc.).
+#[derive(Debug, Clone, Copy)]
+pub struct OmniViewCodegen {
+    pub editor_mode: bool,
+    pub css_only: bool,
+    pub debug_mode: bool,
+}
+
+impl Default for OmniViewCodegen {
+    fn default() -> Self {
+        Self {
+            editor_mode: false,
+            css_only: false,
+            debug_mode: false,
+        }
+    }
+}
+
+impl crate::codegen::Codegen for OmniViewCodegen {
+    fn generate(
+        &self,
+        ir: &IRProgram,
+        _source_files: &FxHashMap<String, String>,
+    ) -> crate::codegen::CompileOutput {
+        let output = generate(ir, self.editor_mode, self.css_only, self.debug_mode);
+        let mut files = Vec::with_capacity(4);
+        let html = format!(
+            r#"<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OmniView App</title>
+<link rel="stylesheet" href="index.css">
+</head>
+<body>
+{}
+<script src="index.js"></script>
+</body>
+</html>"#,
+            output.html
+        );
+        files.push(crate::codegen::CompiledFile {
+            path: "index.js".into(),
+            content: output.js,
+        });
+        files.push(crate::codegen::CompiledFile {
+            path: "index.html".into(),
+            content: html,
+        });
+        files.push(crate::codegen::CompiledFile {
+            path: "body.html".into(),
+            content: output.html,
+        });
+        files.push(crate::codegen::CompiledFile {
+            path: "index.css".into(),
+            content: output.css,
+        });
+        crate::codegen::CompileOutput {
+            files,
+            errors: vec![],
+            source_map: output.source_map,
+            warnings: output.warnings,
+        }
+    }
+}
+
 /// Generate OmniView output from an IR program.
 pub fn generate(
     ir: &IRProgram,

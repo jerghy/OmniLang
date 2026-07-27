@@ -73,12 +73,13 @@ pub fn compile(
             files: vec![],
             errors,
             source_map: vec![],
+            warnings: vec![],
         };
     }
     #[allow(unreachable_patterns)]
     let mut output = match target {
         #[cfg(feature = "codegen-omniview")]
-        Target::OmniView => omniview::compile_files(ir, source_files, false, false),
+        Target::OmniView => omniview::OmniViewCodegen::default().generate(ir, source_files),
         #[cfg(feature = "codegen-python")]
         Target::Python => python::PythonCodegen.generate(ir, source_files),
         #[cfg(feature = "codegen-javascript")]

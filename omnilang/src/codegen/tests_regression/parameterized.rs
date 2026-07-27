@@ -33,6 +33,7 @@ fn omni_to_compile_output(ir: &IRProgram) -> CompileOutput {
         ],
         errors: vec![],
         source_map: output.source_map,
+        warnings: vec![],
     }
 }
 
