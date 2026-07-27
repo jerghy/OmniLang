@@ -654,8 +654,12 @@ pub(crate) fn lower_type(ty: &TypeAnnotation) -> TypeIR {
             name, type_args, ..
         } => {
             let args: Vec<TypeIR> = type_args.iter().map(lower_type).collect();
+            let kind_args: Vec<TypeKind> = args.iter().map(|t| t.kind.clone()).collect();
             TypeIR {
-                kind: TypeKind::from(name.clone()),
+                kind: TypeKind::Named {
+                    name: name.clone(),
+                    type_args: kind_args,
+                },
                 type_args: args,
                 is_nullable: false,
             }
@@ -677,6 +681,7 @@ pub(crate) fn lower_type(ty: &TypeAnnotation) -> TypeIR {
             TypeIR {
                 kind: TypeKind::Named {
                     name: kind_strs.join(" | "),
+                    type_args: vec![],
                 },
                 type_args: vec![],
                 is_nullable: false,
@@ -685,6 +690,7 @@ pub(crate) fn lower_type(ty: &TypeAnnotation) -> TypeIR {
         TypeAnnotation::Fn { .. } => TypeIR {
             kind: TypeKind::Named {
                 name: "function".into(),
+                type_args: vec![],
             },
             type_args: vec![],
             is_nullable: false,

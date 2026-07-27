@@ -282,7 +282,13 @@ pub enum TypeKind {
     Bool,
     Void,
     Any,
-    Named { name: String },
+    Named {
+        name: String,
+        /// Recursive type arguments (e.g., `Array<String>` → `[String]`).
+        /// Not serialized — the custom `Serialize`/`Deserialize` impls preserve
+        /// backward-compatible flat-string serialization.
+        type_args: Vec<TypeKind>,
+    },
 }
 
 impl From<String> for TypeKind {
@@ -302,6 +308,7 @@ impl From<&str> for TypeKind {
             "any" => Self::Any,
             _ => Self::Named {
                 name: s.to_string(),
+                type_args: vec![],
             },
         }
     }
@@ -319,7 +326,7 @@ impl TypeKind {
             Self::Bool => "bool",
             Self::Void => "void",
             Self::Any => "any",
-            Self::Named { name } => name.as_str(),
+            Self::Named { name, .. } => name.as_str(),
         }
     }
 }
