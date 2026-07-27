@@ -140,7 +140,8 @@ export function useDebugWindow() {
   // Listen for editor selection → highlight in debug window
   useEffect(() => {
     const handler = (e: Event) => {
-      const { elementId } = (e as CustomEvent).detail;
+      const { selectedElementIds } = (e as CustomEvent).detail;
+      const elementId = selectedElementIds?.[0] ?? null;
       if (!elementId) {
         highlight(null);
         return;

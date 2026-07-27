@@ -15,7 +15,7 @@ use super::utils::{emit_event_object_react, to_jsx_attr, to_react_event, to_reac
 pub(super) fn gen_view_node_tsx(
     w: &mut CodeWriter,
     node: &ViewTree,
-    component_map: &FxHashMap<String, ComponentIR>,
+    component_map: &FxHashMap<&str, &ComponentIR>,
     signal_names: &FxHashSet<String>,
     motion_names: &FxHashSet<String>,
 ) {
@@ -33,7 +33,7 @@ pub(super) fn gen_view_node_tsx(
             }
 
             // Component composition: check if tag is a known component
-            if let Some(_child_comp) = component_map.get(&el.tag) {
+            if let Some(_child_comp) = component_map.get(el.tag.as_str()) {
                 let mut comp_attrs: Vec<String> = Vec::new();
                 for (prop_name, prop_value) in &el.props {
                     let js_val = format_expr_ir_tsx(prop_value);

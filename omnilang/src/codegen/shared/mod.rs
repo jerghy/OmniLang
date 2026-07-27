@@ -22,13 +22,8 @@ pub(crate) use omnilang_core::codegen::shared::generator::{
     emit_constructor_init, emit_store_constructor_init,
 };
 
-/// Thin adapter: core's `build_component_map` returns `FxHashMap<&str, &ComponentIR>`
-/// (borrowed references), but the facade codegen backends still expect owned
-/// `FxHashMap<String, ComponentIR>`.  Full migration to borrowed refs is deferred
-/// (P-gen — requires lifetime annotations across 4+ backends).
-pub(crate) fn build_component_map(ir: &IRProgram) -> FxHashMap<String, ComponentIR> {
+/// Adapter: delegates directly to core's `build_component_map`, returning
+/// `FxHashMap<&str, &ComponentIR>` (borrowed references tied to the IR lifetime).
+pub(crate) fn build_component_map(ir: &IRProgram) -> FxHashMap<&str, &ComponentIR> {
     omnilang_core::codegen::shared::generator::build_component_map(ir)
-        .into_iter()
-        .map(|(k, v)| (k.to_string(), v.clone()))
-        .collect()
 }

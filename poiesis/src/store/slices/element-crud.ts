@@ -133,12 +133,6 @@ export function createElementCrudSlice(set: SetFn, get: GetFn) {
         }
       });
 
-      // Side effect OUTSIDE set() -- notify debug window of selection change
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent("poiesis:editor-select", {
-          detail: { elementId: id },
-        }));
-      }
     },
 
     clearSelection: () => set({ selectedElementIds: [] }),

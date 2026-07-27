@@ -11,6 +11,10 @@ import styles from "./PropsSection.module.css";
 
 const KNOWN_PROPS = ["id", "label", "class", "name", "type", "placeholder", "value", "src", "href"];
 
+// Module-level WeakMap: stores label slash-insert callbacks keyed by input element,
+// instead of polluting DOM elements with ad-hoc `__labelSlashInsert` properties.
+const labelSlashCallbacks = new WeakMap<HTMLElement, (signalName: string) => void>();
+
 // ── Label segment types & helpers ──────────────────────────────────────────
 
 type LabelSegment =
@@ -161,7 +165,7 @@ export function PropsSection({ element, signalItems }: PropsSectionProps) {
   const handleSlashClose = useCallback(() => {
     // Clean up any label chip editor insert callback
     if (slash?.inputEl) {
-      delete (slash.inputEl as any).__labelSlashInsert;
+      labelSlashCallbacks.delete(slash.inputEl);
     }
     setSlash(null);
   }, [slash]);
@@ -172,12 +176,10 @@ export function PropsSection({ element, signalItems }: PropsSectionProps) {
       if (!slash) return;
       const { propName, inputEl, slashIndex } = slash;
 
-      // Label chip editor: use the DOM-attached insert callback
-      const labelInsert = (inputEl as any).__labelSlashInsert as
-        | ((signalName: string) => void)
-        | undefined;
+      // Label chip editor: use the WeakMap-stored insert callback
+      const labelInsert = labelSlashCallbacks.get(inputEl);
       if (labelInsert) {
-        delete (inputEl as any).__labelSlashInsert;
+        labelSlashCallbacks.delete(inputEl);
         labelInsert(item.insertionText);
         setSlash(null);
         return;
@@ -362,7 +364,7 @@ function LabelEditor({ value, onChange, onSlashRequest }: LabelEditorProps) {
       else if (e.key === "/" && onSlashRequest) {
         slashPendingRef.current = true;
         const input = e.currentTarget;
-        (input as any).__labelSlashInsert = (signalName: string) => {
+        labelSlashCallbacks.set(input, (signalName: string) => {
           const pos = input.selectionStart ?? input.value.length;
           const slashPos = input.value.lastIndexOf("/", pos);
           const before = slashPos >= 0 ? input.value.slice(0, slashPos) : input.value;
@@ -378,7 +380,7 @@ function LabelEditor({ value, onChange, onSlashRequest }: LabelEditorProps) {
             updated.splice(i, 1, ...newSegs);
             onChange(serializeSegments(updated));
           }
-        };
+        });
         requestAnimationFrame(() => onSlashRequest(input));
       }
     },
@@ -393,7 +395,7 @@ function LabelEditor({ value, onChange, onSlashRequest }: LabelEditorProps) {
       else if (e.key === "/" && onSlashRequest) {
         slashPendingRef.current = true;
         const input = e.currentTarget;
-        (input as any).__labelSlashInsert = (signalName: string) => {
+        labelSlashCallbacks.set(input, (signalName: string) => {
           const pos = input.selectionStart ?? input.value.length;
           const slashPos = input.value.lastIndexOf("/", pos);
           const before = slashPos >= 0 ? input.value.slice(0, slashPos) : input.value;
@@ -401,7 +403,7 @@ function LabelEditor({ value, onChange, onSlashRequest }: LabelEditorProps) {
           input.value = before + `{${signalName}}` + after;
           input.focus();
           input.setSelectionRange(before.length + signalName.length + 2, before.length + signalName.length + 2);
-        };
+        });
         requestAnimationFrame(() => onSlashRequest(input));
       }
     },

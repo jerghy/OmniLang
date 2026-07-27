@@ -17,7 +17,7 @@ impl ReactCodegen {
         &self,
         w: &mut CodeWriter,
         comp: &ComponentIR,
-        component_map: &FxHashMap<String, ComponentIR>,
+        component_map: &FxHashMap<&str, &ComponentIR>,
         signal_names: &FxHashSet<String>,
         motion_names: &FxHashSet<String>,
         name: &str,
@@ -46,7 +46,7 @@ impl ReactCodegen {
 /// that match known components (used to generate import statements).
 pub(super) fn collect_view_child_components(
     node: &ViewTree,
-    component_map: &FxHashMap<String, ComponentIR>,
+    component_map: &FxHashMap<&str, &ComponentIR>,
 ) -> FxHashSet<String> {
     let mut result = FxHashSet::default();
     collect_view_child_components_inner(node, component_map, &mut result);
@@ -55,12 +55,12 @@ pub(super) fn collect_view_child_components(
 
 fn collect_view_child_components_inner(
     node: &ViewTree,
-    component_map: &FxHashMap<String, ComponentIR>,
+    component_map: &FxHashMap<&str, &ComponentIR>,
     acc: &mut FxHashSet<String>,
 ) {
     match node {
         ViewTree::Element(el) => {
-            if component_map.contains_key(&el.tag) && el.tag != "fragment" {
+            if component_map.contains_key(el.tag.as_str()) && el.tag != "fragment" {
                 acc.insert(el.tag.clone());
             }
             for child in &el.children {

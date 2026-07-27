@@ -118,6 +118,23 @@ if (typeof window !== "undefined") {
   (window as unknown as WindowWithPoiesis).__POIESIS_STORE__ = usePoiesisStore;
 }
 
+// ── Selection change subscriber ──
+// Fire a CustomEvent when selectedElementIds changes, so the debug window (and
+// other listeners) see committed store state rather than stale state from before
+// Zustand's set() commits under React 18+ automatic batching.
+if (typeof window !== "undefined") {
+  usePoiesisStore.subscribe((state, prevState) => {
+    const ids = state.selectedElementIds;
+    if (ids !== prevState.selectedElementIds) {
+      window.dispatchEvent(
+        new CustomEvent("poiesis:editor-select", {
+          detail: { selectedElementIds: ids },
+        }),
+      );
+    }
+  });
+}
+
 // ── Utility accessors (used by codegen services and UI components) ──
 
 /**

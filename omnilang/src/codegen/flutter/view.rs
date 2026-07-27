@@ -23,7 +23,7 @@ use super::utils::{
 pub(crate) fn format_view_tree(
     node: &ViewTree,
     motions: &[MotionIntent],
-    component_map: &FxHashMap<String, ComponentIR>,
+    component_map: &FxHashMap<&str, &ComponentIR>,
 ) -> String {
     match node {
         ViewTree::Element(el) => format_element(el, motions, component_map),
