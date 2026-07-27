@@ -21,7 +21,7 @@
 | 7 | [事件与绑定](omniview/07-events-and-bindings.md) | 事件处理、`bind:value`、事件类型参考 |
 | 8 | [Store](omniview/08-stores.md) | 全局状态、getter、action、Store 组合 |
 | 9 | [样式](omniview/09-styling.md) | 作用域 CSS、内联样式、CSS 变量、响应式 |
-| 10 | [设计系统](omniview/10-design-system.md) | Token、Class、Variant、`design.omni` |
+| 10 | [设计系统](omniview/10-design-system.md) | Token、Class、Variant、Theme 关键字、`design.omni` |
 | 11 | [动画与动效](omniview/11-motion-animation.md) | 过渡、关键帧、滚动驱动动画 |
 | 12 | [标准库](omniview/12-standard-library.md) | `std/math`、`std/string`、`std/async`、`std/http` |
 | 13 | [项目结构](omniview/13-project-structure.md) | 多文件项目、模块组织、编译目标配置 |

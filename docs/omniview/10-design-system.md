@@ -200,6 +200,58 @@ design LearnDesign {
 
 ---
 
+## 4. Theme 关键字（Theme Keyword）
+
+`theme` 是 OmniView 的一等公民关键字（`TokenKind::Theme`），用于对设计令牌进行**元级别分组**。
+
+### 语法
+
+```omni
+theme AppTheme {
+    colors {
+        primary: "#6366f1",
+        surface: "#ffffff",
+        text: "#111827",
+    }
+    spacing {
+        sm: "8px",
+        md: "16px",
+        lg: "24px",
+    }
+    typography {
+        fontFamily: "system-ui, sans-serif",
+        headingSize: "24px",
+        bodySize: "14px",
+    }
+    radii {
+        sm: "4px",
+        md: "8px",
+        lg: "12px",
+    }
+}
+```
+
+### 与 `design` 关键字的区别
+
+| 维度 | `theme` | `design` |
+|------|---------|----------|
+| 用途 | 元级别组织：将设计令牌按类别分组 | 定义具体令牌值、CSS 类、组件变体 |
+| 分组方式 | 命名类别（colors、spacing、typography 等） | token 声明、class 定义、variant 定义 |
+| 输出 | 结构化的令牌分组（未来用于 CSS 自定义属性） | CSS 自定义属性声明、CSS 规则 |
+| 层级 | 更高抽象层级 | 实现层级 |
+
+简而言之：`theme` 定义"有哪些类别的令牌"，`design` 定义"每个令牌的具体值是什么以及如何使用"。
+
+### 当前状态
+
+- **解析已完成**：`theme` 块被编译器正确解析为 `ThemeDef` AST 节点
+- **代码生成尚未实现**：目前 `theme` 块仅被解析，编译器不会为其生成任何 CSS 输出
+- **未来计划**：`theme` 块的类别结构将用于自动生成 CSS 自定义属性分组，例如 `--colors-primary`、`--spacing-md` 等
+
+> **注意**：在代码生成就绪之前，`theme` 块主要用作设计令牌的文档化组织结构。实际样式定义仍需依赖 `design` 块。
+
+---
+
 ## 完整示例
 
 **design.omni**：
