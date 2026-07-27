@@ -10,19 +10,7 @@
 //! | `RustTypeFormatter` | Rust (Rust, Dioxus) | `i32`, `f64`, `String`, `()` |
 //! | `PythonTypeFormatter` | Python | `int`, `float`, `str`, `None` |
 
-#[cfg_attr(
-    not(any(
-        feature = "codegen-javascript",
-        feature = "codegen-react",
-        feature = "codegen-vue",
-        feature = "codegen-dart",
-        feature = "codegen-flutter",
-        feature = "codegen-rust",
-        feature = "codegen-dioxus",
-        feature = "codegen-python"
-    )),
-    allow(unused_imports)
-)]
+#[cfg_attr(not(any_backend_enabled), allow(unused_imports))]
 use crate::ir::*;
 
 // ═══════════════════════════════════════════════════════════
@@ -30,16 +18,7 @@ use crate::ir::*;
 // ═══════════════════════════════════════════════════════════
 
 /// Trait for mapping OmniLang types to a target language type representation.
-#[cfg(any(
-    feature = "codegen-javascript",
-    feature = "codegen-react",
-    feature = "codegen-vue",
-    feature = "codegen-dart",
-    feature = "codegen-flutter",
-    feature = "codegen-rust",
-    feature = "codegen-dioxus",
-    feature = "codegen-python"
-))]
+#[cfg(any_backend_enabled)]
 pub(crate) trait FormatType {
     /// Map an OmniLang `kind` + `type_args` to the target language type string.
     fn format_type(&self, kind: &str, type_args: &[TypeIR]) -> String;
