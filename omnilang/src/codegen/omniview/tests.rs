@@ -46,6 +46,7 @@ fn make_module(name: &str) -> ModuleIR {
         motions: vec![],
         timelines: vec![],
         designs: vec![],
+        source_span: None,
     }
 }
 
@@ -216,7 +217,8 @@ fn test_store_actions() {
                     }],
                 },
                 is_async: false,
-            }],
+            
+            source_span: None,}],
             ..Default::default()
         },
     );
@@ -818,7 +820,8 @@ fn test_component_with_functions() {
                     }],
                 },
                 is_async: false,
-            }],
+            
+            source_span: None,}],
             ..make_component("App")
         },
     );
@@ -1184,7 +1187,8 @@ fn test_event_binding_click() {
                 return_type: None,
                 body: BlockIR { statements: vec![] },
                 is_async: false,
-            }],
+            
+            source_span: None,}],
             view: Some(ViewTree::Element(el)),
             ..make_component("App")
         },

@@ -40,7 +40,9 @@ fn test_timeline_basic_direction_to() {
                 path_rotate: None,
             },
             connector: ConnectorIR::Then,
+            source_span: None,
         }],
+        source_span: None,
     };
     gen.emit_timeline_js(&timeline);
 
@@ -122,7 +124,8 @@ fn test_timeline_start_modes() {
                     path_rotate: None,
                 },
                 connector: ConnectorIR::Then,
-            },
+            
+            source_span: None,},
             TimelineItemIR {
                 kind: TimelineItemKindIR::Direction {
                     dir: DirectionIR::To,
@@ -143,7 +146,8 @@ fn test_timeline_start_modes() {
                     path_rotate: None,
                 },
                 connector: ConnectorIR::Then,
-            },
+            
+            source_span: None,},
             TimelineItemIR {
                 kind: TimelineItemKindIR::Direction {
                     dir: DirectionIR::To,
@@ -164,7 +168,8 @@ fn test_timeline_start_modes() {
                     path_rotate: None,
                 },
                 connector: ConnectorIR::Then,
-            },
+            
+            source_span: None,},
             TimelineItemIR {
                 kind: TimelineItemKindIR::Direction {
                     dir: DirectionIR::To,
@@ -185,8 +190,10 @@ fn test_timeline_start_modes() {
                     path_rotate: None,
                 },
                 connector: ConnectorIR::Then,
-            },
+            
+            source_span: None,},
         ],
+        source_span: None,
     };
     gen.emit_timeline_js(&timeline);
 
@@ -243,11 +250,13 @@ fn test_timeline_motion_ref_and_stagger() {
                     path_rotate: None,
                 },
                 connector: ConnectorIR::Then,
-            },
+            
+            source_span: None,},
             TimelineItemIR {
                 kind: TimelineItemKindIR::MotionRef("fadeIn".into()),
                 connector: ConnectorIR::Then,
-            },
+            
+            source_span: None,},
             TimelineItemIR {
                 kind: TimelineItemKindIR::Stagger(
                     Box::new(MotionExprIR::Ref("slideIn".into())),
@@ -256,12 +265,15 @@ fn test_timeline_motion_ref_and_stagger() {
                             value: serde_json::json!(80),
                         },
                         from: None,
-                    },
+                    
+                    source_span: None,},
                     StaggerDirection::First,
                 ),
                 connector: ConnectorIR::Then,
-            },
+            
+            source_span: None,},
         ],
+        source_span: None,
     };
     gen.emit_timeline_js(&timeline);
 
@@ -322,7 +334,8 @@ fn test_timeline_labels_and_callbacks() {
                     path_rotate: None,
                 },
                 connector: ConnectorIR::Then,
-            },
+            
+            source_span: None,},
             TimelineItemIR {
                 kind: TimelineItemKindIR::Label(
                     "afterFade".into(),
@@ -331,12 +344,15 @@ fn test_timeline_labels_and_callbacks() {
                     }),
                 ),
                 connector: ConnectorIR::Then,
-            },
+            
+            source_span: None,},
             TimelineItemIR {
                 kind: TimelineItemKindIR::Label("endMarker".into(), None),
                 connector: ConnectorIR::Then,
-            },
+            
+            source_span: None,},
         ],
+        source_span: None,
     };
     gen.emit_timeline_js(&timeline);
 
@@ -395,7 +411,8 @@ fn test_timeline_warnings_invalid_timing() {
                     path_rotate: None,
                 },
                 connector: ConnectorIR::Then,
-            },
+            
+            source_span: None,},
             // Item 1: non-numeric over literal → warning, defaults to 300ms
             TimelineItemIR {
                 kind: TimelineItemKindIR::Direction {
@@ -417,10 +434,12 @@ fn test_timeline_warnings_invalid_timing() {
                     path_rotate: None,
                 },
                 connector: ConnectorIR::Then,
-            },
+            
+            source_span: None,},
             // Item 2: Direction with invalid stagger each via a Stagger item
             // (not in this test — separate from Direction items)
         ],
+        source_span: None,
     };
     gen.emit_timeline_js(&timeline);
 
@@ -479,7 +498,8 @@ fn test_timeline_set_and_fromto() {
                     path_rotate: None,
                 },
                 connector: ConnectorIR::Then,
-            },
+            
+            source_span: None,},
             // Set: scale → 2 immediately
             TimelineItemIR {
                 kind: TimelineItemKindIR::Set(vec![(
@@ -489,8 +509,10 @@ fn test_timeline_set_and_fromto() {
                     },
                 )]),
                 connector: ConnectorIR::Then,
-            },
+            
+            source_span: None,},
         ],
+        source_span: None,
     };
     gen.emit_timeline_js(&timeline);
 

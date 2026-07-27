@@ -102,7 +102,8 @@ mod tests {
                         }],
                     },
                     is_async: false,
-                }],
+                
+                source_span: None,}],
                 store_refs: vec![],
                 refs: vec![],
                 event_names: vec![],
@@ -151,7 +152,8 @@ mod tests {
                     }),
                     body: BlockIR { statements: vec![] },
                     is_async: false,
-                }],
+                
+                source_span: None,}],
                 store_refs: vec![],
                 refs: vec![],
                 event_names: vec![],
@@ -205,7 +207,8 @@ mod tests {
                         }],
                     },
                     is_async: false,
-                }],
+                
+                source_span: None,}],
                 store_refs: vec![],
                 refs: vec![],
                 event_names: vec![],
