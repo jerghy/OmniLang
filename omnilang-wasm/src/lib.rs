@@ -312,18 +312,17 @@ pub fn analyse_multi_cached(
         }
     });
 
-    let result = ANALYSIS_CACHE.with(|cell| {
+    let analysis = ANALYSIS_CACHE.with(|cell| {
         let mut cache = cell.borrow_mut();
-        let analysis = omnilang::analyse::analyse_multi_cached(&sources_map, &path_map, &mut cache);
-        let cache_json = serde_json::to_string(&*cache).unwrap_or_default();
-        (analysis, cache_json)
+        // Cache lives in WASM memory for the page lifetime. Serialize only on explicit save.
+        omnilang::analyse::analyse_multi_cached(&sources_map, &path_map, &mut cache)
     });
 
     to_js_value(&serde_json::json!({
-        "success": result.0.success,
-        "errors": result.0.diagnostics,
-        "warnings": result.0.warnings,
-        "cache_state": result.1,
+        "success": analysis.success,
+        "errors": analysis.diagnostics,
+        "warnings": analysis.warnings,
+        "cache_state": null,
     }))
 }
 
@@ -379,11 +378,10 @@ pub fn resolve_styles_multi_cached(
         }
     });
 
-    let (analysis_result, cache_json) = ANALYSIS_CACHE.with(|cell| {
+    let analysis_result = ANALYSIS_CACHE.with(|cell| {
         let mut cache = cell.borrow_mut();
-        let analysis = omnilang::analyse::analyse_multi_cached(&sources_map, &path_map, &mut cache);
-        let json = serde_json::to_string(&*cache).unwrap_or_default();
-        (analysis, json)
+        // Cache lives in WASM memory for the page lifetime. Serialize only on explicit save.
+        omnilang::analyse::analyse_multi_cached(&sources_map, &path_map, &mut cache)
     });
 
     let errors = analysis_result.diagnostics;
@@ -422,7 +420,7 @@ pub fn resolve_styles_multi_cached(
 
     serde_wasm_bindgen::to_value(&serde_json::json!({
         "result": result_value,
-        "cache_state": cache_json,
+        "cache_state": null,
     }))
     .unwrap_or_else(|e| js_error_value(&format!("serialization error: {}", e)))
 }
@@ -640,6 +638,23 @@ impl OmniCompiler {
     pub fn version(&self) -> String {
         env!("CARGO_PKG_VERSION").to_string()
     }
+}
+
+/// Serialize the thread-local analysis cache to a JSON string for explicit persistence.
+///
+/// Call this from JS on `beforeunload` to preserve the incremental cache across
+/// page navigations. Returns the full cached state as a JSON string, or empty
+/// string on serialization failure.
+///
+/// The cache is NOT serialized automatically on every analysis call — it lives
+/// in WASM memory for the page lifetime. Use this function only when you need
+/// to persist the cache externally (session storage, beforeunload, etc.).
+#[wasm_bindgen]
+pub fn save_cache_state() -> JsValue {
+    ANALYSIS_CACHE.with(|cell| {
+        let cache = cell.borrow();
+        JsValue::from_str(&serde_json::to_string(&*cache).unwrap_or_default())
+    })
 }
 
 #[cfg(test)]

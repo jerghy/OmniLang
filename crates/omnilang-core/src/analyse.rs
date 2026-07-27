@@ -60,6 +60,15 @@ fn fast_hash(content: &str) -> u64 {
 }
 
 /// Cached compilation data for a single file.
+///
+/// This cache is memory-only. `program` and `ir` are skipped during
+/// serialization because they contain complex types (AST, IR) that don't
+/// round-trip well via serde. After deserialization, `program_valid` is
+/// `false` and all files will be re-analyzed on the next pass.
+///
+/// Use `save_cache_state()` / `seed_cache_from_state()` only for page-navigation
+/// persistence (e.g. `beforeunload`), never expecting cache efficiency across
+/// serialization boundaries.
 #[derive(Serialize, Deserialize)]
 pub struct CachedFile {
     pub content_hash: u64,
