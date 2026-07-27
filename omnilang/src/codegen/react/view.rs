@@ -52,8 +52,7 @@ pub(super) fn gen_view_node_tsx(
                         EventHandlerIR::StoreAction { r#ref, .. } => {
                             // Use full qualified ref (e.g. "NotificationStore.clear")
                             // so store methods are called through their hook object
-                            comp_attrs
-                                .push(format!("{}={{() => {{ {}(); }}}}", jsx_event, r#ref));
+                            comp_attrs.push(format!("{}={{() => {{ {}(); }}}}", jsx_event, r#ref));
                         }
                     }
                 }
@@ -448,13 +447,12 @@ pub(super) fn gen_view_node_tsx(
             }
 
             // Ensure form fields with placeholder have an accessible label
-            let is_form_field = matches!(
-                html_tag.as_str(),
-                "input" | "textarea" | "select"
-            );
+            let is_form_field = matches!(html_tag.as_str(), "input" | "textarea" | "select");
             if is_form_field
                 && attrs.iter().any(|a| a.starts_with("placeholder="))
-                && !attrs.iter().any(|a| a.starts_with("aria-label=") || a.starts_with("aria-labelledby="))
+                && !attrs
+                    .iter()
+                    .any(|a| a.starts_with("aria-label=") || a.starts_with("aria-labelledby="))
             {
                 // Extract placeholder text to use as aria-label
                 if let Some(ph_attr) = attrs.iter().find(|a| a.starts_with("placeholder=")) {
@@ -765,13 +763,16 @@ fn format_inline_handler(
     let body_content = body_w.into_string();
 
     // Check if params are used in the body; prefix unused ones with _
-    let effective_params: Vec<String> = params.iter().map(|p| {
-        if body_content.contains(p.as_str()) {
-            p.clone()
-        } else {
-            format!("_{}", p)
-        }
-    }).collect();
+    let effective_params: Vec<String> = params
+        .iter()
+        .map(|p| {
+            if body_content.contains(p.as_str()) {
+                p.clone()
+            } else {
+                format!("_{}", p)
+            }
+        })
+        .collect();
 
     let param_str = if effective_params.is_empty() {
         String::new()

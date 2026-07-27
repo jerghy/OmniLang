@@ -755,6 +755,7 @@ fn verify_pid_roundtrip(
 }
 
 // ── Debug window commands ──
+// P18(Sprint 5): move to commands/debug.rs
 
 /// Open the debug window. Creates it if it doesn't exist yet.
 #[tauri::command]
@@ -812,6 +813,7 @@ fn dw_log(message: String) -> Result<(), String> {
         .map_err(|e| format!("Failed to write log: {e}"))?;
     Ok(())
 }
+// P18(Sprint 5): move to commands/debug.rs
 
 // ── Tauri app entry ──
 

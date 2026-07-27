@@ -383,7 +383,11 @@ impl OmniViewGenerator {
                 let trimmed = js.trim_end_matches("()");
                 // Truncate long expressions — use char boundary to avoid UTF-8 panics
                 if trimmed.chars().count() > 40 {
-                    let end = trimmed.char_indices().nth(39).map(|(i, _)| i).unwrap_or(trimmed.len());
+                    let end = trimmed
+                        .char_indices()
+                        .nth(39)
+                        .map(|(i, _)| i)
+                        .unwrap_or(trimmed.len());
                     format!("{}…", &trimmed[..end])
                 } else {
                     trimmed.to_string()

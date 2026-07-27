@@ -558,7 +558,12 @@ fn lower_element(
     });
     if let Some(sig_counter) = sig_idx {
         let idx = sig_counter.get();
-        if el.tag == "input" && !has_value_binding && !has_value_prop && !is_checkbox_or_radio && idx < string_signals.len() {
+        if el.tag == "input"
+            && !has_value_binding
+            && !has_value_prop
+            && !is_checkbox_or_radio
+            && idx < string_signals.len()
+        {
             let sig_name = string_signals[idx].clone();
             sig_counter.set(idx + 1);
             bindings.get_or_insert_with(Default::default).insert(

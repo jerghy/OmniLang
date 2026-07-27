@@ -347,8 +347,7 @@ impl ReactCodegen {
         w.emit_fmt(format_args!("interface {} {{", state_interface));
 
         for (sig_name, sig_type) in &store.signals {
-            let ts_type =
-                JsTypeFormatter.format_type(sig_type.kind.as_str(), &sig_type.type_args);
+            let ts_type = JsTypeFormatter.format_type(sig_type.kind.as_str(), &sig_type.type_args);
             w.emit_fmt(format_args!("  {}: {};", sig_name, ts_type));
         }
         for getter_name in store.getters.keys() {
@@ -363,7 +362,11 @@ impl ReactCodegen {
             if params.is_empty() {
                 w.emit_fmt(format_args!("  {}: () => void;", action.name));
             } else {
-                w.emit_fmt(format_args!("  {}: ({}) => void;", action.name, params.join(", ")));
+                w.emit_fmt(format_args!(
+                    "  {}: ({}) => void;",
+                    action.name,
+                    params.join(", ")
+                ));
             }
         }
         w.emit("}");
@@ -374,7 +377,10 @@ impl ReactCodegen {
 
         // Check if any getter or action body needs get()
         let needs_get = !store.getters.is_empty()
-            || store.actions.iter().any(|a| block_needs_zustand_state(&a.body, &store_signal_names));
+            || store
+                .actions
+                .iter()
+                .any(|a| block_needs_zustand_state(&a.body, &store_signal_names));
         let create_params = if needs_get { "(set, get)" } else { "(set)" };
 
         // create() call
@@ -416,11 +422,7 @@ impl ReactCodegen {
                 .map(|p| escape_js_ident(&p.name))
                 .collect();
             let params_str = params.join(", ");
-            w.emit_fmt(format_args!(
-                "{}: ({}) => {{",
-                action.name,
-                params_str
-            ));
+            w.emit_fmt(format_args!("{}: ({}) => {{", action.name, params_str));
             w.indent();
 
             // Emit const state = get(); only if the action body references store signals
@@ -456,7 +458,11 @@ fn gen_zustand_action_stmt(
             let line = expr::format_expr_ir_tsx(expr);
             w.emit_fmt(format_args!("{};", line));
         }
-        StatementIR::LetStmtIR { name, value, r#type: _ } => {
+        StatementIR::LetStmtIR {
+            name,
+            value,
+            r#type: _,
+        } => {
             let rhs = value
                 .as_ref()
                 .map(|v| expr::format_expr_ir_tsx(v))
@@ -550,12 +556,17 @@ fn rewrite_signal_refs_for_zustand(expr_str: &str, signal_names: &FxHashSet<Stri
 
 /// Check if any statement in a block mutates any of the given store signal names.
 fn block_mutates_store_signal(block: &BlockIR, signal_names: &FxHashSet<String>) -> bool {
-    block.statements.iter().any(|s| stmt_mutates_store_signal(s, signal_names))
+    block
+        .statements
+        .iter()
+        .any(|s| stmt_mutates_store_signal(s, signal_names))
 }
 
 fn stmt_mutates_store_signal(stmt: &StatementIR, signal_names: &FxHashSet<String>) -> bool {
     match stmt {
-        StatementIR::MutationStmt { intent: Some(intent) } => {
+        StatementIR::MutationStmt {
+            intent: Some(intent),
+        } => {
             let target_name = match intent {
                 MutationIntent::DirectAssign { target, .. }
                 | MutationIntent::Increment { target, .. }
@@ -576,7 +587,11 @@ fn stmt_mutates_store_signal(stmt: &StatementIR, signal_names: &FxHashSet<String
 /// Only emit when the action uses mutations that need `state.` access
 /// (Increment, Decrement, Push, Pop, Multiply, Divide, Modulo).
 /// DirectAssign uses `set({ key: val })` and does not need state.
-fn emit_zustand_action_prologue(w: &mut CodeWriter, action: &FunctionIR, signal_names: &FxHashSet<String>) {
+fn emit_zustand_action_prologue(
+    w: &mut CodeWriter,
+    action: &FunctionIR,
+    signal_names: &FxHashSet<String>,
+) {
     if block_needs_zustand_state(&action.body, signal_names) {
         w.emit("const state = get();");
     }
@@ -585,12 +600,17 @@ fn emit_zustand_action_prologue(w: &mut CodeWriter, action: &FunctionIR, signal_
 /// Returns true if any statement in the block needs `state.` access in Zustand mutations.
 /// DirectAssign uses `set({...})` (no state needed); all other compound mutations need state.
 fn block_needs_zustand_state(block: &BlockIR, signal_names: &FxHashSet<String>) -> bool {
-    block.statements.iter().any(|s| stmt_needs_zustand_state(s, signal_names))
+    block
+        .statements
+        .iter()
+        .any(|s| stmt_needs_zustand_state(s, signal_names))
 }
 
 fn stmt_needs_zustand_state(stmt: &StatementIR, signal_names: &FxHashSet<String>) -> bool {
     match stmt {
-        StatementIR::MutationStmt { intent: Some(intent) } => {
+        StatementIR::MutationStmt {
+            intent: Some(intent),
+        } => {
             let target_name = match intent {
                 MutationIntent::Increment { target, .. }
                 | MutationIntent::Decrement { target, .. }
@@ -604,10 +624,19 @@ fn stmt_needs_zustand_state(stmt: &StatementIR, signal_names: &FxHashSet<String>
             };
             signal_names.contains(target_name)
         }
-        StatementIR::IfStmtIR { then_body, else_ifs, else_body, .. } => {
+        StatementIR::IfStmtIR {
+            then_body,
+            else_ifs,
+            else_body,
+            ..
+        } => {
             block_needs_zustand_state(then_body, signal_names)
-                || else_ifs.iter().any(|(_, b)| block_needs_zustand_state(b, signal_names))
-                || else_body.as_ref().is_some_and(|b| block_needs_zustand_state(b, signal_names))
+                || else_ifs
+                    .iter()
+                    .any(|(_, b)| block_needs_zustand_state(b, signal_names))
+                || else_body
+                    .as_ref()
+                    .is_some_and(|b| block_needs_zustand_state(b, signal_names))
         }
         _ => false,
     }
@@ -630,10 +659,7 @@ fn format_zustand_mutation(
                 .unwrap_or_else(|| "null".into());
             let target_str = &target.name;
             if signal_names.contains(target_str.as_str()) {
-                w.emit_fmt(format_args!(
-                    "set({{ {}: {} }});",
-                    target_str, val
-                ));
+                w.emit_fmt(format_args!("set({{ {}: {} }});", target_str, val));
             } else {
                 w.emit_fmt(format_args!("{} = {};", target_str, val));
             }
@@ -689,7 +715,10 @@ fn format_zustand_mutation(
                     target_str, target_str, it
                 ));
             } else {
-                w.emit_fmt(format_args!("{} = [...{}, {}];", target_str, target_str, it));
+                w.emit_fmt(format_args!(
+                    "{} = [...{}, {}];",
+                    target_str, target_str, it
+                ));
             }
         }
         MutationIntent::Pop { target } => {
@@ -700,7 +729,10 @@ fn format_zustand_mutation(
                     target_str, target_str
                 ));
             } else {
-                w.emit_fmt(format_args!("{} = {}.slice(0, -1);", target_str, target_str));
+                w.emit_fmt(format_args!(
+                    "{} = {}.slice(0, -1);",
+                    target_str, target_str
+                ));
             }
         }
         _ => {
@@ -790,12 +822,7 @@ pub(super) fn escape_js_ident(name: &str) -> String {
 // ═══════════════════════════════════════════════════════════
 
 impl UiCodegen for ReactCodegen {
-    fn generate_component_code(
-        &self,
-        name: &str,
-        comp: &ComponentIR,
-        ir: &IRProgram,
-    ) -> String {
+    fn generate_component_code(&self, name: &str, comp: &ComponentIR, ir: &IRProgram) -> String {
         let component_map = build_component_map(ir);
         self.gen_component_tsx(name, comp, ir, &component_map)
     }

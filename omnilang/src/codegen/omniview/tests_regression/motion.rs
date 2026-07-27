@@ -134,7 +134,10 @@ fn test_easing_all_variants() {
         x2: 0.58,
         y2: 1.0,
     });
-    assert!(cb.contains("cubicBezier"), "CubicBezier should contain type marker");
+    assert!(
+        cb.contains("cubicBezier"),
+        "CubicBezier should contain type marker"
+    );
     assert!(cb.contains("x1:0.42"));
     assert!(cb.contains("y2:1"));
 
@@ -296,8 +299,10 @@ fn test_playback_config() {
         stagger_from: Some(StaggerDirection::Random),
         ..Default::default()
     });
-    assert!(sf_rand.iter().any(|s| s.contains("edges")),
-        "StaggerDirection::Random should map to 'edges'");
+    assert!(
+        sf_rand.iter().any(|s| s.contains("edges")),
+        "StaggerDirection::Random should map to 'edges'"
+    );
 
     // Repeat delay
     let rd = gen.playback_to_config(&PlaybackIR {
@@ -352,9 +357,18 @@ fn test_keyframe_animate_call_basic() {
     // Keyframe array format
     assert!(kf_js.starts_with('['), "keyframes should be a JS array");
     assert!(kf_js.ends_with(']'), "keyframes should end with ']'");
-    assert!(kf_js.contains("offset:0"), "first stop should have offset:0");
-    assert!(kf_js.contains("offset:1"), "second stop should have offset:1");
-    assert!(kf_js.contains("\"opacity\""), "should contain opacity property");
+    assert!(
+        kf_js.contains("offset:0"),
+        "first stop should have offset:0"
+    );
+    assert!(
+        kf_js.contains("offset:1"),
+        "second stop should have offset:1"
+    );
+    assert!(
+        kf_js.contains("\"opacity\""),
+        "should contain opacity property"
+    );
 
     // Options contain duration and default fill
     assert!(
@@ -415,10 +429,7 @@ fn test_keyframe_animate_call_edge_cases() {
         kf_js_fo.contains("offset:0"),
         "from-only should still contain offset:0"
     );
-    assert!(
-        opts_fo.contains("duration:500"),
-        "duration should be 500ms"
-    );
+    assert!(opts_fo.contains("duration:500"), "duration should be 500ms");
 
     // Edge case 3: Keyframe with per-stop easing
     let with_ease = KeyframeIR {
@@ -745,7 +756,10 @@ fn test_motion_trigger_enter_named() {
         1,
         "should register 1 enter trigger nid"
     );
-    assert_eq!(gen.enter_trigger_nids[0].0, "el-div-001", "nid should match");
+    assert_eq!(
+        gen.enter_trigger_nids[0].0, "el-div-001",
+        "nid should match"
+    );
     assert_eq!(
         gen.enter_trigger_nids[0].1, "fadeIn",
         "motion name should match"

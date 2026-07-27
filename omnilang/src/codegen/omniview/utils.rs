@@ -224,11 +224,26 @@ pub fn build_file_output(gen: &OmniViewOutput) -> CompileOutput {
         gen.html
     );
     CompileOutput::success(vec![
-        CompiledFile { path: "index.js".into(), content: gen.js.clone() },
-        CompiledFile { path: "index.html".into(), content: html },
-        CompiledFile { path: "body.html".into(), content: gen.html.clone() },
-        CompiledFile { path: "index.css".into(), content: gen.css.clone() },
-        CompiledFile { path: "omni-animation.js".into(), content: OMNI_ANIMATION_JS.to_string() },
+        CompiledFile {
+            path: "index.js".into(),
+            content: gen.js.clone(),
+        },
+        CompiledFile {
+            path: "index.html".into(),
+            content: html,
+        },
+        CompiledFile {
+            path: "body.html".into(),
+            content: gen.html.clone(),
+        },
+        CompiledFile {
+            path: "index.css".into(),
+            content: gen.css.clone(),
+        },
+        CompiledFile {
+            path: "omni-animation.js".into(),
+            content: OMNI_ANIMATION_JS.to_string(),
+        },
     ])
 }
 

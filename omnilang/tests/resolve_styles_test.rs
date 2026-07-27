@@ -76,8 +76,11 @@ component main {
     println!("warnings: {:?}", result.warnings);
     println!("design_css len: {}", result.design_css.len());
 
-    assert!(result.warnings.is_empty(),
-        "Unexpected warnings: {:?}", result.warnings);
+    assert!(
+        result.warnings.is_empty(),
+        "Unexpected warnings: {:?}",
+        result.warnings
+    );
     assert!(!result.design_css.is_empty(), "Expected design CSS");
 }
 
@@ -102,7 +105,11 @@ component main {
     println!("warnings: {:?}", result.warnings);
 
     assert!(
-        result.warnings.iter().any(|w| w.contains("variant") || w.contains("Button")),
-        "Expected variant warning, got: {:?}", result.warnings
+        result
+            .warnings
+            .iter()
+            .any(|w| w.contains("variant") || w.contains("Button")),
+        "Expected variant warning, got: {:?}",
+        result.warnings
     );
 }

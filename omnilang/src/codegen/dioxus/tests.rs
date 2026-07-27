@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tests {
     use super::super::*;
+    use rustc_hash::FxHashMap;
     use std::collections::HashMap;
-use rustc_hash::FxHashMap;
 
     // ── Helper tests ─────────────────────────────────────────
 

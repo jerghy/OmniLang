@@ -7,12 +7,8 @@ impl OmniViewGenerator {
     pub(super) fn emit_motion_js(&mut self, motion: &MotionIntent) {
         let (kf_js, opts_js) = match &motion.body {
             MotionBodyIR::Keyframe(kf) => self.keyframe_to_animate_call(kf),
-            MotionBodyIR::Timeline(tl) => {
-                self.timeline_to_factory(&motion.name, tl)
-            }
-            MotionBodyIR::CallbackOnly(cb) => {
-                self.callback_to_animate_call(cb)
-            }
+            MotionBodyIR::Timeline(tl) => self.timeline_to_factory(&motion.name, tl),
+            MotionBodyIR::CallbackOnly(cb) => self.callback_to_animate_call(cb),
         };
 
         self.js.push_str(&format!(

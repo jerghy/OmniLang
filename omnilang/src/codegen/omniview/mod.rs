@@ -120,7 +120,12 @@ pub struct StyleResolveResult {
 }
 
 /// Generate OmniView output from an IR program.
-pub fn generate(ir: &IRProgram, editor_mode: bool, css_only: bool, debug_mode: bool) -> OmniViewOutput {
+pub fn generate(
+    ir: &IRProgram,
+    editor_mode: bool,
+    css_only: bool,
+    debug_mode: bool,
+) -> OmniViewOutput {
     debug_assert!(
         !debug_mode || editor_mode,
         "debug_mode requires editor_mode=true"
@@ -133,7 +138,7 @@ pub fn generate(ir: &IRProgram, editor_mode: bool, css_only: bool, debug_mode: b
         node_counter: 0,
         current_nid_path: Vec::new(),
         signal_names: FxHashSet::default(),
-            signal_defaults: FxHashMap::default(),
+        signal_defaults: FxHashMap::default(),
         store_signal_names: FxHashSet::default(),
         store_field_names: FxHashSet::default(),
         store_names: FxHashSet::default(),

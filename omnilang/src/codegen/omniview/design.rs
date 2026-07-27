@@ -35,7 +35,11 @@ pub fn emit_design_css_editor(design: &DesignIR, scope: &str) -> Result<String, 
     emit_design_css_impl(design, scope, true)
 }
 
-fn emit_design_css_impl(design: &DesignIR, scope: &str, editor_mode: bool) -> Result<String, String> {
+fn emit_design_css_impl(
+    design: &DesignIR,
+    scope: &str,
+    editor_mode: bool,
+) -> Result<String, String> {
     if design.name.is_empty() {
         return Err("design block has an empty name".to_string());
     }

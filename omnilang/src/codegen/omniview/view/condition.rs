@@ -83,10 +83,7 @@ impl OmniViewGenerator {
 ///
 /// Returns `false` for any expression that can't be statically evaluated, causing
 /// a fallback to the `@else` branch (or empty output).
-fn eval_condition_for_canvas(
-    expr: &ExprIR,
-    signal_defaults: &FxHashMap<String, String>,
-) -> bool {
+fn eval_condition_for_canvas(expr: &ExprIR, signal_defaults: &FxHashMap<String, String>) -> bool {
     match expr {
         ExprIR::LiteralExpr { value } => is_truthy_str(&literal_to_string(value)),
         ExprIR::IdentifierExpr { name, .. } => signal_defaults
@@ -116,7 +113,10 @@ fn eval_condition_for_canvas(
             BinaryOpIR::Gt | BinaryOpIR::Lt | BinaryOpIR::GtEq | BinaryOpIR::LtEq => {
                 let l = signal_or_literal_value(left, signal_defaults);
                 let r = signal_or_literal_value(right, signal_defaults);
-                match (l.and_then(|v| v.parse::<f64>().ok()), r.and_then(|v| v.parse::<f64>().ok())) {
+                match (
+                    l.and_then(|v| v.parse::<f64>().ok()),
+                    r.and_then(|v| v.parse::<f64>().ok()),
+                ) {
                     (Some(ln), Some(rn)) => match op {
                         BinaryOpIR::Gt => ln > rn,
                         BinaryOpIR::Lt => ln < rn,
@@ -129,9 +129,10 @@ fn eval_condition_for_canvas(
             }
             _ => false,
         },
-        ExprIR::UnaryOpExpr { op: UnaryOpIR::Not, operand } => {
-            !eval_condition_for_canvas(operand, signal_defaults)
-        }
+        ExprIR::UnaryOpExpr {
+            op: UnaryOpIR::Not,
+            operand,
+        } => !eval_condition_for_canvas(operand, signal_defaults),
         // Field access like `Store.field` — look up "Store.field" in signal_defaults
         ExprIR::FieldAccessExpr { object, field } => {
             if let ExprIR::IdentifierExpr { name, .. } = object.as_ref() {
@@ -192,10 +193,5 @@ fn literal_to_string(value: &serde_json::Value) -> String {
 /// Handles values stored by `expr_default_display`: strings are unquoted,
 /// numbers and booleans are their literal JS representations.
 fn is_truthy_str(v: &str) -> bool {
-    !v.is_empty()
-        && v != "false"
-        && v != "null"
-        && v != "undefined"
-        && v != "0"
-        && v != "0.0"
+    !v.is_empty() && v != "false" && v != "null" && v != "undefined" && v != "0" && v != "0.0"
 }

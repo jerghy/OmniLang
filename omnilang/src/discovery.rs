@@ -35,7 +35,10 @@ pub fn discover_omni_sources(
 
 fn discover_directory(project_dir: &Path) -> Result<FxHashMap<String, String>, String> {
     if !project_dir.is_dir() {
-        return Err(format!("Project directory not found: {}", project_dir.display()));
+        return Err(format!(
+            "Project directory not found: {}",
+            project_dir.display()
+        ));
     }
 
     let mut sources: FxHashMap<String, String> = FxHashMap::default();
@@ -113,9 +116,7 @@ fn discover_single_with_siblings(file_path: &Path) -> Result<FxHashMap<String, S
                 None
             }
         })
-        .filter(|e| {
-            e.file_name().to_string_lossy().ends_with(".omni") && e.path() != file_path
-        })
+        .filter(|e| e.file_name().to_string_lossy().ends_with(".omni") && e.path() != file_path)
     {
         let path = entry.path().to_owned();
         match std::fs::read_to_string(&path) {

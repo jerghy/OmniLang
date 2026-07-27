@@ -6,8 +6,8 @@
 //! - `condition`: Conditional rendering (css_only mode + canvas helpers)
 //! - `list`: List rendering dispatch
 
-mod element;
 mod condition;
+mod element;
 mod list;
 
 // Re-exports so sibling modules in `codegen::omniview` can still access

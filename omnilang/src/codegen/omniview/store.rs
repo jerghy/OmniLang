@@ -13,7 +13,7 @@ fn expr_default_display(expr: &ExprIR, gen: &OmniViewGenerator) -> String {
             let js = serde_value_to_js(&value);
             // Strip surrounding quotes from string values
             if js.starts_with('"') && js.ends_with('"') && js.len() >= 2 {
-                js[1..js.len()-1].to_string()
+                js[1..js.len() - 1].to_string()
             } else {
                 js
             }

@@ -5,8 +5,8 @@ use super::expr::format_type_ir_dart;
 use super::*;
 use crate::codegen::{format_json_value, CodeWriter, JSON_DART};
 use crate::ir::*;
-use std::collections::HashMap;
 use rustc_hash::FxHashMap;
+use std::collections::HashMap;
 
 /// Helper: create a DartVisitor for test use.
 fn visitor() -> super::visitor::DartVisitor {
@@ -671,7 +671,10 @@ fn test_full_pipeline_with_store() {
                                 is_nullable: false,
                             },
                         )]),
-                        signal_defaults: FxHashMap::from_iter([("count".into(), serde_json::json!(0))]),
+                        signal_defaults: FxHashMap::from_iter([(
+                            "count".into(),
+                            serde_json::json!(0),
+                        )]),
                         getters: FxHashMap::default(),
                         actions: vec![],
                         ..Default::default()

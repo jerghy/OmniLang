@@ -210,7 +210,10 @@ impl FormatStmt for ReactStmtFormatter {
                     // Zustand mode: useStoreName.setState({ signal: value })
                     let store_name = target.owner.as_deref().unwrap_or("");
                     let setter = format!("use{}", capitalize_first(store_name));
-                    w.emit_fmt(format_args!("{}.setState({{ {}: {} }});", setter, target_str, amount));
+                    w.emit_fmt(format_args!(
+                        "{}.setState({{ {}: {} }});",
+                        setter, target_str, amount
+                    ));
                 } else if use_setter {
                     let setter = format!("set{}", capitalize_first(target_str));
                     w.emit_fmt(format_args!("{}({});", setter, amount));
@@ -262,7 +265,10 @@ impl ReactStmtFormatter {
             MutationIntent::Increment { .. } => {
                 if in_zustand {
                     let s = zustand_store_setter(target);
-                    w.emit_fmt(format_args!("{}.setState((s) => ({{ {}: s.{} + {} }}));", s, target_str, target_str, amt));
+                    w.emit_fmt(format_args!(
+                        "{}.setState((s) => ({{ {}: s.{} + {} }}));",
+                        s, target_str, target_str, amt
+                    ));
                 } else if use_setter {
                     let setter = format!("set{}", capitalize_first(target_str));
                     w.emit_fmt(format_args!("{}(prev => prev + {});", setter, amt));
@@ -273,7 +279,10 @@ impl ReactStmtFormatter {
             MutationIntent::Decrement { .. } => {
                 if in_zustand {
                     let s = zustand_store_setter(target);
-                    w.emit_fmt(format_args!("{}.setState((s) => ({{ {}: s.{} - {} }}));", s, target_str, target_str, amt));
+                    w.emit_fmt(format_args!(
+                        "{}.setState((s) => ({{ {}: s.{} - {} }}));",
+                        s, target_str, target_str, amt
+                    ));
                 } else if use_setter {
                     let setter = format!("set{}", capitalize_first(target_str));
                     w.emit_fmt(format_args!("{}(prev => prev - {});", setter, amt));
@@ -284,7 +293,10 @@ impl ReactStmtFormatter {
             MutationIntent::Multiply { .. } => {
                 if in_zustand {
                     let s = zustand_store_setter(target);
-                    w.emit_fmt(format_args!("{}.setState((s) => ({{ {}: s.{} * {} }}));", s, target_str, target_str, amt));
+                    w.emit_fmt(format_args!(
+                        "{}.setState((s) => ({{ {}: s.{} * {} }}));",
+                        s, target_str, target_str, amt
+                    ));
                 } else if use_setter {
                     let setter = format!("set{}", capitalize_first(target_str));
                     w.emit_fmt(format_args!("{}(prev => prev * {});", setter, amt));
@@ -295,7 +307,10 @@ impl ReactStmtFormatter {
             MutationIntent::Divide { .. } => {
                 if in_zustand {
                     let s = zustand_store_setter(target);
-                    w.emit_fmt(format_args!("{}.setState((s) => ({{ {}: s.{} / {} }}));", s, target_str, target_str, amt));
+                    w.emit_fmt(format_args!(
+                        "{}.setState((s) => ({{ {}: s.{} / {} }}));",
+                        s, target_str, target_str, amt
+                    ));
                 } else if use_setter {
                     let setter = format!("set{}", capitalize_first(target_str));
                     w.emit_fmt(format_args!("{}(prev => prev / {});", setter, amt));
@@ -306,7 +321,10 @@ impl ReactStmtFormatter {
             MutationIntent::Modulo { .. } => {
                 if in_zustand {
                     let s = zustand_store_setter(target);
-                    w.emit_fmt(format_args!("{}.setState((s) => ({{ {}: s.{} % {} }}));", s, target_str, target_str, amt));
+                    w.emit_fmt(format_args!(
+                        "{}.setState((s) => ({{ {}: s.{} % {} }}));",
+                        s, target_str, target_str, amt
+                    ));
                 } else if use_setter {
                     let setter = format!("set{}", capitalize_first(target_str));
                     w.emit_fmt(format_args!("{}(prev => prev % {});", setter, amt));
@@ -320,23 +338,35 @@ impl ReactStmtFormatter {
                     .unwrap_or_else(|| "undefined".into());
                 if in_zustand {
                     let s = zustand_store_setter(target);
-                    w.emit_fmt(format_args!("{}.setState((s) => ({{ {}: [...s.{}, {}] }}));", s, target_str, target_str, it));
+                    w.emit_fmt(format_args!(
+                        "{}.setState((s) => ({{ {}: [...s.{}, {}] }}));",
+                        s, target_str, target_str, it
+                    ));
                 } else if use_setter {
                     let setter = format!("set{}", capitalize_first(target_str));
                     w.emit_fmt(format_args!("{}(prev => [...prev, {}]);", setter, it));
                 } else {
-                    w.emit_fmt(format_args!("{} = [...{}, {}];", target_str, target_str, it));
+                    w.emit_fmt(format_args!(
+                        "{} = [...{}, {}];",
+                        target_str, target_str, it
+                    ));
                 }
             }
             MutationIntent::Pop { .. } => {
                 if in_zustand {
                     let s = zustand_store_setter(target);
-                    w.emit_fmt(format_args!("{}.setState((s) => ({{ {}: s.{}.slice(0, -1) }}));", s, target_str, target_str));
+                    w.emit_fmt(format_args!(
+                        "{}.setState((s) => ({{ {}: s.{}.slice(0, -1) }}));",
+                        s, target_str, target_str
+                    ));
                 } else if use_setter {
                     let setter = format!("set{}", capitalize_first(target_str));
                     w.emit_fmt(format_args!("{}(prev => prev.slice(0, -1));", setter));
                 } else {
-                    w.emit_fmt(format_args!("{} = {}.slice(0, -1);", target_str, target_str));
+                    w.emit_fmt(format_args!(
+                        "{} = {}.slice(0, -1);",
+                        target_str, target_str
+                    ));
                 }
             }
             _ => {}
@@ -363,12 +393,16 @@ pub(super) fn generate_statement_tsx_with_mode(
     if let StatementIR::ExprStmtIR { expr } = stmt {
         if let ExprIR::CallExpr { name, args } = expr {
             if name == "array_push" || name == "array_pop" {
-                if let Some(ExprIR::IdentifierExpr { name: target_name, .. }) = args.first() {
+                if let Some(ExprIR::IdentifierExpr {
+                    name: target_name, ..
+                }) = args.first()
+                {
                     if signal_names.contains(target_name.as_str()) {
                         let setter = format!("set{}", capitalize_first(target_name));
                         match name.as_str() {
                             "array_push" => {
-                                let item = args.get(1)
+                                let item = args
+                                    .get(1)
                                     .map(|e| format_expr_ir_tsx(e))
                                     .unwrap_or_else(|| "undefined".into());
                                 w.emit_fmt(format_args!(
@@ -378,10 +412,7 @@ pub(super) fn generate_statement_tsx_with_mode(
                                 return;
                             }
                             "array_pop" => {
-                                w.emit_fmt(format_args!(
-                                    "{}(prev => prev.slice(0, -1));",
-                                    setter
-                                ));
+                                w.emit_fmt(format_args!("{}(prev => prev.slice(0, -1));", setter));
                                 return;
                             }
                             _ => {}

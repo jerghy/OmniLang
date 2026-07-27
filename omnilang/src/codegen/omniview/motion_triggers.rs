@@ -21,11 +21,10 @@ impl OmniViewGenerator {
                 None => "true".to_string(),
             }
         } else {
-            let repeat_val =
-                match el.motion_behavior().and_then(|m| m.in_view_repeat.as_ref()) {
-                    Some(expr) => self.expr_to_js(expr) == "true",
-                    None => false,
-                };
+            let repeat_val = match el.motion_behavior().and_then(|m| m.in_view_repeat.as_ref()) {
+                Some(expr) => self.expr_to_js(expr) == "true",
+                None => false,
+            };
             if repeat_val {
                 "false".to_string()
             } else {
@@ -459,7 +458,12 @@ impl OmniViewGenerator {
                             motion_name, trigger_str,
                         );
                         self.emit_trigger_drag_js(
-                            nid, trigger_str, &anim_call, el, is_horizontal, false,
+                            nid,
+                            trigger_str,
+                            &anim_call,
+                            el,
+                            is_horizontal,
+                            false,
                         );
                     }
                     TriggerKind::Animate => {
@@ -568,7 +572,12 @@ impl OmniViewGenerator {
                         let anim_call =
                             format!("Omni.animate(el, {}, {{ {} }})", kf_override, opts_override);
                         self.emit_trigger_drag_js(
-                            nid, trigger_str, &anim_call, el, is_horizontal, true,
+                            nid,
+                            trigger_str,
+                            &anim_call,
+                            el,
+                            is_horizontal,
+                            true,
                         );
                     }
                     _ => {

@@ -2,7 +2,7 @@
   "identifier": "default",
   "description": "Default capabilities for Poiesis editor — restricted filesystem access",
   "context": "local",
-  "windows": ["*"],
+  "windows": ["main"],
   "permissions": [
     "core:default",
     "core:event:default",

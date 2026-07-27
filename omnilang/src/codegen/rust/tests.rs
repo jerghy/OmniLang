@@ -2,8 +2,8 @@
 mod tests {
     use super::super::expr::format_type_ir_rust;
     use super::super::*;
+    use rustc_hash::FxHashMap;
     use std::collections::HashMap;
-use rustc_hash::FxHashMap;
 
     /// Helper: create a RustVisitor for test use.
     fn visitor() -> super::super::visitor::RustVisitor {

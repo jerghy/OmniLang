@@ -3,8 +3,8 @@
 use super::*;
 use crate::codegen::shared::generator::build_component_map;
 use crate::codegen::{format_json_value, JSON_FLUTTER};
-use std::collections::HashMap;
 use rustc_hash::FxHashMap;
+use std::collections::HashMap;
 
 // ── Helper tests ──────────────────────────────────────────
 

@@ -33,10 +33,18 @@ fn format_keyframe_stops(kf: &KeyframeIR) -> String {
         if stop.position >= 0.5 {
             // to-only: synthetic 0% keyframe (start from current state)
             items.push("{offset:0,properties:{}}".to_string());
-            items.push(format!("{{offset:{},properties:{{{}}}}}", stop.position, prop_pairs.join(",")));
+            items.push(format!(
+                "{{offset:{},properties:{{{}}}}}",
+                stop.position,
+                prop_pairs.join(",")
+            ));
         } else {
             // from-only: synthetic 100% keyframe (return to current state)
-            items.push(format!("{{offset:{},properties:{{{}}}}}", stop.position, prop_pairs.join(",")));
+            items.push(format!(
+                "{{offset:{},properties:{{{}}}}}",
+                stop.position,
+                prop_pairs.join(",")
+            ));
             items.push("{offset:1,properties:{}}".to_string());
         }
         return format!("[{}]", items.join(","));
@@ -56,7 +64,11 @@ fn format_keyframe_stops(kf: &KeyframeIR) -> String {
             let val_str = expr::format_expr_ir_tsx(value);
             prop_pairs.push(format!("\"{}\":{}", prop, val_str));
         }
-        items.push(format!("{{offset:{},properties:{{{}}}}}", stop.position, prop_pairs.join(",")));
+        items.push(format!(
+            "{{offset:{},properties:{{{}}}}}",
+            stop.position,
+            prop_pairs.join(",")
+        ));
     }
 
     format!("[{}]", items.join(","))

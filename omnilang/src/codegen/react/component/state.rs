@@ -41,10 +41,7 @@ impl ReactCodegen {
                     state.name, setter, init_val
                 ));
             } else {
-                w.emit_fmt(format_args!(
-                    "const {} = {};",
-                    state.name, init_val
-                ));
+                w.emit_fmt(format_args!("const {} = {};", state.name, init_val));
             }
         }
     }
@@ -115,7 +112,12 @@ fn collect_mutation_targets_from_stmt(stmt: &StatementIR, acc: &mut FxHashSet<St
                 collect_mutation_targets_from_expr(v, acc);
             }
         }
-        StatementIR::IfStmtIR { then_body, else_ifs, else_body, .. } => {
+        StatementIR::IfStmtIR {
+            then_body,
+            else_ifs,
+            else_body,
+            ..
+        } => {
             for s in &then_body.statements {
                 collect_mutation_targets_from_stmt(s, acc);
             }
@@ -145,7 +147,12 @@ fn collect_mutation_targets_from_stmt(stmt: &StatementIR, acc: &mut FxHashSet<St
                 collect_mutation_targets_from_stmt(s, acc);
             }
         }
-        StatementIR::TryCatchStmtIR { try_body, catch_body, finally_body, .. } => {
+        StatementIR::TryCatchStmtIR {
+            try_body,
+            catch_body,
+            finally_body,
+            ..
+        } => {
             for s in &try_body.statements {
                 collect_mutation_targets_from_stmt(s, acc);
             }
@@ -318,41 +325,66 @@ pub(super) fn collect_used_store_signals(comp: &ComponentIR) -> FxHashSet<String
 
 fn collect_expr_ids_from_stmt(stmt: &StatementIR, acc: &mut FxHashSet<String>) {
     match stmt {
-        StatementIR::ExprStmtIR { expr } => { collect_expr_identifiers(expr, acc); }
+        StatementIR::ExprStmtIR { expr } => {
+            collect_expr_identifiers(expr, acc);
+        }
         StatementIR::LetStmtIR { value, .. } => {
-            if let Some(ref v) = value { collect_expr_identifiers(v, acc); }
+            if let Some(ref v) = value {
+                collect_expr_identifiers(v, acc);
+            }
         }
         StatementIR::ReturnStmtIR { value } => {
-            if let Some(ref v) = value { collect_expr_identifiers(v, acc); }
+            if let Some(ref v) = value {
+                collect_expr_identifiers(v, acc);
+            }
         }
-        StatementIR::IfStmtIR { condition, then_body, else_ifs, else_body } => {
+        StatementIR::IfStmtIR {
+            condition,
+            then_body,
+            else_ifs,
+            else_body,
+        } => {
             collect_expr_identifiers(condition, acc);
-            for s in &then_body.statements { collect_expr_ids_from_stmt(s, acc); }
+            for s in &then_body.statements {
+                collect_expr_ids_from_stmt(s, acc);
+            }
             for (cond, body) in else_ifs {
                 collect_expr_identifiers(cond, acc);
-                for s in &body.statements { collect_expr_ids_from_stmt(s, acc); }
+                for s in &body.statements {
+                    collect_expr_ids_from_stmt(s, acc);
+                }
             }
             if let Some(ref eb) = else_body {
-                for s in &eb.statements { collect_expr_ids_from_stmt(s, acc); }
+                for s in &eb.statements {
+                    collect_expr_ids_from_stmt(s, acc);
+                }
             }
         }
         StatementIR::WhileStmtIR { condition, body } => {
             collect_expr_identifiers(condition, acc);
-            for s in &body.statements { collect_expr_ids_from_stmt(s, acc); }
+            for s in &body.statements {
+                collect_expr_ids_from_stmt(s, acc);
+            }
         }
         StatementIR::ForInStmtIR { iterable, body, .. } => {
             collect_expr_identifiers(iterable, acc);
-            for s in &body.statements { collect_expr_ids_from_stmt(s, acc); }
+            for s in &body.statements {
+                collect_expr_ids_from_stmt(s, acc);
+            }
         }
         StatementIR::BlockStmtIR { body } => {
-            for s in &body.statements { collect_expr_ids_from_stmt(s, acc); }
+            for s in &body.statements {
+                collect_expr_ids_from_stmt(s, acc);
+            }
         }
         StatementIR::MutationStmt { intent } => {
             if let Some(intent) = intent {
                 match intent {
                     MutationIntent::DirectAssign { target, value, .. } => {
                         acc.insert(target.name.clone());
-                        if let Some(ref v) = value { collect_expr_identifiers(v, acc); }
+                        if let Some(ref v) = value {
+                            collect_expr_identifiers(v, acc);
+                        }
                     }
                     MutationIntent::Increment { target, amount, .. }
                     | MutationIntent::Decrement { target, amount, .. }
@@ -360,11 +392,15 @@ fn collect_expr_ids_from_stmt(stmt: &StatementIR, acc: &mut FxHashSet<String>) {
                     | MutationIntent::Divide { target, amount, .. }
                     | MutationIntent::Modulo { target, amount, .. } => {
                         acc.insert(target.name.clone());
-                        if let Some(ref v) = amount { collect_expr_identifiers(v, acc); }
+                        if let Some(ref v) = amount {
+                            collect_expr_identifiers(v, acc);
+                        }
                     }
                     MutationIntent::Push { target, item, .. } => {
                         acc.insert(target.name.clone());
-                        if let Some(ref v) = item { collect_expr_identifiers(v, acc); }
+                        if let Some(ref v) = item {
+                            collect_expr_identifiers(v, acc);
+                        }
                     }
                     MutationIntent::Pop { target } => {
                         acc.insert(target.name.clone());
@@ -372,17 +408,32 @@ fn collect_expr_ids_from_stmt(stmt: &StatementIR, acc: &mut FxHashSet<String>) {
                 }
             }
         }
-        StatementIR::ThrowStmtIR { expr } => { collect_expr_identifiers(expr, acc); }
-        StatementIR::TryCatchStmtIR { try_body, catch_body, finally_body, .. } => {
-            for s in &try_body.statements { collect_expr_ids_from_stmt(s, acc); }
+        StatementIR::ThrowStmtIR { expr } => {
+            collect_expr_identifiers(expr, acc);
+        }
+        StatementIR::TryCatchStmtIR {
+            try_body,
+            catch_body,
+            finally_body,
+            ..
+        } => {
+            for s in &try_body.statements {
+                collect_expr_ids_from_stmt(s, acc);
+            }
             if let Some(ref cb) = catch_body {
-                for s in &cb.statements { collect_expr_ids_from_stmt(s, acc); }
+                for s in &cb.statements {
+                    collect_expr_ids_from_stmt(s, acc);
+                }
             }
             if let Some(ref fb) = finally_body {
-                for s in &fb.statements { collect_expr_ids_from_stmt(s, acc); }
+                for s in &fb.statements {
+                    collect_expr_ids_from_stmt(s, acc);
+                }
             }
         }
-        StatementIR::EventEmitStmtIR { .. } | StatementIR::BreakStmtIR | StatementIR::ContinueStmtIR => {}
+        StatementIR::EventEmitStmtIR { .. }
+        | StatementIR::BreakStmtIR
+        | StatementIR::ContinueStmtIR => {}
     }
 }
 

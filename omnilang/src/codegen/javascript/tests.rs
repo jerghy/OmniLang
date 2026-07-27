@@ -76,7 +76,7 @@ fn test_ts_type_user_defined() {
 #[test]
 fn test_format_json_value() {
     use crate::codegen::JSON_JS;
-use rustc_hash::FxHashMap;
+    use rustc_hash::FxHashMap;
     assert_eq!(
         format_json_value(&serde_json::Value::Null, &JSON_JS),
         "null"

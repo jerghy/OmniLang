@@ -40,7 +40,12 @@ impl ReactCodegen {
                 w.emit("(async () => {");
                 w.indent();
                 for stmt in &effect.body.statements {
-                    expr::generate_statement_tsx_with_mode(&mut *w, stmt, signal_names, self.store_mode);
+                    expr::generate_statement_tsx_with_mode(
+                        &mut *w,
+                        stmt,
+                        signal_names,
+                        self.store_mode,
+                    );
                 }
                 w.dedent();
                 w.emit("})();");
@@ -50,7 +55,12 @@ impl ReactCodegen {
                 w.emit("useEffect(() => {");
                 w.indent();
                 for stmt in &effect.body.statements {
-                    expr::generate_statement_tsx_with_mode(&mut *w, stmt, signal_names, self.store_mode);
+                    expr::generate_statement_tsx_with_mode(
+                        &mut *w,
+                        stmt,
+                        signal_names,
+                        self.store_mode,
+                    );
                 }
                 w.dedent();
                 w.emit_fmt(format_args!("}}, [{}]);", deps_str));
@@ -68,7 +78,12 @@ impl ReactCodegen {
                         w.emit("(async () => {");
                         w.indent();
                         for stmt in &lc.body.statements {
-                            expr::generate_statement_tsx_with_mode(&mut *w, stmt, signal_names, self.store_mode);
+                            expr::generate_statement_tsx_with_mode(
+                                &mut *w,
+                                stmt,
+                                signal_names,
+                                self.store_mode,
+                            );
                         }
                         w.dedent();
                         w.emit("})();");
@@ -78,7 +93,12 @@ impl ReactCodegen {
                         w.emit("useEffect(() => {");
                         w.indent();
                         for stmt in &lc.body.statements {
-                            expr::generate_statement_tsx_with_mode(&mut *w, stmt, signal_names, self.store_mode);
+                            expr::generate_statement_tsx_with_mode(
+                                &mut *w,
+                                stmt,
+                                signal_names,
+                                self.store_mode,
+                            );
                         }
                         w.dedent();
                         w.emit("}, []);");
@@ -90,7 +110,12 @@ impl ReactCodegen {
                     w.emit("return () => {");
                     w.indent();
                     for stmt in &lc.body.statements {
-                        expr::generate_statement_tsx_with_mode(&mut *w, stmt, signal_names, self.store_mode);
+                        expr::generate_statement_tsx_with_mode(
+                            &mut *w,
+                            stmt,
+                            signal_names,
+                            self.store_mode,
+                        );
                     }
                     w.dedent();
                     w.emit("};");
@@ -105,7 +130,12 @@ impl ReactCodegen {
                         w.emit("(async () => {");
                         w.indent();
                         for stmt in &lc.body.statements {
-                            expr::generate_statement_tsx_with_mode(&mut *w, stmt, signal_names, self.store_mode);
+                            expr::generate_statement_tsx_with_mode(
+                                &mut *w,
+                                stmt,
+                                signal_names,
+                                self.store_mode,
+                            );
                         }
                         w.dedent();
                         w.emit("})();");
@@ -115,7 +145,12 @@ impl ReactCodegen {
                         w.emit("useEffect(() => {");
                         w.indent();
                         for stmt in &lc.body.statements {
-                            expr::generate_statement_tsx_with_mode(&mut *w, stmt, signal_names, self.store_mode);
+                            expr::generate_statement_tsx_with_mode(
+                                &mut *w,
+                                stmt,
+                                signal_names,
+                                self.store_mode,
+                            );
                         }
                         w.dedent();
                         w.emit("});");
@@ -261,9 +296,11 @@ pub(super) fn view_has_motion_or_effects(node: &ViewTree) -> bool {
             if let Some(ref motion) = el.motion {
                 // Triggers like @enter, @hover, @press, @focus generate useEffect
                 // @timeline and @animate triggers do NOT generate useEffect (they're WAAPI-only)
-                if motion.triggers.iter().any(|t| {
-                    !matches!(t.kind, TriggerKind::Timeline | TriggerKind::Animate)
-                }) {
+                if motion
+                    .triggers
+                    .iter()
+                    .any(|t| !matches!(t.kind, TriggerKind::Timeline | TriggerKind::Animate))
+                {
                     return true;
                 }
                 // driven_by generates useEffect
@@ -283,12 +320,23 @@ pub(super) fn view_has_motion_or_effects(node: &ViewTree) -> bool {
             el.children.iter().any(|c| view_has_motion_or_effects(c))
         }
         ViewTree::Conditional(cond) => {
-            cond.branches.iter().any(|b| b.body.as_ref().is_some_and(|b| view_has_motion_or_effects(b)))
-                || cond.fallback.as_ref().is_some_and(|fb| view_has_motion_or_effects(fb))
+            cond.branches.iter().any(|b| {
+                b.body
+                    .as_ref()
+                    .is_some_and(|b| view_has_motion_or_effects(b))
+            }) || cond
+                .fallback
+                .as_ref()
+                .is_some_and(|fb| view_has_motion_or_effects(fb))
         }
         ViewTree::ListRendering(list) => {
-            list.body.as_ref().is_some_and(|b| view_has_motion_or_effects(b))
-                || list.empty_body.as_ref().is_some_and(|eb| view_has_motion_or_effects(eb))
+            list.body
+                .as_ref()
+                .is_some_and(|b| view_has_motion_or_effects(b))
+                || list
+                    .empty_body
+                    .as_ref()
+                    .is_some_and(|eb| view_has_motion_or_effects(eb))
         }
         ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => false,
     }

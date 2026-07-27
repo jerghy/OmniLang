@@ -183,7 +183,8 @@ impl OmniViewGenerator {
                             format!("data-{}", name)
                         };
                         let parts = parse_attr_template(&val_str);
-                        self.for_attr_bindings.push((nid.to_string(), attr_name, parts));
+                        self.for_attr_bindings
+                            .push((nid.to_string(), attr_name, parts));
                     } else if name.starts_with("aria-") || name.starts_with("data-") {
                         // Real HTML aria/data attributes — emit as-is
                         let _ = write!(attrs, " {}=\"{}\"", name, escape_html(&val_str));
@@ -720,9 +721,14 @@ impl OmniViewGenerator {
     ///
     /// This is the second half of `element_to_html`, extracted as its own method.
     fn emit_element_html_close(
-        &mut self, el: &ElementIR, nid: &str, html_tag: &str,
-        attrs: &str, class_name_parts: &[String],
-        interp_effects: &[String], indent: usize,
+        &mut self,
+        el: &ElementIR,
+        nid: &str,
+        html_tag: &str,
+        attrs: &str,
+        class_name_parts: &[String],
+        interp_effects: &[String],
+        indent: usize,
     ) -> String {
         let pad = "  ".repeat(indent);
         let mut out = String::new();
@@ -734,7 +740,9 @@ impl OmniViewGenerator {
         ];
         if void_tags.contains(&html_tag) {
             if self.css_only {
-                let design_id = el.props.get("id")
+                let design_id = el
+                    .props
+                    .get("id")
                     .and_then(|v| {
                         if let ExprIR::LiteralExpr { value } = v {
                             value.as_str().map(|s| s.to_string())
@@ -744,13 +752,16 @@ impl OmniViewGenerator {
                     })
                     .unwrap_or_else(|| nid.to_string());
                 // Resolve design class references ("AppDesign.card" → "card")
-                let resolved_classes: Vec<String> = class_name_parts.iter().map(|c| {
-                    if let Some(dot_pos) = c.find('.') {
-                        c[dot_pos + 1..].to_string()
-                    } else {
-                        c.clone()
-                    }
-                }).collect();
+                let resolved_classes: Vec<String> = class_name_parts
+                    .iter()
+                    .map(|c| {
+                        if let Some(dot_pos) = c.find('.') {
+                            c[dot_pos + 1..].to_string()
+                        } else {
+                            c.clone()
+                        }
+                    })
+                    .collect();
                 self.element_classes
                     .insert(nid.to_string(), resolved_classes);
                 self.element_tags
@@ -803,7 +814,9 @@ impl OmniViewGenerator {
             // In css_only mode: capture element mappings now that children are done,
             // then return empty string (no HTML/JS needed).
             if self.css_only {
-                let design_id = el.props.get("id")
+                let design_id = el
+                    .props
+                    .get("id")
                     .and_then(|v| {
                         if let ExprIR::LiteralExpr { value } = v {
                             value.as_str().map(|s| s.to_string())
@@ -813,13 +826,16 @@ impl OmniViewGenerator {
                     })
                     .unwrap_or_else(|| nid.to_string());
                 // Resolve design class references ("AppDesign.card" → "card")
-                let resolved_classes: Vec<String> = class_name_parts.iter().map(|c| {
-                    if let Some(dot_pos) = c.find('.') {
-                        c[dot_pos + 1..].to_string()
-                    } else {
-                        c.clone()
-                    }
-                }).collect();
+                let resolved_classes: Vec<String> = class_name_parts
+                    .iter()
+                    .map(|c| {
+                        if let Some(dot_pos) = c.find('.') {
+                            c[dot_pos + 1..].to_string()
+                        } else {
+                            c.clone()
+                        }
+                    })
+                    .collect();
                 self.element_classes
                     .insert(nid.to_string(), resolved_classes);
                 self.element_tags
@@ -915,8 +931,7 @@ impl OmniViewGenerator {
                     }
                 })
                 .unwrap_or_else(|| nid.clone());
-            self.element_tags
-                .insert(nid.clone(), html_tag.to_string());
+            self.element_tags.insert(nid.clone(), html_tag.to_string());
             self.nid_map.insert(nid.clone(), design_id);
             self.tree_pop(); // pop the placeholder node; inlined component pushes its own
             return inlined;
@@ -995,7 +1010,13 @@ impl OmniViewGenerator {
         }
 
         let result = self.emit_element_html_close(
-            el, &nid, &html_tag, &attrs, &class_name_parts, &interp_effects, indent
+            el,
+            &nid,
+            &html_tag,
+            &attrs,
+            &class_name_parts,
+            &interp_effects,
+            indent,
         );
         return result;
     }

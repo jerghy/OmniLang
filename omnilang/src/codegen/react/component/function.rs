@@ -2,8 +2,8 @@
 // Function codegen: fn / action → local function declarations
 // ═══════════════════════════════════════════════════════════
 
-use crate::codegen::capitalize_first;
 use super::effect;
+use crate::codegen::capitalize_first;
 use crate::codegen::react::expr;
 use crate::codegen::react::ReactCodegen;
 use crate::codegen::CodeWriter;
@@ -36,7 +36,8 @@ impl ReactCodegen {
                 .collect();
             let param_escaped: Vec<&str> = param_names.iter().map(|(n, _)| n.as_str()).collect();
             let params_str = param_escaped.join(", ");
-            let is_async = fun.is_async || fun.body.statements.iter().any(effect::stmt_contains_await);
+            let is_async =
+                fun.is_async || fun.body.statements.iter().any(effect::stmt_contains_await);
             let async_prefix = if is_async { "async " } else { "" };
             w.emit_fmt(format_args!(
                 "const {} = {}({}) => {{",
@@ -47,7 +48,12 @@ impl ReactCodegen {
             let mut body_w = crate::codegen::CodeWriter::new();
             body_w.indent();
             for stmt in &fun.body.statements {
-                expr::generate_statement_tsx_with_mode(&mut body_w, stmt, signal_names, self.store_mode);
+                expr::generate_statement_tsx_with_mode(
+                    &mut body_w,
+                    stmt,
+                    signal_names,
+                    self.store_mode,
+                );
             }
             // Build setter renames for states whose setters conflict with function names
             let setter_renames: Vec<(String, String)> = comp
@@ -138,10 +144,7 @@ pub(super) fn collect_called_local_fns(comp: &ComponentIR) -> FxHashSet<String> 
     acc
 }
 
-fn collect_called_fns_from_view_transitively(
-    node: &ViewTree,
-    acc: &mut FxHashSet<String>,
-) {
+fn collect_called_fns_from_view_transitively(node: &ViewTree, acc: &mut FxHashSet<String>) {
     match node {
         ViewTree::Element(el) => {
             for handler in el.events.values() {
@@ -234,49 +237,83 @@ fn collect_called_fns_from_stmt(stmt: &StatementIR, acc: &mut FxHashSet<String>)
                 collect_called_fns_from_expr(v, acc);
             }
         }
-        StatementIR::IfStmtIR { condition, then_body, else_ifs, else_body } => {
+        StatementIR::IfStmtIR {
+            condition,
+            then_body,
+            else_ifs,
+            else_body,
+        } => {
             collect_called_fns_from_expr(condition, acc);
-            for s in &then_body.statements { collect_called_fns_from_stmt(s, acc); }
+            for s in &then_body.statements {
+                collect_called_fns_from_stmt(s, acc);
+            }
             for (cond, body) in else_ifs {
                 collect_called_fns_from_expr(cond, acc);
-                for s in &body.statements { collect_called_fns_from_stmt(s, acc); }
+                for s in &body.statements {
+                    collect_called_fns_from_stmt(s, acc);
+                }
             }
             if let Some(ref eb) = else_body {
-                for s in &eb.statements { collect_called_fns_from_stmt(s, acc); }
+                for s in &eb.statements {
+                    collect_called_fns_from_stmt(s, acc);
+                }
             }
         }
         StatementIR::WhileStmtIR { condition, body } => {
             collect_called_fns_from_expr(condition, acc);
-            for s in &body.statements { collect_called_fns_from_stmt(s, acc); }
+            for s in &body.statements {
+                collect_called_fns_from_stmt(s, acc);
+            }
         }
         StatementIR::ForInStmtIR { iterable, body, .. } => {
             collect_called_fns_from_expr(iterable, acc);
-            for s in &body.statements { collect_called_fns_from_stmt(s, acc); }
+            for s in &body.statements {
+                collect_called_fns_from_stmt(s, acc);
+            }
         }
         StatementIR::BlockStmtIR { body } => {
-            for s in &body.statements { collect_called_fns_from_stmt(s, acc); }
+            for s in &body.statements {
+                collect_called_fns_from_stmt(s, acc);
+            }
         }
         StatementIR::MutationStmt { intent } => {
             if let Some(intent) = intent {
                 match intent {
                     MutationIntent::DirectAssign { value, .. } => {
-                        if let Some(ref v) = value { collect_called_fns_from_expr(v, acc); }
+                        if let Some(ref v) = value {
+                            collect_called_fns_from_expr(v, acc);
+                        }
                     }
                     _ => {}
                 }
             }
         }
-        StatementIR::ThrowStmtIR { expr } => { collect_called_fns_from_expr(expr, acc); }
-        StatementIR::TryCatchStmtIR { try_body, catch_body, finally_body, .. } => {
-            for s in &try_body.statements { collect_called_fns_from_stmt(s, acc); }
+        StatementIR::ThrowStmtIR { expr } => {
+            collect_called_fns_from_expr(expr, acc);
+        }
+        StatementIR::TryCatchStmtIR {
+            try_body,
+            catch_body,
+            finally_body,
+            ..
+        } => {
+            for s in &try_body.statements {
+                collect_called_fns_from_stmt(s, acc);
+            }
             if let Some(ref cb) = catch_body {
-                for s in &cb.statements { collect_called_fns_from_stmt(s, acc); }
+                for s in &cb.statements {
+                    collect_called_fns_from_stmt(s, acc);
+                }
             }
             if let Some(ref fb) = finally_body {
-                for s in &fb.statements { collect_called_fns_from_stmt(s, acc); }
+                for s in &fb.statements {
+                    collect_called_fns_from_stmt(s, acc);
+                }
             }
         }
-        StatementIR::EventEmitStmtIR { .. } | StatementIR::BreakStmtIR | StatementIR::ContinueStmtIR => {}
+        StatementIR::EventEmitStmtIR { .. }
+        | StatementIR::BreakStmtIR
+        | StatementIR::ContinueStmtIR => {}
     }
 }
 
@@ -284,24 +321,36 @@ fn collect_called_fns_from_expr(expr: &ExprIR, acc: &mut FxHashSet<String>) {
     match expr {
         ExprIR::CallExpr { name, args, .. } => {
             acc.insert(name.clone());
-            for arg in args { collect_called_fns_from_expr(arg, acc); }
+            for arg in args {
+                collect_called_fns_from_expr(arg, acc);
+            }
         }
         ExprIR::MethodCallExpr { object, args, .. } => {
             collect_called_fns_from_expr(object, acc);
-            for arg in args { collect_called_fns_from_expr(arg, acc); }
+            for arg in args {
+                collect_called_fns_from_expr(arg, acc);
+            }
         }
         ExprIR::BinaryOpExpr { left, right, .. } => {
             collect_called_fns_from_expr(left, acc);
             collect_called_fns_from_expr(right, acc);
         }
-        ExprIR::UnaryOpExpr { operand, .. } => { collect_called_fns_from_expr(operand, acc); }
-        ExprIR::TernaryIR { cond, then_expr, else_expr } => {
+        ExprIR::UnaryOpExpr { operand, .. } => {
+            collect_called_fns_from_expr(operand, acc);
+        }
+        ExprIR::TernaryIR {
+            cond,
+            then_expr,
+            else_expr,
+        } => {
             collect_called_fns_from_expr(cond, acc);
             collect_called_fns_from_expr(then_expr, acc);
             collect_called_fns_from_expr(else_expr, acc);
         }
         ExprIR::ArrayExpr { elements } => {
-            for elem in elements { collect_called_fns_from_expr(elem, acc); }
+            for elem in elements {
+                collect_called_fns_from_expr(elem, acc);
+            }
         }
         ExprIR::MapExpr { entries } => {
             for (k, v) in entries {
@@ -309,9 +358,13 @@ fn collect_called_fns_from_expr(expr: &ExprIR, acc: &mut FxHashSet<String>) {
                 collect_called_fns_from_expr(v, acc);
             }
         }
-        ExprIR::ClosureExpr { body, .. } => { collect_called_fns_from_expr(body, acc); }
+        ExprIR::ClosureExpr { body, .. } => {
+            collect_called_fns_from_expr(body, acc);
+        }
         ExprIR::BlockExpr { statements, tail } => {
-            for stmt in statements { collect_called_fns_from_stmt(stmt, acc); }
+            for stmt in statements {
+                collect_called_fns_from_stmt(stmt, acc);
+            }
             collect_called_fns_from_expr(tail, acc);
         }
         ExprIR::IndexExpr { object, index } => {
@@ -324,17 +377,27 @@ fn collect_called_fns_from_expr(expr: &ExprIR, acc: &mut FxHashSet<String>) {
         ExprIR::MatchExpr { matched, arms } => {
             collect_called_fns_from_expr(matched, acc);
             for arm in arms {
-                for stmt in &arm.body.statements { collect_called_fns_from_stmt(stmt, acc); }
+                for stmt in &arm.body.statements {
+                    collect_called_fns_from_stmt(stmt, acc);
+                }
             }
         }
         ExprIR::VariantLiteral { fields, .. } | ExprIR::StructExpr { fields, .. } => {
-            for (_, v) in fields { collect_called_fns_from_expr(v, acc); }
+            for (_, v) in fields {
+                collect_called_fns_from_expr(v, acc);
+            }
         }
-        ExprIR::SpreadExpr { operand } => { collect_called_fns_from_expr(operand, acc); }
+        ExprIR::SpreadExpr { operand } => {
+            collect_called_fns_from_expr(operand, acc);
+        }
         ExprIR::StoreFieldAccessExpr { call_args, .. } => {
-            for arg in call_args { collect_called_fns_from_expr(arg, acc); }
+            for arg in call_args {
+                collect_called_fns_from_expr(arg, acc);
+            }
         }
-        ExprIR::AwaitExpr { operand } => { collect_called_fns_from_expr(operand, acc); }
+        ExprIR::AwaitExpr { operand } => {
+            collect_called_fns_from_expr(operand, acc);
+        }
         ExprIR::IdentifierExpr { .. } | ExprIR::LiteralExpr { .. } => {}
     }
 }

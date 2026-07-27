@@ -223,10 +223,8 @@ impl OmniViewGenerator {
                     .map(|v| self.expr_to_js(v))
                     .unwrap_or_else(|| "undefined".into());
                 if is_signal {
-                    self.js.push_str(&format!(
-                        "  __omni_subs.get(\"{}\").set({});\n",
-                        t, val
-                    ));
+                    self.js
+                        .push_str(&format!("  __omni_subs.get(\"{}\").set({});\n", t, val));
                 } else {
                     self.js.push_str(&format!("  {} = {};\n", t, val));
                 }

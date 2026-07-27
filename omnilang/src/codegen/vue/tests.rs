@@ -3,8 +3,8 @@ mod tests {
     use super::super::*;
     use crate::codegen::camel_to_kebab;
     use crate::codegen::capitalize_first;
+    use rustc_hash::FxHashMap;
     use std::collections::HashMap;
-use rustc_hash::FxHashMap;
 
     // ── Helper tests ─────────────────────────────────────────
 

@@ -440,7 +440,9 @@ fn make_ir(components: FxHashMap<String, ComponentIR>) -> IRProgram {
                 components,
                 ..Default::default()
             },
-        )].into_iter().collect::<FxHashMap<_,_>>(),
+        )]
+        .into_iter()
+        .collect::<FxHashMap<_, _>>(),
         stdlib_imports: Default::default(),
         source_map: FxHashMap::default(),
     }
@@ -474,7 +476,11 @@ fn test_tsx_interpolation_renders_expr() {
             source_col: 0,
         }),
     );
-    let ir = make_ir(vec![("Test".into(), comp)].into_iter().collect::<FxHashMap<_,_>>());
+    let ir = make_ir(
+        vec![("Test".into(), comp)]
+            .into_iter()
+            .collect::<FxHashMap<_, _>>(),
+    );
     let comp_ref = ir
         .modules
         .get("main")
@@ -860,11 +866,15 @@ fn test_full_pipeline_empty() {
                 stores: FxHashMap::default(),
                 ..Default::default()
             },
-        )].into_iter().collect::<FxHashMap<_,_>>(),
+        )]
+        .into_iter()
+        .collect::<FxHashMap<_, _>>(),
         source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
     };
-    let sources = vec![("main.omni".into(), "".into())].into_iter().collect::<FxHashMap<_,_>>();
+    let sources = vec![("main.omni".into(), "".into())]
+        .into_iter()
+        .collect::<FxHashMap<_, _>>();
     let output = codegen.generate(&ir, &sources);
     assert!(output.errors.is_empty());
     assert!(output.files.is_empty());
@@ -911,15 +921,21 @@ fn test_full_pipeline_component() {
             "main".to_string(),
             ModuleIR {
                 name: "main".to_string(),
-                components: vec![("App".into(), comp)].into_iter().collect::<FxHashMap<_,_>>(),
+                components: vec![("App".into(), comp)]
+                    .into_iter()
+                    .collect::<FxHashMap<_, _>>(),
                 stores: FxHashMap::default(),
                 ..Default::default()
             },
-        )].into_iter().collect::<FxHashMap<_,_>>(),
+        )]
+        .into_iter()
+        .collect::<FxHashMap<_, _>>(),
         source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
     };
-    let sources = vec![("main.omni".into(), "".into())].into_iter().collect::<FxHashMap<_,_>>();
+    let sources = vec![("main.omni".into(), "".into())]
+        .into_iter()
+        .collect::<FxHashMap<_, _>>();
     let output = codegen.generate(&ir, &sources);
     assert!(output.errors.is_empty());
     assert_eq!(output.files.len(), 2); // .tsx + .module.css
@@ -947,8 +963,12 @@ fn test_full_pipeline_with_store() {
                 type_args: vec![],
                 is_nullable: false,
             },
-        )].into_iter().collect::<FxHashMap<_,_>>(),
-        signal_defaults: vec![("count".into(), serde_json::json!(0))].into_iter().collect::<FxHashMap<_,_>>(),
+        )]
+        .into_iter()
+        .collect::<FxHashMap<_, _>>(),
+        signal_defaults: vec![("count".into(), serde_json::json!(0))]
+            .into_iter()
+            .collect::<FxHashMap<_, _>>(),
         getters: FxHashMap::default(),
         actions: vec![],
         ..Default::default()
@@ -960,14 +980,20 @@ fn test_full_pipeline_with_store() {
             ModuleIR {
                 name: "main".to_string(),
                 components: FxHashMap::default(),
-                stores: vec![("AppStore".into(), store)].into_iter().collect::<FxHashMap<_,_>>(),
+                stores: vec![("AppStore".into(), store)]
+                    .into_iter()
+                    .collect::<FxHashMap<_, _>>(),
                 ..Default::default()
             },
-        )].into_iter().collect::<FxHashMap<_,_>>(),
+        )]
+        .into_iter()
+        .collect::<FxHashMap<_, _>>(),
         source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
     };
-    let sources = vec![("main.omni".into(), "".into())].into_iter().collect::<FxHashMap<_,_>>();
+    let sources = vec![("main.omni".into(), "".into())]
+        .into_iter()
+        .collect::<FxHashMap<_, _>>();
     let output = codegen.generate(&ir, &sources);
     assert!(output.errors.is_empty());
     assert_eq!(output.files.len(), 1); // just useAppStore.ts
@@ -990,8 +1016,12 @@ fn test_full_pipeline_component_with_store_ref() {
                 type_args: vec![],
                 is_nullable: false,
             },
-        )].into_iter().collect::<FxHashMap<_,_>>(),
-        signal_defaults: vec![("count".into(), serde_json::json!(0))].into_iter().collect::<FxHashMap<_,_>>(),
+        )]
+        .into_iter()
+        .collect::<FxHashMap<_, _>>(),
+        signal_defaults: vec![("count".into(), serde_json::json!(0))]
+            .into_iter()
+            .collect::<FxHashMap<_, _>>(),
         getters: FxHashMap::default(),
         actions: vec![],
         ..Default::default()
@@ -1023,15 +1053,23 @@ fn test_full_pipeline_component_with_store_ref() {
             "main".to_string(),
             ModuleIR {
                 name: "main".to_string(),
-                components: vec![("App".into(), comp)].into_iter().collect::<FxHashMap<_,_>>(),
-                stores: vec![("AppStore".into(), store)].into_iter().collect::<FxHashMap<_,_>>(),
+                components: vec![("App".into(), comp)]
+                    .into_iter()
+                    .collect::<FxHashMap<_, _>>(),
+                stores: vec![("AppStore".into(), store)]
+                    .into_iter()
+                    .collect::<FxHashMap<_, _>>(),
                 ..Default::default()
             },
-        )].into_iter().collect::<FxHashMap<_,_>>(),
+        )]
+        .into_iter()
+        .collect::<FxHashMap<_, _>>(),
         source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
     };
-    let sources = vec![("main.omni".into(), "".into())].into_iter().collect::<FxHashMap<_,_>>();
+    let sources = vec![("main.omni".into(), "".into())]
+        .into_iter()
+        .collect::<FxHashMap<_, _>>();
     let output = codegen.generate(&ir, &sources);
     assert!(output.errors.is_empty());
     assert_eq!(output.files.len(), 3); // .tsx + .module.css + useAppStore.ts

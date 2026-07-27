@@ -1,0 +1,10 @@
+{
+  "identifier": "debug-window",
+  "description": "Minimal capabilities for debug window — runs compiled user code via innerHTML + eval()",
+  "context": "local",
+  "windows": ["debug"],
+  "permissions": [
+    "core:default",
+    "core:event:default"
+  ]
+}

@@ -175,22 +175,48 @@ impl OmniViewGenerator {
         match easing {
             EasingIR::Named(name) => format!("\"{}\"", name),
             EasingIR::CubicBezier { x1, y1, x2, y2 } => {
-                format!("{{type:\"cubicBezier\",x1:{},y1:{},x2:{},y2:{}}}", x1, y1, x2, y2)
+                format!(
+                    "{{type:\"cubicBezier\",x1:{},y1:{},x2:{},y2:{}}}",
+                    x1, y1, x2, y2
+                )
             }
-            EasingIR::Spring { tension, friction, velocity } => {
+            EasingIR::Spring {
+                tension,
+                friction,
+                velocity,
+            } => {
                 let vel = velocity.unwrap_or(0.0);
-                format!("{{type:\"spring\",tension:{},friction:{},velocity:{}}}", tension, friction, vel)
+                format!(
+                    "{{type:\"spring\",tension:{},friction:{},velocity:{}}}",
+                    tension, friction, vel
+                )
             }
-            EasingIR::Back { intensity, direction } => {
+            EasingIR::Back {
+                intensity,
+                direction,
+            } => {
                 let dir = direction.as_deref().unwrap_or("out");
-                format!("{{type:\"back\",intensity:{},direction:\"{}\"}}", intensity, dir)
+                format!(
+                    "{{type:\"back\",intensity:{},direction:\"{}\"}}",
+                    intensity, dir
+                )
             }
-            EasingIR::Elastic { amplitude, period, direction } => {
+            EasingIR::Elastic {
+                amplitude,
+                period,
+                direction,
+            } => {
                 let dir = direction.as_deref().unwrap_or("out");
-                format!("{{type:\"elastic\",amplitude:{},period:{},direction:\"{}\"}}", amplitude, period, dir)
+                format!(
+                    "{{type:\"elastic\",amplitude:{},period:{},direction:\"{}\"}}",
+                    amplitude, period, dir
+                )
             }
             EasingIR::Steps { count, direction } => {
-                format!("{{type:\"steps\",count:{},direction:\"{}\"}}", count, direction)
+                format!(
+                    "{{type:\"steps\",count:{},direction:\"{}\"}}",
+                    count, direction
+                )
             }
         }
     }
@@ -206,7 +232,11 @@ impl OmniViewGenerator {
                 let val_js = self.expr_to_js(value);
                 props.push(format!("\"{}\":{}", prop, val_js));
             }
-            let mut item = format!("{{offset:{},properties:{{{}}}}}", stop.position, props.join(","));
+            let mut item = format!(
+                "{{offset:{},properties:{{{}}}}}",
+                stop.position,
+                props.join(",")
+            );
             if let Some(ref ease) = stop.ease {
                 let ease_js = self.easing_to_js(ease);
                 item.push_str(&format!(",easing:{}", ease_js));
@@ -281,17 +311,21 @@ impl OmniViewGenerator {
         opts.extend(playback_parts);
         // Callback functions as extra options
         if !cb.callbacks.is_empty() {
-            let callbacks: Vec<String> = cb.callbacks.iter().map(|(kind, expr)| {
-                let name = match kind {
-                    CallbackKindIR::OnStart => "onStart",
-                    CallbackKindIR::OnUpdate => "onUpdate",
-                    CallbackKindIR::OnComplete => "onComplete",
-                    CallbackKindIR::OnRepeat => "onRepeat",
-                    CallbackKindIR::OnInterrupt => "onInterrupt",
-                };
-                let body_js = self.expr_to_js(expr);
-                format!("\"{}\":function(){{ {} }}", name, body_js)
-            }).collect();
+            let callbacks: Vec<String> = cb
+                .callbacks
+                .iter()
+                .map(|(kind, expr)| {
+                    let name = match kind {
+                        CallbackKindIR::OnStart => "onStart",
+                        CallbackKindIR::OnUpdate => "onUpdate",
+                        CallbackKindIR::OnComplete => "onComplete",
+                        CallbackKindIR::OnRepeat => "onRepeat",
+                        CallbackKindIR::OnInterrupt => "onInterrupt",
+                    };
+                    let body_js = self.expr_to_js(expr);
+                    format!("\"{}\":function(){{ {} }}", name, body_js)
+                })
+                .collect();
             opts.push(format!("callbacks:{{{}}}", callbacks.join(",")));
         }
         // No braces — factory adds them via {{{opts}}}

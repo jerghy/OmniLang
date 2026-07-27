@@ -2,10 +2,10 @@
 // Component codegen: .tsx + .module.css generation
 // ═══════════════════════════════════════════════════════════
 
-pub(super) mod state;
 pub(super) mod effect;
 pub(super) mod function;
 pub(super) mod jsx;
+pub(super) mod state;
 
 use super::{escape_js_ident, CodeWriter, ReactCodegen};
 use super::{expr, motion, utils};
@@ -34,7 +34,10 @@ impl ReactCodegen {
                 if statements.iter().any(|s| matches!(s, StatementIR::ReturnStmtIR { .. })))
         });
         let has_effects_or_lifecycles = !comp.effects.is_empty() || !comp.lifecycles.is_empty();
-        let has_motion = comp.view.as_ref().is_some_and(|v| effect::view_has_motion_or_effects(v));
+        let has_motion = comp
+            .view
+            .as_ref()
+            .is_some_and(|v| effect::view_has_motion_or_effects(v));
 
         // Scan all code paths for signal mutations and function calls
         // Compute called_fns first — mutations only tracked for called functions
@@ -44,7 +47,9 @@ impl ReactCodegen {
         // Build comprehensive read-signals set: signals referenced in view, computeds,
         // effects, lifecycles, and called local functions. States not read anywhere
         // are skipped to avoid unused-variable warnings.
-        let mut read_signals = comp.view.as_ref()
+        let mut read_signals = comp
+            .view
+            .as_ref()
             .map(|v| state::collect_view_read_signals(v))
             .unwrap_or_default();
         for computed in &comp.computeds {
@@ -73,26 +78,42 @@ impl ReactCodegen {
         }
 
         // Determine if any state actually needs useState (has active setter)
-        let has_mutable_states = comp.states.iter().any(|s| {
-            read_signals.contains(&s.name) && mutated_signals.contains(&s.name)
-        });
+        let has_mutable_states = comp
+            .states
+            .iter()
+            .any(|s| read_signals.contains(&s.name) && mutated_signals.contains(&s.name));
         let mut hooks: Vec<&str> = Vec::new();
-        if has_mutable_states { hooks.push("useState"); }
-        if has_computeds { hooks.push("useMemo"); }
-        if has_fn_form_computed { hooks.push("useCallback"); }
-        if has_effects_or_lifecycles || has_motion { hooks.push("useEffect"); }
+        if has_mutable_states {
+            hooks.push("useState");
+        }
+        if has_computeds {
+            hooks.push("useMemo");
+        }
+        if has_fn_form_computed {
+            hooks.push("useCallback");
+        }
+        if has_effects_or_lifecycles || has_motion {
+            hooks.push("useEffect");
+        }
 
         // Imports
         if !hooks.is_empty() {
-            w.emit_fmt(format_args!("import React, {{ {} }} from 'react';", hooks.join(", ")));
+            w.emit_fmt(format_args!(
+                "import React, {{ {} }} from 'react';",
+                hooks.join(", ")
+            ));
         }
         // Only import styles if the component has style rules AND at least one
         // CSS class is actually referenced in the view via class: or classMap:
-        let used_style_classes = comp.view.as_ref()
+        let used_style_classes = comp
+            .view
+            .as_ref()
             .map(|v| jsx::collect_used_style_classes(v))
             .unwrap_or_default();
-        let has_styles = !comp.styles.is_empty() && used_style_classes.iter()
-            .any(|c| comp.styles.iter().any(|s| &s.class_name == c));
+        let has_styles = !comp.styles.is_empty()
+            && used_style_classes
+                .iter()
+                .any(|c| comp.styles.iter().any(|s| &s.class_name == c));
         if has_styles {
             w.emit_fmt(format_args!("import styles from './{}.module.css';", name));
         }
@@ -131,7 +152,10 @@ impl ReactCodegen {
 
         // Build set of local names (component states + props) that may shadow store signal names.
         // This prevents confusing a component prop `items` with a store signal `items`.
-        let local_names: FxHashSet<String> = comp.states.iter().map(|s| s.name.clone())
+        let local_names: FxHashSet<String> = comp
+            .states
+            .iter()
+            .map(|s| s.name.clone())
             .chain(comp.props.keys().cloned())
             .chain(comp.fns.iter().map(|f| f.name.clone()))
             .collect();
@@ -167,7 +191,10 @@ impl ReactCodegen {
                     store.source_file.as_deref(),
                     &module_name,
                 );
-                store_hook_imports.push(format!("import {{ {} }} from '{}';", hook_name, import_path));
+                store_hook_imports.push(format!(
+                    "import {{ {} }} from '{}';",
+                    hook_name, import_path
+                ));
             }
         }
         for import_line in &store_hook_imports {
@@ -217,11 +244,8 @@ impl ReactCodegen {
             let child_source = component_map
                 .get(child_name.as_str())
                 .and_then(|c| c.source_file.as_deref());
-            let import_path = super::relative_import_path(
-                comp.source_file.as_deref(),
-                child_source,
-                child_name,
-            );
+            let import_path =
+                super::relative_import_path(comp.source_file.as_deref(), child_source, child_name);
             w.emit_fmt(format_args!(
                 "import {{ {} }} from '{}';",
                 child_name, import_path
@@ -286,7 +310,8 @@ impl ReactCodegen {
                 .collect();
             let param_escaped: Vec<&str> = param_names.iter().map(|(n, _)| n.as_str()).collect();
             let params_str = param_escaped.join(", ");
-            let is_async = fun.is_async || fun.body.statements.iter().any(effect::stmt_contains_await);
+            let is_async =
+                fun.is_async || fun.body.statements.iter().any(effect::stmt_contains_await);
             let async_prefix = if is_async { "async " } else { "" };
             w.emit_fmt(format_args!(
                 "const {} = {}({}) => {{",
@@ -297,7 +322,12 @@ impl ReactCodegen {
             let mut body_w = crate::codegen::CodeWriter::new();
             body_w.indent();
             for stmt in &fun.body.statements {
-                expr::generate_statement_tsx_with_mode(&mut body_w, stmt, &FxHashSet::default(), self.store_mode);
+                expr::generate_statement_tsx_with_mode(
+                    &mut body_w,
+                    stmt,
+                    &FxHashSet::default(),
+                    self.store_mode,
+                );
             }
             let mut body_str = body_w.into_string();
             // Rename reserved word identifiers in the body
@@ -415,7 +445,12 @@ impl ReactCodegen {
             if let ExprIR::BlockExpr { statements, tail } = &computed.body {
                 // Render preceding statements (let declarations, if/return, etc.)
                 for stmt in statements {
-                    expr::generate_statement_tsx_with_mode(&mut w, stmt, &signal_names, self.store_mode);
+                    expr::generate_statement_tsx_with_mode(
+                        &mut w,
+                        stmt,
+                        &signal_names,
+                        self.store_mode,
+                    );
                 }
                 // Render tail as return value if non-null
                 // (null tail means the block has explicit return statements)
@@ -478,7 +513,14 @@ impl ReactCodegen {
         w.emit("");
 
         // Render return (JSX view tree)
-        self.gen_jsx_return(&mut w, comp, component_map, &signal_names, &motion_names, name);
+        self.gen_jsx_return(
+            &mut w,
+            comp,
+            component_map,
+            &signal_names,
+            &motion_names,
+            name,
+        );
         w.dedent();
         w.emit("}");
         w.emit("");
@@ -532,7 +574,11 @@ fn collect_expr_identifiers(expr: &ExprIR, acc: &mut FxHashSet<String>) {
             collect_expr_identifiers(object, acc);
             collect_expr_identifiers(index, acc);
         }
-        ExprIR::TernaryIR { cond, then_expr, else_expr } => {
+        ExprIR::TernaryIR {
+            cond,
+            then_expr,
+            else_expr,
+        } => {
             collect_expr_identifiers(cond, acc);
             collect_expr_identifiers(then_expr, acc);
             collect_expr_identifiers(else_expr, acc);
@@ -606,7 +652,12 @@ fn collect_stmt_identifiers(stmt: &StatementIR, acc: &mut FxHashSet<String>) {
                 collect_expr_identifiers(v, acc);
             }
         }
-        StatementIR::IfStmtIR { condition, then_body, else_ifs, else_body } => {
+        StatementIR::IfStmtIR {
+            condition,
+            then_body,
+            else_ifs,
+            else_body,
+        } => {
             collect_expr_identifiers(condition, acc);
             for s in &then_body.statements {
                 collect_stmt_identifiers(s, acc);
@@ -648,7 +699,12 @@ fn collect_stmt_identifiers(stmt: &StatementIR, acc: &mut FxHashSet<String>) {
         StatementIR::ThrowStmtIR { expr } => {
             collect_expr_identifiers(expr, acc);
         }
-        StatementIR::TryCatchStmtIR { try_body, catch_body, finally_body, .. } => {
+        StatementIR::TryCatchStmtIR {
+            try_body,
+            catch_body,
+            finally_body,
+            ..
+        } => {
             for s in &try_body.statements {
                 collect_stmt_identifiers(s, acc);
             }
@@ -663,7 +719,9 @@ fn collect_stmt_identifiers(stmt: &StatementIR, acc: &mut FxHashSet<String>) {
                 }
             }
         }
-        StatementIR::EventEmitStmtIR { .. } | StatementIR::BreakStmtIR | StatementIR::ContinueStmtIR => {}
+        StatementIR::EventEmitStmtIR { .. }
+        | StatementIR::BreakStmtIR
+        | StatementIR::ContinueStmtIR => {}
     }
 }
 
