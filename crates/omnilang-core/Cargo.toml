@@ -23,14 +23,6 @@ ts-rs = { version = "10", features = ["serde-compat"] }
 # Feature flags for web-specific shared utilities (event helpers, CSS block generation).
 # External codegen crates that need DOM/CSS utilities enable the relevant feature.
 codegen-omniview = []
-codegen-react = []
-codegen-vue = []
-codegen-javascript = []
-codegen-dart = []
-codegen-flutter = []
-codegen-rust = []
-codegen-dioxus = []
-codegen-python = []
 
 [dev-dependencies]
 insta = { version = "1", features = ["glob"] }
