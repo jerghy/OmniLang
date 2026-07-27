@@ -311,43 +311,60 @@ fn serde_roundtrip_binary_op_expr_in_context() {
 // ── TypeKind serde round-trip tests ──
 
 #[test]
-fn test_typekind_serialize_preserves_type_args() {
+fn test_typekind_named_serializes_as_flat_string() {
     let array_string = TypeKind::Named {
         name: "Array".into(),
-        type_args: vec![TypeKind::Named {
-            name: "CustomType".into(),
-            type_args: vec![],
-        }],
     };
 
     let json = serde_json::to_string(&array_string).expect("serialize");
-    assert!(
-        json.contains("\"name\""),
-        "Expected structured JSON: {json}"
-    );
-    assert!(
-        json.contains("\"type_args\""),
-        "Expected type_args in: {json}"
-    );
+    // Named always serializes as flat string now
+    assert_eq!(json, r#""Array""#, "Named must serialize as flat string");
 
     let roundtripped: TypeKind = serde_json::from_str(&json).expect("deserialize");
     assert_eq!(
         roundtripped, array_string,
-        "Round-trip must preserve type_args"
+        "Round-trip must preserve name"
     );
 }
 
 #[test]
-fn test_typekind_deserialize_backward_compat() {
+fn test_typekind_deserialize_backward_compat_flat_string() {
     let old_json = r#""Array""#;
     let ty: TypeKind = serde_json::from_str(old_json).expect("deserialize old format");
     assert_eq!(
         ty,
         TypeKind::Named {
             name: "Array".into(),
-            type_args: vec![],
         },
         "Old flat-string format must still deserialize"
+    );
+}
+
+#[test]
+fn test_typekind_deserialize_backward_compat_structured() {
+    // Old structured format with type_args — must still deserialize (type_args ignored)
+    let old_json = r#"{"name": "Array", "type_args": [{"name": "String", "type_args": []}]}"#;
+    let ty: TypeKind = serde_json::from_str(old_json).expect("deserialize old structured format");
+    assert_eq!(
+        ty,
+        TypeKind::Named {
+            name: "Array".into(),
+        },
+        "Old structured format must still deserialize (type_args ignored)"
+    );
+}
+
+#[test]
+fn test_typekind_deserialize_backward_compat_structured_no_type_args() {
+    // Structured format without type_args
+    let old_json = r#"{"name": "Array"}"#;
+    let ty: TypeKind = serde_json::from_str(old_json).expect("deserialize structured format");
+    assert_eq!(
+        ty,
+        TypeKind::Named {
+            name: "Array".into(),
+        },
+        "Structured format without type_args must deserialize"
     );
 }
 

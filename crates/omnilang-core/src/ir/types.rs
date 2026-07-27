@@ -274,10 +274,8 @@ pub enum MatchPatternKindIR {
 
 /// Typed representation of a type kind, replacing the old `String` field.
 ///
-/// Simple variants and empty-args `Named` serialize as a flat string
-/// (e.g. `"kind": "int"` or `"kind": "MyCustomType"`).
-/// `Named` with non-empty `type_args` serializes as a structured
-/// `{name, type_args}` object (e.g. `Array<String>`).
+/// Always serializes as a flat string (e.g. `"kind": "int"` or `"kind": "MyCustomType"`).
+/// Generic type arguments are stored only in `TypeIR::type_args`.
 
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
@@ -290,11 +288,6 @@ pub enum TypeKind {
     Any,
     Named {
         name: String,
-        /// Recursive type arguments (e.g., `Array<String>` → `[String]`).
-        /// Serialized as part of a structured `{name, type_args}` JSON object
-        /// when non-empty. Omitted (flat-string format) when empty for backward
-        /// compatibility.
-        type_args: Vec<TypeKind>,
     },
 }
 
@@ -315,7 +308,6 @@ impl From<&str> for TypeKind {
             "any" => Self::Any,
             _ => Self::Named {
                 name: s.to_string(),
-                type_args: vec![],
             },
         }
     }
@@ -338,24 +330,16 @@ impl TypeKind {
     }
 }
 
-// Custom Serialize: write as a flat string for simple types and empty-args Named,
-// or as {name, type_args} object when type_args is non-empty.
+// Custom Serialize: always write as a flat string.
+// Generic type arguments are stored in TypeIR::type_args, not in TypeKind.
 impl Serialize for TypeKind {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        match self {
-            TypeKind::Named { name, type_args } if !type_args.is_empty() => {
-                use serde::ser::SerializeMap;
-                let mut map = serializer.serialize_map(Some(2))?;
-                map.serialize_entry("name", name)?;
-                map.serialize_entry("type_args", type_args)?;
-                map.end()
-            }
-            _ => serializer.serialize_str(self.as_str()),
-        }
+        serializer.serialize_str(self.as_str())
     }
 }
 
-// Custom Deserialize: read either a flat string (old format) or {name, type_args} object.
+// Custom Deserialize: read either a flat string (new/old format) or {name, type_args} object
+// (old format, backward compat — type_args are ignored here since they're stored in TypeIR).
 impl<'de> Deserialize<'de> for TypeKind {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         use serde::de::{MapAccess, Visitor};
@@ -366,7 +350,7 @@ impl<'de> Deserialize<'de> for TypeKind {
             type Value = TypeKind;
 
             fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                f.write_str("a string or a {name, type_args} object")
+                f.write_str("a string or a {name, ...} object")
             }
 
             fn visit_str<E: serde::de::Error>(self, s: &str) -> Result<TypeKind, E> {
@@ -375,18 +359,20 @@ impl<'de> Deserialize<'de> for TypeKind {
 
             fn visit_map<M: MapAccess<'de>>(self, mut map: M) -> Result<TypeKind, M::Error> {
                 let mut name = None;
-                let mut type_args = Vec::new();
                 while let Some(key) = map.next_key::<String>()? {
                     match key.as_str() {
                         "name" => name = Some(map.next_value()?),
-                        "type_args" => type_args = map.next_value()?,
+                        "type_args" => {
+                            // Ignore — type_args live only in TypeIR::type_args now
+                            let _: serde::de::IgnoredAny = map.next_value()?;
+                        }
                         _ => {
                             let _: serde::de::IgnoredAny = map.next_value()?;
                         }
                     }
                 }
                 let name = name.ok_or_else(|| serde::de::Error::missing_field("name"))?;
-                Ok(TypeKind::Named { name, type_args })
+                Ok(TypeKind::Named { name })
             }
         }
 
