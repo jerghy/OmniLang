@@ -221,6 +221,73 @@ fn walk_view_for_idents(view: &ViewTree, used: &mut FxHashSet<String>) {
             for child in &el.children {
                 walk_view_for_idents(child, used);
             }
+
+            // Walk element-level behavior fields that can reference computed properties
+            if let Some(ref motion) = el.motion {
+                // Direct ExprIR fields on MotionBehavior
+                if let Some(ref expr) = motion.paused_override {
+                    walk_expr_for_idents(expr, used);
+                }
+                if let Some(ref expr) = motion.driven_by {
+                    walk_expr_for_idents(expr, used);
+                }
+                if let Some(ref expr) = motion.in_view_once {
+                    walk_expr_for_idents(expr, used);
+                }
+                if let Some(ref expr) = motion.in_view_repeat {
+                    walk_expr_for_idents(expr, used);
+                }
+                if let Some(ref expr) = motion.in_view_threshold {
+                    walk_expr_for_idents(expr, used);
+                }
+                // StatesIR on MotionBehavior
+                if let Some(ref states) = motion.states {
+                    if let Some(ref expr) = states.signal {
+                        walk_expr_for_idents(expr, used);
+                    }
+                    for tween in states.states.values() {
+                        if let Some(ref over) = tween.over {
+                            walk_expr_for_idents(over, used);
+                        }
+                        for expr in tween.properties.values() {
+                            walk_expr_for_idents(expr, used);
+                        }
+                    }
+                }
+                // Triggers on MotionBehavior
+                for trigger in &motion.triggers {
+                    if let Some(ref body) = trigger.inline_motion {
+                        walk_motion_body(body, used);
+                    }
+                }
+            }
+            if let Some(ref scroll) = el.scroll {
+                if let Some(ref expr) = scroll.scrub {
+                    walk_expr_for_idents(expr, used);
+                }
+            }
+            if let Some(ref drag) = el.drag {
+                if let Some(ref expr) = drag.elastic {
+                    walk_expr_for_idents(expr, used);
+                }
+                if let Some(ref expr) = drag.scrub {
+                    walk_expr_for_idents(expr, used);
+                }
+                if let Some(ref expr) = drag.momentum {
+                    walk_expr_for_idents(expr, used);
+                }
+                if let Some(ref expr) = drag.threshold {
+                    walk_expr_for_idents(expr, used);
+                }
+                if let Some(ref expr) = drag.velocity_max {
+                    walk_expr_for_idents(expr, used);
+                }
+            }
+            if let Some(ref hero) = el.hero {
+                if let Some(ref expr) = hero.transition {
+                    walk_expr_for_idents(expr, used);
+                }
+            }
         }
         ViewTree::Interpolation(expr) => walk_expr_for_idents(expr, used),
         ViewTree::ListRendering(lr) => {
@@ -250,6 +317,91 @@ fn walk_view_for_idents(view: &ViewTree, used: &mut FxHashSet<String>) {
     }
 }
 
+/// Walk PlaybackIR ExprIR fields and collect all identifier names.
+fn walk_playback(pb: &PlaybackIR, used: &mut FxHashSet<String>) {
+    if let Some(ref expr) = pb.delay {
+        walk_expr_for_idents(expr, used);
+    }
+    if let Some(ref expr) = pb.repeat_delay {
+        walk_expr_for_idents(expr, used);
+    }
+    if let Some(ref expr) = pb.time_scale {
+        walk_expr_for_idents(expr, used);
+    }
+    if let Some(ref expr) = pb.delay_children {
+        walk_expr_for_idents(expr, used);
+    }
+    if let Some(ref expr) = pb.stagger_children {
+        walk_expr_for_idents(expr, used);
+    }
+}
+
+/// Walk a TimelineItemIR items and collect all identifier names from ExprIR fields.
+fn walk_timeline_items(items: &[TimelineItemIR], used: &mut FxHashSet<String>) {
+    for item in items {
+        match &item.kind {
+            TimelineItemKindIR::Direction {
+                properties, over, delay, ..
+            } => {
+                for expr in properties.values() {
+                    walk_expr_for_idents(expr, used);
+                }
+                walk_expr_for_idents(over, used);
+                if let Some(ref expr) = delay {
+                    walk_expr_for_idents(expr, used);
+                }
+            }
+            TimelineItemKindIR::Set(entries) => {
+                for (_, expr) in entries {
+                    walk_expr_for_idents(expr, used);
+                }
+            }
+            TimelineItemKindIR::MotionRef(_) => {}
+            TimelineItemKindIR::Stagger(motion_expr, stagger_timing, _) => {
+                match motion_expr.as_ref() {
+                    MotionExprIR::Ref(_) => {}
+                    MotionExprIR::Inline(body) => walk_motion_body(body, used),
+                }
+                walk_expr_for_idents(&stagger_timing.each, used);
+            }
+            TimelineItemKindIR::Label(_, delay) => {
+                if let Some(ref expr) = delay {
+                    walk_expr_for_idents(expr, used);
+                }
+            }
+        }
+    }
+}
+
+/// Walk a MotionBodyIR and collect all identifier names from ExprIR fields.
+fn walk_motion_body(body: &MotionBodyIR, used: &mut FxHashSet<String>) {
+    match body {
+        MotionBodyIR::Keyframe(kf) => {
+            walk_expr_for_idents(&kf.over, used);
+            for (_, expr) in &kf.callbacks {
+                walk_expr_for_idents(expr, used);
+            }
+            for stop in &kf.stops {
+                for expr in stop.properties.values() {
+                    walk_expr_for_idents(expr, used);
+                }
+            }
+            walk_playback(&kf.playback, used);
+        }
+        MotionBodyIR::Timeline(tl) => {
+            walk_timeline_items(&tl.items, used);
+            walk_playback(&tl.playback, used);
+        }
+        MotionBodyIR::CallbackOnly(cb) => {
+            walk_expr_for_idents(&cb.over, used);
+            for (_, expr) in &cb.callbacks {
+                walk_expr_for_idents(expr, used);
+            }
+            walk_playback(&cb.playback, used);
+        }
+    }
+}
+
 /// Eliminate computed properties never referenced by any function, effect,
 /// lifecycle, computed, or view tree within the component.
 pub fn eliminate_dead_computeds(comp: &mut ComponentIR) {
@@ -270,6 +422,25 @@ pub fn eliminate_dead_computeds(comp: &mut ComponentIR) {
     }
     if let Some(ref view) = comp.view {
         walk_view_for_idents(view, &mut used);
+    }
+
+    // Walk component-level fields that can reference computed properties
+    for expr in comp.prop_defaults.values() {
+        walk_expr_for_idents(expr, &mut used);
+    }
+    for style in &comp.styles {
+        for expr in style.properties.values() {
+            walk_expr_for_idents(expr, &mut used);
+        }
+    }
+    for hero in &comp.hero_defs {
+        walk_expr_for_idents(&hero.over, &mut used);
+    }
+    for motion in &comp.motions {
+        walk_motion_body(&motion.body, &mut used);
+    }
+    for timeline in &comp.timelines {
+        walk_timeline_items(&timeline.items, &mut used);
     }
 
     let before = comp.computeds.len();
@@ -341,5 +512,50 @@ mod tests {
 
         assert_eq!(comp.computeds.len(), 1);
         assert_eq!(comp.computeds[0].name, "used");
+    }
+
+    #[test]
+    fn removes_unused_computed_in_motion_behavior() {
+        // A computed referenced only in component-level @motion keyframe over
+        // should NOT be eliminated.
+        let mut comp = ComponentIR {
+            name: "TestComp".to_string(),
+            computeds: vec![ComputedIntent {
+                name: "motion_val".to_string(),
+                r#type: TypeIR {
+                    kind: TypeKind::Int,
+                    type_args: vec![],
+                    is_nullable: false,
+                },
+                body: ExprIR::LiteralExpr {
+                    value: serde_json::Value::Number(42.into()),
+                },
+                deps: vec![],
+            }],
+            motions: vec![MotionIntent {
+                name: "myMotion".to_string(),
+                body: MotionBodyIR::Keyframe(KeyframeIR {
+                    over: ExprIR::IdentifierExpr {
+                        name: "motion_val".to_string(),
+                        type_ann: None,
+                    },
+                    stops: vec![],
+                    ease: None,
+                    color_space: None,
+                    playback: PlaybackIR::default(),
+                    path: None,
+                    path_rotate: None,
+                    callbacks: vec![],
+                    source_span: None,
+                }),
+                source_span: None,
+            }],
+            ..ComponentIR::default()
+        };
+
+        eliminate_dead_computeds(&mut comp);
+
+        assert_eq!(comp.computeds.len(), 1);
+        assert_eq!(comp.computeds[0].name, "motion_val");
     }
 }
