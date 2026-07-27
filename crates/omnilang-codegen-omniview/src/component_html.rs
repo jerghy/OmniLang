@@ -227,7 +227,6 @@ impl OmniViewGenerator {
                                     nid = nid, js_event = js_event, sp = sp, pd = pd, wrapper_name = wrapper_name, event_obj = event_obj
                                 ));
                             }
-                            _ => unreachable!(),
                         }
                     }
                 }

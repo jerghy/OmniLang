@@ -31,7 +31,7 @@ pub struct StdlibFn {
     pub is_async: bool,
 }
 
-pub(crate) fn registry() -> &'static [StdlibFn] {
+pub fn registry() -> &'static [StdlibFn] {
     static REGISTRY: OnceLock<Vec<StdlibFn>> = OnceLock::new();
     REGISTRY.get_or_init(|| {
         let mut r = Vec::new();

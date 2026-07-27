@@ -188,7 +188,6 @@ impl OmniViewGenerator {
                 Some(ref n) => format!("{}<slot name=\"{}\"></slot>\n", pad, n),
                 None => format!("{}<slot></slot>\n", pad),
             },
-            _ => unreachable!(),
         }
     }
 }

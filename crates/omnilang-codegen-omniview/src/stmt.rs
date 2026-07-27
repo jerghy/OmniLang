@@ -332,7 +332,6 @@ impl OmniViewGenerator {
                     t
                 ));
             }
-            _ => unreachable!(),
         }
     }
 }

@@ -411,7 +411,6 @@ impl OmniViewGenerator {
                         self.js.push_str("}\n");
                         format!("fn:{}", escape_html(&wrapper_name))
                     }
-                    _ => unreachable!(),
                 };
                 let _ = write!(attrs, " data-event-{}=\"{}\"", js_event, val);
                 // Register handler in the global lookup so the delegated
@@ -425,7 +424,6 @@ impl OmniViewGenerator {
                     EventHandlerIR::InlineFn { .. } => {
                         Some(format!("__on{}_{}", event_name, nid.replace('-', "_")))
                     }
-                    _ => None,
                 };
                 if let Some(ref hname) = handler_name {
                     let _ = writeln!(self.js, "__omni_forHandlers[\"{}\"] = {};", hname, hname);
@@ -456,7 +454,6 @@ impl OmniViewGenerator {
                             self.js.push_str("}\n");
                             format!("{}({})", wrapper_name, event_obj)
                         }
-                        _ => unreachable!(),
                     };
                     let _ = writeln!(
                         self.js,
@@ -517,7 +514,6 @@ impl OmniViewGenerator {
                             nid = nid, js_event = js_event, sp = sp, pd = pd, wrapper_name = wrapper_name, event_obj = event_obj
                         );
                     }
-                    _ => {}
                 }
             }
         }

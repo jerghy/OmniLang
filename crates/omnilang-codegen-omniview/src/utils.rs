@@ -112,7 +112,6 @@ pub(super) fn map_binary_op(op: &BinaryOpIR) -> &str {
         MulAssign => "*=",
         DivAssign => "/=",
         ModAssign => "%=",
-        _ => unreachable!(),
     }
 }
 

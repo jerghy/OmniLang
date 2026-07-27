@@ -299,7 +299,6 @@ impl OmniViewGenerator {
                                 let v = self.js_value(value);
                                 format!("if (_v._variant === {}) {{ return {}; }}", v, body_js)
                             }
-                            _ => unreachable!(),
                         }
                     })
                     .collect();
@@ -321,7 +320,6 @@ impl OmniViewGenerator {
                     .collect();
                 format!("{{{}}}", items.join(", "))
             }
-            _ => unreachable!(),
         }
     }
 

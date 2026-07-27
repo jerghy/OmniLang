@@ -3,7 +3,7 @@
 use std::str::FromStr;
 
 /// Code generation target.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Target {
     Python,
     JavaScript,

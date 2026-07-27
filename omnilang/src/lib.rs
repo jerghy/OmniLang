@@ -7,19 +7,22 @@
 //!   4. IR lowering → Intent IR
 //!   5. Codegen / JSON serialization
 
+// ── Facade-specific modules (NOT in omnilang-core) ──
 pub mod analyse;
 pub mod codegen;
-pub mod discovery;
-pub mod error;
 pub mod ffi;
-pub mod ir;
-pub mod lexer;
-pub mod parser;
-pub mod path_mapping;
-pub mod semantic;
-pub mod sourcemap;
-pub mod stdlib;
-pub mod validate;
+
+// ── Re-exported from omnilang-core (P35 dedup) ──
+pub use omnilang_core::discovery;
+pub use omnilang_core::error;
+pub use omnilang_core::ir;
+pub use omnilang_core::lexer;
+pub use omnilang_core::parser;
+pub use omnilang_core::path_mapping;
+pub use omnilang_core::semantic;
+pub use omnilang_core::sourcemap;
+pub use omnilang_core::stdlib;
+pub use omnilang_core::validate;
 
 #[cfg(feature = "codegen-omniview")]
 use crate::codegen::omniview::{ComponentOutput, StyleResolveResult};

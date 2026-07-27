@@ -23,7 +23,6 @@ fn is_false(b: &bool) -> bool {
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, IntoStaticStr)]
 #[strum(serialize_all = "snake_case")]
-#[non_exhaustive]
 pub enum BinaryOpIR {
     #[serde(rename = "add")]
     Add,
@@ -128,7 +127,6 @@ impl std::fmt::Display for UnaryOpIR {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "_kind")]
-#[non_exhaustive]
 pub enum ExprIR {
     LiteralExpr {
         value: serde_json::Value,
@@ -256,7 +254,6 @@ pub struct MatchPatternIR {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
-#[non_exhaustive]
 pub enum MatchPatternKindIR {
     #[serde(rename = "variant")]
     Variant { name: String, bindings: Vec<String> },
@@ -428,7 +425,6 @@ pub struct BindingIR {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
-#[non_exhaustive]
 pub enum EventHandlerIR {
     FnRef {
         r#ref: String,
@@ -787,7 +783,6 @@ pub struct BlockIR {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "_kind")]
-#[non_exhaustive]
 pub enum StatementIR {
     LetStmtIR {
         name: String,
@@ -880,7 +875,6 @@ impl std::fmt::Display for MutationOp {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "operation")]
-#[non_exhaustive]
 pub enum MutationIntent {
     #[serde(rename = "direct_assign")]
     DirectAssign {
@@ -1054,7 +1048,6 @@ impl ElementIR {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 #[allow(clippy::large_enum_variant)]
-#[non_exhaustive]
 pub enum ViewTree {
     Element(ElementIR),
     Conditional(Box<ConditionalIntent>),
