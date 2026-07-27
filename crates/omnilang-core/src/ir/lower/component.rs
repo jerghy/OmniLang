@@ -4,7 +4,7 @@
 //! and pass-2 helpers for fn_ref event field backfilling.
 
 use super::expr::lower_expr;
-use super::motion::{lower_easing, lower_motion_def, lower_timeline_def};
+use super::motion::lower_easing;
 use super::stmt::lower_block;
 use super::view::lower_view_block;
 use crate::ir::logic::*;
@@ -236,18 +236,6 @@ pub(super) fn lower_component(
                 is_tag_selector: s.is_tag_selector,
             }
         })
-        .collect();
-
-    let motions: Vec<MotionIntent> = comp
-        .motions
-        .iter()
-        .map(|m| lower_motion_def(m, variant_map, semantics))
-        .collect();
-
-    let timelines: Vec<TimelineIntent> = comp
-        .timelines
-        .iter()
-        .map(|t| lower_timeline_def(t, variant_map, semantics))
         .collect();
 
     let hero_defs: Vec<HeroIntent> = comp

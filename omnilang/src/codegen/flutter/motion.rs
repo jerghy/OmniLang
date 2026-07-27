@@ -22,7 +22,10 @@ pub(crate) fn comp_has_spring_motion(ir: &IRProgram) -> bool {
 
 /// Check if any motion in the component uses path animation (needs dart:ui import).
 pub(crate) fn comp_has_path_motion(ir: &IRProgram) -> bool {
-    ir.modules.values().flat_map(|m| &m.motions).any(motion_has_path)
+    ir.modules
+        .values()
+        .flat_map(|m| &m.motions)
+        .any(motion_has_path)
 }
 
 /// Check if a single motion uses path animation.

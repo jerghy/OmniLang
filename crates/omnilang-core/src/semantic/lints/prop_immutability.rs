@@ -111,6 +111,8 @@ mod tests {
                 structs: vec![],
                 tagged_unions: vec![],
                 type_aliases: vec![],
+                motions: vec![],
+                timelines: vec![],
                 stores: vec![],
                 themes: vec![],
                 designs: vec![],
@@ -133,6 +135,8 @@ mod tests {
                     refs: vec![],
                     store_refs: vec![],
                     if_mode_default: None,
+                    motions: vec![],
+                    timelines: vec![],
                     hero_defs: vec![],
                     lifecycles: vec![],
                     fns: vec![FunctionDef {

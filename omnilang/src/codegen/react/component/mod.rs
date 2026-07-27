@@ -224,8 +224,12 @@ impl ReactCodegen {
 
         // Motion animation names — used to filter motion refs from event handlers
         // Include both component-level and module-level motions
-        let mut motion_names: FxHashSet<String> =
-            ir.modules.values().flat_map(|m| &m.motions).map(|m| m.name.clone()).collect();
+        let mut motion_names: FxHashSet<String> = ir
+            .modules
+            .values()
+            .flat_map(|m| &m.motions)
+            .map(|m| m.name.clone())
+            .collect();
         for module in ir.modules.values() {
             for motion in &module.motions {
                 motion_names.insert(motion.name.clone());

@@ -511,9 +511,9 @@ mod tests {
     }
 
     #[test]
-    fn removes_unused_computed_in_motion_behavior() {
-        // A computed referenced only in component-level @motion keyframe over
-        // should NOT be eliminated.
+    fn removes_unused_computed_without_motion_ref() {
+        // Motions are now canonical in ModuleIR, not ComponentIR.
+        // A computed with no references from view/lifecycles/etc. should be eliminated.
         let mut comp = ComponentIR {
             name: "TestComp".to_string(),
             computeds: vec![ComputedIntent {
@@ -528,30 +528,11 @@ mod tests {
                 },
                 deps: vec![],
             }],
-            motions: vec![MotionIntent {
-                name: "myMotion".to_string(),
-                body: MotionBodyIR::Keyframe(KeyframeIR {
-                    over: ExprIR::IdentifierExpr {
-                        name: "motion_val".to_string(),
-                        type_ann: None,
-                    },
-                    stops: vec![],
-                    ease: None,
-                    color_space: None,
-                    playback: PlaybackIR::default(),
-                    path: None,
-                    path_rotate: None,
-                    callbacks: vec![],
-                    source_span: None,
-                }),
-                source_span: None,
-            }],
             ..ComponentIR::default()
         };
 
         eliminate_dead_computeds(&mut comp);
 
-        assert_eq!(comp.computeds.len(), 1);
-        assert_eq!(comp.computeds[0].name, "motion_val");
+        assert_eq!(comp.computeds.len(), 0);
     }
 }

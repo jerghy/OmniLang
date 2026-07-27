@@ -5,15 +5,12 @@ use rustc_hash::FxHashMap;
 use crate::codegen::writer::CodeWriter;
 use crate::ir::*;
 
-/// Build an owned component map from all components in the IR program.
+/// Build a borrowed component map from all components in the IR program.
 ///
-/// This map can be shared across per-component codegen calls to avoid
-/// per-component cloning of `ComponentIR` values.
-pub fn build_component_map(ir: &IRProgram) -> FxHashMap<String, ComponentIR> {
+/// Returns references to avoid per-component cloning of `ComponentIR` values.
+/// Callers that need owned data can clone individual entries as needed.
+pub fn build_component_map(ir: &IRProgram) -> FxHashMap<&str, &ComponentIR> {
     ir.all_components()
-        .into_iter()
-        .map(|(n, c)| (n.to_string(), c.clone()))
-        .collect()
 }
 
 // ═══════════════════════════════════════════════════════════

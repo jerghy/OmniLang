@@ -19,13 +19,13 @@ impl<'a> Parser<'a> {
         let mut refs = Vec::new();
         let mut store_refs = Vec::new();
         let mut if_mode_default: Option<String> = None;
+        let mut motions: Vec<MotionDef> = Vec::new();
+        let mut timelines: Vec<TimelineDef> = Vec::new();
         let mut hero_defs: Vec<HeroDef> = Vec::new();
         let mut lifecycles = Vec::new();
         let mut fns = Vec::new();
         let mut actions = Vec::new();
         let mut getters = Vec::new();
-        let mut motions = Vec::new();
-        let mut timelines = Vec::new();
         let mut view: Option<ViewBlock> = None;
         let mut styles = Vec::new();
 

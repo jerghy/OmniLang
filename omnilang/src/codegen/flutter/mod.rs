@@ -315,7 +315,15 @@ impl FlutterCodegen {
         w.indent();
 
         if let Some(view) = &comp.view {
-            let tree_expr = format_view_tree(view, &ir.modules.values().flat_map(|m| &m.motions).cloned().collect::<Vec<_>>(), component_map);
+            let tree_expr = format_view_tree(
+                view,
+                &ir.modules
+                    .values()
+                    .flat_map(|m| &m.motions)
+                    .cloned()
+                    .collect::<Vec<_>>(),
+                component_map,
+            );
             w.emit_fmt(format_args!("return {};", tree_expr));
         } else {
             // Default widget tree
