@@ -14,6 +14,8 @@ export function ArchitecturePreview() {
   // Listen for clicks from iframe
   useEffect(() => {
     const handler = (e: MessageEvent) => {
+      if (e.origin !== window.location.origin) return;
+      if (e.source !== iframeRef.current?.contentWindow) return;
       if (e.data?.type === "poiesis:element-click" && e.data.pid) {
         selectBubbleByPid(e.data.pid);
       }
