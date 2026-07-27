@@ -115,7 +115,7 @@ function useProjectPanel(onProjectOpened?: (path: string, name: string) => void)
       setShowProjectPanel(false);
       onProjectOpened?.(folder, name);
     } catch (e) {
-      /* ignore */
+      console.error("Failed to create project", e);
     }
   }, [onProjectOpened]);
 
@@ -126,7 +126,7 @@ function useProjectPanel(onProjectOpened?: (path: string, name: string) => void)
       setShowProjectPanel(false);
       onProjectOpened?.(proj.path, proj.name);
     } catch (e) {
-      /* ignore */
+      console.error("Failed to open recent project", e);
     }
   }, [onProjectOpened]);
 
