@@ -5,8 +5,10 @@
 
 use rustc_hash::FxHashMap;
 use serde::Serialize;
+use std::cell::RefCell;
 use wasm_bindgen::prelude::*;
 
+use omnilang::analyse::IncrementalCache;
 use omnilang::compile;
 
 #[cfg(feature = "codegen-omniview")]
@@ -184,6 +186,189 @@ pub fn resolve_styles_multi(sources: JsValue, path_mapping: JsValue) -> JsValue 
         return js_error_value("Input exceeds 10MB limit");
     }
     to_js_value(&omnilang::resolve_styles_multi(sources_map, path_map))
+}
+
+/// Thread-local incremental analysis cache that persists across WASM calls
+/// within the same module lifetime.  This is the backing store for the
+/// serialized cache_state string that flows through the JS side.
+thread_local! {
+    static ANALYSIS_CACHE: RefCell<IncrementalCache> = RefCell::new(IncrementalCache::new());
+}
+
+/// Seed the thread-local ANALYSIS_CACHE from a serialized cache_state string.
+/// Called on first use or when the thread-local cache is empty (e.g. after
+/// WASM re-initialization).  Deserialized entries have invalid (empty)
+/// programs, so the first analysis after seeding will re-parse all files.
+fn seed_cache_from_state(cache_state: &JsValue) {
+    if cache_state.is_null() || cache_state.is_undefined() {
+        return;
+    }
+    let Some(json_str) = cache_state.as_string() else { return };
+    if json_str.is_empty() {
+        return;
+    }
+    if let Ok(seeded) = serde_json::from_str::<IncrementalCache>(&json_str) {
+        ANALYSIS_CACHE.with(|cell| {
+            *cell.borrow_mut() = seeded;
+        });
+    }
+}
+
+/// Multi-file analysis with incremental cache.
+///
+/// `sources`: JS object `{ "file/path.omni": "source content", ... }`
+/// `path_mapping`: JS object `{ "import/path": "resolved/file/path.omni", ... }`
+/// `cache_state`: serialized cache from previous call (or null/undefined)
+///
+/// Returns `{ success, errors, warnings, cache_state }`.
+#[wasm_bindgen]
+pub fn analyse_multi_cached(
+    sources: JsValue,
+    path_mapping: JsValue,
+    cache_state: JsValue,
+) -> JsValue {
+    let sources_map: FxHashMap<String, String> = match serde_wasm_bindgen::from_value(sources) {
+        Ok(s) => s,
+        Err(e) => {
+            return serde_wasm_bindgen::to_value(&serde_json::json!({
+                "success": false,
+                "errors": [{
+                    "severity": "error",
+                    "code": "E_INVALID_SOURCES",
+                    "message": format!("Failed to parse sources: {}", e),
+                    "file": null, "line": 0, "col": 0, "end_line": 0, "end_col": 0
+                }],
+                "warnings": [],
+                "cache_state": null,
+            }))
+            .unwrap_or_else(|e| js_error_value(&format!("serialization error: {}", e)));
+        }
+    };
+    let mut path_map: FxHashMap<String, String> =
+        serde_wasm_bindgen::from_value(path_mapping).unwrap_or_default();
+    let derived = omnilang::path_mapping::derive_path_mapping(&sources_map);
+    for (k, v) in derived {
+        path_map.entry(k).or_insert(v);
+    }
+
+    // Seed the thread-local cache if empty (handles WASM re-initialization)
+    ANALYSIS_CACHE.with(|cell| {
+        if cell.borrow().entries.is_empty() {
+            seed_cache_from_state(&cache_state);
+        }
+    });
+
+    let result = ANALYSIS_CACHE.with(|cell| {
+        let mut cache = cell.borrow_mut();
+        let analysis = omnilang::analyse::analyse_multi_cached(&sources_map, &path_map, &mut cache);
+        let cache_json = serde_json::to_string(&*cache).unwrap_or_default();
+        (analysis, cache_json)
+    });
+
+    to_js_value(&serde_json::json!({
+        "success": result.0.success,
+        "errors": result.0.diagnostics,
+        "warnings": result.0.warnings,
+        "cache_state": result.1,
+    }))
+}
+
+/// Resolve styles for multiple .omni source files using incremental cache.
+///
+/// Same interface as `resolve_styles_multi` but accepts `cache_state` and
+/// returns `{ result: StyleResolveResult, cache_state: string }`.
+#[cfg(feature = "codegen-omniview")]
+#[wasm_bindgen]
+pub fn resolve_styles_multi_cached(
+    sources: JsValue,
+    path_mapping: JsValue,
+    cache_state: JsValue,
+) -> JsValue {
+    let sources_map: FxHashMap<String, String> = match serde_wasm_bindgen::from_value(sources) {
+        Ok(s) => s,
+        Err(e) => {
+            return serde_wasm_bindgen::to_value(&serde_json::json!({
+                "result": {
+                    "success": false,
+                    "design_css": "",
+                    "component_css": {},
+                    "element_classes": {},
+                    "element_tags": {},
+                    "warnings": [],
+                    "errors": [{
+                        "severity": "error",
+                        "code": "E_INVALID_SOURCES",
+                        "message": format!("Failed to parse sources: {}", e),
+                        "line": 0, "col": 0, "end_line": 0, "end_col": 0
+                    }]
+                },
+                "cache_state": null,
+            }))
+            .unwrap_or_else(|e| js_error_value(&format!("serialization error: {}", e)));
+        }
+    };
+    let mut path_map: FxHashMap<String, String> =
+        serde_wasm_bindgen::from_value(path_mapping).unwrap_or_default();
+    let derived = omnilang::path_mapping::derive_path_mapping(&sources_map);
+    for (k, v) in derived {
+        path_map.entry(k).or_insert(v);
+    }
+    let total_size: usize = sources_map.values().map(|s| s.len()).sum();
+    if total_size > 10 * 1024 * 1024 {
+        return js_error_value("Input exceeds 10MB limit");
+    }
+
+    // Seed the thread-local cache if empty
+    ANALYSIS_CACHE.with(|cell| {
+        if cell.borrow().entries.is_empty() {
+            seed_cache_from_state(&cache_state);
+        }
+    });
+
+    let (analysis_result, cache_json) = ANALYSIS_CACHE.with(|cell| {
+        let mut cache = cell.borrow_mut();
+        let analysis = omnilang::analyse::analyse_multi_cached(&sources_map, &path_map, &mut cache);
+        let json = serde_json::to_string(&*cache).unwrap_or_default();
+        (analysis, json)
+    });
+
+    let errors = analysis_result.diagnostics;
+
+    let result_value = match analysis_result.ir {
+        Some(ref ir) => {
+            let output = omnilang::codegen::omniview::generate(ir, true, true, false);
+            let success = errors.iter().all(|d| d.severity != omnilang::error::Severity::Error)
+                && output.warnings.is_empty();
+            serde_json::json!({
+                "success": success,
+                "design_css": output.css,
+                "component_css": output.per_component_css,
+                "element_classes": output.element_classes,
+                "element_tags": output.element_tags,
+                "element_tree": output.element_tree,
+                "nid_map": output.nid_map,
+                "warnings": output.warnings,
+                "errors": errors,
+            })
+        }
+        None => serde_json::json!({
+            "success": false,
+            "design_css": "",
+            "component_css": {},
+            "element_classes": {},
+            "element_tags": {},
+            "element_tree": [],
+            "nid_map": {},
+            "warnings": [],
+            "errors": errors,
+        }),
+    };
+
+    serde_wasm_bindgen::to_value(&serde_json::json!({
+        "result": result_value,
+        "cache_state": cache_json,
+    }))
+    .unwrap_or_else(|e| js_error_value(&format!("serialization error: {}", e)))
 }
 
 /// Compile multiple .omni source files to OmniView.

@@ -3,6 +3,7 @@
 use std::fmt;
 
 use crate::error::{Diagnostic, DiagnosticKind, Severity};
+use crate::sourcemap::SourceMapEntry;
 
 /// CodeWriter: tracks indentation and emits formatted lines.
 #[derive(Debug)]
@@ -100,6 +101,7 @@ pub struct CompiledFile {
 pub struct CompileOutput {
     pub files: Vec<CompiledFile>,
     pub errors: Vec<Diagnostic>,
+    pub source_map: Vec<SourceMapEntry>,
 }
 
 impl CompileOutput {
@@ -109,6 +111,7 @@ impl CompileOutput {
         Self {
             files,
             errors: vec![],
+            source_map: vec![],
         }
     }
 
@@ -128,6 +131,7 @@ impl CompileOutput {
                 end_col: None,
                 suggestion: None,
             }],
+            source_map: vec![],
         }
     }
 }
@@ -164,5 +168,13 @@ mod tests {
         w.dedent();
         w.emit("}");
         assert_eq!(w.into_string(), "fn main() {\n    let x = 1;\n}\n");
+    }
+
+    #[test]
+    fn test_compile_output_source_map_default() {
+        let output = CompileOutput::success(vec![]);
+        assert!(output.source_map.is_empty());
+        let err = CompileOutput::error("test".into());
+        assert!(err.source_map.is_empty());
     }
 }

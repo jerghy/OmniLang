@@ -3,8 +3,9 @@
 // Tauri shell plugin for runtime Vite dev server
 // Replaces Python FastAPI endpoints: /api/compile, /api/run/*
 
+import { invoke } from "@tauri-apps/api/core";
 import { rustCompiler } from "./rustCompiler";
-import type { CompileResponse } from "./types";
+import type { CompileResponse, CompileError } from "./types";
 
 export function createCompileApi() {
   // ── Runtime state ──
@@ -25,22 +26,7 @@ export function createCompileApi() {
       await rustCompiler.init();
 
       if (!rustCompiler.isReady) {
-        return {
-          success: false,
-          files: {},
-          diff: {},
-          errors: [
-            {
-              file: "",
-              line: 0,
-              col: 0,
-              severity: "error",
-              code: "COMPILER_UNAVAILABLE",
-              message: "OmniLang WASM 编译器未加载",
-              suggestion: "请检查 public/wasm/ 下的 WASM 文件",
-            },
-          ],
-        };
+        return this.compileViaTauri(source, target);
       }
 
       try {
@@ -86,6 +72,86 @@ export function createCompileApi() {
               severity: "error",
               code: "COMPILE_EXCEPTION",
               message: `编译异常: ${String(e)}`,
+              suggestion: null,
+            },
+          ],
+        };
+      }
+    },
+
+    // ── Fallback: compile via Tauri IPC when WASM is unavailable ──
+    async compileViaTauri(
+      source: string,
+      target: string,
+    ): Promise<CompileResponse> {
+      // Check if running inside a Tauri webview
+      const isTauri =
+        typeof window !== "undefined" &&
+        typeof (window as Record<string, unknown>).__TAURI_INTERNALS__ !==
+          "undefined";
+
+      if (!isTauri) {
+        return {
+          success: false,
+          files: {},
+          diff: {},
+          errors: [
+            {
+              file: "",
+              line: 0,
+              col: 0,
+              severity: "error",
+              code: "COMPILER_UNAVAILABLE",
+              message: "OmniLang WASM 编译器未加载，且不在 Tauri 桌面环境中",
+              suggestion:
+                "请使用桌面版应用，或在浏览器中确认 public/wasm/ WASM 文件存在",
+            },
+          ],
+        };
+      }
+
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const result: Record<string, any> = await invoke("compile_source", {
+          source,
+          target,
+        });
+
+        const errors: CompileError[] = (result.errors || []).map(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (e: Record<string, any>) => ({
+            file: e.file || "",
+            line: typeof e.line === "number" ? e.line : 0,
+            col: typeof e.col === "number" ? e.col : 0,
+            endLine:
+              typeof e.end_line === "number" ? e.end_line : undefined,
+            endCol: typeof e.end_col === "number" ? e.end_col : undefined,
+            severity: e.severity === "warning" ? "warning" : "error",
+            code: e.code || "UNKNOWN",
+            message: e.message || "Unknown error",
+            suggestion: e.suggestion ?? null,
+          }),
+        );
+
+        return {
+          success: result.success === true,
+          files: (result.files as Record<string, string>) || {},
+          diff: {},
+          errors,
+        };
+      } catch (e) {
+        return {
+          success: false,
+          files: {},
+          diff: {},
+          errors: [
+            {
+              file: "",
+              line: 0,
+              col: 0,
+              severity: "error",
+              code: "TAURI_COMPILE_ERROR",
+              message: `Tauri 编译失败: ${String(e)}`,
               suggestion: null,
             },
           ],

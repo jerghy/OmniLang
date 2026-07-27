@@ -131,7 +131,7 @@ function useWasmCompile(): {
         }
         lastSourcesRef.current = sourcesKey;
 
-        const result = rustCompiler.resolveStylesMulti(sources, pathMapping);
+        const result = rustCompiler.resolveStylesMultiCached(sources, pathMapping);
 
         const actualErrors = (result.errors || []).filter(
           (e: any) => e.severity === "error",

@@ -72,10 +72,11 @@ pub fn compile(
         return CompileOutput {
             files: vec![],
             errors,
+            source_map: vec![],
         };
     }
     #[allow(unreachable_patterns)]
-    match target {
+    let mut output = match target {
         #[cfg(feature = "codegen-omniview")]
         Target::OmniView => omniview::compile_files(ir, source_files, false, false),
         #[cfg(feature = "codegen-python")]
@@ -110,7 +111,10 @@ pub fn compile(
             "Backend for '{:?}' is not enabled (compile with the corresponding codegen-* feature flag)",
             target
         )),
-    }
+    };
+    // Thread source_map from IR through to CompileOutput
+    output.source_map = ir.source_map.values().cloned().collect();
+    output
 }
 
 #[cfg(test)]

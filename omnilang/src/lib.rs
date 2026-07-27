@@ -369,6 +369,7 @@ pub fn compile_to_target_json(
         "success": output.errors.is_empty(),
         "files": files_map,
         "errors": output.errors,
+        "sourceMap": output.source_map,
     }))
     .unwrap_or_else(|e| {
         format!(
@@ -391,6 +392,10 @@ pub struct InternalCompileResult {
     #[serde(default, skip_serializing_if = "FxHashMap::is_empty")]
     #[ts(type = "Record<string, { js: string }>")]
     pub components: FxHashMap<String, serde_json::Value>,
+    /// Source map entries mapping generated code back to .omni source positions.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<{ node_id: string; omni_span: { line: number; col: number; len: number }; target_spans: Array<{ file: string; line: number; col: number; len: number; kind: string }> }>")]
+    pub source_map: Vec<crate::sourcemap::SourceMapEntry>,
 }
 
 /// Compile multiple .omni sources to a target language, returning a struct.
@@ -466,6 +471,7 @@ fn compile_multi_internal_post(
                 errors: diags,
                 warnings,
                 components: FxHashMap::default(),
+                source_map: vec![],
             };
         }
     };
@@ -514,6 +520,7 @@ fn compile_multi_internal_post(
         errors: diags,
         warnings,
         components,
+        source_map: output.source_map,
     }
 }
 
@@ -546,6 +553,7 @@ pub fn compile_multi_to_target(
         "files": result.files,
         "errors": result.errors,
         "warnings": result.warnings,
+        "sourceMap": result.source_map,
     }))
     .unwrap_or_else(|e| {
         format!(
@@ -626,5 +634,22 @@ mod type_exports {
         // Also export Diagnostic directly (in case it's not pulled in transitively)
         error::Diagnostic::export_all_to(&export_dir)
             .expect("failed to export Diagnostic TS bindings");
+    }
+}
+
+#[cfg(test)]
+mod source_map_integration_tests {
+    use crate::codegen::Target;
+    use rustc_hash::FxHashMap;
+
+    #[test]
+    fn compile_to_target_json_contains_source_map() {
+        let ir = crate::ir::IRProgram::default();
+        let json = crate::compile_to_target_json(&ir, Target::Python, &FxHashMap::default(), None);
+        assert!(
+            json.contains("\"sourceMap\""),
+            "compile_to_target_json output should contain sourceMap key.\nGot: {}",
+            json
+        );
     }
 }

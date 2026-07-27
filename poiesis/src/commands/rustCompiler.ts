@@ -122,9 +122,12 @@ class RustCompiler {
     compile_multi_to_omniview?: (sources: Record<string, string>, editor_mode: boolean, debug_mode: boolean) => any;
     resolve_styles?: (source: string) => any;
     resolve_styles_multi?: (sources: Record<string, string>, path_mapping: Record<string, string>) => any;
+    resolve_styles_multi_cached?: (sources: Record<string, string>, path_mapping: Record<string, string>, cache_state: string | null) => any;
     wrap_debug_html?: (js: string, css: string, body_html: string) => string;
   } | null = null;
   private ready = false;
+  /** Serialized incremental cache state passed to/from WASM analyse_multi_cached. */
+  private _cacheState: string | null = null;
 
   async init(): Promise<void> {
     if (this.ready) return;
@@ -171,6 +174,7 @@ class RustCompiler {
         compile_multi_to_omniview: wasmModule.compile_multi_to_omniview as unknown as (sources: Record<string, string>, editor_mode: boolean, debug_mode: boolean) => any,
         resolve_styles: wasmModule.resolve_styles as unknown as (source: string) => any,
         resolve_styles_multi: wasmModule.resolve_styles_multi as unknown as (sources: Record<string, string>, path_mapping: Record<string, string>) => any,
+        resolve_styles_multi_cached: wasmModule.resolve_styles_multi_cached as unknown as (sources: Record<string, string>, path_mapping: Record<string, string>, cache_state: string | null) => any,
         wrap_debug_html: wasmModule.wrap_debug_html as unknown as (js: string, css: string, body_html: string) => string,
       };
       this.ready = true;
@@ -423,6 +427,31 @@ class RustCompiler {
         element_tags: {},
         warnings: [],
         errors: [{ severity: 'error', code: 'WASM', message: `resolve_styles_multi error: ${e}`, line: 0, col: 0, end_line: 0, end_col: 0 }],
+      };
+    }
+  }
+
+  /** Resolve styles for multiple .omni source files using the incremental cache.
+   *  Stores and passes the serialized cache state internally. Falls back to
+   *  the non-cached variant when the WASM module doesn't export the cached function. */
+  resolveStylesMultiCached(sources: Record<string, string>, pathMapping: Record<string, string>): StyleResolveResult {
+    if (!this.wasm || !this.wasm.resolve_styles_multi_cached) {
+      return this.resolveStylesMulti(sources, pathMapping);
+    }
+    try {
+      const response = this.wasm.resolve_styles_multi_cached(sources, pathMapping, this._cacheState);
+      this._cacheState = response.cache_state;
+      return response.result as StyleResolveResult;
+    } catch (e) {
+      log.error('resolveStylesMultiCached failed:', e);
+      return {
+        success: false,
+        design_css: '',
+        component_css: {},
+        element_classes: {},
+        element_tags: {},
+        warnings: [],
+        errors: [{ severity: 'error', code: 'WASM', message: `Cached style resolve error: ${e}`, line: 0, col: 0, end_line: 0, end_col: 0 }],
       };
     }
   }

@@ -254,6 +254,28 @@ fn compile_project(
     do_compile(sources, codegen_target, Some(&mut *compile_cache))
 }
 
+/// Compile a single .omni source string via Tauri IPC (fallback for WASM).
+/// Used when the WASM compiler module is unavailable in the Tauri webview.
+#[tauri::command]
+fn compile_source(
+    source: String,
+    target: Option<String>,
+) -> CompileResult {
+    let target_str = target.unwrap_or_else(|| "react".to_string());
+    let codegen_target: omnilang::codegen::Target = match target_str.parse() {
+        Ok(t) => t,
+        Err(e) => {
+            return CompileResult::from_error(
+                &format!("Unknown target: {} ({})", target_str, e),
+                "E_TARGET",
+            );
+        }
+    };
+
+    let sources = FxHashMap::from_iter([("main.omni".to_string(), source)]);
+    do_compile(sources, codegen_target, None)
+}
+
 // ── Analyse source ──
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -863,6 +885,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             compile_project,
+            compile_source,
             analyse_source,
             project_export,
             get_project_dir,

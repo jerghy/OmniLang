@@ -7,6 +7,7 @@
 
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
+use serde::{Deserialize, Serialize};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
@@ -59,10 +60,20 @@ fn fast_hash(content: &str) -> u64 {
 }
 
 /// Cached compilation data for a single file.
+#[derive(Serialize, Deserialize)]
 pub struct CachedFile {
     pub content_hash: u64,
+    /// In-memory parsed program (not serialized — skipped during serialization).
+    /// On deserialization this will be `Arc::new(Program::default())`, so
+    /// consumers must check `program_valid` before using it.
+    #[serde(skip)]
     pub program: Arc<Program>,
+    #[serde(skip_serializing)]
+    #[serde(default)]
+    pub(crate) program_valid: bool,
     pub diagnostics: Vec<Diagnostic>,
+    /// In-memory IR program (not serialized).
+    #[serde(skip)]
     pub ir: IRProgram,
     /// Files that this file imports (for invalidation propagation).
     pub imports: Vec<String>,
@@ -71,6 +82,7 @@ pub struct CachedFile {
 }
 
 /// Incremental compilation cache that avoids re-parsing/re-analyzing unchanged files.
+#[derive(Serialize, Deserialize)]
 pub struct IncrementalCache {
     pub entries: FxHashMap<String, CachedFile>,
 }
@@ -347,7 +359,9 @@ pub fn analyse_multi_cached(
     for (path, source) in sources {
         let hash = fast_hash(source);
         if let Some(cached) = cache.entries.get(path) {
-            if cached.content_hash == hash {
+            // Only treat as cache hit if the program is valid (in-memory, not
+            // deserialized from serialized cache_state) AND hash matches.
+            if cached.content_hash == hash && cached.program_valid {
                 // Cache hit — reuse Arc'd program
                 all_programs.insert(path.clone(), cached.program.clone());
                 continue;
@@ -454,6 +468,7 @@ pub fn analyse_multi_cached(
                     CachedFile {
                         content_hash,
                         program: program.clone(),
+                        program_valid: true,
                         diagnostics: local_diags.clone(),
                         ir: ir.clone(),
                         imports,
