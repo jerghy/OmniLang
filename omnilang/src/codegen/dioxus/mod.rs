@@ -108,7 +108,7 @@ impl DioxusCodegen {
         }
 
         // State signals (use_signal)
-        for state in &comp.states {
+        for state in &comp.signals {
             let init_val = format_expr_ir_dioxus(&state.initial_value);
             w.emit_fmt(format_args!(
                 "let mut {} = use_signal(|| {});",

@@ -20,7 +20,7 @@ pub use types::{
     ComponentIR, ComputedIntent, ConditionalBranch, ConditionalIntent, ConstructionKind,
     EffectIntent, ElementIR, EventDataKind, EventFieldDef, EventHandlerIR, ExprIR, IRProgram,
     LifecycleIntent, LifecycleKind, ListRenderingIntent, MatchArmIR, MatchPatternIR,
-    MatchPatternKindIR, MutationIntent, MutationOp, ParamIR, SignalRefIR, StateIntent, StatementIR,
+    MatchPatternKindIR, MutationIntent, MutationOp, ParamIR, SignalRefIR, SignalIntent, StatementIR,
     StoreIR, StyleRuleIR, TypeIR, TypeKind, UnaryOpIR, ViewTree,
 };
 

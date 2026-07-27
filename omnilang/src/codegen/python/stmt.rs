@@ -164,14 +164,14 @@ pub(super) fn generate_component(w: &mut CodeWriter, name: &str, comp: &Componen
     w.indent();
 
     // Constructor with signals as instance variables
-    if !comp.states.is_empty() || !comp.props.is_empty() {
+    if !comp.signals.is_empty() || !comp.props.is_empty() {
         w.emit("def __init__(self):");
         w.indent();
         let py_fmt = PythonFormatExpr;
         for prop in comp.props.keys() {
             w.emit_fmt(format_args!("self.{} = None  # prop", prop));
         }
-        for state in &comp.states {
+        for state in &comp.signals {
             let py_init = py_fmt.format_expr(&state.initial_value);
             w.emit_fmt(format_args!("self.{} = {}", state.name, py_init));
         }

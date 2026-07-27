@@ -305,7 +305,7 @@ mod tests {
             generic_params: vec![],
             props: FxHashMap::default(),
             prop_defaults: FxHashMap::default(),
-            states: vec![],
+            signals: vec![],
             computeds: vec![],
             effects: vec![],
             lifecycles: vec![],
@@ -334,7 +334,7 @@ mod tests {
             generic_params: vec![],
             props: FxHashMap::default(),
             prop_defaults: FxHashMap::default(),
-            states: vec![],
+            signals: vec![],
             computeds: vec![],
             effects: vec![],
             lifecycles: vec![],
@@ -373,7 +373,7 @@ mod tests {
             generic_params: vec![],
             props: FxHashMap::default(),
             prop_defaults: FxHashMap::default(),
-            states: vec![StateIntent {
+            signals: vec![SignalIntent {
                 name: "count".into(),
                 r#type: TypeIR {
                     kind: "i32".into(),
@@ -639,7 +639,7 @@ mod tests {
                             generic_params: vec![],
                             props: FxHashMap::default(),
                             prop_defaults: FxHashMap::default(),
-                            states: vec![],
+                            signals: vec![],
                             computeds: vec![],
                             effects: vec![],
                             lifecycles: vec![],

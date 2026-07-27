@@ -138,12 +138,12 @@ impl FlutterCodegen {
         w.indent();
 
         // State variables as class fields
-        for state in &comp.states {
+        for state in &comp.signals {
             let ann = super::dart::dart_type(state.r#type.kind.as_str(), &state.r#type.type_args);
             let init = format_expr_ir_flutter(&state.initial_value);
             w.emit_fmt(format_args!("{} {} = {};", ann, state.name, init));
         }
-        if !comp.states.is_empty() {
+        if !comp.signals.is_empty() {
             w.emit("");
         }
 

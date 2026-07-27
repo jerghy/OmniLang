@@ -119,7 +119,7 @@ mod tests {
                 generic_params: vec![],
                 props: FxHashMap::default(),
                 prop_defaults: FxHashMap::default(),
-                states: vec![],
+                signals: vec![],
                 computeds: vec![],
                 effects: vec![],
                 lifecycles: vec![],

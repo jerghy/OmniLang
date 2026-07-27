@@ -27,10 +27,10 @@ pub(super) fn lower_component(
     variant_map: &FxHashMap<String, String>,
     semantics: &mut SemanticResult,
 ) -> ComponentIR {
-    let states: Vec<StateIntent> = comp
+    let states: Vec<SignalIntent> = comp
         .signals
         .iter()
-        .map(|s| StateIntent {
+        .map(|s| SignalIntent {
             name: s.name.clone(),
             r#type: lower_type(&s.type_ann),
             initial_value: lower_expr(&s.init, variant_map, None, semantics),
@@ -272,7 +272,7 @@ pub(super) fn lower_component(
         generic_params: vec![],
         props,
         prop_defaults,
-        states,
+        signals: states,
         computeds,
         effects,
         lifecycles,

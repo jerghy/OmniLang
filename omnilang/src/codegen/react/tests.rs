@@ -333,7 +333,7 @@ fn test_css_empty_component() {
         generic_params: vec![],
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
-        states: vec![],
+        signals: vec![],
         computeds: vec![],
         effects: vec![],
         lifecycles: vec![],
@@ -381,7 +381,7 @@ fn test_css_with_styles() {
         generic_params: vec![],
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
-        states: vec![],
+        signals: vec![],
         computeds: vec![],
         effects: vec![],
         lifecycles: vec![],
@@ -411,7 +411,7 @@ fn make_test_component(name: &str, view: ViewTree) -> ComponentIR {
         generic_params: vec![],
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
-        states: vec![],
+        signals: vec![],
         computeds: vec![],
         effects: vec![],
         lifecycles: vec![],
@@ -513,7 +513,7 @@ fn test_tsx_empty_component() {
             generic_params: vec![],
             props: FxHashMap::default(),
             prop_defaults: FxHashMap::default(),
-            states: vec![],
+            signals: vec![],
             computeds: vec![],
             effects: vec![],
             lifecycles: vec![],
@@ -545,7 +545,7 @@ fn test_tsx_empty_component() {
 #[test]
 fn test_tsx_component_with_state() {
     let codegen = ReactCodegen::default();
-    let state = StateIntent {
+    let state = SignalIntent {
         name: "count".into(),
         r#type: TypeIR {
             kind: "i32".into(),
@@ -565,7 +565,7 @@ fn test_tsx_component_with_state() {
             generic_params: vec![],
             props: FxHashMap::default(),
             prop_defaults: FxHashMap::default(),
-            states: vec![state],
+            signals: vec![state],
             computeds: vec![],
             effects: vec![],
             lifecycles: vec![],
@@ -622,7 +622,7 @@ fn test_tsx_component_with_props() {
             generic_params: vec![],
             props,
             prop_defaults: FxHashMap::default(),
-            states: vec![],
+            signals: vec![],
             computeds: vec![],
             effects: vec![],
             lifecycles: vec![],
@@ -677,7 +677,7 @@ fn test_tsx_component_with_effect() {
             generic_params: vec![],
             props: FxHashMap::default(),
             prop_defaults: FxHashMap::default(),
-            states: vec![],
+            signals: vec![],
             computeds: vec![],
             effects: vec![effect],
             lifecycles: vec![],
@@ -722,7 +722,7 @@ fn test_tsx_component_with_lifecycle_mount() {
             generic_params: vec![],
             props: FxHashMap::default(),
             prop_defaults: FxHashMap::default(),
-            states: vec![],
+            signals: vec![],
             computeds: vec![],
             effects: vec![],
             lifecycles: vec![lc],
@@ -889,7 +889,7 @@ fn test_full_pipeline_component() {
         generic_params: vec![],
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
-        states: vec![StateIntent {
+        signals: vec![SignalIntent {
             name: "count".into(),
             r#type: TypeIR {
                 kind: "i32".into(),
@@ -1034,7 +1034,7 @@ fn test_full_pipeline_component_with_store_ref() {
         generic_params: vec![],
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
-        states: vec![],
+        signals: vec![],
         computeds: vec![],
         effects: vec![],
         lifecycles: vec![],

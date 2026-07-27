@@ -541,7 +541,7 @@ fn test_empty_component() {
             generic_params: vec![],
             props: FxHashMap::default(),
             prop_defaults: FxHashMap::default(),
-            states: vec![],
+            signals: vec![],
             computeds: vec![],
             effects: vec![],
             lifecycles: vec![],
@@ -583,7 +583,7 @@ fn test_empty_component() {
 #[test]
 fn test_component_with_state() {
     let codegen = FlutterCodegen;
-    let state = StateIntent {
+    let state = SignalIntent {
         name: "count".into(),
         r#type: TypeIR {
             kind: "i32".into(),
@@ -603,7 +603,7 @@ fn test_component_with_state() {
             generic_params: vec![],
             props: FxHashMap::default(),
             prop_defaults: FxHashMap::default(),
-            states: vec![state],
+            signals: vec![state],
             computeds: vec![],
             effects: vec![],
             lifecycles: vec![],
@@ -688,7 +688,7 @@ fn test_component_with_props() {
             generic_params: vec![],
             props,
             prop_defaults: FxHashMap::default(),
-            states: vec![],
+            signals: vec![],
             computeds: vec![],
             effects: vec![],
             lifecycles: vec![],
@@ -743,7 +743,7 @@ fn test_component_with_mount_lifecycle() {
             generic_params: vec![],
             props: FxHashMap::default(),
             prop_defaults: FxHashMap::default(),
-            states: vec![],
+            signals: vec![],
             computeds: vec![],
             effects: vec![],
             lifecycles: vec![lc],
@@ -798,7 +798,7 @@ fn test_component_with_unmount_lifecycle() {
             generic_params: vec![],
             props: FxHashMap::default(),
             prop_defaults: FxHashMap::default(),
-            states: vec![],
+            signals: vec![],
             computeds: vec![],
             effects: vec![],
             lifecycles: vec![lc],
@@ -966,7 +966,7 @@ fn test_full_pipeline_component() {
         generic_params: vec![],
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
-        states: vec![],
+        signals: vec![],
         computeds: vec![],
         effects: vec![],
         lifecycles: vec![],
@@ -1075,7 +1075,7 @@ fn test_full_pipeline_component_with_store_ref() {
         generic_params: vec![],
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
-        states: vec![],
+        signals: vec![],
         computeds: vec![],
         effects: vec![],
         lifecycles: vec![],

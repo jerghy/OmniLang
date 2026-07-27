@@ -75,7 +75,7 @@ pub(crate) fn fixture_component() -> IRProgram {
         generic_params: vec![],
         props,
         prop_defaults: FxHashMap::default(),
-        states: vec![state],
+        signals: vec![state],
         computeds: vec![ComputedIntent {
             name: "doubled".into(),
             r#type: TypeIR {
@@ -257,7 +257,7 @@ pub(crate) fn fixture_component_with_store() -> IRProgram {
         generic_params: vec![],
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
-        states: vec![],
+        signals: vec![],
         computeds: vec![],
         effects: vec![],
         lifecycles: vec![],

@@ -59,7 +59,7 @@ fn generate_component(w: &mut CodeWriter, name: &str, comp: &ComponentIR) {
     w.emit_fmt(format_args!("class {} {{", name));
     w.indent();
 
-    if comp.states.is_empty()
+    if comp.signals.is_empty()
         && comp.props.is_empty()
         && comp.fns.is_empty()
         && comp.computeds.is_empty()
@@ -78,7 +78,7 @@ fn generate_component(w: &mut CodeWriter, name: &str, comp: &ComponentIR) {
     }
 
     // Field declarations + initialization for states
-    for state in &comp.states {
+    for state in &comp.signals {
         let ann = dart_type(state.r#type.kind.as_str(), &state.r#type.type_args);
         let init = format_expr_ir(&state.initial_value);
         // Use `late` for fields initialized in constructor
@@ -86,7 +86,7 @@ fn generate_component(w: &mut CodeWriter, name: &str, comp: &ComponentIR) {
     }
 
     // Constructor with state/prop initialization
-    if !comp.states.is_empty() || !comp.props.is_empty() {
+    if !comp.signals.is_empty() || !comp.props.is_empty() {
         w.emit("");
         emit_constructor_init(w, name, comp, format_expr_ir);
     }

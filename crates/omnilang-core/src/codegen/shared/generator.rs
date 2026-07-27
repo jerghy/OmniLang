@@ -35,7 +35,7 @@ pub fn emit_constructor_init(
     for prop in comp.props.keys() {
         w.emit_fmt(format_args!("this.{prop} = null;  // prop"));
     }
-    for state in &comp.states {
+    for state in &comp.signals {
         let init = format_init(&state.initial_value);
         w.emit_fmt(format_args!("this.{} = {};", state.name, init));
     }

@@ -384,7 +384,7 @@ fn test_js_empty_component() {
         generic_params: vec![],
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
-        states: vec![],
+        signals: vec![],
         computeds: vec![],
         effects: vec![],
         lifecycles: vec![],
@@ -414,7 +414,7 @@ fn test_ts_empty_component() {
         generic_params: vec![],
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
-        states: vec![],
+        signals: vec![],
         computeds: vec![],
         effects: vec![],
         lifecycles: vec![],
@@ -444,7 +444,7 @@ fn test_js_component_with_function() {
         generic_params: vec![],
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
-        states: vec![],
+        signals: vec![],
         computeds: vec![],
         effects: vec![],
         lifecycles: vec![],
@@ -482,7 +482,7 @@ fn test_js_component_with_state() {
         generic_params: vec![],
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
-        states: vec![StateIntent {
+        signals: vec![SignalIntent {
             name: "count".into(),
             r#type: TypeIR {
                 kind: "i32".into(),
@@ -524,7 +524,7 @@ fn test_ts_component_with_state() {
         generic_params: vec![],
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
-        states: vec![StateIntent {
+        signals: vec![SignalIntent {
             name: "count".into(),
             r#type: TypeIR {
                 kind: "i32".into(),
@@ -711,7 +711,7 @@ fn test_js_full_pipeline_through_trait() {
                         generic_params: vec![],
                         props: FxHashMap::default(),
                         prop_defaults: FxHashMap::default(),
-                        states: vec![],
+                        signals: vec![],
                         computeds: vec![],
                         effects: vec![],
                         lifecycles: vec![],
@@ -770,7 +770,7 @@ fn test_ts_full_pipeline_through_trait() {
                         generic_params: vec![],
                         props: FxHashMap::default(),
                         prop_defaults: FxHashMap::default(),
-                        states: vec![],
+                        signals: vec![],
                         computeds: vec![],
                         effects: vec![],
                         lifecycles: vec![],

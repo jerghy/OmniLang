@@ -38,7 +38,7 @@ impl LintRule for TypeMismatch {
                 .unwrap_or(comp_name);
 
             // Check signal initializer types
-            for state in &comp.states {
+            for state in &comp.signals {
                 let type_kind_str = state.r#type.kind.as_str();
                 let init = &state.initial_value;
                 if !Self::types_compatible(type_kind_str, init) {
@@ -186,7 +186,7 @@ mod tests {
                 generic_params: vec![],
                 props: FxHashMap::default(),
                 prop_defaults: FxHashMap::default(),
-                states: vec![],
+                signals: vec![],
                 computeds: vec![],
                 effects: vec![],
                 lifecycles: vec![],

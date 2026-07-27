@@ -53,7 +53,7 @@ impl Codegen for RustCodegen {
 // ═══════════════════════════════════════════════════════════
 
 fn generate_component(w: &mut CodeWriter, name: &str, comp: &ComponentIR) {
-    let has_fields = !comp.states.is_empty() || !comp.props.is_empty();
+    let has_fields = !comp.signals.is_empty() || !comp.props.is_empty();
     let has_methods = has_fields || !comp.fns.is_empty() || !comp.computeds.is_empty();
 
     // Emit struct definition
@@ -67,7 +67,7 @@ fn generate_component(w: &mut CodeWriter, name: &str, comp: &ComponentIR) {
                 rs_type(prop_type.kind.as_str(), &prop_type.type_args)
             ));
         }
-        for state in &comp.states {
+        for state in &comp.signals {
             w.emit_fmt(format_args!(
                 "{}: {},",
                 state.name,
@@ -92,7 +92,7 @@ fn generate_component(w: &mut CodeWriter, name: &str, comp: &ComponentIR) {
     if has_fields {
         w.emit("fn new() -> Self {");
         w.indent();
-        if comp.states.is_empty() && comp.props.is_empty() {
+        if comp.signals.is_empty() && comp.props.is_empty() {
             w.emit(name);
         } else {
             w.emit("Self {");
@@ -100,7 +100,7 @@ fn generate_component(w: &mut CodeWriter, name: &str, comp: &ComponentIR) {
             for prop_name in comp.props.keys() {
                 w.emit_fmt(format_args!("{}: None,  // prop", prop_name));
             }
-            for state in &comp.states {
+            for state in &comp.signals {
                 let rs_init = format_expr_ir(&state.initial_value);
                 w.emit_fmt(format_args!("{}: {},", state.name, rs_init));
             }

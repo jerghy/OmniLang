@@ -433,10 +433,10 @@ component Greet {
         let comp = lower_first_component(source);
 
         // Check state is lowered correctly
-        assert_eq!(comp.states.len(), 1, "should have one signal");
-        assert_eq!(comp.states[0].name, "name");
+        assert_eq!(comp.signals.len(), 1, "should have one signal");
+        assert_eq!(comp.signals[0].name, "name");
         // The type name in OmniLang is "String" (capitalized), preserved from the AST
-        assert_eq!(comp.states[0].r#type.kind.as_str(), "String");
+        assert_eq!(comp.signals[0].r#type.kind.as_str(), "String");
 
         // Check view has interpolation
         let view = comp.view.expect("should have view");
@@ -1481,9 +1481,9 @@ component TodoApp {
         );
 
         // Check signals (states)
-        assert_eq!(comp.states.len(), 2, "should have 2 signals");
-        assert_eq!(comp.states[0].name, "input");
-        assert_eq!(comp.states[1].name, "filter");
+        assert_eq!(comp.signals.len(), 2, "should have 2 signals");
+        assert_eq!(comp.signals[0].name, "input");
+        assert_eq!(comp.signals[1].name, "filter");
 
         // Check computeds
         assert_eq!(comp.computeds.len(), 1, "should have 1 computed");

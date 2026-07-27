@@ -57,7 +57,7 @@ impl ReactCodegen {
             }
             // Build setter renames for states whose setters conflict with function names
             let setter_renames: Vec<(String, String)> = comp
-                .states
+                .signals
                 .iter()
                 .filter_map(|s| {
                     let setter_name = format!("set{}", capitalize_first(&s.name));

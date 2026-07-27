@@ -79,7 +79,7 @@ impl ReactCodegen {
 
         // Determine if any state actually needs useState (has active setter)
         let has_mutable_states = comp
-            .states
+            .signals
             .iter()
             .any(|s| read_signals.contains(&s.name) && mutated_signals.contains(&s.name));
         let mut hooks: Vec<&str> = Vec::new();
@@ -153,7 +153,7 @@ impl ReactCodegen {
         // Build set of local names (component states + props) that may shadow store signal names.
         // This prevents confusing a component prop `items` with a store signal `items`.
         let local_names: FxHashSet<String> = comp
-            .states
+            .signals
             .iter()
             .map(|s| s.name.clone())
             .chain(comp.props.keys().cloned())
@@ -204,7 +204,7 @@ impl ReactCodegen {
         // Build set of all signal names (component state + store signals + computeds)
         // so mutations use setter calls instead of direct assignment.
         let mut signal_names: FxHashSet<String> =
-            comp.states.iter().map(|s| s.name.clone()).collect();
+            comp.signals.iter().map(|s| s.name.clone()).collect();
         // Also include store-ref aliases + their signal names
         // Build a map from bare store signal name → qualified StoreName.signalName
         let mut store_signal_map: FxHashMap<String, String> = FxHashMap::default();
@@ -412,7 +412,7 @@ impl ReactCodegen {
         // Computed values (useMemo)
         // Build a list of "signal-like" identifiers (state vars, store refs, other computeds)
         let mut known_signal_names: Vec<String> =
-            comp.states.iter().map(|s| s.name.clone()).collect();
+            comp.signals.iter().map(|s| s.name.clone()).collect();
         known_signal_names.extend(comp.store_refs.iter().cloned());
         known_signal_names.extend(comp.computeds.iter().map(|c| c.name.clone()));
 

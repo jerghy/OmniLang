@@ -24,7 +24,7 @@ impl ReactCodegen {
         mutated_signals: &FxHashSet<String>,
         fn_names: &FxHashSet<String>,
     ) {
-        for state in &comp.states {
+        for state in &comp.signals {
             if !read_signals.contains(&state.name) {
                 continue;
             }

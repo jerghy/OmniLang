@@ -150,7 +150,7 @@ impl OmniViewGenerator {
             );
         }
         // Register THIS component's signal/computed names with component prefix.
-        for state in &comp.states {
+        for state in &comp.signals {
             let prefixed = format!("{}_{}", name, state.name);
             self.name_renames
                 .insert(state.name.clone(), prefixed.clone());
@@ -197,7 +197,7 @@ impl OmniViewGenerator {
         let _ = write!(self.js, "\n/// ── Component: {} ──\n\n", name);
 
         // Signal declarations
-        for state in &comp.states {
+        for state in &comp.signals {
             self.emit_signal_decl(state);
         }
 
@@ -309,7 +309,7 @@ impl OmniViewGenerator {
             self.current_component = name.to_string();
             let saved_signal_names: FxHashSet<String> = self.signal_names.iter().cloned().collect();
             // Merge component's signals for proper .value access in lifecycle bodies
-            for state in &comp.states {
+            for state in &comp.signals {
                 let prefixed = format!("{}_{}", name, state.name);
                 self.signal_names.insert(prefixed);
             }
@@ -359,7 +359,7 @@ impl OmniViewGenerator {
             let saved_component = self.current_component.clone();
             self.current_component = name.to_string();
             let saved_signal_names: FxHashSet<String> = self.signal_names.iter().cloned().collect();
-            for state in &comp.states {
+            for state in &comp.signals {
                 let prefixed = format!("{}_{}", name, state.name);
                 self.signal_names.insert(prefixed);
             }
@@ -445,7 +445,7 @@ impl OmniViewGenerator {
             // Collect all signal names from ALL components for dependency tracking
             let mut all_sig_reads: Vec<String> = Vec::new();
             for (cname, ccomp) in ir.all_components() {
-                for state in &ccomp.states {
+                for state in &ccomp.signals {
                     let prefixed = format!("{}_{}", cname, state.name);
                     all_sig_reads.push(format!("{}.value;", prefixed));
                 }
@@ -488,7 +488,7 @@ impl OmniViewGenerator {
 
             // Collect signal variable names (prefixed) for the factory return object
             let mut signal_entries: Vec<String> = Vec::new();
-            for state in &comp.states {
+            for state in &comp.signals {
                 let prefixed = format!("{}_{}", name, state.name);
                 signal_entries.push(format!("{}: {}", prefixed, prefixed));
             }
@@ -548,7 +548,7 @@ impl OmniViewGenerator {
     // Signal Declaration
     // ══════════════════════════════════════════════════════
 
-    pub(super) fn emit_signal_decl(&mut self, state: &StateIntent) {
+    pub(super) fn emit_signal_decl(&mut self, state: &SignalIntent) {
         let init_val = self.expr_to_js(&state.initial_value);
         let prefixed = format!("{}_{}", self.current_component, state.name);
         let _ = writeln!(

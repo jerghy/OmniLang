@@ -72,7 +72,7 @@ fn generate_component(w: &mut CodeWriter, name: &str, comp: &ComponentIR, ts_mod
     w.indent();
 
     // Constructor with state initialization
-    if !comp.states.is_empty() || !comp.props.is_empty() {
+    if !comp.signals.is_empty() || !comp.props.is_empty() {
         // TS: emit field declarations before constructor
         if fmt.ts_mode() {
             for (prop_name, prop_type) in &comp.props {
@@ -80,7 +80,7 @@ fn generate_component(w: &mut CodeWriter, name: &str, comp: &ComponentIR, ts_mod
                     JsTypeFormatter.format_type(prop_type.kind.as_str(), &prop_type.type_args);
                 w.emit_fmt(format_args!("{}: {};", prop_name, ann));
             }
-            for state in &comp.states {
+            for state in &comp.signals {
                 let ann = JsTypeFormatter
                     .format_type(state.r#type.kind.as_str(), &state.r#type.type_args);
                 w.emit_fmt(format_args!("{}: {};", state.name, ann));

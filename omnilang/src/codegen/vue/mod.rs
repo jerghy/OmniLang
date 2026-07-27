@@ -164,7 +164,7 @@ impl VueCodegen {
         }
 
         // State (ref declarations)
-        for state in &comp.states {
+        for state in &comp.signals {
             let init_val = fmt.format_expr(&state.initial_value);
             let ts_type =
                 JsTypeFormatter.format_type(state.r#type.kind.as_str(), &state.r#type.type_args);

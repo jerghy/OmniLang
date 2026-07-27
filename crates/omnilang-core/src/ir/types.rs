@@ -838,7 +838,7 @@ pub enum StatementIR {
 // ═══════════════════════════════════════════════════════
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StateIntent {
+pub struct SignalIntent {
     pub name: String,
     pub r#type: TypeIR,
     pub initial_value: ExprIR,
@@ -1099,7 +1099,7 @@ pub struct ComponentIR {
     /// Props without defaults must be provided by the parent.
     #[serde(default)]
     pub prop_defaults: FxHashMap<String, ExprIR>,
-    pub states: Vec<StateIntent>,
+    pub signals: Vec<SignalIntent>,
     pub computeds: Vec<ComputedIntent>,
     pub effects: Vec<EffectIntent>,
     pub lifecycles: Vec<LifecycleIntent>,
