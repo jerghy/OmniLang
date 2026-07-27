@@ -28,55 +28,10 @@ pub use omnilang_core::validate;
 use crate::codegen::omniview::{ComponentOutput, StyleResolveResult};
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
-
 use ts_rs::TS;
 
-/// A single symbol from semantic analysis — variable, signal, prop, store, etc.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, ts_rs::TS)]
-#[ts(export)]
-pub struct SymbolInfo {
-    pub name: String,
-    pub kind: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub type_ann: Option<String>,
-    pub mutable: bool,
-}
-
-/// Top-level compile result — returned as JSON by WASM/native bindings.
-#[derive(Debug, Serialize, Deserialize, TS)]
-pub struct CompileResult {
-    pub success: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[ts(type = "Record<string, unknown> | null")]
-    pub ir: Option<ir::IRProgram>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub errors: Vec<error::Diagnostic>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub symbols: Vec<SymbolInfo>,
-    #[serde(default, skip_serializing_if = "FxHashMap::is_empty")]
-    pub dependencies: FxHashMap<String, Vec<String>>,
-}
-
-/// Compile .omni source -> IR. Core function shared by WASM and native.
-#[must_use]
-pub fn compile(source: &str) -> CompileResult {
-    match run_pipeline(source) {
-        Err(errors) => CompileResult {
-            success: false,
-            ir: None,
-            errors,
-            symbols: Vec::new(),
-            dependencies: FxHashMap::default(),
-        },
-        Ok(output) => CompileResult {
-            success: !output.has_errors,
-            ir: Some(output.ir),
-            errors: output.diagnostics,
-            symbols: output.symbols,
-            dependencies: output.dependencies,
-        },
-    }
-}
+// ── Re-exported from omnilang-core (P35 dedup) ──
+pub use omnilang_core::{CompileResult, SymbolInfo, compile};
 
 // ═══════════════════════════════════════════════════════
 // Shared Pipeline
@@ -87,8 +42,6 @@ struct PipelineOutput {
     ir: ir::IRProgram,
     diagnostics: Vec<error::Diagnostic>,
     has_errors: bool,
-    symbols: Vec<SymbolInfo>,
-    dependencies: FxHashMap<String, Vec<String>>,
 }
 
 /// Run the shared compilation pipeline: lex -> parse -> semantic -> IR lowering.
@@ -99,21 +52,6 @@ fn run_pipeline(source: &str) -> Result<PipelineOutput, Vec<error::Diagnostic>> 
     let program = parser::parse(tokens, source).map_err(|e| vec![e.into()])?;
     let mut semantics = semantic::analyze(&program);
 
-    // Extract symbols before ir::lower() which borrows semantics mutably
-    let symbols: Vec<SymbolInfo> = semantics
-        .symbols
-        .scopes()
-        .iter()
-        .flat_map(|scope| scope.symbols.values())
-        .map(|sym| SymbolInfo {
-            name: sym.name.clone(),
-            kind: format!("{:?}", sym.kind).to_lowercase(),
-            type_ann: sym.type_ann.clone(),
-            mutable: sym.mutable,
-        })
-        .collect();
-    let dependencies = std::mem::take(&mut semantics.dependencies);
-
     let has_errors = semantics
         .diagnostics
         .iter()
@@ -123,8 +61,6 @@ fn run_pipeline(source: &str) -> Result<PipelineOutput, Vec<error::Diagnostic>> 
         ir,
         diagnostics: semantics.diagnostics,
         has_errors,
-        symbols,
-        dependencies,
     })
 }
 
@@ -569,49 +505,6 @@ pub fn compile_multi_to_target(
     })
 }
 
-/// Compile IR to multiple targets in parallel.
-///
-/// Phase 1-3 (parse, semantic, IR lowering) run once.
-/// Phase 4 (codegen) runs in parallel per target via rayon.
-/// All codegen backends are Send+Sync (verified: zero RefCell/Cell/Mutex in codegen/).
-#[cfg(feature = "multi-target")]
-#[must_use]
-pub fn compile_multi_target(
-    sources: FxHashMap<String, String>,
-    targets: Vec<codegen::Target>,
-    path_mapping: FxHashMap<String, String>,
-    store_mode: Option<&str>,
-) -> FxHashMap<codegen::Target, codegen::CompileOutput> {
-    use rayon::prelude::*;
-
-    // Phase 1-3: Parse + analyse once (already parallel internally via rayon)
-    let analysis = crate::analyse::analyse_multi(&sources, &path_mapping);
-
-    // If no IR was produced, return errors for all targets
-    let ir = match analysis.ir {
-        Some(ir) => ir,
-        None => {
-            let msg = format!(
-                "Analysis failed with {} diagnostics",
-                analysis.diagnostics.len()
-            );
-            return targets
-                .into_iter()
-                .map(|t| (t, codegen::CompileOutput::error(msg.clone())))
-                .collect();
-        }
-    };
-
-    // Phase 4: Codegen in parallel per target
-    targets
-        .par_iter()
-        .map(|&target| {
-            let output = codegen::compile(&ir, target, &sources, store_mode);
-            (target, output)
-        })
-        .collect()
-}
-
 // ═══════════════════════════════════════════════════════
 // TS Export (generates TypeScript type definitions)
 // ═══════════════════════════════════════════════════════
@@ -703,33 +596,3 @@ mod source_map_integration_tests {
     }
 }
 
-#[cfg(test)]
-#[cfg(all(test, feature = "multi-target"))]
-mod compile_multi_target_tests {
-    use crate::codegen::Target;
-    use rustc_hash::FxHashMap;
-
-    #[test]
-    fn test_compile_multi_target_parallel() {
-        let mut sources = FxHashMap::default();
-        sources.insert(
-            "test.omni".to_string(),
-            r#"
-            component App {
-                view { <div>"Hello"</div> }
-            }
-            "#
-            .to_string(),
-        );
-
-        let targets = vec![Target::OmniView, Target::React];
-        let results = crate::compile_multi_target(sources, targets, FxHashMap::default(), None);
-        assert_eq!(results.len(), 2, "should return one result per target");
-        for (target, output) in &results {
-            assert!(
-                !output.files.is_empty() || !output.errors.is_empty(),
-                "Target {target:?} produced neither files nor errors"
-            );
-        }
-    }
-}

@@ -309,6 +309,9 @@ pub fn analyse_multi(
         merge_file_ir_into(&mut merged_ir, &path, &mut ir_program, &mut merge_warnings);
     }
 
+    // Phase 3c: IR optimization passes
+    crate::ir::optimize::optimize(&mut merged_ir);
+
     // Phase 4: Run lint rules against ASTs and merged IR
     let lint_diags = crate::semantic::lints::run_all(&programs, &merged_ir);
     let mut warnings: Vec<Diagnostic> = merge_warnings;
@@ -537,6 +540,9 @@ pub fn analyse_multi_cached(
         let mut ir = ir_program;
         merge_file_ir_into(&mut merged_ir, &path, &mut ir, &mut merge_warnings);
     }
+
+    // Phase 3c: IR optimization passes
+    crate::ir::optimize::optimize(&mut merged_ir);
 
     // Phase 4: Run lint rules against ASTs and merged IR
     let lint_diags = crate::semantic::lints::run_all(&all_programs, &merged_ir);

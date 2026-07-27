@@ -1,4 +1,5 @@
 packages:
   - "poiesis"
 allowBuilds:
-  esbuild: set this to true or false
+  esbuild: true
+trustPolicy: no-downgrade

@@ -15,7 +15,7 @@ pub mod flutter;
 pub mod helpers;
 #[cfg(feature = "codegen-javascript")]
 pub mod javascript;
-pub mod json;
+pub use omnilang_core::codegen::json;
 #[cfg(feature = "codegen-omniview")]
 pub mod omniview;
 #[cfg(feature = "codegen-python")]
@@ -24,14 +24,14 @@ pub mod python;
 pub mod react;
 #[cfg(feature = "codegen-rust")]
 pub mod rust;
-pub mod sanitize;
+pub use omnilang_core::codegen::sanitize;
 pub(crate) mod shared;
-pub mod stdlib;
-pub mod target;
-pub mod traits;
+pub use omnilang_core::codegen::stdlib;
+pub use omnilang_core::codegen::target;
+pub use omnilang_core::codegen::traits;
 #[cfg(feature = "codegen-vue")]
 pub mod vue;
-pub mod writer;
+pub use omnilang_core::codegen::writer;
 
 use crate::ir::IRProgram;
 #[cfg(any(feature = "codegen-omniview", feature = "codegen-vue"))]

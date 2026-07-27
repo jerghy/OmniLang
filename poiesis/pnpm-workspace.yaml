@@ -1,4 +1,5 @@
+trustPolicy: no-downgrade
 allowBuilds:
-  esbuild: set this to true or false
+  esbuild: true
 minimumReleaseAge: 10080
 trustedDependencies: semver

@@ -39,7 +39,7 @@ mod tests {
         assert_eq!(rs_type("Vec", std::slice::from_ref(&i32_arg)), "Vec<i32>");
         assert_eq!(
             rs_type("HashMap", &[string_arg.clone(), i32_arg.clone()]),
-            "HashMap<String, i32>"
+            "FxHashMap<String, i32>"
         );
     }
 
