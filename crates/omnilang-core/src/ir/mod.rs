@@ -7,8 +7,10 @@ pub mod logic;
 mod lower;
 pub mod lower_logic;
 pub mod optimize;
+mod events;
 mod types;
 mod types_motion;
+mod signals;
 pub mod visibility;
 
 pub use lower::lower;
