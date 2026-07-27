@@ -222,6 +222,7 @@ fn test_generate_function_empty_js() {
         return_type: None,
         body: BlockIR { statements: vec![] },
         is_async: false,
+        source_span: None,
     };
     generate_function(&mut w, &func, false);
     let out = w.into_string();
@@ -242,6 +243,7 @@ fn test_generate_function_empty_ts() {
         }),
         body: BlockIR { statements: vec![] },
         is_async: false,
+        source_span: None,
     };
     generate_function(&mut w, &func, true);
     let out = w.into_string();
@@ -269,6 +271,7 @@ fn test_generate_function_with_params_ts() {
         }),
         body: BlockIR { statements: vec![] },
         is_async: false,
+        source_span: None,
     };
     generate_function(&mut w, &func, true);
     let out = w.into_string();
@@ -292,6 +295,7 @@ fn test_generate_function_with_params_js() {
         return_type: None,
         body: BlockIR { statements: vec![] },
         is_async: false,
+        source_span: None,
     };
     generate_function(&mut w, &func, false);
     let out = w.into_string();
@@ -313,6 +317,7 @@ fn test_generate_async_function_js() {
         }),
         body: BlockIR { statements: vec![] },
         is_async: true,
+        source_span: None,
     };
     generate_function(&mut w, &func, false);
     let out = w.into_string();
@@ -337,6 +342,7 @@ fn test_generate_async_function_ts() {
         }),
         body: BlockIR { statements: vec![] },
         is_async: true,
+        source_span: None,
     };
     generate_function(&mut w, &func, true);
     let out = w.into_string();
@@ -449,6 +455,7 @@ fn test_js_component_with_function() {
             return_type: None,
             body: BlockIR { statements: vec![] },
             is_async: false,
+            source_span: None,
         }],
         store_refs: vec![],
         refs: vec![],
@@ -715,6 +722,7 @@ fn test_js_full_pipeline_through_trait() {
                             return_type: None,
                             body: BlockIR { statements: vec![] },
                             is_async: false,
+                            source_span: None,
                         }],
                         store_refs: vec![],
                         refs: vec![],
@@ -734,6 +742,7 @@ fn test_js_full_pipeline_through_trait() {
         )]),
         source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
+        source_span: None,
     };
     let sources = FxHashMap::from_iter([("main.omni".into(), "".into())]);
     let output = codegen.generate(&ir, &sources);
@@ -776,6 +785,7 @@ fn test_ts_full_pipeline_through_trait() {
                             }),
                             body: BlockIR { statements: vec![] },
                             is_async: false,
+                            source_span: None,
                         }],
                         store_refs: vec![],
                         refs: vec![],
@@ -795,6 +805,7 @@ fn test_ts_full_pipeline_through_trait() {
         )]),
         source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
+        source_span: None,
     };
     let sources = FxHashMap::from_iter([("main.omni".into(), "".into())]);
     let output = codegen.generate(&ir, &sources);
@@ -823,6 +834,7 @@ fn test_js_generate_struct() {
                     is_nullable: false,
                 },
                 visibility: Visibility::Public,
+                source_span: None,
             },
             FieldIR {
                 name: "y".into(),
@@ -832,8 +844,10 @@ fn test_js_generate_struct() {
                     is_nullable: false,
                 },
                 visibility: Visibility::Public,
+                source_span: None,
             },
         ],
+        source_span: None,
     };
     visitor(false).generate_struct(&mut w, &struct_ir);
     let out = w.into_string();
@@ -858,6 +872,7 @@ fn test_ts_generate_struct() {
                     is_nullable: false,
                 },
                 visibility: Visibility::Public,
+                source_span: None,
             },
             FieldIR {
                 name: "y".into(),
@@ -867,8 +882,10 @@ fn test_ts_generate_struct() {
                     is_nullable: false,
                 },
                 visibility: Visibility::Public,
+                source_span: None,
             },
         ],
+        source_span: None,
     };
     visitor(true).generate_struct(&mut w, &struct_ir);
     let out = w.into_string();
@@ -883,6 +900,7 @@ fn test_js_generate_empty_struct() {
         name: "Empty".into(),
         visibility: Visibility::Public,
         fields: vec![],
+        source_span: None,
     };
     visitor(false).generate_struct(&mut w, &struct_ir);
     let out = w.into_string();
@@ -900,16 +918,20 @@ fn test_js_generate_enum() {
             VariantIR {
                 name: "Red".into(),
                 payload: None,
+                source_span: None,
             },
             VariantIR {
                 name: "Green".into(),
                 payload: None,
+                source_span: None,
             },
             VariantIR {
                 name: "Blue".into(),
                 payload: None,
+                source_span: None,
             },
         ],
+        source_span: None,
     };
     visitor(false).generate_enum(&mut w, &enum_ir);
     let out = w.into_string();
@@ -927,6 +949,7 @@ fn test_js_generate_empty_enum() {
         name: "Empty".into(),
         visibility: Visibility::Public,
         variants: vec![],
+        source_span: None,
     };
     visitor(false).generate_enum(&mut w, &enum_ir);
     let out = w.into_string();
@@ -945,6 +968,7 @@ fn test_ts_generate_type_alias() {
             type_args: vec![],
             is_nullable: false,
         },
+        source_span: None,
     };
     visitor(true).generate_type_alias(&mut w, &alias);
     assert_eq!(w.into_string(), "export type UserId = number;\n");
@@ -961,6 +985,7 @@ fn test_js_skip_type_alias() {
             type_args: vec![],
             is_nullable: false,
         },
+        source_span: None,
     };
     visitor(false).generate_type_alias(&mut w, &alias);
     // CodeWriter always appends trailing newline, even when empty
@@ -977,6 +1002,7 @@ fn test_js_generate_standalone_function() {
         return_type: None,
         body: BlockIR { statements: vec![] },
         is_async: false,
+        source_span: None,
     };
     visitor(false).generate_function(&mut w, &func);
     let out = w.into_string();
@@ -1005,6 +1031,7 @@ fn test_ts_generate_standalone_function() {
         }),
         body: BlockIR { statements: vec![] },
         is_async: false,
+        source_span: None,
     };
     visitor(true).generate_function(&mut w, &func);
     let out = w.into_string();
@@ -1021,6 +1048,7 @@ fn test_ts_generate_standalone_function_private() {
         return_type: None,
         body: BlockIR { statements: vec![] },
         is_async: false,
+        source_span: None,
     };
     visitor(false).generate_function(&mut w, &func);
     let out = w.into_string();
@@ -1060,6 +1088,7 @@ fn test_js_generate_struct_private() {
         name: "Internal".into(),
         visibility: Visibility::Private,
         fields: vec![],
+        source_span: None,
     };
     visitor(false).generate_struct(&mut w, &struct_ir);
     let out = w.into_string();

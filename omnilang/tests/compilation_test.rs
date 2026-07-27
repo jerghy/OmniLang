@@ -3,7 +3,7 @@
 //! Tests the full pipeline: source text -> lexer -> parser -> semantic analysis
 //! -> IR lowering -> codegen, verifying output at each stage.
 
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 
 /// Helper: compile single source and unwrap the IR.
 fn compile_ok(source: &str) -> omnilang::ir::IRProgram {
@@ -73,12 +73,12 @@ fn e2e_struct_and_function() {
 #[cfg(feature = "codegen-python")]
 #[test]
 fn e2e_compile_to_python_json() {
-    let mut sources = HashMap::new();
+    let mut sources = FxHashMap::default();
     sources.insert(
         "main.omni".to_string(),
         "fn main() { print(\"hello\"); }".to_string(),
     );
-    let mut path_mapping = HashMap::new();
+    let mut path_mapping = FxHashMap::default();
     path_mapping.insert("main.omni".to_string(), "main.omni".to_string());
     path_mapping.insert("./main.omni".to_string(), "main.omni".to_string());
 
@@ -88,6 +88,7 @@ fn e2e_compile_to_python_json() {
         path_mapping,
         false,
         false,
+        None,
     );
     let data: serde_json::Value = serde_json::from_str(&json).expect("should be valid JSON");
     assert!(

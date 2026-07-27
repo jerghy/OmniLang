@@ -239,6 +239,7 @@ mod tests {
             return_type: None,
             body: BlockIR { statements: vec![] },
             is_async: false,
+            source_span: None,
         };
         generate_function(&mut w, &func);
         let out = w.into_string();
@@ -259,6 +260,7 @@ mod tests {
             }),
             body: BlockIR { statements: vec![] },
             is_async: false,
+            source_span: None,
         };
         generate_function(&mut w, &func);
         let out = w.into_string();
@@ -286,6 +288,7 @@ mod tests {
             }),
             body: BlockIR { statements: vec![] },
             is_async: false,
+            source_span: None,
         };
         generate_function(&mut w, &func);
         let out = w.into_string();
@@ -342,6 +345,7 @@ mod tests {
                 return_type: None,
                 body: BlockIR { statements: vec![] },
                 is_async: false,
+                source_span: None,
             }],
             store_refs: vec![],
             refs: vec![],
@@ -646,6 +650,7 @@ mod tests {
                                 return_type: None,
                                 body: BlockIR { statements: vec![] },
                                 is_async: false,
+                                source_span: None,
                             }],
                             store_refs: vec![],
                             refs: vec![],
@@ -665,6 +670,7 @@ mod tests {
             )]),
             source_map: FxHashMap::default(),
             stdlib_imports: Default::default(),
+            source_span: None,
         };
         let sources = FxHashMap::from_iter([("main.omni".into(), "".into())]);
         let output = codegen.generate(&ir, &sources);
@@ -712,6 +718,7 @@ mod tests {
             )]),
             source_map: FxHashMap::default(),
             stdlib_imports: Default::default(),
+            source_span: None,
         };
         let sources = FxHashMap::from_iter([("main.omni".into(), "".into())]);
         let output = codegen.generate(&ir, &sources);
@@ -739,6 +746,7 @@ mod tests {
                         is_nullable: false,
                     },
                     visibility: Visibility::Public,
+                    source_span: None,
                 },
                 FieldIR {
                     name: "y".into(),
@@ -748,8 +756,10 @@ mod tests {
                         is_nullable: false,
                     },
                     visibility: Visibility::Public,
+                    source_span: None,
                 },
             ],
+            source_span: None,
         };
         visitor().generate_struct(&mut w, &struct_ir);
         let out = w.into_string();
@@ -765,6 +775,7 @@ mod tests {
             name: "Empty".into(),
             visibility: Visibility::Public,
             fields: vec![],
+            source_span: None,
         };
         visitor().generate_struct(&mut w, &struct_ir);
         let out = w.into_string();
@@ -782,16 +793,20 @@ mod tests {
                 VariantIR {
                     name: "Red".into(),
                     payload: None,
+                    source_span: None,
                 },
                 VariantIR {
                     name: "Green".into(),
                     payload: None,
+                    source_span: None,
                 },
                 VariantIR {
                     name: "Blue".into(),
                     payload: None,
+                    source_span: None,
                 },
             ],
+            source_span: None,
         };
         visitor().generate_enum(&mut w, &enum_ir);
         let out = w.into_string();
@@ -815,6 +830,7 @@ mod tests {
                         type_args: vec![],
                         is_nullable: false,
                     }),
+                    source_span: None,
                 },
                 VariantIR {
                     name: "Text".into(),
@@ -823,8 +839,10 @@ mod tests {
                         type_args: vec![],
                         is_nullable: false,
                     }),
+                    source_span: None,
                 },
             ],
+            source_span: None,
         };
         visitor().generate_enum(&mut w, &enum_ir);
         let out = w.into_string();
@@ -840,6 +858,7 @@ mod tests {
             name: "Empty".into(),
             visibility: Visibility::Public,
             variants: vec![],
+            source_span: None,
         };
         visitor().generate_enum(&mut w, &enum_ir);
         let out = w.into_string();
@@ -858,6 +877,7 @@ mod tests {
                 type_args: vec![],
                 is_nullable: false,
             },
+            source_span: None,
         };
         visitor().generate_type_alias(&mut w, &alias);
         assert_eq!(w.into_string(), "pub type UserId = i32;\n");
@@ -873,6 +893,7 @@ mod tests {
             return_type: None,
             body: BlockIR { statements: vec![] },
             is_async: false,
+            source_span: None,
         };
         visitor().generate_function(&mut w, &func);
         let out = w.into_string();
@@ -901,6 +922,7 @@ mod tests {
             }),
             body: BlockIR { statements: vec![] },
             is_async: false,
+            source_span: None,
         };
         visitor().generate_function(&mut w, &func);
         let out = w.into_string();
@@ -918,6 +940,7 @@ mod tests {
             return_type: None,
             body: BlockIR { statements: vec![] },
             is_async: false,
+            source_span: None,
         };
         visitor().generate_function(&mut w, &func);
         let out = w.into_string();
@@ -956,6 +979,7 @@ mod tests {
             name: "Internal".into(),
             visibility: Visibility::Private,
             fields: vec![],
+            source_span: None,
         };
         visitor().generate_struct(&mut w, &struct_ir);
         let out = w.into_string();
@@ -970,6 +994,7 @@ mod tests {
             name: "Internal".into(),
             visibility: Visibility::Private,
             variants: vec![],
+            source_span: None,
         };
         visitor().generate_enum(&mut w, &enum_ir);
         let out = w.into_string();

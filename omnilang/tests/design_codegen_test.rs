@@ -16,6 +16,7 @@ fn make_test_design() -> DesignIR {
         TokenIR {
             value: "#ffffff".to_string(),
             token_type: TokenTypeIR::Color,
+            source_span: None,
         },
     );
     tokens.insert(
@@ -23,6 +24,7 @@ fn make_test_design() -> DesignIR {
         TokenIR {
             value: "#6366f1".to_string(),
             token_type: TokenTypeIR::Color,
+            source_span: None,
         },
     );
     tokens.insert(
@@ -30,6 +32,7 @@ fn make_test_design() -> DesignIR {
         TokenIR {
             value: "8px".to_string(),
             token_type: TokenTypeIR::Size,
+            source_span: None,
         },
     );
 
@@ -49,7 +52,9 @@ fn make_test_design() -> DesignIR {
             )]
             .into_iter()
             .collect(),
+            source_span: None,
         }],
+        source_span: None,
     }];
 
     let variants = vec![VariantIR {
@@ -58,10 +63,12 @@ fn make_test_design() -> DesignIR {
             VariantDimIR {
                 name: "color".to_string(),
                 values: vec!["primary".to_string(), "danger".to_string()],
+                source_span: None,
             },
             VariantDimIR {
                 name: "size".to_string(),
                 values: vec!["sm".to_string(), "md".to_string()],
+                source_span: None,
             },
         ],
         defaults: vec![
@@ -82,7 +89,9 @@ fn make_test_design() -> DesignIR {
             properties: vec![("background".to_string(), "#6366f1".to_string())]
                 .into_iter()
                 .collect(),
+            source_span: None,
         }],
+        source_span: None,
     }];
 
     DesignIR {
@@ -90,6 +99,7 @@ fn make_test_design() -> DesignIR {
         tokens,
         classes,
         variants,
+        source_span: None,
     }
 }
 
@@ -243,6 +253,7 @@ fn emit_empty_design_produces_no_css() {
         tokens: FxHashMap::default(),
         classes: vec![],
         variants: vec![],
+        source_span: None,
     };
     let css = emit_design_css(&design, "Empty").expect("should emit CSS for empty design");
     assert!(
@@ -267,6 +278,7 @@ fn emit_class_with_multiple_pseudo_states() {
                 properties: vec![("border-color".to_string(), "#999".to_string())]
                     .into_iter()
                     .collect(),
+                source_span: None,
             },
             PseudoStateIR {
                 pseudo: "focus".to_string(),
@@ -276,8 +288,10 @@ fn emit_class_with_multiple_pseudo_states() {
                 ]
                 .into_iter()
                 .collect(),
+                source_span: None,
             },
         ],
+        source_span: None,
     }];
 
     let design = DesignIR {
@@ -285,6 +299,7 @@ fn emit_class_with_multiple_pseudo_states() {
         tokens: FxHashMap::default(),
         classes,
         variants: vec![],
+        source_span: None,
     };
 
     let css = emit_design_css(&design, "FormDesign").expect("should emit CSS");

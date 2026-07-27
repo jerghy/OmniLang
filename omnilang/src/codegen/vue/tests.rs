@@ -292,6 +292,7 @@ mod tests {
             )]),
             stdlib_imports: Default::default(),
             source_map: FxHashMap::default(),
+            source_span: None,
         }
     }
 
@@ -674,6 +675,7 @@ mod tests {
             )]),
             source_map: FxHashMap::default(),
             stdlib_imports: Default::default(),
+            source_span: None,
         };
         let sources = FxHashMap::from_iter([("main.omni".into(), "".into())]);
         let output = codegen.generate(&ir, &sources);
@@ -729,6 +731,7 @@ mod tests {
             )]),
             source_map: FxHashMap::default(),
             stdlib_imports: Default::default(),
+            source_span: None,
         };
         let sources = FxHashMap::from_iter([("main.omni".into(), "".into())]);
         let output = codegen.generate(&ir, &sources);
@@ -773,6 +776,7 @@ mod tests {
             )]),
             source_map: FxHashMap::default(),
             stdlib_imports: Default::default(),
+            source_span: None,
         };
         let sources = FxHashMap::from_iter([("main.omni".into(), "".into())]);
         let output = codegen.generate(&ir, &sources);
@@ -837,6 +841,7 @@ mod tests {
             )]),
             source_map: FxHashMap::default(),
             stdlib_imports: Default::default(),
+            source_span: None,
         };
         let sources = FxHashMap::from_iter([("main.omni".into(), "".into())]);
         let output = codegen.generate(&ir, &sources);
