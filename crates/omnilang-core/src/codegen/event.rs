@@ -11,10 +11,10 @@ use crate::ir::EventDataKind;
 
 /// Emit JS extraction code for a single event data field.
 /// Returns (extraction_expression, fallback_value_literal).
-/// `pub(crate)` so other codegen targets (Vue, JS) can reuse the DOM-based mapping.
+/// `pub` so other codegen targets (Vue, JS) can reuse the DOM-based mapping.
 #[cfg(any(feature = "codegen-omniview", feature = "codegen-vue"))]
 #[must_use]
-pub(crate) fn field_extract_js(kind: &EventDataKind, field: &str, raw: &str) -> (String, String) {
+pub fn field_extract_js(kind: &EventDataKind, field: &str, raw: &str) -> (String, String) {
     match (kind, field) {
         // PointerEvent
         (EventDataKind::PointerEvent, "x") => (format!("{}.clientX", raw), "0".into()),
@@ -154,10 +154,10 @@ pub(crate) fn field_extract_js(kind: &EventDataKind, field: &str, raw: &str) -> 
 
 /// Emit a JS object literal for event data extraction from a raw event variable.
 /// Only emits fields in `used_fields` (or all fields from schema if None).
-/// `pub(crate)` so other codegen targets (Vue, JS) can reuse the DOM-based mapping.
+/// `pub` so other codegen targets (Vue, JS) can reuse the DOM-based mapping.
 #[cfg(any(feature = "codegen-omniview", feature = "codegen-vue"))]
 #[must_use]
-pub(crate) fn emit_event_object(
+pub fn emit_event_object(
     event_data: &Option<EventDataKind>,
     used_fields: &Option<Vec<String>>,
     raw_var: &str,

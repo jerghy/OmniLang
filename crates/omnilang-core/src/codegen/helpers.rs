@@ -133,7 +133,7 @@ pub fn format_css_value(value: &crate::ir::ExprIR) -> String {
 /// Generate a CSS style block for component styles.
 /// Handles both empty (generates default `.container {}`) and populated style lists.
 #[cfg(any(feature = "codegen-react", feature = "codegen-vue"))]
-pub(crate) fn generate_css_style_block(w: &mut CodeWriter, styles: &[crate::ir::StyleRuleIR]) {
+pub fn generate_css_style_block(w: &mut CodeWriter, styles: &[crate::ir::StyleRuleIR]) {
     if styles.is_empty() {
         w.emit(".container {");
         w.emit("}");

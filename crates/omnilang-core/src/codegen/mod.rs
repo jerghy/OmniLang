@@ -5,32 +5,14 @@
 //! - Python, JavaScript, Rust, Dart: pure-logic codegen
 //! - React, Vue, Dioxus, Flutter: framework-based codegen
 
-#[cfg(feature = "codegen-dart")]
-pub mod dart;
-#[cfg(feature = "codegen-dioxus")]
-pub mod dioxus;
 pub mod event;
-#[cfg(feature = "codegen-flutter")]
-pub mod flutter;
 pub mod helpers;
-#[cfg(feature = "codegen-javascript")]
-pub mod javascript;
 pub mod json;
-#[cfg(feature = "codegen-omniview")]
-pub mod omniview;
-#[cfg(feature = "codegen-python")]
-pub mod python;
-#[cfg(feature = "codegen-react")]
-pub mod react;
-#[cfg(feature = "codegen-rust")]
-pub mod rust;
 pub mod sanitize;
 pub(crate) mod shared;
 pub mod stdlib;
 pub mod target;
 pub mod traits;
-#[cfg(feature = "codegen-vue")]
-pub mod vue;
 pub mod writer;
 
 use crate::ir::IRProgram;

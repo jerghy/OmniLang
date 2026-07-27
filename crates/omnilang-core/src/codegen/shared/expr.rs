@@ -9,36 +9,10 @@
 //! | `DartFormatExpr` | Dart (Dart, Flutter) | `==`, `.`, `null` fallback |
 //! | `RustFormatExpr` | Rust (Rust, Dioxus) | `if/else`, `vec![]`, `.await`, `None` fallback |
 
-#[cfg_attr(
-    not(any(
-        feature = "codegen-javascript",
-        feature = "codegen-react",
-        feature = "codegen-vue",
-        feature = "codegen-dart",
-        feature = "codegen-flutter",
-        feature = "codegen-rust",
-        feature = "codegen-dioxus",
-        feature = "codegen-python"
-    )),
-    allow(unused_imports)
-)]
 use crate::codegen::{
     binary_op_to_str, format_block_as_expr, format_json_value, try_format_stdlib_call,
     JsonFormatConfig, Target,
 };
-#[cfg_attr(
-    not(any(
-        feature = "codegen-javascript",
-        feature = "codegen-react",
-        feature = "codegen-vue",
-        feature = "codegen-dart",
-        feature = "codegen-flutter",
-        feature = "codegen-rust",
-        feature = "codegen-dioxus",
-        feature = "codegen-python"
-    )),
-    allow(unused_imports)
-)]
 use crate::ir::*;
 
 // ═══════════════════════════════════════════════════════════
@@ -49,17 +23,7 @@ use crate::ir::*;
 ///
 /// Default implementations produce JS-family syntax (React/Vue style).
 /// Backends override only the methods that differ.
-#[cfg(any(
-    feature = "codegen-javascript",
-    feature = "codegen-react",
-    feature = "codegen-vue",
-    feature = "codegen-dart",
-    feature = "codegen-flutter",
-    feature = "codegen-rust",
-    feature = "codegen-dioxus",
-    feature = "codegen-python"
-))]
-pub(crate) trait FormatExpr {
+pub trait FormatExpr {
     /// JSON literal formatting config for this language (REQUIRED).
     fn json_config(&self) -> &JsonFormatConfig;
 
@@ -332,19 +296,8 @@ pub(crate) trait FormatExpr {
 /// JS-family expression formatter.
 ///
 /// Defaults: `===`, `?.`, `undefined` fallback.
-#[cfg(any(
-    feature = "codegen-javascript",
-    feature = "codegen-react",
-    feature = "codegen-vue"
-))]
-#[allow(dead_code)]
-pub(crate) struct JsFormatExpr;
+pub struct JsFormatExpr;
 
-#[cfg(any(
-    feature = "codegen-javascript",
-    feature = "codegen-react",
-    feature = "codegen-vue"
-))]
 impl FormatExpr for JsFormatExpr {
     fn json_config(&self) -> &JsonFormatConfig {
         &crate::codegen::JSON_JS
@@ -370,10 +323,8 @@ impl FormatExpr for JsFormatExpr {
 /// Dart-family expression formatter.
 ///
 /// Defaults: `==`, `.`, `null` fallback, Dart string/number config.
-#[cfg(any(feature = "codegen-dart", feature = "codegen-flutter"))]
-pub(crate) struct DartFormatExpr;
+pub struct DartFormatExpr;
 
-#[cfg(any(feature = "codegen-dart", feature = "codegen-flutter"))]
 impl FormatExpr for DartFormatExpr {
     fn json_config(&self) -> &JsonFormatConfig {
         &crate::codegen::JSON_DART
@@ -434,12 +385,10 @@ impl FormatExpr for DartFormatExpr {
 ///
 /// Defaults: `if/else` ternary, `vec![]` arrays, `.await`, `None` fallback.
 /// When `move_closures` is true (Dioxus), closures emit `move ||` syntax.
-#[cfg(any(feature = "codegen-rust", feature = "codegen-dioxus"))]
-pub(crate) struct RustFormatExpr {
+pub struct RustFormatExpr {
     pub move_closures: bool,
 }
 
-#[cfg(any(feature = "codegen-rust", feature = "codegen-dioxus"))]
 impl FormatExpr for RustFormatExpr {
     fn json_config(&self) -> &JsonFormatConfig {
         &crate::codegen::JSON_RUST
