@@ -204,17 +204,34 @@
   function updateSignalDisplay(signals) {
     var signalKeys = Object.keys(signals);
     if (signalKeys.length > 0) {
-      var html = '';
+      signalList.innerHTML = '';
       signalKeys.forEach(function(k) {
         var val = signals[k];
         if (typeof val === 'object') val = JSON.stringify(val).substring(0, 60);
         else if (typeof val === 'function') val = '[fn]';
         else val = String(val);
-        html += '<div class="signal-row"><span class="signal-name">' + k + '</span><span class="signal-value">' + val + '</span></div>';
+
+        var row = document.createElement('div');
+        row.className = 'signal-row';
+
+        var nameSpan = document.createElement('span');
+        nameSpan.className = 'signal-name';
+        nameSpan.textContent = k;
+
+        var valSpan = document.createElement('span');
+        valSpan.className = 'signal-value';
+        valSpan.textContent = val;
+
+        row.appendChild(nameSpan);
+        row.appendChild(valSpan);
+        signalList.appendChild(row);
       });
-      signalList.innerHTML = html;
     } else {
-      signalList.innerHTML = '<div class="empty-hint">(no signals)</div>';
+      signalList.innerHTML = '';
+      var emptyHint = document.createElement('div');
+      emptyHint.className = 'empty-hint';
+      emptyHint.textContent = '(no signals)';
+      signalList.appendChild(emptyHint);
     }
 
     var storeNames = new Set();
@@ -224,11 +241,19 @@
     });
     var storeArr = Array.from(storeNames);
     if (storeArr.length > 0) {
-      actionList.innerHTML = storeArr.map(function(sn) {
-        return '<div class="action-row">📦 ' + sn + '</div>';
-      }).join('');
+      actionList.innerHTML = '';
+      storeArr.forEach(function(sn) {
+        var div = document.createElement('div');
+        div.className = 'action-row';
+        div.textContent = '📦 ' + sn;
+        actionList.appendChild(div);
+      });
     } else {
-      actionList.innerHTML = '<div class="empty-hint">(no actions)</div>';
+      actionList.innerHTML = '';
+      var emptyAction = document.createElement('div');
+      emptyAction.className = 'empty-hint';
+      emptyAction.textContent = '(no actions)';
+      actionList.appendChild(emptyAction);
     }
   }
 
