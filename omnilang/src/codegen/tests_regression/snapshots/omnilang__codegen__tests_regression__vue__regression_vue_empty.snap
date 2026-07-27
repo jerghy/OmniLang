@@ -1,6 +1,0 @@
----
-source: omnilang/src/codegen/tests_regression/vue.rs
-assertion_line: 14
-expression: "&format_output(&output)"
----
-(no output files)

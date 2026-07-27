@@ -3,16 +3,11 @@
 //! Provides shared fixture factories and helpers for per-backend test modules.
 //! Each backend sub-module contains its own snapshot tests.
 
-pub(crate) mod dart;
-pub(crate) mod dioxus;
-pub(crate) mod flutter;
+#[cfg(feature = "codegen-javascript")]
 pub(crate) mod javascript;
-pub(crate) mod python;
-pub(crate) mod react;
-pub(crate) mod rust;
-pub(crate) mod vue;
+pub(crate) mod parameterized;
 
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 
 use crate::codegen::CompileOutput;
 use crate::ir::*;
@@ -25,21 +20,21 @@ use crate::ir::*;
 pub(crate) fn fixture_empty() -> IRProgram {
     IRProgram {
         version: "0.1".into(),
-        modules: HashMap::from([(
+        modules: FxHashMap::from_iter([(
             "main".to_string(),
             ModuleIR {
                 name: "main".to_string(),
                 ..Default::default()
             },
         )]),
-        source_map: HashMap::new(),
+        source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
     }
 }
 
 /// A simple component with a state, props, computed, effect, and a view tree.
 pub(crate) fn fixture_component() -> IRProgram {
-    let mut props = HashMap::new();
+    let mut props = FxHashMap::default();
     props.insert(
         "name".into(),
         TypeIR {
@@ -78,7 +73,7 @@ pub(crate) fn fixture_component() -> IRProgram {
         name: "Counter".into(),
         generic_params: vec![],
         props,
-        prop_defaults: HashMap::new(),
+        prop_defaults: FxHashMap::default(),
         states: vec![state],
         computeds: vec![ComputedIntent {
             name: "doubled".into(),
@@ -107,9 +102,9 @@ pub(crate) fn fixture_component() -> IRProgram {
         event_names: vec!["onUpdate".into()],
         view: Some(ViewTree::Element(ElementIR {
             tag: "div".into(),
-            props: HashMap::new(),
-            bindings: HashMap::new(),
-            events: HashMap::new(),
+            props: FxHashMap::default(),
+            bindings: FxHashMap::default(),
+            events: FxHashMap::default(),
             style_classes: None,
             inline_style: None,
             children: vec![
@@ -119,7 +114,7 @@ pub(crate) fn fixture_component() -> IRProgram {
                     type_ann: None,
                 })),
             ],
-            class_map_bindings: HashMap::new(),
+            class_map_bindings: FxHashMap::default(),
             motion: None,
             scroll: None,
             drag: None,
@@ -139,15 +134,15 @@ pub(crate) fn fixture_component() -> IRProgram {
     };
     IRProgram {
         version: "0.1".into(),
-        modules: HashMap::from([(
+        modules: FxHashMap::from_iter([(
             "main".to_string(),
             ModuleIR {
                 name: "main".to_string(),
-                components: HashMap::from([("Counter".into(), comp)]),
+                components: FxHashMap::from_iter([("Counter".into(), comp)]),
                 ..Default::default()
             },
         )]),
-        source_map: HashMap::new(),
+        source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
     }
 }
@@ -156,7 +151,7 @@ pub(crate) fn fixture_component() -> IRProgram {
 pub(crate) fn fixture_store() -> IRProgram {
     let store = StoreIR {
         name: "AppStore".into(),
-        signals: HashMap::from([(
+        signals: FxHashMap::from_iter([(
             "count".into(),
             TypeIR {
                 kind: "i32".into(),
@@ -164,8 +159,8 @@ pub(crate) fn fixture_store() -> IRProgram {
                 is_nullable: false,
             },
         )]),
-        signal_defaults: HashMap::from([("count".into(), serde_json::json!(0))]),
-        getters: HashMap::from([(
+        signal_defaults: FxHashMap::from_iter([("count".into(), serde_json::json!(0))]),
+        getters: FxHashMap::from_iter([(
             "doubleCount".into(),
             ExprIR::BinaryOpExpr {
                 op: BinaryOpIR::Mul,
@@ -194,7 +189,6 @@ pub(crate) fn fixture_store() -> IRProgram {
                         amount: Some(Box::new(ExprIR::LiteralExpr {
                             value: serde_json::json!(1),
                         })),
-                        item: None,
                     }),
                 }],
             },
@@ -204,15 +198,15 @@ pub(crate) fn fixture_store() -> IRProgram {
     };
     IRProgram {
         version: "0.1".into(),
-        modules: HashMap::from([(
+        modules: FxHashMap::from_iter([(
             "main".to_string(),
             ModuleIR {
                 name: "main".to_string(),
-                stores: HashMap::from([("AppStore".into(), store)]),
+                stores: FxHashMap::from_iter([("AppStore".into(), store)]),
                 ..Default::default()
             },
         )]),
-        source_map: HashMap::new(),
+        source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
     }
 }
@@ -221,7 +215,7 @@ pub(crate) fn fixture_store() -> IRProgram {
 pub(crate) fn fixture_component_with_store() -> IRProgram {
     let store = StoreIR {
         name: "AppStore".into(),
-        signals: HashMap::from([(
+        signals: FxHashMap::from_iter([(
             "count".into(),
             TypeIR {
                 kind: "i32".into(),
@@ -229,8 +223,8 @@ pub(crate) fn fixture_component_with_store() -> IRProgram {
                 is_nullable: false,
             },
         )]),
-        signal_defaults: HashMap::from([("count".into(), serde_json::json!(0))]),
-        getters: HashMap::new(),
+        signal_defaults: FxHashMap::from_iter([("count".into(), serde_json::json!(0))]),
+        getters: FxHashMap::default(),
         actions: vec![FunctionIR {
             name: "increment".into(),
             visibility: Visibility::Public,
@@ -247,7 +241,6 @@ pub(crate) fn fixture_component_with_store() -> IRProgram {
                         amount: Some(Box::new(ExprIR::LiteralExpr {
                             value: serde_json::json!(1),
                         })),
-                        item: None,
                     }),
                 }],
             },
@@ -258,8 +251,8 @@ pub(crate) fn fixture_component_with_store() -> IRProgram {
     let comp = ComponentIR {
         name: "CounterWithStore".into(),
         generic_params: vec![],
-        props: HashMap::new(),
-        prop_defaults: HashMap::new(),
+        props: FxHashMap::default(),
+        prop_defaults: FxHashMap::default(),
         states: vec![],
         computeds: vec![],
         effects: vec![],
@@ -270,9 +263,9 @@ pub(crate) fn fixture_component_with_store() -> IRProgram {
         event_names: vec![],
         view: Some(ViewTree::Element(ElementIR {
             tag: "div".into(),
-            props: HashMap::new(),
-            bindings: HashMap::new(),
-            events: HashMap::from([(
+            props: FxHashMap::default(),
+            bindings: FxHashMap::default(),
+            events: FxHashMap::from_iter([(
                 "onClick".into(),
                 EventHandlerIR::StoreAction {
                     r#ref: "AppStore.increment".into(),
@@ -289,7 +282,7 @@ pub(crate) fn fixture_component_with_store() -> IRProgram {
                     call_args: vec![],
                 })),
             ],
-            class_map_bindings: HashMap::new(),
+            class_map_bindings: FxHashMap::default(),
             motion: None,
             scroll: None,
             drag: None,
@@ -309,16 +302,16 @@ pub(crate) fn fixture_component_with_store() -> IRProgram {
     };
     IRProgram {
         version: "0.1".into(),
-        modules: HashMap::from([(
+        modules: FxHashMap::from_iter([(
             "main".to_string(),
             ModuleIR {
                 name: "main".to_string(),
-                stores: HashMap::from([("AppStore".into(), store)]),
-                components: HashMap::from([("CounterWithStore".into(), comp)]),
+                stores: FxHashMap::from_iter([("AppStore".into(), store)]),
+                components: FxHashMap::from_iter([("CounterWithStore".into(), comp)]),
                 ..Default::default()
             },
         )]),
-        source_map: HashMap::new(),
+        source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
     }
 }
@@ -334,37 +327,37 @@ pub(crate) fn fixture_expressions() -> IRProgram {
             statements: vec![
                 StatementIR::LetStmtIR {
                     name: "a".into(),
-                    value: Some(Box::new(ExprIR::LiteralExpr {
+                    value: Some(ExprIR::LiteralExpr {
                         value: serde_json::json!(10),
-                    })),
+                    }),
                     r#type: None,
                 },
                 StatementIR::LetStmtIR {
                     name: "b".into(),
-                    value: Some(Box::new(ExprIR::LiteralExpr {
+                    value: Some(ExprIR::LiteralExpr {
                         value: serde_json::json!(3),
-                    })),
+                    }),
                     r#type: None,
                 },
                 StatementIR::LetStmtIR {
                     name: "flag".into(),
-                    value: Some(Box::new(ExprIR::LiteralExpr {
+                    value: Some(ExprIR::LiteralExpr {
                         value: serde_json::json!(true),
-                    })),
+                    }),
                     r#type: None,
                 },
                 StatementIR::LetStmtIR {
                     name: "name".into(),
-                    value: Some(Box::new(ExprIR::LiteralExpr {
+                    value: Some(ExprIR::LiteralExpr {
                         value: serde_json::json!("hello"),
-                    })),
+                    }),
                     r#type: None,
                 },
                 StatementIR::LetStmtIR {
                     name: "nothing".into(),
-                    value: Some(Box::new(ExprIR::LiteralExpr {
+                    value: Some(ExprIR::LiteralExpr {
                         value: serde_json::Value::Null,
-                    })),
+                    }),
                     r#type: None,
                 },
                 StatementIR::LetStmtIR {
@@ -650,15 +643,15 @@ pub(crate) fn fixture_expressions() -> IRProgram {
     };
     IRProgram {
         version: "0.1".into(),
-        modules: HashMap::from([(
+        modules: FxHashMap::from_iter([(
             "main".to_string(),
             ModuleIR {
                 name: "main".to_string(),
-                functions: HashMap::from([("testExpressions".into(), func)]),
+                functions: FxHashMap::from_iter([("testExpressions".into(), func)]),
                 ..Default::default()
             },
         )]),
-        source_map: HashMap::new(),
+        source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
     }
 }
