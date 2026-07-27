@@ -1,0 +1,70 @@
+// OmniView 教学项目 — 66+ 源文件
+// 运行：omnic run    编译：omnic build --target omniview
+//
+// 架构：design（设计系统）→ components/pages（UI 组件）→ main（根组装）
+// 详见：src/design.omni（LearnDesign 设计系统）
+
+import omniview;
+
+// ── 全局 Store ──
+import { TodoStore } from "./stores/TodoStore";
+import { ThemeStore } from "./stores/ThemeStore";
+import { NotificationStore } from "./stores/NotificationStore";
+
+// ── 共享组件 ──
+import { Header } from "./components/Header";
+import { TabBar } from "./components/TabBar";
+import { LearnDesign } from "./design";
+
+// ── 页面聚合组件 ──
+import { HomePage } from "./pages/HomePage";
+import { TodoPage } from "./pages/TodoPage";
+import { InteractivePage } from "./pages/InteractivePage";
+import { CompilerPage } from "./pages/CompilerPage";
+import { MotionPage } from "./pages/MotionPage";
+import { CssPage } from "./pages/CssPage";
+import { EventsPage } from "./pages/EventsPage";
+import { LanguagePage } from "./pages/LanguagePage";
+import { SettingsPage } from "./pages/SettingsPage";
+import { SupplementPage } from "./pages/SupplementPage";
+
+// ── 逻辑库（命名空间导入，供页面内函数/表达式引用） ──
+import "./lib/types" as Types;
+import "./lib/stats" as StatsLib;
+import "./lib/transform" as TransformLib;
+import "./lib/validation" as ValidationLib;
+import { Percentage } from "./lib/reexports";
+
+component App {
+    @store TodoStore;
+    @store ThemeStore;
+    @store NotificationStore;
+
+    signal activeTab: String = "home";
+
+    fn switchTab(tab: String) { activeTab = tab; }
+
+    view {
+        <div class: LearnDesign.Page>
+            <Header />
+            <TabBar activeTab={activeTab} @onSwitch={switchTab} />
+
+            <div class: LearnDesign.TabContent>
+                @if activeTab == "home"        { <HomePage /> }
+                @if activeTab == "todo"        { <TodoPage /> }
+                @if activeTab == "interactive" { <InteractivePage /> }
+                @if activeTab == "compiler"    { <CompilerPage /> }
+                @if activeTab == "motion"      { <MotionPage /> }
+                @if activeTab == "css"         { <CssPage /> }
+                @if activeTab == "events"      { <EventsPage /> }
+                @if activeTab == "language"    { <LanguagePage /> }
+                @if activeTab == "settings"    { <SettingsPage /> }
+                @if activeTab == "supplement"  { <SupplementPage /> }
+            </div>
+
+            <footer class: LearnDesign.Footer>
+                <p class: LearnDesign.FooterText>OmniView 教学项目 · 66+ 源文件 · omnic run</p>
+            </footer>
+        </div>
+    }
+}

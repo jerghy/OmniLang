@@ -1,0 +1,58 @@
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  Dashboard.omni —— 仪表盘页面（Phase 7 新增）                    ║
+// ║  演示：页面级组件组合——将多个独立 demo 聚合到一个视图中            ║
+// ║                                                              ║
+// ║  聚合组件：                                                    ║
+// ║    StatsPanel      — prop 接收 + if 表达式                     ║
+// ║    StatsDashboard  — ref + const + 复合赋值 + @unmount         ║
+// ║    Counter         — signal + computed + 内联回调              ║
+// ║    FeatureCard     — struct 字面量 + @else if + @onFocus/Blur  ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+import omniview;
+import { LearnDesign } from "../design";
+import { StatsPanel } from "../components/StatsPanel";
+import { StatsDashboard } from "../components/StatsDashboard";
+import { Counter } from "../components/Counter";
+import { FeatureCard } from "../components/FeatureCard";
+
+component Dashboard {
+    // 本地状态：演示仪表盘级别的信号管理
+    signal totalItems: i32 = 42;
+    signal lastUpdated: String = "just now";
+
+    fn refresh() {
+        totalItems = totalItems + 1;
+        lastUpdated = "updated";
+    }
+
+    view {
+        <div class: LearnDesign.Container>
+            <header class: page-header>
+                <h2 class: LearnDesign.PageTitle>Dashboard</h2>
+                <p class: LearnDesign.PageSubtitle>
+                    Overview of {totalItems} items · Updated {lastUpdated}
+                </p>
+                <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={refresh}>Refresh</button>
+            </header>
+
+            <section class: LearnDesign.Section>
+                <h3 class: LearnDesign.SectionTitle>Statistics</h3>
+                <StatsPanel total={totalItems} />
+                <StatsDashboard />
+            </section>
+
+            <section class: LearnDesign.Section>
+                <h3 class: LearnDesign.SectionTitle>Interactions</h3>
+                <div class: demo-grid>
+                    <Counter />
+                    <FeatureCard />
+                </div>
+            </section>
+        </div>
+    }
+    style {
+        .page-header { padding: 20px; background: var(--surface); border-bottom: 1px solid var(--borderLight); display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+        .demo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    }
+}

@@ -1,0 +1,103 @@
+// DataFetching.omni —— HTTP GET 远程数据加载
+// 演示：http_get + await + json_parse + match + @if 状态切换
+
+import omniview;
+import { console_log, console_warn, console_error } from "std/console";
+import { http_get } from "std/http";
+import { json_parse, json_stringify } from "std/json";
+import { fetch_demo, error_message } from "../lib/api";
+
+component DataFetching {
+    signal status: String = "idle";
+    signal resultText: String = "";
+    signal errorMsg: String = "";
+    signal url: String = "https://jsonplaceholder.typicode.com/todos/1";
+    signal apiDemoText: String = "";
+
+    // async action: 使用 await http_get + json_parse 加载数据
+    action loadData() async {
+        status = "loading";
+        let raw = await http_get(url);
+        if raw == "" {
+            status = "error";
+            errorMsg = "Empty response from server";
+            console_error(errorMsg);
+            return;
+        }
+        let parsed = json_parse(raw);
+        resultText = json_stringify(parsed);
+        status = "success";
+        console_log("Fetch completed");
+    }
+
+    // async action: 调用 api.omni 的 fetch_demo（演示跨文件 pub async fn 导入）
+    action loadViaApi() async {
+        status = "loading";
+        let result = await fetch_demo(url);
+        let msg = error_message(result);
+        if msg == "" {
+            status = "success";
+            resultText = "api.omni fetch_demo OK";
+            console_log("Fetch completed");
+        } else {
+            status = "error";
+            errorMsg = msg;
+            console_error(msg);
+        }
+    }
+
+    fn reset() {
+        status = "idle";
+        resultText = "";
+        errorMsg = "";
+    }
+
+    view {
+        <div class: LearnDesign.Container>
+            <h3 class: LearnDesign.CardTitle>HTTP GET Demo</h3>
+            <p class: LearnDesign.Subtitle>async action + await http_get + json_parse + match</p>
+
+            <div class: controls>
+                <input bind:value={url} class: url-input></input>
+                <button variant: LearnDesign.Button(color=primary, size=md) @onPress={loadData}>Load</button>
+                <button variant: LearnDesign.Button(color=accent, size=md) @onPress={loadViaApi}>API</button>
+                <button variant: LearnDesign.Button(color=ghost, size=md) @onPress={reset}>Reset</button>
+            </div>
+
+            @if status == "loading" {
+                <div class: status-box loading-box>
+                    <p class: loading-text>Loading data...</p>
+                </div>
+            }
+            @else if status == "success" {
+                <div class: status-box success-box>
+                    <p class: LearnDesign.Label>Response:</p>
+                    <pre class: result>{resultText}</pre>
+                </div>
+            }
+            @else if status == "error" {
+                <div class: status-box error-box>
+                    <p class: LearnDesign.Label>Error:</p>
+                    <p class: error-text>{errorMsg}</p>
+                </div>
+            }
+            @else {
+                <div class: status-box idle-box>
+                    <p class: idle-text>Click Load for direct fetch, API to use api.omni</p>
+                </div>
+            }
+        </div>
+    }
+    style {
+        .controls { display: flex; gap: 8px; margin-bottom: 12px; }
+        .url-input { flex: 1; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radiusMd); font-size: 13px; }
+        .status-box { padding: 12px; border-radius: 8px; background: var(--surfaceMuted); border: 1px solid var(--border); }
+        .loading-box { border-color: var(--primary); background: #f0f4ff; }
+        .success-box { border-color: var(--success); background: #f0fdf4; }
+        .error-box { border-color: var(--warning); background: #fff5f0; }
+        .result { font-size: 12px; color: #333; margin: 0; max-height: 200px; overflow-y: auto; background: var(--surface); padding: 8px; border-radius: var(--radiusSm); }
+        .loading-text { color: var(--primary); font-size: 14px; margin: 0; }
+        .idle-text { color: var(--textSecondary); font-size: 14px; margin: 0; }
+        .error-text { color: var(--warning); font-size: 14px; margin: 0; }
+    }
+}

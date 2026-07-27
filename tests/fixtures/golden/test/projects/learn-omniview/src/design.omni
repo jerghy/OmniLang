@@ -1,0 +1,386 @@
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  design.omni —— 全局设计系统（Design 为第一公民）               ║
+// ║                                                              ║
+// ║  本文件定义 LearnDesign 设计系统，包括：                        ║
+// ║    1. 设计令牌（颜色、间距、圆角、阴影、排版等）                ║
+// ║    2. CSS 类（页面布局、卡片、标签页、输入框、徽章等）          ║
+// ║    3. 组件变体（Button 多维度参数化主题化）                    ║
+// ║                                                              ║
+// ║  各组件通过 import { LearnDesign } 引用设计类/变体：           ║
+// ║    class: LearnDesign.Card             设计 CSS 类            ║
+// ║    variant: LearnDesign.Button(...)     组件变体              ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+import omniview;
+
+design LearnDesign {
+    // ═══════════════════════════════════════════════════════════
+    // 1. 设计令牌（DESIGN TOKENS）
+    //    18 种类型：Color, Size, Radius, Shadow, FontFamily, FontSize,
+    //    FontWeight, LineHeight, LetterSpacing, Duration, Easing,
+    //    Opacity, ZIndex
+    //    令牌值编译为 :root { --name: value; } CSS 变量
+    //    在类/变体中引用：token(name) → var(--name)
+    // ═══════════════════════════════════════════════════════════
+
+    // ── 品牌色 ──
+    token primary: color = "#6366f1";
+    token primaryLight: color = "#a5b4fc";
+    token primaryDark: color = "#4338ca";
+
+    // ── 语义色 ──
+    token success: color = "#10b981";
+    token warning: color = "#f59e0b";
+    token danger: color = "#ef4444";
+    token accent: color = "#f97316";
+
+    // ── 中性色（浅色模式） ──
+    token surface: color = "#ffffff";
+    token surfaceMuted: color = "#f9fafb";
+    token surfaceSubtle: color = "#f3f4f6";
+    token textPrimary: color = "#111827";
+    token textSecondary: color = "#6b7280";
+    token textMuted: color = "#9ca3af";
+    token border: color = "#d4d4d8";
+    token borderLight: color = "#e5e7eb";
+    token borderLighter: color = "#f3f4f6";
+
+    // ── 中性色（深色模式） ──
+    token darkSurface: color = "#111827";
+    token darkSurfaceMuted: color = "#1f2937";
+    token darkSurfaceSubtle: color = "#374151";
+    token darkText: color = "#f9fafb";
+    token darkTextMuted: color = "#9ca3af";
+    token darkBorder: color = "#4b5563";
+
+    // ── 间距 ──
+    token spaceXs: size = "4px";
+    token spaceSm: size = "8px";
+    token spaceMd: size = "16px";
+    token spaceLg: size = "24px";
+    token spaceXl: size = "32px";
+    token spaceXxl: size = "48px";
+
+    // ── 圆角 ──
+    token radiusSm: radius = "4px";
+    token radiusMd: radius = "8px";
+    token radiusLg: radius = "12px";
+    token radiusFull: radius = "9999px";
+
+    // ── 阴影 ──
+    token shadowSm: shadow = "0 1px 2px rgba(0,0,0,0.05)";
+    token shadowMd: shadow = "0 4px 6px rgba(0,0,0,0.07)";
+    token shadowLg: shadow = "0 10px 25px rgba(0,0,0,0.1)";
+
+    // ── 排版 ──
+    token fontFamily: fontFamily = "system-ui, sans-serif";
+    token fontSizeXs: fontSize = "11px";
+    token fontSizeSm: fontSize = "13px";
+    token fontSizeMd: fontSize = "14px";
+    token fontSizeLg: fontSize = "16px";
+    token fontSizeXl: fontSize = "18px";
+    token fontSize2xl: fontSize = "20px";
+    token fontSize3xl: fontSize = "22px";
+    token fontSize4xl: fontSize = "28px";
+    token fontSize5xl: fontSize = "48px";
+    token fontWeightNormal: fontWeight = "500";
+    token fontWeightSemibold: fontWeight = "600";
+    token fontWeightBold: fontWeight = "700";
+    token lineHeight: lineHeight = "1.5";
+
+    // ── 过渡时长 ──
+    token durationFast: duration = "150ms";
+    token durationNormal: duration = "300ms";
+
+    // ── 透明度 ──
+    token opacityDisabled: opacity = "0.5";
+
+    // ── 层级 ──
+    token zDropdown: zIndex = "50";
+    token zModal: zIndex = "100";
+    token zToast: zIndex = "150";
+
+    // ═══════════════════════════════════════════════════════════
+    // 2. CSS 类（DESIGN CLASSES）
+    //    引用令牌用 token(name) 语法 → 编译为 var(--name)
+    //    伪类用 &:hover / &:focus / &:active 语法
+    // ═══════════════════════════════════════════════════════════
+
+    // ── 页面布局 ──
+    class Page {
+        max-width: "1200px";
+        width: "92vw";
+        margin: "0 auto";
+        background: token(surfaceMuted);
+        min-height: "100vh";
+    }
+
+    class Section {
+        padding: "0 " token(spaceMd) " " token(spaceMd) " " token(spaceMd);
+    }
+
+    class Row {
+        display: flex;
+        gap: token(spaceSm);
+        margin-bottom: token(spaceSm);
+    }
+
+    class Col {
+        flex: 1;
+        min-width: 0;
+    }
+
+    class Grid {
+        display: grid;
+        grid-template-columns: "1fr 1fr";
+        gap: token(spaceSm);
+    }
+
+    class DemoSection {
+        margin: "16px 0";
+    }
+
+    class DemoFull {
+        margin-bottom: token(spaceSm);
+    }
+
+    class PageHeader {
+        padding-top: token(spaceMd);
+        padding-right: token(spaceMd);
+        padding-bottom: token(spaceSm);
+        padding-left: token(spaceMd);
+        margin: "0 0 8px 0";
+    }
+
+    class PageTitle {
+        font-size: token(fontSize3xl);
+        font-weight: token(fontWeightBold);
+        color: token(textPrimary);
+        margin: "0 0 4px 0";
+    }
+
+    class PageSubtitle {
+        font-size: token(fontSizeSm);
+        color: token(textSecondary);
+        margin: 0;
+    }
+
+    class SectionTitle {
+        font-size: token(fontSizeMd);
+        font-weight: token(fontWeightSemibold);
+        color: token(textSecondary);
+        margin: "16px 0 8px 0";
+        text-transform: uppercase;
+        letter-spacing: "0.5px";
+    }
+
+    // ── Banner（顶部横幅） ──
+    class Banner {
+        background: token(primary);
+        color: white;
+        padding-top: token(spaceLg);
+        padding-bottom: token(spaceLg);
+        padding-left: token(spaceMd);
+        padding-right: token(spaceMd);
+        text-align: center;
+        border-radius: token(radiusMd);
+        margin-bottom: token(spaceMd);
+    }
+
+    class BannerTitle {
+        font-size: token(fontSize4xl);
+        margin: "0 0 8px 0";
+    }
+
+    class BannerSubtitle {
+        font-size: token(fontSizeSm);
+        margin: 0;
+    }
+
+    // ── Card（通用卡片） ──
+    class Card {
+        background: token(surface);
+        border: "1px solid " token(border);
+        border-radius: token(radiusLg);
+        padding-top: token(spaceLg);
+        padding-bottom: token(spaceLg);
+        padding-left: token(spaceMd);
+        padding-right: token(spaceMd);
+        margin: "16px 0";
+        &:hover {
+            box-shadow: token(shadowSm);
+        }
+    }
+
+    class CardTitle {
+        font-size: token(fontSizeXl);
+        margin-bottom: token(spaceSm);
+        color: token(textPrimary);
+    }
+
+    // ── Demo 通用容器（替代各处硬编码 .container / .box）──
+    class Container {
+        background: token(surface);
+        border: "1px solid " token(border);
+        border-radius: token(radiusLg);
+        padding-top: token(spaceLg);
+        padding-bottom: token(spaceLg);
+        padding-left: token(spaceMd);
+        padding-right: token(spaceMd);
+        margin: "16px 0";
+    }
+
+    class Subtitle {
+        font-size: token(fontSizeSm);
+        color: token(textMuted);
+        margin: "0 0 16px 0";
+    }
+
+    class Label {
+        font-size: token(fontSizeMd);
+        font-weight: token(fontWeightSemibold);
+        color: token(textPrimary);
+        margin: "0 0 8px 0";
+    }
+
+    // ── Footer ──
+    class Footer {
+        text-align: center;
+        padding: token(spaceLg);
+        border-top: "1px solid " token(borderLight);
+    }
+
+    class FooterText {
+        font-size: token(fontSizeSm);
+        color: token(textSecondary);
+    }
+
+    // ── 标签页导航 ──
+    class TabStrip {
+        display: flex;
+        gap: 0;
+        padding: "0 8px";
+        border-bottom: "1px solid " token(border);
+    }
+
+    class Tab {
+        padding: "10px 18px";
+        border: "1px solid transparent";
+        border-bottom: none;
+        background: transparent;
+        color: token(textSecondary);
+        font-size: token(fontSizeSm);
+        font-weight: token(fontWeightNormal);
+        cursor: pointer;
+        transition: "all " token(durationFast);
+        white-space: nowrap;
+        &:hover {
+            background: token(surfaceSubtle);
+            border-color: token(borderLight);
+            color: token(textPrimary);
+        }
+    }
+
+    class TabContent {
+        background: token(surface);
+        border: "1px solid " token(border);
+        border-top: none;
+        border-radius: "0 0 " token(radiusMd) " " token(radiusMd);
+        padding: token(spaceMd);
+    }
+
+    // ── 输入框 ──
+    class Input {
+        padding: "12px";
+        border: "2px solid " token(borderLight);
+        border-radius: token(radiusMd);
+        font-size: token(fontSizeLg);
+        font-family: token(fontFamily);
+        outline: none;
+        width: 100%;
+        box-sizing: border-box;
+        &:focus {
+            border-color: token(primary);
+            box-shadow: "0 0 0 3px " token(primaryLight);
+        }
+    }
+
+    // ── 徽章 ──
+    class Badge {
+        display: inline-flex;
+        align-items: center;
+        font-size: token(fontSizeXs);
+        padding: "2px 10px";
+        border-radius: token(radiusFull);
+    }
+
+    // ── 小标签 ──
+    class Tag {
+        font-size: token(fontSizeSm);
+        padding-top: token(spaceXs);
+        padding-bottom: token(spaceXs);
+        padding-left: token(spaceSm);
+        padding-right: token(spaceSm);
+        border-radius: token(radiusSm);
+        background: token(surfaceSubtle);
+        color: token(textSecondary);
+    }
+
+    // ── 页脚提示 ──
+    class Hint {
+        font-size: token(fontSizeXs);
+        color: token(textMuted);
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // 3. 组件变体（VARIANTS）
+    //    多维度参数化主题化
+    //    在 view 中引用：variant: LearnDesign.Button(color=primary, size=md)
+    // ═══════════════════════════════════════════════════════════
+
+    variant Button {
+        @dim color: primary | danger | ghost | accent;
+        @dim size: sm | md | lg;
+
+        @default { color: primary; size: md; }
+
+        base {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            border-radius: token(radiusMd);
+            font-family: token(fontFamily);
+            cursor: pointer;
+            font-weight: token(fontWeightSemibold);
+            transition: "all " token(durationFast);
+        }
+
+        color.primary { background: token(primary); color: white; }
+        color.danger  { background: token(danger); color: white; }
+        color.ghost   { background: transparent; color: token(textPrimary); border: "1px solid " token(border); }
+        color.accent  { background: token(accent); color: white; }
+
+        size.sm {
+            padding-top: token(spaceXs);
+            padding-bottom: token(spaceXs);
+            padding-left: token(spaceSm);
+            padding-right: token(spaceSm);
+            font-size: token(fontSizeSm);
+        }
+        size.md {
+            padding-top: token(spaceSm);
+            padding-bottom: token(spaceSm);
+            padding-left: token(spaceMd);
+            padding-right: token(spaceMd);
+            font-size: token(fontSizeMd);
+        }
+        size.lg {
+            padding-top: token(spaceSm);
+            padding-bottom: token(spaceSm);
+            padding-left: token(spaceLg);
+            padding-right: token(spaceLg);
+            font-size: token(fontSizeLg);
+        }
+    }
+}

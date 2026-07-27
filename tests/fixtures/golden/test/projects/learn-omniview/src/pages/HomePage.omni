@@ -1,0 +1,14 @@
+// HomePage — 首页：Dashboard + FeatureList
+import omniview;
+import { LearnDesign } from "../design";
+import { Dashboard } from "./Dashboard";
+import { FeatureList } from "../components/FeatureList";
+
+component HomePage {
+    view {
+        <section class: LearnDesign.DemoSection>
+            <div class: LearnDesign.DemoFull><Dashboard /></div>
+            <div class: LearnDesign.DemoFull><FeatureList /></div>
+        </section>
+    }
+}

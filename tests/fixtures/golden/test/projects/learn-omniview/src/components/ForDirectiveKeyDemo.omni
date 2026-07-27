@@ -1,0 +1,17 @@
+import omniview;
+
+component ForDirectiveKeyDemo {
+    signal items: Array<String> = ["Apple", "Banana", "Cherry", "Date", "Elderberry"];
+
+    view {
+        <div>
+            <h3>@for key=expr Demo</h3>
+            <p>演示 @for item in iterable key=expr 用法</p>
+            <ul>
+                @for item in items key={item} {
+                    <li>{item}</li>
+                }
+            </ul>
+        </div>
+    }
+}

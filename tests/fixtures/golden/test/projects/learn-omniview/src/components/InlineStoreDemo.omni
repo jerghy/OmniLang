@@ -1,0 +1,85 @@
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  InlineStoreDemo.omni —— 内联 Store 演示                       ║
+// ║  演示：在 component 内部使用 store Name { ... } 定义局部 store   ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+import omniview;
+import { LearnDesign } from "../design";
+
+component InlineStoreDemo {
+    // 内联 store 定义在 component 内部，不导出到外部
+    store CartStore {
+        signal items: Array<String> = [];
+        signal totalPrice: f64 = 0.0;
+
+        getter itemCount: i32 = items.len();
+        getter summary: String = if items.len() == 0 {
+            "cart empty"
+        } else {
+            "total: " + items.len().to_string() + " items"
+        };
+
+        action addItem(name: String, price: f64) {
+            items.push(name);
+            totalPrice = totalPrice + price;
+        }
+
+        action removeLast() {
+            if items.len() > 0 {
+                items.pop();
+                totalPrice = totalPrice - 10.0;
+            }
+        }
+
+        action clear() {
+            items = [];
+            totalPrice = 0.0;
+        }
+    }
+
+    
+    signal log: String = "";
+
+    fn addApple() {
+        CartStore.addItem("Apple", 5.0);
+        log = "Added: Apple ¥5.0";
+    }
+
+    fn addBook() {
+        CartStore.addItem("OmniView Guide", 39.9);
+        log = "Added: OmniView Guide ¥39.9";
+    }
+
+    fn addLaptop() {
+        CartStore.addItem("Laptop", 5999.0);
+        log = "Added: Laptop ¥5999.0";
+    }
+
+    fn remove() {
+        CartStore.removeLast();
+        log = "Removed last item";
+    }
+
+    fn clearCart() {
+        CartStore.clear();
+        log = "Cart cleared";
+    }
+
+    view {
+        <div class: LearnDesign.Container>
+            <h3 class: LearnDesign.CardTitle>Inline Store Demo</h3>
+            <p>Items: {itemCount}</p>
+            <p>Summary: {summary}</p>
+            <p>Total: {totalPrice}</p>
+            <div class: LearnDesign.Row>
+                <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={addApple}>
+                    Add Apple
+                </button>
+                <button variant: LearnDesign.Button(color=danger, size=sm) @onPress={remove}>
+                    Remove
+                </button>
+            </div>
+            <p class: LearnDesign.Hint>{log}</p>
+        </div>
+    }
+}

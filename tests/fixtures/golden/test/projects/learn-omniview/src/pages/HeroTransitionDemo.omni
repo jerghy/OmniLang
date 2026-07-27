@@ -1,0 +1,73 @@
+import omniview;
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  🧪 Playwright Test                                         ║
+// ║                                                            ║
+// ║  **Steps:**                                                ║
+// ║  1. Navigate to HeroTransitionDemo component page.         ║
+// ║  2. Verify both hero card states render: the expanded      ║
+// ║     hero-card (if isExpanded) and collapsed hero-card-small║
+// ║     (else). Each has @hero="card-1" and @hero-transition.  ║
+// ║  3. Click "Toggle" button to switch between expanded/      ║
+// ║     collapsed states.                                      ║
+// ║  4. Check Card 2 has @paused attribute controlling pause.  ║
+// ║  5. Verify @driven-by div with progress signal binding.    ║
+// ║  6. Check on: signal binding div for progress updates.     ║
+// ║                                                            ║
+// ║  **Expected:**                                             ║
+// ║  - Expanded hero-card has @hero="card-1",                   ║
+// ║    @hero-transition={heroMove}, @hover-reverse="forward".  ║
+// ║  - Collapsed hero-card-small also has @hero="card-1".      ║
+// ║  - Card 2 has @hero="card-2" and @paused data attribute.   ║
+// ║  - @driven-by div has driven-by={progress} data attribute. ║
+// ║  - on: signal-box div binds to progress signal.            ║
+// ║  - @motion heroMove sets from/to with opacity, x, scale.   ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+@motion heroMove {
+    from { opacity: 0 x: -100 scale: 0.8 }
+    to   { opacity: 1 x: 0 scale: 1 }
+    over 500 ease power3Out
+}
+
+component HeroTransitionDemo {
+    signal isExpanded: bool = false;
+    signal progress: f64 = 0.0;
+
+    fn toggle() { isExpanded = !isExpanded; }
+    fn advance() { if progress < 1.0 { progress = progress + 0.1; } }
+
+    view {
+        <div class: container>
+            <h3 class: title>Hero Test</h3>
+            <button class: btn @onPress={toggle}>Toggle</button>
+            @if isExpanded {
+                <div @hero="card-1" @hero-transition={heroMove} @hover-reverse="forward" class: hero-card>
+                    <h4>Card 1</h4>
+                </div>
+            } @else {
+                <div @hero="card-1" @hero-transition={heroMove} class: hero-card-small>
+                    <p>Card 1 (collapsed)</p>
+                </div>
+            }
+            <div @hero="card-2" @hero-transition={heroMove} @paused={!isExpanded} class: hero-card>
+                <h4>Card 2 (@paused)</h4>
+            </div>
+            <div @driven-by={progress} class: driven-bar>
+                <p>@driven-by progress bar</p>
+            </div>
+            <div on: { progress } class: signal-box>
+                <p>on: signal binding</p>
+            </div>
+        </div>
+    }
+    style {
+        .container { background: white; padding: 20px; }
+        .title { font-size: 18px; }
+        .btn { padding: 8px; background: #6366f1; color: white; }
+        .hero-card { padding: 20px; background: #ede9fe; border: 1px solid #8b5cf6; }
+        .hero-card-small { padding: 10px; background: #f3e8ff; }
+        .driven-bar { height: 40px; background: #dbeafe; margin-bottom: 12px; }
+        .signal-box { padding: 12px; background: #fef3c7; }
+    }
+}
