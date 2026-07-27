@@ -5,6 +5,8 @@ members = [
     "omnilang",
     "omnilang-wasm",
     "poiesis/src-tauri",
+    "crates/omnilang-core",
+    "crates/omnilang-codegen-omniview",
 ]
 
 [profile.release]

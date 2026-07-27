@@ -1,0 +1,20 @@
+---
+source: crates/omnilang-codegen-omniview/src/tests_regression/motion.rs
+assertion_line: 776
+expression: "&output"
+---
+// === mount_js ===
+// @enter trigger
+(function() {
+  const el = __omni_el("el-div-001");
+  if (el) {
+   const anim = __omni_motion_fadeIn(el, { trigger: "enter" });
+   __omni_animations.set("el-div-001_enter", anim);
+   if (el.offsetParent !== null) anim.play();
+  }
+})();
+
+// === js ===
+
+// === enter_trigger_nids ===
+[("el-div-001", "fadeIn", "enter")]

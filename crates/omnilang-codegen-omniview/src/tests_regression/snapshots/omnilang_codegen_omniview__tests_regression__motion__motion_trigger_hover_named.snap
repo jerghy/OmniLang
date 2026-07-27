@@ -1,0 +1,15 @@
+---
+source: crates/omnilang-codegen-omniview/src/tests_regression/motion.rs
+assertion_line: 838
+expression: "&gen.js"
+---
+// @hover trigger
+(function() {
+  const el = __omni_el("el-btn-002");
+  if (el) {
+   const anim = __omni_motion_scaleUp(el, { trigger: "hover" });
+   __omni_animations.set("el-btn-002_hover", anim);
+   el.addEventListener("mouseenter", function() { __omni_animations.get("el-btn-002_hover")?.play(); });
+   el.addEventListener("mouseleave", function() { __omni_animations.get("el-btn-002_hover")?.reverse(); });
+  }
+})();

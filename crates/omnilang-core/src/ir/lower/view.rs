@@ -1,0 +1,792 @@
+//! Lowering for view blocks and view nodes.
+//!
+//! Includes: `lower_view_block`, `lower_view_node`.
+
+use super::expr::lower_expr;
+use super::stmt::lower_block;
+use crate::ir::types::*;
+use crate::ir::types_motion::*;
+use crate::ir::TriggerKind;
+use crate::parser::ast::*;
+use crate::semantic::SemanticResult;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
+use std::cell::Cell;
+
+// ═══════════════════════════════════════════════════════
+// View lowering
+// ═══════════════════════════════════════════════════════
+
+pub(super) fn lower_view_block(
+    view: &ViewBlock,
+    string_signals: &[String],
+    variant_map: &FxHashMap<String, String>,
+    semantics: &mut SemanticResult,
+) -> ViewTree {
+    if let Some(first) = view.children.first() {
+        let sig_idx = Cell::new(0usize);
+        lower_view_node(
+            first,
+            string_signals,
+            Some(&sig_idx),
+            variant_map,
+            semantics,
+        )
+    } else {
+        ViewTree::Text("".into())
+    }
+}
+
+/// Scan an event handler AST block for `e.preventDefault()` and
+/// `e.stopPropagation()` method calls.  Returns (needs_prevent_default,
+/// needs_stop_propagation).
+///
+/// This replaces the field-collection half of the old `EventFieldCollector`;
+/// event field names are now collected during `lower_expr` traversal.
+fn scan_event_methods(block: &Block) -> (bool, bool) {
+    let mut needs_pd = false;
+    let mut needs_sp = false;
+    for stmt in &block.stmts {
+        scan_stmt_for_event_methods(stmt, &mut needs_pd, &mut needs_sp);
+    }
+    if let Some(ref expr) = block.trailing_expr {
+        scan_expr_for_event_methods(expr, &mut needs_pd, &mut needs_sp);
+    }
+    (needs_pd, needs_sp)
+}
+
+fn scan_stmt_for_event_methods(stmt: &Stmt, pd: &mut bool, sp: &mut bool) {
+    match stmt {
+        Stmt::ExprStmt { expr, .. } => scan_expr_for_event_methods(expr, pd, sp),
+        Stmt::VarDecl {
+            init: Some(init), ..
+        } => scan_expr_for_event_methods(init, pd, sp),
+        Stmt::Assign { value, .. } => scan_expr_for_event_methods(value, pd, sp),
+        Stmt::If {
+            condition,
+            then_body,
+            else_ifs,
+            else_body,
+            ..
+        } => {
+            scan_expr_for_event_methods(condition, pd, sp);
+            for s in &then_body.stmts {
+                scan_stmt_for_event_methods(s, pd, sp);
+            }
+            for (_, elsif_block) in else_ifs {
+                for s in &elsif_block.stmts {
+                    scan_stmt_for_event_methods(s, pd, sp);
+                }
+            }
+            if let Some(else_b) = else_body {
+                for s in &else_b.stmts {
+                    scan_stmt_for_event_methods(s, pd, sp);
+                }
+            }
+        }
+        Stmt::While {
+            condition, body, ..
+        } => {
+            scan_expr_for_event_methods(condition, pd, sp);
+            for s in &body.stmts {
+                scan_stmt_for_event_methods(s, pd, sp);
+            }
+        }
+        Stmt::ForIn { iterable, body, .. } => {
+            scan_expr_for_event_methods(iterable, pd, sp);
+            for s in &body.stmts {
+                scan_stmt_for_event_methods(s, pd, sp);
+            }
+        }
+        Stmt::Return { value: Some(v), .. } => scan_expr_for_event_methods(v, pd, sp),
+        Stmt::Print { arg, .. } => scan_expr_for_event_methods(arg, pd, sp),
+        Stmt::Throw { expr, .. } => scan_expr_for_event_methods(expr, pd, sp),
+        Stmt::TryCatch {
+            try_body,
+            catch_body,
+            finally_body,
+            ..
+        } => {
+            for s in &try_body.stmts {
+                scan_stmt_for_event_methods(s, pd, sp);
+            }
+            if let Some(catch_b) = catch_body {
+                for s in &catch_b.stmts {
+                    scan_stmt_for_event_methods(s, pd, sp);
+                }
+            }
+            if let Some(finally_b) = finally_body {
+                for s in &finally_b.stmts {
+                    scan_stmt_for_event_methods(s, pd, sp);
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+fn scan_expr_for_event_methods(expr: &Expr, pd: &mut bool, sp: &mut bool) {
+    match expr {
+        Expr::MethodCall { object, method, .. } => {
+            if let Expr::VarRef(name, _) = object.as_ref() {
+                if name == "e" {
+                    match method.as_str() {
+                        "preventDefault" => *pd = true,
+                        "stopPropagation" => *sp = true,
+                        _ => {}
+                    }
+                }
+            }
+        }
+        // Recurse into expressions that may contain nested method calls
+        Expr::BinaryOp { left, right, .. } => {
+            scan_expr_for_event_methods(left, pd, sp);
+            scan_expr_for_event_methods(right, pd, sp);
+        }
+        Expr::UnaryOp { operand, .. } => scan_expr_for_event_methods(operand, pd, sp),
+        Expr::FuncCall { func, args, .. } => {
+            scan_expr_for_event_methods(func, pd, sp);
+            for arg in args {
+                scan_expr_for_event_methods(arg, pd, sp);
+            }
+        }
+        Expr::Block { body, .. } => {
+            for s in &body.stmts {
+                scan_stmt_for_event_methods(s, pd, sp);
+            }
+        }
+        Expr::IfExpr {
+            condition,
+            then_expr,
+            else_expr,
+            ..
+        }
+        | Expr::TernaryExpr {
+            condition,
+            then_expr,
+            else_expr,
+            ..
+        } => {
+            scan_expr_for_event_methods(condition, pd, sp);
+            scan_expr_for_event_methods(then_expr, pd, sp);
+            scan_expr_for_event_methods(else_expr, pd, sp);
+        }
+        _ => {}
+    }
+}
+
+pub(super) fn lower_view_node(
+    node: &ViewNode,
+    string_signals: &[String],
+    sig_idx: Option<&Cell<usize>>,
+    variant_map: &FxHashMap<String, String>,
+    semantics: &mut SemanticResult,
+) -> ViewTree {
+    match node {
+        ViewNode::Element(el) => lower_element(el, string_signals, sig_idx, variant_map, semantics),
+        ViewNode::Text(s) => ViewTree::Text(s.clone()),
+        ViewNode::Interpolation(expr) => {
+            // Lower the inner expression to ExprIR so codegen can emit proper JS
+            ViewTree::Interpolation(Box::new(lower_expr(expr, variant_map, None, semantics)))
+        }
+        ViewNode::IfDirective(if_dir) => {
+            lower_if_directive(if_dir, string_signals, variant_map, semantics)
+        }
+        ViewNode::ForDirective(for_dir) => {
+            lower_for_directive(for_dir, string_signals, variant_map, semantics)
+        }
+        ViewNode::SlotDirective {
+            name,
+            default_content: _,
+        } => ViewTree::Slot(name.clone()),
+    }
+}
+
+// ── Element lowering ──────────────────────────────────────
+
+/// Lowers an `Element` AST node into `ViewTree::Element(ElementIR)`.
+/// Handles props, bindings, events, class/style, motion, state, scroll, drag,
+/// and hero attributes.
+fn lower_element(
+    el: &Element,
+    string_signals: &[String],
+    sig_idx: Option<&Cell<usize>>,
+    variant_map: &FxHashMap<String, String>,
+    semantics: &mut SemanticResult,
+) -> ViewTree {
+    let mut props: Option<FxHashMap<String, ExprIR>> = None;
+    let mut bindings: Option<FxHashMap<String, SignalRefIR>> = None;
+    let mut events: Option<FxHashMap<String, EventHandlerIR>> = None;
+    let mut inline_style: Option<serde_json::Value> = None;
+    let mut has_value_binding = false;
+    let mut class_map_bindings_from_prop: Option<FxHashMap<String, ExprIR>> = None;
+    let mut motion_triggers: Vec<TriggerIntent> = Vec::new();
+    let mut states_map: Option<FxHashMap<String, StateTweenIR>> = None;
+    let mut animate_signal: Option<ExprIR> = None;
+    let mut paused_override: Option<ExprIR> = None;
+    let mut hover_reverse: Option<String> = None;
+    let mut driven_by: Option<ExprIR> = None;
+    let mut in_view_once: Option<ExprIR> = None;
+    let mut in_view_repeat: Option<ExprIR> = None;
+    let mut in_view_threshold: Option<ExprIR> = None;
+    let mut scroll_start: Option<String> = None;
+    let mut scroll_end: Option<String> = None;
+    let mut scroll_scrub: Option<ExprIR> = None;
+    let mut drag_constraints: Option<String> = None;
+    let mut drag_elastic: Option<ExprIR> = None;
+    let mut drag_scrub: Option<ExprIR> = None;
+    let mut drag_momentum: Option<ExprIR> = None;
+    let mut drag_threshold: Option<ExprIR> = None;
+    let mut drag_velocity_max: Option<ExprIR> = None;
+    let mut hero_tag: Option<String> = None;
+    let mut hero_transition: Option<ExprIR> = None;
+
+    for prop in &el.props {
+        match prop {
+            ElementProp::Static { name, value } => {
+                props.get_or_insert_with(Default::default).insert(
+                    name.clone(),
+                    lower_expr(value, variant_map, None, semantics),
+                );
+            }
+            ElementProp::Bind { name, signal_path } => {
+                if name == "value" {
+                    has_value_binding = true;
+                }
+                bindings.get_or_insert_with(Default::default).insert(
+                    name.clone(),
+                    SignalRefIR {
+                        owner: None,
+                        name: signal_path.clone(),
+                    },
+                );
+            }
+            ElementProp::Event { name, handler } => {
+                // Collect event data kind
+                let event_data = map_event_data_kind(name);
+                let mut needs_pd = name == "onSubmit"; // backward compat
+                let mut needs_sp = false;
+                let ir_handler = match handler {
+                    EventHandler::InlineFn { params, body, .. } => {
+                        if event_data.is_some() {
+                            let (needs_pd_from_scan, needs_sp_from_scan) = scan_event_methods(body);
+                            needs_pd = needs_pd || needs_pd_from_scan;
+                            needs_sp = needs_sp_from_scan;
+
+                            // Collect event field names during lowering instead
+                            // of a separate pre-walk.
+                            let mut event_fields = FxHashSet::default();
+                            let block_ir =
+                                lower_block(body, variant_map, Some(&mut event_fields), semantics);
+
+                            EventHandlerIR::InlineFn {
+                                body: block_ir,
+                                params: params.iter().map(|p| p.name.clone()).collect(),
+                                event_data: event_data.clone(),
+                                used_fields: Some(event_fields.into_iter().collect()),
+                                needs_prevent_default: needs_pd,
+                                needs_stop_propagation: needs_sp,
+                            }
+                        } else {
+                            EventHandlerIR::InlineFn {
+                                body: lower_block(body, variant_map, None, semantics),
+                                params: params.iter().map(|p| p.name.clone()).collect(),
+                                event_data: None,
+                                used_fields: None,
+                                needs_prevent_default: needs_pd,
+                                needs_stop_propagation: needs_sp,
+                            }
+                        }
+                    }
+                    EventHandler::FnRef(fn_name) => {
+                        // Defer used_fields to Pass 2 (fn_ref backfill)
+                        EventHandlerIR::FnRef {
+                            r#ref: fn_name.clone(),
+                            params: vec![],
+                            event_data: event_data.clone(),
+                            used_fields: None, // backfilled in Pass 2
+                            needs_prevent_default: needs_pd,
+                            needs_stop_propagation: needs_sp,
+                        }
+                    }
+                    EventHandler::StoreAction { store, action } => {
+                        // Store actions receive no event data
+                        EventHandlerIR::StoreAction {
+                            r#ref: format!("{}.{}", store, action),
+                            event_data: None,
+                        }
+                    }
+                };
+                events
+                    .get_or_insert_with(Default::default)
+                    .insert(name.clone(), ir_handler);
+            }
+            ElementProp::Class { value } => {
+                // class: styleRef or class: "literal-class"
+                let mut class_map_bindings: FxHashMap<String, ExprIR> = FxHashMap::default();
+                let class_str = match value {
+                    ClassValue::StyleRef(s) => s.clone(),
+                    ClassValue::StringLiteral(s) => s.clone(),
+                    ClassValue::DesignClass {
+                        design_name: _,
+                        class_name,
+                    } => {
+                        // Design class names are emitted directly (CSS is scoped
+                        // via [data-design~="Name"] on the root element, not via
+                        // component-level class name mangling).
+                        class_name.clone()
+                    }
+                    ClassValue::ClassMap(entries) => {
+                        // Include classes based on their literal value:
+                        //   Bool(true)  → static truth  → include the class
+                        //   Bool(false) → static falsy → skip the class
+                        //   dynamic     → unknown at compile time → JS handles
+                        let mut static_classes: Vec<String> = Vec::new();
+                        for (key, val_expr) in entries {
+                            let mut skip = false;
+                            if let Expr::Literal(Literal::Bool(false), _) = val_expr {
+                                // Explicitly false: exclude the class entirely
+                                skip = true;
+                            }
+                            // For true or dynamic values, include the class.
+                            // Dynamic toggling will be handled by JS later.
+                            if !skip {
+                                static_classes.push(key.clone());
+                            }
+                            // Collect dynamic bindings (non-literal values) for reactive JS toggling
+                            if !matches!(val_expr, Expr::Literal(Literal::Bool(_), _)) {
+                                class_map_bindings.insert(
+                                    key.clone(),
+                                    lower_expr(val_expr, variant_map, None, semantics),
+                                );
+                            }
+                        }
+                        static_classes.join(" ")
+                    }
+                };
+                props.get_or_insert_with(Default::default).insert(
+                    "class".into(),
+                    ExprIR::LiteralExpr {
+                        value: serde_json::Value::String(class_str),
+                    },
+                );
+                // Pass class_map_bindings through the element
+                class_map_bindings_from_prop = Some(class_map_bindings);
+            }
+            ElementProp::Style { entries } => {
+                // style: { key: value, ... } — passed as inline_style
+                // Lower each entry to a JSON representation for codegen
+                let style_map: serde_json::Map<String, serde_json::Value> = entries
+                    .iter()
+                    .map(|(key, expr)| {
+                        let ir_expr = lower_expr(expr, variant_map, None, semantics);
+                        let json_val = super::expr::lower_expr_to_json_from_ir(&ir_expr);
+                        (key.clone(), json_val)
+                    })
+                    .collect();
+                inline_style = Some(serde_json::Value::Object(style_map));
+            }
+            ElementProp::Variant {
+                design_name,
+                variant_name,
+                dimension_values,
+            } => {
+                // Encode variant binding as a synthetic prop that codegen will
+                // pick up and expand via `expand_variant()`.
+                let dim_map: FxHashMap<String, String> = dimension_values.iter().cloned().collect();
+                let json_val = serde_json::json!({
+                    "design_name": design_name,
+                    "variant_name": variant_name,
+                    "dimension_values": dim_map,
+                });
+                props.get_or_insert_with(Default::default).insert(
+                    "_design_variant".into(),
+                    ExprIR::LiteralExpr { value: json_val },
+                );
+            }
+            ElementProp::TestId(id) => {
+                // test-id="..." attribute
+                props.get_or_insert_with(Default::default).insert(
+                    "data-testid".into(),
+                    ExprIR::LiteralExpr {
+                        value: serde_json::Value::String(id.clone()),
+                    },
+                );
+            }
+            ElementProp::Ref(r) => {
+                // ref="..." attribute
+                props.get_or_insert_with(Default::default).insert(
+                    "data-ref".into(),
+                    ExprIR::LiteralExpr {
+                        value: serde_json::Value::String(r.clone()),
+                    },
+                );
+            }
+            // Motion animation triggers: on:hover={fadeIn}, etc.
+            ElementProp::MotionTrigger(mt) => {
+                let motion_ref = match &mt.motion_expr {
+                    Expr::VarRef(name, _) => Some(name.clone()),
+                    _ => None,
+                };
+                motion_triggers.push(TriggerIntent {
+                    kind: match &mt.trigger {
+                        crate::parser::ast::TriggerKind::Enter => TriggerKind::Enter,
+                        crate::parser::ast::TriggerKind::Leave => TriggerKind::Leave,
+                        crate::parser::ast::TriggerKind::Hover => TriggerKind::Hover,
+                        crate::parser::ast::TriggerKind::Unhover => TriggerKind::Unhover,
+                        crate::parser::ast::TriggerKind::Press => TriggerKind::Press,
+                        crate::parser::ast::TriggerKind::Focus => TriggerKind::Focus,
+                        crate::parser::ast::TriggerKind::Animate => TriggerKind::Animate,
+                        crate::parser::ast::TriggerKind::InView => TriggerKind::InView,
+                        crate::parser::ast::TriggerKind::Scroll => TriggerKind::Scroll,
+                        crate::parser::ast::TriggerKind::DragHorizontal => {
+                            TriggerKind::DragHorizontal
+                        }
+                        crate::parser::ast::TriggerKind::DragVertical => TriggerKind::DragVertical,
+                        crate::parser::ast::TriggerKind::Timeline => TriggerKind::Timeline,
+                    },
+                    motion_ref,
+                    inline_motion: None,
+                    source_span: None,
+                });
+            }
+            // States map: states: { visible: { ... }, hidden: { ... } }
+            ElementProp::StatesMap(states) => {
+                let mut states_hm: FxHashMap<String, StateTweenIR> = FxHashMap::default();
+                for (name, state_def) in states {
+                    let properties: FxHashMap<String, ExprIR> = state_def
+                        .properties
+                        .iter()
+                        .map(|(k, v)| (k.clone(), lower_expr(v, variant_map, None, semantics)))
+                        .collect();
+                    let over = state_def
+                        .over
+                        .as_ref()
+                        .map(|e| lower_expr(e, variant_map, None, semantics));
+                    let ease = state_def.ease.as_ref().map(super::motion::lower_easing);
+                    states_hm.insert(
+                        name.clone(),
+                        StateTweenIR {
+                            properties,
+                            over,
+                            ease,
+                            source_span: None,
+                        },
+                    );
+                }
+                states_map = Some(states_hm);
+            }
+            // Animate signal: @state={signal}
+            ElementProp::AnimateSignal(expr) => {
+                animate_signal = Some(lower_expr(expr, variant_map, None, semantics));
+            }
+            // Paused override: @paused={expr}
+            ElementProp::PausedOverride(expr) => {
+                paused_override = Some(lower_expr(expr, variant_map, None, semantics));
+            }
+            // Hover reverse animation name
+            ElementProp::HoverReverse(s) => {
+                hover_reverse = Some(s.clone());
+            }
+            // Driven-by expression for external progress control
+            ElementProp::DrivenBy(expr) => {
+                driven_by = Some(lower_expr(expr, variant_map, None, semantics));
+            }
+            // InView trigger: once
+            ElementProp::InViewOnce(expr) => {
+                in_view_once = Some(lower_expr(expr, variant_map, None, semantics));
+            }
+            // InView trigger: repeat
+            ElementProp::InViewRepeat(expr) => {
+                in_view_repeat = Some(lower_expr(expr, variant_map, None, semantics));
+            }
+            // InView trigger: threshold
+            ElementProp::InViewThreshold(expr) => {
+                in_view_threshold = Some(lower_expr(expr, variant_map, None, semantics));
+            }
+            // Parent-child orchestration
+            ElementProp::When(_)
+            | ElementProp::DelayChildren(_)
+            | ElementProp::StaggerChildren(_) => {
+                // Lowered at trigger level; no direct IR field on ElementIR
+            }
+            // Scroll sub-attributes
+            ElementProp::ScrollStart(s) => {
+                scroll_start = Some(s.clone());
+            }
+            ElementProp::ScrollEnd(s) => {
+                scroll_end = Some(s.clone());
+            }
+            ElementProp::ScrollScrub(expr) => {
+                scroll_scrub = Some(lower_expr(expr, variant_map, None, semantics));
+            }
+            // Drag sub-attributes
+            ElementProp::DragConstraints(s) => {
+                drag_constraints = Some(s.clone());
+            }
+            ElementProp::DragElastic(expr) => {
+                drag_elastic = Some(lower_expr(expr, variant_map, None, semantics));
+            }
+            ElementProp::DragScrub(expr) => {
+                drag_scrub = Some(lower_expr(expr, variant_map, None, semantics));
+            }
+            ElementProp::DragMomentum(expr) => {
+                drag_momentum = Some(lower_expr(expr, variant_map, None, semantics));
+            }
+            ElementProp::DragThreshold(expr) => {
+                drag_threshold = Some(lower_expr(expr, variant_map, None, semantics));
+            }
+            ElementProp::DragVelocityMax(expr) => {
+                drag_velocity_max = Some(lower_expr(expr, variant_map, None, semantics));
+            }
+            // Hero attributes
+            ElementProp::HeroTag(s) => {
+                hero_tag = Some(s.clone());
+            }
+            ElementProp::HeroTransition(expr) => {
+                hero_transition = Some(lower_expr(expr, variant_map, None, semantics));
+            }
+        }
+    }
+
+    // Auto-bind <input> elements to String signals if no explicit bind:value
+    // and no existing value={expr} prop (one-way reactive binding).
+    // Skip checkbox/radio inputs — they use "checked" property, not "value".
+    let has_value_prop = props.as_ref().is_some_and(|p| p.contains_key("value"));
+    let is_checkbox_or_radio = props.as_ref().is_some_and(|p| {
+        p.get("type").is_some_and(|v| {
+            matches!(v, ExprIR::LiteralExpr { value: serde_json::Value::String(s) } if s == "checkbox" || s == "radio")
+        })
+    });
+    if let Some(sig_counter) = sig_idx {
+        let idx = sig_counter.get();
+        if el.tag == "input"
+            && !has_value_binding
+            && !has_value_prop
+            && !is_checkbox_or_radio
+            && idx < string_signals.len()
+        {
+            let sig_name = string_signals[idx].clone();
+            sig_counter.set(idx + 1);
+            bindings.get_or_insert_with(Default::default).insert(
+                "value".into(),
+                SignalRefIR {
+                    owner: None,
+                    name: sig_name,
+                },
+            );
+        }
+    }
+
+    let children: Vec<ViewTree> = el
+        .children
+        .iter()
+        .map(|c| lower_view_node(c, string_signals, sig_idx, variant_map, semantics))
+        .collect();
+
+    ViewTree::Element(ElementIR {
+        tag: el.tag.clone(),
+        props: props.unwrap_or_default(),
+        bindings: bindings.unwrap_or_default(),
+        events: events.unwrap_or_default(),
+        style_classes: None,
+        inline_style,
+        children,
+        test_id: None,
+        ref_name: None,
+        construction_kind: ConstructionKind::TagMapping,
+        class_map_bindings: class_map_bindings_from_prop.unwrap_or_default(),
+        source_span: Some(el.span),
+        motion: {
+            let has_any = !motion_triggers.is_empty()
+                || states_map.is_some()
+                || paused_override.is_some()
+                || driven_by.is_some()
+                || hover_reverse.is_some()
+                || in_view_once.is_some()
+                || in_view_repeat.is_some()
+                || in_view_threshold.is_some();
+            if has_any {
+                Some(Box::new(MotionBehavior {
+                    triggers: motion_triggers,
+                    states: states_map.map(|s| StatesIR {
+                        states: s,
+                        signal: animate_signal,
+                        source_span: None,
+                    }),
+                    paused_override,
+                    driven_by,
+                    hover_reverse,
+                    in_view_once,
+                    in_view_repeat,
+                    in_view_threshold,
+                    source_span: None,
+                }))
+            } else {
+                None
+            }
+        },
+        scroll: {
+            if scroll_start.is_some() || scroll_end.is_some() || scroll_scrub.is_some() {
+                Some(Box::new(ScrollBehavior {
+                    start: scroll_start,
+                    end: scroll_end,
+                    scrub: scroll_scrub,
+                    source_span: None,
+                }))
+            } else {
+                None
+            }
+        },
+        drag: {
+            if drag_constraints.is_some()
+                || drag_elastic.is_some()
+                || drag_scrub.is_some()
+                || drag_momentum.is_some()
+                || drag_threshold.is_some()
+                || drag_velocity_max.is_some()
+            {
+                Some(Box::new(DragBehavior {
+                    constraints: drag_constraints,
+                    elastic: drag_elastic,
+                    scrub: drag_scrub,
+                    momentum: drag_momentum,
+                    threshold: drag_threshold,
+                    velocity_max: drag_velocity_max,
+                    source_span: None,
+                }))
+            } else {
+                None
+            }
+        },
+        hero: {
+            if hero_tag.is_some() || hero_transition.is_some() {
+                Some(Box::new(HeroBehavior {
+                    tag: hero_tag,
+                    transition: hero_transition,
+                    source_span: None,
+                }))
+            } else {
+                None
+            }
+        },
+    })
+}
+
+// ── If-directive lowering ─────────────────────────────────
+
+/// Lowers an `IfDirective` AST node into `ViewTree::Conditional`.
+/// Creates `ConditionalBranch` entries for the primary condition,
+/// any `else if` chains, and the optional `else` fallback.
+fn lower_if_directive(
+    if_dir: &IfDirective,
+    string_signals: &[String],
+    variant_map: &FxHashMap<String, String>,
+    semantics: &mut SemanticResult,
+) -> ViewTree {
+    let branches: Vec<ConditionalBranch> = std::iter::once(ConditionalBranch {
+        condition: lower_expr(&if_dir.condition, variant_map, None, semantics),
+        body: Some(make_fragment_element(
+            if_dir
+                .body
+                .iter()
+                .map(|n| lower_view_node(n, string_signals, None, variant_map, semantics))
+                .collect(),
+            ConstructionKind::Conditional,
+        )),
+    })
+    .chain(if_dir.else_ifs.iter().map(|(cond, body)| {
+        ConditionalBranch {
+            condition: lower_expr(cond, variant_map, None, semantics),
+            body: Some(make_fragment_element(
+                body.iter()
+                    .map(|n| lower_view_node(n, string_signals, None, variant_map, semantics))
+                    .collect(),
+                ConstructionKind::Conditional,
+            )),
+        }
+    }))
+    .collect();
+
+    let fallback = if_dir.else_body.as_ref().map(|body| {
+        make_fragment_element(
+            body.iter()
+                .map(|n| lower_view_node(n, string_signals, None, variant_map, semantics))
+                .collect(),
+            ConstructionKind::Conditional,
+        )
+    });
+
+    ViewTree::Conditional(Box::new(ConditionalIntent {
+        branches,
+        fallback,
+        transition_mode: if_dir.transition_mode.clone(),
+    }))
+}
+
+// ── For-directive lowering ────────────────────────────────
+
+/// Lowers a `ForDirective` AST node into `ViewTree::ListRendering`.
+/// Wraps body nodes in a fragment with `ConstructionKind::List`.
+fn lower_for_directive(
+    for_dir: &ForDirective,
+    string_signals: &[String],
+    variant_map: &FxHashMap<String, String>,
+    semantics: &mut SemanticResult,
+) -> ViewTree {
+    let lower_body = |nodes: &[ViewNode], s: &mut SemanticResult| -> Option<ViewTree> {
+        if nodes.is_empty() {
+            None
+        } else {
+            Some(make_fragment_element(
+                nodes
+                    .iter()
+                    .map(|n| lower_view_node(n, string_signals, None, variant_map, s))
+                    .collect(),
+                ConstructionKind::List,
+            ))
+        }
+    };
+
+    ViewTree::ListRendering(Box::new(ListRenderingIntent {
+        iterable: lower_expr(&for_dir.iterable, variant_map, None, semantics),
+        item_binding: BindingIR {
+            name: for_dir.item_name.clone(),
+            r#type: None,
+        },
+        body: lower_body(&for_dir.body, semantics),
+        key_expr: for_dir
+            .key_expr
+            .as_ref()
+            .map(|e| lower_expr(e, variant_map, None, semantics)),
+        empty_body: for_dir
+            .empty_body
+            .as_ref()
+            .and_then(|nodes| lower_body(nodes.as_slice(), semantics)),
+    }))
+}
+
+// ── Helper factories ─────────────────────────────────────
+
+/// Creates a "fragment" `ElementIR` that wraps child view nodes.
+/// Used by conditional/list directives that need a synthetic wrapper element.
+fn make_fragment_element(children: Vec<ViewTree>, construction_kind: ConstructionKind) -> ViewTree {
+    ViewTree::Element(ElementIR {
+        tag: "fragment".into(),
+        props: FxHashMap::default(),
+        bindings: FxHashMap::default(),
+        events: FxHashMap::default(),
+        style_classes: None,
+        inline_style: None,
+        children,
+        test_id: None,
+        ref_name: None,
+        construction_kind,
+        class_map_bindings: FxHashMap::default(),
+        source_span: None,
+        motion: None,
+        scroll: None,
+        drag: None,
+        hero: None,
+    })
+}
