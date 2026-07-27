@@ -27,6 +27,9 @@ proptest = "1"
 [features]
 default = ["codegen-omniview", "codegen-react", "codegen-flutter"]
 
+# Parallel compilation across multiple targets (P36 — currently unused in production).
+multi-target = []
+
 # Per-backend codegen feature flags — gate compilation of individual targets.
 codegen-react = []
 codegen-vue = ["codegen-javascript"]

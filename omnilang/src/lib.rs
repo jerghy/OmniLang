@@ -571,6 +571,7 @@ pub fn compile_multi_to_target(
 /// Phase 1-3 (parse, semantic, IR lowering) run once.
 /// Phase 4 (codegen) runs in parallel per target via rayon.
 /// All codegen backends are Send+Sync (verified: zero RefCell/Cell/Mutex in codegen/).
+#[cfg(feature = "multi-target")]
 #[must_use]
 pub fn compile_multi_target(
     sources: FxHashMap<String, String>,
@@ -700,6 +701,7 @@ mod source_map_integration_tests {
 }
 
 #[cfg(test)]
+#[cfg(all(test, feature = "multi-target"))]
 mod compile_multi_target_tests {
     use crate::codegen::Target;
     use rustc_hash::FxHashMap;
