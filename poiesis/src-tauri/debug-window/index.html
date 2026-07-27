@@ -173,7 +173,9 @@
   // ── Outbound: parent → iframe ──
   function postToIframe(msg) {
     if (omniPreview.contentWindow) {
-      omniPreview.contentWindow.postMessage(msg, '*');
+      // The sandboxed iframe has origin 'null' (sandbox="allow-scripts", no allow-same-origin).
+      // For srcdoc iframes, the parent origin is used for posting.
+      omniPreview.contentWindow.postMessage(msg, window.location.origin);
     }
   }
 
