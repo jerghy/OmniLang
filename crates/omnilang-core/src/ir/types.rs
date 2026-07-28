@@ -622,8 +622,6 @@ pub struct ElementIR {
     pub style_classes: Option<serde_json::Value>,
     pub inline_style: Option<serde_json::Value>,
     pub children: Vec<ViewTree>,
-    pub test_id: Option<String>,
-    pub ref_name: Option<String>,
     pub construction_kind: ConstructionKind,
     /// Dynamic class map bindings: class_name → signal expression
     /// e.g. "visible" → IR for `isOpen` signal. Codegen emits

@@ -18,8 +18,6 @@ fn make_element(tag: &str) -> ElementIR {
         style_classes: None,
         inline_style: None,
         children: vec![],
-        test_id: None,
-        ref_name: None,
         construction_kind: ConstructionKind::Static,
         class_map_bindings: FxHashMap::default(),
         source_span: None,

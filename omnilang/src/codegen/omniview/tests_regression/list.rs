@@ -263,8 +263,6 @@ fn test_list_with_event_delegation() {
         style_classes: None,
         inline_style: None,
         children: vec![],
-        test_id: None,
-        ref_name: None,
         construction_kind: ConstructionKind::Static,
         class_map_bindings: FxHashMap::default(),
         source_span: None,
