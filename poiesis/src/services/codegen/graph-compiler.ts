@@ -115,7 +115,7 @@ function emitNode(
 
     case "code-block": {
       // Use structured operations if available, fall back to raw source
-      const operations = (node.element as any).operations as import("../../core/types/code-op").CodeOp[] | undefined;
+      const { operations } = node.element as CodeblockElementData;
       let out: string;
 
       if (operations && operations.length > 0) {

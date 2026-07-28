@@ -76,19 +76,20 @@ pub fn compile(source: &str) -> CompileResult {
 // Shared Pipeline
 // ═══════════════════════════════════════════════════════
 
-/// Internal pipeline result after lex->parse->semantic->IR lowering.
-struct PipelineOutput {
-    ir: ir::IRProgram,
-    diagnostics: Vec<error::Diagnostic>,
-    has_errors: bool,
-    symbols: Vec<SymbolInfo>,
-    dependencies: FxHashMap<String, Vec<String>>,
+/// Pipeline result after lex->parse->semantic->IR lowering.
+/// Public so the facade crate can delegate to this single source of truth.
+pub struct PipelineOutput {
+    pub ir: ir::IRProgram,
+    pub diagnostics: Vec<error::Diagnostic>,
+    pub has_errors: bool,
+    pub symbols: Vec<SymbolInfo>,
+    pub dependencies: FxHashMap<String, Vec<String>>,
 }
 
 /// Run the shared compilation pipeline: lex -> parse -> semantic -> IR lowering.
 /// Returns `Err` on parse failure (with parse errors), or `Ok` with the pipeline
 /// output including all semantic diagnostics.
-fn run_pipeline(source: &str) -> Result<PipelineOutput, Vec<error::Diagnostic>> {
+pub fn run_pipeline(source: &str) -> Result<PipelineOutput, Vec<error::Diagnostic>> {
     let tokens = lexer::tokenize(source);
     let program = parser::parse(tokens, source).map_err(|e| vec![e.into()])?;
     let mut semantics = semantic::analyze(&program);

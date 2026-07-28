@@ -28,6 +28,7 @@ interface ParsedSegment {
   endLine: number;
   code: string;
   type: "fn" | "code-block" | "condition" | "return";
+  operations?: import("../../core/types/code-op").CodeOp[];
 }
 
 /**
@@ -489,7 +490,7 @@ export function parseCodeFlowGraph(
         operations = undefined; // keep as raw source only
       }
       // Store operations for later use
-      (seg as any)._operations = operations;
+      seg.operations = operations;
     } else if (seg.type === "return") {
       // The return expression is always on the first line (trailing } may
       // follow on subsequent lines if this is the last segment in a block).
@@ -505,7 +506,7 @@ export function parseCodeFlowGraph(
       parentId: null,
       props,
       source,
-      ...((seg as any)._operations && (seg as any)._operations.length > 0 ? { operations: (seg as any)._operations } : {}),
+      ...(seg.operations?.length ? { operations: seg.operations } : {}),
     };
 
     elements.push(el);

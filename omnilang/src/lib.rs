@@ -39,32 +39,9 @@ pub use omnilang_core::{compile, CompileResult, SymbolInfo};
 // Shared Pipeline
 // ═══════════════════════════════════════════════════════
 
-/// Internal pipeline result after lex->parse->semantic->IR lowering.
-struct PipelineOutput {
-    ir: ir::IRProgram,
-    diagnostics: Vec<error::Diagnostic>,
-    has_errors: bool,
-}
-
-/// Run the shared compilation pipeline: lex -> parse -> semantic -> IR lowering.
-/// Returns `Err` on parse failure (with parse errors), or `Ok` with the pipeline
-/// output including all semantic diagnostics.
-fn run_pipeline(source: &str) -> Result<PipelineOutput, Vec<error::Diagnostic>> {
-    let tokens = lexer::tokenize(source);
-    let program = parser::parse(tokens, source).map_err(|e| vec![e.into()])?;
-    let mut semantics = semantic::analyze(&program);
-
-    let has_errors = semantics
-        .diagnostics
-        .iter()
-        .any(|d| matches!(d.severity, crate::error::Severity::Error));
-    let mut ir = ir::lower(&program, &mut semantics);
-    omnilang_core::ir::optimize::optimize(&mut ir);
-    Ok(PipelineOutput {
-        ir,
-        diagnostics: semantics.diagnostics,
-        has_errors,
-    })
+/// Delegate to omnilang-core's run_pipeline (single source of truth).
+fn run_pipeline(source: &str) -> Result<omnilang_core::PipelineOutput, Vec<error::Diagnostic>> {
+    omnilang_core::run_pipeline(source)
 }
 
 // ═══════════════════════════════════════════════════════
