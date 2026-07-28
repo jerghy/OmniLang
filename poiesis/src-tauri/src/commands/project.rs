@@ -215,6 +215,14 @@ fn get_allowed_directories() -> Vec<std::path::PathBuf> {
     {
         try_add("APPDATA");
         try_add("USERPROFILE");
+        // Per ADR-004 Decision 2: FS全覆盖 is an editor requirement.
+        // Capabilities allow D:/** and C:** — align path validation.
+        for drive in &["C:\\", "D:\\"] {
+            let p = std::path::Path::new(drive);
+            if p.exists() && !dirs.contains(&p.to_path_buf()) {
+                dirs.push(p.to_path_buf());
+            }
+        }
     }
 
     dirs
