@@ -46,25 +46,25 @@ pub(super) fn lower_view_block(
 ///
 /// This replaces the field-collection half of the old `EventFieldCollector`;
 /// event field names are now collected during `lower_expr` traversal.
-fn scan_event_methods(block: &Block) -> (bool, bool) {
+fn scan_event_methods(block: &Block, event_param: &str) -> (bool, bool) {
     let mut needs_pd = false;
     let mut needs_sp = false;
     for stmt in &block.stmts {
-        scan_stmt_for_event_methods(stmt, &mut needs_pd, &mut needs_sp);
+        scan_stmt_for_event_methods(stmt, &mut needs_pd, &mut needs_sp, event_param);
     }
     if let Some(ref expr) = block.trailing_expr {
-        scan_expr_for_event_methods(expr, &mut needs_pd, &mut needs_sp);
+        scan_expr_for_event_methods(expr, &mut needs_pd, &mut needs_sp, event_param);
     }
     (needs_pd, needs_sp)
 }
 
-fn scan_stmt_for_event_methods(stmt: &Stmt, pd: &mut bool, sp: &mut bool) {
+fn scan_stmt_for_event_methods(stmt: &Stmt, pd: &mut bool, sp: &mut bool, event_param: &str) {
     match stmt {
-        Stmt::ExprStmt { expr, .. } => scan_expr_for_event_methods(expr, pd, sp),
+        Stmt::ExprStmt { expr, .. } => scan_expr_for_event_methods(expr, pd, sp, event_param),
         Stmt::VarDecl {
             init: Some(init), ..
-        } => scan_expr_for_event_methods(init, pd, sp),
-        Stmt::Assign { value, .. } => scan_expr_for_event_methods(value, pd, sp),
+        } => scan_expr_for_event_methods(init, pd, sp, event_param),
+        Stmt::Assign { value, .. } => scan_expr_for_event_methods(value, pd, sp, event_param),
         Stmt::If {
             condition,
             then_body,
@@ -72,38 +72,38 @@ fn scan_stmt_for_event_methods(stmt: &Stmt, pd: &mut bool, sp: &mut bool) {
             else_body,
             ..
         } => {
-            scan_expr_for_event_methods(condition, pd, sp);
+            scan_expr_for_event_methods(condition, pd, sp, event_param);
             for s in &then_body.stmts {
-                scan_stmt_for_event_methods(s, pd, sp);
+                scan_stmt_for_event_methods(s, pd, sp, event_param);
             }
             for (_, elsif_block) in else_ifs {
                 for s in &elsif_block.stmts {
-                    scan_stmt_for_event_methods(s, pd, sp);
+                    scan_stmt_for_event_methods(s, pd, sp, event_param);
                 }
             }
             if let Some(else_b) = else_body {
                 for s in &else_b.stmts {
-                    scan_stmt_for_event_methods(s, pd, sp);
+                    scan_stmt_for_event_methods(s, pd, sp, event_param);
                 }
             }
         }
         Stmt::While {
             condition, body, ..
         } => {
-            scan_expr_for_event_methods(condition, pd, sp);
+            scan_expr_for_event_methods(condition, pd, sp, event_param);
             for s in &body.stmts {
-                scan_stmt_for_event_methods(s, pd, sp);
+                scan_stmt_for_event_methods(s, pd, sp, event_param);
             }
         }
         Stmt::ForIn { iterable, body, .. } => {
-            scan_expr_for_event_methods(iterable, pd, sp);
+            scan_expr_for_event_methods(iterable, pd, sp, event_param);
             for s in &body.stmts {
-                scan_stmt_for_event_methods(s, pd, sp);
+                scan_stmt_for_event_methods(s, pd, sp, event_param);
             }
         }
-        Stmt::Return { value: Some(v), .. } => scan_expr_for_event_methods(v, pd, sp),
-        Stmt::Print { arg, .. } => scan_expr_for_event_methods(arg, pd, sp),
-        Stmt::Throw { expr, .. } => scan_expr_for_event_methods(expr, pd, sp),
+        Stmt::Return { value: Some(v), .. } => scan_expr_for_event_methods(v, pd, sp, event_param),
+        Stmt::Print { arg, .. } => scan_expr_for_event_methods(arg, pd, sp, event_param),
+        Stmt::Throw { expr, .. } => scan_expr_for_event_methods(expr, pd, sp, event_param),
         Stmt::TryCatch {
             try_body,
             catch_body,
@@ -111,16 +111,16 @@ fn scan_stmt_for_event_methods(stmt: &Stmt, pd: &mut bool, sp: &mut bool) {
             ..
         } => {
             for s in &try_body.stmts {
-                scan_stmt_for_event_methods(s, pd, sp);
+                scan_stmt_for_event_methods(s, pd, sp, event_param);
             }
             if let Some(catch_b) = catch_body {
                 for s in &catch_b.stmts {
-                    scan_stmt_for_event_methods(s, pd, sp);
+                    scan_stmt_for_event_methods(s, pd, sp, event_param);
                 }
             }
             if let Some(finally_b) = finally_body {
                 for s in &finally_b.stmts {
-                    scan_stmt_for_event_methods(s, pd, sp);
+                    scan_stmt_for_event_methods(s, pd, sp, event_param);
                 }
             }
         }
@@ -128,11 +128,11 @@ fn scan_stmt_for_event_methods(stmt: &Stmt, pd: &mut bool, sp: &mut bool) {
     }
 }
 
-fn scan_expr_for_event_methods(expr: &Expr, pd: &mut bool, sp: &mut bool) {
+fn scan_expr_for_event_methods(expr: &Expr, pd: &mut bool, sp: &mut bool, event_param: &str) {
     match expr {
         Expr::MethodCall { object, method, .. } => {
             if let Expr::VarRef(name, _) = object.as_ref() {
-                if name == "e" {
+                if name == event_param {
                     match method.as_str() {
                         "preventDefault" => *pd = true,
                         "stopPropagation" => *sp = true,
@@ -143,19 +143,19 @@ fn scan_expr_for_event_methods(expr: &Expr, pd: &mut bool, sp: &mut bool) {
         }
         // Recurse into expressions that may contain nested method calls
         Expr::BinaryOp { left, right, .. } => {
-            scan_expr_for_event_methods(left, pd, sp);
-            scan_expr_for_event_methods(right, pd, sp);
+            scan_expr_for_event_methods(left, pd, sp, event_param);
+            scan_expr_for_event_methods(right, pd, sp, event_param);
         }
-        Expr::UnaryOp { operand, .. } => scan_expr_for_event_methods(operand, pd, sp),
+        Expr::UnaryOp { operand, .. } => scan_expr_for_event_methods(operand, pd, sp, event_param),
         Expr::FuncCall { func, args, .. } => {
-            scan_expr_for_event_methods(func, pd, sp);
+            scan_expr_for_event_methods(func, pd, sp, event_param);
             for arg in args {
-                scan_expr_for_event_methods(arg, pd, sp);
+                scan_expr_for_event_methods(arg, pd, sp, event_param);
             }
         }
         Expr::Block { body, .. } => {
             for s in &body.stmts {
-                scan_stmt_for_event_methods(s, pd, sp);
+                scan_stmt_for_event_methods(s, pd, sp, event_param);
             }
         }
         Expr::IfExpr {
@@ -170,9 +170,9 @@ fn scan_expr_for_event_methods(expr: &Expr, pd: &mut bool, sp: &mut bool) {
             else_expr,
             ..
         } => {
-            scan_expr_for_event_methods(condition, pd, sp);
-            scan_expr_for_event_methods(then_expr, pd, sp);
-            scan_expr_for_event_methods(else_expr, pd, sp);
+            scan_expr_for_event_methods(condition, pd, sp, event_param);
+            scan_expr_for_event_methods(then_expr, pd, sp, event_param);
+            scan_expr_for_event_methods(else_expr, pd, sp, event_param);
         }
         _ => {}
     }
@@ -275,16 +275,23 @@ fn lower_element(
                 let mut needs_sp = false;
                 let ir_handler = match handler {
                     EventHandler::InlineFn { params, body, .. } => {
+                        let event_param = params.first().map(|p| p.name.as_str()).unwrap_or("e");
                         if event_data.is_some() {
-                            let (needs_pd_from_scan, needs_sp_from_scan) = scan_event_methods(body);
+                            let (needs_pd_from_scan, needs_sp_from_scan) =
+                                scan_event_methods(body, event_param);
                             needs_pd = needs_pd || needs_pd_from_scan;
                             needs_sp = needs_sp_from_scan;
 
                             // Collect event field names during lowering instead
                             // of a separate pre-walk.
                             let mut event_fields = FxHashSet::default();
+                            // Save and set event param name so lower_expr can detect field access
+                            let prev_param = semantics.event_param_name.take();
+                            semantics.event_param_name = Some(event_param.to_string());
                             let block_ir =
                                 lower_block(body, variant_map, Some(&mut event_fields), semantics);
+                            // Restore previous event param name
+                            semantics.event_param_name = prev_param;
 
                             EventHandlerIR::InlineFn {
                                 body: block_ir,

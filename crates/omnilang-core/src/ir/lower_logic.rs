@@ -136,6 +136,7 @@ mod tests {
             symbols: crate::semantic::symbols::SymbolTable::new(),
             dependencies: FxHashMap::default(),
             diagnostics: Vec::new(),
+            event_param_name: None,
         };
         let ir = crate::ir::lower(&program, &mut semantics);
         let main_module = ir.modules.get("input.omni").unwrap();
@@ -154,6 +155,7 @@ mod tests {
             symbols: crate::semantic::symbols::SymbolTable::new(),
             dependencies: FxHashMap::default(),
             diagnostics: Vec::new(),
+            event_param_name: None,
         };
         let ir = crate::ir::lower(&program, &mut semantics);
         let main_module = ir.modules.get("input.omni").unwrap();

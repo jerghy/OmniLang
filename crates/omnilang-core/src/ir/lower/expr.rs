@@ -190,7 +190,8 @@ pub(crate) fn lower_expr(
             // FxHashSet ensures O(1) dedup.
             if let Some(ref mut fields) = event_fields {
                 if let Expr::VarRef(name, _) = object.as_ref() {
-                    if name == "e" {
+                    let is_event_param = semantics.event_param_name.as_deref() == Some(name);
+                    if is_event_param || name == "e" {
                         fields.insert(field.clone());
                     }
                 }

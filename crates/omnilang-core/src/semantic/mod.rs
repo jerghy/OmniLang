@@ -28,6 +28,9 @@ pub struct SemanticResult {
     pub symbols: SymbolTable,
     pub dependencies: FxHashMap<String, Vec<String>>,
     pub diagnostics: Vec<Diagnostic>,
+    /// Event handler parameter name, set during lowering of event handler bodies.
+    /// Used by lower_expr to detect e.field event data access.
+    pub event_param_name: Option<String>,
 }
 
 /// Run all semantic analysis passes on the parsed program.
@@ -96,6 +99,7 @@ impl SemanticAnalyzer {
             symbols: std::mem::take(&mut self.symbols),
             dependencies: std::mem::take(&mut self.dependencies),
             diagnostics: std::mem::take(&mut self.diagnostics),
+            event_param_name: None,
         }
     }
 }
