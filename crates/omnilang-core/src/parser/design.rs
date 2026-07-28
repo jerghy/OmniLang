@@ -77,6 +77,8 @@ pub fn parse_design_body(input: &str) -> ParseResult<DesignDef> {
 
     Ok(DesignDef {
         name: String::new(),
+        themes: vec![],
+        default_theme: None,
         tokens,
         classes,
         variants,
@@ -111,6 +113,7 @@ fn parse_token(input: &str) -> ParseResult<(TokenDef, &str)> {
             name,
             token_type,
             value,
+            theme_values: vec![],
         },
         rest,
     ))

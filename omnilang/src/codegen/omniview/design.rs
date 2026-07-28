@@ -222,6 +222,7 @@ mod tests {
                 value: "#ffffff".to_string(),
                 token_type: TokenTypeIR::Color,
 
+                theme_values: FxHashMap::default(),
                 source_span: None,
             },
         );
@@ -231,6 +232,7 @@ mod tests {
                 value: "#6366f1".to_string(),
                 token_type: TokenTypeIR::Color,
 
+                theme_values: FxHashMap::default(),
                 source_span: None,
             },
         );
@@ -240,6 +242,7 @@ mod tests {
                 value: "8px".to_string(),
                 token_type: TokenTypeIR::Size,
 
+                theme_values: FxHashMap::default(),
                 source_span: None,
             },
         );
@@ -310,6 +313,8 @@ mod tests {
 
         DesignIR {
             name: "AppDesign".to_string(),
+            themes: vec![],
+            default_theme: None,
             tokens,
             classes,
             variants,
@@ -371,6 +376,8 @@ mod tests {
     fn emit_empty_design() {
         let design = DesignIR {
             name: "Empty".to_string(),
+            themes: vec![],
+            default_theme: None,
             tokens: FxHashMap::default(),
             classes: vec![],
             variants: vec![],

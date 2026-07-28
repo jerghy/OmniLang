@@ -36,11 +36,14 @@ pub fn lower_design(ast: &DesignDef) -> DesignIR {
                 TokenType::Opacity => TokenTypeIR::Opacity,
                 TokenType::ZIndex => TokenTypeIR::ZIndex,
             };
+            // Convert per-theme value overrides from Vec<(String, String)> to FxHashMap
+            let theme_values: FxHashMap<String, String> = t.theme_values.iter().cloned().collect();
             (
                 t.name.clone(),
                 TokenIR {
                     value: t.value.clone(),
                     token_type,
+                    theme_values,
                     source_span: None,
                 },
             )
@@ -63,6 +66,8 @@ pub fn lower_design(ast: &DesignDef) -> DesignIR {
 
     DesignIR {
         name: ast.name.clone(),
+        themes: ast.themes.clone(),
+        default_theme: ast.default_theme.clone(),
         tokens,
         classes,
         variants,
@@ -358,6 +363,42 @@ mod tests {
         assert_eq!(
             card.properties.get("border-radius"),
             Some(&"var(--radiusMd)".to_string())
+        );
+    }
+
+    #[test]
+    fn lower_design_with_themes() {
+        let design_def = DesignDef {
+            name: "App".to_string(),
+            themes: vec!["light".to_string(), "dark".to_string()],
+            default_theme: Some("light".to_string()),
+            tokens: vec![TokenDef {
+                name: "primary".to_string(),
+                token_type: TokenType::Color,
+                value: "#6366f1".to_string(),
+                theme_values: vec![("dark".to_string(), "#a5b4fc".to_string())],
+            }],
+            classes: vec![],
+            variants: vec![],
+        };
+
+        let design = lower_design(&design_def);
+        assert_eq!(design.name, "App");
+        assert_eq!(design.themes, vec!["light", "dark"]);
+        assert_eq!(design.default_theme, Some("light".to_string()));
+
+        let primary = design
+            .tokens
+            .get("primary")
+            .expect("should have primary token");
+        assert_eq!(primary.value, "#6366f1");
+        assert_eq!(
+            primary.theme_values.get("dark"),
+            Some(&"#a5b4fc".to_string())
+        );
+        assert!(
+            primary.theme_values.get("light").is_none(),
+            "no light override in theme_values"
         );
     }
 

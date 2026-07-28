@@ -132,9 +132,10 @@ fn validate_file_consistency(file_path: &str, program: &Program) -> Result<(), V
             .any(|imp| matches!(imp, ImportStmt::Lib(name) if name == OMNIVIEW_MARKER))
     });
 
-    let has_ui_declarations = program.modules.values().any(|module| {
-        !module.components.is_empty() || !module.stores.is_empty()
-    });
+    let has_ui_declarations = program
+        .modules
+        .values()
+        .any(|module| !module.components.is_empty() || !module.stores.is_empty());
 
     if !has_omniview_marker && has_ui_declarations {
         errors.push(Diagnostic {

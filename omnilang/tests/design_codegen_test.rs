@@ -16,6 +16,7 @@ fn make_test_design() -> DesignIR {
         TokenIR {
             value: "#ffffff".to_string(),
             token_type: TokenTypeIR::Color,
+            theme_values: FxHashMap::default(),
             source_span: None,
         },
     );
@@ -24,6 +25,7 @@ fn make_test_design() -> DesignIR {
         TokenIR {
             value: "#6366f1".to_string(),
             token_type: TokenTypeIR::Color,
+            theme_values: FxHashMap::default(),
             source_span: None,
         },
     );
@@ -32,6 +34,7 @@ fn make_test_design() -> DesignIR {
         TokenIR {
             value: "8px".to_string(),
             token_type: TokenTypeIR::Size,
+            theme_values: FxHashMap::default(),
             source_span: None,
         },
     );
@@ -96,6 +99,8 @@ fn make_test_design() -> DesignIR {
 
     DesignIR {
         name: "AppDesign".to_string(),
+        themes: vec![],
+        default_theme: None,
         tokens,
         classes,
         variants,
@@ -250,6 +255,8 @@ fn expand_variant_not_found() {
 fn emit_empty_design_produces_no_css() {
     let design = DesignIR {
         name: "Empty".to_string(),
+        themes: vec![],
+        default_theme: None,
         tokens: FxHashMap::default(),
         classes: vec![],
         variants: vec![],
@@ -296,6 +303,8 @@ fn emit_class_with_multiple_pseudo_states() {
 
     let design = DesignIR {
         name: "FormDesign".to_string(),
+        themes: vec![],
+        default_theme: None,
         tokens: FxHashMap::default(),
         classes,
         variants: vec![],

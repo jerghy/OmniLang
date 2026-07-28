@@ -18,6 +18,12 @@ use crate::lexer::Span;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DesignIR {
     pub name: String,
+    /// Theme names declared via `@themes ...;` (e.g. `["light", "dark"]`).
+    #[serde(default)]
+    pub themes: Vec<String>,
+    /// Optional default theme name set via `@default-theme ...;`.
+    #[serde(default)]
+    pub default_theme: Option<String>,
     pub tokens: FxHashMap<String, TokenIR>,
     pub classes: Vec<ClassIR>,
     pub variants: Vec<VariantIR>,
@@ -26,10 +32,16 @@ pub struct DesignIR {
 }
 
 /// A single design token with its resolved value and type annotation.
+///
+/// Per-theme overrides are stored as `theme_values: FxHashMap<String, String>`;
+/// the outer `value` is the fallback used when no theme context matches.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TokenIR {
     pub value: String,
     pub token_type: TokenTypeIR,
+    /// Per-theme value overrides keyed by theme name.
+    #[serde(default)]
+    pub theme_values: FxHashMap<String, String>,
     #[serde(default)]
     pub source_span: Option<Span>,
 }
