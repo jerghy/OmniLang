@@ -43,12 +43,22 @@ pub fn parse_design_body(input: &str) -> ParseResult<DesignDef> {
     let mut tokens = Vec::new();
     let mut classes = Vec::new();
     let mut variants = Vec::new();
+    let mut themes: Vec<String> = Vec::new();
+    let mut default_theme: Option<String> = None;
     let mut remaining = input.trim();
 
     while !remaining.is_empty() {
         remaining = skip_ws_and_comments(remaining);
 
-        if remaining.starts_with("token ") {
+        if remaining.starts_with("@themes ") {
+            let (t, rest) = parse_themes_directive(remaining)?;
+            themes = t;
+            remaining = rest;
+        } else if remaining.starts_with("@default-theme ") {
+            let (dt, rest) = parse_default_theme_directive(remaining)?;
+            default_theme = Some(dt);
+            remaining = rest;
+        } else if remaining.starts_with("token ") {
             let (token, rest) = parse_token(remaining)?;
             tokens.push(token);
             remaining = rest;
@@ -77,8 +87,8 @@ pub fn parse_design_body(input: &str) -> ParseResult<DesignDef> {
 
     Ok(DesignDef {
         name: String::new(),
-        themes: vec![],
-        default_theme: None,
+        themes,
+        default_theme,
         tokens,
         classes,
         variants,
@@ -102,21 +112,83 @@ fn parse_token(input: &str) -> ParseResult<(TokenDef, &str)> {
         .ok_or_else(|| err("expected '='"))?
         .trim_start();
     let (value, rest) = parse_string_or_ident(rest)?;
-    let rest = rest
-        .trim_start()
-        .strip_prefix(";")
-        .ok_or_else(|| err("expected ';'"))?
-        .trim_start();
+
+    // Parse optional per-theme value overrides: `dark "#a5b4fc" light "#ffffff"`
+    let mut theme_values: Vec<(String, String)> = Vec::new();
+    let mut remaining = rest.trim_start();
+    loop {
+        if remaining.starts_with(';') {
+            remaining = &remaining[1..];
+            break;
+        }
+        // Try parsing `<theme_name> <value>` pair
+        let (maybe_theme, after_theme) = match parse_ident(remaining) {
+            Ok((ident, r)) => (ident, r),
+            Err(_) => break, // Not a theme name, stop
+        };
+        // Must be followed by a value
+        let after_ws = after_theme.trim_start();
+        if after_ws.starts_with(';') {
+            // This is the ';' — the "theme name" was actually part of the value
+            // Put it back: the value consumed too greedily
+            break;
+        }
+        match parse_string_or_ident(after_ws) {
+            Ok((theme_val, r)) => {
+                theme_values.push((maybe_theme, theme_val));
+                remaining = r.trim_start();
+            }
+            Err(_) => break,
+        }
+    }
 
     Ok((
         TokenDef {
             name,
             token_type,
             value,
-            theme_values: vec![],
+            theme_values,
         },
-        rest,
+        remaining,
     ))
+}
+
+/// Parse `@themes light, dark;` — comma-separated theme name list.
+fn parse_themes_directive(input: &str) -> ParseResult<(Vec<String>, &str)> {
+    let rest = input
+        .strip_prefix("@themes ")
+        .ok_or_else(|| err("expected '@themes'"))?;
+    let mut themes = Vec::new();
+    let mut remaining = rest.trim_start();
+
+    loop {
+        if remaining.starts_with(';') {
+            remaining = &remaining[1..];
+            break;
+        }
+        if remaining.starts_with(',') {
+            remaining = remaining[1..].trim_start();
+            continue;
+        }
+        let (name, rest) = parse_ident(remaining)?;
+        themes.push(name);
+        remaining = rest.trim_start();
+    }
+
+    Ok((themes, remaining))
+}
+
+/// Parse `@default-theme light;` — single theme name.
+fn parse_default_theme_directive(input: &str) -> ParseResult<(String, &str)> {
+    let rest = input
+        .strip_prefix("@default-theme ")
+        .ok_or_else(|| err("expected '@default-theme'"))?;
+    let (name, rest) = parse_ident(rest)?;
+    let rest = rest
+        .trim_start()
+        .strip_prefix(';')
+        .ok_or_else(|| err("expected ';'"))?;
+    Ok((name, rest))
 }
 
 fn parse_token_type(input: &str) -> ParseResult<(TokenType, &str)> {
@@ -656,5 +728,68 @@ mod tests {
                 ("size".into(), "md".into()),
             ]
         );
+    }
+
+    #[test]
+    fn parse_themes_directive() {
+        let src = r##"
+            @themes light, dark;
+            token primary: color = "#6366f1";
+        "##;
+        let result = parse_design_body(src).unwrap();
+        assert_eq!(result.themes, vec!["light", "dark"]);
+        assert_eq!(result.tokens.len(), 1);
+    }
+
+    #[test]
+    fn parse_default_theme_directive() {
+        let src = r##"
+            @themes light, dark;
+            @default-theme light;
+            token primary: color = "#6366f1";
+        "##;
+        let result = parse_design_body(src).unwrap();
+        assert_eq!(result.default_theme, Some("light".to_string()));
+    }
+
+    #[test]
+    fn parse_token_with_theme_values() {
+        let src = r##"token primary: color = "#6366f1" dark "#a5b4fc";"##;
+        let result = parse_design_body(src).unwrap();
+        assert_eq!(result.tokens.len(), 1);
+        let token = &result.tokens[0];
+        assert_eq!(token.name, "primary");
+        assert_eq!(token.value, "#6366f1");
+        assert_eq!(token.theme_values.len(), 1);
+        assert_eq!(
+            token.theme_values[0],
+            ("dark".to_string(), "#a5b4fc".to_string())
+        );
+    }
+
+    #[test]
+    fn parse_token_with_multiple_theme_values() {
+        let src = r##"token surface: color = "#ffffff" dark "#111827" highContrast "#000000";"##;
+        let result = parse_design_body(src).unwrap();
+        let token = &result.tokens[0];
+        assert_eq!(token.value, "#ffffff");
+        assert_eq!(token.theme_values.len(), 2);
+        assert_eq!(
+            token.theme_values[0],
+            ("dark".to_string(), "#111827".to_string())
+        );
+        assert_eq!(
+            token.theme_values[1],
+            ("highContrast".to_string(), "#000000".to_string())
+        );
+    }
+
+    #[test]
+    fn parse_token_without_theme_values_still_works() {
+        let src = r##"token primary: color = "#6366f1";"##;
+        let result = parse_design_body(src).unwrap();
+        let token = &result.tokens[0];
+        assert_eq!(token.value, "#6366f1");
+        assert!(token.theme_values.is_empty());
     }
 }

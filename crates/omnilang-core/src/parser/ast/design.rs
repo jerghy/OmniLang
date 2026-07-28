@@ -9,8 +9,8 @@ use serde::{Deserialize, Serialize};
 /// Top-level design block: `design AppDesign { ... }`
 ///
 /// Theme support:
-/// - `@themes light, dark;` declares theme names → `themes`
-/// - `@default-theme light;` sets the fallback → `default_theme`
+/// - `@themes light, dark;` declares theme names -> `themes`
+/// - `@default-theme light;` sets the fallback -> `default_theme`
 /// - Tokens declare per-theme overrides via `TokenDef::theme_values`
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct DesignDef {
@@ -48,10 +48,7 @@ pub enum TokenType {
 ///
 /// Per-theme overrides appear as `theme_values` keyed by theme name:
 /// ```text
-/// token primary: color = "#6366f1" {
-///     light: "#f8fafc",
-///     dark: "#0f172a",
-/// };
+/// token primary: color = "#6366f1" dark "#a5b4fc";
 /// ```
 /// The outer `value` is the fallback (used when no theme context matches).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
