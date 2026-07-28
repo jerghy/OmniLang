@@ -366,6 +366,15 @@ pub(super) fn lower_store(
         })
         .collect();
 
+    let getter_types: FxHashMap<String, TypeIR> = store
+        .getters
+        .iter()
+        .map(|g| {
+            let ty = lower_type(&g.type_ann);
+            (g.name.clone(), ty)
+        })
+        .collect();
+
     let actions: Vec<FunctionIR> = store
         .actions
         .iter()
@@ -398,6 +407,7 @@ pub(super) fn lower_store(
         signals,
         signal_defaults,
         getters,
+        getter_types,
         actions,
         source_span: Some(store.span),
     }

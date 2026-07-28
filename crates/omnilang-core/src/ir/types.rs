@@ -757,6 +757,9 @@ pub struct StoreIR {
     pub signals: FxHashMap<String, TypeIR>,
     pub signal_defaults: FxHashMap<String, serde_json::Value>,
     pub getters: FxHashMap<String, ExprIR>,
+    /// Return types for each getter, populated during lowering from GetterDecl.type_ann.
+    #[serde(default)]
+    pub getter_types: FxHashMap<String, TypeIR>,
     pub actions: Vec<FunctionIR>,
     /// Source location in .omni file
     #[serde(default)]

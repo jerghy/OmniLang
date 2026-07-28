@@ -346,13 +346,33 @@ impl ReactCodegen {
             w.emit_fmt(format_args!("  {}: {};", sig_name, ts_type));
         }
         for getter_name in store.getters.keys() {
-            w.emit_fmt(format_args!("  readonly {}: any;", getter_name));
+            let ts_type = store
+                .getter_types
+                .get(getter_name)
+                .map(|ty| JsTypeFormatter.format_type(ty.kind.as_str(), &ty.type_args))
+                .filter(|s| !s.is_empty())
+                .unwrap_or_else(|| "any".into());
+            w.emit_fmt(format_args!("  readonly {}: {};", getter_name, ts_type));
         }
         for action in &store.actions {
             let params: Vec<String> = action
                 .params
                 .iter()
-                .map(|p| format!("{}: any", escape_js_ident(&p.name)))
+                .map(|p| {
+                    let name = escape_js_ident(&p.name);
+                    match &p.r#type {
+                        Some(ty) => {
+                            let ts_type =
+                                JsTypeFormatter.format_type(ty.kind.as_str(), &ty.type_args);
+                            if ts_type.is_empty() {
+                                format!("{}: any", name)
+                            } else {
+                                format!("{}: {}", name, ts_type)
+                            }
+                        }
+                        None => format!("{}: any", name),
+                    }
+                })
                 .collect();
             if params.is_empty() {
                 w.emit_fmt(format_args!("  {}: () => void;", action.name));
