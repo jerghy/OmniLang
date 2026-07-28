@@ -47,7 +47,7 @@ pub enum TokenType {
 /// `token primary: color = "#6366f1";`
 ///
 /// Per-theme overrides appear as `theme_values` keyed by theme name:
-/// ```
+/// ```text
 /// token primary: color = "#6366f1" {
 ///     light: "#f8fafc",
 ///     dark: "#0f172a",

@@ -392,6 +392,8 @@ pub fn generate(
     }
 
     if !css_only {
+        // Emit theme runtime JS if any design block declares @themes
+        gen.emit_theme_runtime();
         gen.emit_dom_and_bindings();
         // Inject editor bridge code (postMessage, nid_map, highlight, hot-replace)
         gen.emit_editor_bridge();
@@ -646,6 +648,87 @@ impl OmniViewGenerator {
     // ══════════════════════════════════════════════════════
     // View → HTML Generation
     // ══════════════════════════════════════════════════════
+
+    /// Emit the `__omni_theme` JS runtime for design blocks that declare `@themes`.
+    ///
+    /// Generates a runtime object with `set()`, `toggle()`, `init()` methods,
+    /// `localStorage` persistence, and `prefers-color-scheme` auto-detection.
+    /// Scans `self.design_map` for theme configurations and skips if no themes
+    /// are declared in any design block.
+    pub(super) fn emit_theme_runtime(&mut self) {
+        // Collect all unique theme names across all design blocks
+        let mut all_themes: Vec<String> = Vec::new();
+        let mut has_dark = false;
+        for design in self.design_map.values() {
+            for theme in &design.themes {
+                if !all_themes.contains(theme) {
+                    all_themes.push(theme.clone());
+                }
+                if theme == "dark" {
+                    has_dark = true;
+                }
+            }
+        }
+
+        if all_themes.is_empty() {
+            return;
+        }
+
+        let themes_json: Vec<String> = all_themes.iter().map(|t| format!("\"{}\"", t)).collect();
+        let themes_array = themes_json.join(", ");
+
+        let media_init = if has_dark {
+            r#"    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    if (prefersDark && this._themes.includes("dark")) {
+      this.set("dark");
+      return;
+    }
+"#
+            .to_string()
+        } else {
+            String::new()
+        };
+
+        self.js.push_str(&format!(
+            r#"// ═══ Theme Runtime (generated from design @themes) ═══
+const __omni_theme = {{
+  _themes: [{}],
+  _current: null,
+  _storageKey: "omni-theme",
+
+  get current() {{ return this._current; }},
+
+  set(name) {{
+    if (!this._themes.includes(name)) return;
+    document.documentElement.dataset.theme = name;
+    this._current = name;
+    try {{ localStorage.setItem(this._storageKey, name); }} catch (_) {{}}
+  }},
+
+  toggle() {{
+    const i = this._themes.indexOf(this._current);
+    const next = this._themes[(i + 1) % this._themes.length];
+    this.set(next);
+  }},
+
+  init() {{
+    const saved = (() => {{ try {{ return localStorage.getItem(this._storageKey); }} catch (_) {{ return null; }} }})();
+    if (saved && this._themes.includes(saved)) {{
+      this.set(saved);
+      return;
+    }}
+{}
+    // Default: first theme
+    if (!this._current) {{
+      this.set(this._themes[0]);
+    }}
+  }}
+}};
+__omni_theme.init();
+"#,
+            themes_array, media_init
+        ));
+    }
 }
 
 // ══════════════════════════════════════════════════════════

@@ -1304,6 +1304,101 @@ fn test_runtime_error_reporting() {
     );
 }
 
+// ── Theme runtime ────────────────────────────────────
+
+#[test]
+fn test_theme_runtime_emitted_when_design_has_themes() {
+    let mut tokens = FxHashMap::default();
+    let mut theme_values_dark = FxHashMap::default();
+    theme_values_dark.insert("dark".to_string(), "#a5b4fc".to_string());
+    tokens.insert(
+        "primary".to_string(),
+        TokenIR {
+            value: "#6366f1".to_string(),
+            token_type: TokenTypeIR::Color,
+            theme_values: theme_values_dark,
+            source_span: None,
+        },
+    );
+
+    let design = DesignIR {
+        name: "AppDesign".to_string(),
+        themes: vec!["light".to_string(), "dark".to_string()],
+        default_theme: Some("light".to_string()),
+        tokens,
+        classes: vec![],
+        variants: vec![],
+        source_span: None,
+    };
+
+    let mut module = make_module("main");
+    module.designs = vec![design];
+    module.components.insert(
+        "App".to_string(),
+        ComponentIR {
+            view: Some(ViewTree::Element(make_element("div"))),
+            ..make_component("App")
+        },
+    );
+    let ir = make_program(FxHashMap::from_iter([("main".into(), module)]));
+    let output = generate(&ir, false, false, false);
+
+    assert!(
+        output.js.contains("__omni_theme"),
+        "should emit __omni_theme when designs have themes"
+    );
+    assert!(
+        output.js.contains("_themes: [\"light\", \"dark\"]"),
+        "should list all theme names in _themes array"
+    );
+    assert!(
+        output.js.contains("_storageKey: \"omni-theme\""),
+        "should use 'omni-theme' as storage key"
+    );
+    assert!(
+        output.js.contains("localStorage.setItem"),
+        "should persist theme to localStorage"
+    );
+    assert!(
+        output.js.contains("prefers-color-scheme: dark"),
+        "should detect prefers-color-scheme when dark theme exists"
+    );
+    assert!(
+        output.js.contains("__omni_theme.init();"),
+        "should auto-initialize __omni_theme"
+    );
+}
+
+#[test]
+fn test_theme_runtime_not_emitted_without_themes() {
+    let design = DesignIR {
+        name: "SimpleDesign".to_string(),
+        themes: vec![],
+        default_theme: None,
+        tokens: FxHashMap::default(),
+        classes: vec![],
+        variants: vec![],
+        source_span: None,
+    };
+
+    let mut module = make_module("main");
+    module.designs = vec![design];
+    module.components.insert(
+        "App".to_string(),
+        ComponentIR {
+            view: Some(ViewTree::Element(make_element("div"))),
+            ..make_component("App")
+        },
+    );
+    let ir = make_program(FxHashMap::from_iter([("main".into(), module)]));
+    let output = generate(&ir, false, false, false);
+
+    assert!(
+        !output.js.contains("__omni_theme"),
+        "should NOT emit __omni_theme when no themes declared"
+    );
+}
+
 // ── Proptest: backtick escaping for innerHTML ───────
 
 #[cfg(test)]
