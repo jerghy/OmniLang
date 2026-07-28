@@ -267,8 +267,11 @@ pub(crate) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &impl 
             let formatted = fmt.format_expr(expr);
             w.emit_fmt(format_args!("{{{{ {} }}}}", formatted));
         }
-        ViewTree::Slot(_) => {
-            // slots not supported in Vue codegen — emit placeholder
+        ViewTree::Slot(slot_name) => {
+            match slot_name {
+                None => w.emit("<slot />"),
+                Some(name) => w.emit_fmt(format_args!("<slot name=\"{}\" />", name)),
+            }
         }
     }
 }
