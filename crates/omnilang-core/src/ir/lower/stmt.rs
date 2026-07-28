@@ -165,15 +165,13 @@ pub(super) fn lower_stmt(
                 .as_ref()
                 .map(|b| lower_block(b, variant_map, event_fields, semantics)),
         },
-        Stmt::EventEmit { name, args, .. } => {
-            StatementIR::EventEmitStmtIR {
-                event_name: name.clone(),
-                args: args
-                    .iter()
-                    .map(|a| lower_expr(a, variant_map, event_fields.as_deref_mut(), semantics))
-                    .collect(),
-            }
-        }
+        Stmt::EventEmit { name, args, .. } => StatementIR::EventEmitStmtIR {
+            event_name: name.clone(),
+            args: args
+                .iter()
+                .map(|a| lower_expr(a, variant_map, event_fields.as_deref_mut(), semantics))
+                .collect(),
+        },
         _ => StatementIR::ExprStmtIR {
             expr: ExprIR::LiteralExpr {
                 value: serde_json::Value::Null,

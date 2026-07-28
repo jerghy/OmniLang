@@ -40,7 +40,10 @@ pub(crate) fn tag_to_flutter_widget(tag: &str) -> &str {
 /// Map OmniView event names to Flutter callback parameter names.
 pub(crate) fn event_to_flutter_callback(event_name: &str) -> &str {
     // Strip any existing "on" prefix to normalize (IR may carry "onPress" etc.)
-    let stem = event_name.strip_prefix("on").unwrap_or(event_name).to_lowercase();
+    let stem = event_name
+        .strip_prefix("on")
+        .unwrap_or(event_name)
+        .to_lowercase();
     match stem.as_str() {
         "click" | "tap" | "press" => "onPressed",
         "change" | "input" => "onChanged",

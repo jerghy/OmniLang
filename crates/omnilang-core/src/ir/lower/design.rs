@@ -470,8 +470,14 @@ mod tests {
         };
         let errors = validate_design(&ast);
         assert_eq!(errors.len(), 1);
-        assert!(errors[0].contains("darkk"), "should mention the bad theme name");
-        assert!(errors[0].contains("undeclared theme"), "should say undeclared theme");
+        assert!(
+            errors[0].contains("darkk"),
+            "should mention the bad theme name"
+        );
+        assert!(
+            errors[0].contains("undeclared theme"),
+            "should say undeclared theme"
+        );
     }
 
     #[test]
@@ -486,8 +492,14 @@ mod tests {
         };
         let errors = validate_design(&ast);
         assert_eq!(errors.len(), 1);
-        assert!(errors[0].contains("highContrast"), "should mention bad default theme");
-        assert!(errors[0].contains("not in @themes"), "should say not in @themes");
+        assert!(
+            errors[0].contains("highContrast"),
+            "should mention bad default theme"
+        );
+        assert!(
+            errors[0].contains("not in @themes"),
+            "should say not in @themes"
+        );
     }
 
     #[test]

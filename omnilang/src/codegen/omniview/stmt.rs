@@ -121,20 +121,14 @@ impl OmniViewGenerator {
                 self.js.push_str("  }\n");
             }
             StatementIR::EventEmitStmtIR { event_name, args } => {
-                let arg_str: Vec<String> = args
-                    .iter()
-                    .map(|a| self.expr_to_js(a))
-                    .collect();
+                let arg_str: Vec<String> = args.iter().map(|a| self.expr_to_js(a)).collect();
                 let resolved_name = self
                     .name_renames
                     .get(event_name.as_str())
                     .cloned()
                     .unwrap_or_else(|| event_name.clone());
-                self.js.push_str(&format!(
-                    "  {}({});\n",
-                    resolved_name,
-                    arg_str.join(", ")
-                ));
+                self.js
+                    .push_str(&format!("  {}({});\n", resolved_name, arg_str.join(", ")));
             }
             _ => {
                 // Placeholder for unhandled statements
