@@ -321,7 +321,10 @@ fn lower_element(
 
                             func_ir.map(|func| {
                                 let mut used = Vec::new();
-                                collect_ir_event_fields(&func.body, &mut used);
+                                // Extract event parameter name (default "e" if no params)
+                                let fn_param_name =
+                                    func.params.first().map(|p| p.name.as_str()).unwrap_or("e");
+                                collect_ir_event_fields(&func.body, &mut used, fn_param_name);
                                 used.into_iter()
                                     .filter(|f| valid_names.contains(&f.as_str()))
                                     .collect()
@@ -799,12 +802,12 @@ fn lower_for_directive(
 // fn_ref backfill replaces the old two-phase mutation pass)
 // ═══════════════════════════════════════════════════════
 
-/// Walk a BlockIR statement list for FieldAccessExpr where object is IdentifierExpr("e").
-fn collect_ir_event_fields(block: &BlockIR, fields: &mut Vec<String>) {
+/// Walk a BlockIR statement list for FieldAccessExpr where object is IdentifierExpr(param_name).
+fn collect_ir_event_fields(block: &BlockIR, fields: &mut Vec<String>, param_name: &str) {
     for stmt in &block.statements {
         match stmt {
             StatementIR::ExprStmtIR { expr } => {
-                walk_expr_event_fields(expr, fields);
+                walk_expr_event_fields(expr, fields, param_name);
             }
             StatementIR::IfStmtIR {
                 condition,
@@ -812,36 +815,36 @@ fn collect_ir_event_fields(block: &BlockIR, fields: &mut Vec<String>) {
                 else_ifs,
                 else_body,
             } => {
-                walk_expr_event_fields(condition, fields);
-                collect_ir_event_fields(then_body, fields);
+                walk_expr_event_fields(condition, fields, param_name);
+                collect_ir_event_fields(then_body, fields, param_name);
                 for (_, block) in else_ifs {
-                    collect_ir_event_fields(block, fields);
+                    collect_ir_event_fields(block, fields, param_name);
                 }
                 if let Some(block) = else_body {
-                    collect_ir_event_fields(block, fields);
+                    collect_ir_event_fields(block, fields, param_name);
                 }
             }
             StatementIR::LetStmtIR {
                 value: Some(expr), ..
             } => {
-                walk_expr_event_fields(expr, fields);
+                walk_expr_event_fields(expr, fields, param_name);
             }
             StatementIR::ReturnStmtIR { value: Some(expr) } => {
-                walk_expr_event_fields(expr, fields);
+                walk_expr_event_fields(expr, fields, param_name);
             }
             StatementIR::BlockStmtIR { body } => {
-                collect_ir_event_fields(body, fields);
+                collect_ir_event_fields(body, fields, param_name);
             }
             StatementIR::WhileStmtIR { condition, body } => {
-                walk_expr_event_fields(condition, fields);
-                collect_ir_event_fields(body, fields);
+                walk_expr_event_fields(condition, fields, param_name);
+                collect_ir_event_fields(body, fields, param_name);
             }
             StatementIR::ForInStmtIR { iterable, body, .. } => {
-                walk_expr_event_fields(iterable, fields);
-                collect_ir_event_fields(body, fields);
+                walk_expr_event_fields(iterable, fields, param_name);
+                collect_ir_event_fields(body, fields, param_name);
             }
             StatementIR::ThrowStmtIR { expr } => {
-                walk_expr_event_fields(expr, fields);
+                walk_expr_event_fields(expr, fields, param_name);
             }
             StatementIR::TryCatchStmtIR {
                 try_body,
@@ -849,17 +852,17 @@ fn collect_ir_event_fields(block: &BlockIR, fields: &mut Vec<String>) {
                 finally_body,
                 ..
             } => {
-                collect_ir_event_fields(try_body, fields);
+                collect_ir_event_fields(try_body, fields, param_name);
                 if let Some(body) = catch_body {
-                    collect_ir_event_fields(body, fields);
+                    collect_ir_event_fields(body, fields, param_name);
                 }
                 if let Some(body) = finally_body {
-                    collect_ir_event_fields(body, fields);
+                    collect_ir_event_fields(body, fields, param_name);
                 }
             }
             StatementIR::EventEmitStmtIR { args, .. } => {
                 for arg in args {
-                    walk_expr_event_fields(arg, fields);
+                    walk_expr_event_fields(arg, fields, param_name);
                 }
             }
             StatementIR::MutationStmt {
@@ -867,7 +870,7 @@ fn collect_ir_event_fields(block: &BlockIR, fields: &mut Vec<String>) {
             } => match intent {
                 MutationIntent::DirectAssign { value, .. } => {
                     if let Some(value) = value {
-                        walk_expr_event_fields(value, fields);
+                        walk_expr_event_fields(value, fields, param_name);
                     }
                 }
                 MutationIntent::Increment { amount, .. }
@@ -876,12 +879,12 @@ fn collect_ir_event_fields(block: &BlockIR, fields: &mut Vec<String>) {
                 | MutationIntent::Divide { amount, .. }
                 | MutationIntent::Modulo { amount, .. } => {
                     if let Some(amount) = amount {
-                        walk_expr_event_fields(amount, fields);
+                        walk_expr_event_fields(amount, fields, param_name);
                     }
                 }
                 MutationIntent::Push { item, .. } => {
                     if let Some(item) = item {
-                        walk_expr_event_fields(item, fields);
+                        walk_expr_event_fields(item, fields, param_name);
                     }
                 }
                 MutationIntent::Pop { .. } => {}
@@ -891,86 +894,86 @@ fn collect_ir_event_fields(block: &BlockIR, fields: &mut Vec<String>) {
     }
 }
 
-/// Walk an ExprIR tree for `FieldAccessExpr { object: Box(IdentifierExpr("e")), field }`.
-fn walk_expr_event_fields(expr: &ExprIR, fields: &mut Vec<String>) {
+/// Walk an ExprIR tree for `FieldAccessExpr { object: Box(IdentifierExpr(param_name)), field }`.
+fn walk_expr_event_fields(expr: &ExprIR, fields: &mut Vec<String>, param_name: &str) {
     match expr {
         ExprIR::FieldAccessExpr { object, field } => {
             if let ExprIR::IdentifierExpr { name, .. } = object.as_ref() {
-                if name == "e" && !fields.contains(field) {
+                if name == param_name && !fields.contains(field) {
                     fields.push(field.clone());
                 }
             }
-            walk_expr_event_fields(object, fields);
+            walk_expr_event_fields(object, fields, param_name);
         }
         ExprIR::OptionalChainExpr { object, .. } => {
-            walk_expr_event_fields(object, fields);
+            walk_expr_event_fields(object, fields, param_name);
         }
         ExprIR::MethodCallExpr { object, args, .. } => {
-            walk_expr_event_fields(object, fields);
+            walk_expr_event_fields(object, fields, param_name);
             for arg in args {
-                walk_expr_event_fields(arg, fields);
+                walk_expr_event_fields(arg, fields, param_name);
             }
         }
         ExprIR::CallExpr { args, .. } => {
             for arg in args {
-                walk_expr_event_fields(arg, fields);
+                walk_expr_event_fields(arg, fields, param_name);
             }
         }
         ExprIR::BinaryOpExpr { left, right, .. } => {
-            walk_expr_event_fields(left, fields);
-            walk_expr_event_fields(right, fields);
+            walk_expr_event_fields(left, fields, param_name);
+            walk_expr_event_fields(right, fields, param_name);
         }
-        ExprIR::UnaryOpExpr { operand, .. } => walk_expr_event_fields(operand, fields),
+        ExprIR::UnaryOpExpr { operand, .. } => walk_expr_event_fields(operand, fields, param_name),
         ExprIR::TernaryIR {
             cond,
             then_expr,
             else_expr,
         } => {
-            walk_expr_event_fields(cond, fields);
-            walk_expr_event_fields(then_expr, fields);
-            walk_expr_event_fields(else_expr, fields);
+            walk_expr_event_fields(cond, fields, param_name);
+            walk_expr_event_fields(then_expr, fields, param_name);
+            walk_expr_event_fields(else_expr, fields, param_name);
         }
         ExprIR::StructExpr {
             fields: map_fields, ..
         } => {
             for (_, v) in map_fields {
-                walk_expr_event_fields(v, fields);
+                walk_expr_event_fields(v, fields, param_name);
             }
         }
         ExprIR::ArrayExpr { elements, .. } => {
             for e in elements {
-                walk_expr_event_fields(e, fields);
+                walk_expr_event_fields(e, fields, param_name);
             }
         }
         ExprIR::IndexExpr { object, index } => {
-            walk_expr_event_fields(object, fields);
-            walk_expr_event_fields(index, fields);
+            walk_expr_event_fields(object, fields, param_name);
+            walk_expr_event_fields(index, fields, param_name);
         }
         ExprIR::ClosureExpr { body, .. } => {
-            walk_expr_event_fields(body, fields);
+            walk_expr_event_fields(body, fields, param_name);
         }
         ExprIR::BlockExpr { statements, tail } => {
             for stmt in statements {
                 match stmt {
                     StatementIR::ExprStmtIR { expr } => {
-                        walk_expr_event_fields(expr, fields);
+                        walk_expr_event_fields(expr, fields, param_name);
                     }
                     StatementIR::LetStmtIR {
                         value: Some(expr), ..
                     } => {
-                        walk_expr_event_fields(expr, fields);
+                        walk_expr_event_fields(expr, fields, param_name);
                     }
                     _ => {}
                 }
             }
-            walk_expr_event_fields(tail, fields);
+            walk_expr_event_fields(tail, fields, param_name);
         }
-        ExprIR::AwaitExpr { operand } => walk_expr_event_fields(operand, fields),
-        ExprIR::SpreadExpr { operand } => walk_expr_event_fields(operand, fields),
+        ExprIR::AwaitExpr { operand } => walk_expr_event_fields(operand, fields, param_name),
+        ExprIR::SpreadExpr { operand } => walk_expr_event_fields(operand, fields, param_name),
         ExprIR::MatchExpr { matched, arms } => {
-            walk_expr_event_fields(matched, fields);
+            walk_expr_event_fields(matched, fields, param_name);
             for arm in arms {
-                collect_ir_event_fields(&arm.body, fields);
+                collect_ir_event_fields(&arm.body, fields, param_name);
             }
         }
         ExprIR::VariantLiteral {
@@ -978,12 +981,12 @@ fn walk_expr_event_fields(expr: &ExprIR, fields: &mut Vec<String>) {
             ..
         } => {
             for (_, v) in variant_fields {
-                walk_expr_event_fields(v, fields);
+                walk_expr_event_fields(v, fields, param_name);
             }
         }
         ExprIR::StoreFieldAccessExpr { call_args, .. } => {
             for arg in call_args {
-                walk_expr_event_fields(arg, fields);
+                walk_expr_event_fields(arg, fields, param_name);
             }
         }
         _ => {}
