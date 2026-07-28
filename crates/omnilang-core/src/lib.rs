@@ -112,7 +112,8 @@ fn run_pipeline(source: &str) -> Result<PipelineOutput, Vec<error::Diagnostic>> 
         .diagnostics
         .iter()
         .any(|d| matches!(d.severity, crate::error::Severity::Error));
-    let ir = ir::lower(&program, &mut semantics);
+    let mut ir = ir::lower(&program, &mut semantics);
+    crate::ir::optimize::optimize(&mut ir);
     Ok(PipelineOutput {
         ir,
         diagnostics: semantics.diagnostics,
