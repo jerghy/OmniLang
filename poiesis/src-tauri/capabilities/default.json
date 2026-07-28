@@ -10,7 +10,9 @@
       "identifier": "fs:scope",
       "allow": [
         { "path": "$APPDATA/com.omnilang.poiesis/**" },
-        { "path": "$HOME/**" }
+        { "path": "$HOME/**" },
+        { "path": "D:/**" },
+        { "path": "C:/**" }
       ]
     },
     "fs:allow-read-text-file",
