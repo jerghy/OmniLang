@@ -67,11 +67,18 @@ mod tests {
 
     #[test]
     fn test_to_vue_event() {
-        assert_eq!(to_vue_event("click"), "click");
-        assert_eq!(to_vue_event("change"), "change");
-        assert_eq!(to_vue_event("submit"), "submit");
-        assert_eq!(to_vue_event("focus"), "focus");
-        assert_eq!(to_vue_event("customEvent"), "customEvent");
+        // IR carries "on" prefix; function strips it and maps to bare DOM names
+        assert_eq!(to_vue_event("onClick"), "click");
+        assert_eq!(to_vue_event("onChange"), "change");
+        assert_eq!(to_vue_event("onSubmit"), "submit");
+        assert_eq!(to_vue_event("onPress"), "click");
+        assert_eq!(to_vue_event("onTap"), "click");
+        assert_eq!(to_vue_event("onFocus"), "focus");
+        assert_eq!(to_vue_event("onBlur"), "blur");
+        assert_eq!(to_vue_event("onKeydown"), "keydown");
+        assert_eq!(to_vue_event("onInput"), "input");
+        // Custom events get lowercased from their stem
+        assert_eq!(to_vue_event("onCustomEvent"), "customevent");
     }
 
     #[test]

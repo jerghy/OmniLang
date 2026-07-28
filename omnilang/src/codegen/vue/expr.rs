@@ -119,9 +119,42 @@ pub(super) fn to_vue_attr(prop_name: &str) -> String {
 }
 
 /// Map OmniView event names to Vue event directive suffixes.
-/// Vue uses @click, @change, etc. — same names as OmniView.
-pub(super) fn to_vue_event(event_name: &str) -> &str {
-    event_name
+/// Vue uses @click, @change, etc. — bare DOM event names.
+pub(super) fn to_vue_event(event_name: &str) -> String {
+    // Strip any existing "on" prefix to normalize (IR may carry "onPress" etc.)
+    let stem = event_name.strip_prefix("on").unwrap_or(event_name);
+    // Lowercase for case-insensitive matching
+    let stem_lower = stem.to_lowercase();
+    match stem_lower.as_str() {
+        "click" | "press" | "tap" => "click".into(),
+        "change" => "change".into(),
+        "input" => "input".into(),
+        "submit" => "submit".into(),
+        "focus" => "focus".into(),
+        "blur" => "blur".into(),
+        "keydown" => "keydown".into(),
+        "keyup" => "keyup".into(),
+        "mouseenter" => "mouseenter".into(),
+        "mouseleave" => "mouseleave".into(),
+        "mousedown" => "mousedown".into(),
+        "mouseup" => "mouseup".into(),
+        "mousemove" => "mousemove".into(),
+        "dblclick" => "dblclick".into(),
+        "scroll" => "scroll".into(),
+        "wheel" => "wheel".into(),
+        "touchstart" => "touchstart".into(),
+        "touchend" => "touchend".into(),
+        "touchmove" => "touchmove".into(),
+        "contextmenu" => "contextmenu".into(),
+        "drag" => "drag".into(),
+        "dragstart" => "dragstart".into(),
+        "dragend" => "dragend".into(),
+        "dragover" => "dragover".into(),
+        "dragleave" => "dragleave".into(),
+        "drop" => "drop".into(),
+        // Custom events: use the stem directly (Vue will emit as component event name)
+        _ => stem.to_lowercase(),
+    }
 }
 
 /// Format a single expression IR node as a Vue expression string (test helper).
