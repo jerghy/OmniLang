@@ -303,11 +303,24 @@ pub(super) fn gen_view_node_tsx(
                             attrs.push(format!("{}={{{}}}", react_event, r#ref));
                         }
                     }
-                    EventHandlerIR::InlineFn { body, params, .. } => {
+                    EventHandlerIR::InlineFn {
+                        body,
+                        params,
+                        event_data,
+                        used_fields,
+                        ..
+                    } => {
                         if let Some(setter_call) = binding_events_map.remove(&react_event) {
                             // Generate body with binding setter prepended
                             let mut merged_hw = CodeWriter::new();
                             merged_hw.emit_fmt(format_args!("{};", setter_call));
+                            // Emit event data extraction for InlineFn with event_data
+                            if event_data.is_some() {
+                                let event_obj =
+                                    emit_event_object_react(event_data, used_fields, "e");
+                                merged_hw
+                                    .emit_fmt(format_args!("Object.assign(e, {});", event_obj));
+                            }
                             for stmt in &body.statements {
                                 generate_statement_tsx(&mut merged_hw, stmt, signal_names);
                             }
@@ -324,8 +337,32 @@ pub(super) fn gen_view_node_tsx(
                             result.push_str("      }");
                             attrs.push(format!("{}={{{}}}", react_event, result));
                         } else {
-                            let handler_str = format_inline_handler(body, signal_names, params);
-                            attrs.push(format!("{}={{{}}}", react_event, handler_str));
+                            // Non-binding InlineFn: add event extraction before body
+                            if event_data.is_some() {
+                                let event_obj =
+                                    emit_event_object_react(event_data, used_fields, "e");
+                                let mut merged_hw = CodeWriter::new();
+                                merged_hw
+                                    .emit_fmt(format_args!("Object.assign(e, {});", event_obj));
+                                for stmt in &body.statements {
+                                    generate_statement_tsx(&mut merged_hw, stmt, signal_names);
+                                }
+                                let content = merged_hw.into_string();
+                                let params_str = if params.is_empty() {
+                                    "e".to_string()
+                                } else {
+                                    params.join(", ")
+                                };
+                                let mut result = format!("({}) => {{\n", params_str);
+                                for line in content.lines() {
+                                    result.push_str(&format!("        {}\n", line));
+                                }
+                                result.push_str("      }");
+                                attrs.push(format!("{}={{{}}}", react_event, result));
+                            } else {
+                                let handler_str = format_inline_handler(body, signal_names, params);
+                                attrs.push(format!("{}={{{}}}", react_event, handler_str));
+                            }
                         }
                     }
                     EventHandlerIR::StoreAction { r#ref, .. } => {
