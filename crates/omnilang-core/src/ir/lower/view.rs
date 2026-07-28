@@ -271,7 +271,7 @@ fn lower_element(
             ElementProp::Event { name, handler } => {
                 // Collect event data kind
                 let event_data = map_event_data_kind(name);
-                let mut needs_pd = name == "onSubmit"; // backward compat
+                let mut needs_pd = false;
                 let mut needs_sp = false;
                 let ir_handler = match handler {
                     EventHandler::InlineFn { params, body, .. } => {
