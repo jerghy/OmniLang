@@ -10,6 +10,7 @@ use crate::ir::*;
 pub(crate) fn format_expr_ir(expr: &ExprIR) -> String {
     RustFormatExpr {
         move_closures: false,
+        event_param_name: None,
     }
     .format_expr(expr)
 }

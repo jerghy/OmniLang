@@ -263,7 +263,7 @@ impl FormatStmt for DartStmtFormatter {
 
 fn generate_statement(w: &mut CodeWriter, stmt: &StatementIR) {
     let fmt = DartStmtFormatter {
-        expr: DartFormatExpr,
+        expr: DartFormatExpr { event_param_name: None },
     };
     fmt.format_stmt(w, stmt);
 }

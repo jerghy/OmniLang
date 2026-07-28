@@ -1,6 +1,8 @@
 //! View tree formatting for Flutter codegen.
 
+use crate::codegen::shared::expr::DartFormatExpr;
 use crate::codegen::shared::inline_handler::{build_inline_handler, InlineHandlerConfig};
+use crate::codegen::shared::stmt::FormatStmt;
 use crate::codegen::CodeWriter;
 use crate::ir::*;
 use rustc_hash::FxHashMap;
@@ -9,7 +11,7 @@ use super::capitalize_first;
 use super::expr::format_expr_ir_flutter;
 use super::motion::{wrap_flutter_states, wrap_with_motion_widgets};
 use super::motion_widgets::{emit_event_object_flutter, field_extract_flutter};
-use super::stmt::generate_statement_flutter;
+use super::stmt::{generate_statement_flutter, FlutterStmtFormatter};
 use super::utils::{
     binding_to_flutter_param, event_to_flutter_callback, prop_to_flutter_param_name,
     tag_to_flutter_widget,
@@ -194,7 +196,14 @@ fn format_element(
                         hw.emit_fmt(format_args!("final {} = {};", field, extract));
                     }
                     for stmt in &body.statements {
-                        generate_statement_flutter(&mut hw, stmt);
+                        // Use custom formatter with event_param_name set
+                        // so FieldAccess on "e" emits bare field name (local final binding)
+                        let fmt = FlutterStmtFormatter {
+                            expr: DartFormatExpr {
+                                event_param_name: Some("e".to_string()),
+                            },
+                        };
+                        fmt.format_stmt(&mut hw, stmt);
                     }
                     hw.dedent();
                     hw.emit("}");

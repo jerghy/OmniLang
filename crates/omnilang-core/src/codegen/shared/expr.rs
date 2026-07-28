@@ -56,6 +56,12 @@ pub trait FormatExpr {
         false
     }
 
+    /// When set, `FieldAccessExpr` on this identifier is redirected to a bare field name.
+    /// Used by InlineFn handlers where event field extractions are bound as local variables.
+    fn event_param_name(&self) -> Option<&str> {
+        None
+    }
+
     // ── Overridable helpers ──────────────────────────────
 
     /// Ternary / conditional expression.
@@ -190,6 +196,15 @@ pub trait FormatExpr {
             ExprIR::LiteralExpr { value } => format_json_value(value, self.json_config()),
             ExprIR::IdentifierExpr { name, .. } => self.format_identifier(name),
             ExprIR::FieldAccessExpr { object, field } => {
+                // Redirect: if object is the event param and field was extracted locally,
+                // emit just the field name (not `param.field`).
+                if let Some(param) = self.event_param_name() {
+                    if let ExprIR::IdentifierExpr { name, .. } = object.as_ref() {
+                        if name == param {
+                            return self.format_identifier(field);
+                        }
+                    }
+                }
                 format!("{}.{field}", self.format_expr(object))
             }
             ExprIR::OptionalChainExpr { object, field, .. } => {
@@ -323,7 +338,11 @@ impl FormatExpr for JsFormatExpr {
 /// Dart-family expression formatter.
 ///
 /// Defaults: `==`, `.`, `null` fallback, Dart string/number config.
-pub struct DartFormatExpr;
+pub struct DartFormatExpr {
+    /// When set in an InlineFn handler context, FieldAccess on this identifier
+    /// emits the bare field name (local variable) instead of `param.field`.
+    pub event_param_name: Option<String>,
+}
 
 impl FormatExpr for DartFormatExpr {
     fn json_config(&self) -> &JsonFormatConfig {
@@ -332,6 +351,10 @@ impl FormatExpr for DartFormatExpr {
 
     fn codegen_target(&self) -> Target {
         Target::Dart
+    }
+
+    fn event_param_name(&self) -> Option<&str> {
+        self.event_param_name.as_deref()
     }
 
     // Dart uses `UnionType.variant(unquotedKey: value)` syntax.
@@ -387,6 +410,9 @@ impl FormatExpr for DartFormatExpr {
 /// When `move_closures` is true (Dioxus), closures emit `move ||` syntax.
 pub struct RustFormatExpr {
     pub move_closures: bool,
+    /// When set in an InlineFn handler context, FieldAccess on this identifier
+    /// emits the bare field name (local variable) instead of `param.field`.
+    pub event_param_name: Option<String>,
 }
 
 impl FormatExpr for RustFormatExpr {
@@ -400,6 +426,10 @@ impl FormatExpr for RustFormatExpr {
 
     fn null_fallback(&self) -> &str {
         "None"
+    }
+
+    fn event_param_name(&self) -> Option<&str> {
+        self.event_param_name.as_deref()
     }
 
     fn format_ternary(&self, cond: &str, t: &str, e: &str) -> String {

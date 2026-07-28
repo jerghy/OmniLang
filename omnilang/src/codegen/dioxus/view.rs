@@ -4,7 +4,8 @@ use super::{
     emit_event_object_dioxus, field_extract_dioxus, format_expr_ir_dioxus, to_dioxus_attr,
     to_dioxus_event,
 };
-use super::{generate_statement_dioxus, CodeWriter};
+use super::{generate_statement_dioxus, CodeWriter, DioxusStmtFormatter};
+use crate::codegen::shared::expr::RustFormatExpr;
 use crate::codegen::shared::inline_handler::{build_inline_handler, InlineHandlerConfig};
 use crate::ir::*;
 
@@ -89,7 +90,15 @@ pub(super) fn gen_view_node_dioxus(w: &mut CodeWriter, node: &ViewTree, is_root:
                                 hw.emit_fmt(format_args!("let {} = {};", field, extract));
                             }
                             for stmt in &body.statements {
-                                generate_statement_dioxus(&mut hw, stmt);
+                                // Use custom formatter with event_param_name set
+                                // so FieldAccess on "e" emits bare field name (local let binding)
+                                let fmt = DioxusStmtFormatter {
+                                    expr: RustFormatExpr {
+                                        move_closures: true,
+                                        event_param_name: Some("e".to_string()),
+                                    },
+                                };
+                                fmt.format_stmt(&mut hw, stmt);
                             }
                             let content = hw.into_string();
                             let mut result = String::from("move |e| {\n");

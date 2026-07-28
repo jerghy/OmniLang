@@ -260,8 +260,8 @@ impl DioxusCodegen {
 // ═══════════════════════════════════════════════════════════
 
 /// Dioxus statement formatter.
-struct DioxusStmtFormatter {
-    expr: RustFormatExpr,
+pub(super) struct DioxusStmtFormatter {
+    pub(super) expr: RustFormatExpr,
 }
 
 impl FormatStmt for DioxusStmtFormatter {
@@ -363,6 +363,7 @@ pub(super) fn generate_statement_dioxus(w: &mut CodeWriter, stmt: &StatementIR) 
     let fmt = DioxusStmtFormatter {
         expr: RustFormatExpr {
             move_closures: true,
+            event_param_name: None,
         },
     };
     fmt.format_stmt(w, stmt);

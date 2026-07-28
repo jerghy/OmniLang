@@ -10,8 +10,8 @@ use crate::ir::*;
 // ═══════════════════════════════════════════════════════════════
 
 /// Flutter statement formatter — wraps mutations in `setState`.
-struct FlutterStmtFormatter {
-    expr: DartFormatExpr,
+pub(crate) struct FlutterStmtFormatter {
+    pub(crate) expr: DartFormatExpr,
 }
 
 impl FormatStmt for FlutterStmtFormatter {
@@ -67,7 +67,7 @@ impl FormatStmt for FlutterStmtFormatter {
 
 pub(crate) fn generate_statement_flutter(w: &mut CodeWriter, stmt: &StatementIR) {
     let fmt = FlutterStmtFormatter {
-        expr: DartFormatExpr,
+        expr: DartFormatExpr { event_param_name: None },
     };
     fmt.format_stmt(w, stmt);
 }

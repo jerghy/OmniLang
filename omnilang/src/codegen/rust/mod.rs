@@ -340,6 +340,7 @@ fn generate_statement(w: &mut CodeWriter, stmt: &StatementIR) {
     let fmt = RustStmtFormatter {
         expr: RustFormatExpr {
             move_closures: false,
+            event_param_name: None,
         },
     };
     fmt.format_stmt(w, stmt);

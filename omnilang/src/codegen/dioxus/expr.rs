@@ -9,6 +9,7 @@ use crate::ir::*;
 fn dioxus_format_expr() -> RustFormatExpr {
     RustFormatExpr {
         move_closures: true,
+        event_param_name: None,
     }
 }
 

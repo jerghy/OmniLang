@@ -245,7 +245,7 @@ impl OmniViewGenerator {
                 name
             );
             let _ = writeln!(self.js,
-                "  if (el) el.dispatchEvent(new CustomEvent('{}', {{ detail: args[0], bubbles: false }}));",
+                "  if (el) el.dispatchEvent(new CustomEvent('{}', {{ detail: args.length <= 1 ? args[0] : args, bubbles: false }}));",
                 dom_event
             );
             self.js.push_str("}\n");

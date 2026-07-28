@@ -12,7 +12,7 @@ use crate::ir::*;
 // ═══════════════════════════════════════════════════════════
 
 pub(crate) fn format_expr_ir(expr: &ExprIR) -> String {
-    DartFormatExpr.format_expr(expr)
+    DartFormatExpr { event_param_name: None }.format_expr(expr)
 }
 
 /// Map OMNI type to Dart type annotation string.
