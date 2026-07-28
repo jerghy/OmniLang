@@ -7,9 +7,18 @@
 use serde::{Deserialize, Serialize};
 
 /// Top-level design block: `design AppDesign { ... }`
+///
+/// Theme support:
+/// - `@themes light, dark;` declares theme names → `themes`
+/// - `@default-theme light;` sets the fallback → `default_theme`
+/// - Tokens declare per-theme overrides via `TokenDef::theme_values`
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct DesignDef {
     pub name: String,
+    /// Themed variants declared via `@themes ...;` (e.g. `["light", "dark"]`).
+    pub themes: Vec<String>,
+    /// Optional default theme name set via `@default-theme ...;`.
+    pub default_theme: Option<String>,
     pub tokens: Vec<TokenDef>,
     pub classes: Vec<DesignClassDef>,
     pub variants: Vec<VariantDef>,
@@ -34,11 +43,22 @@ pub enum TokenType {
 }
 
 /// `token primary: color = "#6366f1";`
+///
+/// Per-theme overrides appear as `theme_values` keyed by theme name:
+/// ```
+/// token primary: color = "#6366f1" {
+///     light: "#f8fafc",
+///     dark: "#0f172a",
+/// };
+/// ```
+/// The outer `value` is the fallback (used when no theme context matches).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TokenDef {
     pub name: String,
     pub token_type: TokenType,
     pub value: String,
+    /// Per-theme value overrides: `(theme_name, value)` pairs.
+    pub theme_values: Vec<(String, String)>,
 }
 
 /// `class Card { ... }`
