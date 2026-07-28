@@ -1,17 +1,35 @@
 //! View emission: DOM insertion, event/reactive bindings, CSS styles.
 //! Entry point for HTML/JS/CSS generation from view trees.
 //!
+//! ## JS Execution Order Guarantee
+//!
+//! The generated JS executes in this exact order to ensure DOM elements exist
+//! before event/reactive bindings are attached:
+//!
+//! 1. **Runtime definitions** — `__omni_signal`, `__omni_computed`, `__omni_effect`,
+//!    `__omni_el`, `__omni_reportError`, `__omni_forGetState` etc.
+//! 2. **Store declarations** — global `__omni_signal` calls for store fields
+//! 3. **Component definitions** — signal/computed/prop/function/motion declarations
+//!    prefixed by component name
+//! 4. **DOM insertion** — `innerHTML` assignment (all static HTML rendered at once)
+//! 5. **Deferred event bindings + reactive effects** — `addEventListener` calls,
+//!    `__omni_effect()` registrations, animation triggers (all deferred via
+//!    the `self.js ↔ self.deferred_js` swap in `emit_view()`)
+//! 6. **Mount lifecycle hooks** — `__omni_unmount_*` handlers, `@enter` replay,
+//!    `@effect` cleanup chaining
+//!
+//! This ordering is critical: reordering these phases will cause silent runtime
+//! failures (events bound to non-existent elements, effects running before DOM).
+//!
 //! Sub-modules:
 //! - `element`: Element HTML generation (`element_to_html`, tree helpers)
 //! - `condition`: Conditional rendering (css_only mode + canvas helpers)
 //! - `events`: Event binding emission (addEventListener, @for delegation)
-//! - `list`: List rendering dispatch
 //! - `style`: Inline style emission (static + dynamic signal-driven)
 
 mod condition;
 mod element;
 mod events;
-mod list;
 mod style;
 
 // Re-exports so sibling modules in `codegen::omniview` can still access
