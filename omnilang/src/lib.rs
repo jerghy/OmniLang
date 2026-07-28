@@ -323,14 +323,13 @@ pub struct InternalCompileResult {
 /// Compile multiple .omni sources to a target language, returning a struct.
 /// Same as compile_multi_to_target but returns structured data instead of JSON.
 #[must_use]
-#[allow(unused_variables)]
 pub fn compile_multi_internal(
     sources: FxHashMap<String, String>,
     target: codegen::Target,
     path_mapping: FxHashMap<String, String>,
-    editor_mode: bool,
-    debug_mode: bool,
-    store_mode: Option<&str>,
+    #[allow(unused_variables)] editor_mode: bool,
+    #[allow(unused_variables)] debug_mode: bool,
+    #[allow(unused_variables)] store_mode: Option<&str>,
 ) -> InternalCompileResult {
     let analysis = crate::analyse::analyse_multi(&sources, &path_mapping);
     compile_multi_internal_post(
@@ -349,14 +348,13 @@ pub fn compile_multi_internal(
 /// skip parsing and analysis of unchanged files.  Pass the cache from
 /// `ProjectState::compile_cache` for editor/workflow use.
 #[must_use]
-#[allow(unused_variables)]
 pub fn compile_multi_internal_cached(
     sources: FxHashMap<String, String>,
     target: codegen::Target,
     path_mapping: FxHashMap<String, String>,
-    editor_mode: bool,
-    debug_mode: bool,
-    store_mode: Option<&str>,
+    #[allow(unused_variables)] editor_mode: bool,
+    #[allow(unused_variables)] debug_mode: bool,
+    #[allow(unused_variables)] store_mode: Option<&str>,
     cache: &mut crate::analyse::IncrementalCache,
 ) -> InternalCompileResult {
     let analysis = crate::analyse::analyse_multi_cached(&sources, &path_mapping, cache);
@@ -372,14 +370,13 @@ pub fn compile_multi_internal_cached(
 
 /// Shared post-analysis codegen + post-processing for compile_multi_* functions.
 #[must_use]
-#[allow(unused_variables)]
 fn compile_multi_internal_post(
     analysis: crate::analyse::AnalyseOutput,
     sources: &FxHashMap<String, String>,
     target: codegen::Target,
-    editor_mode: bool,
-    debug_mode: bool,
-    store_mode: Option<&str>,
+    #[allow(unused_variables)] editor_mode: bool,
+    #[allow(unused_variables)] debug_mode: bool,
+    #[allow(unused_variables)] store_mode: Option<&str>,
 ) -> InternalCompileResult {
     let mut diags = analysis.diagnostics;
     let warnings = analysis.warnings;
