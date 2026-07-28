@@ -46,6 +46,9 @@ bindings/
 *.jpeg
 *.bmp
 
+# Editor backup files
+*.orig
+
 # OS files
 Thumbs.db
 Desktop.ini
