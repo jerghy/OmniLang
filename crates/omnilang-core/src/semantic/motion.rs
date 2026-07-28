@@ -45,35 +45,10 @@ pub(super) fn collect_element_ids(nodes: &[ViewNode]) -> FxHashSet<String> {
 }
 
 /// Check if a string is a valid easing function name.
+///
+/// Delegates to the shared [`NAMED_EASINGS`](crate::codegen::shared::easing::NAMED_EASINGS) table.
 pub(super) fn is_valid_easing_name(name: &str) -> bool {
-    matches!(
-        name,
-        "linear"
-            | "easeIn"
-            | "easeOut"
-            | "easeInOut"
-            | "power1In"
-            | "power1Out"
-            | "power1InOut"
-            | "power2In"
-            | "power2Out"
-            | "power2InOut"
-            | "power3In"
-            | "power3Out"
-            | "power3InOut"
-            | "power4In"
-            | "power4Out"
-            | "power4InOut"
-            | "backIn"
-            | "backOut"
-            | "backInOut"
-            | "bounceIn"
-            | "bounceOut"
-            | "bounceInOut"
-            | "elasticIn"
-            | "elasticOut"
-            | "elasticInOut"
-    )
+    crate::codegen::shared::easing::resolve_easing(name).is_some()
 }
 
 /// Check if a value name is a non-interpolatable CSS keyword.

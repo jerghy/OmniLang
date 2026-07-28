@@ -204,45 +204,14 @@ fn translate_easing(ease: &EasingIR, warnings: &mut Vec<String>) -> String {
 }
 
 fn translate_named_easing(name: &str) -> String {
-    match name {
-        // CSS standard keywords
-        "linear" => "linear",
-        "ease" => "ease",
-        "easeIn" | "ease-in" => "ease-in",
-        "easeOut" | "ease-out" => "ease-out",
-        "easeInOut" | "ease-in-out" => "ease-in-out",
-        // GSAP power1 (quadratic)
-        "power1In" => "cubic-bezier(0.550,0.085,0.680,0.530)",
-        "power1Out" => "cubic-bezier(0.250,0.460,0.450,0.940)",
-        "power1InOut" => "cubic-bezier(0.455,0.030,0.515,0.955)",
-        // GSAP power2 (cubic)
-        "power2In" => "cubic-bezier(0.550,0.055,0.675,0.190)",
-        "power2Out" => "cubic-bezier(0.215,0.610,0.355,1.000)",
-        "power2InOut" => "cubic-bezier(0.645,0.045,0.355,1.000)",
-        // GSAP power3 (quartic)
-        "power3In" => "cubic-bezier(0.895,0.030,0.685,0.220)",
-        "power3Out" => "cubic-bezier(0.165,0.840,0.440,1.000)",
-        "power3InOut" => "cubic-bezier(0.770,0.000,0.175,1.000)",
-        // GSAP power4 (quintic)
-        "power4In" => "cubic-bezier(0.755,0.050,0.855,0.060)",
-        "power4Out" => "cubic-bezier(0.230,1.000,0.320,1.000)",
-        "power4InOut" => "cubic-bezier(0.860,0.000,0.070,1.000)",
-        // Back easings (support overshoot in WAAPI)
-        "backIn" => "cubic-bezier(0.600,-0.280,0.735,0.045)",
-        "backOut" => "cubic-bezier(0.175,0.885,0.320,1.275)",
-        "backInOut" => "cubic-bezier(0.680,-0.550,0.265,1.550)",
-        // Bounce → cubic-bezier approximations
-        "bounceIn" => "cubic-bezier(0.215,0.610,0.355,1.000)",
-        "bounceOut" => "cubic-bezier(0.215,0.610,0.355,1.000)",
-        "bounceInOut" => "cubic-bezier(0.645,0.045,0.355,1.000)",
-        // Elastic → cubic-bezier approximations
-        "elasticIn" => "cubic-bezier(0.600,0.040,0.980,0.335)",
-        "elasticOut" => "cubic-bezier(0.250,0.460,0.450,0.940)",
-        "elasticInOut" => "cubic-bezier(0.680,-0.550,0.265,1.550)",
-        // Spring → generic bouncy
-        "spring" => "cubic-bezier(0.250,0.460,0.450,0.940)",
-        // Fallback
-        _ => "ease-out",
-    }
-    .to_string()
+    // Normalize CSS kebab-case to Omni camelCase naming for standard keywords.
+    let normalized = match name {
+        "ease-in" => "easeIn",
+        "ease-out" => "easeOut",
+        "ease-in-out" => "easeInOut",
+        _ => name,
+    };
+    omnilang_core::codegen::shared::easing::resolve_easing(normalized)
+        .unwrap_or("ease-out")
+        .to_string()
 }

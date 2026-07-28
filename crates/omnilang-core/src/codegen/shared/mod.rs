@@ -3,6 +3,7 @@
 //! Contains the `FormatExpr`, `FormatStmt`, `FormatType` traits and their
 //! language-family implementations.
 
+pub mod easing;
 pub mod expr;
 pub mod generator;
 pub mod html;
