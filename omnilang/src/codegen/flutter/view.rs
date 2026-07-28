@@ -81,7 +81,8 @@ fn format_element(
                     format!("() {{ {}(); }}", action_fn)
                 }
             };
-            child_args.push(format!("on{}: {}", capitalize_first(event_name), cb));
+            let stem = event_name.strip_prefix("on").unwrap_or(event_name);
+            child_args.push(format!("on{}: {}", capitalize_first(stem), cb));
         }
         // Return component constructor with children
         let args_str = child_args.join(", ");
