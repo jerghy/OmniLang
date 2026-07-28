@@ -388,6 +388,17 @@ impl OmniViewGenerator {
         }
     }
 
+    /// Build a pipe-delimited suffix encoding preventDefault/stopPropagation flags
+    /// for data-event-* attribute values inside @for templates.
+    fn flag_suffix(pd: bool, sp: bool) -> &'static str {
+        match (pd, sp) {
+            (true, true) => "|pd|sp",
+            (true, false) => "|pd",
+            (false, true) => "|sp",
+            (false, false) => "",
+        }
+    }
+
     /// Emit event bindings: for @for templates, emit data-event-* attributes;
     /// for normal mode, generate addEventListener JS calls.
     fn emit_element_events(&mut self, el: &ElementIR, nid: &str, attrs: &mut String) {
@@ -397,15 +408,28 @@ impl OmniViewGenerator {
                 // Inside @for template: emit data-event-* attributes for delegation.
                 // The @for container gets a single delegated listener that reads these.
                 let val = match handler {
-                    EventHandlerIR::FnRef { r#ref, .. } => {
+                    EventHandlerIR::FnRef {
+                        r#ref,
+                        needs_prevent_default,
+                        needs_stop_propagation,
+                        ..
+                    } => {
                         let prefixed = format!("{}_{}", self.current_component, r#ref);
-                        format!("fn:{}", escape_html(&prefixed))
+                        let flags =
+                            Self::flag_suffix(*needs_prevent_default, *needs_stop_propagation);
+                        format!("fn:{}{}", escape_html(&prefixed), flags)
                     }
                     EventHandlerIR::StoreAction { r#ref, .. } => {
                         let var_name = r#ref.replace('.', "_");
                         format!("store:{}", escape_html(&var_name))
                     }
-                    EventHandlerIR::InlineFn { body, params, .. } => {
+                    EventHandlerIR::InlineFn {
+                        body,
+                        params,
+                        needs_prevent_default,
+                        needs_stop_propagation,
+                        ..
+                    } => {
                         let wrapper_name = format!("__on{}_{}", event_name, nid.replace('-', "_"));
                         let params_str = params.join(", ");
                         let _ = writeln!(self.js, "function {}({}) {{", wrapper_name, params_str);
@@ -413,7 +437,9 @@ impl OmniViewGenerator {
                             self.emit_statement(stmt);
                         }
                         self.js.push_str("}\n");
-                        format!("fn:{}", escape_html(&wrapper_name))
+                        let flags =
+                            Self::flag_suffix(*needs_prevent_default, *needs_stop_propagation);
+                        format!("fn:{}{}", escape_html(&wrapper_name), flags)
                     }
                 };
                 let _ = write!(attrs, " data-event-{}=\"{}\"", js_event, val);

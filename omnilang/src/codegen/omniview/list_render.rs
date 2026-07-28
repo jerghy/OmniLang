@@ -245,11 +245,19 @@ impl OmniViewGenerator {
             self.js
                 .push_str("      const attr = t.getAttribute('data-event-' + e.type);\n");
             self.js.push_str("      if (!attr) return;\n");
+            self.js.push_str(
+                "      const _flags = attr.includes('|') ? attr.split('|').slice(1) : [];\n",
+            );
             self.js
-                .push_str("      if (e.type === 'submit') e.preventDefault();\n");
+                .push_str("      if (_flags.includes('pd')) e.preventDefault();\n");
+            self.js
+                .push_str("      if (_flags.includes('sp')) e.stopPropagation();\n");
             self.js.push_str("      if (attr.startsWith('fn:')) {\n");
+            self.js.push_str(
+                "        const fnKey = attr.includes('|') ? attr.slice(3, attr.indexOf('|')) : attr.slice(3);\n",
+            );
             self.js
-                .push_str("        const fn = __omni_forHandlers[attr.slice(3)];\n");
+                .push_str("        const fn = __omni_forHandlers[fnKey];\n");
             self.js.push_str(
                 "        // Before calling fn, restore per-instance state to global signal\n",
             );
