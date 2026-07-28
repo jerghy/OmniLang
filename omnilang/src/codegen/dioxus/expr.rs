@@ -46,9 +46,10 @@ pub(super) fn to_dioxus_attr(prop_name: &str) -> String {
 
 /// Map OmniView event names to Dioxus event handler prop names.
 pub(super) fn to_dioxus_event(event_name: &str) -> String {
-    // Strip any existing "on" prefix to normalize (IR may carry "onPress" etc.)
-    let stem = event_name.strip_prefix("on").unwrap_or(event_name);
-    match stem {
+    // Strip any existing "on" prefix and lowercase to normalize
+    // (IR may carry PascalCase "onClick", "onPress" etc.)
+    let stem = event_name.strip_prefix("on").unwrap_or(event_name).to_lowercase();
+    match stem.as_str() {
         "click" => "onclick".into(),
         "change" => "onchange".into(),
         "input" => "oninput".into(),

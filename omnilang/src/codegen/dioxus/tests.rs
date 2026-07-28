@@ -30,6 +30,9 @@ mod tests {
         assert_eq!(to_dioxus_event("focus"), "onfocus");
         assert_eq!(to_dioxus_event("dblclick"), "ondblclick");
         assert_eq!(to_dioxus_event("keydown"), "onkeydown");
+        // PascalCase IR event names
+        assert_eq!(to_dioxus_event("onClick"), "onclick");
+        assert_eq!(to_dioxus_event("onPress"), "onpress");
     }
 
     #[test]
