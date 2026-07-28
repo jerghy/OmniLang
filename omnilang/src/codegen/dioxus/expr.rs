@@ -246,7 +246,7 @@ pub(super) fn field_extract_dioxus(kind: &EventDataKind, field: &str, raw: &str)
         (EventDataKind::TransitionEvent, "propertyName") => "String::new()".to_string(),
         (EventDataKind::TransitionEvent, "elapsedTime") => "0.0".to_string(),
 
-        _ => format!("todo!(\"field {}\")", field),
+        _ => format!("String::new() /* UNSUPPORTED event field: {} */", field),
     }
 }
 

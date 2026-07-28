@@ -6,6 +6,7 @@ use super::{
 };
 use super::{generate_statement_dioxus, CodeWriter, DioxusStmtFormatter};
 use crate::codegen::shared::expr::RustFormatExpr;
+use crate::codegen::shared::stmt::FormatStmt;
 use crate::codegen::shared::inline_handler::{build_inline_handler, InlineHandlerConfig};
 use crate::ir::*;
 
