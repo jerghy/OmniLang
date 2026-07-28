@@ -9,76 +9,24 @@ use crate::ir::*;
 
 /// Check if the view tree contains any element with an @in-view trigger.
 pub(crate) fn has_trigger_kind_in_view(node: &ViewTree) -> bool {
-    match node {
-        ViewTree::Element(el) => {
-            if el.motion_behavior().is_some_and(|m| {
-                m.triggers
-                    .iter()
-                    .any(|t| matches!(t.kind, TriggerKind::InView))
-            }) {
-                return true;
-            }
-            el.children.iter().any(has_trigger_kind_in_view)
-        }
-        ViewTree::Conditional(cond) => {
-            for branch in &cond.branches {
-                if let Some(ref body) = branch.body {
-                    if has_trigger_kind_in_view(body) {
-                        return true;
-                    }
-                }
-            }
-            cond.fallback.as_ref().is_some_and(has_trigger_kind_in_view)
-        }
-        ViewTree::ListRendering(list) => {
-            if let Some(ref body) = list.body {
-                if has_trigger_kind_in_view(body) {
-                    return true;
-                }
-            }
-            list.empty_body
-                .as_ref()
-                .is_some_and(has_trigger_kind_in_view)
-        }
-        ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => false,
-    }
+    omnilang_core::codegen::shared::view_tree::view_tree_any(node, |el| {
+        el.motion_behavior().is_some_and(|m| {
+            m.triggers
+                .iter()
+                .any(|t| matches!(t.kind, TriggerKind::InView))
+        })
+    })
 }
 
 /// Check if the view tree contains any element with an @scroll trigger.
 pub(crate) fn has_trigger_kind_scroll(node: &ViewTree) -> bool {
-    match node {
-        ViewTree::Element(el) => {
-            if el.motion_behavior().is_some_and(|m| {
-                m.triggers
-                    .iter()
-                    .any(|t| matches!(t.kind, TriggerKind::Scroll))
-            }) {
-                return true;
-            }
-            el.children.iter().any(has_trigger_kind_scroll)
-        }
-        ViewTree::Conditional(cond) => {
-            for branch in &cond.branches {
-                if let Some(ref body) = branch.body {
-                    if has_trigger_kind_scroll(body) {
-                        return true;
-                    }
-                }
-            }
-            cond.fallback.as_ref().is_some_and(has_trigger_kind_scroll)
-        }
-        ViewTree::ListRendering(list) => {
-            if let Some(ref body) = list.body {
-                if has_trigger_kind_scroll(body) {
-                    return true;
-                }
-            }
-            list.empty_body
-                .as_ref()
-                .is_some_and(has_trigger_kind_scroll)
-        }
-        ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => false,
-    }
+    omnilang_core::codegen::shared::view_tree::view_tree_any(node, |el| {
+        el.motion_behavior().is_some_and(|m| {
+            m.triggers
+                .iter()
+                .any(|t| matches!(t.kind, TriggerKind::Scroll))
+        })
+    })
 }
 
 /// Emit the _OmniInViewWidget class for @in-view support.
@@ -321,40 +269,16 @@ pub(crate) fn emit_scroll_widget_class(w: &mut CodeWriter) {
 
 /// Check if the view tree contains any element with a @drag-horizontal or @drag-vertical trigger.
 pub(crate) fn has_trigger_kind_drag(node: &ViewTree) -> bool {
-    match node {
-        ViewTree::Element(el) => {
-            if el.motion_behavior().is_some_and(|m| {
-                m.triggers.iter().any(|t| {
-                    matches!(
-                        t.kind,
-                        TriggerKind::DragHorizontal | TriggerKind::DragVertical
-                    )
-                })
-            }) {
-                return true;
-            }
-            el.children.iter().any(has_trigger_kind_drag)
-        }
-        ViewTree::Conditional(cond) => {
-            for branch in &cond.branches {
-                if let Some(ref body) = branch.body {
-                    if has_trigger_kind_drag(body) {
-                        return true;
-                    }
-                }
-            }
-            cond.fallback.as_ref().is_some_and(has_trigger_kind_drag)
-        }
-        ViewTree::ListRendering(list) => {
-            if let Some(ref body) = list.body {
-                if has_trigger_kind_drag(body) {
-                    return true;
-                }
-            }
-            list.empty_body.as_ref().is_some_and(has_trigger_kind_drag)
-        }
-        ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => false,
-    }
+    omnilang_core::codegen::shared::view_tree::view_tree_any(node, |el| {
+        el.motion_behavior().is_some_and(|m| {
+            m.triggers.iter().any(|t| {
+                matches!(
+                    t.kind,
+                    TriggerKind::DragHorizontal | TriggerKind::DragVertical
+                )
+            })
+        })
+    })
 }
 
 /// Emit the _OmniDragWidget class for @drag-horizontal / @drag-vertical support.

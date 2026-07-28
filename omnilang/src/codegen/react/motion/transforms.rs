@@ -42,29 +42,11 @@ pub(crate) fn emit_driven_by_effects_tsx(w: &mut CodeWriter, node: &ViewTree) {
 
 /// Check if any element in the view tree has @driven-by.
 fn has_driven_by(node: &ViewTree) -> bool {
-    match node {
-        ViewTree::Element(el) => {
-            if el
-                .motion_behavior()
-                .and_then(|m| m.driven_by.as_ref())
-                .is_some()
-            {
-                return true;
-            }
-            el.children.iter().any(has_driven_by)
-        }
-        ViewTree::Conditional(cond) => {
-            cond.branches
-                .iter()
-                .any(|b| b.body.as_ref().is_some_and(has_driven_by))
-                || cond.fallback.as_ref().is_some_and(has_driven_by)
-        }
-        ViewTree::ListRendering(list) => {
-            list.body.as_ref().is_some_and(has_driven_by)
-                || list.empty_body.as_ref().is_some_and(has_driven_by)
-        }
-        _ => false,
-    }
+    omnilang_core::codegen::shared::view_tree::view_tree_any(node, |el| {
+        el.motion_behavior()
+            .and_then(|m| m.driven_by.as_ref())
+            .is_some()
+    })
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -110,29 +92,13 @@ pub(crate) fn emit_inview_effects_tsx(w: &mut CodeWriter, node: &ViewTree) {
 
 /// Recursively check if view tree has any @in-view triggers.
 fn has_inview_trigger(node: &ViewTree) -> bool {
-    match node {
-        ViewTree::Element(el) => {
-            if el.motion_behavior().is_some_and(|m| {
-                m.triggers
-                    .iter()
-                    .any(|t| matches!(t.kind, TriggerKind::InView))
-            }) {
-                return true;
-            }
-            el.children.iter().any(has_inview_trigger)
-        }
-        ViewTree::Conditional(cond) => {
-            cond.branches
+    omnilang_core::codegen::shared::view_tree::view_tree_any(node, |el| {
+        el.motion_behavior().is_some_and(|m| {
+            m.triggers
                 .iter()
-                .any(|b| b.body.as_ref().is_some_and(has_inview_trigger))
-                || cond.fallback.as_ref().is_some_and(has_inview_trigger)
-        }
-        ViewTree::ListRendering(list) => {
-            list.body.as_ref().is_some_and(has_inview_trigger)
-                || list.empty_body.as_ref().is_some_and(has_inview_trigger)
-        }
-        _ => false,
-    }
+                .any(|t| matches!(t.kind, TriggerKind::InView))
+        })
+    })
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -231,29 +197,13 @@ pub(crate) fn emit_scroll_effects_tsx(w: &mut CodeWriter, node: &ViewTree) {
 
 /// Recursively check if view tree has any @scroll triggers.
 fn has_scroll_trigger(node: &ViewTree) -> bool {
-    match node {
-        ViewTree::Element(el) => {
-            if el.motion_behavior().is_some_and(|m| {
-                m.triggers
-                    .iter()
-                    .any(|t| matches!(t.kind, TriggerKind::Scroll))
-            }) {
-                return true;
-            }
-            el.children.iter().any(has_scroll_trigger)
-        }
-        ViewTree::Conditional(cond) => {
-            cond.branches
+    omnilang_core::codegen::shared::view_tree::view_tree_any(node, |el| {
+        el.motion_behavior().is_some_and(|m| {
+            m.triggers
                 .iter()
-                .any(|b| b.body.as_ref().is_some_and(has_scroll_trigger))
-                || cond.fallback.as_ref().is_some_and(has_scroll_trigger)
-        }
-        ViewTree::ListRendering(list) => {
-            list.body.as_ref().is_some_and(has_scroll_trigger)
-                || list.empty_body.as_ref().is_some_and(has_scroll_trigger)
-        }
-        _ => false,
-    }
+                .any(|t| matches!(t.kind, TriggerKind::Scroll))
+        })
+    })
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -262,32 +212,16 @@ fn has_scroll_trigger(node: &ViewTree) -> bool {
 
 /// Recursively check if view tree has any @drag-horizontal or @drag-vertical triggers.
 fn has_drag_trigger(node: &ViewTree) -> bool {
-    match node {
-        ViewTree::Element(el) => {
-            if el.motion_behavior().is_some_and(|m| {
-                m.triggers.iter().any(|t| {
-                    matches!(
-                        t.kind,
-                        TriggerKind::DragHorizontal | TriggerKind::DragVertical
-                    )
-                })
-            }) {
-                return true;
-            }
-            el.children.iter().any(has_drag_trigger)
-        }
-        ViewTree::Conditional(cond) => {
-            cond.branches
-                .iter()
-                .any(|b| b.body.as_ref().is_some_and(has_drag_trigger))
-                || cond.fallback.as_ref().is_some_and(has_drag_trigger)
-        }
-        ViewTree::ListRendering(list) => {
-            list.body.as_ref().is_some_and(has_drag_trigger)
-                || list.empty_body.as_ref().is_some_and(has_drag_trigger)
-        }
-        _ => false,
-    }
+    omnilang_core::codegen::shared::view_tree::view_tree_any(node, |el| {
+        el.motion_behavior().is_some_and(|m| {
+            m.triggers.iter().any(|t| {
+                matches!(
+                    t.kind,
+                    TriggerKind::DragHorizontal | TriggerKind::DragVertical
+                )
+            })
+        })
+    })
 }
 
 /// Emit React useEffect hooks for @drag-horizontal / @drag-vertical triggers using pointer events.

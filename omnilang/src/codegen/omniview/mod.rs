@@ -428,29 +428,9 @@ fn project_uses_motion(ir: &IRProgram) -> bool {
 
 /// Recursively scan a view tree for any motion/animation-related fields.
 fn view_tree_has_motion(view: &ViewTree) -> bool {
-    match view {
-        ViewTree::Element(el) => {
-            if el.motion.is_some() || el.scroll.is_some() || el.drag.is_some() || el.hero.is_some()
-            {
-                return true;
-            }
-            el.children.iter().any(view_tree_has_motion)
-        }
-        ViewTree::Conditional(cond) => {
-            if cond.transition_mode.is_some() {
-                return true;
-            }
-            cond.branches
-                .iter()
-                .any(|b| b.body.as_ref().is_some_and(view_tree_has_motion))
-                || cond.fallback.as_ref().is_some_and(view_tree_has_motion)
-        }
-        ViewTree::ListRendering(list) => {
-            list.body.as_ref().is_some_and(view_tree_has_motion)
-                || list.empty_body.as_ref().is_some_and(view_tree_has_motion)
-        }
-        _ => false,
-    }
+    omnilang_core::codegen::shared::view_tree::view_tree_any(view, |el| {
+        el.motion.is_some() || el.scroll.is_some() || el.drag.is_some() || el.hero.is_some()
+    })
 }
 
 struct OmniViewGenerator {
