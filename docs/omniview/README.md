@@ -37,6 +37,13 @@ OmniView 是 OmniLang 语言的 UI 框架层，用于构建响应式 Web 应用�
 | [12-标准库参考](12-standard-library.md) | `std/*` 全部 7 个模块 + 内置方法 |
 | [13-项目结构与模块](13-project-structure.md) | 文件组织、`import`/`export`、`pub` 可见性、模块系统 |
 
+### 第五部分：语法规范（面向工具开发者）
+
+| 文件 | 内容 |
+|------|------|
+| [14-语法规范-核心语言](14-grammar-lang.md) | BNF 产生式：词法、类型、表达式、语句、顶层声明、模块系统 |
+| [15-语法规范-UI框架](15-grammar-view.md) | BNF 产生式：组件、Store、视图模板、指令、样式、设计系统、动画 |
+
 ## 核心概念
 
 OmniView 将以下概念提升为**语言第一公民**（Language-First Citizens）：
