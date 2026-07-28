@@ -104,14 +104,6 @@ function __omni_reportError(context, error) {
 function __omni_el(nid) {
   return document.querySelector('[data-nid="' + nid + '"]');
 }
-
-function __omni_bindText(nid) {
-	  const el = __omni_el(nid);
-	  return {
-	    set text(v) { if (el) el.textContent = String(v); },
-	  };
-	}
-
 	/// ─── @for instance-state helpers ───
 	function __omni_forGetState(el, name, defaultVal) {
 	  var comp = el && el.closest ? el.closest('[data-component]') : null;
