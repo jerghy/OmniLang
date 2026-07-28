@@ -818,7 +818,9 @@ impl IRProgram {
     /// Check whether a function exists by name across all modules (short-circuit).
     #[must_use]
     pub fn has_function(&self, name: &str) -> bool {
-        self.modules.values().any(|m| m.functions.contains_key(name))
+        self.modules
+            .values()
+            .any(|m| m.functions.contains_key(name))
     }
 
     /// Iterate over all components across all modules without building a HashMap.
