@@ -21,7 +21,7 @@ class CounterWithStore extends ConsumerStatefulWidget {
 class _CounterWithStoreState extends ConsumerState<CounterWithStore> {
     @override
     Widget build(BuildContext context, WidgetRef ref) {
-        return Container(onPressed: () { increment(); }, children: [Text('Count: '), Text(AppStore.count)]);
+        return Container(onPressed: () { appStoreIncrement(ref); }, children: [Text('Count: '), Text(AppStore.count)]);
     }
 }
 === AppStore_store.dart ===

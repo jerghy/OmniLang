@@ -79,8 +79,7 @@ fn format_element(
                 }
                 EventHandlerIR::InlineFn { body, .. } => format_inline_handler_flutter(body),
                 EventHandlerIR::StoreAction { r#ref, .. } => {
-                    let action_fn = r#ref.split('.').next_back().unwrap_or(r#ref);
-                    format!("() {{ {}(); }}", action_fn)
+                    format_store_action_handler(r#ref)
                 }
             };
             let stem = event_name.strip_prefix("on").unwrap_or(event_name);
@@ -214,8 +213,7 @@ fn format_element(
                 }
             }
             EventHandlerIR::StoreAction { r#ref, .. } => {
-                let action_fn = r#ref.split('.').next_back().unwrap_or(r#ref);
-                format!("() {{ {}(); }}", action_fn)
+                format_store_action_handler(r#ref)
             }
         };
         args.push(format!("{}: {}", callback_name, body));
@@ -533,4 +531,26 @@ fn format_inline_handler_flutter(body: &BlockIR) -> String {
         use_writer: true,
     };
     build_inline_handler(body, &config, generate_statement_flutter)
+}
+
+/// Format a StoreAction event handler that calls a store action function with ref.
+///
+/// The `r#ref` format is `"StoreName.actionName"`, which is transformed into
+/// `"() {{ storeActionName(ref); }}"` where the function name is computed as
+/// `{lowercase_first(store_name)}{capitalize_first(action_name)}`.
+fn format_store_action_handler(r#ref: &str) -> String {
+    let action_fn = r#ref.split('.').next_back().unwrap_or(r#ref);
+    let parts: Vec<&str> = r#ref.split('.').collect();
+    let store_lower = if parts.len() >= 2 {
+        let s = parts[0];
+        let mut c = s.chars();
+        match c.next() {
+            None => s.to_string(),
+            Some(first) => first.to_lowercase().to_string() + c.as_str(),
+        }
+    } else {
+        action_fn.to_string()
+    };
+    let full_action = format!("{}{}", store_lower, capitalize_first(action_fn));
+    format!("() {{ {}(ref); }}", full_action)
 }
