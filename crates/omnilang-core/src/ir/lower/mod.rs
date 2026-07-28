@@ -434,8 +434,8 @@ component Greet {
         // Check state is lowered correctly
         assert_eq!(comp.signals.len(), 1, "should have one signal");
         assert_eq!(comp.signals[0].name, "name");
-        // The type name in OmniLang is "String" (capitalized), preserved from the AST
-        assert_eq!(comp.signals[0].r#type.kind.as_str(), "String");
+        // Type normalized via TypeKind::from
+        assert_eq!(comp.signals[0].r#type.kind.as_str(), "string");
 
         // Check view has interpolation
         let view = comp.view.expect("should have view");
@@ -1160,14 +1160,14 @@ store CounterStore {
             .signals
             .get("count")
             .expect("should have 'count' signal");
-        // i32 is preserved as-is from the AST type annotation
-        assert_eq!(count_type.kind.as_str(), "i32");
+        // i32 normalized to int via TypeKind::from
+        assert_eq!(count_type.kind.as_str(), "int");
         let name_type = store
             .signals
             .get("name")
             .expect("should have 'name' signal");
-        // String is preserved as-is from the AST type annotation
-        assert_eq!(name_type.kind.as_str(), "String");
+        // String normalized to lowercase via TypeKind::from
+        assert_eq!(name_type.kind.as_str(), "string");
         // Check signal_defaults
         assert_eq!(store.signal_defaults.len(), 2);
         let count_default = store
