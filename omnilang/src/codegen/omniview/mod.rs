@@ -14,7 +14,7 @@ pub mod design;
 mod editor;
 mod expr;
 mod list;
-mod list_render;
+
 mod motion;
 mod motion_config;
 mod motion_triggers;
@@ -273,6 +273,7 @@ pub fn generate(
                     module.name
                 ));
                 for timeline in &module.timelines {
+                    gen.motion_names.insert(timeline.name.clone());
                     gen.emit_timeline_js(timeline);
                 }
             }

@@ -14,7 +14,6 @@ impl OmniViewGenerator {
         }
     }
 
-
     /// Convert an EasingIR to a JS expression for Omni.resolveEasing().
     /// Output format: a string like `"easeOut"` or an object like
     /// `{type:"spring", tension:180, friction:12}` for structured easings.

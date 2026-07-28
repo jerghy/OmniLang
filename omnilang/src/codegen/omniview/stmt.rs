@@ -215,6 +215,32 @@ impl OmniViewGenerator {
         }
     }
 
+    /// Emit compound assignment operators (Increment, Decrement, Multiply, Divide, Modulo).
+    /// Extracted to eliminate 5-fold repetition in emit_mutation.
+    fn emit_compound_assign(
+        &mut self,
+        t: &str,
+        amount: &Option<Box<ExprIR>>,
+        js_op: &str,
+        default: &str,
+    ) {
+        let is_signal = self.signal_names.contains(t) || self.store_signal_names.contains(t);
+        let amt = amount
+            .as_ref()
+            .map(|v| self.expr_to_js(v))
+            .unwrap_or_else(|| default.into());
+        if is_signal {
+            self.js.push_str(&format!(
+                "  __omni_subs.get(\"{0}\").set(__omni_subs.get(\"{0}\").value {op} {1});\n",
+                t,
+                amt,
+                op = js_op
+            ));
+        } else {
+            self.js.push_str(&format!("  {} {}= {};\n", t, js_op, amt));
+        }
+    }
+
     pub(super) fn emit_mutation(&mut self, intent: &MutationIntent) {
         let resolve_target = |sig_ref: &SignalRefIR| -> String {
             self.name_renames
@@ -241,88 +267,23 @@ impl OmniViewGenerator {
             }
             MutationIntent::Increment { target, amount } => {
                 let t = resolve_target(target);
-                let is_signal =
-                    self.signal_names.contains(&t) || self.store_signal_names.contains(&t);
-                let amt = amount
-                    .as_ref()
-                    .map(|v| self.expr_to_js(v))
-                    .unwrap_or_else(|| "1".into());
-                if is_signal {
-                    self.js.push_str(&format!(
-                        "  __omni_subs.get(\"{0}\").set(__omni_subs.get(\"{0}\").value + {1});\n",
-                        t, amt
-                    ));
-                } else {
-                    self.js.push_str(&format!("  {} += {};\n", t, amt));
-                }
+                self.emit_compound_assign(&t, amount, "+", "1");
             }
             MutationIntent::Decrement { target, amount } => {
                 let t = resolve_target(target);
-                let is_signal =
-                    self.signal_names.contains(&t) || self.store_signal_names.contains(&t);
-                let amt = amount
-                    .as_ref()
-                    .map(|v| self.expr_to_js(v))
-                    .unwrap_or_else(|| "1".into());
-                if is_signal {
-                    self.js.push_str(&format!(
-                        "  __omni_subs.get(\"{0}\").set(__omni_subs.get(\"{0}\").value - {1});\n",
-                        t, amt
-                    ));
-                } else {
-                    self.js.push_str(&format!("  {} -= {};\n", t, amt));
-                }
+                self.emit_compound_assign(&t, amount, "-", "1");
             }
             MutationIntent::Multiply { target, amount } => {
                 let t = resolve_target(target);
-                let is_signal =
-                    self.signal_names.contains(&t) || self.store_signal_names.contains(&t);
-                let amt = amount
-                    .as_ref()
-                    .map(|v| self.expr_to_js(v))
-                    .unwrap_or_else(|| "1".into());
-                if is_signal {
-                    self.js.push_str(&format!(
-                        "  __omni_subs.get(\"{0}\").set(__omni_subs.get(\"{0}\").value * {1});\n",
-                        t, amt
-                    ));
-                } else {
-                    self.js.push_str(&format!("  {} *= {};\n", t, amt));
-                }
+                self.emit_compound_assign(&t, amount, "*", "1");
             }
             MutationIntent::Divide { target, amount } => {
                 let t = resolve_target(target);
-                let is_signal =
-                    self.signal_names.contains(&t) || self.store_signal_names.contains(&t);
-                let amt = amount
-                    .as_ref()
-                    .map(|v| self.expr_to_js(v))
-                    .unwrap_or_else(|| "1".into());
-                if is_signal {
-                    self.js.push_str(&format!(
-                        "  __omni_subs.get(\"{0}\").set(__omni_subs.get(\"{0}\").value / {1});\n",
-                        t, amt
-                    ));
-                } else {
-                    self.js.push_str(&format!("  {} /= {};\n", t, amt));
-                }
+                self.emit_compound_assign(&t, amount, "/", "1");
             }
             MutationIntent::Modulo { target, amount } => {
                 let t = resolve_target(target);
-                let is_signal =
-                    self.signal_names.contains(&t) || self.store_signal_names.contains(&t);
-                let amt = amount
-                    .as_ref()
-                    .map(|v| self.expr_to_js(v))
-                    .unwrap_or_else(|| "1".into());
-                if is_signal {
-                    self.js.push_str(&format!(
-                        "  __omni_subs.get(\"{0}\").set(__omni_subs.get(\"{0}\").value % {1});\n",
-                        t, amt
-                    ));
-                } else {
-                    self.js.push_str(&format!("  {} %= {};\n", t, amt));
-                }
+                self.emit_compound_assign(&t, amount, "%", "1");
             }
             MutationIntent::Push { target, item } => {
                 let t = resolve_target(target);

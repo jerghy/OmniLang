@@ -268,25 +268,6 @@ impl OmniViewGenerator {
             self.emit_function_named(f, &prefixed_name);
         }
 
-        // Motion definitions — emit JS functions that create WAAPI Animation instances.
-        // Each @motion block generates a const __omni_motion_{name} function.
-        if !ir.modules.values().all(|m| m.motions.is_empty()) {
-            let _ = write!(self.js, "\n/// ── Motion Definitions: {} ──\n\n", name);
-            for motion in ir.modules.values().flat_map(|m| &m.motions) {
-                self.motion_names.insert(motion.name.clone());
-                self.emit_motion_js(motion);
-            }
-        }
-
-        // Timeline definitions — emit JS that orchestrates animations by element ID.
-        if !ir.modules.values().all(|m| m.timelines.is_empty()) {
-            let _ = write!(self.js, "\n/// ── Timeline Definitions: {} ──\n\n", name);
-            for timeline in ir.modules.values().flat_map(|m| &m.timelines) {
-                self.motion_names.insert(timeline.name.clone());
-                self.emit_timeline_js(timeline);
-            }
-        }
-
         // View → HTML + reactive bindings (only root component emits its view;
         // child component views are inlined during root's view generation)
         if is_root {
@@ -385,47 +366,25 @@ impl OmniViewGenerator {
 
             // Open IIFE for scope isolation — prevents variable name conflicts
             // between multiple components' effect collections in mount_js.
-            if self.editor_mode {
+            {
+                let buf: &mut String = if self.editor_mode {
+                    &mut self.comp_mount_js
+                } else {
+                    &mut self.mount_js
+                };
                 let _ = write!(
-                    self.comp_mount_js,
+                    buf,
                     "// @effect {}\n(function() {{\n  var __c = [];\n",
                     name
                 );
                 for body_js in &effect_bodies {
-                    let _ = write!(
-                        self.comp_mount_js,
-                        "  __c.push(__omni_effect(() => {{\n{}}}));\n",
-                        body_js
-                    );
+                    let _ = write!(buf, "  __c.push(__omni_effect(() => {{\n{}}}));\n", body_js);
                 }
                 // Chain all captured cleanups into the unmount handler.
                 // Wraps any existing window.__omni_unmount_{name} so @unmount
                 // lifecycle handlers are also preserved.
                 let _ = write!(
-                    self.comp_mount_js,
-                    "  var _p = window.__omni_unmount_{name};\n\
-                     window.__omni_unmount_{name} = _p\n\
-                     \x20  ? function() {{ _p(); __c.forEach(function(f){{f();}}); }}\n\
-                     \x20  : function() {{ __c.forEach(function(f){{f();}}); }};\n\
-                     }})();\n",
-                    name = name
-                );
-            } else {
-                let _ = write!(
-                    self.mount_js,
-                    "// @effect {}\n(function() {{\n  var __c = [];\n",
-                    name
-                );
-                for body_js in &effect_bodies {
-                    let _ = write!(
-                        self.mount_js,
-                        "  __c.push(__omni_effect(() => {{\n{}}}));\n",
-                        body_js
-                    );
-                }
-                // Chain all captured cleanups into the unmount handler.
-                let _ = write!(
-                    self.mount_js,
+                    buf,
                     "  var _p = window.__omni_unmount_{name};\n\
                      window.__omni_unmount_{name} = _p\n\
                      \x20  ? function() {{ _p(); __c.forEach(function(f){{f();}}); }}\n\
