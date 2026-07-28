@@ -66,8 +66,9 @@ pub(super) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &impl 
                         ..
                     } => {
                         if event_data.is_some() {
-                            let _event_obj = emit_event_object_js(event_data, used_fields, "e");
+                            let event_obj = emit_event_object_js(event_data, used_fields, "e");
                             let mut hw = CodeWriter::new();
+                            hw.emit_fmt(format_args!("Object.assign(e, {});", event_obj));
                             for stmt in &body.statements {
                                 generate_statement_vue(&mut hw, stmt);
                             }
