@@ -1,10 +1,16 @@
-//! Checks assignment and return type compatibility.
+//! Checks signal initializer types and function return types at the IR level.
 //!
 //! Category: correctness
 //! Severity: error
 //!
-//! TODO: Full type inference integration. Currently a placeholder
-//! that catches obvious mismatches in IR-level type annotations.
+//! This lint operates post-lowering (IR level) as defense-in-depth:
+//! - Signal initializer type checks: NOT covered by the AST-level type
+//!   checker (validate_types.rs), which focuses on expression/statement types.
+//! - Function return type checks: REDUNDANT with validate_types::check_return
+//!   but provides a second check after IR lowering transformations.
+//!
+//! Future: integrate signal init checking into the AST checker and remove
+//! the return-type check from this lint once validate_types is fully proven.
 
 use super::{LintDiagnostic, LintRule, LintSeverity};
 use crate::ir::{BlockIR, ExprIR, IRProgram, StatementIR};

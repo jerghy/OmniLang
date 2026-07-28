@@ -90,21 +90,32 @@ pub struct CachedFile {
     pub dependents: Vec<String>,
 }
 
+/// Maximum number of files retained in the incremental cache.
+/// Evicts the oldest entry (by insertion order) when exceeded.
+/// Value chosen to balance memory (each CachedFile holds AST + IR)
+/// with hit rate for typical project sizes.
+pub const MAX_CACHE_ENTRIES: usize = 50;
+
 /// Incremental compilation cache that avoids re-parsing/re-analyzing unchanged files.
 #[derive(Serialize, Deserialize)]
 pub struct IncrementalCache {
     pub entries: FxHashMap<String, CachedFile>,
+    /// Insertion-order tracking for LRU eviction.
+    #[serde(default)]
+    insertion_order: Vec<String>,
 }
 
 impl IncrementalCache {
     pub fn new() -> Self {
         Self {
             entries: FxHashMap::default(),
+            insertion_order: Vec::new(),
         }
     }
 
     pub fn clear(&mut self) {
         self.entries.clear();
+        self.insertion_order.clear();
     }
 }
 
@@ -488,15 +499,29 @@ pub fn analyse_multi_cached(
                         dependents: Vec::new(),
                     },
                 );
+                // Track insertion order for LRU eviction
+                cache.insertion_order.retain(|p| p != path);
+                cache.insertion_order.push(path.clone());
+                // Evict oldest entries if cache exceeds capacity
+                while cache.insertion_order.len() > MAX_CACHE_ENTRIES {
+                    if let Some(oldest) = cache.insertion_order.first().cloned() {
+                        cache.entries.remove(&oldest);
+                        cache.insertion_order.remove(0);
+                    } else {
+                        break;
+                    }
+                }
             }
         } else {
             // Parse failed — remove stale cache entry
             cache.entries.remove(path);
+            cache.insertion_order.retain(|p| p != path);
         }
     }
 
     // Remove stale entries for files no longer in sources
     cache.entries.retain(|k, _| sources.contains_key(k));
+    cache.insertion_order.retain(|k| sources.contains_key(k));
 
     // Rebuild dependents (reverse import edges) for all cache entries
     for cached in cache.entries.values_mut() {

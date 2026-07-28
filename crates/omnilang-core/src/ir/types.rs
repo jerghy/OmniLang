@@ -702,6 +702,12 @@ pub struct ParamIR {
 // Top-Level IR
 // ═══════════════════════════════════════════════════════
 
+/// A DOM element ref declaration (e.g., `ref myButton: HtmlElement`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RefDeclIR {
+    pub name: String,
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ComponentIR {
     pub name: String,
@@ -722,7 +728,7 @@ pub struct ComponentIR {
     pub lifecycles: Vec<LifecycleIntent>,
     pub fns: Vec<FunctionIR>,
     pub store_refs: Vec<String>,
-    pub refs: Vec<serde_json::Value>,
+    pub refs: Vec<RefDeclIR>,
     /// Event declarations (e.g., `event onDelete: i32`)
     #[serde(default)]
     pub event_names: Vec<String>,

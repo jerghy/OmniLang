@@ -260,7 +260,7 @@ pub(super) fn lower_component(
         lifecycles,
         fns,
         store_refs: comp.store_refs.clone(),
-        refs: vec![],
+        refs: comp.refs.iter().map(|r| RefDeclIR { name: r.name.clone() }).collect(),
         event_names: comp.events.iter().map(|e| e.name.clone()).collect(),
         view,
         styles,

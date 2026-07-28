@@ -92,7 +92,7 @@ jobs:
       - name: Install dependencies
         run: cd poiesis && npm ci
       - name: npm audit
-        run: cd poiesis && npm audit --audit-level=high
+        run: cd poiesis && npm audit --audit-level=high --registry=https://registry.npmjs.org
       - name: Type check
         run: cd poiesis && npx tsc --noEmit
       - name: Check debug-window HTML sync
