@@ -22,7 +22,7 @@ impl<'a> Parser<'a> {
             TokenKind::FloatLiteral(n) => Ok(Expr::Literal(Literal::Float(*n), span)),
             TokenKind::StringLiteral(s) => Ok(Expr::Literal(Literal::String(s.clone()), span)),
             TokenKind::TemplateString(s) => {
-                let parts = parse_template_parts(s)?;
+                let parts = parse_template_parts(s, span)?;
                 Ok(Expr::TemplateString { parts, span })
             }
             TokenKind::True => Ok(Expr::Literal(Literal::Bool(true), span)),

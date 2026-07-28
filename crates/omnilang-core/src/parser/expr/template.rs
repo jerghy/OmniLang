@@ -9,7 +9,10 @@ use crate::parser::ast::*;
 
 /// Parse a template string containing `${expr}` interpolations into parts.
 /// Splits the raw string into literal text and parsed expression segments.
-pub(super) fn parse_template_parts(s: &str) -> Result<Vec<TemplatePart>, ParseError> {
+pub(super) fn parse_template_parts(
+    s: &str,
+    base_span: Span,
+) -> Result<Vec<TemplatePart>, ParseError> {
     let mut parts: Vec<TemplatePart> = Vec::new();
     let bytes = s.as_bytes();
     let len = bytes.len();
@@ -43,10 +46,10 @@ pub(super) fn parse_template_parts(s: &str) -> Result<Vec<TemplatePart>, ParseEr
                 return Err(ParseError {
                     message: "Unterminated template expression".into(),
                     span: Span {
-                        start: 0,
-                        end: 0,
-                        line: 0,
-                        col: 0,
+                        start: base_span.start + expr_start,
+                        end: base_span.start + i,
+                        line: base_span.line,
+                        col: base_span.col + expr_start as u32,
                     },
                 });
             }
@@ -55,10 +58,10 @@ pub(super) fn parse_template_parts(s: &str) -> Result<Vec<TemplatePart>, ParseEr
                 return Err(ParseError {
                     message: "Empty template expression".into(),
                     span: Span {
-                        start: 0,
-                        end: 0,
-                        line: 0,
-                        col: 0,
+                        start: base_span.start + expr_start,
+                        end: base_span.start + i,
+                        line: base_span.line,
+                        col: base_span.col + expr_start as u32,
                     },
                 });
             }
@@ -67,10 +70,10 @@ pub(super) fn parse_template_parts(s: &str) -> Result<Vec<TemplatePart>, ParseEr
             let expr = parse_simple_template_expr(expr_str).map_err(|e| ParseError {
                 message: format!("In template expression '{}': {}", expr_str, e),
                 span: Span {
-                    start: 0,
-                    end: 0,
-                    line: 0,
-                    col: 0,
+                    start: base_span.start + expr_start,
+                    end: base_span.start + i,
+                    line: base_span.line,
+                    col: base_span.col + expr_start as u32,
                 },
             })?;
             parts.push(TemplatePart::Expr(expr));
