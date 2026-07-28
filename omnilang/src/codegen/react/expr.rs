@@ -235,6 +235,23 @@ fn zustand_store_setter(target: &SignalRefIR) -> String {
     format!("use{}", capitalize_first(store_name))
 }
 
+/// Generate Zustand/Setter/Direct assignment for arithmetic compound mutations.
+macro_rules! compound_op {
+    ($w:ident, $s:ident, $target_str:ident, $amt:ident, $in_zustand:ident, $use_setter:ident, $op:tt) => {{
+        if $in_zustand {
+            $w.emit_fmt(format_args!(
+                "{}.setState((s) => ({{ {}: s.{} {} {} }}));",
+                $s, $target_str, $target_str, stringify!($op), $amt
+            ));
+        } else if $use_setter {
+            let setter = format!("set{}", capitalize_first($target_str));
+            $w.emit_fmt(format_args!("{}(prev => prev {} {});", setter, stringify!($op), $amt));
+        } else {
+            $w.emit_fmt(format_args!("{} = {} {} {};", $target_str, $target_str, stringify!($op), $amt));
+        }
+    }};
+}
+
 impl ReactStmtFormatter {
     /// Format compound mutations (Increment, Decrement, Push, Pop, etc.) with
     /// Zustand-aware store signal handling.
@@ -261,83 +278,29 @@ impl ReactStmtFormatter {
             .map(|v| self.expr.format_expr(v))
             .unwrap_or_else(|| "0".into());
 
+        let s = zustand_store_setter(target);
+
         match intent {
             MutationIntent::Increment { .. } => {
-                if in_zustand {
-                    let s = zustand_store_setter(target);
-                    w.emit_fmt(format_args!(
-                        "{}.setState((s) => ({{ {}: s.{} + {} }}));",
-                        s, target_str, target_str, amt
-                    ));
-                } else if use_setter {
-                    let setter = format!("set{}", capitalize_first(target_str));
-                    w.emit_fmt(format_args!("{}(prev => prev + {});", setter, amt));
-                } else {
-                    w.emit_fmt(format_args!("{} = {} + {};", target_str, target_str, amt));
-                }
+                compound_op!(w, s, target_str, amt, in_zustand, use_setter, +);
             }
             MutationIntent::Decrement { .. } => {
-                if in_zustand {
-                    let s = zustand_store_setter(target);
-                    w.emit_fmt(format_args!(
-                        "{}.setState((s) => ({{ {}: s.{} - {} }}));",
-                        s, target_str, target_str, amt
-                    ));
-                } else if use_setter {
-                    let setter = format!("set{}", capitalize_first(target_str));
-                    w.emit_fmt(format_args!("{}(prev => prev - {});", setter, amt));
-                } else {
-                    w.emit_fmt(format_args!("{} = {} - {};", target_str, target_str, amt));
-                }
+                compound_op!(w, s, target_str, amt, in_zustand, use_setter, -);
             }
             MutationIntent::Multiply { .. } => {
-                if in_zustand {
-                    let s = zustand_store_setter(target);
-                    w.emit_fmt(format_args!(
-                        "{}.setState((s) => ({{ {}: s.{} * {} }}));",
-                        s, target_str, target_str, amt
-                    ));
-                } else if use_setter {
-                    let setter = format!("set{}", capitalize_first(target_str));
-                    w.emit_fmt(format_args!("{}(prev => prev * {});", setter, amt));
-                } else {
-                    w.emit_fmt(format_args!("{} = {} * {};", target_str, target_str, amt));
-                }
+                compound_op!(w, s, target_str, amt, in_zustand, use_setter, *);
             }
             MutationIntent::Divide { .. } => {
-                if in_zustand {
-                    let s = zustand_store_setter(target);
-                    w.emit_fmt(format_args!(
-                        "{}.setState((s) => ({{ {}: s.{} / {} }}));",
-                        s, target_str, target_str, amt
-                    ));
-                } else if use_setter {
-                    let setter = format!("set{}", capitalize_first(target_str));
-                    w.emit_fmt(format_args!("{}(prev => prev / {});", setter, amt));
-                } else {
-                    w.emit_fmt(format_args!("{} = {} / {};", target_str, target_str, amt));
-                }
+                compound_op!(w, s, target_str, amt, in_zustand, use_setter, /);
             }
             MutationIntent::Modulo { .. } => {
-                if in_zustand {
-                    let s = zustand_store_setter(target);
-                    w.emit_fmt(format_args!(
-                        "{}.setState((s) => ({{ {}: s.{} % {} }}));",
-                        s, target_str, target_str, amt
-                    ));
-                } else if use_setter {
-                    let setter = format!("set{}", capitalize_first(target_str));
-                    w.emit_fmt(format_args!("{}(prev => prev % {});", setter, amt));
-                } else {
-                    w.emit_fmt(format_args!("{} = {} % {};", target_str, target_str, amt));
-                }
+                compound_op!(w, s, target_str, amt, in_zustand, use_setter, %);
             }
             MutationIntent::Push { .. } => {
                 let it = item_expr
                     .map(|v| self.expr.format_expr(v))
                     .unwrap_or_else(|| "undefined".into());
                 if in_zustand {
-                    let s = zustand_store_setter(target);
                     w.emit_fmt(format_args!(
                         "{}.setState((s) => ({{ {}: [...s.{}, {}] }}));",
                         s, target_str, target_str, it
@@ -354,7 +317,6 @@ impl ReactStmtFormatter {
             }
             MutationIntent::Pop { .. } => {
                 if in_zustand {
-                    let s = zustand_store_setter(target);
                     w.emit_fmt(format_args!(
                         "{}.setState((s) => ({{ {}: s.{}.slice(0, -1) }}));",
                         s, target_str, target_str
