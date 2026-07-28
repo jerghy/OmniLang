@@ -21,6 +21,11 @@ const PX_PROPS = new Set([
   'top', 'left', 'right', 'bottom', 'fontSize', 'letterSpacing',
 ])
 
+/** Properties that need a "%" suffix when the value is a number (0→1 maps to 0%→100%). */
+const PCT_PROPS = new Set([
+  'offsetDistance',
+])
+
 /** Properties that map to CSS filter functions. */
 const FILTER_MAP: Record<string, string> = {
   blur: 'blur', brightness: 'brightness',
@@ -46,7 +51,11 @@ export function buildProperties(
       const cssName = TRANSFORM_MAP[key]
       const num = typeof value === 'number' ? value : parseFloat(value as string)
       if (key === 'x' || key === 'y') {
-        transforms.push(`${cssName}(${num}px)`)
+        if (typeof value === 'string' && value.endsWith('%')) {
+          transforms.push(`${cssName}(${value})`)
+        } else {
+          transforms.push(`${cssName}(${num}px)`)
+        }
       } else if (key.startsWith('rotate') || key.startsWith('skew')) {
         transforms.push(`${cssName}(${num}deg)`)
       } else {
@@ -56,12 +65,15 @@ export function buildProperties(
       const cssName = FILTER_MAP[key]
       const num = typeof value === 'number' ? value : parseFloat(value as string)
       if (key === 'blur') filters.push(`${cssName}(${num}px)`)
+      else if (key === 'hueRotate') filters.push(`${cssName}(${num}deg)`)
       else filters.push(`${cssName}(${num})`)
     } else {
       // Standard CSS property
       let formatted = value
       if (typeof value === 'number' && PX_PROPS.has(key)) {
         formatted = `${value}px`
+      } else if (typeof value === 'number' && PCT_PROPS.has(key)) {
+        formatted = `${value * 100}%`
       }
       cssProps[key] = String(formatted)
     }

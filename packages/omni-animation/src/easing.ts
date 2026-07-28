@@ -50,7 +50,7 @@ const NAMED_EASINGS: Record<string, string> = {
 export function resolveEasing(easing: EasingConfig): string {
   if (typeof easing === 'string') {
     // Check for parameterized form: backIn(1.5), elasticOut(1,0.5), etc.
-    return NAMED_EASINGS[easing] ?? resolveParameterized(easing) ?? 'ease-out'
+    return NAMED_EASINGS[easing] ?? resolveParameterized(easing) ?? easing
   }
 
   switch (easing.type) {
