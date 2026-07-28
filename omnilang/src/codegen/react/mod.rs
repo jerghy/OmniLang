@@ -701,10 +701,59 @@ fn format_zustand_mutation(
                 ));
             }
         }
-        _ => {
-            // For Multiply, Divide, Modulo — use set() with get() access
-            let _ = signal_names;
-            w.emit("// TODO: zustand mutation");
+        MutationIntent::Multiply { target, amount } => {
+            let amt = amount
+                .as_ref()
+                .map(|v| {
+                    let s = expr::format_expr_ir_tsx(v);
+                    rewrite_signal_refs_for_zustand(&s, signal_names)
+                })
+                .unwrap_or_else(|| "1".into());
+            let target_str = &target.name;
+            if signal_names.contains(target_str.as_str()) {
+                w.emit_fmt(format_args!(
+                    "set({{ {}: state.{} * {} }});",
+                    target_str, target_str, amt
+                ));
+            } else {
+                w.emit_fmt(format_args!("{} *= {};", target_str, amt));
+            }
+        }
+        MutationIntent::Divide { target, amount } => {
+            let amt = amount
+                .as_ref()
+                .map(|v| {
+                    let s = expr::format_expr_ir_tsx(v);
+                    rewrite_signal_refs_for_zustand(&s, signal_names)
+                })
+                .unwrap_or_else(|| "1".into());
+            let target_str = &target.name;
+            if signal_names.contains(target_str.as_str()) {
+                w.emit_fmt(format_args!(
+                    "set({{ {}: state.{} / {} }});",
+                    target_str, target_str, amt
+                ));
+            } else {
+                w.emit_fmt(format_args!("{} /= {};", target_str, amt));
+            }
+        }
+        MutationIntent::Modulo { target, amount } => {
+            let amt = amount
+                .as_ref()
+                .map(|v| {
+                    let s = expr::format_expr_ir_tsx(v);
+                    rewrite_signal_refs_for_zustand(&s, signal_names)
+                })
+                .unwrap_or_else(|| "1".into());
+            let target_str = &target.name;
+            if signal_names.contains(target_str.as_str()) {
+                w.emit_fmt(format_args!(
+                    "set({{ {}: state.{} % {} }});",
+                    target_str, target_str, amt
+                ));
+            } else {
+                w.emit_fmt(format_args!("{} %= {};", target_str, amt));
+            }
         }
     }
 }

@@ -843,10 +843,149 @@ fn test_store_hook_with_getters() {
     assert!(hook.contains("return { count, doubleCount };"));
 }
 
-// ── Full pipeline through Codegen trait ──────────────────
+// ── Zustand store codegen tests ───────────────────────────
 
-#[test]
-fn test_full_pipeline_empty() {
+    #[test]
+    fn test_zustand_store_empty() {
+        let codegen = ReactCodegen {
+            store_mode: super::ReactStoreMode::Zustand,
+        };
+        let store = StoreIR {
+            name: "AppStore".into(),
+            signals: FxHashMap::default(),
+            signal_defaults: FxHashMap::default(),
+            getters: FxHashMap::default(),
+            actions: vec![],
+            ..Default::default()
+        };
+        let result = codegen.gen_zustand_store("AppStore", &store);
+        assert!(result.contains("import { create } from 'zustand';"));
+        assert!(result.contains("interface AppStoreState {"));
+        assert!(result.contains("export const useAppStore"));
+    }
+
+    #[test]
+    fn test_zustand_store_with_signals_and_getters() {
+        let codegen = ReactCodegen {
+            store_mode: super::ReactStoreMode::Zustand,
+        };
+        let mut signals = FxHashMap::default();
+        signals.insert(
+            "count".into(),
+            TypeIR {
+                kind: "i32".into(),
+                type_args: vec![],
+                is_nullable: false,
+            },
+        );
+        signals.insert(
+            "name".into(),
+            TypeIR {
+                kind: "string".into(),
+                type_args: vec![],
+                is_nullable: false,
+            },
+        );
+        let mut defaults = FxHashMap::default();
+        defaults.insert("count".into(), serde_json::json!(0));
+        defaults.insert("name".into(), serde_json::json!("world"));
+        let mut getters = FxHashMap::default();
+        getters.insert(
+            "doubleCount".into(),
+            ExprIR::BinaryOpExpr {
+                op: BinaryOpIR::Mul,
+                left: Box::new(ExprIR::IdentifierExpr {
+                    name: "count".into(),
+                    type_ann: None,
+                }),
+                right: Box::new(ExprIR::LiteralExpr {
+                    value: serde_json::json!(2),
+                }),
+            },
+        );
+        let store = StoreIR {
+            name: "CalcStore".into(),
+            signals,
+            signal_defaults: defaults,
+            getters,
+            actions: vec![],
+            ..Default::default()
+        };
+        let result = codegen.gen_zustand_store("CalcStore", &store);
+        assert!(result.contains("count: 0,"), "should emit signal default: {}", result);
+        assert!(result.contains("name: \"world\","), "should emit string default: {}", result);
+        assert!(result.contains("get doubleCount()"), "should emit getter accessor: {}", result);
+    }
+
+    #[test]
+    fn test_zustand_store_mutation_multiply_in_action() {
+        let codegen = ReactCodegen {
+            store_mode: super::ReactStoreMode::Zustand,
+        };
+        let mut signals = FxHashMap::default();
+        signals.insert(
+            "count".into(),
+            TypeIR {
+                kind: "i32".into(),
+                type_args: vec![],
+                is_nullable: false,
+            },
+        );
+        let mut defaults = FxHashMap::default();
+        defaults.insert("count".into(), serde_json::json!(1));
+        let store = StoreIR {
+            name: "CalcStore".into(),
+            signals,
+            signal_defaults: defaults,
+            getters: FxHashMap::default(),
+            actions: vec![FunctionIR {
+                name: "multiply".into(),
+                visibility: Visibility::Public,
+                params: vec![ParamIR {
+                    name: "factor".into(),
+                    r#type: Some(TypeIR {
+                        kind: "i32".into(),
+                        type_args: vec![],
+                        is_nullable: false,
+                    }),
+                }],
+                return_type: None,
+                body: BlockIR {
+                    statements: vec![StatementIR::MutationStmt {
+                        intent: Some(MutationIntent::Multiply {
+                            target: SignalRefIR {
+                                owner: Some("CalcStore".into()),
+                                name: "count".into(),
+                            },
+                            amount: Some(Box::new(ExprIR::IdentifierExpr {
+                                name: "factor".into(),
+                                type_ann: None,
+                            })),
+                        }),
+                    }],
+                },
+                is_async: false,
+                source_span: None,
+            }],
+            ..Default::default()
+        };
+        let result = codegen.gen_zustand_store("CalcStore", &store);
+        assert!(
+            result.contains("set({ count: state.count * factor })") || result.contains("count *= "),
+            "should emit multiply mutation, got: {}",
+            result
+        );
+        assert!(
+            !result.contains("TODO"),
+            "should NOT contain TODO comment, got: {}",
+            result
+        );
+    }
+
+    // ── Full pipeline through Codegen trait ──────────────────
+
+    #[test]
+    fn test_full_pipeline_empty() {
     let codegen = ReactCodegen::default();
     let ir = IRProgram {
         version: "0.1".into(),

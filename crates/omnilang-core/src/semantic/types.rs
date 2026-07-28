@@ -39,6 +39,7 @@ impl SemanticType {
                 "String" | "str" | "string" => SemanticType::String,
                 "bool" | "Bool" | "boolean" => SemanticType::Bool,
                 "void" | "Void" | "()" | "unit" => SemanticType::Void,
+                "auto" | "Auto" | "var" | "Var" => SemanticType::Any,
                 "null" | "Null" | "nil" | "None" => SemanticType::Null,
                 "Array" if type_args.len() == 1 => {
                     SemanticType::Array(Box::new(Self::from_type_annotation(&type_args[0])))
