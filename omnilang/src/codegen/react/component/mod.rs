@@ -2,14 +2,16 @@
 // Component codegen: .tsx + .module.css generation
 // ═══════════════════════════════════════════════════════════
 
+pub(super) mod computed;
 pub(super) mod effect;
 pub(super) mod function;
+pub(super) mod imports;
 pub(super) mod jsx;
+pub(super) mod motion_effects;
 pub(super) mod state;
 
 use super::{escape_js_ident, CodeWriter, ReactCodegen};
-use super::{expr, motion, utils};
-use crate::codegen::shared::types::{FormatType, JsTypeFormatter};
+use super::expr;
 use crate::ir::*;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
@@ -40,13 +42,11 @@ impl ReactCodegen {
             .is_some_and(effect::view_has_motion_or_effects);
 
         // Scan all code paths for signal mutations and function calls
-        // Compute called_fns first — mutations only tracked for called functions
         let called_fns = function::collect_called_local_fns(comp);
         let mutated_signals = state::collect_signal_mutations(comp, &called_fns);
 
         // Build comprehensive read-signals set: signals referenced in view, computeds,
-        // effects, lifecycles, and called local functions. States not read anywhere
-        // are skipped to avoid unused-variable warnings.
+        // effects, lifecycles, and called local functions.
         let mut read_signals = comp
             .view
             .as_ref()
@@ -72,7 +72,6 @@ impl ReactCodegen {
                 }
             }
         }
-        // Also scan inline event handler bodies in the view tree
         if let Some(ref view) = comp.view {
             state::collect_view_inline_handler_reads(view, &mut read_signals);
         }
@@ -82,29 +81,21 @@ impl ReactCodegen {
             .signals
             .iter()
             .any(|s| read_signals.contains(&s.name) && mutated_signals.contains(&s.name));
-        let mut hooks: Vec<&str> = Vec::new();
+        let mut hooks: Vec<String> = Vec::new();
         if has_mutable_states {
-            hooks.push("useState");
+            hooks.push("useState".to_string());
         }
         if has_computeds {
-            hooks.push("useMemo");
+            hooks.push("useMemo".to_string());
         }
         if has_fn_form_computed {
-            hooks.push("useCallback");
+            hooks.push("useCallback".to_string());
         }
         if has_effects_or_lifecycles || has_motion {
-            hooks.push("useEffect");
+            hooks.push("useEffect".to_string());
         }
 
-        // Imports
-        if !hooks.is_empty() {
-            w.emit_fmt(format_args!(
-                "import React, {{ {} }} from 'react';",
-                hooks.join(", ")
-            ));
-        }
-        // Only import styles if the component has style rules AND at least one
-        // CSS class is actually referenced in the view via class: or classMap:
+        // Style check — only import if styles exist and are referenced in view
         let used_style_classes = comp
             .view
             .as_ref()
@@ -114,54 +105,14 @@ impl ReactCodegen {
             && used_style_classes
                 .iter()
                 .any(|c| comp.styles.iter().any(|s| &s.class_name == c));
-        if has_styles {
-            w.emit_fmt(format_args!("import styles from './{}.module.css';", name));
-        }
-        if has_motion {
-            w.emit("import { animate } from \"@omni/animation\";");
-        }
-        if !hooks.is_empty() || has_styles || has_motion {
-            w.emit("");
-        }
 
-        // Props interface — regular props + event callbacks
+        // Props interface check
         let has_props = !comp.props.is_empty() || !comp.event_names.is_empty();
-        if has_props {
-            w.emit_fmt(format_args!("interface {}Props {{", name));
-            for (prop_name, prop_type) in &comp.props {
-                let ts_type =
-                    JsTypeFormatter.format_type(prop_type.kind.as_str(), &prop_type.type_args);
-                let optional = if comp.prop_defaults.contains_key(prop_name) {
-                    "?"
-                } else {
-                    ""
-                };
-                w.emit_fmt(format_args!("  {}{}: {};", prop_name, optional, ts_type));
-            }
-            for (event_name, param_type) in
-                comp.event_names.iter().zip(comp.event_param_types.iter())
-            {
-                let ts_type = if param_type.is_empty() {
-                    "any"
-                } else {
-                    param_type.as_str()
-                };
-                w.emit_fmt(format_args!(
-                    "  {}?: (value: {}) => void;",
-                    event_name, ts_type
-                ));
-            }
-            w.emit("}");
-            w.emit("");
-        }
 
-        // Store hook imports — use relative paths based on source directories.
-        // Only import stores whose signals are actually referenced in the component.
+        // ── Store-related computation ──
         let all_stores = ir.all_stores();
         let used_store_signals = state::collect_used_store_signals(comp);
 
-        // Build set of local names (component states + props) that may shadow store signal names.
-        // This prevents confusing a component prop `items` with a store signal `items`.
         let local_names: FxHashSet<String> = comp
             .signals
             .iter()
@@ -172,8 +123,6 @@ impl ReactCodegen {
 
         let mut used_store_refs: FxHashSet<String> = FxHashSet::default();
         for store_ref in &comp.store_refs {
-            // Include store if: its ref name is referenced (e.g. `NotificationStore.clear`),
-            // or any of its signals are referenced and NOT shadowed by local names
             if used_store_signals.contains(store_ref.as_str()) {
                 used_store_refs.insert(store_ref.clone());
                 continue;
@@ -188,35 +137,9 @@ impl ReactCodegen {
             }
         }
 
-        let mut store_hook_imports = Vec::new();
-        for store_ref in &comp.store_refs {
-            if !used_store_refs.contains(store_ref.as_str()) {
-                continue;
-            }
-            if let Some(store) = all_stores.get(store_ref.as_str()) {
-                let hook_name = format!("use{}", store_ref);
-                let module_name = format!("use{}", store_ref);
-                let import_path = super::relative_import_path(
-                    comp.source_file.as_deref(),
-                    store.source_file.as_deref(),
-                    &module_name,
-                );
-                store_hook_imports.push(format!(
-                    "import {{ {} }} from '{}';",
-                    hook_name, import_path
-                ));
-            }
-        }
-        for import_line in &store_hook_imports {
-            w.emit(import_line);
-        }
-
-        // Build set of all signal names (component state + store signals + computeds)
-        // so mutations use setter calls instead of direct assignment.
+        // Build signal_names (all state + store aliases) and store_signal_map
         let mut signal_names: FxHashSet<String> =
             comp.signals.iter().map(|s| s.name.clone()).collect();
-        // Also include store-ref aliases + their signal names
-        // Build a map from bare store signal name → qualified StoreName.signalName
         let mut store_signal_map: FxHashMap<String, String> = FxHashMap::default();
         for store_ref in &comp.store_refs {
             if !used_store_refs.contains(store_ref.as_str()) {
@@ -233,86 +156,52 @@ impl ReactCodegen {
         }
 
         // Motion animation names — used to filter motion refs from event handlers
-        // Include both component-level and module-level motions
-        let mut motion_names: FxHashSet<String> = ir
+        let motion_names: FxHashSet<String> = ir
             .modules
             .values()
             .flat_map(|m| &m.motions)
             .map(|m| m.name.clone())
             .collect();
-        for module in ir.modules.values() {
-            for motion in &module.motions {
-                motion_names.insert(motion.name.clone());
-            }
-        }
 
-        // Child component imports
-        let child_comps: FxHashSet<String> = if let Some(ref view) = comp.view {
-            jsx::collect_view_child_components(view, component_map)
-        } else {
-            FxHashSet::default()
-        };
-        let mut child_comp_names: Vec<&String> = child_comps.iter().collect();
-        child_comp_names.sort();
-        for child_name in &child_comp_names {
-            let child_source = component_map
-                .get(child_name.as_str())
-                .and_then(|c| c.source_file.as_deref());
-            let import_path =
-                super::relative_import_path(comp.source_file.as_deref(), child_source, child_name);
-            w.emit_fmt(format_args!(
-                "import {{ {} }} from '{}';",
-                child_name, import_path
-            ));
-        }
+        // ── Emit imports ──
+        let comp_imports = imports::collect_component_imports(
+            comp, ir, component_map, &used_store_refs, &hooks, has_styles, has_motion,
+        );
+        comp_imports.emit(&mut w, name, comp, has_props);
 
-        if !store_hook_imports.is_empty() || !child_comps.is_empty() {
-            w.emit("");
-        }
-
-        // Collect all identifier references from the component to determine
-        // which library functions are actually needed.
+        // ── Library functions ──
         let mut used_fn_names: FxHashSet<String> = FxHashSet::default();
-        // From computeds
         for computed in &comp.computeds {
             collect_expr_identifiers(&computed.body, &mut used_fn_names);
         }
-        // From effects
         for effect in &comp.effects {
             for stmt in &effect.body.statements {
                 collect_stmt_identifiers(stmt, &mut used_fn_names);
             }
         }
-        // From lifecycles
         for lc in &comp.lifecycles {
             for stmt in &lc.body.statements {
                 collect_stmt_identifiers(stmt, &mut used_fn_names);
             }
         }
-        // From component fns
         for fun in &comp.fns {
             for stmt in &fun.body.statements {
                 collect_stmt_identifiers(stmt, &mut used_fn_names);
             }
         }
-        // From view tree
         if let Some(ref view) = comp.view {
             jsx::collect_view_identifiers(view, &mut used_fn_names);
         }
-        // From motion triggers (they may reference lib fns)
         if let Some(ref view) = comp.view {
             jsx::collect_motion_identifiers(view, &mut used_fn_names);
         }
 
-        // Library-level functions (pub fn from lib.omni, etc.)
-        // Only emit functions that are actually referenced by the component.
         let all_lib_fns: Vec<&FunctionIR> = ir.all_functions();
         let lib_fns: Vec<&&FunctionIR> = all_lib_fns
             .iter()
             .filter(|f| used_fn_names.contains(&f.name))
             .collect();
         for fun in &lib_fns {
-            // Build param renames for JS reserved words
             let param_names: Vec<(String, bool)> = fun
                 .params
                 .iter()
@@ -332,7 +221,6 @@ impl ReactCodegen {
                 fun.name, async_prefix, params_str
             ));
             w.indent();
-            // Emit body into a temp writer for post-processing
             let mut body_w = crate::codegen::CodeWriter::new();
             body_w.indent();
             for stmt in &fun.body.statements {
@@ -344,14 +232,12 @@ impl ReactCodegen {
                 );
             }
             let mut body_str = body_w.into_string();
-            // Rename reserved word identifiers in the body
             for (i, (new_name, needs_rename)) in param_names.iter().enumerate() {
                 if *needs_rename {
                     let old_name = &fun.params[i].name;
                     body_str = body_str.replace(old_name, new_name);
                 }
             }
-            // Emit the already-indented body lines
             for line in body_str.lines() {
                 w.emit(line);
             }
@@ -378,15 +264,11 @@ impl ReactCodegen {
                     }
                 })
                 .collect();
-            // Include event callbacks as destructured props — only for
-            // events that are actually called as functions (not emitted via `emit`).
             for event_name in &comp.event_names {
                 if read_signals.contains(event_name.as_str()) {
                     prop_list.push(event_name.clone());
                 }
             }
-            // If all props were filtered out, use a non-destructured signature
-            // to avoid invalid `({  }: Props)` syntax.
             if prop_list.is_empty() {
                 w.emit_fmt(format_args!(
                     "export function {}(_props: {}Props) {{",
@@ -414,114 +296,24 @@ impl ReactCodegen {
             }
         }
 
-        // Build set of function names for conflict detection with state setters
+        // State hooks + effects
         let fn_names: FxHashSet<String> = comp.fns.iter().map(|f| f.name.clone()).collect();
-
-        // State hooks — generate useState for component state signals
         self.gen_state_hooks(&mut w, comp, &read_signals, &mutated_signals, &fn_names);
-
-        // Effects and lifecycles — generate useEffect calls
         self.gen_effects(&mut w, comp, &store_signal_map, &signal_names);
 
-        // Computed values (useMemo)
-        // Build a list of "signal-like" identifiers (state vars, store refs, other computeds)
+        // Computed values (useMemo / useCallback)
         let mut known_signal_names: Vec<String> =
             comp.signals.iter().map(|s| s.name.clone()).collect();
         known_signal_names.extend(comp.store_refs.iter().cloned());
         known_signal_names.extend(comp.computeds.iter().map(|c| c.name.clone()));
-
-        for computed in &comp.computeds {
-            let mut deps_list: Vec<&str> = Vec::new();
-            for sig_name in &known_signal_names {
-                if utils::getter_expr_contains_ident(&computed.body, sig_name) {
-                    deps_list.push(sig_name.as_str());
-                }
-            }
-
-            // Function-form computed: `computed name() -> Type { ... }` → useCallback
-            // (detected by BlockExpr with ReturnStmtIR in statements)
-            let is_fn_form = match &computed.body {
-                ExprIR::BlockExpr { statements, .. } => statements
-                    .iter()
-                    .any(|s| matches!(s, StatementIR::ReturnStmtIR { .. })),
-                _ => false,
-            };
-
-            if is_fn_form {
-                w.emit_fmt(format_args!(
-                    "const {} = useCallback(() => {{",
-                    computed.name
-                ));
-            } else {
-                w.emit_fmt(format_args!("const {} = useMemo(() => {{", computed.name));
-            }
-            w.indent();
-            if let ExprIR::BlockExpr { statements, tail } = &computed.body {
-                // Render preceding statements (let declarations, if/return, etc.)
-                for stmt in statements {
-                    expr::generate_statement_tsx_with_mode(
-                        &mut w,
-                        stmt,
-                        &signal_names,
-                        self.store_mode,
-                    );
-                }
-                // Render tail as return value if non-null
-                // (null tail means the block has explicit return statements)
-                if !matches!(
-                    tail.as_ref(),
-                    ExprIR::LiteralExpr { value } if value == &serde_json::Value::Null
-                ) {
-                    w.emit_fmt(format_args!("return {};", expr::format_expr_ir_tsx(tail)));
-                }
-            } else {
-                w.emit_fmt(format_args!(
-                    "return {};",
-                    expr::format_expr_ir_tsx(&computed.body)
-                ));
-            }
-            w.dedent();
-            w.emit_fmt(format_args!("}}, [{}]);", deps_list.join(", ")));
-        }
+        computed::gen_computed_values(&mut w, comp, &known_signal_names, &signal_names, self.store_mode);
 
         // Component-local function declarations
         self.gen_functions(&mut w, comp, &called_fns, &signal_names, &fn_names);
 
-        // Motion animation effects — emit hooks for @enter/@hover/@press/@focus triggers
+        // Motion animation effects
         if let Some(ref view) = comp.view {
-            // Build complete motion definition map (component-level + module-level)
-            let mut motion_map: FxHashMap<String, MotionBodyIR> = FxHashMap::default();
-            for m in ir.modules.values().flat_map(|m| &m.motions) {
-                motion_map.insert(m.name.clone(), m.body.clone());
-            }
-            for module in ir.modules.values() {
-                for m in &module.motions {
-                    motion_map
-                        .entry(m.name.clone())
-                        .or_insert_with(|| m.body.clone());
-                }
-            }
-            motion::emit_motion_effects_tsx(&mut w, view, &motion_map);
-        }
-
-        // @driven-by effects — emit reactive hooks for external progress control
-        if let Some(ref view) = comp.view {
-            motion::emit_driven_by_effects_tsx(&mut w, view);
-        }
-
-        // @in-view effects — IntersectionObserver for entrance animations
-        if let Some(ref view) = comp.view {
-            motion::emit_inview_effects_tsx(&mut w, view);
-        }
-
-        // @scroll effects — scroll-driven animation progress
-        if let Some(ref view) = comp.view {
-            motion::emit_scroll_effects_tsx(&mut w, view);
-        }
-
-        // @drag-horizontal / @drag-vertical effects — gesture-driven animation progress
-        if let Some(ref view) = comp.view {
-            motion::emit_drag_effects_tsx(&mut w, view);
+            motion_effects::gen_motion_effects(&mut w, view, ir);
         }
 
         w.emit("");
