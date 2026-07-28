@@ -3,6 +3,7 @@
 pub mod cycles;
 pub mod lints;
 pub mod symbols;
+pub mod types;
 pub mod walk_view;
 
 mod collect;
