@@ -111,20 +111,25 @@ pub fn camel_to_separated(s: &str, sep: char) -> String {
 }
 
 /// Convert a camelCase CSS property name to kebab-case.
-/// "backgroundColor" → "background-color", "--customProp" → "--custom-prop"
+/// "backgroundColor" → "background-color".
+/// CSS custom properties (starting with "--") are returned unchanged.
 #[must_use]
 pub fn camel_to_kebab(s: &str) -> String {
+    if s.starts_with("--") {
+        return s.to_string();
+    }
     camel_to_separated(s, '-')
 }
 
 /// Extract a CSS value string from an IR expression node.
-/// Numbers get "px" suffix; strings are sanitized via sanitize_css_value.
+/// Strings are sanitized via sanitize_css_value; numbers are emitted as-is
+/// (callers are responsible for appending units like "px" when needed).
 #[must_use]
 pub fn format_css_value(value: &crate::ir::ExprIR) -> String {
     match value {
         crate::ir::ExprIR::LiteralExpr { value } => match value {
             serde_json::Value::String(s) => sanitize_css_value(s),
-            serde_json::Value::Number(n) => format!("{}px", n),
+            serde_json::Value::Number(n) => n.to_string(),
             _ => format!("{}", value),
         },
         _ => String::new(),

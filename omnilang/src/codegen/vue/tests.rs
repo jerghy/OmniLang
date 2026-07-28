@@ -51,6 +51,8 @@ mod tests {
         assert_eq!(camel_to_kebab("fontSize"), "font-size");
         assert_eq!(camel_to_kebab("display"), "display");
         assert_eq!(camel_to_kebab("borderRadius"), "border-radius");
+        // CSS custom properties (--prefixed) should be returned unchanged
+        assert_eq!(camel_to_kebab("--myProp"), "--myProp");
     }
 
     #[test]

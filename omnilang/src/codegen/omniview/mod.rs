@@ -428,10 +428,7 @@ fn project_uses_motion(ir: &IRProgram) -> bool {
             return true;
         }
         for comp in module.components.values() {
-            if !ir.modules.values().all(|m| m.motions.is_empty())
-                || !ir.modules.values().all(|m| m.timelines.is_empty())
-                || !comp.hero_defs.is_empty()
-            {
+            if !comp.hero_defs.is_empty() {
                 return true;
             }
             if let Some(ref view) = comp.view {

@@ -173,9 +173,16 @@ pub fn lower(program: &Program, semantics: &mut SemanticResult) -> IRProgram {
         for design in &module.designs {
             let errors = crate::ir::lower::design::validate_design(design);
             for err in &errors {
+                // E0005 for undefined token references, E0006 for
+                // theme/dimension validation errors
+                let kind = if err.contains("undefined token") {
+                    crate::error::DiagnosticKind::E0005
+                } else {
+                    crate::error::DiagnosticKind::E0006
+                };
                 semantics.diagnostics.push(crate::error::Diagnostic {
-                    severity: crate::error::Severity::Warning,
-                    kind: crate::error::DiagnosticKind::E0002,
+                    severity: crate::error::Severity::Error,
+                    kind,
                     message: format!("[design '{}'] {}", design.name, err),
                     file: None,
                     line: 0,

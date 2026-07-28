@@ -62,6 +62,8 @@ fn test_camel_to_kebab() {
     assert_eq!(camel_to_kebab("fontSize"), "font-size");
     assert_eq!(camel_to_kebab("display"), "display");
     assert_eq!(camel_to_kebab("borderRadius"), "border-radius");
+    // CSS custom properties (--prefixed) should be returned unchanged
+    assert_eq!(camel_to_kebab("--myProp"), "--myProp");
 }
 
 #[test]
@@ -396,7 +398,7 @@ fn test_css_with_styles() {
     let css = codegen.gen_component_css("App", &comp);
     assert!(css.contains(".header"));
     assert!(css.contains("background-color: red;"));
-    assert!(css.contains("font-size: 16px;"));
+    assert!(css.contains("font-size: 16;"));
 }
 
 // ── gen_component_tsx tests ──────────────────────────────

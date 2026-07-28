@@ -252,6 +252,37 @@ pub fn validate_design(ast: &DesignDef) -> Vec<String> {
         }
     }
 
+    // ── Check 3: Theme name validation ──
+    if !ast.themes.is_empty() {
+        let theme_names: std::collections::HashSet<&str> =
+            ast.themes.iter().map(|t| t.as_str()).collect();
+
+        // Validate per-token theme_values reference only declared themes
+        for token in &ast.tokens {
+            for (theme_name, _) in &token.theme_values {
+                if !theme_names.contains(theme_name.as_str()) {
+                    errors.push(format!(
+                        "token '{}' references undeclared theme '{}'; declared themes are: [{}]",
+                        token.name,
+                        theme_name,
+                        ast.themes.join(", ")
+                    ));
+                }
+            }
+        }
+
+        // Validate @default-theme is one of the declared themes
+        if let Some(ref default) = ast.default_theme {
+            if !theme_names.contains(default.as_str()) {
+                errors.push(format!(
+                    "@default-theme '{}' is not in @themes declaration [{}]",
+                    default,
+                    ast.themes.join(", ")
+                ));
+            }
+        }
+    }
+
     errors
 }
 
@@ -418,5 +449,83 @@ mod tests {
             card.properties.get("background"),
             Some(&"var(--missing)".to_string())
         );
+    }
+
+    // ── Theme validation tests ──
+
+    #[test]
+    fn validate_undeclared_theme_in_token() {
+        let ast = DesignDef {
+            name: "Test".to_string(),
+            themes: vec!["light".to_string(), "dark".to_string()],
+            default_theme: Some("light".to_string()),
+            tokens: vec![TokenDef {
+                name: "primary".to_string(),
+                token_type: TokenType::Color,
+                value: "#fff".to_string(),
+                theme_values: vec![("darkk".to_string(), "#000".to_string())],
+            }],
+            classes: vec![],
+            variants: vec![],
+        };
+        let errors = validate_design(&ast);
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].contains("darkk"), "should mention the bad theme name");
+        assert!(errors[0].contains("undeclared theme"), "should say undeclared theme");
+    }
+
+    #[test]
+    fn validate_undeclared_default_theme() {
+        let ast = DesignDef {
+            name: "Test".to_string(),
+            themes: vec!["light".to_string(), "dark".to_string()],
+            default_theme: Some("highContrast".to_string()),
+            tokens: vec![],
+            classes: vec![],
+            variants: vec![],
+        };
+        let errors = validate_design(&ast);
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].contains("highContrast"), "should mention bad default theme");
+        assert!(errors[0].contains("not in @themes"), "should say not in @themes");
+    }
+
+    #[test]
+    fn validate_valid_themes_no_errors() {
+        let ast = DesignDef {
+            name: "Test".to_string(),
+            themes: vec!["light".to_string(), "dark".to_string()],
+            default_theme: Some("light".to_string()),
+            tokens: vec![TokenDef {
+                name: "primary".to_string(),
+                token_type: TokenType::Color,
+                value: "#fff".to_string(),
+                theme_values: vec![("dark".to_string(), "#000".to_string())],
+            }],
+            classes: vec![],
+            variants: vec![],
+        };
+        let errors = validate_design(&ast);
+        assert!(errors.is_empty(), "should have no errors for valid themes");
+    }
+
+    #[test]
+    fn validate_no_themes_skips_check() {
+        let ast = DesignDef {
+            name: "Test".to_string(),
+            themes: vec![],
+            default_theme: None,
+            tokens: vec![TokenDef {
+                name: "primary".to_string(),
+                token_type: TokenType::Color,
+                value: "#fff".to_string(),
+                theme_values: vec![("dark".to_string(), "#000".to_string())],
+            }],
+            classes: vec![],
+            variants: vec![],
+        };
+        let errors = validate_design(&ast);
+        // No @themes declared, so theme_values with undeclared themes are not validated
+        assert!(errors.is_empty(), "no themes = skip theme validation");
     }
 }
