@@ -1,6 +1,9 @@
 //! View tree generation for Dioxus RSX.
 
-use super::{emit_event_object_dioxus, format_expr_ir_dioxus, to_dioxus_attr, to_dioxus_event};
+use super::{
+    emit_event_object_dioxus, field_extract_dioxus, format_expr_ir_dioxus, to_dioxus_attr,
+    to_dioxus_event,
+};
 use super::{generate_statement_dioxus, CodeWriter};
 use crate::codegen::shared::inline_handler::{build_inline_handler, InlineHandlerConfig};
 use crate::ir::*;
@@ -70,6 +73,21 @@ pub(super) fn gen_view_node_dioxus(w: &mut CodeWriter, node: &ViewTree, is_root:
                         if event_data.is_some() {
                             let _event_obj = emit_event_object_dioxus(event_data, used_fields, "e");
                             let mut hw = CodeWriter::new();
+                            // Dioxus generates Rust code (not JS), so instead of Object.assign
+                            // we emit individual let bindings that shadow e.field accesses.
+                            // Each binding extracts the field value from the web_sys event
+                            // using the correct Rust API (e.g. e.target().value().unwrap_or_default()).
+                            let kind = event_data.as_ref().unwrap();
+                            let fields: Vec<&str> = match used_fields {
+                                Some(ref f) if !f.is_empty() => {
+                                    f.iter().map(|s| s.as_str()).collect()
+                                }
+                                _ => vec![],
+                            };
+                            for field in &fields {
+                                let extract = field_extract_dioxus(kind, field, "e");
+                                hw.emit_fmt(format_args!("let {} = {};", field, extract));
+                            }
                             for stmt in &body.statements {
                                 generate_statement_dioxus(&mut hw, stmt);
                             }
