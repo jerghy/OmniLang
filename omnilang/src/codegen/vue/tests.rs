@@ -953,7 +953,11 @@ mod tests {
             key_expr: None,
             empty_body: None,
         };
-        crate::codegen::vue::gen_template_node(&mut w, &ViewTree::ListRendering(Box::new(list)), &fmt);
+        crate::codegen::vue::gen_template_node(
+            &mut w,
+            &ViewTree::ListRendering(Box::new(list)),
+            &fmt,
+        );
         let out = w.into_string();
         // Should emit v-for without v-if guard
         assert!(out.contains("v-for=\"(item, index) in items\""));
@@ -979,7 +983,11 @@ mod tests {
             key_expr: None,
             empty_body: Some(ViewTree::Text("Nothing".into())),
         };
-        crate::codegen::vue::gen_template_node(&mut w, &ViewTree::ListRendering(Box::new(list)), &fmt);
+        crate::codegen::vue::gen_template_node(
+            &mut w,
+            &ViewTree::ListRendering(Box::new(list)),
+            &fmt,
+        );
         let out = w.into_string();
         // Should wrap v-for in v-if/v-else conditional
         assert!(out.contains("v-if=\"items.length > 0\""));

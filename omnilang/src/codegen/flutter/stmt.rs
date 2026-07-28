@@ -105,11 +105,7 @@ pub(crate) fn generate_statement_flutter(w: &mut CodeWriter, stmt: &StatementIR)
 /// Generate statements inside a store action body (Riverpod state mutations).
 ///
 /// Uses `ref.read(prefix<Name>Provider.notifier).state` instead of `setState`.
-pub(crate) fn generate_store_action_stmt(
-    w: &mut CodeWriter,
-    stmt: &StatementIR,
-    store_name: &str,
-) {
+pub(crate) fn generate_store_action_stmt(w: &mut CodeWriter, stmt: &StatementIR, store_name: &str) {
     let lower = |s: &str| {
         let mut c = s.chars();
         match c.next() {

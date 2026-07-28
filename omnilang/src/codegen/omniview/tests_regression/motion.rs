@@ -498,9 +498,10 @@ fn test_keyframe_animate_call_edge_cases() {
     );
 }
 
-/// Tests keyframe_to_config with path animation and path rotation.
+/// Tests keyframe_to_animate_call with path animation and path rotation (path fields
+/// are not emitted by keyframe_to_animate_call itself; timeline.rs handles them).
 #[test]
-fn test_keyframe_to_config_with_path() {
+fn test_keyframe_animate_call_with_path() {
     let gen = OmniViewGenerator::test_new();
     let kf = KeyframeIR {
         stops: vec![
@@ -542,22 +543,32 @@ fn test_keyframe_to_config_with_path() {
         source_span: None,
     };
 
-    let config = gen.keyframe_to_config(&kf);
-    assert!(config.contains("from"), "config should contain 'from' stop");
-    assert!(config.contains("to"), "config should contain 'to' stop");
-    assert!(config.contains("path"), "config should contain path data");
+    let (kf_js, opts_js) = gen.keyframe_to_animate_call(&kf);
+
+    // Keyframe array format
+    assert!(kf_js.starts_with('['), "keyframes should be a JS array");
+    assert!(kf_js.ends_with(']'), "keyframes should end with ']'");
     assert!(
-        config.contains("pathRotate"),
-        "config should contain pathRotate"
-    );
-    assert!(config.contains("linear"), "config should contain easing");
-    assert!(
-        config.contains("\"over\": 1000"),
-        "config should contain over duration"
+        kf_js.contains("offset:0"),
+        "first stop should have offset:0"
     );
     assert!(
-        config.contains("\"from\": {\"x\": 0}"),
-        "from stop properties should be present"
+        kf_js.contains("offset:1"),
+        "second stop should have offset:1"
+    );
+    assert!(
+        kf_js.contains("\"x\""),
+        "keyframes should contain 'x' property"
+    );
+
+    // Options: duration, easing
+    assert!(
+        opts_js.contains("duration:1000"),
+        "options should contain duration:1000"
+    );
+    assert!(
+        opts_js.contains("linear"),
+        "options should contain easing name"
     );
 }
 

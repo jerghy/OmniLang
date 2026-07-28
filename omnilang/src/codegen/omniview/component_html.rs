@@ -104,8 +104,7 @@ impl OmniViewGenerator {
                 // Extract owned data from child_comp before the mutable borrow
                 // in view_to_html, releasing the borrow on self.component_map.
                 let child_comp_name = child_comp.name.clone();
-                let child_prop_keys: FxHashSet<String> =
-                    child_comp.props.keys().cloned().collect();
+                let child_prop_keys: FxHashSet<String> = child_comp.props.keys().cloned().collect();
                 let for_states_attr = if self.in_for_template && !child_comp.signals.is_empty() {
                     let names: Vec<&str> =
                         child_comp.signals.iter().map(|s| s.name.as_str()).collect();

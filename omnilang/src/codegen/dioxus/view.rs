@@ -137,10 +137,7 @@ pub(crate) fn gen_view_node_dioxus(w: &mut CodeWriter, node: &ViewTree, is_root:
                     }
                     _ => {
                         let cond = format_expr_ir_dioxus(expr);
-                        attrs.push(format!(
-                            "class: if {} {{ \"{}\" }},",
-                            cond, cls
-                        ));
+                        attrs.push(format!("class: if {} {{ \"{}\" }},", cond, cls));
                     }
                 }
             }
@@ -220,10 +217,7 @@ pub(crate) fn gen_view_node_dioxus(w: &mut CodeWriter, node: &ViewTree, is_root:
             let item_name = &list.item_binding.name;
             let has_empty = list.empty_body.is_some();
             if has_empty {
-                w.emit_fmt(format_args!(
-                    "if {}.len() == 0 {{",
-                    iterable_str
-                ));
+                w.emit_fmt(format_args!("if {}.len() == 0 {{", iterable_str));
                 w.indent();
                 w.emit("rsx! {");
                 w.indent();

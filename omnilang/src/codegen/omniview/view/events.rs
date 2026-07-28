@@ -8,8 +8,8 @@
 
 use std::fmt::Write;
 
-use super::super::OmniViewGenerator;
 use super::super::utils::{escape_html, map_event};
+use super::super::OmniViewGenerator;
 use crate::codegen::emit_event_object;
 use crate::ir::*;
 
@@ -27,12 +27,7 @@ impl OmniViewGenerator {
 
     /// Emit event bindings: for @for templates, emit data-event-* attributes;
     /// for normal mode, generate addEventListener JS calls.
-    pub(super) fn emit_element_events(
-        &mut self,
-        el: &ElementIR,
-        nid: &str,
-        attrs: &mut String,
-    ) {
+    pub(super) fn emit_element_events(&mut self, el: &ElementIR, nid: &str, attrs: &mut String) {
         for (event_name, handler) in &el.events {
             let js_event = map_event(event_name);
             if self.in_for_template {
@@ -63,8 +58,7 @@ impl OmniViewGenerator {
                     } => {
                         let wrapper_name = format!("__on{}_{}", event_name, nid.replace('-', "_"));
                         let params_str = params.join(", ");
-                        let _ =
-                            writeln!(self.js, "function {}({}) {{", wrapper_name, params_str);
+                        let _ = writeln!(self.js, "function {}({}) {{", wrapper_name, params_str);
                         for stmt in &body.statements {
                             self.emit_statement(stmt);
                         }
@@ -88,8 +82,7 @@ impl OmniViewGenerator {
                     }
                 };
                 if let Some(ref hname) = handler_name {
-                    let _ =
-                        writeln!(self.js, "__omni_forHandlers[\"{}\"] = {};", hname, hname);
+                    let _ = writeln!(self.js, "__omni_forHandlers[\"{}\"] = {};", hname, hname);
                 }
             } else {
                 // ResizeEvent binds to window, not el.addEventListener
@@ -109,11 +102,8 @@ impl OmniViewGenerator {
                             let wrapper_name =
                                 format!("__on{}_{}", event_name, nid.replace('-', "_"));
                             let params_str = params.join(", ");
-                            let _ = writeln!(
-                                self.js,
-                                "function {}({}) {{",
-                                wrapper_name, params_str
-                            );
+                            let _ =
+                                writeln!(self.js, "function {}({}) {{", wrapper_name, params_str);
                             for stmt in &body.statements {
                                 self.emit_statement(stmt);
                             }
@@ -166,14 +156,9 @@ impl OmniViewGenerator {
                         );
                     }
                     EventHandlerIR::InlineFn { body, params, .. } => {
-                        let wrapper_name =
-                            format!("__on{}_{}", event_name, nid.replace('-', "_"));
+                        let wrapper_name = format!("__on{}_{}", event_name, nid.replace('-', "_"));
                         let params_str = params.join(", ");
-                        let _ = writeln!(
-                            self.js,
-                            "function {}({}) {{",
-                            wrapper_name, params_str
-                        );
+                        let _ = writeln!(self.js, "function {}({}) {{", wrapper_name, params_str);
                         for stmt in &body.statements {
                             self.emit_statement(stmt);
                         }

@@ -805,7 +805,11 @@ mod tests {
             key_expr: None,
             empty_body: None,
         };
-        crate::codegen::dioxus::gen_view_node_dioxus(&mut w, &ViewTree::ListRendering(Box::new(list)), true);
+        crate::codegen::dioxus::gen_view_node_dioxus(
+            &mut w,
+            &ViewTree::ListRendering(Box::new(list)),
+            true,
+        );
         let out = w.into_string();
         // Should emit iterator without if conditional
         assert!(out.contains("items.iter().map(|item|"));
@@ -829,7 +833,11 @@ mod tests {
             key_expr: None,
             empty_body: Some(ViewTree::Text("Nothing".into())),
         };
-        crate::codegen::dioxus::gen_view_node_dioxus(&mut w, &ViewTree::ListRendering(Box::new(list)), true);
+        crate::codegen::dioxus::gen_view_node_dioxus(
+            &mut w,
+            &ViewTree::ListRendering(Box::new(list)),
+            true,
+        );
         let out = w.into_string();
         // Should wrap iterator in if/else conditional
         assert!(out.contains("if items.len() == 0"));

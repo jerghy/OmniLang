@@ -102,9 +102,7 @@ pub(crate) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &impl 
                 let bindings: Vec<String> = el
                     .class_map_bindings
                     .iter()
-                    .map(|(class_name, expr)| {
-                        format!("{}: {}", class_name, fmt.format_expr(expr))
-                    })
+                    .map(|(class_name, expr)| format!("{}: {}", class_name, fmt.format_expr(expr)))
                     .collect();
                 attrs.push(format!(":class=\"{{ {} }}\"", bindings.join(", ")));
             }
@@ -271,12 +269,10 @@ pub(crate) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &impl 
             let formatted = fmt.format_expr(expr);
             w.emit_fmt(format_args!("{{{{ {} }}}}", formatted));
         }
-        ViewTree::Slot(slot_name) => {
-            match slot_name {
-                None => w.emit("<slot />"),
-                Some(name) => w.emit_fmt(format_args!("<slot name=\"{}\" />", name)),
-            }
-        }
+        ViewTree::Slot(slot_name) => match slot_name {
+            None => w.emit("<slot />"),
+            Some(name) => w.emit_fmt(format_args!("<slot name=\"{}\" />", name)),
+        },
     }
 }
 

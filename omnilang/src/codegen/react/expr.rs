@@ -241,13 +241,28 @@ macro_rules! compound_op {
         if $in_zustand {
             $w.emit_fmt(format_args!(
                 "{}.setState((s) => ({{ {}: s.{} {} {} }}));",
-                $s, $target_str, $target_str, stringify!($op), $amt
+                $s,
+                $target_str,
+                $target_str,
+                stringify!($op),
+                $amt
             ));
         } else if $use_setter {
             let setter = format!("set{}", capitalize_first($target_str));
-            $w.emit_fmt(format_args!("{}(prev => prev {} {});", setter, stringify!($op), $amt));
+            $w.emit_fmt(format_args!(
+                "{}(prev => prev {} {});",
+                setter,
+                stringify!($op),
+                $amt
+            ));
         } else {
-            $w.emit_fmt(format_args!("{} = {} {} {};", $target_str, $target_str, stringify!($op), $amt));
+            $w.emit_fmt(format_args!(
+                "{} = {} {} {};",
+                $target_str,
+                $target_str,
+                stringify!($op),
+                $amt
+            ));
         }
     }};
 }

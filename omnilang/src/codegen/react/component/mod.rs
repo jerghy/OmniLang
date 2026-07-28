@@ -10,8 +10,8 @@ pub(super) mod jsx;
 pub(super) mod motion_effects;
 pub(super) mod state;
 
-use super::{escape_js_ident, CodeWriter, ReactCodegen};
 use super::expr;
+use super::{escape_js_ident, CodeWriter, ReactCodegen};
 use crate::ir::*;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
@@ -165,7 +165,13 @@ impl ReactCodegen {
 
         // ── Emit imports ──
         let comp_imports = imports::collect_component_imports(
-            comp, ir, component_map, &used_store_refs, &hooks, has_styles, has_motion,
+            comp,
+            ir,
+            component_map,
+            &used_store_refs,
+            &hooks,
+            has_styles,
+            has_motion,
         );
         comp_imports.emit(&mut w, name, comp, has_props);
 
@@ -306,7 +312,13 @@ impl ReactCodegen {
             comp.signals.iter().map(|s| s.name.clone()).collect();
         known_signal_names.extend(comp.store_refs.iter().cloned());
         known_signal_names.extend(comp.computeds.iter().map(|c| c.name.clone()));
-        computed::gen_computed_values(&mut w, comp, &known_signal_names, &signal_names, self.store_mode);
+        computed::gen_computed_values(
+            &mut w,
+            comp,
+            &known_signal_names,
+            &signal_names,
+            self.store_mode,
+        );
 
         // Component-local function declarations
         self.gen_functions(&mut w, comp, &called_fns, &signal_names, &fn_names);

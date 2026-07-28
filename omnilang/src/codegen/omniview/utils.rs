@@ -287,4 +287,3 @@ pub fn build_file_output(gen: &OmniViewOutput) -> CompileOutput {
         },
     ])
 }
-

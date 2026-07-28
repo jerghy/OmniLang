@@ -440,7 +440,10 @@ impl FlutterCodegen {
             for sig_name in store.signals.keys() {
                 let sig_provider =
                     format!("{}{}Provider", store_prefix, capitalize_first(sig_name));
-                w.emit_fmt(format_args!("final {} = ref.watch({});", sig_name, sig_provider));
+                w.emit_fmt(format_args!(
+                    "final {} = ref.watch({});",
+                    sig_name, sig_provider
+                ));
             }
             w.emit_fmt(format_args!("return {};", body_dart));
             w.dedent();

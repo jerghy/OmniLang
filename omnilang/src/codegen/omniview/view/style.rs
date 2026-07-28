@@ -31,9 +31,7 @@ impl OmniViewGenerator {
                     match val {
                         serde_json::Value::Object(obj) if obj.contains_key("$signal") => {
                             // Dynamic style: signal reference → JS effect
-                            if let Some(sig_name) =
-                                obj.get("$signal").and_then(|v| v.as_str())
-                            {
+                            if let Some(sig_name) = obj.get("$signal").and_then(|v| v.as_str()) {
                                 let prefixed = self
                                     .name_renames
                                     .get(sig_name)
@@ -88,13 +86,10 @@ impl OmniViewGenerator {
                                     call_obj.get("name").and_then(|v| v.as_str()),
                                     call_obj.get("args").and_then(|v| v.as_array()),
                                 ) {
-                                    let prefixed = self
-                                        .global_renames
-                                        .get(fn_name)
-                                        .cloned()
-                                        .unwrap_or_else(|| {
-                                            format!("{}_{}", self.current_component, fn_name)
-                                        });
+                                    let prefixed =
+                                        self.global_renames.get(fn_name).cloned().unwrap_or_else(
+                                            || format!("{}_{}", self.current_component, fn_name),
+                                        );
                                     let mut arg_strs: Vec<String> = Vec::new();
                                     for arg in fn_args {
                                         match arg {

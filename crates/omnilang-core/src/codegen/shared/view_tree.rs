@@ -17,16 +17,14 @@ fn view_tree_any_dyn(view: &ViewTree, predicate: &dyn Fn(&ElementIR) -> bool) ->
                 .any(|child| view_tree_any_dyn(child, predicate))
         }
         ViewTree::Conditional(cond) => {
-            cond.branches
-                .iter()
-                .any(|b| {
-                    b.body
-                        .as_ref()
-                        .is_some_and(|v| view_tree_any_dyn(v, predicate))
-                }) || cond
-                    .fallback
+            cond.branches.iter().any(|b| {
+                b.body
                     .as_ref()
                     .is_some_and(|v| view_tree_any_dyn(v, predicate))
+            }) || cond
+                .fallback
+                .as_ref()
+                .is_some_and(|v| view_tree_any_dyn(v, predicate))
         }
         ViewTree::ListRendering(list) => {
             list.body

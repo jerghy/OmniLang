@@ -104,13 +104,7 @@ impl ComponentImports {
     /// 4. Props interface (`{name}Props`)
     /// 5. Store hook imports
     /// 6. Child component imports
-    pub(super) fn emit(
-        &self,
-        w: &mut CodeWriter,
-        name: &str,
-        comp: &ComponentIR,
-        has_props: bool,
-    ) {
+    pub(super) fn emit(&self, w: &mut CodeWriter, name: &str, comp: &ComponentIR, has_props: bool) {
         // ── 1-3: React / styles / animate imports ───────────
         if !self.hooks.is_empty() {
             w.emit_fmt(format_args!(
