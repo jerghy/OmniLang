@@ -472,7 +472,6 @@ pub struct Module {
     pub type_aliases: Vec<TypeAlias>,
     pub components: Vec<ComponentDef>,
     pub stores: Vec<StoreDef>,
-    pub themes: Vec<ThemeDef>,
     pub designs: Vec<DesignDef>,
     pub imports: Vec<ImportStmt>,
     pub exports: Vec<ExportFrom>,

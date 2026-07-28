@@ -1,6 +1,6 @@
 //! Motion/Animation AST types plus Store and Theme types.
 //!
-//! Contains: MotionDef, TimelineDef, EasingExpr, StaggerCall, PlaybackProp, StoreDef, ThemeDef, etc.
+//! Contains: MotionDef, TimelineDef, EasingExpr, StaggerCall, PlaybackProp, StoreDef.
 
 use serde::Serialize;
 
@@ -308,15 +308,4 @@ pub struct GetterDecl {
     pub name: String,
     pub type_ann: TypeAnnotation,
     pub body: Expr,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct ThemeDef {
-    pub categories: Vec<ThemeCategory>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct ThemeCategory {
-    pub name: String,
-    pub values: Vec<(String, String)>,
 }
