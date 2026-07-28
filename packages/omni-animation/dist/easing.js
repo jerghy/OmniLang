@@ -47,7 +47,7 @@ const NAMED_EASINGS = {
 export function resolveEasing(easing) {
     if (typeof easing === 'string') {
         // Check for parameterized form: backIn(1.5), elasticOut(1,0.5), etc.
-        return NAMED_EASINGS[easing] ?? resolveParameterized(easing) ?? 'ease-out';
+        return NAMED_EASINGS[easing] ?? resolveParameterized(easing) ?? easing;
     }
     switch (easing.type) {
         case 'cubicBezier':

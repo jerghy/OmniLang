@@ -1,30 +1,28 @@
-// Simple bundler: concatenate TypeScript-compiled modules into one IIFE
-// that exposes window.Omni for <script> tag usage (OmniView).
+const esbuild = require('esbuild')
 const fs = require('fs')
 const path = require('path')
 
-const files = ['types.js', 'easing.js', 'keyframes.js', 'animate.js',
-  'timeline.js', 'stagger.js', 'scroll.js', 'flip.js', 'hero.js']
+/** Bundle the animation library to IIFE format using esbuild. */
+async function build() {
+  // Bundle to IIFE for <script> tag usage (OmniView)
+  await esbuild.build({
+    entryPoints: ['src/index.ts'],
+    outfile: 'dist/omni-animation.js',
+    format: 'iife',
+    globalName: 'Omni',
+    bundle: true,
+    sourcemap: false,
+    minify: false,
+    target: 'es2020',
+    tsconfig: 'tsconfig.json',
+    logLevel: 'info',
+  })
 
-let bundle = '(function(){\n"use strict";\n\n'
-for (const f of files) {
-  const fp = path.join('dist', f)
-  if (!fs.existsSync(fp)) { console.error('Missing: ' + fp); process.exit(1); }
-  let content = fs.readFileSync(fp, 'utf-8')
-  // Strip import/export statements
-  content = content.replace(/^import .+$/gm, '').replace(/^export /gm, '')
-  // Remove "use strict" since we have it at the top
-  content = content.replace(/^"use strict";?\n/gm, '')
-  bundle += '// ' + f + '\n' + content + '\n'
+  // Also write .mjs with the same content (matching previous approach)
+  fs.copyFileSync('dist/omni-animation.js', 'dist/omni-animation.mjs')
+
+  const bytes = fs.statSync('dist/omni-animation.js').size
+  console.log('Bundled omni-animation.js (' + bytes + ' bytes)')
 }
 
-// Attach to global
-bundle += `
-const Omni = { animate, timeline, buildKeyframes, buildProperties, resolveEasing, staggerDelays, scrollProgress, flipBefore, flipAfter, heroBefore, heroAfter };
-window.Omni = Omni;
-})();
-`
-
-fs.writeFileSync('dist/omni-animation.js', bundle)
-fs.writeFileSync('dist/omni-animation.mjs', bundle)
-console.log('Bundled omni-animation.js (' + bundle.length + ' bytes)')
+build().catch(() => process.exit(1))
