@@ -223,16 +223,20 @@ body {{ margin: 0; padding: 8px; font-family: system-ui, sans-serif; }}
     )
 }
 
-/// Wrap `generate()` into the standard `CompileOutput` format.
-/// Build `CompileOutput` from an already-generated `OmniViewOutput`.
-/// Separates generation from file-wrapping so callers can extract `components`.
-pub fn build_file_output(gen: &OmniViewOutput) -> CompileOutput {
-    /// Embedded @omni/animation runtime (compiled into binary at build time).
-    const OMNI_ANIMATION_JS: &str = include_str!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../packages/omni-animation/dist/omni-animation.js"
-    ));
-    let html = format!(
+/// Shared HTML document wrapper used by both `OmniViewCodegen::generate` and
+/// `build_file_output`. Produces a standalone HTML document that references
+/// separate JS/CSS files.
+///
+/// When `include_animation_script` is true, includes an additional
+/// `<script src="omni-animation.js">` tag before the main `index.js` script.
+pub(super) fn html_document_wrapper(body_html: &str, include_animation_script: bool) -> String {
+    let script_tags = if include_animation_script {
+        r#"<script src="omni-animation.js"></script>
+<script src="index.js"></script>"#
+    } else {
+        r#"<script src="index.js"></script>"#
+    };
+    format!(
         r#"<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -243,12 +247,23 @@ pub fn build_file_output(gen: &OmniViewOutput) -> CompileOutput {
 </head>
 <body>
 {}
-<script src="omni-animation.js"></script>
-<script src="index.js"></script>
+{}
 </body>
 </html>"#,
-        gen.html
-    );
+        body_html, script_tags
+    )
+}
+
+/// Wrap `generate()` into the standard `CompileOutput` format.
+/// Build `CompileOutput` from an already-generated `OmniViewOutput`.
+/// Separates generation from file-wrapping so callers can extract `components`.
+pub fn build_file_output(gen: &OmniViewOutput) -> CompileOutput {
+    /// Embedded @omni/animation runtime (compiled into binary at build time).
+    const OMNI_ANIMATION_JS: &str = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../packages/omni-animation/dist/omni-animation.js"
+    ));
+    let html = html_document_wrapper(&gen.html, true);
     CompileOutput::success(vec![
         CompiledFile {
             path: "index.js".into(),
@@ -273,48 +288,3 @@ pub fn build_file_output(gen: &OmniViewOutput) -> CompileOutput {
     ])
 }
 
-///
-/// Called by `super::compile()` when the target is `Target::OmniView`.
-pub fn compile_files(
-    ir: &crate::ir::IRProgram,
-    _source_files: &FxHashMap<String, String>,
-    editor_mode: bool,
-    debug_mode: bool,
-) -> CompileOutput {
-    let output = super::generate(ir, editor_mode, false, debug_mode);
-    // Wrap body HTML in a proper document that references the separate JS/CSS files
-    let html = format!(
-        r#"<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OmniView App</title>
-<link rel="stylesheet" href="index.css">
-</head>
-<body>
-{}
-<script src="index.js"></script>
-</body>
-</html>"#,
-        output.html
-    );
-    CompileOutput::success(vec![
-        CompiledFile {
-            path: "index.js".into(),
-            content: output.js,
-        },
-        CompiledFile {
-            path: "index.html".into(),
-            content: html,
-        },
-        CompiledFile {
-            path: "body.html".into(),
-            content: output.html,
-        },
-        CompiledFile {
-            path: "index.css".into(),
-            content: output.css,
-        },
-    ])
-}

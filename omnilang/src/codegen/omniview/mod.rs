@@ -24,7 +24,7 @@ mod store;
 mod timeline;
 mod utils;
 mod view;
-pub use utils::{build_file_output, compile_files, wrap_debug_html};
+pub use utils::{build_file_output, wrap_debug_html};
 mod debug;
 
 use crate::codegen::shared::ui_codegen::UiCodegen;
@@ -141,22 +141,7 @@ impl crate::codegen::Codegen for OmniViewCodegen {
     ) -> crate::codegen::CompileOutput {
         let output = generate(ir, self.editor_mode, self.css_only, self.debug_mode);
         let mut files = Vec::with_capacity(4);
-        let html = format!(
-            r#"<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OmniView App</title>
-<link rel="stylesheet" href="index.css">
-</head>
-<body>
-{}
-<script src="index.js"></script>
-</body>
-</html>"#,
-            output.html
-        );
+        let html = utils::html_document_wrapper(&output.html, false);
         files.push(crate::codegen::CompiledFile {
             path: "index.js".into(),
             content: output.js,
