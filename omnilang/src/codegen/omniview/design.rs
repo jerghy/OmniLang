@@ -53,13 +53,54 @@ fn emit_design_css_impl(
 
     // ── Emit token CSS custom property declarations ──
     if !design.tokens.is_empty() {
-        css.push_str(":root {\n");
         let mut sorted: Vec<_> = design.tokens.iter().collect();
         sorted.sort_by(|a, b| a.0.cmp(b.0));
+
+        // Build a map: theme_name → Vec<(token_name, value)>
+        let mut theme_token_map: FxHashMap<&str, Vec<(&String, &String)>> = FxHashMap::default();
+        for (name, token) in &sorted {
+            for (theme_name, theme_val) in &token.theme_values {
+                theme_token_map
+                    .entry(theme_name.as_str())
+                    .or_default()
+                    .push((name, theme_val));
+            }
+        }
+
+        // 1. Default theme (or first listed value) on :root — always emitted
+        css.push_str(":root {\n");
         for (name, token) in &sorted {
             css.push_str(&format!("  --{}: {};\n", name, token.value));
         }
         css.push_str("}\n\n");
+
+        // 2. Per-theme overrides: [data-theme="themeName"] { --token: value; }
+        if !theme_token_map.is_empty() {
+            let mut theme_names: Vec<&str> = theme_token_map.keys().copied().collect();
+            theme_names.sort();
+            for theme_name in &theme_names {
+                if let Some(pairs) = theme_token_map.get(theme_name) {
+                    css.push_str(&format!("[data-theme=\"{}\"] {{\n", theme_name));
+                    for (name, val) in pairs {
+                        css.push_str(&format!("  --{}: {};\n", name, val));
+                    }
+                    css.push_str("}\n\n");
+                }
+            }
+        }
+
+        // 3. @media (prefers-color-scheme: dark) auto-detection
+        // Use the dark theme values (if declared), scoped to :root:not([data-theme])
+        // so it doesn't override explicit user choice
+        if let Some(dark_pairs) = theme_token_map.get("dark") {
+            css.push_str("@media (prefers-color-scheme: dark) {\n");
+            css.push_str("  :root:not([data-theme]) {\n");
+            for (name, val) in dark_pairs {
+                css.push_str(&format!("    --{}: {};\n", name, val));
+            }
+            css.push_str("  }\n");
+            css.push_str("}\n\n");
+        }
     }
 
     // ── Emit class rules ──
@@ -442,5 +483,74 @@ mod tests {
         let dim_values = FxHashMap::default();
         let result = expand_variant(&design, "NonExistent", &dim_values);
         assert!(result.is_err(), "should error on unknown variant");
+    }
+
+    #[test]
+    fn emit_design_css_with_themes() {
+        let mut tokens = FxHashMap::default();
+        let mut theme_values_dark = FxHashMap::default();
+        theme_values_dark.insert("dark".to_string(), "#a5b4fc".to_string());
+        tokens.insert(
+            "primary".to_string(),
+            TokenIR {
+                value: "#6366f1".to_string(),
+                token_type: TokenTypeIR::Color,
+                theme_values: theme_values_dark,
+                source_span: None,
+            },
+        );
+
+        let design = DesignIR {
+            name: "AppDesign".to_string(),
+            themes: vec!["light".to_string(), "dark".to_string()],
+            default_theme: Some("light".to_string()),
+            tokens,
+            classes: vec![],
+            variants: vec![],
+            source_span: None,
+        };
+
+        let css = emit_design_css(&design, "AppDesign").expect("should emit CSS");
+
+        // Should contain :root default
+        assert!(css.contains(":root {\n  --primary: #6366f1;\n}"));
+        // Should contain [data-theme="dark"] override
+        assert!(css.contains("[data-theme=\"dark\"] {\n  --primary: #a5b4fc;\n}"));
+        // Should contain @media (prefers-color-scheme: dark)
+        assert!(css.contains("@media (prefers-color-scheme: dark) {"));
+        assert!(css.contains(":root:not([data-theme]) {"));
+    }
+
+    #[test]
+    fn emit_design_css_without_themes_unchanged() {
+        // Token with no theme_values — should only emit :root block
+        let mut tokens = FxHashMap::default();
+        tokens.insert(
+            "radiusMd".to_string(),
+            TokenIR {
+                value: "8px".to_string(),
+                token_type: TokenTypeIR::Size,
+                theme_values: FxHashMap::default(),
+                source_span: None,
+            },
+        );
+
+        let design = DesignIR {
+            name: "Simple".to_string(),
+            themes: vec![],
+            default_theme: None,
+            tokens,
+            classes: vec![],
+            variants: vec![],
+            source_span: None,
+        };
+
+        let css = emit_design_css(&design, "Simple").expect("should emit CSS");
+        assert!(css.contains(":root {\n  --radiusMd: 8px;\n}"));
+        assert!(
+            !css.contains("[data-theme="),
+            "no theme blocks when no themes declared"
+        );
+        assert!(!css.contains("@media"), "no media query when no dark theme");
     }
 }
