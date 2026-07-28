@@ -185,7 +185,7 @@ impl OmniViewGenerator {
                                 if self.motion_names.contains(r#ref.as_str()) {
                                     // Motion reference: call factory and play on event
                                     self.js.push_str(&format!(
-                                        "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ if (el.offsetParent !== null) {{ var p = __omni_motion_{motion}(el, {{}}); __omni_animations.set(\"{nid}_{js_event}\", p); p.play(); }} }}); }}\n",
+                                        "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ try {{ if (el.offsetParent !== null) {{ var p = __omni_motion_{motion}(el, {{}}); __omni_animations.set(\"{nid}_{js_event}\", p); p.play(); }} }} catch(err) {{ __omni_reportError(\"event:{js_event}\", err); }} }}); }}\n",
                                         nid = nid,
                                         js_event = js_event,
                                         motion = r#ref,
@@ -198,7 +198,7 @@ impl OmniViewGenerator {
                                         "e",
                                     );
                                     self.js.push_str(&format!(
-                                        "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ {sp} {pd} {prefixed}({event_obj}); }}); }}\n",
+                                        "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ try {{ {sp} {pd} {prefixed}({event_obj}); }} catch(err) {{ __omni_reportError(\"event:{js_event}\", err); }} }}); }}\n",
                                         nid = nid, js_event = js_event, sp = sp, pd = pd, prefixed = prefixed, event_obj = event_obj
                                     ));
                                 }
@@ -206,8 +206,8 @@ impl OmniViewGenerator {
                             EventHandlerIR::StoreAction { r#ref, .. } => {
                                 let var_name = r#ref.replace('.', "_");
                                 self.js.push_str(&format!(
-                                    "{{ const el = __omni_el(\"{}\"); if (el) el.addEventListener(\"{}\", (e) => {{ {} {} {}(); }}); }}\n",
-                                    nid, js_event, sp, pd, var_name
+                                    "{{ const el = __omni_el(\"{}\"); if (el) el.addEventListener(\"{}\", (e) => {{ try {{ {} {} {}(); }} catch(err) {{ __omni_reportError(\"event:{}\", err); }} }}); }}\n",
+                                    nid, js_event, sp, pd, var_name, js_event
                                 ));
                             }
                             EventHandlerIR::InlineFn { body, params, .. } => {
@@ -228,7 +228,7 @@ impl OmniViewGenerator {
                                     "e",
                                 );
                                 self.js.push_str(&format!(
-                                    "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ {sp} {pd} {wrapper_name}({event_obj}); }}); }}\n",
+                                    "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ try {{ {sp} {pd} {wrapper_name}({event_obj}); }} catch(err) {{ __omni_reportError(\"event:{js_event}\", err); }} }}); }}\n",
                                     nid = nid, js_event = js_event, sp = sp, pd = pd, wrapper_name = wrapper_name, event_obj = event_obj
                                 ));
                             }
