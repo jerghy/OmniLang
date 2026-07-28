@@ -8,7 +8,7 @@ use rustc_hash::FxHashMap;
 use super::capitalize_first;
 use super::expr::format_expr_ir_flutter;
 use super::motion::{wrap_flutter_states, wrap_with_motion_widgets};
-use super::motion_widgets::emit_event_object_flutter;
+use super::motion_widgets::{emit_event_object_flutter, field_extract_flutter};
 use super::stmt::generate_statement_flutter;
 use super::utils::{
     binding_to_flutter_param, event_to_flutter_callback, prop_to_flutter_param_name,
@@ -176,17 +176,29 @@ fn format_element(
                 if event_data.is_some() {
                     let _event_obj =
                         emit_event_object_flutter(handler.event_data(), handler.used_fields(), "e");
+                    let fields: Vec<String> = match handler.used_fields() {
+                        Some(ref f) if !f.is_empty() => f.clone(),
+                        _ => vec![],
+                    };
                     let mut hw = CodeWriter::new();
                     hw.emit("(e) {");
                     hw.indent();
+                    // Emit individual field extractions as local variables
+                    // This shadows e.field references in the body with extracted values
+                    for field in &fields {
+                        let extract = field_extract_flutter(
+                            handler.event_data().as_ref().unwrap(),
+                            field,
+                            "e",
+                        );
+                        hw.emit_fmt(format_args!("final {} = {};", field, extract));
+                    }
                     for stmt in &body.statements {
                         generate_statement_flutter(&mut hw, stmt);
                     }
                     hw.dedent();
                     hw.emit("}");
                     let result = hw.into_string().trim().to_string();
-                    // Replace the extracted event object usage: the body references
-                    // e via the parameter, which already has the extracted fields
                     result
                 } else {
                     format_inline_handler_flutter(body)
