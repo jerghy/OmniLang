@@ -19,10 +19,10 @@ pub(super) use transforms::{
 /// Emit React hooks for @enter, @hover, @press, @focus motion triggers.
 ///
 /// Scans for named motion triggers and emits:
-/// 1. An `import { animate }` statement
-/// 2. A `_M` constant mapping motion names → `{kf:..., opts:...}` objects
-/// 3. A `useEffect` that handles @enter (one-shot on mount), @hover, @press,
-///    and @focus (interactive event listeners) by calling `animate(el, kf, opts)`
+/// 1. A `_M` constant mapping motion names → `{kf:..., opts:...}` objects
+/// 2. A `useEffect` with `[]` deps for @enter (one-shot on mount)
+/// 3. A `useEffect` with `[]` deps for @hover/@press/@focus (interactive event
+///    listeners with proper cleanup via returned teardown function)
 ///
 /// `motion_bodies` maps motion name → its MotionBodyIR, from both component
 /// and module-level @motion definitions.
@@ -30,7 +30,6 @@ pub(super) fn emit_motion_effects_tsx(
     w: &mut CodeWriter,
     node: &ViewTree,
     motion_bodies: &FxHashMap<String, MotionBodyIR>,
-    signal_names: &FxHashSet<String>,
 ) {
     // Collect all unique motion names referenced by triggers in this tree
     let motion_refs = collect_all_motion_refs(node);
@@ -64,11 +63,10 @@ pub(super) fn emit_motion_effects_tsx(
     w.emit("};");
     w.emit("");
 
-    // ── Emit useEffect that applies animations ──
+    // ── Effect 1: @enter (mount-only) ──
+    w.emit("// @enter: mount animations (empty deps = mount only)");
     w.emit("useEffect(()=>{");
     w.indent();
-    // @enter: one-shot mount animation
-    w.emit("// @enter: mount animations");
     w.emit("document.querySelectorAll('[data-motion-enter]').forEach(el=>{");
     w.indent();
     w.emit("const n=el.getAttribute('data-motion-name');");
@@ -80,59 +78,93 @@ pub(super) fn emit_motion_effects_tsx(
     w.emit("}");
     w.dedent();
     w.emit("});");
-    // @hover: mouse enter/leave animations
+    w.dedent();
+    w.emit("},[]);");
+    w.emit("");
+
+    // ── Effect 2: interactive triggers (@hover, @press, @focus) with cleanup ──
+    w.emit("// @hover/@press/@focus: interactive triggers with cleanup");
+    w.emit("useEffect(()=>{");
+    w.indent();
+    // @hover: mouse enter/leave
     w.emit("// @hover: mouse enter/leave animations");
+    w.emit("const hoverHandlers=[];");
     w.emit("document.querySelectorAll('[data-motion-hover]').forEach(el=>{");
     w.indent();
     w.emit("const n=el.getAttribute('data-motion-hover-name');");
     w.emit("if(n&&_M[n]){");
     w.indent();
     w.emit("const{kf,opts}=_M[n];");
-    w.emit("el.addEventListener('mouseenter',()=>animate(el,kf,opts));");
-    w.emit("el.addEventListener('mouseleave',()=>animate(el,[...kf].reverse(),opts));");
+    w.emit("const enter=()=>animate(el,kf,opts);");
+    w.emit("const leave=()=>animate(el,[...kf].reverse(),opts);");
+    w.emit("el.addEventListener('mouseenter',enter);");
+    w.emit("el.addEventListener('mouseleave',leave);");
+    w.emit("hoverHandlers.push({el,enter,leave});");
     w.dedent();
     w.emit("}");
     w.dedent();
     w.emit("});");
-    // @press: mouse down/up animations
+    // @press: mouse down/up
     w.emit("// @press: mouse down/up animations");
+    w.emit("const pressHandlers=[];");
     w.emit("document.querySelectorAll('[data-motion-press]').forEach(el=>{");
     w.indent();
     w.emit("const n=el.getAttribute('data-motion-press-name');");
     w.emit("if(n&&_M[n]){");
     w.indent();
     w.emit("const{kf,opts}=_M[n];");
-    w.emit("el.addEventListener('mousedown',()=>animate(el,kf,opts));");
-    w.emit("el.addEventListener('mouseup',()=>animate(el,[...kf].reverse(),opts));");
+    w.emit("const down=()=>animate(el,kf,opts);");
+    w.emit("const up=()=>animate(el,[...kf].reverse(),opts);");
+    w.emit("el.addEventListener('mousedown',down);");
+    w.emit("el.addEventListener('mouseup',up);");
+    w.emit("pressHandlers.push({el,down,up});");
     w.dedent();
     w.emit("}");
     w.dedent();
     w.emit("});");
-    // @focus: focus/blur animations
+    // @focus: focus/blur
     w.emit("// @focus: focus/blur animations");
+    w.emit("const focusHandlers=[];");
     w.emit("document.querySelectorAll('[data-motion-focus]').forEach(el=>{");
     w.indent();
     w.emit("const n=el.getAttribute('data-motion-focus-name');");
     w.emit("if(n&&_M[n]){");
     w.indent();
     w.emit("const{kf,opts}=_M[n];");
-    w.emit("el.addEventListener('focus',()=>animate(el,kf,opts));");
-    w.emit("el.addEventListener('blur',()=>animate(el,[...kf].reverse(),opts));");
+    w.emit("const focusFn=()=>animate(el,kf,opts);");
+    w.emit("const blurFn=()=>animate(el,[...kf].reverse(),opts);");
+    w.emit("el.addEventListener('focus',focusFn);");
+    w.emit("el.addEventListener('blur',blurFn);");
+    w.emit("focusHandlers.push({el,focusFn,blurFn});");
     w.dedent();
     w.emit("}");
     w.dedent();
     w.emit("});");
+    // Cleanup
+    w.emit("return()=>{");
+    w.indent();
+    w.emit("hoverHandlers.forEach(({el,enter,leave})=>{");
+    w.indent();
+    w.emit("el.removeEventListener('mouseenter',enter);");
+    w.emit("el.removeEventListener('mouseleave',leave);");
     w.dedent();
-    // Include signal names in dep array so @enter re-triggers on state changes
-    if signal_names.is_empty() {
-        w.emit("},[]);");
-    } else {
-        let mut sorted: Vec<&String> = signal_names.iter().collect();
-        sorted.sort();
-        let deps: Vec<&str> = sorted.iter().map(|s| s.as_str()).collect();
-        let deps_str = deps.join(", ");
-        w.emit_fmt(format_args!("}},[{}]);", deps_str));
-    }
+    w.emit("});");
+    w.emit("pressHandlers.forEach(({el,down,up})=>{");
+    w.indent();
+    w.emit("el.removeEventListener('mousedown',down);");
+    w.emit("el.removeEventListener('mouseup',up);");
+    w.dedent();
+    w.emit("});");
+    w.emit("focusHandlers.forEach(({el,focusFn,blurFn})=>{");
+    w.indent();
+    w.emit("el.removeEventListener('focus',focusFn);");
+    w.emit("el.removeEventListener('blur',blurFn);");
+    w.dedent();
+    w.emit("});");
+    w.dedent();
+    w.emit("};");
+    w.dedent();
+    w.emit("},[]);");
 }
 
 /// ── Helpers ────────────────────────────────────────────────────────────

@@ -501,7 +501,7 @@ impl ReactCodegen {
                         .or_insert_with(|| m.body.clone());
                 }
             }
-            motion::emit_motion_effects_tsx(&mut w, view, &motion_map, &signal_names);
+            motion::emit_motion_effects_tsx(&mut w, view, &motion_map);
         }
 
         // @driven-by effects — emit reactive hooks for external progress control
