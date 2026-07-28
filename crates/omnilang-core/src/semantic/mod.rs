@@ -10,6 +10,7 @@ mod collect;
 mod helpers;
 mod motion;
 mod resolve;
+mod validate_component;
 mod validate_inline;
 mod validate_motion;
 mod validate_motion_triggers;
