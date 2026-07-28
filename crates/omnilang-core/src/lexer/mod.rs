@@ -1146,10 +1146,6 @@ mod tests {
         assert_token("getter", TokenKind::Getter);
     }
     #[test]
-    fn test_keyword_theme() {
-        assert_token("theme", TokenKind::Theme);
-    }
-    #[test]
     fn test_keyword_design() {
         assert_token("design", TokenKind::Design);
     }
