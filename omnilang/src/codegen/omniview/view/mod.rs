@@ -4,11 +4,15 @@
 //! Sub-modules:
 //! - `element`: Element HTML generation (`element_to_html`, tree helpers)
 //! - `condition`: Conditional rendering (css_only mode + canvas helpers)
+//! - `events`: Event binding emission (addEventListener, @for delegation)
 //! - `list`: List rendering dispatch
+//! - `style`: Inline style emission (static + dynamic signal-driven)
 
 mod condition;
 mod element;
+mod events;
 mod list;
+mod style;
 
 // Re-exports so sibling modules in `codegen::omniview` can still access
 // these functions by path if needed.
