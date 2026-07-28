@@ -13,7 +13,9 @@
 
 use super::helpers::type_to_string;
 use super::symbols::{Symbol, SymbolKind};
+use super::types::SemanticType;
 use super::validate_inline::{check_control_flow, check_expr_await, ValidationContext};
+use super::validate_types::{check_assignment, check_binary_op, check_return, infer_expr_type};
 use super::SemanticAnalyzer;
 use crate::error::Diagnostic;
 use crate::error::DiagnosticKind;
@@ -160,6 +162,18 @@ impl SemanticAnalyzer {
         self.symbols.find_scope_by_name(name)
     }
 
+    /// Walk up the scope chain to find the enclosing function name (e.g. "main").
+    fn find_enclosing_fn_name(&self) -> Option<String> {
+        let mut scope_idx = self.symbols.current_scope_index();
+        loop {
+            let cur_scope = self.symbols.get_scope(scope_idx)?;
+            if cur_scope.name.starts_with("fn:") {
+                return Some(cur_scope.name[3..].to_string());
+            }
+            scope_idx = cur_scope.parent?;
+        }
+    }
+
     fn resolve_block_refs(&mut self, block: &Block, vctx: &mut ValidationContext) {
         for stmt in &block.stmts {
             self.resolve_stmt_refs(stmt, vctx);
@@ -181,7 +195,7 @@ impl SemanticAnalyzer {
                 init,
                 type_ann,
                 mutable,
-                ..
+                span,
             } => {
                 // Declare the variable only if it hasn't already been collected
                 // by Pass 1 (collect_block_symbols). This avoids duplicate warnings
@@ -199,11 +213,41 @@ impl SemanticAnalyzer {
                 }
                 if let Some(e) = init {
                     self.resolve_expr_refs(e, vctx);
+                    // Type-check: initializer must match declared type
+                    if let Some(ref ta) = type_ann {
+                        let scope = self.symbols.current_scope_index();
+                        let expected = SemanticType::from_type_annotation(ta);
+                        let actual = infer_expr_type(e, &self.symbols, scope);
+                        if let Err(msg) = check_assignment(&expected, &actual) {
+                            self.diagnostics.push(Diagnostic::error(
+                                DiagnosticKind::E0010,
+                                &msg,
+                                span,
+                            ));
+                        }
+                    }
                 }
             }
             Stmt::ExprStmt { expr, .. } => self.resolve_expr_refs(expr, vctx),
-            Stmt::Return { value: Some(e), .. } => {
+            Stmt::Return { value: Some(e), span } => {
                 self.resolve_expr_refs(e, vctx);
+                // Type-check: return value must match function return type
+                if let Some(fn_name) = self.find_enclosing_fn_name() {
+                    let scope = self.symbols.current_scope_index();
+                    let ret_type_str = self.symbols.resolve(&fn_name)
+                        .and_then(|s| s.type_ann.clone());
+                    if let Some(ref ret_type_str) = ret_type_str {
+                        let expected = SemanticType::parse_type_string(ret_type_str);
+                        let actual = infer_expr_type(e, &self.symbols, scope);
+                        if let Err(msg) = check_return(&expected, &actual) {
+                            self.diagnostics.push(Diagnostic::error(
+                                DiagnosticKind::E0010,
+                                &msg,
+                                span,
+                            ));
+                        }
+                    }
+                }
             }
             Stmt::Return { .. } => {}
             Stmt::Assign { value, .. } => self.resolve_expr_refs(value, vctx),
@@ -296,9 +340,20 @@ impl SemanticAnalyzer {
                     ));
                 }
             }
-            Expr::BinaryOp { left, right, .. } => {
+            Expr::BinaryOp { left, right, op, span } => {
                 self.resolve_expr_refs(left, vctx);
                 self.resolve_expr_refs(right, vctx);
+                // Type-check: binary operand types must match
+                let scope = self.symbols.current_scope_index();
+                let lhs = infer_expr_type(left, &self.symbols, scope);
+                let rhs = infer_expr_type(right, &self.symbols, scope);
+                if let Err(msg) = check_binary_op(op, &lhs, &rhs) {
+                    self.diagnostics.push(Diagnostic::error(
+                        DiagnosticKind::E0010,
+                        &msg,
+                        span,
+                    ));
+                }
             }
             Expr::UnaryOp { operand, .. } => self.resolve_expr_refs(operand, vctx),
             Expr::FuncCall { func, args, .. } => {
