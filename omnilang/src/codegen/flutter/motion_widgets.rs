@@ -657,7 +657,7 @@ pub(crate) fn emit_event_object_flutter(
 ) -> String {
     let kind = match event_data {
         Some(k) => k,
-        None => return "{}".to_string(),
+        None => return format!("{}.detail", raw_var),
     };
 
     let schema = event_data_schema(kind);
