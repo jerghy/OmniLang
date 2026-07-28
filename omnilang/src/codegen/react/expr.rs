@@ -186,7 +186,7 @@ impl FormatStmt for ReactStmtFormatter {
 
     fn format_event_emit_stmt(&self, w: &mut CodeWriter, event_name: &str, args: &[ExprIR]) {
         let arg_str = if args.is_empty() {
-            String::new()
+            String::from("()")
         } else {
             let formatted: Vec<String> = args.iter().map(|a| self.expr.format_expr(a)).collect();
             format!("({})", formatted.join(", "))
