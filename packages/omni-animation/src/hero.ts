@@ -45,10 +45,15 @@ export function heroAfter(): void {
     const anim = (visible as HTMLElement).animate(kfs, {
       duration: dur, easing: ease, fill: 'both'
     })
-    anim.onfinish = () => {
+    const cleanupStyles = () => {
       ;(visible as HTMLElement).style.transition = ''
       ;(visible as HTMLElement).style.transform = ''
       ;(visible as HTMLElement).style.transformOrigin = ''
+    }
+    const fallbackTimer = setTimeout(cleanupStyles, dur + 50)
+    anim.onfinish = () => {
+      clearTimeout(fallbackTimer)
+      cleanupStyles()
     }
   })
   heroState.clear()

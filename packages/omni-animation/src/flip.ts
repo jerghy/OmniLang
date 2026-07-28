@@ -35,9 +35,14 @@ export function flipAfter(
     void (el as HTMLElement).offsetHeight // force reflow
     ;(el as HTMLElement).style.transition = `transform ${duration}ms ${easing}`
     ;(el as HTMLElement).style.transform = 'translate(0,0)'
-    el.addEventListener('transitionend', function handler() {
+    const cleanupStyles = () => {
       ;(el as HTMLElement).style.transition = ''
       ;(el as HTMLElement).style.transform = ''
+    }
+    const fallbackTimer = setTimeout(cleanupStyles, duration + 50)
+    el.addEventListener('transitionend', function handler() {
+      clearTimeout(fallbackTimer)
+      cleanupStyles()
       el.removeEventListener('transitionend', handler)
     })
   })
