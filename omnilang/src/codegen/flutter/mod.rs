@@ -359,7 +359,11 @@ impl FlutterCodegen {
         w.into_string()
     }
 
-    /// Generate a store .dart file as a ChangeNotifier class.
+    /// Generate a store .dart file with Riverpod providers.
+    ///
+    /// Each signal becomes a `StateProvider<T>`, each getter becomes a derived
+    /// `Provider<dynamic>`, and each action becomes a standalone function taking
+    /// `WidgetRef ref` as its first parameter.
     fn gen_store_dart(&self, name: &str, store: &StoreIR) -> String {
         let mut w = CodeWriter::new();
         w.emit_fmt(format_args!(
@@ -369,112 +373,101 @@ impl FlutterCodegen {
         w.emit("");
 
         if store.signals.is_empty() && store.getters.is_empty() {
-            w.emit("import 'package:flutter/material.dart';");
+            w.emit("import 'package:flutter_riverpod/flutter_riverpod.dart';");
             w.emit("");
-            w.emit_fmt(format_args!("class {} {{", name));
-            w.indent();
-            w.emit_fmt(format_args!("{}();", name));
-            w.dedent();
-            w.emit("}");
+            w.emit("// Empty store \u{2014} no signals, getters, or actions to emit");
             return w.into_string();
         }
 
-        w.emit("import 'package:flutter/material.dart';");
+        w.emit("import 'package:flutter_riverpod/flutter_riverpod.dart';");
         w.emit("");
 
-        // ChangeNotifier class
-        w.emit_fmt(format_args!("class {} extends ChangeNotifier {{", name));
-        w.indent();
+        let lower = |s: &str| {
+            let mut c = s.chars();
+            match c.next() {
+                None => String::new(),
+                Some(first) => first.to_lowercase().to_string() + c.as_str(),
+            }
+        };
+        let store_prefix = lower(name);
 
-        // Fields (signals)
-        for (sig_name, sig_type) in &store.signals {
-            let ann = super::dart::dart_type(sig_type.kind.as_str(), &sig_type.type_args);
-            let default_val = store
-                .signal_defaults
-                .get(sig_name)
-                .map(|v| format_json_value(v, &JSON_FLUTTER))
-                .unwrap_or_else(|| "null".into());
-            w.emit_fmt(format_args!("{} {} = {};", ann, sig_name, default_val));
+        // -- Signal providers --
+        if !store.signals.is_empty() {
+            w.emit("// \u{2014} Signal providers \u{2014}");
+            for (sig_name, sig_type) in &store.signals {
+                let provider_name =
+                    format!("{}{}Provider", store_prefix, capitalize_first(sig_name));
+                let ann = super::dart::dart_type(sig_type.kind.as_str(), &sig_type.type_args);
+                let default_val = store
+                    .signal_defaults
+                    .get(sig_name)
+                    .map(|v| format_json_value(v, &JSON_FLUTTER))
+                    .unwrap_or_else(|| "null".into());
+                w.emit_fmt(format_args!(
+                    "final {} = StateProvider<{}>((ref) => {});",
+                    provider_name, ann, default_val
+                ));
+            }
+            w.emit("");
         }
 
-        // Constructor
-        w.emit("");
-        w.emit_fmt(format_args!("{}() {{", name));
-        w.indent();
-        for sig_name in store.signals.keys() {
-            let default_val = store
-                .signal_defaults
-                .get(sig_name)
-                .map(|v| format_json_value(v, &JSON_FLUTTER))
-                .unwrap_or_else(|| "null".into());
-            w.emit_fmt(format_args!("this.{} = {};", sig_name, default_val));
-        }
-        w.dedent();
-        w.emit("}");
-
-        // Getters
+        // -- Getter providers --
         for (getter_name, getter_expr) in &store.getters {
-            w.emit("");
-            w.emit_fmt(format_args!("get {} {{", getter_name));
-            w.indent();
+            let provider_name =
+                format!("{}{}Provider", store_prefix, capitalize_first(getter_name));
+            let body_dart = format_expr_ir_flutter(getter_expr);
             w.emit_fmt(format_args!(
-                "return {};",
-                format_expr_ir_flutter(getter_expr)
+                "final {} = Provider<dynamic>((ref) {{",
+                provider_name
             ));
+            w.indent();
+            // Emit ref.watch() for each signal so the getter auto-tracks dependencies
+            for sig_name in store.signals.keys() {
+                let sig_provider =
+                    format!("{}{}Provider", store_prefix, capitalize_first(sig_name));
+                w.emit_fmt(format_args!("ref.watch({});", sig_provider));
+            }
+            w.emit_fmt(format_args!("return {};", body_dart));
             w.dedent();
-            w.emit("}");
+            w.emit("});");
+            w.emit("");
         }
 
-        // Actions — methods on the ChangeNotifier that call notifyListeners
-        for action in &store.actions {
-            w.emit("");
-            let params: Vec<String> = action
-                .params
-                .iter()
-                .map(|p| {
+        // -- Action functions --
+        if !store.actions.is_empty() {
+            w.emit("// \u{2014} Action functions \u{2014}");
+            for action in &store.actions {
+                let action_name = format!("{}{}", store_prefix, capitalize_first(&action.name));
+                let mut params: Vec<String> = vec!["WidgetRef ref".to_string()];
+                for p in &action.params {
                     let ty = p
                         .r#type
                         .as_ref()
                         .map(|t| super::dart::dart_type(t.kind.as_str(), &t.type_args))
                         .unwrap_or_else(|| "dynamic".into());
-                    format!("{} {}", ty, p.name)
-                })
-                .collect();
-            let prefix = if action.is_async {
-                "Future<void>"
-            } else {
-                "void"
-            };
-            w.emit_fmt(format_args!(
-                "{} {}({}) {{",
-                prefix,
-                action.name,
-                params.join(", ")
-            ));
-            w.indent();
-            for stmt in &action.body.statements {
-                generate_statement_flutter(&mut w, stmt);
+                    params.push(format!("{} {}", ty, p.name));
+                }
+                let prefix = if action.is_async {
+                    "Future<void>"
+                } else {
+                    "void"
+                };
+                w.emit_fmt(format_args!(
+                    "{} {}({}) {{",
+                    prefix,
+                    action_name,
+                    params.join(", ")
+                ));
+                w.indent();
+                for stmt in &action.body.statements {
+                    generate_statement_flutter(&mut w, stmt);
+                }
+                w.dedent();
+                w.emit("}");
+                w.emit("");
             }
-            w.emit("notifyListeners();");
-            w.dedent();
-            w.emit("}");
         }
 
-        // Setter methods with notifyListeners for each signal
-        for (sig_name, sig_type) in &store.signals {
-            w.emit("");
-            let setter_name = format!("set{}", capitalize_first(sig_name));
-            let ann = super::dart::dart_type(sig_type.kind.as_str(), &sig_type.type_args);
-            w.emit_fmt(format_args!("void {}({} value) {{", setter_name, ann));
-            w.indent();
-            w.emit_fmt(format_args!("this.{} = value;", sig_name));
-            w.emit("notifyListeners();");
-            w.dedent();
-            w.emit("}");
-        }
-
-        w.dedent();
-        w.emit("}");
         w.into_string()
     }
 }
