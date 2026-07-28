@@ -797,14 +797,36 @@ impl Default for IRProgram {
 }
 
 impl IRProgram {
-    /// Collect all components across all modules.
+    /// Look up a component by name across all modules (short-circuit on first match).
     #[must_use]
-    pub fn all_components(&self) -> FxHashMap<&str, &ComponentIR> {
+    pub fn get_component(&self, name: &str) -> Option<&ComponentIR> {
+        self.modules.values().find_map(|m| m.components.get(name))
+    }
+
+    /// Check whether a store exists by name across all modules (short-circuit).
+    #[must_use]
+    pub fn has_store(&self, name: &str) -> bool {
+        self.modules.values().any(|m| m.stores.contains_key(name))
+    }
+
+    /// Check whether a function exists by name across all modules (short-circuit).
+    #[must_use]
+    pub fn has_function(&self, name: &str) -> bool {
+        self.modules.values().any(|m| m.functions.contains_key(name))
+    }
+
+    /// Iterate over all components across all modules without building a HashMap.
+    pub fn iter_all_components(&self) -> impl Iterator<Item = (&str, &ComponentIR)> {
         self.modules
             .values()
             .flat_map(|m| m.components.iter())
             .map(|(k, v)| (k.as_str(), v))
-            .collect()
+    }
+
+    /// Collect all components across all modules.
+    #[must_use]
+    pub fn all_components(&self) -> FxHashMap<&str, &ComponentIR> {
+        self.iter_all_components().collect()
     }
 
     /// Collect all public functions across all modules.

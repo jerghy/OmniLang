@@ -34,7 +34,7 @@ impl LintRule for UndefinedRef {
                 .or_else(|| file_map.keys().next().map(|s| s.as_str()))
                 .unwrap_or(name);
             for store_ref in &comp.store_refs {
-                if !ir.all_stores().contains_key(store_ref.as_str()) {
+                if !ir.has_store(store_ref.as_str()) {
                     diags.push(LintDiagnostic {
                         rule: self.name().into(),
                         severity: self.severity(),

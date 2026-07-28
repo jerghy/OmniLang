@@ -19,10 +19,7 @@ fn main() {
 
     for backend in &backends {
         // Cargo converts feature names: `codegen-javascript` -> `CARGO_FEATURE_CODEGEN_JAVASCRIPT`
-        let env_var = format!(
-            "CARGO_FEATURE_{}",
-            backend.replace('-', "_").to_uppercase()
-        );
+        let env_var = format!("CARGO_FEATURE_{}", backend.replace('-', "_").to_uppercase());
         if std::env::var_os(&env_var).is_some() {
             println!("cargo:rustc-cfg=any_backend_enabled");
             return;

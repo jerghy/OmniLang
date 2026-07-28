@@ -79,7 +79,7 @@ impl FlutterCodegen {
 
         // Store imports
         for store_ref in &comp.store_refs {
-            if ir.all_stores().contains_key(store_ref.as_str()) {
+            if ir.has_store(store_ref.as_str()) {
                 w.emit_fmt(format_args!("import './{}_store.dart';", store_ref));
             }
         }

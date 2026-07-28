@@ -398,7 +398,7 @@ impl ReactCodegen {
             if !used_store_refs.contains(store_ref.as_str()) {
                 continue;
             }
-            if ir.all_stores().contains_key(store_ref.as_str()) {
+            if ir.has_store(store_ref.as_str()) {
                 let hook_name = format!("use{}", store_ref);
                 w.emit_fmt(format_args!("const {} = {}();", store_ref, hook_name));
             }

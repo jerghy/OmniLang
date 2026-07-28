@@ -12,8 +12,8 @@ pub(crate) use omnilang_core::codegen::shared::html;
 pub(crate) use omnilang_core::codegen::shared::inline_handler;
 pub(crate) use omnilang_core::codegen::shared::stmt;
 pub(crate) use omnilang_core::codegen::shared::types;
-pub(crate) use omnilang_core::codegen::shared::visitor;
 pub use omnilang_core::codegen::shared::ui_codegen;
+pub(crate) use omnilang_core::codegen::shared::visitor;
 
 // ── Re-exported from omnilang-core (P-gen dedup) ──
 // `emit_constructor_init` and `emit_store_constructor_init` are identical

@@ -87,7 +87,7 @@ impl DioxusCodegen {
 
         // Store module imports
         for store_ref in &comp.store_refs {
-            if ir.all_stores().contains_key(store_ref.as_str()) {
+            if ir.has_store(store_ref.as_str()) {
                 let snake = to_snake_case(store_ref);
                 w.emit_fmt(format_args!("mod {};", snake));
             }
@@ -98,7 +98,7 @@ impl DioxusCodegen {
 
         // Store hook calls
         for store_ref in &comp.store_refs {
-            if ir.all_stores().contains_key(store_ref.as_str()) {
+            if ir.has_store(store_ref.as_str()) {
                 let snake = to_snake_case(store_ref);
                 w.emit_fmt(format_args!(
                     "let {} = {}::use_{}();",

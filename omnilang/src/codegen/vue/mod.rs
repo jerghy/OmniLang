@@ -126,7 +126,7 @@ impl VueCodegen {
         // Store hook imports
         let mut store_hook_imports = Vec::new();
         for store_ref in &comp.store_refs {
-            if ir.all_stores().contains_key(store_ref.as_str()) {
+            if ir.has_store(store_ref.as_str()) {
                 let hook_name = format!("use{}", store_ref);
                 store_hook_imports.push(format!(
                     "import {{ {} }} from './use{}';",
@@ -157,7 +157,7 @@ impl VueCodegen {
 
         // Store composable calls
         for store_ref in &comp.store_refs {
-            if ir.all_stores().contains_key(store_ref.as_str()) {
+            if ir.has_store(store_ref.as_str()) {
                 let hook_name = format!("use{}", store_ref);
                 w.emit_fmt(format_args!("const {} = {}();", store_ref, hook_name));
             }

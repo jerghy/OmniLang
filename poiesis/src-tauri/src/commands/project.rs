@@ -177,9 +177,7 @@ fn is_in_system_directory(path: &std::path::Path) -> bool {
 #[cfg(not(target_os = "windows"))]
 fn is_in_system_directory(path: &std::path::Path) -> bool {
     let norm = path.to_string_lossy().to_lowercase();
-    let bad_prefixes: &[&str] = &[
-        "/etc", "/usr", "/bin", "/sbin", "/sys", "/proc", "/dev",
-    ];
+    let bad_prefixes: &[&str] = &["/etc", "/usr", "/bin", "/sbin", "/sys", "/proc", "/dev"];
     bad_prefixes
         .iter()
         .any(|prefix| norm == *prefix || norm.starts_with(&format!("{}/", prefix)))
@@ -243,9 +241,7 @@ pub(crate) fn open_project(
     // Security: require project directory within user's home or appdata
     let allowed = get_allowed_directories();
     if allowed.is_empty() {
-        return Err(
-            "Project must be within your home directory, but $HOME is not set".to_string(),
-        );
+        return Err("Project must be within your home directory, but $HOME is not set".to_string());
     }
     if !allowed.iter().any(|dir| canonical.starts_with(dir)) {
         return Err("Project must be within your home directory".to_string());
