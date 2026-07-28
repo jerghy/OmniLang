@@ -84,13 +84,24 @@ impl FlutterCodegen {
             }
         }
         if !comp.store_refs.is_empty() {
+            w.emit("import 'package:flutter_riverpod/flutter_riverpod.dart';");
+            w.emit("");
+        }
+        if !comp.store_refs.is_empty() {
             w.emit("");
         }
 
         let state_name = format!("_{}State", name);
 
-        // ── StatefulWidget ──
-        w.emit_fmt(format_args!("class {} extends StatefulWidget {{", name));
+        // Determine widget/state base classes
+        let (widget_base, state_base) = if comp.store_refs.is_empty() {
+            ("StatefulWidget", "State")
+        } else {
+            ("ConsumerStatefulWidget", "ConsumerState")
+        };
+
+        // ── Widget class ──
+        w.emit_fmt(format_args!("class {} extends {} {{", name, widget_base));
         w.indent();
 
         if comp.props.is_empty() {
@@ -117,8 +128,8 @@ impl FlutterCodegen {
         w.emit("");
         w.emit("@override");
         w.emit_fmt(format_args!(
-            "State<{}> createState() => {}();",
-            name, state_name
+            "{}<{}> createState() => {}();",
+            state_base, name, state_name
         ));
 
         w.dedent();
@@ -132,8 +143,8 @@ impl FlutterCodegen {
             " with TickerProviderStateMixin".to_string()
         };
         w.emit_fmt(format_args!(
-            "class {} extends State<{}>{} {{",
-            state_name, name, state_mixin
+            "class {} extends {}<{}>{} {{",
+            state_name, state_base, name, state_mixin
         ));
         w.indent();
 
@@ -311,7 +322,11 @@ impl FlutterCodegen {
 
         // Build method
         w.emit("@override");
-        w.emit("Widget build(BuildContext context) {");
+        if comp.store_refs.is_empty() {
+            w.emit("Widget build(BuildContext context) {");
+        } else {
+            w.emit("Widget build(BuildContext context, WidgetRef ref) {");
+        }
         w.indent();
 
         if let Some(view) = &comp.view {

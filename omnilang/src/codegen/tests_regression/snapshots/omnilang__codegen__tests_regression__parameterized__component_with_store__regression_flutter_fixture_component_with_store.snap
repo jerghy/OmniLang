@@ -8,17 +8,19 @@ expression: "& super :: super :: format_output(& output)"
 import 'package:flutter/material.dart';
 
 import './AppStore_store.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class CounterWithStore extends StatefulWidget {
+
+class CounterWithStore extends ConsumerStatefulWidget {
     const CounterWithStore({super.key});
 
     @override
-    State<CounterWithStore> createState() => _CounterWithStoreState();
+    ConsumerState<CounterWithStore> createState() => _CounterWithStoreState();
 }
 
-class _CounterWithStoreState extends State<CounterWithStore> {
+class _CounterWithStoreState extends ConsumerState<CounterWithStore> {
     @override
-    Widget build(BuildContext context) {
+    Widget build(BuildContext context, WidgetRef ref) {
         return Container(onPressed: () { increment(); }, children: [Text('Count: '), Text(AppStore.count)]);
     }
 }
