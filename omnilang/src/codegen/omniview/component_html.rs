@@ -15,7 +15,7 @@ impl OmniViewGenerator {
         nid: &str,
         pad: &str,
     ) -> Option<String> {
-        if let Some(child_comp) = self.component_map.get(&el.tag).cloned() {
+        if let Some(child_comp) = self.component_map.get(&el.tag) {
             if let Some(ref child_view) = child_comp.view {
                 // Save and update current component context
                 let saved_component = self.current_component.clone();
@@ -101,16 +101,11 @@ impl OmniViewGenerator {
                     }
                 }
 
-                // Generate child HTML inline
-                let child_html = self.view_to_html(child_view, indent + 1);
-
-                // Restore parent context
-                self.current_component = saved_component;
-                self.signal_names = saved_signal_names;
-                self.name_renames = saved_renames_child;
-
-                // Emit wrapper div with nid for event bindings on this component
-                // For @for, add data-for-state-names for per-instance state sync
+                // Extract owned data from child_comp before the mutable borrow
+                // in view_to_html, releasing the borrow on self.component_map.
+                let child_comp_name = child_comp.name.clone();
+                let child_prop_keys: FxHashSet<String> =
+                    child_comp.props.keys().cloned().collect();
                 let for_states_attr = if self.in_for_template && !child_comp.signals.is_empty() {
                     let names: Vec<&str> =
                         child_comp.signals.iter().map(|s| s.name.as_str()).collect();
@@ -120,6 +115,17 @@ impl OmniViewGenerator {
                 } else {
                     String::new()
                 };
+                // Clone the view tree to break the borrow on self
+                let child_view_owned = child_view.clone();
+
+                // Generate child HTML inline
+                let child_html = self.view_to_html(&child_view_owned, indent + 1);
+
+                // Restore parent context
+                self.current_component = saved_component;
+                self.signal_names = saved_signal_names;
+                self.name_renames = saved_renames_child;
+
                 let mut out = String::new();
                 out.push_str(&format!(
                     "{}<div data-nid=\"{}\" data-component=\"{}\"{for_states}>\n",
@@ -136,7 +142,7 @@ impl OmniViewGenerator {
                     // Register the child signal + emit its declaration in the parent.
                     for (prop_name, prop_value) in &el.props {
                         let js_value = self.expr_to_js(prop_value);
-                        let child_prefixed = format!("{}_{}", child_comp.name, prop_name);
+                        let child_prefixed = format!("{}_{}", child_comp_name, prop_name);
                         // The signal_names were just restored to the parent's set,
                         // so inserting here persists correctly.
                         if !self.signal_names.contains(&child_prefixed) {
@@ -144,7 +150,7 @@ impl OmniViewGenerator {
                             // (via its own prop), skip the const declaration to avoid
                             // "Identifier has already been declared" errors.
                             // The child's signal already exists; we just need the effect.
-                            let is_child_prop = child_comp.props.contains_key(prop_name);
+                            let is_child_prop = child_prop_keys.contains(prop_name);
                             if !is_child_prop {
                                 self.signal_names.insert(child_prefixed.clone());
                                 self.js.push_str(&format!(
