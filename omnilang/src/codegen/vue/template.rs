@@ -97,6 +97,18 @@ pub(super) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &impl 
                 }
             }
 
+            // Class map bindings -> :class="{ className: expr }"
+            if !el.class_map_bindings.is_empty() {
+                let bindings: Vec<String> = el
+                    .class_map_bindings
+                    .iter()
+                    .map(|(class_name, expr)| {
+                        format!("{}: {}", class_name, fmt.format_expr(expr))
+                    })
+                    .collect();
+                attrs.push(format!(":class=\"{{ {} }}\"", bindings.join(", ")));
+            }
+
             // Inline style
             if let Some(ref style_json) = el.inline_style {
                 if let Some(obj) = style_json.as_object() {

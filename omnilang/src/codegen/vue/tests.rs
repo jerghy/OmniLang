@@ -191,6 +191,148 @@ mod tests {
         assert_eq!(format_expr_vue(&expr), "store.getCount");
     }
 
+    #[test]
+    fn test_vue_class_map_bindings() {
+        let codegen = VueCodegen;
+        let mut class_map: FxHashMap<String, ExprIR> = FxHashMap::default();
+        class_map.insert(
+            "active".into(),
+            ExprIR::IdentifierExpr {
+                name: "isOpen".into(),
+                type_ann: None,
+            },
+        );
+        class_map.insert(
+            "highlighted".into(),
+            ExprIR::IdentifierExpr {
+                name: "isSelected".into(),
+                type_ann: None,
+            },
+        );
+        let mut components = FxHashMap::default();
+        components.insert(
+            "Card".into(),
+            ComponentIR {
+                name: "Card".into(),
+                generic_params: vec![],
+                props: FxHashMap::default(),
+                prop_defaults: FxHashMap::default(),
+                signals: vec![],
+                computeds: vec![],
+                effects: vec![],
+                lifecycles: vec![],
+                fns: vec![],
+                store_refs: vec![],
+                refs: vec![],
+                event_names: vec![],
+                event_param_types: vec![],
+                view: Some(ViewTree::Element(ElementIR {
+                    tag: "div".into(),
+                    props: FxHashMap::default(),
+                    bindings: FxHashMap::default(),
+                    events: FxHashMap::default(),
+                    style_classes: None,
+                    inline_style: None,
+                    children: vec![],
+                    class_map_bindings: class_map,
+                    motion: None,
+                    scroll: None,
+                    drag: None,
+                    hero: None,
+                    construction_kind: ConstructionKind::Static,
+                    source_span: None,
+                })),
+                styles: vec![],
+                if_mode_default: None,
+                hero_defs: vec![],
+                ..Default::default()
+            },
+        );
+        let ir = make_ir(components);
+        let comp_ref = ir
+            .modules
+            .get("main")
+            .unwrap()
+            .components
+            .get("Card")
+            .unwrap();
+        let sfc = codegen.gen_component_sfc("Card", comp_ref, &ir);
+        // Should contain :class with object syntax
+        assert!(
+            sfc.contains(":class=\"{ active: isOpen, highlighted: isSelected }\"")
+                || sfc.contains(":class=\"{ highlighted: isSelected, active: isOpen }\"")
+        );
+    }
+
+    #[test]
+    fn test_vue_class_map_bindings_with_static_class() {
+        let codegen = VueCodegen;
+        let mut class_map: FxHashMap<String, ExprIR> = FxHashMap::default();
+        class_map.insert(
+            "active".into(),
+            ExprIR::IdentifierExpr {
+                name: "isOpen".into(),
+                type_ann: None,
+            },
+        );
+        let mut components = FxHashMap::default();
+        components.insert(
+            "Card".into(),
+            ComponentIR {
+                name: "Card".into(),
+                generic_params: vec![],
+                props: FxHashMap::default(),
+                prop_defaults: FxHashMap::default(),
+                signals: vec![],
+                computeds: vec![],
+                effects: vec![],
+                lifecycles: vec![],
+                fns: vec![],
+                store_refs: vec![],
+                refs: vec![],
+                event_names: vec![],
+                event_param_types: vec![],
+                view: Some(ViewTree::Element(ElementIR {
+                    tag: "div".into(),
+                    props: FxHashMap::from_iter([(
+                        "class".into(),
+                        ExprIR::LiteralExpr {
+                            value: serde_json::json!("base"),
+                        },
+                    )]),
+                    bindings: FxHashMap::default(),
+                    events: FxHashMap::default(),
+                    style_classes: None,
+                    inline_style: None,
+                    children: vec![],
+                    class_map_bindings: class_map,
+                    motion: None,
+                    scroll: None,
+                    drag: None,
+                    hero: None,
+                    construction_kind: ConstructionKind::Static,
+                    source_span: None,
+                })),
+                styles: vec![],
+                if_mode_default: None,
+                hero_defs: vec![],
+                ..Default::default()
+            },
+        );
+        let ir = make_ir(components);
+        let comp_ref = ir
+            .modules
+            .get("main")
+            .unwrap()
+            .components
+            .get("Card")
+            .unwrap();
+        let sfc = codegen.gen_component_sfc("Card", comp_ref, &ir);
+        // Should contain both static class and :class binding
+        assert!(sfc.contains("class=\"base\""));
+        assert!(sfc.contains(":class=\"{ active: isOpen }\""));
+    }
+
     // ── generate_statement_vue tests ────────────────────────
 
     #[test]
