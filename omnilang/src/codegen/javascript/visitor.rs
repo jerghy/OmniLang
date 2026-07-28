@@ -85,7 +85,7 @@ impl CodegenVisitor for JavaScriptVisitor {
         ));
         w.indent();
         for (i, variant) in e.variants.iter().enumerate() {
-            if variant.payload.is_some() {
+            if !variant.fields.is_empty() {
                 w.emit_fmt(format_args!("{}: \"{}\",", variant.name, variant.name));
             } else {
                 w.emit_fmt(format_args!("{}: {},", variant.name, i));

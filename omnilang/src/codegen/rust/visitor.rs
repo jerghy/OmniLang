@@ -51,11 +51,20 @@ impl CodegenVisitor for RustVisitor {
         w.emit_fmt(format_args!("{}enum {} {{", vis, e.name));
         w.indent();
         for variant in &e.variants {
-            if let Some(payload) = &variant.payload {
-                let payload_str = super::expr::format_type_ir_rust(payload);
+            if variant.fields.is_empty() {
+                w.emit_fmt(format_args!("{},", variant.name));
+            } else if variant.fields.len() == 1 {
+                let payload_str = super::expr::format_type_ir_rust(&variant.fields[0].r#type);
                 w.emit_fmt(format_args!("{}({}),", variant.name, payload_str));
             } else {
-                w.emit_fmt(format_args!("{},", variant.name));
+                w.emit_fmt(format_args!("{} {{", variant.name));
+                w.indent();
+                for f in &variant.fields {
+                    let type_str = super::expr::format_type_ir_rust(&f.r#type);
+                    w.emit_fmt(format_args!("{}: {},", f.name, type_str));
+                }
+                w.dedent();
+                w.emit("},");
             }
         }
         w.dedent();

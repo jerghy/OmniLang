@@ -784,17 +784,17 @@ mod tests {
             variants: vec![
                 VariantIR {
                     name: "Red".into(),
-                    payload: None,
+                    fields: vec![],
                     source_span: None,
                 },
                 VariantIR {
                     name: "Green".into(),
-                    payload: None,
+                    fields: vec![],
                     source_span: None,
                 },
                 VariantIR {
                     name: "Blue".into(),
-                    payload: None,
+                    fields: vec![],
                     source_span: None,
                 },
             ],
@@ -817,20 +817,30 @@ mod tests {
             variants: vec![
                 VariantIR {
                     name: "Int".into(),
-                    payload: Some(TypeIR {
-                        kind: "i32".into(),
-                        type_args: vec![],
-                        is_nullable: false,
-                    }),
+                    fields: vec![FieldIR {
+                        name: "value".into(),
+                        r#type: TypeIR {
+                            kind: "i32".into(),
+                            type_args: vec![],
+                            is_nullable: false,
+                        },
+                        visibility: Visibility::Public,
+                        source_span: None,
+                    }],
                     source_span: None,
                 },
                 VariantIR {
                     name: "Text".into(),
-                    payload: Some(TypeIR {
-                        kind: "string".into(),
-                        type_args: vec![],
-                        is_nullable: false,
-                    }),
+                    fields: vec![FieldIR {
+                        name: "value".into(),
+                        r#type: TypeIR {
+                            kind: "string".into(),
+                            type_args: vec![],
+                            is_nullable: false,
+                        },
+                        visibility: Visibility::Public,
+                        source_span: None,
+                    }],
                     source_span: None,
                 },
             ],

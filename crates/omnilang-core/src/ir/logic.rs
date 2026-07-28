@@ -49,7 +49,7 @@ pub struct EnumIR {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VariantIR {
     pub name: String,
-    pub payload: Option<TypeIR>,
+    pub fields: Vec<FieldIR>,
     #[serde(default)]
     pub source_span: Option<Span>,
 }

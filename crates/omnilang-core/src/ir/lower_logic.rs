@@ -55,7 +55,16 @@ pub fn lower_enum(tu: &TaggedUnionDef) -> EnumIR {
             .iter()
             .map(|v| VariantIR {
                 name: v.name.clone(),
-                payload: v.fields.first().map(|f| lower_type(&f.type_ann)),
+                fields: v
+                    .fields
+                    .iter()
+                    .map(|f| FieldIR {
+                        name: f.name.clone(),
+                        r#type: lower_type(&f.type_ann),
+                        visibility: Visibility::Public,
+                        source_span: None,
+                    })
+                    .collect(),
                 source_span: None,
             })
             .collect(),

@@ -903,17 +903,17 @@ fn test_js_generate_enum() {
         variants: vec![
             VariantIR {
                 name: "Red".into(),
-                payload: None,
+                fields: vec![],
                 source_span: None,
             },
             VariantIR {
                 name: "Green".into(),
-                payload: None,
+                fields: vec![],
                 source_span: None,
             },
             VariantIR {
                 name: "Blue".into(),
-                payload: None,
+                fields: vec![],
                 source_span: None,
             },
         ],
