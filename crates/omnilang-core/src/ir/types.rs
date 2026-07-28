@@ -730,6 +730,10 @@ pub struct ComponentIR {
     /// Event declarations (e.g., `event onDelete: i32`)
     #[serde(default)]
     pub event_names: Vec<String>,
+    /// Parallel to event_names: TypeScript parameter type for each event.
+    /// None or empty string → `any`. Populated from EventDecl.type_ann.
+    #[serde(default)]
+    pub event_param_types: Vec<String>,
     pub view: Option<ViewTree>,
     pub styles: Vec<StyleRuleIR>,
     /// Component-level @if mode default

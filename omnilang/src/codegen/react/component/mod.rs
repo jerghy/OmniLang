@@ -138,8 +138,18 @@ impl ReactCodegen {
                 };
                 w.emit_fmt(format_args!("  {}{}: {};", prop_name, optional, ts_type));
             }
-            for event_name in &comp.event_names {
-                w.emit_fmt(format_args!("  {}?: (value: any) => void;", event_name));
+            for (event_name, param_type) in
+                comp.event_names.iter().zip(comp.event_param_types.iter())
+            {
+                let ts_type = if param_type.is_empty() {
+                    "any"
+                } else {
+                    param_type.as_str()
+                };
+                w.emit_fmt(format_args!(
+                    "  {}?: (value: {}) => void;",
+                    event_name, ts_type
+                ));
             }
             w.emit("}");
             w.emit("");

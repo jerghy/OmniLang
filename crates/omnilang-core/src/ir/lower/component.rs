@@ -9,6 +9,7 @@ use super::view::lower_view_block;
 use crate::ir::logic::*;
 use crate::ir::types::*;
 use crate::ir::types_motion::*;
+use crate::parser::ast::TypeAnnotation;
 use crate::parser::ast::*;
 use crate::semantic::SemanticResult;
 use rustc_hash::FxHashMap;
@@ -268,11 +269,49 @@ pub(super) fn lower_component(
             })
             .collect(),
         event_names: comp.events.iter().map(|e| e.name.clone()).collect(),
+        event_param_types: comp
+            .events
+            .iter()
+            .map(|e| type_ann_to_ts(&e.type_ann))
+            .collect(),
         view,
         styles,
         if_mode_default: comp.if_mode_default.clone(),
         hero_defs,
         source_span: Some(comp.span),
+    }
+}
+
+/// Convert an OmniLang TypeAnnotation to a TypeScript type string for React props.
+fn type_ann_to_ts(ta: &TypeAnnotation) -> String {
+    match ta {
+        TypeAnnotation::Named {
+            name, type_args, ..
+        } => {
+            let name_str = name.as_str();
+            match name_str {
+                "string" | "String" | "str" => "string".into(),
+                "i32" | "i64" | "f32" | "f64" | "number" | "int" | "float" | "num" => {
+                    "number".into()
+                }
+                "bool" | "Bool" | "boolean" => "boolean".into(),
+                "void" | "Void" | "()" | "unit" => "void".into(),
+                "any" | "auto" | "var" | "Any" => "any".into(),
+                "Array" if type_args.len() == 1 => {
+                    format!("{}[]", type_ann_to_ts(&type_args[0]))
+                }
+                _ => name_str.to_string(),
+            }
+        }
+        TypeAnnotation::Optional { base, .. } => {
+            format!("{} | undefined", type_ann_to_ts(base))
+        }
+        TypeAnnotation::Union { types, .. } => types
+            .iter()
+            .map(type_ann_to_ts)
+            .collect::<Vec<_>>()
+            .join(" | "),
+        TypeAnnotation::Fn { .. } => "Function".into(),
     }
 }
 

@@ -67,7 +67,9 @@ impl FormatStmt for FlutterStmtFormatter {
 
 pub(crate) fn generate_statement_flutter(w: &mut CodeWriter, stmt: &StatementIR) {
     let fmt = FlutterStmtFormatter {
-        expr: DartFormatExpr { event_param_name: None },
+        expr: DartFormatExpr {
+            event_param_name: None,
+        },
     };
     fmt.format_stmt(w, stmt);
 }

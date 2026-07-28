@@ -127,6 +127,7 @@ mod tests {
                 store_refs: vec![],
                 refs: vec![],
                 event_names: vec![],
+                event_param_types: vec![],
                 view,
                 styles: vec![],
                 if_mode_default: None,
