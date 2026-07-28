@@ -20,13 +20,14 @@ pub fn infer_expr_type(expr: &Expr, symbols: &SymbolTable, scope: usize) -> Sema
             Literal::Bool(_) => SemanticType::Bool,
             Literal::Null => SemanticType::Null,
         },
-        Expr::VarRef(name, _) => {
-            symbols.resolve(name)
-                .and_then(|s| s.type_ann.as_ref())
-                .map(|t| SemanticType::parse_type_string(t))
-                .unwrap_or(SemanticType::Any)
-        }
-        Expr::BinaryOp { left, op, right, .. } => {
+        Expr::VarRef(name, _) => symbols
+            .resolve(name)
+            .and_then(|s| s.type_ann.as_ref())
+            .map(|t| SemanticType::parse_type_string(t))
+            .unwrap_or(SemanticType::Any),
+        Expr::BinaryOp {
+            left, op, right, ..
+        } => {
             let lhs = infer_expr_type(left, symbols, scope);
             let rhs = infer_expr_type(right, symbols, scope);
             binary_op_result_type(op, &lhs, &rhs)
@@ -67,31 +68,46 @@ pub fn infer_expr_type(expr: &Expr, symbols: &SymbolTable, scope: usize) -> Sema
         Expr::MapLiteral { .. } => {
             SemanticType::Map(Box::new(SemanticType::String), Box::new(SemanticType::Any))
         }
-        Expr::IfExpr { then_expr, else_expr, .. } => {
+        Expr::IfExpr {
+            then_expr,
+            else_expr,
+            ..
+        } => {
             let t = infer_expr_type(then_expr, symbols, scope);
             let e = infer_expr_type(else_expr, symbols, scope);
-            if t == e { t } else { SemanticType::Any }
+            if t == e {
+                t
+            } else {
+                SemanticType::Any
+            }
         }
-        Expr::TernaryExpr { then_expr, else_expr, .. } => {
+        Expr::TernaryExpr {
+            then_expr,
+            else_expr,
+            ..
+        } => {
             let t = infer_expr_type(then_expr, symbols, scope);
             let e = infer_expr_type(else_expr, symbols, scope);
-            if t == e { t } else { SemanticType::Any }
+            if t == e {
+                t
+            } else {
+                SemanticType::Any
+            }
         }
         Expr::TemplateString { .. } => SemanticType::String,
         Expr::StructLiteral { .. } => SemanticType::Any,
         Expr::StoreFieldAccess { .. } => SemanticType::Any,
-        Expr::Block { body, .. } => {
-            body.trailing_expr.as_ref()
-                .map(|e| infer_expr_type(e, symbols, scope))
-                .unwrap_or(SemanticType::Void)
-        }
+        Expr::Block { body, .. } => body
+            .trailing_expr
+            .as_ref()
+            .map(|e| infer_expr_type(e, symbols, scope))
+            .unwrap_or(SemanticType::Void),
         Expr::ClosureExpr { .. } => SemanticType::Any,
         Expr::AwaitExpr { operand, .. } => infer_expr_type(operand, symbols, scope),
-        Expr::MatchExpr { arms, .. } => {
-            arms.first()
-                .map(|arm| infer_block_type(&arm.body, symbols, scope))
-                .unwrap_or(SemanticType::Void)
-        }
+        Expr::MatchExpr { arms, .. } => arms
+            .first()
+            .map(|arm| infer_block_type(&arm.body, symbols, scope))
+            .unwrap_or(SemanticType::Void),
         Expr::SpreadExpr { operand, .. } => infer_expr_type(operand, symbols, scope),
         Expr::IsCheck { .. } => SemanticType::Bool,
         Expr::NotYetImplemented { .. } => SemanticType::Any,
@@ -101,14 +117,20 @@ pub fn infer_expr_type(expr: &Expr, symbols: &SymbolTable, scope: usize) -> Sema
 
 /// Infer the type of a block (its trailing expression, or Void if none).
 fn infer_block_type(block: &Block, symbols: &SymbolTable, scope: usize) -> SemanticType {
-    block.trailing_expr.as_ref()
+    block
+        .trailing_expr
+        .as_ref()
         .map(|e| infer_expr_type(e, symbols, scope))
         .unwrap_or(SemanticType::Void)
 }
 
 /// Compute the result type of a binary operation.
 /// Returns the result type on success, or an error message describing the mismatch.
-pub fn binary_op_result_type(op: &BinaryOpKind, lhs: &SemanticType, rhs: &SemanticType) -> SemanticType {
+pub fn binary_op_result_type(
+    op: &BinaryOpKind,
+    lhs: &SemanticType,
+    rhs: &SemanticType,
+) -> SemanticType {
     // Avoid cascading errors: Unknown type -> Any result
     if *lhs == SemanticType::Any || *rhs == SemanticType::Any {
         return SemanticType::Any;
@@ -120,21 +142,18 @@ pub fn binary_op_result_type(op: &BinaryOpKind, lhs: &SemanticType, rhs: &Semant
             }
             numeric_op_result(lhs, rhs)
         }
-        | BinaryOpKind::Sub
-        | BinaryOpKind::Mul
-        | BinaryOpKind::Div
-        | BinaryOpKind::Mod => {
+        BinaryOpKind::Sub | BinaryOpKind::Mul | BinaryOpKind::Div | BinaryOpKind::Mod => {
             numeric_op_result(lhs, rhs)
         }
         BinaryOpKind::Eq | BinaryOpKind::Neq => SemanticType::Bool,
-        BinaryOpKind::Lt | BinaryOpKind::Gt | BinaryOpKind::LtEq | BinaryOpKind::GtEq => SemanticType::Bool,
-        BinaryOpKind::And | BinaryOpKind::Or => SemanticType::Bool,
-        BinaryOpKind::NullishCoalesce => {
-            match lhs {
-                SemanticType::Optional(inner) => (**inner).clone(),
-                _ => lhs.clone(),
-            }
+        BinaryOpKind::Lt | BinaryOpKind::Gt | BinaryOpKind::LtEq | BinaryOpKind::GtEq => {
+            SemanticType::Bool
         }
+        BinaryOpKind::And | BinaryOpKind::Or => SemanticType::Bool,
+        BinaryOpKind::NullishCoalesce => match lhs {
+            SemanticType::Optional(inner) => (**inner).clone(),
+            _ => lhs.clone(),
+        },
         BinaryOpKind::Assign
         | BinaryOpKind::AddAssign
         | BinaryOpKind::SubAssign
@@ -209,12 +228,10 @@ pub fn check_binary_op(
                 ))
             }
         }
-        BinaryOpKind::NullishCoalesce => {
-            match lhs {
-                SemanticType::Optional(inner) => Ok((**inner).clone()),
-                _ => Ok(lhs.clone()),
-            }
-        }
+        BinaryOpKind::NullishCoalesce => match lhs {
+            SemanticType::Optional(inner) => Ok((**inner).clone()),
+            _ => Ok(lhs.clone()),
+        },
         BinaryOpKind::Assign
         | BinaryOpKind::AddAssign
         | BinaryOpKind::SubAssign
@@ -225,7 +242,10 @@ pub fn check_binary_op(
 }
 
 /// Check that a value can be assigned to a target of the given type.
-pub fn check_assignment(target_type: &SemanticType, value_type: &SemanticType) -> Result<(), String> {
+pub fn check_assignment(
+    target_type: &SemanticType,
+    value_type: &SemanticType,
+) -> Result<(), String> {
     if types_compatible(target_type, value_type) {
         Ok(())
     } else {
@@ -237,7 +257,6 @@ pub fn check_assignment(target_type: &SemanticType, value_type: &SemanticType) -
 }
 
 /// Check that function call arguments match parameter types.
-#[allow(dead_code)]
 pub fn check_call(
     func_name: &str,
     param_types: &[SemanticType],
@@ -334,8 +353,8 @@ mod tests {
     use crate::error::DiagnosticKind;
     use crate::lexer::tokenize;
     use crate::lexer::Span;
-    use crate::parser::parse;
     use crate::parser::ast::{BinaryOpKind, Expr, Literal};
+    use crate::parser::parse;
     use crate::semantic::analyze;
     use crate::semantic::symbols::SymbolTable;
     use crate::semantic::types::SemanticType;
@@ -353,23 +372,31 @@ mod tests {
     /// Assert that analyzing source produces at least one E0010 error.
     fn assert_type_error(source: &str) {
         let diags = check_source(source);
-        let type_errors: Vec<_> = diags.iter()
+        let type_errors: Vec<_> = diags
+            .iter()
             .filter(|d| matches!(d.kind, DiagnosticKind::E0010))
             .collect();
-        assert!(!type_errors.is_empty(),
+        assert!(
+            !type_errors.is_empty(),
             "Expected E0010 type error, but none found.\nSource: {}\nDiagnostics: {:?}",
-            source, diags);
+            source,
+            diags
+        );
     }
 
     /// Assert that analyzing source produces NO E0010 errors.
     fn assert_no_type_error(source: &str) {
         let diags = check_source(source);
-        let type_errors: Vec<_> = diags.iter()
+        let type_errors: Vec<_> = diags
+            .iter()
             .filter(|d| matches!(d.kind, DiagnosticKind::E0010))
             .collect();
-        assert!(type_errors.is_empty(),
+        assert!(
+            type_errors.is_empty(),
             "Expected no E0010 type error, but found: {:?}\nSource: {}",
-            type_errors, source);
+            type_errors,
+            source
+        );
     }
 
     // ── Literal type inference ──────────────────────────
@@ -379,9 +406,17 @@ mod tests {
         assert_eq!(SemanticType::parse_type_string("i32"), SemanticType::Int);
         assert_eq!(
             infer_expr_type(
-                &Expr::Literal(Literal::Int(42),
-                    Span { start: 0, end: 0, line: 0, col: 0 }),
-                &SymbolTable::new(), 0
+                &Expr::Literal(
+                    Literal::Int(42),
+                    Span {
+                        start: 0,
+                        end: 0,
+                        line: 0,
+                        col: 0
+                    }
+                ),
+                &SymbolTable::new(),
+                0
             ),
             SemanticType::Int
         );
@@ -391,9 +426,17 @@ mod tests {
     fn literal_string_is_string() {
         assert_eq!(
             infer_expr_type(
-                &Expr::Literal(Literal::String("hi".to_string()),
-                    Span { start: 0, end: 0, line: 0, col: 0 }),
-                &SymbolTable::new(), 0
+                &Expr::Literal(
+                    Literal::String("hi".to_string()),
+                    Span {
+                        start: 0,
+                        end: 0,
+                        line: 0,
+                        col: 0
+                    }
+                ),
+                &SymbolTable::new(),
+                0
             ),
             SemanticType::String
         );
@@ -403,18 +446,14 @@ mod tests {
 
     #[test]
     fn add_int_int_ok() {
-        let result = check_binary_op(
-            &BinaryOpKind::Add, &SemanticType::Int, &SemanticType::Int
-        );
+        let result = check_binary_op(&BinaryOpKind::Add, &SemanticType::Int, &SemanticType::Int);
         assert!(result.is_ok(), "Int + Int should be valid");
         assert_eq!(result.unwrap(), SemanticType::Int);
     }
 
     #[test]
     fn add_int_float_ok() {
-        let result = check_binary_op(
-            &BinaryOpKind::Add, &SemanticType::Int, &SemanticType::Float
-        );
+        let result = check_binary_op(&BinaryOpKind::Add, &SemanticType::Int, &SemanticType::Float);
         assert!(result.is_ok(), "Int + Float should be valid");
         assert_eq!(result.unwrap(), SemanticType::Float);
     }
@@ -422,7 +461,9 @@ mod tests {
     #[test]
     fn add_int_string_error() {
         let result = check_binary_op(
-            &BinaryOpKind::Add, &SemanticType::Int, &SemanticType::String
+            &BinaryOpKind::Add,
+            &SemanticType::Int,
+            &SemanticType::String,
         );
         assert!(result.is_err(), "Int + String should error");
     }
@@ -430,7 +471,9 @@ mod tests {
     #[test]
     fn add_string_any_ok() {
         let result = check_binary_op(
-            &BinaryOpKind::Add, &SemanticType::String, &SemanticType::Int
+            &BinaryOpKind::Add,
+            &SemanticType::String,
+            &SemanticType::Int,
         );
         assert!(result.is_ok(), "String + Int should be valid (concat)");
         assert_eq!(result.unwrap(), SemanticType::String);
@@ -438,26 +481,20 @@ mod tests {
 
     #[test]
     fn eq_int_int_returns_bool() {
-        let result = check_binary_op(
-            &BinaryOpKind::Eq, &SemanticType::Int, &SemanticType::Int
-        );
+        let result = check_binary_op(&BinaryOpKind::Eq, &SemanticType::Int, &SemanticType::Int);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), SemanticType::Bool);
     }
 
     #[test]
     fn and_int_bool_error() {
-        let result = check_binary_op(
-            &BinaryOpKind::And, &SemanticType::Int, &SemanticType::Bool
-        );
+        let result = check_binary_op(&BinaryOpKind::And, &SemanticType::Int, &SemanticType::Bool);
         assert!(result.is_err(), "Int && Bool should error");
     }
 
     #[test]
     fn compare_int_string_error() {
-        let result = check_binary_op(
-            &BinaryOpKind::Lt, &SemanticType::Int, &SemanticType::String
-        );
+        let result = check_binary_op(&BinaryOpKind::Lt, &SemanticType::Int, &SemanticType::String);
         assert!(result.is_err(), "Int < String should error");
     }
 

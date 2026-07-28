@@ -227,7 +227,12 @@ impl SemanticAnalyzer {
         self.declare_or_warn(Symbol {
             name: f.name.clone(),
             kind: SymbolKind::Function,
-            type_ann: Some(f.return_type.as_ref().map(type_to_string).unwrap_or_else(|| "void".to_string())),
+            type_ann: Some(
+                f.return_type
+                    .as_ref()
+                    .map(type_to_string)
+                    .unwrap_or_else(|| "void".to_string()),
+            ),
             mutable: false,
             declared_at: f.span.start,
         });
@@ -238,7 +243,7 @@ impl SemanticAnalyzer {
                 kind: SymbolKind::Param,
                 type_ann: p.type_ann.as_ref().map(type_to_string),
                 mutable: false,
-                declared_at: 0,
+                declared_at: p.type_ann.as_ref().map(|t| t.span().start).unwrap_or(0),
             });
         }
         self.collect_block_symbols(&f.body);
@@ -260,7 +265,7 @@ impl SemanticAnalyzer {
                 kind: SymbolKind::Param,
                 type_ann: p.type_ann.as_ref().map(type_to_string),
                 mutable: false,
-                declared_at: 0,
+                declared_at: p.type_ann.as_ref().map(|t| t.span().start).unwrap_or(0),
             });
         }
         self.collect_block_symbols(&a.body);

@@ -124,6 +124,11 @@ impl SymbolTable {
         self.scopes[self.current_scope].symbols.contains_key(name)
     }
 
+    /// Look up a symbol name in the current scope only (not parent scopes).
+    pub fn lookup_in_current_scope(&self, name: &str) -> Option<&Symbol> {
+        self.scopes[self.current_scope].symbols.get(name)
+    }
+
     /// Find a scope by name using hash lookup (O(1) average).
     pub fn find_scope_by_name(&self, name: &str) -> Option<usize> {
         self.scope_by_name.get(name).copied()

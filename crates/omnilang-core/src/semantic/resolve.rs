@@ -15,7 +15,9 @@ use super::helpers::type_to_string;
 use super::symbols::{Symbol, SymbolKind};
 use super::types::SemanticType;
 use super::validate_inline::{check_control_flow, check_expr_await, ValidationContext};
-use super::validate_types::{check_assignment, check_binary_op, check_return, infer_expr_type};
+use super::validate_types::{
+    check_assignment, check_binary_op, check_call, check_return, infer_expr_type,
+};
 use super::SemanticAnalyzer;
 use crate::error::Diagnostic;
 use crate::error::DiagnosticKind;
@@ -229,12 +231,17 @@ impl SemanticAnalyzer {
                 }
             }
             Stmt::ExprStmt { expr, .. } => self.resolve_expr_refs(expr, vctx),
-            Stmt::Return { value: Some(e), span } => {
+            Stmt::Return {
+                value: Some(e),
+                span,
+            } => {
                 self.resolve_expr_refs(e, vctx);
                 // Type-check: return value must match function return type
                 if let Some(fn_name) = self.find_enclosing_fn_name() {
                     let scope = self.symbols.current_scope_index();
-                    let ret_type_str = self.symbols.resolve(&fn_name)
+                    let ret_type_str = self
+                        .symbols
+                        .resolve(&fn_name)
                         .and_then(|s| s.type_ann.clone());
                     if let Some(ref ret_type_str) = ret_type_str {
                         let expected = SemanticType::parse_type_string(ret_type_str);
@@ -340,7 +347,12 @@ impl SemanticAnalyzer {
                     ));
                 }
             }
-            Expr::BinaryOp { left, right, op, span } => {
+            Expr::BinaryOp {
+                left,
+                right,
+                op,
+                span,
+            } => {
                 self.resolve_expr_refs(left, vctx);
                 self.resolve_expr_refs(right, vctx);
                 // Type-check: binary operand types must match
@@ -348,18 +360,83 @@ impl SemanticAnalyzer {
                 let lhs = infer_expr_type(left, &self.symbols, scope);
                 let rhs = infer_expr_type(right, &self.symbols, scope);
                 if let Err(msg) = check_binary_op(op, &lhs, &rhs) {
-                    self.diagnostics.push(Diagnostic::error(
-                        DiagnosticKind::E0010,
-                        &msg,
-                        span,
-                    ));
+                    self.diagnostics
+                        .push(Diagnostic::error(DiagnosticKind::E0010, &msg, span));
                 }
             }
             Expr::UnaryOp { operand, .. } => self.resolve_expr_refs(operand, vctx),
-            Expr::FuncCall { func, args, .. } => {
+            Expr::FuncCall { func, args, span } => {
                 self.resolve_expr_refs(func, vctx);
                 for a in args {
                     self.resolve_expr_refs(a, vctx);
+                }
+
+                // Validate function argument types against parameter types
+                if let Expr::VarRef(fn_name, _) = func.as_ref() {
+                    if let Some(fn_sym) = self.symbols.resolve(fn_name) {
+                        if fn_sym.kind == SymbolKind::Function || fn_sym.kind == SymbolKind::Action
+                        {
+                            // Collect parameter types from the fn:<name> scope
+                            let fn_scope_name = format!(
+                                "{}:{}",
+                                if fn_sym.kind == SymbolKind::Action {
+                                    "action"
+                                } else {
+                                    "fn"
+                                },
+                                fn_name
+                            );
+                            if let Some(scope_idx) = self.symbols.find_scope_by_name(&fn_scope_name)
+                            {
+                                let mut param_symbols: Vec<&Symbol> = self
+                                    .symbols
+                                    .get_scope(scope_idx)
+                                    .map(|scope| {
+                                        scope
+                                            .symbols
+                                            .values()
+                                            .filter(|s| s.kind == SymbolKind::Param)
+                                            .collect()
+                                    })
+                                    .unwrap_or_default();
+                                // Sort by declared_at to preserve parameter declaration order
+                                param_symbols.sort_by_key(|s| s.declared_at);
+                                let param_types: Vec<SemanticType> = param_symbols
+                                    .iter()
+                                    .map(|s| {
+                                        s.type_ann
+                                            .as_ref()
+                                            .map(|t| SemanticType::parse_type_string(t))
+                                            .unwrap_or(SemanticType::Any)
+                                    })
+                                    .collect();
+
+                                // Infer argument types
+                                let scope = self.symbols.current_scope_index();
+                                let arg_types: Vec<SemanticType> = args
+                                    .iter()
+                                    .map(|a| infer_expr_type(a, &self.symbols, scope))
+                                    .collect();
+
+                                // Get declared return type from function symbol
+                                let return_type = fn_sym
+                                    .type_ann
+                                    .as_ref()
+                                    .map(|t| SemanticType::parse_type_string(t))
+                                    .unwrap_or(SemanticType::Void);
+
+                                if let Err(msg) =
+                                    check_call(fn_name, &param_types, &arg_types, &return_type)
+                                {
+                                    self.diagnostics.push(Diagnostic::error(
+                                        DiagnosticKind::E0010,
+                                        &msg,
+                                        span,
+                                    ));
+                                }
+                            }
+                        }
+                    }
                 }
             }
             Expr::MethodCall { object, args, .. } => {
