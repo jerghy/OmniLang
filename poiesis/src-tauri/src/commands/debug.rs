@@ -40,7 +40,22 @@ pub(crate) fn close_debug_window(app: tauri::AppHandle) -> Result<(), String> {
 /// Append a line to the debug log file for frontend debugging.
 #[tauri::command]
 pub(crate) fn dw_log(message: String) -> Result<(), String> {
+    // Reject excessively long messages
+    if message.len() > 4096 {
+        return Err("Log message exceeds 4KB limit".to_string());
+    }
     let path = std::env::temp_dir().join("poiesis-debug.log");
+    // Check current file size, truncate if over 10MB
+    if let Ok(meta) = std::fs::metadata(&path) {
+        if meta.len() > 10 * 1024 * 1024 {
+            // Truncate: keep last 1MB
+            if let Ok(content) = std::fs::read_to_string(&path) {
+                let keep_start = content.len().saturating_sub(1024 * 1024);
+                let tail = &content[keep_start..];
+                std::fs::write(&path, tail).map_err(|e| format!("Failed to truncate log: {e}"))?;
+            }
+        }
+    }
     let mut file = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
