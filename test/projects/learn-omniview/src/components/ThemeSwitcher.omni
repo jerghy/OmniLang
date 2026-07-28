@@ -1,7 +1,10 @@
 // ╔══════════════════════════════════════════════════════════════╗
-// ║  ThemeSwitcher.omni —— 主题切换器（Phase 6）                    ║
-// ║  演示：@store ThemeStore、getter 驱动样式、                      ║
+// ║  ThemeSwitcher.omni —— 主题切换器                              ║
+// ║  演示：@store ThemeStore、__omni_theme 运行时、                 ║
 // ║        @onPress 切换深浅色、computed 本地标签                    ║
+// ║                                                                ║
+// ║  主题颜色来自 design.omni 的 @themes 声明，不在 ThemeStore      ║
+// ║  中维护，直接使用 var(--surface) 等 CSS 变量。                  ║
 // ╚══════════════════════════════════════════════════════════════╝
 
 import omniview;
@@ -27,9 +30,9 @@ component ThemeSwitcher {
             <div class: indicator-row>
                 <div
                     class: mode-indicator
-                    style: { background: ThemeStore.currentBg, border: "2px solid " + ThemeStore.currentBorder }
+                    style: { background: "var(--surface)", border: "2px solid var(--border)" }
                 >
-                    <span class: mode-label style: { color: ThemeStore.currentText }>
+                    <span class: mode-label style: { color: "var(--textPrimary)" }>
                         {ThemeStore.modeLabel}
                     </span>
                 </div>
@@ -41,7 +44,7 @@ component ThemeSwitcher {
             <!-- 切换按钮 -->
             <button
                 class: toggle-btn
-                style: { background: ThemeStore.currentPrimary, color: ThemeStore.currentBg }
+                style: { background: "var(--primary)", color: "var(--surface)" }
                 @onPress={() => { ThemeStore.toggle(); }}
                 @onMouseEnter={() => { isHovered = true; }}
                 @onMouseLeave={() => { isHovered = false; }}
@@ -50,16 +53,16 @@ component ThemeSwitcher {
             </button>
 
             <!-- 主题颜色预览 -->
-            <div class: palette style: { background: ThemeStore.currentMuted }>
-                <p class: palette-label style: { color: ThemeStore.currentText }>
+            <div class: palette style: { background: "var(--surfaceMuted)" }>
+                <p class: palette-label style: { color: "var(--textPrimary)" }>
                     Current palette:
                 </p>
                 <div class: swatches>
-                    <span class: swatch style: { background: ThemeStore.currentBg, border: "1px solid " + ThemeStore.currentBorder }>BG</span>
-                    <span class: swatch style: { background: ThemeStore.currentText, color: ThemeStore.currentBg }>TX</span>
-                    <span class: swatch style: { background: ThemeStore.currentPrimary, color: "white" }>PR</span>
-                    <span class: swatch style: { background: ThemeStore.currentBorder }>BD</span>
-                    <span class: swatch style: { background: ThemeStore.currentMuted, color: ThemeStore.currentText }>MU</span>
+                    <span class: swatch style: { background: "var(--surface)", border: "1px solid var(--border)" }>BG</span>
+                    <span class: swatch style: { background: "var(--textPrimary)", color: "var(--surface)" }>TX</span>
+                    <span class: swatch style: { background: "var(--primary)", color: "white" }>PR</span>
+                    <span class: swatch style: { background: "var(--border)" }>BD</span>
+                    <span class: swatch style: { background: "var(--surfaceMuted)", color: "var(--textPrimary)" }>MU</span>
                 </div>
             </div>
 
@@ -73,7 +76,6 @@ component ThemeSwitcher {
                 </button>
                 <button
                     variant: LearnDesign.Button(color=ghost, size=sm)
-                    style: { background: "#1f2937", color: "#f9fafb" }
                     @onPress={() => { ThemeStore.setMode("dark"); }}
                 >
                     Dark

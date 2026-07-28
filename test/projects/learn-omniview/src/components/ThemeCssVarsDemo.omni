@@ -3,12 +3,13 @@
 // ║                                                                  ║
 // ║  演示：                                                          ║
 // ║    - CSS 变量级联：父元素设 --*，子元素用 var() 继承              ║
-// ║    - 与 ThemeStore 联动：动态信号驱动 CSS 变量                    ║
-// ║    - 运行时主题切换：setProperty() 响应式更新                     ║
+// ║    - 与设计块主题系统联动：theme 切换自动更新 CSS 变量            ║
+// ║    - 运行时交互：scale / border-width 本地信号驱动                 ║
 // ║                                                                  ║
-// ║  编译器代码路径：                                                 ║
-// ║    style: { --bg: ThemeStore.currentBg }                          ║
-// ║    → __omni_effect(() => el.style.setProperty("--bg", ...))       ║
+// ║  CSS 变量来源：                                                  ║
+// ║    --surface, --textPrimary 等由 design.omni 的 @themes 声明      ║
+// ║    自动生成 :root { --surface } / [data-theme="dark"] { --surface } ║
+// ║    无需手动绑定 ThemeStore getter → setProperty()                 ║
 // ╚══════════════════════════════════════════════════════════════════╝
 
 import omniview;
@@ -39,22 +40,18 @@ component ThemeCssVarsDemo {
         <div class: wrapper>
             <h3 class: section-title>Theme with CSS Variables</h3>
             <p class: subtitle>
-                父元素注入 <code>--theme-*</code> CSS 变量（来自 ThemeStore 信号），
-                子元素用 <code>var()</code> 继承。切换主题时触发 <code>setProperty()</code> 响应式更新。
+                设计块主题系统自动生成 <code>--surface</code>、<code>--textPrimary</code>
+                等 CSS 变量，子元素用 <code>var()</code> 继承。<code>[data-theme]</code>
+                切换时自动更新，无需手动 <code>setProperty()</code>。
             </p>
 
             <!--
-                核心：外层 div 通过内联动态样式注入 CSS 变量。
-                所有内层元素用 var() 引用这些变量，无需逐层传递。
-                编译器为每个 --* 信号引用生成独立的 setProperty() 效果。
+                核心：CSS 变量来自 design.omni 中 @themes 声明的主题令牌，
+                由编译器生成到 :root 和 [data-theme="dark"] 选择器内。
+                --theme-scale 和 --theme-border-w 是本地交互信号。
             -->
             <div class: theme-root
                 style: {
-                    --theme-bg: ThemeStore.currentBg,
-                    --theme-text: ThemeStore.currentText,
-                    --theme-primary: ThemeStore.currentPrimary,
-                    --theme-border: ThemeStore.currentBorder,
-                    --theme-muted: ThemeStore.currentMuted,
                     --theme-scale: boxScale,
                     --theme-border-w: borderWidth
                 }
@@ -63,13 +60,13 @@ component ThemeCssVarsDemo {
                 <div class: themed-card>
                     <h4 class: card-title>CSS Variable Cascading</h4>
                     <p class: card-desc>
-                        background、color、border-color 均通过 <code>var(--theme-*)</code>
-                        从父级继承。主题切换时所有卡片同步变化。
+                        background、color、border-color 均通过 <code>var(--*)</code>
+                        从设计系统继承。主题切换时所有卡片同步变化。
                     </p>
                     <div class: stat-row>
-                        <span class: stat-badge>BG: var(--theme-bg)</span>
-                        <span class: stat-badge>TX: var(--theme-text)</span>
-                        <span class: stat-badge>PR: var(--theme-primary)</span>
+                        <span class: stat-badge>BG: var(--surface)</span>
+                        <span class: stat-badge>TX: var(--textPrimary)</span>
+                        <span class: stat-badge>PR: var(--primary)</span>
                     </div>
                 </div>
 
@@ -101,17 +98,17 @@ component ThemeCssVarsDemo {
                 <div class: palette-section>
                     <h4 class: card-title>Theme Palette via var()</h4>
                     <div class: palette-grid>
-                        <div class: palette-chip style: { background: "var(--theme-bg)", border: "2px solid var(--theme-border)" }>
-                            <span class: chip-label style: { color: "var(--theme-text)" }>--theme-bg</span>
+                        <div class: palette-chip style: { background: "var(--surface)", border: "2px solid var(--border)" }>
+                            <span class: chip-label style: { color: "var(--textPrimary)" }>--surface</span>
                         </div>
-                        <div class: palette-chip style: { background: "var(--theme-primary)" }>
-                            <span class: chip-label style: { color: "white" }>--theme-primary</span>
+                        <div class: palette-chip style: { background: "var(--primary)" }>
+                            <span class: chip-label style: { color: "white" }>--primary</span>
                         </div>
-                        <div class: palette-chip style: { background: "var(--theme-text)" }>
-                            <span class: chip-label style: { color: "var(--theme-bg)" }>--theme-text</span>
+                        <div class: palette-chip style: { background: "var(--textPrimary)" }>
+                            <span class: chip-label style: { color: "var(--surface)" }>--textPrimary</span>
                         </div>
-                        <div class: palette-chip style: { background: "var(--theme-muted)", border: "1px solid var(--theme-border)" }>
-                            <span class: chip-label style: { color: "var(--theme-text)" }>--theme-muted</span>
+                        <div class: palette-chip style: { background: "var(--surfaceMuted)", border: "1px solid var(--border)" }>
+                            <span class: chip-label style: { color: "var(--textPrimary)" }>--surfaceMuted</span>
                         </div>
                     </div>
                 </div>
@@ -125,19 +122,14 @@ component ThemeCssVarsDemo {
                 <p class: hint>
                     当前主题: <strong>{ThemeStore.modeLabel}</strong> ·
                     切换次数: {ThemeStore.toggleCount} ·
-                    代码路径: <code>setProperty()</code>
+                    代码路径: <code>[data-theme] CSS</code>
                 </p>
             </div>
 
             <!-- 技术说明 -->
             <div class: tech-note>
-                <h4 class: note-title>💡 关键设计模式</h4>
-                <ul class: note-list>
-                    <li>CSS 变量级联：在组件根元素一次性注入 <code>--theme-*</code>，所有子元素用 <code>var()</code> 自动继承</li>
-                    <li>信号 → setProperty：编译器为 <code>style: &#123; --var: signal &#125;</code> 生成 <code>__omni_effect(() => el.style.setProperty("--var", signal.value))</code></li>
-                    <li>主题切换只需更新 <code>ThemeStore</code> 的 getter，CSS 变量自动响应</li>
-                    <li>对比 ThemeSwitcher：后者每个元素单独绑定 <code>style: &#123; color: ThemeStore.currentText &#125;</code>，CSS 变量版只需在根元素设一次</li>
-                </ul>
+                <h4 class: note-title>Key Design Patterns</h4>
+                <p>Design block theme system: @themes + per-token theme values. CSS generated automatically.</p>
             </div>
         </div>
     }
@@ -149,8 +141,8 @@ component ThemeCssVarsDemo {
         }
 
         .wrapper {
-            background: white;
-            border: 1px solid #d4d4d8;
+            background: var(--surface);
+            border: 1px solid var(--border);
             border-radius: var(--card-radius);
             padding: 20px;
             margin: 16px 0;
@@ -158,41 +150,39 @@ component ThemeCssVarsDemo {
 
         .section-title {
             font-size: 18px;
-            color: #1e293b;
+            color: var(--textPrimary);
             margin: 0 0 4px 0;
         }
         .subtitle {
             font-size: 13px;
-            color: #64748b;
+            color: var(--textSecondary);
             margin: 0 0 16px 0;
         }
         code {
-            background: #f1f5f9;
+            background: var(--surfaceMuted);
             padding: 2px 6px;
             border-radius: 4px;
             font-size: 12px;
         }
 
-        // ═══ CSS 变量主题根：所有 --theme-* 由父元素注入 ═══
+        // Design token CSS variables (from design.omni @themes)
         .theme-root {
-            // 这里不设 --theme-* 值，由内联 style: 动态注入
             display: flex;
             flex-direction: column;
             gap: 12px;
         }
 
-        // ═══ 子元素用 var() 引用父级定义的 --theme-* ═══
         .themed-card {
-            background: var(--theme-bg);
-            color: var(--theme-text);
-            border: calc(var(--theme-border-w, 2) * 1px) solid var(--theme-border);
+            background: var(--surface);
+            color: var(--textPrimary);
+            border: calc(var(--theme-border-w, 2) * 1px) solid var(--border);
             border-radius: var(--card-radius);
             padding: 16px;
             transition: transform 200ms ease;
             transform: scale(var(--theme-scale, 1));
         }
         .themed-card.accent {
-            border-color: var(--theme-primary);
+            border-color: var(--primary);
         }
         .themed-card.interactive {
             border-style: dashed;
@@ -201,12 +191,12 @@ component ThemeCssVarsDemo {
         .card-title {
             font-size: 14px;
             font-weight: 600;
-            color: var(--theme-primary);
+            color: var(--primary);
             margin: 0 0 6px 0;
         }
         .card-desc {
             font-size: 12px;
-            color: var(--theme-text);
+            color: var(--textPrimary);
             margin: 0 0 10px 0;
             opacity: 0.8;
             line-height: 1.5;
@@ -220,15 +210,15 @@ component ThemeCssVarsDemo {
         .stat-badge {
             font-size: 11px;
             padding: 3px 8px;
-            background: var(--theme-muted);
-            color: var(--theme-text);
+            background: var(--surfaceMuted);
+            color: var(--textPrimary);
             border-radius: 4px;
             font-family: monospace;
         }
 
         .var-action-btn {
             padding: 8px 16px;
-            background: var(--theme-primary);
+            background: var(--primary);
             color: white;
             border: none;
             border-radius: 6px;
@@ -241,8 +231,8 @@ component ThemeCssVarsDemo {
 
         // Palette
         .palette-section {
-            background: var(--theme-bg);
-            border: 1px solid var(--theme-border);
+            background: var(--surface);
+            border: 1px solid var(--border);
             border-radius: var(--card-radius);
             padding: 14px;
         }
@@ -274,7 +264,7 @@ component ThemeCssVarsDemo {
         .toggle-btn {
             height: var(--action-h);
             padding: 0 20px;
-            background: #6366f1;
+            background: var(--primary);
             color: white;
             border: none;
             border-radius: 8px;
@@ -283,11 +273,11 @@ component ThemeCssVarsDemo {
             cursor: pointer;
         }
         .toggle-btn:hover {
-            background: #4f46e5;
+            background: var(--primaryDark);
         }
         .hint {
             font-size: 12px;
-            color: #64748b;
+            color: var(--textSecondary);
             margin: 0;
         }
 

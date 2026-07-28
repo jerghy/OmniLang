@@ -1,7 +1,10 @@
 // ╔══════════════════════════════════════════════════════════════╗
-// ║  SettingsPage.omni —— 设置页面（Phase 6）                       ║
+// ║  SettingsPage.omni —— 设置页面                                  ║
 // ║  演示：页面级组件组合、ThemeSwitcher + About 信息、                ║
-// ║        多 section 布局、响应式主题感知                            ║
+// ║        多 section 布局、设计块主题系统感                          ║
+// ║                                                                ║
+// ║  主题颜色来自 design.omni 的 @themes 声明，直接使用              ║
+// ║  var(--surface)、var(--textPrimary) 等 CSS 变量。               ║
 // ╚══════════════════════════════════════════════════════════════╝
 
 import omniview;
@@ -12,8 +15,8 @@ import { ThemeSwitcher } from "../components/ThemeSwitcher";
 component SettingsPage {
     @store ThemeStore;
 
-    // 主题色令牌名称（对应 shared/theme.omni 中 AppTheme colors）
-    const themeColors = ["primary", "primaryLight", "success", "warning", "danger", "bgLight", "textLight", "bgDark", "textDark"];
+    // 主题色令牌名称（对应 design.omni 中 LearnDesign 设计令牌）
+    const themeColors = ["primary", "primaryLight", "success", "warning", "danger", "surface", "textPrimary", "surfaceMuted", "border"];
 
     // 关于信息信号
     signal aboutExpanded: bool = false;
@@ -23,18 +26,18 @@ component SettingsPage {
     }
 
     view {
-        <div class: settings-page style: { background: ThemeStore.currentBg, color: ThemeStore.currentText }>
+        <div class: settings-page style: { background: "var(--surface)", color: "var(--textPrimary)" }>
             <!-- 页面标题 -->
             <header class: page-header>
                 <h2 class: page-title>Settings</h2>
-                <p class: page-subtitle style: { color: ThemeStore.currentText }>
+                <p class: page-subtitle style: { color: "var(--textPrimary)" }>
                     Customize your experience
                 </p>
             </header>
 
             <!-- 主题切换区域 -->
             <section class: LearnDesign.Section>
-                <h3 class: section-title style: { color: ThemeStore.currentPrimary }>
+                <h3 class: section-title style: { color: "var(--primary)" }>
                     Appearance
                 </h3>
                 <ThemeSwitcher />
@@ -42,14 +45,14 @@ component SettingsPage {
 
             <!-- 主题色色板（@for + const 演示） -->
             <section class: LearnDesign.Section>
-                <h3 class: section-title style: { color: ThemeStore.currentPrimary }>
+                <h3 class: section-title style: { color: "var(--primary)" }>
                     Theme Colors
                 </h3>
                 <div class: swatch-grid>
                     @for color in themeColors {
                         <div class: swatch-item>
                             <div class: swatch-box></div>
-                            <span class: swatch-label style: { color: ThemeStore.currentText }>{color}</span>
+                            <span class: swatch-label style: { color: "var(--textPrimary)" }>{color}</span>
                         </div>
                     }
                 </div>
@@ -58,29 +61,29 @@ component SettingsPage {
             <!-- 关于区域 -->
             <section class: LearnDesign.Section>
                 <div class: about-header @onPress={toggleAbout}>
-                    <h3 class: section-title style: { color: ThemeStore.currentPrimary }>
+                    <h3 class: section-title style: { color: "var(--primary)" }>
                         About
                     </h3>
                     <span class: about-arrow>{if aboutExpanded { "^" } else { "v" }}</span>
                 </div>
                 @if aboutExpanded {
-                    <div class: about-content style: { background: ThemeStore.currentMuted }>
-                        <p class: about-text style: { color: ThemeStore.currentText }>
+                    <div class: about-content style: { background: "var(--surfaceMuted)" }>
+                        <p class: about-text style: { color: "var(--textPrimary)" }>
                             OmniView Learn — a teaching project demonstrating the full
                             feature set of the OmniView UI framework.
                         </p>
                         <div class: about-meta>
-                            <span class: meta-item style: { color: ThemeStore.currentText }>
+                            <span class: meta-item style: { color: "var(--textPrimary)" }>
                                 Version: 1.0.0
                             </span>
-                            <span class: meta-item style: { color: ThemeStore.currentText }>
+                            <span class: meta-item style: { color: "var(--textPrimary)" }>
                                 Framework: OmniView v0.1.0
                             </span>
-                            <span class: meta-item style: { color: ThemeStore.currentText }>
+                            <span class: meta-item style: { color: "var(--textPrimary)" }>
                                 Theme: {ThemeStore.modeLabel} Mode
                             </span>
                         </div>
-                        <p class: about-footer style: { color: ThemeStore.currentText }>
+                        <p class: about-footer style: { color: "var(--textPrimary)" }>
                             Built with OmniLang — the language that compiles to every framework.
                         </p>
                     </div>
@@ -89,7 +92,7 @@ component SettingsPage {
 
             <!-- 当前主题状态摘要 -->
             <footer class: page-footer>
-                <span class: footer-text style: { color: ThemeStore.currentText }>
+                <span class: footer-text style: { color: "var(--textPrimary)" }>
                     Current: {ThemeStore.modeLabel} mode
                     | Toggles: {ThemeStore.toggleCount}
                 </span>

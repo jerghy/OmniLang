@@ -14,6 +14,10 @@
 import omniview;
 
 design LearnDesign {
+    // ── 主题声明 ──
+    @themes light, dark;
+    @default-theme light;
+
     // ═══════════════════════════════════════════════════════════
     // 1. 设计令牌（DESIGN TOKENS）
     //    18 种类型：Color, Size, Radius, Shadow, FontFamily, FontSize,
@@ -21,10 +25,11 @@ design LearnDesign {
     //    Opacity, ZIndex
     //    令牌值编译为 :root { --name: value; } CSS 变量
     //    在类/变体中引用：token(name) → var(--name)
+    //    主题令牌："<light>" dark "<dark>" 生成 [data-theme="dark"] 作用域
     // ═══════════════════════════════════════════════════════════
 
     // ── 品牌色 ──
-    token primary: color = "#6366f1";
+    token primary: color = "#6366f1" dark "#a5b4fc";
     token primaryLight: color = "#a5b4fc";
     token primaryDark: color = "#4338ca";
 
@@ -34,24 +39,16 @@ design LearnDesign {
     token danger: color = "#ef4444";
     token accent: color = "#f97316";
 
-    // ── 中性色（浅色模式） ──
-    token surface: color = "#ffffff";
-    token surfaceMuted: color = "#f9fafb";
-    token surfaceSubtle: color = "#f3f4f6";
-    token textPrimary: color = "#111827";
-    token textSecondary: color = "#6b7280";
-    token textMuted: color = "#9ca3af";
-    token border: color = "#d4d4d8";
-    token borderLight: color = "#e5e7eb";
-    token borderLighter: color = "#f3f4f6";
-
-    // ── 中性色（深色模式） ──
-    token darkSurface: color = "#111827";
-    token darkSurfaceMuted: color = "#1f2937";
-    token darkSurfaceSubtle: color = "#374151";
-    token darkText: color = "#f9fafb";
-    token darkTextMuted: color = "#9ca3af";
-    token darkBorder: color = "#4b5563";
+    // ── 中性色（双主题） ──
+    token surface: color = "#ffffff" dark "#111827";
+    token surfaceMuted: color = "#f9fafb" dark "#1f2937";
+    token surfaceSubtle: color = "#f3f4f6" dark "#374151";
+    token textPrimary: color = "#111827" dark "#f9fafb";
+    token textSecondary: color = "#6b7280" dark "#9ca3af";
+    token textMuted: color = "#9ca3af" dark "#d1d5db";
+    token border: color = "#d4d4d8" dark "#4b5563";
+    token borderLight: color = "#e5e7eb" dark "#374151";
+    token borderLighter: color = "#f3f4f6" dark "#1f2937";
 
     // ── 间距 ──
     token spaceXs: size = "4px";
