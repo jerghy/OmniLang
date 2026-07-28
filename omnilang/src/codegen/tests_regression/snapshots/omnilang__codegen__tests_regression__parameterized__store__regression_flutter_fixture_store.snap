@@ -11,7 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 final appStoreCountProvider = StateProvider<int>((ref) => 0);
 
 final appStoreDoubleCountProvider = Provider<dynamic>((ref) {
-    ref.watch(appStoreCountProvider);
+    final count = ref.watch(appStoreCountProvider);
     return count * 2;
 });
 

@@ -20,7 +20,7 @@ class CounterWithStore extends ConsumerStatefulWidget {
 
 class _CounterWithStoreState extends ConsumerState<CounterWithStore> {
     @override
-    Widget build(BuildContext context, WidgetRef ref) {
+    Widget build(BuildContext context) {
         return Container(onPressed: () { appStoreIncrement(ref); }, children: [Text('Count: '), Text(AppStore.count)]);
     }
 }

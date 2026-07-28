@@ -886,7 +886,7 @@ fn test_store_dart_with_getters() {
     let store_dart = codegen.gen_store_dart("CalcStore", &store);
     assert!(store_dart.contains("final calcStoreCountProvider = StateProvider<int>((ref) => 0);"));
     assert!(store_dart.contains("final calcStoreDoubleCountProvider = Provider<dynamic>((ref) {"));
-    assert!(store_dart.contains("ref.watch(calcStoreCountProvider);"));
+    assert!(store_dart.contains("final count = ref.watch(calcStoreCountProvider);"));
 }
 
 #[test]

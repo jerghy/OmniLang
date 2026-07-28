@@ -1,7 +1,7 @@
 //! Flutter codegen: IR -> Flutter Dart components/widgets.
 //!
 //! Each component generates a `.dart` file with a StatefulWidget + State class.
-//! Each store generates a `xxx_store.dart` file with a ChangeNotifier class.
+//! Each store generates a `xxx_store.dart` file with Riverpod providers.
 //! Uses `super::dart::dart_type()` for Dart type annotations.
 
 mod expr;
@@ -325,7 +325,7 @@ impl FlutterCodegen {
         if comp.store_refs.is_empty() {
             w.emit("Widget build(BuildContext context) {");
         } else {
-            w.emit("Widget build(BuildContext context, WidgetRef ref) {");
+            w.emit("Widget build(BuildContext context) {");
         }
         w.indent();
 
@@ -436,11 +436,11 @@ impl FlutterCodegen {
                 provider_name
             ));
             w.indent();
-            // Emit ref.watch() for each signal so the getter auto-tracks dependencies
+            // Watch each signal and bind it to a local variable
             for sig_name in store.signals.keys() {
                 let sig_provider =
                     format!("{}{}Provider", store_prefix, capitalize_first(sig_name));
-                w.emit_fmt(format_args!("ref.watch({});", sig_provider));
+                w.emit_fmt(format_args!("final {} = ref.watch({});", sig_name, sig_provider));
             }
             w.emit_fmt(format_args!("return {};", body_dart));
             w.dedent();
