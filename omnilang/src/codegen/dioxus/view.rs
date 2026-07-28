@@ -243,6 +243,10 @@ pub(crate) fn gen_view_node_dioxus(w: &mut CodeWriter, node: &ViewTree, is_root:
             w.indent();
             w.emit("rsx! {");
             w.indent();
+            if let Some(ref key_expr) = list.key_expr {
+                let key_str = format_expr_ir_dioxus(key_expr);
+                w.emit_fmt(format_args!("key: {key_str},"));
+            }
             if let Some(ref body) = list.body {
                 gen_view_node_dioxus(w, body, true);
             }

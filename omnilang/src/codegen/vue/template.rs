@@ -223,9 +223,13 @@ pub(crate) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &impl 
                 ));
                 w.indent();
             }
+            let key = match &list.key_expr {
+                Some(expr) => fmt.format_expr(expr),
+                None => "index".to_string(),
+            };
             w.emit_fmt(format_args!(
-                "<template v-for=\"({}, index) in {}\" :key=\"index\">",
-                item_name, iterable_str
+                "<template v-for=\"({}, index) in {}\" :key=\"{}\">",
+                item_name, iterable_str, key
             ));
             w.indent();
             if let Some(ref body) = list.body {
