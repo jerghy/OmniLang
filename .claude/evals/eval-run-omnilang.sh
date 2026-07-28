@@ -54,10 +54,10 @@ echo ""
 run_c1() {
   echo "── C1: Test Suite (baseline: $BASELINE_TESTS tests) ──"
   local out
-  if out=$(cargo test 2>&1); then
+  if out=$(cargo test --workspace 2>&1); then
     local count
-    # Get the unit test result line (not doc-tests). It has the pattern "N passed; 0 failed"
-    count=$(echo "$out" | grep "test result:" | grep -v "Doc-tests" | grep "ok" | head -1 | sed -E 's/.* ([0-9]+) passed.*/\1/')
+    # Sum passed counts across all crate test results (workspace output has one line per crate)
+    count=$(echo "$out" | grep "test result:" | grep -v "Doc-tests" | grep "ok" | sed -E 's/.* ([0-9]+) passed.*/\1/' | awk '{s+=$1} END {print s}')
     count=$(echo "$count" | tr -d '[:space:]')
     if [ "$count" -ge "$BASELINE_TESTS" ] 2>/dev/null; then
       grade "C1" "cargo test: $count passed (≥ baseline $BASELINE_TESTS)" "PASS" "$count tests"
@@ -114,7 +114,7 @@ run_c4() {
     return
   fi
   local out
-  if out=$(cargo build --features wasm --target wasm32-unknown-unknown 2>&1); then
+  if out=$(wasm-pack test --node "$REPO_ROOT/omnilang-wasm" 2>&1); then
     grade "C4" "WASM build succeeds" "PASS"
   else
     grade "C4" "WASM build fails" "FAIL" "$(echo "$out" | grep "^error" | head -3)"
@@ -126,9 +126,9 @@ run_c4() {
 run_c5() {
   echo "── C5: Compiler Pipeline Smoke Test ──"
   local out
-  if out=$(cargo test --lib 2>&1); then
+  if out=$(cargo test --lib --workspace 2>&1); then
     local count
-    count=$(echo "$out" | grep "test result:" | grep "ok" | head -1 | sed -E 's/.* ([0-9]+) passed.*/\1/')
+    count=$(echo "$out" | grep "test result:" | grep "ok" | sed -E 's/.* ([0-9]+) passed.*/\1/' | awk '{s+=$1} END {print s}')
     count=$(echo "$count" | tr -d '[:space:]')
     count=${count:-0}
     if [ "$count" -ge 300 ] 2>/dev/null; then

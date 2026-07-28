@@ -10,6 +10,9 @@ wasm-opt = ["-O", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[dev-dependencies]
+wasm-bindgen-test = "0.2"
+
 [dependencies]
 omnilang = { path = "../omnilang" }
 wasm-bindgen = "0.2"
