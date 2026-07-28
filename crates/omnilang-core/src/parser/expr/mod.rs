@@ -15,9 +15,9 @@ use crate::lexer::{Span, TokenKind};
 use crate::parser::ast::*;
 use crate::parser::Parser;
 
+pub mod infix;
 pub mod motion;
 pub mod prefix;
-pub mod infix;
 pub mod template;
 
 /// Binding power: (left_bp, right_bp). Higher = tighter.

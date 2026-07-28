@@ -384,9 +384,7 @@ pub(crate) fn lower_type(ty: &TypeAnnotation) -> TypeIR {
         } => {
             let args: Vec<TypeIR> = type_args.iter().map(lower_type).collect();
             TypeIR {
-                kind: TypeKind::Named {
-                    name: name.clone(),
-                },
+                kind: TypeKind::Named { name: name.clone() },
                 type_args: args,
                 is_nullable: false,
             }

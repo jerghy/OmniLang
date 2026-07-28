@@ -1130,7 +1130,10 @@ mod tests {
 
         assert!(changed);
         assert_eq!(block.statements.len(), 2);
-        assert!(matches!(block.statements[1], StatementIR::ReturnStmtIR { .. }));
+        assert!(matches!(
+            block.statements[1],
+            StatementIR::ReturnStmtIR { .. }
+        ));
     }
 
     #[test]
@@ -1151,21 +1154,14 @@ mod tests {
     fn continue_kills_rest() {
         // { stmt1; continue; stmt2; } -> { stmt1; continue; }
         let mut block = BlockIR {
-            statements: vec![
-                make_expr_stmt(),
-                make_continue_stmt(),
-                make_expr_stmt(),
-            ],
+            statements: vec![make_expr_stmt(), make_continue_stmt(), make_expr_stmt()],
         };
 
         let changed = eliminate_unreachable_block(&mut block);
 
         assert!(changed);
         assert_eq!(block.statements.len(), 2);
-        assert!(matches!(
-            block.statements[1],
-            StatementIR::ContinueStmtIR
-        ));
+        assert!(matches!(block.statements[1], StatementIR::ContinueStmtIR));
     }
 
     #[test]
@@ -1179,7 +1175,10 @@ mod tests {
 
         assert!(changed);
         assert_eq!(block.statements.len(), 2);
-        assert!(matches!(block.statements[1], StatementIR::ThrowStmtIR { .. }));
+        assert!(matches!(
+            block.statements[1],
+            StatementIR::ThrowStmtIR { .. }
+        ));
     }
 
     #[test]

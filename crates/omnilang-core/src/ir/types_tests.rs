@@ -321,10 +321,7 @@ fn test_typekind_named_serializes_as_flat_string() {
     assert_eq!(json, r#""Array""#, "Named must serialize as flat string");
 
     let roundtripped: TypeKind = serde_json::from_str(&json).expect("deserialize");
-    assert_eq!(
-        roundtripped, array_string,
-        "Round-trip must preserve name"
-    );
+    assert_eq!(roundtripped, array_string, "Round-trip must preserve name");
 }
 
 #[test]

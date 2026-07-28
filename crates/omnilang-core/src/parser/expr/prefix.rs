@@ -281,7 +281,11 @@ impl<'a> Parser<'a> {
 
     /// Handle an identifier (or contextual keyword) in expression context:
     /// VarRef, FuncCall, or MethodCall.
-    pub(super) fn parse_ident_expr(&mut self, name: String, span: Span) -> Result<Expr, ParseError> {
+    pub(super) fn parse_ident_expr(
+        &mut self,
+        name: String,
+        span: Span,
+    ) -> Result<Expr, ParseError> {
         if self.at(&TokenKind::LParen) {
             self.advance(); // consume '('
             let args = self.parse_call_args()?;

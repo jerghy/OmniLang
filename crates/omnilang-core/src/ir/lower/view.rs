@@ -187,7 +187,9 @@ pub(super) fn lower_view_node(
     fns: &[FunctionIR],
 ) -> ViewTree {
     match node {
-        ViewNode::Element(el) => lower_element(el, string_signals, sig_idx, variant_map, semantics, fns),
+        ViewNode::Element(el) => {
+            lower_element(el, string_signals, sig_idx, variant_map, semantics, fns)
+        }
         ViewNode::Text(s) => ViewTree::Text(s.clone()),
         ViewNode::Interpolation(expr) => {
             // Lower the inner expression to ExprIR so codegen can emit proper JS
@@ -313,8 +315,7 @@ fn lower_element(
 
                             let func_ir = fns.iter().find(|f| f.name == *fn_name).or_else(|| {
                                 fns.iter().find(|f| {
-                                    f.name == *fn_name
-                                        || f.name.ends_with(&format!("_{}", fn_name))
+                                    f.name == *fn_name || f.name.ends_with(&format!("_{}", fn_name))
                                 })
                             });
 

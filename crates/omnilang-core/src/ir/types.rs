@@ -286,9 +286,7 @@ pub enum TypeKind {
     Bool,
     Void,
     Any,
-    Named {
-        name: String,
-    },
+    Named { name: String },
 }
 
 impl From<String> for TypeKind {
