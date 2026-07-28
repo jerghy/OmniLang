@@ -76,7 +76,7 @@ Two `run_pipeline()` functions exist (one in `omnilang-core`, one in `omnilang`)
 | **I5** | **Split VariantEditor.tsx (1,601 lines)** — 4x over size guideline. Shared constants duplicated with ClassEditor. | HIGH | TypeScript & React Specialist | **M** |
 | **I6** | **Fix `as any` hidden property patterns** — graph-parser.ts and graph-compiler.ts use `as any` to bypass type system on `_operations` field. | HIGH | TypeScript & React Specialist | **S** |
 | **I7** | **Remove dead P35-remnant test file** — `core/src/codegen/tests_regression/javascript.rs` gated on nonexistent feature. | MEDIUM | Maintainability Expert | **S** |
-| **I8** | **Extend cross-target regression tests** — only 3 of 9 backends have parameterized regression coverage. | MEDIUM | Compiler Architect, Systems Architect | **M** |
+| **I8** | **CLOSED — By design per ADR-003.** Only P0 backends (OmniView, React, Flutter) get active testing. Other 6 are in maintenance mode behind feature flags. | MEDIUM | Compiler Architect, Systems Architect | **M** |
 | **I9** | **Replace `ComponentIR.refs: Vec<serde_json::Value>`** — dead domain surface, always empty. Use proper domain type or remove. | MEDIUM | Domain Expert | **M** |
 | **I10** | **Add LRU eviction to WASM incremental cache** — unbounded memory growth in long editor sessions. | MEDIUM | Implementation Strategist | **M** |
 | **I11** | **Update eval baselines** — `BASELINE_TESTS=227` (actual ~737+), `BASELINE_CLIPPY=24`, `BASELINE_UNWRAP=0` (actual ~240). | MEDIUM | AI Engineer, Systems Architect | **S** |

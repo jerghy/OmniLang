@@ -67,7 +67,7 @@ resolve.rs (在 resolve pass 中集成类型检查)
 ### Negative
 
 * **三套类型表示**: 新增类型需更新三处（TypeAnnotation→SemanticType 转换 + SemanticType 定义本身）
-* **已知限制**: `check_call` 未接入 resolve pass、MatchExpr/ArrayLiteral 仅检查第一个元素、赋值语句无类型检查、一元运算符无类型检查、比较运算符仅接受数值类型
+* **已知限制**: MatchExpr/ArrayLiteral 仅检查第一个元素、赋值语句无类型检查、一元运算符无类型检查、比较运算符仅接受数值类型
 
 ### Neutral
 
