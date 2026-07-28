@@ -85,10 +85,15 @@ function __omni_computed(name, fn) {
 }
 
 function __omni_effect(fn) {
-  const e = { _deps: new Set(), run: fn };
+  const e = { _deps: new Set() };
+  e.run = () => {
+    e._deps.forEach(d => d());
+    e._deps.clear();
+    fn();
+  };
   const prev = __omni_activeEffect;
   __omni_activeEffect = e;
-  try { fn(); } finally { __omni_activeEffect = prev; }
+  try { e.run(); } finally { __omni_activeEffect = prev; }
   return () => e._deps.forEach(d => d());
 }
 
@@ -96,6 +101,7 @@ function __omni_reportError(context, error) {
   var msg = "[OmniView] " + context + ": " + String(error);
   console.error(msg);
   if (!window.__omni_runtimeErrors) window.__omni_runtimeErrors = [];
+  if (window.__omni_runtimeErrors.length >= 100) window.__omni_runtimeErrors.shift();
   window.__omni_runtimeErrors.push({ context: context, error: String(error), time: Date.now() });
   try {
     if (typeof parent !== 'undefined' && parent.postMessage) {
@@ -110,7 +116,13 @@ function __omni_reportError(context, error) {
 }
 
 function __omni_el(nid) {
-  return document.querySelector('[data-nid="' + nid + '"]');
+  var cache = __omni_el._cache || (__omni_el._cache = {});
+  var el = cache[nid];
+  if (!el || !el.isConnected) {
+    el = document.querySelector('[data-nid="' + nid + '"]');
+    if (el) cache[nid] = el;
+  }
+  return el;
 }
 	/// ─── @for instance-state helpers ───
 	function __omni_forGetState(el, name, defaultVal) {

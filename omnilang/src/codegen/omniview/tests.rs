@@ -1294,7 +1294,7 @@ fn test_runtime_error_reporting() {
         "runtime must include __omni_reportError"
     );
     assert!(
-        output.js.contains("try { fn(); } finally"),
+        output.js.contains("try { e.run(); } finally"),
         "__omni_effect must use try/finally"
     );
     assert!(
