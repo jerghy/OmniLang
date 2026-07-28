@@ -10,8 +10,17 @@ use crate::ir::*;
 // ═══════════════════════════════════════════════════════════════
 
 /// Flutter statement formatter — wraps mutations in `setState`.
+///
+/// In store-action mode (`in_store_action: true`), mutations use the Riverpod
+/// `ref.read(prefix<Name>Provider.notifier).state` pattern instead of `setState`.
 pub(crate) struct FlutterStmtFormatter {
     pub(crate) expr: DartFormatExpr,
+    /// When true, mutations use Riverpod state mutation pattern
+    /// instead of setState wrapping.
+    pub(crate) in_store_action: bool,
+    /// Store name prefix for constructing Riverpod provider names
+    /// (e.g., "appStore" for store named "AppStore").
+    pub(crate) store_prefix: Option<String>,
 }
 
 impl FormatStmt for FlutterStmtFormatter {
@@ -53,15 +62,32 @@ impl FormatStmt for FlutterStmtFormatter {
     }
 
     fn mutation_target_expr(&self, target: &str) -> String {
-        target.to_string()
+        if let Some(ref prefix) = self.store_prefix {
+            // In store action: `count` → `ref.read(appStoreCountProvider.notifier).state`
+            format!(
+                "ref.read({}{}Provider.notifier).state",
+                prefix,
+                super::super::capitalize_first(target)
+            )
+        } else {
+            target.to_string()
+        }
     }
 
     fn mutation_stmt_prefix(&self) -> Option<&str> {
-        Some("setState(() {")
+        if self.in_store_action {
+            None // No setState wrapping in store actions
+        } else {
+            Some("setState(() {")
+        }
     }
 
     fn mutation_stmt_suffix(&self) -> Option<&str> {
-        Some("});")
+        if self.in_store_action {
+            None // No setState wrapping in store actions
+        } else {
+            Some("});")
+        }
     }
 }
 
@@ -70,6 +96,33 @@ pub(crate) fn generate_statement_flutter(w: &mut CodeWriter, stmt: &StatementIR)
         expr: DartFormatExpr {
             event_param_name: None,
         },
+        in_store_action: false,
+        store_prefix: None,
+    };
+    fmt.format_stmt(w, stmt);
+}
+
+/// Generate statements inside a store action body (Riverpod state mutations).
+///
+/// Uses `ref.read(prefix<Name>Provider.notifier).state` instead of `setState`.
+pub(crate) fn generate_store_action_stmt(
+    w: &mut CodeWriter,
+    stmt: &StatementIR,
+    store_name: &str,
+) {
+    let lower = |s: &str| {
+        let mut c = s.chars();
+        match c.next() {
+            None => String::new(),
+            Some(first) => first.to_lowercase().to_string() + c.as_str(),
+        }
+    };
+    let fmt = FlutterStmtFormatter {
+        expr: DartFormatExpr {
+            event_param_name: None,
+        },
+        in_store_action: true,
+        store_prefix: Some(lower(store_name)),
     };
     fmt.format_stmt(w, stmt);
 }

@@ -201,6 +201,8 @@ fn format_element(
                             expr: DartFormatExpr {
                                 event_param_name: Some("e".to_string()),
                             },
+                            in_store_action: false,
+                            store_prefix: None,
                         };
                         fmt.format_stmt(&mut hw, stmt);
                     }

@@ -17,7 +17,5 @@ final appStoreDoubleCountProvider = Provider<dynamic>((ref) {
 
 // — Action functions —
 void appStoreIncrement(WidgetRef ref) {
-    setState(() {
-        count += 1;
-    });
+    ref.read(appStoreCountProvider.notifier).state += 1;
 }

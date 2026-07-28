@@ -475,7 +475,7 @@ impl FlutterCodegen {
                 ));
                 w.indent();
                 for stmt in &action.body.statements {
-                    generate_statement_flutter(&mut w, stmt);
+                    generate_store_action_stmt(&mut w, stmt, name);
                 }
                 w.dedent();
                 w.emit("}");
