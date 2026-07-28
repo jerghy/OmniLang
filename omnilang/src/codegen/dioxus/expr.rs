@@ -53,7 +53,7 @@ pub(super) fn to_dioxus_event(event_name: &str) -> String {
         .unwrap_or(event_name)
         .to_lowercase();
     match stem.as_str() {
-        "click" => "onclick".into(),
+        "click" | "tap" | "press" => "onclick".into(),
         "change" => "onchange".into(),
         "input" => "oninput".into(),
         "submit" => "onsubmit".into(),
