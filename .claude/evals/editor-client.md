@@ -380,6 +380,7 @@ grep -rn "console\.log" src/ --include="*.ts" --include="*.tsx" \   # R3
 find src -name "*.ts" -o -name "*.tsx" | xargs wc -l \             # R4
   | sort -rn | head -20
 
-# Run eval harness
-bash .claude/evals/eval-run.sh
+# Run tests via CI frontend job
+cd poiesis && npx vitest run --config vitest.config.js src/services/codegen/__tests__/
+cd poiesis && npx tsc --noEmit
 ```
