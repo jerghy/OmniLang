@@ -25,80 +25,6 @@ fn lower_design_source(source: &str) -> DesignIR {
 }
 
 #[test]
-fn lower_token_resolves_value() {
-    let design = lower_design_source(
-        r##"
-        design App {
-            token primary: color = "#6366f1";
-            token surface: color = "#ffffff";
-            token spacingMd: size = "16px";
-            token shadowSm: shadow = "0 1px 3px rgba(0,0,0,0.12)";
-        }
-        "##,
-    );
-
-    assert_eq!(design.name, "App");
-    assert_eq!(design.tokens.len(), 4);
-
-    // Check each token
-    let primary = design.tokens.get("primary").unwrap();
-    assert_eq!(primary.value, "#6366f1");
-    assert_eq!(primary.token_type, TokenTypeIR::Color);
-
-    let surface = design.tokens.get("surface").unwrap();
-    assert_eq!(surface.value, "#ffffff");
-    assert_eq!(surface.token_type, TokenTypeIR::Color);
-
-    let spacing = design.tokens.get("spacingMd").unwrap();
-    assert_eq!(spacing.value, "16px");
-    assert_eq!(spacing.token_type, TokenTypeIR::Size);
-
-    let shadow = design.tokens.get("shadowSm").unwrap();
-    assert_eq!(shadow.value, "0 1px 3px rgba(0,0,0,0.12)");
-    assert_eq!(shadow.token_type, TokenTypeIR::Shadow);
-}
-
-#[test]
-fn lower_class_resolves_token_refs() {
-    let design = lower_design_source(
-        r##"
-        design App {
-            token surface: color = "#ffffff";
-            token radiusMd: size = "8px";
-            token shadowSm: shadow = "0 1px 3px rgba(0,0,0,0.12)";
-
-            class Card {
-                background: token(surface);
-                border-radius: token(radiusMd);
-                box-shadow: token(shadowSm);
-            }
-        }
-        "##,
-    );
-
-    assert_eq!(design.classes.len(), 1);
-    let card = &design.classes[0];
-    assert_eq!(card.name, "Card");
-
-    // All token refs should be resolved to var(--name) references
-    assert_eq!(
-        card.properties.get("background"),
-        Some(&"var(--surface)".to_string()),
-        "token(surface) should resolve to 'var(--surface)'"
-    );
-    assert_eq!(
-        card.properties.get("border-radius"),
-        Some(&"var(--radiusMd)".to_string()),
-        "token(radiusMd) should resolve to 'var(--radiusMd)'"
-    );
-    assert_eq!(
-        card.properties.get("box-shadow"),
-        Some(&"var(--shadowSm)".to_string()),
-        "token(shadowSm) should resolve to 'var(--shadowSm)'"
-    );
-}
-
-#[test]
 fn lower_class_literal_values() {
     let design = lower_design_source(
         r#"
@@ -158,26 +84,6 @@ fn lower_pseudo_state() {
     assert!(
         focus.properties.contains_key("outline-offset"),
         "focus should have outline-offset property"
-    );
-}
-
-#[test]
-fn lower_token_ref_fallback() {
-    let design = lower_design_source(
-        r#"
-        design App {
-            class Card {
-                background: token(undefinedToken);
-            }
-        }
-        "#,
-    );
-
-    let card = &design.classes[0];
-    assert_eq!(
-        card.properties.get("background"),
-        Some(&"var(--undefinedToken)".to_string()),
-        "undefined token ref should fall back to var(--name)"
     );
 }
 

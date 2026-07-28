@@ -87,12 +87,12 @@ pub fn lower_design(ast: &DesignDef) -> DesignIR {
 fn resolve_value(value: &DesignValue, tokens: &FxHashMap<String, TokenIR>) -> String {
     match value {
         DesignValue::Literal(s) => s.clone(),
-        DesignValue::TokenRef(name) => resolve_token_ref(name, tokens),
+        DesignValue::TokenRef(name) => resolve_token_ref(name),
         DesignValue::Mixed(parts) => parts
             .iter()
             .map(|part| match part {
                 DesignValuePart::Text(s) => s.clone(),
-                DesignValuePart::Token(name) => resolve_token_ref(name, tokens),
+                DesignValuePart::Token(name) => resolve_token_ref(name),
             })
             .collect(),
     }
@@ -102,7 +102,7 @@ fn resolve_value(value: &DesignValue, tokens: &FxHashMap<String, TokenIR>) -> St
 ///
 /// Token values are emitted as CSS custom property declarations in `:root { }`
 /// by `emit_design_css()`, so class/variant properties always reference via `var()`.
-fn resolve_token_ref(name: &str, _tokens: &FxHashMap<String, TokenIR>) -> String {
+fn resolve_token_ref(name: &str) -> String {
     format!("var(--{})", name)
 }
 
