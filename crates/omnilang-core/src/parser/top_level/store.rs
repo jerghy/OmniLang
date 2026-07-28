@@ -64,44 +64,4 @@ impl<'a> Parser<'a> {
         })
     }
 
-    // ── Theme ──────────────────────────────────────────
-
-    pub fn parse_theme_def(&mut self) -> Result<ThemeDef, ParseError> {
-        self.advance(); // 'theme'
-        self.expect_ident("expected theme name")?;
-        self.expect_token(TokenKind::LBrace, "expected '{'")?;
-
-        let mut categories = Vec::new();
-        while *self.peek_kind() != TokenKind::RBrace && *self.peek_kind() != TokenKind::Eof {
-            let cat_name = self.expect_ident("expected category name")?;
-            self.expect_token(TokenKind::LBrace, "expected '{'")?;
-            let mut values = Vec::new();
-            while *self.peek_kind() != TokenKind::RBrace && *self.peek_kind() != TokenKind::Eof {
-                let key = self.expect_ident("expected key")?;
-                self.expect_token(TokenKind::Colon, "expected ':'")?;
-                let val_t = self.advance();
-                let val = match &val_t.kind {
-                    TokenKind::StringLiteral(s) => s.clone(),
-                    TokenKind::Ident(s) => s.clone(),
-                    _ => {
-                        return Err(ParseError {
-                            message: "Expected string or identifier value".into(),
-                            span: val_t.span,
-                        })
-                    }
-                };
-                values.push((key, val));
-                if *self.peek_kind() == TokenKind::Comma {
-                    self.advance();
-                }
-            }
-            self.expect_token(TokenKind::RBrace, "expected '}'")?;
-            categories.push(ThemeCategory {
-                name: cat_name,
-                values,
-            });
-        }
-        self.expect_token(TokenKind::RBrace, "expected '}'")?;
-        Ok(ThemeDef { categories })
-    }
 }

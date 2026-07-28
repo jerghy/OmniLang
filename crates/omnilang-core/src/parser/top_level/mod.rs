@@ -37,9 +37,6 @@ impl<'a> Parser<'a> {
                     TokenKind::Design => {
                         module.designs.push(self.parse_design_def()?);
                     }
-                    TokenKind::Theme => {
-                        module.themes.push(self.parse_theme_def()?);
-                    }
                     TokenKind::Import => {
                         module.imports.push(self.parse_import()?);
                     }

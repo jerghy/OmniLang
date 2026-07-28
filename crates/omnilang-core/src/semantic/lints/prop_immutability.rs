@@ -114,7 +114,6 @@ mod tests {
                 motions: vec![],
                 timelines: vec![],
                 stores: vec![],
-                themes: vec![],
                 designs: vec![],
                 imports: vec![],
                 exports: vec![],

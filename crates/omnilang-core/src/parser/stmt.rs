@@ -555,7 +555,6 @@ pub(crate) fn keyword_as_ident_name(kind: &TokenKind) -> Option<&'static str> {
         TokenKind::Getter => Some("getter"),
         TokenKind::View => Some("view"),
         TokenKind::Style => Some("style"),
-        TokenKind::Theme => Some("theme"),
         TokenKind::Component => Some("component"),
         TokenKind::Bind => Some("bind"),
         TokenKind::Emit => Some("emit"),
