@@ -567,7 +567,7 @@ impl OmniCompiler {
             let result = omnilang::compile_multi_internal(
                 self.sources.clone(),
                 omnilang::codegen::Target::OmniView,
-                FxHashMap::default(),
+                omnilang::path_mapping::derive_path_mapping(&self.sources),
                 editor_mode,
                 debug_mode,
                 None,
