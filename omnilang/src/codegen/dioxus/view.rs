@@ -6,8 +6,8 @@ use super::{
 };
 use super::{generate_statement_dioxus, CodeWriter, DioxusStmtFormatter};
 use crate::codegen::shared::expr::RustFormatExpr;
-use crate::codegen::shared::stmt::FormatStmt;
 use crate::codegen::shared::inline_handler::{build_inline_handler, InlineHandlerConfig};
+use crate::codegen::shared::stmt::FormatStmt;
 use crate::ir::*;
 
 /// Generate a Dioxus RSX view node.
@@ -123,6 +123,25 @@ pub(super) fn gen_view_node_dioxus(w: &mut CodeWriter, node: &ViewTree, is_root:
             if let Some(ref classes) = el.style_classes {
                 if let Some(classes_str) = classes.as_str() {
                     attrs.push(format!("class: \"{}\",", classes_str));
+                }
+            }
+
+            // Dynamic class bindings (class_map_bindings)
+            for (cls, expr) in &el.class_map_bindings {
+                match expr {
+                    ExprIR::LiteralExpr { value } if value.as_bool() == Some(true) => {
+                        attrs.push(format!("class: if true {{ \"{}\" }},", cls));
+                    }
+                    ExprIR::LiteralExpr { value } if value.as_bool() == Some(false) => {
+                        // skip — class is never applied
+                    }
+                    _ => {
+                        let cond = format_expr_ir_dioxus(expr);
+                        attrs.push(format!(
+                            "class: if {} {{ \"{}\" }},",
+                            cond, cls
+                        ));
+                    }
                 }
             }
 
