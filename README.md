@@ -49,7 +49,7 @@ test/              # Test projects (.omni examples)
     poiesis-test/
 
 .architecture/     # Architecture Decision Records & reviews
-  decisions/adrs/  # 10 ADRs
+  decisions/adrs/  # 13 ADRs
   reviews/         # Workspace reviews
   metrics/         # CSP, motion, WASM analysis
 ```
@@ -83,7 +83,7 @@ test/              # Test projects (.omni examples)
 
 - [QUICKSTART.md](QUICKSTART.md) — 3-command onboarding
 - [OmniView Language Reference](docs/omniview/README.md) — 13-chapter tutorial
-- [Architecture Decisions](.architecture/decisions/adrs/) — 10 ADRs (compiler pipeline, editor evolution, codegen targets, etc.)
+- [Architecture Decisions](.architecture/decisions/adrs/) — 13 ADRs (compiler pipeline, editor evolution, codegen targets, etc.)
 - [Document Index](docs/README.md) — Full doc directory
 - [Design System](Design-System/DESIGN.md) — Brand & component design specs
 
