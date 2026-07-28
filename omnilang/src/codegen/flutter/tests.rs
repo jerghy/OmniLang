@@ -831,30 +831,16 @@ fn test_store_dart_empty() {
         ..Default::default()
     };
     let store_dart = codegen.gen_store_dart("EmptyStore", &store);
-    assert!(store_dart.contains("class EmptyStore {"));
-    assert!(store_dart.contains("EmptyStore();"));
+    assert!(store_dart.contains("import 'package:flutter_riverpod/flutter_riverpod.dart';"));
+    assert!(store_dart.contains("Empty store"), "empty store should have comment: {}", store_dart);
 }
 
 #[test]
 fn test_store_dart_with_signals() {
     let codegen = FlutterCodegen;
     let mut signals = FxHashMap::default();
-    signals.insert(
-        "count".into(),
-        TypeIR {
-            kind: "i32".into(),
-            type_args: vec![],
-            is_nullable: false,
-        },
-    );
-    signals.insert(
-        "name".into(),
-        TypeIR {
-            kind: "string".into(),
-            type_args: vec![],
-            is_nullable: false,
-        },
-    );
+    signals.insert("count".into(), TypeIR { kind: "i32".into(), type_args: vec![], is_nullable: false });
+    signals.insert("name".into(), TypeIR { kind: "string".into(), type_args: vec![], is_nullable: false });
     let mut defaults = FxHashMap::default();
     defaults.insert("count".into(), serde_json::json!(0));
     defaults.insert("name".into(), serde_json::json!("world"));
@@ -867,15 +853,10 @@ fn test_store_dart_with_signals() {
         ..Default::default()
     };
     let store_dart = codegen.gen_store_dart("AppStore", &store);
-    assert!(store_dart.contains("class AppStore extends ChangeNotifier {"));
-    assert!(store_dart.contains("int count = 0;"));
-    assert!(store_dart.contains("String name = 'world';"));
-    // Setter methods
-    assert!(store_dart.contains("void setCount(int value) {"));
-    assert!(store_dart.contains("this.count = value;"));
-    assert!(store_dart.contains("notifyListeners();"));
-    assert!(store_dart.contains("void setName(String value) {"));
-    assert!(store_dart.contains("this.name = value;"));
+    assert!(store_dart.contains("final appStoreCountProvider = StateProvider<int>((ref) => 0);"),
+        "should emit count provider: {}", store_dart);
+    assert!(store_dart.contains(r#"final appStoreNameProvider = StateProvider<String>((ref) => 'world');"#),
+        "should emit name provider: {}", store_dart);
 }
 
 #[test]
@@ -886,24 +867,12 @@ fn test_store_dart_with_getters() {
         "doubleCount".into(),
         ExprIR::BinaryOpExpr {
             op: BinaryOpIR::Mul,
-            left: Box::new(ExprIR::IdentifierExpr {
-                name: "count".into(),
-                type_ann: None,
-            }),
-            right: Box::new(ExprIR::LiteralExpr {
-                value: serde_json::json!(2),
-            }),
+            left: Box::new(ExprIR::IdentifierExpr { name: "count".into(), type_ann: None }),
+            right: Box::new(ExprIR::LiteralExpr { value: serde_json::json!(2) }),
         },
     );
     let mut signals = FxHashMap::default();
-    signals.insert(
-        "count".into(),
-        TypeIR {
-            kind: "i32".into(),
-            type_args: vec![],
-            is_nullable: false,
-        },
-    );
+    signals.insert("count".into(), TypeIR { kind: "i32".into(), type_args: vec![], is_nullable: false });
     let mut defaults = FxHashMap::default();
     defaults.insert("count".into(), serde_json::json!(0));
     let store = StoreIR {
@@ -915,8 +884,45 @@ fn test_store_dart_with_getters() {
         ..Default::default()
     };
     let store_dart = codegen.gen_store_dart("CalcStore", &store);
-    assert!(store_dart.contains("get doubleCount {"));
-    assert!(store_dart.contains("return count * 2;"));
+    assert!(store_dart.contains("final calcStoreCountProvider = StateProvider<int>((ref) => 0);"));
+    assert!(store_dart.contains("final calcStoreDoubleCountProvider = Provider<dynamic>((ref) {"));
+    assert!(store_dart.contains("ref.watch(calcStoreCountProvider);"));
+}
+
+#[test]
+fn test_store_dart_with_action() {
+    let codegen = FlutterCodegen;
+    let mut signals = FxHashMap::default();
+    signals.insert("count".into(), TypeIR { kind: "i32".into(), type_args: vec![], is_nullable: false });
+    let mut defaults = FxHashMap::default();
+    defaults.insert("count".into(), serde_json::json!(0));
+    let store = StoreIR {
+        name: "AppStore".into(),
+        signals,
+        signal_defaults: defaults,
+        getters: FxHashMap::default(),
+        actions: vec![
+            FunctionIR {
+                name: "increment".into(),
+                visibility: Visibility::Public,
+                params: vec![],
+                return_type: None,
+                body: BlockIR {
+                    statements: vec![StatementIR::MutationStmt {
+                        intent: Some(MutationIntent::Increment {
+                            target: SignalRefIR { owner: None, name: "count".into() },
+                            amount: Some(Box::new(ExprIR::LiteralExpr { value: serde_json::json!(1) })),
+                        }),
+                    }],
+                },
+                is_async: false,
+                source_span: None,
+            },
+        ],
+        ..Default::default()
+    };
+    let store_dart = codegen.gen_store_dart("AppStore", &store);
+    assert!(store_dart.contains("void appStoreIncrement(WidgetRef ref) {"));
 }
 
 // ── Full pipeline through Codegen trait ───────────────────
