@@ -803,24 +803,10 @@ impl Default for IRProgram {
 }
 
 impl IRProgram {
-    /// Look up a component by name across all modules (short-circuit on first match).
-    #[must_use]
-    pub fn get_component(&self, name: &str) -> Option<&ComponentIR> {
-        self.modules.values().find_map(|m| m.components.get(name))
-    }
-
     /// Check whether a store exists by name across all modules (short-circuit).
     #[must_use]
     pub fn has_store(&self, name: &str) -> bool {
         self.modules.values().any(|m| m.stores.contains_key(name))
-    }
-
-    /// Check whether a function exists by name across all modules (short-circuit).
-    #[must_use]
-    pub fn has_function(&self, name: &str) -> bool {
-        self.modules
-            .values()
-            .any(|m| m.functions.contains_key(name))
     }
 
     /// Iterate over all components across all modules without building a HashMap.
