@@ -36,7 +36,7 @@ impl SemanticType {
             } => match name.as_str() {
                 "i32" | "i64" | "int" | "Int" | "integer" => SemanticType::Int,
                 "f64" | "f32" | "float" | "Float" | "num" | "number" => SemanticType::Float,
-                "String" | "str" => SemanticType::String,
+                "String" | "str" | "string" => SemanticType::String,
                 "bool" | "Bool" | "boolean" => SemanticType::Bool,
                 "void" | "Void" | "()" | "unit" => SemanticType::Void,
                 "null" | "Null" | "nil" | "None" => SemanticType::Null,
@@ -72,7 +72,7 @@ impl SemanticType {
         match s {
             "i32" | "i64" | "int" | "Int" | "integer" => SemanticType::Int,
             "f64" | "f32" | "float" | "Float" | "num" | "number" => SemanticType::Float,
-            "String" | "str" => SemanticType::String,
+            "String" | "str" | "string" => SemanticType::String,
             "bool" | "Bool" | "boolean" => SemanticType::Bool,
             "void" | "Void" | "()" | "unit" => SemanticType::Void,
             "null" | "Null" | "nil" | "None" => SemanticType::Null,
