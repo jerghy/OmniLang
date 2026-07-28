@@ -44,12 +44,14 @@ pub(super) fn map_event(name: &str) -> String {
     }
 }
 
-/// Recursively walk a ViewTree to collect all DOM event types and EventDataKinds
-/// used within the tree. Used by @for codegen for dynamic event subscription.
+/// Recursively walk a ViewTree to collect all DOM event types, EventDataKinds,
+/// and the union of used_fields per event kind within the tree.
+/// Used by @for codegen for dynamic event subscription and optimized event extraction.
 pub(super) fn collect_for_events(
     tree: &ViewTree,
     event_types: &mut Vec<String>,
     event_kinds: &mut Vec<(String, EventDataKind)>,
+    used_fields_by_kind: &mut FxHashMap<String, Option<Vec<String>>>,
 ) {
     match tree {
         ViewTree::Element(el) => {
@@ -61,27 +63,51 @@ pub(super) fn collect_for_events(
                         event_kinds.push((js_event.clone(), kind.clone()));
                     }
                 }
+                // Accumulate used_fields from every handler, not just the first,
+                // building the union per EventDataKind label.
+                if let Some(kind) = handler.event_data() {
+                    let label = event_data_kind_label(kind);
+                    let entry = used_fields_by_kind
+                        .entry(label.to_string())
+                        .or_insert_with(|| Some(Vec::new()));
+                    match handler.used_fields() {
+                        Some(used) => {
+                            if let Some(accumulated) = entry.as_mut() {
+                                for field in used {
+                                    if !accumulated.contains(field) {
+                                        accumulated.push(field.clone());
+                                    }
+                                }
+                            }
+                        }
+                        None => {
+                            // None == all fields (conservative for unresolved fn_ref).
+                            // If ANY handler for this kind needs all fields, mark it.
+                            *entry = None;
+                        }
+                    }
+                }
             }
             for child in &el.children {
-                collect_for_events(child, event_types, event_kinds);
+                collect_for_events(child, event_types, event_kinds, used_fields_by_kind);
             }
         }
         ViewTree::Conditional(cond) => {
             for branch in &cond.branches {
                 if let Some(ref body) = branch.body {
-                    collect_for_events(body, event_types, event_kinds);
+                    collect_for_events(body, event_types, event_kinds, used_fields_by_kind);
                 }
             }
             if let Some(ref fallback) = cond.fallback {
-                collect_for_events(fallback, event_types, event_kinds);
+                collect_for_events(fallback, event_types, event_kinds, used_fields_by_kind);
             }
         }
         ViewTree::ListRendering(list) => {
             if let Some(ref body) = list.body {
-                collect_for_events(body, event_types, event_kinds);
+                collect_for_events(body, event_types, event_kinds, used_fields_by_kind);
             }
             if let Some(ref empty) = list.empty_body {
-                collect_for_events(empty, event_types, event_kinds);
+                collect_for_events(empty, event_types, event_kinds, used_fields_by_kind);
             }
         }
         _ => {}

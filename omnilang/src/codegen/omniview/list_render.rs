@@ -7,6 +7,7 @@ use super::utils::collect_for_events;
 use super::OmniViewGenerator;
 use crate::codegen::emit_event_object;
 use crate::ir::*;
+use rustc_hash::FxHashMap;
 
 impl OmniViewGenerator {
     /// DOM generation and event delegation portion of @for rendering.
@@ -19,8 +20,14 @@ impl OmniViewGenerator {
         // Collect event types from the @for body for delegated event listener setup
         let mut for_event_types: Vec<String> = Vec::new();
         let mut for_event_kinds: Vec<(String, EventDataKind)> = Vec::new();
+        let mut used_fields_by_kind: FxHashMap<String, Option<Vec<String>>> = FxHashMap::default();
         if let Some(ref body) = list.body {
-            collect_for_events(body, &mut for_event_types, &mut for_event_kinds);
+            collect_for_events(
+                body,
+                &mut for_event_types,
+                &mut for_event_kinds,
+                &mut used_fields_by_kind,
+            );
         }
 
         // FLIP: record element positions before re-render (for @for with key)
@@ -228,10 +235,13 @@ impl OmniViewGenerator {
             self.js.push_str("      switch (kind) {\n");
             for (_, kind) in &for_event_kinds {
                 let label = event_data_kind_label(kind);
+                // Pass the union of used_fields for this kind (if any) to
+                // avoid emitting fields the handlers never reference.
+                let used = used_fields_by_kind.get(label).unwrap_or(&None);
                 self.js.push_str(&format!("        case '{}':\n", label));
                 self.js.push_str(&format!(
                     "          return {};\n",
-                    emit_event_object(&Some(kind.clone()), &None, "e")
+                    emit_event_object(&Some(kind.clone()), used, "e")
                 ));
             }
             self.js.push_str("        default: return {};\n");
