@@ -374,7 +374,7 @@ pub trait FormatStmt {
                 .collect();
             format!("({})", formatted.join(", "))
         };
-        w.emit_fmt(format_args!("// emit event: {event_name}{arg_str}"));
+        w.emit_fmt(format_args!("{event_name}{arg_str};"));
     }
 
     /// Format a `throw` statement.
