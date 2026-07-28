@@ -54,21 +54,24 @@ function __omni_signal(name, init) {
 function __omni_computed(name, fn) {
   let val, dirty = true;
   const signal = __omni_signal(name, undefined);
+  const effect = { _deps: new Set(), run: () => { dirty = true; signal.set(fn()); } };
   const run = () => {
     dirty = false;
+    // Clean up old dependency subscriptions
+    effect._deps.forEach(fn => fn());
+    effect._deps.clear();
     const prev = __omni_activeEffect;
-    const deps = new Set();
-    __omni_activeEffect = { _deps: deps, run: () => { dirty = true; signal.set(fn()); } };
+    __omni_activeEffect = effect;
     const newVal = fn();
     __omni_activeEffect = prev;
     val = newVal;
-    signal.peek(); // ensure dependency is tracked
+    signal.peek();
     return val;
   };
   run();
   return {
     get value() {
-      signal.value; // trigger dependency tracking on every read
+      signal.value;
       return dirty ? run() : val;
     },
     get() { return signal.value; },
