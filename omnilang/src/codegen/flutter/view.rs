@@ -78,9 +78,7 @@ fn format_element(
                     format!("() {{ {}(); }}", r#ref)
                 }
                 EventHandlerIR::InlineFn { body, .. } => format_inline_handler_flutter(body),
-                EventHandlerIR::StoreAction { r#ref, .. } => {
-                    format_store_action_handler(r#ref)
-                }
+                EventHandlerIR::StoreAction { r#ref, .. } => format_store_action_handler(r#ref),
             };
             let stem = event_name.strip_prefix("on").unwrap_or(event_name);
             child_args.push(format!("on{}: {}", capitalize_first(stem), cb));
@@ -214,9 +212,7 @@ fn format_element(
                     format_inline_handler_flutter(body)
                 }
             }
-            EventHandlerIR::StoreAction { r#ref, .. } => {
-                format_store_action_handler(r#ref)
-            }
+            EventHandlerIR::StoreAction { r#ref, .. } => format_store_action_handler(r#ref),
         };
         args.push(format!("{}: {}", callback_name, body));
     }
@@ -248,6 +244,50 @@ fn format_element(
         format!("{}()", widget)
     } else {
         format!("{}({})", widget, args.join(", "))
+    };
+
+    // ── Dynamic class bindings (class_map_bindings) ──
+    // Map class:active={condition} syntax to conditional decoration in Flutter.
+    // For each (class_name, condition_expr), emit a conditional BoxDecoration
+    // on a wrapping Container. Literal true/false expressions are handled
+    // statically (always applied / never applied).
+    let inner = if !el.class_map_bindings.is_empty() {
+        let mut has_dynamic = false;
+        let mut dynamic_conditions: Vec<String> = Vec::new();
+
+        for (_class_name, expr) in &el.class_map_bindings {
+            match expr {
+                ExprIR::LiteralExpr { value } if value.as_bool() == Some(true) => {
+                    // Always-applied class (literal true):
+                    // In a full implementation with style_classes resolution,
+                    // this would add static style properties.
+                }
+                ExprIR::LiteralExpr { value } if value.as_bool() == Some(false) => {
+                    // Never-applied class (literal false): skip entirely.
+                }
+                _ => {
+                    let cond = format_expr_ir_flutter(expr);
+                    has_dynamic = true;
+                    dynamic_conditions.push(cond);
+                }
+            }
+        }
+
+        if has_dynamic {
+            let cond = dynamic_conditions.join(" && ");
+            // Wrap in a Container with conditional decoration.
+            // The decoration applies BoxDecoration when the condition is true.
+            // TODO: When style_classes resolution is implemented, use the
+            //       actual resolved class styles instead of BoxDecoration().
+            format!(
+                "Container(\n  decoration: {} ? BoxDecoration() : null,\n  child: {},\n)",
+                cond, inner
+            )
+        } else {
+            inner
+        }
+    } else {
+        inner
     };
 
     // Wrap with motion animation widgets if the element has triggers

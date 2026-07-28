@@ -448,6 +448,161 @@ fn test_format_element_with_event() {
     assert!(expr.contains("onPressed: () { handleClick(); }"));
 }
 
+#[test]
+fn test_format_element_with_class_map_bindings() {
+    let mut bindings = FxHashMap::default();
+    bindings.insert(
+        "active".to_string(),
+        ExprIR::IdentifierExpr {
+            name: "isOpen".to_string(),
+            type_ann: None,
+        },
+    );
+    let el = ElementIR {
+        class_map_bindings: bindings,
+        tag: "div".into(),
+        props: FxHashMap::default(),
+        bindings: FxHashMap::default(),
+        events: FxHashMap::default(),
+        style_classes: None,
+        inline_style: None,
+        children: vec![],
+        construction_kind: ConstructionKind::TagMapping,
+        source_span: None,
+        motion: None,
+        scroll: None,
+        drag: None,
+        hero: None,
+    };
+    let expr = format_view_tree(&ViewTree::Element(el), &[], &FxHashMap::default());
+    // Should emit conditional decoration that uses the binding expression
+    assert!(
+        expr.contains("isOpen"),
+        "should contain the condition expression: {}",
+        expr
+    );
+    assert!(
+        expr.contains("BoxDecoration"),
+        "should contain conditional BoxDecoration: {}",
+        expr
+    );
+    assert!(
+        expr.contains("Container("),
+        "should wrap in Container: {}",
+        expr
+    );
+}
+
+#[test]
+fn test_format_element_with_class_map_bindings_static_true() {
+    let mut bindings = FxHashMap::default();
+    bindings.insert(
+        "active".to_string(),
+        ExprIR::LiteralExpr {
+            value: serde_json::json!(true),
+        },
+    );
+    let el = ElementIR {
+        class_map_bindings: bindings,
+        tag: "div".into(),
+        props: FxHashMap::default(),
+        bindings: FxHashMap::default(),
+        events: FxHashMap::default(),
+        style_classes: None,
+        inline_style: None,
+        children: vec![],
+        construction_kind: ConstructionKind::TagMapping,
+        source_span: None,
+        motion: None,
+        scroll: None,
+        drag: None,
+        hero: None,
+    };
+    let expr = format_view_tree(&ViewTree::Element(el), &[], &FxHashMap::default());
+    // Static true class bindings should not add wrapping Container
+    assert_eq!(expr, "Container()");
+}
+
+#[test]
+fn test_format_element_with_class_map_bindings_static_false() {
+    let mut bindings = FxHashMap::default();
+    bindings.insert(
+        "inactive".to_string(),
+        ExprIR::LiteralExpr {
+            value: serde_json::json!(false),
+        },
+    );
+    let el = ElementIR {
+        class_map_bindings: bindings,
+        tag: "div".into(),
+        props: FxHashMap::default(),
+        bindings: FxHashMap::default(),
+        events: FxHashMap::default(),
+        style_classes: None,
+        inline_style: None,
+        children: vec![],
+        construction_kind: ConstructionKind::TagMapping,
+        source_span: None,
+        motion: None,
+        scroll: None,
+        drag: None,
+        hero: None,
+    };
+    let expr = format_view_tree(&ViewTree::Element(el), &[], &FxHashMap::default());
+    // Static false class bindings should be skipped entirely
+    assert_eq!(expr, "Container()");
+}
+
+#[test]
+fn test_format_element_with_class_map_bindings_and_child() {
+    let mut bindings = FxHashMap::default();
+    bindings.insert(
+        "active".to_string(),
+        ExprIR::IdentifierExpr {
+            name: "isOpen".to_string(),
+            type_ann: None,
+        },
+    );
+    let el = ElementIR {
+        class_map_bindings: bindings,
+        tag: "div".into(),
+        props: FxHashMap::default(),
+        bindings: FxHashMap::default(),
+        events: FxHashMap::default(),
+        style_classes: None,
+        inline_style: None,
+        children: vec![ViewTree::Text("Hello".into())],
+        construction_kind: ConstructionKind::TagMapping,
+        source_span: None,
+        motion: None,
+        scroll: None,
+        drag: None,
+        hero: None,
+    };
+    let expr = format_view_tree(&ViewTree::Element(el), &[], &FxHashMap::default());
+    // Should wrap the child Container inside a conditional Container
+    assert!(
+        expr.contains("Container("),
+        "should contain outer Container: {}",
+        expr
+    );
+    assert!(
+        expr.contains("child: Container(child: Text('Hello'))"),
+        "should contain inner Container with child: {}",
+        expr
+    );
+    assert!(
+        expr.contains("isOpen"),
+        "should contain condition expression: {}",
+        expr
+    );
+    assert!(
+        expr.contains("BoxDecoration"),
+        "should contain conditional decoration: {}",
+        expr
+    );
+}
+
 // ── generate_function_flutter tests ───────────────────────
 
 #[test]
@@ -832,15 +987,33 @@ fn test_store_dart_empty() {
     };
     let store_dart = codegen.gen_store_dart("EmptyStore", &store);
     assert!(store_dart.contains("import 'package:flutter_riverpod/flutter_riverpod.dart';"));
-    assert!(store_dart.contains("Empty store"), "empty store should have comment: {}", store_dart);
+    assert!(
+        store_dart.contains("Empty store"),
+        "empty store should have comment: {}",
+        store_dart
+    );
 }
 
 #[test]
 fn test_store_dart_with_signals() {
     let codegen = FlutterCodegen;
     let mut signals = FxHashMap::default();
-    signals.insert("count".into(), TypeIR { kind: "i32".into(), type_args: vec![], is_nullable: false });
-    signals.insert("name".into(), TypeIR { kind: "string".into(), type_args: vec![], is_nullable: false });
+    signals.insert(
+        "count".into(),
+        TypeIR {
+            kind: "i32".into(),
+            type_args: vec![],
+            is_nullable: false,
+        },
+    );
+    signals.insert(
+        "name".into(),
+        TypeIR {
+            kind: "string".into(),
+            type_args: vec![],
+            is_nullable: false,
+        },
+    );
     let mut defaults = FxHashMap::default();
     defaults.insert("count".into(), serde_json::json!(0));
     defaults.insert("name".into(), serde_json::json!("world"));
@@ -853,10 +1026,17 @@ fn test_store_dart_with_signals() {
         ..Default::default()
     };
     let store_dart = codegen.gen_store_dart("AppStore", &store);
-    assert!(store_dart.contains("final appStoreCountProvider = StateProvider<int>((ref) => 0);"),
-        "should emit count provider: {}", store_dart);
-    assert!(store_dart.contains(r#"final appStoreNameProvider = StateProvider<String>((ref) => 'world');"#),
-        "should emit name provider: {}", store_dart);
+    assert!(
+        store_dart.contains("final appStoreCountProvider = StateProvider<int>((ref) => 0);"),
+        "should emit count provider: {}",
+        store_dart
+    );
+    assert!(
+        store_dart
+            .contains(r#"final appStoreNameProvider = StateProvider<String>((ref) => 'world');"#),
+        "should emit name provider: {}",
+        store_dart
+    );
 }
 
 #[test]
@@ -867,12 +1047,24 @@ fn test_store_dart_with_getters() {
         "doubleCount".into(),
         ExprIR::BinaryOpExpr {
             op: BinaryOpIR::Mul,
-            left: Box::new(ExprIR::IdentifierExpr { name: "count".into(), type_ann: None }),
-            right: Box::new(ExprIR::LiteralExpr { value: serde_json::json!(2) }),
+            left: Box::new(ExprIR::IdentifierExpr {
+                name: "count".into(),
+                type_ann: None,
+            }),
+            right: Box::new(ExprIR::LiteralExpr {
+                value: serde_json::json!(2),
+            }),
         },
     );
     let mut signals = FxHashMap::default();
-    signals.insert("count".into(), TypeIR { kind: "i32".into(), type_args: vec![], is_nullable: false });
+    signals.insert(
+        "count".into(),
+        TypeIR {
+            kind: "i32".into(),
+            type_args: vec![],
+            is_nullable: false,
+        },
+    );
     let mut defaults = FxHashMap::default();
     defaults.insert("count".into(), serde_json::json!(0));
     let store = StoreIR {
@@ -893,7 +1085,14 @@ fn test_store_dart_with_getters() {
 fn test_store_dart_with_action() {
     let codegen = FlutterCodegen;
     let mut signals = FxHashMap::default();
-    signals.insert("count".into(), TypeIR { kind: "i32".into(), type_args: vec![], is_nullable: false });
+    signals.insert(
+        "count".into(),
+        TypeIR {
+            kind: "i32".into(),
+            type_args: vec![],
+            is_nullable: false,
+        },
+    );
     let mut defaults = FxHashMap::default();
     defaults.insert("count".into(), serde_json::json!(0));
     let store = StoreIR {
@@ -901,24 +1100,27 @@ fn test_store_dart_with_action() {
         signals,
         signal_defaults: defaults,
         getters: FxHashMap::default(),
-        actions: vec![
-            FunctionIR {
-                name: "increment".into(),
-                visibility: Visibility::Public,
-                params: vec![],
-                return_type: None,
-                body: BlockIR {
-                    statements: vec![StatementIR::MutationStmt {
-                        intent: Some(MutationIntent::Increment {
-                            target: SignalRefIR { owner: None, name: "count".into() },
-                            amount: Some(Box::new(ExprIR::LiteralExpr { value: serde_json::json!(1) })),
-                        }),
-                    }],
-                },
-                is_async: false,
-                source_span: None,
+        actions: vec![FunctionIR {
+            name: "increment".into(),
+            visibility: Visibility::Public,
+            params: vec![],
+            return_type: None,
+            body: BlockIR {
+                statements: vec![StatementIR::MutationStmt {
+                    intent: Some(MutationIntent::Increment {
+                        target: SignalRefIR {
+                            owner: None,
+                            name: "count".into(),
+                        },
+                        amount: Some(Box::new(ExprIR::LiteralExpr {
+                            value: serde_json::json!(1),
+                        })),
+                    }),
+                }],
             },
-        ],
+            is_async: false,
+            source_span: None,
+        }],
         ..Default::default()
     };
     let store_dart = codegen.gen_store_dart("AppStore", &store);
