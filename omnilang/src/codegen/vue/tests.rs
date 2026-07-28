@@ -934,6 +934,61 @@ mod tests {
         });
     }
 
+    // ── @for list rendering tests ──────────────────────────
+
+    #[test]
+    fn test_vue_list_rendering_basic() {
+        let mut w = CodeWriter::new();
+        let fmt = VueFormatExpr;
+        let list = ListRenderingIntent {
+            iterable: ExprIR::IdentifierExpr {
+                name: "items".into(),
+                type_ann: None,
+            },
+            item_binding: BindingIR {
+                name: "item".into(),
+                r#type: None,
+            },
+            body: Some(ViewTree::Text("Item".into())),
+            key_expr: None,
+            empty_body: None,
+        };
+        crate::codegen::vue::gen_template_node(&mut w, &ViewTree::ListRendering(Box::new(list)), &fmt);
+        let out = w.into_string();
+        // Should emit v-for without v-if guard
+        assert!(out.contains("v-for=\"(item, index) in items\""));
+        assert!(!out.contains("v-if"));
+        assert!(!out.contains("v-else"));
+        assert!(out.contains("Item"));
+    }
+
+    #[test]
+    fn test_vue_list_rendering_with_empty_body() {
+        let mut w = CodeWriter::new();
+        let fmt = VueFormatExpr;
+        let list = ListRenderingIntent {
+            iterable: ExprIR::IdentifierExpr {
+                name: "items".into(),
+                type_ann: None,
+            },
+            item_binding: BindingIR {
+                name: "item".into(),
+                r#type: None,
+            },
+            body: Some(ViewTree::Text("Item".into())),
+            key_expr: None,
+            empty_body: Some(ViewTree::Text("Nothing".into())),
+        };
+        crate::codegen::vue::gen_template_node(&mut w, &ViewTree::ListRendering(Box::new(list)), &fmt);
+        let out = w.into_string();
+        // Should wrap v-for in v-if/v-else conditional
+        assert!(out.contains("v-if=\"items.length > 0\""));
+        assert!(out.contains("v-for=\"(item, index) in items\""));
+        assert!(out.contains("v-else"));
+        assert!(out.contains("Nothing"));
+        assert!(out.contains("Item"));
+    }
+
     #[test]
     fn test_full_pipeline_component_with_store_ref() {
         let codegen = VueCodegen;

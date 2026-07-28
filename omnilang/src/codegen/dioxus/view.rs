@@ -15,7 +15,7 @@ use crate::ir::*;
 /// `is_root` controls trailing-comma behavior: root-level nodes
 /// inside `rsx! {{ ... }}` should NOT have a trailing comma (it causes
 /// a syntax error), while nested nodes DO need commas between siblings.
-pub(super) fn gen_view_node_dioxus(w: &mut CodeWriter, node: &ViewTree, is_root: bool) {
+pub(crate) fn gen_view_node_dioxus(w: &mut CodeWriter, node: &ViewTree, is_root: bool) {
     match node {
         ViewTree::Element(el) => {
             let mut attrs: Vec<String> = Vec::new();
@@ -218,6 +218,24 @@ pub(super) fn gen_view_node_dioxus(w: &mut CodeWriter, node: &ViewTree, is_root:
         ViewTree::ListRendering(list) => {
             let iterable_str = format_expr_ir_dioxus(&list.iterable);
             let item_name = &list.item_binding.name;
+            let has_empty = list.empty_body.is_some();
+            if has_empty {
+                w.emit_fmt(format_args!(
+                    "if {}.len() == 0 {{",
+                    iterable_str
+                ));
+                w.indent();
+                w.emit("rsx! {");
+                w.indent();
+                if let Some(ref empty_body) = list.empty_body {
+                    gen_view_node_dioxus(w, empty_body, true);
+                }
+                w.dedent();
+                w.emit("},");
+                w.dedent();
+                w.emit("} else {");
+                w.indent();
+            }
             w.emit_fmt(format_args!(
                 "{}.iter().map(|{}| {{",
                 iterable_str, item_name
@@ -232,6 +250,10 @@ pub(super) fn gen_view_node_dioxus(w: &mut CodeWriter, node: &ViewTree, is_root:
             w.emit("},");
             w.dedent();
             w.emit("})");
+            if has_empty {
+                w.dedent();
+                w.emit("}");
+            }
         }
         ViewTree::Text(text) => {
             let comma = if is_root { "" } else { "," };

@@ -787,6 +787,58 @@ mod tests {
         });
     }
 
+    // ── @for list rendering tests ──────────────────────────
+
+    #[test]
+    fn test_dioxus_list_rendering_basic() {
+        let mut w = CodeWriter::new();
+        let list = ListRenderingIntent {
+            iterable: ExprIR::IdentifierExpr {
+                name: "items".into(),
+                type_ann: None,
+            },
+            item_binding: BindingIR {
+                name: "item".into(),
+                r#type: None,
+            },
+            body: Some(ViewTree::Text("Item".into())),
+            key_expr: None,
+            empty_body: None,
+        };
+        crate::codegen::dioxus::gen_view_node_dioxus(&mut w, &ViewTree::ListRendering(Box::new(list)), true);
+        let out = w.into_string();
+        // Should emit iterator without if conditional
+        assert!(out.contains("items.iter().map(|item|"));
+        assert!(!out.contains("if items.len() == 0"));
+        assert!(out.contains("rsx!"));
+    }
+
+    #[test]
+    fn test_dioxus_list_rendering_with_empty_body() {
+        let mut w = CodeWriter::new();
+        let list = ListRenderingIntent {
+            iterable: ExprIR::IdentifierExpr {
+                name: "items".into(),
+                type_ann: None,
+            },
+            item_binding: BindingIR {
+                name: "item".into(),
+                r#type: None,
+            },
+            body: Some(ViewTree::Text("Item".into())),
+            key_expr: None,
+            empty_body: Some(ViewTree::Text("Nothing".into())),
+        };
+        crate::codegen::dioxus::gen_view_node_dioxus(&mut w, &ViewTree::ListRendering(Box::new(list)), true);
+        let out = w.into_string();
+        // Should wrap iterator in if/else conditional
+        assert!(out.contains("if items.len() == 0"));
+        assert!(out.contains("} else {"));
+        assert!(out.contains("items.iter().map(|item|"));
+        assert!(out.contains("Nothing"));
+        assert!(out.contains("rsx!"));
+    }
+
     #[test]
     fn test_full_pipeline_component_with_store_ref() {
         let codegen = DioxusCodegen;

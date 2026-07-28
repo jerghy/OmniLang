@@ -11,7 +11,7 @@ use crate::ir::*;
 // Vue template node generation
 // ═══════════════════════════════════════════════════════════
 
-pub(super) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &impl FormatExpr) {
+pub(crate) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &impl FormatExpr) {
     match node {
         ViewTree::Element(el) => {
             let mut attrs: Vec<String> = Vec::new();
@@ -215,6 +215,14 @@ pub(super) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &impl 
         ViewTree::ListRendering(list) => {
             let iterable_str = fmt.format_expr(&list.iterable);
             let item_name = &list.item_binding.name;
+            let has_empty = list.empty_body.is_some();
+            if has_empty {
+                w.emit_fmt(format_args!(
+                    "<template v-if=\"{}.length > 0\">",
+                    iterable_str
+                ));
+                w.indent();
+            }
             w.emit_fmt(format_args!(
                 "<template v-for=\"({}, index) in {}\" :key=\"index\">",
                 item_name, iterable_str
@@ -225,6 +233,17 @@ pub(super) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &impl 
             }
             w.dedent();
             w.emit("</template>");
+            if has_empty {
+                w.dedent();
+                w.emit("</template>");
+                w.emit("<template v-else>");
+                w.indent();
+                if let Some(ref empty_body) = list.empty_body {
+                    gen_template_node(w, empty_body, fmt);
+                }
+                w.dedent();
+                w.emit("</template>");
+            }
         }
 
         ViewTree::Text(text) => {
