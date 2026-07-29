@@ -98,16 +98,34 @@ function __omni_effect(fn) {
 }
 
 function __omni_reportError(context, error) {
-  var msg = "[OmniView] " + context + ": " + String(error);
-  console.error(msg);
+  var severity = "error";
+  var code = context;
+  if (context.indexOf(":") >= 0) {
+    var parts = context.split(":");
+    var prefix = parts[0];
+    if (prefix === "warn" || prefix === "error" || prefix === "fatal") {
+      severity = prefix;
+      code = parts.slice(1).join(":");
+    }
+  }
+  var msg = "[OmniView] " + severity.toUpperCase() + " " + code + ": " + String(error);
+  if (severity === "fatal") { console.error(msg); }
+  else if (severity === "warn") { console.warn(msg); }
+  else { console.error(msg); }
   if (!window.__omni_runtimeErrors) window.__omni_runtimeErrors = [];
   if (window.__omni_runtimeErrors.length >= 100) window.__omni_runtimeErrors.shift();
-  window.__omni_runtimeErrors.push({ context: context, error: String(error), time: Date.now() });
+  window.__omni_runtimeErrors.push({
+    severity: severity,
+    code: code,
+    message: String(error),
+    time: Date.now()
+  });
   try {
     if (typeof parent !== 'undefined' && parent.postMessage) {
       parent.postMessage({
         type: 'omni-runtime-error',
-        context: context,
+        severity: severity,
+        code: code,
         message: String(error),
         timestamp: Date.now()
       }, window.location.origin);
@@ -195,7 +213,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="Coun
 
 
 /// ── Event Bindings & Reactive Effects ──
-__omni_effect(() => { const el = __omni_el("el-interp-003"); if (el) try { el.textContent = String(Counter_count.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-003"); if (el) try { el.textContent = String(Counter_count.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
 
 /// ── Mount Lifecycle ──
 // @effect Counter

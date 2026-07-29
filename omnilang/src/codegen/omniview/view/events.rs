@@ -181,8 +181,7 @@ impl OmniViewGenerator {
                     self.emit_statement(stmt);
                 }
                 self.js.push_str("}\n");
-                let event_obj =
-                    emit_event_object(handler.event_data(), handler.used_fields(), "e");
+                let event_obj = emit_event_object(handler.event_data(), handler.used_fields(), "e");
                 let _ = writeln!(self.js,
                     "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ try {{ {sp} {pd} {wrapper_name}({event_obj}); }} catch(err) {{ __omni_reportError(\"error:event:{js_event}\", err); }} }}); }}",
                     nid = nid, js_event = js_event, sp = sp, pd = pd, wrapper_name = wrapper_name, event_obj = event_obj
