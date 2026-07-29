@@ -130,6 +130,11 @@ impl OmniViewGenerator {
                 self.js
                     .push_str(&format!("  {}({});\n", resolved_name, arg_str.join(", ")));
             }
+            StatementIR::BlockStmtIR { body } => {
+                for stmt in &body.statements {
+                    self.emit_statement(stmt);
+                }
+            }
             _ => {
                 // Placeholder for unhandled statements
                 self.js.push_str("  /* unhandled stmt */\n");
@@ -162,6 +167,15 @@ impl OmniViewGenerator {
                 } else {
                     String::new()
                 }
+            }
+            StatementIR::BlockStmtIR { body } => {
+                let parts: Vec<String> = body
+                    .statements
+                    .iter()
+                    .map(|s| self.stmt_to_js_inline(s))
+                    .filter(|s| !s.is_empty())
+                    .collect();
+                parts.join("; ")
             }
             _ => String::from("/* unhandled stmt in block expr */"),
         }

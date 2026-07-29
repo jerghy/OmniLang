@@ -711,6 +711,34 @@ fn test_stmt_continue() {
     assert!(gen.js.contains("continue"));
 }
 
+#[test]
+fn test_block_stmt_in_function() {
+    let source = r#"import omniview;
+component main {
+    signal x: i32 = 0;
+    fn increment() {
+        {
+            x = x + 1;
+        }
+    }
+    view { <div>{x}</div> }
+}
+"#;
+    let result = crate::compile_omniview(source, false, false);
+    let js = result.files.expect("Expected JS output").js;
+    // The block's inner statement should be emitted, not "unhandled stmt"
+    assert!(
+        !js.contains("unhandled stmt"),
+        "BlockStmtIR should not fall through to wildcard. JS:\n{}",
+        js
+    );
+    // The increment logic should appear in the output
+    assert!(
+        js.contains("__omni_subs.get"),
+        "Signal mutation should be emitted"
+    );
+}
+
 // ── Component Generation ────────────────────────────
 
 #[test]
