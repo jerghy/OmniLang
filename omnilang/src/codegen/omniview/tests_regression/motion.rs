@@ -115,7 +115,7 @@ fn test_is_transform_prop() {
 /// Tests all 6 EasingIR variants, including optional field defaults.
 #[test]
 fn test_easing_all_variants() {
-    let mut gen = OmniViewGenerator::test_new();
+    let gen = OmniViewGenerator::test_new();
 
     // Named easing → JSON string
     assert_eq!(
