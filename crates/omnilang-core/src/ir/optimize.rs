@@ -722,7 +722,7 @@ mod tests {
                 motion: None,
                 scroll: None,
                 drag: None,
-                            })),
+            })),
             ..ComponentIR::default()
         };
 
@@ -754,7 +754,7 @@ mod tests {
                 motion: None,
                 scroll: None,
                 drag: None,
-                            })),
+            })),
             ..ComponentIR::default()
         };
 
@@ -786,7 +786,7 @@ mod tests {
                 motion: None,
                 scroll: None,
                 drag: None,
-                            })),
+            })),
             ..ComponentIR::default()
         };
 
@@ -920,7 +920,7 @@ mod tests {
                 motion: None,
                 scroll: None,
                 drag: None,
-                            })),
+            })),
             ..ComponentIR::default()
         };
 

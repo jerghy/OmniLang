@@ -262,13 +262,13 @@ function __omni_el(nid) {
 	}
 	function __omni_cleanupElement(nid) {
 	  if (!nid) return;
-	  var prefix = nid + "_";
-	  __omni_animations.forEach(function(anim, key) {
-	    if (key.startsWith(prefix)) {
+	  var anims = __omni_animations.get(nid);
+	  if (anims) {
+	    anims.forEach(function(anim) {
 	      try { anim.cancel(); } catch(_) {}
-	      __omni_animations.delete(key);
-	    }
-	  });
+	    });
+	    __omni_animations.delete(nid);
+	  }
 	  if (typeof __omni_scrollRemoveEntry === 'function') {
 	    __omni_scrollRemoveEntry(nid);
 	  }

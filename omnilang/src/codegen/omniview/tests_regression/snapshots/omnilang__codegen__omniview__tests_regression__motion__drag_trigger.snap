@@ -10,7 +10,8 @@ expression: "&output"
   const el = __omni_el("el-drag-001");
   if (!el) return;
   const anim = __omni_motion_fadeIn(el, { trigger: "dragHorizontal" });
-  __omni_animations.set("el-drag-001_dragHorizontal", anim);
+  if (!__omni_animations.has("el-drag-001")) __omni_animations.set("el-drag-001", new Map());
+  __omni_animations.get("el-drag-001").set("dragHorizontal", anim);
   anim.pause();
   const dur = anim.effect?.getTiming()?.duration || 300;
   let startPos = 0, currentDelta = 0;

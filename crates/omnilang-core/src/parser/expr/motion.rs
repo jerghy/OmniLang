@@ -56,14 +56,22 @@ impl<'a> Parser<'a> {
                 let dir = name.strip_prefix("back").unwrap_or("out");
                 let dir_lower = dir.to_lowercase();
                 EasingExpr::Back {
-                    direction: if dir_lower == "out" { None } else { Some(dir_lower) },
+                    direction: if dir_lower == "out" {
+                        None
+                    } else {
+                        Some(dir_lower)
+                    },
                 }
             }
             "elasticIn" | "elasticOut" | "elasticInOut" => {
                 let dir = name.strip_prefix("elastic").unwrap_or("out");
                 let dir_lower = dir.to_lowercase();
                 EasingExpr::Elastic {
-                    direction: if dir_lower == "out" { None } else { Some(dir_lower) },
+                    direction: if dir_lower == "out" {
+                        None
+                    } else {
+                        Some(dir_lower)
+                    },
                 }
             }
             "cubic" => {

@@ -783,7 +783,6 @@ impl IRProgram {
             .values()
             .find_map(|m| m.motions.iter().find(|mo| mo.name == name))
     }
-
 }
 
 impl Default for IRProgram {

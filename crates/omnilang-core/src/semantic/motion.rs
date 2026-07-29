@@ -67,7 +67,6 @@ pub(super) fn has_enter_leave_animation(nodes: &[ViewNode]) -> bool {
     false
 }
 
-
 /// Parse a duration string (e.g. "300ms", "1.5s") to milliseconds.
 /// Returns `Err` with a description if the value cannot be parsed.
 pub(super) fn parse_duration_ms(val: &str) -> Result<f64, String> {

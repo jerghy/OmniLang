@@ -14,7 +14,8 @@ use std::fmt::Write;
 ///   const el = __omni_el("{nid}");
 ///   if (el) {
 ///     const anim = {anim_orchestrator};
-///     __omni_animations.set("{nid}_{trigger}", anim);
+///     if (!__omni_animations.has("{nid}")) __omni_animations.set("{nid}", new Map());
+///     __omni_animations.get("{nid}").set("{trigger}", anim);
 ///     {extra_body}
 ///   }
 /// })();
@@ -32,7 +33,8 @@ fn format_simple_trigger_js(
          \x20 const el = __omni_el(\"{nid}\");\n\
          \x20 if (el) {{\n\
          \x20\x20 const anim = {anim};\n\
-         \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", anim);\n\
+         \x20\x20 if (!__omni_animations.has(\"{nid}\")) __omni_animations.set(\"{nid}\", new Map());\n\
+         \x20\x20 __omni_animations.get(\"{nid}\").set(\"{trigger}\", anim);\n\
          {extra}\
          \x20 }}\n\
          }})();\n",
@@ -92,7 +94,8 @@ impl OmniViewGenerator {
              \x20 const el = __omni_el(\"{nid}\");\n\
              \x20 if (!el) return;\n\
              \x20 const anim = {anim_call};\n\
-             \x20 __omni_animations.set(\"{nid}_{trigger}\", anim);\n\
+             \x20 if (!__omni_animations.has(\"{nid}\")) __omni_animations.set(\"{nid}\", new Map());\n\
+             \x20 __omni_animations.get(\"{nid}\").set(\"{trigger}\", anim);\n\
              \x20 const threshold = {threshold};\n\
              \x20 const observer = new IntersectionObserver((entries) => {{\n\
              \x20\x20 entries.forEach(entry => {{\n\
@@ -199,7 +202,8 @@ impl OmniViewGenerator {
              \x20 const el = __omni_el(\"{nid}\");\n\
              \x20 if (!el) return;\n\
              \x20 const anim = {anim_call};\n\
-             \x20 __omni_animations.set(\"{nid}_{trigger}\", anim);\n\
+             \x20 if (!__omni_animations.has(\"{nid}\")) __omni_animations.set(\"{nid}\", new Map());\n\
+             \x20 __omni_animations.get(\"{nid}\").set(\"{trigger}\", anim);\n\
              \x20 anim.pause();\n\
              \x20 const dur = anim.effect?.getTiming()?.duration || 300;\n\
              \x20 __omni_scrollElements.push({{\n\
@@ -267,7 +271,8 @@ impl OmniViewGenerator {
              \x20 const el = __omni_el(\"{nid}\");\n\
              \x20 if (!el) return;\n\
              \x20 const anim = {anim_call};\n\
-             \x20 __omni_animations.set(\"{nid}_{trigger}\", anim);\n\
+             \x20 if (!__omni_animations.has(\"{nid}\")) __omni_animations.set(\"{nid}\", new Map());\n\
+             \x20 __omni_animations.get(\"{nid}\").set(\"{trigger}\", anim);\n\
              \x20 anim.pause();\n\
              \x20 const dur = anim.effect?.getTiming()?.duration || 300;\n\
              \x20 let startPos = 0, currentDelta = 0;\n\
@@ -384,7 +389,8 @@ impl OmniViewGenerator {
                      \x20 const el = __omni_el(\"{nid}\");\n\
                      \x20 if (el) {{\n\
                      \x20\x20 const anim = {anim};\n\
-                     \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", anim);\n\
+                     \x20\x20 if (!__omni_animations.has(\"{nid}\")) __omni_animations.set(\"{nid}\", new Map());\n\
+                     \x20\x20 __omni_animations.get(\"{nid}\").set(\"{trigger}\", anim);\n\
                      \x20\x20 if (el.offsetParent !== null) anim.play();\n\
                      \x20 }}\n\
                      }})();",
@@ -401,8 +407,8 @@ impl OmniViewGenerator {
                     "// @hover trigger"
                 };
                 let extra = format!(
-                    "\x20\x20 el.addEventListener(\"mouseenter\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.play(); }});\n\
-                     \x20\x20 el.addEventListener(\"mouseleave\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.reverse(); }});\n",
+                    "\x20\x20 el.addEventListener(\"mouseenter\", function() {{ __omni_animations.get(\"{nid}\")?.get(\"{trigger}\")?.play(); }});\n\
+                     \x20\x20 el.addEventListener(\"mouseleave\", function() {{ __omni_animations.get(\"{nid}\")?.get(\"{trigger}\")?.reverse(); }});\n",
                     nid = nid,
                     trigger = trigger_str,
                 );
@@ -421,8 +427,8 @@ impl OmniViewGenerator {
                     "// @press trigger"
                 };
                 let extra = format!(
-                    "\x20\x20 el.addEventListener(\"mousedown\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.play(); }});\n\
-                     \x20\x20 el.addEventListener(\"mouseup\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.reverse(); }});\n",
+                    "\x20\x20 el.addEventListener(\"mousedown\", function() {{ __omni_animations.get(\"{nid}\")?.get(\"{trigger}\")?.play(); }});\n\
+                     \x20\x20 el.addEventListener(\"mouseup\", function() {{ __omni_animations.get(\"{nid}\")?.get(\"{trigger}\")?.reverse(); }});\n",
                     nid = nid,
                     trigger = trigger_str,
                 );

@@ -82,18 +82,9 @@ pub enum FillValue {
 #[derive(Debug, Clone, Serialize)]
 pub enum EasingExpr {
     Named(String),
-    CubicBezier {
-        x1: f64,
-        y1: f64,
-        x2: f64,
-        y2: f64,
-    },
-    Back {
-        direction: Option<String>,
-    },
-    Elastic {
-        direction: Option<String>,
-    },
+    CubicBezier { x1: f64, y1: f64, x2: f64, y2: f64 },
+    Back { direction: Option<String> },
+    Elastic { direction: Option<String> },
 }
 
 /// Animation trigger specification (used in @prop attributes)

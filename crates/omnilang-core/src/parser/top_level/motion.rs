@@ -38,9 +38,7 @@ impl<'a> Parser<'a> {
             .ok_or_else(|| self.error("expected motion body"))?;
 
         match first.as_str() {
-            "from" | "to" => {
-                Ok(MotionBody::Keyframe(self.parse_keyframe_body()?))
-            }
+            "from" | "to" => Ok(MotionBody::Keyframe(self.parse_keyframe_body()?)),
             _ => Err(self.error(format!(
                 "expected 'from' or 'to' to start keyframe body, got '{}'",
                 first

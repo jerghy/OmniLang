@@ -8,7 +8,8 @@ expression: "&output"
   const el = __omni_el("el-driven-001");
   if (el) {
    const anim = __omni_motion_fadeIn(el, { trigger: "enter" });
-   __omni_animations.set("el-driven-001_enter", anim);
+   if (!__omni_animations.has("el-driven-001")) __omni_animations.set("el-driven-001", new Map());
+   __omni_animations.get("el-driven-001").set("enter", anim);
    if (el.offsetParent !== null) anim.play();
   }
 })();

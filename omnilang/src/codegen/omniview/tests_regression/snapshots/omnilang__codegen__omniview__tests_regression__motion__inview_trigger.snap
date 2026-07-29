@@ -1,6 +1,5 @@
 ---
 source: omnilang/src/codegen/omniview/tests_regression/motion.rs
-assertion_line: 552
 expression: "&output"
 ---
 // === mount_js ===
@@ -11,7 +10,8 @@ expression: "&output"
   const el = __omni_el("el-inview-001");
   if (!el) return;
   const anim = __omni_motion_reveal(el, { trigger: "inView" });
-  __omni_animations.set("el-inview-001_inView", anim);
+  if (!__omni_animations.has("el-inview-001")) __omni_animations.set("el-inview-001", new Map());
+  __omni_animations.get("el-inview-001").set("inView", anim);
   const threshold = 0.5;
   const observer = new IntersectionObserver((entries) => {
    entries.forEach(entry => {

@@ -4,9 +4,7 @@
 //! syntactic/semantic rules (easing names, keyframe types, clip-path shapes, etc.).
 
 use super::helpers::is_non_interpolatable;
-use super::motion::{
-    is_keyword_value, is_valid_easing_name,
-};
+use super::motion::{is_keyword_value, is_valid_easing_name};
 use super::SemanticAnalyzer;
 use crate::error::{Diagnostic, DiagnosticKind};
 use crate::lexer::Span;
@@ -18,11 +16,8 @@ impl SemanticAnalyzer {
     /// Validate all motion definitions and triggers in a module.
     pub(super) fn validate_motions_in_module(&mut self, module: &Module) {
         // Collect all module-level motion names for reference resolution
-        let module_motion_names: FxHashSet<&str> = module
-            .motions
-            .iter()
-            .map(|m| m.name.as_str())
-            .collect();
+        let module_motion_names: FxHashSet<&str> =
+            module.motions.iter().map(|m| m.name.as_str()).collect();
 
         // Validate module-level motion definitions
         for motion in &module.motions {
@@ -43,10 +38,7 @@ impl SemanticAnalyzer {
 
             // Validate motion triggers in view
             if let Some(ref view) = comp.view {
-                self.validate_view_motion_triggers(
-                    &view.children,
-                    &comp_motion_names,
-                );
+                self.validate_view_motion_triggers(&view.children, &comp_motion_names);
             }
         }
     }
@@ -232,10 +224,7 @@ impl SemanticAnalyzer {
                     if !all_motion_names.contains(name.as_str()) {
                         self.diagnostics.push(Diagnostic::error(
                             DiagnosticKind::E0006,
-                            &format!(
-                                "Undefined motion '{}' referenced in element trigger",
-                                name
-                            ),
+                            &format!("Undefined motion '{}' referenced in element trigger", name),
                             span,
                         ));
                     }

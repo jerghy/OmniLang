@@ -178,4 +178,3 @@ impl<'a> Parser<'a> {
         Ok(module)
     }
 }
-

@@ -40,7 +40,8 @@ function __omni_scrollRemoveEntry(nid) {
   const el = __omni_el("el-scroll-001");
   if (!el) return;
   const anim = __omni_motion_fadeIn(el, { trigger: "scroll" });
-  __omni_animations.set("el-scroll-001_scroll", anim);
+  if (!__omni_animations.has("el-scroll-001")) __omni_animations.set("el-scroll-001", new Map());
+  __omni_animations.get("el-scroll-001").set("scroll", anim);
   anim.pause();
   const dur = anim.effect?.getTiming()?.duration || 300;
   __omni_scrollElements.push({

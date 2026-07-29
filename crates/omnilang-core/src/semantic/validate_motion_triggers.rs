@@ -32,10 +32,7 @@ impl SemanticAnalyzer {
                         self.validate_view_motion_triggers(body, all_motion_names);
                     }
                     if let Some(ref else_body) = if_dir.else_body {
-                        self.validate_view_motion_triggers(
-                            else_body,
-                            all_motion_names,
-                        );
+                        self.validate_view_motion_triggers(else_body, all_motion_names);
                     }
                 }
                 ViewNode::ForDirective(for_dir) => {
@@ -50,15 +47,9 @@ impl SemanticAnalyzer {
                             &for_dir.span,
                         ));
                     }
-                    self.validate_view_motion_triggers(
-                        &for_dir.body,
-                        all_motion_names,
-                    );
+                    self.validate_view_motion_triggers(&for_dir.body, all_motion_names);
                     if let Some(ref empty_body) = for_dir.empty_body {
-                        self.validate_view_motion_triggers(
-                            empty_body,
-                            all_motion_names,
-                        );
+                        self.validate_view_motion_triggers(empty_body, all_motion_names);
                     }
                 }
                 ViewNode::Text(_) | ViewNode::Interpolation(_) | ViewNode::SlotDirective { .. } => {

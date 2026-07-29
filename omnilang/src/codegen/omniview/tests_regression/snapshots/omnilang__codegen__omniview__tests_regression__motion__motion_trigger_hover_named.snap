@@ -7,8 +7,9 @@ expression: "&gen.js"
   const el = __omni_el("el-btn-002");
   if (el) {
    const anim = __omni_motion_scaleUp(el, { trigger: "hover" });
-   __omni_animations.set("el-btn-002_hover", anim);
-   el.addEventListener("mouseenter", function() { __omni_animations.get("el-btn-002_hover")?.play(); });
-   el.addEventListener("mouseleave", function() { __omni_animations.get("el-btn-002_hover")?.reverse(); });
+   if (!__omni_animations.has("el-btn-002")) __omni_animations.set("el-btn-002", new Map());
+   __omni_animations.get("el-btn-002").set("hover", anim);
+   el.addEventListener("mouseenter", function() { __omni_animations.get("el-btn-002")?.get("hover")?.play(); });
+   el.addEventListener("mouseleave", function() { __omni_animations.get("el-btn-002")?.get("hover")?.reverse(); });
   }
 })();

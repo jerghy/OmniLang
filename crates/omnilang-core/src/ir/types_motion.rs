@@ -56,18 +56,9 @@ pub struct PlaybackIR {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum EasingIR {
     Named(String),
-    CubicBezier {
-        x1: f64,
-        y1: f64,
-        x2: f64,
-        y2: f64,
-    },
-    Back {
-        direction: Option<String>,
-    },
-    Elastic {
-        direction: Option<String>,
-    },
+    CubicBezier { x1: f64, y1: f64, x2: f64, y2: f64 },
+    Back { direction: Option<String> },
+    Elastic { direction: Option<String> },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

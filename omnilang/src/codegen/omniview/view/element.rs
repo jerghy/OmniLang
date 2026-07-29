@@ -447,11 +447,12 @@ impl OmniViewGenerator {
                 "// @paused override\n\
                  (function() {{\n\
                  \x20 var _paused = Boolean({paused});\n\
-                 \x20 __omni_animations.forEach((anim, key) => {{\n\
-                 \x20\x20 if (key.startsWith(\"{nid}_\")) {{\n\
+                 \x20 var anims = __omni_animations.get(\"{nid}\");\n\
+                 \x20 if (anims) {{\n\
+                 \x20\x20 anims.forEach((anim) => {{\n\
                  \x20\x20\x20 if (_paused) {{ anim.pause(); }} else {{ anim.play(); }}\n\
-                 \x20\x20 }}\n\
-                 \x20 }});\n\
+                 \x20\x20 }});\n\
+                 \x20 }}\n\
                  }})();\n",
                 nid = nid,
                 paused = paused_js
