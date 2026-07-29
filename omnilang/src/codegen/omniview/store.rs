@@ -20,9 +20,15 @@ fn expr_default_display(expr: &ExprIR, gen: &mut OmniViewGenerator) -> String {
         }
         _ => {
             let js = gen.expr_to_js(expr);
-            // Truncate long expressions
-            if js.len() > 40 {
-                format!("{}…", &js[..39])
+            // Truncate long expressions — use char boundary to avoid UTF-8 panics.
+            // Matches the pattern used in expr.rs:382-388.
+            if js.chars().count() > 40 {
+                let end = js
+                    .char_indices()
+                    .nth(39)
+                    .map(|(i, _)| i)
+                    .unwrap_or(js.len());
+                format!("{}…", &js[..end])
             } else {
                 js
             }
