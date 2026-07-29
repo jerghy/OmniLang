@@ -112,16 +112,17 @@ impl OmniViewGenerator {
                 // Extract parent-submitted children for slot projection
                 let slot_children: Vec<ViewTree> = el.children.clone();
 
-                // Clone the view tree to break the borrow on self
-                // Apply slot injection if parent passed children
-                let child_view_owned = if slot_children.is_empty() {
-                    child_view.clone()
+                // Fast path: no slot children → borrow the view tree directly, avoid
+                // O(n) deep clone. inject_slot_children with empty input is a semantic
+                // no-op (slots stay as-is, no slot replacement happens) but still
+                // performs recursive ElementIR cloning.
+                let child_html = if slot_children.is_empty() {
+                    self.view_to_html(child_view, indent + 1)
                 } else {
-                    inject_slot_children(child_view.clone(), &slot_children)
+                    let child_view_owned =
+                        inject_slot_children(child_view.clone(), &slot_children);
+                    self.view_to_html(&child_view_owned, indent + 1)
                 };
-
-                // Generate child HTML inline
-                let child_html = self.view_to_html(&child_view_owned, indent + 1);
 
                 // Restore all saved state (for-loop state + parent context)
                 saved_state.restore(self);
