@@ -208,8 +208,10 @@ impl FlutterCodegen {
                 let MotionBodyIR::Keyframe(kf) = &motion.body;
                 let duration_ms = extract_duration_ms(&kf.over);
                 let ease_str = format_easing_flutter(&kf.ease);
-                let begin = extract_tween_begin(kf);
-                let end = extract_tween_end(kf);
+                let properties = extract_keyframe_properties(kf);
+                let primary_prop = properties.first().map(|s| s.as_str()).unwrap_or("opacity");
+                let begin = extract_tween_begin(kf, primary_prop);
+                let end = extract_tween_end(kf, primary_prop);
                 let has_enter = enter_motions.contains(&motion.name);
 
                 // Create AnimationController

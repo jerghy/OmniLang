@@ -21,17 +21,15 @@ pub(crate) fn extract_keyframe_properties(kf: &KeyframeIR) -> Vec<String> {
     props
 }
 
-/// Extract the begin (from) tween value from keyframe stops.
-pub(crate) fn extract_tween_begin(kf: &KeyframeIR) -> String {
+/// Extract the begin (from) tween value from keyframe stops for the given property.
+pub(crate) fn extract_tween_begin(kf: &KeyframeIR, prop: &str) -> String {
     for stop in &kf.stops {
         if stop.position == 0.0 {
-            for value in stop.properties.values() {
-                if let ExprIR::LiteralExpr {
-                    value: serde_json::Value::Number(n),
-                } = value
-                {
-                    return n.to_string();
-                }
+            if let Some(ExprIR::LiteralExpr {
+                value: serde_json::Value::Number(n),
+            }) = stop.properties.get(prop)
+            {
+                return n.to_string();
             }
         }
     }
@@ -39,17 +37,15 @@ pub(crate) fn extract_tween_begin(kf: &KeyframeIR) -> String {
     "0.0".to_string()
 }
 
-/// Extract the end (to) tween value from keyframe stops.
-pub(crate) fn extract_tween_end(kf: &KeyframeIR) -> String {
+/// Extract the end (to) tween value from keyframe stops for the given property.
+pub(crate) fn extract_tween_end(kf: &KeyframeIR, prop: &str) -> String {
     for stop in &kf.stops {
         if stop.position == 1.0 {
-            for value in stop.properties.values() {
-                if let ExprIR::LiteralExpr {
-                    value: serde_json::Value::Number(n),
-                } = value
-                {
-                    return n.to_string();
-                }
+            if let Some(ExprIR::LiteralExpr {
+                value: serde_json::Value::Number(n),
+            }) = stop.properties.get(prop)
+            {
+                return n.to_string();
             }
         }
     }
