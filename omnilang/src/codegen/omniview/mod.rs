@@ -14,6 +14,7 @@ pub mod design;
 mod editor;
 mod expr;
 mod list;
+pub mod typescript;
 
 mod motion;
 mod motion_config;
@@ -66,6 +67,10 @@ pub struct OmniViewOutput {
     /// Built during the same walk as element_classes — keyed by element id prop.
     #[serde(default, skip_serializing_if = "FxHashMap::is_empty")]
     pub nid_map: FxHashMap<String, String>,
+    /// TypeScript type declarations (.d.ts) for all components.
+    /// Contains export interfaces for props, event handlers, and component types.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub types: String,
 }
 
 /// Per-component compiled output for hot-replace.
@@ -394,6 +399,10 @@ pub fn generate(
     // Transfer accumulated element_tree from generator
     gen.element_tree = std::mem::take(&mut gen.element_tree);
 
+    let all_comp_vec: Vec<crate::ir::ComponentIR> =
+        ir.all_components().into_values().cloned().collect();
+    let types = typescript::generate_typescript_declarations(&all_comp_vec);
+
     OmniViewOutput {
         js: gen.js,
         html: gen.html,
@@ -406,6 +415,7 @@ pub fn generate(
         per_component_css: gen.per_component_css,
         element_tree: gen.element_tree,
         nid_map: gen.nid_map,
+        types,
     }
 }
 

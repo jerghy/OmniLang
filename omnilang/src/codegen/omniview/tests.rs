@@ -1674,3 +1674,124 @@ mod proptests {
         }
     }
 }
+
+// ── TypeScript Declarations ──────────────────────────
+
+#[test]
+fn typescript_declarations_emit_props_interface() {
+    let mut module = make_module("main");
+    module.components.insert(
+        "Counter".to_string(),
+        ComponentIR {
+            props: FxHashMap::from_iter([
+                (
+                    "count".into(),
+                    TypeIR {
+                        kind: TypeKind::Int,
+                        type_args: vec![],
+                        is_nullable: false,
+                    },
+                ),
+                (
+                    "label".into(),
+                    TypeIR {
+                        kind: TypeKind::String,
+                        type_args: vec![],
+                        is_nullable: false,
+                    },
+                ),
+                (
+                    "enabled".into(),
+                    TypeIR {
+                        kind: TypeKind::Bool,
+                        type_args: vec![],
+                        is_nullable: false,
+                    },
+                ),
+            ]),
+            ..make_component("Counter")
+        },
+    );
+    let ir = make_program(FxHashMap::from_iter([("main".into(), module)]));
+    let output = generate(&ir, false, false, false);
+    assert!(output.types.contains("export interface CounterProps {"));
+    assert!(output.types.contains("  count: number;"));
+    assert!(output.types.contains("  label: string;"));
+    assert!(output.types.contains("  enabled: boolean;"));
+    assert!(output.types.contains("export interface CounterComponent {"));
+    assert!(output.types.contains("(props: CounterProps): JSX.Element;"));
+}
+
+#[test]
+fn typescript_declarations_optional_for_defaulted_props() {
+    let mut module = make_module("main");
+    module.components.insert(
+        "Widget".to_string(),
+        ComponentIR {
+            props: FxHashMap::from_iter([
+                (
+                    "required".into(),
+                    TypeIR {
+                        kind: TypeKind::String,
+                        type_args: vec![],
+                        is_nullable: false,
+                    },
+                ),
+                (
+                    "optional".into(),
+                    TypeIR {
+                        kind: TypeKind::Int,
+                        type_args: vec![],
+                        is_nullable: false,
+                    },
+                ),
+            ]),
+            prop_defaults: FxHashMap::from_iter([(
+                "optional".into(),
+                ExprIR::LiteralExpr {
+                    value: serde_json::json!(42),
+                },
+            )]),
+            ..make_component("Widget")
+        },
+    );
+    let ir = make_program(FxHashMap::from_iter([("main".into(), module)]));
+    let output = generate(&ir, false, false, false);
+    assert!(output.types.contains("export interface WidgetProps {"));
+    assert!(output.types.contains("  required: string;"));
+    assert!(output.types.contains("  optional?: number;"));
+    assert!(!output.types.contains("  optional: number;"));
+}
+
+#[test]
+fn typescript_declarations_event_handler_types() {
+    let mut module = make_module("main");
+    module.components.insert(
+        "Button".to_string(),
+        ComponentIR {
+            event_names: vec!["onClick".into(), "onHover".into()],
+            event_param_types: vec!["MouseEvent".into(), "".into()],
+            ..make_component("Button")
+        },
+    );
+    let ir = make_program(FxHashMap::from_iter([("main".into(), module)]));
+    let output = generate(&ir, false, false, false);
+    assert!(output
+        .types
+        .contains("export type onClickHandler = (detail: MouseEvent) => void;"));
+    assert!(output
+        .types
+        .contains("export type onHoverHandler = (detail: any) => void;"));
+    assert!(output
+        .types
+        .contains(r#"export type ButtonEventNames = "onClick" | "onHover";"#));
+}
+
+#[test]
+fn typescript_declarations_empty_when_no_components() {
+    let ir = IRProgram::default();
+    let output = generate(&ir, false, false, false);
+    // The runtime components (signal runtime etc.) aren't components with Props,
+    // so types should be empty or contain only a header comment.
+    assert!(output.types.is_empty() || output.types.starts_with("// Auto-generated"));
+}

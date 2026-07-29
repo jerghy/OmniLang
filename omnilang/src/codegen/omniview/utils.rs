@@ -278,7 +278,7 @@ pub fn build_file_output(gen: &OmniViewOutput) -> CompileOutput {
         "/../packages/omni-animation/dist/omni-animation.js"
     ));
     let html = html_document_wrapper(&gen.html, true, true);
-    CompileOutput::success(vec![
+    let mut files = vec![
         CompiledFile {
             path: "index.js".into(),
             content: gen.js.clone(),
@@ -299,5 +299,13 @@ pub fn build_file_output(gen: &OmniViewOutput) -> CompileOutput {
             path: "omni-animation.js".into(),
             content: OMNI_ANIMATION_JS.to_string(),
         },
-    ])
+    ];
+    // Conditionally add the .d.ts file if types were generated
+    if !gen.types.is_empty() {
+        files.push(CompiledFile {
+            path: "index.d.ts".into(),
+            content: gen.types.clone(),
+        });
+    }
+    CompileOutput::success(files)
 }
