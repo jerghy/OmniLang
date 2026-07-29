@@ -1,0 +1,31 @@
+@motion fadeIn {
+  from { opacity: 0, y: 20 }
+  to   { opacity: 1, y: 0 }
+  over 400
+  ease easeOut
+}
+
+@motion pulse {
+  to { scale: 1.05 }
+  over 200
+  ease easeOut
+}
+
+@motion slideIn {
+  from { opacity: 0, x: -30 }
+  to   { opacity: 1, x: 0 }
+  over 500
+  ease power2Out
+}
+
+component MotionCombined {
+  view {
+    <div>
+      <h1 @enter={fadeIn}>Title</h1>
+      <button @hover={pulse}>Hover Me</button>
+      <div @inView={slideIn}>
+        <p>Content</p>
+      </div>
+    </div>
+  }
+}

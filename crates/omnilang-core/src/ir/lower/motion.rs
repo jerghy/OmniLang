@@ -7,7 +7,6 @@ use super::expr::lower_expr;
 use crate::ir::types::*;
 use crate::ir::types_motion::*;
 use crate::ir::{DirectionValue, FillValue, LoopValue};
-use crate::parser::ast::*;
 use crate::semantic::SemanticResult;
 use rustc_hash::FxHashMap;
 

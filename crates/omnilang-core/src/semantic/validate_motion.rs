@@ -227,22 +227,19 @@ impl SemanticAnalyzer {
         all_motion_names: &FxHashSet<&str>,
     ) {
         for prop in &el.props {
-            match prop {
-                ElementProp::MotionTrigger(trigger) => {
-                    if let Expr::VarRef(name, span) = &trigger.motion_expr {
-                        if !all_motion_names.contains(name.as_str()) {
-                            self.diagnostics.push(Diagnostic::error(
-                                DiagnosticKind::E0006,
-                                &format!(
-                                    "Undefined motion '{}' referenced in element trigger",
-                                    name
-                                ),
-                                span,
-                            ));
-                        }
+            if let ElementProp::MotionTrigger(trigger) = prop {
+                if let Expr::VarRef(name, span) = &trigger.motion_expr {
+                    if !all_motion_names.contains(name.as_str()) {
+                        self.diagnostics.push(Diagnostic::error(
+                            DiagnosticKind::E0006,
+                            &format!(
+                                "Undefined motion '{}' referenced in element trigger",
+                                name
+                            ),
+                            span,
+                        ));
                     }
                 }
-                _ => {}
             }
         }
     }

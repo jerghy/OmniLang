@@ -18,9 +18,7 @@ pub(crate) fn comp_has_path_motion(ir: &IRProgram) -> bool {
 
 /// Check if a single motion uses path animation.
 pub(crate) fn motion_has_path(motion: &MotionIntent) -> bool {
-    let MotionBodyIR::Keyframe(kf) = &motion.body else {
-        return false;
-    };
+    let MotionBodyIR::Keyframe(kf) = &motion.body;
     kf.path.is_some()
 }
 
@@ -114,8 +112,8 @@ pub(crate) fn format_named_curve(name: &str) -> String {
 /// Inspects keyframe properties to determine what widget wrappers to use
 /// (Opacity, Transform.scale, Transform.translate, Transform.rotate).
 pub(crate) fn build_animated_builder_body(motion: &MotionIntent, anim_name: &str) -> String {
-    if let MotionBodyIR::Keyframe(kf) = &motion.body {
-        let properties = extract_keyframe_properties(kf);
+    let MotionBodyIR::Keyframe(kf) = &motion.body;
+    let properties = extract_keyframe_properties(kf);
         if properties.is_empty() {
             return format!("Opacity(opacity: {}.value, child: child)", anim_name);
         }
@@ -165,10 +163,6 @@ pub(crate) fn build_animated_builder_body(motion: &MotionIntent, anim_name: &str
         }
 
         body
-    } else {
-        // Keyframe body with no properties — default opacity animation
-        format!("Opacity(opacity: {}.value, child: child)", anim_name)
-    }
 }
 
 /// Wrap a widget expression with motion-triggered widgets:
@@ -248,17 +242,6 @@ pub(crate) fn wrap_with_motion_widgets(
 }
 
 // wrap_flutter_states removed — StatesIR subsystem removed per ADR-032
-
-/// Parse a duration expression string ("300ms", "1.5s") for Dart codegen.
-pub(crate) fn parse_dart_duration_ms(val: &str) -> Option<f64> {
-    if let Some(ms) = val.strip_suffix("ms") {
-        ms.parse::<f64>().ok()
-    } else if let Some(s) = val.strip_suffix('s') {
-        s.parse::<f64>().ok().map(|s| s * 1000.0)
-    } else {
-        None
-    }
-}
 
 /// Traverse the view tree to find motion names used with @enter triggers.
 pub(crate) fn find_enter_motions(node: &ViewTree) -> Vec<String> {

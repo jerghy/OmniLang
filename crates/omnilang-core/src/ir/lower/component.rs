@@ -7,7 +7,6 @@ use super::stmt::lower_block;
 use super::view::lower_view_block;
 use crate::ir::logic::*;
 use crate::ir::types::*;
-use crate::ir::types_motion::*;
 use crate::parser::ast::*;
 use crate::semantic::SemanticResult;
 use rustc_hash::FxHashMap;

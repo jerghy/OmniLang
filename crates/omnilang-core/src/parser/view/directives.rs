@@ -148,23 +148,6 @@ impl<'a> Parser<'a> {
         })
     }
 
-    /// Parse a property block: { key: expr, ... }
-    pub(super) fn parse_property_block(&mut self) -> Result<Vec<(String, Expr)>, ParseError> {
-        self.expect_token(TokenKind::LBrace, "expected '{' for property block")?;
-        let mut properties = Vec::new();
-        while *self.peek_kind() != TokenKind::RBrace && *self.peek_kind() != TokenKind::Eof {
-            let key = self.expect_ident("expected property name")?;
-            self.expect_token(TokenKind::Colon, "expected ':' after property name")?;
-            let value = self.parse_expr()?;
-            properties.push((key, value));
-            if *self.peek_kind() == TokenKind::Comma {
-                self.advance();
-            }
-        }
-        self.expect_token(TokenKind::RBrace, "expected '}' at end of property block")?;
-        Ok(properties)
-    }
-
     /// Collect an @-keyword that failed to parse as a real directive into a text node.
     /// Used when @for/@if appear in element text content rather than as directives.
     pub(super) fn collect_at_text(&mut self, keyword: &str) -> ViewNode {

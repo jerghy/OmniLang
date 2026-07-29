@@ -270,13 +270,6 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
-    /// Parse callback-only motion body (removed — returns error)
-    fn parse_callback_body(&mut self) -> Result<MotionBody, ParseError> {
-        Err(self.error(
-            "callback-only motion body (onStart/onUpdate/onComplete/onRepeat/onInterrupt) is no longer supported",
-        ))
-    }
-
     /// Parse playback properties (loop, direction, fill, delay, paused)
     fn parse_playback_props(&mut self) -> Result<Vec<PlaybackProp>, ParseError> {
         let mut props = Vec::new();

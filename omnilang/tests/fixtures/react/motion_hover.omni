@@ -1,0 +1,13 @@
+@motion pulse {
+  to { scale: 1.05 }
+  over 200
+  ease easeOut
+}
+
+component MotionHover {
+  view {
+    <div>
+      <button @hover={pulse}>Hover Me</button>
+    </div>
+  }
+}

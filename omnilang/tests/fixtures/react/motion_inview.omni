@@ -1,0 +1,16 @@
+@motion slideIn {
+  from { opacity: 0, x: -30 }
+  to   { opacity: 1, x: 0 }
+  over 500
+  ease power2Out
+}
+
+component MotionInView {
+  view {
+    <div>
+      <div @inView={slideIn}>
+        <p>Slide in on view</p>
+      </div>
+    </div>
+  }
+}

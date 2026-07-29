@@ -240,7 +240,6 @@ pub(super) fn gen_view_node_tsx(
                         attrs.push(format!("data-drag-threshold=\"{}\"", threshold_val));
                         attrs.push(format!("data-drag-velocity-max=\"{}\"", velocity_max_val));
                     }
-                    _ => {}
                 }
             }
 

@@ -9,6 +9,8 @@ use rustc_hash::FxHashSet;
 
 mod keyframes;
 mod transforms;
+#[cfg(test)]
+mod tests;
 
 // Re-export sub-module public items so they are visible at the `motion` level
 pub(super) use transforms::{

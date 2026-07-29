@@ -5,6 +5,36 @@ expression: "&output"
 // === mount_js ===
 
 // === js ===
+/// ─── Shared scroll handler — single listener for all @scroll triggers
+var __omni_scrollElements = [];
+var __omni_scrollHandler = null;
+function __omni_ensureScrollHandler() {
+  if (__omni_scrollHandler) return;
+  __omni_scrollHandler = function() {
+   __omni_scrollElements.forEach(function(entry) {
+    var el = entry.el;
+    var anim = entry.anim;
+    var dur = entry.dur;
+    var target = Omni.scrollProgress(el, entry.startCfg, entry.endCfg);
+    if (entry.scrubDelay > 0) {
+     entry.currentProgress += (target - entry.currentProgress) * Math.min(1, 16.67 / (entry.scrubDelay * 1000));
+     anim.currentTime = entry.currentProgress * dur;
+    } else {
+     entry.currentProgress = target;
+     anim.currentTime = target * dur;
+    }
+   });
+  };
+  window.addEventListener('scroll', __omni_scrollHandler, { passive: true });
+}
+function __omni_scrollRemoveEntry(nid) {
+  var el = __omni_el(nid);
+  if (!el) return;
+  __omni_scrollElements = __omni_scrollElements.filter(function(entry) {
+   return entry.el !== el;
+  });
+}
+
 // @scroll trigger
 (function() {
   const el = __omni_el("el-scroll-001");
@@ -13,21 +43,15 @@ expression: "&output"
   __omni_animations.set("el-scroll-001_scroll", anim);
   anim.pause();
   const dur = anim.effect?.getTiming()?.duration || 300;
-  const startCfg = "0";
-  const endCfg = "500";
-  const scrubDelay = true;
-  function computeProgress() {
-   return Omni.scrollProgress(el, startCfg, endCfg);
-  }
-  let currentProgress = 0;
-  window.addEventListener('scroll', () => {
-   const target = computeProgress();
-   if (scrubDelay > 0) {
-    currentProgress += (target - currentProgress) * Math.min(1, 16.67 / (scrubDelay * 1000));
-   } else {
-    currentProgress = target;
-   }
-   anim.currentTime = currentProgress * dur;
-  }, { passive: true });
-  anim.currentTime = computeProgress() * dur;
+  __omni_scrollElements.push({
+   el,
+   anim,
+   dur,
+   startCfg: "0",
+   endCfg: "500",
+   scrubDelay: true,
+   currentProgress: 0,
+  });
+  __omni_ensureScrollHandler();
+  anim.currentTime = Omni.scrollProgress(el, "0", "500") * dur;
 })();

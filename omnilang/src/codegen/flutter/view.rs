@@ -301,7 +301,7 @@ fn format_element(
         .and_then(|m| m.in_view_once.as_ref().or(m.in_view_repeat.as_ref()))
         .is_some();
     let has_scroll = el.scroll_behavior().is_some();
-    let mut result = if el.motion_behavior().is_some_and(|m| !m.triggers.is_empty())
+    let result = if el.motion_behavior().is_some_and(|m| !m.triggers.is_empty())
         || has_inview
         || has_scroll
     {

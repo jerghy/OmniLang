@@ -113,13 +113,12 @@ fn format_animate_options(over: &ExprIR, ease: &Option<EasingIR>, playback: &Pla
 
 /// Format easing value as a JS string literal.
 fn format_easing_to_js(ease: &EasingIR) -> String {
-    let mut warnings = Vec::new();
-    let val = translate_easing(ease, &mut warnings);
+    let val = translate_easing(ease);
     format!("\"{}\"", val)
 }
 
 /// Translate an Omni easing IR to a WAAPI-compatible easing string.
-fn translate_easing(ease: &EasingIR, warnings: &mut Vec<String>) -> String {
+fn translate_easing(ease: &EasingIR) -> String {
     match ease {
         EasingIR::Named(name) => translate_named_easing(name),
         EasingIR::CubicBezier { x1, y1, x2, y2 } => {

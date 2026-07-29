@@ -201,7 +201,7 @@ fn inject_slot_children(view: ViewTree, slot_children: &[ViewTree]) -> ViewTree 
                 let named: Vec<ViewTree> = slot_children
                     .iter()
                     .filter(|c| has_slot_attr(c, name))
-                    .map(|c| strip_slot_prop(c))
+                    .map(strip_slot_prop)
                     .collect();
                 if named.is_empty() {
                     view
@@ -212,7 +212,7 @@ fn inject_slot_children(view: ViewTree, slot_children: &[ViewTree]) -> ViewTree 
                 let default: Vec<ViewTree> = slot_children
                     .iter()
                     .filter(|c| !has_any_slot_attr(c))
-                    .map(|c| strip_slot_prop(c))
+                    .map(strip_slot_prop)
                     .collect();
                 if default.is_empty() {
                     view

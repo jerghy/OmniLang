@@ -216,28 +216,27 @@ impl FlutterCodegen {
             for motion in ir.modules.values().flat_map(|m| &m.motions) {
                 let ctrl_name = format!("_{}Controller", motion.name);
                 let anim_name = format!("_{}Animation", motion.name);
-                if let MotionBodyIR::Keyframe(kf) = &motion.body {
-                    let duration_ms = extract_duration_ms(&kf.over);
-                    let ease_str = format_easing_flutter(&kf.ease);
-                    let begin = extract_tween_begin(kf);
-                    let end = extract_tween_end(kf);
-                    let has_enter = enter_motions.contains(&motion.name);
+                let MotionBodyIR::Keyframe(kf) = &motion.body;
+                let duration_ms = extract_duration_ms(&kf.over);
+                let ease_str = format_easing_flutter(&kf.ease);
+                let begin = extract_tween_begin(kf);
+                let end = extract_tween_end(kf);
+                let has_enter = enter_motions.contains(&motion.name);
 
-                    // Create AnimationController
-                    w.emit_fmt(format_args!(
-                        "{0} = AnimationController(\n  duration: Duration(milliseconds: {1}),\n  vsync: this,\n);",
-                        ctrl_name, duration_ms
-                    ));
-                    // Create Animation with Tween + Curve
-                    w.emit_fmt(format_args!(
-                        "{0} = Tween<double>(begin: {1}, end: {2}).chain(CurveTween(curve: {3})).animate({4});",
-                        anim_name, begin, end, ease_str, ctrl_name
-                    ));
+                // Create AnimationController
+                w.emit_fmt(format_args!(
+                    "{0} = AnimationController(\n  duration: Duration(milliseconds: {1}),\n  vsync: this,\n);",
+                    ctrl_name, duration_ms
+                ));
+                // Create Animation with Tween + Curve
+                w.emit_fmt(format_args!(
+                    "{0} = Tween<double>(begin: {1}, end: {2}).chain(CurveTween(curve: {3})).animate({4});",
+                    anim_name, begin, end, ease_str, ctrl_name
+                ));
 
-                    // @enter trigger: play animation on mount
-                    if has_enter {
-                        w.emit_fmt(format_args!("{}.forward();", ctrl_name));
-                    }
+                // @enter trigger: play animation on mount
+                if has_enter {
+                    w.emit_fmt(format_args!("{}.forward();", ctrl_name));
                 }
             }
 
