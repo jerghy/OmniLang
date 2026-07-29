@@ -14,6 +14,21 @@ use super::super::OmniViewGenerator;
 use crate::ir::*;
 use crate::sourcemap::{SourceMapEntry, SourceSpan, TargetSpan, TargetSpanKind};
 
+/// Check whether a static URL attribute value contains a dangerous protocol
+/// scheme. Returns `true` if the value should be blocked.
+///
+/// This mirrors `__omni_sanitizeUrl` in the generated JS runtime, catching
+/// dangerous URLs in literal attribute values at compile time as defense-in-depth
+/// against supply-chain compromises where a third-party .omni component
+/// contains literal `javascript:` or `data:` URLs.
+pub(crate) fn is_dangerous_url(value: &str) -> bool {
+    let trimmed = value.trim();
+    let lower = trimmed.to_ascii_lowercase();
+    lower.starts_with("javascript:")
+        || lower.starts_with("data:")
+        || lower.starts_with("vbscript:")
+}
+
 impl OmniViewGenerator {
     // ═══════════════════════════════════════════════════════════════
     // Element Tree Helpers
@@ -172,7 +187,22 @@ impl OmniViewGenerator {
                     } else if is_boolean_attr && val_str == "false" {
                         // Boolean attribute with value "false": skip entirely (don't emit)
                     } else if !val_str.is_empty() {
-                        let _ = write!(attrs, " {}=\"{}\"", name, escape_html(&val_str));
+                        let is_static_url = matches!(
+                            name.as_str(),
+                            "href" | "src" | "srcset" | "action" | "formaction" | "poster"
+                        );
+                        if is_static_url && is_dangerous_url(&val_str) {
+                            // Block dangerous URL schemes in static attributes.
+                            // This is defense-in-depth: dynamic bindings are protected
+                            // by __omni_sanitizeUrl at runtime; this catches literal
+                            // dangerous URLs at compile time (supply-chain defense).
+                            self.warnings
+                                .push(format!("Blocked dangerous URL in static {} attribute: scheme not allowed", name));
+                            // Emit a safe fallback value
+                            let _ = write!(attrs, " {}=\"#blocked\"", name);
+                        } else {
+                            let _ = write!(attrs, " {}=\"{}\"", name, escape_html(&val_str));
+                        }
                     } else {
                         let _ = write!(attrs, " {}", name);
                     }

@@ -1400,6 +1400,22 @@ fn test_theme_runtime_not_emitted_without_themes() {
     );
 }
 
+// ── compile-time URL sanitization ─────────────────────
+
+#[test]
+fn test_is_dangerous_url() {
+    use super::view::element::is_dangerous_url;
+    assert!(is_dangerous_url("javascript:alert(1)"));
+    assert!(is_dangerous_url("  javascript:void(0)"));
+    assert!(is_dangerous_url("data:text/html,<script>alert(1)</script>"));
+    assert!(is_dangerous_url("data:image/svg+xml,..."));
+    assert!(is_dangerous_url("vbscript:msgbox(1)"));
+    assert!(!is_dangerous_url("https://example.com"));
+    assert!(!is_dangerous_url("/relative/path"));
+    assert!(!is_dangerous_url("#anchor"));
+    assert!(!is_dangerous_url("mailto:user@example.com"));
+}
+
 // ── Proptest: backtick escaping for innerHTML ───────
 
 #[cfg(test)]

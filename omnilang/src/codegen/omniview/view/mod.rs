@@ -28,7 +28,7 @@
 //! - `style`: Inline style emission (static + dynamic signal-driven)
 
 mod condition;
-mod element;
+pub(super) mod element;
 mod events;
 mod style;
 
