@@ -73,7 +73,17 @@ pub(crate) fn emit_inview_effects_tsx(w: &mut CodeWriter, node: &ViewTree) {
     w.indent();
     w.emit("if (entry.isIntersecting) {");
     w.indent();
+    w.emit("const n = el.getAttribute('data-motion-inview-name');");
+    w.emit("if (n && _M[n]) {");
+    w.indent();
+    w.emit("const {kf, opts} = _M[n];");
+    w.emit("animate(el, kf, opts);");
+    w.dedent();
+    w.emit("} else {");
+    w.indent();
     w.emit("animate(el, [{offset:0,properties:{opacity:0}}, {offset:1,properties:{opacity:1}}], {duration:300, easing:'ease-out', fill:'both'});");
+    w.dedent();
+    w.emit("}");
     w.emit("observer.disconnect();");
     w.dedent();
     w.emit("}");

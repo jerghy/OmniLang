@@ -202,6 +202,9 @@ pub(super) fn gen_view_node_tsx(
                         };
                         attrs.push("data-motion-inview=\"true\"".into());
                         attrs.push(format!("data-inview-threshold=\"{}\"", threshold_val));
+                        if let Some(ref motion_name) = trigger.motion_ref {
+                            attrs.push(format!("data-motion-inview-name=\"{}\"", motion_name));
+                        }
                     }
                     TriggerKind::Scroll => {
                         let scroll_start_str = el
