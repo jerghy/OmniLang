@@ -258,10 +258,7 @@ impl OmniViewGenerator {
                 continue;
             }
             // Check all registered design blocks for this class
-            let in_design = self
-                .design_map
-                .values()
-                .any(|d| d.classes.iter().any(|c| c.name == *class_name));
+            let in_design = self.design_class_names.contains(class_name);
             if in_design {
                 continue;
             }

@@ -207,6 +207,7 @@ pub fn generate(
         for_state_names: FxHashMap::default(),
         motion_names: FxHashSet::default(),
         design_names: Vec::new(),
+        design_class_names: FxHashSet::default(),
         design_map: FxHashMap::default(),
         warnings: Vec::new(),
         for_text_bindings: Vec::new(),
@@ -372,6 +373,10 @@ pub fn generate(
                 gen.css
                     .push_str(&format!("\n/* ── Design: {} ── */\n", design.name));
                 gen.css.push_str(&css);
+                // Pre-build class name set for O(1) lookup during element codegen
+                for class in &design.classes {
+                    gen.design_class_names.insert(class.name.clone());
+                }
             }
         }
     }
@@ -496,6 +501,9 @@ struct OmniViewGenerator {
     for_state_names: FxHashMap<String, (String, String)>,
     /// Design names collected during codegen, used for `data-design` attribute emission.
     design_names: Vec<String>,
+    /// Pre-built HashSet of all design class names for O(1) lookup during element codegen.
+    /// Populated during design CSS emission to avoid repeated iteration over design_map.
+    design_class_names: FxHashSet<String>,
     /// Compiled DesignIR map keyed by design name, used for variant expansion
     /// and design-class resolution at codegen time.
     design_map: FxHashMap<String, crate::ir::design::DesignIR>,
@@ -577,6 +585,7 @@ impl OmniViewGenerator {
             for_state_names: FxHashMap::default(),
             motion_names: FxHashSet::default(),
             design_names: Vec::new(),
+            design_class_names: FxHashSet::default(),
             design_map: FxHashMap::default(),
             warnings: Vec::new(),
             for_text_bindings: Vec::new(),
