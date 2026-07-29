@@ -422,7 +422,12 @@ pub(super) fn format_expr_ir_tsx(expr: &ExprIR, ref_names: &FxHashSet<String>) -
             let obj_str = format_expr_ir_tsx(object, ref_names);
             format!("{}.{}", obj_str, field)
         }
-        ExprIR::MethodCallExpr { object, method, args, .. } => {
+        ExprIR::MethodCallExpr {
+            object,
+            method,
+            args,
+            ..
+        } => {
             let obj_str = format_expr_ir_tsx(object, ref_names);
             let args_str: Vec<String> = args
                 .iter()

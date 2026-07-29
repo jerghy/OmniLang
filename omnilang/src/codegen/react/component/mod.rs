@@ -269,7 +269,8 @@ impl ReactCodegen {
                 .keys()
                 .map(|prop_name| {
                     if let Some(default_val) = comp.prop_defaults.get(prop_name) {
-                        let default_tsx = expr::format_expr_ir_tsx(default_val, &FxHashSet::default());
+                        let default_tsx =
+                            expr::format_expr_ir_tsx(default_val, &FxHashSet::default());
                         format!("{} = {}", prop_name, default_tsx)
                     } else {
                         prop_name.clone()

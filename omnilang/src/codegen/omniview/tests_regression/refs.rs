@@ -14,7 +14,12 @@ component TestRef {
 "#;
     let result = crate::compile_omniview(source, false, false);
     assert!(result.success, "compilation failed: {:?}", result.errors);
-    let js = result.files.as_ref().expect("Expected JS output").js.clone();
+    let js = result
+        .files
+        .as_ref()
+        .expect("Expected JS output")
+        .js
+        .clone();
     let html = result
         .files
         .as_ref()
@@ -73,7 +78,12 @@ component TestRefFor {
         "compilation should succeed without panic: {:?}",
         result.errors
     );
-    let js = result.files.as_ref().expect("Expected JS output").js.clone();
+    let js = result
+        .files
+        .as_ref()
+        .expect("Expected JS output")
+        .js
+        .clone();
 
     // Ref outside @for should still work
     assert!(
@@ -100,7 +110,12 @@ component MultiRef {
 "#;
     let result = crate::compile_omniview(source, false, false);
     assert!(result.success, "compilation failed: {:?}", result.errors);
-    let js = result.files.as_ref().expect("Expected JS output").js.clone();
+    let js = result
+        .files
+        .as_ref()
+        .expect("Expected JS output")
+        .js
+        .clone();
 
     assert!(
         js.contains("const header = (function()"),

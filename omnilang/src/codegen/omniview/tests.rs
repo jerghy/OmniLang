@@ -1310,21 +1310,43 @@ component TestRef {
 "#;
     let result = crate::compile_omniview(source, false, false);
     assert!(result.success, "compilation failed: {:?}", result.errors);
-    let js = result.files.as_ref().expect("Expected JS output").js.clone();
-    let html = result.files.as_ref().expect("Expected HTML output").html.clone();
+    let js = result
+        .files
+        .as_ref()
+        .expect("Expected JS output")
+        .js
+        .clone();
+    let html = result
+        .files
+        .as_ref()
+        .expect("Expected HTML output")
+        .html
+        .clone();
 
     // Verify the wrapper object is generated
-    assert!(js.contains("const box = (function()"),
-        "Expected ref wrapper 'box' in generated JS, got: {}", js);
+    assert!(
+        js.contains("const box = (function()"),
+        "Expected ref wrapper 'box' in generated JS, got: {}",
+        js
+    );
     // Verify __omni_el is used (the lazy element getter)
-    assert!(js.contains("__omni_el("),
-        "Expected __omni_el call in wrapper: {}", js);
+    assert!(
+        js.contains("__omni_el("),
+        "Expected __omni_el call in wrapper: {}",
+        js
+    );
     // Verify the ref name does NOT get .value suffix (refs are not signals)
-    assert!(!js.contains("box.value"),
-        "Ref name 'box' should NOT have .value suffix. JS:\n{}", js);
+    assert!(
+        !js.contains("box.value"),
+        "Ref name 'box' should NOT have .value suffix. JS:\n{}",
+        js
+    );
     // Verify NO data-ref attribute in HTML
-    assert!(!html.contains("data-ref=\"box\""),
-        "data-ref attribute should NOT be emitted for ref bindings. HTML:\n{}", html);
+    assert!(
+        !html.contains("data-ref=\"box\""),
+        "data-ref attribute should NOT be emitted for ref bindings. HTML:\n{}",
+        html
+    );
 }
 
 // ── Styles ──────────────────────────────────────────

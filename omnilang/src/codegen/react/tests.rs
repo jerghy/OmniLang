@@ -151,7 +151,10 @@ fn test_format_expr_ternary() {
             value: serde_json::json!(0),
         }),
     };
-    assert_eq!(format_expr_ir_tsx(&expr, &FxHashSet::default()), "x ? 1 : 0");
+    assert_eq!(
+        format_expr_ir_tsx(&expr, &FxHashSet::default()),
+        "x ? 1 : 0"
+    );
 }
 
 #[test]
@@ -185,7 +188,10 @@ fn test_format_expr_store_field() {
         field_name: "getCount".into(),
         call_args: vec![],
     };
-    assert_eq!(format_expr_ir_tsx(&expr, &FxHashSet::default()), "store.getCount");
+    assert_eq!(
+        format_expr_ir_tsx(&expr, &FxHashSet::default()),
+        "store.getCount"
+    );
 }
 
 // ── generate_statement_tsx tests ─────────────────────────

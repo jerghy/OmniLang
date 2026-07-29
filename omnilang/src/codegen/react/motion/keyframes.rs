@@ -107,7 +107,10 @@ fn format_animate_options(over: &ExprIR, ease: &Option<EasingIR>, playback: &Pla
     }
     // delay
     if let Some(delay) = &playback.delay {
-        opts.push(format!("delay:{}", expr::format_expr_ir_tsx(delay, &FxHashSet::default())));
+        opts.push(format!(
+            "delay:{}",
+            expr::format_expr_ir_tsx(delay, &FxHashSet::default())
+        ));
     }
     format!("{{{}}}", opts.join(","))
 }
