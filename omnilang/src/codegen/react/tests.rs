@@ -16,6 +16,7 @@ use crate::codegen::{
 };
 use crate::ir::*;
 use crate::ir::{ConstructionKind, ModuleIR};
+use crate::path_mapping;
 
 // ── Helper tests ─────────────────────────────────────────
 
@@ -1231,4 +1232,53 @@ fn test_full_pipeline_component_with_store_ref() {
     insta::with_settings!({snapshot_path => "snapshots"}, {
         insta::assert_snapshot!("test_full_pipeline_component_with_store_ref", &tsx.content);
     });
+}
+
+// ═══════════════════════════════════════════════════════════
+// Integration tests (full pipeline)
+// ═══════════════════════════════════════════════════════════
+
+/// Compile a single .omni source string to React, returning the InternalCompileResult.
+fn compile_react(source: &str) -> Option<crate::InternalCompileResult> {
+    let mut sources = FxHashMap::default();
+    sources.insert("input.omni".to_string(), source.to_string());
+    let pm = path_mapping::derive_path_mapping(&sources);
+    let result = crate::compile_multi_internal(
+        sources,
+        crate::codegen::Target::React,
+        pm,
+        false,
+        false,
+        None,
+    );
+    if result.success {
+        Some(result)
+    } else {
+        None
+    }
+}
+
+#[test]
+fn warns_on_slot_in_react() {
+    let source = r#"
+component Card {
+    view {
+        <div class="card">@slot</div>
+    }
+}
+"#;
+    let output = compile_react(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        content.contains("WARNING:")
+            && content.contains("slot")
+            && content.contains("not supported"),
+        "Expected slot warning in React output, got: {}",
+        content
+    );
 }
