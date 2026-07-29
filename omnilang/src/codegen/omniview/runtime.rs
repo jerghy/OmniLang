@@ -131,12 +131,18 @@ function __omni_reportError(context, error) {
 }
 
 function __omni_sanitizeUrl(url) {
-  if (typeof url !== 'string') return url;
-  var trimmed = url.trim().toLowerCase();
-  if (trimmed.indexOf('javascript:') === 0 || trimmed.indexOf('data:text/html') === 0 || trimmed.indexOf('vbscript:') === 0) {
+  var str = String(url);
+  var trimmed = str.trim().toLowerCase();
+  // Block all javascript:/vbscript: pseudo-protocols and all data: URIs.
+  // data: URIs can carry executable content (text/html, text/javascript,
+  // application/javascript, base64 payloads, etc.) so we block the entire
+  // scheme rather than maintaining a subtype allowlist.
+  if (trimmed.indexOf('javascript:') === 0 ||
+      trimmed.indexOf('data:') === 0 ||
+      trimmed.indexOf('vbscript:') === 0) {
     return '#blocked';
   }
-  return url;
+  return str;
 }
 
 function __omni_sanitizeCss(value) {
