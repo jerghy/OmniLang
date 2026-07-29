@@ -148,6 +148,8 @@ impl OmniViewGenerator {
         self.comp_mount_js.clear();
         // Clear @enter replay tracking for this component
         self.enter_trigger_nids.clear();
+        // Clear ref→nid mapping for this component
+        self.ref_nid_map.clear();
         // Populate component-local style class names for class: validation
         self.component_style_classes.clear();
         for style_rule in &comp.styles {
@@ -296,6 +298,10 @@ impl OmniViewGenerator {
             let prefixed_name = format!("{}{}", fn_prefix, f.name);
             self.emit_function_named(f, &prefixed_name);
         }
+
+        // Emit element-ref wrapper objects (must come after signals/computeds/fns,
+        // before the view so that the JS variables are available to the component scope)
+        self.emit_ref_wrappers(comp);
 
         // View → HTML + reactive bindings (only root component emits its view;
         // child component views are inlined during root's view generation)
@@ -570,6 +576,42 @@ impl OmniViewGenerator {
             "const {} = __omni_computed(\"{}\", () => ({}));",
             prefixed, prefixed, body
         );
+    }
+
+    /// Emit element-ref wrapper objects for all ref declarations in a component.
+    /// Each wrapper uses lazy getters on __omni_el(nid) for O(1) cached access.
+    /// Called during generate_component, after signal/computed/fn declarations,
+    /// before the view emission.
+    pub(super) fn emit_ref_wrappers(&mut self, comp: &ComponentIR) {
+        // Only emit if the component has ref declarations
+        if comp.refs.is_empty() || self.ref_nid_map.is_empty() {
+            return;
+        }
+
+        let _ = writeln!(self.js, "\n  /// ── Element Refs ──");
+
+        for (ref_name, nid) in &self.ref_nid_map {
+            let _ = writeln!(
+                self.js,
+                "/// ── ref: {ref_name} → nid=\"{nid}\" ──\n\
+                 const {ref_name} = (function() {{\n\
+                 \x20 const _nid = \"{nid}\";\n\
+                 \x20 const _el = function() {{ return __omni_el(_nid); }};\n\
+                 \x20 return {{\n\
+                 \x20\x20 get style() {{ const e = _el(); return e ? e.style : null; }},\n\
+                 \x20\x20 capturePointer(id) {{ const e = _el(); if (e) e.setPointerCapture(id); }},\n\
+                 \x20\x20 releasePointer(id) {{ const e = _el(); if (e) e.releasePointer(id); }},\n\
+                 \x20\x20 getBoundingClientRect() {{ const e = _el(); return e ? e.getBoundingClientRect() : null; }},\n\
+                 \x20\x20 focus() {{ const e = _el(); if (e) e.focus(); }},\n\
+                 \x20\x20 blur() {{ const e = _el(); if (e) e.blur(); }},\n\
+                 \x20\x20 get offsetWidth() {{ const e = _el(); return e ? e.offsetWidth : 0; }},\n\
+                 \x20\x20 get offsetHeight() {{ const e = _el(); return e ? e.offsetHeight : 0; }},\n\
+                 \x20 }};\n\
+                 }})();",
+                ref_name = ref_name,
+                nid = nid,
+            );
+        }
     }
 
     // ══════════════════════════════════════════════════════

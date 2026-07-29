@@ -224,6 +224,7 @@ pub fn generate(
         nid_map: FxHashMap::default(),
         debug_mode,
         scroll_handler_emitted: false,
+        ref_nid_map: Vec::new(),
     };
 
     // In css_only mode, skip ALL JS emission — we only need CSS + element mappings.
@@ -523,6 +524,9 @@ struct OmniViewGenerator {
     /// Used to emit __omni_scrollElements / __omni_scrollHandler / __omni_ensureScrollHandler
     /// exactly once before any per-element scroll trigger.
     scroll_handler_emitted: bool,
+    /// Accumulates (ref_name, nid) pairs during element_to_html.
+    /// Cleared per component. Consumed by emit_ref_wrappers.
+    pub ref_nid_map: Vec<(String, String)>,
 }
 
 /// A parsed part of an attribute template value with {word} placeholders.
@@ -577,6 +581,7 @@ impl OmniViewGenerator {
             nid_map: FxHashMap::default(),
             debug_mode: false,
             scroll_handler_emitted: false,
+            ref_nid_map: Vec::new(),
         }
     }
 
