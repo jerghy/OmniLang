@@ -68,10 +68,7 @@ fn test_sanitize_css_blocks_injection_patterns() {
     );
 
     // Uses String() coercion
-    assert!(
-        js.contains("String(value)"),
-        "must coerce input to string"
-    );
+    assert!(js.contains("String(value)"), "must coerce input to string");
 
     // Blocks core CSS injection patterns
     assert!(
@@ -86,16 +83,10 @@ fn test_sanitize_css_blocks_injection_patterns() {
         js.contains("-moz-binding"),
         "must block -moz-binding injection"
     );
-    assert!(
-        js.contains("@import"),
-        "must block @import injection"
-    );
+    assert!(js.contains("@import"), "must block @import injection");
 
     // Allows url() with safety check (Task 6)
-    assert!(
-        js.contains("url("),
-        "must contain url() handling logic"
-    );
+    assert!(js.contains("url("), "must contain url() handling logic");
     // After Task 6: should contain url() validation but not blanket block
     assert!(
         js.contains("urlIdx") || js.contains("afterUrl"),

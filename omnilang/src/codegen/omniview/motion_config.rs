@@ -250,7 +250,7 @@ impl OmniViewGenerator {
                 StaggerDirection::Edges => "edges",
                 StaggerDirection::Random => {
                     self.warnings.push(
-                        "staggerFrom: random is not yet supported; falling back to 'edges'".into()
+                        "staggerFrom: random is not yet supported; falling back to 'edges'".into(),
                     );
                     "edges"
                 }
