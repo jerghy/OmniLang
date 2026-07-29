@@ -119,7 +119,7 @@ class RustCompiler {
     compile_omniview_component?: (source: string, component_name: string, editor_mode: boolean, debug_mode: boolean) => any;
     version: () => string;
     compile_to_omniview_full?: (source: string, editor_mode: boolean, debug_mode: boolean) => any;
-    compile_multi_to_omniview?: (sources: Record<string, string>, editor_mode: boolean, debug_mode: boolean) => any;
+    compile_multi_to_omniview?: (sources: Record<string, string>, editor_mode: boolean, debug_mode: boolean, cache_state: string | null) => any;
     resolve_styles?: (source: string) => any;
     resolve_styles_multi?: (sources: Record<string, string>, path_mapping: Record<string, string>) => any;
     resolve_styles_multi_cached?: (sources: Record<string, string>, path_mapping: Record<string, string>, cache_state: string | null) => any;
@@ -171,7 +171,7 @@ class RustCompiler {
         compile_omniview_component: wasmModule.compile_omniview_component as unknown as (source: string, component_name: string, editor_mode: boolean, debug_mode: boolean) => any,
         version: wasmModule.version as unknown as () => string,
         compile_to_omniview_full: wasmModule.compile_to_omniview_full as unknown as (source: string, editor_mode: boolean, debug_mode: boolean) => any,
-        compile_multi_to_omniview: wasmModule.compile_multi_to_omniview as unknown as (sources: Record<string, string>, editor_mode: boolean, debug_mode: boolean) => any,
+        compile_multi_to_omniview: wasmModule.compile_multi_to_omniview as unknown as (sources: Record<string, string>, editor_mode: boolean, debug_mode: boolean, cache_state: string | null) => any,
         resolve_styles: wasmModule.resolve_styles as unknown as (source: string) => any,
         resolve_styles_multi: wasmModule.resolve_styles_multi as unknown as (sources: Record<string, string>, path_mapping: Record<string, string>) => any,
         resolve_styles_multi_cached: wasmModule.resolve_styles_multi_cached as unknown as (sources: Record<string, string>, path_mapping: Record<string, string>, cache_state: string | null) => any,
@@ -298,7 +298,9 @@ class RustCompiler {
       };
     }
     try {
-      return this.wasm.compile_multi_to_omniview(sources, editorMode, debugMode) as MultiCompileResult;
+      const response = this.wasm.compile_multi_to_omniview(sources, editorMode, debugMode, this._cacheState);
+      this._cacheState = response.cache_state;
+      return response.result as MultiCompileResult;
     } catch (e) {
       log.error('compileMultiToOmniView failed:', e);
       return {

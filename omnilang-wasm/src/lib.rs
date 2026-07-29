@@ -425,29 +425,40 @@ pub fn resolve_styles_multi_cached(
     .unwrap_or_else(|e| js_error_value(&format!("serialization error: {}", e)))
 }
 
-/// Compile multiple .omni source files to OmniView.
-/// sources: JS object mapping file path to source content, e.g. {"path": "source content", ...}
-/// editor_mode: enable debug wrappers for editor preview.
-/// Returns JsValue with `success`, `files`, `errors`, and `warnings`.
+/// Compile multiple .omni source files to OmniView with incremental cache.
+///
+/// `sources`: JS object mapping file path to source content, e.g. {"path": "source content", ...}
+/// `editor_mode`: enable debug wrappers for editor preview.
+/// `cache_state`: serialized incremental cache from previous call (or null/undefined).
+///
+/// Returns `{ result: InternalCompileResult, cache_state: string }`.
 #[wasm_bindgen]
-pub fn compile_multi_to_omniview(sources: JsValue, editor_mode: bool, debug_mode: bool) -> JsValue {
+pub fn compile_multi_to_omniview(
+    sources: JsValue,
+    editor_mode: bool,
+    debug_mode: bool,
+    cache_state: JsValue,
+) -> JsValue {
     let sources_map: FxHashMap<String, String> = match serde_wasm_bindgen::from_value(sources) {
         Ok(s) => s,
         Err(e) => {
             return serde_wasm_bindgen::to_value(&serde_json::json!({
-                "success": false,
-                "files": {},
-                "errors": [{
-                    "severity": "error",
-                    "code": "E_INVALID_SOURCES",
-                    "message": format!("Failed to parse sources: {}", e),
-                    "file": null,
-                    "line": 0,
-                    "col": 0,
-                    "end_line": 0,
-                    "end_col": 0,
-                    "suggestion": null
-                }]
+                "result": {
+                    "success": false,
+                    "files": {},
+                    "errors": [{
+                        "severity": "error",
+                        "code": "E_INVALID_SOURCES",
+                        "message": format!("Failed to parse sources: {}", e),
+                        "file": null,
+                        "line": 0,
+                        "col": 0,
+                        "end_line": 0,
+                        "end_col": 0,
+                        "suggestion": null
+                    }]
+                },
+                "cache_state": null,
             }))
             .unwrap_or_else(|e| js_error_value(&format!("serialization error: {}", e)));
         }
@@ -455,21 +466,61 @@ pub fn compile_multi_to_omniview(sources: JsValue, editor_mode: bool, debug_mode
     const MAX_INPUT_SIZE: usize = 10 * 1024 * 1024; // 10MB
     let total_size: usize = sources_map.values().map(|s| s.len()).sum();
     if total_size > MAX_INPUT_SIZE {
-        return js_error_value("Input exceeds 10MB limit");
+        return serde_wasm_bindgen::to_value(&serde_json::json!({
+            "result": {
+                "success": false,
+                "files": {},
+                "errors": [{
+                    "severity": "error",
+                    "code": "E_WASM",
+                    "message": "Input exceeds 10MB limit",
+                    "file": null,
+                    "line": 0,
+                    "col": 0,
+                    "end_line": 0,
+                    "end_col": 0,
+                    "suggestion": null
+                }]
+            },
+            "cache_state": null,
+        }))
+        .unwrap_or_else(|e| js_error_value(&format!("serialization error: {}", e)));
     }
     // Build path_mapping from source keys so cross-file imports resolve.
-    // Uses the canonical derive_path_mapping() which handles basename, stem,
-    // relative path, ./ prefix, ../ prefix, and .omni-less variant mappings.
     let path_mapping = omnilang::path_mapping::derive_path_mapping(&sources_map);
-    let result = omnilang::compile_multi_internal(
-        sources_map,
-        omnilang::codegen::Target::OmniView,
-        path_mapping,
-        editor_mode,
-        debug_mode,
-        None,
-    );
-    to_js_value(&result)
+
+    // Seed the thread-local cache if empty (handles WASM re-initialization)
+    ANALYSIS_CACHE.with(|cell| {
+        if cell.borrow().entries.is_empty() {
+            seed_cache_from_state(&cache_state);
+        }
+    });
+
+    // Compile using cached analysis to skip unchanged files
+    let result = ANALYSIS_CACHE.with(|cell| {
+        let mut cache = cell.borrow_mut();
+        omnilang::compile_multi_internal_cached(
+            sources_map,
+            omnilang::codegen::Target::OmniView,
+            path_mapping,
+            editor_mode,
+            debug_mode,
+            None,
+            &mut cache,
+        )
+    });
+
+    // Serialize updated cache state for explicit persistence
+    let cache_json: String = ANALYSIS_CACHE.with(|cell| {
+        let cache = cell.borrow();
+        serde_json::to_string(&*cache).unwrap_or_default()
+    });
+
+    serde_wasm_bindgen::to_value(&serde_json::json!({
+        "result": result,
+        "cache_state": cache_json,
+    }))
+    .unwrap_or_else(|e| js_error_value(&format!("serialization error: {}", e)))
 }
 
 /// Stateful compiler instance that caches sources and compilation results across calls.
@@ -713,14 +764,15 @@ mod tests {
             "main.omni": "component App { view { Text { \"multi\" } } }"
         }))
         .unwrap();
-        let result = compile_multi_to_omniview(sources, false, false);
+        let result = compile_multi_to_omniview(sources, false, false, JsValue::null());
         let parsed: serde_json::Value = serde_wasm_bindgen::from_value(result).unwrap();
-        // Multi-file compile succeeds or has diagnostic errors (both valid outcomes)
-        let has_output = parsed["files"]
+        // Result is wrapped: { result: ..., cache_state: ... }
+        let inner = &parsed["result"];
+        let has_output = inner["files"]
             .as_object()
             .map(|o| !o.is_empty())
             .unwrap_or(false);
-        let has_errors = parsed["errors"]
+        let has_errors = inner["errors"]
             .as_array()
             .map(|a| !a.is_empty())
             .unwrap_or(false);
@@ -728,14 +780,17 @@ mod tests {
             has_output || has_errors,
             "Expected either files or errors in multi compile result"
         );
+        // Cache state should be a non-empty string
+        let cache_state = parsed["cache_state"].as_str().unwrap();
+        assert!(!cache_state.is_empty(), "Expected non-empty cache_state");
     }
 
     #[test]
     fn test_compile_multi_to_omniview_invalid_sources() {
         let sources = serde_wasm_bindgen::to_value("not a map").unwrap();
-        let result = compile_multi_to_omniview(sources, false, false);
+        let result = compile_multi_to_omniview(sources, false, false, JsValue::null());
         let parsed: serde_json::Value = serde_wasm_bindgen::from_value(result).unwrap();
-        assert!(!parsed["success"].as_bool().unwrap());
+        assert!(!parsed["result"]["success"].as_bool().unwrap());
     }
 
     #[test]
