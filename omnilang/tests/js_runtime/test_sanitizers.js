@@ -9,13 +9,17 @@ const assert = require("assert");
 function __omni_sanitizeUrl(url) {
   var str = String(url);
   var trimmed = str.trim().toLowerCase();
+  // Strip CR, LF, TAB before scheme matching — browsers (Chromium, WebKit,
+  // Gecko) strip these characters from URLs before navigation, so
+  // "java\nscript:alert(1)" would execute as "javascript:alert(1)".
+  var normalized = trimmed.replace(/[\r\n\t]/g, '');
   // Block all javascript:/vbscript: pseudo-protocols and all data: URIs.
   // data: URIs can carry executable content (text/html, text/javascript,
   // application/javascript, base64 payloads, etc.) so we block the entire
   // scheme rather than maintaining a subtype allowlist.
-  if (trimmed.indexOf('javascript:') === 0 ||
-      trimmed.indexOf('data:') === 0 ||
-      trimmed.indexOf('vbscript:') === 0) {
+  if (normalized.indexOf('javascript:') === 0 ||
+      normalized.indexOf('data:') === 0 ||
+      normalized.indexOf('vbscript:') === 0) {
     return '#blocked';
   }
   return str;
@@ -252,5 +256,31 @@ assert.strictEqual(
   'javascript',
   'should decode hex but pass javascript without colon'
 );
+
+// ─── Tests: newline/tab/CR bypass ───
+
+// Test: newline in javascript: scheme is blocked
+{
+  const result = __omni_sanitizeUrl("java\nscript:alert(1)");
+  assert.strictEqual(result, "#blocked", "newline in javascript: scheme must be blocked");
+}
+
+// Test: tab in javascript: scheme is blocked
+{
+  const result = __omni_sanitizeUrl("java\tscript:alert(1)");
+  assert.strictEqual(result, "#blocked", "tab in javascript: scheme must be blocked");
+}
+
+// Test: CR in javascript: scheme is blocked
+{
+  const result = __omni_sanitizeUrl("java\rscript:alert(1)");
+  assert.strictEqual(result, "#blocked", "CR in javascript: scheme must be blocked");
+}
+
+// Test: safe URL with newline in query string is preserved
+{
+  const result = __omni_sanitizeUrl("https://example.com/path\nparam");
+  assert.strictEqual(result, "https://example.com/path\nparam", "safe URL with newline preserved");
+}
 
 console.log('  ✓ All sanitizer tests passed');

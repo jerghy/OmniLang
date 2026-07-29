@@ -145,13 +145,17 @@ function __omni_reportError(context, error) {
 function __omni_sanitizeUrl(url) {
   var str = String(url);
   var trimmed = str.trim().toLowerCase();
+  // Strip CR, LF, TAB before scheme matching — browsers (Chromium, WebKit,
+  // Gecko) strip these characters from URLs before navigation, so
+  // "java\nscript:alert(1)" would execute as "javascript:alert(1)".
+  var normalized = trimmed.replace(/[\r\n\t]/g, '');
   // Block all javascript:/vbscript: pseudo-protocols and all data: URIs.
   // data: URIs can carry executable content (text/html, text/javascript,
   // application/javascript, base64 payloads, etc.) so we block the entire
   // scheme rather than maintaining a subtype allowlist.
-  if (trimmed.indexOf('javascript:') === 0 ||
-      trimmed.indexOf('data:') === 0 ||
-      trimmed.indexOf('vbscript:') === 0) {
+  if (normalized.indexOf('javascript:') === 0 ||
+      normalized.indexOf('data:') === 0 ||
+      normalized.indexOf('vbscript:') === 0) {
     return '#blocked';
   }
   return str;

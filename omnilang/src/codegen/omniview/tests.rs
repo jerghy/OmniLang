@@ -1601,6 +1601,10 @@ fn test_is_dangerous_url() {
     assert!(is_dangerous_url("data:text/html,<script>alert(1)</script>"));
     assert!(is_dangerous_url("data:image/svg+xml,..."));
     assert!(is_dangerous_url("vbscript:msgbox(1)"));
+    // Newline/tab/CR bypass: browsers strip these before URL navigation
+    assert!(is_dangerous_url("java\nscript:alert(1)"));
+    assert!(is_dangerous_url("java\tscript:alert(1)"));
+    assert!(is_dangerous_url("java\rscript:alert(1)"));
     assert!(!is_dangerous_url("https://example.com"));
     assert!(!is_dangerous_url("/relative/path"));
     assert!(!is_dangerous_url("#anchor"));

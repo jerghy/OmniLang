@@ -24,7 +24,9 @@ use crate::sourcemap::{SourceMapEntry, SourceSpan, TargetSpan, TargetSpanKind};
 pub(crate) fn is_dangerous_url(value: &str) -> bool {
     let trimmed = value.trim();
     let lower = trimmed.to_ascii_lowercase();
-    lower.starts_with("javascript:") || lower.starts_with("data:") || lower.starts_with("vbscript:")
+    // Strip CR, LF, TAB — browsers strip these before URL navigation
+    let stripped: String = lower.chars().filter(|c| !matches!(c, '\n' | '\r' | '\t')).collect();
+    stripped.starts_with("javascript:") || stripped.starts_with("data:") || stripped.starts_with("vbscript:")
 }
 
 impl OmniViewGenerator {
