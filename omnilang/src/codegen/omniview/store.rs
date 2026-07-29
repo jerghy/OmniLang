@@ -336,8 +336,10 @@ impl OmniViewGenerator {
                         );
                     }
                     LifecycleKind::Effect => {
-                        debug_assert!(
-                            false,
+                        // IR lowering must filter Effect before codegen.
+                        // If this invariant breaks in production, panic loudly
+                        // rather than silently skipping the effect emission.
+                        unreachable!(
                             "LifecycleKind::Effect should not reach codegen; filtered during IR lowering"
                         );
                     }
