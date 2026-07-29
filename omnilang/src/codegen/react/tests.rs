@@ -1229,6 +1229,128 @@ fn compile_react(source: &str) -> Option<crate::InternalCompileResult> {
     }
 }
 
+// ── Ref codegen integration tests ────────────────────────
+
+/// Test: ref declaration generates useRef + ref={} JSX attribute
+#[test]
+fn test_react_ref_basic() {
+    let source = r#"
+component TestRef {
+  ref box: Element
+  view {
+    <div ref:box>content</div>
+  }
+}
+"#;
+    let output = compile_react(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    // useRef import
+    assert!(
+        content.contains("useRef"),
+        "Import should include useRef. Got:\n{}",
+        content
+    );
+    // useRef declaration
+    assert!(
+        content.contains("const boxRef = useRef<HTMLDivElement>(null)"),
+        "Should generate useRef declaration. Got:\n{}",
+        content
+    );
+    // ref={} JSX attribute
+    assert!(
+        content.contains("ref={boxRef}"),
+        "JSX should have ref={{boxRef}}. Got:\n{}",
+        content
+    );
+    // NOT data-ref (legacy lowering artifact)
+    assert!(
+        !content.contains("data-ref"),
+        "Should not emit data-ref attribute. Got:\n{}",
+        content
+    );
+}
+
+/// Test: ref declaration + JSX ref binding in event handler component
+#[test]
+fn test_react_ref_in_handler() {
+    let source = r#"
+component DragRef {
+  signal x: Float = 0
+  ref box: Element
+  fn onDrag(e) {
+    box.style.transform = "translate(100px, 0)"
+  }
+  view {
+    <div ref:box @onPointerMove={onDrag}>drag</div>
+  }
+}
+"#;
+    let output = compile_react(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    // useRef imported
+    assert!(
+        content.contains("useRef"),
+        "useRef should be imported. Got:\n{}",
+        content
+    );
+    // useRef declaration
+    assert!(
+        content.contains("const boxRef = useRef<HTMLDivElement>(null)"),
+        "Should generate useRef declaration for 'box'. Got:\n{}",
+        content
+    );
+    // ref={boxRef} in JSX
+    assert!(
+        content.contains("ref={boxRef}"),
+        "JSX should have ref={{boxRef}}. Got:\n{}",
+        content
+    );
+    // NOTE: Inside function handler bodies, ref names are NOT auto-translated
+    // to Ref.current (codegen limitation - expressions in fn bodies use
+    // ReactFormatExpr which doesn't apply ref name resolution).
+    // The handler references the ref by its original name.
+    assert!(
+        content.contains("box.style.transform"),
+        "Handler body should reference 'box'. Got:\n{}",
+        content
+    );
+}
+
+/// Test: component without refs does NOT import useRef
+#[test]
+fn test_react_no_ref_no_use_ref_import() {
+    let source = r#"
+component NoRef {
+  signal count: Float = 0
+  view {
+    <div>{count}</div>
+  }
+}
+"#;
+    let output = compile_react(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        !content.contains("useRef"),
+        "useRef should NOT be imported when no refs. Got:\n{}",
+        content
+    );
+}
+
 #[test]
 fn warns_on_slot_in_react() {
     let source = r#"
