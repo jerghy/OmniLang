@@ -106,6 +106,7 @@ function __omni_replaceComponent(name, factoryCode) {
     return;
   }
   if (oldComp && oldComp.teardown) oldComp.teardown();
+  if (__omni_el._cache) __omni_el._cache = {};
   var newComp = window.__omni_components[name];
   if (newComp && newComp.signals) {
     Object.keys(savedSignals).forEach(function(k) {
