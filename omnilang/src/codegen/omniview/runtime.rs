@@ -40,8 +40,9 @@ function __omni_signal(name, init) {
         s.forEach(e => {
           const prev = __omni_activeEffect;
           __omni_activeEffect = e;
-          e.run();
-          __omni_activeEffect = prev;
+          try { e.run(); }
+          catch(err) { __omni_reportError("error", "effect:run", String(err), ""); }
+          finally { __omni_activeEffect = prev; }
         });
       }
     },
