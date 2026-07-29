@@ -42,7 +42,7 @@ pub use design::{
 // ── Explicit re-exports from types_motion.rs ──
 pub use types_motion::{
     DirectionValue, DragBehavior,
-    EasingIR, FillValue, HeroIntent, KeyframeIR, KeyframeStopIR,
+    EasingIR, FillValue, KeyframeIR, KeyframeStopIR,
     LoopValue, MotionBehavior, MotionBodyIR, MotionIntent, PlaybackIR,
     ScrollBehavior, TriggerIntent, TriggerKind,
 };

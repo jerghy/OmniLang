@@ -347,7 +347,6 @@ fn test_css_empty_component() {
         view: None,
         styles: vec![],
         if_mode_default: None,
-        hero_defs: vec![],
         ..Default::default()
     };
     let css = codegen.gen_component_css("App", &comp);
@@ -394,7 +393,6 @@ fn test_css_with_styles() {
         view: None,
         styles: vec![style],
         if_mode_default: None,
-        hero_defs: vec![],
         ..Default::default()
     };
     let css = codegen.gen_component_css("App", &comp);
@@ -423,7 +421,6 @@ fn make_test_component(name: &str, view: ViewTree) -> ComponentIR {
         view: Some(view),
         styles: vec![],
         if_mode_default: None,
-        hero_defs: vec![],
         ..Default::default()
     }
 }
@@ -521,7 +518,6 @@ fn test_tsx_empty_component() {
             view: None,
             styles: vec![],
             if_mode_default: None,
-            hero_defs: vec![],
             ..Default::default()
         },
     );
@@ -572,7 +568,6 @@ fn test_tsx_component_with_state() {
             view: None,
             styles: vec![],
             if_mode_default: None,
-            hero_defs: vec![],
             ..Default::default()
         },
     );
@@ -628,7 +623,6 @@ fn test_tsx_component_with_props() {
             view: None,
             styles: vec![],
             if_mode_default: None,
-            hero_defs: vec![],
             ..Default::default()
         },
     );
@@ -682,7 +676,6 @@ fn test_tsx_component_with_effect() {
             view: None,
             styles: vec![],
             if_mode_default: None,
-            hero_defs: vec![],
             ..Default::default()
         },
     );
@@ -726,7 +719,6 @@ fn test_tsx_component_with_lifecycle_mount() {
             view: None,
             styles: vec![],
             if_mode_default: None,
-            hero_defs: vec![],
             ..Default::default()
         },
     );
@@ -1074,7 +1066,6 @@ fn test_full_pipeline_component() {
         view: None,
         styles: vec![],
         if_mode_default: None,
-        hero_defs: vec![],
         ..Default::default()
     };
     let ir = IRProgram {
@@ -1207,7 +1198,6 @@ fn test_full_pipeline_component_with_store_ref() {
         view: None,
         styles: vec![],
         if_mode_default: None,
-        hero_defs: vec![],
         ..Default::default()
     };
     let ir = IRProgram {

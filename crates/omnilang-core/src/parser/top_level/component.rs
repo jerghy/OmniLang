@@ -20,7 +20,6 @@ impl<'a> Parser<'a> {
         let mut store_refs = Vec::new();
         let mut if_mode_default: Option<String> = None;
         let mut motions: Vec<MotionDef> = Vec::new();
-        let hero_defs: Vec<HeroDef> = Vec::new();
         let mut lifecycles = Vec::new();
         let mut fns = Vec::new();
         let mut actions = Vec::new();
@@ -93,14 +92,6 @@ impl<'a> Parser<'a> {
                         self.advance();
                     }
                     if_mode_default = Some(mode);
-                }
-                TokenKind::AtHero => {
-                    self.advance(); // consume '@hero'
-                    return Err(self.error(
-                        "@hero transitions are no longer supported. \
-                         Use @enter or @in-view triggers on individual elements instead. \
-                         See ADR-032."
-                    ));
                 }
                 TokenKind::Const => {
                     self.advance(); // 'const'
@@ -206,7 +197,6 @@ impl<'a> Parser<'a> {
             refs,
             store_refs,
             if_mode_default,
-            hero_defs,
             lifecycles,
             fns,
             actions,

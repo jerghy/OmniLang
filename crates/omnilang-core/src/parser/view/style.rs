@@ -584,9 +584,9 @@ pub(super) fn is_text_token(kind: &TokenKind) -> bool {
             | TokenKind::StringLiteral(_)
             // @-keyword tokens that may appear in text content
             | TokenKind::AtEnter | TokenKind::AtHover
-            | TokenKind::AtPress
-            | TokenKind::AtInView
+            | TokenKind::AtPress | TokenKind::AtInView
             | TokenKind::AtPaused
+            | TokenKind::AtHero
             | TokenKind::AtInViewOnce | TokenKind::AtInViewRepeat
             | TokenKind::AtInViewThreshold
             | TokenKind::AtScroll | TokenKind::AtScrollStart

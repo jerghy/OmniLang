@@ -317,7 +317,6 @@ mod tests {
             view: None,
             styles: vec![],
             if_mode_default: None,
-            hero_defs: vec![],
             ..Default::default()
         };
         generate_component(&mut w, "App", &comp);
@@ -353,7 +352,6 @@ mod tests {
             view: None,
             styles: vec![],
             if_mode_default: None,
-            hero_defs: vec![],
             ..Default::default()
         };
         generate_component(&mut w, "App", &comp);
@@ -394,7 +392,6 @@ mod tests {
             view: None,
             styles: vec![],
             if_mode_default: None,
-            hero_defs: vec![],
             ..Default::default()
         };
         generate_component(&mut w, "Counter", &comp);
@@ -656,7 +653,6 @@ mod tests {
                             view: None,
                             styles: vec![],
                             if_mode_default: None,
-                            hero_defs: vec![],
                             ..Default::default()
                         },
                     )]),

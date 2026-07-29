@@ -482,13 +482,6 @@ impl<'a> Parser<'a> {
                     self.expect_token(TokenKind::RBrace, "expected '}'")?;
                     props.push(ElementProp::PausedOverride(expr));
                 }
-                TokenKind::AtHoverReverse => {
-                    self.advance();
-                    return Err(self.error(
-                        "@hover-reverse has been removed. Use separate @hover triggers with \
-                         different named motions for enter and leave animations. See ADR-032."
-                    ));
-                }
                 TokenKind::AtInViewOnce
                 | TokenKind::AtInViewRepeat
                 | TokenKind::AtInViewThreshold => {
@@ -532,20 +525,9 @@ impl<'a> Parser<'a> {
                     let val = self.expect_string("expected string value")?;
                     props.push(ElementProp::DragConstraints(val));
                 }
-                TokenKind::DragScrub => {
-                    self.advance();
-                    return Err(self.error(
-                        "@drag-scrub has been removed. Drag animations now use the element's \
-                         drag behavior configuration directly. See ADR-032."
-                    ));
-                }
-                TokenKind::DragMomentum => {
-                    self.advance();
-                    return Err(self.error(
-                        "@drag-momentum has been removed. See ADR-032."
-                    ));
-                }
                 TokenKind::DragElastic
+                | TokenKind::DragScrub
+                | TokenKind::DragMomentum
                 | TokenKind::DragThreshold
                 | TokenKind::DragVelocityMax => {
                     let kind = self.advance().kind.clone();
@@ -555,43 +537,12 @@ impl<'a> Parser<'a> {
                     self.expect_token(TokenKind::RBrace, "expected '}'")?;
                     match kind {
                         TokenKind::DragElastic => props.push(ElementProp::DragElastic(val)),
+                        TokenKind::DragScrub => props.push(ElementProp::DragScrub(val)),
+                        TokenKind::DragMomentum => props.push(ElementProp::DragMomentum(val)),
                         TokenKind::DragThreshold => props.push(ElementProp::DragThreshold(val)),
                         TokenKind::DragVelocityMax => props.push(ElementProp::DragVelocityMax(val)),
                         _ => {}
                     }
-                }
-                TokenKind::AtFocus => {
-                    self.advance();
-                    return Err(self.error(
-                        "@focus trigger has been removed. Use @hover and @press instead. See ADR-032."
-                    ));
-                }
-                TokenKind::AtLeave | TokenKind::AtUnhover => {
-                    self.advance();
-                    return Err(self.error(
-                        "@leave and @unhover triggers have been removed. Use @enter with reverse \
-                         direction instead. See ADR-032."
-                    ));
-                }
-                TokenKind::AtTimeline => {
-                    self.advance();
-                    return Err(self.error(
-                        "@timeline trigger has been removed. Use individual @enter triggers \
-                         with delay values instead. See ADR-032."
-                    ));
-                }
-                TokenKind::AtAnimate => {
-                    self.advance();
-                    return Err(self.error(
-                        "@animate trigger has been removed. Use @enter trigger instead. See ADR-032."
-                    ));
-                }
-                TokenKind::AtDrivenBy => {
-                    self.advance();
-                    return Err(self.error(
-                        "@driven-by trigger has been removed. Use signal bindings in keyframe \
-                         properties instead. See ADR-032."
-                    ));
                 }
                 _ => {
                     let t = self.advance();

@@ -83,7 +83,6 @@ mod tests {
                 view: None,
                 styles: vec![],
                 if_mode_default: None,
-                hero_defs: vec![],
                 ..Default::default()
             },
         );
@@ -132,7 +131,6 @@ mod tests {
                 view: None,
                 styles: vec![],
                 if_mode_default: None,
-                hero_defs: vec![],
                 ..Default::default()
             },
         );

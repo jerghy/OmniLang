@@ -13,6 +13,100 @@ use rustc_hash::FxHashMap;
 // Phase 1: Pure Function Tests
 // ═════════════════════════════════════════════════════════════════════════════
 
+/// Verifies all 6 CSS transform shorthand mappings plus the unknown-key fallback.
+#[test]
+fn test_format_transform_values() {
+    // x → translateX(...px)
+    assert_eq!(
+        OmniViewGenerator::format_transform_value("x", "100"),
+        "translateX(100px)"
+    );
+    // y → translateY(...px)
+    assert_eq!(
+        OmniViewGenerator::format_transform_value("y", "-50"),
+        "translateY(-50px)"
+    );
+    // scale, scaleX, scaleY → key(value)
+    assert_eq!(
+        OmniViewGenerator::format_transform_value("scale", "1.5"),
+        "scale(1.5)"
+    );
+    assert_eq!(
+        OmniViewGenerator::format_transform_value("scaleX", "2"),
+        "scaleX(2)"
+    );
+    assert_eq!(
+        OmniViewGenerator::format_transform_value("scaleY", "0.5"),
+        "scaleY(0.5)"
+    );
+    // rotate, rotateX, rotateY, rotateZ → key(...deg)
+    assert_eq!(
+        OmniViewGenerator::format_transform_value("rotate", "45"),
+        "rotate(45deg)"
+    );
+    assert_eq!(
+        OmniViewGenerator::format_transform_value("rotateX", "90"),
+        "rotateX(90deg)"
+    );
+    assert_eq!(
+        OmniViewGenerator::format_transform_value("rotateY", "180"),
+        "rotateY(180deg)"
+    );
+    assert_eq!(
+        OmniViewGenerator::format_transform_value("rotateZ", "360"),
+        "rotateZ(360deg)"
+    );
+    // Unknown key: passes through as key(value) — no px or deg suffix
+    assert_eq!(
+        OmniViewGenerator::format_transform_value("skewX", "10"),
+        "skewX(10)"
+    );
+    assert_eq!(
+        OmniViewGenerator::format_transform_value("translateX", "50"),
+        "translateX(50)"
+    );
+    // Edge: zero and decimal values
+    assert_eq!(
+        OmniViewGenerator::format_transform_value("x", "0"),
+        "translateX(0px)"
+    );
+    assert_eq!(
+        OmniViewGenerator::format_transform_value("scale", "0.001"),
+        "scale(0.001)"
+    );
+}
+
+/// Verifies `is_transform_prop` correctly identifies all 9 recognized shorthand
+/// transform properties and rejects standard CSS properties and full CSS names.
+#[test]
+fn test_is_transform_prop() {
+    // All 9 recognized transform shorthand properties
+    assert!(OmniViewGenerator::is_transform_prop("x"));
+    assert!(OmniViewGenerator::is_transform_prop("y"));
+    assert!(OmniViewGenerator::is_transform_prop("scale"));
+    assert!(OmniViewGenerator::is_transform_prop("scaleX"));
+    assert!(OmniViewGenerator::is_transform_prop("scaleY"));
+    assert!(OmniViewGenerator::is_transform_prop("rotate"));
+    assert!(OmniViewGenerator::is_transform_prop("rotateX"));
+    assert!(OmniViewGenerator::is_transform_prop("rotateY"));
+    assert!(OmniViewGenerator::is_transform_prop("rotateZ"));
+
+    // Standard CSS properties — NOT transform shorthands
+    assert!(!OmniViewGenerator::is_transform_prop("opacity"));
+    assert!(!OmniViewGenerator::is_transform_prop("color"));
+    assert!(!OmniViewGenerator::is_transform_prop("width"));
+    assert!(!OmniViewGenerator::is_transform_prop("height"));
+    assert!(!OmniViewGenerator::is_transform_prop("background"));
+    assert!(!OmniViewGenerator::is_transform_prop("border-radius"));
+
+    // Full CSS transform function names — NOT shorthand
+    assert!(!OmniViewGenerator::is_transform_prop("translateX"));
+    assert!(!OmniViewGenerator::is_transform_prop("translateY"));
+    assert!(!OmniViewGenerator::is_transform_prop("translateZ"));
+
+    // Edge: empty string
+    assert!(!OmniViewGenerator::is_transform_prop(""));
+}
 
 // ═════════════════════════════════════════════════════════════════════════════
 // Phase 2: Read-Only Conversion Tests (need OmniViewGenerator::test_new())
@@ -72,6 +166,73 @@ fn test_easing_all_variants() {
     // [Removed] Spring, Steps — EasingIR variants no longer exist
 }
 
+/// Tests playback_to_config for each configurable field in PlaybackIR.
+#[test]
+fn test_playback_config() {
+    let mut gen = OmniViewGenerator::test_new();
+
+    // Empty playback → no config properties
+    let empty = gen.playback_to_config(&PlaybackIR::default());
+    assert!(empty.is_empty(), "empty playback should produce no config");
+
+    // Loop infinite → "iterations": Infinity
+    let inf = gen.playback_to_config(&PlaybackIR {
+        loop_count: Some(LoopValue::Infinite),
+        ..Default::default()
+    });
+    assert!(inf.iter().any(|s| s.contains("Infinity")));
+
+    // Loop count → "iterations": N
+    let cnt = gen.playback_to_config(&PlaybackIR {
+        loop_count: Some(LoopValue::Count(3)),
+        ..Default::default()
+    });
+    assert!(cnt.iter().any(|s| s.contains("\"iterations\": 3")));
+
+    // Direction → "direction": "..."
+    let dir = gen.playback_to_config(&PlaybackIR {
+        direction: Some(DirectionValue::Alternate),
+        ..Default::default()
+    });
+    assert!(dir.iter().any(|s| s.contains("alternate")));
+    let rev = gen.playback_to_config(&PlaybackIR {
+        direction: Some(DirectionValue::Reverse),
+        ..Default::default()
+    });
+    assert!(rev.iter().any(|s| s.contains("reverse")));
+
+    // Fill → "fill": "..."
+    let fill = gen.playback_to_config(&PlaybackIR {
+        fill: Some(FillValue::Both),
+        ..Default::default()
+    });
+    assert!(fill.iter().any(|s| s.contains("both")));
+    let fwd = gen.playback_to_config(&PlaybackIR {
+        fill: Some(FillValue::Forwards),
+        ..Default::default()
+    });
+    assert!(fwd.iter().any(|s| s.contains("forwards")));
+
+    // Delay → "delay": value
+    let delay = gen.playback_to_config(&PlaybackIR {
+        delay: Some(ExprIR::LiteralExpr {
+            value: serde_json::json!(500),
+        }),
+        ..Default::default()
+    });
+    assert!(delay.iter().any(|s| s.contains("\"delay\": 500")));
+
+    // Paused → "paused": true
+    let paused = gen.playback_to_config(&PlaybackIR {
+        paused: true,
+        ..Default::default()
+    });
+    assert!(paused.iter().any(|s| s.contains("paused")));
+
+    // Done — remaining fields (respectReducedMotion, stagger, interrupt, when,
+    // stagger_from, repeat_delay) were removed from PlaybackIR
+}
+
 /// Tests keyframe_to_animate_call with both from/to stops.
 #[test]
 fn test_keyframe_animate_call_basic() {
@@ -108,6 +269,8 @@ fn test_keyframe_animate_call_basic() {
         },
         ease: None,
         playback: PlaybackIR::default(),
+        path: None,
+        path_rotate: None,
 
         source_span: None,
     };
@@ -154,6 +317,8 @@ fn test_keyframe_animate_call_edge_cases() {
         },
         ease: None,
         playback: PlaybackIR::default(),
+        path: None,
+        path_rotate: None,
 
         source_span: None,
     };
@@ -179,6 +344,8 @@ fn test_keyframe_animate_call_edge_cases() {
         },
         ease: None,
         playback: PlaybackIR::default(),
+        path: None,
+        path_rotate: None,
 
         source_span: None,
     };
@@ -222,6 +389,8 @@ fn test_keyframe_animate_call_edge_cases() {
         },
         ease: Some(EasingIR::Named("ease-in-out".into())),
         playback: PlaybackIR::default(),
+        path: None,
+        path_rotate: None,
 
         source_span: None,
     };
@@ -277,6 +446,8 @@ fn test_keyframe_animate_call_with_path() {
         },
         ease: Some(EasingIR::Named("linear".into())),
         playback: PlaybackIR::default(),
+        path: Some("M0,0 C100,200 200,200 300,0".into()),
+        path_rotate: Some(true),
 
         source_span: None,
     };
@@ -353,6 +524,8 @@ fn test_emit_motion_js_keyframe() {
             },
             ease: Some(EasingIR::Named("ease-out".into())),
             playback: PlaybackIR::default(),
+            path: None,
+            path_rotate: None,
 
             source_span: None,
         }),
@@ -391,7 +564,6 @@ fn test_motion_trigger_enter_named() {
                 source_span: None,
             }],
             paused_override: None,
-            hover_reverse: None,
             in_view_once: None,
             in_view_repeat: None,
             in_view_threshold: None,
@@ -453,7 +625,6 @@ fn test_motion_trigger_hover_named() {
                 source_span: None,
             }],
             paused_override: None,
-            hover_reverse: None,
             in_view_once: None,
             in_view_repeat: None,
             in_view_threshold: None,
@@ -495,7 +666,6 @@ fn test_scroll_trigger() {
                 source_span: None,
             }],
             paused_override: None,
-            hover_reverse: None,
             in_view_once: None,
             in_view_repeat: None,
             in_view_threshold: None,
@@ -547,7 +717,6 @@ fn test_drag_trigger() {
                 source_span: None,
             }],
             paused_override: None,
-            hover_reverse: None,
             in_view_once: None,
             in_view_repeat: None,
             in_view_threshold: None,
@@ -600,7 +769,6 @@ fn test_inview_trigger() {
                 source_span: None,
             }],
             paused_override: None,
-            hover_reverse: None,
             in_view_once: Some(ExprIR::LiteralExpr {
                 value: serde_json::json!(true),
             }),
@@ -650,7 +818,6 @@ fn test_driven_by() {
                 source_span: None,
             }],
             paused_override: None,
-            hover_reverse: None,
             in_view_once: None,
             in_view_repeat: None,
             in_view_threshold: None,
@@ -699,7 +866,6 @@ fn test_paused_override() {
                 name: "isPaused".into(),
                 type_ann: None,
             }),
-            hover_reverse: None,
             in_view_once: None,
             in_view_repeat: None,
             in_view_threshold: None,
@@ -761,15 +927,18 @@ fn test_stagger_children() {
             },
             ease: Some(EasingIR::Named("ease-out".into())),
             playback: PlaybackIR::default(),
+            path: None,
+            path_rotate: None,
             source_span: None,
         }),
         source_span: None,
     };
     gen.emit_motion_js(&motion);
-    // Note: stagger_children in PlaybackIR is not currently emitted by
-    // keyframe_to_animate_call (it only handles fill/direction/loop_count/delay
-    // from playback inline). This test verifies the factory function is
-    // emitted with the correct keyframe data and serves as a baseline.
+    // Note: stagger_children in PlaybackIR is currently used by
+    // playback_to_config (for timeline items), but keyframe_to_animate_call
+    // only handles fill/direction/loop_count/delay from playback inline.
+    // This test verifies the factory function is emitted with the correct
+    // keyframe data and serves as a baseline when stagger is added.
     assert!(
         gen.js.contains("motion_staggerAnim"),
         "should emit motion factory function"

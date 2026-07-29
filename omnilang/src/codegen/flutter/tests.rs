@@ -692,7 +692,6 @@ fn test_empty_component() {
             view: None,
             styles: vec![],
             if_mode_default: None,
-            hero_defs: vec![],
             ..Default::default()
         },
     );
@@ -775,7 +774,6 @@ fn test_component_with_state() {
             view: None,
             styles: vec![],
             if_mode_default: None,
-            hero_defs: vec![],
             ..Default::default()
         },
     );
@@ -837,7 +835,6 @@ fn test_component_with_props() {
             view: None,
             styles: vec![],
             if_mode_default: None,
-            hero_defs: vec![],
             ..Default::default()
         },
     );
@@ -891,7 +888,6 @@ fn test_component_with_mount_lifecycle() {
             view: None,
             styles: vec![],
             if_mode_default: None,
-            hero_defs: vec![],
             ..Default::default()
         },
     );
@@ -945,7 +941,6 @@ fn test_component_with_unmount_lifecycle() {
             view: None,
             styles: vec![],
             if_mode_default: None,
-            hero_defs: vec![],
             ..Default::default()
         },
     );
@@ -1661,7 +1656,6 @@ fn test_full_pipeline_component() {
         view: None,
         styles: vec![],
         if_mode_default: None,
-        hero_defs: vec![],
         ..Default::default()
     };
     let ir = IRProgram {
@@ -1769,7 +1763,6 @@ fn test_full_pipeline_component_with_store_ref() {
         view: None,
         styles: vec![],
         if_mode_default: None,
-        hero_defs: vec![],
         ..Default::default()
     };
     let ir = IRProgram {

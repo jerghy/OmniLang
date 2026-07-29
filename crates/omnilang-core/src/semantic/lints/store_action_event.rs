@@ -107,7 +107,6 @@ mod tests {
                 view,
                 styles: vec![],
                 if_mode_default: None,
-                hero_defs: vec![],
                 ..Default::default()
             },
         );

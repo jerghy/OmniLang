@@ -396,7 +396,6 @@ fn test_js_empty_component() {
         view: None,
         styles: vec![],
         if_mode_default: None,
-        hero_defs: vec![],
         ..Default::default()
     };
     generate_component(&mut w, "App", &comp, false);
@@ -425,7 +424,6 @@ fn test_ts_empty_component() {
         view: None,
         styles: vec![],
         if_mode_default: None,
-        hero_defs: vec![],
         ..Default::default()
     };
     generate_component(&mut w, "App", &comp, true);
@@ -462,7 +460,6 @@ fn test_js_component_with_function() {
         view: None,
         styles: vec![],
         if_mode_default: None,
-        hero_defs: vec![],
         ..Default::default()
     };
     generate_component(&mut w, "App", &comp, false);
@@ -502,7 +499,6 @@ fn test_js_component_with_state() {
         view: None,
         styles: vec![],
         if_mode_default: None,
-        hero_defs: vec![],
         ..Default::default()
     };
     generate_component(&mut w, "Counter", &comp, false);
@@ -543,7 +539,6 @@ fn test_ts_component_with_state() {
         view: None,
         styles: vec![],
         if_mode_default: None,
-        hero_defs: vec![],
         ..Default::default()
     };
     generate_component(&mut w, "Counter", &comp, true);
@@ -726,7 +721,6 @@ fn test_js_full_pipeline_through_trait() {
                         view: None,
                         styles: vec![],
                         if_mode_default: None,
-                        hero_defs: vec![],
                         ..Default::default()
                     },
                 )]),
@@ -788,7 +782,6 @@ fn test_ts_full_pipeline_through_trait() {
                         view: None,
                         styles: vec![],
                         if_mode_default: None,
-                        hero_defs: vec![],
                         ..Default::default()
                     },
                 )]),

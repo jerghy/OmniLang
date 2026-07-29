@@ -100,7 +100,6 @@ pub(super) fn at_keyword_to_token(kw: &str) -> Option<TokenKind> {
         "@drag-horizontal" | "@dragHorizontal" => Some(TokenKind::AtDragHorizontal),
         "@drag-vertical" | "@dragVertical" => Some(TokenKind::AtDragVertical),
         "@paused" => Some(TokenKind::AtPaused),
-        "@hover-reverse" => Some(TokenKind::AtHoverReverse),
         "@in-view-once" => Some(TokenKind::AtInViewOnce),
         "@in-view-repeat" => Some(TokenKind::AtInViewRepeat),
         "@in-view-threshold" => Some(TokenKind::AtInViewThreshold),

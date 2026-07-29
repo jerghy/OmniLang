@@ -1237,10 +1237,6 @@ mod tests {
         assert_token("@paused", TokenKind::AtPaused);
     }
     #[test]
-    fn test_at_hover_reverse() {
-        assert_token("@hover-reverse", TokenKind::AtHoverReverse);
-    }
-    #[test]
     fn test_at_inview_once() {
         assert_token("@in-view-once", TokenKind::AtInViewOnce);
     }

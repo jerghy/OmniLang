@@ -63,7 +63,6 @@ fn make_component(name: &str) -> ComponentIR {
         view: None,
         styles: vec![],
         if_mode_default: None,
-        hero_defs: vec![],
         source_span: None,
     }
 }
@@ -271,7 +270,6 @@ fn props_are_emitted_as_readonly_wrappers() {
         view: None,
         styles: vec![],
         if_mode_default: None,
-        hero_defs: vec![],
         source_span: None,
     };
     module.components.insert("PropComponent".to_string(), comp);
