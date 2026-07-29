@@ -48,7 +48,6 @@ fn make_component(name: &str) -> ComponentIR {
     ComponentIR {
         name: name.into(),
         source_file: None,
-        generic_params: vec![],
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
         signals: vec![],
@@ -62,7 +61,6 @@ fn make_component(name: &str) -> ComponentIR {
         event_param_types: vec![],
         view: None,
         styles: vec![],
-        if_mode_default: None,
         source_span: None,
     }
 }
@@ -232,7 +230,6 @@ fn props_are_emitted_as_readonly_wrappers() {
     let comp = ComponentIR {
         name: "PropComponent".into(),
         source_file: None,
-        generic_params: vec![],
         props: FxHashMap::from_iter([(
             "count".into(),
             TypeIR {
@@ -269,7 +266,6 @@ fn props_are_emitted_as_readonly_wrappers() {
         event_param_types: vec![],
         view: None,
         styles: vec![],
-        if_mode_default: None,
         source_span: None,
     };
     module.components.insert("PropComponent".to_string(), comp);

@@ -21,7 +21,6 @@ fn computed_references_prop_with_default() {
     let comp = ComponentIR {
         name: "Counter".into(),
         source_file: None,
-        generic_params: vec![],
         props: FxHashMap::from_iter([(
             "initial".into(),
             TypeIR {
@@ -61,7 +60,6 @@ fn computed_references_prop_with_default() {
         event_param_types: vec![],
         view: None,
         styles: vec![],
-        if_mode_default: None,
         source_span: None,
     };
     let mut module = ModuleIR {

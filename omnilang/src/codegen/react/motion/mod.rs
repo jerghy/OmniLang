@@ -8,14 +8,13 @@ use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 
 mod keyframes;
-mod transforms;
 #[cfg(test)]
 mod tests;
+mod transforms;
 
 // Re-export sub-module public items so they are visible at the `motion` level
 pub(super) use transforms::{
-    emit_drag_effects_tsx, emit_inview_effects_tsx,
-    emit_scroll_effects_tsx,
+    emit_drag_effects_tsx, emit_inview_effects_tsx, emit_scroll_effects_tsx,
 };
 
 /// Emit React hooks for @enter, @hover, @press, @focus motion triggers.

@@ -68,7 +68,6 @@ mod tests {
             "App".into(),
             ComponentIR {
                 name: "App".into(),
-                generic_params: vec![],
                 props: FxHashMap::default(),
                 prop_defaults: FxHashMap::default(),
                 signals: vec![],
@@ -82,7 +81,6 @@ mod tests {
                 event_param_types: vec![],
                 view: None,
                 styles: vec![],
-                if_mode_default: None,
                 ..Default::default()
             },
         );
@@ -116,7 +114,6 @@ mod tests {
             "App".into(),
             ComponentIR {
                 name: "App".into(),
-                generic_params: vec![],
                 props: FxHashMap::default(),
                 prop_defaults: FxHashMap::default(),
                 signals: vec![],
@@ -130,7 +127,6 @@ mod tests {
                 event_param_types: vec![],
                 view: None,
                 styles: vec![],
-                if_mode_default: None,
                 ..Default::default()
             },
         );

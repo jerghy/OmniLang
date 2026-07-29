@@ -314,7 +314,6 @@ fn test_generate_component_empty() {
     let mut w = CodeWriter::new();
     let comp = ComponentIR {
         name: "App".into(),
-        generic_params: vec![],
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
         signals: vec![],
@@ -328,7 +327,6 @@ fn test_generate_component_empty() {
         event_param_types: vec![],
         view: None,
         styles: vec![],
-        if_mode_default: None,
         ..Default::default()
     };
     generate_component(&mut w, "App", &comp);
@@ -343,7 +341,6 @@ fn test_generate_component_with_function() {
     let mut w = CodeWriter::new();
     let comp = ComponentIR {
         name: "App".into(),
-        generic_params: vec![],
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
         signals: vec![],
@@ -366,7 +363,6 @@ fn test_generate_component_with_function() {
         event_param_types: vec![],
         view: None,
         styles: vec![],
-        if_mode_default: None,
         ..Default::default()
     };
     generate_component(&mut w, "App", &comp);
@@ -380,7 +376,6 @@ fn test_generate_component_with_state() {
     let mut w = CodeWriter::new();
     let comp = ComponentIR {
         name: "Counter".into(),
-        generic_params: vec![],
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
         signals: vec![SignalIntent {
@@ -405,7 +400,6 @@ fn test_generate_component_with_state() {
         event_param_types: vec![],
         view: None,
         styles: vec![],
-        if_mode_default: None,
         ..Default::default()
     };
     generate_component(&mut w, "Counter", &comp);
@@ -609,7 +603,6 @@ fn test_full_pipeline_through_trait() {
                     "App".into(),
                     ComponentIR {
                         name: "App".into(),
-                        generic_params: vec![],
                         props: FxHashMap::default(),
                         prop_defaults: FxHashMap::default(),
                         signals: vec![],
@@ -632,7 +625,6 @@ fn test_full_pipeline_through_trait() {
                         event_param_types: vec![],
                         view: None,
                         styles: vec![],
-                        if_mode_default: None,
                         ..Default::default()
                     },
                 )]),

@@ -132,7 +132,6 @@ mod tests {
                     events: vec![],
                     refs: vec![],
                     store_refs: vec![],
-                    if_mode_default: None,
                     motions: vec![],
                     lifecycles: vec![],
                     fns: vec![FunctionDef {

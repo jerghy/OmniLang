@@ -20,5 +20,4 @@ impl OmniViewGenerator {
             kf = kf_js,
         ));
     }
-
 }

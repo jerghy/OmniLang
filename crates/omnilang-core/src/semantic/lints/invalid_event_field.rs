@@ -116,7 +116,6 @@ mod tests {
             comp_name.to_string(),
             ComponentIR {
                 name: comp_name.to_string(),
-                generic_params: vec![],
                 props: FxHashMap::default(),
                 prop_defaults: FxHashMap::default(),
                 signals: vec![],
@@ -130,7 +129,6 @@ mod tests {
                 event_param_types: vec![],
                 view,
                 styles: vec![],
-                if_mode_default: None,
                 ..Default::default()
             },
         );

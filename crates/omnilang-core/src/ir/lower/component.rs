@@ -238,7 +238,6 @@ pub(super) fn lower_component(
     ComponentIR {
         name: comp.name.clone(),
         source_file: None,
-        generic_params: vec![],
         props,
         prop_defaults,
         signals,
@@ -262,7 +261,6 @@ pub(super) fn lower_component(
             .collect(),
         view,
         styles,
-        if_mode_default: comp.if_mode_default.clone(),
         source_span: Some(comp.span),
     }
 }

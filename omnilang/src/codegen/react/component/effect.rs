@@ -296,11 +296,7 @@ pub(super) fn view_has_motion_or_effects(node: &ViewTree) -> bool {
             if let Some(ref motion) = el.motion {
                 // Triggers like @enter, @hover, @press, @focus generate useEffect
                 // @timeline and @animate triggers do NOT generate useEffect (they're WAAPI-only)
-                if motion
-                    .triggers
-                    .iter()
-                    .any(|_| true)
-                {
+                if motion.triggers.iter().any(|_| true) {
                     return true;
                 }
                 // in_view_once / in_view_repeat generates useEffect

@@ -106,5 +106,4 @@ impl OmniViewGenerator {
 
         (kf_js, opts_js)
     }
-
 }

@@ -63,7 +63,6 @@ pub(crate) fn fixture_component() -> IRProgram {
     };
     let comp = ComponentIR {
         name: "Counter".into(),
-        generic_params: vec![],
         props,
         prop_defaults: FxHashMap::default(),
         signals: vec![state],
@@ -115,7 +114,6 @@ pub(crate) fn fixture_component() -> IRProgram {
             source_span: None,
         })),
         styles: vec![],
-        if_mode_default: None,
         ..Default::default()
     };
     IRProgram {
@@ -240,7 +238,6 @@ pub(crate) fn fixture_component_with_store() -> IRProgram {
     };
     let comp = ComponentIR {
         name: "CounterWithStore".into(),
-        generic_params: vec![],
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
         signals: vec![],
@@ -281,7 +278,6 @@ pub(crate) fn fixture_component_with_store() -> IRProgram {
             source_span: None,
         })),
         styles: vec![],
-        if_mode_default: None,
         ..Default::default()
     };
     IRProgram {

@@ -343,7 +343,6 @@ mod tests {
             "App".into(),
             ComponentIR {
                 name: "App".into(),
-                generic_params: vec![],
                 props: FxHashMap::default(),
                 prop_defaults: FxHashMap::default(),
                 signals: vec![],
@@ -357,7 +356,6 @@ mod tests {
                 event_param_types: vec![],
                 view: None,
                 styles: vec![],
-                if_mode_default: None,
                 ..Default::default()
             },
         );
@@ -397,7 +395,6 @@ mod tests {
             "Counter".into(),
             ComponentIR {
                 name: "Counter".into(),
-                generic_params: vec![],
                 props: FxHashMap::default(),
                 prop_defaults: FxHashMap::default(),
                 signals: vec![state],
@@ -411,7 +408,6 @@ mod tests {
                 event_param_types: vec![],
                 view: None,
                 styles: vec![],
-                if_mode_default: None,
                 ..Default::default()
             },
         );
@@ -453,7 +449,6 @@ mod tests {
             "Greeting".into(),
             ComponentIR {
                 name: "Greeting".into(),
-                generic_params: vec![],
                 props,
                 prop_defaults: FxHashMap::default(),
                 signals: vec![],
@@ -467,7 +462,6 @@ mod tests {
                 event_param_types: vec![],
                 view: None,
                 styles: vec![],
-                if_mode_default: None,
                 ..Default::default()
             },
         );
@@ -506,7 +500,6 @@ mod tests {
             "Watcher".into(),
             ComponentIR {
                 name: "Watcher".into(),
-                generic_params: vec![],
                 props: FxHashMap::default(),
                 prop_defaults: FxHashMap::default(),
                 signals: vec![],
@@ -520,7 +513,6 @@ mod tests {
                 event_param_types: vec![],
                 view: None,
                 styles: vec![],
-                if_mode_default: None,
                 ..Default::default()
             },
         );
@@ -563,7 +555,6 @@ mod tests {
             "Calc".into(),
             ComponentIR {
                 name: "Calc".into(),
-                generic_params: vec![],
                 props: FxHashMap::default(),
                 prop_defaults: FxHashMap::default(),
                 signals: vec![],
@@ -577,7 +568,6 @@ mod tests {
                 event_param_types: vec![],
                 view: None,
                 styles: vec![],
-                if_mode_default: None,
                 ..Default::default()
             },
         );
@@ -683,7 +673,6 @@ mod tests {
         let codegen = DioxusCodegen;
         let comp = ComponentIR {
             name: "App".into(),
-            generic_params: vec![],
             props: FxHashMap::default(),
             prop_defaults: FxHashMap::default(),
             signals: vec![SignalIntent {
@@ -708,7 +697,6 @@ mod tests {
             event_param_types: vec![],
             view: None,
             styles: vec![],
-            if_mode_default: None,
             ..Default::default()
         };
         let ir = IRProgram {
@@ -861,7 +849,6 @@ mod tests {
         };
         let comp = ComponentIR {
             name: "App".into(),
-            generic_params: vec![],
             props: FxHashMap::default(),
             prop_defaults: FxHashMap::default(),
             signals: vec![],
@@ -875,7 +862,6 @@ mod tests {
             event_param_types: vec![],
             view: None,
             styles: vec![],
-            if_mode_default: None,
             ..Default::default()
         };
         let ir = IRProgram {

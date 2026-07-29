@@ -50,9 +50,7 @@ fn test_easing_all_variants() {
     assert!(cb.contains("y2:1"));
 
     // Back with default direction (None → "out")
-    let bk = gen.easing_to_js(&EasingIR::Back {
-        direction: None,
-    });
+    let bk = gen.easing_to_js(&EasingIR::Back { direction: None });
     assert!(bk.contains("back"));
     assert!(
         bk.contains("direction:\"out\""),
@@ -66,9 +64,7 @@ fn test_easing_all_variants() {
     assert!(bk2.contains("direction:\"in\""));
 
     // Elastic with default direction (None → "out")
-    let el = gen.easing_to_js(&EasingIR::Elastic {
-        direction: None,
-    });
+    let el = gen.easing_to_js(&EasingIR::Elastic { direction: None });
     assert!(el.contains("elastic"));
     assert!(el.contains("direction:\"out\""));
     // [Removed] Spring, Steps — EasingIR variants no longer exist

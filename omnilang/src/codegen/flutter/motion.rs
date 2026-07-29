@@ -74,20 +74,16 @@ pub(crate) fn format_easing_flutter(ease: &Option<EasingIR>) -> String {
         Some(EasingIR::CubicBezier { x1, y1, x2, y2 }) => {
             format!("Cubic({}, {}, {}, {})", x1, y1, x2, y2)
         }
-        Some(EasingIR::Back { direction }) => {
-            match direction.as_deref() {
-                Some("in") => "Curves.easeInBack".to_string(),
-                Some("inout") => "Curves.easeInOutBack".to_string(),
-                _ => "Curves.easeOutBack".to_string(),
-            }
-        }
-        Some(EasingIR::Elastic { direction }) => {
-            match direction.as_deref() {
-                Some("in") => "Curves.easeInElastic".to_string(),
-                Some("inout") => "Curves.easeInOutElastic".to_string(),
-                _ => "Curves.easeOutElastic".to_string(),
-            }
-        }
+        Some(EasingIR::Back { direction }) => match direction.as_deref() {
+            Some("in") => "Curves.easeInBack".to_string(),
+            Some("inout") => "Curves.easeInOutBack".to_string(),
+            _ => "Curves.easeOutBack".to_string(),
+        },
+        Some(EasingIR::Elastic { direction }) => match direction.as_deref() {
+            Some("in") => "Curves.easeInElastic".to_string(),
+            Some("inout") => "Curves.easeInOutElastic".to_string(),
+            _ => "Curves.easeOutElastic".to_string(),
+        },
         None => "Curves.linear".to_string(),
     }
 }
@@ -108,55 +104,55 @@ pub(crate) fn format_named_curve(name: &str) -> String {
 pub(crate) fn build_animated_builder_body(motion: &MotionIntent, anim_name: &str) -> String {
     let MotionBodyIR::Keyframe(kf) = &motion.body;
     let properties = extract_keyframe_properties(kf);
-        if properties.is_empty() {
-            return format!("Opacity(opacity: {}.value, child: child)", anim_name);
-        }
+    if properties.is_empty() {
+        return format!("Opacity(opacity: {}.value, child: child)", anim_name);
+    }
 
-        let mut body = "child".to_string();
+    let mut body = "child".to_string();
 
-        // Opacity
-        if properties.iter().any(|p| p == "opacity") {
-            body = format!("Opacity(opacity: {}.value, child: {})", anim_name, body);
-        }
+    // Opacity
+    if properties.iter().any(|p| p == "opacity") {
+        body = format!("Opacity(opacity: {}.value, child: {})", anim_name, body);
+    }
 
-        // Scale
-        if properties.iter().any(|p| p == "scale") {
-            body = format!(
-                "Transform.scale(scale: {}.value, child: {})",
-                anim_name, body
-            );
-        }
+    // Scale
+    if properties.iter().any(|p| p == "scale") {
+        body = format!(
+            "Transform.scale(scale: {}.value, child: {})",
+            anim_name, body
+        );
+    }
 
-        // Translate
-        if properties
-            .iter()
-            .any(|p| p == "translateX" || p == "translateY")
-        {
-            let x = if properties.iter().any(|p| p == "translateX") {
-                format!("{}.value", anim_name)
-            } else {
-                "0.0".to_string()
-            };
-            let y = if properties.iter().any(|p| p == "translateY") {
-                format!("{}.value", anim_name)
-            } else {
-                "0.0".to_string()
-            };
-            body = format!(
-                "Transform.translate(offset: Offset({}, {}), child: {})",
-                x, y, body
-            );
-        }
+    // Translate
+    if properties
+        .iter()
+        .any(|p| p == "translateX" || p == "translateY")
+    {
+        let x = if properties.iter().any(|p| p == "translateX") {
+            format!("{}.value", anim_name)
+        } else {
+            "0.0".to_string()
+        };
+        let y = if properties.iter().any(|p| p == "translateY") {
+            format!("{}.value", anim_name)
+        } else {
+            "0.0".to_string()
+        };
+        body = format!(
+            "Transform.translate(offset: Offset({}, {}), child: {})",
+            x, y, body
+        );
+    }
 
-        // Rotate
-        if properties.iter().any(|p| p == "rotate") {
-            body = format!(
-                "Transform.rotate(angle: {}.value, child: {})",
-                anim_name, body
-            );
-        }
+    // Rotate
+    if properties.iter().any(|p| p == "rotate") {
+        body = format!(
+            "Transform.rotate(angle: {}.value, child: {})",
+            anim_name, body
+        );
+    }
 
-        body
+    body
 }
 
 /// Wrap a widget expression with motion-triggered widgets:

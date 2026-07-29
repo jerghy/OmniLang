@@ -18,7 +18,6 @@ impl<'a> Parser<'a> {
         let mut events = Vec::new();
         let mut refs = Vec::new();
         let mut store_refs = Vec::new();
-        let mut if_mode_default: Option<String> = None;
         let mut motions: Vec<MotionDef> = Vec::new();
         let mut lifecycles = Vec::new();
         let mut fns = Vec::new();
@@ -82,16 +81,6 @@ impl<'a> Parser<'a> {
                     if *self.peek_kind() == TokenKind::Semicolon {
                         self.advance();
                     }
-                }
-                TokenKind::IfMode => {
-                    // if_mode: "wait" — component-level transition mode default
-                    self.advance();
-                    self.expect_token(TokenKind::Colon, "expected ':' after if_mode")?;
-                    let mode = self.expect_string("expected string value for if_mode")?;
-                    if *self.peek_kind() == TokenKind::Semicolon {
-                        self.advance();
-                    }
-                    if_mode_default = Some(mode);
                 }
                 TokenKind::Const => {
                     self.advance(); // 'const'
@@ -196,7 +185,6 @@ impl<'a> Parser<'a> {
             events,
             refs,
             store_refs,
-            if_mode_default,
             lifecycles,
             fns,
             actions,

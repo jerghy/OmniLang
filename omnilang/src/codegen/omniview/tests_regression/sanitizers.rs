@@ -122,7 +122,6 @@ fn design_block_css_values_are_sanitized() {
     let comp = ComponentIR {
         name: "Test".into(),
         source_file: Some("main.omni".into()),
-        generic_params: vec![],
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
         signals: vec![],
@@ -136,7 +135,6 @@ fn design_block_css_values_are_sanitized() {
         event_param_types: vec![],
         view: None,
         styles: vec![],
-        if_mode_default: None,
         source_span: None,
     };
     let mut module = ModuleIR {

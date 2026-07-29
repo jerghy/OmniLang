@@ -372,7 +372,11 @@ impl OmniViewGenerator {
     ) {
         match kind {
             TriggerKind::Enter => {
-                let comment = if is_inline { "// @enter (inline)" } else { "// @enter trigger" };
+                let comment = if is_inline {
+                    "// @enter (inline)"
+                } else {
+                    "// @enter trigger"
+                };
                 self.mount_js.push_str(&format!(
                     "{comment}\n\
                      (function() {{\n\
@@ -390,7 +394,11 @@ impl OmniViewGenerator {
                 ));
             }
             TriggerKind::Hover => {
-                let comment = if is_inline { "// @hover (inline)" } else { "// @hover trigger" };
+                let comment = if is_inline {
+                    "// @hover (inline)"
+                } else {
+                    "// @hover trigger"
+                };
                 let extra = format!(
                     "\x20\x20 el.addEventListener(\"mouseenter\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.play(); }});\n\
                      \x20\x20 el.addEventListener(\"mouseleave\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.reverse(); }});\n",
@@ -406,7 +414,11 @@ impl OmniViewGenerator {
                 ));
             }
             TriggerKind::Press => {
-                let comment = if is_inline { "// @press (inline)" } else { "// @press trigger" };
+                let comment = if is_inline {
+                    "// @press (inline)"
+                } else {
+                    "// @press trigger"
+                };
                 let extra = format!(
                     "\x20\x20 el.addEventListener(\"mousedown\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.play(); }});\n\
                      \x20\x20 el.addEventListener(\"mouseup\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.reverse(); }});\n",
@@ -476,7 +488,13 @@ impl OmniViewGenerator {
                 }
                 match trigger.kind {
                     TriggerKind::Enter | TriggerKind::Hover | TriggerKind::Press => {
-                        self.emit_trigger_with_anim_call(nid, trigger_str, &anim_call, trigger.kind, false);
+                        self.emit_trigger_with_anim_call(
+                            nid,
+                            trigger_str,
+                            &anim_call,
+                            trigger.kind,
+                            false,
+                        );
                     }
                     TriggerKind::InView => {
                         self.emit_trigger_inview_js(nid, trigger_str, &anim_call, el, false);
@@ -502,7 +520,13 @@ impl OmniViewGenerator {
                     format!("Omni.animate(el, {}, {{ {} }})", kf_override, opts_override);
                 match trigger.kind {
                     TriggerKind::Enter | TriggerKind::Hover | TriggerKind::Press => {
-                        self.emit_trigger_with_anim_call(nid, trigger_str, &anim_call, trigger.kind, true);
+                        self.emit_trigger_with_anim_call(
+                            nid,
+                            trigger_str,
+                            &anim_call,
+                            trigger.kind,
+                            true,
+                        );
                     }
                     TriggerKind::InView => {
                         self.emit_trigger_inview_js(nid, trigger_str, &anim_call, el, true);

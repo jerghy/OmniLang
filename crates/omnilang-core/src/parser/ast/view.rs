@@ -18,7 +18,6 @@ pub struct ComponentDef {
     pub events: Vec<EventDecl>,
     pub refs: Vec<RefDecl>,
     pub store_refs: Vec<String>,
-    pub if_mode_default: Option<String>,
     pub lifecycles: Vec<LifecycleHook>,
     pub fns: Vec<FunctionDef>,
     pub actions: Vec<ActionDef>,

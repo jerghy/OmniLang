@@ -302,7 +302,6 @@ mod tests {
         let mut w = CodeWriter::new();
         let comp = ComponentIR {
             name: "App".into(),
-            generic_params: vec![],
             props: FxHashMap::default(),
             prop_defaults: FxHashMap::default(),
             signals: vec![],
@@ -316,7 +315,6 @@ mod tests {
             event_param_types: vec![],
             view: None,
             styles: vec![],
-            if_mode_default: None,
             ..Default::default()
         };
         generate_component(&mut w, "App", &comp);
@@ -329,7 +327,6 @@ mod tests {
         let mut w = CodeWriter::new();
         let comp = ComponentIR {
             name: "App".into(),
-            generic_params: vec![],
             props: FxHashMap::default(),
             prop_defaults: FxHashMap::default(),
             signals: vec![],
@@ -351,7 +348,6 @@ mod tests {
             event_param_types: vec![],
             view: None,
             styles: vec![],
-            if_mode_default: None,
             ..Default::default()
         };
         generate_component(&mut w, "App", &comp);
@@ -366,7 +362,6 @@ mod tests {
         let mut w = CodeWriter::new();
         let comp = ComponentIR {
             name: "Counter".into(),
-            generic_params: vec![],
             props: FxHashMap::default(),
             prop_defaults: FxHashMap::default(),
             signals: vec![SignalIntent {
@@ -391,7 +386,6 @@ mod tests {
             event_param_types: vec![],
             view: None,
             styles: vec![],
-            if_mode_default: None,
             ..Default::default()
         };
         generate_component(&mut w, "Counter", &comp);
@@ -630,7 +624,6 @@ mod tests {
                         "App".into(),
                         ComponentIR {
                             name: "App".into(),
-                            generic_params: vec![],
                             props: FxHashMap::default(),
                             prop_defaults: FxHashMap::default(),
                             signals: vec![],
@@ -652,7 +645,6 @@ mod tests {
                             event_param_types: vec![],
                             view: None,
                             styles: vec![],
-                            if_mode_default: None,
                             ..Default::default()
                         },
                     )]),

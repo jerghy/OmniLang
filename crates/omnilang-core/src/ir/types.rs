@@ -710,8 +710,6 @@ pub struct ComponentIR {
     /// Populated during multi-file compilation; used by codegen for output directory structure.
     #[serde(default)]
     pub source_file: Option<String>,
-    #[serde(skip_serializing_if = "Vec::is_empty", default)]
-    pub generic_params: Vec<String>,
     pub props: FxHashMap<String, TypeIR>,
     /// Default values for props (keyed by prop name).
     /// Props without defaults must be provided by the parent.
@@ -733,9 +731,6 @@ pub struct ComponentIR {
     pub event_param_types: Vec<String>,
     pub view: Option<ViewTree>,
     pub styles: Vec<StyleRuleIR>,
-    /// Component-level @if mode default
-    #[serde(default)]
-    pub if_mode_default: Option<String>,
     /// Source location in .omni file
     #[serde(default)]
     pub source_span: Option<Span>,

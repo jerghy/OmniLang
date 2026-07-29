@@ -333,7 +333,6 @@ fn test_css_empty_component() {
     let codegen = ReactCodegen::default();
     let comp = ComponentIR {
         name: "App".into(),
-        generic_params: vec![],
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
         signals: vec![],
@@ -347,7 +346,6 @@ fn test_css_empty_component() {
         event_param_types: vec![],
         view: None,
         styles: vec![],
-        if_mode_default: None,
         ..Default::default()
     };
     let css = codegen.gen_component_css("App", &comp);
@@ -379,7 +377,6 @@ fn test_css_with_styles() {
     };
     let comp = ComponentIR {
         name: "App".into(),
-        generic_params: vec![],
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
         signals: vec![],
@@ -393,7 +390,6 @@ fn test_css_with_styles() {
         event_param_types: vec![],
         view: None,
         styles: vec![style],
-        if_mode_default: None,
         ..Default::default()
     };
     let css = codegen.gen_component_css("App", &comp);
@@ -407,7 +403,6 @@ fn test_css_with_styles() {
 fn make_test_component(name: &str, view: ViewTree) -> ComponentIR {
     ComponentIR {
         name: name.into(),
-        generic_params: vec![],
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
         signals: vec![],
@@ -421,7 +416,6 @@ fn make_test_component(name: &str, view: ViewTree) -> ComponentIR {
         event_param_types: vec![],
         view: Some(view),
         styles: vec![],
-        if_mode_default: None,
         ..Default::default()
     }
 }
@@ -504,7 +498,6 @@ fn test_tsx_empty_component() {
         "App".into(),
         ComponentIR {
             name: "App".into(),
-            generic_params: vec![],
             props: FxHashMap::default(),
             prop_defaults: FxHashMap::default(),
             signals: vec![],
@@ -518,7 +511,6 @@ fn test_tsx_empty_component() {
             event_param_types: vec![],
             view: None,
             styles: vec![],
-            if_mode_default: None,
             ..Default::default()
         },
     );
@@ -554,7 +546,6 @@ fn test_tsx_component_with_state() {
         "Counter".into(),
         ComponentIR {
             name: "Counter".into(),
-            generic_params: vec![],
             props: FxHashMap::default(),
             prop_defaults: FxHashMap::default(),
             signals: vec![state],
@@ -568,7 +559,6 @@ fn test_tsx_component_with_state() {
             event_param_types: vec![],
             view: None,
             styles: vec![],
-            if_mode_default: None,
             ..Default::default()
         },
     );
@@ -609,7 +599,6 @@ fn test_tsx_component_with_props() {
         "Greeting".into(),
         ComponentIR {
             name: "Greeting".into(),
-            generic_params: vec![],
             props,
             prop_defaults: FxHashMap::default(),
             signals: vec![],
@@ -623,7 +612,6 @@ fn test_tsx_component_with_props() {
             event_param_types: vec![],
             view: None,
             styles: vec![],
-            if_mode_default: None,
             ..Default::default()
         },
     );
@@ -662,7 +650,6 @@ fn test_tsx_component_with_effect() {
         "Watcher".into(),
         ComponentIR {
             name: "Watcher".into(),
-            generic_params: vec![],
             props: FxHashMap::default(),
             prop_defaults: FxHashMap::default(),
             signals: vec![],
@@ -676,7 +663,6 @@ fn test_tsx_component_with_effect() {
             event_param_types: vec![],
             view: None,
             styles: vec![],
-            if_mode_default: None,
             ..Default::default()
         },
     );
@@ -705,7 +691,6 @@ fn test_tsx_component_with_lifecycle_mount() {
         "App".into(),
         ComponentIR {
             name: "App".into(),
-            generic_params: vec![],
             props: FxHashMap::default(),
             prop_defaults: FxHashMap::default(),
             signals: vec![],
@@ -719,7 +704,6 @@ fn test_tsx_component_with_lifecycle_mount() {
             event_param_types: vec![],
             view: None,
             styles: vec![],
-            if_mode_default: None,
             ..Default::default()
         },
     );
@@ -1041,7 +1025,6 @@ fn test_full_pipeline_component() {
     let codegen = ReactCodegen::default();
     let comp = ComponentIR {
         name: "App".into(),
-        generic_params: vec![],
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
         signals: vec![SignalIntent {
@@ -1066,7 +1049,6 @@ fn test_full_pipeline_component() {
         event_param_types: vec![],
         view: None,
         styles: vec![],
-        if_mode_default: None,
         ..Default::default()
     };
     let ir = IRProgram {
@@ -1184,7 +1166,6 @@ fn test_full_pipeline_component_with_store_ref() {
     };
     let comp = ComponentIR {
         name: "App".into(),
-        generic_params: vec![],
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
         signals: vec![],
@@ -1198,7 +1179,6 @@ fn test_full_pipeline_component_with_store_ref() {
         event_param_types: vec![],
         view: None,
         styles: vec![],
-        if_mode_default: None,
         ..Default::default()
     };
     let ir = IRProgram {
