@@ -92,7 +92,9 @@ fn computed_references_prop_with_default() {
 
     // The prop must be emitted as __omni_readonlySignal with prefixed name
     assert!(
-        output.js.contains("__omni_readonlySignal(\"Counter_initial\""),
+        output
+            .js
+            .contains("__omni_readonlySignal(\"Counter_initial\""),
         "prop should be emitted via __omni_readonlySignal. JS:\n{}",
         output.js
     );
@@ -111,5 +113,37 @@ fn computed_references_prop_with_default() {
         "prop must be declared before computed that references it, got readonly at {} vs computed at {}",
         readonly_pos,
         computed_pos
+    );
+}
+
+#[test]
+fn slot_name_exact_match_not_substring() {
+    // A slot named "head" should NOT match a child with slot="header"
+    let src = r#"
+component Card {
+    view {
+        <div>
+            @slot head
+        </div>
+    }
+}
+component Page {
+    view {
+        Card {
+            <div slot="header">Header content</div>
+            <div slot="head">Head content</div>
+        }
+    }
+}
+"#;
+    let result = crate::compile_omniview(src, false, false);
+    assert!(result.success, "compilation should succeed: {:?}", result.errors);
+    let html = result.files.unwrap().html;
+    // With the fix, slot="head" should match named slot "head" exactly,
+    // but slot="header" should NOT match (substring false-positive).
+    assert!(html.contains("Head content"), "named slot 'head' should receive its child with slot=\"head\"");
+    assert!(
+        !html.contains("Header content"),
+        "slot=\"header\" should NOT match named slot \"head\" (substring false-positive)"
     );
 }

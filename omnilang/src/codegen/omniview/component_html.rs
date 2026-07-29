@@ -256,7 +256,11 @@ fn has_slot_attr(child: &ViewTree, slot_name: &str) -> bool {
         ViewTree::Element(el) => el
             .props
             .get("slot")
-            .map(|v| format!("{:?}", v).contains(slot_name))
+            .and_then(|v| match v {
+                ExprIR::LiteralExpr { value } => value.as_str(),
+                _ => None,
+            })
+            .map(|s| s == slot_name)
             .unwrap_or(false),
         _ => false,
     }
