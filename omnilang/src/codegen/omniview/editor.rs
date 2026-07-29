@@ -97,9 +97,15 @@ function __omni_replaceComponent(name, factoryCode) {
     Object.keys(oldComp.signals).forEach(function(k) {
       savedSignals[k] = oldComp.signals[k].peek();
     });
-    if (oldComp.teardown) oldComp.teardown();
   }
-  window.__omni_components[name] = (0, eval)(factoryCode);
+  try {
+    window.__omni_components[name] = (0, eval)(factoryCode);
+  } catch(e) {
+    try { parent.postMessage({ type: 'omni-replace-error', name: name, error: String(e) }, window.location.origin); } catch(_) {}
+    if (oldComp) window.__omni_components[name] = oldComp;
+    return;
+  }
+  if (oldComp && oldComp.teardown) oldComp.teardown();
   var newComp = window.__omni_components[name];
   if (newComp && newComp.signals) {
     Object.keys(savedSignals).forEach(function(k) {
