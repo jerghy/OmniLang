@@ -124,6 +124,19 @@ function __omni_sanitizeUrl(url) {
   return url;
 }
 
+function __omni_sanitizeCss(value) {
+  if (typeof value !== 'string') return value;
+  var lower = value.toLowerCase();
+  if (lower.indexOf('javascript:') >= 0 || lower.indexOf('expression(') >= 0 ||
+      lower.indexOf('url(') >= 0 || lower.indexOf('-moz-binding') >= 0 ||
+      lower.indexOf('data:text/html') >= 0 || lower.indexOf('@import') >= 0 ||
+      lower.indexOf('vbscript:') >= 0 || lower.indexOf('document.') >= 0 ||
+      lower.indexOf('window.') >= 0) {
+    return '';
+  }
+  return value;
+}
+
 function __omni_el(nid) {
   var cache = __omni_el._cache || (__omni_el._cache = {});
   var el = cache[nid];

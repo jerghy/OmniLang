@@ -322,11 +322,7 @@ impl FlutterCodegen {
 
         // Build method
         w.emit("@override");
-        if comp.store_refs.is_empty() {
-            w.emit("Widget build(BuildContext context) {");
-        } else {
-            w.emit("Widget build(BuildContext context) {");
-        }
+        w.emit("Widget build(BuildContext context) {");
         w.indent();
 
         if let Some(view) = &comp.view {

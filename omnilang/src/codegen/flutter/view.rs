@@ -255,7 +255,7 @@ fn format_element(
         let mut has_dynamic = false;
         let mut dynamic_conditions: Vec<String> = Vec::new();
 
-        for (_class_name, expr) in &el.class_map_bindings {
+        for expr in el.class_map_bindings.values() {
             match expr {
                 ExprIR::LiteralExpr { value } if value.as_bool() == Some(true) => {
                     // Always-applied class (literal true):

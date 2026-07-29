@@ -84,7 +84,7 @@ pub fn lower_design(ast: &DesignDef) -> DesignIR {
 /// - `Literal(s)` → the literal string unchanged
 /// - `TokenRef(name)` → lookup `name` in `tokens`, return value or `var(--name)` fallback
 /// - `Mixed(parts)` → concatenate resolved parts (literal text + token values)
-fn resolve_value(value: &DesignValue, tokens: &FxHashMap<String, TokenIR>) -> String {
+fn resolve_value(value: &DesignValue, _tokens: &FxHashMap<String, TokenIR>) -> String {
     match value {
         DesignValue::Literal(s) => s.clone(),
         DesignValue::TokenRef(name) => resolve_token_ref(name),

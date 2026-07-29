@@ -46,7 +46,10 @@ impl OmniViewGenerator {
                                     "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) ",
                                     nid
                                 );
-                                self.emit_style_assignment(js_prop, &format!("{}.value", prefixed));
+                                self.emit_style_assignment(
+                                    js_prop,
+                                    &format!("__omni_sanitizeCss({}.value)", prefixed),
+                                );
                                 self.js.push_str(" });\n");
                             }
                         }
@@ -76,7 +79,10 @@ impl OmniViewGenerator {
                                     "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) ",
                                     nid
                                 );
-                                self.emit_style_assignment(js_prop, &js_parts.join(" + "));
+                                self.emit_style_assignment(
+                                    js_prop,
+                                    &format!("__omni_sanitizeCss({})", js_parts.join(" + ")),
+                                );
                                 self.js.push_str(" });\n");
                             }
                         }
@@ -116,7 +122,11 @@ impl OmniViewGenerator {
                                     );
                                     self.emit_style_assignment(
                                         js_prop,
-                                        &format!("{}({})", prefixed, arg_strs.join(", ")),
+                                        &format!(
+                                            "__omni_sanitizeCss({}({}))",
+                                            prefixed,
+                                            arg_strs.join(", ")
+                                        ),
                                     );
                                     self.js.push_str(" });\n");
                                 }
