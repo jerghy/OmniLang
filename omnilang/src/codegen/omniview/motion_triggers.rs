@@ -423,7 +423,15 @@ impl OmniViewGenerator {
                     &extra,
                 ));
             }
-            _ => {}
+            TriggerKind::InView
+            | TriggerKind::Scroll
+            | TriggerKind::DragHorizontal
+            | TriggerKind::DragVertical => {
+                unreachable!(
+                    "emit_trigger_with_anim_call only handles Enter/Hover/Press — \
+                     other variants are dispatched to their own dedicated methods"
+                )
+            }
         }
     }
 

@@ -101,42 +101,13 @@ pub(crate) fn format_easing_flutter(ease: &Option<EasingIR>) -> String {
 }
 
 /// Map a named easing string to a Flutter Curves constant.
+///
+/// Delegates to the shared [`NAMED_EASINGS`] table.
+/// Falls back to `Curves.linear` for unknown names.
 pub(crate) fn format_named_curve(name: &str) -> String {
-    match name {
-        "linear" => "Curves.linear",
-        "ease" => "Curves.ease",
-        "easeIn" | "ease_in" => "Curves.easeIn",
-        "easeOut" | "ease_out" => "Curves.easeOut",
-        "easeInOut" | "ease_in_out" => "Curves.easeInOut",
-        "power1In" | "easeInQuad" | "quadIn" => "Curves.easeInQuad",
-        "power1Out" | "easeOutQuad" | "quadOut" => "Curves.easeOutQuad",
-        "power2In" | "easeInCubic" | "cubicIn" => "Curves.easeInCubic",
-        "power2Out" | "easeOutCubic" | "cubicOut" => "Curves.easeOutCubic",
-        "power3In" | "easeInQuart" | "quartIn" => "Curves.easeInQuart",
-        "power3Out" | "easeOutQuart" | "quartOut" => "Curves.easeOutQuart",
-        "power4In" | "easeInQuint" | "quintIn" => "Curves.easeInQuint",
-        "power4Out" | "easeOutQuint" | "quintOut" => "Curves.easeOutQuint",
-        "easeInSine" | "sineIn" => "Curves.easeInSine",
-        "easeOutSine" | "sineOut" => "Curves.easeOutSine",
-        "easeInOutSine" => "Curves.easeInOutSine",
-        "easeInExpo" | "expoIn" => "Curves.easeInExpo",
-        "easeOutExpo" | "expoOut" => "Curves.easeOutExpo",
-        "easeInOutExpo" => "Curves.easeInOutExpo",
-        "easeInCirc" | "circIn" => "Curves.easeInCirc",
-        "easeOutCirc" | "circOut" => "Curves.easeOutCirc",
-        "easeInOutCirc" => "Curves.easeInOutCirc",
-        "easeInBack" | "backIn" => "Curves.easeInBack",
-        "easeOutBack" | "backOut" => "Curves.easeOutBack",
-        "easeInOutBack" => "Curves.easeInOutBack",
-        "easeInElastic" | "elasticIn" => "Curves.easeInElastic",
-        "easeOutElastic" | "elasticOut" => "Curves.easeOutElastic",
-        "easeInOutElastic" => "Curves.easeInOutElastic",
-        "bounceIn" => "Curves.bounceIn",
-        "bounceOut" => "Curves.bounceOut",
-        "bounceInOut" => "Curves.bounceInOut",
-        _ => "Curves.linear",
-    }
-    .to_string()
+    omnilang_core::codegen::shared::easing::resolve_easing_flutter(name)
+        .unwrap_or("Curves.linear")
+        .to_string()
 }
 
 /// Build the AnimatedBuilder `builder` body expression for a motion.
