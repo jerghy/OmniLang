@@ -260,6 +260,16 @@ function __omni_el(nid) {
 	function __omni_forToggleState(comp, name, rebindFn) {
 	  __omni_forSetState(comp, name, !__omni_forGetState(comp, name, false), rebindFn);
 	}
+	function __omni_cleanupElement(nid) {
+	  if (!nid) return;
+	  var prefix = nid + "_";
+	  __omni_animations.forEach(function(anim, key) {
+	    if (key.startsWith(prefix)) {
+	      try { anim.cancel(); } catch(_) {}
+	      __omni_animations.delete(key);
+	    }
+	  });
+	}
 /// ─── End Signal Runtime ────────────────────────────
 
 "#,

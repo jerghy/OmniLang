@@ -350,11 +350,11 @@ impl OmniViewGenerator {
             );
             self.js.push_str("          if (player) {\n");
             self.js.push_str(
-                "            player.play().then(() => { el.remove(); _forKeys.delete(key); });\n",
+                "            player.play().then(() => { el.remove(); __omni_cleanupElement(leavingNid); _forKeys.delete(key); });\n",
             );
             self.js.push_str("          } else {\n");
             self.js
-                .push_str("            el.remove(); _forKeys.delete(key);\n");
+                .push_str("            el.remove(); __omni_cleanupElement(leavingNid); _forKeys.delete(key);\n");
             self.js.push_str("          }\n");
             self.js.push_str("        } else {\n");
             self.js

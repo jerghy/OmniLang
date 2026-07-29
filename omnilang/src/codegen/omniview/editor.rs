@@ -205,6 +205,13 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, wind
                  \x20\x20\x20 leaveAnim.play();\n\
                  \x20\x20\x20 // Wait for leave animation to complete\n\
                  \x20\x20\x20 function _onLeaveDone() {{\n\
+                 \x20\x20\x20\x20 // Cleanup old branch animations\n\
+                 \x20\x20\x20\x20 const oldEl = __omni_el(oldNid);\n\
+                 \x20\x20\x20\x20 if (oldEl) {{\n\
+                 \x20\x20\x20\x20\x20 oldEl.querySelectorAll('[data-nid]').forEach(function(c) {{\n\
+                 \x20\x20\x20\x20\x20\x20 __omni_cleanupElement(c.getAttribute('data-nid'));\n\
+                 \x20\x20\x20\x20\x20 }});\n\
+                 \x20\x20\x20\x20 }}\n\
                  \x20\x20\x20\x20 _showNow(newNid);\n\
                  \x20\x20\x20\x20 // Trigger @enter on new branch\n\
                  \x20\x20\x20\x20 const enterAnim = __omni_animations.get(newNid + \"_enter\");\n\
@@ -221,6 +228,13 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, wind
                  \x20\x20\x20\x20 }}, 16);\n\
                  \x20\x20\x20 }}\n\
                  \x20\x20 }} else {{\n\
+                 \x20\x20\x20 // Cleanup old branch animations\n\
+                 \x20\x20\x20 const oldEl = __omni_el(oldNid);\n\
+                 \x20\x20\x20 if (oldEl) {{\n\
+                 \x20\x20\x20\x20 oldEl.querySelectorAll('[data-nid]').forEach(function(c) {{\n\
+                 \x20\x20\x20\x20\x20 __omni_cleanupElement(c.getAttribute('data-nid'));\n\
+                 \x20\x20\x20\x20 }});\n\
+                 \x20\x20\x20 }}\n\
                  \x20\x20\x20 _showNow(newNid);\n\
                  \x20\x20 }}\n\
                  \x20 }};\n",
@@ -232,7 +246,7 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, wind
             self.js.push_str("__omni_effect(() => {\n");
             self.js
                 .push_str(&format!("  const _nids = {};\n", nid_array));
-            self.js.push_str("  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? \"block\" : \"none\"; if (id === nid) { e.querySelectorAll('[data-nid]').forEach(function(c) { var a = __omni_animations.get(c.getAttribute('data-nid') + '_enter'); if (a) { a.cancel(); a.play(); } }); } } }); };\n");
+            self.js.push_str("  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? \"block\" : \"none\"; if (id === nid) { e.querySelectorAll('[data-nid]').forEach(function(c) { var a = __omni_animations.get(c.getAttribute('data-nid') + '_enter'); if (a) { a.cancel(); a.play(); } }); } else { e.querySelectorAll('[data-nid]').forEach(function(c) { __omni_cleanupElement(c.getAttribute('data-nid')); }); } } }); };\n");
         }
 
         // For each branch, build the if/else if chain

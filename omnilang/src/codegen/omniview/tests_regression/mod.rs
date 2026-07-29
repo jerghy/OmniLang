@@ -137,11 +137,18 @@ component Page {
 }
 "#;
     let result = crate::compile_omniview(src, false, false);
-    assert!(result.success, "compilation should succeed: {:?}", result.errors);
+    assert!(
+        result.success,
+        "compilation should succeed: {:?}",
+        result.errors
+    );
     let html = result.files.unwrap().html;
     // With the fix, slot="head" should match named slot "head" exactly,
     // but slot="header" should NOT match (substring false-positive).
-    assert!(html.contains("Head content"), "named slot 'head' should receive its child with slot=\"head\"");
+    assert!(
+        html.contains("Head content"),
+        "named slot 'head' should receive its child with slot=\"head\""
+    );
     assert!(
         !html.contains("Header content"),
         "slot=\"header\" should NOT match named slot \"head\" (substring false-positive)"
