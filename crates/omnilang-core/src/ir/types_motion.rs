@@ -21,8 +21,6 @@ pub struct MotionIntent {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum MotionBodyIR {
     Keyframe(KeyframeIR),
-    Timeline(TimelineIR),
-    CallbackOnly(CallbackBodyIR),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -30,7 +28,6 @@ pub struct KeyframeIR {
     pub stops: Vec<KeyframeStopIR>,
     pub over: ExprIR,
     pub ease: Option<EasingIR>,
-    pub color_space: Option<String>,
     pub playback: PlaybackIR,
     /// Path for motion path animation
     #[serde(default)]
@@ -38,9 +35,6 @@ pub struct KeyframeIR {
     /// Whether to rotate element along the path
     #[serde(default)]
     pub path_rotate: Option<bool>,
-    /// Callback blocks (onStart, onUpdate, onComplete, onRepeat, onInterrupt)
-    #[serde(default)]
-    pub callbacks: Vec<(CallbackKindIR, ExprIR)>,
     #[serde(default)]
     pub source_span: Option<Span>,
 }
@@ -54,75 +48,6 @@ pub struct KeyframeStopIR {
     pub source_span: Option<Span>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TimelineIR {
-    pub items: Vec<TimelineItemIR>,
-    pub playback: PlaybackIR,
-    #[serde(default)]
-    pub source_span: Option<Span>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TimelineItemIR {
-    pub kind: TimelineItemKindIR,
-    pub connector: ConnectorIR,
-    #[serde(default)]
-    pub source_span: Option<Span>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[allow(clippy::large_enum_variant)]
-pub enum TimelineItemKindIR {
-    Direction {
-        dir: DirectionIR,
-        properties: FxHashMap<String, ExprIR>,
-        over: ExprIR,
-        ease: Option<EasingIR>,
-        delay: Option<ExprIR>,
-        color_space: Option<String>,
-        start: Option<String>,
-        /// Path for motion path animation
-        path: Option<String>,
-        /// Whether to rotate element along the path
-        path_rotate: Option<bool>,
-    },
-    Set(Vec<(String, ExprIR)>),
-    MotionRef(String),
-    Stagger(Box<MotionExprIR>, StaggerTimingIR, StaggerDirection),
-    Label(String, Option<ExprIR>),
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum DirectionIR {
-    To,
-    FromTo,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum ConnectorIR {
-    None,
-    Then,
-    With,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CallbackBodyIR {
-    pub callbacks: Vec<(CallbackKindIR, ExprIR)>,
-    pub over: ExprIR,
-    pub playback: PlaybackIR,
-    #[serde(default)]
-    pub source_span: Option<Span>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum CallbackKindIR {
-    OnStart,
-    OnUpdate,
-    OnComplete,
-    OnRepeat,
-    OnInterrupt,
-}
-
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct PlaybackIR {
     pub loop_count: Option<LoopValue>,
@@ -130,15 +55,6 @@ pub struct PlaybackIR {
     pub fill: Option<FillValue>,
     pub delay: Option<ExprIR>,
     pub paused: bool,
-    pub repeat_delay: Option<ExprIR>,
-    pub repeat_refresh: bool,
-    pub time_scale: Option<ExprIR>,
-    pub interrupt: Option<InterruptValue>,
-    pub respect_reduced_motion: bool,
-    pub when: Option<WhenValue>,
-    pub delay_children: Option<ExprIR>,
-    pub stagger_children: Option<ExprIR>,
-    pub stagger_from: Option<StaggerDirection>,
     #[serde(default)]
     pub source_span: Option<Span>,
 }
@@ -152,34 +68,12 @@ pub enum EasingIR {
         x2: f64,
         y2: f64,
     },
-    Spring {
-        tension: f64,
-        friction: f64,
-        velocity: Option<f64>,
-    },
     Back {
-        intensity: f64,
         direction: Option<String>,
     },
     Elastic {
-        amplitude: f64,
-        period: f64,
         direction: Option<String>,
     },
-    Steps {
-        count: u32,
-        direction: String,
-    },
-}
-
-/// Hero intent for cross-component shared element transitions
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct HeroIntent {
-    pub name: String,
-    pub over: ExprIR,
-    pub ease: Option<EasingIR>,
-    #[serde(default)]
-    pub source_span: Option<Span>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -194,34 +88,12 @@ pub struct TriggerIntent {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum TriggerKind {
     Enter,
-    Leave,
     Hover,
-    Unhover,
     Press,
-    Focus,
-    Animate,
     InView,
     Scroll,
     DragHorizontal,
     DragVertical,
-    Timeline,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StatesIR {
-    pub states: FxHashMap<String, StateTweenIR>,
-    pub signal: Option<ExprIR>,
-    #[serde(default)]
-    pub source_span: Option<Span>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StateTweenIR {
-    pub properties: FxHashMap<String, ExprIR>,
-    pub over: Option<ExprIR>,
-    pub ease: Option<EasingIR>,
-    #[serde(default)]
-    pub source_span: Option<Span>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -231,10 +103,12 @@ pub enum MotionExprIR {
     Inline(MotionBodyIR),
 }
 
+/// Hero intent (legacy — kept for ComponentIR type compatibility; never actively used)
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TimelineIntent {
+pub struct HeroIntent {
     pub name: String,
-    pub items: Vec<TimelineItemIR>,
+    pub over: ExprIR,
+    pub ease: Option<EasingIR>,
     #[serde(default)]
     pub source_span: Option<Span>,
 }
@@ -264,42 +138,6 @@ pub enum FillValue {
     Both,
 }
 
-/// Value type for interrupt behavior.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum InterruptValue {
-    Compose,
-    Cancel,
-    Finish,
-    Replace,
-}
-
-/// Value type for when condition.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum WhenValue {
-    Idle,
-    Active,
-    IdleOrActive,
-}
-
-/// Value type for stagger direction.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum StaggerDirection {
-    First,
-    Last,
-    Center,
-    Edges,
-    Random,
-}
-
-/// Timing parameters for stagger effects.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StaggerTimingIR {
-    pub each: ExprIR,
-    pub from: Option<StaggerDirection>,
-    #[serde(default)]
-    pub source_span: Option<Span>,
-}
-
 // ═══════════════════════════════════════════════════════
 // ElementIR behavior sub-structs
 // ═══════════════════════════════════════════════════════
@@ -307,9 +145,7 @@ pub struct StaggerTimingIR {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct MotionBehavior {
     pub triggers: Vec<TriggerIntent>,
-    pub states: Option<StatesIR>,
     pub paused_override: Option<ExprIR>,
-    pub driven_by: Option<ExprIR>,
     pub hover_reverse: Option<String>,
     pub in_view_once: Option<ExprIR>,
     pub in_view_repeat: Option<ExprIR>,
@@ -331,18 +167,8 @@ pub struct ScrollBehavior {
 pub struct DragBehavior {
     pub constraints: Option<String>,
     pub elastic: Option<ExprIR>,
-    pub scrub: Option<ExprIR>,
-    pub momentum: Option<ExprIR>,
     pub threshold: Option<ExprIR>,
     pub velocity_max: Option<ExprIR>,
-    #[serde(default)]
-    pub source_span: Option<Span>,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct HeroBehavior {
-    pub tag: Option<String>,
-    pub transition: Option<ExprIR>,
     #[serde(default)]
     pub source_span: Option<Span>,
 }

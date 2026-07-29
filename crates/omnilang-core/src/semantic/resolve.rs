@@ -594,17 +594,11 @@ impl SemanticAnalyzer {
                 | ElementProp::TestId(_)
                 | ElementProp::Ref(_)
                 | ElementProp::MotionTrigger(_)
-                | ElementProp::StatesMap(_)
-                | ElementProp::AnimateSignal(_)
                 | ElementProp::PausedOverride(_)
                 | ElementProp::HoverReverse(_)
-                | ElementProp::DrivenBy(_)
                 | ElementProp::InViewOnce(_)
                 | ElementProp::InViewRepeat(_)
                 | ElementProp::InViewThreshold(_)
-                | ElementProp::When(_)
-                | ElementProp::DelayChildren(_)
-                | ElementProp::StaggerChildren(_)
                 | ElementProp::ScrollStart(_)
                 | ElementProp::ScrollEnd(_)
                 | ElementProp::ScrollScrub(_)
@@ -614,8 +608,6 @@ impl SemanticAnalyzer {
                 | ElementProp::DragMomentum(_)
                 | ElementProp::DragThreshold(_)
                 | ElementProp::DragVelocityMax(_)
-                | ElementProp::HeroTag(_)
-                | ElementProp::HeroTransition(_)
                 | ElementProp::Variant { .. } => {}
             }
         }

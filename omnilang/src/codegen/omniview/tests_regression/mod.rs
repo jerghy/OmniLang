@@ -4,7 +4,7 @@
 mod list;
 mod motion;
 mod sanitizers;
-mod timeline;
+// mod timeline;  -- removed: Timeline IR types no longer exist
 
 /// Regression test: prop defaults must be emitted BEFORE computed declarations.
 /// If a computed references a prop with a default value, the prop's readonlySignal
@@ -74,7 +74,6 @@ fn computed_references_prop_with_default() {
         components: FxHashMap::default(),
         stores: FxHashMap::default(),
         motions: vec![],
-        timelines: vec![],
         imports: vec![],
         exports: vec![],
         designs: vec![],

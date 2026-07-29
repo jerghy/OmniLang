@@ -59,25 +59,6 @@ pub(super) fn is_non_interpolatable(prop: &str) -> bool {
     )
 }
 
-/// Collect all motion/timeline names referenced by a timeline definition.
-pub(super) fn collect_timeline_refs(timeline: &TimelineDef) -> Vec<&str> {
-    timeline
-        .items
-        .iter()
-        .filter_map(|item| match &item.kind {
-            TimelineItemKind::MotionRef(name) => Some(name.as_str()),
-            TimelineItemKind::Stagger(stagger) => {
-                if let Expr::VarRef(name, _) = stagger.motion.as_ref() {
-                    Some(name.as_str())
-                } else {
-                    None
-                }
-            }
-            _ => None,
-        })
-        .collect()
-}
-
 /// Extension trait to get span from TypeAnnotation.
 impl TypeAnnotation {
     pub fn span(&self) -> Span {

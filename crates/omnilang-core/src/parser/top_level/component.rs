@@ -20,7 +20,6 @@ impl<'a> Parser<'a> {
         let mut store_refs = Vec::new();
         let mut if_mode_default: Option<String> = None;
         let mut motions: Vec<MotionDef> = Vec::new();
-        let mut timelines: Vec<TimelineDef> = Vec::new();
         let mut hero_defs: Vec<HeroDef> = Vec::new();
         let mut lifecycles = Vec::new();
         let mut fns = Vec::new();
@@ -219,9 +218,6 @@ impl<'a> Parser<'a> {
                     let motion = self.parse_motion_def()?;
                     motions.push(motion);
                 }
-                TokenKind::AtTimeline => {
-                    timelines.push(self.parse_timeline_def()?);
-                }
                 _ => {
                     let t = self.advance();
                     return Err(ParseError {
@@ -250,7 +246,6 @@ impl<'a> Parser<'a> {
             actions,
             getters,
             motions,
-            timelines,
             view,
             styles,
             span: Span {

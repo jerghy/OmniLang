@@ -4,45 +4,6 @@
 //! [`validate_motion`](super::validate_motion) and other passes.
 
 use crate::parser::ast::*;
-use rustc_hash::FxHashSet;
-
-/// Collect all element `id` attributes from a view tree (for @timeline validation).
-pub(super) fn collect_element_ids(nodes: &[ViewNode]) -> FxHashSet<String> {
-    let mut ids = FxHashSet::default();
-    for node in nodes {
-        match node {
-            ViewNode::Element(el) => {
-                for prop in &el.props {
-                    if let ElementProp::Static { name, value } = prop {
-                        if name == "id" {
-                            if let Expr::Literal(Literal::String(id_val), _) = value {
-                                ids.insert(id_val.clone());
-                            }
-                        }
-                    }
-                }
-                ids.extend(collect_element_ids(&el.children));
-            }
-            ViewNode::IfDirective(if_dir) => {
-                ids.extend(collect_element_ids(&if_dir.body));
-                for (_, body) in &if_dir.else_ifs {
-                    ids.extend(collect_element_ids(body));
-                }
-                if let Some(ref else_body) = if_dir.else_body {
-                    ids.extend(collect_element_ids(else_body));
-                }
-            }
-            ViewNode::ForDirective(for_dir) => {
-                ids.extend(collect_element_ids(&for_dir.body));
-                if let Some(ref empty_body) = for_dir.empty_body {
-                    ids.extend(collect_element_ids(empty_body));
-                }
-            }
-            _ => {}
-        }
-    }
-    ids
-}
 
 /// Check if a string is a valid easing function name.
 ///
@@ -59,14 +20,14 @@ pub(super) fn is_keyword_value(name: &str) -> bool {
     )
 }
 
-/// Check if a view node tree contains any @enter or @leave animation triggers.
+/// Check if a view node tree contains any @enter animation triggers.
 pub(super) fn has_enter_leave_animation(nodes: &[ViewNode]) -> bool {
     for node in nodes {
         match node {
             ViewNode::Element(el) => {
                 for prop in &el.props {
                     if let ElementProp::MotionTrigger(mt) = prop {
-                        if matches!(mt.trigger, TriggerKind::Enter | TriggerKind::Leave) {
+                        if matches!(mt.trigger, TriggerKind::Enter) {
                             return true;
                         }
                     }

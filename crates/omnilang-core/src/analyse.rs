@@ -228,9 +228,6 @@ fn merge_file_ir_into(
         existing.imports.extend(std::mem::take(&mut mod_ir.imports));
         existing.exports.extend(std::mem::take(&mut mod_ir.exports));
         existing.motions.extend(std::mem::take(&mut mod_ir.motions));
-        existing
-            .timelines
-            .extend(std::mem::take(&mut mod_ir.timelines));
         existing.designs.extend(std::mem::take(&mut mod_ir.designs));
     }
     for (key, entry) in std::mem::take(&mut ir.source_map) {

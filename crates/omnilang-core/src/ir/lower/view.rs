@@ -228,11 +228,8 @@ fn lower_element(
     let mut has_value_binding = false;
     let mut class_map_bindings_from_prop: Option<FxHashMap<String, ExprIR>> = None;
     let mut motion_triggers: Vec<TriggerIntent> = Vec::new();
-    let mut states_map: Option<FxHashMap<String, StateTweenIR>> = None;
-    let mut animate_signal: Option<ExprIR> = None;
     let mut paused_override: Option<ExprIR> = None;
     let mut hover_reverse: Option<String> = None;
-    let mut driven_by: Option<ExprIR> = None;
     let mut in_view_once: Option<ExprIR> = None;
     let mut in_view_repeat: Option<ExprIR> = None;
     let mut in_view_threshold: Option<ExprIR> = None;
@@ -241,12 +238,8 @@ fn lower_element(
     let mut scroll_scrub: Option<ExprIR> = None;
     let mut drag_constraints: Option<String> = None;
     let mut drag_elastic: Option<ExprIR> = None;
-    let mut drag_scrub: Option<ExprIR> = None;
-    let mut drag_momentum: Option<ExprIR> = None;
     let mut drag_threshold: Option<ExprIR> = None;
     let mut drag_velocity_max: Option<ExprIR> = None;
-    let mut hero_tag: Option<String> = None;
-    let mut hero_transition: Option<ExprIR> = None;
 
     for prop in &el.props {
         match prop {
@@ -469,54 +462,19 @@ fn lower_element(
                 motion_triggers.push(TriggerIntent {
                     kind: match &mt.trigger {
                         crate::parser::ast::TriggerKind::Enter => TriggerKind::Enter,
-                        crate::parser::ast::TriggerKind::Leave => TriggerKind::Leave,
                         crate::parser::ast::TriggerKind::Hover => TriggerKind::Hover,
-                        crate::parser::ast::TriggerKind::Unhover => TriggerKind::Unhover,
                         crate::parser::ast::TriggerKind::Press => TriggerKind::Press,
-                        crate::parser::ast::TriggerKind::Focus => TriggerKind::Focus,
-                        crate::parser::ast::TriggerKind::Animate => TriggerKind::Animate,
                         crate::parser::ast::TriggerKind::InView => TriggerKind::InView,
                         crate::parser::ast::TriggerKind::Scroll => TriggerKind::Scroll,
                         crate::parser::ast::TriggerKind::DragHorizontal => {
                             TriggerKind::DragHorizontal
                         }
                         crate::parser::ast::TriggerKind::DragVertical => TriggerKind::DragVertical,
-                        crate::parser::ast::TriggerKind::Timeline => TriggerKind::Timeline,
                     },
                     motion_ref,
                     inline_motion: None,
                     source_span: None,
                 });
-            }
-            // States map: states: { visible: { ... }, hidden: { ... } }
-            ElementProp::StatesMap(states) => {
-                let mut states_hm: FxHashMap<String, StateTweenIR> = FxHashMap::default();
-                for (name, state_def) in states {
-                    let properties: FxHashMap<String, ExprIR> = state_def
-                        .properties
-                        .iter()
-                        .map(|(k, v)| (k.clone(), lower_expr(v, variant_map, None, semantics)))
-                        .collect();
-                    let over = state_def
-                        .over
-                        .as_ref()
-                        .map(|e| lower_expr(e, variant_map, None, semantics));
-                    let ease = state_def.ease.as_ref().map(super::motion::lower_easing);
-                    states_hm.insert(
-                        name.clone(),
-                        StateTweenIR {
-                            properties,
-                            over,
-                            ease,
-                            source_span: None,
-                        },
-                    );
-                }
-                states_map = Some(states_hm);
-            }
-            // Animate signal: @state={signal}
-            ElementProp::AnimateSignal(expr) => {
-                animate_signal = Some(lower_expr(expr, variant_map, None, semantics));
             }
             // Paused override: @paused={expr}
             ElementProp::PausedOverride(expr) => {
@@ -525,10 +483,6 @@ fn lower_element(
             // Hover reverse animation name
             ElementProp::HoverReverse(s) => {
                 hover_reverse = Some(s.clone());
-            }
-            // Driven-by expression for external progress control
-            ElementProp::DrivenBy(expr) => {
-                driven_by = Some(lower_expr(expr, variant_map, None, semantics));
             }
             // InView trigger: once
             ElementProp::InViewOnce(expr) => {
@@ -541,12 +495,6 @@ fn lower_element(
             // InView trigger: threshold
             ElementProp::InViewThreshold(expr) => {
                 in_view_threshold = Some(lower_expr(expr, variant_map, None, semantics));
-            }
-            // Parent-child orchestration
-            ElementProp::When(_)
-            | ElementProp::DelayChildren(_)
-            | ElementProp::StaggerChildren(_) => {
-                // Lowered at trigger level; no direct IR field on ElementIR
             }
             // Scroll sub-attributes
             ElementProp::ScrollStart(s) => {
@@ -565,25 +513,14 @@ fn lower_element(
             ElementProp::DragElastic(expr) => {
                 drag_elastic = Some(lower_expr(expr, variant_map, None, semantics));
             }
-            ElementProp::DragScrub(expr) => {
-                drag_scrub = Some(lower_expr(expr, variant_map, None, semantics));
-            }
-            ElementProp::DragMomentum(expr) => {
-                drag_momentum = Some(lower_expr(expr, variant_map, None, semantics));
-            }
             ElementProp::DragThreshold(expr) => {
                 drag_threshold = Some(lower_expr(expr, variant_map, None, semantics));
             }
             ElementProp::DragVelocityMax(expr) => {
                 drag_velocity_max = Some(lower_expr(expr, variant_map, None, semantics));
             }
-            // Hero attributes
-            ElementProp::HeroTag(s) => {
-                hero_tag = Some(s.clone());
-            }
-            ElementProp::HeroTransition(expr) => {
-                hero_transition = Some(lower_expr(expr, variant_map, None, semantics));
-            }
+            // DragScrub and DragMomentum are no longer supported — silently ignore
+            ElementProp::DragScrub(_) | ElementProp::DragMomentum(_) => {}
         }
     }
 
@@ -635,9 +572,7 @@ fn lower_element(
         source_span: Some(el.span),
         motion: {
             let has_any = !motion_triggers.is_empty()
-                || states_map.is_some()
                 || paused_override.is_some()
-                || driven_by.is_some()
                 || hover_reverse.is_some()
                 || in_view_once.is_some()
                 || in_view_repeat.is_some()
@@ -645,13 +580,7 @@ fn lower_element(
             if has_any {
                 Some(Box::new(MotionBehavior {
                     triggers: motion_triggers,
-                    states: states_map.map(|s| StatesIR {
-                        states: s,
-                        signal: animate_signal,
-                        source_span: None,
-                    }),
                     paused_override,
-                    driven_by,
                     hover_reverse,
                     in_view_once,
                     in_view_repeat,
@@ -677,29 +606,14 @@ fn lower_element(
         drag: {
             if drag_constraints.is_some()
                 || drag_elastic.is_some()
-                || drag_scrub.is_some()
-                || drag_momentum.is_some()
                 || drag_threshold.is_some()
                 || drag_velocity_max.is_some()
             {
                 Some(Box::new(DragBehavior {
                     constraints: drag_constraints,
                     elastic: drag_elastic,
-                    scrub: drag_scrub,
-                    momentum: drag_momentum,
                     threshold: drag_threshold,
                     velocity_max: drag_velocity_max,
-                    source_span: None,
-                }))
-            } else {
-                None
-            }
-        },
-        hero: {
-            if hero_tag.is_some() || hero_transition.is_some() {
-                Some(Box::new(HeroBehavior {
-                    tag: hero_tag,
-                    transition: hero_transition,
                     source_span: None,
                 }))
             } else {
@@ -1019,6 +933,5 @@ fn make_fragment_element(children: Vec<ViewTree>, construction_kind: Constructio
         motion: None,
         scroll: None,
         drag: None,
-        hero: None,
     })
 }

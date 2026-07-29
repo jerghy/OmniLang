@@ -233,9 +233,6 @@ fn walk_view_for_idents(view: &ViewTree, used: &mut FxHashSet<String>) {
                 if let Some(ref expr) = motion.paused_override {
                     walk_expr_for_idents(expr, used);
                 }
-                if let Some(ref expr) = motion.driven_by {
-                    walk_expr_for_idents(expr, used);
-                }
                 if let Some(ref expr) = motion.in_view_once {
                     walk_expr_for_idents(expr, used);
                 }
@@ -244,20 +241,6 @@ fn walk_view_for_idents(view: &ViewTree, used: &mut FxHashSet<String>) {
                 }
                 if let Some(ref expr) = motion.in_view_threshold {
                     walk_expr_for_idents(expr, used);
-                }
-                // StatesIR on MotionBehavior
-                if let Some(ref states) = motion.states {
-                    if let Some(ref expr) = states.signal {
-                        walk_expr_for_idents(expr, used);
-                    }
-                    for tween in states.states.values() {
-                        if let Some(ref over) = tween.over {
-                            walk_expr_for_idents(over, used);
-                        }
-                        for expr in tween.properties.values() {
-                            walk_expr_for_idents(expr, used);
-                        }
-                    }
                 }
                 // Triggers on MotionBehavior
                 for trigger in &motion.triggers {
@@ -275,21 +258,10 @@ fn walk_view_for_idents(view: &ViewTree, used: &mut FxHashSet<String>) {
                 if let Some(ref expr) = drag.elastic {
                     walk_expr_for_idents(expr, used);
                 }
-                if let Some(ref expr) = drag.scrub {
-                    walk_expr_for_idents(expr, used);
-                }
-                if let Some(ref expr) = drag.momentum {
-                    walk_expr_for_idents(expr, used);
-                }
                 if let Some(ref expr) = drag.threshold {
                     walk_expr_for_idents(expr, used);
                 }
                 if let Some(ref expr) = drag.velocity_max {
-                    walk_expr_for_idents(expr, used);
-                }
-            }
-            if let Some(ref hero) = el.hero {
-                if let Some(ref expr) = hero.transition {
                     walk_expr_for_idents(expr, used);
                 }
             }
@@ -332,58 +304,6 @@ fn walk_playback(pb: &PlaybackIR, used: &mut FxHashSet<String>) {
     if let Some(ref expr) = pb.delay {
         walk_expr_for_idents(expr, used);
     }
-    if let Some(ref expr) = pb.repeat_delay {
-        walk_expr_for_idents(expr, used);
-    }
-    if let Some(ref expr) = pb.time_scale {
-        walk_expr_for_idents(expr, used);
-    }
-    if let Some(ref expr) = pb.delay_children {
-        walk_expr_for_idents(expr, used);
-    }
-    if let Some(ref expr) = pb.stagger_children {
-        walk_expr_for_idents(expr, used);
-    }
-}
-
-/// Walk a TimelineItemIR items and collect all identifier names from ExprIR fields.
-fn walk_timeline_items(items: &[TimelineItemIR], used: &mut FxHashSet<String>) {
-    for item in items {
-        match &item.kind {
-            TimelineItemKindIR::Direction {
-                properties,
-                over,
-                delay,
-                ..
-            } => {
-                for expr in properties.values() {
-                    walk_expr_for_idents(expr, used);
-                }
-                walk_expr_for_idents(over, used);
-                if let Some(ref expr) = delay {
-                    walk_expr_for_idents(expr, used);
-                }
-            }
-            TimelineItemKindIR::Set(entries) => {
-                for (_, expr) in entries {
-                    walk_expr_for_idents(expr, used);
-                }
-            }
-            TimelineItemKindIR::MotionRef(_) => {}
-            TimelineItemKindIR::Stagger(motion_expr, stagger_timing, _) => {
-                match motion_expr.as_ref() {
-                    MotionExprIR::Ref(_) => {}
-                    MotionExprIR::Inline(body) => walk_motion_body(body, used),
-                }
-                walk_expr_for_idents(&stagger_timing.each, used);
-            }
-            TimelineItemKindIR::Label(_, delay) => {
-                if let Some(ref expr) = delay {
-                    walk_expr_for_idents(expr, used);
-                }
-            }
-        }
-    }
 }
 
 /// Walk a MotionBodyIR and collect all identifier names from ExprIR fields.
@@ -391,26 +311,12 @@ fn walk_motion_body(body: &MotionBodyIR, used: &mut FxHashSet<String>) {
     match body {
         MotionBodyIR::Keyframe(kf) => {
             walk_expr_for_idents(&kf.over, used);
-            for (_, expr) in &kf.callbacks {
-                walk_expr_for_idents(expr, used);
-            }
             for stop in &kf.stops {
                 for expr in stop.properties.values() {
                     walk_expr_for_idents(expr, used);
                 }
             }
             walk_playback(&kf.playback, used);
-        }
-        MotionBodyIR::Timeline(tl) => {
-            walk_timeline_items(&tl.items, used);
-            walk_playback(&tl.playback, used);
-        }
-        MotionBodyIR::CallbackOnly(cb) => {
-            walk_expr_for_idents(&cb.over, used);
-            for (_, expr) in &cb.callbacks {
-                walk_expr_for_idents(expr, used);
-            }
-            walk_playback(&cb.playback, used);
         }
     }
 }
@@ -819,8 +725,7 @@ mod tests {
                 motion: None,
                 scroll: None,
                 drag: None,
-                hero: None,
-            })),
+                            })),
             ..ComponentIR::default()
         };
 
@@ -852,8 +757,7 @@ mod tests {
                 motion: None,
                 scroll: None,
                 drag: None,
-                hero: None,
-            })),
+                            })),
             ..ComponentIR::default()
         };
 
@@ -885,8 +789,7 @@ mod tests {
                 motion: None,
                 scroll: None,
                 drag: None,
-                hero: None,
-            })),
+                            })),
             ..ComponentIR::default()
         };
 
@@ -1020,8 +923,7 @@ mod tests {
                 motion: None,
                 scroll: None,
                 drag: None,
-                hero: None,
-            })),
+                            })),
             ..ComponentIR::default()
         };
 

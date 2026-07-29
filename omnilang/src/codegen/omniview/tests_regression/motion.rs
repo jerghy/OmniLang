@@ -141,26 +141,8 @@ fn test_easing_all_variants() {
     assert!(cb.contains("x1:0.42"));
     assert!(cb.contains("y2:1"));
 
-    // Spring with default velocity (None → 0)
-    let sp = gen.easing_to_js(&EasingIR::Spring {
-        tension: 180.0,
-        friction: 12.0,
-        velocity: None,
-    });
-    assert!(sp.contains("spring"));
-    assert!(sp.contains("velocity:0"), "default velocity should be 0");
-
-    // Spring with explicit velocity
-    let sp2 = gen.easing_to_js(&EasingIR::Spring {
-        tension: 100.0,
-        friction: 10.0,
-        velocity: Some(0.5),
-    });
-    assert!(sp2.contains("velocity:0.5"));
-
     // Back with default direction (None → "out")
     let bk = gen.easing_to_js(&EasingIR::Back {
-        intensity: 1.5,
         direction: None,
     });
     assert!(bk.contains("back"));
@@ -171,27 +153,17 @@ fn test_easing_all_variants() {
 
     // Back with explicit "in" direction
     let bk2 = gen.easing_to_js(&EasingIR::Back {
-        intensity: 2.0,
         direction: Some("in".into()),
     });
     assert!(bk2.contains("direction:\"in\""));
 
     // Elastic with default direction (None → "out")
     let el = gen.easing_to_js(&EasingIR::Elastic {
-        amplitude: 1.0,
-        period: 0.5,
         direction: None,
     });
     assert!(el.contains("elastic"));
     assert!(el.contains("direction:\"out\""));
-
-    // Steps
-    let st = gen.easing_to_js(&EasingIR::Steps {
-        count: 4,
-        direction: "start".into(),
-    });
-    assert!(st.contains("steps"), "Steps should contain type marker");
-    assert!(st.contains("count:4"));
+    // [Removed] Spring, Steps — EasingIR variants no longer exist
 }
 
 /// Tests playback_to_config for each configurable field in PlaybackIR.
@@ -257,61 +229,8 @@ fn test_playback_config() {
     });
     assert!(paused.iter().any(|s| s.contains("paused")));
 
-    // respectReducedMotion
-    let rrm = gen.playback_to_config(&PlaybackIR {
-        respect_reduced_motion: true,
-        ..Default::default()
-    });
-    assert!(rrm.iter().any(|s| s.contains("respectReducedMotion")));
-
-    // Stagger children
-    let stagger = gen.playback_to_config(&PlaybackIR {
-        stagger_children: Some(ExprIR::LiteralExpr {
-            value: serde_json::json!(0.05),
-        }),
-        ..Default::default()
-    });
-    assert!(stagger.iter().any(|s| s.contains("staggerChildren")));
-
-    // Interrupt behavior
-    let int = gen.playback_to_config(&PlaybackIR {
-        interrupt: Some(InterruptValue::Cancel),
-        ..Default::default()
-    });
-    assert!(int.iter().any(|s| s.contains("cancel")));
-
-    // When (timeline child ordering)
-    let when = gen.playback_to_config(&PlaybackIR {
-        when: Some(WhenValue::Idle),
-        ..Default::default()
-    });
-    assert!(when.iter().any(|s| s.contains("beforeChildren")));
-
-    // StaggerFrom direction
-    let sf = gen.playback_to_config(&PlaybackIR {
-        stagger_from: Some(StaggerDirection::First),
-        ..Default::default()
-    });
-    assert!(sf.iter().any(|s| s.contains("staggerFrom")));
-
-    // StaggerFrom: Random → mapped to "edges" (as per current implementation)
-    let sf_rand = gen.playback_to_config(&PlaybackIR {
-        stagger_from: Some(StaggerDirection::Random),
-        ..Default::default()
-    });
-    assert!(
-        sf_rand.iter().any(|s| s.contains("edges")),
-        "StaggerDirection::Random should map to 'edges'"
-    );
-
-    // Repeat delay
-    let rd = gen.playback_to_config(&PlaybackIR {
-        repeat_delay: Some(ExprIR::LiteralExpr {
-            value: serde_json::json!(200),
-        }),
-        ..Default::default()
-    });
-    assert!(rd.iter().any(|s| s.contains("repeatDelay")));
+    // Done — remaining fields (respectReducedMotion, stagger, interrupt, when,
+    // stagger_from, repeat_delay) were removed from PlaybackIR
 }
 
 /// Tests keyframe_to_animate_call with both from/to stops.
@@ -349,11 +268,9 @@ fn test_keyframe_animate_call_basic() {
             value: serde_json::json!(300),
         },
         ease: None,
-        color_space: None,
         playback: PlaybackIR::default(),
         path: None,
         path_rotate: None,
-        callbacks: vec![],
 
         source_span: None,
     };
@@ -399,11 +316,9 @@ fn test_keyframe_animate_call_edge_cases() {
             value: serde_json::json!(300),
         },
         ease: None,
-        color_space: None,
         playback: PlaybackIR::default(),
         path: None,
         path_rotate: None,
-        callbacks: vec![],
 
         source_span: None,
     };
@@ -428,11 +343,9 @@ fn test_keyframe_animate_call_edge_cases() {
             value: serde_json::json!(500),
         },
         ease: None,
-        color_space: None,
         playback: PlaybackIR::default(),
         path: None,
         path_rotate: None,
-        callbacks: vec![],
 
         source_span: None,
     };
@@ -475,11 +388,9 @@ fn test_keyframe_animate_call_edge_cases() {
             value: serde_json::json!(300),
         },
         ease: Some(EasingIR::Named("ease-in-out".into())),
-        color_space: None,
         playback: PlaybackIR::default(),
         path: None,
         path_rotate: None,
-        callbacks: vec![],
 
         source_span: None,
     };
@@ -534,11 +445,9 @@ fn test_keyframe_animate_call_with_path() {
             value: serde_json::json!(1000),
         },
         ease: Some(EasingIR::Named("linear".into())),
-        color_space: None,
         playback: PlaybackIR::default(),
         path: Some("M0,0 C100,200 200,200 300,0".into()),
         path_rotate: Some(true),
-        callbacks: vec![],
 
         source_span: None,
     };
@@ -614,11 +523,9 @@ fn test_emit_motion_js_keyframe() {
                 value: serde_json::json!(300),
             },
             ease: Some(EasingIR::Named("ease-out".into())),
-            color_space: None,
             playback: PlaybackIR::default(),
             path: None,
             path_rotate: None,
-            callbacks: vec![],
 
             source_span: None,
         }),
@@ -629,140 +536,8 @@ fn test_emit_motion_js_keyframe() {
     insta::assert_snapshot!("emit_motion_js_keyframe", &gen.js);
 }
 
-/// Tests that emit_motion_js produces a correct factory for callback-only
-/// motion definitions (no visual properties, just callbacks).
-#[test]
-fn test_emit_motion_js_callback_only() {
-    let mut gen = OmniViewGenerator::test_new();
-    let motion = MotionIntent {
-        name: "logComplete".into(),
-        body: MotionBodyIR::CallbackOnly(CallbackBodyIR {
-            callbacks: vec![(
-                CallbackKindIR::OnComplete,
-                ExprIR::LiteralExpr {
-                    value: serde_json::json!("animation done"),
-                },
-            )],
-            over: ExprIR::LiteralExpr {
-                value: serde_json::json!(500),
-            },
-            playback: PlaybackIR::default(),
-
-            source_span: None,
-        }),
-
-        source_span: None,
-    };
-    gen.emit_motion_js(&motion);
-    insta::assert_snapshot!("emit_motion_js_callback_only", &gen.js);
-}
-
-/// Tests that emit_motion_js delegates to timeline stub for Timeline body.
-#[test]
-fn test_emit_motion_js_timeline() {
-    let mut gen = OmniViewGenerator::test_new();
-    let motion = MotionIntent {
-        name: "sequenceAnim".into(),
-        body: MotionBodyIR::Timeline(TimelineIR {
-            items: vec![],
-            playback: PlaybackIR::default(),
-
-            source_span: None,
-        }),
-
-        source_span: None,
-    };
-    gen.emit_motion_js(&motion);
-    insta::assert_snapshot!("emit_motion_js_timeline", &gen.js);
-}
-
-/// Tests emit_states_js with reserved state names (idle/hover/pressed),
-/// which auto-binds mouse events to transition between states.
-#[test]
-fn test_emit_states_js_reserved() {
-    let mut gen = OmniViewGenerator::test_new();
-    let states = StatesIR {
-        states: FxHashMap::from_iter([
-            (
-                "idle".into(),
-                StateTweenIR {
-                    properties: FxHashMap::from_iter([(
-                        "opacity".into(),
-                        ExprIR::LiteralExpr {
-                            value: serde_json::json!(1),
-                        },
-                    )]),
-                    over: None,
-                    ease: None,
-
-                    source_span: None,
-                },
-            ),
-            (
-                "hover".into(),
-                StateTweenIR {
-                    properties: FxHashMap::from_iter([
-                        (
-                            "opacity".into(),
-                            ExprIR::LiteralExpr {
-                                value: serde_json::json!(0.8),
-                            },
-                        ),
-                        (
-                            "scale".into(),
-                            ExprIR::LiteralExpr {
-                                value: serde_json::json!(1.05),
-                            },
-                        ),
-                    ]),
-                    over: Some(ExprIR::LiteralExpr {
-                        value: serde_json::json!(200),
-                    }),
-                    ease: Some(EasingIR::Named("ease-out".into())),
-
-                    source_span: None,
-                },
-            ),
-            (
-                "pressed".into(),
-                StateTweenIR {
-                    properties: FxHashMap::from_iter([
-                        (
-                            "opacity".into(),
-                            ExprIR::LiteralExpr {
-                                value: serde_json::json!(0.6),
-                            },
-                        ),
-                        (
-                            "scale".into(),
-                            ExprIR::LiteralExpr {
-                                value: serde_json::json!(0.95),
-                            },
-                        ),
-                    ]),
-                    over: Some(ExprIR::LiteralExpr {
-                        value: serde_json::json!(100),
-                    }),
-                    ease: Some(EasingIR::Named("ease-in".into())),
-
-                    source_span: None,
-                },
-            ),
-        ]),
-        signal: None,
-
-        source_span: None,
-    };
-    gen.emit_states_js("el-card-001", &states);
-
-    // The function emits to both mount_js (event bindings) and js (lookup table).
-    // Snapshot combines both for verification.
-    let output = format!(
-        "// === mount_js ===\n{}\n// === js ===\n{}",
-        gen.mount_js, gen.js
-    );
-    insta::assert_snapshot!("emit_states_js_reserved", &output);
-}
+// [Removed] test_emit_motion_js_callback_only — CallbackBodyIR no longer exists
+// [Removed] test_emit_motion_js_timeline — TimelineIR no longer exists
 
 /// Tests emit_motion_triggers_for_element with a named @enter motion reference.
 /// Verifies the mount_js output and the enter_trigger_nids registration.
@@ -788,9 +563,7 @@ fn test_motion_trigger_enter_named() {
 
                 source_span: None,
             }],
-            states: None,
             paused_override: None,
-            driven_by: None,
             hover_reverse: None,
             in_view_once: None,
             in_view_repeat: None,
@@ -799,7 +572,6 @@ fn test_motion_trigger_enter_named() {
         })),
         scroll: None,
         drag: None,
-        hero: None,
     };
     gen.emit_motion_triggers_for_element("el-div-001", &el);
 
@@ -853,9 +625,7 @@ fn test_motion_trigger_hover_named() {
 
                 source_span: None,
             }],
-            states: None,
             paused_override: None,
-            driven_by: None,
             hover_reverse: None,
             in_view_once: None,
             in_view_repeat: None,
@@ -864,7 +634,6 @@ fn test_motion_trigger_hover_named() {
         })),
         scroll: None,
         drag: None,
-        hero: None,
     };
     gen.emit_motion_triggers_for_element("el-btn-002", &el);
 
@@ -898,9 +667,7 @@ fn test_scroll_trigger() {
                 inline_motion: None,
                 source_span: None,
             }],
-            states: None,
             paused_override: None,
-            driven_by: None,
             hover_reverse: None,
             in_view_once: None,
             in_view_repeat: None,
@@ -916,7 +683,6 @@ fn test_scroll_trigger() {
             source_span: None,
         })),
         drag: None,
-        hero: None,
     };
     gen.emit_motion_triggers_for_element("el-scroll-001", &el);
     let output = format!(
@@ -953,9 +719,7 @@ fn test_drag_trigger() {
                 inline_motion: None,
                 source_span: None,
             }],
-            states: None,
             paused_override: None,
-            driven_by: None,
             hover_reverse: None,
             in_view_once: None,
             in_view_repeat: None,
@@ -968,15 +732,10 @@ fn test_drag_trigger() {
             elastic: Some(ExprIR::LiteralExpr {
                 value: serde_json::json!(0.1),
             }),
-            scrub: None,
-            momentum: Some(ExprIR::LiteralExpr {
-                value: serde_json::json!(true),
-            }),
             threshold: None,
             velocity_max: None,
             source_span: None,
         })),
-        hero: None,
     };
     gen.emit_motion_triggers_for_element("el-drag-001", &el);
     let output = format!(
@@ -1013,9 +772,7 @@ fn test_inview_trigger() {
                 inline_motion: None,
                 source_span: None,
             }],
-            states: None,
             paused_override: None,
-            driven_by: None,
             hover_reverse: None,
             in_view_once: Some(ExprIR::LiteralExpr {
                 value: serde_json::json!(true),
@@ -1028,7 +785,6 @@ fn test_inview_trigger() {
         })),
         scroll: None,
         drag: None,
-        hero: None,
     };
     gen.emit_motion_triggers_for_element("el-inview-001", &el);
     let output = format!(
@@ -1066,12 +822,7 @@ fn test_driven_by() {
                 inline_motion: None,
                 source_span: None,
             }],
-            states: None,
             paused_override: None,
-            driven_by: Some(ExprIR::IdentifierExpr {
-                name: "scrollProgress".into(),
-                type_ann: None,
-            }),
             hover_reverse: None,
             in_view_once: None,
             in_view_repeat: None,
@@ -1080,7 +831,6 @@ fn test_driven_by() {
         })),
         scroll: None,
         drag: None,
-        hero: None,
     };
     gen.emit_motion_triggers_for_element("el-driven-001", &el);
     let output = format!(
@@ -1118,12 +868,10 @@ fn test_paused_override() {
                 inline_motion: None,
                 source_span: None,
             }],
-            states: None,
             paused_override: Some(ExprIR::IdentifierExpr {
                 name: "isPaused".into(),
                 type_ann: None,
             }),
-            driven_by: None,
             hover_reverse: None,
             in_view_once: None,
             in_view_repeat: None,
@@ -1132,7 +880,6 @@ fn test_paused_override() {
         })),
         scroll: None,
         drag: None,
-        hero: None,
     };
     gen.emit_motion_triggers_for_element("el-paused-001", &el);
     let output = format!(
@@ -1186,17 +933,9 @@ fn test_stagger_children() {
                 value: serde_json::json!(300),
             },
             ease: Some(EasingIR::Named("ease-out".into())),
-            color_space: None,
-            playback: PlaybackIR {
-                stagger_children: Some(ExprIR::LiteralExpr {
-                    value: serde_json::json!(0.1),
-                }),
-                stagger_from: Some(StaggerDirection::Center),
-                ..Default::default()
-            },
+            playback: PlaybackIR::default(),
             path: None,
             path_rotate: None,
-            callbacks: vec![],
             source_span: None,
         }),
         source_span: None,
@@ -1214,46 +953,4 @@ fn test_stagger_children() {
     insta::assert_snapshot!("stagger_children", &gen.js);
 }
 
-/// Tests emit_motion_js with a Timeline body containing items.
-/// Timeline items are handled via timeline_to_factory stub which currently
-/// produces a simple keyframe-based factory function.
-#[test]
-fn test_timeline_with_items() {
-    let mut gen = OmniViewGenerator::test_new();
-    let motion = MotionIntent {
-        name: "tlAnim".into(),
-        body: MotionBodyIR::Timeline(TimelineIR {
-            items: vec![TimelineItemIR {
-                kind: TimelineItemKindIR::Direction {
-                    dir: DirectionIR::To,
-                    properties: FxHashMap::from_iter([(
-                        "opacity".into(),
-                        ExprIR::LiteralExpr {
-                            value: serde_json::json!(0),
-                        },
-                    )]),
-                    over: ExprIR::LiteralExpr {
-                        value: serde_json::json!(300),
-                    },
-                    ease: None,
-                    delay: None,
-                    color_space: None,
-                    start: None,
-                    path: None,
-                    path_rotate: None,
-                },
-                connector: ConnectorIR::Then,
-                source_span: None,
-            }],
-            playback: PlaybackIR::default(),
-            source_span: None,
-        }),
-        source_span: None,
-    };
-    gen.emit_motion_js(&motion);
-    assert!(
-        gen.js.contains("__omni_motion_tlAnim"),
-        "should emit motion factory function"
-    );
-    insta::assert_snapshot!("timeline_with_items", &gen.js);
-}
+// [Removed] test_timeline_with_items — TimelineIR no longer exists

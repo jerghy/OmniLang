@@ -3,13 +3,11 @@
 //! Includes: `lower_component`, `lower_store`, `lower_type`.
 
 use super::expr::lower_expr;
-use super::motion::lower_easing;
 use super::stmt::lower_block;
 use super::view::lower_view_block;
 use crate::ir::logic::*;
 use crate::ir::types::*;
 use crate::ir::types_motion::*;
-use crate::parser::ast::TypeAnnotation;
 use crate::parser::ast::*;
 use crate::semantic::SemanticResult;
 use rustc_hash::FxHashMap;
@@ -238,17 +236,6 @@ pub(super) fn lower_component(
         })
         .collect();
 
-    let hero_defs: Vec<HeroIntent> = comp
-        .hero_defs
-        .iter()
-        .map(|h| HeroIntent {
-            name: h.name.clone(),
-            over: lower_expr(&h.over, variant_map, None, semantics),
-            ease: h.ease.as_ref().map(lower_easing),
-            source_span: Some(h.span),
-        })
-        .collect();
-
     ComponentIR {
         name: comp.name.clone(),
         source_file: None,
@@ -277,7 +264,7 @@ pub(super) fn lower_component(
         view,
         styles,
         if_mode_default: comp.if_mode_default.clone(),
-        hero_defs,
+        hero_defs: vec![],  // heroes removed per ADR-032
         source_span: Some(comp.span),
     }
 }

@@ -637,8 +637,6 @@ pub struct ElementIR {
     pub scroll: Option<Box<ScrollBehavior>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub drag: Option<Box<DragBehavior>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub hero: Option<Box<HeroBehavior>>,
 }
 
 impl ElementIR {
@@ -650,9 +648,6 @@ impl ElementIR {
     }
     pub fn drag_behavior(&self) -> Option<&DragBehavior> {
         self.drag.as_deref()
-    }
-    pub fn hero_behavior(&self) -> Option<&HeroBehavior> {
-        self.hero.as_deref()
     }
 }
 
@@ -741,7 +736,7 @@ pub struct ComponentIR {
     /// Component-level @if mode default
     #[serde(default)]
     pub if_mode_default: Option<String>,
-    /// Hero definitions for cross-component shared element transitions
+    /// Hero definitions (legacy — always empty; kept for CompDef compatibility)
     #[serde(default)]
     pub hero_defs: Vec<HeroIntent>,
     /// Source location in .omni file
@@ -789,12 +784,6 @@ impl IRProgram {
             .find_map(|m| m.motions.iter().find(|mo| mo.name == name))
     }
 
-    /// Find a timeline definition by name across all modules.
-    pub fn find_timeline(&self, name: &str) -> Option<&TimelineIntent> {
-        self.modules
-            .values()
-            .find_map(|m| m.timelines.iter().find(|t| t.name == name))
-    }
 }
 
 impl Default for IRProgram {

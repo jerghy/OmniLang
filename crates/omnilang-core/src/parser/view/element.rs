@@ -122,75 +122,33 @@ impl<'a> Parser<'a> {
                 if name == "states" {
                     self.advance(); // consume ':'
                     self.expect_token(TokenKind::LBrace, "expected '{' after 'states:'")?;
-                    let mut states = Vec::new();
                     while !self.at(&TokenKind::RBrace) && !self.at(&TokenKind::Eof) {
-                        let state_name = self.expect_ident("expected state name")?;
-                        self.expect_token(TokenKind::Colon, "expected ':' after state name")?;
-                        let props = self.parse_property_block()?;
-                        let over = if self.peek_ident_value().is_some_and(|s| s == "over") {
-                            self.advance();
-                            self.expect_token(TokenKind::Colon, "expected ':'")?;
-                            Some(self.parse_expr()?)
-                        } else {
-                            None
-                        };
-                        let ease = if self.peek_ident_value().is_some_and(|s| s == "ease") {
-                            self.advance();
-                            self.expect_token(TokenKind::Colon, "expected ':'")?;
-                            Some(self.parse_easing()?)
-                        } else {
-                            None
-                        };
-                        states.push((
-                            state_name.clone(),
-                            StateDef {
-                                name: state_name,
-                                properties: props,
-                                over,
-                                ease,
-                            },
-                        ));
-                        if self.at(&TokenKind::Comma) {
-                            self.advance();
-                        }
+                        self.advance();
                     }
                     self.expect_token(TokenKind::RBrace, "expected '}'")?;
-                    return Ok(ElementProp::StatesMap(states));
+                    // states: is no longer supported — silently drop
+                    return Ok(ElementProp::MotionTrigger(MotionTrigger {
+                        trigger: TriggerKind::Enter,
+                        motion_expr: Expr::Literal(
+                            Literal::String("__states_removed".into()),
+                            self.peek_span(),
+                        ),
+                    }));
                 }
-                // on: { signal }
+                // on: { signal } — states signal binding (removed)
                 if name == "on" {
                     self.advance(); // consume ':'
                     self.expect_token(TokenKind::LBrace, "expected '{' after 'on:'")?;
-                    let signal = self.parse_expr()?;
+                    let _signal = self.parse_expr()?;
                     self.expect_token(TokenKind::RBrace, "expected '}'")?;
-                    return Ok(ElementProp::AnimateSignal(signal));
-                }
-                // when: "value" — element-level children playback order
-                if name == "when" {
-                    self.advance(); // consume ':'
-                    let value = if matches!(self.peek_kind(), TokenKind::StringLiteral(_)) {
-                        let t = self.advance();
-                        if let TokenKind::StringLiteral(s) = &t.kind {
-                            s.clone()
-                        } else {
-                            String::new()
-                        }
-                    } else {
-                        self.expect_ident("expected when value")?
-                    };
-                    return Ok(ElementProp::When(value));
-                }
-                // delayChildren: expr — extra delay before children animate
-                if name == "delayChildren" {
-                    self.advance(); // consume ':'
-                    let value = self.parse_expr()?;
-                    return Ok(ElementProp::DelayChildren(value));
-                }
-                // staggerChildren: expr — auto-stagger shorthand
-                if name == "staggerChildren" {
-                    self.advance(); // consume ':'
-                    let value = self.parse_expr()?;
-                    return Ok(ElementProp::StaggerChildren(value));
+                    // states signal binding is no longer supported — silently drop
+                    return Ok(ElementProp::MotionTrigger(MotionTrigger {
+                        trigger: TriggerKind::Enter,
+                        motion_expr: Expr::Literal(
+                            Literal::String("__states_removed".into()),
+                            self.peek_span(),
+                        ),
+                    }));
                 }
                 // variant: DesignName.VariantName(dim=val, ...)
                 if name == "variant" {

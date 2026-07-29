@@ -21,18 +21,15 @@ pub(super) fn gen_motion_effects(w: &mut CodeWriter, view: &ViewTree, ir: &IRPro
         motion_map.insert(m.name.clone(), m.body.clone());
     }
 
-    // 1. @enter / @hover / @press / @focus animation triggers
+    // 1. @enter / @hover / @press animation triggers
     motion::emit_motion_effects_tsx(w, view, &motion_map);
 
-    // 2. @driven-by effects — reactive hooks for external progress control
-    motion::emit_driven_by_effects_tsx(w, view);
-
-    // 3. @in-view effects — IntersectionObserver for entrance animations
+    // 2. @in-view effects — IntersectionObserver for entrance animations
     motion::emit_inview_effects_tsx(w, view);
 
-    // 4. @scroll effects — scroll-driven animation progress
+    // 3. @scroll effects — scroll-driven animation progress
     motion::emit_scroll_effects_tsx(w, view);
 
-    // 5. @drag-horizontal / @drag-vertical effects — gesture-driven animation
+    // 4. @drag-horizontal / @drag-vertical effects — gesture-driven animation
     motion::emit_drag_effects_tsx(w, view);
 }

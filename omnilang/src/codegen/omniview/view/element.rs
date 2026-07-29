@@ -364,17 +364,12 @@ impl OmniViewGenerator {
             {
                 let data_attr = match trigger.kind {
                     TriggerKind::Enter => "data-enter",
-                    TriggerKind::Leave => "data-leave",
                     TriggerKind::Hover => "data-hover",
-                    TriggerKind::Unhover => "data-unhover",
                     TriggerKind::Press => "data-press",
-                    TriggerKind::Focus => "data-focus",
-                    TriggerKind::Animate => "data-animate",
                     TriggerKind::InView => "data-in-view",
                     TriggerKind::Scroll => "data-scroll",
                     TriggerKind::DragHorizontal => "data-drag-horizontal",
                     TriggerKind::DragVertical => "data-drag-vertical",
-                    TriggerKind::Timeline => "data-timeline",
                 };
                 if let Some(ref motion_name) = trigger.motion_ref {
                     let _ = write!(attrs, " {}=\"{}\"", data_attr, escape_html(motion_name));
@@ -419,14 +414,6 @@ impl OmniViewGenerator {
                 let js_val = self.expr_to_js(elastic);
                 let _ = write!(attrs, " data-drag-elastic=\"{}\"", escape_html(&js_val));
             }
-            if let Some(scrub) = el.drag_behavior().and_then(|db| db.scrub.as_ref()) {
-                let js_val = self.expr_to_js(scrub);
-                let _ = write!(attrs, " data-drag-scrub=\"{}\"", escape_html(&js_val));
-            }
-            if let Some(momentum) = el.drag_behavior().and_then(|db| db.momentum.as_ref()) {
-                let js_val = self.expr_to_js(momentum);
-                let _ = write!(attrs, " data-drag-momentum=\"{}\"", escape_html(&js_val));
-            }
             if let Some(threshold) = el.drag_behavior().and_then(|db| db.threshold.as_ref()) {
                 let js_val = self.expr_to_js(threshold);
                 let _ = write!(attrs, " data-drag-threshold=\"{}\"", escape_html(&js_val));
@@ -444,35 +431,11 @@ impl OmniViewGenerator {
         }
     }
 
-    /// Emit motion bindings — @driven-by external progress control,
-    /// @paused per-element pause override, and states: animation map.
+    /// Emit motion @paused per-element pause override.
     ///
     /// These are deferred JS bindings written to `self.mount_js` that connect
     /// runtime animation state to signals and external controllers.
     fn emit_element_motion_bindings(&mut self, el: &ElementIR, nid: &str) {
-        // @driven-by — external progress control for animations on this element
-        if let Some(driven_by_expr) = el.motion_behavior().and_then(|m| m.driven_by.as_ref()) {
-            let driven_js = self.expr_to_js(driven_by_expr);
-            // When driven-by is set, the animation progress is bound to the signal value.
-            // We seek ALL animations on this element whenever the signal changes.
-            // The signal is auto-tracked by __omni_effect.
-            let _ = write!(
-                self.mount_js,
-                "// @driven-by binding\n\
-                 __omni_effect(() => {{\n\
-                 \x20 const progress = Math.max(0, Math.min(1, Number({driven})));\n\
-                 \x20 __omni_animations.forEach((anim, key) => {{\n\
-                 \x20\x20 if (key.startsWith(\"{nid}_\")) {{\n\
-                 \x20\x20\x20 var dur = (anim.effect && anim.effect.getTiming && anim.effect.getTiming().duration) || 300;\n\
-                 \x20\x20\x20 anim.currentTime = progress * dur;\n\
-                 \x20\x20 }}\n\
-                 \x20 }});\n\
-                 }});\n",
-                nid = nid,
-                driven = driven_js
-            );
-        }
-
         // @paused override — per-element pause override for all animations
         if let Some(paused) = el
             .motion_behavior()
@@ -493,11 +456,6 @@ impl OmniViewGenerator {
                 nid = nid,
                 paused = paused_js
             );
-        }
-
-        // states: — multi-state animation map (reserved or custom signal-driven)
-        if let Some(states_ir) = el.motion_behavior().and_then(|m| m.states.as_ref()) {
-            self.emit_states_js(nid, states_ir);
         }
     }
 
@@ -716,22 +674,6 @@ impl OmniViewGenerator {
                 " class=\"{}\"",
                 escape_html(&class_name_parts.join(" "))
             );
-        }
-
-        // Hero shared element transition tag — emit as data attribute
-        if let Some(hero) = el.hero_behavior().and_then(|h| h.tag.as_ref()) {
-            let _ = write!(attrs, " data-hero=\"{}\"", escape_html(hero));
-        }
-        // Optional custom transition motion name
-        if let Some(transition) = el.hero_behavior().and_then(|h| h.transition.as_ref()) {
-            let trans_str = self.expr_to_static_str(transition);
-            if !trans_str.is_empty() {
-                let _ = write!(
-                    attrs,
-                    " data-hero-transition=\"{}\"",
-                    escape_html(&trans_str)
-                );
-            }
         }
 
         self.emit_element_inline_style(el, &nid, &mut attrs);

@@ -4,7 +4,7 @@ use serde::Serialize;
 
 use crate::lexer::Span;
 
-use super::motion::{GetterDecl, HeroDef, MotionDef, MotionTrigger, StateDef, TimelineDef};
+use super::motion::{GetterDecl, HeroDef, MotionDef, MotionTrigger};
 use super::{Block, Expr, FunctionDef, Param, TypeAnnotation};
 
 // ── OmniView-Specific AST ─────────────────────────────
@@ -25,7 +25,6 @@ pub struct ComponentDef {
     pub actions: Vec<ActionDef>,
     pub getters: Vec<GetterDecl>,
     pub motions: Vec<MotionDef>,
-    pub timelines: Vec<TimelineDef>,
     pub view: Option<ViewBlock>,
     pub styles: Vec<StyleRule>,
     pub span: Span,
@@ -145,24 +144,14 @@ pub enum ElementProp {
     TestId(String),
     Ref(String),
     MotionTrigger(MotionTrigger),
-    StatesMap(Vec<(String, StateDef)>),
-    AnimateSignal(Expr),
     PausedOverride(Expr),
     HoverReverse(String),
-    /// @driven-by={signal} — external progress control
-    DrivenBy(Expr),
     /// @in-view-once={bool}
     InViewOnce(Expr),
     /// @in-view-repeat={bool}
     InViewRepeat(Expr),
     /// @in-view-threshold={number}
     InViewThreshold(Expr),
-    /// when: — play order on @enter/@leave
-    When(String),
-    /// delayChildren: — extra delay before children
-    DelayChildren(Expr),
-    /// staggerChildren: — auto-stagger shorthand
-    StaggerChildren(Expr),
     /// @scroll-start="top 80%"
     ScrollStart(String),
     /// @scroll-end="bottom 20%"
@@ -181,10 +170,6 @@ pub enum ElementProp {
     DragThreshold(Expr),
     /// @drag-velocity-max={2000px}
     DragVelocityMax(Expr),
-    /// @hero="tag-name"
-    HeroTag(String),
-    /// @hero-transition={motionName}
-    HeroTransition(Expr),
 }
 
 #[derive(Debug, Clone, Serialize)]

@@ -449,28 +449,12 @@ impl<'a> Parser<'a> {
                     let trigger = self.parse_motion_trigger(TriggerKind::Enter)?;
                     props.push(ElementProp::MotionTrigger(trigger));
                 }
-                TokenKind::AtLeave => {
-                    let trigger = self.parse_motion_trigger(TriggerKind::Leave)?;
-                    props.push(ElementProp::MotionTrigger(trigger));
-                }
                 TokenKind::AtHover => {
                     let trigger = self.parse_motion_trigger(TriggerKind::Hover)?;
                     props.push(ElementProp::MotionTrigger(trigger));
                 }
-                TokenKind::AtUnhover => {
-                    let trigger = self.parse_motion_trigger(TriggerKind::Unhover)?;
-                    props.push(ElementProp::MotionTrigger(trigger));
-                }
                 TokenKind::AtPress => {
                     let trigger = self.parse_motion_trigger(TriggerKind::Press)?;
-                    props.push(ElementProp::MotionTrigger(trigger));
-                }
-                TokenKind::AtFocus => {
-                    let trigger = self.parse_motion_trigger(TriggerKind::Focus)?;
-                    props.push(ElementProp::MotionTrigger(trigger));
-                }
-                TokenKind::AtAnimate => {
-                    let trigger = self.parse_motion_trigger(TriggerKind::Animate)?;
                     props.push(ElementProp::MotionTrigger(trigger));
                 }
                 TokenKind::AtInView => {
@@ -489,20 +473,8 @@ impl<'a> Parser<'a> {
                     let trigger = self.parse_motion_trigger(TriggerKind::DragVertical)?;
                     props.push(ElementProp::MotionTrigger(trigger));
                 }
-                TokenKind::AtDrivenBy => {
-                    // @driven-by={signal} — external progress control
-                    self.advance();
-                    self.expect_token(TokenKind::Eq, "expected '='")?;
-                    self.expect_token(TokenKind::LBrace, "expected '{'")?;
-                    let signal = self.parse_expr()?;
-                    self.expect_token(TokenKind::RBrace, "expected '}'")?;
-                    props.push(ElementProp::DrivenBy(signal));
-                }
-                TokenKind::AtTimeline => {
-                    let trigger = self.parse_motion_trigger(TriggerKind::Timeline)?;
-                    props.push(ElementProp::MotionTrigger(trigger));
-                }
                 TokenKind::AtPaused => {
+                    // @paused={expr} — per-element pause override
                     self.advance();
                     self.expect_token(TokenKind::Eq, "expected '='")?;
                     self.expect_token(TokenKind::LBrace, "expected '{'")?;
@@ -584,23 +556,6 @@ impl<'a> Parser<'a> {
                         TokenKind::DragVelocityMax => props.push(ElementProp::DragVelocityMax(val)),
                         _ => {}
                     }
-                }
-                // Hero attributes
-                TokenKind::AtHero => {
-                    // @hero="tag-name"
-                    self.advance();
-                    self.expect_token(TokenKind::Eq, "expected '='")?;
-                    let val = self.expect_string("expected string value")?;
-                    props.push(ElementProp::HeroTag(val));
-                }
-                TokenKind::AtHeroTransition => {
-                    // @hero-transition={motionName}
-                    self.advance();
-                    self.expect_token(TokenKind::Eq, "expected '='")?;
-                    self.expect_token(TokenKind::LBrace, "expected '{'")?;
-                    let val = self.parse_expr()?;
-                    self.expect_token(TokenKind::RBrace, "expected '}'")?;
-                    props.push(ElementProp::HeroTransition(val));
                 }
                 _ => {
                     let t = self.advance();

@@ -152,23 +152,6 @@ pub fn lower(program: &Program, semantics: &mut SemanticResult) -> IRProgram {
             })
             .collect();
 
-        let timelines: Vec<TimelineIntent> = module
-            .timelines
-            .iter()
-            .map(|t| {
-                let node_id = format!("{}:timeline:{}", module_name, t.name);
-                source_map.insert(
-                    node_id.clone(),
-                    SourceMapEntry {
-                        node_id,
-                        omni_span: span_to_source_span(&t.span),
-                        target_spans: Vec::new(),
-                    },
-                );
-                lower_timeline_def(t, &variant_map, semantics)
-            })
-            .collect();
-
         // Validate design blocks before lowering
         for design in &module.designs {
             let errors = crate::ir::lower::design::validate_design(design);
@@ -207,7 +190,6 @@ pub fn lower(program: &Program, semantics: &mut SemanticResult) -> IRProgram {
             imports,
             exports,
             motions,
-            timelines,
             designs,
             source_span: None,
         };

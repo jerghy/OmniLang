@@ -22,7 +22,6 @@ mod motion_triggers;
 mod runtime;
 mod stmt;
 mod store;
-mod timeline;
 mod utils;
 mod view;
 pub use utils::{build_file_output, wrap_debug_html};
@@ -272,16 +271,6 @@ pub fn generate(
                     gen.emit_motion_js(motion);
                 }
             }
-            if !module.timelines.is_empty() {
-                gen.js.push_str(&format!(
-                    "\n/// ── Module Timeline Definitions: {} ──\n\n",
-                    module.name
-                ));
-                for timeline in &module.timelines {
-                    gen.motion_names.insert(timeline.name.clone());
-                    gen.emit_timeline_js(timeline);
-                }
-            }
         }
     }
 
@@ -424,13 +413,10 @@ pub fn generate(
 /// Guards the 46KB motion runtime JS from being embedded unconditionally.
 fn project_uses_motion(ir: &IRProgram) -> bool {
     for module in ir.modules.values() {
-        if !module.motions.is_empty() || !module.timelines.is_empty() {
+        if !module.motions.is_empty() {
             return true;
         }
         for comp in module.components.values() {
-            if !comp.hero_defs.is_empty() {
-                return true;
-            }
             if let Some(ref view) = comp.view {
                 if view_tree_has_motion(view) {
                     return true;
@@ -444,7 +430,7 @@ fn project_uses_motion(ir: &IRProgram) -> bool {
 /// Recursively scan a view tree for any motion/animation-related fields.
 fn view_tree_has_motion(view: &ViewTree) -> bool {
     omnilang_core::codegen::shared::view_tree::view_tree_any(view, |el| {
-        el.motion.is_some() || el.scroll.is_some() || el.drag.is_some() || el.hero.is_some()
+        el.motion.is_some() || el.scroll.is_some() || el.drag.is_some()
     })
 }
 

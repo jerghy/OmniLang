@@ -113,8 +113,6 @@ pub struct ModuleIR {
     #[serde(default)]
     pub motions: Vec<super::MotionIntent>,
     #[serde(default)]
-    pub timelines: Vec<super::TimelineIntent>,
-    #[serde(default)]
     pub designs: Vec<super::DesignIR>,
     #[serde(default)]
     pub source_span: Option<Span>,

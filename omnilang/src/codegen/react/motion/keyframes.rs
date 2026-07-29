@@ -13,9 +13,6 @@ pub(super) fn format_motion_to_animate(motion: &MotionBodyIR) -> String {
             let opts = format_animate_options(&kf.over, &kf.ease, &kf.playback);
             format!("{{kf:{kf},opts:{opts}}}", kf = kf_items, opts = opts)
         }
-        MotionBodyIR::Timeline(_) | MotionBodyIR::CallbackOnly(_) => {
-            "{kf:[{offset:0,properties:{opacity:0}},{offset:1,properties:{opacity:1}}],opts:{duration:300,easing:\"ease-out\",fill:\"both\"}}".to_string()
-        }
     }
 }
 
@@ -128,77 +125,21 @@ fn translate_easing(ease: &EasingIR, warnings: &mut Vec<String>) -> String {
         EasingIR::CubicBezier { x1, y1, x2, y2 } => {
             format!("cubic-bezier({},{},{},{})", x1, y1, x2, y2)
         }
-        EasingIR::Spring {
-            tension,
-            friction,
-            velocity,
-        } => {
-            // Spring → approximate cubic-bezier based on parameters
-            warnings.push(format!(
-                "Spring velocity {:?} discarded in React motion conversion",
-                velocity
-            ));
-            let ratio = if *tension > 0.0 {
-                *friction / *tension
-            } else {
-                1.0
-            };
-            if ratio < 0.3 {
-                // Underdamped (bouncy)
-                let overshoot = (1.0 - ratio * 2.0).min(0.3);
-                format!(
-                    "cubic-bezier(0.250,{},0.450,{})",
-                    0.460 + overshoot,
-                    0.940 + overshoot
-                )
-            } else {
-                "cubic-bezier(0.250,0.460,0.450,0.940)".to_string()
-            }
-        }
-        EasingIR::Back {
-            intensity,
-            direction,
-        } => {
+        EasingIR::Back { direction } => {
             let dir = direction.as_deref().unwrap_or("Out");
-            let i = intensity.clamp(0.5, 2.0);
             match dir {
-                "In" => format!("cubic-bezier({},-{},0.735,0.045)", 0.600, 0.28 * i),
-                "InOut" => format!(
-                    "cubic-bezier({},-{},0.265,{})",
-                    0.680,
-                    0.55 * i,
-                    (1.55 * i).min(1.8)
-                ),
-                _ => format!(
-                    "cubic-bezier(0.175,{},0.320,{})",
-                    0.885 * i.min(1.5),
-                    (1.275 * i.min(1.5)).min(2.0)
-                ),
+                "In" => "cubic-bezier(0.600,0.165,0.735,0.045)".to_string(),
+                "InOut" => "cubic-bezier(0.680,-0.550,0.265,1.550)".to_string(),
+                _ => "cubic-bezier(0.175,0.885,0.320,1.275)".to_string(),
             }
         }
-        EasingIR::Elastic {
-            amplitude,
-            period,
-            direction,
-        } => {
-            // Elastic → approximate cubic-bezier
-            warnings.push(format!(
-                "Elastic amplitude {:?} discarded in React motion conversion",
-                amplitude
-            ));
-            warnings.push(format!(
-                "Elastic period {:?} discarded in React motion conversion",
-                period
-            ));
+        EasingIR::Elastic { direction } => {
             let dir = direction.as_deref().unwrap_or("Out");
             match dir {
                 "In" => "cubic-bezier(0.600,0.040,0.980,0.335)".to_string(),
                 "InOut" => "cubic-bezier(0.680,-0.550,0.265,1.550)".to_string(),
                 _ => "cubic-bezier(0.250,0.460,0.450,0.940)".to_string(),
             }
-        }
-        EasingIR::Steps { count, direction } => {
-            format!("steps({},{})", count, direction)
         }
     }
 }

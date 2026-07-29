@@ -1,53 +1,9 @@
 // ═══════════════════════════════════════════════════════════
-// Trigger effects: @driven-by, @in-view, @scroll, @drag
+// Trigger effects: @in-view, @scroll, @drag
 // ═══════════════════════════════════════════════════════════
 
 use crate::codegen::CodeWriter;
 use crate::ir::*;
-
-// ══════════════════════════════════════════════════════════════════════════
-// @driven-by — external progress control
-// ══════════════════════════════════════════════════════════════════════════
-
-/// Emit React useEffect hooks for @driven-by external progress control.
-pub(crate) fn emit_driven_by_effects_tsx(w: &mut CodeWriter, node: &ViewTree) {
-    if !has_driven_by(node) {
-        return;
-    }
-
-    w.emit("// @driven-by bindings: external progress control via signal");
-    w.emit("useEffect(() => {");
-    w.indent();
-    w.emit("const els = document.querySelectorAll('[data-driven-by]');");
-    w.emit("els.forEach(el => {");
-    w.indent();
-    w.emit("const drivenVal = el.getAttribute('data-driven-by');");
-    w.emit("const progress = Math.max(0, Math.min(1, Number(drivenVal)));");
-    w.emit("const anims = el.getAnimations();");
-    w.emit("anims.forEach(a => {");
-    w.indent();
-    w.emit("if (a.playState !== 'finished') {");
-    w.indent();
-    w.emit("const duration = a.effect?.getTiming()?.duration || 300;");
-    w.emit("a.currentTime = progress * duration;");
-    w.dedent();
-    w.emit("}");
-    w.dedent();
-    w.emit("});");
-    w.dedent();
-    w.emit("});");
-    w.dedent();
-    w.emit("});");
-}
-
-/// Check if any element in the view tree has @driven-by.
-fn has_driven_by(node: &ViewTree) -> bool {
-    omnilang_core::codegen::shared::view_tree::view_tree_any(node, |el| {
-        el.motion_behavior()
-            .and_then(|m| m.driven_by.as_ref())
-            .is_some()
-    })
-}
 
 // ══════════════════════════════════════════════════════════════════════════
 // @in-view — IntersectionObserver

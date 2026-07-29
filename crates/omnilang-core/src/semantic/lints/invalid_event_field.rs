@@ -187,7 +187,6 @@ mod tests {
             motion: None,
             scroll: None,
             drag: None,
-            hero: None,
         }));
         let ir = make_test_ir_with_view("Form", view);
 
@@ -238,7 +237,6 @@ mod tests {
             motion: None,
             scroll: None,
             drag: None,
-            hero: None,
         }));
         let ir = make_test_ir_with_view("Form", view);
 
@@ -277,7 +275,6 @@ mod tests {
             motion: None,
             scroll: None,
             drag: None,
-            hero: None,
         }));
         let ir = make_test_ir_with_view("Widget", view);
 

@@ -22,10 +22,8 @@ export type OmniProp = TransformProp | FilterProp
 export type EasingConfig =
   | string  // "easeOut", "linear", "power2In"...
   | { type: 'cubicBezier'; x1: number; y1: number; x2: number; y2: number }
-  | { type: 'spring'; tension: number; friction: number; velocity?: number }
-  | { type: 'back'; intensity: number; direction?: 'in' | 'out' | 'inOut' }
-  | { type: 'elastic'; amplitude: number; period: number; direction?: 'in' | 'out' | 'inOut' }
-  | { type: 'steps'; count: number; direction: 'start' | 'end' }
+  | { type: 'back'; direction?: 'in' | 'out' | 'inOut' }
+  | { type: 'elastic'; direction?: 'in' | 'out' | 'inOut' }
 
 /** A single keyframe stop in Omni terms. */
 export interface KeyframeStop {

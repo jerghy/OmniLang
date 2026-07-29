@@ -468,7 +468,6 @@ fn test_tsx_interpolation_renders_expr() {
             motion: None,
             scroll: None,
             drag: None,
-            hero: None,
             construction_kind: ConstructionKind::Static,
             source_span: None,
         }),

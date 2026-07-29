@@ -12,7 +12,7 @@ mod transforms;
 
 // Re-export sub-module public items so they are visible at the `motion` level
 pub(super) use transforms::{
-    emit_drag_effects_tsx, emit_driven_by_effects_tsx, emit_inview_effects_tsx,
+    emit_drag_effects_tsx, emit_inview_effects_tsx,
     emit_scroll_effects_tsx,
 };
 

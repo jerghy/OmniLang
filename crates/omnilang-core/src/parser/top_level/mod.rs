@@ -46,9 +46,6 @@ impl<'a> Parser<'a> {
                     TokenKind::AtMotion => {
                         module.motions.push(self.parse_motion_def()?);
                     }
-                    TokenKind::AtTimeline => {
-                        module.timelines.push(self.parse_timeline_def()?);
-                    }
                     TokenKind::Async => {
                         self.advance(); // 'async'
                         self.expect_token(TokenKind::Fn, "expected 'fn' after 'async'")?;
@@ -182,40 +179,3 @@ impl<'a> Parser<'a> {
     }
 }
 
-/// Parse a position value string (from `start: "..."` syntax).
-pub fn parse_position_string(raw: &str) -> PositionValue {
-    match raw {
-        "withPrev" => return PositionValue::WithPrev,
-        "after" => return PositionValue::After,
-        _ => {}
-    }
-    if raw.starts_with("overlap(") && raw.ends_with(')') {
-        let n = raw
-            .trim_start_matches("overlap(")
-            .trim_end_matches(')')
-            .to_string();
-        return PositionValue::Overlap(n);
-    }
-    if raw.starts_with("afterPrev(") && raw.ends_with(')') {
-        let n = raw
-            .trim_start_matches("afterPrev(")
-            .trim_end_matches(')')
-            .to_string();
-        return PositionValue::AfterPrev(n);
-    }
-    if raw.starts_with("withOffset(") && raw.ends_with(')') {
-        let n = raw
-            .trim_start_matches("withOffset(")
-            .trim_end_matches(')')
-            .to_string();
-        return PositionValue::WithOffset(n);
-    }
-    if raw.starts_with("absolute(") && raw.ends_with(')') {
-        let n = raw
-            .trim_start_matches("absolute(")
-            .trim_end_matches(')')
-            .to_string();
-        return PositionValue::Absolute(n);
-    }
-    PositionValue::Absolute(raw.to_string())
-}

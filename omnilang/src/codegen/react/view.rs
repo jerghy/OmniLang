@@ -180,18 +180,6 @@ pub(super) fn gen_view_node_tsx(
                             attrs.push(format!("data-motion-press-name=\"{}\"", motion_name));
                         }
                     }
-                    TriggerKind::Focus => {
-                        attrs.push("data-motion-focus=\"true\"".into());
-                        if let Some(ref motion_name) = trigger.motion_ref {
-                            attrs.push(format!("data-motion-focus-name=\"{}\"", motion_name));
-                        }
-                    }
-                    TriggerKind::Unhover => {
-                        attrs.push("data-motion-unhover=\"true\"".into());
-                        if let Some(ref motion_name) = trigger.motion_ref {
-                            attrs.push(format!("data-motion-unhover-name=\"{}\"", motion_name));
-                        }
-                    }
                     TriggerKind::InView => {
                         let threshold_val = match el
                             .motion_behavior()
@@ -256,11 +244,6 @@ pub(super) fn gen_view_node_tsx(
                 }
             }
 
-            // @driven-by — external progress control marker attribute
-            if let Some(driven_expr) = el.motion_behavior().and_then(|m| m.driven_by.as_ref()) {
-                let driven_js = format_expr_ir_tsx(driven_expr);
-                attrs.push(format!("data-driven-by={{{}}}", driven_js));
-            }
 
             // Events — with dedup for binding conflicts and motion name filtering
             for (event_name, handler) in &el.events {

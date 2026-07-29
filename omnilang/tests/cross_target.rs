@@ -171,7 +171,6 @@ fn cross_target_component_files_produce_output() {
         "test/projects/learn-omniview/src/stores/TodoStore.omni",
         "test/projects/learn-omniview/src/pages/HomePage.omni",
         "test/projects/learn-omniview/src/pages/Dashboard.omni",
-        "test/projects/learn-omniview/src/pages/MotionTriggersDemo.omni",
     ];
 
     let repo = repo_root();

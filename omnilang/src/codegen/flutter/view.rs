@@ -9,7 +9,7 @@ use rustc_hash::FxHashMap;
 
 use super::capitalize_first;
 use super::expr::format_expr_ir_flutter;
-use super::motion::{wrap_flutter_states, wrap_with_motion_widgets};
+use super::motion::wrap_with_motion_widgets;
 use super::motion_widgets::{emit_event_object_flutter, field_extract_flutter};
 use super::stmt::{generate_statement_flutter, FlutterStmtFormatter};
 use super::utils::{
@@ -302,33 +302,10 @@ fn format_element(
         .is_some();
     let has_scroll = el.scroll_behavior().is_some();
     let mut result = if el.motion_behavior().is_some_and(|m| !m.triggers.is_empty())
-        || el
-            .motion_behavior()
-            .and_then(|m| m.driven_by.as_ref())
-            .is_some()
-        || el
-            .motion_behavior()
-            .and_then(|m| m.states.as_ref())
-            .is_some()
         || has_inview
         || has_scroll
     {
         let mut result = inner;
-
-        // Handle @driven-by: wrap with signal-driven animation progress
-        if let Some(driven_expr) = el.motion_behavior().and_then(|m| m.driven_by.as_ref()) {
-            let driven_dart = format_expr_ir_flutter(driven_expr);
-            // Generate a listener that seeks the animation controller based on signal value
-            result = format!(
-                "DrivenByBuilder(\n  progress: () => ({}).toDouble().clamp(0.0, 1.0),\n  builder: (context, child, progress) {{\n    // Apply animation at the given progress\n    return child!;\n  }},\n  child: {},\n)",
-                driven_dart, result
-            );
-        }
-
-        // Handle states:: wrap with gesture-detector or signal-driven state machine
-        if let Some(states_ir) = el.motion_behavior().and_then(|m| m.states.as_ref()) {
-            result = wrap_flutter_states(result, states_ir, el);
-        }
 
         // Standard motion triggers (enter, hover, press, etc.)
         if el.motion_behavior().is_some_and(|m| !m.triggers.is_empty()) {
@@ -461,20 +438,6 @@ fn format_element(
     } else {
         inner
     };
-
-    // Wrap with Hero widget if hero_tag is set (shared element transition)
-    if let Some(hero_tag) = el.hero_behavior().and_then(|h| h.tag.as_ref()) {
-        let tag_dart = format!("'{}'", hero_tag);
-        if let Some(transition) = el.hero_behavior().and_then(|h| h.transition.as_ref()) {
-            let trans_dart = format_expr_ir_flutter(transition);
-            result = format!(
-                "Hero(\n  tag: {},\n  flightShuttleBuilder: ({}, child, animation, flightDirection, fromHeroContext, toHeroContext) {{\n    return child!;\n  }},\n  child: {},\n)",
-                tag_dart, trans_dart, result
-            );
-        } else {
-            result = format!("Hero(\n  tag: {},\n  child: {},\n)", tag_dart, result);
-        }
-    }
 
     result
 }

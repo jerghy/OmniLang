@@ -6,9 +6,9 @@ describe('resolveEasing', () => {
     expect(resolveEasing('power1In')).toContain('cubic-bezier');
   });
 
-  it('resolves parameterized easings', () => {
+  it('returns parameterized easings as-is (removed feature)', () => {
     const result = resolveEasing('backIn(1.5)');
-    expect(result).toContain('cubic-bezier');
+    expect(result).toBe('backIn(1.5)');
   });
 
   it('returns unknown easings as-is', () => {

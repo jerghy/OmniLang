@@ -373,17 +373,12 @@ impl OmniViewGenerator {
         {
             let trigger_str = match trigger.kind {
                 TriggerKind::Enter => "enter",
-                TriggerKind::Leave => "leave",
                 TriggerKind::Hover => "hover",
-                TriggerKind::Unhover => "unhover",
                 TriggerKind::Press => "press",
-                TriggerKind::Focus => "focus",
-                TriggerKind::Animate => "animate",
                 TriggerKind::InView => "inView",
                 TriggerKind::Scroll => "scroll",
                 TriggerKind::DragHorizontal => "dragHorizontal",
                 TriggerKind::DragVertical => "dragVertical",
-                TriggerKind::Timeline => "timeline",
             };
 
             // If there's an inline motion definition, emit it as a player config
@@ -455,30 +450,6 @@ impl OmniViewGenerator {
                             &extra,
                         ));
                     }
-                    TriggerKind::Focus => {
-                        let extra = format!(
-                            "\x20\x20 el.addEventListener(\"focus\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.play(); }});\n\
-                             \x20\x20 el.addEventListener(\"blur\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.reverse(); }});\n",
-                            nid = nid,
-                            trigger = trigger_str,
-                        );
-                        self.js.push_str(&format_simple_trigger_js(
-                            "// @focus trigger",
-                            nid,
-                            trigger_str,
-                            &anim_call,
-                            &extra,
-                        ));
-                    }
-                    TriggerKind::Leave => {
-                        self.mount_js.push_str(&format_simple_trigger_js(
-                            "// @leave trigger",
-                            nid,
-                            trigger_str,
-                            &anim_call,
-                            "",
-                        ));
-                    }
                     TriggerKind::InView => {
                         self.emit_trigger_inview_js(nid, trigger_str, &anim_call, el, false);
                     }
@@ -495,40 +466,6 @@ impl OmniViewGenerator {
                             is_horizontal,
                             false,
                         );
-                    }
-                    TriggerKind::Animate => {
-                        let extra = "\x20\x20 anim.play();\n";
-                        self.mount_js.push_str(&format_simple_trigger_js(
-                            "// @animate trigger",
-                            nid,
-                            trigger_str,
-                            &anim_call,
-                            extra,
-                        ));
-                    }
-                    TriggerKind::Timeline => {
-                        self.enter_trigger_nids.push((
-                            nid.to_string(),
-                            motion_name.clone(),
-                            "timeline".into(),
-                            self.current_component.clone(),
-                        ));
-                        self.mount_js.push_str(&format_simple_trigger_js(
-                            "// @timeline trigger",
-                            nid,
-                            trigger_str,
-                            &anim_call,
-                            "",
-                        ));
-                    }
-                    TriggerKind::Unhover => {
-                        self.js.push_str(&format_simple_trigger_js(
-                            "// @unhover trigger",
-                            nid,
-                            trigger_str,
-                            &anim_call,
-                            "",
-                        ));
                     }
                 }
             } else if !kf_override.is_empty() {
@@ -582,30 +519,6 @@ impl OmniViewGenerator {
                             &extra,
                         ));
                     }
-                    TriggerKind::Focus => {
-                        let extra = format!(
-                            "\x20\x20 el.addEventListener(\"focus\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.play(); }});\n\
-                             \x20\x20 el.addEventListener(\"blur\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.reverse(); }});\n",
-                            nid = nid,
-                            trigger = trigger_str,
-                        );
-                        self.js.push_str(&format_simple_trigger_js(
-                            "// @focus (inline)",
-                            nid,
-                            trigger_str,
-                            &anim_call,
-                            &extra,
-                        ));
-                    }
-                    TriggerKind::Leave => {
-                        self.mount_js.push_str(&format_simple_trigger_js(
-                            "// @leave (inline)",
-                            nid,
-                            trigger_str,
-                            &anim_call,
-                            "",
-                        ));
-                    }
                     TriggerKind::InView => {
                         self.emit_trigger_inview_js(nid, trigger_str, &anim_call, el, true);
                     }
@@ -622,34 +535,6 @@ impl OmniViewGenerator {
                             is_horizontal,
                             true,
                         );
-                    }
-                    TriggerKind::Animate => {
-                        let extra = "\x20\x20 anim.play();\n";
-                        self.mount_js.push_str(&format_simple_trigger_js(
-                            "// @animate (inline)",
-                            nid,
-                            trigger_str,
-                            &anim_call,
-                            extra,
-                        ));
-                    }
-                    TriggerKind::Timeline => {
-                        self.mount_js.push_str(&format_simple_trigger_js(
-                            "// @timeline (inline)",
-                            nid,
-                            trigger_str,
-                            &anim_call,
-                            "",
-                        ));
-                    }
-                    TriggerKind::Unhover => {
-                        self.js.push_str(&format_simple_trigger_js(
-                            "// @unhover (inline)",
-                            nid,
-                            trigger_str,
-                            &anim_call,
-                            "",
-                        ));
                     }
                 }
             }

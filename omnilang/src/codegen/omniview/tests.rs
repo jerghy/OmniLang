@@ -24,8 +24,7 @@ fn make_element(tag: &str) -> ElementIR {
         motion: None,
         scroll: None,
         drag: None,
-        hero: None,
-    }
+            }
 }
 
 fn make_module(name: &str) -> ModuleIR {
@@ -38,7 +37,6 @@ fn make_module(name: &str) -> ModuleIR {
         components: FxHashMap::default(),
         stores: FxHashMap::default(),
         motions: vec![],
-        timelines: vec![],
         imports: vec![],
         exports: vec![],
         designs: vec![],

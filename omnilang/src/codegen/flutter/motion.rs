@@ -2,23 +2,11 @@
 
 use crate::ir::*;
 
-use super::expr::format_expr_ir_flutter;
 use rustc_hash::FxHashSet;
 
 // ═══════════════════════════════════════════════════════════════════
 // Motion / Animation codegen helpers
 // ═══════════════════════════════════════════════════════════════════
-
-/// Check if any motion in the component uses spring easing (needs physics import).
-pub(crate) fn comp_has_spring_motion(ir: &IRProgram) -> bool {
-    ir.modules.values().flat_map(|m| &m.motions).any(|m| {
-        if let MotionBodyIR::Keyframe(kf) = &m.body {
-            matches!(&kf.ease, Some(EasingIR::Spring { .. }))
-        } else {
-            false
-        }
-    })
-}
 
 /// Check if any motion in the component uses path animation (needs dart:ui import).
 pub(crate) fn comp_has_path_motion(ir: &IRProgram) -> bool {
@@ -30,10 +18,10 @@ pub(crate) fn comp_has_path_motion(ir: &IRProgram) -> bool {
 
 /// Check if a single motion uses path animation.
 pub(crate) fn motion_has_path(motion: &MotionIntent) -> bool {
-    match &motion.body {
-        MotionBodyIR::Keyframe(kf) => kf.path.is_some(),
-        _ => false,
-    }
+    let MotionBodyIR::Keyframe(kf) = &motion.body else {
+        return false;
+    };
+    kf.path.is_some()
 }
 
 /// Extract the "to" properties from a keyframe to determine what properties are animated.
@@ -106,10 +94,8 @@ pub(crate) fn format_easing_flutter(ease: &Option<EasingIR>) -> String {
         Some(EasingIR::CubicBezier { x1, y1, x2, y2 }) => {
             format!("Cubic({}, {}, {}, {})", x1, y1, x2, y2)
         }
-        Some(EasingIR::Spring { .. }) => "Curves.linear".to_string(),
         Some(EasingIR::Back { .. }) => "Curves.easeOutBack".to_string(),
         Some(EasingIR::Elastic { .. }) => "Curves.easeOutElastic".to_string(),
-        Some(EasingIR::Steps { .. }) => "Curves.linear".to_string(),
         None => "Curves.linear".to_string(),
     }
 }
@@ -209,6 +195,7 @@ pub(crate) fn build_animated_builder_body(motion: &MotionIntent, anim_name: &str
 
         body
     } else {
+        // Keyframe body with no properties — default opacity animation
         format!("Opacity(opacity: {}.value, child: child)", anim_name)
     }
 }
@@ -226,10 +213,10 @@ pub(crate) fn wrap_with_motion_widgets(
 
     let mut result = inner;
 
-    // Check for hover/unhover triggers
+    // Check for hover triggers
     let has_hover = triggers
         .iter()
-        .any(|t| matches!(t.kind, TriggerKind::Hover | TriggerKind::Unhover));
+        .any(|t| matches!(t.kind, TriggerKind::Hover));
     let has_press = triggers
         .iter()
         .any(|t| matches!(t.kind, TriggerKind::Press));
@@ -260,7 +247,7 @@ pub(crate) fn wrap_with_motion_widgets(
     if has_hover {
         let hover_ctrl = triggers
             .iter()
-            .find(|t| matches!(t.kind, TriggerKind::Hover | TriggerKind::Unhover))
+            .find(|t| matches!(t.kind, TriggerKind::Hover))
             .and_then(|t| t.motion_ref.as_ref())
             .map(|name| format!("_{}Controller", name))
             .unwrap_or_else(|| "_controller".to_string());
@@ -289,71 +276,7 @@ pub(crate) fn wrap_with_motion_widgets(
     result
 }
 
-/// Wrap a widget with states: support — either reserved (idle/hover/pressed) with
-/// MouseRegion+GestureDetector, or custom signal-driven with named state animations.
-pub(crate) fn wrap_flutter_states(inner: String, states_ir: &StatesIR, _el: &ElementIR) -> String {
-    let mut result = inner;
-
-    // Check if states are reserved (idle, hover, pressed) or custom
-    let reserved_names: FxHashSet<&str> = ["idle", "hover", "pressed"].iter().copied().collect();
-    let state_names: Vec<&str> = states_ir.states.keys().map(|s| s.as_str()).collect();
-    let is_reserved = state_names.iter().all(|n| reserved_names.contains(n));
-
-    if is_reserved {
-        // Generate MouseRegion for hover state + GestureDetector for pressed state
-        let has_hover = state_names.contains(&"hover");
-        let has_pressed = state_names.contains(&"pressed");
-
-        if has_pressed {
-            // Get the hover/pressed animation controllers
-            if let Some(idle_def) = states_ir.states.get("idle") {
-                let over_ms = idle_def
-                    .over
-                    .as_ref()
-                    .and_then(|e| {
-                        if let ExprIR::LiteralExpr { value } = e {
-                            value.as_str().and_then(parse_dart_duration_ms)
-                        } else {
-                            None
-                        }
-                    })
-                    .unwrap_or(150.0);
-                result = format!(
-                    "GestureDetector(\n  onTapDown: (_) => _statesController.animateTo(1.0, duration: Duration(milliseconds: {})),\n  onTapUp: (_) => _statesController.animateTo(0.0, duration: Duration(milliseconds: {})),\n  onTapCancel: (_) => _statesController.animateTo(0.0, duration: Duration(milliseconds: {})),\n  child: {},\n)",
-                    over_ms as u64, over_ms as u64, over_ms as u64, result
-                );
-            }
-        }
-        if has_hover {
-            if let Some(hover_def) = states_ir.states.get("hover") {
-                let over_ms = hover_def
-                    .over
-                    .as_ref()
-                    .and_then(|e| {
-                        if let ExprIR::LiteralExpr { value } = e {
-                            value.as_str().and_then(parse_dart_duration_ms)
-                        } else {
-                            None
-                        }
-                    })
-                    .unwrap_or(150.0);
-                result = format!(
-                    "MouseRegion(\n  onEnter: (_) => _statesController.animateTo(1.0, duration: Duration(milliseconds: {})),\n  onExit: (_) => _statesController.animateTo(0.0, duration: Duration(milliseconds: {})),\n  child: {},\n)",
-                    over_ms as u64, over_ms as u64, result
-                );
-            }
-        }
-    } else if let Some(ref _signal) = states_ir.signal {
-        // Custom signal-driven states: use AnimatedBuilder with state lookup
-        let signal_dart = format_expr_ir_flutter(_signal);
-        result = format!(
-            "AnimatedBuilder(\n  animation: _statesController,\n  builder: (context, child) {{\n    final _state = {};\n    // Transition to matching state based on signal value\n    return child!;\n  }},\n  child: {},\n)",
-            signal_dart, result
-        );
-    }
-
-    result
-}
+// wrap_flutter_states removed — StatesIR subsystem removed per ADR-032
 
 /// Parse a duration expression string ("300ms", "1.5s") for Dart codegen.
 pub(crate) fn parse_dart_duration_ms(val: &str) -> Option<f64> {

@@ -358,7 +358,6 @@ fn test_format_element_empty() {
         motion: None,
         scroll: None,
         drag: None,
-        hero: None,
     };
     assert_eq!(
         format_view_tree(&ViewTree::Element(el), &[], &FxHashMap::default()),
@@ -382,7 +381,6 @@ fn test_format_element_with_text_child() {
         motion: None,
         scroll: None,
         drag: None,
-        hero: None,
     };
     let expr = format_view_tree(&ViewTree::Element(el), &[], &FxHashMap::default());
     assert_eq!(expr, "Container(child: Text('Hello'))");
@@ -407,7 +405,6 @@ fn test_format_element_with_multiple_children() {
         motion: None,
         scroll: None,
         drag: None,
-        hero: None,
     };
     let expr = format_view_tree(&ViewTree::Element(el), &[], &FxHashMap::default());
     assert_eq!(expr, "Column(children: [Text('First'), Text('Second')])");
@@ -441,7 +438,6 @@ fn test_format_element_with_event() {
         motion: None,
         scroll: None,
         drag: None,
-        hero: None,
     };
     let expr = format_view_tree(&ViewTree::Element(el), &[], &FxHashMap::default());
     assert!(expr.contains("ElevatedButton("));
@@ -472,7 +468,6 @@ fn test_format_element_with_class_map_bindings() {
         motion: None,
         scroll: None,
         drag: None,
-        hero: None,
     };
     let expr = format_view_tree(&ViewTree::Element(el), &[], &FxHashMap::default());
     // Should emit conditional decoration that uses the binding expression
@@ -516,7 +511,6 @@ fn test_format_element_with_class_map_bindings_static_true() {
         motion: None,
         scroll: None,
         drag: None,
-        hero: None,
     };
     let expr = format_view_tree(&ViewTree::Element(el), &[], &FxHashMap::default());
     // Static true class bindings should not add wrapping Container
@@ -546,7 +540,6 @@ fn test_format_element_with_class_map_bindings_static_false() {
         motion: None,
         scroll: None,
         drag: None,
-        hero: None,
     };
     let expr = format_view_tree(&ViewTree::Element(el), &[], &FxHashMap::default());
     // Static false class bindings should be skipped entirely
@@ -577,7 +570,6 @@ fn test_format_element_with_class_map_bindings_and_child() {
         motion: None,
         scroll: None,
         drag: None,
-        hero: None,
     };
     let expr = format_view_tree(&ViewTree::Element(el), &[], &FxHashMap::default());
     // Should wrap the child Container inside a conditional Container

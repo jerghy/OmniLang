@@ -41,11 +41,10 @@ pub use design::{
 
 // ── Explicit re-exports from types_motion.rs ──
 pub use types_motion::{
-    CallbackBodyIR, CallbackKindIR, ConnectorIR, DirectionIR, DirectionValue, DragBehavior,
-    EasingIR, FillValue, HeroBehavior, HeroIntent, InterruptValue, KeyframeIR, KeyframeStopIR,
+    DirectionValue, DragBehavior,
+    EasingIR, FillValue, HeroIntent, KeyframeIR, KeyframeStopIR,
     LoopValue, MotionBehavior, MotionBodyIR, MotionExprIR, MotionIntent, PlaybackIR,
-    ScrollBehavior, StaggerDirection, StaggerTimingIR, StateTweenIR, StatesIR, TimelineIR,
-    TimelineIntent, TimelineItemIR, TimelineItemKindIR, TriggerIntent, TriggerKind, WhenValue,
+    ScrollBehavior, TriggerIntent, TriggerKind,
 };
 
 pub(crate) use lower::{lower_block, lower_type};

@@ -273,9 +273,7 @@ impl SemanticAnalyzer {
                     for prop in &el.props {
                         match prop {
                             ElementProp::Static { value, .. }
-                            | ElementProp::AnimateSignal(value)
                             | ElementProp::PausedOverride(value)
-                            | ElementProp::DrivenBy(value)
                             | ElementProp::InViewOnce(value)
                             | ElementProp::InViewRepeat(value)
                             | ElementProp::InViewThreshold(value)
@@ -284,8 +282,7 @@ impl SemanticAnalyzer {
                             | ElementProp::DragScrub(value)
                             | ElementProp::DragMomentum(value)
                             | ElementProp::DragThreshold(value)
-                            | ElementProp::DragVelocityMax(value)
-                            | ElementProp::HeroTransition(value) => {
+                            | ElementProp::DragVelocityMax(value) => {
                                 check_expr_for_undeclared_store(value, store_refs, diagnostics);
                             }
                             ElementProp::Style { entries, .. } => {

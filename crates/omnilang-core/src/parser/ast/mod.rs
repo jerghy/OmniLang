@@ -476,7 +476,6 @@ pub struct Module {
     pub imports: Vec<ImportStmt>,
     pub exports: Vec<ExportFrom>,
     pub motions: Vec<MotionDef>,
-    pub timelines: Vec<TimelineDef>,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]

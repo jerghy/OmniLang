@@ -299,12 +299,8 @@ pub(super) fn view_has_motion_or_effects(node: &ViewTree) -> bool {
                 if motion
                     .triggers
                     .iter()
-                    .any(|t| !matches!(t.kind, TriggerKind::Timeline | TriggerKind::Animate))
+                    .any(|_| true)
                 {
-                    return true;
-                }
-                // driven_by generates useEffect
-                if motion.driven_by.is_some() {
                     return true;
                 }
                 // in_view_once / in_view_repeat generates useEffect
@@ -313,7 +309,7 @@ pub(super) fn view_has_motion_or_effects(node: &ViewTree) -> bool {
                 }
             }
             // scroll and drag always generate useEffect
-            if el.scroll.is_some() || el.drag.is_some() || el.hero.is_some() {
+            if el.scroll.is_some() || el.drag.is_some() {
                 return true;
             }
             // Check children

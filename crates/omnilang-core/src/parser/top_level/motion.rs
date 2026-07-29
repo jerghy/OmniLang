@@ -29,9 +29,7 @@ impl<'a> Parser<'a> {
             TokenKind::IntLiteral(_) | TokenKind::FloatLiteral(_)
         );
         if is_percentage {
-            let mut body = self.parse_keyframe_body()?;
-            body.callbacks = self.parse_optional_callbacks()?;
-            return Ok(MotionBody::Keyframe(body));
+            return Ok(MotionBody::Keyframe(self.parse_keyframe_body()?));
         }
 
         // First token determines mode.
@@ -41,109 +39,13 @@ impl<'a> Parser<'a> {
 
         match first.as_str() {
             "from" | "to" => {
-                let mut body = self.parse_keyframe_body()?;
-                // Check for optional callback blocks after keyframe stops
-                body.callbacks = self.parse_optional_callbacks()?;
-                Ok(MotionBody::Keyframe(body))
+                Ok(MotionBody::Keyframe(self.parse_keyframe_body()?))
             }
-            "set" | "stagger" | "label" => self.parse_timeline_body(),
-            "onStart" | "onUpdate" | "onComplete" | "onRepeat" | "onInterrupt" => {
-                self.parse_callback_body()
-            }
-            _ => self.parse_timeline_body(), // IDENT => motion reference
+            _ => Err(self.error(format!(
+                "expected 'from' or 'to' to start keyframe body, got '{}'",
+                first
+            ))),
         }
-    }
-
-    /// Parse optional callback blocks (onStart { } onComplete { } etc.) after keyframe body.
-    /// Returns empty vec if no callbacks present.
-    fn parse_optional_callbacks(&mut self) -> Result<Vec<CallbackSpec>, ParseError> {
-        let mut callbacks = Vec::new();
-        loop {
-            match self.peek_ident_value() {
-                Some(ref s) if s == "onStart" => {
-                    self.advance();
-                    let body = self.parse_block()?;
-                    let expr = body.trailing_expr.unwrap_or_else(|| {
-                        Box::new(Expr::Literal(
-                            Literal::Null,
-                            Span {
-                                start: 0,
-                                end: 0,
-                                line: 0,
-                                col: 0,
-                            },
-                        ))
-                    });
-                    callbacks.push(CallbackSpec::OnStart(*expr));
-                }
-                Some(ref s) if s == "onUpdate" => {
-                    self.advance();
-                    let body = self.parse_block()?;
-                    let expr = body.trailing_expr.unwrap_or_else(|| {
-                        Box::new(Expr::Literal(
-                            Literal::Null,
-                            Span {
-                                start: 0,
-                                end: 0,
-                                line: 0,
-                                col: 0,
-                            },
-                        ))
-                    });
-                    callbacks.push(CallbackSpec::OnUpdate(*expr));
-                }
-                Some(ref s) if s == "onComplete" => {
-                    self.advance();
-                    let body = self.parse_block()?;
-                    let expr = body.trailing_expr.unwrap_or_else(|| {
-                        Box::new(Expr::Literal(
-                            Literal::Null,
-                            Span {
-                                start: 0,
-                                end: 0,
-                                line: 0,
-                                col: 0,
-                            },
-                        ))
-                    });
-                    callbacks.push(CallbackSpec::OnComplete(*expr));
-                }
-                Some(ref s) if s == "onRepeat" => {
-                    self.advance();
-                    let body = self.parse_block()?;
-                    let expr = body.trailing_expr.unwrap_or_else(|| {
-                        Box::new(Expr::Literal(
-                            Literal::Null,
-                            Span {
-                                start: 0,
-                                end: 0,
-                                line: 0,
-                                col: 0,
-                            },
-                        ))
-                    });
-                    callbacks.push(CallbackSpec::OnRepeat(*expr));
-                }
-                Some(ref s) if s == "onInterrupt" => {
-                    self.advance();
-                    let body = self.parse_block()?;
-                    let expr = body.trailing_expr.unwrap_or_else(|| {
-                        Box::new(Expr::Literal(
-                            Literal::Null,
-                            Span {
-                                start: 0,
-                                end: 0,
-                                line: 0,
-                                col: 0,
-                            },
-                        ))
-                    });
-                    callbacks.push(CallbackSpec::OnInterrupt(*expr));
-                }
-                _ => break,
-            }
-        }
-        Ok(callbacks)
     }
 
     /// Parse keyframe body: from { ... } to { ... } with optional over/ease/playback
@@ -175,7 +77,7 @@ impl<'a> Parser<'a> {
             }
         }
 
-        // Parse shared over/ease/color_space
+        // Parse shared over/ease
         let mut over = Expr::Literal(
             Literal::Float(0.3),
             Span {
@@ -186,9 +88,8 @@ impl<'a> Parser<'a> {
             },
         );
         let mut ease = None;
-        let mut color_space = None;
 
-        self.parse_shared_timing(&mut over, &mut ease, &mut color_space)?;
+        self.parse_shared_timing(&mut over, &mut ease)?;
 
         // Parse optional path/pathRotate
         let mut path: Option<String> = None;
@@ -258,11 +159,9 @@ impl<'a> Parser<'a> {
             stops,
             over,
             ease,
-            color_space,
             playback,
             path,
             path_rotate,
-            callbacks: Vec::new(),
         })
     }
 
@@ -339,12 +238,11 @@ impl<'a> Parser<'a> {
         })
     }
 
-    /// Parse shared over/ease/color_space after keyframe stops
+    /// Parse shared over/ease after keyframe stops
     fn parse_shared_timing(
         &mut self,
         over: &mut Expr,
         ease: &mut Option<EasingExpr>,
-        color_space: &mut Option<String>,
     ) -> Result<(), ParseError> {
         loop {
             match self.peek_ident_value() {
@@ -362,13 +260,6 @@ impl<'a> Parser<'a> {
                     }
                     *ease = Some(self.parse_easing()?);
                 }
-                Some(ref s) if s == "color_space" || s == "colorSpace" => {
-                    self.advance();
-                    if *self.peek_kind() == TokenKind::Colon {
-                        self.advance();
-                    }
-                    *color_space = Some(self.expect_ident("expected color space")?);
-                }
                 _ => break,
             }
             // Optional comma between timing props
@@ -379,126 +270,14 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
-    /// Parse timeline body: sequence of items with connectors
-    pub(crate) fn parse_timeline_body(&mut self) -> Result<MotionBody, ParseError> {
-        let items = self.parse_timeline_items_with_expansion()?;
-        let playback = self.parse_playback_props()?;
-        Ok(MotionBody::Timeline(TimelineBody { items, playback }))
-    }
-    /// Parse callback-only motion body
+    /// Parse callback-only motion body (removed — returns error)
     fn parse_callback_body(&mut self) -> Result<MotionBody, ParseError> {
-        let mut callbacks = Vec::new();
-
-        loop {
-            match self.peek_ident_value() {
-                Some(ref s) if s == "onStart" => {
-                    self.advance();
-                    let body = self.parse_block()?;
-                    let expr = body.trailing_expr.unwrap_or_else(|| {
-                        Box::new(Expr::Literal(
-                            Literal::Null,
-                            Span {
-                                start: 0,
-                                end: 0,
-                                line: 0,
-                                col: 0,
-                            },
-                        ))
-                    });
-                    callbacks.push(CallbackSpec::OnStart(*expr));
-                }
-                Some(ref s) if s == "onUpdate" => {
-                    self.advance();
-                    let body = self.parse_block()?;
-                    let expr = body.trailing_expr.unwrap_or_else(|| {
-                        Box::new(Expr::Literal(
-                            Literal::Null,
-                            Span {
-                                start: 0,
-                                end: 0,
-                                line: 0,
-                                col: 0,
-                            },
-                        ))
-                    });
-                    callbacks.push(CallbackSpec::OnUpdate(*expr));
-                }
-                Some(ref s) if s == "onComplete" => {
-                    self.advance();
-                    let body = self.parse_block()?;
-                    let expr = body.trailing_expr.unwrap_or_else(|| {
-                        Box::new(Expr::Literal(
-                            Literal::Null,
-                            Span {
-                                start: 0,
-                                end: 0,
-                                line: 0,
-                                col: 0,
-                            },
-                        ))
-                    });
-                    callbacks.push(CallbackSpec::OnComplete(*expr));
-                }
-                Some(ref s) if s == "onRepeat" => {
-                    self.advance();
-                    let body = self.parse_block()?;
-                    let expr = body.trailing_expr.unwrap_or_else(|| {
-                        Box::new(Expr::Literal(
-                            Literal::Null,
-                            Span {
-                                start: 0,
-                                end: 0,
-                                line: 0,
-                                col: 0,
-                            },
-                        ))
-                    });
-                    callbacks.push(CallbackSpec::OnRepeat(*expr));
-                }
-                Some(ref s) if s == "onInterrupt" => {
-                    self.advance();
-                    let body = self.parse_block()?;
-                    let expr = body.trailing_expr.unwrap_or_else(|| {
-                        Box::new(Expr::Literal(
-                            Literal::Null,
-                            Span {
-                                start: 0,
-                                end: 0,
-                                line: 0,
-                                col: 0,
-                            },
-                        ))
-                    });
-                    callbacks.push(CallbackSpec::OnInterrupt(*expr));
-                }
-                _ => break,
-            }
-        }
-
-        let mut over = Expr::Literal(
-            Literal::Float(0.3),
-            Span {
-                start: 0,
-                end: 0,
-                line: 0,
-                col: 0,
-            },
-        );
-        if self.peek_ident_value().is_some_and(|s| s == "over") {
-            self.advance();
-            over = self.parse_expr()?;
-        }
-
-        let playback = self.parse_playback_props()?;
-
-        Ok(MotionBody::CallbackOnly(CallbackBody {
-            callbacks,
-            over,
-            playback,
-        }))
+        Err(self.error(
+            "callback-only motion body (onStart/onUpdate/onComplete/onRepeat/onInterrupt) is no longer supported",
+        ))
     }
 
-    /// Parse playback properties (loop, direction, fill, delay, paused, etc.)
+    /// Parse playback properties (loop, direction, fill, delay, paused)
     fn parse_playback_props(&mut self) -> Result<Vec<PlaybackProp>, ParseError> {
         let mut props = Vec::new();
         loop {
@@ -558,77 +337,6 @@ impl<'a> Parser<'a> {
                 Some(ref s) if s == "paused" => {
                     self.advance();
                     props.push(PlaybackProp::Paused(true));
-                }
-                Some(ref s) if s == "repeatDelay" => {
-                    self.advance();
-                    props.push(PlaybackProp::RepeatDelay(self.parse_expr()?));
-                }
-                Some(ref s) if s == "repeatRefresh" => {
-                    self.advance();
-                    props.push(PlaybackProp::RepeatRefresh(true));
-                }
-                Some(ref s) if s == "timeScale" => {
-                    self.advance();
-                    props.push(PlaybackProp::TimeScale(self.parse_expr()?));
-                }
-                Some(ref s) if s == "interrupt" => {
-                    self.advance();
-                    let val = match self.expect_ident("expected interrupt value")?.as_str() {
-                        "stop" => InterruptValue::Stop,
-                        "complete" => InterruptValue::Complete,
-                        "queue" => InterruptValue::Queue,
-                        "replace" => InterruptValue::Replace,
-                        other => {
-                            return Err(self.error(format!(
-                                "expected stop|complete|queue|replace, got '{}'",
-                                other
-                            )))
-                        }
-                    };
-                    props.push(PlaybackProp::Interrupt(val));
-                }
-                Some(ref s) if s == "respectReducedMotion" => {
-                    self.advance();
-                    props.push(PlaybackProp::RespectReducedMotion(true));
-                }
-                Some(ref s) if s == "delayChildren" => {
-                    self.advance();
-                    props.push(PlaybackProp::DelayChildren(self.parse_expr()?));
-                }
-                Some(ref s) if s == "staggerChildren" => {
-                    self.advance();
-                    props.push(PlaybackProp::StaggerChildren(self.parse_expr()?));
-                }
-                Some(ref s) if s == "staggerFrom" => {
-                    self.advance();
-                    let from = match self.expect_ident("expected stagger direction")?.as_str() {
-                        "start" => StaggerDirection::Start,
-                        "center" => StaggerDirection::Center,
-                        "end" => StaggerDirection::End,
-                        "edges" => StaggerDirection::Edges,
-                        other => {
-                            return Err(self.error(format!(
-                                "expected start|center|end|edges, got '{}'",
-                                other
-                            )))
-                        }
-                    };
-                    props.push(PlaybackProp::StaggerFrom(from));
-                }
-                Some(ref s) if s == "when" => {
-                    self.advance();
-                    let value = match self.expect_ident("expected when value")?.as_str() {
-                        "afterChildren" => WhenValue::AfterChildren,
-                        "beforeChildren" => WhenValue::BeforeChildren,
-                        "withChildren" => WhenValue::WithChildren,
-                        other => {
-                            return Err(self.error(format!(
-                                "expected afterChildren|beforeChildren|withChildren, got '{}'",
-                                other
-                            )))
-                        }
-                    };
-                    props.push(PlaybackProp::When(value));
                 }
                 _ => break,
             }

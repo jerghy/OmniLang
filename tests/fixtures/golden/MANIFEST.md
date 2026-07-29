@@ -38,13 +38,6 @@ Files are grouped by primary feature. Many files demonstrate multiple features.
 
 ## Motion / Animation
 
-- `test/projects/learn-omniview/src/pages/MotionTriggersDemo.omni` — All motion triggers: `@hover`/`@unhover`, `@focus`, `@animate`, `@inView`, `@scroll`, `@dragHorizontal`/`@dragVertical`
-- `test/projects/learn-omniview/src/pages/TimelineMotionDemo.omni` — `@timeline` with `set`, `label`, `stagger` sequencing
-- `test/projects/learn-omniview/src/pages/EasingFunctionsDemo.omni` — 24 easing functions (Power/Back/Bounce/Elastic/Spring/Cubic/Steps)
-- `test/projects/learn-omniview/src/pages/AnimPropertiesDemo.omni` — 26 animatable properties (transforms, filters, colors, dimensions, typography, box model)
-- `test/projects/learn-omniview/src/pages/HeroTransitionDemo.omni` — `@hero` shared-element transitions, `@hero-transition`, `@paused`, `@driven-by`
-- `test/projects/learn-omniview/src/components/PathTimelineDemo.omni` — `@timeline` with `path` SVG motion path and `pathRotate`
-
 ## Events
 
 - `test/projects/learn-omniview/src/pages/EventDataDemo.omni` — Event data fields: scroll (`e.y`), key (`e.key`, `e.ctrl`), mouse (`e.x`, `e.y`), wheel (`e.deltaY`)
