@@ -553,3 +553,22 @@ fn collect_view_store_refs_from_handlers(node: &ViewTree, acc: &mut FxHashSet<St
         ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => {}
     }
 }
+
+// ═══════════════════════════════════════════════════════════
+// Ref codegen: ref declarations → useRef hooks
+// ═══════════════════════════════════════════════════════════
+
+/// Generate `useRef<HTMLDivElement>(null)` declarations for each ref in the component.
+/// Called after gen_state_hooks and before gen_effects in gen_component_tsx.
+pub(super) fn gen_ref_hooks(w: &mut CodeWriter, comp: &ComponentIR) {
+    if comp.refs.is_empty() {
+        return;
+    }
+    for ref_decl in &comp.refs {
+        w.emit_fmt(format_args!(
+            "const {}Ref = useRef<HTMLDivElement>(null);",
+            ref_decl.name
+        ));
+    }
+    w.emit("");
+}

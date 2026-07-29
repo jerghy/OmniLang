@@ -311,6 +311,7 @@ impl ReactCodegen {
         // State hooks + effects
         let fn_names: FxHashSet<String> = comp.fns.iter().map(|f| f.name.clone()).collect();
         self.gen_state_hooks(&mut w, comp, &read_signals, &mutated_signals, &fn_names);
+        state::gen_ref_hooks(&mut w, comp);
         self.gen_effects(&mut w, comp, &store_signal_map, &signal_names);
 
         // Computed values (useMemo / useCallback)
