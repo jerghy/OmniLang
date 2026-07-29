@@ -1501,10 +1501,7 @@ fn test_motion_format_named_curve() {
         "power1Out should map to Curves.easeOutQuad via shared table"
     );
     assert_eq!(format_named_curve("power1In"), "Curves.easeInQuad");
-    assert_eq!(
-        format_named_curve("power1InOut"),
-        "Curves.easeInOutQuad"
-    );
+    assert_eq!(format_named_curve("power1InOut"), "Curves.easeInOutQuad");
 
     // GSAP power4 (quintic)
     assert_eq!(format_named_curve("power4Out"), "Curves.easeOutQuint");
@@ -1793,4 +1790,87 @@ fn test_full_pipeline_component_with_store_ref() {
         }
         insta::assert_snapshot!("test_full_pipeline_component_with_store_ref", &snapshot_content);
     });
+}
+
+// ═══════════════════════════════════════════════════════════
+// Integration tests (full pipeline)
+// ═══════════════════════════════════════════════════════════
+
+/// Compile a single .omni source string to Flutter, returning the InternalCompileResult.
+fn compile_flutter(source: &str) -> Option<crate::InternalCompileResult> {
+    let mut sources = FxHashMap::default();
+    sources.insert("input.omni".to_string(), source.to_string());
+    let pm = crate::path_mapping::derive_path_mapping(&sources);
+    let result = crate::compile_multi_internal(
+        sources,
+        crate::codegen::Target::Flutter,
+        pm,
+        false,
+        false,
+        None,
+    );
+    if result.success {
+        Some(result)
+    } else {
+        None
+    }
+}
+
+#[test]
+fn warns_on_slot_in_flutter() {
+    let source = r#"
+component Card {
+    view {
+        <div class="card">@slot</div>
+    }
+}
+"#;
+    let output = compile_flutter(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        content.contains("WARNING:")
+            && content.contains("slot")
+            && content.contains("not supported"),
+        "Expected slot warning in Flutter output, got: {}",
+        content
+    );
+}
+
+#[test]
+fn css_padding_emits_valid_dart() {
+    let source = r#"
+component Styled {
+    view {
+        <div style: { padding: "16px", margin: "8px" }>hello</div>
+    }
+}
+"#;
+    let output = compile_flutter(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    // Must contain valid Dart EdgeInsets, not raw CSS strings
+    assert!(
+        content.contains("EdgeInsets.all(16.0)") || content.contains("EdgeInsets.all(16)"),
+        "Expected EdgeInsets.all(16.0), got: {}",
+        content
+    );
+    assert!(
+        !content.contains("EdgeInsets.all(\"16px\")"),
+        "Must not emit CSS unit string, got: {}",
+        content
+    );
+    assert!(
+        !content.contains("EdgeInsets.all(\"8px\")"),
+        "Must not emit CSS unit string for margin, got: {}",
+        content
+    );
 }

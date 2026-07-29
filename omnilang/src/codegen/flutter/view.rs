@@ -53,7 +53,44 @@ pub(crate) fn format_view_tree(
             .map(|c| format_view_tree(c, motions, component_map))
             .collect::<Vec<_>>()
             .join(", "),
-        ViewTree::Slot(_) => "SizedBox.shrink()".to_string(),
+        ViewTree::Slot(name) => {
+            let slot_desc = name.as_deref().unwrap_or("default");
+            format!(
+                "/* WARNING: <slot name=\"{}\"> is not supported in Flutter. */ SizedBox.shrink()",
+                slot_desc
+            )
+        }
+    }
+}
+
+/// Strip CSS units from a value string and return a Dart-compatible numeric literal.
+/// "16px" -> "16.0", "8" -> "8.0", "1.5em" -> "1.5"
+fn css_value_to_dart_number(css_val: &str) -> String {
+    let trimmed = css_val.trim();
+    let numeric_part: String = trimmed
+        .chars()
+        .take_while(|c| c.is_ascii_digit() || *c == '.' || *c == '-')
+        .collect();
+    if numeric_part.is_empty() || numeric_part == "-" {
+        "0.0".to_string()
+    } else if numeric_part.contains('.') {
+        numeric_part
+    } else {
+        format!("{}.0", numeric_part)
+    }
+}
+
+/// Map a CSS property name to its Flutter widget parameter.
+/// Returns None for unsupported properties.
+fn css_prop_to_flutter_param(prop: &str) -> Option<&'static str> {
+    match prop {
+        "padding" => Some("padding"),
+        "margin" => Some("margin"),
+        "width" => Some("width"),
+        "height" => Some("height"),
+        "color" => Some("color"),
+        "background-color" => Some("color"),
+        _ => None,
     }
 }
 
@@ -113,44 +150,50 @@ fn format_element(
     // Props -> widget constructor parameters
     for (name, value) in &el.props {
         let formatted = format_expr_ir_flutter(value);
-        match name.as_str() {
-            "style" => {
-                // Map common CSS properties to Flutter widget parameters
-                if let ExprIR::LiteralExpr {
-                    value: serde_json::Value::Object(ref style_obj),
-                } = value
-                {
-                    for (css_prop, css_val) in style_obj {
-                        match css_prop.as_str() {
-                            "padding" => {
-                                if let Some(v) = css_val.as_str() {
-                                    args.push(format!("padding: EdgeInsets.all({})", v));
-                                }
-                            }
-                            "margin" => {
-                                if let Some(v) = css_val.as_str() {
-                                    args.push(format!("margin: EdgeInsets.all({})", v));
-                                }
-                            }
-                            "color" => {
-                                if let Some(v) = css_val.as_str() {
-                                    args.push(format!("color: {}", v));
-                                }
-                            }
-                            "background-color" => {
-                                if let Some(v) = css_val.as_str() {
-                                    args.push(format!("color: {}", v));
-                                }
-                            }
-                            _ => {} // skip unknown CSS properties
+        let param = prop_to_flutter_param_name(name);
+        if !param.is_empty() {
+            args.push(format!("{}: {}", param, formatted));
+        }
+    }
+
+    // Inline style (style: { prop: value }) — map CSS properties to Flutter widget parameters
+    if let Some(ref style_json) = el.inline_style {
+        if let Some(obj) = style_json.as_object() {
+            for (css_prop, css_val) in obj {
+                let css_val_str = css_val.as_str().unwrap_or("");
+                match css_prop_to_flutter_param(css_prop) {
+                    Some("padding") | Some("margin") => {
+                        if css_val_str.ends_with("px")
+                            || css_val_str.ends_with("em")
+                            || css_val_str.ends_with("rem")
+                            || css_val_str.ends_with("%")
+                            || css_val_str.ends_with("pt")
+                        {
+                            let num_str = css_value_to_dart_number(css_val_str);
+                            args.push(format!("{}: EdgeInsets.all({})", css_prop, num_str));
+                        } else if let Ok(num) = css_val_str.parse::<f64>() {
+                            args.push(format!("{}: EdgeInsets.all({})", css_prop, num));
+                        } else {
+                            args.push(format!(
+                                "{}: EdgeInsets.all({})",
+                                css_prop,
+                                css_value_to_dart_number(css_val_str)
+                            ));
                         }
                     }
-                }
-            }
-            other => {
-                let param = prop_to_flutter_param_name(other);
-                if !param.is_empty() {
-                    args.push(format!("{}: {}", param, formatted));
+                    Some("width") | Some("height") => {
+                        let num_str = css_value_to_dart_number(css_val_str);
+                        args.push(format!("{}: {}", css_prop, num_str));
+                    }
+                    Some("color") => {
+                        args.push(format!("color: {}", css_val_str));
+                    }
+                    Some(_) => {
+                        // Known Flutter param but unexpected value format — skip
+                    }
+                    None => {
+                        // Unsupported CSS property — skip
+                    }
                 }
             }
         }
