@@ -55,9 +55,15 @@ impl OmniViewGenerator {
             // Set rebind function name for this @for loop
             let rebind_name = format!("__omni_rebind_{}_{}", self.current_component, item_var);
             self.for_rebind_fn = Some(rebind_name);
+            // Save outer @for template flag to support direct nesting.
+            // Inner @for loops set in_for_template = true → false on exit,
+            // which would corrupt the outer loop's template generation for
+            // any content after the inner loop. Restoring the saved value
+            // ensures the outer loop continues in the correct mode.
+            let outer_in_for = self.in_for_template;
             self.in_for_template = true;
             let html = self.view_to_html(body, indent + 1);
-            self.in_for_template = false;
+            self.in_for_template = outer_in_for;
             html
         } else {
             format!("{}  <!-- empty item -->\n", pad)

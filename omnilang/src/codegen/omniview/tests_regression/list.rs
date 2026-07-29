@@ -348,3 +348,64 @@ fn test_list_with_event_delegation() {
     // No warnings
     assert!(gen.warnings.is_empty(), "no warnings expected");
 }
+
+/// Tests that a direct nested @for loop preserves the outer @for's template
+/// mode. Before the fix, the inner @for's `emit_list_state_init` unconditionally
+/// set `in_for_template = false`, causing content after the inner loop to
+/// generate non-@for JS (silent no-ops in cloned DOM).
+#[test]
+fn test_nested_for_preserves_outer_template_mode() {
+    let mut gen = OmniViewGenerator::test_new();
+    // Simulate outer @for entering template mode
+    gen.in_for_template = true;
+
+    // Inner @for: its emit_list_state_init should save/restore the flag
+    let inner_list = ListRenderingIntent {
+        iterable: ExprIR::LiteralExpr {
+            value: serde_json::json!([1, 2]),
+        },
+        item_binding: BindingIR {
+            name: "inner".into(),
+            r#type: None,
+        },
+        body: Some(ViewTree::Text("x".into())),
+        key_expr: None,
+        empty_body: None,
+    };
+
+    gen.emit_list_rendering_html(&inner_list, 0);
+
+    // After inner @for returns, outer template mode must be preserved
+    assert!(
+        gen.in_for_template,
+        "outer @for template mode must be preserved after inner @for returns"
+    );
+}
+
+/// Verifies that outside @for context, emit_list_state_init sets
+/// in_for_template to false (the normal exit behavior).
+#[test]
+fn test_normal_for_sets_template_false_on_exit() {
+    let mut gen = OmniViewGenerator::test_new();
+    assert!(!gen.in_for_template);
+
+    let list = ListRenderingIntent {
+        iterable: ExprIR::LiteralExpr {
+            value: serde_json::json!([1, 2, 3]),
+        },
+        item_binding: BindingIR {
+            name: "item".into(),
+            r#type: None,
+        },
+        body: Some(ViewTree::Text("y".into())),
+        key_expr: None,
+        empty_body: None,
+    };
+
+    gen.emit_list_rendering_html(&list, 0);
+
+    assert!(
+        !gen.in_for_template,
+        "in_for_template must be false after non-nested @for exits"
+    );
+}
