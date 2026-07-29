@@ -27,9 +27,11 @@ const NAMED_EASINGS: Record<string, string> = {
   backIn: 'cubic-bezier(0.600,-0.280,0.735,0.045)',
   backOut: 'cubic-bezier(0.175,0.885,0.320,1.275)',
   backInOut: 'cubic-bezier(0.680,-0.550,0.265,1.550)',
-  // bounce (approximations)
+  // Bounce approximations (WAAPI cannot natively represent bounce curves.
+  // These cubic-bezier values approximate the directional asymmetry: bounceIn
+  // has overshoot at the start, bounceOut has overshoot at the end.)
   bounceIn: 'cubic-bezier(0.215,0.610,0.355,1.000)',
-  bounceOut: 'cubic-bezier(0.215,0.610,0.355,1.000)',
+  bounceOut: 'cubic-bezier(0.175,0.885,0.320,1.275)',
   bounceInOut: 'cubic-bezier(0.645,0.045,0.355,1.000)',
   // elastic (approximations)
   elasticIn: 'cubic-bezier(0.600,0.040,0.980,0.335)',

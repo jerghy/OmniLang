@@ -33,8 +33,10 @@ pub const NAMED_EASINGS: &[(&str, &str)] = &[
     ("backOut", "cubic-bezier(0.175,0.885,0.320,1.275)"),
     ("backInOut", "cubic-bezier(0.680,-0.550,0.265,1.550)"),
     // Bounce → cubic-bezier approximations
+    // bounceIn: overshoot at start (bounce toward the peak)
     ("bounceIn", "cubic-bezier(0.215,0.610,0.355,1.000)"),
-    ("bounceOut", "cubic-bezier(0.215,0.610,0.355,1.000)"),
+    // bounceOut: overshoot at end (bounce settling down)
+    ("bounceOut", "cubic-bezier(0.175,0.885,0.320,1.275)"),  // backOut-like overshoot at end
     ("bounceInOut", "cubic-bezier(0.645,0.045,0.355,1.000)"),
     // Elastic → cubic-bezier approximations
     ("elasticIn", "cubic-bezier(0.600,0.040,0.980,0.335)"),
