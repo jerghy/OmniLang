@@ -84,8 +84,8 @@ pub(super) fn emit_motion_effects_tsx(
     w.emit("},[]);");
     w.emit("");
 
-    // ── Effect 2: interactive triggers (@hover, @press, @focus) with cleanup ──
-    w.emit("// @hover/@press/@focus: interactive triggers with cleanup");
+    // ── Effect 2: interactive triggers (@hover, @press) with cleanup ──
+    w.emit("// @hover/@press: interactive triggers with cleanup");
     w.emit("useEffect(()=>{");
     w.indent();
     // @hover: mouse enter/leave
@@ -124,24 +124,6 @@ pub(super) fn emit_motion_effects_tsx(
     w.emit("}");
     w.dedent();
     w.emit("});");
-    // @focus: focus/blur
-    w.emit("// @focus: focus/blur animations");
-    w.emit("const focusHandlers=[];");
-    w.emit("document.querySelectorAll('[data-motion-focus]').forEach(el=>{");
-    w.indent();
-    w.emit("const n=el.getAttribute('data-motion-focus-name');");
-    w.emit("if(n&&_M[n]){");
-    w.indent();
-    w.emit("const{kf,opts}=_M[n];");
-    w.emit("const focusFn=()=>animate(el,kf,opts);");
-    w.emit("const blurFn=()=>animate(el,[...kf].reverse(),opts);");
-    w.emit("el.addEventListener('focus',focusFn);");
-    w.emit("el.addEventListener('blur',blurFn);");
-    w.emit("focusHandlers.push({el,focusFn,blurFn});");
-    w.dedent();
-    w.emit("}");
-    w.dedent();
-    w.emit("});");
     // Cleanup
     w.emit("return()=>{");
     w.indent();
@@ -155,12 +137,6 @@ pub(super) fn emit_motion_effects_tsx(
     w.indent();
     w.emit("el.removeEventListener('mousedown',down);");
     w.emit("el.removeEventListener('mouseup',up);");
-    w.dedent();
-    w.emit("});");
-    w.emit("focusHandlers.forEach(({el,focusFn,blurFn})=>{");
-    w.indent();
-    w.emit("el.removeEventListener('focus',focusFn);");
-    w.emit("el.removeEventListener('blur',blurFn);");
     w.dedent();
     w.emit("});");
     w.dedent();
