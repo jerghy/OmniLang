@@ -4,8 +4,8 @@ use crate::codegen::escape_literal_str;
 use crate::ir::*;
 
 /// Generate a standard IIFE-wrapped motion trigger JS string.
-/// Used by hover, press, focus, unhover, leave, animate, timeline and their
-/// inline variants, which all follow the common pattern:
+/// Used by hover and press (and their inline variants), which follow
+/// the common pattern:
 ///
 /// ```js
 /// // {comment}

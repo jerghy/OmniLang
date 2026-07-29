@@ -1,9 +1,0 @@
----
-source: omnilang/src/codegen/omniview/tests_regression/motion.rs
-expression: "&gen.js"
----
-function __omni_motion_sequenceAnim(el, overrides) {
-  const opts = Object.assign({duration:300}, overrides || {});
-  const kf = [{offset:0}];
-  return Omni.animate(el, kf, opts);
-};

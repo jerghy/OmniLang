@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════
-// Motion effect codegen: @enter/@hover/@press/@focus/@driven-by/scroll/drag
+// Motion effect codegen: @enter/@hover/@press/@driven-by/scroll/drag
 // ═══════════════════════════════════════════════════════════
 
 use crate::codegen::CodeWriter;
@@ -9,7 +9,7 @@ use rustc_hash::FxHashMap;
 use crate::codegen::react::motion;
 
 /// Emit all five motion-related effect blocks:
-///   1. @enter / @hover / @press / @focus  (animation triggers)
+///   1. @enter / @hover / @press  (animation triggers)
 ///   2. @driven-by                         (external progress control)
 ///   3. @in-view                           (IntersectionObserver)
 ///   4. @scroll                            (scroll-driven progress)

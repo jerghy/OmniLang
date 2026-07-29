@@ -352,7 +352,7 @@ impl OmniViewGenerator {
 
     /// Emit motion trigger data-* attributes and sub-attributes (in-view, scroll, drag).
     ///
-    /// Writes HTML data attributes for @enter, @hover, @press, @focus, @leave triggers
+    /// Writes HTML data attributes for @enter, @hover, @press, @in-view, @scroll, @drag-horizontal, @drag-vertical triggers
     /// and their sub-attributes (data-in-view-*, data-scroll-*, data-drag-*) to `attrs`,
     /// and calls `emit_motion_triggers_for_element` for deferred JS setup.
     fn emit_element_motion_attrs(&mut self, el: &ElementIR, nid: &str, attrs: &mut String) {

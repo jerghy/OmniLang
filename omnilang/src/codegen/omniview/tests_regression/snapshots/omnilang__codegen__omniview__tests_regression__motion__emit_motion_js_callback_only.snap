@@ -1,9 +1,0 @@
----
-source: omnilang/src/codegen/omniview/tests_regression/motion.rs
-expression: "&gen.js"
----
-function __omni_motion_logComplete(el, overrides) {
-  const opts = Object.assign({duration:500,callbacks:{"onComplete":function(){ "animation done" }}}, overrides || {});
-  const kf = [{offset:0},{offset:1}];
-  return Omni.animate(el, kf, opts);
-};
