@@ -182,7 +182,11 @@ function __omni_normalizeCssEscapes(value) {
           i++;
         }
         var code = parseInt(hex, 16);
-        if (!isNaN(code)) {
+        // String.fromCodePoint throws RangeError for code points > 0x10FFFF
+        // and surrogates (0xD800-0xDFFF). Skip these — they cannot represent
+        // valid characters and preserving the raw escape is safer than crashing.
+        // Matches Rust behavior: char::from_u32(code) returns None for these.
+        if (!isNaN(code) && code <= 0x10FFFF && !(code >= 0xD800 && code <= 0xDFFF)) {
           result += String.fromCodePoint(code);
           continue;
         }

@@ -46,7 +46,11 @@ function __omni_normalizeCssEscapes(value) {
           i++;
         }
         var code = parseInt(hex, 16);
-        if (!isNaN(code)) {
+        // String.fromCodePoint throws RangeError for code points > 0x10FFFF
+        // and surrogates (0xD800-0xDFFF). Skip these — they cannot represent
+        // valid characters and preserving the raw escape is safer than crashing.
+        // Matches Rust behavior: char::from_u32(code) returns None for these.
+        if (!isNaN(code) && code <= 0x10FFFF && !(code >= 0xD800 && code <= 0xDFFF)) {
           result += String.fromCodePoint(code);
           continue;
         }
@@ -281,6 +285,26 @@ assert.strictEqual(
 {
   const result = __omni_sanitizeUrl("https://example.com/path\nparam");
   assert.strictEqual(result, "https://example.com/path\nparam", "safe URL with newline preserved");
+}
+
+// Test: out-of-range CSS hex escape (0x110000 > 0x10FFFF) does not throw
+{
+  // String.fromCodePoint(0x110000) would throw RangeError. The normalize
+  // function must skip invalid code points rather than crashing.
+  const result = __omni_normalizeCssEscapes("\\110000");
+  assert.strictEqual(typeof result, "string", "out-of-range hex escape must not throw RangeError");
+}
+
+// Test: surrogate hex escape (0xD800) does not throw
+{
+  const result = __omni_normalizeCssEscapes("background:\\D800");
+  assert.strictEqual(typeof result, "string", "surrogate hex escape must not throw RangeError");
+}
+
+// Test: valid hex escape still works after range check addition
+{
+  const result = __omni_sanitizeCss("color:\\20 red");
+  assert.strictEqual(result, "color: red", "valid hex escape must still work");
 }
 
 console.log('  ✓ All sanitizer tests passed');
