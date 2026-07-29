@@ -3,6 +3,7 @@
 
 mod list;
 mod motion;
+mod refs;
 mod sanitizers;
 // mod timeline;  -- removed: Timeline IR types no longer exist
 
