@@ -144,8 +144,8 @@ function __omni_sanitizeUrl(url) {
 }
 
 function __omni_sanitizeCss(value) {
-  if (typeof value !== 'string') return value;
-  var lower = value.toLowerCase();
+  var str = String(value);
+  var lower = str.toLowerCase();
   if (lower.indexOf('javascript:') >= 0 || lower.indexOf('expression(') >= 0 ||
       lower.indexOf('url(') >= 0 || lower.indexOf('-moz-binding') >= 0 ||
       lower.indexOf('data:text/html') >= 0 || lower.indexOf('@import') >= 0 ||
@@ -153,7 +153,7 @@ function __omni_sanitizeCss(value) {
       lower.indexOf('window.') >= 0) {
     return '';
   }
-  return value;
+  return str;
 }
 
 function __omni_el(nid) {
