@@ -30,7 +30,7 @@ export function MotionScroll() {
         });
     },[]);
 
-    // @hover/@press/@focus: interactive triggers with cleanup
+    // @hover/@press: interactive triggers with cleanup
     useEffect(()=>{
         // @hover: mouse enter/leave animations
         const hoverHandlers=[];
@@ -58,19 +58,6 @@ export function MotionScroll() {
                 pressHandlers.push({el,down,up});
             }
         });
-        // @focus: focus/blur animations
-        const focusHandlers=[];
-        document.querySelectorAll('[data-motion-focus]').forEach(el=>{
-            const n=el.getAttribute('data-motion-focus-name');
-            if(n&&_M[n]){
-                const{kf,opts}=_M[n];
-                const focusFn=()=>animate(el,kf,opts);
-                const blurFn=()=>animate(el,[...kf].reverse(),opts);
-                el.addEventListener('focus',focusFn);
-                el.addEventListener('blur',blurFn);
-                focusHandlers.push({el,focusFn,blurFn});
-            }
-        });
         return()=>{
             hoverHandlers.forEach(({el,enter,leave})=>{
                 el.removeEventListener('mouseenter',enter);
@@ -79,10 +66,6 @@ export function MotionScroll() {
             pressHandlers.forEach(({el,down,up})=>{
                 el.removeEventListener('mousedown',down);
                 el.removeEventListener('mouseup',up);
-            });
-            focusHandlers.forEach(({el,focusFn,blurFn})=>{
-                el.removeEventListener('focus',focusFn);
-                el.removeEventListener('blur',blurFn);
             });
         };
     },[]);
