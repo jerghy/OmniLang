@@ -315,11 +315,15 @@ pub fn generate(
 
     // ── Collect design names before component generation ──
     // Must happen BEFORE generate_component() because emit_view() reads
-    // self.design_names to decide whether to emit the data-design attribute.
+    // self.design_names to decide whether to emit the data-design attribute,
+    // and self.design_class_names to validate class: references.
     for module in ir.modules.values() {
         for design in &module.designs {
             gen.design_names.push(design.name.clone());
             gen.design_map.insert(design.name.clone(), design.clone());
+            for class in &design.classes {
+                gen.design_class_names.insert(class.name.clone());
+            }
         }
     }
 
@@ -372,10 +376,6 @@ pub fn generate(
                 gen.css
                     .push_str(&format!("\n/* ── Design: {} ── */\n", design.name));
                 gen.css.push_str(&css);
-                // Pre-build class name set for O(1) lookup during element codegen
-                for class in &design.classes {
-                    gen.design_class_names.insert(class.name.clone());
-                }
             }
         }
     }
