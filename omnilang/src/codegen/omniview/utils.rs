@@ -200,6 +200,7 @@ pub fn wrap_debug_html(js: &str, css: &str, body_html: &str) -> String {
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self';">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OmniView Debug</title>
 <style>
@@ -229,19 +230,32 @@ body {{ margin: 0; padding: 8px; font-family: system-ui, sans-serif; }}
 ///
 /// When `include_animation_script` is true, includes an additional
 /// `<script src="omni-animation.js">` tag before the main `index.js` script.
-pub(super) fn html_document_wrapper(body_html: &str, include_animation_script: bool) -> String {
+///
+/// When `include_csp` is true, inserts a Content-Security-Policy meta tag
+/// after the charset declaration. Editor mode should pass `false` for CSP
+/// (it relies on iframe sandbox instead).
+pub(super) fn html_document_wrapper(
+    body_html: &str,
+    include_animation_script: bool,
+    include_csp: bool,
+) -> String {
     let script_tags = if include_animation_script {
         r#"<script src="omni-animation.js"></script>
 <script src="index.js"></script>"#
     } else {
         r#"<script src="index.js"></script>"#
     };
+    let csp_meta = if include_csp {
+        r#"<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self';">
+"#    } else {
+        ""
+    };
     format!(
         r#"<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+{}<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OmniView App</title>
 <link rel="stylesheet" href="index.css">
 </head>
@@ -250,7 +264,7 @@ pub(super) fn html_document_wrapper(body_html: &str, include_animation_script: b
 {}
 </body>
 </html>"#,
-        body_html, script_tags
+        csp_meta, body_html, script_tags
     )
 }
 
@@ -263,7 +277,7 @@ pub fn build_file_output(gen: &OmniViewOutput) -> CompileOutput {
         env!("CARGO_MANIFEST_DIR"),
         "/../packages/omni-animation/dist/omni-animation.js"
     ));
-    let html = html_document_wrapper(&gen.html, true);
+    let html = html_document_wrapper(&gen.html, true, true);
     CompileOutput::success(vec![
         CompiledFile {
             path: "index.js".into(),

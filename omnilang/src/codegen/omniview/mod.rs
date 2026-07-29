@@ -141,7 +141,7 @@ impl crate::codegen::Codegen for OmniViewCodegen {
     ) -> crate::codegen::CompileOutput {
         let output = generate(ir, self.editor_mode, self.css_only, self.debug_mode);
         let mut files = Vec::with_capacity(4);
-        let html = utils::html_document_wrapper(&output.html, false);
+        let html = utils::html_document_wrapper(&output.html, false, !self.editor_mode);
         files.push(crate::codegen::CompiledFile {
             path: "index.js".into(),
             content: output.js,
