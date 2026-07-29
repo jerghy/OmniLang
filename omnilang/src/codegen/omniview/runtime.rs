@@ -148,12 +148,25 @@ function __omni_sanitizeUrl(url) {
 function __omni_sanitizeCss(value) {
   var str = String(value);
   var lower = str.toLowerCase();
+  // Block protocol-level injection patterns
   if (lower.indexOf('javascript:') >= 0 || lower.indexOf('expression(') >= 0 ||
-      lower.indexOf('url(') >= 0 || lower.indexOf('-moz-binding') >= 0 ||
+      lower.indexOf('-moz-binding') >= 0 ||
       lower.indexOf('data:text/html') >= 0 || lower.indexOf('@import') >= 0 ||
       lower.indexOf('vbscript:') >= 0 || lower.indexOf('document.') >= 0 ||
       lower.indexOf('window.') >= 0) {
     return '';
+  }
+  // Allow url() only with safe schemes. url() is needed for
+  // background-image and other standard CSS resource loading.
+  // Block url() containing javascript: or vbscript: schemes.
+  // The outer block already catches standalone javascript:/vbscript:,
+  // but they could appear inside a url() value after stripping.
+  var urlIdx = lower.indexOf('url(');
+  if (urlIdx >= 0) {
+    var afterUrl = lower.substring(urlIdx);
+    if (afterUrl.indexOf('javascript:') >= 0 || afterUrl.indexOf('vbscript:') >= 0) {
+      return '';
+    }
   }
   return str;
 }
