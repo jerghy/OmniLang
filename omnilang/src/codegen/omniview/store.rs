@@ -412,42 +412,59 @@ impl OmniViewGenerator {
             self.current_component = saved_component;
         }
 
-        // @enter replay effect — watches ALL component signals and replays @enter animations
-        // when any signal changes. This enables "Play All Animations" buttons to work.
+        // @enter replay effect — watches per-component signals and replays @enter animations
+        // when any signal in that component changes. Emits one effect per component so that
+        // signal changes in unrelated components do not cancel @enter animations elsewhere.
         if !self.enter_trigger_nids.is_empty() && is_root {
-            // Collect all signal names from ALL components for dependency tracking
-            let mut all_sig_reads: Vec<String> = Vec::new();
-            for (cname, ccomp) in ir.all_components() {
-                for state in &ccomp.signals {
-                    let prefixed = format!("{}_{}", cname, state.name);
-                    all_sig_reads.push(format!("{}.value;", prefixed));
-                }
-            }
-            let all_sig_reads_str = all_sig_reads.join(" ");
-            // Build replay function calls for each @enter trigger
-            let mut replay_fns: Vec<String> = Vec::new();
-            for (nid, motion, trigger_kind) in &self.enter_trigger_nids {
-                // Timeline triggers auto-play via internal setTimeouts — no explicit play() call needed.
-                // @enter triggers need explicit play().
-                let play_call = if trigger_kind == "timeline" {
-                    String::new()
-                } else {
-                    " if (el.offsetParent !== null) p.play();".into()
-                };
-                replay_fns.push(format!(
-                    "(function() {{ var el = __omni_el(\"{nid}\"); if (el) {{ var _old = __omni_animations.get(\"{nid}_{kind}\"); if (_old) _old.cancel(); var p = __omni_motion_{motion}(el, {{trigger: \"{kind}\"}}); __omni_animations.set(\"{nid}_{kind}\", p);{play} }} }})()",
-                    nid = nid, motion = motion, kind = trigger_kind, play = play_call
+            // Group triggers by component name for per-component effects
+            let mut comp_triggers: FxHashMap<String, Vec<(String, String, String)>> =
+                FxHashMap::default();
+            for (nid, motion, trigger_kind, comp_name) in &self.enter_trigger_nids {
+                comp_triggers.entry(comp_name.clone()).or_default().push((
+                    nid.clone(),
+                    motion.clone(),
+                    trigger_kind.clone(),
                 ));
             }
-            let replay_fns_str = replay_fns.join("; ");
-            let _ = write!(self.mount_js,
-                "// @enter replay (watches all signals)\n__omni_effect(function __omni_enter_replay() {{\n\
-                 \x20 {all_sig_reads}\n\
-                 \x20 {replay_fns}\n\
-                 }});\n",
-                all_sig_reads = all_sig_reads_str,
-                replay_fns = replay_fns_str,
-            );
+
+            let all_comps = ir.all_components();
+            for (comp_name, triggers) in &comp_triggers {
+                // Collect signal names from THIS component only for dependency tracking
+                let mut sig_reads: Vec<String> = Vec::new();
+                if let Some(ccomp) = all_comps.get(comp_name.as_str()) {
+                    for state in &ccomp.signals {
+                        let prefixed = format!("{}_{}", comp_name, state.name);
+                        sig_reads.push(format!("{}.value;", prefixed));
+                    }
+                }
+                let sig_reads_str = sig_reads.join(" ");
+
+                // Build replay function calls for each @enter trigger in this component
+                let mut replay_fns: Vec<String> = Vec::new();
+                for (nid, motion, trigger_kind) in triggers {
+                    // Timeline triggers auto-play via internal setTimeouts — no explicit play() call needed.
+                    // @enter triggers need explicit play().
+                    let play_call = if trigger_kind == "timeline" {
+                        String::new()
+                    } else {
+                        " if (el.offsetParent !== null) p.play();".into()
+                    };
+                    replay_fns.push(format!(
+                        "(function() {{ var el = __omni_el(\"{nid}\"); if (el) {{ var _old = __omni_animations.get(\"{nid}_{kind}\"); if (_old) _old.cancel(); var p = __omni_motion_{motion}(el, {{trigger: \"{kind}\"}}); __omni_animations.set(\"{nid}_{kind}\", p);{play} }} }})()",
+                        nid = nid, motion = motion, kind = trigger_kind, play = play_call
+                    ));
+                }
+                let replay_fns_str = replay_fns.join("; ");
+                let _ = write!(self.mount_js,
+                    "// @enter replay\n__omni_effect(function __omni_enter_replay_{comp_name}() {{\n\
+                     \x20 {sig_reads}\n\
+                     \x20 {replay_fns}\n\
+                     }});\n",
+                    comp_name = comp_name,
+                    sig_reads = sig_reads_str,
+                    replay_fns = replay_fns_str,
+                );
+            }
             self.enter_trigger_nids.clear();
         }
 

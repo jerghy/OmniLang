@@ -16,4 +16,4 @@ expression: "&output"
 // === js ===
 
 // === enter_trigger_nids ===
-[("el-driven-001", "fadeIn", "enter")]
+[("el-driven-001", "fadeIn", "enter", "")]

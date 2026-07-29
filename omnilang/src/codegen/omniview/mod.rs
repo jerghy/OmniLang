@@ -502,9 +502,10 @@ struct OmniViewGenerator {
     /// Per-component JS deltas for hot-replace (keyed by component name).
     /// Captured at the end of each `generate_component()` call.
     component_js: FxHashMap<String, String>,
-    /// (nid, motion_name, trigger_kind) pairs for replay on signal change.
+    /// (nid, motion_name, trigger_kind, component_name) pairs for replay on signal change.
     /// trigger_kind is "enter" or "timeline" — used to build correct replay code.
-    enter_trigger_nids: Vec<(String, String, String)>,
+    /// component_name identifies which component the trigger belongs to for per-component effects.
+    enter_trigger_nids: Vec<(String, String, String, String)>,
     /// @for template: maps child component state names -> (original_name, default_js)
     for_state_names: FxHashMap<String, (String, String)>,
     /// Design names collected during codegen, used for `data-design` attribute emission.

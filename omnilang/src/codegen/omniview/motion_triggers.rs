@@ -356,6 +356,7 @@ impl OmniViewGenerator {
                             nid.to_string(),
                             motion_name.clone(),
                             "enter".into(),
+                            self.current_component.clone(),
                         ));
                         self.mount_js.push_str(&format!(
                             "// @enter trigger\n\
@@ -488,6 +489,7 @@ impl OmniViewGenerator {
                             nid.to_string(),
                             motion_name.clone(),
                             "timeline".into(),
+                            self.current_component.clone(),
                         ));
                         self.mount_js.push_str(&format!(
                             "// @timeline trigger\n\
