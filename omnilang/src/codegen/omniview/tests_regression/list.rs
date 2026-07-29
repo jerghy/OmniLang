@@ -269,6 +269,7 @@ fn test_list_with_event_delegation() {
         motion: None,
         scroll: None,
         drag: None,
+        ref_binding: None,
     });
 
     let list = ListRenderingIntent {

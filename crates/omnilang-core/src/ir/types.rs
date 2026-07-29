@@ -637,6 +637,11 @@ pub struct ElementIR {
     pub scroll: Option<Box<ScrollBehavior>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub drag: Option<Box<DragBehavior>>,
+    /// Element ref binding name — connects this element to a component-level
+    /// ref declaration. Maps to useRef (React), __omni_el wrapper (OmniView),
+    /// or GlobalKey (Flutter).
+    #[serde(default)]
+    pub ref_binding: Option<String>,
 }
 
 impl ElementIR {

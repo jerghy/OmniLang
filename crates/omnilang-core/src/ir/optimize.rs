@@ -722,6 +722,7 @@ mod tests {
                 motion: None,
                 scroll: None,
                 drag: None,
+                ref_binding: None,
             })),
             ..ComponentIR::default()
         };
@@ -754,6 +755,7 @@ mod tests {
                 motion: None,
                 scroll: None,
                 drag: None,
+                ref_binding: None,
             })),
             ..ComponentIR::default()
         };
@@ -786,6 +788,7 @@ mod tests {
                 motion: None,
                 scroll: None,
                 drag: None,
+                ref_binding: None,
             })),
             ..ComponentIR::default()
         };
@@ -920,6 +923,7 @@ mod tests {
                 motion: None,
                 scroll: None,
                 drag: None,
+                ref_binding: None,
             })),
             ..ComponentIR::default()
         };

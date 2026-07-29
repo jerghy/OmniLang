@@ -24,6 +24,7 @@ fn make_element(tag: &str) -> ElementIR {
         motion: None,
         scroll: None,
         drag: None,
+        ref_binding: None,
     }
 }
 

@@ -326,6 +326,7 @@ fn test_motion_trigger_enter_named() {
         })),
         scroll: None,
         drag: None,
+        ref_binding: None,
     };
     gen.emit_motion_triggers_for_element("el-div-001", &el);
 
@@ -387,6 +388,7 @@ fn test_motion_trigger_hover_named() {
         })),
         scroll: None,
         drag: None,
+        ref_binding: None,
     };
     gen.emit_motion_triggers_for_element("el-btn-002", &el);
 
@@ -435,6 +437,7 @@ fn test_scroll_trigger() {
             source_span: None,
         })),
         drag: None,
+        ref_binding: None,
     };
     gen.emit_motion_triggers_for_element("el-scroll-001", &el);
     let output = format!(
@@ -487,6 +490,7 @@ fn test_drag_trigger() {
             velocity_max: None,
             source_span: None,
         })),
+        ref_binding: None,
     };
     gen.emit_motion_triggers_for_element("el-drag-001", &el);
     let output = format!(
@@ -535,6 +539,7 @@ fn test_inview_trigger() {
         })),
         scroll: None,
         drag: None,
+        ref_binding: None,
     };
     gen.emit_motion_triggers_for_element("el-inview-001", &el);
     let output = format!(
@@ -580,6 +585,7 @@ fn test_driven_by() {
         })),
         scroll: None,
         drag: None,
+        ref_binding: None,
     };
     gen.emit_motion_triggers_for_element("el-driven-001", &el);
     let output = format!(
@@ -628,6 +634,7 @@ fn test_paused_override() {
         })),
         scroll: None,
         drag: None,
+        ref_binding: None,
     };
     gen.emit_motion_triggers_for_element("el-paused-001", &el);
     let output = format!(

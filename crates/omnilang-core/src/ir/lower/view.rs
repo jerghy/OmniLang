@@ -239,6 +239,7 @@ fn lower_element(
     let mut drag_elastic: Option<ExprIR> = None;
     let mut drag_threshold: Option<ExprIR> = None;
     let mut drag_velocity_max: Option<ExprIR> = None;
+    let mut ref_binding: Option<String> = None;
 
     for prop in &el.props {
         match prop {
@@ -444,13 +445,7 @@ fn lower_element(
                 );
             }
             ElementProp::Ref(r) => {
-                // ref="..." attribute
-                props.get_or_insert_with(Default::default).insert(
-                    "data-ref".into(),
-                    ExprIR::LiteralExpr {
-                        value: serde_json::Value::String(r.clone()),
-                    },
-                );
+                ref_binding = Some(r.clone());
             }
             // Motion animation triggers: on:hover={fadeIn}, etc.
             ElementProp::MotionTrigger(mt) => {
@@ -613,6 +608,7 @@ fn lower_element(
                 None
             }
         },
+        ref_binding,
     })
 }
 
@@ -926,5 +922,52 @@ fn make_fragment_element(children: Vec<ViewTree>, construction_kind: Constructio
         motion: None,
         scroll: None,
         drag: None,
+        ref_binding: None,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lexer::Span;
+    use crate::semantic::symbols::SymbolTable;
+
+    #[test]
+    fn test_lower_element_with_ref_binding() {
+        // Verify that ElementProp::Ref("box") sets ref_binding on ElementIR
+        // instead of emitting a "data-ref" prop.
+        let el = Element {
+            tag: "div".into(),
+            props: vec![ElementProp::Ref("box".to_string())],
+            children: vec![],
+            self_closing: true,
+            span: Span {
+                start: 0,
+                end: 0,
+                line: 1,
+                col: 1,
+            },
+        };
+        let mut semantics = SemanticResult {
+            symbols: SymbolTable::default(),
+            dependencies: FxHashMap::default(),
+            diagnostics: vec![],
+            event_param_name: None,
+        };
+        let result = lower_element(&el, &[], None, &FxHashMap::default(), &mut semantics, &[]);
+        match result {
+            ViewTree::Element(el_ir) => {
+                assert_eq!(
+                    el_ir.ref_binding,
+                    Some("box".to_string()),
+                    "ref_binding should be set from ElementProp::Ref"
+                );
+                assert!(
+                    !el_ir.props.contains_key("data-ref"),
+                    "no data-ref prop should be emitted"
+                );
+            }
+            _ => panic!("Expected ViewTree::Element"),
+        }
+    }
 }
