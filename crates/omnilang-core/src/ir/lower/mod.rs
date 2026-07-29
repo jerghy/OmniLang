@@ -244,13 +244,21 @@ pub fn lower(program: &Program, semantics: &mut SemanticResult) -> IRProgram {
         }
     }
 
-    IRProgram {
+    let ir_program = IRProgram {
         version: "1.0".to_string(),
         modules,
         source_map,
         stdlib_imports,
         source_span: None,
+    };
+
+    // Validate required props at component call sites
+    let prop_errors = crate::semantic::validate_props::validate_required_props(&ir_program);
+    for err in prop_errors {
+        semantics.diagnostics.push(err);
     }
+
+    ir_program
 }
 
 #[cfg(test)]

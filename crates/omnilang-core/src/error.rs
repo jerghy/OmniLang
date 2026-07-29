@@ -107,6 +107,8 @@ pub enum DiagnosticKind {
     E0009,
     #[error("semantic type error")]
     E0010,
+    #[error("missing required prop")]
+    E0011,
     #[error("FFI error")]
     E0000,
     #[error("visibility error")]
@@ -142,6 +144,7 @@ impl DiagnosticKind {
             Self::E0008 => "E0008",
             Self::E0009 => "E0009",
             Self::E0010 => "E0010",
+            Self::E0011 => "E0011",
             Self::EVisibility => "E_VISIBILITY",
             Self::EImport => "E_IMPORT",
             Self::EBoundary => "E_BOUNDARY",
@@ -183,6 +186,7 @@ impl<'de> Deserialize<'de> for DiagnosticKind {
                     "E0008" => Ok(DiagnosticKind::E0008),
                     "E0009" => Ok(DiagnosticKind::E0009),
                     "E0010" => Ok(DiagnosticKind::E0010),
+                    "E0011" => Ok(DiagnosticKind::E0011),
                     "E_VISIBILITY" => Ok(DiagnosticKind::EVisibility),
                     "E_IMPORT" => Ok(DiagnosticKind::EImport),
                     "E_BOUNDARY" => Ok(DiagnosticKind::EBoundary),
