@@ -390,8 +390,7 @@ fn test_js_empty_component() {
         fns: vec![],
         store_refs: vec![],
         refs: vec![],
-        event_names: vec![],
-        event_param_types: vec![],
+        events: vec![],
         view: None,
         styles: vec![],
         ..Default::default()
@@ -416,8 +415,7 @@ fn test_ts_empty_component() {
         fns: vec![],
         store_refs: vec![],
         refs: vec![],
-        event_names: vec![],
-        event_param_types: vec![],
+        events: vec![],
         view: None,
         styles: vec![],
         ..Default::default()
@@ -450,8 +448,7 @@ fn test_js_component_with_function() {
         }],
         store_refs: vec![],
         refs: vec![],
-        event_names: vec![],
-        event_param_types: vec![],
+        events: vec![],
         view: None,
         styles: vec![],
         ..Default::default()
@@ -487,8 +484,7 @@ fn test_js_component_with_state() {
         fns: vec![],
         store_refs: vec![],
         refs: vec![],
-        event_names: vec![],
-        event_param_types: vec![],
+        events: vec![],
         view: None,
         styles: vec![],
         ..Default::default()
@@ -525,8 +521,7 @@ fn test_ts_component_with_state() {
         fns: vec![],
         store_refs: vec![],
         refs: vec![],
-        event_names: vec![],
-        event_param_types: vec![],
+        events: vec![],
         view: None,
         styles: vec![],
         ..Default::default()
@@ -705,8 +700,7 @@ fn test_js_full_pipeline_through_trait() {
                         }],
                         store_refs: vec![],
                         refs: vec![],
-                        event_names: vec![],
-                        event_param_types: vec![],
+                        events: vec![],
                         view: None,
                         styles: vec![],
                         ..Default::default()
@@ -764,8 +758,7 @@ fn test_ts_full_pipeline_through_trait() {
                         }],
                         store_refs: vec![],
                         refs: vec![],
-                        event_names: vec![],
-                        event_param_types: vec![],
+                        events: vec![],
                         view: None,
                         styles: vec![],
                         ..Default::default()

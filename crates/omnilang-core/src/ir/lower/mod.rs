@@ -1464,7 +1464,7 @@ component TodoApp {
 
         // Check event declarations
         assert!(
-            comp.event_names.contains(&"onNotify".to_string()),
+            comp.events.iter().any(|e| e.name == "onNotify"),
             "component should declare onNotify event"
         );
 

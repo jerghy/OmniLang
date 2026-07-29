@@ -77,8 +77,7 @@ mod tests {
                 fns: vec![],
                 store_refs: vec!["MissingStore".into()],
                 refs: vec![],
-                event_names: vec![],
-                event_param_types: vec![],
+                events: vec![],
                 view: None,
                 styles: vec![],
                 ..Default::default()
@@ -123,8 +122,7 @@ mod tests {
                 fns: vec![],
                 store_refs: vec!["CounterStore".into()],
                 refs: vec![],
-                event_names: vec![],
-                event_param_types: vec![],
+                events: vec![],
                 view: None,
                 styles: vec![],
                 ..Default::default()

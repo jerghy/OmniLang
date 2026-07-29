@@ -57,13 +57,13 @@ fn emit_props_interface(out: &mut String, comp: &ComponentIR) {
     }
 
     // Event handlers — always optional (parent may or may not listen)
-    for (ev_name, param_type) in comp.event_names.iter().zip(comp.event_param_types.iter()) {
-        let ts_param = if param_type.is_empty() {
-            "any".to_string()
+    for event in &comp.events {
+        let ts_param = if event.param_type.is_empty() {
+            "unknown".to_string()
         } else {
-            omnilang_type_name_to_ts(param_type)
+            omnilang_type_name_to_ts(&event.param_type)
         };
-        writeln!(out, "  {}?: (detail: {}) => void;", ev_name, ts_param).unwrap();
+        writeln!(out, "  {}?: (detail: {}) => void;", event.name, ts_param).unwrap();
     }
 
     writeln!(out, "}}\n").unwrap();
@@ -71,37 +71,37 @@ fn emit_props_interface(out: &mut String, comp: &ComponentIR) {
 
 /// Emit `export type XxxHandler = (detail: T) => void;` for each event.
 fn emit_event_handler_types(out: &mut String, comp: &ComponentIR) {
-    for (ev_name, param_type) in comp.event_names.iter().zip(comp.event_param_types.iter()) {
-        let ts_param = if param_type.is_empty() {
-            "any".to_string()
+    for event in &comp.events {
+        let ts_param = if event.param_type.is_empty() {
+            "unknown".to_string()
         } else {
-            omnilang_type_name_to_ts(param_type)
+            omnilang_type_name_to_ts(&event.param_type)
         };
         writeln!(
             out,
             "export type {ev}Handler = (detail: {param}) => void;",
-            ev = ev_name,
+            ev = event.name,
             param = ts_param,
         )
         .unwrap();
     }
 
-    if !comp.event_names.is_empty() {
+    if !comp.events.is_empty() {
         out.push('\n');
     }
 }
 
 /// Emit `export type XxxEventNames = "onFoo" | "onBar";` (or `never` if none).
 fn emit_event_names_union(out: &mut String, comp: &ComponentIR) {
-    if comp.event_names.is_empty() {
+    if comp.events.is_empty() {
         writeln!(out, "export type {}EventNames = never;\n", comp.name).unwrap();
         return;
     }
 
     let event_union: Vec<String> = comp
-        .event_names
+        .events
         .iter()
-        .map(|n| format!("\"{}\"", n))
+        .map(|e| format!("\"{}\"", e.name))
         .collect();
     writeln!(
         out,
@@ -223,7 +223,7 @@ fn omnilang_type_name_to_ts(type_name: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::ExprIR;
+    use crate::ir::{EventDeclIR, ExprIR};
     use rustc_hash::FxHashMap;
 
     #[test]
@@ -285,8 +285,10 @@ mod tests {
             name: "Button".into(),
             props,
             prop_defaults: Default::default(),
-            event_names: vec!["onClick".into()],
-            event_param_types: vec!["string".into()],
+            events: vec![EventDeclIR {
+                name: "onClick".into(),
+                param_type: "string".into(),
+            }],
             ..Default::default()
         };
 

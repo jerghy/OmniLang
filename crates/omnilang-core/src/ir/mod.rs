@@ -20,8 +20,8 @@ pub use lower::lower_design;
 pub use types::{
     event_data_kind_label, event_data_schema, map_event_data_kind, BinaryOpIR, BindingIR, BlockIR,
     ComponentIR, ComputedIntent, ConditionalBranch, ConditionalIntent, ConstructionKind,
-    EffectIntent, ElementIR, EventDataKind, EventFieldDef, EventHandlerIR, ExprIR, IRProgram,
-    LifecycleIntent, LifecycleKind, ListRenderingIntent, MatchArmIR, MatchPatternIR,
+    EffectIntent, ElementIR, EventDataKind, EventDeclIR, EventFieldDef, EventHandlerIR, ExprIR,
+    IRProgram, LifecycleIntent, LifecycleKind, ListRenderingIntent, MatchArmIR, MatchPatternIR,
     MatchPatternKindIR, MutationIntent, MutationOp, ParamIR, SignalIntent, SignalRefIR,
     StatementIR, StoreIR, StyleRuleIR, TypeIR, TypeKind, UnaryOpIR, ViewTree,
 };

@@ -107,7 +107,7 @@ impl ReactCodegen {
                 .any(|c| comp.styles.iter().any(|s| &s.class_name == c));
 
         // Props interface check
-        let has_props = !comp.props.is_empty() || !comp.event_names.is_empty();
+        let has_props = !comp.props.is_empty() || !comp.events.is_empty();
 
         // ── Store-related computation ──
         let all_stores = ir.all_stores();
@@ -270,9 +270,9 @@ impl ReactCodegen {
                     }
                 })
                 .collect();
-            for event_name in &comp.event_names {
-                if read_signals.contains(event_name.as_str()) {
-                    prop_list.push(event_name.clone());
+            for event in &comp.events {
+                if read_signals.contains(event.name.as_str()) {
+                    prop_list.push(event.name.clone());
                 }
             }
             if prop_list.is_empty() {

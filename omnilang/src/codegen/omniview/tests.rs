@@ -57,8 +57,7 @@ fn make_component(name: &str) -> ComponentIR {
         fns: vec![],
         store_refs: vec![],
         refs: vec![],
-        event_names: vec![],
-        event_param_types: vec![],
+        events: vec![],
         view: None,
         styles: vec![],
         source_span: None,
@@ -262,8 +261,7 @@ fn props_are_emitted_as_readonly_wrappers() {
         fns: vec![],
         store_refs: vec![],
         refs: vec![],
-        event_names: vec![],
-        event_param_types: vec![],
+        events: vec![],
         view: None,
         styles: vec![],
         source_span: None,
@@ -1763,8 +1761,16 @@ fn typescript_declarations_event_handler_types() {
     module.components.insert(
         "Button".to_string(),
         ComponentIR {
-            event_names: vec!["onClick".into(), "onHover".into()],
-            event_param_types: vec!["MouseEvent".into(), "".into()],
+            events: vec![
+                EventDeclIR {
+                    name: "onClick".into(),
+                    param_type: "MouseEvent".into(),
+                },
+                EventDeclIR {
+                    name: "onHover".into(),
+                    param_type: "".into(),
+                },
+            ],
             ..make_component("Button")
         },
     );

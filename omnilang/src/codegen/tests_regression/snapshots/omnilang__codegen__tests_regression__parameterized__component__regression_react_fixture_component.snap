@@ -9,6 +9,7 @@ import React, { useMemo, useEffect } from 'react';
 
 interface CounterProps {
   name: string;
+  onUpdate?: (value: unknown) => void;
 }
 
 export function Counter({ name }: CounterProps) {

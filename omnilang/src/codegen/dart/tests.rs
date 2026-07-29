@@ -323,8 +323,7 @@ fn test_generate_component_empty() {
         fns: vec![],
         store_refs: vec![],
         refs: vec![],
-        event_names: vec![],
-        event_param_types: vec![],
+        events: vec![],
         view: None,
         styles: vec![],
         ..Default::default()
@@ -359,8 +358,7 @@ fn test_generate_component_with_function() {
         }],
         store_refs: vec![],
         refs: vec![],
-        event_names: vec![],
-        event_param_types: vec![],
+        events: vec![],
         view: None,
         styles: vec![],
         ..Default::default()
@@ -396,8 +394,7 @@ fn test_generate_component_with_state() {
         fns: vec![],
         store_refs: vec![],
         refs: vec![],
-        event_names: vec![],
-        event_param_types: vec![],
+        events: vec![],
         view: None,
         styles: vec![],
         ..Default::default()
@@ -621,8 +618,7 @@ fn test_full_pipeline_through_trait() {
                         }],
                         store_refs: vec![],
                         refs: vec![],
-                        event_names: vec![],
-                        event_param_types: vec![],
+                        events: vec![],
                         view: None,
                         styles: vec![],
                         ..Default::default()

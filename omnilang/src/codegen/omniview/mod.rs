@@ -286,9 +286,9 @@ pub fn generate(
             let prefixed = format!("{}_{}", comp_name, f.name);
             gen.global_renames.insert(f.name.clone(), prefixed);
         }
-        for ev_name in &comp.event_names {
-            let prefixed = format!("{}_{}", comp_name, ev_name);
-            gen.global_renames.insert(ev_name.clone(), prefixed);
+        for event in &comp.events {
+            let prefixed = format!("{}_{}", comp_name, event.name);
+            gen.global_renames.insert(event.name.clone(), prefixed);
         }
     }
 

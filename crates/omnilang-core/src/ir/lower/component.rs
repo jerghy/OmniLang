@@ -253,11 +253,13 @@ pub(super) fn lower_component(
                 name: r.name.clone(),
             })
             .collect(),
-        event_names: comp.events.iter().map(|e| e.name.clone()).collect(),
-        event_param_types: comp
+        events: comp
             .events
             .iter()
-            .map(|e| type_ann_to_ts(&e.type_ann))
+            .map(|e| EventDeclIR {
+                name: e.name.clone(),
+                param_type: type_ann_to_ts(&e.type_ann),
+            })
             .collect(),
         view,
         styles,

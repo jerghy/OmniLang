@@ -703,6 +703,18 @@ pub struct RefDeclIR {
     pub name: String,
 }
 
+/// A declared component event with its TypeScript parameter type.
+/// Replaces the parallel arrays event_names / event_param_types
+/// to make the name->type relationship structural rather than positional.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct EventDeclIR {
+    pub name: String,
+    /// TypeScript parameter type string (e.g., "string", "number", "unknown").
+    /// Empty string means untyped (emits "unknown" in generated .d.ts).
+    #[serde(default)]
+    pub param_type: String,
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ComponentIR {
     pub name: String,
@@ -722,13 +734,9 @@ pub struct ComponentIR {
     pub fns: Vec<FunctionIR>,
     pub store_refs: Vec<String>,
     pub refs: Vec<RefDeclIR>,
-    /// Event declarations (e.g., `event onDelete: i32`)
+    /// Component event declarations with their TypeScript parameter types.
     #[serde(default)]
-    pub event_names: Vec<String>,
-    /// Parallel to event_names: TypeScript parameter type for each event.
-    /// None or empty string → `any`. Populated from EventDecl.type_ann.
-    #[serde(default)]
-    pub event_param_types: Vec<String>,
+    pub events: Vec<EventDeclIR>,
     pub view: Option<ViewTree>,
     pub styles: Vec<StyleRuleIR>,
     /// Source location in .omni file

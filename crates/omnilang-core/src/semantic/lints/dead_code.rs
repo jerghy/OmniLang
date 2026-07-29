@@ -231,8 +231,7 @@ mod tests {
                 fns: vec![],
                 store_refs: vec!["UsedStore".into()],
                 refs: vec![],
-                event_names: vec![],
-                event_param_types: vec![],
+                events: vec![],
                 view: None,
                 styles: vec![],
                 ..Default::default()

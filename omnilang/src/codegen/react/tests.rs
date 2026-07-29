@@ -342,8 +342,7 @@ fn test_css_empty_component() {
         fns: vec![],
         store_refs: vec![],
         refs: vec![],
-        event_names: vec![],
-        event_param_types: vec![],
+        events: vec![],
         view: None,
         styles: vec![],
         ..Default::default()
@@ -386,8 +385,7 @@ fn test_css_with_styles() {
         fns: vec![],
         store_refs: vec![],
         refs: vec![],
-        event_names: vec![],
-        event_param_types: vec![],
+        events: vec![],
         view: None,
         styles: vec![style],
         ..Default::default()
@@ -412,8 +410,7 @@ fn make_test_component(name: &str, view: ViewTree) -> ComponentIR {
         fns: vec![],
         store_refs: vec![],
         refs: vec![],
-        event_names: vec![],
-        event_param_types: vec![],
+        events: vec![],
         view: Some(view),
         styles: vec![],
         ..Default::default()
@@ -507,8 +504,7 @@ fn test_tsx_empty_component() {
             fns: vec![],
             store_refs: vec![],
             refs: vec![],
-            event_names: vec![],
-            event_param_types: vec![],
+            events: vec![],
             view: None,
             styles: vec![],
             ..Default::default()
@@ -555,8 +551,7 @@ fn test_tsx_component_with_state() {
             fns: vec![],
             store_refs: vec![],
             refs: vec![],
-            event_names: vec![],
-            event_param_types: vec![],
+            events: vec![],
             view: None,
             styles: vec![],
             ..Default::default()
@@ -608,8 +603,7 @@ fn test_tsx_component_with_props() {
             fns: vec![],
             store_refs: vec![],
             refs: vec![],
-            event_names: vec![],
-            event_param_types: vec![],
+            events: vec![],
             view: None,
             styles: vec![],
             ..Default::default()
@@ -659,8 +653,7 @@ fn test_tsx_component_with_effect() {
             fns: vec![],
             store_refs: vec![],
             refs: vec![],
-            event_names: vec![],
-            event_param_types: vec![],
+            events: vec![],
             view: None,
             styles: vec![],
             ..Default::default()
@@ -700,8 +693,7 @@ fn test_tsx_component_with_lifecycle_mount() {
             fns: vec![],
             store_refs: vec![],
             refs: vec![],
-            event_names: vec![],
-            event_param_types: vec![],
+            events: vec![],
             view: None,
             styles: vec![],
             ..Default::default()
@@ -1045,8 +1037,7 @@ fn test_full_pipeline_component() {
         fns: vec![],
         store_refs: vec![],
         refs: vec![],
-        event_names: vec![],
-        event_param_types: vec![],
+        events: vec![],
         view: None,
         styles: vec![],
         ..Default::default()
@@ -1175,8 +1166,7 @@ fn test_full_pipeline_component_with_store_ref() {
         fns: vec![],
         store_refs: vec!["AppStore".into()],
         refs: vec![],
-        event_names: vec![],
-        event_param_types: vec![],
+        events: vec![],
         view: None,
         styles: vec![],
         ..Default::default()

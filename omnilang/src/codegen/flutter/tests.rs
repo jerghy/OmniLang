@@ -686,8 +686,7 @@ fn test_empty_component() {
             fns: vec![],
             store_refs: vec![],
             refs: vec![],
-            event_names: vec![],
-            event_param_types: vec![],
+            events: vec![],
             view: None,
             styles: vec![],
             ..Default::default()
@@ -766,8 +765,7 @@ fn test_component_with_state() {
             }],
             store_refs: vec![],
             refs: vec![],
-            event_names: vec![],
-            event_param_types: vec![],
+            events: vec![],
             view: None,
             styles: vec![],
             ..Default::default()
@@ -825,8 +823,7 @@ fn test_component_with_props() {
             fns: vec![],
             store_refs: vec![],
             refs: vec![],
-            event_names: vec![],
-            event_param_types: vec![],
+            events: vec![],
             view: None,
             styles: vec![],
             ..Default::default()
@@ -876,8 +873,7 @@ fn test_component_with_mount_lifecycle() {
             fns: vec![],
             store_refs: vec![],
             refs: vec![],
-            event_names: vec![],
-            event_param_types: vec![],
+            events: vec![],
             view: None,
             styles: vec![],
             ..Default::default()
@@ -927,8 +923,7 @@ fn test_component_with_unmount_lifecycle() {
             fns: vec![],
             store_refs: vec![],
             refs: vec![],
-            event_names: vec![],
-            event_param_types: vec![],
+            events: vec![],
             view: None,
             styles: vec![],
             ..Default::default()
@@ -1637,8 +1632,7 @@ fn test_full_pipeline_component() {
         fns: vec![],
         store_refs: vec![],
         refs: vec![],
-        event_names: vec![],
-        event_param_types: vec![],
+        events: vec![],
         view: None,
         styles: vec![],
         ..Default::default()
@@ -1742,8 +1736,7 @@ fn test_full_pipeline_component_with_store_ref() {
         fns: vec![],
         store_refs: vec!["AppStore".into()],
         refs: vec![],
-        event_names: vec![],
-        event_param_types: vec![],
+        events: vec![],
         view: None,
         styles: vec![],
         ..Default::default()

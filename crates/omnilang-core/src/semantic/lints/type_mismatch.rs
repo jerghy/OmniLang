@@ -217,8 +217,7 @@ mod tests {
                 }],
                 store_refs: vec![],
                 refs: vec![],
-                event_names: vec![],
-                event_param_types: vec![],
+                events: vec![],
                 view: None,
                 styles: vec![],
                 ..Default::default()

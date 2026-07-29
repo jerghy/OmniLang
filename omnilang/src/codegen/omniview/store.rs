@@ -242,18 +242,18 @@ impl OmniViewGenerator {
         // Names are prefixed with component name to avoid global collisions.
         // Must be emitted BEFORE component functions so the functions can call them.
         let fn_prefix = format!("{}_", name);
-        for event_name in &comp.event_names {
-            let prefixed_name = format!("{}{}", fn_prefix, event_name);
+        for event in &comp.events {
+            let prefixed_name = format!("{}{}", fn_prefix, event.name);
             // Map event name → prefixed name so CallExpr in function bodies resolves correctly
             self.name_renames
-                .insert(event_name.clone(), prefixed_name.clone());
+                .insert(event.name.clone(), prefixed_name.clone());
         }
-        for event_name in &comp.event_names {
-            let prefixed_name = format!("{}{}", fn_prefix, event_name);
-            let dom_event = if event_name.len() > 2 && event_name.starts_with("on") {
-                event_name[2..].to_lowercase()
+        for event in &comp.events {
+            let prefixed_name = format!("{}{}", fn_prefix, event.name);
+            let dom_event = if event.name.len() > 2 && event.name.starts_with("on") {
+                event.name[2..].to_lowercase()
             } else {
-                event_name.to_lowercase()
+                event.name.to_lowercase()
             };
             let _ = writeln!(self.js, "function {}(...args) {{", prefixed_name);
             let _ = writeln!(

@@ -135,17 +135,15 @@ impl ComponentImports {
                 };
                 w.emit_fmt(format_args!("  {}{}: {};", prop_name, optional, ts_type));
             }
-            for (event_name, param_type) in
-                comp.event_names.iter().zip(comp.event_param_types.iter())
-            {
-                let ts_type = if param_type.is_empty() {
-                    "any"
+            for event in &comp.events {
+                let ts_type = if event.param_type.is_empty() {
+                    "unknown"
                 } else {
-                    param_type.as_str()
+                    event.param_type.as_str()
                 };
                 w.emit_fmt(format_args!(
                     "  {}?: (value: {}) => void;",
-                    event_name, ts_type
+                    event.name, ts_type
                 ));
             }
             w.emit("}");

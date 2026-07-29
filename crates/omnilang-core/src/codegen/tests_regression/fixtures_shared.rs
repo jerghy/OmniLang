@@ -90,8 +90,10 @@ pub(crate) fn fixture_component() -> IRProgram {
         fns: vec![],
         store_refs: vec![],
         refs: vec![],
-        event_names: vec!["onUpdate".into()],
-        event_param_types: vec![],
+        events: vec![EventDeclIR {
+            name: "onUpdate".into(),
+            param_type: String::new(),
+        }],
         view: Some(ViewTree::Element(ElementIR {
             tag: "div".into(),
             props: FxHashMap::default(),
@@ -247,8 +249,7 @@ pub(crate) fn fixture_component_with_store() -> IRProgram {
         fns: vec![],
         store_refs: vec!["AppStore".into()],
         refs: vec![],
-        event_names: vec![],
-        event_param_types: vec![],
+        events: vec![],
         view: Some(ViewTree::Element(ElementIR {
             tag: "div".into(),
             props: FxHashMap::default(),
