@@ -109,7 +109,7 @@ fn test_format_expr_literal() {
     let expr = ExprIR::LiteralExpr {
         value: serde_json::json!(42),
     };
-    assert_eq!(format_expr_ir_tsx(&expr), "42");
+    assert_eq!(format_expr_ir_tsx(&expr, &FxHashSet::default()), "42");
 }
 
 #[test]
@@ -118,7 +118,7 @@ fn test_format_expr_identifier() {
         name: "count".into(),
         type_ann: None,
     };
-    assert_eq!(format_expr_ir_tsx(&expr), "count");
+    assert_eq!(format_expr_ir_tsx(&expr, &FxHashSet::default()), "count");
 }
 
 #[test]
@@ -134,7 +134,7 @@ fn test_format_expr_binary() {
             type_ann: None,
         }),
     };
-    assert_eq!(format_expr_ir_tsx(&expr), "a + b");
+    assert_eq!(format_expr_ir_tsx(&expr, &FxHashSet::default()), "a + b");
 }
 
 #[test]
@@ -151,7 +151,7 @@ fn test_format_expr_ternary() {
             value: serde_json::json!(0),
         }),
     };
-    assert_eq!(format_expr_ir_tsx(&expr), "x ? 1 : 0");
+    assert_eq!(format_expr_ir_tsx(&expr, &FxHashSet::default()), "x ? 1 : 0");
 }
 
 #[test]
@@ -163,7 +163,7 @@ fn test_format_expr_field_access() {
         }),
         field: "prop".into(),
     };
-    assert_eq!(format_expr_ir_tsx(&expr), "obj.prop");
+    assert_eq!(format_expr_ir_tsx(&expr, &FxHashSet::default()), "obj.prop");
 }
 
 #[test]
@@ -175,7 +175,7 @@ fn test_format_expr_unary_not() {
             type_ann: None,
         }),
     };
-    assert_eq!(format_expr_ir_tsx(&expr), "!flag");
+    assert_eq!(format_expr_ir_tsx(&expr, &FxHashSet::default()), "!flag");
 }
 
 #[test]
@@ -185,7 +185,7 @@ fn test_format_expr_store_field() {
         field_name: "getCount".into(),
         call_args: vec![],
     };
-    assert_eq!(format_expr_ir_tsx(&expr), "store.getCount");
+    assert_eq!(format_expr_ir_tsx(&expr, &FxHashSet::default()), "store.getCount");
 }
 
 // ── generate_statement_tsx tests ─────────────────────────

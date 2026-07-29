@@ -4,6 +4,7 @@
 
 use crate::codegen::react::expr;
 use crate::ir::*;
+use rustc_hash::FxHashSet;
 
 /// Format a MotionBodyIR into JS: `{kf:{...},opts:{...}}` for use with animate().
 pub(super) fn format_motion_to_animate(motion: &MotionBodyIR) -> String {
@@ -24,7 +25,7 @@ fn format_keyframe_stops(kf: &KeyframeIR) -> String {
         let stop = &kf.stops[0];
         let mut prop_pairs: Vec<String> = Vec::new();
         for (prop, value) in &stop.properties {
-            let val_str = expr::format_expr_ir_tsx(value);
+            let val_str = expr::format_expr_ir_tsx(value, &FxHashSet::default());
             prop_pairs.push(format!("\"{}\":{}", prop, val_str));
         }
         if stop.position >= 0.5 {
@@ -58,7 +59,7 @@ fn format_keyframe_stops(kf: &KeyframeIR) -> String {
     for stop in &sorted_stops {
         let mut prop_pairs: Vec<String> = Vec::new();
         for (prop, value) in &stop.properties {
-            let val_str = expr::format_expr_ir_tsx(value);
+            let val_str = expr::format_expr_ir_tsx(value, &FxHashSet::default());
             prop_pairs.push(format!("\"{}\":{}", prop, val_str));
         }
         items.push(format!(
@@ -74,7 +75,7 @@ fn format_keyframe_stops(kf: &KeyframeIR) -> String {
 /// Format motion options for animate() call.
 fn format_animate_options(over: &ExprIR, ease: &Option<EasingIR>, playback: &PlaybackIR) -> String {
     let mut opts: Vec<String> = Vec::new();
-    let dur = expr::format_expr_ir_tsx(over);
+    let dur = expr::format_expr_ir_tsx(over, &FxHashSet::default());
     opts.push(format!("duration:{}", dur));
     if let Some(e) = ease {
         opts.push(format!("easing:{}", format_easing_to_js(e)));
@@ -106,7 +107,7 @@ fn format_animate_options(over: &ExprIR, ease: &Option<EasingIR>, playback: &Pla
     }
     // delay
     if let Some(delay) = &playback.delay {
-        opts.push(format!("delay:{}", expr::format_expr_ir_tsx(delay)));
+        opts.push(format!("delay:{}", expr::format_expr_ir_tsx(delay, &FxHashSet::default())));
     }
     format!("{{{}}}", opts.join(","))
 }

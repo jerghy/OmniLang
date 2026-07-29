@@ -54,12 +54,12 @@ pub(super) fn gen_computed_values(
                 tail.as_ref(),
                 ExprIR::LiteralExpr { value } if value == &serde_json::Value::Null
             ) {
-                w.emit_fmt(format_args!("return {};", expr::format_expr_ir_tsx(tail)));
+                w.emit_fmt(format_args!("return {};", expr::format_expr_ir_tsx(tail, &FxHashSet::default())));
             }
         } else {
             w.emit_fmt(format_args!(
                 "return {};",
-                expr::format_expr_ir_tsx(&computed.body)
+                expr::format_expr_ir_tsx(&computed.body, &FxHashSet::default())
             ));
         }
         w.dedent();

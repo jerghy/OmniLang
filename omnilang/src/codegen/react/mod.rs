@@ -253,7 +253,7 @@ impl ReactCodegen {
             w.emit_fmt(format_args!(
                 "const {} = useMemo(() => {{ return {}; }}, [{}]);",
                 getter_name,
-                expr::format_expr_ir_tsx(getter_expr),
+                expr::format_expr_ir_tsx(getter_expr, &FxHashSet::default()),
                 deps_str
             ));
         }
@@ -417,7 +417,7 @@ impl ReactCodegen {
 
         // Getters as accessor properties — use get() for signal references
         for (getter_name, getter_expr) in &store.getters {
-            let expr_str = expr::format_expr_ir_tsx(getter_expr);
+            let expr_str = expr::format_expr_ir_tsx(getter_expr, &FxHashSet::default());
             let all_signal_names: FxHashSet<String> = store.signals.keys().cloned().collect();
             let rewritten = rewrite_signal_refs_for_zustand(&expr_str, &all_signal_names);
             // The rewrite produces state.signalName, but in getter context
@@ -470,7 +470,7 @@ fn gen_zustand_action_stmt(
             }
         }
         StatementIR::ExprStmtIR { expr } => {
-            let line = expr::format_expr_ir_tsx(expr);
+            let line = expr::format_expr_ir_tsx(expr, &FxHashSet::default());
             w.emit_fmt(format_args!("{};", line));
         }
         StatementIR::LetStmtIR {
@@ -480,7 +480,7 @@ fn gen_zustand_action_stmt(
         } => {
             let rhs = value
                 .as_ref()
-                .map(expr::format_expr_ir_tsx)
+                .map(|v| expr::format_expr_ir_tsx(v, &FxHashSet::default()))
                 .unwrap_or_else(|| "null".into());
             w.emit_fmt(format_args!("const {} = {};", name, rhs));
         }
@@ -490,7 +490,7 @@ fn gen_zustand_action_stmt(
             else_ifs,
             else_body,
         } => {
-            let cond = expr::format_expr_ir_tsx(condition);
+            let cond = expr::format_expr_ir_tsx(condition, &FxHashSet::default());
             w.emit_fmt(format_args!("if ({}) {{", cond));
             w.indent();
             for s in &then_body.statements {
@@ -498,7 +498,7 @@ fn gen_zustand_action_stmt(
             }
             w.dedent();
             for (elif_cond, elif_body) in else_ifs {
-                let elif = expr::format_expr_ir_tsx(elif_cond);
+                let elif = expr::format_expr_ir_tsx(elif_cond, &FxHashSet::default());
                 w.emit_fmt(format_args!("}} else if ({}) {{", elif));
                 w.indent();
                 for s in &elif_body.statements {
@@ -519,7 +519,7 @@ fn gen_zustand_action_stmt(
         StatementIR::ReturnStmtIR { value } => {
             let v = value
                 .as_ref()
-                .map(expr::format_expr_ir_tsx)
+                .map(|v| expr::format_expr_ir_tsx(v, &FxHashSet::default()))
                 .unwrap_or_else(|| "null".into());
             w.emit_fmt(format_args!("return {};", v));
         }
@@ -639,7 +639,7 @@ fn format_zustand_mutation(
             let val = value
                 .as_ref()
                 .map(|v| {
-                    let s = expr::format_expr_ir_tsx(v);
+                    let s = expr::format_expr_ir_tsx(v, &FxHashSet::default());
                     rewrite_signal_refs_for_zustand(&s, signal_names)
                 })
                 .unwrap_or_else(|| "null".into());
@@ -654,7 +654,7 @@ fn format_zustand_mutation(
             let amt = amount
                 .as_ref()
                 .map(|v| {
-                    let s = expr::format_expr_ir_tsx(v);
+                    let s = expr::format_expr_ir_tsx(v, &FxHashSet::default());
                     rewrite_signal_refs_for_zustand(&s, signal_names)
                 })
                 .unwrap_or_else(|| "0".into());
@@ -672,7 +672,7 @@ fn format_zustand_mutation(
             let amt = amount
                 .as_ref()
                 .map(|v| {
-                    let s = expr::format_expr_ir_tsx(v);
+                    let s = expr::format_expr_ir_tsx(v, &FxHashSet::default());
                     rewrite_signal_refs_for_zustand(&s, signal_names)
                 })
                 .unwrap_or_else(|| "0".into());
@@ -690,7 +690,7 @@ fn format_zustand_mutation(
             let it = item
                 .as_ref()
                 .map(|v| {
-                    let s = expr::format_expr_ir_tsx(v);
+                    let s = expr::format_expr_ir_tsx(v, &FxHashSet::default());
                     rewrite_signal_refs_for_zustand(&s, signal_names)
                 })
                 .unwrap_or_else(|| "undefined".into());
@@ -725,7 +725,7 @@ fn format_zustand_mutation(
             let amt = amount
                 .as_ref()
                 .map(|v| {
-                    let s = expr::format_expr_ir_tsx(v);
+                    let s = expr::format_expr_ir_tsx(v, &FxHashSet::default());
                     rewrite_signal_refs_for_zustand(&s, signal_names)
                 })
                 .unwrap_or_else(|| "1".into());
@@ -743,7 +743,7 @@ fn format_zustand_mutation(
             let amt = amount
                 .as_ref()
                 .map(|v| {
-                    let s = expr::format_expr_ir_tsx(v);
+                    let s = expr::format_expr_ir_tsx(v, &FxHashSet::default());
                     rewrite_signal_refs_for_zustand(&s, signal_names)
                 })
                 .unwrap_or_else(|| "1".into());
@@ -761,7 +761,7 @@ fn format_zustand_mutation(
             let amt = amount
                 .as_ref()
                 .map(|v| {
-                    let s = expr::format_expr_ir_tsx(v);
+                    let s = expr::format_expr_ir_tsx(v, &FxHashSet::default());
                     rewrite_signal_refs_for_zustand(&s, signal_names)
                 })
                 .unwrap_or_else(|| "1".into());

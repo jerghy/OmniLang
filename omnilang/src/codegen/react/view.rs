@@ -41,7 +41,7 @@ pub(super) fn gen_view_node_tsx(
                 }
                 let mut comp_attrs: Vec<String> = Vec::new();
                 for (prop_name, prop_value) in &el.props {
-                    let js_val = format_expr_ir_tsx(prop_value);
+                    let js_val = format_expr_ir_tsx(prop_value, &FxHashSet::default());
                     comp_attrs.push(format!("{}={{{}}}", prop_name, js_val));
                 }
                 for (event_name, handler) in &el.events {
@@ -132,7 +132,7 @@ pub(super) fn gen_view_node_tsx(
                         }
                     }
                     _ => {
-                        let jsx_val = format_expr_ir_tsx(prop_value);
+                        let jsx_val = format_expr_ir_tsx(prop_value, &FxHashSet::default());
                         attrs.push(format!("{}={{{}}}", jsx_attr, jsx_val));
                     }
                 }
@@ -172,7 +172,7 @@ pub(super) fn gen_view_node_tsx(
                         attrs.push(format!("{}=\"{}\"", attr_name, s));
                     }
                     _ => {
-                        let js = format_expr_ir_tsx(expr);
+                        let js = format_expr_ir_tsx(expr, &FxHashSet::default());
                         attrs.push(format!("{}={{{}}}", attr_name, js));
                     }
                 }
@@ -439,7 +439,7 @@ pub(super) fn gen_view_node_tsx(
                             // skip — class not applied
                         }
                         _ => {
-                            let cond = format_expr_ir_tsx(expr);
+                            let cond = format_expr_ir_tsx(expr, &FxHashSet::default());
                             dynamic_parts.push(format!("${{{cond} ? styles['{cls}'] : ''}}"));
                         }
                     }
@@ -565,7 +565,7 @@ pub(super) fn gen_view_node_tsx(
             if branches.len() == 1 && fallback.is_none() {
                 w.emit("{");
                 w.indent();
-                let cond_str = format_expr_ir_tsx(&branches[0].condition);
+                let cond_str = format_expr_ir_tsx(&branches[0].condition, &FxHashSet::default());
                 w.emit_fmt(format_args!("{} && (", cond_str));
                 w.indent();
                 if let Some(ref body) = branches[0].body {
@@ -586,7 +586,7 @@ pub(super) fn gen_view_node_tsx(
 
             if let Some((first_branch, rest)) = branches.split_first() {
                 // First branch: `cond ? ( body )`
-                let cond_str = format_expr_ir_tsx(&first_branch.condition);
+                let cond_str = format_expr_ir_tsx(&first_branch.condition, &FxHashSet::default());
                 w.emit_fmt(format_args!("{} ? (", cond_str));
                 w.indent();
                 if let Some(ref body) = first_branch.body {
@@ -598,7 +598,7 @@ pub(super) fn gen_view_node_tsx(
                 for branch in rest {
                     w.emit(") : (");
                     w.indent();
-                    let cond_str = format_expr_ir_tsx(&branch.condition);
+                    let cond_str = format_expr_ir_tsx(&branch.condition, &FxHashSet::default());
                     w.emit_fmt(format_args!("{} ? (", cond_str));
                     w.indent();
                     if let Some(ref body) = branch.body {
@@ -630,10 +630,10 @@ pub(super) fn gen_view_node_tsx(
             w.emit("}");
         }
         ViewTree::ListRendering(list) => {
-            let iterable_str = format_expr_ir_tsx(&list.iterable);
+            let iterable_str = format_expr_ir_tsx(&list.iterable, &FxHashSet::default());
             let item_name = &list.item_binding.name;
             let key_attr = if let Some(ref ke) = list.key_expr {
-                format!(" key={{{}}}", format_expr_ir_tsx(ke))
+                format!(" key={{{}}}", format_expr_ir_tsx(ke, &FxHashSet::default()))
             } else {
                 // Use item identity as key to avoid index-as-key anti-pattern
                 format!(" key={{{}}}", item_name)
@@ -705,7 +705,7 @@ pub(super) fn gen_view_node_tsx(
             }
         }
         ViewTree::Interpolation(expr) => {
-            let js_expr = format_expr_ir_tsx(expr);
+            let js_expr = format_expr_ir_tsx(expr, &FxHashSet::default());
             w.emit_fmt(format_args!("{{{}}}", js_expr));
         }
         ViewTree::Fragment(children) => {

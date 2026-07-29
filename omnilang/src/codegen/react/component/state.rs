@@ -28,7 +28,7 @@ impl ReactCodegen {
             if !read_signals.contains(&state.name) {
                 continue;
             }
-            let init_val = expr::format_expr_ir_tsx(&state.initial_value);
+            let init_val = expr::format_expr_ir_tsx(&state.initial_value, &FxHashSet::default());
             if mutated_signals.contains(&state.name) {
                 let setter_base = format!("set{}", capitalize_first(&state.name));
                 let setter = if fn_names.contains(&setter_base) {

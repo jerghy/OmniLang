@@ -382,7 +382,7 @@ pub(super) fn generate_statement_tsx_with_mode(
                         "array_push" => {
                             let item = args
                                 .get(1)
-                                .map(format_expr_ir_tsx)
+                                .map(|e| format_expr_ir_tsx(e, &FxHashSet::default()))
                                 .unwrap_or_else(|| "undefined".into());
                             w.emit_fmt(format_args!("{}(prev => [...prev, {}]);", setter, item));
                             return;
@@ -409,8 +409,29 @@ pub(super) fn generate_statement_tsx_with_mode(
 // Expression formatting (TSX)
 // ═══════════════════════════════════════════════════════════
 
-pub(super) fn format_expr_ir_tsx(expr: &ExprIR) -> String {
-    ReactFormatExpr.format_expr(expr)
+pub(super) fn format_expr_ir_tsx(expr: &ExprIR, ref_names: &FxHashSet<String>) -> String {
+    match expr {
+        ExprIR::IdentifierExpr { name, .. } => {
+            if ref_names.contains(name.as_str()) {
+                format!("{}Ref.current", name)
+            } else {
+                ReactFormatExpr.format_identifier(name)
+            }
+        }
+        ExprIR::FieldAccessExpr { object, field } => {
+            let obj_str = format_expr_ir_tsx(object, ref_names);
+            format!("{}.{}", obj_str, field)
+        }
+        ExprIR::MethodCallExpr { object, method, args, .. } => {
+            let obj_str = format_expr_ir_tsx(object, ref_names);
+            let args_str: Vec<String> = args
+                .iter()
+                .map(|a| format_expr_ir_tsx(a, ref_names))
+                .collect();
+            translate_method_call(&obj_str, method, &args_str)
+        }
+        _ => ReactFormatExpr.format_expr(expr),
+    }
 }
 
 // ═══════════════════════════════════════════════════════════
