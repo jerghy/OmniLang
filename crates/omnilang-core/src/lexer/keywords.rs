@@ -92,19 +92,13 @@ pub(super) fn at_keyword_to_token(kw: &str) -> Option<TokenKind> {
         "@effect" => Some(TokenKind::AtEffect),
         // Motion @-keywords
         "@motion" => Some(TokenKind::AtMotion),
-        "@timeline" => Some(TokenKind::AtTimeline),
         "@enter" => Some(TokenKind::AtEnter),
-        "@leave" => Some(TokenKind::AtLeave),
         "@hover" => Some(TokenKind::AtHover),
-        "@unhover" => Some(TokenKind::AtUnhover),
         "@press" => Some(TokenKind::AtPress),
-        "@focus" => Some(TokenKind::AtFocus),
-        "@animate" => Some(TokenKind::AtAnimate),
         "@in-view" | "@inView" => Some(TokenKind::AtInView),
         "@scroll" => Some(TokenKind::AtScroll),
         "@drag-horizontal" | "@dragHorizontal" => Some(TokenKind::AtDragHorizontal),
         "@drag-vertical" | "@dragVertical" => Some(TokenKind::AtDragVertical),
-        "@driven-by" => Some(TokenKind::AtDrivenBy),
         "@paused" => Some(TokenKind::AtPaused),
         "@hover-reverse" => Some(TokenKind::AtHoverReverse),
         "@in-view-once" => Some(TokenKind::AtInViewOnce),
@@ -122,7 +116,6 @@ pub(super) fn at_keyword_to_token(kw: &str) -> Option<TokenKind> {
         "@drag-velocity-max" => Some(TokenKind::DragVelocityMax),
         // @hero support
         "@hero" => Some(TokenKind::AtHero),
-        "@hero-transition" => Some(TokenKind::AtHeroTransition),
         // @if-mode component prop
         "@if-mode" => Some(TokenKind::IfMode),
         // Unknown @-prefixed words are event bindings like @onPress, @onChange

@@ -43,7 +43,7 @@ pub use design::{
 pub use types_motion::{
     DirectionValue, DragBehavior,
     EasingIR, FillValue, HeroIntent, KeyframeIR, KeyframeStopIR,
-    LoopValue, MotionBehavior, MotionBodyIR, MotionExprIR, MotionIntent, PlaybackIR,
+    LoopValue, MotionBehavior, MotionBodyIR, MotionIntent, PlaybackIR,
     ScrollBehavior, TriggerIntent, TriggerKind,
 };
 

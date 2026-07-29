@@ -77,19 +77,13 @@ pub enum TokenKind {
     AtEffect,
     // Motion @-keywords
     AtMotion,
-    AtTimeline,
     AtEnter,
-    AtLeave,
     AtHover,
-    AtUnhover,
     AtPress,
-    AtFocus,
-    AtAnimate,
     AtInView,
     AtScroll,
     AtDragHorizontal,
     AtDragVertical,
-    AtDrivenBy,
     AtPaused,
     AtHoverReverse,
     AtInViewOnce,
@@ -106,7 +100,6 @@ pub enum TokenKind {
     DragThreshold,
     DragVelocityMax,
     AtHero,
-    AtHeroTransition,
     Bind,
 
     // Literals
