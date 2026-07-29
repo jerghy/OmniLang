@@ -247,8 +247,8 @@ impl OmniViewGenerator {
             let _ = writeln!(self.js, "function {}(...args) {{", prefixed_name);
             let _ = writeln!(
                 self.js,
-                "  const el = document.querySelector('[data-component=\"{}\"]');",
-                name
+                "  var el = {0}._el || ({0}._el = document.querySelector('[data-component=\"{1}\"]'));",
+                prefixed_name, name
             );
             let _ = writeln!(self.js,
                 "  if (el) el.dispatchEvent(new CustomEvent('{}', {{ detail: args.length <= 1 ? args[0] : args, bubbles: false }}));",
