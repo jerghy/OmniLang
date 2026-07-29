@@ -92,8 +92,20 @@ pub(crate) fn format_easing_flutter(ease: &Option<EasingIR>) -> String {
         Some(EasingIR::CubicBezier { x1, y1, x2, y2 }) => {
             format!("Cubic({}, {}, {}, {})", x1, y1, x2, y2)
         }
-        Some(EasingIR::Back { .. }) => "Curves.easeOutBack".to_string(),
-        Some(EasingIR::Elastic { .. }) => "Curves.easeOutElastic".to_string(),
+        Some(EasingIR::Back { direction }) => {
+            match direction.as_deref() {
+                Some("in") => "Curves.easeInBack".to_string(),
+                Some("inout") => "Curves.easeInOutBack".to_string(),
+                _ => "Curves.easeOutBack".to_string(),
+            }
+        }
+        Some(EasingIR::Elastic { direction }) => {
+            match direction.as_deref() {
+                Some("in") => "Curves.easeInElastic".to_string(),
+                Some("inout") => "Curves.easeInOutElastic".to_string(),
+                _ => "Curves.easeOutElastic".to_string(),
+            }
+        }
         None => "Curves.linear".to_string(),
     }
 }
