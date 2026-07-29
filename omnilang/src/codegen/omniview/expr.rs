@@ -50,54 +50,10 @@ impl OmniViewGenerator {
                 format!("{}{}", op, o)
             }
             ExprIR::FieldAccessExpr { object, field } => {
-                let raw_obj_name = if let ExprIR::IdentifierExpr { name, .. } = object.as_ref() {
-                    Some(name.clone())
-                } else {
-                    None
-                };
-                let obj = self.expr_to_js(object);
-                let check_name = raw_obj_name.as_deref().unwrap_or(&obj);
-                if self.store_names.contains(check_name) || self.store_names.contains(&obj) {
-                    let renamed_obj = self
-                        .name_renames
-                        .get(check_name)
-                        .or_else(|| self.name_renames.get(obj.as_str()))
-                        .cloned()
-                        .unwrap_or_else(|| obj.clone());
-                    let var_name = format!("{}_{}", renamed_obj, field);
-                    if self.signal_names.contains(&var_name) {
-                        format!("{}.value", var_name)
-                    } else {
-                        var_name
-                    }
-                } else {
-                    format!("{}.{}", obj, field)
-                }
+                self.resolve_store_field_access(object, field, ".", ".value")
             }
             ExprIR::OptionalChainExpr { object, field, .. } => {
-                let raw_obj_name = if let ExprIR::IdentifierExpr { name, .. } = object.as_ref() {
-                    Some(name.clone())
-                } else {
-                    None
-                };
-                let obj = self.expr_to_js(object);
-                let check_name = raw_obj_name.as_deref().unwrap_or(&obj);
-                if self.store_names.contains(check_name) || self.store_names.contains(&obj) {
-                    let renamed_obj = self
-                        .name_renames
-                        .get(check_name)
-                        .or_else(|| self.name_renames.get(obj.as_str()))
-                        .cloned()
-                        .unwrap_or_else(|| obj.clone());
-                    let var_name = format!("{}_{}", renamed_obj, field);
-                    if self.signal_names.contains(&var_name) {
-                        format!("{}?.value", var_name)
-                    } else {
-                        var_name
-                    }
-                } else {
-                    format!("{}?.{}", obj, field)
-                }
+                self.resolve_store_field_access(object, field, "?.", "?.value")
             }
             ExprIR::CallExpr { name, args } => {
                 if name == "println" || name == "print" {
@@ -340,6 +296,42 @@ impl OmniViewGenerator {
 
     pub(super) fn js_value(&self, value: &serde_json::Value) -> String {
         crate::codegen::format_json_value(value, &crate::codegen::JSON_OMNIVIEW)
+    }
+
+    /// Shared store-name resolution logic for FieldAccessExpr and OptionalChainExpr.
+    /// `dot_op` is the access operator (`.` or `?.`) used when the object is NOT a store.
+    /// `value_op` is the value accessor (`.value` or `?.value`) used when the resolved
+    /// variable is a signal (store field accessed via signal).
+    fn resolve_store_field_access(
+        &mut self,
+        object: &ExprIR,
+        field: &str,
+        dot_op: &str,
+        value_op: &str,
+    ) -> String {
+        let raw_obj_name = if let ExprIR::IdentifierExpr { name, .. } = object {
+            Some(name.clone())
+        } else {
+            None
+        };
+        let obj = self.expr_to_js(object);
+        let check_name = raw_obj_name.as_deref().unwrap_or(&obj);
+        if self.store_names.contains(check_name) || self.store_names.contains(&obj) {
+            let renamed_obj = self
+                .name_renames
+                .get(check_name)
+                .or_else(|| self.name_renames.get(obj.as_str()))
+                .cloned()
+                .unwrap_or_else(|| obj.clone());
+            let var_name = format!("{}_{}", renamed_obj, field);
+            if self.signal_names.contains(&var_name) {
+                format!("{}{}", var_name, value_op)
+            } else {
+                var_name
+            }
+        } else {
+            format!("{}{}{}", obj, dot_op, field)
+        }
     }
 
     pub(super) fn expr_to_static_str(&self, expr: &ExprIR) -> String {
