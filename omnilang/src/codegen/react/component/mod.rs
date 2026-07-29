@@ -95,6 +95,12 @@ impl ReactCodegen {
             hooks.push("useEffect".to_string());
         }
 
+        // Ref declarations → useRef
+        let has_refs = !comp.refs.is_empty();
+        if has_refs {
+            hooks.push("useRef".to_string());
+        }
+
         // Style check — only import if styles exist and are referenced in view
         let used_style_classes = comp
             .view
