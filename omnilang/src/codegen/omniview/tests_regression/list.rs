@@ -356,7 +356,7 @@ fn test_list_with_event_delegation() {
 fn test_nested_for_preserves_outer_template_mode() {
     let mut gen = OmniViewGenerator::test_new();
     // Simulate outer @for entering template mode
-    gen.in_for_template = true;
+    gen.scope.in_for_template = true;
 
     // Inner @for: its emit_list_state_init should save/restore the flag
     let inner_list = ListRenderingIntent {
@@ -376,7 +376,7 @@ fn test_nested_for_preserves_outer_template_mode() {
 
     // After inner @for returns, outer template mode must be preserved
     assert!(
-        gen.in_for_template,
+        gen.scope.in_for_template,
         "outer @for template mode must be preserved after inner @for returns"
     );
 }
@@ -386,7 +386,7 @@ fn test_nested_for_preserves_outer_template_mode() {
 #[test]
 fn test_normal_for_sets_template_false_on_exit() {
     let mut gen = OmniViewGenerator::test_new();
-    assert!(!gen.in_for_template);
+    assert!(!gen.scope.in_for_template);
 
     let list = ListRenderingIntent {
         iterable: ExprIR::LiteralExpr {
@@ -404,7 +404,7 @@ fn test_normal_for_sets_template_false_on_exit() {
     gen.emit_list_rendering_html(&list, 0);
 
     assert!(
-        !gen.in_for_template,
+        !gen.scope.in_for_template,
         "in_for_template must be false after non-nested @for exits"
     );
 }

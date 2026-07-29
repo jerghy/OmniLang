@@ -708,8 +708,10 @@ fn test_stmt_mutation_increment() {
 #[test]
 fn test_stmt_mutation_signal_set() {
     let mut gen = OmniViewGenerator::test_new();
-    gen.signal_names.insert("App_count".into());
-    gen.name_renames.insert("count".into(), "App_count".into());
+    gen.scope.signal_names.insert("App_count".into());
+    gen.scope
+        .name_renames
+        .insert("count".into(), "App_count".into());
     gen.emit_statement(&StatementIR::MutationStmt {
         intent: Some(MutationIntent::DirectAssign {
             target: SignalRefIR {

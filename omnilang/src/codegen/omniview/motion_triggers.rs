@@ -490,7 +490,7 @@ impl OmniViewGenerator {
                         nid.to_string(),
                         motion_name.clone(),
                         "enter".into(),
-                        self.current_component.clone(),
+                        self.scope.current_component.clone(),
                     ));
                 }
                 match trigger.kind {

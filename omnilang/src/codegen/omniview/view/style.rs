@@ -34,6 +34,7 @@ impl OmniViewGenerator {
                             // Dynamic style: signal reference → JS effect
                             if let Some(sig_name) = obj.get("$signal").and_then(|v| v.as_str()) {
                                 let prefixed = self
+                                    .scope
                                     .name_renames
                                     .get(sig_name)
                                     .or_else(|| self.global_renames.get(sig_name))
@@ -63,6 +64,7 @@ impl OmniViewGenerator {
                                             part_obj.get("$signal").and_then(|v| v.as_str())
                                         {
                                             let prefixed = self
+                                                .scope
                                                 .name_renames
                                                 .get(sig_name)
                                                 .cloned()
@@ -93,10 +95,13 @@ impl OmniViewGenerator {
                                     call_obj.get("name").and_then(|v| v.as_str()),
                                     call_obj.get("args").and_then(|v| v.as_array()),
                                 ) {
-                                    let prefixed =
-                                        self.global_renames.get(fn_name).cloned().unwrap_or_else(
-                                            || format!("{}_{}", self.current_component, fn_name),
-                                        );
+                                    let prefixed = self
+                                        .global_renames
+                                        .get(fn_name)
+                                        .cloned()
+                                        .unwrap_or_else(|| {
+                                            format!("{}_{}", self.scope.current_component, fn_name)
+                                        });
                                     let mut arg_strs: Vec<String> = Vec::new();
                                     for arg in fn_args {
                                         match arg {

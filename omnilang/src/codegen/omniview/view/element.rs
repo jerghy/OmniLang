@@ -97,7 +97,7 @@ impl OmniViewGenerator {
     ///
     /// Side-effects:
     /// - Writes deferred JS (reactive attribute bindings, signal-to-DOM effects) to `self.js`.
-    /// - Records pre-compiled @for attribute bindings in `self.for_attr_bindings`.
+    /// - Records pre-compiled @for attribute bindings in `self.scope.for_attr_bindings`.
     /// - Pushes warnings for unknown/unresolved design variants and class references.
     fn emit_element_props(&mut self, el: &ElementIR, nid: &str) -> (String, Vec<String>) {
         let html_tag = map_tag(&el.tag);
@@ -160,7 +160,7 @@ impl OmniViewGenerator {
                     if is_dynamic {
                         // Dynamic attribute: bind reactively
                         let js_val = self.expr_to_js(value);
-                        let js_access = if self.signal_names.contains(&js_val) {
+                        let js_access = if self.scope.signal_names.contains(&js_val) {
                             format!("{}.value", js_val)
                         } else {
                             js_val
@@ -223,7 +223,9 @@ impl OmniViewGenerator {
                     if val_str.is_empty() {
                         continue;
                     }
-                    if self.in_for_template && (val_str.contains('{') && val_str.contains('}')) {
+                    if self.scope.in_for_template
+                        && (val_str.contains('{') && val_str.contains('}'))
+                    {
                         // Pre-compiled attribute binding for @for templates
                         let attr_name = if name.starts_with("aria-") || name.starts_with("data-") {
                             name.clone()
@@ -231,7 +233,8 @@ impl OmniViewGenerator {
                             format!("data-{}", name)
                         };
                         let parts = parse_attr_template(&val_str);
-                        self.for_attr_bindings
+                        self.scope
+                            .for_attr_bindings
                             .push((nid.to_string(), attr_name, parts));
                     } else if name.starts_with("aria-") || name.starts_with("data-") {
                         // Real HTML aria/data attributes — emit as-is
@@ -323,6 +326,7 @@ impl OmniViewGenerator {
             if prop_name == "value" || prop_name == "checked" {
                 // Resolve signal name through renames (component-prefixed or global)
                 let sig_name = self
+                    .scope
                     .name_renames
                     .get(&binding.name)
                     .or_else(|| self.global_renames.get(&binding.name))
@@ -545,7 +549,7 @@ impl OmniViewGenerator {
         }
 
         // For <fragment> wrapper inside @for template: emit children without wrapper.
-        if self.in_for_template && html_tag == "fragment" {
+        if self.scope.in_for_template && html_tag == "fragment" {
             for child in &el.children {
                 let child_html = self.view_to_html(child, indent + 1);
                 out.push_str(&child_html);
@@ -606,7 +610,7 @@ impl OmniViewGenerator {
     fn emit_class_map_effects(&mut self, el: &ElementIR, nid: &str) {
         for (class_name, binding) in &el.class_map_bindings {
             let js_expr = self.expr_to_js(binding);
-            let js_access = if self.signal_names.contains(&js_expr) {
+            let js_access = if self.scope.signal_names.contains(&js_expr) {
                 format!("{}.value", js_expr)
             } else {
                 js_expr
@@ -694,7 +698,7 @@ impl OmniViewGenerator {
                     let is_safe = expr
                         .chars()
                         .all(|c| c.is_alphanumeric() || c == '_' || c == '.');
-                    if self.in_for_template {
+                    if self.scope.in_for_template {
                         // Inside @for template: use data-bind-text marker
                         let _ = write!(attrs, " data-bind-text=\"{}\"", escape_html(expr));
                     } else if is_safe {
@@ -714,10 +718,11 @@ impl OmniViewGenerator {
         self.emit_element_motion_bindings(el, &nid);
 
         // Class map dynamic bindings for @for templates: collect pre-compiled bindings
-        if self.in_for_template && !el.class_map_bindings.is_empty() {
+        if self.scope.in_for_template && !el.class_map_bindings.is_empty() {
             for (class_name, expr) in &el.class_map_bindings {
                 let js_expr = self.expr_to_js(expr);
-                self.for_class_bindings
+                self.scope
+                    .for_class_bindings
                     .push((nid.clone(), class_name.clone(), js_expr));
             }
         }

@@ -46,9 +46,9 @@ impl OmniViewGenerator {
         // Set up rename mapping: store-local names → flat JS names
         // This ensures getter/action bodies reference the correct JS variables
         // Save and restore the rename map to prevent cross-store pollution
-        let saved_renames: FxHashMap<String, String> = std::mem::take(&mut self.name_renames);
+        let saved_renames: FxHashMap<String, String> = std::mem::take(&mut self.scope.name_renames);
         // Also temporarily populate signal_names with flat names so .value is emitted
-        let saved_signals: Vec<String> = self.signal_names.iter().cloned().collect();
+        let saved_signals: Vec<String> = self.scope.signal_names.iter().cloned().collect();
 
         // Emit signals
         for sig_name in store.signals.keys() {
@@ -65,11 +65,13 @@ impl OmniViewGenerator {
                 var_name, var_name, init_val
             );
             // Map local name → flat name for getter/action bodies (must clone before moves)
-            self.name_renames.insert(sig_name.clone(), var_name.clone());
+            self.scope
+                .name_renames
+                .insert(sig_name.clone(), var_name.clone());
             self.store_signal_names.insert(var_name.clone());
             self.store_field_names.insert(var_name.clone());
             // Also add flat name to signal_names so .value is emitted
-            self.signal_names.insert(var_name);
+            self.scope.signal_names.insert(var_name);
         }
 
         // Emit getters as computed
@@ -82,10 +84,11 @@ impl OmniViewGenerator {
                 var_name, var_name, body_js
             );
             // Map local getter name → flat name for action bodies
-            self.name_renames
+            self.scope
+                .name_renames
                 .insert(getter_name.clone(), var_name.clone());
             // Also add flat name to signal_names so .value is emitted when referenced
-            self.signal_names.insert(var_name.clone());
+            self.scope.signal_names.insert(var_name.clone());
             self.store_signal_names.insert(var_name.clone());
             self.store_field_names.insert(var_name);
         }
@@ -101,16 +104,18 @@ impl OmniViewGenerator {
             self.js.push_str("}\n\n");
             self.store_field_names.insert(func_name.clone());
             // Map local action name → flat name for intra-store calls
-            self.name_renames.insert(action.name.clone(), func_name);
+            self.scope
+                .name_renames
+                .insert(action.name.clone(), func_name);
         }
 
         // Restore signal_names (keep store flat names for component use)
         for name in saved_signals {
-            self.signal_names.insert(name);
+            self.scope.signal_names.insert(name);
         }
         // Merge back saved renames (keep new entries from this store)
         for (k, v) in saved_renames {
-            self.name_renames.entry(k).or_insert(v);
+            self.scope.name_renames.entry(k).or_insert(v);
         }
 
         self.js.push('\n');
@@ -136,10 +141,10 @@ impl OmniViewGenerator {
         if self.css_only {
             self.current_css_start = self.css.len();
         }
-        self.current_component = name.to_string();
+        self.scope.current_component = name.to_string();
         // Clear component-local signal renames (global function/event renames persist).
-        self.name_renames.clear();
-        self.signal_names.clear();
+        self.scope.name_renames.clear();
+        self.scope.signal_names.clear();
         self.comp_mount_js.clear();
         // Clear @enter replay tracking for this component
         self.enter_trigger_nids.clear();
@@ -164,17 +169,20 @@ impl OmniViewGenerator {
         // Register THIS component's signal/computed names with component prefix.
         for state in &comp.signals {
             let prefixed = format!("{}_{}", name, state.name);
-            self.name_renames
+            self.scope
+                .name_renames
                 .insert(state.name.clone(), prefixed.clone());
-            self.signal_names.insert(prefixed);
+            self.scope.signal_names.insert(prefixed);
             // Collect default value for editor canvas preview
             let default_str = expr_default_display(&state.initial_value, self);
             self.signal_defaults.insert(state.name.clone(), default_str);
         }
         for c in &comp.computeds {
             let prefixed = format!("{}_{}", name, c.name);
-            self.name_renames.insert(c.name.clone(), prefixed.clone());
-            self.signal_names.insert(prefixed);
+            self.scope
+                .name_renames
+                .insert(c.name.clone(), prefixed.clone());
+            self.scope.signal_names.insert(prefixed);
         }
         // Add store signal/getter names so store field access uses .value
         for store_name in &comp.store_refs {
@@ -184,7 +192,7 @@ impl OmniViewGenerator {
                 self.store_names.insert(store_name.clone());
                 for sig_name in store.signals.keys() {
                     let full_name = format!("{}_{}", store_name, sig_name);
-                    self.signal_names.insert(full_name);
+                    self.scope.signal_names.insert(full_name);
                     // Collect store signal default value for editor canvas
                     if let Some(val) = store.signal_defaults.get(sig_name) {
                         let key = format!("{}.{}", store_name, sig_name);
@@ -193,7 +201,7 @@ impl OmniViewGenerator {
                 }
                 for getter_name in store.getters.keys() {
                     let full_name = format!("{}_{}", store_name, getter_name);
-                    self.signal_names.insert(full_name);
+                    self.scope.signal_names.insert(full_name);
                 }
             } else {
                 // Inline store (defined inside component body, not in all_stores):
@@ -201,7 +209,8 @@ impl OmniViewGenerator {
                 // Map store name → component name so MethodCallExpr like
                 // CartStore.addItem() resolves to ComponentName_addItem().
                 self.store_names.insert(store_name.clone());
-                self.name_renames
+                self.scope
+                    .name_renames
                     .insert(store_name.clone(), name.to_string());
             }
         }
@@ -226,9 +235,10 @@ impl OmniViewGenerator {
                 "const {} = __omni_readonlySignal(\"{}\", {});",
                 prefixed, prefixed, init_val
             );
-            self.name_renames
+            self.scope
+                .name_renames
                 .insert(prop_name.clone(), prefixed.clone());
-            self.signal_names.insert(prefixed);
+            self.scope.signal_names.insert(prefixed);
         }
 
         // Computed declarations — MUST come AFTER prop defaults so that
@@ -245,7 +255,8 @@ impl OmniViewGenerator {
         for event in &comp.events {
             let prefixed_name = format!("{}{}", fn_prefix, event.name);
             // Map event name → prefixed name so CallExpr in function bodies resolves correctly
-            self.name_renames
+            self.scope
+                .name_renames
                 .insert(event.name.clone(), prefixed_name.clone());
         }
         for event in &comp.events {
@@ -276,7 +287,8 @@ impl OmniViewGenerator {
         // BEFORE any function body is emitted.
         for f in &comp.fns {
             let prefixed_name = format!("{}{}", fn_prefix, f.name);
-            self.name_renames
+            self.scope
+                .name_renames
                 .insert(f.name.clone(), prefixed_name.clone());
         }
         // SECOND pass: emit function bodies (name_renames is now fully populated)
@@ -289,9 +301,9 @@ impl OmniViewGenerator {
         // child component views are inlined during root's view generation)
         if is_root {
             if let Some(ref view) = comp.view {
-                self.emitting_root_view = true;
+                self.scope.emitting_root_view = true;
                 self.emit_view(view);
-                self.emitting_root_view = false;
+                self.scope.emitting_root_view = false;
             }
         }
 
@@ -303,13 +315,14 @@ impl OmniViewGenerator {
         // Lifecycle hooks: @mount / @unmount
         if !comp.lifecycles.is_empty() {
             // Save component context for inline function name resolution
-            let saved_component = self.current_component.clone();
-            self.current_component = name.to_string();
-            let saved_signal_names: FxHashSet<String> = self.signal_names.iter().cloned().collect();
+            let saved_component = self.scope.current_component.clone();
+            self.scope.current_component = name.to_string();
+            let saved_signal_names: FxHashSet<String> =
+                self.scope.signal_names.iter().cloned().collect();
             // Merge component's signals for proper .value access in lifecycle bodies
             for state in &comp.signals {
                 let prefixed = format!("{}_{}", name, state.name);
-                self.signal_names.insert(prefixed);
+                self.scope.signal_names.insert(prefixed);
             }
             for lifecycle in &comp.lifecycles {
                 let kind = &lifecycle.kind;
@@ -350,18 +363,19 @@ impl OmniViewGenerator {
                     }
                 }
             }
-            self.signal_names = saved_signal_names;
-            self.current_component = saved_component;
+            self.scope.signal_names = saved_signal_names;
+            self.scope.current_component = saved_component;
         }
 
         // @effect hooks — stored separately in comp.effects (not in comp.lifecycles)
         if !comp.effects.is_empty() {
-            let saved_component = self.current_component.clone();
-            self.current_component = name.to_string();
-            let saved_signal_names: FxHashSet<String> = self.signal_names.iter().cloned().collect();
+            let saved_component = self.scope.current_component.clone();
+            self.scope.current_component = name.to_string();
+            let saved_signal_names: FxHashSet<String> =
+                self.scope.signal_names.iter().cloned().collect();
             for state in &comp.signals {
                 let prefixed = format!("{}_{}", name, state.name);
-                self.signal_names.insert(prefixed);
+                self.scope.signal_names.insert(prefixed);
             }
 
             // Collect body JS for all effects first, then emit to buffer.
@@ -413,8 +427,8 @@ impl OmniViewGenerator {
                 );
             }
 
-            self.signal_names = saved_signal_names;
-            self.current_component = saved_component;
+            self.scope.signal_names = saved_signal_names;
+            self.scope.current_component = saved_component;
         }
 
         // @enter replay effect — watches per-component signals and replays @enter animations
@@ -540,7 +554,7 @@ impl OmniViewGenerator {
 
     pub(super) fn emit_signal_decl(&mut self, state: &SignalIntent) {
         let init_val = self.expr_to_js(&state.initial_value);
-        let prefixed = format!("{}_{}", self.current_component, state.name);
+        let prefixed = format!("{}_{}", self.scope.current_component, state.name);
         let _ = writeln!(
             self.js,
             "const {} = __omni_signal(\"{}\", {});",
@@ -550,7 +564,7 @@ impl OmniViewGenerator {
 
     pub(super) fn emit_computed_decl(&mut self, computed: &ComputedIntent) {
         let body = self.expr_to_js(&computed.body);
-        let prefixed = format!("{}_{}", self.current_component, computed.name);
+        let prefixed = format!("{}_{}", self.scope.current_component, computed.name);
         let _ = writeln!(
             self.js,
             "const {} = __omni_computed(\"{}\", () => ({}));",
@@ -577,7 +591,9 @@ impl OmniViewGenerator {
         for (i, p) in f.params.iter().enumerate() {
             let sanitized = &params[i];
             if sanitized != &p.name {
-                self.name_renames.insert(p.name.clone(), sanitized.clone());
+                self.scope
+                    .name_renames
+                    .insert(p.name.clone(), sanitized.clone());
             }
         }
         let async_kw = if f.is_async { "async " } else { "" };

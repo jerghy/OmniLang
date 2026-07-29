@@ -31,7 +31,7 @@ impl OmniViewGenerator {
         self.assert_can_emit_js();
         for (event_name, handler) in &el.events {
             let js_event = map_event(event_name);
-            if self.in_for_template {
+            if self.scope.in_for_template {
                 // Inside @for template: emit data-event-* attributes for delegation.
                 // The @for container gets a single delegated listener that reads these.
                 let val = match handler {
@@ -41,7 +41,7 @@ impl OmniViewGenerator {
                         needs_stop_propagation,
                         ..
                     } => {
-                        let prefixed = format!("{}_{}", self.current_component, r#ref);
+                        let prefixed = format!("{}_{}", self.scope.current_component, r#ref);
                         let flags =
                             Self::flag_suffix(*needs_prevent_default, *needs_stop_propagation);
                         format!("fn:{}{}", escape_html(&prefixed), flags)
@@ -75,7 +75,7 @@ impl OmniViewGenerator {
                 // window).
                 let handler_name = match handler {
                     EventHandlerIR::FnRef { r#ref, .. } => {
-                        Some(format!("{}_{}", self.current_component, r#ref))
+                        Some(format!("{}_{}", self.scope.current_component, r#ref))
                     }
                     EventHandlerIR::StoreAction { r#ref, .. } => Some(r#ref.replace('.', "_")),
                     EventHandlerIR::InlineFn { .. } => {
@@ -92,7 +92,7 @@ impl OmniViewGenerator {
                         emit_event_object(handler.event_data(), handler.used_fields(), "_e");
                     let handler_call = match handler {
                         EventHandlerIR::FnRef { r#ref, .. } => {
-                            let prefixed = format!("{}_{}", self.current_component, r#ref);
+                            let prefixed = format!("{}_{}", self.scope.current_component, r#ref);
                             format!("{}({})", prefixed, event_obj)
                         }
                         EventHandlerIR::StoreAction { r#ref, .. } => {
@@ -157,7 +157,7 @@ impl OmniViewGenerator {
                         motion = r#ref,
                     );
                 } else {
-                    let prefixed = format!("{}_{}", self.current_component, r#ref);
+                    let prefixed = format!("{}_{}", self.scope.current_component, r#ref);
                     let event_obj =
                         emit_event_object(handler.event_data(), handler.used_fields(), "e");
                     let _ = writeln!(self.js,

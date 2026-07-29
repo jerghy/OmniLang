@@ -14,6 +14,7 @@ pub mod design;
 mod editor;
 mod expr;
 mod list;
+mod scope;
 pub mod typescript;
 
 mod motion;
@@ -32,6 +33,7 @@ use crate::ir::*;
 use crate::sourcemap::SourceMapEntry;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
+use scope::ComponentScope;
 use serde::{Deserialize, Serialize};
 use std::fmt::Write;
 use std::sync::Arc;
@@ -189,17 +191,13 @@ pub fn generate(
         css: String::new(),
         source_map: Vec::new(),
         node_counter: 0,
-        signal_names: FxHashSet::default(),
+        scope: ComponentScope::new(),
         signal_defaults: FxHashMap::default(),
         store_signal_names: FxHashSet::default(),
         store_field_names: FxHashSet::default(),
         store_names: FxHashSet::default(),
-        name_renames: FxHashMap::default(),
         global_renames: FxHashMap::default(),
         component_map: FxHashMap::default(),
-        emitting_root_view: false,
-        current_component: String::new(),
-        in_for_template: false,
         deferred_js: String::new(),
         all_deferred_js: String::new(),
         dom_emitted: false,
@@ -215,10 +213,6 @@ pub fn generate(
         design_class_names: FxHashSet::default(),
         design_map: FxHashMap::default(),
         warnings: Vec::new(),
-        for_text_bindings: Vec::new(),
-        for_class_bindings: Vec::new(),
-        for_attr_bindings: Vec::new(),
-        for_rebind_fn: None,
         css_only,
         element_classes: FxHashMap::default(),
         element_tags: FxHashMap::default(),
@@ -446,8 +440,9 @@ struct OmniViewGenerator {
     css: String,
     source_map: Vec<SourceMapEntry>,
     node_counter: u32,
-    /// Set of signal names in the current component (for .value / .set() generation)
-    signal_names: FxHashSet<String>,
+    /// Per-component codegen state — atomically swapped during inlining.
+    /// See `ComponentScope::take()` / `ComponentScope::restore()`.
+    pub(super) scope: ComponentScope,
     /// Default values for signals (name → JS value string), for editor canvas preview
     signal_defaults: FxHashMap<String, String>,
     /// Store signal/getter names with prefix (e.g. "TodoStore_items") — need .value access
@@ -456,9 +451,6 @@ struct OmniViewGenerator {
     store_field_names: FxHashSet<String>,
     /// Store names (without prefix) for recognizing store references like "TodoStore"
     store_names: FxHashSet<String>,
-    /// Map from store-local / component-local signal names to flat JS names.
-    /// Cleared per component — only contains the CURRENT component's signals.
-    name_renames: FxHashMap<String, String>,
     /// Global function/event renames — never cleared.
     /// All component functions/events are registered here so template calls
     /// like {getModStatus()} resolve to the correct prefixed name.
@@ -467,13 +459,6 @@ struct OmniViewGenerator {
     component_map: FxHashMap<String, Arc<ComponentIR>>,
     /// Set of known motion names — used to detect @click={motionName} patterns
     motion_names: FxHashSet<String>,
-    /// Whether we're currently emitting the root component's view
-    emitting_root_view: bool,
-    /// Current component name prefix for scoping function names
-    current_component: String,
-    /// When true, we're generating HTML for a @for template.
-    /// Text interpolations use data-bind-text markers instead of _effect() calls.
-    in_for_template: bool,
     /// Deferred event/reactive binding JS — emitted AFTER DOM insertion.
     /// This ensures the DOM exists before we try to bind events.
     deferred_js: String,
@@ -511,14 +496,6 @@ struct OmniViewGenerator {
     design_map: FxHashMap<String, crate::ir::design::DesignIR>,
     /// Diagnostic warnings collected during codegen (e.g., missing animation params).
     warnings: Vec<String>,
-    /// Pre-compiled text bindings for @for templates: (nid, js_expression)
-    for_text_bindings: Vec<(String, String)>,
-    /// Pre-compiled class bindings for @for templates: (nid, class_name, js_expression)
-    for_class_bindings: Vec<(String, String, String)>,
-    /// Pre-compiled attribute bindings for @for templates: (nid, attr_name, parts)
-    for_attr_bindings: Vec<(String, String, Vec<AttrPart>)>,
-    /// Optional name of the rebind function for this @for loop
-    for_rebind_fn: Option<String>,
     /// When true, skip JS emission entirely — only collect CSS + element mappings.
     /// Used by resolve_styles() for the Poiesis editor canvas.
     css_only: bool,
@@ -557,51 +534,6 @@ pub(super) enum AttrPart {
     Dynamic(String),
 }
 
-/// Saved generator state for component inlining — ensures isolation
-/// between parent and child component contexts during view inlining.
-/// Prevents bugs when new fields are added to OmniViewGenerator but
-/// forgotten in the save/restore block (see ADR-025 D1, ADR-026 D3).
-struct InliningState {
-    current_component: String,
-    signal_names: FxHashSet<String>,
-    name_renames: FxHashMap<String, String>,
-    for_text_bindings: Vec<(String, String)>,
-    for_class_bindings: Vec<(String, String, String)>,
-    for_attr_bindings: Vec<(String, String, Vec<AttrPart>)>,
-    for_rebind_fn: Option<String>,
-    in_for_template: bool,
-}
-
-impl InliningState {
-    fn save(gen: &OmniViewGenerator) -> Self {
-        Self {
-            current_component: gen.current_component.clone(),
-            signal_names: gen.signal_names.iter().cloned().collect(),
-            name_renames: gen
-                .name_renames
-                .iter()
-                .map(|(k, v)| (k.clone(), v.clone()))
-                .collect(),
-            for_text_bindings: gen.for_text_bindings.clone(),
-            for_class_bindings: gen.for_class_bindings.clone(),
-            for_attr_bindings: gen.for_attr_bindings.clone(),
-            for_rebind_fn: gen.for_rebind_fn.clone(),
-            in_for_template: gen.in_for_template,
-        }
-    }
-
-    fn restore(self, gen: &mut OmniViewGenerator) {
-        gen.current_component = self.current_component;
-        gen.signal_names = self.signal_names;
-        gen.name_renames = self.name_renames;
-        gen.for_text_bindings = self.for_text_bindings;
-        gen.for_class_bindings = self.for_class_bindings;
-        gen.for_attr_bindings = self.for_attr_bindings;
-        gen.for_rebind_fn = self.for_rebind_fn;
-        gen.in_for_template = self.in_for_template;
-    }
-}
-
 impl OmniViewGenerator {
     /// Create a minimal generator instance for testing.
     #[cfg(test)]
@@ -612,17 +544,13 @@ impl OmniViewGenerator {
             css: String::new(),
             source_map: Vec::new(),
             node_counter: 0,
-            signal_names: FxHashSet::default(),
+            scope: ComponentScope::new(),
             signal_defaults: FxHashMap::default(),
             store_signal_names: FxHashSet::default(),
             store_field_names: FxHashSet::default(),
             store_names: FxHashSet::default(),
-            name_renames: FxHashMap::default(),
             global_renames: FxHashMap::default(),
             component_map: FxHashMap::default(),
-            emitting_root_view: false,
-            current_component: String::new(),
-            in_for_template: false,
             deferred_js: String::new(),
             all_deferred_js: String::new(),
             dom_emitted: false,
@@ -638,10 +566,6 @@ impl OmniViewGenerator {
             design_class_names: FxHashSet::default(),
             design_map: FxHashMap::default(),
             warnings: Vec::new(),
-            for_text_bindings: Vec::new(),
-            for_class_bindings: Vec::new(),
-            for_attr_bindings: Vec::new(),
-            for_rebind_fn: None,
             css_only: false,
             element_classes: FxHashMap::default(),
             element_tags: FxHashMap::default(),

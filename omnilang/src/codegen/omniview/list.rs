@@ -49,22 +49,25 @@ impl OmniViewGenerator {
         // Generate template for one item (with in_for_template flag)
         let item_html = if let Some(ref body) = list.body {
             // Clear per-@for-loop binding vectors so each loop gets its own fresh bindings
-            self.for_text_bindings.clear();
-            self.for_class_bindings.clear();
-            self.for_attr_bindings.clear();
+            self.scope.for_text_bindings.clear();
+            self.scope.for_class_bindings.clear();
+            self.scope.for_attr_bindings.clear();
             self.for_state_names.clear();
             // Set rebind function name for this @for loop
-            let rebind_name = format!("__omni_rebind_{}_{}", self.current_component, item_var);
-            self.for_rebind_fn = Some(rebind_name);
+            let rebind_name = format!(
+                "__omni_rebind_{}_{}",
+                self.scope.current_component, item_var
+            );
+            self.scope.for_rebind_fn = Some(rebind_name);
             // Save outer @for template flag to support direct nesting.
             // Inner @for loops set in_for_template = true → false on exit,
             // which would corrupt the outer loop's template generation for
             // any content after the inner loop. Restoring the saved value
             // ensures the outer loop continues in the correct mode.
-            let outer_in_for = self.in_for_template;
-            self.in_for_template = true;
+            let outer_in_for = self.scope.in_for_template;
+            self.scope.in_for_template = true;
             let html = self.view_to_html(body, indent + 1);
-            self.in_for_template = outer_in_for;
+            self.scope.in_for_template = outer_in_for;
             html
         } else {
             format!("{}  <!-- empty item -->\n", pad)
@@ -87,9 +90,9 @@ impl OmniViewGenerator {
 
         // Empty state template (cloned into parent when data is empty)
         if let Some(ref empty_body) = list.empty_body {
-            self.in_for_template = true;
+            self.scope.in_for_template = true;
             let empty_html = self.view_to_html(empty_body, indent + 1);
-            self.in_for_template = false;
+            self.scope.in_for_template = false;
             let _ = writeln!(
                 out,
                 "{}<template data-nid=\"{}\">\n{}</template>",
@@ -233,7 +236,8 @@ impl OmniViewGenerator {
         // Cache element references for O(1) lookup in bindings
         self.js.push_str("    var _elCache = new Map();\n");
         self.js.push_str("    (function cacheElements(el) {\n");
-        self.js.push_str("      var nid = el.getAttribute('data-nid');\n");
+        self.js
+            .push_str("      var nid = el.getAttribute('data-nid');\n");
         self.js.push_str("      if (nid) _elCache.set(nid, el);\n");
         self.js
             .push_str("      el.querySelectorAll('[data-nid]').forEach(function(child) {\n");
@@ -243,10 +247,10 @@ impl OmniViewGenerator {
         self.js.push_str("    })(clone);\n");
 
         // Pre-compiled text bindings (no new Function)
-        if !self.for_text_bindings.is_empty() {
+        if !self.scope.for_text_bindings.is_empty() {
             self.js.push_str("    // Pre-compiled text bindings\n");
             self.js.push_str("    (function() {\n");
-            for (nid, js_expr) in &self.for_text_bindings {
+            for (nid, js_expr) in &self.scope.for_text_bindings {
                 let _ = writeln!(
                     self.js,
                     "      var _el = _elCache.get(\"{}\"); if (!_el) {{ _el = clone.querySelector('[data-nid=\"{}\"]'); if (_el) _elCache.set(\"{}\", _el); }}",
@@ -284,10 +288,10 @@ impl OmniViewGenerator {
         self.js.push_str("    });\n");
 
         // Pre-compiled class bindings (no new Function)
-        if !self.for_class_bindings.is_empty() {
+        if !self.scope.for_class_bindings.is_empty() {
             self.js.push_str("    // Pre-compiled class bindings\n");
             self.js.push_str("    (function() {\n");
-            for (nid, class_name, js_expr) in &self.for_class_bindings {
+            for (nid, class_name, js_expr) in &self.scope.for_class_bindings {
                 let _ = writeln!(
                     self.js,
                     "      var _el = _elCache.get(\"{}\"); if (!_el) {{ _el = clone.querySelector('[data-nid=\"{}\"]'); if (_el) _elCache.set(\"{}\", _el); }}",
@@ -299,11 +303,11 @@ impl OmniViewGenerator {
         }
 
         // Pre-compiled attribute bindings (no new Function)
-        if !self.for_attr_bindings.is_empty() {
+        if !self.scope.for_attr_bindings.is_empty() {
             use super::AttrPart;
             self.js.push_str("    // Pre-compiled attribute bindings\n");
             self.js.push_str("    (function() {\n");
-            for (nid, attr_name, parts) in &self.for_attr_bindings {
+            for (nid, attr_name, parts) in &self.scope.for_attr_bindings {
                 let mut val_parts: Vec<String> = Vec::new();
                 for part in parts {
                     match part {
@@ -482,7 +486,7 @@ impl OmniViewGenerator {
             self.js.push_str(
                 "          // Re-evaluate text bindings from element-scoped state (pre-compiled)\n",
             );
-            if let Some(ref rebind_fn) = self.for_rebind_fn {
+            if let Some(ref rebind_fn) = self.scope.for_rebind_fn {
                 let _ = writeln!(
                     self.js,
                     "          if (typeof {} === 'function') {}(_forComp);",
@@ -516,11 +520,11 @@ impl OmniViewGenerator {
         }
 
         // Emit pre-compiled rebind function for text bindings (no new Function)
-        if !self.for_text_bindings.is_empty() {
-            if let Some(ref rebind_fn) = self.for_rebind_fn {
+        if !self.scope.for_text_bindings.is_empty() {
+            if let Some(ref rebind_fn) = self.scope.for_rebind_fn {
                 let _ = writeln!(self.js, "  // Pre-compiled rebind function: {}", rebind_fn);
                 let _ = writeln!(self.js, "  function {}(comp) {{", rebind_fn);
-                for (nid, js_expr) in &self.for_text_bindings {
+                for (nid, js_expr) in &self.scope.for_text_bindings {
                     let _ = writeln!(
                         self.js,
                         "    var _el = comp.querySelector('[data-nid=\"{}\"]');",

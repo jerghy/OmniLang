@@ -60,7 +60,7 @@ impl OmniViewGenerator {
         let _ = writeln!(
             self.html,
             "<div id=\"root\" data-component=\"{}\"{}>",
-            self.current_component, design_attr
+            self.scope.current_component, design_attr
         );
         let html = self.view_to_html(view, 1);
         self.html.push_str(&html);
@@ -120,7 +120,7 @@ impl OmniViewGenerator {
         let _ = writeln!(
             self.css,
             "[data-component=\"{}\"] {}{} {{",
-            self.current_component, selector_prefix, style.class_name
+            self.scope.current_component, selector_prefix, style.class_name
         );
         for (prop, value) in &style.properties {
             let css_val = self.expr_to_css(value);
@@ -162,11 +162,11 @@ impl OmniViewGenerator {
                     .cloned()
                     .unwrap_or_else(|| expr_label.clone());
 
-                if self.in_for_template {
+                if self.scope.in_for_template {
                     // Inside @for template: collect pre-compiled binding
                     let nid = self.next_nid("interp");
                     let js_expr = self.expr_to_js(expr);
-                    self.for_text_bindings.push((nid.clone(), js_expr));
+                    self.scope.for_text_bindings.push((nid.clone(), js_expr));
                     // Add to element tree: span with value/default text
                     let text_nid = self.next_nid("text");
                     self.tree_push(nid.clone(), "span".to_string());
@@ -179,7 +179,7 @@ impl OmniViewGenerator {
                     let js_expr = self.expr_to_js(expr);
                     // Strip trailing () for signal/computed name lookup
                     let js_expr_base = js_expr.trim_end_matches("()");
-                    let value_access = if self.signal_names.contains(js_expr_base) {
+                    let value_access = if self.scope.signal_names.contains(js_expr_base) {
                         format!("{}.value", js_expr_base)
                     } else {
                         js_expr
