@@ -15,7 +15,7 @@ impl OmniViewGenerator {
         nid: &str,
         pad: &str,
     ) -> Option<String> {
-        if let Some(child_comp) = self.component_map.get(&el.tag) {
+        if let Some(child_comp) = self.component_map.get(&el.tag).cloned() {
             if let Some(ref child_view) = child_comp.view {
                 // Save and update current component context
                 let saved_component = self.current_component.clone();

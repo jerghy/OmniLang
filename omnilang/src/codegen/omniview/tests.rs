@@ -230,7 +230,7 @@ fn test_store_actions() {
 
 #[test]
 fn test_expr_literal() {
-    let gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::test_new();
     assert_eq!(
         gen.expr_to_js(&ExprIR::LiteralExpr {
             value: serde_json::json!(42)
@@ -241,7 +241,7 @@ fn test_expr_literal() {
 
 #[test]
 fn test_expr_literal_string() {
-    let gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::test_new();
     assert_eq!(
         gen.expr_to_js(&ExprIR::LiteralExpr {
             value: serde_json::json!("hello")
@@ -264,7 +264,7 @@ fn test_expr_literal_string() {
 
 #[test]
 fn test_expr_identifier() {
-    let gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::test_new();
     assert_eq!(
         gen.expr_to_js(&ExprIR::IdentifierExpr {
             name: "count".into(),
@@ -276,7 +276,7 @@ fn test_expr_identifier() {
 
 #[test]
 fn test_expr_binary() {
-    let gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::test_new();
     assert_eq!(
         gen.expr_to_js(&ExprIR::BinaryOpExpr {
             op: BinaryOpIR::Add,
@@ -323,7 +323,7 @@ fn test_expr_binary() {
 
 #[test]
 fn test_expr_unary() {
-    let gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::test_new();
     assert_eq!(
         gen.expr_to_js(&ExprIR::UnaryOpExpr {
             op: UnaryOpIR::Not,
@@ -348,7 +348,7 @@ fn test_expr_unary() {
 
 #[test]
 fn test_expr_ternary() {
-    let gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::test_new();
     assert_eq!(
         gen.expr_to_js(&ExprIR::TernaryIR {
             cond: Box::new(ExprIR::IdentifierExpr {
@@ -368,7 +368,7 @@ fn test_expr_ternary() {
 
 #[test]
 fn test_expr_field_access() {
-    let gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::test_new();
     assert_eq!(
         gen.expr_to_js(&ExprIR::FieldAccessExpr {
             object: Box::new(ExprIR::IdentifierExpr {
@@ -383,7 +383,7 @@ fn test_expr_field_access() {
 
 #[test]
 fn test_expr_method_call() {
-    let gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::test_new();
     assert_eq!(
         gen.expr_to_js(&ExprIR::MethodCallExpr {
             object: Box::new(ExprIR::IdentifierExpr {
@@ -412,7 +412,7 @@ fn test_expr_method_call() {
 
 #[test]
 fn test_expr_closure() {
-    let gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::test_new();
     assert_eq!(
         gen.expr_to_js(&ExprIR::ClosureExpr {
             params: vec!["x".into()],
@@ -433,7 +433,7 @@ fn test_expr_closure() {
 
 #[test]
 fn test_expr_array() {
-    let gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::test_new();
     assert_eq!(
         gen.expr_to_js(&ExprIR::ArrayExpr {
             elements: vec![
@@ -466,7 +466,7 @@ fn test_expr_store_field_access() {
 
 #[test]
 fn test_expr_block() {
-    let gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::test_new();
     let js = gen.expr_to_js(&ExprIR::BlockExpr {
         statements: vec![StatementIR::LetStmtIR {
             name: "x".into(),
@@ -487,7 +487,7 @@ fn test_expr_block() {
 
 #[test]
 fn test_expr_variant_literal() {
-    let gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::test_new();
     let js = gen.expr_to_js(&ExprIR::VariantLiteral {
         union_type: "Result".into(),
         variant: "ok".into(),

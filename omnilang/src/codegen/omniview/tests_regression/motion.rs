@@ -115,7 +115,7 @@ fn test_is_transform_prop() {
 /// Tests all 6 EasingIR variants, including optional field defaults.
 #[test]
 fn test_easing_all_variants() {
-    let gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::test_new();
 
     // Named easing → JSON string
     assert_eq!(
@@ -197,7 +197,7 @@ fn test_easing_all_variants() {
 /// Tests playback_to_config for each configurable field in PlaybackIR.
 #[test]
 fn test_playback_config() {
-    let gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::test_new();
 
     // Empty playback → no config properties
     let empty = gen.playback_to_config(&PlaybackIR::default());
@@ -317,7 +317,7 @@ fn test_playback_config() {
 /// Tests keyframe_to_animate_call with both from/to stops.
 #[test]
 fn test_keyframe_animate_call_basic() {
-    let gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::test_new();
     let kf = KeyframeIR {
         stops: vec![
             KeyframeStopIR {
@@ -390,7 +390,7 @@ fn test_keyframe_animate_call_basic() {
 /// Tests keyframe_to_animate_call edge cases: empty stops, from-only, per-stop easing.
 #[test]
 fn test_keyframe_animate_call_edge_cases() {
-    let gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::test_new();
 
     // Edge case 1: No stops → empty keyframe array
     let empty = KeyframeIR {
@@ -502,7 +502,7 @@ fn test_keyframe_animate_call_edge_cases() {
 /// are not emitted by keyframe_to_animate_call itself; timeline.rs handles them).
 #[test]
 fn test_keyframe_animate_call_with_path() {
-    let gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::test_new();
     let kf = KeyframeIR {
         stops: vec![
             KeyframeStopIR {

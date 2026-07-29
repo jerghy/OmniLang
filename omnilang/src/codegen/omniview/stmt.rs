@@ -138,7 +138,7 @@ impl OmniViewGenerator {
     }
 
     /// Convert a single statement to an inline JS string (no buffer push).
-    pub(super) fn stmt_to_js_inline(&self, stmt: &StatementIR) -> String {
+    pub(super) fn stmt_to_js_inline(&mut self, stmt: &StatementIR) -> String {
         match stmt {
             StatementIR::LetStmtIR { name, value, .. } => {
                 let safe_name = super::super::sanitize_js_ident(name);
@@ -167,52 +167,13 @@ impl OmniViewGenerator {
         }
     }
 
-    pub(super) fn format_mutation_stmt_inline(&self, intent: &MutationIntent) -> String {
-        let resolve_target = |sig_ref: &SignalRefIR| -> String {
-            self.name_renames
-                .get(sig_ref.name.as_str())
-                .cloned()
-                .unwrap_or_else(|| sig_ref.name.clone())
-        };
-        match intent {
-            MutationIntent::DirectAssign { target, value } => {
-                let t = resolve_target(target);
-                let v = value
-                    .as_ref()
-                    .map(|e| self.expr_to_js(e))
-                    .unwrap_or_else(|| "undefined".into());
-                format!("{t} direct_assign {v}")
-            }
-            MutationIntent::Increment { target, amount } => {
-                let t = resolve_target(target);
-                let amt = amount
-                    .as_ref()
-                    .map(|e| self.expr_to_js(e))
-                    .unwrap_or_else(|| "1".into());
-                format!("{t} increment {amt}")
-            }
-            MutationIntent::Decrement { target, amount } => {
-                let t = resolve_target(target);
-                let amt = amount
-                    .as_ref()
-                    .map(|e| self.expr_to_js(e))
-                    .unwrap_or_else(|| "1".into());
-                format!("{t} decrement {amt}")
-            }
-            MutationIntent::Push { target, item } => {
-                let t = resolve_target(target);
-                let it = item
-                    .as_ref()
-                    .map(|e| self.expr_to_js(e))
-                    .unwrap_or_else(|| "undefined".into());
-                format!("{t} push {it}")
-            }
-            MutationIntent::Pop { target } => {
-                let t = resolve_target(target);
-                format!("{} pop", t)
-            }
-            _ => String::new(),
-        }
+    pub(super) fn format_mutation_stmt_inline(&mut self, intent: &MutationIntent) -> String {
+        // Capture emit_mutation output by temporarily swapping the JS buffer
+        let old_js = std::mem::take(&mut self.js);
+        self.emit_mutation(intent);
+        let result = std::mem::replace(&mut self.js, old_js);
+        // Clean up leading whitespace/newlines for inline use
+        result.trim().to_string()
     }
 
     /// Emit compound assignment operators (Increment, Decrement, Multiply, Divide, Modulo).

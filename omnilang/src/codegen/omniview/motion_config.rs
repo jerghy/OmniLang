@@ -6,7 +6,7 @@ impl OmniViewGenerator {
     // ══════════════════════════════════════════════════════
 
     /// Convert a MotionBodyIR to (keyframes_js, opts_js) for Omni.animate().
-    pub(super) fn motion_body_to_config(&self, body: &MotionBodyIR) -> (String, String) {
+    pub(super) fn motion_body_to_config(&mut self, body: &MotionBodyIR) -> (String, String) {
         match body {
             MotionBodyIR::Keyframe(kf) => self.keyframe_to_animate_call(kf),
             MotionBodyIR::Timeline(tl) => self.timeline_to_factory("_inline_timeline", tl),
@@ -69,7 +69,7 @@ impl OmniViewGenerator {
 
     /// Emit JS code that creates keyframes + options and calls Omni.animate().
     /// Returns (keyframes_js, options_js) — two JS expressions.
-    pub(super) fn keyframe_to_animate_call(&self, kf: &KeyframeIR) -> (String, String) {
+    pub(super) fn keyframe_to_animate_call(&mut self, kf: &KeyframeIR) -> (String, String) {
         // Build keyframes array: [{offset:0,properties:{opacity:"0",transform:"translateY(20px)"}}, ...]
         let mut kf_items: Vec<String> = Vec::new();
         for stop in &kf.stops {
@@ -136,7 +136,7 @@ impl OmniViewGenerator {
 
     /// Emit a factory for timeline-based motion definitions.
     /// Returns (keyframes_js, opts_js).
-    pub(super) fn timeline_to_factory(&self, _name: &str, tl: &TimelineIR) -> (String, String) {
+    pub(super) fn timeline_to_factory(&mut self, _name: &str, tl: &TimelineIR) -> (String, String) {
         let kf_js = "[{offset:0}]".to_string();
         let mut opts: Vec<String> = Vec::new();
         opts.push("duration:300".into());
@@ -149,7 +149,7 @@ impl OmniViewGenerator {
 
     /// Convert a CallbackBodyIR to (keyframes_js, opts_js) for Omni.animate().
     /// Callback-only animations have no visual properties, just duration and callbacks.
-    pub(super) fn callback_to_animate_call(&self, cb: &CallbackBodyIR) -> (String, String) {
+    pub(super) fn callback_to_animate_call(&mut self, cb: &CallbackBodyIR) -> (String, String) {
         let mut opts: Vec<String> = Vec::new();
         let dur_js = self.expr_to_js(&cb.over);
         opts.push(format!("duration:{}", dur_js));
@@ -181,7 +181,7 @@ impl OmniViewGenerator {
     }
 
     /// Convert PlaybackIR to a list of JS config property strings.
-    pub(super) fn playback_to_config(&self, playback: &PlaybackIR) -> Vec<String> {
+    pub(super) fn playback_to_config(&mut self, playback: &PlaybackIR) -> Vec<String> {
         let mut parts = Vec::new();
         if let Some(ref loop_count) = playback.loop_count {
             match loop_count {

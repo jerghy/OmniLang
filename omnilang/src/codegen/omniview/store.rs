@@ -7,7 +7,7 @@ use rustc_hash::FxHashSet;
 use std::fmt::Write;
 
 /// Extract a human-readable default value string from an ExprIR for editor preview.
-fn expr_default_display(expr: &ExprIR, gen: &OmniViewGenerator) -> String {
+fn expr_default_display(expr: &ExprIR, gen: &mut OmniViewGenerator) -> String {
     match expr {
         ExprIR::LiteralExpr { value } => {
             let js = serde_value_to_js(value);
@@ -565,7 +565,8 @@ impl OmniViewGenerator {
             // with `return ` so the value flows back to the caller.
             if is_last && has_ret {
                 if let StatementIR::ExprStmtIR { expr } = stmt {
-                    let _ = writeln!(self.js, "return {};", self.expr_to_js(expr));
+                    let return_val = self.expr_to_js(expr);
+                    let _ = writeln!(self.js, "return {};", return_val);
                     continue;
                 }
             }

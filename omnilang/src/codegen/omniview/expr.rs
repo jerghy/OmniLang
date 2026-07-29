@@ -8,7 +8,7 @@ impl OmniViewGenerator {
     // Expression → JavaScript
     // ══════════════════════════════════════════════════════
 
-    pub(super) fn expr_to_js(&self, expr: &ExprIR) -> String {
+    pub(super) fn expr_to_js(&mut self, expr: &ExprIR) -> String {
         match expr {
             ExprIR::LiteralExpr { value } => serde_value_to_js(value),
             ExprIR::IdentifierExpr { name, .. } => {
@@ -169,7 +169,7 @@ impl OmniViewGenerator {
                     // First try: resolve the method through name_renames (handles inline stores
                     // where the store action is merged as a component function, e.g.
                     // CartStore.addItem → InlineStoreDemo_addItem)
-                    if let Some(resolved_fn) = self.name_renames.get(method.as_str()) {
+                    if let Some(resolved_fn) = self.name_renames.get(method.as_str()).cloned() {
                         let arg_strs: Vec<String> =
                             args.iter().map(|a| self.expr_to_js(a)).collect();
                         return format!("{}({})", resolved_fn, arg_strs.join(", "));
@@ -323,7 +323,7 @@ impl OmniViewGenerator {
         }
     }
 
-    pub(super) fn block_to_expr(&self, block: &BlockIR) -> String {
+    pub(super) fn block_to_expr(&mut self, block: &BlockIR) -> String {
         if let Some(last) = block.statements.last() {
             match last {
                 StatementIR::ExprStmtIR { expr } => self.expr_to_js(expr),
@@ -363,7 +363,7 @@ impl OmniViewGenerator {
     /// Extract a short human-readable label from an expression.
     /// Returns the identifier name for identifiers, "obj.field" for field access,
     /// and the trimmed JS expression for complex expressions.
-    pub(super) fn expr_label(&self, expr: &ExprIR) -> String {
+    pub(super) fn expr_label(&mut self, expr: &ExprIR) -> String {
         match expr {
             ExprIR::IdentifierExpr { name, .. } => name.clone(),
             ExprIR::FieldAccessExpr { object, field } => {
