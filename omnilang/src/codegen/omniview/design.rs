@@ -10,7 +10,7 @@
 //! `<style>` block.  The `expand_variant` helper is used at component-bind time
 //! to resolve which class names and additional CSS a variant binding produces.
 
-use crate::codegen::camel_to_kebab;
+use crate::codegen::{camel_to_kebab, sanitize_css_value};
 use crate::ir::design::*;
 use rustc_hash::FxHashMap;
 
@@ -123,7 +123,8 @@ fn emit_class_css(class: &ClassIR, scope_prefix: &str) -> String {
     if !class.properties.is_empty() {
         css.push_str(&format!("{}.{} {{\n", scope_prefix, class.name));
         for (prop, val) in &class.properties {
-            css.push_str(&format!("  {}: {};\n", camel_to_kebab(prop), val));
+            let sanitized = sanitize_css_value(val);
+            css.push_str(&format!("  {}: {};\n", camel_to_kebab(prop), sanitized));
         }
         css.push_str("}\n\n");
     }
@@ -155,7 +156,8 @@ fn emit_variant_css(variant: &VariantIR, scope_prefix: &str) -> String {
     if !variant.base.is_empty() {
         css.push_str(&format!("{}.{} {{\n", scope_prefix, variant.name));
         for (prop, val) in &variant.base {
-            css.push_str(&format!("  {}: {};\n", camel_to_kebab(prop), val));
+            let sanitized = sanitize_css_value(val);
+            css.push_str(&format!("  {}: {};\n", camel_to_kebab(prop), sanitized));
         }
         css.push_str("}\n\n");
     }
@@ -168,7 +170,8 @@ fn emit_variant_css(variant: &VariantIR, scope_prefix: &str) -> String {
                 scope_prefix, variant.name, branch.value
             ));
             for (prop, val) in &branch.properties {
-                css.push_str(&format!("  {}: {};\n", camel_to_kebab(prop), val));
+                let sanitized = sanitize_css_value(val);
+                css.push_str(&format!("  {}: {};\n", camel_to_kebab(prop), sanitized));
             }
             css.push_str("}\n\n");
         }

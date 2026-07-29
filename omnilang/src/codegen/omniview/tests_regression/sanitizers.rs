@@ -94,6 +94,79 @@ fn test_sanitize_css_blocks_injection_patterns() {
     );
 }
 
+#[test]
+fn design_block_css_values_are_sanitized() {
+    use crate::codegen::omniview::generate;
+    use crate::ir::design::*;
+    use crate::ir::*;
+    use rustc_hash::FxHashMap;
+
+    // Build IR program with a design block containing a dangerous CSS value
+    let design = DesignIR {
+        name: "MyDesign".into(),
+        tokens: FxHashMap::default(),
+        classes: vec![ClassIR {
+            name: "DangerCard".into(),
+            properties: FxHashMap::from_iter([(
+                "background".into(),
+                "url(javascript:alert(1))".into(),
+            )]),
+            pseudo_states: vec![],
+            source_span: None,
+        }],
+        variants: vec![],
+        default_theme: None,
+        themes: vec![],
+        source_span: None,
+    };
+    let comp = ComponentIR {
+        name: "Test".into(),
+        source_file: Some("main.omni".into()),
+        generic_params: vec![],
+        props: FxHashMap::default(),
+        prop_defaults: FxHashMap::default(),
+        signals: vec![],
+        computeds: vec![],
+        effects: vec![],
+        lifecycles: vec![],
+        fns: vec![],
+        store_refs: vec![],
+        refs: vec![],
+        event_names: vec![],
+        event_param_types: vec![],
+        view: None,
+        styles: vec![],
+        if_mode_default: None,
+        source_span: None,
+    };
+    let mut module = ModuleIR {
+        name: "main".into(),
+        functions: FxHashMap::default(),
+        structs: FxHashMap::default(),
+        enums: FxHashMap::default(),
+        type_aliases: FxHashMap::default(),
+        components: FxHashMap::default(),
+        stores: FxHashMap::default(),
+        motions: vec![],
+        imports: vec![],
+        exports: vec![],
+        designs: vec![design],
+        source_span: None,
+    };
+    module.components.insert("Test".into(), comp);
+    let ir = IRProgram {
+        version: "0.1".into(),
+        modules: FxHashMap::from_iter([("main".into(), module)]),
+        source_map: FxHashMap::default(),
+        stdlib_imports: Default::default(),
+        source_span: None,
+    };
+    let output = generate(&ir, false, false, false);
+    // javascript: URL in design-block CSS must be sanitized
+    assert!(!output.css.contains("javascript:"));
+    assert!(output.css.contains("url(") || output.css.contains("background"));
+}
+
 /// Verify both sanitizer functions exist in the emitted runtime.
 #[test]
 fn test_both_sanitizers_emitted() {
