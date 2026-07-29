@@ -142,7 +142,11 @@ fn typekind_to_ts(kind: &TypeKind, type_args: &[TypeIR]) -> String {
         TypeKind::Void => "void".to_string(),
         TypeKind::Any => "any".to_string(),
         TypeKind::Named { name } => map_named_type_to_ts(name, type_args),
-        _ => panic!("unknown TypeKind variant: {kind:?}"),
+        _other => {
+            // TypeKind is #[non_exhaustive] — future variants degrade gracefully
+            // rather than crashing the compiler.
+            "/* unknown type kind */ any".to_string()
+        }
     }
 }
 
