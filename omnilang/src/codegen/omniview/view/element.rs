@@ -24,9 +24,7 @@ use crate::sourcemap::{SourceMapEntry, SourceSpan, TargetSpan, TargetSpanKind};
 pub(crate) fn is_dangerous_url(value: &str) -> bool {
     let trimmed = value.trim();
     let lower = trimmed.to_ascii_lowercase();
-    lower.starts_with("javascript:")
-        || lower.starts_with("data:")
-        || lower.starts_with("vbscript:")
+    lower.starts_with("javascript:") || lower.starts_with("data:") || lower.starts_with("vbscript:")
 }
 
 impl OmniViewGenerator {
@@ -160,8 +158,10 @@ impl OmniViewGenerator {
                         } else {
                             js_val
                         };
-                        let is_url_attr =
-                            matches!(name.as_str(), "href" | "src" | "srcset" | "action" | "formaction" | "poster");
+                        let is_url_attr = matches!(
+                            name.as_str(),
+                            "href" | "src" | "srcset" | "action" | "formaction" | "poster"
+                        );
                         if is_boolean_attr {
                             // Boolean attributes must use the DOM property (e.g. el.checked = bool)
                             // rather than setAttribute (which treats all values as strings — "false"
@@ -196,8 +196,10 @@ impl OmniViewGenerator {
                             // This is defense-in-depth: dynamic bindings are protected
                             // by __omni_sanitizeUrl at runtime; this catches literal
                             // dangerous URLs at compile time (supply-chain defense).
-                            self.warnings
-                                .push(format!("Blocked dangerous URL in static {} attribute: scheme not allowed", name));
+                            self.warnings.push(format!(
+                                "Blocked dangerous URL in static {} attribute: scheme not allowed",
+                                name
+                            ));
                             // Emit a safe fallback value
                             let _ = write!(attrs, " {}=\"#blocked\"", name);
                         } else {
@@ -571,21 +573,7 @@ impl OmniViewGenerator {
             for effect in interp_effects {
                 self.js.push_str(effect);
             }
-            // Class map dynamic bindings
-            if !self.in_for_template && !el.class_map_bindings.is_empty() {
-                for (class_name, expr) in &el.class_map_bindings {
-                    let js_expr = self.expr_to_js(expr);
-                    let js_access = if self.signal_names.contains(&js_expr) {
-                        format!("{}.value", js_expr)
-                    } else {
-                        js_expr
-                    };
-                    let _ = writeln!(self.js,
-                            "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) el.classList.toggle(\"{}\", !!({})); }});",
-                            nid, class_name, js_access
-                        );
-                }
-            }
+            self.emit_class_map_effects(el, &nid);
             self.tree_pop();
             return out;
         }
@@ -622,21 +610,7 @@ impl OmniViewGenerator {
             self.js.push_str(effect);
         }
 
-        // Class map dynamic bindings: for each dynamic class, emit an effect
-        if !self.in_for_template && !el.class_map_bindings.is_empty() {
-            for (class_name, expr) in &el.class_map_bindings {
-                let js_expr = self.expr_to_js(expr);
-                let js_access = if self.signal_names.contains(&js_expr) {
-                    format!("{}.value", js_expr)
-                } else {
-                    js_expr
-                };
-                let _ = writeln!(self.js,
-                    "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) el.classList.toggle(\"{}\", !!({})); }});",
-                    nid, class_name, js_access
-                );
-            }
-        }
+        self.emit_class_map_effects(el, &nid);
 
         // Record source map entry
         self.source_map.push(SourceMapEntry {
@@ -656,6 +630,27 @@ impl OmniViewGenerator {
         });
 
         out
+    }
+
+    /// Emit `__omni_effect` calls for dynamic class toggling (class_map_bindings).
+    ///
+    /// For each entry in `el.class_map_bindings`, emits an effect that calls
+    /// `el.classList.toggle(className, !!value)` so the DOM class is kept in
+    /// sync with the reactive expression.
+    fn emit_class_map_effects(&mut self, el: &ElementIR, nid: &str) {
+        for (class_name, binding) in &el.class_map_bindings {
+            let js_expr = self.expr_to_js(binding);
+            let js_access = if self.signal_names.contains(&js_expr) {
+                format!("{}.value", js_expr)
+            } else {
+                js_expr
+            };
+            let _ = writeln!(
+                self.js,
+                "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) el.classList.toggle(\"{}\", !!({})); }});",
+                nid, class_name, js_access
+            );
+        }
     }
 
     /// Convert a single `ElementIR` node into its HTML representation.
