@@ -90,13 +90,6 @@ pub enum TriggerKind {
     DragVertical,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[allow(clippy::large_enum_variant)]
-pub enum MotionExprIR {
-    Ref(String),
-    Inline(MotionBodyIR),
-}
-
 /// Hero intent (legacy — kept for ComponentIR type compatibility; never actively used)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HeroIntent {

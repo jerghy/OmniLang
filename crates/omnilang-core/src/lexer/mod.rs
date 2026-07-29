@@ -1205,36 +1205,16 @@ mod tests {
         assert_token("@motion", TokenKind::AtMotion);
     }
     #[test]
-    fn test_at_timeline() {
-        assert_token("@timeline", TokenKind::AtTimeline);
-    }
-    #[test]
     fn test_at_enter() {
         assert_token("@enter", TokenKind::AtEnter);
-    }
-    #[test]
-    fn test_at_leave() {
-        assert_token("@leave", TokenKind::AtLeave);
     }
     #[test]
     fn test_at_hover() {
         assert_token("@hover", TokenKind::AtHover);
     }
     #[test]
-    fn test_at_unhover() {
-        assert_token("@unhover", TokenKind::AtUnhover);
-    }
-    #[test]
     fn test_at_press() {
         assert_token("@press", TokenKind::AtPress);
-    }
-    #[test]
-    fn test_at_focus() {
-        assert_token("@focus", TokenKind::AtFocus);
-    }
-    #[test]
-    fn test_at_animate() {
-        assert_token("@animate", TokenKind::AtAnimate);
     }
     #[test]
     fn test_at_inview() {
@@ -1251,10 +1231,6 @@ mod tests {
     #[test]
     fn test_at_drag_vertical() {
         assert_token("@dragVertical", TokenKind::AtDragVertical);
-    }
-    #[test]
-    fn test_at_driven_by() {
-        assert_token("@driven-by", TokenKind::AtDrivenBy);
     }
     #[test]
     fn test_at_paused() {
@@ -1291,10 +1267,6 @@ mod tests {
     #[test]
     fn test_at_hero() {
         assert_token("@hero", TokenKind::AtHero);
-    }
-    #[test]
-    fn test_at_hero_transition() {
-        assert_token("@hero-transition", TokenKind::AtHeroTransition);
     }
     #[test]
     fn test_keyword_if_mode() {

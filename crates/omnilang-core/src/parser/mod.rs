@@ -276,7 +276,6 @@ impl<'a> Parser<'a> {
             TokenKind::Import,
             TokenKind::Export,
             TokenKind::AtMotion,
-            TokenKind::AtTimeline,
             TokenKind::Async,
         ];
         self.skip_to(TOP_LEVEL);
