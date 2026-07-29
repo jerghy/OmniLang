@@ -1,4 +1,5 @@
 use super::OmniViewGenerator;
+use crate::codegen::escape_literal_str;
 use crate::ir::*;
 
 impl OmniViewGenerator {
@@ -15,7 +16,7 @@ impl OmniViewGenerator {
     /// Convert an EasingIR to a JS expression for Omni.resolveEasing().
     pub(super) fn easing_to_js(&self, easing: &EasingIR) -> String {
         match easing {
-            EasingIR::Named(name) => format!("\"{}\"", name),
+            EasingIR::Named(name) => format!("\"{}\"", escape_literal_str(name, '"')),
             EasingIR::CubicBezier { x1, y1, x2, y2 } => {
                 format!(
                     "{{type:\"cubicBezier\",x1:{},y1:{},x2:{},y2:{}}}",
@@ -26,14 +27,14 @@ impl OmniViewGenerator {
                 let dir = direction.as_deref().unwrap_or("out");
                 format!(
                     "{{type:\"back\",direction:\"{}\"}}",
-                    dir
+                    escape_literal_str(dir, '"')
                 )
             }
             EasingIR::Elastic { direction } => {
                 let dir = direction.as_deref().unwrap_or("out");
                 format!(
                     "{{type:\"elastic\",direction:\"{}\"}}",
-                    dir
+                    escape_literal_str(dir, '"')
                 )
             }
         }
