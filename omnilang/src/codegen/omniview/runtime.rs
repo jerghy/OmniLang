@@ -272,6 +272,16 @@ function __omni_el(nid) {
 	  if (typeof __omni_scrollRemoveEntry === 'function') {
 	    __omni_scrollRemoveEntry(nid);
 	  }
+	  // Clean up InView observers for this element
+	  if (window.__omni_inview_observers) {
+	    window.__omni_inview_observers = window.__omni_inview_observers.filter(function(entry) {
+	      if (entry.nid === nid) {
+	        try { entry.observer.disconnect(); } catch(_) {}
+	        return false;
+	      }
+	      return true;
+	    });
+	  }
 	}
 /// ─── End Signal Runtime ────────────────────────────
 

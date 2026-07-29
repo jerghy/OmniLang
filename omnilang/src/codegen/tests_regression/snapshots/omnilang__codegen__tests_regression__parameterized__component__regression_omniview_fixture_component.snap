@@ -1,5 +1,6 @@
 ---
 source: omnilang/src/codegen/tests_regression/parameterized.rs
+assertion_line: 109
 expression: "& super :: super :: format_output(& output)"
 ---
 === index.html ===
@@ -274,6 +275,16 @@ function __omni_el(nid) {
 	  });
 	  if (typeof __omni_scrollRemoveEntry === 'function') {
 	    __omni_scrollRemoveEntry(nid);
+	  }
+	  // Clean up InView observers for this element
+	  if (window.__omni_inview_observers) {
+	    window.__omni_inview_observers = window.__omni_inview_observers.filter(function(entry) {
+	      if (entry.nid === nid) {
+	        try { entry.observer.disconnect(); } catch(_) {}
+	        return false;
+	      }
+	      return true;
+	    });
 	  }
 	}
 /// ─── End Signal Runtime ────────────────────────────

@@ -1,5 +1,6 @@
 ---
 source: omnilang/src/codegen/omniview/tests_regression/motion.rs
+assertion_line: 552
 expression: "&output"
 ---
 // === mount_js ===
@@ -24,5 +25,5 @@ expression: "&output"
   }, { threshold: threshold });
   observer.observe(el);
   window.__omni_inview_observers = window.__omni_inview_observers || [];
-  __omni_inview_observers.push(observer);
+  __omni_inview_observers.push({ nid: "el-inview-001", observer: observer });
 })();

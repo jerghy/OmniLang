@@ -104,7 +104,7 @@ impl OmniViewGenerator {
              \x20 }}, {{ threshold: threshold }});\n\
              \x20 observer.observe(el);\n\
              \x20 window.__omni_inview_observers = window.__omni_inview_observers || [];\n\
-             \x20 __omni_inview_observers.push(observer);\n\
+             \x20 __omni_inview_observers.push({{ nid: \"{nid}\", observer: observer }});\n\
              }})();\n",
             comment = comment,
             nid = nid,
