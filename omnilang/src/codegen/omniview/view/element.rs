@@ -145,12 +145,21 @@ impl OmniViewGenerator {
                         } else {
                             js_val
                         };
+                        let is_url_attr = matches!(
+                            name.as_str(),
+                            "href" | "src" | "action" | "formaction"
+                        );
                         if is_boolean_attr {
                             // Boolean attributes must use the DOM property (e.g. el.checked = bool)
                             // rather than setAttribute (which treats all values as strings — "false"
                             // is truthy in HTML and won't uncheck the checkbox).
                             let _ = writeln!(self.js,
                                 "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) try {{ el.{} = !!({}); }} catch(e) {{ __omni_reportError(\"bind:attr:{}\", e); }} }});",
+                                nid, name, js_access, name
+                            );
+                        } else if is_url_attr {
+                            let _ = writeln!(self.js,
+                                "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) try {{ el.setAttribute('{}', __omni_sanitizeUrl({})); }} catch(e) {{ __omni_reportError(\"bind:attr:{}\", e); }} }});",
                                 nid, name, js_access, name
                             );
                         } else {
