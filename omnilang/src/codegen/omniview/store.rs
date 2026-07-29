@@ -504,11 +504,6 @@ impl OmniViewGenerator {
         }
     }
 
-    /// Finalize the JS output with closing IIFE wrapper.
-    pub(super) fn finalize_js(&mut self) {
-        self.js.push_str("\n})();\n");
-    }
-
     // ══════════════════════════════════════════════════════
     // Signal Declaration
     // ══════════════════════════════════════════════════════

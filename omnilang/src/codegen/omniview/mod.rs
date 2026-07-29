@@ -384,7 +384,7 @@ pub fn generate(
         gen.emit_editor_bridge();
         // Inject debug bridge code (Tauri event communication for standalone debug window)
         gen.emit_debug_bridge();
-        gen.finalize_js();
+        gen.js.push_str("\n})();\n");
     }
 
     // Transfer accumulated element_tree from generator
