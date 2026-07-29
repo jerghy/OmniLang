@@ -696,6 +696,11 @@ pub(super) fn gen_view_node_tsx(
             let js_expr = format_expr_ir_tsx(expr);
             w.emit_fmt(format_args!("{{{}}}", js_expr));
         }
+        ViewTree::Fragment(children) => {
+            for child in children {
+                gen_view_node_tsx(w, child, component_map, signal_names, motion_names);
+            }
+        }
         ViewTree::Slot(_) => {
             // slots not supported in React — emit placeholder
         }

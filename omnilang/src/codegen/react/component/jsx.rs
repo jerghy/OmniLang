@@ -85,6 +85,11 @@ fn collect_view_child_components_inner(
                 collect_view_child_components_inner(empty_body, component_map, acc);
             }
         }
+        ViewTree::Fragment(children) => {
+            for child in children {
+                collect_view_child_components_inner(child, component_map, acc);
+            }
+        }
         ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => {}
     }
 }
@@ -141,6 +146,11 @@ pub(super) fn collect_view_identifiers(node: &ViewTree, acc: &mut FxHashSet<Stri
             collect_expr_identifiers(expr, acc);
         }
         ViewTree::Text(_) | ViewTree::Slot(_) => {}
+        ViewTree::Fragment(children) => {
+            for child in children {
+                collect_view_identifiers(child, acc);
+            }
+        }
     }
 }
 
@@ -173,6 +183,11 @@ pub(super) fn collect_motion_identifiers(node: &ViewTree, acc: &mut FxHashSet<St
             }
             if let Some(ref empty_body) = list.empty_body {
                 collect_motion_identifiers(empty_body, acc);
+            }
+        }
+        ViewTree::Fragment(children) => {
+            for child in children {
+                collect_motion_identifiers(child, acc);
             }
         }
         ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => {}
@@ -221,6 +236,11 @@ fn collect_used_style_classes_inner(node: &ViewTree, acc: &mut FxHashSet<String>
             }
             if let Some(ref empty_body) = list.empty_body {
                 collect_used_style_classes_inner(empty_body, acc);
+            }
+        }
+        ViewTree::Fragment(children) => {
+            for child in children {
+                collect_used_style_classes_inner(child, acc);
             }
         }
         ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => {}

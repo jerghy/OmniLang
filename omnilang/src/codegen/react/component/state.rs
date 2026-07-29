@@ -244,6 +244,11 @@ fn collect_view_mutation_targets(node: &ViewTree, acc: &mut FxHashSet<String>) {
                 collect_view_mutation_targets(empty_body, acc);
             }
         }
+        ViewTree::Fragment(children) => {
+            for child in children {
+                collect_view_mutation_targets(child, acc);
+            }
+        }
         ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => {}
     }
 }
@@ -280,6 +285,11 @@ pub(super) fn collect_view_inline_handler_reads(node: &ViewTree, acc: &mut FxHas
             }
             if let Some(ref empty_body) = list.empty_body {
                 collect_view_inline_handler_reads(empty_body, acc);
+            }
+        }
+        ViewTree::Fragment(children) => {
+            for child in children {
+                collect_view_inline_handler_reads(child, acc);
             }
         }
         ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => {}
@@ -481,6 +491,11 @@ fn collect_view_read_signals_inner(node: &ViewTree, acc: &mut FxHashSet<String>)
             collect_expr_identifiers(expr, acc);
         }
         ViewTree::Text(_) | ViewTree::Slot(_) => {}
+        ViewTree::Fragment(children) => {
+            for child in children {
+                collect_view_read_signals_inner(child, acc);
+            }
+        }
     }
 }
 
@@ -528,6 +543,11 @@ fn collect_view_store_refs_from_handlers(node: &ViewTree, acc: &mut FxHashSet<St
             }
             if let Some(ref empty_body) = list.empty_body {
                 collect_view_store_refs_from_handlers(empty_body, acc);
+            }
+        }
+        ViewTree::Fragment(children) => {
+            for child in children {
+                collect_view_store_refs_from_handlers(child, acc);
             }
         }
         ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => {}

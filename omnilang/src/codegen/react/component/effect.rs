@@ -335,6 +335,7 @@ pub(super) fn view_has_motion_or_effects(node: &ViewTree) -> bool {
                     .as_ref()
                     .is_some_and(view_has_motion_or_effects)
         }
+        ViewTree::Fragment(children) => children.iter().any(view_has_motion_or_effects),
         ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => false,
     }
 }

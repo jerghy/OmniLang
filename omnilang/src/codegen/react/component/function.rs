@@ -176,6 +176,11 @@ fn collect_called_fns_from_view_transitively(node: &ViewTree, acc: &mut FxHashSe
                 collect_called_fns_from_view_transitively(empty_body, acc);
             }
         }
+        ViewTree::Fragment(children) => {
+            for child in children {
+                collect_called_fns_from_view_transitively(child, acc);
+            }
+        }
         ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => {}
     }
 }
@@ -216,6 +221,11 @@ fn collect_called_fns_from_view(node: &ViewTree, acc: &mut FxHashSet<String>) {
             }
             if let Some(ref empty_body) = list.empty_body {
                 collect_called_fns_from_view(empty_body, acc);
+            }
+        }
+        ViewTree::Fragment(children) => {
+            for child in children {
+                collect_called_fns_from_view(child, acc);
             }
         }
         ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => {}

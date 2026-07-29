@@ -48,6 +48,11 @@ pub(crate) fn format_view_tree(
         }
         ViewTree::Conditional(cond) => format_conditional(cond, motions, component_map),
         ViewTree::ListRendering(list) => format_list_rendering(list, motions, component_map),
+        ViewTree::Fragment(children) => children
+            .iter()
+            .map(|c| format_view_tree(c, motions, component_map))
+            .collect::<Vec<_>>()
+            .join(", "),
         ViewTree::Slot(_) => "SizedBox.shrink()".to_string(),
     }
 }

@@ -318,6 +318,11 @@ fn walk_view_for_idents(view: &ViewTree, used: &mut FxHashSet<String>) {
                 walk_view_for_idents(fallback, used);
             }
         }
+        ViewTree::Fragment(children) => {
+            for child in children {
+                walk_view_for_idents(child, used);
+            }
+        }
         ViewTree::Text(_) | ViewTree::Slot(_) => {}
     }
 }
@@ -574,6 +579,11 @@ fn eliminate_unreachable_in_view(view: &mut ViewTree) -> bool {
             }
             if let Some(ref mut fallback) = cond.fallback {
                 changed |= eliminate_unreachable_in_view(fallback);
+            }
+        }
+        ViewTree::Fragment(children) => {
+            for child in children.iter_mut() {
+                changed |= eliminate_unreachable_in_view(child);
             }
         }
         ViewTree::Interpolation(_) | ViewTree::Text(_) | ViewTree::Slot(_) => {}

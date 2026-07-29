@@ -122,8 +122,16 @@ impl OmniViewGenerator {
                 } else {
                     String::new()
                 };
+                // Extract parent-submitted children for slot projection
+                let slot_children: Vec<ViewTree> = el.children.clone();
+
                 // Clone the view tree to break the borrow on self
-                let child_view_owned = child_view.clone();
+                // Apply slot injection if parent passed children
+                let child_view_owned = if slot_children.is_empty() {
+                    child_view.clone()
+                } else {
+                    inject_slot_children(child_view.clone(), &slot_children)
+                };
 
                 // Generate child HTML inline
                 let child_html = self.view_to_html(&child_view_owned, indent + 1);
@@ -203,5 +211,83 @@ impl OmniViewGenerator {
             }
         }
         None
+    }
+}
+
+/// Recursively maps parent children into <slot> elements in the view tree.
+/// Top-level children go to the default (unnamed) slot; children with
+/// slot="name" attributes go to named slots.
+fn inject_slot_children(view: ViewTree, slot_children: &[ViewTree]) -> ViewTree {
+    match view {
+        ViewTree::Slot(ref slot_name) => {
+            if let Some(name) = slot_name.as_deref() {
+                let named: Vec<ViewTree> = slot_children
+                    .iter()
+                    .filter(|c| has_slot_attr(c, name))
+                    .cloned()
+                    .collect();
+                if named.is_empty() {
+                    view
+                } else {
+                    ViewTree::Fragment(named)
+                }
+            } else {
+                let default: Vec<ViewTree> = slot_children
+                    .iter()
+                    .filter(|c| !has_any_slot_attr(c))
+                    .cloned()
+                    .collect();
+                if default.is_empty() {
+                    view
+                } else {
+                    ViewTree::Fragment(default)
+                }
+            }
+        }
+        ViewTree::Element(el) => {
+            let new_children: Vec<ViewTree> = el
+                .children
+                .iter()
+                .map(|c| inject_slot_children(c.clone(), slot_children))
+                .collect();
+            ViewTree::Element(ElementIR {
+                children: new_children,
+                ..el
+            })
+        }
+        ViewTree::Conditional(cond) => {
+            let new_branches = cond
+                .branches
+                .into_iter()
+                .map(|b| ConditionalBranch {
+                    body: b.body.map(|v| inject_slot_children(v, slot_children)),
+                    ..b
+                })
+                .collect();
+            ViewTree::Conditional(Box::new(ConditionalIntent {
+                branches: new_branches,
+                ..*cond
+            }))
+        }
+        ViewTree::ListRendering(..) => view, // @for templates: slots stay as-is
+        other => other,
+    }
+}
+
+fn has_slot_attr(child: &ViewTree, slot_name: &str) -> bool {
+    match child {
+        ViewTree::Element(el) => el
+            .props
+            .get("slot")
+            .map(|v| format!("{:?}", v).contains(slot_name))
+            .unwrap_or(false),
+        _ => false,
+    }
+}
+
+fn has_any_slot_attr(child: &ViewTree) -> bool {
+    match child {
+        ViewTree::Element(el) => el.props.contains_key("slot"),
+        _ => false,
     }
 }

@@ -573,7 +573,7 @@ impl OmniViewGenerator {
             for effect in interp_effects {
                 self.js.push_str(effect);
             }
-            self.emit_class_map_effects(el, &nid);
+            self.emit_class_map_effects(el, nid);
             self.tree_pop();
             return out;
         }
@@ -610,7 +610,7 @@ impl OmniViewGenerator {
             self.js.push_str(effect);
         }
 
-        self.emit_class_map_effects(el, &nid);
+        self.emit_class_map_effects(el, nid);
 
         // Record source map entry
         self.source_map.push(SourceMapEntry {

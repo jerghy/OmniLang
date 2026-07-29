@@ -1428,6 +1428,94 @@ fn test_theme_runtime_not_emitted_without_themes() {
     );
 }
 
+// ── Slot Projection (Content Injection) ─────────────────
+
+#[test]
+fn slot_projection_inlines_parent_children_into_default_slot() {
+    let mut module = make_module("main");
+
+    // Button component: <div><slot></slot></div>
+    let mut btn_div = make_element("div");
+    btn_div.children = vec![ViewTree::Slot(None)];
+    module.components.insert(
+        "Button".to_string(),
+        ComponentIR {
+            view: Some(ViewTree::Element(btn_div)),
+            ..make_component("Button")
+        },
+    );
+
+    // App component: <Button>hello</Button>
+    let mut app_el = make_element("Button");
+    app_el.children = vec![ViewTree::Text("hello".into())];
+    module.components.insert(
+        "App".to_string(),
+        ComponentIR {
+            view: Some(ViewTree::Element(app_el)),
+            ..make_component("App")
+        },
+    );
+
+    let ir = make_program(FxHashMap::from_iter([("main".into(), module)]));
+    let output = generate(&ir, false, false, false);
+
+    assert!(
+        output.html.contains("hello"),
+        "parent-submitted children should appear in child's rendered HTML.\nHTML:\n{}",
+        output.html
+    );
+}
+
+#[test]
+fn slot_projection_maps_named_slots_correctly() {
+    let mut module = make_module("main");
+
+    // Panel component: <div><slot name="header"></slot><slot></slot></div>
+    let mut panel_div = make_element("div");
+    panel_div.children = vec![ViewTree::Slot(Some("header".into())), ViewTree::Slot(None)];
+    module.components.insert(
+        "Panel".to_string(),
+        ComponentIR {
+            view: Some(ViewTree::Element(panel_div)),
+            ..make_component("Panel")
+        },
+    );
+
+    // App component: <Panel><span slot="header">H</span>body</Panel>
+    let mut span = make_element("span");
+    span.props.insert(
+        "slot".into(),
+        ExprIR::LiteralExpr {
+            value: serde_json::json!("header"),
+        },
+    );
+    span.children = vec![ViewTree::Text("H".into())];
+
+    let mut app_el = make_element("Panel");
+    app_el.children = vec![ViewTree::Element(span), ViewTree::Text("body".into())];
+    module.components.insert(
+        "App".to_string(),
+        ComponentIR {
+            view: Some(ViewTree::Element(app_el)),
+            ..make_component("App")
+        },
+    );
+
+    let ir = make_program(FxHashMap::from_iter([("main".into(), module)]));
+    let output = generate(&ir, false, false, false);
+
+    assert!(
+        output.html.contains("H"),
+        "named slot content should appear in output.\nHTML:\n{}",
+        output.html
+    );
+    assert!(
+        output.html.contains("body"),
+        "default slot content should appear in output.\nHTML:\n{}",
+        output.html
+    );
+}
+
 // ── compile-time URL sanitization ─────────────────────
 
 #[test]

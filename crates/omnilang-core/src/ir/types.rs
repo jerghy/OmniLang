@@ -674,6 +674,8 @@ pub enum ViewTree {
     /// A `<slot>` placeholder directive. `Some("name")` for named slots,
     /// `None` for the default/unnamed slot.
     Slot(Option<String>),
+    /// Inline list of child nodes (no wrapper element) — used for slot projection.
+    Fragment(Vec<ViewTree>),
 }
 
 // ═══════════════════════════════════════════════════════

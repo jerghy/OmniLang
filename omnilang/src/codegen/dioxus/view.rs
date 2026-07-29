@@ -272,6 +272,11 @@ pub(crate) fn gen_view_node_dioxus(w: &mut CodeWriter, node: &ViewTree, is_root:
         ViewTree::Slot(_) => {
             // slots not supported in Dioxus — emit placeholder
         }
+        ViewTree::Fragment(children) => {
+            for child in children {
+                gen_view_node_dioxus(w, child, is_root);
+            }
+        }
     }
 }
 

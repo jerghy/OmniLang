@@ -208,6 +208,13 @@ impl OmniViewGenerator {
                 Some(ref n) => format!("{}<slot name=\"{}\"></slot>\n", pad, n),
                 None => format!("{}<slot></slot>\n", pad),
             },
+            ViewTree::Fragment(children) => {
+                let mut out = String::new();
+                for child in children {
+                    out.push_str(&self.view_to_html(child, indent));
+                }
+                out
+            }
         }
     }
 }

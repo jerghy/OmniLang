@@ -135,6 +135,7 @@ impl OmniViewGenerator {
                     self.emit_statement(stmt);
                 }
             }
+            #[allow(unreachable_patterns)]
             _ => {
                 // Placeholder for unhandled statements
                 self.js.push_str("  /* unhandled stmt */\n");

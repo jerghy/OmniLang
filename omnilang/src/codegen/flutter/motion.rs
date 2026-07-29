@@ -410,6 +410,11 @@ fn find_enter_inner(node: &ViewTree, result: &mut Vec<String>) {
                 find_enter_inner(empty, result);
             }
         }
+        ViewTree::Fragment(children) => {
+            for child in children {
+                find_enter_inner(child, result);
+            }
+        }
         ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => {}
     }
 }

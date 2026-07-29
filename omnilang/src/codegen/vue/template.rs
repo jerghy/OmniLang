@@ -273,6 +273,11 @@ pub(crate) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &impl 
             None => w.emit("<slot />"),
             Some(name) => w.emit_fmt(format_args!("<slot name=\"{}\" />", name)),
         },
+        ViewTree::Fragment(children) => {
+            for child in children {
+                gen_template_node(w, child, fmt);
+            }
+        }
     }
 }
 
