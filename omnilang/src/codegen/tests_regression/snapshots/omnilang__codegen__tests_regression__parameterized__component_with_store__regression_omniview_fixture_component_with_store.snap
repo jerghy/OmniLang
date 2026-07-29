@@ -195,7 +195,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="Coun
 
 
 /// ── Event Bindings & Reactive Effects ──
-{ const el = __omni_el("el-div-001"); if (el) el.addEventListener("click", (e) => { try {   AppStore_increment(); } catch(err) { __omni_reportError("event:click", err); } }); }
+{ const el = __omni_el("el-div-001"); if (el) el.addEventListener("click", (e) => { try {   AppStore_increment(); } catch(err) { __omni_reportError("error:event:click", err); } }); }
 __omni_effect(() => { const el = __omni_el("el-interp-003"); if (el) try { el.textContent = String(AppStore_count.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
 
 })();

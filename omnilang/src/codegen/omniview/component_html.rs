@@ -1,6 +1,5 @@
 use super::utils::map_event;
 use super::OmniViewGenerator;
-use crate::codegen::emit_event_object;
 use crate::ir::*;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
@@ -196,59 +195,7 @@ impl OmniViewGenerator {
                         } else {
                             ""
                         };
-                        match handler {
-                            EventHandlerIR::FnRef { r#ref, .. } => {
-                                if self.motion_names.contains(r#ref.as_str()) {
-                                    // Motion reference: call factory and play on event
-                                    self.js.push_str(&format!(
-                                        "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ try {{ if (el.offsetParent !== null) {{ var p = __omni_motion_{motion}(el, {{}}); __omni_animations.set(\"{nid}_{js_event}\", p); p.play(); }} }} catch(err) {{ __omni_reportError(\"event:{js_event}\", err); }} }}); }}\n",
-                                        nid = nid,
-                                        js_event = js_event,
-                                        motion = r#ref,
-                                    ));
-                                } else {
-                                    let prefixed = format!("{}_{}", self.current_component, r#ref);
-                                    let event_obj = emit_event_object(
-                                        handler.event_data(),
-                                        handler.used_fields(),
-                                        "e",
-                                    );
-                                    self.js.push_str(&format!(
-                                        "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ try {{ {sp} {pd} {prefixed}({event_obj}); }} catch(err) {{ __omni_reportError(\"event:{js_event}\", err); }} }}); }}\n",
-                                        nid = nid, js_event = js_event, sp = sp, pd = pd, prefixed = prefixed, event_obj = event_obj
-                                    ));
-                                }
-                            }
-                            EventHandlerIR::StoreAction { r#ref, .. } => {
-                                let var_name = r#ref.replace('.', "_");
-                                self.js.push_str(&format!(
-                                    "{{ const el = __omni_el(\"{}\"); if (el) el.addEventListener(\"{}\", (e) => {{ try {{ {} {} {}(); }} catch(err) {{ __omni_reportError(\"event:{}\", err); }} }}); }}\n",
-                                    nid, js_event, sp, pd, var_name, js_event
-                                ));
-                            }
-                            EventHandlerIR::InlineFn { body, params, .. } => {
-                                let wrapper_name =
-                                    format!("__on{}_{}", event_name, nid.replace('-', "_"));
-                                let params_str = params.join(", ");
-                                self.js.push_str(&format!(
-                                    "function {}({}) {{\n",
-                                    wrapper_name, params_str
-                                ));
-                                for stmt in &body.statements {
-                                    self.emit_statement(stmt);
-                                }
-                                self.js.push_str("}\n");
-                                let event_obj = emit_event_object(
-                                    handler.event_data(),
-                                    handler.used_fields(),
-                                    "e",
-                                );
-                                self.js.push_str(&format!(
-                                    "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ try {{ {sp} {pd} {wrapper_name}({event_obj}); }} catch(err) {{ __omni_reportError(\"event:{js_event}\", err); }} }}); }}\n",
-                                    nid = nid, js_event = js_event, sp = sp, pd = pd, wrapper_name = wrapper_name, event_obj = event_obj
-                                ));
-                            }
-                        }
+                        self.emit_event_listener(nid, &js_event, event_name, handler, sp, pd);
                     }
                 }
 
