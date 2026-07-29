@@ -98,7 +98,9 @@ function __omni_effect(fn) {
   e.run = () => {
     e._deps.forEach(d => d());
     e._deps.clear();
-    fn();
+    try { fn(); } catch (err) {
+      __omni_reportError("effect:run", err);
+    }
   };
   const prev = __omni_activeEffect;
   __omni_activeEffect = e;

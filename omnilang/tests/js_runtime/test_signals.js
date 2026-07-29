@@ -58,7 +58,9 @@ function __omni_effect(fn) {
   e.run = () => {
     e._deps.forEach(d => d());
     e._deps.clear();
-    fn();
+    try { fn(); } catch (err) {
+      __omni_reportError("effect:run", err);
+    }
   };
   const prev = __omni_activeEffect;
   __omni_activeEffect = e;
@@ -223,6 +225,33 @@ function __omni_reportError(context, error) {
   const sig = __omni_signal("test_registry", true);
   assert.ok(__omni_subs.has("test_registry"), "signal should be registered in __omni_subs");
   assert.strictEqual(__omni_subs.get("test_registry"), sig, "signal reference should match");
+}
+
+// Test 8: effect that throws once recovers on next signal change
+{
+  var count = 0;
+  var shouldThrow = true;
+  var sig = __omni_signal("sig_exception_recovery", 0);
+  var lastValue = null;
+
+  __omni_effect(function() {
+    var val = sig.value;
+    if (shouldThrow) {
+      shouldThrow = false;
+      throw new Error("simulated failure");
+    }
+    lastValue = val;
+    count++;
+  });
+
+  // First run: effect throws, count stays 0
+  assert.strictEqual(count, 0, "effect must not run after throwing");
+  assert.strictEqual(lastValue, null, "lastValue must not be set after throw");
+
+  // Second signal change: effect should run successfully (re-subscribed)
+  sig.value = 42;
+  assert.strictEqual(count, 1, "effect must run after successful signal change");
+  assert.strictEqual(lastValue, 42, "lastValue must be set after recovery");
 }
 
 console.log('  ✓ All signal tests passed');
