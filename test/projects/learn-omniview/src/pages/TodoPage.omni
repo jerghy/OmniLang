@@ -53,7 +53,7 @@ component TodoPage {
                 <TodoList
                     items={TodoStore.items}
                     @onAdd={(text) => { TodoStore.add(text); }}
-                    @onDelete={(index) => { TodoStore.remove(); }}
+                    @onDelete={(index) => { TodoStore.remove(TodoStore.items[index].id); }}
                 />
             </section>
 
