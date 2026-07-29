@@ -27,7 +27,6 @@ mod view;
 pub use utils::{build_file_output, wrap_debug_html};
 mod debug;
 
-use crate::codegen::shared::ui_codegen::UiCodegen;
 use crate::error::Diagnostic;
 use crate::ir::*;
 use crate::sourcemap::SourceMapEntry;
@@ -717,41 +716,6 @@ __omni_theme.init();
 // ══════════════════════════════════════════════════════════
 // Value Serialization
 // ══════════════════════════════════════════════════════════
-
-// Convert a serde_json::Value to JavaScript syntax.
-// ═══════════════════════════════════════════════════════════
-// UiCodegen trait implementation — thin delegation to existing functions
-// ═══════════════════════════════════════════════════════════
-//
-// OmniViewGenerator uses a stateful accumulation pattern (all components and
-// stores are generated into internal buffers in a single pass). The UiCodegen
-// trait methods therefore delegate to the standalone `generate()` function
-// and extract per-component/per-store results from the OmniViewOutput.
-
-impl UiCodegen for OmniViewGenerator {
-    fn generate_component_code(&self, name: &str, _comp: &ComponentIR, ir: &IRProgram) -> String {
-        let output = generate(ir, self.editor_mode, false, self.debug_mode);
-        output
-            .components
-            .get(name)
-            .map(|c| c.js.clone())
-            .unwrap_or_default()
-    }
-
-    fn generate_store_code(&self, _name: &str, _store: &StoreIR) -> String {
-        // OmniView stores are emitted inline in the main JS output and do
-        // not produce separate store files.
-        String::new()
-    }
-
-    fn component_file_extension(&self) -> &str {
-        ".js"
-    }
-
-    fn store_file_extension(&self) -> &str {
-        ".js"
-    }
-}
 
 #[cfg(test)]
 mod tests;

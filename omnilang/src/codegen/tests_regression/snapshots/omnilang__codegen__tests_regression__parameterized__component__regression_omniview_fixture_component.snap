@@ -170,7 +170,7 @@ function __omni_el(nid) {
 const Counter_count = __omni_signal("Counter_count", 0);
 const Counter_doubled = __omni_computed("Counter_doubled", () => (Counter_count.value * 2));
 function Counter_onUpdate(...args) {
-  const el = document.querySelector('[data-component="Counter"]');
+  var el = Counter_onUpdate._el || (Counter_onUpdate._el = document.querySelector('[data-component="Counter"]'));
   if (el) el.dispatchEvent(new CustomEvent('update', { detail: args.length <= 1 ? args[0] : args, bubbles: false }));
 }
 
