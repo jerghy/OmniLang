@@ -56,6 +56,16 @@ fn emit_props_interface(out: &mut String, comp: &ComponentIR) {
         }
     }
 
+    // Event handlers — always optional (parent may or may not listen)
+    for (ev_name, param_type) in comp.event_names.iter().zip(comp.event_param_types.iter()) {
+        let ts_param = if param_type.is_empty() {
+            "any".to_string()
+        } else {
+            omnilang_type_name_to_ts(param_type)
+        };
+        writeln!(out, "  {}?: (detail: {}) => void;", ev_name, ts_param).unwrap();
+    }
+
     writeln!(out, "}}\n").unwrap();
 }
 
@@ -253,6 +263,43 @@ mod tests {
         assert!(result.contains("  enabled: boolean;"));
         assert!(result.contains("export interface CounterComponent {"));
         assert!(result.contains("(props: CounterProps): JSX.Element;"));
+    }
+
+    #[test]
+    fn props_interface_includes_event_handlers() {
+        let mut props: FxHashMap<String, TypeIR> = FxHashMap::default();
+        props.insert(
+            "label".into(),
+            TypeIR {
+                kind: TypeKind::String,
+                type_args: vec![],
+                is_nullable: false,
+            },
+        );
+
+        let comp = ComponentIR {
+            name: "Button".into(),
+            props,
+            prop_defaults: Default::default(),
+            event_names: vec!["onClick".into()],
+            event_param_types: vec!["string".into()],
+            ..Default::default()
+        };
+
+        let mut out = String::new();
+        emit_props_interface(&mut out, &comp);
+
+        // Must include the event handler in the Props interface
+        assert!(
+            out.contains("onClick?:"),
+            "Props interface must include event handlers, got:\n{}",
+            out
+        );
+        assert!(
+            out.contains("(detail: string)"),
+            "Event handler param type must be mapped, got:\n{}",
+            out
+        );
     }
 
     #[test]
