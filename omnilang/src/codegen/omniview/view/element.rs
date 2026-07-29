@@ -145,10 +145,8 @@ impl OmniViewGenerator {
                         } else {
                             js_val
                         };
-                        let is_url_attr = matches!(
-                            name.as_str(),
-                            "href" | "src" | "action" | "formaction"
-                        );
+                        let is_url_attr =
+                            matches!(name.as_str(), "href" | "src" | "action" | "formaction");
                         if is_boolean_attr {
                             // Boolean attributes must use the DOM property (e.g. el.checked = bool)
                             // rather than setAttribute (which treats all values as strings — "false"

@@ -597,15 +597,24 @@ impl OmniViewGenerator {
         }
     }
 
-    /// Assert that JS emission is allowed (not in css_only mode, not after DOM emission).
+    /// Assert that JS emission is allowed (not after DOM emission).
     /// Only active in debug builds — zero cost in release.
+    /// NOTE: does NOT check css_only — view-generation methods (try_inline_component,
+    /// emit_element_events, etc.) are legitimately called in css_only mode for
+    /// HTML/element-tree generation. Use assert_not_css_only() on pure-JS entry points.
     #[track_caller]
     fn assert_can_emit_js(&self) {
-        debug_assert!(!self.css_only, "JS emission in css_only mode");
         debug_assert!(
             !self.dom_emitted,
             "JS emission after DOM phase — use mount_js instead"
         );
+    }
+
+    /// Assert NOT in css_only mode. Use on pure-JS methods (emit_store, emit_js_header,
+    /// emit_signal_runtime) that should never run during css_only style resolution.
+    #[track_caller]
+    fn assert_not_css_only(&self) {
+        debug_assert!(!self.css_only, "JS emission in css_only mode");
     }
 
     // ══════════════════════════════════════════════════════

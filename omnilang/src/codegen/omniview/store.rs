@@ -33,6 +33,7 @@ fn expr_default_display(expr: &ExprIR, gen: &mut OmniViewGenerator) -> String {
 impl OmniViewGenerator {
     pub(super) fn emit_store(&mut self, _store_name: &str, store: &StoreIR) {
         self.assert_can_emit_js();
+        self.assert_not_css_only();
         let prefix = |field: &str| format!("{}_{}", store.name, field);
         self.store_names.insert(store.name.clone());
 
@@ -120,7 +121,10 @@ impl OmniViewGenerator {
         ir: &IRProgram,
         is_root: bool,
     ) {
-        self.assert_can_emit_js();
+        debug_assert!(
+            !self.dom_emitted,
+            "JS emission after DOM phase — use mount_js instead"
+        );
         let js_before = self.js.len();
         // Snapshot CSS position for per-component delta tracking (css_only mode).
         if self.css_only {

@@ -200,7 +200,6 @@ pub fn wrap_debug_html(js: &str, css: &str, body_html: &str) -> String {
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self';">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OmniView Debug</title>
 <style>
@@ -247,7 +246,8 @@ pub(super) fn html_document_wrapper(
     };
     let csp_meta = if include_csp {
         r#"<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self';">
-"#    } else {
+"#
+    } else {
         ""
     };
     format!(
