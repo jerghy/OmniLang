@@ -115,9 +115,50 @@ impl OmniViewGenerator {
         ));
     }
 
+    /// Emit the module-level shared scroll handler and variables if not already emitted.
+    /// After this, per-element triggers push entries to `__omni_scrollElements` instead of
+    /// registering their own `window.addEventListener('scroll', ...)` listener.
+    fn emit_shared_scroll_handler(&mut self) {
+        if self.scroll_handler_emitted {
+            return;
+        }
+        self.scroll_handler_emitted = true;
+        self.js.push_str(
+            "/// ─── Shared scroll handler — single listener for all @scroll triggers\n\
+             var __omni_scrollElements = [];\n\
+             var __omni_scrollHandler = null;\n\
+             function __omni_ensureScrollHandler() {\n\
+             \x20 if (__omni_scrollHandler) return;\n\
+             \x20 __omni_scrollHandler = function() {\n\
+             \x20\x20 __omni_scrollElements.forEach(function(entry) {\n\
+             \x20\x20\x20 var el = entry.el;\n\
+             \x20\x20\x20 var anim = entry.anim;\n\
+             \x20\x20\x20 var dur = entry.dur;\n\
+             \x20\x20\x20 var target = Omni.scrollProgress(el, entry.startCfg, entry.endCfg);\n\
+             \x20\x20\x20 if (entry.scrubDelay > 0) {\n\
+             \x20\x20\x20\x20 entry.currentProgress += (target - entry.currentProgress) * Math.min(1, 16.67 / (entry.scrubDelay * 1000));\n\
+             \x20\x20\x20\x20 anim.currentTime = entry.currentProgress * dur;\n\
+             \x20\x20\x20 } else {\n\
+             \x20\x20\x20\x20 entry.currentProgress = target;\n\
+             \x20\x20\x20\x20 anim.currentTime = target * dur;\n\
+             \x20\x20\x20 }\n\
+             \x20\x20 });\n\
+             \x20 };\n\
+             \x20 window.addEventListener('scroll', __omni_scrollHandler, { passive: true });\n\
+             }\n\
+             function __omni_scrollRemoveEntry(nid) {\n\
+             \x20 var el = __omni_el(nid);\n\
+             \x20 if (!el) return;\n\
+             \x20 __omni_scrollElements = __omni_scrollElements.filter(function(entry) {\n\
+             \x20\x20 return entry.el !== el;\n\
+             \x20 });\n\
+             }\n\n",
+        );
+    }
+
     /// Generate @scroll trigger JS. Shared by both named motion ref and inline paths.
-    /// NOTE: the JS body differs between named and inline branches (anim.currentTime placement),
-    /// so we preserve the exact output via is_inline.
+    /// Uses a single shared scroll handler (`__omni_ensureScrollHandler`) instead of
+    /// per-element `window.addEventListener('scroll', ...)` listeners.
     fn emit_trigger_scroll_js(
         &mut self,
         nid: &str,
@@ -147,82 +188,39 @@ impl OmniViewGenerator {
         } else {
             "// @scroll trigger"
         };
-        if is_inline {
-            // Inline branch: anim.currentTime inside each if/else arm
-            self.js.push_str(&format!(
-                "{comment}\n\
-                 (function() {{\n\
-                 \x20 const el = __omni_el(\"{nid}\");\n\
-                 \x20 if (!el) return;\n\
-                 \x20 const anim = {anim_call};\n\
-                 \x20 __omni_animations.set(\"{nid}_{trigger}\", anim);\n\
-                 \x20 anim.pause();\n\
-                 \x20 const dur = anim.effect?.getTiming()?.duration || 300;\n\
-                 \x20 const startCfg = \"{scroll_start}\";\n\
-                 \x20 const endCfg = \"{scroll_end}\";\n\
-                 \x20 const scrubDelay = {scrub};\n\
-                 \x20 function computeProgress() {{\n\
-                 \x20\x20 return Omni.scrollProgress(el, startCfg, endCfg);\n\
-                 \x20 }}\n\
-                 \x20 let currentProgress = 0;\n\
-                 \x20 window.addEventListener('scroll', () => {{\n\
-                 \x20\x20 const target = computeProgress();\n\
-                 \x20\x20 if (scrubDelay > 0) {{\n\
-                 \x20\x20\x20 currentProgress += (target - currentProgress) * Math.min(1, 16.67 / (scrubDelay * 1000));\n\
-                 \x20\x20\x20 anim.currentTime = currentProgress * dur;\n\
-                 \x20\x20 }} else {{\n\
-                 \x20\x20\x20 currentProgress = target;\n\
-                 \x20\x20\x20 anim.currentTime = currentProgress * dur;\n\
-                 \x20\x20 }}\n\
-                 \x20 }}, {{ passive: true }});\n\
-                 \x20 anim.currentTime = computeProgress() * dur;\n\
-                 }})();\n",
-                comment = comment,
-                nid = nid,
-                anim_call = anim_call,
-                trigger = trigger_str,
-                scroll_start = scroll_start_str,
-                scroll_end = scroll_end_str,
-                scrub = scrub_val,
-            ));
-        } else {
-            // Named branch: anim.currentTime once after the if/else
-            self.js.push_str(&format!(
-                "{comment}\n\
-                 (function() {{\n\
-                 \x20 const el = __omni_el(\"{nid}\");\n\
-                 \x20 if (!el) return;\n\
-                 \x20 const anim = {anim_call};\n\
-                 \x20 __omni_animations.set(\"{nid}_{trigger}\", anim);\n\
-                 \x20 anim.pause();\n\
-                 \x20 const dur = anim.effect?.getTiming()?.duration || 300;\n\
-                 \x20 const startCfg = \"{scroll_start}\";\n\
-                 \x20 const endCfg = \"{scroll_end}\";\n\
-                 \x20 const scrubDelay = {scrub};\n\
-                 \x20 function computeProgress() {{\n\
-                 \x20\x20 return Omni.scrollProgress(el, startCfg, endCfg);\n\
-                 \x20 }}\n\
-                 \x20 let currentProgress = 0;\n\
-                 \x20 window.addEventListener('scroll', () => {{\n\
-                 \x20\x20 const target = computeProgress();\n\
-                 \x20\x20 if (scrubDelay > 0) {{\n\
-                 \x20\x20\x20 currentProgress += (target - currentProgress) * Math.min(1, 16.67 / (scrubDelay * 1000));\n\
-                 \x20\x20 }} else {{\n\
-                 \x20\x20\x20 currentProgress = target;\n\
-                 \x20\x20 }}\n\
-                 \x20\x20 anim.currentTime = currentProgress * dur;\n\
-                 \x20 }}, {{ passive: true }});\n\
-                 \x20 anim.currentTime = computeProgress() * dur;\n\
-                 }})();\n",
-                comment = comment,
-                nid = nid,
-                anim_call = anim_call,
-                trigger = trigger_str,
-                scroll_start = scroll_start_str,
-                scroll_end = scroll_end_str,
-                scrub = scrub_val,
-            ));
-        }
+        // Emit the shared handler + variables on first use
+        self.emit_shared_scroll_handler();
+        // Both named and inline branches produce the same structure now — the scrub
+        // logic moved into the shared handler.
+        self.js.push_str(&format!(
+            "{comment}\n\
+             (function() {{\n\
+             \x20 const el = __omni_el(\"{nid}\");\n\
+             \x20 if (!el) return;\n\
+             \x20 const anim = {anim_call};\n\
+             \x20 __omni_animations.set(\"{nid}_{trigger}\", anim);\n\
+             \x20 anim.pause();\n\
+             \x20 const dur = anim.effect?.getTiming()?.duration || 300;\n\
+             \x20 __omni_scrollElements.push({{\n\
+             \x20\x20 el,\n\
+             \x20\x20 anim,\n\
+             \x20\x20 dur,\n\
+             \x20\x20 startCfg: \"{scroll_start}\",\n\
+             \x20\x20 endCfg: \"{scroll_end}\",\n\
+             \x20\x20 scrubDelay: {scrub},\n\
+             \x20\x20 currentProgress: 0,\n\
+             \x20 }});\n\
+             \x20 __omni_ensureScrollHandler();\n\
+             \x20 anim.currentTime = Omni.scrollProgress(el, \"{scroll_start}\", \"{scroll_end}\") * dur;\n\
+             }})();\n",
+            comment = comment,
+            nid = nid,
+            anim_call = anim_call,
+            trigger = trigger_str,
+            scroll_start = scroll_start_str,
+            scroll_end = scroll_end_str,
+            scrub = scrub_val,
+        ));
     }
 
     /// Generate @drag trigger JS. Shared by both named motion ref and inline paths.

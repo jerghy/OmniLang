@@ -269,6 +269,9 @@ function __omni_el(nid) {
 	      __omni_animations.delete(key);
 	    }
 	  });
+	  if (typeof __omni_scrollRemoveEntry === 'function') {
+	    __omni_scrollRemoveEntry(nid);
+	  }
 	}
 /// ─── End Signal Runtime ────────────────────────────
 

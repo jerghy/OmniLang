@@ -228,6 +228,7 @@ pub fn generate(
         element_tree: Vec::new(),
         nid_map: FxHashMap::default(),
         debug_mode,
+        scroll_handler_emitted: false,
     };
 
     // In css_only mode, skip ALL JS emission — we only need CSS + element mappings.
@@ -536,6 +537,10 @@ struct OmniViewGenerator {
     /// When true, emit debug bridge code for the standalone debug window.
     /// Uses Tauri events instead of parent.postMessage.
     debug_mode: bool,
+    /// Whether the shared scroll handler has been emitted.
+    /// Used to emit __omni_scrollElements / __omni_scrollHandler / __omni_ensureScrollHandler
+    /// exactly once before any per-element scroll trigger.
+    scroll_handler_emitted: bool,
 }
 
 /// A parsed part of an attribute template value with {word} placeholders.
@@ -642,6 +647,7 @@ impl OmniViewGenerator {
             element_tree: Vec::new(),
             nid_map: FxHashMap::default(),
             debug_mode: false,
+            scroll_handler_emitted: false,
         }
     }
 
