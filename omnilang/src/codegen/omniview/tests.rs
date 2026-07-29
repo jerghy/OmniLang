@@ -1300,7 +1300,7 @@ fn test_runtime_error_reporting() {
     assert!(
         output
             .js
-            .contains("__omni_reportError(\"interpolation:text\""),
+            .contains("__omni_reportError(\"warn:interpolation:text\""),
         "interpolation uses __omni_reportError"
     );
 }

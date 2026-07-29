@@ -187,7 +187,7 @@ impl OmniViewGenerator {
                     };
                     // Write to self.js (which is the deferred buffer after emit_view swap)
                     let _ = writeln!(self.js,
-                        "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) try {{ el.textContent = String({}); }} catch(e) {{ __omni_reportError(\"interpolation:text\", e); }} }});",
+                        "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) try {{ el.textContent = String({}); }} catch(e) {{ __omni_reportError(\"warn:interpolation:text\", e); }} }});",
                         nid, value_access
                     );
                     // Add to element tree: span with value/default text

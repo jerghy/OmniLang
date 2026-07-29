@@ -125,7 +125,7 @@ impl OmniViewGenerator {
                 .push_str("  const keyFn = (item) => { try { return String(");
             self.js.push_str(&key_js);
             self.js.push_str(
-                "); } catch(e) { __omni_reportError(\"list:key\", e); return null; } };\n",
+                "); } catch(e) { __omni_reportError(\"error:list:key\", e); return null; } };\n",
             );
             self.js
                 .push_str("  const oldKeys = new Set(_forKeys.keys());\n");
@@ -240,7 +240,7 @@ impl OmniViewGenerator {
                     nid
                 ));
                 self.js.push_str(&format!(
-                    "      if (_el) try {{ _el.textContent = String({}); }} catch(e) {{ __omni_reportError(\"for:text\", e); }}\n",
+                    "      if (_el) try {{ _el.textContent = String({}); }} catch(e) {{ __omni_reportError(\"warn:for:text\", e); }}\n",
                     js_expr
                 ));
             }
@@ -283,7 +283,7 @@ impl OmniViewGenerator {
                     nid
                 ));
                 self.js.push_str(&format!(
-                    "      if (_el) try {{ _el.classList.toggle(\"{}\", !!({})); }} catch(e) {{ __omni_reportError(\"for:class\", e); }}\n",
+                    "      if (_el) try {{ _el.classList.toggle(\"{}\", !!({})); }} catch(e) {{ __omni_reportError(\"warn:for:class\", e); }}\n",
                     class_name, js_expr
                 ));
             }
@@ -313,7 +313,7 @@ impl OmniViewGenerator {
                     format!("({})", val_parts.join(" + "))
                 };
                 self.js.push_str(&format!(
-                    "      var _el = clone.querySelector('[data-nid=\"{}\"]'); if (_el) try {{ _el.setAttribute(\"{}\", {}); }} catch(e) {{ __omni_reportError(\"for:attr\", e); }}\n",
+                    "      var _el = clone.querySelector('[data-nid=\"{}\"]'); if (_el) try {{ _el.setAttribute(\"{}\", {}); }} catch(e) {{ __omni_reportError(\"warn:for:attr\", e); }}\n",
                     nid, attr_name, resolved
                 ));
             }
@@ -522,7 +522,7 @@ impl OmniViewGenerator {
                         nid
                     ));
                     self.js.push_str(&format!(
-                        "    if (_el) try {{ _el.textContent = String({}); }} catch(e) {{ __omni_reportError(\"for:rebind\", e); }}\n",
+                        "    if (_el) try {{ _el.textContent = String({}); }} catch(e) {{ __omni_reportError(\"warn:for:rebind\", e); }}\n",
                         js_expr
                     ));
                 }

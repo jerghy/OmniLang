@@ -152,17 +152,17 @@ impl OmniViewGenerator {
                             // rather than setAttribute (which treats all values as strings — "false"
                             // is truthy in HTML and won't uncheck the checkbox).
                             let _ = writeln!(self.js,
-                                "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) try {{ el.{} = !!({}); }} catch(e) {{ __omni_reportError(\"bind:attr:{}\", e); }} }});",
+                                "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) try {{ el.{} = !!({}); }} catch(e) {{ __omni_reportError(\"error:bind:attr:{}\", e); }} }});",
                                 nid, name, js_access, name
                             );
                         } else if is_url_attr {
                             let _ = writeln!(self.js,
-                                "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) try {{ el.setAttribute('{}', __omni_sanitizeUrl({})); }} catch(e) {{ __omni_reportError(\"bind:attr:{}\", e); }} }});",
+                                "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) try {{ el.setAttribute('{}', __omni_sanitizeUrl({})); }} catch(e) {{ __omni_reportError(\"error:bind:attr:{}\", e); }} }});",
                                 nid, name, js_access, name
                             );
                         } else {
                             let _ = writeln!(self.js,
-                                "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) try {{ el.setAttribute('{}', {}); }} catch(e) {{ __omni_reportError(\"bind:attr:{}\", e); }} }});",
+                                "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) try {{ el.setAttribute('{}', {}); }} catch(e) {{ __omni_reportError(\"error:bind:attr:{}\", e); }} }});",
                                 nid, name, js_access, name
                             );
                         }
