@@ -34,6 +34,7 @@ use crate::sourcemap::SourceMapEntry;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 /// Output of the OmniView codegen — standalone JS/HTML/CSS.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OmniViewOutput {
@@ -287,7 +288,7 @@ pub fn generate(
     // Build component map for view inlining
     for (comp_name, comp) in ir.all_components() {
         gen.component_map
-            .insert(comp_name.to_string(), comp.clone());
+            .insert(comp_name.to_string(), Arc::new(comp.clone()));
         // Pre-register ALL component function & event renames globally.
         // These never get cleared so template interpolations like {getModStatus()}
         // resolve correctly even when the component is inlined as a child.
@@ -471,7 +472,7 @@ struct OmniViewGenerator {
     /// like {getModStatus()} resolve to the correct prefixed name.
     global_renames: FxHashMap<String, String>,
     /// Cache of all component IRs for view inlining (keyed by component name)
-    component_map: FxHashMap<String, ComponentIR>,
+    component_map: FxHashMap<String, Arc<ComponentIR>>,
     /// Set of known motion names — used to detect @click={motionName} patterns
     motion_names: FxHashSet<String>,
     /// Whether we're currently emitting the root component's view

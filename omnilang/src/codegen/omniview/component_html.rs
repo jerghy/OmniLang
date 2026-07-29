@@ -3,6 +3,7 @@ use super::InliningState;
 use super::OmniViewGenerator;
 use crate::ir::*;
 use rustc_hash::FxHashSet;
+use std::sync::Arc;
 
 impl OmniViewGenerator {
     /// Try to inline a known component's view HTML.
@@ -15,7 +16,7 @@ impl OmniViewGenerator {
         pad: &str,
     ) -> Option<String> {
         self.assert_can_emit_js();
-        if let Some(child_comp) = self.component_map.get(&el.tag).cloned() {
+        if let Some(child_comp) = self.component_map.get(&el.tag).map(Arc::clone) {
             if let Some(ref child_view) = child_comp.view {
                 // Save and update current component context
                 let saved_state = InliningState::save(self);
