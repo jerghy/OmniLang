@@ -258,6 +258,12 @@ pub fn lower(program: &Program, semantics: &mut SemanticResult) -> IRProgram {
         semantics.diagnostics.push(err);
     }
 
+    // Validate ref declarations and bindings
+    let ref_errors = crate::semantic::validate_refs::validate_refs(&ir_program);
+    for err in ref_errors {
+        semantics.diagnostics.push(err);
+    }
+
     ir_program
 }
 

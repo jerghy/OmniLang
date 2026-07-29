@@ -41,10 +41,7 @@ fn validate_view_tree(
                     if !child_comp.prop_defaults.contains_key(prop_name)
                         && !el.props.contains_key(prop_name)
                     {
-                        let (line, col) = el
-                            .source_span
-                            .map(|s| (s.line, s.col))
-                            .unwrap_or((0, 0));
+                        let (line, col) = el.source_span.map(|s| (s.line, s.col)).unwrap_or((0, 0));
                         errors.push(Diagnostic {
                             severity: Severity::Error,
                             kind: DiagnosticKind::E0011,
@@ -144,7 +141,10 @@ component App {
             prop_errors
         );
         let msg = &prop_errors[0].message;
-        assert!(msg.contains("count"), "error should mention 'count', got: {msg}");
+        assert!(
+            msg.contains("count"),
+            "error should mention 'count', got: {msg}"
+        );
         assert!(
             msg.contains("Child"),
             "error should mention component 'Child', got: {msg}"
@@ -216,8 +216,14 @@ component App {
             prop_errors
         );
         let msgs: Vec<&str> = prop_errors.iter().map(|d| d.message.as_str()).collect();
-        assert!(msgs.iter().any(|m| m.contains("'name'")), "should mention 'name': {msgs:?}");
-        assert!(msgs.iter().any(|m| m.contains("'age'")), "should mention 'age': {msgs:?}");
+        assert!(
+            msgs.iter().any(|m| m.contains("'name'")),
+            "should mention 'name': {msgs:?}"
+        );
+        assert!(
+            msgs.iter().any(|m| m.contains("'age'")),
+            "should mention 'age': {msgs:?}"
+        );
     }
 
     #[test]
