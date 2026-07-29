@@ -213,13 +213,11 @@ impl OmniViewGenerator {
             self.emit_signal_decl(state);
         }
 
-        // Computed declarations
-        for computed in &comp.computeds {
-            self.emit_computed_decl(computed);
-        }
-
         // Prop defaults — emit as signals so they're accessible in view/fn code.
         // Use COMPONENT-PREFIXED names to avoid collisions.
+        // MUST be emitted BEFORE computed declarations because __omni_computed
+        // eagerly evaluates its function (runtime.rs:85), so if a computed
+        // references a prop, the prop's readonlySignal must exist first.
         for (prop_name, prop_default) in &comp.prop_defaults {
             let init_val = self.expr_to_js(prop_default);
             let prefixed = format!("{}_{}", name, prop_name);
@@ -231,6 +229,13 @@ impl OmniViewGenerator {
             self.name_renames
                 .insert(prop_name.clone(), prefixed.clone());
             self.signal_names.insert(prefixed);
+        }
+
+        // Computed declarations — MUST come AFTER prop defaults so that
+        // __omni_computed's eager evaluation (runtime.rs:85) can reference
+        // prop readonlySignals that are already declared.
+        for computed in &comp.computeds {
+            self.emit_computed_decl(computed);
         }
 
         // Event prop stubs — dispatch custom DOM events on the component's wrapper element.
