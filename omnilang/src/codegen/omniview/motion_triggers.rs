@@ -319,6 +319,7 @@ impl OmniViewGenerator {
     /// Emit motion trigger JS for element triggers (@enter, @hover, etc.).
     /// Runs in the deferred/mount JS context where DOM elements exist.
     pub(super) fn emit_motion_triggers_for_element(&mut self, nid: &str, el: &ElementIR) {
+        self.assert_can_emit_js();
         for trigger in el
             .motion_behavior()
             .map_or(&[] as &[TriggerIntent], |m| &m.triggers)

@@ -15,6 +15,7 @@ impl OmniViewGenerator {
         nid: &str,
         pad: &str,
     ) -> Option<String> {
+        self.assert_can_emit_js();
         if let Some(child_comp) = self.component_map.get(&el.tag).cloned() {
             if let Some(ref child_view) = child_comp.view {
                 // Save and update current component context

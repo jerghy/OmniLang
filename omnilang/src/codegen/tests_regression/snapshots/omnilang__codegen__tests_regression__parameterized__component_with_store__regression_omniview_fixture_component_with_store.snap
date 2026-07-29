@@ -115,6 +115,15 @@ function __omni_reportError(context, error) {
   } catch(_) {}
 }
 
+function __omni_sanitizeUrl(url) {
+  if (typeof url !== 'string') return url;
+  var trimmed = url.trim().toLowerCase();
+  if (trimmed.indexOf('javascript:') === 0 || trimmed.indexOf('data:text/html') === 0 || trimmed.indexOf('vbscript:') === 0) {
+    return '#blocked';
+  }
+  return url;
+}
+
 function __omni_el(nid) {
   var cache = __omni_el._cache || (__omni_el._cache = {});
   var el = cache[nid];

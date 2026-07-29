@@ -23,6 +23,7 @@ impl OmniViewGenerator {
         nid: &str,
         attrs: &mut String,
     ) {
+        self.assert_can_emit_js();
         // Inline style: { key: value, ... } — generate static style attr + dynamic JS effects
         if let Some(ref inline_style) = el.inline_style {
             if let Some(style_obj) = inline_style.as_object() {

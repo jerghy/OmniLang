@@ -597,6 +597,17 @@ impl OmniViewGenerator {
         }
     }
 
+    /// Assert that JS emission is allowed (not in css_only mode, not after DOM emission).
+    /// Only active in debug builds — zero cost in release.
+    #[track_caller]
+    fn assert_can_emit_js(&self) {
+        debug_assert!(!self.css_only, "JS emission in css_only mode");
+        debug_assert!(
+            !self.dom_emitted,
+            "JS emission after DOM phase — use mount_js instead"
+        );
+    }
+
     // ══════════════════════════════════════════════════════
     // Headers
     // ══════════════════════════════════════════════════════

@@ -28,6 +28,7 @@ impl OmniViewGenerator {
     /// Emit event bindings: for @for templates, emit data-event-* attributes;
     /// for normal mode, generate addEventListener JS calls.
     pub(super) fn emit_element_events(&mut self, el: &ElementIR, nid: &str, attrs: &mut String) {
+        self.assert_can_emit_js();
         for (event_name, handler) in &el.events {
             let js_event = map_event(event_name);
             if self.in_for_template {
