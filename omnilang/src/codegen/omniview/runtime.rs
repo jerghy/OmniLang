@@ -157,8 +157,50 @@ function __omni_sanitizeUrl(url) {
   return str;
 }
 
+function __omni_normalizeCssEscapes(value) {
+  // Normalize CSS hex escape sequences like \6a (→j) before pattern matching
+  // to prevent attackers from bypassing keyword-based sanitizers.
+  var result = '';
+  var i = 0;
+  var len = value.length;
+  while (i < len) {
+    var ch = value.charAt(i);
+    if (ch === '\\') {
+      i++;
+      var hex = '';
+      while (i < len && hex.length < 6 && /^[0-9a-fA-F]$/.test(value.charAt(i))) {
+        hex += value.charAt(i);
+        i++;
+      }
+      if (hex.length > 0) {
+        // Consume optional trailing space (CSS spec)
+        if (i < len && value.charAt(i) === ' ') {
+          i++;
+        }
+        var code = parseInt(hex, 16);
+        if (!isNaN(code)) {
+          result += String.fromCodePoint(code);
+          continue;
+        }
+      }
+      // Not a valid hex escape, preserve backslash and next char
+      result += '\\';
+      if (i < len) {
+        result += value.charAt(i);
+        i++;
+      }
+    } else {
+      result += ch;
+      i++;
+    }
+  }
+  return result;
+}
+
 function __omni_sanitizeCss(value) {
   var str = String(value);
+  // Normalize CSS hex escapes before checking for dangerous patterns
+  str = __omni_normalizeCssEscapes(str);
   var lower = str.toLowerCase();
   // Block protocol-level injection patterns
   if (lower.indexOf('javascript:') >= 0 || lower.indexOf('expression(') >= 0 ||

@@ -3,19 +3,72 @@
 //! Provides functions to sanitize CSS values, module names, and
 //! JavaScript identifiers to prevent injection attacks and syntax errors.
 
+/// Normalize CSS hex escape sequences to their actual characters.
+///
+/// CSS allows hex escapes like `\6a` to represent ASCII characters.
+/// An attacker could encode `javascript:` as `\6a\61\76\61\73\63\72\69\70\74\3a`
+/// to bypass keyword-based sanitizers. This function converts those
+/// escapes before pattern matching so the sanitizer catches the decoded form.
+///
+/// Handles 1-6 hex digits per the CSS spec, consuming optional trailing
+/// whitespace after the escape sequence.
+#[must_use]
+pub fn normalize_css_escapes(value: &str) -> String {
+    let mut result = String::with_capacity(value.len());
+    let mut chars = value.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\\' {
+            // Collect up to 6 hex digits
+            let mut hex = String::with_capacity(6);
+            while let Some(&h) = chars.peek() {
+                if h.is_ascii_hexdigit() && hex.len() < 6 {
+                    hex.push(h);
+                    chars.next();
+                } else {
+                    break;
+                }
+            }
+            if !hex.is_empty() {
+                // CSS hex escapes consume optional trailing whitespace (space only)
+                if let Some(&' ') = chars.peek() {
+                    chars.next();
+                }
+                if let Ok(code) = u32::from_str_radix(&hex, 16) {
+                    if let Some(converted) = char::from_u32(code) {
+                        result.push(converted);
+                        continue;
+                    }
+                }
+            }
+            // Not a valid hex escape, preserve the backslash and following character
+            result.push(c);
+            if let Some(next) = chars.next() {
+                result.push(next);
+            }
+        } else {
+            result.push(c);
+        }
+    }
+    result
+}
+
 /// Sanitize a CSS value string to prevent injection attacks.
 ///
+/// First normalizes CSS hex escape sequences to prevent bypasses.
 /// Rejects dangerous CSS value patterns that could execute JavaScript:
 /// `javascript:`, `expression(`, `-moz-binding`, `data:text/html`.
+/// Allows `url()` with safe schemes but blocks javascript:/vbscript: inside url().
 /// Returns the original string if safe, or an empty string with a warning.
 #[must_use]
 pub fn sanitize_css_value(value: &str) -> String {
-    let lower = value.to_lowercase();
+    // First normalize CSS escape sequences to prevent bypasses
+    let normalized = normalize_css_escapes(value);
+    let lower = normalized.to_lowercase();
+
     if lower.contains("javascript:")
         || lower.contains("expression(")
         || lower.contains("-moz-binding")
         || lower.contains("data:text/html")
-        || lower.contains("url(")
         || lower.contains("vbscript:")
         || lower.contains("@import")
         || lower.contains("document.")
@@ -24,6 +77,15 @@ pub fn sanitize_css_value(value: &str) -> String {
         // Return a safe fallback — the dangerous value is suppressed
         return String::new();
     }
+
+    // Allow url() but only with safe schemes — block javascript:/vbscript: inside url()
+    if let Some(idx) = lower.find("url(") {
+        let after_url = &lower[idx..];
+        if after_url.contains("javascript:") || after_url.contains("vbscript:") {
+            return String::new();
+        }
+    }
+
     value.to_string()
 }
 
