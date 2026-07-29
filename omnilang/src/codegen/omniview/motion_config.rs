@@ -248,7 +248,12 @@ impl OmniViewGenerator {
                 StaggerDirection::Last => "end",
                 StaggerDirection::Center => "center",
                 StaggerDirection::Edges => "edges",
-                StaggerDirection::Random => "edges",
+                StaggerDirection::Random => {
+                    self.warnings.push(
+                        "staggerFrom: random is not yet supported; falling back to 'edges'".into()
+                    );
+                    "edges"
+                }
             };
             parts.push(format!("\"staggerFrom\": \"{}\"", from_str));
         }
