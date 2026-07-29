@@ -4,6 +4,8 @@
 
 Accepted
 
+> **⚠️ 2026-07-29 状态**：此 ADR 已被接受但**尚未实施**。所有验收标准仍为空白。Flutter codegen 仍使用 `ChangeNotifier` + `StatefulWidget` + `setState()`。Riverpod 3.0 迁移是已批准的未来方向，但无实现时间线。
+
 ## Context
 
 OmniLang 的 Flutter 代码生成目标当前使用 Dart 原生 `ChangeNotifier` 管理 store 状态：

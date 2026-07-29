@@ -92,6 +92,8 @@ function __omni_sanitizeCss(value) {
 
 **Known bypass**: CSS escape sequences (e.g., `\6aavascript:` for `javascript:`) are not detected by substring matching. Risk is accepted because signal values come from developer-controlled Omni source, not end-user input.
 
+> **⚠️ 2026-07-29 更新**：此 CSS 转义绕过已在 [[ADR-030]] D4 中修复——`normalize_css_escapes` 函数同时添加到 Rust 编译时和 JS 运行时 sanitizer 中。
+
 **Related concern**: The Rust-side compile-time `sanitize_css_value` function (`crates/omnilang-core/src/codegen/sanitize.rs:18`) still blanket-blocks `url(`. This inconsistency between compile-time and runtime sanitizers should be resolved in a future follow-up.
 
 ### D3: `String()` coercion in both sanitizers
@@ -154,7 +156,9 @@ frame-ancestors 'self';
 
 - **Legitimate `data:` URIs blocked at runtime**: Signal-driven `data:image/png;base64,...` in `href`/`src` attributes are blocked. Workaround: use static attributes or external URLs.
 - **CSS escape sequence bypass**: `url(\6aavascript:alert(1))` is not detected by substring matching. Risk accepted for OmniView's threat model (signals are developer-controlled, not end-user-controlled).
+> **⚠️ 2026-07-29 更新**：CSS 转义绕过已在 [[ADR-030]] D4 中修复。然而 ADR-031 指出 URL sanitizer 的 CR/LF/TAB 绕过修复未扩展到 `__omni_sanitizeCss`（推迟为 MEDIUM follow-up）。
 - **Compile-time vs runtime CSS sanitizer inconsistency**: Rust-side `sanitize_css_value` still blanket-blocks `url(`, while JS runtime allows it with protocol checking. Static CSS values cannot use `url()`. Follow-up needed.
+> **⚠️ 2026-07-29 更新**：Rust/JS CSS sanitizer 不一致已在 [[ADR-030]] D4 中部分解决（Rust 端现在也允许带安全协议的 `url()`）。
 
 ### Neutral
 

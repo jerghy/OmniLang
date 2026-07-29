@@ -4,9 +4,11 @@
 
 Accepted
 
+> **2026-07-29 维护更新**：本 ADR 中"9 个目标"/"6+ 后端"等表述已被 [[ADR-003]] 更新。当前仅 3 个 P0 目标活跃开发（OmniView、React、Flutter），其余 6 个暂停（feature-flag 保留）。
+
 ## Context
 
-OmniLang 是一个将 `.omni` 源码编译到 10 个目标 UI 框架（后缩减为 9，见 [[ADR-003]]）的 DSL 编译器。编译管线需要：
+OmniLang 是一个将 `.omni` 源码编译到多个目标 UI 框架的 DSL 编译器。原始设计支持 10 个目标，后经 [[ADR-003]] 缩减为 3 个 P0 活跃目标（OmniView、React、Flutter），其余暂停。编译管线需要：
 - 解析类型化 DSL 语法（view、store、signal、motion、design blocks）
 - 执行语义分析（符号解析、类型检查、lint）
 - 降低为规范化的中间表示（IR）

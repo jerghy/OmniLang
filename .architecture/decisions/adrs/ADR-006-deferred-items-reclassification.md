@@ -32,6 +32,7 @@ The 2026-07-27 follow-up review (11-expert re-review + 6-expert deep technical r
 |------|----------|-------|--------|
 | P35 | Phase 1: `omnilang-core` + `omnilang-codegen-omniview` + facade. 7 paused backends remain feature-gated. | Week 2-3 | 1-2 days |
 | P36 | Cross-backend parallelization via `compile_multi_target` + rayon. Zero backend changes. | Week 2-3 | ~50 lines |
+> **⚠️ 2026-07-29 更新**：P36 的 `compile_multi_target` 方案已在 ADR-009 中实施，后因 YAGNI 在 commit 9d30834 中移除。单后端 WASM 编译路径才是实际瓶颈；多目标并行化无 profiling 数据支撑。
 | P38b | Eliminate XSS chain (innerHTML→textContent + origin validation + capability tightening) instead of stripping TAURI_INTERNALS. | Week 1 | 1-2 hours |
 | P39 | MVP: dead computed elimination (~200 lines) after IR merge. Full optimization deferred until motion 95% coverage. | Week 2-4 | 2-3 days |
 

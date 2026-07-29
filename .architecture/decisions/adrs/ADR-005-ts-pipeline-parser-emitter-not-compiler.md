@@ -10,7 +10,7 @@ Accepted (2026-07-27)
 
 在 2026-07-26 的全工作区架构评审中，多位专家将 Poiesis 编辑器的 TypeScript 管线（poiesis/src/services/codegen/，~10,778 行）描述为"双编译器"或"第二个 Omni 编译器"。这一表述在技术上是错误的——TS 管线不产生任何目标语言的编译输出，它只是编辑器的解析器+源码发射器，负责 .omni 源文本 ↔ 编辑器数据模型的往返转换。
 
-真正的 OmniLang 编译器只有 Rust 端的 omnilang crate（~62,000 行），包含完整的 Lexer→Parser→Semantic→IR→Codegen 管线，支持 9 个目标后端。
+真正的 OmniLang 编译器只有 Rust 端的 omnilang crate（~62,000 行），包含完整的 Lexer→Parser→Semantic→IR→Codegen 管线，原始设计支持 9 个目标后端（经 [[ADR-003]] 缩减为 3 个 P0 活跃目标）。
 
 正确理解两者的关系：
 

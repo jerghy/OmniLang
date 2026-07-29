@@ -75,6 +75,8 @@ The `typescript.rs` module (298 lines) generates `.d.ts` files but zero producti
 
 **Decision**: Skip calling `generate_typescript_declarations` in the `generate()` pipeline. Keep the module code preserved for future use. Re-enable by uncommenting the block when a real consumer materializes.
 
+> **⚠️ 2026-07-29 更新**：此 ADR 中的门控决定**当时未被实际实施**。生成调用在 [[ADR-035]] 中才被注释掉。ADR-035 明确指出"ADR-031 D6 是一个已被接受但从未实施的决策"。
+
 **Alternatives considered**: (a) Remove the module entirely — rejected because the implementation is correct and may be needed soon; (b) Gate behind CLI flag — rejected as premature infra for a zero-consumer feature.
 
 **Architectural Components Affected:**

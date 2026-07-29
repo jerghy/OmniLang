@@ -67,6 +67,8 @@ function __omni_readonlySignal(name, init) {
 
 ### D3: TypeScript Declaration Generation Module
 
+> **⚠️ 2026-07-29 更新**：此决策已被 [[ADR-031]] D6 推翻——TypeScript 声明生成因零消费者被门控（gated）。实际门控在 [[ADR-035]] 中才实施（注释掉了生成调用）。298 行 `typescript.rs` 模块保留但不再产生输出。
+
 `ComponentIR` carries full type information (`props: FxHashMap<String, TypeIR>`, `event_param_types: Vec<String>`) but this was never emitted as `.d.ts` for the React production target. The fix adds a `typescript.rs` module that maps TypeIR variants to TypeScript types and generates per-component `Props` interfaces, event handler types, and component call signatures. Output is stored in `OmniViewOutput.types` and emitted alongside JS/HTML/CSS in `build_file_output()`.
 
 **Pattern:**
@@ -116,9 +118,11 @@ Previously, a single `__omni_effect` read every signal in the program and replay
 
 ### D7: InliningState Struct for Component Inlining Safety
 
+> **⚠️ 2026-07-29 更新**：`InliningState` 已被 [[ADR-034]] 的 `ComponentScope` 取代。ADR-034 发现 `InliningState` 遗漏了 `emitting_root_view` 字段（一个已存在的 bug），并将整个结构替换为更完整的 `ComponentScope`（9 个字段，原子性 take/restore 语义）。`InliningState` 结构体已删除（54 行移除）。
+
 Component inlining (`try_inline_component`) manually saved/restored 9 fields of `OmniViewGenerator` with no compiler enforcement. Historical bugs (ADR-025 D1, ADR-026 D3) confirmed this pattern causes field-drift errors. The fix extracts an `InliningState` struct with `save()`/`restore()` methods, making the compiler enforce that new per-component-isolation fields must be added to the struct.
 
-**Pattern:**
+**Pattern (已废弃，被 ComponentScope 替代):**
 ```rust
 struct InliningState { /* 8 fields: current_component, signal_names, name_renames, for_*_bindings ×4, in_for_template */ }
 impl InliningState { fn save(gen: &OmniViewGenerator) -> Self; fn restore(self, gen: &mut OmniViewGenerator); }
