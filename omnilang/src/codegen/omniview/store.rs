@@ -225,7 +225,7 @@ impl OmniViewGenerator {
             let prefixed = format!("{}_{}", name, prop_name);
             let _ = writeln!(
                 self.js,
-                "const {} = __omni_signal(\"{}\", {});",
+                "const {} = __omni_readonlySignal(\"{}\", {});",
                 prefixed, prefixed, init_val
             );
             self.name_renames

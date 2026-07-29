@@ -226,6 +226,81 @@ fn test_store_actions() {
     assert!(output.js.contains("item"));
 }
 
+// ── Prop Emission ─────────────────────────────────────
+
+#[test]
+fn props_are_emitted_as_readonly_wrappers() {
+    // Build a component with `prop count: i32 = 0` and a signal
+    let mut module = make_module("main");
+    let comp = ComponentIR {
+        name: "PropComponent".into(),
+        source_file: None,
+        generic_params: vec![],
+        props: FxHashMap::from_iter([(
+            "count".into(),
+            TypeIR {
+                kind: "i32".into(),
+                type_args: vec![],
+                is_nullable: false,
+            },
+        )]),
+        prop_defaults: FxHashMap::from_iter([(
+            "count".into(),
+            ExprIR::LiteralExpr {
+                value: serde_json::json!(0),
+            },
+        )]),
+        signals: vec![SignalIntent {
+            name: "internal".into(),
+            r#type: TypeIR {
+                kind: "string".into(),
+                type_args: vec![],
+                is_nullable: false,
+            },
+            initial_value: ExprIR::LiteralExpr {
+                value: serde_json::json!("hello"),
+            },
+            is_copy: false,
+        }],
+        computeds: vec![],
+        effects: vec![],
+        lifecycles: vec![],
+        fns: vec![],
+        store_refs: vec![],
+        refs: vec![],
+        event_names: vec![],
+        event_param_types: vec![],
+        view: None,
+        styles: vec![],
+        if_mode_default: None,
+        hero_defs: vec![],
+        source_span: None,
+    };
+    module.components.insert("PropComponent".to_string(), comp);
+    let ir = make_program(FxHashMap::from_iter([("main".into(), module)]));
+    let output = generate(&ir, false, false, false);
+
+    // The prop default must use __omni_readonlySignal
+    assert!(
+        output
+            .js
+            .contains("__omni_readonlySignal(\"PropComponent_count\", 0)"),
+        "prop should be emitted via __omni_readonlySignal"
+    );
+    // The internal signal must still use __omni_signal
+    assert!(
+        output
+            .js
+            .contains("__omni_signal(\"PropComponent_internal\", \"hello\")"),
+        "internal signal should still use __omni_signal"
+    );
+    // The runtime itself has __omni_readonlySignal function definition
+    assert!(
+        output.js.contains("function __omni_readonlySignal"),
+        "runtime should define __omni_readonlySignal"
+    );
+}
+
 // ── Expression Formatting ────────────────────────────
 
 #[test]

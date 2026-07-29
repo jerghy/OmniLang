@@ -57,6 +57,17 @@ function __omni_signal(name, init) {
   return signal;
 }
 
+function __omni_readonlySignal(name, init) {
+  const inner = __omni_signal(name, init);
+  return {
+    _default: init,
+    get value() { return inner.value; },
+    get() { return inner.value; },
+    peek() { return inner.peek(); },
+    // No set value, no set() — child components cannot write
+  };
+}
+
 function __omni_computed(name, fn) {
   let val, dirty = true;
   const signal = __omni_signal(name, undefined);
