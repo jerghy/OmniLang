@@ -28,6 +28,14 @@ impl OmniViewGenerator {
                     .map(|(k, v)| (k.clone(), v.clone()))
                     .collect();
 
+                // Save @for loop state to prevent inner component @for loops
+                // from corrupting outer loop's binding buffers (review v2 finding).
+                let saved_for_text = std::mem::take(&mut self.for_text_bindings);
+                let saved_for_class = std::mem::take(&mut self.for_class_bindings);
+                let saved_for_attr = std::mem::take(&mut self.for_attr_bindings);
+                let saved_for_rebind = self.for_rebind_fn.take();
+                let saved_in_for = self.in_for_template;
+
                 if self.in_for_template {
                     // Inside @for template: map component prop names to their
                     // value expressions so data-bind-text markers resolve to
@@ -119,6 +127,13 @@ impl OmniViewGenerator {
 
                 // Generate child HTML inline
                 let child_html = self.view_to_html(&child_view_owned, indent + 1);
+
+                // Restore @for loop state before restoring parent context
+                self.for_text_bindings = saved_for_text;
+                self.for_class_bindings = saved_for_class;
+                self.for_attr_bindings = saved_for_attr;
+                self.for_rebind_fn = saved_for_rebind;
+                self.in_for_template = saved_in_for;
 
                 // Restore parent context
                 self.current_component = saved_component;
