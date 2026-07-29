@@ -132,8 +132,12 @@ impl OmniViewGenerator {
                             | "async"
                             | "defer"
                     );
-                    // Dynamic attributes (identifier references): emit reactive binding
-                    if val_str.starts_with('{') && val_str.ends_with('}') {
+                    // Dynamic attributes: use ExprIR type matching instead of string heuristic.
+                    // The old heuristic (starts_with('{') && ends_with('}')) only caught
+                    // simple identifiers like {count}. Complex expressions like
+                    // disabled={!isSubmitting} or checked={count > 0} need ExprIR checking.
+                    let is_dynamic = !matches!(value, ExprIR::LiteralExpr { .. });
+                    if is_dynamic {
                         // Dynamic attribute: bind reactively
                         let js_val = self.expr_to_js(value);
                         let js_access = if self.signal_names.contains(&js_val) {
@@ -146,13 +150,13 @@ impl OmniViewGenerator {
                             // rather than setAttribute (which treats all values as strings — "false"
                             // is truthy in HTML and won't uncheck the checkbox).
                             let _ = writeln!(self.js,
-                                "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) el.{} = !!({}); }});",
-                                nid, name, js_access
+                                "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) try {{ el.{} = !!({}); }} catch(e) {{ __omni_reportError(\"bind:attr:{}\", e); }} }});",
+                                nid, name, js_access, name
                             );
                         } else {
                             let _ = writeln!(self.js,
-                                "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) el.setAttribute('{}', {}); }});",
-                                nid, name, js_access
+                                "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) try {{ el.setAttribute('{}', {}); }} catch(e) {{ __omni_reportError(\"bind:attr:{}\", e); }} }});",
+                                nid, name, js_access, name
                             );
                         }
                     } else if is_boolean_attr && val_str == "true" {
