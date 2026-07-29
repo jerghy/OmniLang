@@ -1073,6 +1073,510 @@ fn test_store_dart_with_getters() {
     assert!(store_dart.contains("final count = ref.watch(calcStoreCountProvider);"));
 }
 
+// ── Motion codegen tests ───────────────────────────────
+
+#[test]
+fn test_motion_enter_controller_init() {
+    let codegen = FlutterCodegen;
+
+    // Create a keyframe motion: opacity 0→1 over 300ms
+    let motion = MotionIntent {
+        name: "fadeIn".into(),
+        body: MotionBodyIR::Keyframe(KeyframeIR {
+            stops: vec![KeyframeStopIR {
+                position: 0.0,
+                properties: FxHashMap::from_iter([(
+                    "opacity".into(),
+                    ExprIR::LiteralExpr {
+                        value: serde_json::json!(0.0),
+                    },
+                )]),
+                ease: None,
+                source_span: None,
+            }],
+            over: ExprIR::LiteralExpr {
+                value: serde_json::json!("300ms"),
+            },
+            ease: Some(EasingIR::Named("easeOut".into())),
+            playback: PlaybackIR::default(),
+            path: None,
+            path_rotate: None,
+            source_span: None,
+        }),
+        source_span: None,
+    };
+
+    // View element with @enter trigger
+    let el = ElementIR {
+        tag: "div".into(),
+        props: FxHashMap::default(),
+        bindings: FxHashMap::default(),
+        events: FxHashMap::default(),
+        style_classes: None,
+        inline_style: None,
+        children: vec![ViewTree::Text("Hello".into())],
+        construction_kind: ConstructionKind::TagMapping,
+        class_map_bindings: FxHashMap::default(),
+        source_span: None,
+        motion: Some(Box::new(MotionBehavior {
+            triggers: vec![TriggerIntent {
+                kind: TriggerKind::Enter,
+                motion_ref: Some("fadeIn".into()),
+                inline_motion: None,
+                source_span: None,
+            }],
+            ..Default::default()
+        })),
+        scroll: None,
+        drag: None,
+    };
+
+    let view = ViewTree::Element(el);
+
+    let mut components = FxHashMap::default();
+    components.insert(
+        "App".into(),
+        ComponentIR {
+            name: "App".into(),
+            view: Some(view),
+            ..Default::default()
+        },
+    );
+
+    let ir = IRProgram {
+        version: "1.0".into(),
+        modules: FxHashMap::from_iter([(
+            "main".into(),
+            ModuleIR {
+                name: "main".into(),
+                components,
+                motions: vec![motion],
+                ..Default::default()
+            },
+        )]),
+        stdlib_imports: Default::default(),
+        source_map: FxHashMap::default(),
+        source_span: None,
+    };
+
+    let comp_ref = ir
+        .modules
+        .get("main")
+        .unwrap()
+        .components
+        .get("App")
+        .unwrap();
+    let component_map = build_component_map(&ir);
+    let dart = codegen.gen_component_dart("App", comp_ref, &ir, &component_map);
+
+    // Field declarations
+    assert!(
+        dart.contains("late final AnimationController _fadeInController;"),
+        "should declare _fadeInController field"
+    );
+    assert!(
+        dart.contains("late final Animation<double> _fadeInAnimation;"),
+        "should declare _fadeInAnimation field"
+    );
+
+    // initState: AnimationController init
+    assert!(
+        dart.contains("_fadeInController = AnimationController("),
+        "should init AnimationController: {}",
+        dart
+    );
+    assert!(
+        dart.contains("duration: Duration(milliseconds: 300)"),
+        "should set duration: {}",
+        dart
+    );
+
+    // Tween + Curve
+    assert!(
+        dart.contains("Tween<double>(begin: 0.0, end: 1.0)"),
+        "should create Tween: {}",
+        dart
+    );
+    assert!(
+        dart.contains("CurveTween(curve: Curves.easeOut)"),
+        "should apply easing: {}",
+        dart
+    );
+
+    // @enter → forward() on mount
+    assert!(
+        dart.contains("_fadeInController.forward();"),
+        "should call forward() for @enter trigger: {}",
+        dart
+    );
+
+    // AnimatedBuilder wrapping in build method
+    assert!(
+        dart.contains("AnimatedBuilder("),
+        "should emit AnimatedBuilder in build: {}",
+        dart
+    );
+    assert!(
+        dart.contains("animation: _fadeInAnimation"),
+        "AnimatedBuilder should reference animation"
+    );
+
+    // dispose
+    assert!(
+        dart.contains("_fadeInController.dispose();"),
+        "should dispose controller"
+    );
+}
+
+#[test]
+fn test_motion_hover_mouse_region_wrapping() {
+    let triggers = vec![TriggerIntent {
+        kind: TriggerKind::Hover,
+        motion_ref: Some("scaleOnHover".into()),
+        inline_motion: None,
+        source_span: None,
+    }];
+
+    // Motion with scale animation
+    let motions = vec![MotionIntent {
+        name: "scaleOnHover".into(),
+        body: MotionBodyIR::Keyframe(KeyframeIR {
+            stops: vec![KeyframeStopIR {
+                position: 0.0,
+                properties: FxHashMap::from_iter([(
+                    "scale".into(),
+                    ExprIR::LiteralExpr {
+                        value: serde_json::json!(1.0),
+                    },
+                )]),
+                ease: None,
+                source_span: None,
+            }],
+            over: ExprIR::LiteralExpr {
+                value: serde_json::json!("200ms"),
+            },
+            ease: None,
+            playback: PlaybackIR::default(),
+            path: None,
+            path_rotate: None,
+            source_span: None,
+        }),
+        source_span: None,
+    }];
+
+    let result = wrap_with_motion_widgets(
+        "Container(child: Text('Hover me'))".into(),
+        &triggers,
+        &motions,
+    );
+
+    assert!(
+        result.contains("MouseRegion("),
+        "should wrap with MouseRegion: {}",
+        result
+    );
+    assert!(
+        result.contains("onEnter: (_) => _scaleOnHoverController.forward()"),
+        "should call forward on mouse enter: {}",
+        result
+    );
+    assert!(
+        result.contains("onExit: (_) => _scaleOnHoverController.reverse()"),
+        "should call reverse on mouse exit: {}",
+        result
+    );
+}
+
+#[test]
+fn test_motion_inline_body_handling() {
+    let codegen = FlutterCodegen;
+
+    // Create a multi-property motion simulating an inline body definition
+    let motion = MotionIntent {
+        name: "popIn".into(),
+        body: MotionBodyIR::Keyframe(KeyframeIR {
+            stops: vec![KeyframeStopIR {
+                position: 0.0,
+                properties: FxHashMap::from_iter([
+                    (
+                        "opacity".into(),
+                        ExprIR::LiteralExpr {
+                            value: serde_json::json!(0.0),
+                        },
+                    ),
+                    (
+                        "scale".into(),
+                        ExprIR::LiteralExpr {
+                            value: serde_json::json!(0.5),
+                        },
+                    ),
+                ]),
+                ease: None,
+                source_span: None,
+            }],
+            over: ExprIR::LiteralExpr {
+                value: serde_json::json!(400),
+            },
+            ease: Some(EasingIR::Named("power1Out".into())),
+            playback: PlaybackIR::default(),
+            path: None,
+            path_rotate: None,
+            source_span: None,
+        }),
+        source_span: None,
+    };
+
+    // Element with @enter trigger referencing the motion
+    // inline_motion is set to simulate an inline body definition (Task 8 Step 10 pattern)
+    let el = ElementIR {
+        tag: "div".into(),
+        props: FxHashMap::default(),
+        bindings: FxHashMap::default(),
+        events: FxHashMap::default(),
+        style_classes: None,
+        inline_style: None,
+        children: vec![],
+        construction_kind: ConstructionKind::TagMapping,
+        class_map_bindings: FxHashMap::default(),
+        source_span: None,
+        motion: Some(Box::new(MotionBehavior {
+            triggers: vec![TriggerIntent {
+                kind: TriggerKind::Enter,
+                motion_ref: Some("popIn".into()),
+                inline_motion: Some(MotionBodyIR::Keyframe(KeyframeIR {
+                    stops: vec![
+                        KeyframeStopIR {
+                            position: 0.0,
+                            properties: FxHashMap::from_iter([
+                                (
+                                    "opacity".into(),
+                                    ExprIR::LiteralExpr {
+                                        value: serde_json::json!(0.0),
+                                    },
+                                ),
+                                (
+                                    "scale".into(),
+                                    ExprIR::LiteralExpr {
+                                        value: serde_json::json!(0.5),
+                                    },
+                                ),
+                            ]),
+                            ease: None,
+                            source_span: None,
+                        },
+                        KeyframeStopIR {
+                            position: 1.0,
+                            properties: FxHashMap::from_iter([
+                                (
+                                    "opacity".into(),
+                                    ExprIR::LiteralExpr {
+                                        value: serde_json::json!(1.0),
+                                    },
+                                ),
+                                (
+                                    "scale".into(),
+                                    ExprIR::LiteralExpr {
+                                        value: serde_json::json!(1.0),
+                                    },
+                                ),
+                            ]),
+                            ease: None,
+                            source_span: None,
+                        },
+                    ],
+                    over: ExprIR::LiteralExpr {
+                        value: serde_json::json!(400),
+                    },
+                    ease: Some(EasingIR::Named("power1Out".into())),
+                    playback: PlaybackIR::default(),
+                    path: None,
+                    path_rotate: None,
+                    source_span: None,
+                })),
+                source_span: None,
+            }],
+            ..Default::default()
+        })),
+        scroll: None,
+        drag: None,
+    };
+
+    let view = ViewTree::Element(el);
+
+    let mut components = FxHashMap::default();
+    components.insert(
+        "App".into(),
+        ComponentIR {
+            name: "App".into(),
+            view: Some(view),
+            ..Default::default()
+        },
+    );
+
+    let ir = IRProgram {
+        version: "1.0".into(),
+        modules: FxHashMap::from_iter([(
+            "main".into(),
+            ModuleIR {
+                name: "main".into(),
+                components,
+                motions: vec![motion],
+                ..Default::default()
+            },
+        )]),
+        stdlib_imports: Default::default(),
+        source_map: FxHashMap::default(),
+        source_span: None,
+    };
+
+    let comp_ref = ir
+        .modules
+        .get("main")
+        .unwrap()
+        .components
+        .get("App")
+        .unwrap();
+    let component_map = build_component_map(&ir);
+    let dart = codegen.gen_component_dart("App", comp_ref, &ir, &component_map);
+
+    // Numeric duration init
+    assert!(
+        dart.contains("_popInController = AnimationController("),
+        "should init AnimationController for popIn"
+    );
+    assert!(
+        dart.contains("duration: Duration(milliseconds: 400)"),
+        "should set numeric duration: {}",
+        dart
+    );
+
+    // Power1Out easing → Curves.easeOutQuad via shared NAMED_EASINGS
+    assert!(
+        dart.contains("CurveTween(curve: Curves.easeOutQuad)"),
+        "should resolve power1Out easing: {}",
+        dart
+    );
+
+    // @enter → forward()
+    assert!(
+        dart.contains("_popInController.forward();"),
+        "should call forward() for @enter"
+    );
+
+    // Tween with begin/end values from keyframe stops
+    // (begin value depends on FxHashMap iteration order — test the general pattern)
+    assert!(
+        dart.contains("Tween<double>(begin:"),
+        "should create Tween: {}",
+        dart
+    );
+    assert!(
+        dart.contains("end: 1.0)"),
+        "should have end value 1.0: {}",
+        dart
+    );
+
+    // AnimatedBuilder with multi-property wrapping (Opacity + Transform.scale)
+    assert!(
+        dart.contains("AnimatedBuilder("),
+        "should emit AnimatedBuilder: {}",
+        dart
+    );
+    assert!(
+        dart.contains("Transform.scale(scale: _popInAnimation.value"),
+        "should wrap with Transform.scale: {}",
+        dart
+    );
+    assert!(
+        dart.contains("Opacity(opacity: _popInAnimation.value"),
+        "should wrap with Opacity: {}",
+        dart
+    );
+
+    // dispose
+    assert!(
+        dart.contains("_popInController.dispose();"),
+        "should dispose popIn controller"
+    );
+}
+
+#[test]
+fn test_motion_format_named_curve() {
+    // CSS standard keywords
+    assert_eq!(format_named_curve("linear"), "Curves.linear");
+    assert_eq!(format_named_curve("easeOut"), "Curves.easeOut");
+    assert_eq!(format_named_curve("easeInOut"), "Curves.easeInOut");
+
+    // GSAP power1 (quadratic) — Task 11: shared NAMED_EASINGS delegation
+    assert_eq!(
+        format_named_curve("power1Out"),
+        "Curves.easeOutQuad",
+        "power1Out should map to Curves.easeOutQuad via shared table"
+    );
+    assert_eq!(format_named_curve("power1In"), "Curves.easeInQuad");
+    assert_eq!(
+        format_named_curve("power1InOut"),
+        "Curves.easeInOutQuad"
+    );
+
+    // GSAP power4 (quintic)
+    assert_eq!(format_named_curve("power4Out"), "Curves.easeOutQuint");
+
+    // Back / Bounce / Elastic
+    assert_eq!(format_named_curve("backOut"), "Curves.easeOutBack");
+    assert_eq!(format_named_curve("bounceOut"), "Curves.bounceOut");
+    assert_eq!(format_named_curve("elasticOut"), "Curves.easeOutElastic");
+
+    // Unknown name → fallback
+    assert_eq!(
+        format_named_curve("nonexistent"),
+        "Curves.linear",
+        "unknown easing should fall back to Curves.linear"
+    );
+}
+
+#[test]
+fn test_motion_extract_duration_ms() {
+    // String "300ms" → strip "ms" suffix
+    assert_eq!(
+        extract_duration_ms(&ExprIR::LiteralExpr {
+            value: serde_json::json!("300ms")
+        }),
+        "300"
+    );
+
+    // String "1.5s" → no "ms" suffix, returns as-is
+    assert_eq!(
+        extract_duration_ms(&ExprIR::LiteralExpr {
+            value: serde_json::json!("1.5s")
+        }),
+        "1.5s"
+    );
+
+    // Numeric → stringified
+    assert_eq!(
+        extract_duration_ms(&ExprIR::LiteralExpr {
+            value: serde_json::json!(300)
+        }),
+        "300"
+    );
+    assert_eq!(
+        extract_duration_ms(&ExprIR::LiteralExpr {
+            value: serde_json::json!(400)
+        }),
+        "400"
+    );
+
+    // IdentifierExpr (non-literal) → default fallback "300"
+    assert_eq!(
+        extract_duration_ms(&ExprIR::IdentifierExpr {
+            name: "customDur".into(),
+            type_ann: None,
+        }),
+        "300"
+    );
+}
+
 #[test]
 fn test_store_dart_with_action() {
     let codegen = FlutterCodegen;
