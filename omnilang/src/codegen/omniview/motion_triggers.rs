@@ -1,5 +1,6 @@
 //! Motion trigger emission for element triggers (@enter, @hover, @press, etc.).
 use super::OmniViewGenerator;
+use crate::codegen::escape_literal_str;
 use crate::ir::*;
 
 /// Generate a standard IIFE-wrapped motion trigger JS string.
@@ -125,14 +126,18 @@ impl OmniViewGenerator {
         el: &ElementIR,
         is_inline: bool,
     ) {
-        let scroll_start_str = el
-            .scroll_behavior()
-            .and_then(|s| s.start.as_deref())
-            .unwrap_or("top 80%");
-        let scroll_end_str = el
-            .scroll_behavior()
-            .and_then(|s| s.end.as_deref())
-            .unwrap_or("bottom 20%");
+        let scroll_start_str = escape_literal_str(
+            el.scroll_behavior()
+                .and_then(|s| s.start.as_deref())
+                .unwrap_or("top 80%"),
+            '"',
+        );
+        let scroll_end_str = escape_literal_str(
+            el.scroll_behavior()
+                .and_then(|s| s.end.as_deref())
+                .unwrap_or("bottom 20%"),
+            '"',
+        );
         let scrub_val = match el.scroll_behavior().and_then(|s| s.scrub.as_ref()) {
             Some(expr) => self.expr_to_js(expr),
             None => "0".to_string(),
@@ -235,10 +240,12 @@ impl OmniViewGenerator {
         let edge_min = if is_horizontal { "left" } else { "top" };
         let edge_max = if is_horizontal { "right" } else { "bottom" };
         let rect_size = if is_horizontal { "width" } else { "height" };
-        let constraints_str = el
-            .drag_behavior()
-            .and_then(|d| d.constraints.as_deref())
-            .unwrap_or("");
+        let constraints_str = escape_literal_str(
+            el.drag_behavior()
+                .and_then(|d| d.constraints.as_deref())
+                .unwrap_or(""),
+            '"',
+        );
         let elastic_val = match el.drag_behavior().and_then(|d| d.elastic.as_ref()) {
             Some(expr) => self.expr_to_js(expr),
             None => "0".to_string(),
