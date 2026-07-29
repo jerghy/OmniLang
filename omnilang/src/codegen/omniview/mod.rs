@@ -183,7 +183,6 @@ pub fn generate(
         css: String::new(),
         source_map: Vec::new(),
         node_counter: 0,
-        current_nid_path: Vec::new(),
         signal_names: FxHashSet::default(),
         signal_defaults: FxHashMap::default(),
         store_signal_names: FxHashSet::default(),
@@ -444,7 +443,6 @@ struct OmniViewGenerator {
     css: String,
     source_map: Vec<SourceMapEntry>,
     node_counter: u32,
-    current_nid_path: Vec<String>,
     /// Set of signal names in the current component (for .value / .set() generation)
     signal_names: FxHashSet<String>,
     /// Default values for signals (name → JS value string), for editor canvas preview
@@ -561,7 +559,6 @@ impl OmniViewGenerator {
             css: String::new(),
             source_map: Vec::new(),
             node_counter: 0,
-            current_nid_path: Vec::new(),
             signal_names: FxHashSet::default(),
             signal_defaults: FxHashMap::default(),
             store_signal_names: FxHashSet::default(),

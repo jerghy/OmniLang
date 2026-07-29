@@ -47,8 +47,6 @@ impl OmniViewGenerator {
     /// Emit the root component's view HTML into self.html, temporarily swapping
     /// self.js ↔ self.deferred_js so event/effect code goes into the deferred buffer.
     pub(super) fn emit_view(&mut self, view: &ViewTree) {
-        self.current_nid_path.clear();
-
         // Swap js with deferred_js so view_to_html event/effect code
         // goes into the deferred buffer (emitted after DOM insertion)
         std::mem::swap(&mut self.js, &mut self.deferred_js);
