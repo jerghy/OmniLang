@@ -35,6 +35,10 @@ pub(super) fn gen_view_node_tsx(
 
             // Component composition: check if tag is a known component
             if let Some(_child_comp) = component_map.get(el.tag.as_str()) {
+                // Ref forwarding for custom components is Phase 2 — skip for now
+                if el.ref_binding.is_some() {
+                    // Only native HTML elements support @ref in the current phase
+                }
                 let mut comp_attrs: Vec<String> = Vec::new();
                 for (prop_name, prop_value) in &el.props {
                     let js_val = format_expr_ir_tsx(prop_value);
@@ -505,6 +509,11 @@ pub(super) fn gen_view_node_tsx(
                         }
                     }
                 }
+            }
+
+            // Ref binding — emit ref={nameRef} JSX attribute
+            if let Some(ref ref_name) = el.ref_binding {
+                attrs.push(format!("ref={{{}Ref}}", ref_name));
             }
 
             // Emit opening tag
