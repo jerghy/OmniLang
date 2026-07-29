@@ -201,7 +201,7 @@ fn inject_slot_children(view: ViewTree, slot_children: &[ViewTree]) -> ViewTree 
                 let named: Vec<ViewTree> = slot_children
                     .iter()
                     .filter(|c| has_slot_attr(c, name))
-                    .cloned()
+                    .map(|c| strip_slot_prop(c))
                     .collect();
                 if named.is_empty() {
                     view
@@ -212,7 +212,7 @@ fn inject_slot_children(view: ViewTree, slot_children: &[ViewTree]) -> ViewTree 
                 let default: Vec<ViewTree> = slot_children
                     .iter()
                     .filter(|c| !has_any_slot_attr(c))
-                    .cloned()
+                    .map(|c| strip_slot_prop(c))
                     .collect();
                 if default.is_empty() {
                     view
@@ -241,9 +241,13 @@ fn inject_slot_children(view: ViewTree, slot_children: &[ViewTree]) -> ViewTree 
                     ..b
                 })
                 .collect();
+            let fallback = cond
+                .fallback
+                .map(|v| inject_slot_children(v, slot_children));
             ViewTree::Conditional(Box::new(ConditionalIntent {
                 branches: new_branches,
-                ..*cond
+                fallback,
+                transition_mode: cond.transition_mode,
             }))
         }
         ViewTree::ListRendering(..) => view, // @for templates: slots stay as-is
@@ -270,5 +274,25 @@ fn has_any_slot_attr(child: &ViewTree) -> bool {
     match child {
         ViewTree::Element(el) => el.props.contains_key("slot"),
         _ => false,
+    }
+}
+
+/// Remove the `slot` prop from an element ViewTree so browsers don't
+/// interpret it as a Web Components slot assignment attribute.
+fn strip_slot_prop(view: &ViewTree) -> ViewTree {
+    match view {
+        ViewTree::Element(el) => {
+            if el.props.contains_key("slot") {
+                let mut props = el.props.clone();
+                props.remove("slot");
+                ViewTree::Element(ElementIR {
+                    props,
+                    ..el.clone()
+                })
+            } else {
+                view.clone()
+            }
+        }
+        other => other.clone(),
     }
 }
