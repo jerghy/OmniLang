@@ -1,6 +1,7 @@
 //! Statement and mutation emission.
 use super::OmniViewGenerator;
 use crate::ir::*;
+use std::fmt::Write;
 
 impl OmniViewGenerator {
     pub(super) fn emit_statement(&mut self, stmt: &StatementIR) {
@@ -15,15 +16,14 @@ impl OmniViewGenerator {
                     .as_ref()
                     .map(|e| self.expr_to_js(e))
                     .unwrap_or_else(|| "undefined".into());
-                self.js
-                    .push_str(&format!("  let {} = {};\n", safe_name, val));
+                let _ = writeln!(self.js, "  let {} = {};", safe_name, val);
             }
             StatementIR::ReturnStmtIR { value } => {
                 let val = value
                     .as_ref()
                     .map(|e| self.expr_to_js(e))
                     .unwrap_or_else(|| "undefined".into());
-                self.js.push_str(&format!("  return {};\n", val));
+                let _ = writeln!(self.js, "  return {};", val);
             }
             StatementIR::IfStmtIR {
                 condition,
@@ -32,14 +32,13 @@ impl OmniViewGenerator {
                 else_body,
             } => {
                 let cond = self.expr_to_js(condition);
-                self.js.push_str(&format!("  if ({}) {{\n", cond));
+                let _ = writeln!(self.js, "  if ({}) {{", cond);
                 for s in &then_body.statements {
                     self.emit_statement(s);
                 }
                 for (elif_cond, elif_body) in else_ifs {
                     let elif_js = self.expr_to_js(elif_cond);
-                    self.js
-                        .push_str(&format!("  }} else if ({}) {{\n", elif_js));
+                    let _ = writeln!(self.js, "  }} else if ({}) {{", elif_js);
                     for s in &elif_body.statements {
                         self.emit_statement(s);
                     }
@@ -54,7 +53,7 @@ impl OmniViewGenerator {
             }
             StatementIR::ExprStmtIR { expr } => {
                 let code = self.expr_to_js(expr);
-                self.js.push_str(&format!("  {};\n", code));
+                let _ = writeln!(self.js, "  {};", code);
             }
             StatementIR::MutationStmt { intent } => {
                 if let Some(ref intent) = intent {
@@ -63,7 +62,7 @@ impl OmniViewGenerator {
             }
             StatementIR::WhileStmtIR { condition, body } => {
                 let cond = self.expr_to_js(condition);
-                self.js.push_str(&format!("  while ({}) {{\n", cond));
+                let _ = writeln!(self.js, "  while ({}) {{", cond);
                 for s in &body.statements {
                     self.emit_statement(s);
                 }
@@ -75,8 +74,7 @@ impl OmniViewGenerator {
                 body,
             } => {
                 let iter = self.expr_to_js(iterable);
-                self.js
-                    .push_str(&format!("  for (const {} of {}) {{\n", var_name, iter));
+                let _ = writeln!(self.js, "  for (const {} of {}) {{", var_name, iter);
                 for s in &body.statements {
                     self.emit_statement(s);
                 }
@@ -90,7 +88,7 @@ impl OmniViewGenerator {
             }
             StatementIR::ThrowStmtIR { expr } => {
                 let e = self.expr_to_js(expr);
-                self.js.push_str(&format!("  throw {};\n", e));
+                let _ = writeln!(self.js, "  throw {};", e);
             }
             StatementIR::TryCatchStmtIR {
                 try_body,
@@ -103,7 +101,7 @@ impl OmniViewGenerator {
                     self.emit_statement(s);
                 }
                 if let Some(ref cv) = catch_var {
-                    self.js.push_str(&format!("  }} catch ({}) {{\n", cv));
+                    let _ = writeln!(self.js, "  }} catch ({}) {{", cv);
                 } else if catch_body.is_some() {
                     self.js.push_str("  } catch (_) {\n");
                 }
@@ -127,8 +125,7 @@ impl OmniViewGenerator {
                     .get(event_name.as_str())
                     .cloned()
                     .unwrap_or_else(|| event_name.clone());
-                self.js
-                    .push_str(&format!("  {}({});\n", resolved_name, arg_str.join(", ")));
+                let _ = writeln!(self.js, "  {}({});", resolved_name, arg_str.join(", "));
             }
             StatementIR::BlockStmtIR { body } => {
                 for stmt in &body.statements {
@@ -212,14 +209,15 @@ impl OmniViewGenerator {
             .map(|v| self.expr_to_js(v))
             .unwrap_or_else(|| default.into());
         if is_signal {
-            self.js.push_str(&format!(
-                "  __omni_subs.get(\"{0}\").set(__omni_subs.get(\"{0}\").value {op} {1});\n",
+            let _ = writeln!(
+                self.js,
+                "  __omni_subs.get(\"{0}\").set(__omni_subs.get(\"{0}\").value {op} {1});",
                 t,
                 amt,
                 op = js_op
-            ));
+            );
         } else {
-            self.js.push_str(&format!("  {} {}= {};\n", t, js_op, amt));
+            let _ = writeln!(self.js, "  {} {}= {};", t, js_op, amt);
         }
     }
 
@@ -241,10 +239,9 @@ impl OmniViewGenerator {
                     .map(|v| self.expr_to_js(v))
                     .unwrap_or_else(|| "undefined".into());
                 if is_signal {
-                    self.js
-                        .push_str(&format!("  __omni_subs.get(\"{}\").set({});\n", t, val));
+                    let _ = writeln!(self.js, "  __omni_subs.get(\"{}\").set({});", t, val);
                 } else {
-                    self.js.push_str(&format!("  {} = {};\n", t, val));
+                    let _ = writeln!(self.js, "  {} = {};", t, val);
                 }
             }
             MutationIntent::Increment { target, amount } => {
@@ -273,17 +270,11 @@ impl OmniViewGenerator {
                     .as_ref()
                     .map(|v| self.expr_to_js(v))
                     .unwrap_or_else(|| "undefined".into());
-                self.js.push_str(&format!(
-                    "  __omni_subs.get(\"{0}\").value.push({1}); __omni_subs.get(\"{0}\").set(__omni_subs.get(\"{0}\").value.slice());\n",
-                    t, it
-                ));
+                let _ = writeln!(self.js, "  __omni_subs.get(\"{0}\").value.push({1}); __omni_subs.get(\"{0}\").set(__omni_subs.get(\"{0}\").value.slice());", t, it);
             }
             MutationIntent::Pop { target } => {
                 let t = resolve_target(target);
-                self.js.push_str(&format!(
-                    "  __omni_subs.get(\"{0}\").value.pop(); __omni_subs.get(\"{0}\").set(__omni_subs.get(\"{0}\").value.slice());\n",
-                    t
-                ));
+                let _ = writeln!(self.js, "  __omni_subs.get(\"{0}\").value.pop(); __omni_subs.get(\"{0}\").set(__omni_subs.get(\"{0}\").value.slice());", t);
             }
         }
     }

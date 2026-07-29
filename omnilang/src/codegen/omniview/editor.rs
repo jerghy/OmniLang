@@ -1,6 +1,7 @@
 //! Editor bridge emission and conditional HTML generation.
 use super::OmniViewGenerator;
 use crate::ir::*;
+use std::fmt::Write;
 
 impl OmniViewGenerator {
     /// Inject editor bridge code when `editor_mode` is enabled.
@@ -140,28 +141,30 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, wind
         for (i, branch) in cond.branches.iter().enumerate() {
             let branch_nid = format!("{}-b{}", nid, i);
             let display = "none";
-            out.push_str(&format!(
-                "{}<div data-nid=\"{}\" style=\"display:{}\">\n",
+            let _ = writeln!(
+                out,
+                "{}<div data-nid=\"{}\" style=\"display:{}\">",
                 pad, branch_nid, display
-            ));
+            );
             if let Some(ref body) = branch.body {
                 out.push_str(&self.view_to_html(body, indent + 1));
             }
-            out.push_str(&format!("{}</div>\n", pad));
+            let _ = writeln!(out, "{}</div>", pad);
             branch_nids.push(branch_nid);
         }
 
         // Fallback branch (else)
         let fallback_nid = if cond.fallback.is_some() {
             let fb_nid = format!("{}-else", nid);
-            out.push_str(&format!(
-                "{}<div data-nid=\"{}\" style=\"display:none\">\n",
+            let _ = writeln!(
+                out,
+                "{}<div data-nid=\"{}\" style=\"display:none\">",
                 pad, fb_nid
-            ));
+            );
             if let Some(ref fallback) = cond.fallback {
                 out.push_str(&self.view_to_html(fallback, indent + 1));
             }
-            out.push_str(&format!("{}</div>\n", pad));
+            let _ = writeln!(out, "{}</div>", pad);
             Some(fb_nid)
         } else {
             None
@@ -176,8 +179,7 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, wind
 
         let is_wait_mode = cond.transition_mode.as_deref() == Some("wait");
 
-        self.js
-            .push_str(&format!("\n/// ── @if conditional {} ──\n", nid));
+        let _ = writeln!(self.js, "\n/// ── @if conditional {} ──", nid);
 
         // Emit all NIDs as a JS array for efficient bulk toggling
         let nid_list: Vec<String> = branch_nids
@@ -189,8 +191,7 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, wind
 
         if is_wait_mode {
             // Wait mode: play @leave on old branch, wait for completion, then show new branch
-            self.js.push_str(&format!(
-                "var _current_{nid} = null;\n\
+            let _ = writeln!(self.js, "var _current_{nid} = null;\n\
                  __omni_effect(() => {{\n\
                  \x20 const _nids = {nids};\n\
                  \x20 const _hideAll = (except) => {{ _nids.forEach(id => {{ const e = __omni_el(id); if (e && id !== except) e.style.display = \"none\"; }}); }};\n\
@@ -237,15 +238,12 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, wind
                  \x20\x20\x20 }}\n\
                  \x20\x20\x20 _showNow(newNid);\n\
                  \x20\x20 }}\n\
-                 \x20 }};\n",
-                nid = nid,
-                nids = nid_array
-            ));
+                 \x20 }};", nid = nid,
+                nids = nid_array);
         } else {
             // Sync mode (default): instant branch switching, @enter/@leave coexist in DOM
             self.js.push_str("__omni_effect(() => {\n");
-            self.js
-                .push_str(&format!("  const _nids = {};\n", nid_array));
+            let _ = writeln!(self.js, "  const _nids = {};", nid_array);
             self.js.push_str("  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? \"block\" : \"none\"; if (id === nid) { e.querySelectorAll('[data-nid]').forEach(function(c) { var a = __omni_animations.get(c.getAttribute('data-nid') + '_enter'); if (a) { a.cancel(); a.play(); } }); } else { e.querySelectorAll('[data-nid]').forEach(function(c) { __omni_cleanupElement(c.getAttribute('data-nid')); }); } } }); };\n");
         }
 
@@ -253,26 +251,26 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, wind
         for (i, (cond_js, branch_nid)) in conditions_js.iter().enumerate() {
             let if_word = if i == 0 { "if" } else { "else if" };
             if is_wait_mode {
-                self.js.push_str(&format!(
-                    "  {} ({}) {{ _transition(\"{}\"); }}\n",
+                let _ = writeln!(
+                    self.js,
+                    "  {} ({}) {{ _transition(\"{}\"); }}",
                     if_word, cond_js, branch_nid
-                ));
+                );
             } else {
-                self.js.push_str(&format!(
-                    "  {} ({}) {{ _show(\"{}\"); }}\n",
+                let _ = writeln!(
+                    self.js,
+                    "  {} ({}) {{ _show(\"{}\"); }}",
                     if_word, cond_js, branch_nid
-                ));
+                );
             }
         }
 
         // Else clause (fallback or hide-all)
         if let Some(ref fb_nid) = fallback_nid {
             if is_wait_mode {
-                self.js
-                    .push_str(&format!("  else {{ _transition(\"{}\"); }}\n", fb_nid));
+                let _ = writeln!(self.js, "  else {{ _transition(\"{}\"); }}", fb_nid);
             } else {
-                self.js
-                    .push_str(&format!("  else {{ _show(\"{}\"); }}\n", fb_nid));
+                let _ = writeln!(self.js, "  else {{ _show(\"{}\"); }}", fb_nid);
             }
         } else {
             // No @else — hide all branches when no condition matches

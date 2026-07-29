@@ -8,6 +8,7 @@ use super::OmniViewGenerator;
 use crate::codegen::emit_event_object;
 use crate::ir::*;
 use rustc_hash::FxHashMap;
+use std::fmt::Write;
 
 impl OmniViewGenerator {
     /// Generate HTML + JS for @for list rendering.
@@ -70,43 +71,38 @@ impl OmniViewGenerator {
         };
 
         let mut out = String::new();
-        out.push_str(&format!(
-            "{}<template data-nid=\"{}\">\n{}</template>\n",
+        let _ = writeln!(
+            out,
+            "{}<template data-nid=\"{}\">\n{}</template>",
             pad, template_nid, item_html
-        ));
+        );
 
         // Container marker: <template> element used as insertion point.
         // The template tag is valid inside <tbody>, <tr>, etc. (unlike <div>).
-        out.push_str(&format!(
-            "{}<template data-nid=\"{}\" data-for-container></template>\n",
+        let _ = writeln!(
+            out,
+            "{}<template data-nid=\"{}\" data-for-container></template>",
             pad, container_nid
-        ));
+        );
 
         // Empty state template (cloned into parent when data is empty)
         if let Some(ref empty_body) = list.empty_body {
             self.in_for_template = true;
             let empty_html = self.view_to_html(empty_body, indent + 1);
             self.in_for_template = false;
-            out.push_str(&format!(
-                "{}<template data-nid=\"{}\">\n{}</template>\n",
+            let _ = writeln!(
+                out,
+                "{}<template data-nid=\"{}\">\n{}</template>",
                 pad, empty_nid, empty_html
-            ));
+            );
         }
 
         // Generate the reactive JS _effect()
-        self.js.push_str(&format!(
-            "\n/// ── @for {item} in ... ──\n",
-            item = item_var
-        ));
+        let _ = writeln!(self.js, "\n/// ── @for {item} in ... ──", item = item_var);
         self.js.push_str("__omni_effect(() => {\n");
-        self.js
-            .push_str(&format!("  const data = {};\n", iterable_js));
-        self.js
-            .push_str(&format!("  const tpl = __omni_el(\"{}\");\n", template_nid));
-        self.js.push_str(&format!(
-            "  const ctr = __omni_el(\"{}\");\n",
-            container_nid
-        ));
+        let _ = writeln!(self.js, "  const data = {};", iterable_js);
+        let _ = writeln!(self.js, "  const tpl = __omni_el(\"{}\");", template_nid);
+        let _ = writeln!(self.js, "  const ctr = __omni_el(\"{}\");", container_nid);
         self.js.push_str("  if (!tpl || !ctr) return;\n");
         self.js.push_str("  const parent = tpl.parentNode;\n");
         self.js.push_str("  if (!parent) return;\n");
@@ -143,10 +139,7 @@ impl OmniViewGenerator {
             self.js.push_str("  if (!data || data.length === 0) {\n");
             self.js
                 .push_str("    // Clone empty state template and insert before container marker\n");
-            self.js.push_str(&format!(
-                "    const emptyEl = __omni_el(\"{}\");\n",
-                empty_nid
-            ));
+            let _ = writeln!(self.js, "    const emptyEl = __omni_el(\"{}\");", empty_nid);
             self.js.push_str(
                 "    if (emptyEl && emptyEl.content && emptyEl.content.firstElementChild) {\n",
             );
@@ -194,10 +187,11 @@ impl OmniViewGenerator {
         }
 
         // Iterate and clone
-        self.js.push_str(&format!(
-            "  data.forEach(({}, _idx) => {{\n",
+        let _ = writeln!(
+            self.js,
+            "  data.forEach(({}, _idx) => {{",
             &list.item_binding.name
-        ));
+        );
 
         // Helper: clone template content, unwrapping <fragment> wrapper if present.
         self.js
@@ -241,14 +235,12 @@ impl OmniViewGenerator {
             self.js.push_str("    // Pre-compiled text bindings\n");
             self.js.push_str("    (function() {\n");
             for (nid, js_expr) in &self.for_text_bindings {
-                self.js.push_str(&format!(
-                    "      var _el = clone.querySelector('[data-nid=\"{}\"]');\n",
+                let _ = writeln!(
+                    self.js,
+                    "      var _el = clone.querySelector('[data-nid=\"{}\"]');",
                     nid
-                ));
-                self.js.push_str(&format!(
-                    "      if (_el) try {{ _el.textContent = String({}); }} catch(e) {{ __omni_reportError(\"warn:for:text\", e); }}\n",
-                    js_expr
-                ));
+                );
+                let _ = writeln!(self.js, "      if (_el) try {{ _el.textContent = String({}); }} catch(e) {{ __omni_reportError(\"warn:for:text\", e); }}", js_expr);
             }
             self.js.push_str("    })();\n");
         }
@@ -284,14 +276,12 @@ impl OmniViewGenerator {
             self.js.push_str("    // Pre-compiled class bindings\n");
             self.js.push_str("    (function() {\n");
             for (nid, class_name, js_expr) in &self.for_class_bindings {
-                self.js.push_str(&format!(
-                    "      var _el = clone.querySelector('[data-nid=\"{}\"]');\n",
+                let _ = writeln!(
+                    self.js,
+                    "      var _el = clone.querySelector('[data-nid=\"{}\"]');",
                     nid
-                ));
-                self.js.push_str(&format!(
-                    "      if (_el) try {{ _el.classList.toggle(\"{}\", !!({})); }} catch(e) {{ __omni_reportError(\"warn:for:class\", e); }}\n",
-                    class_name, js_expr
-                ));
+                );
+                let _ = writeln!(self.js, "      if (_el) try {{ _el.classList.toggle(\"{}\", !!({})); }} catch(e) {{ __omni_reportError(\"warn:for:class\", e); }}", class_name, js_expr);
             }
             self.js.push_str("    })();\n");
         }
@@ -318,10 +308,7 @@ impl OmniViewGenerator {
                 } else {
                     format!("({})", val_parts.join(" + "))
                 };
-                self.js.push_str(&format!(
-                    "      var _el = clone.querySelector('[data-nid=\"{}\"]'); if (_el) try {{ _el.setAttribute(\"{}\", {}); }} catch(e) {{ __omni_reportError(\"warn:for:attr\", e); }}\n",
-                    nid, attr_name, resolved
-                ));
+                let _ = writeln!(self.js, "      var _el = clone.querySelector('[data-nid=\"{}\"]'); if (_el) try {{ _el.setAttribute(\"{}\", {}); }} catch(e) {{ __omni_reportError(\"warn:for:attr\", e); }}", nid, attr_name, resolved);
             }
             self.js.push_str("    })();\n");
         }
@@ -380,11 +367,12 @@ impl OmniViewGenerator {
             // Emit event-kind lookup map
             self.js.push_str("    const _eventKinds = {\n");
             for (js_event, kind) in &for_event_kinds {
-                self.js.push_str(&format!(
-                    "      '{}': '{}',\n",
+                let _ = writeln!(
+                    self.js,
+                    "      '{}': '{}',",
                     js_event,
                     event_data_kind_label(kind)
-                ));
+                );
             }
             self.js.push_str("    };\n");
 
@@ -394,11 +382,12 @@ impl OmniViewGenerator {
             for (_, kind) in &for_event_kinds {
                 let label = event_data_kind_label(kind);
                 let used = used_fields_by_kind.get(label).unwrap_or(&None);
-                self.js.push_str(&format!("        case '{}':\n", label));
-                self.js.push_str(&format!(
-                    "          return {};\n",
+                let _ = writeln!(self.js, "        case '{}':", label);
+                let _ = writeln!(
+                    self.js,
+                    "          return {};",
                     emit_event_object(&Some(kind.clone()), used, "e")
-                ));
+                );
             }
             self.js.push_str("        default: return {};\n");
             self.js.push_str("      }\n");
@@ -482,10 +471,11 @@ impl OmniViewGenerator {
                 "          // Re-evaluate text bindings from element-scoped state (pre-compiled)\n",
             );
             if let Some(ref rebind_fn) = self.for_rebind_fn {
-                self.js.push_str(&format!(
-                    "          if (typeof {} === 'function') {}(_forComp);\n",
+                let _ = writeln!(
+                    self.js,
+                    "          if (typeof {} === 'function') {}(_forComp);",
                     rebind_fn, rebind_fn
-                ));
+                );
             }
             self.js.push_str("        }\n");
             self.js
@@ -503,7 +493,7 @@ impl OmniViewGenerator {
                 if i > 0 {
                     self.js.push_str(", ");
                 }
-                self.js.push_str(&format!("'{}'", evt));
+                let _ = write!(self.js, "'{}'", evt);
             }
             self.js.push_str("].forEach(function(evt) {\n");
             self.js
@@ -516,21 +506,15 @@ impl OmniViewGenerator {
         // Emit pre-compiled rebind function for text bindings (no new Function)
         if !self.for_text_bindings.is_empty() {
             if let Some(ref rebind_fn) = self.for_rebind_fn {
-                self.js.push_str(&format!(
-                    "  // Pre-compiled rebind function: {}\n",
-                    rebind_fn
-                ));
-                self.js
-                    .push_str(&format!("  function {}(comp) {{\n", rebind_fn));
+                let _ = writeln!(self.js, "  // Pre-compiled rebind function: {}", rebind_fn);
+                let _ = writeln!(self.js, "  function {}(comp) {{", rebind_fn);
                 for (nid, js_expr) in &self.for_text_bindings {
-                    self.js.push_str(&format!(
-                        "    var _el = comp.querySelector('[data-nid=\"{}\"]');\n",
+                    let _ = writeln!(
+                        self.js,
+                        "    var _el = comp.querySelector('[data-nid=\"{}\"]');",
                         nid
-                    ));
-                    self.js.push_str(&format!(
-                        "    if (_el) try {{ _el.textContent = String({}); }} catch(e) {{ __omni_reportError(\"warn:for:rebind\", e); }}\n",
-                        js_expr
-                    ));
+                    );
+                    let _ = writeln!(self.js, "    if (_el) try {{ _el.textContent = String({}); }} catch(e) {{ __omni_reportError(\"warn:for:rebind\", e); }}", js_expr);
                 }
                 self.js.push_str("  }\n");
             }

@@ -57,10 +57,11 @@ impl OmniViewGenerator {
         } else {
             format!(" data-design=\"{}\"", self.design_names.join(" "))
         };
-        self.html.push_str(&format!(
-            "<div id=\"root\" data-component=\"{}\"{}>\n",
+        let _ = writeln!(
+            self.html,
+            "<div id=\"root\" data-component=\"{}\"{}>",
             self.current_component, design_attr
-        ));
+        );
         let html = self.view_to_html(view, 1);
         self.html.push_str(&html);
         self.html.push_str("</div>\n");
@@ -116,15 +117,15 @@ impl OmniViewGenerator {
         } else {
             ".".to_string()
         };
-        self.css.push_str(&format!(
-            "[data-component=\"{}\"] {}{} {{\n",
+        let _ = writeln!(
+            self.css,
+            "[data-component=\"{}\"] {}{} {{",
             self.current_component, selector_prefix, style.class_name
-        ));
+        );
         for (prop, value) in &style.properties {
             let css_val = self.expr_to_css(value);
             let css_prop = camel_to_kebab(prop);
-            self.css
-                .push_str(&format!("  {}: {};\n", css_prop, css_val));
+            let _ = writeln!(self.css, "  {}: {};", css_prop, css_val);
         }
         self.css.push_str("}\n\n");
     }

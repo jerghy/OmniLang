@@ -3,6 +3,7 @@ use super::InliningState;
 use super::OmniViewGenerator;
 use crate::ir::*;
 use rustc_hash::FxHashSet;
+use std::fmt::Write;
 use std::sync::Arc;
 
 impl OmniViewGenerator {
@@ -126,15 +127,16 @@ impl OmniViewGenerator {
                 saved_state.restore(self);
 
                 let mut out = String::new();
-                out.push_str(&format!(
-                    "{}<div data-nid=\"{}\" data-component=\"{}\"{for_states}>\n",
+                let _ = writeln!(
+                    out,
+                    "{}<div data-nid=\"{}\" data-component=\"{}\"{for_states}>",
                     pad,
                     nid,
                     el.tag,
                     for_states = for_states_attr
-                ));
+                );
                 out.push_str(&child_html);
-                out.push_str(&format!("{}</div>\n", pad));
+                let _ = writeln!(out, "{}</div>", pad);
 
                 if !self.in_for_template {
                     // Wire parent props to child signals via reactive effects.
@@ -152,19 +154,21 @@ impl OmniViewGenerator {
                             let is_child_prop = child_prop_keys.contains(prop_name);
                             if !is_child_prop {
                                 self.signal_names.insert(child_prefixed.clone());
-                                self.js.push_str(&format!(
-                                    "const {} = __omni_signal(\"{}\", undefined);\n",
+                                let _ = writeln!(
+                                    self.js,
+                                    "const {} = __omni_signal(\"{}\", undefined);",
                                     child_prefixed, child_prefixed
-                                ));
+                                );
                             }
                             self.name_renames
                                 .entry(prop_name.clone())
                                 .or_insert_with(|| child_prefixed.clone());
                         }
-                        self.js.push_str(&format!(
-                            "__omni_effect(() => {{ __omni_subs.get(\"{0}\").set({1}); }});\n",
+                        let _ = writeln!(
+                            self.js,
+                            "__omni_effect(() => {{ __omni_subs.get(\"{0}\").set({1}); }});",
                             child_prefixed, js_value
-                        ));
+                        );
                     }
 
                     // Emit event bindings for the component element

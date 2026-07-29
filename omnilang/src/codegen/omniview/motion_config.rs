@@ -1,6 +1,7 @@
 use super::OmniViewGenerator;
 use crate::codegen::escape_literal_str;
 use crate::ir::*;
+use std::fmt::Write;
 
 impl OmniViewGenerator {
     // Motion / Animation Codegen
@@ -58,7 +59,7 @@ impl OmniViewGenerator {
             );
             if let Some(ref ease) = stop.ease {
                 let ease_js = self.easing_to_js(ease);
-                item.push_str(&format!(",easing:{}", ease_js));
+                let _ = write!(item, ",easing:{}", ease_js);
             }
             kf_items.push(item);
         }

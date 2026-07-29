@@ -13,6 +13,7 @@
 use crate::codegen::{camel_to_kebab, sanitize_css_value};
 use crate::ir::design::*;
 use rustc_hash::FxHashMap;
+use std::fmt::Write;
 
 /// Emit CSS for all tokens, classes, and variants in a design block.
 ///
@@ -70,7 +71,7 @@ fn emit_design_css_impl(
         // 1. Default theme (or first listed value) on :root — always emitted
         css.push_str(":root {\n");
         for (name, token) in &sorted {
-            css.push_str(&format!("  --{}: {};\n", name, token.value));
+            let _ = writeln!(css, "  --{}: {};", name, token.value);
         }
         css.push_str("}\n\n");
 
@@ -80,9 +81,9 @@ fn emit_design_css_impl(
             theme_names.sort();
             for theme_name in &theme_names {
                 if let Some(pairs) = theme_token_map.get(theme_name) {
-                    css.push_str(&format!("[data-theme=\"{}\"] {{\n", theme_name));
+                    let _ = writeln!(css, "[data-theme=\"{}\"] {{", theme_name);
                     for (name, val) in pairs {
-                        css.push_str(&format!("  --{}: {};\n", name, val));
+                        let _ = writeln!(css, "  --{}: {};", name, val);
                     }
                     css.push_str("}\n\n");
                 }
@@ -96,7 +97,7 @@ fn emit_design_css_impl(
             css.push_str("@media (prefers-color-scheme: dark) {\n");
             css.push_str("  :root:not([data-theme]) {\n");
             for (name, val) in dark_pairs {
-                css.push_str(&format!("    --{}: {};\n", name, val));
+                let _ = writeln!(css, "    --{}: {};", name, val);
             }
             css.push_str("  }\n");
             css.push_str("}\n\n");
@@ -121,10 +122,10 @@ fn emit_class_css(class: &ClassIR, scope_prefix: &str) -> String {
     let mut css = String::new();
 
     if !class.properties.is_empty() {
-        css.push_str(&format!("{}.{} {{\n", scope_prefix, class.name));
+        let _ = writeln!(css, "{}.{} {{", scope_prefix, class.name);
         for (prop, val) in &class.properties {
             let sanitized = sanitize_css_value(val);
-            css.push_str(&format!("  {}: {};\n", camel_to_kebab(prop), sanitized));
+            let _ = writeln!(css, "  {}: {};", camel_to_kebab(prop), sanitized);
         }
         css.push_str("}\n\n");
     }
@@ -139,7 +140,7 @@ fn emit_class_css(class: &ClassIR, scope_prefix: &str) -> String {
             };
             css.push_str(&pseudo_selector);
             for (prop, val) in &ps.properties {
-                css.push_str(&format!("  {}: {};\n", camel_to_kebab(prop), val));
+                let _ = writeln!(css, "  {}: {};", camel_to_kebab(prop), val);
             }
             css.push_str("}\n\n");
         }
@@ -154,10 +155,10 @@ fn emit_variant_css(variant: &VariantIR, scope_prefix: &str) -> String {
 
     // Base rule: `{scope}.variant-name { ... }`
     if !variant.base.is_empty() {
-        css.push_str(&format!("{}.{} {{\n", scope_prefix, variant.name));
+        let _ = writeln!(css, "{}.{} {{", scope_prefix, variant.name);
         for (prop, val) in &variant.base {
             let sanitized = sanitize_css_value(val);
-            css.push_str(&format!("  {}: {};\n", camel_to_kebab(prop), sanitized));
+            let _ = writeln!(css, "  {}: {};", camel_to_kebab(prop), sanitized);
         }
         css.push_str("}\n\n");
     }
@@ -165,13 +166,10 @@ fn emit_variant_css(variant: &VariantIR, scope_prefix: &str) -> String {
     // Branch rules: `{scope}.variant-name.dim-value { ... }`
     for branch in &variant.branches {
         if !branch.properties.is_empty() {
-            css.push_str(&format!(
-                "{}.{}.{} {{\n",
-                scope_prefix, variant.name, branch.value
-            ));
+            let _ = writeln!(css, "{}.{}.{} {{", scope_prefix, variant.name, branch.value);
             for (prop, val) in &branch.properties {
                 let sanitized = sanitize_css_value(val);
-                css.push_str(&format!("  {}: {};\n", camel_to_kebab(prop), sanitized));
+                let _ = writeln!(css, "  {}: {};", camel_to_kebab(prop), sanitized);
             }
             css.push_str("}\n\n");
         }

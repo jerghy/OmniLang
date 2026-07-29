@@ -33,6 +33,7 @@ use crate::sourcemap::SourceMapEntry;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
+use std::fmt::Write;
 use std::sync::Arc;
 /// Output of the OmniView codegen — standalone JS/HTML/CSS.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -252,7 +253,7 @@ pub fn generate(
     // Emit all module-level public functions (e.g., lib.omni utilities)
     if !css_only {
         for func in ir.all_functions() {
-            gen.js.push_str(&format!("\n// pub fn {}\n", func.name));
+            let _ = writeln!(gen.js, "\n// pub fn {}", func.name);
             gen.emit_function(func);
         }
     }
@@ -263,10 +264,11 @@ pub fn generate(
     if !css_only {
         for module in ir.modules.values() {
             if !module.motions.is_empty() {
-                gen.js.push_str(&format!(
-                    "\n/// ── Module Motion Definitions: {} ──\n\n",
+                let _ = writeln!(
+                    gen.js,
+                    "\n/// ── Module Motion Definitions: {} ──\n",
                     module.name
-                ));
+                );
                 for motion in &module.motions {
                     gen.motion_names.insert(motion.name.clone());
                     gen.emit_motion_js(motion);
@@ -369,8 +371,7 @@ pub fn generate(
                 design::emit_design_css(design, &design.name)
             };
             if let Ok(css) = css_result {
-                gen.css
-                    .push_str(&format!("\n/* ── Design: {} ── */\n", design.name));
+                let _ = writeln!(gen.css, "\n/* ── Design: {} ── */", design.name);
                 gen.css.push_str(&css);
             }
         }
@@ -730,7 +731,8 @@ impl OmniViewGenerator {
             String::new()
         };
 
-        self.js.push_str(&format!(
+        let _ = write!(
+            self.js,
             r#"// ═══ Theme Runtime (generated from design @themes) ═══
 const __omni_theme = {{
   _themes: [{}],
@@ -768,7 +770,7 @@ const __omni_theme = {{
 __omni_theme.init();
 "#,
             themes_array, media_init
-        ));
+        );
     }
 }
 

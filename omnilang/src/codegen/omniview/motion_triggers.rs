@@ -2,6 +2,7 @@
 use super::OmniViewGenerator;
 use crate::codegen::escape_literal_str;
 use crate::ir::*;
+use std::fmt::Write;
 
 /// Generate a standard IIFE-wrapped motion trigger JS string.
 /// Used by hover and press (and their inline variants), which follow
@@ -84,7 +85,8 @@ impl OmniViewGenerator {
         } else {
             "// @in-view trigger"
         };
-        self.js.push_str(&format!(
+        let _ = writeln!(
+            self.js,
             "{comment}\n\
              (function() {{\n\
              \x20 const el = __omni_el(\"{nid}\");\n\
@@ -105,14 +107,14 @@ impl OmniViewGenerator {
              \x20 observer.observe(el);\n\
              \x20 window.__omni_inview_observers = window.__omni_inview_observers || [];\n\
              \x20 __omni_inview_observers.push({{ nid: \"{nid}\", observer: observer }});\n\
-             }})();\n",
+             }})();",
             comment = comment,
             nid = nid,
             anim_call = anim_call,
             trigger = trigger_str,
             threshold = threshold_val,
             disconnect_js = disconnect_js,
-        ));
+        );
     }
 
     /// Emit the module-level shared scroll handler and variables if not already emitted.
@@ -192,8 +194,7 @@ impl OmniViewGenerator {
         self.emit_shared_scroll_handler();
         // Both named and inline branches produce the same structure now — the scrub
         // logic moved into the shared handler.
-        self.js.push_str(&format!(
-            "{comment}\n\
+        let _ = writeln!(self.js, "{comment}\n\
              (function() {{\n\
              \x20 const el = __omni_el(\"{nid}\");\n\
              \x20 if (!el) return;\n\
@@ -212,15 +213,13 @@ impl OmniViewGenerator {
              \x20 }});\n\
              \x20 __omni_ensureScrollHandler();\n\
              \x20 anim.currentTime = Omni.scrollProgress(el, \"{scroll_start}\", \"{scroll_end}\") * dur;\n\
-             }})();\n",
-            comment = comment,
+             }})();", comment = comment,
             nid = nid,
             anim_call = anim_call,
             trigger = trigger_str,
             scroll_start = scroll_start_str,
             scroll_end = scroll_end_str,
-            scrub = scrub_val,
-        ));
+            scrub = scrub_val,);
     }
 
     /// Generate @drag trigger JS. Shared by both named motion ref and inline paths.
@@ -261,7 +260,8 @@ impl OmniViewGenerator {
             axis_label,
             if is_inline { "(inline)" } else { "trigger" },
         );
-        self.js.push_str(&format!(
+        let _ = writeln!(
+            self.js,
             "{comment}\n\
              (function() {{\n\
              \x20 const el = __omni_el(\"{nid}\");\n\
@@ -345,7 +345,7 @@ impl OmniViewGenerator {
              \x20\x20\x20 anim.reverse();\n\
              \x20\x20 }}\n\
              \x20 }});\n\
-             }})();\n",
+             }})();",
             comment = comment,
             nid = nid,
             anim_call = anim_call,
@@ -358,7 +358,7 @@ impl OmniViewGenerator {
             edge_max = edge_max,
             size = rect_size,
             velocity_max = velocity_max_val,
-        ));
+        );
     }
 
     /// Emit trigger JS for Enter, Hover, Press — shared by both named motion ref and inline paths.
@@ -377,7 +377,8 @@ impl OmniViewGenerator {
                 } else {
                     "// @enter trigger"
                 };
-                self.mount_js.push_str(&format!(
+                let _ = writeln!(
+                    self.mount_js,
                     "{comment}\n\
                      (function() {{\n\
                      \x20 const el = __omni_el(\"{nid}\");\n\
@@ -386,12 +387,12 @@ impl OmniViewGenerator {
                      \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", anim);\n\
                      \x20\x20 if (el.offsetParent !== null) anim.play();\n\
                      \x20 }}\n\
-                     }})();\n",
+                     }})();",
                     comment = comment,
                     nid = nid,
                     anim = anim_call,
                     trigger = trigger_str,
-                ));
+                );
             }
             TriggerKind::Hover => {
                 let comment = if is_inline {
