@@ -85,7 +85,6 @@ pub enum TokenKind {
     AtDragHorizontal,
     AtDragVertical,
     AtPaused,
-    AtHoverReverse,
     AtInViewOnce,
     AtInViewRepeat,
     AtInViewThreshold,

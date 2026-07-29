@@ -263,7 +263,6 @@ pub(super) fn lower_component(
         view,
         styles,
         if_mode_default: comp.if_mode_default.clone(),
-        hero_defs: vec![],  // heroes removed per ADR-032
         source_span: Some(comp.span),
     }
 }

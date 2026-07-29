@@ -595,7 +595,6 @@ impl SemanticAnalyzer {
                 | ElementProp::Ref(_)
                 | ElementProp::MotionTrigger(_)
                 | ElementProp::PausedOverride(_)
-                | ElementProp::HoverReverse(_)
                 | ElementProp::InViewOnce(_)
                 | ElementProp::InViewRepeat(_)
                 | ElementProp::InViewThreshold(_)

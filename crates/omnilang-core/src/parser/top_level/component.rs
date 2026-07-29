@@ -20,7 +20,6 @@ impl<'a> Parser<'a> {
         let mut store_refs = Vec::new();
         let mut if_mode_default: Option<String> = None;
         let mut motions: Vec<MotionDef> = Vec::new();
-        let mut hero_defs: Vec<HeroDef> = Vec::new();
         let mut lifecycles = Vec::new();
         let mut fns = Vec::new();
         let mut actions = Vec::new();
@@ -93,48 +92,6 @@ impl<'a> Parser<'a> {
                         self.advance();
                     }
                     if_mode_default = Some(mode);
-                }
-                TokenKind::AtHero => {
-                    // @hero NAME { over: ..., ease: ... }
-                    let span_start = self.peek_span();
-                    self.advance(); // '@hero'
-                    let name = self.expect_ident("expected hero name")?;
-                    self.expect_token(TokenKind::LBrace, "expected '{'")?;
-                    // Parse hero body
-                    // Expected fields: over: <expr> [, ease: <easing>]
-                    let mut over = Expr::Literal(Literal::Float(0.3), self.peek_span());
-                    let mut ease = None;
-                    loop {
-                        match self.peek_ident_value() {
-                            Some(ref s) if s == "over" => {
-                                self.advance();
-                                self.expect_token(TokenKind::Colon, "expected ':'")?;
-                                over = self.parse_expr()?;
-                            }
-                            Some(ref s) if s == "ease" => {
-                                self.advance();
-                                self.expect_token(TokenKind::Colon, "expected ':'")?;
-                                ease = Some(self.parse_easing()?);
-                            }
-                            _ => break,
-                        }
-                        if *self.peek_kind() == TokenKind::Comma {
-                            self.advance();
-                        }
-                    }
-                    self.expect_token(TokenKind::RBrace, "expected '}'")?;
-                    let span_end = self.peek_span();
-                    hero_defs.push(HeroDef {
-                        name,
-                        over,
-                        ease,
-                        span: Span {
-                            start: span_start.start,
-                            end: span_end.end,
-                            line: span_start.line,
-                            col: span_start.col,
-                        },
-                    });
                 }
                 TokenKind::Const => {
                     self.advance(); // 'const'
@@ -240,7 +197,6 @@ impl<'a> Parser<'a> {
             refs,
             store_refs,
             if_mode_default,
-            hero_defs,
             lifecycles,
             fns,
             actions,

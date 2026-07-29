@@ -100,15 +100,6 @@ pub enum EasingExpr {
     },
 }
 
-/// Hero definition (legacy — kept only for CompDef compatibility; not parsed)
-#[derive(Debug, Clone, Serialize)]
-pub struct HeroDef {
-    pub name: String,
-    pub over: Expr,
-    pub ease: Option<EasingExpr>,
-    pub span: Span,
-}
-
 /// Animation trigger specification (used in @prop attributes)
 #[derive(Debug, Clone, Serialize)]
 pub struct MotionTrigger {

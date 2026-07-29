@@ -62,7 +62,6 @@ fn computed_references_prop_with_default() {
         view: None,
         styles: vec![],
         if_mode_default: None,
-        hero_defs: vec![],
         source_span: None,
     };
     let mut module = ModuleIR {

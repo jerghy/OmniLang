@@ -237,7 +237,6 @@ mod tests {
                 view: None,
                 styles: vec![],
                 if_mode_default: None,
-                hero_defs: vec![],
                 ..Default::default()
             },
         );
@@ -287,7 +286,6 @@ mod tests {
                     store_refs: vec![],
                     if_mode_default: None,
                     motions: vec![],
-                            hero_defs: vec![],
                     lifecycles: vec![],
                     fns: vec![],
                     actions: vec![],
@@ -347,7 +345,6 @@ mod tests {
                     store_refs: vec![],
                     if_mode_default: None,
                     motions: vec![],
-                    hero_defs: vec![],
                     lifecycles: vec![],
                     fns: vec![FunctionDef {
                         visibility: Visibility::Private,

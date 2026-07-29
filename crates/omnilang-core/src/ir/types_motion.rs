@@ -96,16 +96,6 @@ pub enum TriggerKind {
     DragVertical,
 }
 
-/// Hero intent (legacy — kept for ComponentIR type compatibility; never actively used)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct HeroIntent {
-    pub name: String,
-    pub over: ExprIR,
-    pub ease: Option<EasingIR>,
-    #[serde(default)]
-    pub source_span: Option<Span>,
-}
-
 /// Value type for loop_count.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum LoopValue {
@@ -139,7 +129,6 @@ pub enum FillValue {
 pub struct MotionBehavior {
     pub triggers: Vec<TriggerIntent>,
     pub paused_override: Option<ExprIR>,
-    pub hover_reverse: Option<String>,
     pub in_view_once: Option<ExprIR>,
     pub in_view_repeat: Option<ExprIR>,
     pub in_view_threshold: Option<ExprIR>,

@@ -736,9 +736,6 @@ pub struct ComponentIR {
     /// Component-level @if mode default
     #[serde(default)]
     pub if_mode_default: Option<String>,
-    /// Hero definitions (legacy — always empty; kept for CompDef compatibility)
-    #[serde(default)]
-    pub hero_defs: Vec<HeroIntent>,
     /// Source location in .omni file
     #[serde(default)]
     pub source_span: Option<Span>,

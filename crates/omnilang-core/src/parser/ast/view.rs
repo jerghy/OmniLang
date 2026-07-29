@@ -4,7 +4,7 @@ use serde::Serialize;
 
 use crate::lexer::Span;
 
-use super::motion::{GetterDecl, HeroDef, MotionDef, MotionTrigger};
+use super::motion::{GetterDecl, MotionDef, MotionTrigger};
 use super::{Block, Expr, FunctionDef, Param, TypeAnnotation};
 
 // ── OmniView-Specific AST ─────────────────────────────
@@ -19,7 +19,6 @@ pub struct ComponentDef {
     pub refs: Vec<RefDecl>,
     pub store_refs: Vec<String>,
     pub if_mode_default: Option<String>,
-    pub hero_defs: Vec<HeroDef>,
     pub lifecycles: Vec<LifecycleHook>,
     pub fns: Vec<FunctionDef>,
     pub actions: Vec<ActionDef>,
@@ -145,7 +144,6 @@ pub enum ElementProp {
     Ref(String),
     MotionTrigger(MotionTrigger),
     PausedOverride(Expr),
-    HoverReverse(String),
     /// @in-view-once={bool}
     InViewOnce(Expr),
     /// @in-view-repeat={bool}

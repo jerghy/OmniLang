@@ -229,7 +229,6 @@ fn lower_element(
     let mut class_map_bindings_from_prop: Option<FxHashMap<String, ExprIR>> = None;
     let mut motion_triggers: Vec<TriggerIntent> = Vec::new();
     let mut paused_override: Option<ExprIR> = None;
-    let mut hover_reverse: Option<String> = None;
     let mut in_view_once: Option<ExprIR> = None;
     let mut in_view_repeat: Option<ExprIR> = None;
     let mut in_view_threshold: Option<ExprIR> = None;
@@ -480,10 +479,6 @@ fn lower_element(
             ElementProp::PausedOverride(expr) => {
                 paused_override = Some(lower_expr(expr, variant_map, None, semantics));
             }
-            // Hover reverse animation name
-            ElementProp::HoverReverse(s) => {
-                hover_reverse = Some(s.clone());
-            }
             // InView trigger: once
             ElementProp::InViewOnce(expr) => {
                 in_view_once = Some(lower_expr(expr, variant_map, None, semantics));
@@ -573,7 +568,6 @@ fn lower_element(
         motion: {
             let has_any = !motion_triggers.is_empty()
                 || paused_override.is_some()
-                || hover_reverse.is_some()
                 || in_view_once.is_some()
                 || in_view_repeat.is_some()
                 || in_view_threshold.is_some();
@@ -581,7 +575,6 @@ fn lower_element(
                 Some(Box::new(MotionBehavior {
                     triggers: motion_triggers,
                     paused_override,
-                    hover_reverse,
                     in_view_once,
                     in_view_repeat,
                     in_view_threshold,

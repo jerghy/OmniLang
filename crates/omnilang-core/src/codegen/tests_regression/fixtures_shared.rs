@@ -116,7 +116,6 @@ pub(crate) fn fixture_component() -> IRProgram {
         })),
         styles: vec![],
         if_mode_default: None,
-        hero_defs: vec![],
         ..Default::default()
     };
     IRProgram {
@@ -283,7 +282,6 @@ pub(crate) fn fixture_component_with_store() -> IRProgram {
         })),
         styles: vec![],
         if_mode_default: None,
-        hero_defs: vec![],
         ..Default::default()
     };
     IRProgram {

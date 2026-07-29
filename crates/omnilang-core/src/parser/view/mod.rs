@@ -482,19 +482,6 @@ impl<'a> Parser<'a> {
                     self.expect_token(TokenKind::RBrace, "expected '}'")?;
                     props.push(ElementProp::PausedOverride(expr));
                 }
-                TokenKind::AtHoverReverse => {
-                    self.advance();
-                    self.expect_token(TokenKind::Eq, "expected '='")?;
-                    let mode = if self.at(&TokenKind::LBrace) {
-                        self.advance();
-                        let m = self.expect_ident("expected hover reverse mode")?;
-                        self.expect_token(TokenKind::RBrace, "expected '}'")?;
-                        m
-                    } else {
-                        self.expect_string("expected string value")?
-                    };
-                    props.push(ElementProp::HoverReverse(mode));
-                }
                 TokenKind::AtInViewOnce
                 | TokenKind::AtInViewRepeat
                 | TokenKind::AtInViewThreshold => {
