@@ -299,10 +299,6 @@ impl OmniViewGenerator {
             self.emit_function_named(f, &prefixed_name);
         }
 
-        // Emit element-ref wrapper objects (must come after signals/computeds/fns,
-        // before the view so that the JS variables are available to the component scope)
-        self.emit_ref_wrappers(comp);
-
         // View → HTML + reactive bindings (only root component emits its view;
         // child component views are inlined during root's view generation)
         if is_root {
@@ -312,6 +308,13 @@ impl OmniViewGenerator {
                 self.scope.emitting_root_view = false;
             }
         }
+
+        // Emit element-ref wrapper objects AFTER view emission so that ref_nid_map
+        // is populated by element_to_html (called during emit_view). The wrappers
+        // are const declarations in the component's IIFE scope — they must come
+        // before emit_dom_and_bindings() but can appear after view JS because the
+        // view's event bindings are deferred to mount_js which runs after the IIFE.
+        self.emit_ref_wrappers(comp);
 
         // Styles → CSS
         for style in &comp.styles {
