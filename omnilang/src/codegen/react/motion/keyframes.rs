@@ -125,18 +125,18 @@ fn translate_easing(ease: &EasingIR) -> String {
             format!("cubic-bezier({},{},{},{})", x1, y1, x2, y2)
         }
         EasingIR::Back { direction } => {
-            let dir = direction.as_deref().unwrap_or("Out");
+            let dir = direction.as_deref().unwrap_or("out");
             match dir {
-                "In" => "cubic-bezier(0.600,0.165,0.735,0.045)".to_string(),
-                "InOut" => "cubic-bezier(0.680,-0.550,0.265,1.550)".to_string(),
+                "in" => "cubic-bezier(0.600,-0.280,0.735,0.045)".to_string(),
+                "inout" => "cubic-bezier(0.680,-0.550,0.265,1.550)".to_string(),
                 _ => "cubic-bezier(0.175,0.885,0.320,1.275)".to_string(),
             }
         }
         EasingIR::Elastic { direction } => {
-            let dir = direction.as_deref().unwrap_or("Out");
+            let dir = direction.as_deref().unwrap_or("out");
             match dir {
-                "In" => "cubic-bezier(0.600,0.040,0.980,0.335)".to_string(),
-                "InOut" => "cubic-bezier(0.680,-0.550,0.265,1.550)".to_string(),
+                "in" => "cubic-bezier(0.600,0.040,0.980,0.335)".to_string(),
+                "inout" => "cubic-bezier(0.680,-0.550,0.265,1.550)".to_string(),
                 _ => "cubic-bezier(0.250,0.460,0.450,0.940)".to_string(),
             }
         }

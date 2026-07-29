@@ -53,13 +53,17 @@ impl<'a> Parser<'a> {
                 EasingExpr::Named(name.clone())
             }
             "backIn" | "backOut" | "backInOut" => {
+                let dir = name.strip_prefix("back").unwrap_or("out");
+                let dir_lower = dir.to_lowercase();
                 EasingExpr::Back {
-                    direction: Some(name.clone()),
+                    direction: if dir_lower == "out" { None } else { Some(dir_lower) },
                 }
             }
             "elasticIn" | "elasticOut" | "elasticInOut" => {
+                let dir = name.strip_prefix("elastic").unwrap_or("out");
+                let dir_lower = dir.to_lowercase();
                 EasingExpr::Elastic {
-                    direction: Some(name.clone()),
+                    direction: if dir_lower == "out" { None } else { Some(dir_lower) },
                 }
             }
             "cubic" => {
