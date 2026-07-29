@@ -2,6 +2,46 @@
 use super::OmniViewGenerator;
 use crate::ir::*;
 
+/// Generate a standard IIFE-wrapped motion trigger JS string.
+/// Used by hover, press, focus, unhover, leave, animate, timeline and their
+/// inline variants, which all follow the common pattern:
+///
+/// ```js
+/// // {comment}
+/// (function() {
+///   const el = __omni_el("{nid}");
+///   if (el) {
+///     const anim = {anim_orchestrator};
+///     __omni_animations.set("{nid}_{trigger}", anim);
+///     {extra_body}
+///   }
+/// })();
+/// ```
+fn format_simple_trigger_js(
+    comment: &str,
+    nid: &str,
+    trigger_str: &str,
+    anim_orchestrator: &str,
+    extra_body: &str,
+) -> String {
+    format!(
+        "{comment}\n\
+         (function() {{\n\
+         \x20 const el = __omni_el(\"{nid}\");\n\
+         \x20 if (el) {{\n\
+         \x20\x20 const anim = {anim};\n\
+         \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", anim);\n\
+         {extra}\
+         \x20 }}\n\
+         }})();\n",
+        comment = comment,
+        nid = nid,
+        anim = anim_orchestrator,
+        trigger = trigger_str,
+        extra = extra_body,
+    )
+}
+
 impl OmniViewGenerator {
     /// Generate @in-view trigger JS. Shared by both named motion ref and inline paths.
     fn emit_trigger_inview_js(
@@ -348,6 +388,11 @@ impl OmniViewGenerator {
             };
 
             if let Some(ref motion_name) = trigger.motion_ref {
+                // Pre-compute the animation orchestrator call for all named triggers
+                let anim_call = format!(
+                    "__omni_motion_{}(el, {{ trigger: \"{}\" }})",
+                    motion_name, trigger_str,
+                );
                 match trigger.kind {
                     TriggerKind::Enter => {
                         // @enter: create animation and play immediately (in mount JS)
@@ -363,102 +408,78 @@ impl OmniViewGenerator {
                              (function() {{\n\
                              \x20 const el = __omni_el(\"{nid}\");\n\
                              \x20 if (el) {{\n\
-                             \x20\x20 const anim = __omni_motion_{motion}(el, {{ trigger: \"{trigger}\" }});\n\
+                             \x20\x20 const anim = {anim};\n\
                              \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", anim);\n\
                              \x20\x20 if (el.offsetParent !== null) anim.play();\n\
                              \x20 }}\n\
                              }})();\n",
                             nid = nid,
                             trigger = trigger_str,
-                            motion = motion_name
+                            anim = anim_call,
                         ));
                     }
                     TriggerKind::Hover => {
-                        self.js.push_str(&format!(
-                            "// @hover trigger\n\
-                             (function() {{\n\
-                             \x20 const el = __omni_el(\"{nid}\");\n\
-                             \x20 if (el) {{\n\
-                             \x20\x20 const anim = __omni_motion_{motion}(el, {{ trigger: \"{trigger}\" }});\n\
-                             \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", anim);\n\
-                             \x20\x20 el.addEventListener(\"mouseenter\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.play(); }});\n\
-                             \x20\x20 el.addEventListener(\"mouseleave\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.reverse(); }});\n\
-                             \x20 }}\n\
-                             }})();\n",
+                        let extra = format!(
+                            "\x20\x20 el.addEventListener(\"mouseenter\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.play(); }});\n\
+                             \x20\x20 el.addEventListener(\"mouseleave\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.reverse(); }});\n",
                             nid = nid,
                             trigger = trigger_str,
-                            motion = motion_name
+                        );
+                        self.js.push_str(&format_simple_trigger_js(
+                            "// @hover trigger",
+                            nid,
+                            trigger_str,
+                            &anim_call,
+                            &extra,
                         ));
                     }
                     TriggerKind::Press => {
-                        self.js.push_str(&format!(
-                            "// @press trigger\n\
-                             (function() {{\n\
-                             \x20 const el = __omni_el(\"{nid}\");\n\
-                             \x20 if (el) {{\n\
-                             \x20\x20 const anim = __omni_motion_{motion}(el, {{ trigger: \"{trigger}\" }});\n\
-                             \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", anim);\n\
-                             \x20\x20 el.addEventListener(\"mousedown\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.play(); }});\n\
-                             \x20\x20 el.addEventListener(\"mouseup\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.reverse(); }});\n\
-                             \x20 }}\n\
-                             }})();\n",
+                        let extra = format!(
+                            "\x20\x20 el.addEventListener(\"mousedown\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.play(); }});\n\
+                             \x20\x20 el.addEventListener(\"mouseup\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.reverse(); }});\n",
                             nid = nid,
                             trigger = trigger_str,
-                            motion = motion_name
+                        );
+                        self.js.push_str(&format_simple_trigger_js(
+                            "// @press trigger",
+                            nid,
+                            trigger_str,
+                            &anim_call,
+                            &extra,
                         ));
                     }
                     TriggerKind::Focus => {
-                        self.js.push_str(&format!(
-                            "// @focus trigger\n\
-                             (function() {{\n\
-                             \x20 const el = __omni_el(\"{nid}\");\n\
-                             \x20 if (el) {{\n\
-                             \x20\x20 const anim = __omni_motion_{motion}(el, {{ trigger: \"{trigger}\" }});\n\
-                             \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", anim);\n\
-                             \x20\x20 el.addEventListener(\"focus\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.play(); }});\n\
-                             \x20\x20 el.addEventListener(\"blur\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.reverse(); }});\n\
-                             \x20 }}\n\
-                             }})();\n",
+                        let extra = format!(
+                            "\x20\x20 el.addEventListener(\"focus\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.play(); }});\n\
+                             \x20\x20 el.addEventListener(\"blur\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.reverse(); }});\n",
                             nid = nid,
                             trigger = trigger_str,
-                            motion = motion_name
+                        );
+                        self.js.push_str(&format_simple_trigger_js(
+                            "// @focus trigger",
+                            nid,
+                            trigger_str,
+                            &anim_call,
+                            &extra,
                         ));
                     }
                     TriggerKind::Leave => {
-                        self.mount_js.push_str(&format!(
-                            "// @leave trigger\n\
-                             (function() {{\n\
-                             \x20 const el = __omni_el(\"{nid}\");\n\
-                             \x20 if (el) {{\n\
-                             \x20\x20 const anim = __omni_motion_{motion}(el, {{ trigger: \"{trigger}\" }});\n\
-                             \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", anim);\n\
-                             \x20 }}\n\
-                             }})();\n",
-                            nid = nid,
-                            trigger = trigger_str,
-                            motion = motion_name
+                        self.mount_js.push_str(&format_simple_trigger_js(
+                            "// @leave trigger",
+                            nid,
+                            trigger_str,
+                            &anim_call,
+                            "",
                         ));
                     }
                     TriggerKind::InView => {
-                        let anim_call = format!(
-                            "__omni_motion_{}(el, {{ trigger: \"{}\" }})",
-                            motion_name, trigger_str,
-                        );
                         self.emit_trigger_inview_js(nid, trigger_str, &anim_call, el, false);
                     }
                     TriggerKind::Scroll => {
-                        let anim_call = format!(
-                            "__omni_motion_{}(el, {{ trigger: \"{}\" }})",
-                            motion_name, trigger_str,
-                        );
                         self.emit_trigger_scroll_js(nid, trigger_str, &anim_call, el, false);
                     }
                     TriggerKind::DragHorizontal | TriggerKind::DragVertical => {
                         let is_horizontal = matches!(trigger.kind, TriggerKind::DragHorizontal);
-                        let anim_call = format!(
-                            "__omni_motion_{}(el, {{ trigger: \"{}\" }})",
-                            motion_name, trigger_str,
-                        );
                         self.emit_trigger_drag_js(
                             nid,
                             trigger_str,
@@ -469,19 +490,13 @@ impl OmniViewGenerator {
                         );
                     }
                     TriggerKind::Animate => {
-                        self.mount_js.push_str(&format!(
-                            "// @animate trigger\n\
-                             (function() {{\n\
-                             \x20 const el = __omni_el(\"{nid}\");\n\
-                             \x20 if (el) {{\n\
-                             \x20\x20 const anim = __omni_motion_{motion}(el, {{ trigger: \"{trigger}\" }});\n\
-                             \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", anim);\n\
-                             \x20\x20 anim.play();\n\
-                             \x20 }}\n\
-                             }})();\n",
-                            nid = nid,
-                            trigger = trigger_str,
-                            motion = motion_name
+                        let extra = "\x20\x20 anim.play();\n";
+                        self.mount_js.push_str(&format_simple_trigger_js(
+                            "// @animate trigger",
+                            nid,
+                            trigger_str,
+                            &anim_call,
+                            extra,
                         ));
                     }
                     TriggerKind::Timeline => {
@@ -491,39 +506,28 @@ impl OmniViewGenerator {
                             "timeline".into(),
                             self.current_component.clone(),
                         ));
-                        self.mount_js.push_str(&format!(
-                            "// @timeline trigger\n\
-                             (function() {{\n\
-                             \x20 const el = __omni_el(\"{nid}\");\n\
-                             \x20 if (el) {{\n\
-                             \x20\x20 const anim = __omni_motion_{motion}(el, {{ trigger: \"{trigger}\" }});\n\
-                             \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", anim);\n\
-                             \x20 }}\n\
-                             }})();\n",
-                            nid = nid,
-                            trigger = trigger_str,
-                            motion = motion_name
+                        self.mount_js.push_str(&format_simple_trigger_js(
+                            "// @timeline trigger",
+                            nid,
+                            trigger_str,
+                            &anim_call,
+                            "",
                         ));
                     }
-                    _ => {
-                        // Other triggers: create animation, don't auto-play
-                        self.js.push_str(&format!(
-                            "// @{trigger} trigger\n\
-                             (function() {{\n\
-                             \x20 const el = __omni_el(\"{nid}\");\n\
-                             \x20 if (el) {{\n\
-                             \x20\x20 const anim = __omni_motion_{motion}(el, {{ trigger: \"{trigger}\" }});\n\
-                             \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", anim);\n\
-                             \x20 }}\n\
-                             }})();\n",
-                            nid = nid,
-                            trigger = trigger_str,
-                            motion = motion_name
+                    TriggerKind::Unhover => {
+                        self.js.push_str(&format_simple_trigger_js(
+                            "// @unhover trigger",
+                            nid,
+                            trigger_str,
+                            &anim_call,
+                            "",
                         ));
                     }
                 }
             } else if !kf_override.is_empty() {
                 // Inline motion definition — full config embedded
+                let anim_call =
+                    format!("Omni.animate(el, {}, {{ {} }})", kf_override, opts_override);
                 match trigger.kind {
                     TriggerKind::Enter => {
                         self.mount_js.push_str(&format!(
@@ -531,49 +535,78 @@ impl OmniViewGenerator {
                              (function() {{\n\
                              \x20 const el = __omni_el(\"{nid}\");\n\
                              \x20 if (el) {{\n\
-                             \x20\x20 const anim = Omni.animate(el, {kf}, {{ {opts} }});\n\
+                             \x20\x20 const anim = {anim};\n\
                              \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", anim);\n\
                              \x20\x20 if (el.offsetParent !== null) anim.play();\n\
                              \x20 }}\n\
                              }})();\n",
                             nid = nid,
                             trigger = trigger_str,
-                            kf = kf_override,
-                            opts = opts_override,
+                            anim = anim_call,
                         ));
                     }
                     TriggerKind::Hover => {
-                        self.js.push_str(&format!(
-                            "// @hover (inline)\n\
-                             (function() {{\n\
-                             \x20 const el = __omni_el(\"{nid}\");\n\
-                             \x20 if (el) {{\n\
-                             \x20\x20 const anim = Omni.animate(el, {kf}, {{ {opts} }});\n\
-                             \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", anim);\n\
-                             \x20\x20 el.addEventListener(\"mouseenter\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.play(); }});\n\
-                             \x20\x20 el.addEventListener(\"mouseleave\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.reverse(); }});\n\
-                             \x20 }}\n\
-                             }})();\n",
+                        let extra = format!(
+                            "\x20\x20 el.addEventListener(\"mouseenter\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.play(); }});\n\
+                             \x20\x20 el.addEventListener(\"mouseleave\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.reverse(); }});\n",
                             nid = nid,
                             trigger = trigger_str,
-                            kf = kf_override,
-                            opts = opts_override,
+                        );
+                        self.js.push_str(&format_simple_trigger_js(
+                            "// @hover (inline)",
+                            nid,
+                            trigger_str,
+                            &anim_call,
+                            &extra,
+                        ));
+                    }
+                    TriggerKind::Press => {
+                        let extra = format!(
+                            "\x20\x20 el.addEventListener(\"mousedown\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.play(); }});\n\
+                             \x20\x20 el.addEventListener(\"mouseup\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.reverse(); }});\n",
+                            nid = nid,
+                            trigger = trigger_str,
+                        );
+                        self.js.push_str(&format_simple_trigger_js(
+                            "// @press (inline)",
+                            nid,
+                            trigger_str,
+                            &anim_call,
+                            &extra,
+                        ));
+                    }
+                    TriggerKind::Focus => {
+                        let extra = format!(
+                            "\x20\x20 el.addEventListener(\"focus\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.play(); }});\n\
+                             \x20\x20 el.addEventListener(\"blur\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.reverse(); }});\n",
+                            nid = nid,
+                            trigger = trigger_str,
+                        );
+                        self.js.push_str(&format_simple_trigger_js(
+                            "// @focus (inline)",
+                            nid,
+                            trigger_str,
+                            &anim_call,
+                            &extra,
+                        ));
+                    }
+                    TriggerKind::Leave => {
+                        self.mount_js.push_str(&format_simple_trigger_js(
+                            "// @leave (inline)",
+                            nid,
+                            trigger_str,
+                            &anim_call,
+                            "",
                         ));
                     }
                     TriggerKind::InView => {
-                        let anim_call =
-                            format!("Omni.animate(el, {}, {{ {} }})", kf_override, opts_override);
                         self.emit_trigger_inview_js(nid, trigger_str, &anim_call, el, true);
                     }
                     TriggerKind::Scroll => {
-                        let anim_call =
-                            format!("Omni.animate(el, {}, {{ {} }})", kf_override, opts_override);
                         self.emit_trigger_scroll_js(nid, trigger_str, &anim_call, el, true);
                     }
                     TriggerKind::DragHorizontal | TriggerKind::DragVertical => {
                         let is_horizontal = matches!(trigger.kind, TriggerKind::DragHorizontal);
-                        let anim_call =
-                            format!("Omni.animate(el, {}, {{ {} }})", kf_override, opts_override);
                         self.emit_trigger_drag_js(
                             nid,
                             trigger_str,
@@ -583,20 +616,32 @@ impl OmniViewGenerator {
                             true,
                         );
                     }
-                    _ => {
-                        self.js.push_str(&format!(
-                            "// @{trigger} (inline)\n\
-                             (function() {{\n\
-                             \x20 const el = __omni_el(\"{nid}\");\n\
-                             \x20 if (el) {{\n\
-                             \x20\x20 const anim = Omni.animate(el, {kf}, {{ {opts} }});\n\
-                             \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", anim);\n\
-                             \x20 }}\n\
-                             }})();\n",
-                            nid = nid,
-                            trigger = trigger_str,
-                            kf = kf_override,
-                            opts = opts_override,
+                    TriggerKind::Animate => {
+                        let extra = "\x20\x20 anim.play();\n";
+                        self.mount_js.push_str(&format_simple_trigger_js(
+                            "// @animate (inline)",
+                            nid,
+                            trigger_str,
+                            &anim_call,
+                            extra,
+                        ));
+                    }
+                    TriggerKind::Timeline => {
+                        self.mount_js.push_str(&format_simple_trigger_js(
+                            "// @timeline (inline)",
+                            nid,
+                            trigger_str,
+                            &anim_call,
+                            "",
+                        ));
+                    }
+                    TriggerKind::Unhover => {
+                        self.js.push_str(&format_simple_trigger_js(
+                            "// @unhover (inline)",
+                            nid,
+                            trigger_str,
+                            &anim_call,
+                            "",
                         ));
                     }
                 }
