@@ -496,6 +496,51 @@ impl OmniViewGenerator {
     /// wrappers, normal tags with children, css_only mode, interpolation effects,
     /// class map dynamic bindings, and source map recording.
     ///
+    /// In css_only mode, capture element metadata for the editor's
+    /// element tree: design ID, resolved CSS classes, HTML tag, and
+    /// nid mapping. Called from both void-tag and normal-tag branches
+    /// of `emit_element_html_close`.
+    fn emit_element_css_only_capture(
+        &mut self,
+        el: &ElementIR,
+        nid: &str,
+        html_tag: &str,
+        class_name_parts: &[String],
+    ) {
+        let design_id = el
+            .props
+            .get("id")
+            .and_then(|v| {
+                if let ExprIR::LiteralExpr { value } = v {
+                    value.as_str().map(|s| s.to_string())
+                } else {
+                    None
+                }
+            })
+            .unwrap_or_else(|| nid.to_string());
+        // Resolve design class references ("AppDesign.card" → "card")
+        let resolved_classes: Vec<String> = class_name_parts
+            .iter()
+            .map(|c| {
+                if let Some(dot_pos) = c.find('.') {
+                    c[dot_pos + 1..].to_string()
+                } else {
+                    c.clone()
+                }
+            })
+            .collect();
+        self.element_classes
+            .insert(nid.to_string(), resolved_classes);
+        self.element_tags
+            .insert(nid.to_string(), html_tag.to_string());
+        self.nid_map.insert(nid.to_string(), design_id);
+        self.tree_pop();
+    }
+
+    /// Emit the HTML closing portion for an element: handle void tags, fragment
+    /// wrappers, normal tags with children, css_only mode, interpolation effects,
+    /// class map dynamic bindings, and source map recording.
+    ///
     /// This is the second half of `element_to_html`, extracted as its own method.
     #[allow(clippy::too_many_arguments)]
     fn emit_element_html_close(
@@ -518,35 +563,7 @@ impl OmniViewGenerator {
         ];
         if void_tags.contains(&html_tag) {
             if self.css_only {
-                let design_id = el
-                    .props
-                    .get("id")
-                    .and_then(|v| {
-                        if let ExprIR::LiteralExpr { value } = v {
-                            value.as_str().map(|s| s.to_string())
-                        } else {
-                            None
-                        }
-                    })
-                    .unwrap_or_else(|| nid.to_string());
-                // Resolve design class references ("AppDesign.card" → "card")
-                let resolved_classes: Vec<String> = class_name_parts
-                    .iter()
-                    .map(|c| {
-                        if let Some(dot_pos) = c.find('.') {
-                            c[dot_pos + 1..].to_string()
-                        } else {
-                            c.clone()
-                        }
-                    })
-                    .collect();
-                self.element_classes
-                    .insert(nid.to_string(), resolved_classes);
-                self.element_tags
-                    .insert(nid.to_string(), html_tag.to_string());
-                // Record nid → design element ID mapping for editor selection
-                self.nid_map.insert(nid.to_string(), design_id);
-                self.tree_pop();
+                self.emit_element_css_only_capture(el, nid, html_tag, class_name_parts);
                 return String::new();
             }
             let _ = writeln!(out, "{}<{}{} />", pad, html_tag, attrs);
@@ -592,34 +609,7 @@ impl OmniViewGenerator {
             // In css_only mode: capture element mappings now that children are done,
             // then return empty string (no HTML/JS needed).
             if self.css_only {
-                let design_id = el
-                    .props
-                    .get("id")
-                    .and_then(|v| {
-                        if let ExprIR::LiteralExpr { value } = v {
-                            value.as_str().map(|s| s.to_string())
-                        } else {
-                            None
-                        }
-                    })
-                    .unwrap_or_else(|| nid.to_string());
-                // Resolve design class references ("AppDesign.card" → "card")
-                let resolved_classes: Vec<String> = class_name_parts
-                    .iter()
-                    .map(|c| {
-                        if let Some(dot_pos) = c.find('.') {
-                            c[dot_pos + 1..].to_string()
-                        } else {
-                            c.clone()
-                        }
-                    })
-                    .collect();
-                self.element_classes
-                    .insert(nid.to_string(), resolved_classes);
-                self.element_tags
-                    .insert(nid.to_string(), html_tag.to_string());
-                self.nid_map.insert(nid.to_string(), design_id);
-                self.tree_pop();
+                self.emit_element_css_only_capture(el, nid, html_tag, class_name_parts);
                 return String::new();
             }
 
