@@ -363,6 +363,70 @@ impl OmniViewGenerator {
         ));
     }
 
+    /// Emit trigger JS for Enter, Hover, Press — shared by both named motion ref and inline paths.
+    fn emit_trigger_with_anim_call(
+        &mut self,
+        nid: &str,
+        trigger_str: &str,
+        anim_call: &str,
+        kind: TriggerKind,
+        is_inline: bool,
+    ) {
+        match kind {
+            TriggerKind::Enter => {
+                let comment = if is_inline { "// @enter (inline)" } else { "// @enter trigger" };
+                self.mount_js.push_str(&format!(
+                    "{comment}\n\
+                     (function() {{\n\
+                     \x20 const el = __omni_el(\"{nid}\");\n\
+                     \x20 if (el) {{\n\
+                     \x20\x20 const anim = {anim};\n\
+                     \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", anim);\n\
+                     \x20\x20 if (el.offsetParent !== null) anim.play();\n\
+                     \x20 }}\n\
+                     }})();\n",
+                    comment = comment,
+                    nid = nid,
+                    anim = anim_call,
+                    trigger = trigger_str,
+                ));
+            }
+            TriggerKind::Hover => {
+                let comment = if is_inline { "// @hover (inline)" } else { "// @hover trigger" };
+                let extra = format!(
+                    "\x20\x20 el.addEventListener(\"mouseenter\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.play(); }});\n\
+                     \x20\x20 el.addEventListener(\"mouseleave\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.reverse(); }});\n",
+                    nid = nid,
+                    trigger = trigger_str,
+                );
+                self.js.push_str(&format_simple_trigger_js(
+                    comment,
+                    nid,
+                    trigger_str,
+                    anim_call,
+                    &extra,
+                ));
+            }
+            TriggerKind::Press => {
+                let comment = if is_inline { "// @press (inline)" } else { "// @press trigger" };
+                let extra = format!(
+                    "\x20\x20 el.addEventListener(\"mousedown\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.play(); }});\n\
+                     \x20\x20 el.addEventListener(\"mouseup\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.reverse(); }});\n",
+                    nid = nid,
+                    trigger = trigger_str,
+                );
+                self.js.push_str(&format_simple_trigger_js(
+                    comment,
+                    nid,
+                    trigger_str,
+                    anim_call,
+                    &extra,
+                ));
+            }
+            _ => {}
+        }
+    }
+
     /// Emit motion trigger JS for element triggers (@enter, @hover, etc.).
     /// Runs in the deferred/mount JS context where DOM elements exist.
     pub(super) fn emit_motion_triggers_for_element(&mut self, nid: &str, el: &ElementIR) {
@@ -395,60 +459,18 @@ impl OmniViewGenerator {
                     "__omni_motion_{}(el, {{ trigger: \"{}\" }})",
                     motion_name, trigger_str,
                 );
+                // Handle Enter-specific replay registration (named only)
+                if let TriggerKind::Enter = trigger.kind {
+                    self.enter_trigger_nids.push((
+                        nid.to_string(),
+                        motion_name.clone(),
+                        "enter".into(),
+                        self.current_component.clone(),
+                    ));
+                }
                 match trigger.kind {
-                    TriggerKind::Enter => {
-                        // @enter: create animation and play immediately (in mount JS)
-                        // Also register for replay when component signals change
-                        self.enter_trigger_nids.push((
-                            nid.to_string(),
-                            motion_name.clone(),
-                            "enter".into(),
-                            self.current_component.clone(),
-                        ));
-                        self.mount_js.push_str(&format!(
-                            "// @enter trigger\n\
-                             (function() {{\n\
-                             \x20 const el = __omni_el(\"{nid}\");\n\
-                             \x20 if (el) {{\n\
-                             \x20\x20 const anim = {anim};\n\
-                             \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", anim);\n\
-                             \x20\x20 if (el.offsetParent !== null) anim.play();\n\
-                             \x20 }}\n\
-                             }})();\n",
-                            nid = nid,
-                            trigger = trigger_str,
-                            anim = anim_call,
-                        ));
-                    }
-                    TriggerKind::Hover => {
-                        let extra = format!(
-                            "\x20\x20 el.addEventListener(\"mouseenter\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.play(); }});\n\
-                             \x20\x20 el.addEventListener(\"mouseleave\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.reverse(); }});\n",
-                            nid = nid,
-                            trigger = trigger_str,
-                        );
-                        self.js.push_str(&format_simple_trigger_js(
-                            "// @hover trigger",
-                            nid,
-                            trigger_str,
-                            &anim_call,
-                            &extra,
-                        ));
-                    }
-                    TriggerKind::Press => {
-                        let extra = format!(
-                            "\x20\x20 el.addEventListener(\"mousedown\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.play(); }});\n\
-                             \x20\x20 el.addEventListener(\"mouseup\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.reverse(); }});\n",
-                            nid = nid,
-                            trigger = trigger_str,
-                        );
-                        self.js.push_str(&format_simple_trigger_js(
-                            "// @press trigger",
-                            nid,
-                            trigger_str,
-                            &anim_call,
-                            &extra,
-                        ));
+                    TriggerKind::Enter | TriggerKind::Hover | TriggerKind::Press => {
+                        self.emit_trigger_with_anim_call(nid, trigger_str, &anim_call, trigger.kind, false);
                     }
                     TriggerKind::InView => {
                         self.emit_trigger_inview_js(nid, trigger_str, &anim_call, el, false);
@@ -473,51 +495,8 @@ impl OmniViewGenerator {
                 let anim_call =
                     format!("Omni.animate(el, {}, {{ {} }})", kf_override, opts_override);
                 match trigger.kind {
-                    TriggerKind::Enter => {
-                        self.mount_js.push_str(&format!(
-                            "// @enter (inline)\n\
-                             (function() {{\n\
-                             \x20 const el = __omni_el(\"{nid}\");\n\
-                             \x20 if (el) {{\n\
-                             \x20\x20 const anim = {anim};\n\
-                             \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", anim);\n\
-                             \x20\x20 if (el.offsetParent !== null) anim.play();\n\
-                             \x20 }}\n\
-                             }})();\n",
-                            nid = nid,
-                            trigger = trigger_str,
-                            anim = anim_call,
-                        ));
-                    }
-                    TriggerKind::Hover => {
-                        let extra = format!(
-                            "\x20\x20 el.addEventListener(\"mouseenter\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.play(); }});\n\
-                             \x20\x20 el.addEventListener(\"mouseleave\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.reverse(); }});\n",
-                            nid = nid,
-                            trigger = trigger_str,
-                        );
-                        self.js.push_str(&format_simple_trigger_js(
-                            "// @hover (inline)",
-                            nid,
-                            trigger_str,
-                            &anim_call,
-                            &extra,
-                        ));
-                    }
-                    TriggerKind::Press => {
-                        let extra = format!(
-                            "\x20\x20 el.addEventListener(\"mousedown\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.play(); }});\n\
-                             \x20\x20 el.addEventListener(\"mouseup\", function() {{ __omni_animations.get(\"{nid}_{trigger}\")?.reverse(); }});\n",
-                            nid = nid,
-                            trigger = trigger_str,
-                        );
-                        self.js.push_str(&format_simple_trigger_js(
-                            "// @press (inline)",
-                            nid,
-                            trigger_str,
-                            &anim_call,
-                            &extra,
-                        ));
+                    TriggerKind::Enter | TriggerKind::Hover | TriggerKind::Press => {
+                        self.emit_trigger_with_anim_call(nid, trigger_str, &anim_call, trigger.kind, true);
                     }
                     TriggerKind::InView => {
                         self.emit_trigger_inview_js(nid, trigger_str, &anim_call, el, true);

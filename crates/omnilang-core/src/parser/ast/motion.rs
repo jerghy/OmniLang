@@ -116,7 +116,7 @@ pub struct MotionTrigger {
     pub motion_expr: Expr,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Copy, Serialize)]
 pub enum TriggerKind {
     Enter,
     Hover,

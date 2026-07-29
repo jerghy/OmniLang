@@ -85,7 +85,7 @@ pub struct TriggerIntent {
     pub source_span: Option<Span>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum TriggerKind {
     Enter,
     Hover,
