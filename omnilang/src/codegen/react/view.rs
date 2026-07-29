@@ -11,6 +11,7 @@ use rustc_hash::FxHashSet;
 use super::super::capitalize_first;
 use super::expr::{format_expr_ir_tsx, generate_statement_tsx};
 use super::utils::{emit_event_object_react, to_jsx_attr, to_react_event, to_react_tag};
+use crate::codegen::{format_json_value, JSON_REACT};
 
 pub(super) fn gen_view_node_tsx(
     w: &mut CodeWriter,
@@ -157,6 +158,22 @@ pub(super) fn gen_view_node_tsx(
             }
 
             // Motion triggers — add data-motion-enter for @enter effects, inline handlers for interactive
+
+            /// Emit a motion data attribute value. Literal numbers become quoted strings
+            /// (parseFloat-compatible); expression values become JSX `{expr}` interpolation.
+            fn emit_motion_data_attr(attrs: &mut Vec<String>, attr_name: &str, expr: &ExprIR) {
+                match expr {
+                    ExprIR::LiteralExpr { value } if value.is_number() => {
+                        let s = format_json_value(value, &JSON_REACT);
+                        attrs.push(format!("{}=\"{}\"", attr_name, s));
+                    }
+                    _ => {
+                        let js = format_expr_ir_tsx(expr);
+                        attrs.push(format!("{}={{{}}}", attr_name, js));
+                    }
+                }
+            }
+
             for trigger in el
                 .motion_behavior()
                 .map_or(&[] as &[TriggerIntent], |m| &m.triggers)
@@ -181,15 +198,16 @@ pub(super) fn gen_view_node_tsx(
                         }
                     }
                     TriggerKind::InView => {
-                        let threshold_val = match el
+                        match el
                             .motion_behavior()
                             .and_then(|m| m.in_view_threshold.as_ref())
                         {
-                            Some(expr) => format_expr_ir_tsx(expr),
-                            None => "0".to_string(),
+                            Some(expr) => {
+                                emit_motion_data_attr(&mut attrs, "data-inview-threshold", expr)
+                            }
+                            None => attrs.push("data-inview-threshold=\"0\"".into()),
                         };
                         attrs.push("data-motion-inview=\"true\"".into());
-                        attrs.push(format!("data-inview-threshold=\"{}\"", threshold_val));
                         if let Some(ref motion_name) = trigger.motion_ref {
                             attrs.push(format!("data-motion-inview-name=\"{}\"", motion_name));
                         }
@@ -203,14 +221,15 @@ pub(super) fn gen_view_node_tsx(
                             .scroll_behavior()
                             .and_then(|s| s.end.as_deref())
                             .unwrap_or("bottom 20%");
-                        let scrub_val = match el.scroll_behavior().and_then(|s| s.scrub.as_ref()) {
-                            Some(expr) => format_expr_ir_tsx(expr),
-                            None => "0".to_string(),
-                        };
                         attrs.push("data-motion-scroll=\"true\"".into());
                         attrs.push(format!("data-scroll-start=\"{}\"", scroll_start_str));
                         attrs.push(format!("data-scroll-end=\"{}\"", scroll_end_str));
-                        attrs.push(format!("data-scroll-scrub=\"{}\"", scrub_val));
+                        match el.scroll_behavior().and_then(|s| s.scrub.as_ref()) {
+                            Some(expr) => {
+                                emit_motion_data_attr(&mut attrs, "data-scroll-scrub", expr)
+                            }
+                            None => attrs.push("data-scroll-scrub=\"0\"".into()),
+                        };
                     }
                     TriggerKind::DragHorizontal | TriggerKind::DragVertical => {
                         let is_horizontal = matches!(trigger.kind, TriggerKind::DragHorizontal);
@@ -219,30 +238,29 @@ pub(super) fn gen_view_node_tsx(
                             .drag_behavior()
                             .and_then(|d| d.constraints.as_deref())
                             .unwrap_or("");
-                        let elastic_val = match el.drag_behavior().and_then(|d| d.elastic.as_ref())
-                        {
-                            Some(expr) => format_expr_ir_tsx(expr),
-                            None => "0".to_string(),
-                        };
-                        let threshold_val =
-                            match el.drag_behavior().and_then(|d| d.threshold.as_ref()) {
-                                Some(expr) => format_expr_ir_tsx(expr),
-                                None => "0".to_string(),
-                            };
-                        let velocity_max_val =
-                            match el.drag_behavior().and_then(|d| d.velocity_max.as_ref()) {
-                                Some(expr) => format_expr_ir_tsx(expr),
-                                None => "2000".to_string(),
-                            };
                         attrs.push(format!("data-motion-drag=\"{}\"", axis_str));
                         attrs.push(format!("data-drag-constraints=\"{}\"", constraints_str));
-                        attrs.push(format!("data-drag-elastic=\"{}\"", elastic_val));
-                        attrs.push(format!("data-drag-threshold=\"{}\"", threshold_val));
-                        attrs.push(format!("data-drag-velocity-max=\"{}\"", velocity_max_val));
+                        match el.drag_behavior().and_then(|d| d.elastic.as_ref()) {
+                            Some(expr) => {
+                                emit_motion_data_attr(&mut attrs, "data-drag-elastic", expr)
+                            }
+                            None => attrs.push("data-drag-elastic=\"0\"".into()),
+                        };
+                        match el.drag_behavior().and_then(|d| d.threshold.as_ref()) {
+                            Some(expr) => {
+                                emit_motion_data_attr(&mut attrs, "data-drag-threshold", expr)
+                            }
+                            None => attrs.push("data-drag-threshold=\"0\"".into()),
+                        };
+                        match el.drag_behavior().and_then(|d| d.velocity_max.as_ref()) {
+                            Some(expr) => {
+                                emit_motion_data_attr(&mut attrs, "data-drag-velocity-max", expr)
+                            }
+                            None => attrs.push("data-drag-velocity-max=\"2000\"".into()),
+                        };
                     }
                 }
             }
-
 
             // Events — with dedup for binding conflicts and motion name filtering
             for (event_name, handler) in &el.events {
@@ -686,8 +704,9 @@ pub(super) fn gen_view_node_tsx(
                 gen_view_node_tsx(w, child, component_map, signal_names, motion_names);
             }
         }
-        ViewTree::Slot(_) => {
-            // slots not supported in React — emit placeholder
+        ViewTree::Slot(name) => {
+            let slot_desc = name.as_deref().unwrap_or("default");
+            w.emit_fmt(format_args!("{{/* WARNING: <slot name=\"{}\"> is not supported in React. Use children or named props instead. */}}", slot_desc));
         }
     }
 }

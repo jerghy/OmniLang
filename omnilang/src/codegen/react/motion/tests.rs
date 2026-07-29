@@ -46,12 +46,38 @@ fn compile_fixture_to_react(source: &str) -> String {
 /// Uses `include_str!` so the file is embedded at compile time.
 macro_rules! fixture {
     ($name:expr) => {
-        include_str!(concat!(
-            "../../../../tests/fixtures/react/",
-            $name,
-            ".omni"
-        ))
+        include_str!(concat!("../../../../tests/fixtures/react/", $name, ".omni"))
     };
+}
+
+#[test]
+fn dynamic_motion_params_emit_jsx_expressions() {
+    let source = r#"
+@motion fadeIn {
+    from { opacity: 0 }
+    to { opacity: 1 }
+    over 300
+}
+component Test {
+    signal threshold: f64 = 0.5
+    view {
+        <div @enter={fadeIn} @inViewThreshold={threshold}>hello</div>
+    }
+}
+"#;
+    let output = compile_fixture_to_react(source);
+    // The generated TSX must contain data-inview-threshold={threshold}, NOT data-inview-threshold="threshold"
+    // The generated TSX must contain {threshold} as a JSX expression, not a string attribute
+    assert!(
+        output.contains("{threshold}"),
+        "Expected JSX expression {{threshold}} in output, got partial:\n{}",
+        &output[..output.len().min(500)]
+    );
+    // Verify the motion engine receives the attrs correctly — threshold should NOT be in a quoted string
+    assert!(
+        !output.contains("\"{threshold}\"") && !output.contains("\"threshold\""),
+        "Must not emit threshold as string attribute"
+    );
 }
 
 #[test]

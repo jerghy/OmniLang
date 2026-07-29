@@ -113,8 +113,8 @@ export function MotionCombined() {
                 {'Hover Me'}
             </button>
             <div
-                data-motion-inview="true"
                 data-inview-threshold="0"
+                data-motion-inview="true"
                 data-motion-inview-name="slideIn"
             >
                 <p>
