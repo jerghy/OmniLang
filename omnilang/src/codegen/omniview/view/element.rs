@@ -624,7 +624,7 @@ impl OmniViewGenerator {
             omni_span: SourceSpan {
                 line: el.source_span.map_or(0, |s| s.line),
                 col: el.source_span.map_or(0, |s| s.col),
-                len: 0,
+                len: el.source_span.map_or(0, |s| (s.end - s.start) as u32),
             },
             target_spans: vec![TargetSpan {
                 file: "index.html".into(),
