@@ -390,9 +390,13 @@ pub fn generate(
     // Transfer accumulated element_tree from generator
     gen.element_tree = std::mem::take(&mut gen.element_tree);
 
-    let all_comp_vec: Vec<crate::ir::ComponentIR> =
-        ir.all_components().into_values().cloned().collect();
-    let types = typescript::generate_typescript_declarations(&all_comp_vec);
+    // ADR-031 D6: Skip TypeScript declaration generation — zero production consumers.
+    // The typescript.rs module (298 lines) is preserved for future use when a
+    // consumer materializes (e.g., Poiesis IDE intellisense, npm package publishing).
+    // let all_comp_vec: Vec<crate::ir::ComponentIR> =
+    //     ir.all_components().into_values().cloned().collect();
+    // let types = typescript::generate_typescript_declarations(&all_comp_vec);
+    let types = String::new();
 
     OmniViewOutput {
         js: gen.js,

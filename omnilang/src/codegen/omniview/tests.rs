@@ -24,7 +24,7 @@ fn make_element(tag: &str) -> ElementIR {
         motion: None,
         scroll: None,
         drag: None,
-            }
+    }
 }
 
 fn make_module(name: &str) -> ModuleIR {
@@ -1714,12 +1714,10 @@ fn typescript_declarations_emit_props_interface() {
     );
     let ir = make_program(FxHashMap::from_iter([("main".into(), module)]));
     let output = generate(&ir, false, false, false);
-    assert!(output.types.contains("export interface CounterProps {"));
-    assert!(output.types.contains("  count: number;"));
-    assert!(output.types.contains("  label: string;"));
-    assert!(output.types.contains("  enabled: boolean;"));
-    assert!(output.types.contains("export interface CounterComponent {"));
-    assert!(output.types.contains("(props: CounterProps): JSX.Element;"));
+    assert!(
+        output.types.is_empty(),
+        "ADR-031 D6: TypeScript gen gated, types should be empty"
+    );
 }
 
 #[test]
@@ -1757,10 +1755,10 @@ fn typescript_declarations_optional_for_defaulted_props() {
     );
     let ir = make_program(FxHashMap::from_iter([("main".into(), module)]));
     let output = generate(&ir, false, false, false);
-    assert!(output.types.contains("export interface WidgetProps {"));
-    assert!(output.types.contains("  required: string;"));
-    assert!(output.types.contains("  optional?: number;"));
-    assert!(!output.types.contains("  optional: number;"));
+    assert!(
+        output.types.is_empty(),
+        "ADR-031 D6: TypeScript gen gated, types should be empty"
+    );
 }
 
 #[test]
@@ -1776,22 +1774,18 @@ fn typescript_declarations_event_handler_types() {
     );
     let ir = make_program(FxHashMap::from_iter([("main".into(), module)]));
     let output = generate(&ir, false, false, false);
-    assert!(output
-        .types
-        .contains("export type onClickHandler = (detail: MouseEvent) => void;"));
-    assert!(output
-        .types
-        .contains("export type onHoverHandler = (detail: any) => void;"));
-    assert!(output
-        .types
-        .contains(r#"export type ButtonEventNames = "onClick" | "onHover";"#));
+    assert!(
+        output.types.is_empty(),
+        "ADR-031 D6: TypeScript gen gated, types should be empty"
+    );
 }
 
 #[test]
 fn typescript_declarations_empty_when_no_components() {
     let ir = IRProgram::default();
     let output = generate(&ir, false, false, false);
-    // The runtime components (signal runtime etc.) aren't components with Props,
-    // so types should be empty or contain only a header comment.
-    assert!(output.types.is_empty() || output.types.starts_with("// Auto-generated"));
+    assert!(
+        output.types.is_empty(),
+        "ADR-031 D6: TypeScript gen gated, types should be empty"
+    );
 }
