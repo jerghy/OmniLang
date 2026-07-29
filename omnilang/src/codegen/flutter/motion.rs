@@ -8,20 +8,6 @@ use rustc_hash::FxHashSet;
 // Motion / Animation codegen helpers
 // ═══════════════════════════════════════════════════════════════════
 
-/// Check if any motion in the component uses path animation (needs dart:ui import).
-pub(crate) fn comp_has_path_motion(ir: &IRProgram) -> bool {
-    ir.modules
-        .values()
-        .flat_map(|m| &m.motions)
-        .any(motion_has_path)
-}
-
-/// Check if a single motion uses path animation.
-pub(crate) fn motion_has_path(motion: &MotionIntent) -> bool {
-    let MotionBodyIR::Keyframe(kf) = &motion.body;
-    kf.path.is_some()
-}
-
 /// Extract the "to" properties from a keyframe to determine what properties are animated.
 pub(crate) fn extract_keyframe_properties(kf: &KeyframeIR) -> Vec<String> {
     let mut props: Vec<String> = Vec::new();

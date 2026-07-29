@@ -91,77 +91,13 @@ impl<'a> Parser<'a> {
 
         self.parse_shared_timing(&mut over, &mut ease)?;
 
-        // Parse optional path/pathRotate
-        let mut path: Option<String> = None;
-        let mut path_rotate: Option<bool> = None;
-        loop {
-            match self.peek_ident_value() {
-                Some(ref s) if s == "path" => {
-                    self.advance();
-                    self.expect_token(TokenKind::Colon, "expected ':'")?;
-                    path = Some(self.expect_string("expected path string")?);
-                }
-                Some(ref s) if s == "pathRotate" => {
-                    self.advance();
-                    self.expect_token(TokenKind::Colon, "expected ':'")?;
-                    path_rotate = Some(match self.peek_kind() {
-                        TokenKind::True => {
-                            self.advance();
-                            true
-                        }
-                        TokenKind::False => {
-                            self.advance();
-                            false
-                        }
-                        _ => return Err(self.error("expected bool for pathRotate")),
-                    });
-                }
-                _ => break,
-            }
-            if *self.peek_kind() == TokenKind::Comma {
-                self.advance();
-            }
-        }
-
         let playback = self.parse_playback_props()?;
-
-        // Second pass for path/pathRotate — they may appear after playback props
-        loop {
-            match self.peek_ident_value() {
-                Some(ref s) if s == "path" => {
-                    self.advance();
-                    self.expect_token(TokenKind::Colon, "expected ':'")?;
-                    path = Some(self.expect_string("expected path string")?);
-                }
-                Some(ref s) if s == "pathRotate" => {
-                    self.advance();
-                    self.expect_token(TokenKind::Colon, "expected ':'")?;
-                    path_rotate = Some(match self.peek_kind() {
-                        TokenKind::True => {
-                            self.advance();
-                            true
-                        }
-                        TokenKind::False => {
-                            self.advance();
-                            false
-                        }
-                        _ => return Err(self.error("expected bool for pathRotate")),
-                    });
-                }
-                _ => break,
-            }
-            if *self.peek_kind() == TokenKind::Comma {
-                self.advance();
-            }
-        }
 
         Ok(KeyframeBody {
             stops,
             over,
             ease,
             playback,
-            path,
-            path_rotate,
         })
     }
 

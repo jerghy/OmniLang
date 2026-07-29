@@ -69,8 +69,6 @@ pub(super) fn lower_keyframe_body(
         over,
         ease,
         playback,
-        path: kf.path.clone(),
-        path_rotate: kf.path_rotate,
         source_span: None,
     }
 }

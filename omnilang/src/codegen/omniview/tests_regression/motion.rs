@@ -269,8 +269,6 @@ fn test_keyframe_animate_call_basic() {
         },
         ease: None,
         playback: PlaybackIR::default(),
-        path: None,
-        path_rotate: None,
 
         source_span: None,
     };
@@ -317,8 +315,6 @@ fn test_keyframe_animate_call_edge_cases() {
         },
         ease: None,
         playback: PlaybackIR::default(),
-        path: None,
-        path_rotate: None,
 
         source_span: None,
     };
@@ -344,8 +340,6 @@ fn test_keyframe_animate_call_edge_cases() {
         },
         ease: None,
         playback: PlaybackIR::default(),
-        path: None,
-        path_rotate: None,
 
         source_span: None,
     };
@@ -389,8 +383,6 @@ fn test_keyframe_animate_call_edge_cases() {
         },
         ease: Some(EasingIR::Named("ease-in-out".into())),
         playback: PlaybackIR::default(),
-        path: None,
-        path_rotate: None,
 
         source_span: None,
     };
@@ -446,8 +438,6 @@ fn test_keyframe_animate_call_with_path() {
         },
         ease: Some(EasingIR::Named("linear".into())),
         playback: PlaybackIR::default(),
-        path: Some("M0,0 C100,200 200,200 300,0".into()),
-        path_rotate: Some(true),
 
         source_span: None,
     };
@@ -524,8 +514,6 @@ fn test_emit_motion_js_keyframe() {
             },
             ease: Some(EasingIR::Named("ease-out".into())),
             playback: PlaybackIR::default(),
-            path: None,
-            path_rotate: None,
 
             source_span: None,
         }),
@@ -934,8 +922,6 @@ fn test_stagger_children() {
             },
             ease: Some(EasingIR::Named("ease-out".into())),
             playback: PlaybackIR::default(),
-            path: None,
-            path_rotate: None,
             source_span: None,
         }),
         source_span: None,

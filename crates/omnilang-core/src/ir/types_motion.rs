@@ -29,12 +29,6 @@ pub struct KeyframeIR {
     pub over: ExprIR,
     pub ease: Option<EasingIR>,
     pub playback: PlaybackIR,
-    /// Path for motion path animation
-    #[serde(default)]
-    pub path: Option<String>,
-    /// Whether to rotate element along the path
-    #[serde(default)]
-    pub path_rotate: Option<bool>,
     #[serde(default)]
     pub source_span: Option<Span>,
 }

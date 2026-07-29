@@ -31,10 +31,6 @@ pub struct KeyframeBody {
     pub over: Expr,
     pub ease: Option<EasingExpr>,
     pub playback: Vec<PlaybackProp>,
-    /// Path for motion path animation: path: "M10 10 ..."
-    pub path: Option<String>,
-    /// Whether to rotate element along the path
-    pub path_rotate: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize)]
