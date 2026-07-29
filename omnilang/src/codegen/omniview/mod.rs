@@ -559,6 +559,51 @@ pub(super) enum AttrPart {
     Dynamic(String),
 }
 
+/// Saved generator state for component inlining — ensures isolation
+/// between parent and child component contexts during view inlining.
+/// Prevents bugs when new fields are added to OmniViewGenerator but
+/// forgotten in the save/restore block (see ADR-025 D1, ADR-026 D3).
+struct InliningState {
+    current_component: String,
+    signal_names: FxHashSet<String>,
+    name_renames: FxHashMap<String, String>,
+    for_text_bindings: Vec<(String, String)>,
+    for_class_bindings: Vec<(String, String, String)>,
+    for_attr_bindings: Vec<(String, String, Vec<AttrPart>)>,
+    for_rebind_fn: Option<String>,
+    in_for_template: bool,
+}
+
+impl InliningState {
+    fn save(gen: &OmniViewGenerator) -> Self {
+        Self {
+            current_component: gen.current_component.clone(),
+            signal_names: gen.signal_names.iter().cloned().collect(),
+            name_renames: gen
+                .name_renames
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect(),
+            for_text_bindings: gen.for_text_bindings.clone(),
+            for_class_bindings: gen.for_class_bindings.clone(),
+            for_attr_bindings: gen.for_attr_bindings.clone(),
+            for_rebind_fn: gen.for_rebind_fn.clone(),
+            in_for_template: gen.in_for_template,
+        }
+    }
+
+    fn restore(self, gen: &mut OmniViewGenerator) {
+        gen.current_component = self.current_component;
+        gen.signal_names = self.signal_names;
+        gen.name_renames = self.name_renames;
+        gen.for_text_bindings = self.for_text_bindings;
+        gen.for_class_bindings = self.for_class_bindings;
+        gen.for_attr_bindings = self.for_attr_bindings;
+        gen.for_rebind_fn = self.for_rebind_fn;
+        gen.in_for_template = self.in_for_template;
+    }
+}
+
 impl OmniViewGenerator {
     /// Create a minimal generator instance for testing.
     #[cfg(test)]

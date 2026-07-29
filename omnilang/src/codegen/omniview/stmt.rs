@@ -137,8 +137,10 @@ impl OmniViewGenerator {
             }
             #[allow(unreachable_patterns)]
             _ => {
-                // Placeholder for unhandled statements
-                self.js.push_str("  /* unhandled stmt */\n");
+                self.warnings.push(
+                    "OmniView: unhandled StatementIR variant — generated output may be incomplete. \
+                     This is a compiler bug; please report it.".into()
+                );
             }
         }
     }
@@ -178,7 +180,11 @@ impl OmniViewGenerator {
                     .collect();
                 parts.join("; ")
             }
-            _ => String::from("/* unhandled stmt in block expr */"),
+            _ => {
+                self.warnings
+                    .push("OmniView: unhandled StatementIR variant in inline expression".into());
+                String::from("/* unhandled stmt */")
+            }
         }
     }
 

@@ -1,7 +1,7 @@
 use super::utils::map_event;
+use super::InliningState;
 use super::OmniViewGenerator;
 use crate::ir::*;
-use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 
 impl OmniViewGenerator {
@@ -18,23 +18,8 @@ impl OmniViewGenerator {
         if let Some(child_comp) = self.component_map.get(&el.tag).cloned() {
             if let Some(ref child_view) = child_comp.view {
                 // Save and update current component context
-                let saved_component = self.current_component.clone();
+                let saved_state = InliningState::save(self);
                 self.current_component = child_comp.name.clone();
-                let saved_signal_names: FxHashSet<String> =
-                    self.signal_names.iter().cloned().collect();
-                let saved_renames_child: FxHashMap<String, String> = self
-                    .name_renames
-                    .iter()
-                    .map(|(k, v)| (k.clone(), v.clone()))
-                    .collect();
-
-                // Save @for loop state to prevent inner component @for loops
-                // from corrupting outer loop's binding buffers (review v2 finding).
-                let saved_for_text = std::mem::take(&mut self.for_text_bindings);
-                let saved_for_class = std::mem::take(&mut self.for_class_bindings);
-                let saved_for_attr = std::mem::take(&mut self.for_attr_bindings);
-                let saved_for_rebind = self.for_rebind_fn.take();
-                let saved_in_for = self.in_for_template;
 
                 if self.in_for_template {
                     // Inside @for template: map component prop names to their
@@ -136,17 +121,8 @@ impl OmniViewGenerator {
                 // Generate child HTML inline
                 let child_html = self.view_to_html(&child_view_owned, indent + 1);
 
-                // Restore @for loop state before restoring parent context
-                self.for_text_bindings = saved_for_text;
-                self.for_class_bindings = saved_for_class;
-                self.for_attr_bindings = saved_for_attr;
-                self.for_rebind_fn = saved_for_rebind;
-                self.in_for_template = saved_in_for;
-
-                // Restore parent context
-                self.current_component = saved_component;
-                self.signal_names = saved_signal_names;
-                self.name_renames = saved_renames_child;
+                // Restore all saved state (for-loop state + parent context)
+                saved_state.restore(self);
 
                 let mut out = String::new();
                 out.push_str(&format!(
