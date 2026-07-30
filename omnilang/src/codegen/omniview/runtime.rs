@@ -132,7 +132,7 @@ function __omni_reportError(context, error) {
   window.__omni_runtimeErrors.push({
     severity: severity,
     code: code,
-    message: String(error),
+    message: String(error).substring(0, 200),
     time: Date.now()
   });
   try {
@@ -141,7 +141,7 @@ function __omni_reportError(context, error) {
         type: 'omni-runtime-error',
         severity: severity,
         code: code,
-        message: String(error),
+        message: String(error).substring(0, 200),
         timestamp: Date.now()
       }, window.location.origin);
     }
