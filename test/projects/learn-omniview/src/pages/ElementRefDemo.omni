@@ -14,11 +14,21 @@
 import omniview;
 import { LearnDesign } from "../design";
 
-// ── 入场动画 ───────────────────────────────────────────────
-@motion fadeSlideUp {
-    from { opacity: 0, y: 20 }
-    to   { opacity: 1, y: 0 }
-    over 400 ease power2Out
+// ── 拖拽动画：x/y 映射到约束范围，元素跟随鼠标位置 ──
+@motion dragX300 {
+    from { x: 0 }
+    to   { x: 300 }
+    over 300 ease power2Out
+}
+@motion dragX150 {
+    from { x: 0 }
+    to   { x: 150 }
+    over 300 ease power2Out
+}
+@motion dragY100 {
+    from { y: 0 }
+    to   { y: 100 }
+    over 300 ease power2Out
 }
 
 component ElementRefDemo {
@@ -197,33 +207,33 @@ component ElementRefDemo {
             <p class: LearnDesign.Hint>直接 DOM 操作 → 60fps 拖拽 → signal 仅在结束时更新</p>
             <div class: LearnDesign.Row>
                 <div
-                    @dragHorizontal={fadeSlideUp}
+                    @dragHorizontal={dragX300}
                     @drag-constraints="left:0 right:300"
                     @drag-elastic={0.2}
                     @drag-scrub={true}
                     class: drag-box>
-                    <p>Drag me → x:{dragX.to_string()} y:{dragY.to_string()}</p>
+                    <p>↔ Drag me (elastic 0.2)</p>
                 </div>
             </div>
 
             <h4 class: LearnDesign.SectionTitle>Drag Constraint Variations</h4>
             <p class: LearnDesign.Hint>
-                drag-constraints and drag-elastic control drag boundaries and snap behavior
+                drag-constraints and drag-elastic control boundaries and snap behavior
             </p>
             <div class: constraints-row>
-                <div @dragHorizontal={fadeSlideUp}
+                <div @dragHorizontal={dragX150}
                      @drag-constraints="left:0 right:150"
                      @drag-elastic={0.5}
                      class: drag-demo-box>
                     <p>elastic 0.5</p>
                 </div>
-                <div @dragHorizontal={fadeSlideUp}
+                <div @dragHorizontal={dragX150}
                      @drag-constraints="left:0 right:150"
                      @drag-elastic={0}
                      class: drag-demo-box>
                     <p>elastic 0</p>
                 </div>
-                <div @dragVertical={fadeSlideUp}
+                <div @dragVertical={dragY100}
                      @drag-constraints="top:0 bottom:100"
                      class: drag-demo-box>
                     <p>dragVertical</p>
