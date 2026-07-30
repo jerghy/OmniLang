@@ -21,6 +21,11 @@ impl OmniViewGenerator {
             if let Some(ref child_view) = child_comp.view {
                 // Save and update current component context
                 let saved_scope = ComponentScope::take(self);
+                // Preserve @for template context — take() resets in_for_template
+                // to false, but child components inside @for need it true so that
+                // interpolations (e.g. {text}) generate data-bind-text markers
+                // and the @for prop→expression mapping (below) works correctly.
+                self.scope.in_for_template = saved_scope.in_for_template;
                 self.scope.current_component = child_comp.name.clone();
 
                 if self.scope.in_for_template {
@@ -88,6 +93,17 @@ impl OmniViewGenerator {
                             .insert(c.name.clone(), prefixed.clone());
                         self.scope.signal_names.insert(prefixed);
                     }
+                    // Add store signal/getter names for .value access when the
+                    // child component references stores (e.g. {TodoStore.totalCount}).
+                    // store_signal_names is populated globally during emit_store.
+                    for store_name in &child_comp.store_refs {
+                        let prefix = format!("{}_", store_name);
+                        for name in &self.store_signal_names {
+                            if name.starts_with(&prefix) {
+                                self.scope.signal_names.insert(name.clone());
+                            }
+                        }
+                    }
                     // Add child component functions so class: map and call
                     // expressions in the inlined view resolve to the correct
                     // prefixed name (e.g. isActive -> TabPanel_isActive).
@@ -131,8 +147,23 @@ impl OmniViewGenerator {
                     self.view_to_html(&child_view_owned, indent + 1)
                 };
 
+                // Save child's for-loop bindings before restoring parent scope,
+                // then merge them back so @for template bindings accumulated by
+                // the child component (e.g. {text} → item.text inside TodoItem)
+                // are not lost when the parent scope replaces the child's.
+                let child_text_bindings = std::mem::take(&mut self.scope.for_text_bindings);
+                let child_class_bindings = std::mem::take(&mut self.scope.for_class_bindings);
+                let child_attr_bindings = std::mem::take(&mut self.scope.for_attr_bindings);
+
                 // Restore all saved state (for-loop state + parent context)
                 saved_scope.restore(self);
+
+                // Merge child's for-loop bindings back into parent scope
+                if self.scope.in_for_template {
+                    self.scope.for_text_bindings.extend(child_text_bindings);
+                    self.scope.for_class_bindings.extend(child_class_bindings);
+                    self.scope.for_attr_bindings.extend(child_attr_bindings);
+                }
 
                 let mut out = String::new();
                 let _ = writeln!(
