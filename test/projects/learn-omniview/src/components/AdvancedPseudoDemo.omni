@@ -52,7 +52,7 @@ component AdvancedPseudoDemo {
                 <h4 class: label>多组合 + 多伪类: .panel-highlight:hover, .panel-highlight:focus</h4>
                 <div class: panel-highlight>
                     <p>Hover or Focus this panel</p>
-                    <input class: panel-input placeholder="Tab to focus me" />
+                    <input class: panel-input placeholder="Tab to focus me"></input>
                 </div>
             </div>
         </div>

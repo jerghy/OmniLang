@@ -144,10 +144,9 @@ component ElementRefDemo {
                 </div>
             </div>
 
-            <!-- ═══ 拖拽约束对比 ═══ -->
             <h4 class: LearnDesign.SectionTitle>Drag Constraint Variations</h4>
             <p class: LearnDesign.Hint>
-                @drag-constraints and @drag-elastic control drag boundaries and snap behavior
+                drag-constraints and drag-elastic control drag boundaries and snap behavior
             </p>
             <div class: constraints-row>
                 <div @dragHorizontal={fadeSlideUp}
@@ -166,11 +165,6 @@ component ElementRefDemo {
                      @drag-constraints="top:0 bottom:100"
                      class: drag-demo-box>
                     <p>dragVertical</p>
-                </div>
-                <div @drag={fadeSlideUp}
-                     @drag-constraints="left:0 right:150 top:0 bottom:100"
-                     class: drag-demo-box>
-                    <p>free drag</p>
                 </div>
             </div>
         </div>
