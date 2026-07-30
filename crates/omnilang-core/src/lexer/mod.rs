@@ -2,6 +2,8 @@
 //!
 //! Produces a flat Vec<Token> from source text. No regex, no parser generators.
 
+use std::fmt::Write;
+
 mod keywords;
 mod token;
 pub use token::*;
@@ -507,7 +509,7 @@ impl<'a> Lexer<'a> {
                                         None => s.push('\u{FFFD}'),
                                     },
                                     Err(_) => {
-                                        s.push_str(&format!("\\u{{{}}}", hex));
+                                        let _ = write!(s, "\\u{{{}}}", hex);
                                     }
                                 }
                             }
@@ -737,7 +739,6 @@ impl<'a> Lexer<'a> {
     }
 }
 
-#[cfg(test)]
 mod tests {
     use super::*;
 

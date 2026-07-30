@@ -12,6 +12,7 @@ use super::expr::format_expr_ir_flutter;
 use super::motion::wrap_with_motion_widgets;
 use super::motion_widgets::{emit_event_object_flutter, field_extract_flutter};
 use super::stmt::{generate_statement_flutter, FlutterStmtFormatter};
+use std::fmt::Write;
 use super::utils::{
     binding_to_flutter_param, event_to_flutter_callback, prop_to_flutter_param_name,
     tag_to_flutter_widget,
@@ -510,18 +511,19 @@ fn format_conditional(
             .map(|b| format_view_tree(b, motions, component_map))
             .unwrap_or_else(|| "SizedBox()".to_string());
         if i == 0 {
-            result.push_str(&format!("{} ? {}", cond_str, body_str));
+            let _ = write!(result, "{} ? {}", cond_str, body_str);
         } else {
-            result.push_str(&format!(" : {} ? {}", cond_str, body_str));
+            let _ = write!(result, " : {} ? {}", cond_str, body_str);
         }
     }
 
     // Fallback
     if let Some(ref fb) = cond.fallback {
-        result.push_str(&format!(
+        let _ = write!(
+            result,
             " : {}",
             format_view_tree(fb, motions, component_map)
-        ));
+        );
     } else {
         result.push_str(" : SizedBox()");
     }

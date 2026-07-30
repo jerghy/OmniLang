@@ -6,6 +6,7 @@
 use crate::codegen::writer::CodeWriter;
 use crate::ir::BlockIR;
 use crate::ir::StatementIR;
+use std::fmt::Write;
 
 /// Configuration for building an inline handler (closure / arrow function) string
 /// from a `BlockIR` body.
@@ -55,7 +56,7 @@ pub fn build_inline_handler(
         let content = hw.into_string();
         let mut result = config.opener.clone();
         for line in content.lines() {
-            result.push_str(&format!("{}{}\n", config.indent, line));
+            let _ = write!(result, "{}{}\n", config.indent, line);
         }
         result.push_str(&config.closer);
         result

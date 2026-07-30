@@ -2,6 +2,7 @@ use rustc_hash::FxHashMap;
 
 use crate::codegen::CompileOutput;
 use crate::ir::*;
+use std::fmt::Write;
 
 // ═════════════════════════════════════════════════════════════════════════════
 // Fixture factories
@@ -646,7 +647,7 @@ pub(crate) fn fixture_expressions() -> IRProgram {
 pub(crate) fn format_output(output: &CompileOutput) -> String {
     let mut s = String::new();
     for f in &output.files {
-        s.push_str(&format!("=== {} ===\n", f.path));
+        let _ = write!(s, "=== {} ===\n", f.path);
         s.push_str(&f.content);
         if !f.content.ends_with('\n') {
             s.push('\n');

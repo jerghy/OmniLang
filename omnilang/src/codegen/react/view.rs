@@ -14,6 +14,7 @@ use super::utils::{emit_event_object_react, to_jsx_attr, to_react_event, to_reac
 use crate::codegen::omniview::is_dangerous_url;
 use crate::codegen::{format_json_value, JSON_REACT};
 use omnilang_core::codegen::sanitize::sanitize_css_value;
+use std::fmt::Write;
 
 pub(super) fn gen_view_node_tsx(
     w: &mut CodeWriter,
@@ -392,7 +393,7 @@ pub(super) fn gen_view_node_tsx(
                             };
                             let mut result = format!("({}) => {{\n", params_str);
                             for line in content.lines() {
-                                result.push_str(&format!("        {}\n", line));
+                                let _ = write!(result, "        {}\n", line);
                             }
                             result.push_str("      }");
                             attrs.push(format!("{}={{{}}}", react_event, result));
@@ -420,7 +421,7 @@ pub(super) fn gen_view_node_tsx(
                                 };
                                 let mut result = format!("({}) => {{\n", params_str);
                                 for line in content.lines() {
-                                    result.push_str(&format!("        {}\n", line));
+                                    let _ = write!(result, "        {}\n", line);
                                 }
                                 result.push_str("      }");
                                 attrs.push(format!("{}={{{}}}", react_event, result));

@@ -22,6 +22,7 @@ use crate::ir::*;
 use rustc_hash::FxHashMap;
 
 use expr::*;
+use std::fmt::Write;
 pub use utils::*;
 
 pub struct JavaScriptCodegen {
@@ -177,7 +178,7 @@ fn generate_function(w: &mut CodeWriter, func: &FunctionIR, ts_mode: bool) {
             if let Some(ref ty) = p.r#type {
                 let ann = JsTypeFormatter.format_type(ty.kind.as_str(), &ty.type_args);
                 if !ann.is_empty() {
-                    s.push_str(&format!(": {}", ann));
+                    let _ = write!(s, ": {}", ann);
                 }
             }
         }

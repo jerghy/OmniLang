@@ -9,6 +9,7 @@ use crate::codegen::shared::expr::RustFormatExpr;
 use crate::codegen::shared::inline_handler::{build_inline_handler, InlineHandlerConfig};
 use crate::codegen::shared::stmt::FormatStmt;
 use crate::ir::*;
+use std::fmt::Write;
 
 /// Generate a Dioxus RSX view node.
 ///
@@ -113,7 +114,7 @@ pub(crate) fn gen_view_node_dioxus(w: &mut CodeWriter, node: &ViewTree, is_root:
                             let content = hw.into_string();
                             let mut result = String::from("move |e| {\n");
                             for line in content.lines() {
-                                result.push_str(&format!("                {}\n", line));
+                                let _ = write!(result, "                {}\n", line);
                             }
                             result.push_str("            }");
                             attrs.push(format!("{}: {},", dioxus_event, result));

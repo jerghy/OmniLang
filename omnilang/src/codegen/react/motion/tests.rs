@@ -9,6 +9,7 @@
 // React backend (ADR-024 documented gap).
 
 use rustc_hash::FxHashMap;
+use std::fmt::Write;
 
 /// Compile a single .omni source string to React output, returning
 /// all generated files concatenated for snapshot testing.
@@ -35,7 +36,7 @@ fn compile_fixture_to_react(source: &str) -> String {
     keys.sort();
     for path in keys {
         let content = &result.files[path];
-        output.push_str(&format!("=== {} ===\n", path));
+        let _ = write!(output, "=== {} ===\n", path);
         output.push_str(content);
         output.push('\n');
     }

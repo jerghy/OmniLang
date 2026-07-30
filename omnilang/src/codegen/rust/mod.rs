@@ -16,6 +16,7 @@ use crate::codegen::shared::visitor::CodegenVisitor;
 use crate::codegen::{format_json_value, JSON_RUST};
 use crate::ir::*;
 use rustc_hash::FxHashMap;
+use std::fmt::Write;
 
 pub(crate) use expr::format_expr_ir;
 pub(crate) use expr::rs_type;
@@ -218,7 +219,7 @@ fn generate_function(w: &mut CodeWriter, func: &FunctionIR) {
         let mut s = p.name.clone();
         if let Some(ref ty) = p.r#type {
             let ann = rs_type(ty.kind.as_str(), &ty.type_args);
-            s.push_str(&format!(": {}", ann));
+            let _ = write!(s, ": {}", ann);
         }
         param_strs.push(s);
     }

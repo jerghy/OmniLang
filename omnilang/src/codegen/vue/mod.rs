@@ -19,6 +19,7 @@ use crate::codegen::shared::types::{FormatType, JsTypeFormatter};
 use crate::codegen::JSON_VUE;
 use crate::ir::*;
 use rustc_hash::FxHashMap;
+use std::fmt::Write;
 
 pub struct VueCodegen;
 
@@ -318,7 +319,7 @@ impl VueCodegen {
                 if let Some(ref ty) = p.r#type {
                     let ann = JsTypeFormatter.format_type(ty.kind.as_str(), &ty.type_args);
                     if !ann.is_empty() {
-                        s.push_str(&format!(": {}", ann));
+                        let _ = write!(s, ": {}", ann);
                     }
                 }
                 param_strs.push(s);

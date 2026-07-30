@@ -5,6 +5,7 @@ use crate::codegen::shared::build_component_map;
 use crate::codegen::{format_json_value, JSON_FLUTTER};
 use rustc_hash::FxHashMap;
 use std::collections::HashMap;
+use std::fmt::Write;
 
 // ── Helper tests ──────────────────────────────────────────
 
@@ -1766,7 +1767,7 @@ fn test_full_pipeline_component_with_store_ref() {
     insta::with_settings!({snapshot_path => "snapshots"}, {
         let mut snapshot_content = String::new();
         for f in &output.files {
-            snapshot_content.push_str(&format!("=== {} ===\n", f.path));
+            let _ = write!(snapshot_content, "=== {} ===\n", f.path);
             snapshot_content.push_str(&f.content);
             snapshot_content.push('\n');
         }

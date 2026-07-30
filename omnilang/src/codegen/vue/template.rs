@@ -7,6 +7,7 @@ use crate::codegen::shared::inline_handler::{build_inline_handler, InlineHandler
 use crate::codegen::shared::types::{FormatType, JsTypeFormatter};
 use crate::ir::*;
 use rustc_hash::FxHashSet;
+use std::fmt::Write;
 
 // ═══════════════════════════════════════════════════════════
 // Vue template node generation
@@ -86,7 +87,7 @@ pub(crate) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &impl 
                             let content = hw.into_string();
                             let mut result = String::from("(e) => {\n");
                             for line in content.lines() {
-                                result.push_str(&format!("        {}\n", line));
+                                let _ = write!(result, "        {}\n", line);
                             }
                             result.push_str("      }");
                             attrs.push(format!("@{}=\"{}\"", vue_event, result));
@@ -320,7 +321,7 @@ pub(super) fn generate_function_vue(w: &mut CodeWriter, func: &FunctionIR) {
         if let Some(ref ty) = p.r#type {
             let ann = JsTypeFormatter.format_type(ty.kind.as_str(), &ty.type_args);
             if !ann.is_empty() {
-                s.push_str(&format!(": {}", ann));
+                let _ = write!(s, ": {}", ann);
             }
         }
         param_strs.push(s);

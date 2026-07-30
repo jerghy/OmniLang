@@ -8,6 +8,7 @@
 use crate::codegen::shared::visitor::CodegenVisitor;
 use crate::codegen::CodeWriter;
 use crate::ir::*;
+use std::fmt::Write;
 
 pub(crate) struct DartVisitor;
 
@@ -64,7 +65,7 @@ impl CodegenVisitor for DartVisitor {
             let mut s = String::new();
             if let Some(ref ty) = p.r#type {
                 let ann = super::expr::dart_type(ty.kind.as_str(), &ty.type_args);
-                s.push_str(&format!("{} ", ann));
+                let _ = write!(s, "{} ", ann);
             }
             s.push_str(&p.name);
             param_strs.push(s);

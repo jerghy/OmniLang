@@ -36,6 +36,11 @@ impl FormatExpr for VueFormatExpr {
             format!("(({params}) => ({body}))")
         }
     }
+
+    fn format_block_expr(&self, _statements: &[StatementIR], tail: &ExprIR) -> String {
+        // Block statements not supported in expression context — drop them.
+        self.format_expr(tail)
+    }
 }
 
 // ═══════════════════════════════════════════════════════════

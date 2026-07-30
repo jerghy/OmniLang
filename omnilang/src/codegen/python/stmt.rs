@@ -5,6 +5,7 @@ use crate::codegen::shared::expr::FormatExpr;
 use crate::codegen::shared::stmt::FormatStmt;
 use crate::codegen::CodeWriter;
 use crate::ir::*;
+use std::fmt::Write;
 
 /// Python statement formatter — no semicolons, `elif` keyword, colon blocks.
 struct PythonStmtFormatter {
@@ -124,7 +125,7 @@ pub(super) fn generate_function(w: &mut CodeWriter, func: &FunctionIR, is_standa
         let mut s = p.name.clone();
         // Optionally include type annotation
         if let Some(ref ty) = p.r#type {
-            s.push_str(&format!(": {}", expr::format_type_ir(ty)));
+            let _ = write!(s, ": {}", expr::format_type_ir(ty));
         }
         param_strs.push(s);
     }
@@ -234,7 +235,6 @@ pub(super) fn generate_store(w: &mut CodeWriter, name: &str, store: &StoreIR) {
 }
 
 /// Generate a statement.
-#[cfg(test)]
 pub(super) fn generate_statement(w: &mut CodeWriter, stmt: &StatementIR) {
     let fmt = PythonStmtFormatter {
         expr: PythonFormatExpr,

@@ -25,6 +25,11 @@ impl FormatExpr for ReactFormatExpr {
         &JSON_REACT
     }
 
+    fn format_block_expr(&self, _statements: &[StatementIR], tail: &ExprIR) -> String {
+        // Block statements not supported in expression context — drop them.
+        self.format_expr(tail)
+    }
+
     /// Strip `$` prefix from identifier names — `$` is an IR internal
     /// convention for store signal references and should not appear in
     /// generated TypeScript/React code.

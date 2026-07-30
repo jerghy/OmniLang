@@ -7,6 +7,7 @@
 use crate::codegen::shared::visitor::CodegenVisitor;
 use crate::codegen::CodeWriter;
 use crate::ir::*;
+use std::fmt::Write;
 
 pub(crate) struct RustVisitor;
 
@@ -84,7 +85,7 @@ impl CodegenVisitor for RustVisitor {
             let mut s = p.name.clone();
             if let Some(ref ty) = p.r#type {
                 let ann = super::expr::format_type_ir_rust(ty);
-                s.push_str(&format!(": {}", ann));
+                let _ = write!(s, ": {}", ann);
             }
             param_strs.push(s);
         }

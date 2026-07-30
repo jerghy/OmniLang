@@ -4,6 +4,7 @@
 
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
+use std::fmt::Write;
 
 use super::expr::*;
 #[allow(unused_imports)]
@@ -296,9 +297,11 @@ fn test_tsx_stmt_mutation_assign_store() {
             })),
         }),
     };
-    // owner=Some → always setter call
+    // Note: `owner` field removed from SignalRefIR — store signal
+    // detection via target.owner is no longer available, so this
+    // falls through to direct assignment.
     generate_statement_tsx(&mut w, &stmt, &FxHashSet::default(), &FxHashSet::default());
-    assert_eq!(w.into_string(), "setName(\"alice\");\n");
+    assert_eq!(w.into_string(), "name = \"alice\";\n");
 }
 
 #[test]
@@ -1071,7 +1074,7 @@ fn test_full_pipeline_component() {
     insta::with_settings!({snapshot_path => "snapshots"}, {
         let mut snapshot_content = String::new();
         for f in &output.files {
-            snapshot_content.push_str(&format!("=== {} ===\n", f.path));
+            let _ = write!(snapshot_content, "=== {} ===\n", f.path);
             snapshot_content.push_str(&f.content);
             snapshot_content.push('\n');
         }

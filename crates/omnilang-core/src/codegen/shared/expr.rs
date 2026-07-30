@@ -332,6 +332,11 @@ impl FormatExpr for JsFormatExpr {
     fn null_fallback(&self) -> &str {
         "undefined"
     }
+
+    fn format_block_expr(&self, _statements: &[StatementIR], tail: &ExprIR) -> String {
+        // Block statements not supported in expression context — drop them.
+        self.format_expr(tail)
+    }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -400,6 +405,11 @@ impl FormatExpr for DartFormatExpr {
     // Dart uses `{key: value}` without spaces inside braces.
     fn format_struct(&self, _type_name: &str, fields: &str) -> String {
         format!("{{{}}}", fields)
+    }
+
+    fn format_block_expr(&self, _statements: &[StatementIR], tail: &ExprIR) -> String {
+        // Block statements not supported in expression context — drop them.
+        self.format_expr(tail)
     }
 }
 
@@ -507,5 +517,10 @@ impl FormatExpr for RustFormatExpr {
             })
             .collect();
         format!("match &{matched} {{\n{}\n}}", cases.join("\n"))
+    }
+
+    fn format_block_expr(&self, _statements: &[StatementIR], tail: &ExprIR) -> String {
+        // Block statements not supported in expression context — drop them.
+        self.format_expr(tail)
     }
 }

@@ -18,6 +18,7 @@ use crate::codegen::shared::{emit_constructor_init, emit_store_constructor_init}
 use crate::codegen::{format_json_value, JSON_DART};
 use crate::ir::*;
 use rustc_hash::FxHashMap;
+use std::fmt::Write;
 
 // Bring expr helpers into scope for mod.rs internals and pub(crate) visibility for visitor/tests
 pub(crate) use expr::dart_type;
@@ -170,7 +171,7 @@ fn generate_function(w: &mut CodeWriter, func: &FunctionIR) {
         let mut s = String::new();
         if let Some(ref ty) = p.r#type {
             let ann = dart_type(ty.kind.as_str(), &ty.type_args);
-            s.push_str(&format!("{} ", ann));
+            let _ = write!(s, "{} ", ann);
         }
         s.push_str(&p.name);
         param_strs.push(s);

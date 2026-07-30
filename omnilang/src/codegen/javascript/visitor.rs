@@ -7,6 +7,7 @@
 use crate::codegen::shared::visitor::CodegenVisitor;
 use crate::codegen::CodeWriter;
 use crate::ir::*;
+use std::fmt::Write;
 
 pub(crate) struct JavaScriptVisitor {
     pub ts_mode: bool,
@@ -53,7 +54,7 @@ impl CodegenVisitor for JavaScriptVisitor {
             let mut param = field.name.clone();
             if self.ts_mode {
                 let ann = super::utils::format_type_ir_js(&field.r#type, true);
-                param.push_str(&format!(": {}", ann));
+                let _ = write!(param, ": {}", ann);
             }
             param_strs.push(param);
         }
@@ -103,7 +104,7 @@ impl CodegenVisitor for JavaScriptVisitor {
                 if let Some(ref ty) = p.r#type {
                     let ann = super::utils::format_type_ir_js(ty, true);
                     if !ann.is_empty() {
-                        s.push_str(&format!(": {}", ann));
+                        let _ = write!(s, ": {}", ann);
                     }
                 }
             }

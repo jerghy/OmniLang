@@ -4,6 +4,8 @@
 use rustc_hash::FxHashMap;
 use std::path::Path;
 
+use std::fmt::Write;
+
 /// How to discover .omni source files.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DiscoveryMode {
@@ -74,7 +76,7 @@ fn discover_directory(project_dir: &Path) -> Result<FxHashMap<String, String>, S
     if sources.is_empty() {
         let mut msg = String::from("No .omni source files found.");
         for err in &errors {
-            msg.push_str(&format!("\n  - {err}"));
+            let _ = write!(msg, "\n  - {err}");
         }
         return Err(msg);
     }
