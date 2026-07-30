@@ -44,6 +44,18 @@ pub enum TokenType {
     ZIndex,
 }
 
+/// A design token value -- either a static literal string or a variable reference.
+///
+/// Static: `token primary: color = "#6366f1";`
+/// Variable ref: `token primary: color = BRAND;` (resolved at compile time)
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum TokenValue {
+    /// Static literal value: `"#6366f1"`, `"16px"`, `white`
+    Literal(String),
+    /// Variable reference: `BRAND`, `SPACING`
+    Variable(String),
+}
+
 /// `token primary: color = "#6366f1";`
 ///
 /// Per-theme overrides appear as `theme_values` keyed by theme name:
@@ -55,10 +67,10 @@ pub enum TokenType {
 pub struct TokenDef {
     pub name: String,
     pub token_type: TokenType,
-    pub value: String,
+    pub value: TokenValue,
     /// Per-theme value overrides: `(theme_name, value)` pairs.
     #[serde(default)]
-    pub theme_values: Vec<(String, String)>,
+    pub theme_values: Vec<(String, TokenValue)>,
 }
 
 /// `class Card { ... }`

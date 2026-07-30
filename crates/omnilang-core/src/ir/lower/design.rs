@@ -36,12 +36,23 @@ pub fn lower_design(ast: &DesignDef) -> DesignIR {
                 TokenType::Opacity => TokenTypeIR::Opacity,
                 TokenType::ZIndex => TokenTypeIR::ZIndex,
             };
-            // Convert per-theme value overrides from Vec<(String, String)> to FxHashMap
-            let theme_values: FxHashMap<String, String> = t.theme_values.iter().cloned().collect();
+            // Convert per-theme value overrides from Vec<(String, TokenValue)> to FxHashMap
+            let theme_values: FxHashMap<String, String> = t.theme_values.iter()
+                .map(|(k, v)| {
+                    let val = match v {
+                        TokenValue::Literal(s) => s.clone(),
+                        TokenValue::Variable(name) => format!("var(--{})", name),
+                    };
+                    (k.clone(), val)
+                })
+                .collect();
             (
                 t.name.clone(),
                 TokenIR {
-                    value: t.value.clone(),
+                    value: match &t.value {
+                        TokenValue::Literal(s) => s.clone(),
+                        TokenValue::Variable(name) => format!("var(--{})", name),
+                    },
                     token_type,
                     theme_values,
                     source_span: None,
@@ -406,8 +417,8 @@ mod tests {
             tokens: vec![TokenDef {
                 name: "primary".to_string(),
                 token_type: TokenType::Color,
-                value: "#6366f1".to_string(),
-                theme_values: vec![("dark".to_string(), "#a5b4fc".to_string())],
+                value: TokenValue::Literal("#6366f1".to_string()),
+                theme_values: vec![("dark".to_string(), TokenValue::Literal("#a5b4fc".to_string()))],
             }],
             classes: vec![],
             variants: vec![],
@@ -462,8 +473,8 @@ mod tests {
             tokens: vec![TokenDef {
                 name: "primary".to_string(),
                 token_type: TokenType::Color,
-                value: "#fff".to_string(),
-                theme_values: vec![("darkk".to_string(), "#000".to_string())],
+                value: TokenValue::Literal("#fff".to_string()),
+                theme_values: vec![("darkk".to_string(), TokenValue::Literal("#000".to_string()))],
             }],
             classes: vec![],
             variants: vec![],
@@ -511,8 +522,8 @@ mod tests {
             tokens: vec![TokenDef {
                 name: "primary".to_string(),
                 token_type: TokenType::Color,
-                value: "#fff".to_string(),
-                theme_values: vec![("dark".to_string(), "#000".to_string())],
+                value: TokenValue::Literal("#fff".to_string()),
+                theme_values: vec![("dark".to_string(), TokenValue::Literal("#000".to_string()))],
             }],
             classes: vec![],
             variants: vec![],
@@ -530,8 +541,8 @@ mod tests {
             tokens: vec![TokenDef {
                 name: "primary".to_string(),
                 token_type: TokenType::Color,
-                value: "#fff".to_string(),
-                theme_values: vec![("dark".to_string(), "#000".to_string())],
+                value: TokenValue::Literal("#fff".to_string()),
+                theme_values: vec![("dark".to_string(), TokenValue::Literal("#000".to_string()))],
             }],
             classes: vec![],
             variants: vec![],

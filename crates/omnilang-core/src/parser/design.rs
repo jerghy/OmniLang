@@ -111,10 +111,10 @@ fn parse_token(input: &str) -> ParseResult<(TokenDef, &str)> {
         .strip_prefix("=")
         .ok_or_else(|| err("expected '='"))?
         .trim_start();
-    let (value, rest) = parse_string_or_ident(rest)?;
+    let (value, rest) = parse_token_value(rest)?;
 
     // Parse optional per-theme value overrides: `dark "#a5b4fc" light "#ffffff"`
-    let mut theme_values: Vec<(String, String)> = Vec::new();
+    let mut theme_values: Vec<(String, TokenValue)> = Vec::new();
     let mut remaining = rest.trim_start();
     loop {
         if remaining.starts_with(';') {
@@ -133,7 +133,7 @@ fn parse_token(input: &str) -> ParseResult<(TokenDef, &str)> {
             // Put it back: the value consumed too greedily
             break;
         }
-        match parse_string_or_ident(after_ws) {
+        match parse_token_value(after_ws) {
             Ok((theme_val, r)) => {
                 theme_values.push((maybe_theme, theme_val));
                 remaining = r.trim_start();
@@ -222,18 +222,74 @@ fn parse_ident(input: &str) -> ParseResult<(String, &str)> {
     Ok((input[..end].to_string(), &input[end..]))
 }
 
-fn parse_string_or_ident(input: &str) -> ParseResult<(String, &str)> {
+/// Parse a token value: either a quoted string (literal) or an identifier.
+/// If the identifier looks like a CSS keyword/value (all lowercase,
+/// possibly with hyphens, starts with digit, or is a hex color),
+/// treat it as Literal. Otherwise treat as Variable.
+fn parse_token_value(input: &str) -> ParseResult<(TokenValue, &str)> {
     let input = input.trim_start();
     if let Some(stripped) = input.strip_prefix('"') {
         let end = stripped
             .find('"')
             .map(|i| i + 2)
             .ok_or_else(|| err("expected closing '\"'"))?;
-        Ok((input[1..end - 1].to_string(), &input[end..]))
+        Ok((TokenValue::Literal(input[1..end - 1].to_string()), &input[end..]))
+    } else if input.starts_with('#') {
+        // Hex color: `#6366f1` -- always literal
+        let end = input[1..]
+            .find(|c: char| !c.is_ascii_hexdigit())
+            .map(|i| i + 1)
+            .unwrap_or(input.len());
+        Ok((TokenValue::Literal(input[..end].to_string()), &input[end..]))
     } else {
-        parse_ident(input)
+        let (ident, rest) = parse_ident(input)?;
+        // Heuristic: if it looks like a CSS value, treat as literal
+        if is_css_value(&ident) {
+            Ok((TokenValue::Literal(ident), rest))
+        } else {
+            Ok((TokenValue::Variable(ident), rest))
+        }
     }
 }
+
+/// Returns true if the identifier looks like a static CSS value
+/// rather than a variable/constant reference.
+fn is_css_value(s: &str) -> bool {
+    if s.is_empty() { return true; }
+    let first = s.chars().next().unwrap();
+    // Numbers -- CSS values: "16px", "1.5", "0.5s"
+    if first.is_ascii_digit() { return true; }
+    // Hex colors -- CSS values: "#6366f1"
+    if first == '#' { return true; }
+    // Known CSS keywords
+    if CSS_KEYWORDS.contains(&s) { return true; }
+    // All lowercase with hyphens (CSS properties/values):
+    //   "ease-in-out", "inline-flex", "nowrap", "white"
+    // But NOT PascalCase or camelCase identifiers (variables):
+    //   "BRAND", "spacingUnit"
+    s.chars().all(|c| c.is_lowercase() || c == '-' || c == '.' || c == '_')
+}
+
+// Common CSS value keywords (case-sensitive lowercase)
+const CSS_KEYWORDS: &[&str] = &[
+    "none", "auto", "inherit", "initial", "unset", "revert",
+    "white", "black", "red", "blue", "green", "yellow", "orange",
+    "transparent", "currentColor",
+    "solid", "dashed", "dotted", "double",
+    "left", "right", "center", "top", "bottom",
+    "bold", "normal", "italic",
+    "block", "inline", "inline-block", "flex", "grid",
+    "visible", "hidden", "scroll", "clip",
+    "nowrap", "wrap", "pre",
+    "pointer", "default", "text",
+    "ease", "linear", "ease-in", "ease-out", "ease-in-out",
+    "cover", "contain", "fill",
+    "uppercase", "lowercase", "capitalize",
+    "underline", "overline", "line-through",
+    "repeat", "no-repeat", "repeat-x", "repeat-y",
+    "border-box", "content-box", "padding-box",
+    "start", "end", "stretch", "baseline",
+];
 
 fn skip_ws_and_comments(input: &str) -> &str {
     let mut s = input.trim_start();
@@ -637,7 +693,7 @@ mod tests {
         assert_eq!(result.tokens.len(), 1);
         assert_eq!(result.tokens[0].name, "primary");
         assert_eq!(result.tokens[0].token_type, TokenType::Color);
-        assert_eq!(result.tokens[0].value, "#6366f1");
+        assert_eq!(result.tokens[0].value, TokenValue::Literal("#6366f1".to_string()));
     }
 
     #[test]
@@ -645,7 +701,7 @@ mod tests {
         let src = r#"token spacingMd: size = "16px";"#;
         let result = parse_design_body(src).unwrap();
         assert_eq!(result.tokens[0].token_type, TokenType::Size);
-        assert_eq!(result.tokens[0].value, "16px");
+        assert_eq!(result.tokens[0].value, TokenValue::Literal("16px".to_string()));
     }
 
     #[test]
@@ -759,11 +815,11 @@ mod tests {
         assert_eq!(result.tokens.len(), 1);
         let token = &result.tokens[0];
         assert_eq!(token.name, "primary");
-        assert_eq!(token.value, "#6366f1");
+        assert_eq!(token.value, TokenValue::Literal("#6366f1".to_string()));
         assert_eq!(token.theme_values.len(), 1);
         assert_eq!(
             token.theme_values[0],
-            ("dark".to_string(), "#a5b4fc".to_string())
+            ("dark".to_string(), TokenValue::Literal("#a5b4fc".to_string()))
         );
     }
 
@@ -772,15 +828,15 @@ mod tests {
         let src = r##"token surface: color = "#ffffff" dark "#111827" highContrast "#000000";"##;
         let result = parse_design_body(src).unwrap();
         let token = &result.tokens[0];
-        assert_eq!(token.value, "#ffffff");
+        assert_eq!(token.value, TokenValue::Literal("#ffffff".to_string()));
         assert_eq!(token.theme_values.len(), 2);
         assert_eq!(
             token.theme_values[0],
-            ("dark".to_string(), "#111827".to_string())
+            ("dark".to_string(), TokenValue::Literal("#111827".to_string()))
         );
         assert_eq!(
             token.theme_values[1],
-            ("highContrast".to_string(), "#000000".to_string())
+            ("highContrast".to_string(), TokenValue::Literal("#000000".to_string()))
         );
     }
 
@@ -789,7 +845,30 @@ mod tests {
         let src = r##"token primary: color = "#6366f1";"##;
         let result = parse_design_body(src).unwrap();
         let token = &result.tokens[0];
-        assert_eq!(token.value, "#6366f1");
+        assert_eq!(token.value, TokenValue::Literal("#6366f1".to_string()));
         assert!(token.theme_values.is_empty());
+    }
+
+    #[test]
+    fn parse_token_with_variable_value() {
+        let src = r#"token primary: color = BRAND;"#;
+        let result = parse_design_body(src).unwrap();
+        assert_eq!(result.tokens.len(), 1);
+        assert_eq!(result.tokens[0].name, "primary");
+        assert_eq!(result.tokens[0].value, TokenValue::Variable("BRAND".to_string()));
+    }
+
+    #[test]
+    fn parse_token_heuristic_css_value_as_literal() {
+        let src = r#"token easing: easing = ease-in-out;"#;
+        let result = parse_design_body(src).unwrap();
+        assert!(matches!(result.tokens[0].value, TokenValue::Literal(_)));
+    }
+
+    #[test]
+    fn parse_token_hex_color_as_literal() {
+        let src = r##"token primary: color = #6366f1;"##;
+        let result = parse_design_body(src).unwrap();
+        assert!(matches!(result.tokens[0].value, TokenValue::Literal(_)));
     }
 }
