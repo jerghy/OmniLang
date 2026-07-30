@@ -1,0 +1,65 @@
+// UiComponents.omni — merged Interactive + Todo + Events page
+
+import omniview;
+import { LearnDesign } from "../design";
+import { ValidationInput } from "../components/ValidationInput";
+import { Timer } from "../components/Timer";
+import { Modal } from "../components/Modal";
+import { TabPanel } from "../components/TabPanel";
+import { DataTable } from "../components/DataTable";
+import { FormPage } from "../components/FormPage";
+import { NotificationsPanel } from "../components/NotificationsPanel";
+import { SlotDefaultDemo } from "../components/SlotDefaultDemo";
+import { EventsDemo } from "../components/EventsDemo";
+import { EventShorthand } from "../components/EventShorthand";
+// Todo app
+import { TodoList } from "../components/TodoList";
+import { FilterBar } from "../components/FilterBar";
+import { StatsDashboard } from "../components/StatsDashboard";
+import { AddTodo } from "../components/AddTodo";
+
+component UiComponents {
+    view {
+        <section class: LearnDesign.DemoSection>
+            <div class: LearnDesign.Row>
+                <div class: LearnDesign.Col><ValidationInput /></div>
+                <div class: LearnDesign.Col><Timer /></div>
+            </div>
+            <div class: LearnDesign.Row>
+                <div class: LearnDesign.Col><Modal /></div>
+                <div class: LearnDesign.Col><TabPanel /></div>
+            </div>
+            <div class: LearnDesign.DemoFull><DataTable /></div>
+
+            <div class: LearnDesign.Row>
+                <div class: LearnDesign.Col><SlotDefaultDemo /></div>
+                <div class: LearnDesign.Col><EventsDemo /></div>
+            </div>
+
+            <div class: LearnDesign.DemoFull><FormPage /></div>
+            <div class: LearnDesign.DemoFull><NotificationsPanel /></div>
+            <div class: LearnDesign.DemoFull><EventShorthand /></div>
+
+            <h3 class: LearnDesign.SectionTitle>Todo App Demo</h3>
+            <div class: todo-section>
+                <div class: todo-sidebar>
+                    <AddTodo />
+                    <FilterBar />
+                </div>
+                <div class: todo-main>
+                    <TodoList />
+                </div>
+                <div class: todo-stats>
+                    <StatsDashboard />
+                </div>
+            </div>
+        </section>
+    }
+
+    style {
+        .todo-section { display: flex; gap: 14px; }
+        .todo-sidebar { width: 200px; flex-shrink: 0; }
+        .todo-main { flex: 1; min-width: 0; }
+        .todo-stats { width: 200px; flex-shrink: 0; }
+    }
+}

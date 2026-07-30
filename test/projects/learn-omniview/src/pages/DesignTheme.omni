@@ -1,0 +1,21 @@
+// DesignTheme.omni — design system & multi-theme showcase centerpiece page
+
+import omniview;
+import { LearnDesign } from "../design";
+import { ThemeSwitcher } from "../components/ThemeSwitcher";
+import { ThemeSourceDemo } from "../components/ThemeSourceDemo";
+import { DesignTokenPanel } from "../components/DesignTokenPanel";
+import { VariantShowcase } from "../components/VariantShowcase";
+import { ThemeCssVarsDemo } from "../components/ThemeCssVarsDemo";
+
+component DesignTheme {
+    view {
+        <section class: LearnDesign.DemoSection>
+            <ThemeSwitcher />
+            <ThemeSourceDemo />
+            <DesignTokenPanel />
+            <VariantShowcase />
+            <ThemeCssVarsDemo />
+        </section>
+    }
+}
