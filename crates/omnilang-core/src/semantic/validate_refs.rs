@@ -32,6 +32,7 @@ fn validate_component_refs(comp: &ComponentIR) -> Vec<Diagnostic> {
     let mut bindings: Vec<&str> = Vec::new();
     if let Some(ref view) = comp.view {
         collect_ref_bindings(view, &mut bindings);
+        warn_refs_in_for_bodies(view, comp, false, &mut warnings);
     }
 
     let (line, col) = comp.source_span.map(|s| (s.line, s.col)).unwrap_or((0, 0));
@@ -141,10 +142,77 @@ fn collect_ref_bindings<'a>(view: &'a ViewTree, out: &mut Vec<&'a str>) {
     }
 }
 
+/// Emit warnings for @ref bindings inside @for loop bodies.
+/// @ref inside @for has undefined semantics (Phase 2) — the ref would bind
+/// to the template element or last clone, not the per-item element.
+fn warn_refs_in_for_bodies(
+    view: &ViewTree,
+    comp: &ComponentIR,
+    in_for_template: bool,
+    warnings: &mut Vec<Diagnostic>,
+) {
+    let (line, col) = comp.source_span.map(|s| (s.line, s.col)).unwrap_or((0, 0));
+
+    match view {
+        ViewTree::Element(el) => {
+            if el.ref_binding.is_some() && in_for_template {
+                let name = el.ref_binding.as_ref().unwrap();
+                warnings.push(Diagnostic {
+                    severity: Severity::Warning,
+                    kind: DiagnosticKind::E0006,
+                    message: format!(
+                        "ref '{}' is used inside @for — each @ref inside a loop binds to the \
+                         template element, not individual items. @ref inside @for is not yet \
+                         supported (planned for Phase 2). Move the @ref outside the loop or \
+                         use a different approach.",
+                        name
+                    ),
+                    file: comp.source_file.clone(),
+                    line,
+                    col,
+                    end_line: None,
+                    end_col: None,
+                    suggestion: Some(
+                        "move @ref outside the @for loop, or wait for Phase 2 @for+@ref support"
+                            .to_string(),
+                    ),
+                });
+            }
+            for child in &el.children {
+                warn_refs_in_for_bodies(child, comp, in_for_template, warnings);
+            }
+        }
+        ViewTree::Conditional(cond) => {
+            for branch in &cond.branches {
+                if let Some(ref body) = branch.body {
+                    warn_refs_in_for_bodies(body, comp, in_for_template, warnings);
+                }
+            }
+            if let Some(ref fallback) = cond.fallback {
+                warn_refs_in_for_bodies(fallback, comp, in_for_template, warnings);
+            }
+        }
+        ViewTree::ListRendering(list) => {
+            if let Some(ref body) = list.body {
+                warn_refs_in_for_bodies(body, comp, true, warnings);
+            }
+            if let Some(ref empty) = list.empty_body {
+                warn_refs_in_for_bodies(empty, comp, in_for_template, warnings);
+            }
+        }
+        ViewTree::Fragment(children) => {
+            for child in children {
+                warn_refs_in_for_bodies(child, comp, in_for_template, warnings);
+            }
+        }
+        ViewTree::Interpolation(_) | ViewTree::Text(_) | ViewTree::Slot(_) => {}
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{ConstructionKind, ElementIR, RefDeclIR};
+    use crate::ir::{BindingIR, ConstructionKind, ElementIR, ExprIR, ListRenderingIntent, RefDeclIR};
     use rustc_hash::FxHashMap;
 
     /// Helper to build a minimal ElementIR with only the fields we need.
@@ -329,6 +397,65 @@ mod tests {
             msgs.iter()
                 .any(|m| m.contains("'btn2'") && m.contains("bound to multiple elements")),
             "expected duplicate binding warning for 'btn2'"
+        );
+    }
+
+    #[test]
+    fn warns_on_ref_inside_for_loop() {
+        let comp = ComponentIR {
+            name: "TestComp".into(),
+            refs: vec![RefDeclIR {
+                name: "box".into(),
+            }],
+            view: Some(ViewTree::ListRendering(Box::new(ListRenderingIntent {
+                iterable: ExprIR::ident("items"),
+                item_binding: BindingIR {
+                    name: "item".into(),
+                    r#type: None,
+                },
+                key_expr: None,
+                body: Some(ViewTree::Element(ElementIR {
+                    tag: "div".into(),
+                    ref_binding: Some("box".into()), // ← ref inside @for!
+                    children: vec![],
+                    props: FxHashMap::default(),
+                    bindings: FxHashMap::default(),
+                    events: FxHashMap::default(),
+                    style_classes: None,
+                    inline_style: None,
+                    construction_kind: ConstructionKind::Normal,
+                    class_map_bindings: FxHashMap::default(),
+                    source_span: None,
+                    motion: None,
+                    scroll: None,
+                    drag: None,
+                })),
+                empty_body: None,
+            }))),
+            source_file: Some("test.omni".into()),
+            ..ComponentIR::default()
+        };
+
+        let warnings = validate_component_refs(&comp);
+
+        // Should have a warning about @ref inside @for
+        assert!(
+            warnings.iter().any(|w| w.message.contains("@for")),
+            "expected a warning about @ref inside @for, got: {:?}",
+            warnings
+        );
+        let for_warning = warnings
+            .iter()
+            .find(|w| w.message.contains("@for"))
+            .expect("expected a warning about @ref inside @for");
+        assert!(
+            for_warning.message.contains("inside @for"),
+            "warning should mention @for: {}",
+            for_warning.message
+        );
+        assert!(
+            for_warning.suggestion.is_some(),
+            "warning should include a suggestion"
         );
     }
 }
