@@ -205,6 +205,10 @@ fn collect_called_fns_from_view(node: &ViewTree, acc: &mut FxHashSet<String>) {
                     EventHandlerIR::StoreAction { .. } => {}
                 }
             }
+            // Also scan class_map_bindings for function calls (e.g. isActive())
+            for binding in el.class_map_bindings.values() {
+                collect_called_fns_from_expr(binding, acc);
+            }
             for child in &el.children {
                 collect_called_fns_from_view(child, acc);
             }

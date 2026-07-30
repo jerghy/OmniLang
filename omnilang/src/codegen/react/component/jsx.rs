@@ -231,6 +231,17 @@ fn collect_used_style_classes_inner(node: &ViewTree, acc: &mut FxHashSet<String>
             for class_name in el.class_map_bindings.keys() {
                 acc.insert(class_name.clone());
             }
+            // Collect from props["class"] (used by DesignClass references like
+            // `class: LearnDesign.Page` which store the class name in props)
+            if let Some(class_expr) = el.props.get("class") {
+                if let ExprIR::LiteralExpr { value } = class_expr {
+                    if let Some(class_str) = value.as_str() {
+                        for class_name in class_str.split_whitespace() {
+                            acc.insert(class_name.to_string());
+                        }
+                    }
+                }
+            }
             for child in &el.children {
                 collect_used_style_classes_inner(child, acc);
             }

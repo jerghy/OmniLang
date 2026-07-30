@@ -101,16 +101,19 @@ impl ReactCodegen {
             hooks.push("useRef".to_string());
         }
 
-        // Style check — only import if styles exist and are referenced in view
+        // Style check — import CSS module whenever any style classes are
+        // referenced in the view, even if they come from imported design
+        // systems (e.g. `class: LearnDesign.Page` → `styles['Page']`).
         let used_style_classes = comp
             .view
             .as_ref()
             .map(jsx::collect_used_style_classes)
             .unwrap_or_default();
-        let has_styles = !comp.styles.is_empty()
-            && used_style_classes
-                .iter()
-                .any(|c| comp.styles.iter().any(|s| &s.class_name == c));
+        let has_styles = !used_style_classes.is_empty()
+            || (!comp.styles.is_empty()
+                && used_style_classes
+                    .iter()
+                    .any(|c| comp.styles.iter().any(|s| &s.class_name == c)));
 
         // Props interface check
         let has_props = !comp.props.is_empty() || !comp.events.is_empty();
