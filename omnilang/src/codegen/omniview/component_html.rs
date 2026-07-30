@@ -2,7 +2,6 @@ use super::scope::ComponentScope;
 use super::utils::map_event;
 use super::OmniViewGenerator;
 use crate::ir::*;
-use rustc_hash::FxHashSet;
 use std::fmt::Write;
 use std::sync::Arc;
 
@@ -112,7 +111,25 @@ impl OmniViewGenerator {
                         self.scope.name_renames.insert(f.name.clone(), prefixed);
                     }
                     for prop_name in child_comp.prop_defaults.keys() {
-                        let prefixed = format!("{}_{}", child_comp.name, prop_name);
+                        // Use per-instance signal names (based on nid) so that
+                        // multiple instances of the same component each have
+                        // their own prop storage. Without this, all instances
+                        // share one module-level signal and only the last
+                        // instance's value survives (the Overview page's 6
+                        // CapabilityCard bug).
+                        //
+                        // Emit the const declaration BEFORE view_to_html so that
+                        // the child's view effects (which reference e.g.
+                        // Comp_prop_nid.value) don't hit the JS temporal dead zone.
+                        let prefixed = format!("{}_{}_{}", child_comp.name, prop_name, nid.replace("-", "_"));
+                        let default_js = self.expr_to_js(
+                            child_comp.prop_defaults.get(prop_name).unwrap()
+                        );
+                        let _ = writeln!(
+                            self.js,
+                            "const {} = __omni_signal(\"{}\", {});",
+                            prefixed, prefixed, default_js
+                        );
                         self.scope
                             .name_renames
                             .insert(prop_name.clone(), prefixed.clone());
@@ -136,7 +153,6 @@ impl OmniViewGenerator {
                 // Extract owned data from child_comp before the mutable borrow
                 // in view_to_html, releasing the borrow on self.component_map.
                 let child_comp_name = child_comp.name.clone();
-                let child_prop_keys: FxHashSet<String> = child_comp.props.keys().cloned().collect();
                 let for_states_attr =
                     if self.scope.in_for_template && !child_comp.signals.is_empty() {
                         let names: Vec<&str> =
@@ -192,31 +208,15 @@ impl OmniViewGenerator {
 
                 if !self.scope.in_for_template {
                     // Wire parent props to child signals via reactive effects.
-                    // Register the child signal + emit its declaration in the parent.
+                    // Use per-instance signal names (based on element nid) so
+                    // that multiple component instances each have their own
+                    // prop storage instead of all sharing one module-level signal.
+                    // Signal const declarations were already emitted by the
+                    // prop_defaults mapping above, BEFORE view_to_html.
+                    let instance_suffix = format!("_{}", nid.replace("-", "_"));
                     for (prop_name, prop_value) in &el.props {
                         let js_value = self.expr_to_js(prop_value);
-                        let child_prefixed = format!("{}_{}", child_comp_name, prop_name);
-                        // The signal_names were just restored to the parent's set,
-                        // so inserting here persists correctly.
-                        if !self.scope.signal_names.contains(&child_prefixed) {
-                            // When the child component already declares this signal
-                            // (via its own prop), skip the const declaration to avoid
-                            // "Identifier has already been declared" errors.
-                            // The child's signal already exists; we just need the effect.
-                            let is_child_prop = child_prop_keys.contains(prop_name);
-                            if !is_child_prop {
-                                self.scope.signal_names.insert(child_prefixed.clone());
-                                let _ = writeln!(
-                                    self.js,
-                                    "const {} = __omni_signal(\"{}\", undefined);",
-                                    child_prefixed, child_prefixed
-                                );
-                            }
-                            self.scope
-                                .name_renames
-                                .entry(prop_name.clone())
-                                .or_insert_with(|| child_prefixed.clone());
-                        }
+                        let child_prefixed = format!("{}_{}{}", child_comp_name, prop_name, instance_suffix);
                         let _ = writeln!(
                             self.js,
                             "__omni_effect(() => {{ __omni_subs.get(\"{0}\").set({1}); }});",
