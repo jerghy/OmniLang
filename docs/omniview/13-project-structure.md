@@ -112,8 +112,8 @@ import { StatisticsData } from "@lib/types";
 my-project/
 ├── .omnilang.toml           # 项目配置
 └── src/
-    ├── main.omni            # 入口 + App 根组件
-    ├── design.omni          # 全局设计系统
+    ├── main.omni            # 入口 + App 根组件（7 标签页路由）
+    ├── design.omni          # 全局设计系统（@themes + 令牌 + 类 + 变体）
     ├── lib.omni             # 入口级工具函数
     ├── lib/                 # 纯逻辑库
     │   ├── types.omni       # pub struct + pub type
@@ -121,14 +121,25 @@ my-project/
     │   └── api.omni         # API 调用
     ├── stores/              # 全局状态
     │   ├── TodoStore.omni
-    │   └── ThemeStore.omni
+    │   └── ThemeStore.omni  # 多主题 store（mode 信号 ↔ __omni_theme）
     ├── components/          # 可复用 UI 组件
-    │   ├── Header.omni
-    │   └── Counter.omni
-    └── pages/               # 页面级组件
-        ├── Dashboard.omni
-        └── Settings.omni
+    │   ├── Header.omni      # 显示当前主题
+    │   ├── ThemeSwitcher.omni # 4 主题卡片选择器
+    │   ├── TabBar.omni      # 7 标签页导航
+    │   └── ...              # 按领域组织
+    ├── pages/               # 页面级组件（按能力域组织）
+    │   ├── Overview.omni         # 能力矩阵首页
+    │   ├── UiComponents.omni     # UI 组件合集
+    │   ├── MotionPage.omni      # 运动动画
+    │   ├── DesignTheme.omni     # 设计系统 & 多主题（核心页）
+    │   ├── StatePage.omni       # 信号 & 状态模式
+    │   ├── LanguagePage.omni    # 语言深度特性
+    │   └── CompilerPage.omni    # 编译器高级能力
+    └── shared/              # 共享常量
+        └── constants.omni
 ```
+
+learn-omniview 演示项目（`test/projects/learn-omniview/`）采用此 7 域结构，包含 60+ 源文件和 4 主题设计系统。
 
 ## 编译入口
 

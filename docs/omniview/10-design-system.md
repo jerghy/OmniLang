@@ -9,7 +9,7 @@ import omniview;
 
 design LearnDesign {
     // 1. 令牌 — 编译为 :root { --name: value } CSS 变量
-    //    支持双主题：light 值 dark "dark 值"
+    //    支持多主题：light 值 dark "dark 值" sepia "sepia值" ...
     token primary: color = "#6366f1" dark "#a5b4fc";
 
     // 2. 类 — 可复用的 CSS 规则（引用令牌用 token(name)）
@@ -48,74 +48,106 @@ design LearnDesign {
 
 编译后：`token primary: color = "#6366f1"` → `:root { --primary: "#6366f1"; }`
 
-### 双主题令牌
+### 多主题令牌
 
-每个令牌可以为浅色和深色主题分别指定值：
+每个令牌可以为多个主题分别指定值：
 
 ```omni
-token surface: color = "#ffffff" dark "#111827";
-token textPrimary: color = "#111827" dark "#f9fafb";
-token primary: color = "#6366f1" dark "#a5b4fc";
-token border: color = "#d4d4d8" dark "#4b5563";
+@themes light, dark, sepia, highContrast;
+
+token primary: color = "#6366f1" dark "#a5b4fc" sepia "#8B4513" highContrast "#ffff00";
+token surface: color = "#ffffff" dark "#111827" sepia "#F5E6C8" highContrast "#000000";
+token textPrimary: color = "#111827" dark "#f9fafb" sepia "#3E2723" highContrast "#ffffff";
 ```
 
 编译为：
 ```css
-:root { --surface: "#ffffff"; --textPrimary: "#111827"; --primary: "#6366f1"; }
-[data-theme="dark"] { --surface: "#111827"; --textPrimary: "#f9fafb"; --primary: "#a5b4fc"; }
+:root { --primary: "#6366f1"; --surface: "#ffffff"; --textPrimary: "#111827"; }
+[data-theme="dark"] { --primary: "#a5b4fc"; --surface: "#111827"; --textPrimary: "#f9fafb"; }
+[data-theme="sepia"] { --primary: "#8B4513"; --surface: "#F5E6C8"; --textPrimary: "#3E2723"; }
+[data-theme="highContrast"] { --primary: "#ffff00"; --surface: "#000000"; --textPrimary: "#ffffff"; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) { --primary: "#a5b4fc"; ... }
+}
 ```
+
+支持**任意数量**的主题——`@themes` 列表中的每个名称都可以出现在每个令牌的值中。未指定主题值的令牌继承默认值（CSS 变量的级联行为）。
 
 ### @themes 和 @default-theme 指令
 
 ```omni
 design LearnDesign {
-    @themes light, dark;          // 声明支持的主题名
-    @default-theme light;         // 默认主题
+    @themes light, dark, sepia, highContrast; // 声明 N 个主题
+    @default-theme light;                      // 默认主题
     // ...
 }
 ```
 
-- `@themes` 声明该设计系统支持的主题列表
+- `@themes` 声明该设计系统支持的主题列表（支持 2 个到 N 个）
 - `@default-theme` 指定初始主题（无 `data-theme` 属性时使用）
-- 主题名与令牌值中 `dark` 等关键字匹配
+- 主题名与令牌值中的关键字匹配
+- 运行时切换只需设置 `document.documentElement.dataset.theme = "themeName"`
+- `dark` 主题自动生成 `@media (prefers-color-scheme: dark)` 系统偏好检测
 
-运行时切换只需设置 `document.documentElement.dataset.theme = "dark"`。
+### __omni_theme 运行时
+
+当 design 块声明 `@themes` 时，编译器自动生成 `__omni_theme` JS 运行时：
+
+```js
+const __omni_theme = {
+  set(name) { /* data-theme + localStorage */ },
+  toggle() { /* 在声明主题间循环 */ },
+  init()   { /* localStorage → prefers-color-scheme → 默认 */ }
+};
+__omni_theme.init();
+```
+
+组件可以通过信号系统与 `__omni_theme` 集成。`mode` 信号自动同步到 `__omni_theme.set()`（详见 ADR-044）。
 
 ### 组织令牌
 
 ```omni
 design LearnDesign {
-    // 品牌色
-    token primary: color = "#6366f1" dark "#a5b4fc";
-    token primaryDark: color = "#4338ca";
+    @themes light, dark, sepia, highContrast;
+    @default-theme light;
 
-    // 语义色
-    token success: color = "#10b981";
-    token danger: color = "#ef4444";
+    // 品牌色（4 主题值）
+    token primary: color = "#6366f1" dark "#a5b4fc" sepia "#8B4513" highContrast "#ffff00";
+    token primaryLight: color = "#a5b4fc" sepia "#D2A679" highContrast "#ffff99";
+    token primaryDark: color = "#4338ca" sepia "#5D3A1A" highContrast "#cccc00";
 
-    // 中性色（双主题）
-    token surface: color = "#ffffff" dark "#111827";
-    token textPrimary: color = "#111827" dark "#f9fafb";
-    token border: color = "#d4d4d8" dark "#4b5563";
+    // 语义色（4 主题值）
+    token success: color = "#10b981" sepia "#6B8E23" highContrast "#00ff00";
+    token danger: color = "#ef4444" sepia "#A0522D" highContrast "#ff4444";
+    token warning: color = "#f59e0b" sepia "#CC7722" highContrast "#ffaa00";
 
-    // 间距
+    // 中性色（4 主题值）
+    token surface: color = "#ffffff" dark "#111827" sepia "#F5E6C8" highContrast "#000000";
+    token surfaceMuted: color = "#f9fafb" dark "#1f2937" sepia "#EDE0C8" highContrast "#0a0a0a";
+    token textPrimary: color = "#111827" dark "#f9fafb" sepia "#3E2723" highContrast "#ffffff";
+    token textSecondary: color = "#6b7280" dark "#9ca3af" sepia "#5D4037" highContrast "#cccccc";
+    token border: color = "#d4d4d8" dark "#4b5563" sepia "#BCAAA4" highContrast "#666666";
+
+    // 间距（无主题变体）
     token spaceSm: size = "4px";
     token spaceMd: size = "16px";
     token spaceLg: size = "24px";
 
-    // 圆角
+    // 圆角（无主题变体）
     token radiusMd: radius = "8px";
     token radiusLg: radius = "12px";
 
-    // 过渡时长
+    // 过渡时长（无主题变体）
     token durationFast: duration = "150ms";
     token durationNormal: duration = "300ms";
 
-    // 层级
+    // 层级（无主题变体）
     token zModal: zIndex = "100";
     token zToast: zIndex = "150";
 }
 ```
+
+**注意**：非颜色令牌（spacing、radius、shadow、typography、duration、easing、opacity、zIndex）通常不随主题变化，因此不需要每主题值。CSS 变量的级联机制会自动继承默认值。
 
 ---
 
@@ -246,12 +278,13 @@ design LearnDesign {
 import omniview;
 
 design LearnDesign {
-    @themes light, dark;
+    @themes light, dark, sepia, highContrast;
     @default-theme light;
 
-    token primary: color = "#6366f1" dark "#a5b4fc";
-    token surface: color = "#ffffff" dark "#111827";
-    token border: color = "#d4d4d8" dark "#4b5563";
+    token primary: color = "#6366f1" dark "#a5b4fc" sepia "#8B4513" highContrast "#ffff00";
+    token surface: color = "#ffffff" dark "#111827" sepia "#F5E6C8" highContrast "#000000";
+    token textPrimary: color = "#111827" dark "#f9fafb" sepia "#3E2723" highContrast "#ffffff";
+    token border: color = "#d4d4d8" dark "#4b5563" sepia "#BCAAA4" highContrast "#666666";
 
     class Card {
         background: token(surface);
@@ -291,6 +324,38 @@ component MyPage {
 }
 ```
 
+## 多主题实践（learn-omniview 演示）
+
+learn-omniview 项目演示了完整的 4 主题系统。关键集成点：
+
+### 设计块声明
+
+```
+@themes light, dark, sepia, highContrast;
+@default-theme light;
+```
+
+每个颜色令牌提供 4 个主题值。非颜色令牌（间距、圆角等）不随主题变化。
+
+### ThemeStore（信号层）
+
+```omni
+store ThemeStore {
+    signal mode: String = "light";
+    // ADR-044: mode 信号自动同步到 __omni_theme.set()
+    action toggle() { /* light → dark → sepia → highContrast → light */ }
+    action setMode(newMode: String) { /* 验证后设置 */ }
+}
+```
+
+### ThemeSwitcher（UI 层）
+
+ThemeSwitcher 展示 4 个可视化主题卡片，每张显示主题名称 + 主色调色板。点击即切换。
+
+### CSS 变量层
+
+所有组件通过 `var(--surface)`, `var(--textPrimary)` 等 CSS 变量引用主题值。主题切换时，`__omni_theme.set()` 更新 `data-theme` 属性，CSS 级联自动更新全部变量。**组件不需要任何主题感知代码。**
+
 ## 最佳实践
 
 1. **令牌优先**：先定义颜色/间距/圆角等令牌，类再引用令牌
@@ -298,4 +363,4 @@ component MyPage {
 3. **合理粒度**：类代表有意义的 UI 模式，不为单属性创建类
 4. **变体 2-3 维度**：避免组合爆炸
 5. **一个主设计系统**：通常一个 `design` 块覆盖整个项目
-6. **双主题**：为常用令牌指定 `dark` 值，运行时只需切换 `data-theme` attribute
+6. **多主题**：`@themes` 支持 N 个主题，为颜色令牌指定各主题值；运行时只需切换 `data-theme` attribute

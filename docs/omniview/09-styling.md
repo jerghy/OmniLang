@@ -199,7 +199,13 @@ component ThemeDemo {
 
 ## 设计系统主题变量
 
-OmniView 的设计系统 `@themes` 声明将令牌编译为 `:root { --name: value }` 和 `[data-theme="dark"] { --name: value }`。组件直接使用 `var(--name)` 引用，无需手动管理主题切换：
+OmniView 的设计系统 `@themes` 声明将令牌编译为 3 层 CSS：
+
+1. **`:root { --name: value }`** — 默认值
+2. **`[data-theme="X"] { --name: value }`** — 每主题覆盖（支持 N 个主题）
+3. **`@media (prefers-color-scheme: dark)`** — 系统偏好自动检测（仅 `dark` 主题）
+
+组件直接使用 `var(--name)` 引用，无需手动管理主题切换：
 
 ```omni
 component ThemedPage {
@@ -215,7 +221,9 @@ component ThemedPage {
 }
 ```
 
-主题切换通过设计系统的 `@themes` 声明自动处理——运行时代码仅需切换 `document.documentElement.dataset.theme`。详见 [10-设计系统](10-design-system.md)。
+主题切换通过 `data-theme` attribute 控制——设置 `document.documentElement.dataset.theme = "sepia"` 即可切换到 sepia 主题，所有 `var(--name)` 引用自动更新。组件**不需要任何主题感知代码**。
+
+支持 N 个主题（不仅限 light/dark）。详见 [10-设计系统](10-design-system.md)。
 
 ## 设计系统引用
 
