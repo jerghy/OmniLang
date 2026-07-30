@@ -32,6 +32,7 @@ codegen-dart = []
 codegen-rust = []
 codegen-python = []
 codegen-javascript = []
+codegen-dts = []
 codegen-omniview = ["omnilang-core/codegen-omniview"]
 
 # Convenience meta-feature enabling all backends.

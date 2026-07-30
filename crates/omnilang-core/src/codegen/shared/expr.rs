@@ -140,7 +140,10 @@ pub trait FormatExpr {
 
     /// Block expression (ExprIR::BlockExpr). Default: just the tail expression.
     fn format_block_expr(&self, statements: &[StatementIR], tail: &ExprIR) -> String {
-        let _ = statements;
+        debug_assert!(
+            statements.is_empty(),
+            "format_block_expr with non-empty statements — backend must override"
+        );
         self.format_expr(tail)
     }
 

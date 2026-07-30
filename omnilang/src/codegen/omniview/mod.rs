@@ -15,7 +15,7 @@ mod editor;
 mod expr;
 mod list;
 mod scope;
-#[cfg(test)]
+#[cfg(feature = "codegen-dts")]
 pub mod typescript;
 
 mod motion;
@@ -81,11 +81,10 @@ pub struct OmniViewOutput {
 /// Per-component compiled output for hot-replace.
 /// Note: `html` and `css` are reserved for future per-component HTML/CSS splitting;
 /// currently only `js` is populated by the delta tracker in `generate_component()`.
+/// `html` and `css` were removed as reserved fields (unused).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ComponentOutput {
     pub js: String,
-    pub html: String,
-    pub css: String,
 }
 
 /// A single node in the rendered element tree, used by the Poiesis editor
@@ -355,13 +354,10 @@ pub fn generate(
     // Build per-component output map for editor hot-replace
     let mut components: FxHashMap<String, ComponentOutput> = FxHashMap::default();
     for (name, js) in &gen.component_js {
-        let css = gen.per_component_css.get(name).cloned().unwrap_or_default();
         components.insert(
             name.clone(),
             ComponentOutput {
                 js: js.clone(),
-                html: String::new(),
-                css,
             },
         );
     }
