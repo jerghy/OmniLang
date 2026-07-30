@@ -26,8 +26,17 @@ pub(crate) fn gen_view_node_dioxus(w: &mut CodeWriter, node: &ViewTree, is_root:
                 match prop_value {
                     ExprIR::LiteralExpr { value } if value.is_string() => {
                         let s = value.as_str().unwrap_or_default(); // defense-in-depth fallback
-                        let escaped = s.replace('\\', "\\\\").replace('"', "\\\"");
-                        attrs.push(format!(r#"{}: "{}","#, attr_name, escaped));
+                                                                    // Check for dangerous URL schemes in static URL attributes
+                        const URL_ATTRS: &[&str] =
+                            &["href", "src", "srcset", "action", "formaction", "poster"];
+                        if URL_ATTRS.contains(&attr_name.as_str())
+                            && crate::codegen::omniview::is_dangerous_url(s)
+                        {
+                            attrs.push(format!(r#"{}: "","#, attr_name));
+                        } else {
+                            let escaped = s.replace('\\', "\\\\").replace('"', "\\\"");
+                            attrs.push(format!(r#"{}: "{}","#, attr_name, escaped));
+                        }
                     }
                     _ => {
                         let val = format_expr_ir_dioxus(prop_value);

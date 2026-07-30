@@ -965,6 +965,134 @@ mod tests {
         assert!(out.contains("Item"));
     }
 
+    // ── Dangerous URL sanitization tests ──────────────────────
+
+    #[test]
+    fn test_vue_dangerous_url_neutralized() {
+        let mut w = CodeWriter::new();
+        let fmt = VueFormatExpr;
+        let el = ElementIR {
+            tag: "a".into(),
+            props: FxHashMap::from_iter([(
+                "href".into(),
+                ExprIR::LiteralExpr {
+                    value: serde_json::json!("javascript:alert(1)"),
+                },
+            )]),
+            bindings: FxHashMap::default(),
+            events: FxHashMap::default(),
+            style_classes: None,
+            inline_style: None,
+            children: vec![],
+            class_map_bindings: FxHashMap::default(),
+            motion: None,
+            scroll: None,
+            drag: None,
+            ref_binding: None,
+            construction_kind: ConstructionKind::Static,
+            source_span: None,
+        };
+        crate::codegen::vue::gen_template_node(&mut w, &ViewTree::Element(Box::new(el)), &fmt);
+        let out = w.into_string();
+        // Dangerous javascript: URL should be neutralized to empty string
+        assert!(out.contains(r#"href="""#));
+        assert!(!out.contains("javascript"));
+    }
+
+    #[test]
+    fn test_vue_safe_url_passes_through() {
+        let mut w = CodeWriter::new();
+        let fmt = VueFormatExpr;
+        let el = ElementIR {
+            tag: "a".into(),
+            props: FxHashMap::from_iter([(
+                "href".into(),
+                ExprIR::LiteralExpr {
+                    value: serde_json::json!("https://example.com"),
+                },
+            )]),
+            bindings: FxHashMap::default(),
+            events: FxHashMap::default(),
+            style_classes: None,
+            inline_style: None,
+            children: vec![],
+            class_map_bindings: FxHashMap::default(),
+            motion: None,
+            scroll: None,
+            drag: None,
+            ref_binding: None,
+            construction_kind: ConstructionKind::Static,
+            source_span: None,
+        };
+        crate::codegen::vue::gen_template_node(&mut w, &ViewTree::Element(Box::new(el)), &fmt);
+        let out = w.into_string();
+        // Safe URL should pass through unchanged
+        assert!(out.contains(r#"href="https://example.com""#));
+    }
+
+    #[test]
+    fn test_vue_src_attr_sanitized() {
+        let mut w = CodeWriter::new();
+        let fmt = VueFormatExpr;
+        let el = ElementIR {
+            tag: "img".into(),
+            props: FxHashMap::from_iter([(
+                "src".into(),
+                ExprIR::LiteralExpr {
+                    value: serde_json::json!("data:text/html,<script>alert(1)</script>"),
+                },
+            )]),
+            bindings: FxHashMap::default(),
+            events: FxHashMap::default(),
+            style_classes: None,
+            inline_style: None,
+            children: vec![],
+            class_map_bindings: FxHashMap::default(),
+            motion: None,
+            scroll: None,
+            drag: None,
+            ref_binding: None,
+            construction_kind: ConstructionKind::Static,
+            source_span: None,
+        };
+        crate::codegen::vue::gen_template_node(&mut w, &ViewTree::Element(Box::new(el)), &fmt);
+        let out = w.into_string();
+        // data: URL in src should be neutralized
+        assert!(out.contains(r#"src="""#));
+        assert!(!out.contains("data:"));
+    }
+
+    #[test]
+    fn test_vue_non_url_attr_not_affected() {
+        let mut w = CodeWriter::new();
+        let fmt = VueFormatExpr;
+        let el = ElementIR {
+            tag: "div".into(),
+            props: FxHashMap::from_iter([(
+                "title".into(),
+                ExprIR::LiteralExpr {
+                    value: serde_json::json!("javascript:not-a-url"),
+                },
+            )]),
+            bindings: FxHashMap::default(),
+            events: FxHashMap::default(),
+            style_classes: None,
+            inline_style: None,
+            children: vec![],
+            class_map_bindings: FxHashMap::default(),
+            motion: None,
+            scroll: None,
+            drag: None,
+            ref_binding: None,
+            construction_kind: ConstructionKind::Static,
+            source_span: None,
+        };
+        crate::codegen::vue::gen_template_node(&mut w, &ViewTree::Element(Box::new(el)), &fmt);
+        let out = w.into_string();
+        // Non-URL attributes should not be sanitized
+        assert!(out.contains(r#"title="javascript:not-a-url""#));
+    }
+
     #[test]
     fn test_full_pipeline_component_with_store_ref() {
         let codegen = VueCodegen;

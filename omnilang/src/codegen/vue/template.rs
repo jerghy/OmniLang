@@ -24,8 +24,18 @@ pub(crate) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &impl 
                     ExprIR::LiteralExpr { value } if value.is_string() => {
                         let s = value.as_str().unwrap_or_default(); // defense-in-depth fallback
                                                                     // Escape quotes for HTML attribute
-                        let escaped = s.replace('"', "&quot;");
-                        attrs.push(format!("{}=\"{}\"", vue_attr, escaped));
+                                                                    // Check for dangerous URL schemes in static URL attributes
+                        const URL_ATTRS: &[&str] =
+                            &["href", "src", "srcset", "action", "formaction", "poster"];
+                        if URL_ATTRS.contains(&vue_attr.as_str())
+                            && crate::codegen::omniview::is_dangerous_url(s)
+                        {
+                            // Emit empty string to neutralize dangerous URLs at compile time
+                            attrs.push(format!("{}=\"\"", vue_attr));
+                        } else {
+                            let escaped = s.replace('"', "&quot;");
+                            attrs.push(format!("{}=\"{}\"", vue_attr, escaped));
+                        }
                     }
                     _ => {
                         let vue_val = fmt.format_expr(prop_value);
