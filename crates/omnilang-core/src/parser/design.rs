@@ -4,6 +4,7 @@
 //! design blocks.  Currently only token definitions are implemented
 //! (Task A2); class and variant parsing is deferred to Tasks A3/A4.
 
+use crate::lexer::Token;
 use crate::parser::ast::design::*;
 
 /// Structured error for design block parsing with position tracking.
@@ -39,7 +40,7 @@ fn err_at(input: &str, remaining: &str, msg: &str) -> DesignParseError {
 }
 
 /// Parse the body content inside `design Name { ... }`
-pub fn parse_design_body(input: &str) -> ParseResult<DesignDef> {
+pub fn parse_design_body(input: &str, design_tokens: &[Token]) -> ParseResult<DesignDef> {
     let mut tokens = Vec::new();
     let mut classes = Vec::new();
     let mut variants = Vec::new();
@@ -59,7 +60,7 @@ pub fn parse_design_body(input: &str) -> ParseResult<DesignDef> {
             default_theme = Some(dt);
             remaining = rest;
         } else if remaining.starts_with("token ") {
-            let (token, rest) = parse_token(remaining)?;
+            let (token, rest) = parse_token(remaining, design_tokens)?;
             tokens.push(token);
             remaining = rest;
         } else if remaining.starts_with("class ") {
@@ -95,7 +96,7 @@ pub fn parse_design_body(input: &str) -> ParseResult<DesignDef> {
     })
 }
 
-fn parse_token(input: &str) -> ParseResult<(TokenDef, &str)> {
+fn parse_token<'a>(input: &'a str, design_tokens: &[Token]) -> ParseResult<(TokenDef, &'a str)> {
     let rest = input
         .strip_prefix("token ")
         .ok_or_else(|| err("expected 'token'"))?;
@@ -111,7 +112,7 @@ fn parse_token(input: &str) -> ParseResult<(TokenDef, &str)> {
         .strip_prefix("=")
         .ok_or_else(|| err("expected '='"))?
         .trim_start();
-    let (value, rest) = parse_token_value(rest)?;
+    let (value, rest) = parse_token_value(rest, design_tokens)?;
 
     // Parse optional per-theme value overrides: `dark "#a5b4fc" light "#ffffff"`
     let mut theme_values: Vec<(String, TokenValue)> = Vec::new();
@@ -133,7 +134,7 @@ fn parse_token(input: &str) -> ParseResult<(TokenDef, &str)> {
             // Put it back: the value consumed too greedily
             break;
         }
-        match parse_token_value(after_ws) {
+        match parse_token_value(after_ws, design_tokens) {
             Ok((theme_val, r)) => {
                 theme_values.push((maybe_theme, theme_val));
                 remaining = r.trim_start();
@@ -226,7 +227,8 @@ fn parse_ident(input: &str) -> ParseResult<(String, &str)> {
 /// If the identifier looks like a CSS keyword/value (all lowercase,
 /// possibly with hyphens, starts with digit, or is a hex color),
 /// treat it as Literal. Otherwise treat as Variable.
-fn parse_token_value(input: &str) -> ParseResult<(TokenValue, &str)> {
+#[allow(unused_variables)]
+fn parse_token_value<'a>(input: &'a str, design_tokens: &[Token]) -> ParseResult<(TokenValue, &'a str)> {
     let input = input.trim_start();
     if let Some(stripped) = input.strip_prefix('"') {
         let end = stripped
@@ -689,7 +691,7 @@ mod tests {
     #[test]
     fn parse_color_token() {
         let src = r##"token primary: color = "#6366f1";"##;
-        let result = parse_design_body(src).unwrap();
+        let result = parse_design_body(src, &[]).unwrap();
         assert_eq!(result.tokens.len(), 1);
         assert_eq!(result.tokens[0].name, "primary");
         assert_eq!(result.tokens[0].token_type, TokenType::Color);
@@ -699,7 +701,7 @@ mod tests {
     #[test]
     fn parse_size_token() {
         let src = r#"token spacingMd: size = "16px";"#;
-        let result = parse_design_body(src).unwrap();
+        let result = parse_design_body(src, &[]).unwrap();
         assert_eq!(result.tokens[0].token_type, TokenType::Size);
         assert_eq!(result.tokens[0].value, TokenValue::Literal("16px".to_string()));
     }
@@ -711,7 +713,7 @@ mod tests {
             token surface: color = "#ffffff";
             token spacingMd: size = "16px";
         "##;
-        let result = parse_design_body(src).unwrap();
+        let result = parse_design_body(src, &[]).unwrap();
         assert_eq!(result.tokens.len(), 3);
     }
 
@@ -726,7 +728,7 @@ mod tests {
                 }
             }
         "#;
-        let result = parse_design_body(src).unwrap();
+        let result = parse_design_body(src, &[]).unwrap();
         assert_eq!(result.classes.len(), 1);
         let cls = &result.classes[0];
         assert_eq!(cls.name, "Card");
@@ -738,7 +740,7 @@ mod tests {
     #[test]
     fn parse_token_ref_value() {
         let src = r#"class Test { background: token(surface); }"#;
-        let result = parse_design_body(src).unwrap();
+        let result = parse_design_body(src, &[]).unwrap();
         let prop = &result.classes[0].properties[0];
         assert!(matches!(prop.value, DesignValue::TokenRef(ref name) if name == "surface"));
     }
@@ -746,7 +748,7 @@ mod tests {
     #[test]
     fn parse_literal_value() {
         let src = r#"class Test { color: white; font-size: "14px"; }"#;
-        let result = parse_design_body(src).unwrap();
+        let result = parse_design_body(src, &[]).unwrap();
         let cls = &result.classes[0];
         assert_eq!(cls.properties.len(), 2);
     }
@@ -766,7 +768,7 @@ mod tests {
                 size.sm { padding: "4px 8px"; font-size: "12px"; }
             }
         "#;
-        let result = parse_design_body(src).unwrap();
+        let result = parse_design_body(src, &[]).unwrap();
         assert_eq!(result.variants.len(), 1);
         let v = &result.variants[0];
         assert_eq!(v.name, "Button");
@@ -792,7 +794,7 @@ mod tests {
             @themes light, dark;
             token primary: color = "#6366f1";
         "##;
-        let result = parse_design_body(src).unwrap();
+        let result = parse_design_body(src, &[]).unwrap();
         assert_eq!(result.themes, vec!["light", "dark"]);
         assert_eq!(result.tokens.len(), 1);
     }
@@ -804,14 +806,14 @@ mod tests {
             @default-theme light;
             token primary: color = "#6366f1";
         "##;
-        let result = parse_design_body(src).unwrap();
+        let result = parse_design_body(src, &[]).unwrap();
         assert_eq!(result.default_theme, Some("light".to_string()));
     }
 
     #[test]
     fn parse_token_with_theme_values() {
         let src = r##"token primary: color = "#6366f1" dark "#a5b4fc";"##;
-        let result = parse_design_body(src).unwrap();
+        let result = parse_design_body(src, &[]).unwrap();
         assert_eq!(result.tokens.len(), 1);
         let token = &result.tokens[0];
         assert_eq!(token.name, "primary");
@@ -826,7 +828,7 @@ mod tests {
     #[test]
     fn parse_token_with_multiple_theme_values() {
         let src = r##"token surface: color = "#ffffff" dark "#111827" highContrast "#000000";"##;
-        let result = parse_design_body(src).unwrap();
+        let result = parse_design_body(src, &[]).unwrap();
         let token = &result.tokens[0];
         assert_eq!(token.value, TokenValue::Literal("#ffffff".to_string()));
         assert_eq!(token.theme_values.len(), 2);
@@ -843,7 +845,7 @@ mod tests {
     #[test]
     fn parse_token_without_theme_values_still_works() {
         let src = r##"token primary: color = "#6366f1";"##;
-        let result = parse_design_body(src).unwrap();
+        let result = parse_design_body(src, &[]).unwrap();
         let token = &result.tokens[0];
         assert_eq!(token.value, TokenValue::Literal("#6366f1".to_string()));
         assert!(token.theme_values.is_empty());
@@ -852,7 +854,7 @@ mod tests {
     #[test]
     fn parse_token_with_variable_value() {
         let src = r#"token primary: color = BRAND;"#;
-        let result = parse_design_body(src).unwrap();
+        let result = parse_design_body(src, &[]).unwrap();
         assert_eq!(result.tokens.len(), 1);
         assert_eq!(result.tokens[0].name, "primary");
         assert_eq!(result.tokens[0].value, TokenValue::Variable("BRAND".to_string()));
@@ -861,14 +863,14 @@ mod tests {
     #[test]
     fn parse_token_heuristic_css_value_as_literal() {
         let src = r#"token easing: easing = ease-in-out;"#;
-        let result = parse_design_body(src).unwrap();
+        let result = parse_design_body(src, &[]).unwrap();
         assert!(matches!(result.tokens[0].value, TokenValue::Literal(_)));
     }
 
     #[test]
     fn parse_token_hex_color_as_literal() {
         let src = r##"token primary: color = #6366f1;"##;
-        let result = parse_design_body(src).unwrap();
+        let result = parse_design_body(src, &[]).unwrap();
         assert!(matches!(result.tokens[0].value, TokenValue::Literal(_)));
     }
 }

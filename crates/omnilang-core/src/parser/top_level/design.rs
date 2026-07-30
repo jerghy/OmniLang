@@ -47,9 +47,12 @@ impl<'a> Parser<'a> {
         // Extract the inner text between '{' and '}'
         let inner_text = &self.source[lbrace_span.end..rbrace.span.start];
 
-        // Delegate to the string-based design body parser
+        // ── Phase 2: Tokenize inner_text for expression parsing ──
+        let design_tokens = crate::lexer::tokenize(inner_text);
+
+        // Delegate to the string-based design body parser, now with tokens
         let mut def =
-            crate::parser::design::parse_design_body(inner_text).map_err(|e| ParseError {
+            crate::parser::design::parse_design_body(inner_text, &design_tokens).map_err(|e| ParseError {
                 message: e.message,
                 span: Span {
                     start: start.start + e.offset,
