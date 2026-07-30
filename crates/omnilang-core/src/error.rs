@@ -331,6 +331,40 @@ pub fn diagnostics_to_json(diagnostics: &[Diagnostic]) -> Vec<serde_json::Value>
     diagnostics.iter().map(|d| d.to_json_value()).collect()
 }
 
+/// Returns the closest matching name within edit distance <= 3, if any.
+pub fn suggest_similar_name<'a>(attempt: &str, known_names: &[&'a str]) -> Option<&'a str> {
+    let mut best_dist = usize::MAX;
+    let mut best_name = None;
+    for &name in known_names {
+        let dist = edit_distance(attempt, name);
+        if dist <= 3 && dist < best_dist {
+            best_dist = dist;
+            best_name = Some(name);
+        }
+    }
+    best_name
+}
+
+/// Compute Levenshtein edit distance between two strings.
+fn edit_distance(a: &str, b: &str) -> usize {
+    let a_chars: Vec<char> = a.chars().collect();
+    let b_chars: Vec<char> = b.chars().collect();
+    let mut prev: Vec<usize> = (0..=a_chars.len()).collect();
+    let mut curr = vec![0; a_chars.len() + 1];
+    for &bc in &b_chars {
+        curr[0] = prev[0] + 1;
+        for (i, &ac) in a_chars.iter().enumerate() {
+            curr[i + 1] = if ac == bc {
+                prev[i]
+            } else {
+                1 + prev[i].min(curr[i]).min(prev[i + 1])
+            };
+        }
+        std::mem::swap(&mut prev, &mut curr);
+    }
+    prev[a_chars.len()]
+}
+
 /// A raw parse error before conversion to Diagnostic.
 #[derive(Debug, Serialize)]
 pub struct ParseError {
