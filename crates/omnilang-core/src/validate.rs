@@ -158,6 +158,7 @@ enum CrossFileSymbolKind {
     Component,
     Store,
     Design,
+    Const,
     ReExport(String),
 }
 
@@ -195,6 +196,9 @@ fn build_pub_symbols(
             }
             for design in &module.designs {
                 symbols.insert(design.name.clone(), CrossFileSymbolKind::Design);
+            }
+            for const_def in &module.consts {
+                symbols.insert(const_def.name.clone(), CrossFileSymbolKind::Const);
             }
             // Re-exports
             for exp in &module.exports {
