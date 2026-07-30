@@ -610,6 +610,10 @@ impl OmniViewGenerator {
                  \x20 const _el = function() {{ return __omni_el(_nid); }};\n\
                  \x20 return {{\n\
                  \x20\x20 get style() {{ const e = _el(); return e ? e.style : null; }},\n\
+                 \x20\x20 get value() {{ const e = _el(); return e ? e.value : null; }},\n\
+                 \x20\x20 set value(v) {{ const e = _el(); if (e) e.value = v; }},\n\
+                 \x20\x20 get textContent() {{ const e = _el(); return e ? e.textContent : null; }},\n\
+                 \x20\x20 set textContent(v) {{ const e = _el(); if (e) e.textContent = v; }},\n\
                  \x20\x20 capturePointer(id) {{ const e = _el(); if (e) e.setPointerCapture(id); }},\n\
                  \x20\x20 releasePointer(id) {{ const e = _el(); if (e) e.releasePointer(id); }},\n\
                  \x20\x20 getBoundingClientRect() {{ const e = _el(); return e ? e.getBoundingClientRect() : null; }},\n\

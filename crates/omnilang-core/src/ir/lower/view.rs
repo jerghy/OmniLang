@@ -520,11 +520,22 @@ fn lower_element(
             matches!(v, ExprIR::LiteralExpr { value: serde_json::Value::String(s) } if s == "checkbox" || s == "radio")
         })
     });
+    // Skip auto-bind for <input> elements that already have an explicit
+    // @onInput event handler — the handler is the developer's chosen approach
+    // for managing input state (e.g., reading via ref), and an auto-inserted
+    // bind:value would conflict by binding to an unrelated string signal.
+    let has_explicit_oninput = events.as_ref().is_some_and(|e| {
+        e.keys().any(|k| {
+            let lower = k.to_lowercase();
+            lower == "oninput" || lower == "input"
+        })
+    });
     if let Some(sig_counter) = sig_idx {
         let idx = sig_counter.get();
         if el.tag == "input"
             && !has_value_binding
             && !has_value_prop
+            && !has_explicit_oninput
             && !is_checkbox_or_radio
             && idx < string_signals.len()
         {
