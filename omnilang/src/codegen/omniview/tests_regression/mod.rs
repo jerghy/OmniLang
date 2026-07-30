@@ -83,6 +83,7 @@ fn computed_references_prop_with_default() {
         source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
         source_span: None,
+        motion_index: FxHashMap::default(),
     };
     let output = generate(&ir, false, false, false);
 

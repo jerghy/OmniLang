@@ -709,6 +709,7 @@ fn test_js_full_pipeline_through_trait() {
             },
         )]),
         source_map: FxHashMap::default(),
+        motion_index: FxHashMap::default(),
         stdlib_imports: Default::default(),
         source_span: None,
     };
@@ -767,6 +768,7 @@ fn test_ts_full_pipeline_through_trait() {
             },
         )]),
         source_map: FxHashMap::default(),
+        motion_index: FxHashMap::default(),
         stdlib_imports: Default::default(),
         source_span: None,
     };

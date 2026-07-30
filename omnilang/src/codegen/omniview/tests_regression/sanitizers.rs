@@ -157,6 +157,7 @@ fn design_block_css_values_are_sanitized() {
         source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
         source_span: None,
+        motion_index: FxHashMap::default(),
     };
     let output = generate(&ir, false, false, false);
     // javascript: URL in design-block CSS must be sanitized

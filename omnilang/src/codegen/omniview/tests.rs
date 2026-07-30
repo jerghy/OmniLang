@@ -72,6 +72,7 @@ fn make_program(modules: FxHashMap<String, ModuleIR>) -> IRProgram {
         source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
         source_span: None,
+        motion_index: FxHashMap::default(),
     }
 }
 

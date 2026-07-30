@@ -50,6 +50,10 @@ pub struct OmniViewOutput {
     pub css: String,
     /// Source map entries
     pub source_map: Vec<SourceMapEntry>,
+    /// Reverse source map — maps generated positions back to source positions.
+    /// Built after the forward source map is constructed during codegen.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reverse_source_map: Option<crate::sourcemap::ReverseSourceMap>,
     /// Per-component output for hot-replace (keyed by component name)
     #[serde(default)]
     pub components: FxHashMap<String, ComponentOutput>,
@@ -426,11 +430,16 @@ pub fn generate(
     // let types = typescript::generate_typescript_declarations(&all_comp_vec);
     let types = String::new();
 
+    // Build reverse source map from the forward entries
+    let reverse_source_map = (!gen.source_map.is_empty())
+        .then(|| crate::sourcemap::build_reverse_source_map(&gen.source_map));
+
     OmniViewOutput {
         js: gen.js,
         html: gen.html,
         css: gen.css,
         source_map: gen.source_map,
+        reverse_source_map,
         components,
         warnings: gen.warnings,
         element_classes: gen.element_classes,

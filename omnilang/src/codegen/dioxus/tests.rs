@@ -331,6 +331,7 @@ mod tests {
             )]),
             stdlib_imports: Default::default(),
             source_map: FxHashMap::default(),
+            motion_index: FxHashMap::default(),
             source_span: None,
         }
     }
@@ -653,6 +654,7 @@ mod tests {
                 },
             )]),
             source_map: FxHashMap::default(),
+            motion_index: FxHashMap::default(),
             stdlib_imports: Default::default(),
             source_span: None,
         };
@@ -703,6 +705,7 @@ mod tests {
                 },
             )]),
             source_map: FxHashMap::default(),
+            motion_index: FxHashMap::default(),
             stdlib_imports: Default::default(),
             source_span: None,
         };
@@ -747,6 +750,7 @@ mod tests {
                 },
             )]),
             source_map: FxHashMap::default(),
+            motion_index: FxHashMap::default(),
             stdlib_imports: Default::default(),
             source_span: None,
         };
@@ -991,6 +995,7 @@ mod tests {
                 },
             )]),
             source_map: FxHashMap::default(),
+            motion_index: FxHashMap::default(),
             stdlib_imports: Default::default(),
             source_span: None,
         };
