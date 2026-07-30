@@ -240,9 +240,13 @@ function __omni_el(nid) {
   var el = cache[nid];
   if (!el || !el.isConnected) {
     el = document.querySelector('[data-nid="' + nid + '"]');
-    if (el) cache[nid] = el;
+    if (el) {
+      cache[nid] = el;
+    } else {
+      delete cache[nid];
+    }
   }
-  return el;
+  return el || null;
 }
 	/// ─── @for instance-state helpers ───
 	function __omni_forGetState(el, name, defaultVal) {
