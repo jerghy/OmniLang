@@ -476,7 +476,6 @@ fn test_js_component_with_state() {
             initial_value: ExprIR::LiteralExpr {
                 value: serde_json::json!(0),
             },
-            is_copy: false,
         }],
         computeds: vec![],
         effects: vec![],
@@ -513,7 +512,6 @@ fn test_ts_component_with_state() {
             initial_value: ExprIR::LiteralExpr {
                 value: serde_json::json!(0),
             },
-            is_copy: false,
         }],
         computeds: vec![],
         effects: vec![],

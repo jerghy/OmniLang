@@ -386,7 +386,6 @@ fn test_generate_component_with_state() {
             initial_value: ExprIR::LiteralExpr {
                 value: serde_json::json!(0),
             },
-            is_copy: false,
         }],
         computeds: vec![],
         effects: vec![],
@@ -497,7 +496,6 @@ fn test_generate_statement_mutation_increment() {
     let stmt = StatementIR::MutationStmt {
         intent: Some(MutationIntent::Increment {
             target: SignalRefIR {
-                owner: None,
                 name: "count".into(),
             },
 
@@ -516,7 +514,6 @@ fn test_generate_statement_mutation_assign() {
     let stmt = StatementIR::MutationStmt {
         intent: Some(MutationIntent::DirectAssign {
             target: SignalRefIR {
-                owner: None,
                 name: "name".into(),
             },
 
@@ -535,7 +532,6 @@ fn test_generate_statement_mutation_decrement() {
     let stmt = StatementIR::MutationStmt {
         intent: Some(MutationIntent::Decrement {
             target: SignalRefIR {
-                owner: None,
                 name: "count".into(),
             },
 

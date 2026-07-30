@@ -122,14 +122,14 @@ pub(super) fn lower_stmt(
             body: lower_block(body, variant_map, event_fields.as_deref_mut(), semantics),
         },
         Stmt::Assign { target, value, .. } => {
-            let (name, owner) = match target {
-                AssignTarget::Name(n) => (n.clone(), None),
-                AssignTarget::Field { object, field } => (field.clone(), Some(object.clone())),
-                AssignTarget::Index { object, .. } => (object.clone(), None),
+            let name = match target {
+                AssignTarget::Name(n) => n.clone(),
+                AssignTarget::Field { object: _, field } => field.clone(),
+                AssignTarget::Index { object, .. } => object.clone(),
             };
             StatementIR::MutationStmt {
                 intent: Some(MutationIntent::DirectAssign {
-                    target: SignalRefIR { owner, name },
+                    target: SignalRefIR { name },
                     value: Some(Box::new(lower_expr(
                         value,
                         variant_map,
@@ -242,7 +242,6 @@ pub(super) fn try_lower_mutation(
                 BinaryOpKind::Assign => {
                     return Some(MutationIntent::DirectAssign {
                         target: SignalRefIR {
-                            owner: None,
                             name: target_name.clone(),
                         },
                         value: Some(Box::new(lower_expr(
@@ -256,7 +255,6 @@ pub(super) fn try_lower_mutation(
                 BinaryOpKind::AddAssign => {
                     return Some(MutationIntent::Increment {
                         target: SignalRefIR {
-                            owner: None,
                             name: target_name.clone(),
                         },
                         amount: Some(Box::new(lower_expr(
@@ -270,7 +268,6 @@ pub(super) fn try_lower_mutation(
                 BinaryOpKind::SubAssign => {
                     return Some(MutationIntent::Decrement {
                         target: SignalRefIR {
-                            owner: None,
                             name: target_name.clone(),
                         },
                         amount: Some(Box::new(lower_expr(
@@ -284,7 +281,6 @@ pub(super) fn try_lower_mutation(
                 BinaryOpKind::MulAssign => {
                     return Some(MutationIntent::Multiply {
                         target: SignalRefIR {
-                            owner: None,
                             name: target_name.clone(),
                         },
                         amount: Some(Box::new(lower_expr(
@@ -298,7 +294,6 @@ pub(super) fn try_lower_mutation(
                 BinaryOpKind::DivAssign => {
                     return Some(MutationIntent::Divide {
                         target: SignalRefIR {
-                            owner: None,
                             name: target_name.clone(),
                         },
                         amount: Some(Box::new(lower_expr(
@@ -312,7 +307,6 @@ pub(super) fn try_lower_mutation(
                 BinaryOpKind::ModAssign => {
                     return Some(MutationIntent::Modulo {
                         target: SignalRefIR {
-                            owner: None,
                             name: target_name.clone(),
                         },
                         amount: Some(Box::new(lower_expr(
@@ -328,12 +322,11 @@ pub(super) fn try_lower_mutation(
         }
         // Pattern 4: Assignment to store field: MyStore.count = value or MyStore.count += 1
         if let Expr::FieldAccess { object, field, .. } = left.as_ref() {
-            if let Expr::VarRef(owner_name, _) = object.as_ref() {
+            if let Expr::VarRef(_owner_name, _) = object.as_ref() {
                 match op {
                     BinaryOpKind::Assign => {
                         return Some(MutationIntent::DirectAssign {
                             target: SignalRefIR {
-                                owner: Some(owner_name.clone()),
                                 name: field.clone(),
                             },
                             value: Some(Box::new(lower_expr(
@@ -347,7 +340,6 @@ pub(super) fn try_lower_mutation(
                     BinaryOpKind::AddAssign => {
                         return Some(MutationIntent::Increment {
                             target: SignalRefIR {
-                                owner: Some(owner_name.clone()),
                                 name: field.clone(),
                             },
                             amount: Some(Box::new(lower_expr(
@@ -361,7 +353,6 @@ pub(super) fn try_lower_mutation(
                     BinaryOpKind::SubAssign => {
                         return Some(MutationIntent::Decrement {
                             target: SignalRefIR {
-                                owner: Some(owner_name.clone()),
                                 name: field.clone(),
                             },
                             amount: Some(Box::new(lower_expr(
@@ -389,7 +380,6 @@ pub(super) fn mutation_for_method(
     semantics: &mut SemanticResult,
 ) -> Option<MutationIntent> {
     let target = SignalRefIR {
-        owner: None,
         name: target_name.into(),
     };
     let amount = amount.map(|e| Box::new(lower_expr(e, variant_map, event_fields, semantics)));

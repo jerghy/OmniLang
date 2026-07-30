@@ -495,7 +495,6 @@ mod tests {
             initial_value: ExprIR::LiteralExpr {
                 value: serde_json::json!(0),
             },
-            is_copy: false,
         };
         let mut components = FxHashMap::default();
         components.insert(
@@ -818,7 +817,6 @@ mod tests {
                 initial_value: ExprIR::LiteralExpr {
                     value: serde_json::json!(0),
                 },
-                is_copy: false,
             }],
             computeds: vec![],
             effects: vec![],

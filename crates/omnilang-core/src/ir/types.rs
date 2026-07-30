@@ -397,7 +397,6 @@ pub struct TypeIR {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SignalRefIR {
-    pub owner: Option<String>,
     pub name: String,
 }
 
@@ -449,18 +448,17 @@ pub enum EventHandlerIR {
     },
     StoreAction {
         r#ref: String,
-        #[serde(default)]
-        event_data: Option<EventDataKind>,
     },
 }
 
 impl EventHandlerIR {
     /// Returns the event_data field across all variants that have it.
+    /// StoreAction never has event data.
     pub fn event_data(&self) -> &Option<EventDataKind> {
         match self {
             Self::FnRef { event_data, .. } => event_data,
             Self::InlineFn { event_data, .. } => event_data,
-            Self::StoreAction { event_data, .. } => event_data,
+            Self::StoreAction { .. } => &None,
         }
     }
 
@@ -484,7 +482,7 @@ impl EventHandlerIR {
                 needs_prevent_default,
                 ..
             } => *needs_prevent_default,
-            Self::StoreAction { .. } => false,
+            _ => false,
         }
     }
 
@@ -499,7 +497,7 @@ impl EventHandlerIR {
                 needs_stop_propagation,
                 ..
             } => *needs_stop_propagation,
-            Self::StoreAction { .. } => false,
+            _ => false,
         }
     }
 }

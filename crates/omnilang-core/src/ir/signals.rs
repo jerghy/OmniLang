@@ -13,7 +13,6 @@ pub struct SignalIntent {
     pub name: String,
     pub r#type: TypeIR,
     pub initial_value: ExprIR,
-    pub is_copy: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

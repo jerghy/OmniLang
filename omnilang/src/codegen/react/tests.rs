@@ -229,7 +229,6 @@ fn test_tsx_stmt_mutation_increment_local() {
     let stmt = StatementIR::MutationStmt {
         intent: Some(MutationIntent::Increment {
             target: SignalRefIR {
-                owner: None,
                 name: "count".into(),
             },
 
@@ -249,7 +248,6 @@ fn test_tsx_stmt_mutation_increment_signal() {
     let stmt = StatementIR::MutationStmt {
         intent: Some(MutationIntent::Increment {
             target: SignalRefIR {
-                owner: None,
                 name: "count".into(),
             },
 
@@ -271,7 +269,6 @@ fn test_tsx_stmt_mutation_assign_local() {
     let stmt = StatementIR::MutationStmt {
         intent: Some(MutationIntent::DirectAssign {
             target: SignalRefIR {
-                owner: None,
                 name: "name".into(),
             },
 
@@ -291,7 +288,6 @@ fn test_tsx_stmt_mutation_assign_store() {
     let stmt = StatementIR::MutationStmt {
         intent: Some(MutationIntent::DirectAssign {
             target: SignalRefIR {
-                owner: Some("Store".to_string()),
                 name: "name".into(),
             },
 
@@ -542,7 +538,6 @@ fn test_tsx_component_with_state() {
         initial_value: ExprIR::LiteralExpr {
             value: serde_json::json!(0),
         },
-        is_copy: false,
     };
     let mut components = FxHashMap::default();
     components.insert(
@@ -956,7 +951,6 @@ fn test_zustand_store_mutation_multiply_in_action() {
                 statements: vec![StatementIR::MutationStmt {
                     intent: Some(MutationIntent::Multiply {
                         target: SignalRefIR {
-                            owner: Some("CalcStore".into()),
                             name: "count".into(),
                         },
                         amount: Some(Box::new(ExprIR::IdentifierExpr {
@@ -1036,7 +1030,6 @@ fn test_full_pipeline_component() {
             initial_value: ExprIR::LiteralExpr {
                 value: serde_json::json!(0),
             },
-            is_copy: false,
         }],
         computeds: vec![],
         effects: vec![],

@@ -163,7 +163,6 @@ mod tests {
                         statements: vec![StatementIR::MutationStmt {
                             intent: Some(crate::ir::MutationIntent::DirectAssign {
                                 target: crate::ir::SignalRefIR {
-                                    owner: Some("MyStore".into()),
                                     name: "count".into(),
                                 },
                                 value: Some(Box::new(crate::ir::ExprIR::LiteralExpr {
@@ -232,7 +231,6 @@ mod tests {
                         statements: vec![StatementIR::MutationStmt {
                             intent: Some(crate::ir::MutationIntent::Increment {
                                 target: crate::ir::SignalRefIR {
-                                    owner: None,
                                     name: "count".into(),
                                 },
                                 amount: Some(Box::new(crate::ir::ExprIR::LiteralExpr {

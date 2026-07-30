@@ -256,7 +256,6 @@ fn lower_element(
                 bindings.get_or_insert_with(Default::default).insert(
                     name.clone(),
                     SignalRefIR {
-                        owner: None,
                         name: signal_path.clone(),
                     },
                 );
@@ -344,7 +343,6 @@ fn lower_element(
                         // Store actions receive no event data
                         EventHandlerIR::StoreAction {
                             r#ref: format!("{}.{}", store, action),
-                            event_data: None,
                         }
                     }
                 };
@@ -544,7 +542,6 @@ fn lower_element(
             bindings.get_or_insert_with(Default::default).insert(
                 "value".into(),
                 SignalRefIR {
-                    owner: None,
                     name: sig_name,
                 },
             );

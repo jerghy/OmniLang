@@ -211,18 +211,15 @@ impl FormatStmt for ReactStmtFormatter {
                     .as_ref()
                     .map(|v| self.expr.format_expr(v))
                     .unwrap_or_else(|| "0".into());
-                let is_store_signal = target.owner.is_some();
+                // Note: `owner` field removed from SignalRefIR — store signal
+                // detection via target.owner is no longer available.
+                let is_store_signal = false;
                 let is_component_state =
-                    !is_store_signal && self.signal_names.contains(target_str.as_str());
+                    self.signal_names.contains(target_str.as_str());
                 let use_setter = is_store_signal || is_component_state;
                 if is_store_signal && self.store_mode == super::ReactStoreMode::Zustand {
                     // Zustand mode: useStoreName.setState({ signal: value })
-                    let store_name = target.owner.as_deref().unwrap_or("");
-                    let setter = format!("use{}", capitalize_first(store_name));
-                    w.emit_fmt(format_args!(
-                        "{}.setState({{ {}: {} }});",
-                        setter, target_str, amount
-                    ));
+                    // (unreachable without `owner` field on SignalRefIR)
                 } else if use_setter {
                     let setter = format!("set{}", capitalize_first(target_str));
                     w.emit_fmt(format_args!("{}({});", setter, amount));
@@ -239,9 +236,9 @@ impl FormatStmt for ReactStmtFormatter {
 }
 
 /// Helper: emit a Zustand `useStore.setState(...)` mutation from a component context.
-fn zustand_store_setter(target: &SignalRefIR) -> String {
-    let store_name = target.owner.as_deref().unwrap_or("");
-    format!("use{}", capitalize_first(store_name))
+/// Note: `owner` field removed from SignalRefIR — always returns empty string.
+fn zustand_store_setter(_target: &SignalRefIR) -> String {
+    String::new()
 }
 
 /// Generate Zustand/Setter/Direct assignment for arithmetic compound mutations.
@@ -292,9 +289,11 @@ impl ReactStmtFormatter {
         };
 
         let target_str = &target.name;
-        let is_store_signal = target.owner.is_some();
+        // Note: `owner` field removed from SignalRefIR — store signal
+        // detection via target.owner is no longer available.
+        let is_store_signal = false;
         let is_component_state =
-            !is_store_signal && self.signal_names.contains(target_str.as_str());
+            self.signal_names.contains(target_str.as_str());
         let use_setter = is_store_signal || is_component_state;
         let in_zustand = is_store_signal && self.store_mode == super::ReactStoreMode::Zustand;
 

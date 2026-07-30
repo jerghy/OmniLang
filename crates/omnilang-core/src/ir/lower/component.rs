@@ -31,7 +31,6 @@ pub(super) fn lower_component(
             name: s.name.clone(),
             r#type: lower_type(&s.type_ann),
             initial_value: lower_expr(&s.init, variant_map, None, semantics),
-            is_copy: false,
         })
         .collect();
 

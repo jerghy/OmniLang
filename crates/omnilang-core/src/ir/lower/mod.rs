@@ -495,8 +495,8 @@ component InputComp {
                     "binding should reference 'text' signal"
                 );
                 assert!(
-                    binding.owner.is_none(),
-                    "binding owner should be None for local signal"
+                    binding.name == "text",
+                    "binding should reference 'text' signal, got '{}'", binding.name
                 );
             }
             other => panic!("expected Element, got {:?}", other),

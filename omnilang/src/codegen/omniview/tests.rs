@@ -254,7 +254,6 @@ fn props_are_emitted_as_readonly_wrappers() {
             initial_value: ExprIR::LiteralExpr {
                 value: serde_json::json!("hello"),
             },
-            is_copy: false,
         }],
         computeds: vec![],
         effects: vec![],
@@ -676,7 +675,6 @@ fn test_stmt_mutation_assign() {
     gen.emit_statement(&StatementIR::MutationStmt {
         intent: Some(MutationIntent::DirectAssign {
             target: SignalRefIR {
-                owner: None,
                 name: "count".into(),
             },
 
@@ -694,7 +692,6 @@ fn test_stmt_mutation_increment() {
     gen.emit_statement(&StatementIR::MutationStmt {
         intent: Some(MutationIntent::Increment {
             target: SignalRefIR {
-                owner: None,
                 name: "count".into(),
             },
 
@@ -716,7 +713,6 @@ fn test_stmt_mutation_signal_set() {
     gen.emit_statement(&StatementIR::MutationStmt {
         intent: Some(MutationIntent::DirectAssign {
             target: SignalRefIR {
-                owner: None,
                 name: "count".into(),
             },
 
@@ -825,7 +821,6 @@ fn test_component_with_states() {
                 initial_value: ExprIR::LiteralExpr {
                     value: serde_json::json!(0),
                 },
-                is_copy: false,
             }],
             ..make_component("Counter")
         },
@@ -852,7 +847,6 @@ fn test_component_with_computed() {
                 initial_value: ExprIR::LiteralExpr {
                     value: serde_json::json!(10),
                 },
-                is_copy: false,
             }],
             computeds: vec![ComputedIntent {
                 name: "doubled".into(),
@@ -943,7 +937,6 @@ fn test_component_with_lifecycle_mount() {
                 initial_value: ExprIR::LiteralExpr {
                     value: serde_json::json!(0),
                 },
-                is_copy: false,
             }],
             lifecycles: vec![LifecycleIntent {
                 kind: LifecycleKind::Mount,
@@ -1017,7 +1010,6 @@ fn test_component_with_effect() {
                 initial_value: ExprIR::LiteralExpr {
                     value: serde_json::json!(0),
                 },
-                is_copy: false,
             }],
             effects: vec![EffectIntent {
                 deps: vec!["count".into()],
@@ -1111,7 +1103,6 @@ fn test_html_interpolation() {
                 initial_value: ExprIR::LiteralExpr {
                     value: serde_json::json!("World"),
                 },
-                is_copy: false,
             }],
             view: Some(ViewTree::Element(el)),
             ..make_component("App")
@@ -1181,7 +1172,6 @@ fn test_full_pipeline_component_only() {
                 initial_value: ExprIR::LiteralExpr {
                     value: serde_json::json!(0),
                 },
-                is_copy: false,
             }],
             view: Some(ViewTree::Element(el)),
             ..make_component("App")
@@ -1430,7 +1420,6 @@ fn test_runtime_error_reporting() {
                 initial_value: ExprIR::LiteralExpr {
                     value: serde_json::json!("World"),
                 },
-                is_copy: false,
             }],
             view: Some(ViewTree::Element(el)),
             ..make_component("App")

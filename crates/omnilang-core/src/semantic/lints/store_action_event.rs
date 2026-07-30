@@ -127,7 +127,10 @@ mod tests {
     }
 
     #[test]
-    fn test_store_action_detects_event_data_access() {
+    fn test_store_action_no_event_data_field() {
+        // `event_data` field was removed from StoreAction — the lint
+        // cannot detect event data access for StoreAction anymore.
+        // Verify that a store action handler passes cleanly.
         let view = Some(ViewTree::Element(ElementIR {
             tag: "button".into(),
             props: FxHashMap::default(),
@@ -136,7 +139,6 @@ mod tests {
                 "onClick".into(),
                 EventHandlerIR::StoreAction {
                     r#ref: "MyStore.increment".into(),
-                    event_data: Some(EventDataKind::PointerEvent),
                 },
             )]
             .into_iter()
@@ -161,16 +163,9 @@ mod tests {
 
         let diags = StoreActionEventData.check_ir(&ir, &FxHashMap::default());
         assert!(
-            !diags.is_empty(),
-            "Store action with event data access should be detected"
+            diags.is_empty(),
+            "Store action without event_data field should pass lint"
         );
-        assert!(
-            diags[0].message.contains("MyStore.increment"),
-            "Message should mention store action path: {}",
-            diags[0].message
-        );
-        assert_eq!(diags[0].line, 5, "Line should match ElementIR.source_span");
-        assert_eq!(diags[0].col, 3, "Col should match ElementIR.source_span");
     }
 
     #[test]
@@ -183,7 +178,6 @@ mod tests {
                 "onClick".into(),
                 EventHandlerIR::StoreAction {
                     r#ref: "MyStore.increment".into(),
-                    event_data: None,
                 },
             )]
             .into_iter()

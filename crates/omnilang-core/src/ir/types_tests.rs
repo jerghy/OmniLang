@@ -72,7 +72,6 @@ fn serde_roundtrip_event_handler_inline_fn() {
 fn serde_roundtrip_event_handler_store_action() {
     let v = EventHandlerIR::StoreAction {
         r#ref: "MyStore.action".into(),
-        event_data: None,
     };
     let json = serde_json::to_string(&v).unwrap();
     let back: EventHandlerIR = serde_json::from_str(&json).unwrap();

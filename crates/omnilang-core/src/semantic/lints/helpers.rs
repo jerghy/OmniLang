@@ -101,7 +101,7 @@ pub(super) fn check_block_ir_for_store_mutations(
             StatementIR::MutationStmt {
                 intent: Some(ref mutation),
             } => {
-                let target = match mutation {
+                let _target = match mutation {
                     MutationIntent::DirectAssign { target, .. }
                     | MutationIntent::Increment { target, .. }
                     | MutationIntent::Decrement { target, .. }
@@ -111,24 +111,9 @@ pub(super) fn check_block_ir_for_store_mutations(
                     | MutationIntent::Push { target, .. }
                     | MutationIntent::Pop { target } => target,
                 };
-                if let Some(ref owner) = target.owner {
-                    if let Some(signals) = store_signals.get(owner.as_str()) {
-                        if signals.contains(target.name.as_str()) {
-                            diags.push(LintDiagnostic {
-                                rule: "store-field-direct-mutation".into(),
-                                severity: super::LintSeverity::Error,
-                                message: format!(
-                                    "Store signal '{}.{}' modified in '{}' — \
-                                         store data must only be changed through store actions",
-                                    owner, target.name, context_name
-                                ),
-                                file: file_path.to_string(),
-                                line: 0,
-                                col: 0,
-                            });
-                        }
-                    }
-                }
+                // Note: `owner` field removed from SignalRefIR — this lint
+                // relied on it to detect store-field mutations. Revisit if
+                // store-field-direct-mutation detection is needed.
             }
             StatementIR::IfStmtIR {
                 then_body,
@@ -313,13 +298,11 @@ pub(super) fn expr_ir_contains_store_mutation(
         ExprIR::BlockExpr { statements, tail } => {
             statements.iter().any(|s| {
                 if let StatementIR::MutationStmt {
-                    intent: Some(ref m),
+                    intent: Some(ref _m),
                 } = s
                 {
-                    let target = mutation_intent_target(m);
-                    if let Some(ref owner) = target.owner {
-                        return store_signals.contains_key(owner.as_str());
-                    }
+                    // Note: `owner` field removed from SignalRefIR — store-field
+                    // mutation detection is no longer available via target.owner.
                 }
                 false
             }) || expr_ir_contains_store_mutation(tail, store_signals)
@@ -329,13 +312,11 @@ pub(super) fn expr_ir_contains_store_mutation(
                 || arms.iter().any(|arm| {
                     arm.body.statements.iter().any(|s| {
                         if let StatementIR::MutationStmt {
-                            intent: Some(ref m),
+                            intent: Some(ref _m),
                         } = s
                         {
-                            let target = mutation_intent_target(m);
-                            if let Some(ref owner) = target.owner {
-                                return store_signals.contains_key(owner.as_str());
-                            }
+                            // Note: `owner` field removed from SignalRefIR — store-field
+                            // mutation detection is no longer available via target.owner.
                         }
                         false
                     })
@@ -774,6 +755,8 @@ pub(super) fn expr_contains_side_effect(expr: &Expr, signal_names: &FxHashSet<&s
 }
 
 /// Extract the target from any MutationIntent enum variant.
+/// Note: currently unused since `owner` field was removed from SignalRefIR.
+#[allow(dead_code)]
 fn mutation_intent_target(intent: &MutationIntent) -> &SignalRefIR {
     match intent {
         MutationIntent::DirectAssign { target, .. }

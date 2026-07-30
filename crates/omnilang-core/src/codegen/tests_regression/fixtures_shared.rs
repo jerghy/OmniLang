@@ -45,7 +45,6 @@ pub(crate) fn fixture_component() -> IRProgram {
         initial_value: ExprIR::LiteralExpr {
             value: serde_json::json!(0),
         },
-        is_copy: false,
     };
     let effect = EffectIntent {
         deps: vec!["count".into()],
@@ -170,7 +169,6 @@ pub(crate) fn fixture_store() -> IRProgram {
                 statements: vec![StatementIR::MutationStmt {
                     intent: Some(MutationIntent::Increment {
                         target: SignalRefIR {
-                            owner: None,
                             name: "count".into(),
                         },
 
@@ -224,7 +222,6 @@ pub(crate) fn fixture_component_with_store() -> IRProgram {
                 statements: vec![StatementIR::MutationStmt {
                     intent: Some(MutationIntent::Increment {
                         target: SignalRefIR {
-                            owner: None,
                             name: "count".into(),
                         },
 
@@ -259,7 +256,6 @@ pub(crate) fn fixture_component_with_store() -> IRProgram {
                 "onClick".into(),
                 EventHandlerIR::StoreAction {
                     r#ref: "AppStore.increment".into(),
-                    event_data: None,
                 },
             )]),
             style_classes: None,

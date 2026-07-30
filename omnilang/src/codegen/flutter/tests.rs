@@ -225,7 +225,6 @@ fn test_stmt_mutation_increment() {
     let stmt = StatementIR::MutationStmt {
         intent: Some(MutationIntent::Increment {
             target: SignalRefIR {
-                owner: None,
                 name: "count".into(),
             },
 
@@ -247,7 +246,6 @@ fn test_stmt_mutation_assign() {
     let stmt = StatementIR::MutationStmt {
         intent: Some(MutationIntent::DirectAssign {
             target: SignalRefIR {
-                owner: None,
                 name: "name".into(),
             },
 
@@ -269,7 +267,6 @@ fn test_stmt_mutation_decrement() {
     let stmt = StatementIR::MutationStmt {
         intent: Some(MutationIntent::Decrement {
             target: SignalRefIR {
-                owner: None,
                 name: "count".into(),
             },
 
@@ -635,7 +632,6 @@ fn test_generate_function_with_mutation() {
             statements: vec![StatementIR::MutationStmt {
                 intent: Some(MutationIntent::Increment {
                     target: SignalRefIR {
-                        owner: None,
                         name: "count".into(),
                     },
 
@@ -735,7 +731,6 @@ fn test_component_with_state() {
         initial_value: ExprIR::LiteralExpr {
             value: serde_json::json!(0),
         },
-        is_copy: false,
     };
     let mut components = FxHashMap::default();
     components.insert(
@@ -757,7 +752,6 @@ fn test_component_with_state() {
                     statements: vec![StatementIR::MutationStmt {
                         intent: Some(MutationIntent::Increment {
                             target: SignalRefIR {
-                                owner: None,
                                 name: "count".into(),
                             },
 
@@ -1584,7 +1578,6 @@ fn test_store_dart_with_action() {
                 statements: vec![StatementIR::MutationStmt {
                     intent: Some(MutationIntent::Increment {
                         target: SignalRefIR {
-                            owner: None,
                             name: "count".into(),
                         },
                         amount: Some(Box::new(ExprIR::LiteralExpr {
