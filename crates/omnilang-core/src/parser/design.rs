@@ -4,8 +4,10 @@
 //! design blocks.  Currently only token definitions are implemented
 //! (Task A2); class and variant parsing is deferred to Tasks A3/A4.
 
-use crate::lexer::Token;
+use crate::lexer::{Token, TokenKind};
 use crate::parser::ast::design::*;
+use crate::parser::ast::Expr;
+use crate::parser::Parser;
 
 /// Structured error for design block parsing with position tracking.
 #[derive(Debug)]
@@ -60,7 +62,7 @@ pub fn parse_design_body(input: &str, design_tokens: &[Token]) -> ParseResult<De
             default_theme = Some(dt);
             remaining = rest;
         } else if remaining.starts_with("token ") {
-            let (token, rest) = parse_token(remaining, design_tokens)?;
+            let (token, rest) = parse_token(remaining, input, design_tokens)?;
             tokens.push(token);
             remaining = rest;
         } else if remaining.starts_with("class ") {
@@ -96,7 +98,11 @@ pub fn parse_design_body(input: &str, design_tokens: &[Token]) -> ParseResult<De
     })
 }
 
-fn parse_token<'a>(input: &'a str, design_tokens: &[Token]) -> ParseResult<(TokenDef, &'a str)> {
+fn parse_token<'a>(
+    input: &'a str,
+    design_body_full: &'a str,
+    design_tokens: &[Token],
+) -> ParseResult<(TokenDef, &'a str)> {
     let rest = input
         .strip_prefix("token ")
         .ok_or_else(|| err("expected 'token'"))?;
@@ -112,7 +118,7 @@ fn parse_token<'a>(input: &'a str, design_tokens: &[Token]) -> ParseResult<(Toke
         .strip_prefix("=")
         .ok_or_else(|| err("expected '='"))?
         .trim_start();
-    let (value, rest) = parse_token_value(rest, design_tokens)?;
+    let (value, rest) = parse_token_value(rest, design_body_full, design_tokens)?;
 
     // Parse optional per-theme value overrides: `dark "#a5b4fc" light "#ffffff"`
     let mut theme_values: Vec<(String, TokenValue)> = Vec::new();
@@ -134,7 +140,7 @@ fn parse_token<'a>(input: &'a str, design_tokens: &[Token]) -> ParseResult<(Toke
             // Put it back: the value consumed too greedily
             break;
         }
-        match parse_token_value(after_ws, design_tokens) {
+        match parse_token_value(after_ws, design_body_full, design_tokens) {
             Ok((theme_val, r)) => {
                 theme_values.push((maybe_theme, theme_val));
                 remaining = r.trim_start();
@@ -223,19 +229,24 @@ fn parse_ident(input: &str) -> ParseResult<(String, &str)> {
     Ok((input[..end].to_string(), &input[end..]))
 }
 
-/// Parse a token value: either a quoted string (literal) or an identifier.
-/// If the identifier looks like a CSS keyword/value (all lowercase,
-/// possibly with hyphens, starts with digit, or is a hex color),
-/// treat it as Literal. Otherwise treat as Variable.
-#[allow(unused_variables)]
-fn parse_token_value<'a>(input: &'a str, design_tokens: &[Token]) -> ParseResult<(TokenValue, &'a str)> {
-    let input = input.trim_start();
+/// Parse a token value: either a quoted string (literal), hex color,
+/// CSS keyword (literal), simple variable ref (Variable),
+/// or runtime expression (Expression).
+fn parse_token_value<'a>(
+    raw_input: &'a str,
+    design_body_full: &'a str,
+    design_tokens: &[Token],
+) -> ParseResult<(TokenValue, &'a str)> {
+    let input = raw_input.trim_start();
     if let Some(stripped) = input.strip_prefix('"') {
         let end = stripped
             .find('"')
             .map(|i| i + 2)
             .ok_or_else(|| err("expected closing '\"'"))?;
-        Ok((TokenValue::Literal(input[1..end - 1].to_string()), &input[end..]))
+        Ok((
+            TokenValue::Literal(input[1..end - 1].to_string()),
+            &input[end..],
+        ))
     } else if input.starts_with('#') {
         // Hex color: `#6366f1` -- always literal
         let end = input[1..]
@@ -249,48 +260,182 @@ fn parse_token_value<'a>(input: &'a str, design_tokens: &[Token]) -> ParseResult
         if is_css_value(&ident) {
             Ok((TokenValue::Literal(ident), rest))
         } else {
+            // ── Phase 2: Check if this is an expression (dotted path or function call) ──
+            let after_ident = rest.trim_start();
+            let is_expression = after_ident.starts_with('.')
+                || after_ident.starts_with('(')
+                || after_ident.starts_with('[');
+
+            if is_expression && !design_tokens.is_empty() {
+                let offset = design_body_full.len().saturating_sub(input.len());
+                match parse_design_value_expression(design_body_full, design_tokens, offset) {
+                    Ok((expr, remaining)) => {
+                        return Ok((TokenValue::Expression(expr), remaining));
+                    }
+                    Err(_) => {
+                        // Fallback: treat as simple variable reference
+                    }
+                }
+            }
+
             Ok((TokenValue::Variable(ident), rest))
         }
     }
 }
 
+/// Parse a runtime expression within a design token value.
+///
+/// `design_body_full` is the full design body source; token spans are offsets into it.
+/// `offset` is the byte offset of the value start within the design body.
+///
+/// Returns the parsed expression and the remaining string after the expression.
+fn parse_design_value_expression<'a>(
+    design_body_full: &'a str,
+    design_tokens: &[Token],
+    offset: usize,
+) -> ParseResult<(Expr, &'a str)> {
+    // Find first identifier token at or after the offset
+    let start_idx = design_tokens
+        .iter()
+        .position(|t| matches!(t.kind, TokenKind::Ident(_)) && t.span.start >= offset)
+        .ok_or_else(|| err("could not locate expression start in design tokens"))?;
+
+    // Scan forward to find expression end: stop at `;`, `}`, or bare identifier
+    let mut end_idx = start_idx + 1;
+    while end_idx < design_tokens.len() {
+        match &design_tokens[end_idx].kind {
+            TokenKind::Semicolon => break,
+            TokenKind::Ident(_) => {
+                // Bare identifier (not preceded by `.`) = theme name boundary
+                let prev_is_dot =
+                    end_idx > 0 && matches!(&design_tokens[end_idx - 1].kind, TokenKind::Dot);
+                if !prev_is_dot {
+                    break;
+                }
+                end_idx += 1;
+            }
+            TokenKind::RBrace => break,
+            _ => end_idx += 1,
+        }
+    }
+
+    if end_idx <= start_idx {
+        return Err(err("empty expression in token value"));
+    }
+
+    // Extract tokens for the expression and create a sub-Parser
+    let expr_tokens: Vec<Token> = design_tokens[start_idx..end_idx].iter().cloned().collect();
+
+    // Use the full design body as source (token spans are offsets into it)
+    let mut expr_parser = Parser::new(expr_tokens, design_body_full);
+    let expr = expr_parser.parse_expr().map_err(|e| DesignParseError {
+        message: format!("failed to parse expression in token value: {}", e.message),
+        offset: 0,
+    })?;
+
+    // Remaining string starts after the last expression token
+    let last_token = &design_tokens[end_idx - 1];
+    let remaining = &design_body_full[last_token.span.end..];
+
+    Ok((expr, remaining))
+}
+
 /// Returns true if the identifier looks like a static CSS value
 /// rather than a variable/constant reference.
 fn is_css_value(s: &str) -> bool {
-    if s.is_empty() { return true; }
+    if s.is_empty() {
+        return true;
+    }
     let first = s.chars().next().unwrap();
     // Numbers -- CSS values: "16px", "1.5", "0.5s"
-    if first.is_ascii_digit() { return true; }
+    if first.is_ascii_digit() {
+        return true;
+    }
     // Hex colors -- CSS values: "#6366f1"
-    if first == '#' { return true; }
+    if first == '#' {
+        return true;
+    }
     // Known CSS keywords
-    if CSS_KEYWORDS.contains(&s) { return true; }
+    if CSS_KEYWORDS.contains(&s) {
+        return true;
+    }
     // All lowercase with hyphens (CSS properties/values):
     //   "ease-in-out", "inline-flex", "nowrap", "white"
     // But NOT PascalCase or camelCase identifiers (variables):
     //   "BRAND", "spacingUnit"
-    s.chars().all(|c| c.is_lowercase() || c == '-' || c == '.' || c == '_')
+    s.chars()
+        .all(|c| c.is_lowercase() || c == '-' || c == '.' || c == '_')
 }
 
 // Common CSS value keywords (case-sensitive lowercase)
 const CSS_KEYWORDS: &[&str] = &[
-    "none", "auto", "inherit", "initial", "unset", "revert",
-    "white", "black", "red", "blue", "green", "yellow", "orange",
-    "transparent", "currentColor",
-    "solid", "dashed", "dotted", "double",
-    "left", "right", "center", "top", "bottom",
-    "bold", "normal", "italic",
-    "block", "inline", "inline-block", "flex", "grid",
-    "visible", "hidden", "scroll", "clip",
-    "nowrap", "wrap", "pre",
-    "pointer", "default", "text",
-    "ease", "linear", "ease-in", "ease-out", "ease-in-out",
-    "cover", "contain", "fill",
-    "uppercase", "lowercase", "capitalize",
-    "underline", "overline", "line-through",
-    "repeat", "no-repeat", "repeat-x", "repeat-y",
-    "border-box", "content-box", "padding-box",
-    "start", "end", "stretch", "baseline",
+    "none",
+    "auto",
+    "inherit",
+    "initial",
+    "unset",
+    "revert",
+    "white",
+    "black",
+    "red",
+    "blue",
+    "green",
+    "yellow",
+    "orange",
+    "transparent",
+    "currentColor",
+    "solid",
+    "dashed",
+    "dotted",
+    "double",
+    "left",
+    "right",
+    "center",
+    "top",
+    "bottom",
+    "bold",
+    "normal",
+    "italic",
+    "block",
+    "inline",
+    "inline-block",
+    "flex",
+    "grid",
+    "visible",
+    "hidden",
+    "scroll",
+    "clip",
+    "nowrap",
+    "wrap",
+    "pre",
+    "pointer",
+    "default",
+    "text",
+    "ease",
+    "linear",
+    "ease-in",
+    "ease-out",
+    "ease-in-out",
+    "cover",
+    "contain",
+    "fill",
+    "uppercase",
+    "lowercase",
+    "capitalize",
+    "underline",
+    "overline",
+    "line-through",
+    "repeat",
+    "no-repeat",
+    "repeat-x",
+    "repeat-y",
+    "border-box",
+    "content-box",
+    "padding-box",
+    "start",
+    "end",
+    "stretch",
+    "baseline",
 ];
 
 fn skip_ws_and_comments(input: &str) -> &str {
@@ -695,7 +840,10 @@ mod tests {
         assert_eq!(result.tokens.len(), 1);
         assert_eq!(result.tokens[0].name, "primary");
         assert_eq!(result.tokens[0].token_type, TokenType::Color);
-        assert_eq!(result.tokens[0].value, TokenValue::Literal("#6366f1".to_string()));
+        assert_eq!(
+            result.tokens[0].value,
+            TokenValue::Literal("#6366f1".to_string())
+        );
     }
 
     #[test]
@@ -703,7 +851,10 @@ mod tests {
         let src = r#"token spacingMd: size = "16px";"#;
         let result = parse_design_body(src, &[]).unwrap();
         assert_eq!(result.tokens[0].token_type, TokenType::Size);
-        assert_eq!(result.tokens[0].value, TokenValue::Literal("16px".to_string()));
+        assert_eq!(
+            result.tokens[0].value,
+            TokenValue::Literal("16px".to_string())
+        );
     }
 
     #[test]
@@ -821,7 +972,10 @@ mod tests {
         assert_eq!(token.theme_values.len(), 1);
         assert_eq!(
             token.theme_values[0],
-            ("dark".to_string(), TokenValue::Literal("#a5b4fc".to_string()))
+            (
+                "dark".to_string(),
+                TokenValue::Literal("#a5b4fc".to_string())
+            )
         );
     }
 
@@ -834,11 +988,17 @@ mod tests {
         assert_eq!(token.theme_values.len(), 2);
         assert_eq!(
             token.theme_values[0],
-            ("dark".to_string(), TokenValue::Literal("#111827".to_string()))
+            (
+                "dark".to_string(),
+                TokenValue::Literal("#111827".to_string())
+            )
         );
         assert_eq!(
             token.theme_values[1],
-            ("highContrast".to_string(), TokenValue::Literal("#000000".to_string()))
+            (
+                "highContrast".to_string(),
+                TokenValue::Literal("#000000".to_string())
+            )
         );
     }
 
@@ -857,7 +1017,10 @@ mod tests {
         let result = parse_design_body(src, &[]).unwrap();
         assert_eq!(result.tokens.len(), 1);
         assert_eq!(result.tokens[0].name, "primary");
-        assert_eq!(result.tokens[0].value, TokenValue::Variable("BRAND".to_string()));
+        assert_eq!(
+            result.tokens[0].value,
+            TokenValue::Variable("BRAND".to_string())
+        );
     }
 
     #[test]
@@ -872,5 +1035,64 @@ mod tests {
         let src = r##"token primary: color = #6366f1;"##;
         let result = parse_design_body(src, &[]).unwrap();
         assert!(matches!(result.tokens[0].value, TokenValue::Literal(_)));
+    }
+
+    // ── Phase 2: Expression parsing in token values ──
+
+    #[test]
+    fn parse_token_value_dotted_expression() {
+        let src = r#"token primary: color = ThemeStore.primaryColor;"#;
+        let tokens = crate::lexer::tokenize(src);
+        let result = parse_design_body(src, &tokens).unwrap();
+        assert_eq!(result.tokens.len(), 1);
+        assert!(
+            matches!(result.tokens[0].value, TokenValue::Expression(_)),
+            "expected Expression variant, got {:?}",
+            result.tokens[0].value
+        );
+    }
+
+    #[test]
+    fn parse_token_value_static_variable_still_works() {
+        let src = r#"token primary: color = BRAND;"#;
+        let tokens = crate::lexer::tokenize(src);
+        let result = parse_design_body(src, &tokens).unwrap();
+        assert_eq!(
+            result.tokens[0].value,
+            TokenValue::Variable("BRAND".to_string())
+        );
+    }
+
+    #[test]
+    fn parse_token_value_expression_with_theme_value() {
+        let src = r##"token accent: color = ThemeStore.primaryColor dark "#a5b4fc";"##;
+        let tokens = crate::lexer::tokenize(src);
+        let result = parse_design_body(src, &tokens).unwrap();
+        let token = &result.tokens[0];
+        assert!(
+            matches!(token.value, TokenValue::Expression(_)),
+            "expected Expression variant, got {:?}",
+            token.value
+        );
+        assert_eq!(token.theme_values.len(), 1);
+        assert_eq!(
+            token.theme_values[0],
+            (
+                "dark".to_string(),
+                TokenValue::Literal("#a5b4fc".to_string())
+            )
+        );
+    }
+
+    #[test]
+    fn parse_token_value_function_call_expression() {
+        let src = r#"token primary: color = getAccentColor();"#;
+        let tokens = crate::lexer::tokenize(src);
+        let result = parse_design_body(src, &tokens).unwrap();
+        assert!(
+            matches!(result.tokens[0].value, TokenValue::Expression(_)),
+            "expected Expression variant for function call, got {:?}",
+            result.tokens[0].value
+        );
     }
 }
