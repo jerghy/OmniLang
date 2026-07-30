@@ -42,11 +42,11 @@ pub fn lower_design_with_consts(
                 TokenType::Opacity => TokenTypeIR::Opacity,
                 TokenType::ZIndex => TokenTypeIR::ZIndex,
             };
-            let resolved_value = resolve_token_value(&t.value, const_values);
-            let theme_values: FxHashMap<String, String> = t
+            let resolved_value = resolve_token_value_ir(&t.value, const_values);
+            let theme_values: FxHashMap<String, TokenValueIR> = t
                 .theme_values
                 .iter()
-                .map(|(theme, val)| (theme.clone(), resolve_token_value(val, const_values)))
+                .map(|(theme, val)| (theme.clone(), resolve_token_value_ir(val, const_values)))
                 .collect();
             (
                 t.name.clone(),
@@ -82,22 +82,37 @@ pub fn lower_design_with_consts(
     }
 }
 
-/// Resolve a `TokenValue` to a CSS string using the compile-time constant map.
-fn resolve_token_value(value: &TokenValue, const_values: &FxHashMap<String, String>) -> String {
+/// Resolve a `TokenValue` (AST) to `TokenValueIR`, handling Phase 1 compile-time
+/// constants and Phase 2 runtime expressions.
+fn resolve_token_value_ir(
+    value: &TokenValue,
+    const_values: &FxHashMap<String, String>,
+) -> TokenValueIR {
     match value {
-        TokenValue::Literal(s) => s.clone(),
+        TokenValue::Literal(s) => TokenValueIR::Static(s.clone()),
         TokenValue::Variable(name) => {
             if let Some(resolved) = const_values.get(name) {
-                resolved.clone()
+                TokenValueIR::Static(resolved.clone())
             } else {
-                format!("var(--{})", name)
+                // Phase 1 fallback for unresolved variables: CSS var(--name)
+                TokenValueIR::Static(format!("var(--{})", name))
             }
         }
         TokenValue::Expression(_expr) => {
-            // Phase 2: will be lowered once ExprIR paths are set up
-            // Temporary fallback — expression tokens are not yet resolved.
-            String::new()
+            // Phase 2: will be implemented in Task 5 (needs LowerContext)
+            // For now, placeholder — static empty string
+            TokenValueIR::Static(String::new())
         }
+    }
+}
+
+/// Resolve a `TokenValue` to a CSS string using the compile-time constant map.
+/// Convenience wrapper for places that still need a plain string (e.g. class
+/// / variant property resolution where dynamic expressions are Phase 2+).
+fn resolve_token_value(value: &TokenValue, const_values: &FxHashMap<String, String>) -> String {
+    match resolve_token_value_ir(value, const_values) {
+        TokenValueIR::Static(s) => s,
+        TokenValueIR::Dynamic(_) => String::new(),
     }
 }
 
@@ -382,14 +397,14 @@ mod tests {
             .tokens
             .get("primary")
             .ok_or_else(|| "missing token: primary".to_string())?;
-        assert_eq!(primary.value, "#6366f1");
+        assert!(matches!(primary.value, TokenValueIR::Static(ref s) if s == "#6366f1"));
         assert_eq!(primary.token_type, TokenTypeIR::Color);
 
         let spacing = design
             .tokens
             .get("spacingMd")
             .ok_or_else(|| "missing token: spacingMd".to_string())?;
-        assert_eq!(spacing.value, "16px");
+        assert!(matches!(spacing.value, TokenValueIR::Static(ref s) if s == "16px"));
         assert_eq!(spacing.token_type, TokenTypeIR::Size);
 
         Ok(())
@@ -452,10 +467,10 @@ mod tests {
             .tokens
             .get("primary")
             .expect("should have primary token");
-        assert_eq!(primary.value, "#6366f1");
-        assert_eq!(
-            primary.theme_values.get("dark"),
-            Some(&"#a5b4fc".to_string())
+        assert!(matches!(primary.value, TokenValueIR::Static(ref s) if s == "#6366f1"));
+        assert!(
+            matches!(primary.theme_values.get("dark"), Some(TokenValueIR::Static(ref s)) if s == "#a5b4fc"),
+            "expected dark theme override to be \"#a5b4fc\""
         );
         assert!(
             primary.theme_values.get("light").is_none(),
@@ -592,7 +607,7 @@ mod tests {
 
         let design = lower_design_with_consts(&design_def, &const_values);
         let primary = design.tokens.get("primary").expect("should have primary");
-        assert_eq!(primary.value, "#6366f1");
+        assert!(matches!(primary.value, TokenValueIR::Static(ref s) if s == "#6366f1"));
         assert!(primary.theme_values.is_empty());
     }
 
@@ -616,6 +631,6 @@ mod tests {
 
         let design = lower_design_with_consts(&design_def, &const_values);
         let primary = design.tokens.get("primary").expect("should have primary");
-        assert_eq!(primary.value, "var(--UNKNOWN)");
+        assert!(matches!(primary.value, TokenValueIR::Static(ref s) if s == "var(--UNKNOWN)"));
     }
 }

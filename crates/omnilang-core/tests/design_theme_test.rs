@@ -9,6 +9,7 @@
 
 use omnilang_core::ir::lower;
 use omnilang_core::ir::DesignIR;
+use omnilang_core::ir::TokenValueIR;
 use omnilang_core::lexer::tokenize;
 use omnilang_core::parser::parse;
 use omnilang_core::semantic::analyze;
@@ -76,20 +77,20 @@ design AppDesign {
         .tokens
         .get("primary")
         .expect("should have primary token");
-    assert_eq!(primary.value, "#6366f1");
-    assert_eq!(
-        primary.theme_values.get("dark"),
-        Some(&"#a5b4fc".to_string())
+    assert!(matches!(primary.value, TokenValueIR::Static(ref s) if s == "#6366f1"));
+    assert!(
+        matches!(primary.theme_values.get("dark"), Some(TokenValueIR::Static(ref s)) if s == "#a5b4fc"),
+        "expected dark theme override to be \"#a5b4fc\""
     );
 
     let surface = design
         .tokens
         .get("surface")
         .expect("should have surface token");
-    assert_eq!(surface.value, "#ffffff");
-    assert_eq!(
-        surface.theme_values.get("dark"),
-        Some(&"#111827".to_string())
+    assert!(matches!(surface.value, TokenValueIR::Static(ref s) if s == "#ffffff"));
+    assert!(
+        matches!(surface.theme_values.get("dark"), Some(TokenValueIR::Static(ref s)) if s == "#111827"),
+        "expected dark theme override to be \"#111827\""
     );
 
     // Verify class still resolves token references
@@ -134,7 +135,7 @@ design SimpleDesign {
         .tokens
         .get("primary")
         .expect("should have primary token");
-    assert_eq!(primary.value, "#6366f1");
+    assert!(matches!(primary.value, TokenValueIR::Static(ref s) if s == "#6366f1"));
     assert!(
         primary.theme_values.is_empty(),
         "token without theme values should have empty theme_values"

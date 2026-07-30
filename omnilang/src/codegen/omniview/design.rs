@@ -58,20 +58,27 @@ fn emit_design_css_impl(
         sorted.sort_by(|a, b| a.0.cmp(b.0));
 
         // Build a map: theme_name → Vec<(token_name, value)>
+        // Only Static values go into CSS (Dynamic values use runtime codegen)
         let mut theme_token_map: FxHashMap<&str, Vec<(&String, &String)>> = FxHashMap::default();
         for (name, token) in &sorted {
             for (theme_name, theme_val) in &token.theme_values {
-                theme_token_map
-                    .entry(theme_name.as_str())
-                    .or_default()
-                    .push((name, theme_val));
+                if let TokenValueIR::Static(s) = theme_val {
+                    theme_token_map
+                        .entry(theme_name.as_str())
+                        .or_default()
+                        .push((name, s));
+                }
             }
         }
 
         // 1. Default theme (or first listed value) on :root — always emitted
         css.push_str(":root {\n");
         for (name, token) in &sorted {
-            let _ = writeln!(css, "  --{}: {};", name, token.value);
+            if let TokenValueIR::Static(s) = &token.value {
+                let _ = writeln!(css, "  --{}: {};", name, s);
+            }
+            // Dynamic values are skipped here; they are emitted as runtime
+            // CSS custom property assignments via __omni_effect (Task 6).
         }
         css.push_str("}\n\n");
 

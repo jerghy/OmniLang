@@ -37,7 +37,8 @@ pub use logic::{
 // Note: VariantIR is NOT re-exported here to avoid a name conflict with
 // `logic::VariantIR` (tagged union variant). Use `ir::design::VariantIR` instead.
 pub use design::{
-    ClassIR, DesignIR, PseudoStateIR, TokenIR, TokenTypeIR, VariantBranchIR, VariantDimIR,
+    ClassIR, DesignIR, PseudoStateIR, TokenIR, TokenTypeIR, TokenValueIR, VariantBranchIR,
+    VariantDimIR,
 };
 
 // ── Explicit re-exports from types_motion.rs ──

@@ -7,7 +7,7 @@ fn make_test_design() -> DesignIR {
     tokens.insert(
         "surface".to_string(),
         TokenIR {
-            value: "#ffffff".to_string(),
+            value: TokenValueIR::Static("#ffffff".to_string()),
             token_type: TokenTypeIR::Color,
             theme_values: FxHashMap::default(),
             source_span: None,
@@ -16,7 +16,7 @@ fn make_test_design() -> DesignIR {
     tokens.insert(
         "primary".to_string(),
         TokenIR {
-            value: "#6366f1".to_string(),
+            value: TokenValueIR::Static("#6366f1".to_string()),
             token_type: TokenTypeIR::Color,
             theme_values: FxHashMap::default(),
             source_span: None,
@@ -25,7 +25,7 @@ fn make_test_design() -> DesignIR {
     tokens.insert(
         "radiusMd".to_string(),
         TokenIR {
-            value: "8px".to_string(),
+            value: TokenValueIR::Static("8px".to_string()),
             token_type: TokenTypeIR::Size,
             theme_values: FxHashMap::default(),
             source_span: None,
@@ -226,11 +226,11 @@ fn expand_variant_not_found() {
 fn emit_design_css_with_themes() {
     let mut tokens = FxHashMap::default();
     let mut theme_values_dark = FxHashMap::default();
-    theme_values_dark.insert("dark".to_string(), "#a5b4fc".to_string());
+    theme_values_dark.insert("dark".to_string(), TokenValueIR::Static("#a5b4fc".to_string()));
     tokens.insert(
         "primary".to_string(),
         TokenIR {
-            value: "#6366f1".to_string(),
+            value: TokenValueIR::Static("#6366f1".to_string()),
             token_type: TokenTypeIR::Color,
             theme_values: theme_values_dark,
             source_span: None,
@@ -265,7 +265,7 @@ fn emit_design_css_without_themes_unchanged() {
     tokens.insert(
         "radiusMd".to_string(),
         TokenIR {
-            value: "8px".to_string(),
+            value: TokenValueIR::Static("8px".to_string()),
             token_type: TokenTypeIR::Size,
             theme_values: FxHashMap::default(),
             source_span: None,

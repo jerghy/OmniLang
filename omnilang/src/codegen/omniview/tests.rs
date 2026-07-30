@@ -1450,11 +1450,11 @@ fn test_runtime_error_reporting() {
 fn test_theme_runtime_emitted_when_design_has_themes() {
     let mut tokens = FxHashMap::default();
     let mut theme_values_dark = FxHashMap::default();
-    theme_values_dark.insert("dark".to_string(), "#a5b4fc".to_string());
+    theme_values_dark.insert("dark".to_string(), TokenValueIR::Static("#a5b4fc".to_string()));
     tokens.insert(
         "primary".to_string(),
         TokenIR {
-            value: "#6366f1".to_string(),
+            value: TokenValueIR::Static("#6366f1".to_string()),
             token_type: TokenTypeIR::Color,
             theme_values: theme_values_dark,
             source_span: None,

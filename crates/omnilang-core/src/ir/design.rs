@@ -8,6 +8,7 @@
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
+use crate::ir::types::ExprIR;
 use crate::lexer::Span;
 
 /// A fully lowered design block.
@@ -31,17 +32,27 @@ pub struct DesignIR {
     pub source_span: Option<Span>,
 }
 
+/// Resolved token value — either a static CSS string or a runtime expression.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum TokenValueIR {
+    /// Static CSS value resolved at compile time: `"#6366f1"`, `"16px"`.
+    Static(String),
+    /// Runtime expression that must be evaluated via `__omni_effect`:
+    /// `ThemeStore.primaryColor`.
+    Dynamic(ExprIR),
+}
+
 /// A single design token with its resolved value and type annotation.
 ///
-/// Per-theme overrides are stored as `theme_values: FxHashMap<String, String>`;
+/// Per-theme overrides are stored as `theme_values: FxHashMap<String, TokenValueIR>`;
 /// the outer `value` is the fallback used when no theme context matches.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TokenIR {
-    pub value: String,
+    pub value: TokenValueIR,
     pub token_type: TokenTypeIR,
     /// Per-theme value overrides keyed by theme name.
     #[serde(default)]
-    pub theme_values: FxHashMap<String, String>,
+    pub theme_values: FxHashMap<String, TokenValueIR>,
     #[serde(default)]
     pub source_span: Option<Span>,
 }
