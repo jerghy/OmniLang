@@ -143,6 +143,36 @@ component ElementRefDemo {
                     <p>Drag me → x:{dragX.to_string()} y:{dragY.to_string()}</p>
                 </div>
             </div>
+
+            <!-- ═══ 拖拽约束对比 ═══ -->
+            <h4 class: LearnDesign.SectionTitle>Drag Constraint Variations</h4>
+            <p class: LearnDesign.Hint>
+                @drag-constraints and @drag-elastic control drag boundaries and snap behavior
+            </p>
+            <div class: constraints-row>
+                <div @dragHorizontal={fadeSlideUp}
+                     @drag-constraints="left:0 right:150"
+                     @drag-elastic={0.5}
+                     class: drag-demo-box>
+                    <p>elastic 0.5</p>
+                </div>
+                <div @dragHorizontal={fadeSlideUp}
+                     @drag-constraints="left:0 right:150"
+                     @drag-elastic={0}
+                     class: drag-demo-box>
+                    <p>elastic 0</p>
+                </div>
+                <div @dragVertical={fadeSlideUp}
+                     @drag-constraints="top:0 bottom:100"
+                     class: drag-demo-box>
+                    <p>dragVertical</p>
+                </div>
+                <div @drag={fadeSlideUp}
+                     @drag-constraints="left:0 right:150 top:0 bottom:100"
+                     class: drag-demo-box>
+                    <p>free drag</p>
+                </div>
+            </div>
         </div>
     }
 
@@ -155,5 +185,8 @@ component ElementRefDemo {
         .scroll-item { padding: 8px 0; font-size: 13px; color: var(--textSecondary); border-bottom: 1px solid var(--borderLighter); }
         .rect-box { padding: 16px; background: var(--surfaceMuted); border: 1px solid var(--border); border-radius: var(--radiusMd); text-align: center; margin-bottom: 8px; }
         .drag-box { width: 120px; padding: 16px; background: var(--accent); color: white; border-radius: var(--radiusMd); text-align: center; cursor: grab; user-select: none; }
+        .constraints-row { display: flex; gap: 16px; margin-bottom: 12px; flex-wrap: wrap; }
+        .drag-demo-box { width: 100px; height: 80px; padding: 12px; background: var(--primary); color: white; border-radius: var(--radiusMd); text-align: center; cursor: grab; user-select: none; }
+        .drag-demo-box p { font-size: var(--fontSizeXs); margin: 0; }
     }
 }

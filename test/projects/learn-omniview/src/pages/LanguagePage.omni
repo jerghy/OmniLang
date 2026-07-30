@@ -1,4 +1,5 @@
-// LanguagePage — 语言特性：内联 store、nullish、字符串、类型系统、视图属性
+// LanguagePage — merged Language + Supplement pages (deep language features)
+
 import omniview;
 import { LearnDesign } from "../design";
 import { InlineStoreDemo } from "../components/InlineStoreDemo";
@@ -9,6 +10,10 @@ import { ViewAttributesDemo } from "../components/ViewAttributesDemo";
 import { ComputedFnFormDemo } from "../components/ComputedFnFormDemo";
 import { OptionalChainDemo } from "../components/OptionalChainDemo";
 import { StylePseudoDemo } from "../components/StylePseudoDemo";
+import { TernaryExprDemo } from "../components/TernaryExprDemo";
+import { BlockExprDemo } from "../components/BlockExprDemo";
+import { ForDirectiveKeyDemo } from "../components/ForDirectiveKeyDemo";
+import { AdvancedPseudoDemo } from "../components/AdvancedPseudoDemo";
 
 component LanguagePage {
     view {
@@ -25,8 +30,14 @@ component LanguagePage {
             <div class: LearnDesign.Row>
                 <div class: LearnDesign.Col><ComputedFnFormDemo /></div>
                 <div class: LearnDesign.Col><OptionalChainDemo /></div>
+                <div class: LearnDesign.Col><TernaryExprDemo /></div>
+                <div class: LearnDesign.Col><BlockExprDemo /></div>
             </div>
-            <div class: LearnDesign.DemoFull><StylePseudoDemo /></div>
+            <div class: LearnDesign.DemoFull><ForDirectiveKeyDemo /></div>
+            <div class: LearnDesign.Row>
+                <div class: LearnDesign.Col><StylePseudoDemo /></div>
+                <div class: LearnDesign.Col><AdvancedPseudoDemo /></div>
+            </div>
         </section>
     }
 }
