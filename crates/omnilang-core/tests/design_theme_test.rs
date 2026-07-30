@@ -228,6 +228,37 @@ design AppDesign {
 }
 
 #[test]
+fn rejects_dynamic_token_with_theme_override() {
+    // Phase 2 restriction: dynamic tokens (TokenValue::Expression) cannot
+    // have theme overrides. The semantic analyzer should produce E0001.
+    let source = r##"
+import omniview;
+
+store ThemeStore {
+    signal primaryColor: string = "#6366f1";
+}
+
+design AppDesign {
+    @themes light, dark;
+    token primary: color = ThemeStore.primaryColor dark "#a5b4fc";
+}
+"##;
+    let tokens = tokenize(source);
+    let (program, _) = parse(tokens, source);
+    let semantics = analyze(&program);
+
+    let has_error = semantics
+        .diagnostics
+        .iter()
+        .any(|d| d.message.contains("cannot have theme overrides"));
+    assert!(
+        has_error,
+        "should produce diagnostic for dynamic token with theme override, got: {:?}",
+        semantics.diagnostics
+    );
+}
+
+#[test]
 fn semantic_rejects_undefined_variable_in_token_expression() {
     // A function call to an undefined function inside a token expression
     // should produce E0001.

@@ -181,6 +181,25 @@ impl SemanticAnalyzer {
                     TokenValue::Expression(expr) => {
                         let mut vctx = ValidationContext::new();
                         self.resolve_expr_refs(expr, &mut vctx);
+
+                        // Phase 2 restriction: dynamic tokens cannot have theme overrides
+                        if !token.theme_values.is_empty() {
+                            self.diagnostics.push(Diagnostic::error(
+                                DiagnosticKind::E0001,
+                                &format!(
+                                    "Dynamic token '{}' cannot have theme overrides. \
+                                     Use a static value for theme-aware tokens, or handle \
+                                     theme switching in the store signal.",
+                                    token.name
+                                ),
+                                &Span {
+                                    start: 0,
+                                    end: 0,
+                                    line: 0,
+                                    col: 0,
+                                },
+                            ));
+                        }
                     }
                     TokenValue::Literal(_) => {}
                 }
