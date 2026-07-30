@@ -79,13 +79,12 @@ fn compile_source(source: &str, target: Target) -> omnilang::codegen::CompileOut
 }
 
 fn p0_backends() -> Vec<(Target, &'static str)> {
-    let mut backends = vec![
+    vec![
         (Target::OmniView, "OmniView"),
         (Target::React, "React"),
-    ];
-    #[cfg(feature = "codegen-flutter")]
-    backends.push((Target::Flutter, "Flutter"));
-    backends
+        #[cfg(feature = "codegen-flutter")]
+        (Target::Flutter, "Flutter"),
+    ]
 }
 
 /// Primary cross-target test: every Golden fixture must compile error-free
@@ -115,7 +114,7 @@ fn cross_target_no_errors_on_all_backends() {
             }
         };
 
-        for (target, target_name) in &p0_backends() {
+        for (target, target_name) in p0_backends() {
             total += 1;
             let output = compile_source(&source, target);
 
@@ -186,7 +185,7 @@ fn cross_target_component_files_produce_output() {
         let source = fs::read_to_string(&abs_path)
             .unwrap_or_else(|e| panic!("Cannot read {}: {}", rel_path, e));
 
-        for (target, target_name) in &p0_backends() {
+        for (target, target_name) in p0_backends() {
             let output = compile_source(&source, target);
 
             if !output.errors.is_empty() {
@@ -241,7 +240,7 @@ fn cross_target_parity_features() {
     {
         let path = repo.join("test/projects/learn-omniview/src/components/SlotDefaultDemo.omni");
         let source = fs::read_to_string(&path).expect("SlotDefaultDemo.omni not found");
-        for (target, target_name) in &p0_backends() {
+        for (target, target_name) in p0_backends() {
             let output = compile_source(&source, target);
             if !output.errors.is_empty() {
                 failures.push(format!("slot → {}: compilation errors", target_name));
@@ -261,7 +260,7 @@ fn cross_target_parity_features() {
     {
         let path = repo.join("test/projects/learn-omniview/src/components/DataTable.omni");
         let source = fs::read_to_string(&path).expect("DataTable.omni not found");
-        for (target, target_name) in &p0_backends() {
+        for (target, target_name) in p0_backends() {
             let output = compile_source(&source, target);
             if !output.errors.is_empty() {
                 failures.push(format!("@for/key → {}: compilation errors", target_name));
@@ -281,7 +280,7 @@ fn cross_target_parity_features() {
     {
         let path = repo.join("test/projects/learn-omniview/src/components/Modal.omni");
         let source = fs::read_to_string(&path).expect("Modal.omni not found");
-        for (target, target_name) in &p0_backends() {
+        for (target, target_name) in p0_backends() {
             let output = compile_source(&source, target);
             if !output.errors.is_empty() {
                 failures.push(format!("events → {}: compilation errors", target_name));

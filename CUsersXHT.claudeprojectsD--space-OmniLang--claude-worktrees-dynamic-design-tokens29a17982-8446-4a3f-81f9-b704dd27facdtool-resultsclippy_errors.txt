@@ -1,0 +1,51 @@
+error: function `tokenize_all` is never used
+error: function `assert_token` is never used
+error: function `assert_tokens` is never used
+error: using `write!()` with a format string that ends in a single newline
+error: stripping a prefix manually
+error: redundant closure
+error: unused variable: `stmt`
+error: could not compile `omnilang-core` (lib) due to 6 previous errors
+error: function `fixture_empty` is never used
+error: function `fixture_component` is never used
+error: function `fixture_store` is never used
+error: function `fixture_component_with_store` is never used
+error: function `fixture_expressions` is never used
+error: function `format_output` is never used
+error: using `write!()` with a format string that ends in a single newline
+error: unnecessary use of `get("light").is_none()`
+error: unnecessary use of `to_string`
+error: this `if let` can be collapsed into the outer `if let`
+error: approximate value of `f{32, 64}::consts::PI` found
+error: used `assert_eq!` with a literal bool
+error: approximate value of `f{32, 64}::consts::PI` found
+error: using `clone` on type `Span` which implements the `Copy` trait
+error: using `clone` on type `Span` which implements the `Copy` trait
+error: using `clone` on type `Span` which implements the `Copy` trait
+error: using `clone` on type `Span` which implements the `Copy` trait
+error: using `clone` on type `Span` which implements the `Copy` trait
+error: using `clone` on type `Span` which implements the `Copy` trait
+error: using `clone` on type `Span` which implements the `Copy` trait
+error: using `clone` on type `Span` which implements the `Copy` trait
+error: using `clone` on type `Span` which implements the `Copy` trait
+error: using `clone` on type `Span` which implements the `Copy` trait
+error: using `clone` on type `Span` which implements the `Copy` trait
+error: using `clone` on type `Span` which implements the `Copy` trait
+error: using `clone` on type `Span` which implements the `Copy` trait
+error: using `clone` on type `Span` which implements the `Copy` trait
+error: using `clone` on type `Span` which implements the `Copy` trait
+error: using `clone` on type `Span` which implements the `Copy` trait
+error: using `clone` on type `Span` which implements the `Copy` trait
+error: using `clone` on type `Span` which implements the `Copy` trait
+error: using `clone` on type `Span` which implements the `Copy` trait
+error: using `clone` on type `Span` which implements the `Copy` trait
+error: using `clone` on type `Span` which implements the `Copy` trait
+error: using `clone` on type `Span` which implements the `Copy` trait
+error: using `clone` on type `Span` which implements the `Copy` trait
+error: using `clone` on type `Span` which implements the `Copy` trait
+error: using `clone` on type `Span` which implements the `Copy` trait
+error: using `clone` on type `Span` which implements the `Copy` trait
+error: using `clone` on type `Span` which implements the `Copy` trait
+error: using `clone` on type `Span` which implements the `Copy` trait
+error: items after a test module
+error: could not compile `omnilang-core` (lib test) due to 46 previous errors
