@@ -212,6 +212,11 @@ function __omni_normalizeCssEscapes(value) {
 
 function __omni_sanitizeCss(value) {
   var str = String(value);
+  // Strip CR, LF, TAB before any pattern matching — browsers strip these
+  // characters during CSS tokenization (CSS Syntax §4.3.7), so
+  // "jav\r\nascript:" would be normalized by the browser to "javascript:".
+  // This mirrors the same normalization in __omni_sanitizeUrl.
+  str = str.replace(/[\r\n\t]/g, '');
   // Normalize CSS hex escapes before checking for dangerous patterns
   str = __omni_normalizeCssEscapes(str);
   var lower = str.toLowerCase();
