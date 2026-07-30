@@ -22,7 +22,7 @@ const __omni_forHandlers = {};
 const __omni_animations = new Map();
 
 function __omni_signal(name, init) {
-  let val = init;
+  let val = init, setting = false;
   const subs = new Set();
   const signal = {
     _default: init,
@@ -34,16 +34,18 @@ function __omni_signal(name, init) {
       return val;
     },
     set value(v) {
-      if (val !== v) {
+      if (val !== v && !setting) {
+        setting = true;
         val = v;
         const s = new Set(subs);
         s.forEach(e => {
           const prev = __omni_activeEffect;
           __omni_activeEffect = e;
           try { e.run(); }
-          catch(err) { __omni_reportError("error", "effect:run", String(err), ""); }
+          catch(err) { __omni_reportError("error", "effect:run", String(err) + (err.stack ? ' at ' + err.stack.split('\n')[1]?.trim() : ''), ""); }
           finally { __omni_activeEffect = prev; }
         });
+        setting = false;
       }
     },
     get() { return signal.value; },
@@ -66,19 +68,21 @@ function __omni_readonlySignal(name, init) {
 }
 
 function __omni_computed(name, fn) {
-  let val, dirty = true;
+  let val, dirty = true, running = false;
   const signal = __omni_signal(name, undefined);
   const effect = { _deps: new Set(), run: () => { dirty = true; signal.set(fn()); } };
   const run = () => {
+    if (running) return val;
+    running = true;
     dirty = false;
     // Clean up old dependency subscriptions
     effect._deps.forEach(fn => fn());
     effect._deps.clear();
     const prev = __omni_activeEffect;
     __omni_activeEffect = effect;
-    const newVal = fn();
-    __omni_activeEffect = prev;
-    val = newVal;
+    try { val = fn(); }
+    catch(e) { __omni_reportError("error", "computed:run", String(e), name); }
+    finally { __omni_activeEffect = prev; running = false; }
     signal.peek();
     return val;
   };
