@@ -20,6 +20,7 @@ impl ReactCodegen {
         called_fns: &FxHashSet<String>,
         signal_names: &FxHashSet<String>,
         fn_names: &FxHashSet<String>,
+        ref_names: &FxHashSet<String>,
     ) {
         for fun in &comp.fns {
             if !called_fns.contains(&fun.name) {
@@ -53,6 +54,7 @@ impl ReactCodegen {
                     stmt,
                     signal_names,
                     self.store_mode,
+                    ref_names,
                 );
             }
             // Build setter renames for states whose setters conflict with function names

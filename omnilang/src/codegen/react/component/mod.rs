@@ -161,6 +161,9 @@ impl ReactCodegen {
             }
         }
 
+        // Build ref_names set for expression translation (ADR-036 Phase 2)
+        let ref_names: FxHashSet<String> = comp.refs.iter().map(|r| r.name.clone()).collect();
+
         // Motion animation names — used to filter motion refs from event handlers
         let motion_names: FxHashSet<String> = ir
             .modules
@@ -241,6 +244,7 @@ impl ReactCodegen {
                     stmt,
                     &FxHashSet::default(),
                     self.store_mode,
+                    &ref_names,
                 );
             }
             let mut body_str = body_w.into_string();
@@ -269,8 +273,7 @@ impl ReactCodegen {
                 .keys()
                 .map(|prop_name| {
                     if let Some(default_val) = comp.prop_defaults.get(prop_name) {
-                        let default_tsx =
-                            expr::format_expr_ir_tsx(default_val, &FxHashSet::default());
+                        let default_tsx = expr::format_expr_ir_tsx(default_val, &ref_names);
                         format!("{} = {}", prop_name, default_tsx)
                     } else {
                         prop_name.clone()
@@ -313,7 +316,7 @@ impl ReactCodegen {
         let fn_names: FxHashSet<String> = comp.fns.iter().map(|f| f.name.clone()).collect();
         self.gen_state_hooks(&mut w, comp, &read_signals, &mutated_signals, &fn_names);
         state::gen_ref_hooks(&mut w, comp);
-        self.gen_effects(&mut w, comp, &store_signal_map, &signal_names);
+        self.gen_effects(&mut w, comp, &store_signal_map, &signal_names, &ref_names);
 
         // Computed values (useMemo / useCallback)
         let mut known_signal_names: Vec<String> =
@@ -326,10 +329,18 @@ impl ReactCodegen {
             &known_signal_names,
             &signal_names,
             self.store_mode,
+            &ref_names,
         );
 
         // Component-local function declarations
-        self.gen_functions(&mut w, comp, &called_fns, &signal_names, &fn_names);
+        self.gen_functions(
+            &mut w,
+            comp,
+            &called_fns,
+            &signal_names,
+            &fn_names,
+            &ref_names,
+        );
 
         // Motion animation effects
         if let Some(ref view) = comp.view {
@@ -346,6 +357,7 @@ impl ReactCodegen {
             &signal_names,
             &motion_names,
             name,
+            &ref_names,
         );
         w.dedent();
         w.emit("}");

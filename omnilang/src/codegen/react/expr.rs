@@ -16,7 +16,9 @@ use rustc_hash::FxHashSet;
 ///
 /// Uses JS-family syntax with `translate_builtin_call` for stdlib calls
 /// and `translate_method_call` for method dispatch.
-pub(crate) struct ReactFormatExpr;
+pub(crate) struct ReactFormatExpr {
+    pub ref_names: FxHashSet<String>,
+}
 
 impl FormatExpr for ReactFormatExpr {
     fn json_config(&self) -> &JsonFormatConfig {
@@ -26,8 +28,15 @@ impl FormatExpr for ReactFormatExpr {
     /// Strip `$` prefix from identifier names — `$` is an IR internal
     /// convention for store signal references and should not appear in
     /// generated TypeScript/React code.
+    /// Additionally, if the identifier matches a ref name, translate it to
+    /// `nameRef.current` for proper ref access in function bodies (ADR-036).
     fn format_identifier(&self, name: &str) -> String {
-        name.trim_start_matches('$').to_string()
+        let stripped = name.trim_start_matches('$');
+        if self.ref_names.contains(stripped) {
+            format!("{}Ref.current", stripped)
+        } else {
+            stripped.to_string()
+        }
     }
 
     fn codegen_target(&self) -> Target {
@@ -128,6 +137,8 @@ pub(super) struct ReactStmtFormatter {
     pub expr: ReactFormatExpr,
     pub signal_names: FxHashSet<String>,
     pub store_mode: super::ReactStoreMode,
+    #[allow(dead_code)]
+    pub ref_names: FxHashSet<String>,
 }
 
 impl FormatStmt for ReactStmtFormatter {
@@ -355,8 +366,15 @@ pub(super) fn generate_statement_tsx(
     w: &mut CodeWriter,
     stmt: &StatementIR,
     signal_names: &FxHashSet<String>,
+    ref_names: &FxHashSet<String>,
 ) {
-    generate_statement_tsx_with_mode(w, stmt, signal_names, super::ReactStoreMode::Hooks);
+    generate_statement_tsx_with_mode(
+        w,
+        stmt,
+        signal_names,
+        super::ReactStoreMode::Hooks,
+        ref_names,
+    );
 }
 
 pub(super) fn generate_statement_tsx_with_mode(
@@ -364,6 +382,7 @@ pub(super) fn generate_statement_tsx_with_mode(
     stmt: &StatementIR,
     signal_names: &FxHashSet<String>,
     store_mode: super::ReactStoreMode,
+    ref_names: &FxHashSet<String>,
 ) {
     // Intercept array_push / array_pop calls on signals — these should
     // be emitted as setter-based mutations, not pure expressions.
@@ -382,7 +401,7 @@ pub(super) fn generate_statement_tsx_with_mode(
                         "array_push" => {
                             let item = args
                                 .get(1)
-                                .map(|e| format_expr_ir_tsx(e, &FxHashSet::default()))
+                                .map(|e| format_expr_ir_tsx(e, ref_names))
                                 .unwrap_or_else(|| "undefined".into());
                             w.emit_fmt(format_args!("{}(prev => [...prev, {}]);", setter, item));
                             return;
@@ -398,9 +417,12 @@ pub(super) fn generate_statement_tsx_with_mode(
         }
     }
     let fmt = ReactStmtFormatter {
-        expr: ReactFormatExpr,
+        expr: ReactFormatExpr {
+            ref_names: ref_names.clone(),
+        },
         signal_names: signal_names.clone(),
         store_mode,
+        ref_names: ref_names.clone(),
     };
     fmt.format_stmt(w, stmt);
 }
@@ -415,7 +437,10 @@ pub(super) fn format_expr_ir_tsx(expr: &ExprIR, ref_names: &FxHashSet<String>) -
             if ref_names.contains(name.as_str()) {
                 format!("{}Ref.current", name)
             } else {
-                ReactFormatExpr.format_identifier(name)
+                ReactFormatExpr {
+                    ref_names: ref_names.clone(),
+                }
+                .format_identifier(name)
             }
         }
         ExprIR::FieldAccessExpr { object, field } => {
@@ -435,7 +460,10 @@ pub(super) fn format_expr_ir_tsx(expr: &ExprIR, ref_names: &FxHashSet<String>) -
                 .collect();
             translate_method_call(&obj_str, method, &args_str)
         }
-        _ => ReactFormatExpr.format_expr(expr),
+        _ => ReactFormatExpr {
+            ref_names: ref_names.clone(),
+        }
+        .format_expr(expr),
     }
 }
 

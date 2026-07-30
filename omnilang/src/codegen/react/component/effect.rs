@@ -18,6 +18,7 @@ impl ReactCodegen {
         comp: &ComponentIR,
         store_signal_map: &FxHashMap<String, String>,
         signal_names: &FxHashSet<String>,
+        ref_names: &FxHashSet<String>,
     ) {
         // Effects (useEffect) — wrap in async IIFE if body contains await
         for effect in &comp.effects {
@@ -45,6 +46,7 @@ impl ReactCodegen {
                         stmt,
                         signal_names,
                         self.store_mode,
+                        ref_names,
                     );
                 }
                 w.dedent();
@@ -60,6 +62,7 @@ impl ReactCodegen {
                         stmt,
                         signal_names,
                         self.store_mode,
+                        ref_names,
                     );
                 }
                 w.dedent();
@@ -83,6 +86,7 @@ impl ReactCodegen {
                                 stmt,
                                 signal_names,
                                 self.store_mode,
+                                ref_names,
                             );
                         }
                         w.dedent();
@@ -98,6 +102,7 @@ impl ReactCodegen {
                                 stmt,
                                 signal_names,
                                 self.store_mode,
+                                ref_names,
                             );
                         }
                         w.dedent();
@@ -115,6 +120,7 @@ impl ReactCodegen {
                             stmt,
                             signal_names,
                             self.store_mode,
+                            ref_names,
                         );
                     }
                     w.dedent();
@@ -135,6 +141,7 @@ impl ReactCodegen {
                                 stmt,
                                 signal_names,
                                 self.store_mode,
+                                ref_names,
                             );
                         }
                         w.dedent();
@@ -150,6 +157,7 @@ impl ReactCodegen {
                                 stmt,
                                 signal_names,
                                 self.store_mode,
+                                ref_names,
                             );
                         }
                         w.dedent();

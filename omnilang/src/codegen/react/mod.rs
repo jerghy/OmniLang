@@ -291,7 +291,12 @@ impl ReactCodegen {
             ));
             w.indent();
             for stmt in &action.body.statements {
-                expr::generate_statement_tsx(&mut w, stmt, &store_signal_names);
+                expr::generate_statement_tsx(
+                    &mut w,
+                    stmt,
+                    &store_signal_names,
+                    &FxHashSet::default(),
+                );
             }
             w.dedent();
             // Compute precise dependency array
@@ -525,7 +530,7 @@ fn gen_zustand_action_stmt(
         }
         _ => {
             // Fallback: use default TSX statement generation for non-mutation stmts
-            expr::generate_statement_tsx(w, stmt, signal_names);
+            expr::generate_statement_tsx(w, stmt, signal_names, &FxHashSet::default());
         }
     }
 }

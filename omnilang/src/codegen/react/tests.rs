@@ -206,7 +206,7 @@ fn test_tsx_stmt_let() {
         }),
         r#type: None,
     };
-    generate_statement_tsx(&mut w, &stmt, &FxHashSet::default());
+    generate_statement_tsx(&mut w, &stmt, &FxHashSet::default(), &FxHashSet::default());
     assert_eq!(w.into_string(), "const x = 42;\n");
 }
 
@@ -219,7 +219,7 @@ fn test_tsx_stmt_return() {
             type_ann: None,
         }),
     };
-    generate_statement_tsx(&mut w, &stmt, &FxHashSet::default());
+    generate_statement_tsx(&mut w, &stmt, &FxHashSet::default(), &FxHashSet::default());
     assert_eq!(w.into_string(), "return result;\n");
 }
 
@@ -239,7 +239,7 @@ fn test_tsx_stmt_mutation_increment_local() {
         }),
     };
     // owner=None + not in signal_names → direct assignment
-    generate_statement_tsx(&mut w, &stmt, &FxHashSet::default());
+    generate_statement_tsx(&mut w, &stmt, &FxHashSet::default(), &FxHashSet::default());
     assert_eq!(w.into_string(), "count = count + 1;\n");
 }
 
@@ -261,7 +261,7 @@ fn test_tsx_stmt_mutation_increment_signal() {
     // owner=None but "count" IS in signal_names → setter call
     let mut sig_names = FxHashSet::default();
     sig_names.insert("count".to_string());
-    generate_statement_tsx(&mut w, &stmt, &sig_names);
+    generate_statement_tsx(&mut w, &stmt, &sig_names, &FxHashSet::default());
     assert_eq!(w.into_string(), "setCount(prev => prev + 1);\n");
 }
 
@@ -281,7 +281,7 @@ fn test_tsx_stmt_mutation_assign_local() {
         }),
     };
     // owner=None + not in signal_names → direct assignment
-    generate_statement_tsx(&mut w, &stmt, &FxHashSet::default());
+    generate_statement_tsx(&mut w, &stmt, &FxHashSet::default(), &FxHashSet::default());
     assert_eq!(w.into_string(), "name = \"alice\";\n");
 }
 
@@ -301,7 +301,7 @@ fn test_tsx_stmt_mutation_assign_store() {
         }),
     };
     // owner=Some → always setter call
-    generate_statement_tsx(&mut w, &stmt, &FxHashSet::default());
+    generate_statement_tsx(&mut w, &stmt, &FxHashSet::default(), &FxHashSet::default());
     assert_eq!(w.into_string(), "setName(\"alice\");\n");
 }
 
@@ -325,7 +325,7 @@ fn test_tsx_stmt_if() {
         else_ifs: vec![],
         else_body: None,
     };
-    generate_statement_tsx(&mut w, &stmt, &FxHashSet::default());
+    generate_statement_tsx(&mut w, &stmt, &FxHashSet::default(), &FxHashSet::default());
     let out = w.into_string();
     assert!(out.contains("if (cond) {"));
     assert!(out.contains("const x = 1;"));
@@ -1321,13 +1321,10 @@ component DragRef {
         "JSX should have ref={{boxRef}}. Got:\n{}",
         content
     );
-    // NOTE: Inside function handler bodies, ref names are NOT auto-translated
-    // to Ref.current (codegen limitation - expressions in fn bodies use
-    // ReactFormatExpr which doesn't apply ref name resolution).
-    // The handler references the ref by its original name.
+    // Ref names in function bodies are now translated to nameRef.current (ADR-036)
     assert!(
-        content.contains("box.style.transform"),
-        "Handler body should reference 'box'. Got:\n{}",
+        content.contains("boxRef.current.style.transform"),
+        "Handler body should reference 'boxRef.current'. Got:\n{}",
         content
     );
 }

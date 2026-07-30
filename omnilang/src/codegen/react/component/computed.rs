@@ -16,6 +16,7 @@ pub(super) fn gen_computed_values(
     known_signal_names: &[String],
     signal_names: &FxHashSet<String>,
     store_mode: ReactStoreMode,
+    ref_names: &FxHashSet<String>,
 ) {
     for computed in &comp.computeds {
         let mut deps_list: Vec<&str> = Vec::new();
@@ -46,7 +47,13 @@ pub(super) fn gen_computed_values(
         if let ExprIR::BlockExpr { statements, tail } = &computed.body {
             // Render preceding statements (let declarations, if/return, etc.)
             for stmt in statements {
-                expr::generate_statement_tsx_with_mode(w, stmt, signal_names, store_mode);
+                expr::generate_statement_tsx_with_mode(
+                    w,
+                    stmt,
+                    signal_names,
+                    store_mode,
+                    ref_names,
+                );
             }
             // Render tail as return value if non-null
             // (null tail means the block has explicit return statements)
@@ -56,13 +63,13 @@ pub(super) fn gen_computed_values(
             ) {
                 w.emit_fmt(format_args!(
                     "return {};",
-                    expr::format_expr_ir_tsx(tail, &FxHashSet::default())
+                    expr::format_expr_ir_tsx(tail, ref_names)
                 ));
             }
         } else {
             w.emit_fmt(format_args!(
                 "return {};",
-                expr::format_expr_ir_tsx(&computed.body, &FxHashSet::default())
+                expr::format_expr_ir_tsx(&computed.body, ref_names)
             ));
         }
         w.dedent();

@@ -13,6 +13,7 @@ use super::collect_expr_identifiers;
 
 impl ReactCodegen {
     /// Generate the return (JSX) section of the component function.
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn gen_jsx_return(
         &self,
         w: &mut CodeWriter,
@@ -21,11 +22,19 @@ impl ReactCodegen {
         signal_names: &FxHashSet<String>,
         motion_names: &FxHashSet<String>,
         name: &str,
+        ref_names: &FxHashSet<String>,
     ) {
         w.emit("return (");
         w.indent();
         if let Some(view) = &comp.view {
-            view::gen_view_node_tsx(w, view, component_map, signal_names, motion_names);
+            view::gen_view_node_tsx(
+                w,
+                view,
+                component_map,
+                signal_names,
+                motion_names,
+                ref_names,
+            );
         } else {
             w.emit("<div className={styles.container}>");
             w.indent();

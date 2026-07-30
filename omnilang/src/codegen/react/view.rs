@@ -19,6 +19,7 @@ pub(super) fn gen_view_node_tsx(
     component_map: &FxHashMap<&str, &ComponentIR>,
     signal_names: &FxHashSet<String>,
     motion_names: &FxHashSet<String>,
+    ref_names: &FxHashSet<String>,
 ) {
     match node {
         ViewTree::Element(el) => {
@@ -28,7 +29,14 @@ pub(super) fn gen_view_node_tsx(
                     return;
                 }
                 for child in &el.children {
-                    gen_view_node_tsx(w, child, component_map, signal_names, motion_names);
+                    gen_view_node_tsx(
+                        w,
+                        child,
+                        component_map,
+                        signal_names,
+                        motion_names,
+                        ref_names,
+                    );
                 }
                 return;
             }
@@ -41,7 +49,7 @@ pub(super) fn gen_view_node_tsx(
                 }
                 let mut comp_attrs: Vec<String> = Vec::new();
                 for (prop_name, prop_value) in &el.props {
-                    let js_val = format_expr_ir_tsx(prop_value, &FxHashSet::default());
+                    let js_val = format_expr_ir_tsx(prop_value, ref_names);
                     comp_attrs.push(format!("{}={{{}}}", prop_name, js_val));
                 }
                 for (event_name, handler) in &el.events {
@@ -51,7 +59,8 @@ pub(super) fn gen_view_node_tsx(
                             comp_attrs.push(format!("{}={{{}}}", jsx_event, r#ref));
                         }
                         EventHandlerIR::InlineFn { body, params, .. } => {
-                            let handler_str = format_inline_handler(body, signal_names, params);
+                            let handler_str =
+                                format_inline_handler(body, signal_names, params, ref_names);
                             comp_attrs.push(format!("{}={{{}}}", jsx_event, handler_str));
                         }
                         EventHandlerIR::StoreAction { r#ref, .. } => {
@@ -68,7 +77,14 @@ pub(super) fn gen_view_node_tsx(
                     w.emit_fmt(format_args!("<{} {}>", el.tag, attrs_str));
                     w.indent();
                     for child in &el.children {
-                        gen_view_node_tsx(w, child, component_map, signal_names, motion_names);
+                        gen_view_node_tsx(
+                            w,
+                            child,
+                            component_map,
+                            signal_names,
+                            motion_names,
+                            ref_names,
+                        );
                     }
                     w.dedent();
                     w.emit_fmt(format_args!("</{}>", el.tag));
@@ -132,7 +148,7 @@ pub(super) fn gen_view_node_tsx(
                         }
                     }
                     _ => {
-                        let jsx_val = format_expr_ir_tsx(prop_value, &FxHashSet::default());
+                        let jsx_val = format_expr_ir_tsx(prop_value, ref_names);
                         attrs.push(format!("{}={{{}}}", jsx_attr, jsx_val));
                     }
                 }
@@ -165,14 +181,19 @@ pub(super) fn gen_view_node_tsx(
 
             /// Emit a motion data attribute value. Literal numbers become quoted strings
             /// (parseFloat-compatible); expression values become JSX `{expr}` interpolation.
-            fn emit_motion_data_attr(attrs: &mut Vec<String>, attr_name: &str, expr: &ExprIR) {
+            fn emit_motion_data_attr(
+                attrs: &mut Vec<String>,
+                attr_name: &str,
+                expr: &ExprIR,
+                ref_names: &FxHashSet<String>,
+            ) {
                 match expr {
                     ExprIR::LiteralExpr { value } if value.is_number() => {
                         let s = format_json_value(value, &JSON_REACT);
                         attrs.push(format!("{}=\"{}\"", attr_name, s));
                     }
                     _ => {
-                        let js = format_expr_ir_tsx(expr, &FxHashSet::default());
+                        let js = format_expr_ir_tsx(expr, ref_names);
                         attrs.push(format!("{}={{{}}}", attr_name, js));
                     }
                 }
@@ -206,9 +227,12 @@ pub(super) fn gen_view_node_tsx(
                             .motion_behavior()
                             .and_then(|m| m.in_view_threshold.as_ref())
                         {
-                            Some(expr) => {
-                                emit_motion_data_attr(&mut attrs, "data-inview-threshold", expr)
-                            }
+                            Some(expr) => emit_motion_data_attr(
+                                &mut attrs,
+                                "data-inview-threshold",
+                                expr,
+                                ref_names,
+                            ),
                             None => attrs.push("data-inview-threshold=\"0\"".into()),
                         };
                         attrs.push("data-motion-inview=\"true\"".into());
@@ -229,9 +253,12 @@ pub(super) fn gen_view_node_tsx(
                         attrs.push(format!("data-scroll-start=\"{}\"", scroll_start_str));
                         attrs.push(format!("data-scroll-end=\"{}\"", scroll_end_str));
                         match el.scroll_behavior().and_then(|s| s.scrub.as_ref()) {
-                            Some(expr) => {
-                                emit_motion_data_attr(&mut attrs, "data-scroll-scrub", expr)
-                            }
+                            Some(expr) => emit_motion_data_attr(
+                                &mut attrs,
+                                "data-scroll-scrub",
+                                expr,
+                                ref_names,
+                            ),
                             None => attrs.push("data-scroll-scrub=\"0\"".into()),
                         };
                     }
@@ -245,21 +272,30 @@ pub(super) fn gen_view_node_tsx(
                         attrs.push(format!("data-motion-drag=\"{}\"", axis_str));
                         attrs.push(format!("data-drag-constraints=\"{}\"", constraints_str));
                         match el.drag_behavior().and_then(|d| d.elastic.as_ref()) {
-                            Some(expr) => {
-                                emit_motion_data_attr(&mut attrs, "data-drag-elastic", expr)
-                            }
+                            Some(expr) => emit_motion_data_attr(
+                                &mut attrs,
+                                "data-drag-elastic",
+                                expr,
+                                ref_names,
+                            ),
                             None => attrs.push("data-drag-elastic=\"0\"".into()),
                         };
                         match el.drag_behavior().and_then(|d| d.threshold.as_ref()) {
-                            Some(expr) => {
-                                emit_motion_data_attr(&mut attrs, "data-drag-threshold", expr)
-                            }
+                            Some(expr) => emit_motion_data_attr(
+                                &mut attrs,
+                                "data-drag-threshold",
+                                expr,
+                                ref_names,
+                            ),
                             None => attrs.push("data-drag-threshold=\"0\"".into()),
                         };
                         match el.drag_behavior().and_then(|d| d.velocity_max.as_ref()) {
-                            Some(expr) => {
-                                emit_motion_data_attr(&mut attrs, "data-drag-velocity-max", expr)
-                            }
+                            Some(expr) => emit_motion_data_attr(
+                                &mut attrs,
+                                "data-drag-velocity-max",
+                                expr,
+                                ref_names,
+                            ),
                             None => attrs.push("data-drag-velocity-max=\"2000\"".into()),
                         };
                     }
@@ -329,7 +365,12 @@ pub(super) fn gen_view_node_tsx(
                                     .emit_fmt(format_args!("Object.assign(e, {});", event_obj));
                             }
                             for stmt in &body.statements {
-                                generate_statement_tsx(&mut merged_hw, stmt, signal_names);
+                                generate_statement_tsx(
+                                    &mut merged_hw,
+                                    stmt,
+                                    signal_names,
+                                    ref_names,
+                                );
                             }
                             let content = merged_hw.into_string();
                             let params_str = if params.is_empty() {
@@ -352,7 +393,12 @@ pub(super) fn gen_view_node_tsx(
                                 merged_hw
                                     .emit_fmt(format_args!("Object.assign(e, {});", event_obj));
                                 for stmt in &body.statements {
-                                    generate_statement_tsx(&mut merged_hw, stmt, signal_names);
+                                    generate_statement_tsx(
+                                        &mut merged_hw,
+                                        stmt,
+                                        signal_names,
+                                        ref_names,
+                                    );
                                 }
                                 let content = merged_hw.into_string();
                                 let params_str = if params.is_empty() {
@@ -367,7 +413,8 @@ pub(super) fn gen_view_node_tsx(
                                 result.push_str("      }");
                                 attrs.push(format!("{}={{{}}}", react_event, result));
                             } else {
-                                let handler_str = format_inline_handler(body, signal_names, params);
+                                let handler_str =
+                                    format_inline_handler(body, signal_names, params, ref_names);
                                 attrs.push(format!("{}={{{}}}", react_event, handler_str));
                             }
                         }
@@ -439,7 +486,7 @@ pub(super) fn gen_view_node_tsx(
                             // skip — class not applied
                         }
                         _ => {
-                            let cond = format_expr_ir_tsx(expr, &FxHashSet::default());
+                            let cond = format_expr_ir_tsx(expr, ref_names);
                             dynamic_parts.push(format!("${{{cond} ? styles['{cls}'] : ''}}"));
                         }
                     }
@@ -543,7 +590,14 @@ pub(super) fn gen_view_node_tsx(
             // Children
             w.indent();
             for child in &el.children {
-                gen_view_node_tsx(w, child, component_map, signal_names, motion_names);
+                gen_view_node_tsx(
+                    w,
+                    child,
+                    component_map,
+                    signal_names,
+                    motion_names,
+                    ref_names,
+                );
             }
             w.dedent();
 
@@ -556,7 +610,7 @@ pub(super) fn gen_view_node_tsx(
 
             if branches.is_empty() {
                 if let Some(ref fb) = fallback {
-                    gen_view_node_tsx(w, fb, component_map, signal_names, motion_names);
+                    gen_view_node_tsx(w, fb, component_map, signal_names, motion_names, ref_names);
                 }
                 return;
             }
@@ -565,11 +619,18 @@ pub(super) fn gen_view_node_tsx(
             if branches.len() == 1 && fallback.is_none() {
                 w.emit("{");
                 w.indent();
-                let cond_str = format_expr_ir_tsx(&branches[0].condition, &FxHashSet::default());
+                let cond_str = format_expr_ir_tsx(&branches[0].condition, ref_names);
                 w.emit_fmt(format_args!("{} && (", cond_str));
                 w.indent();
                 if let Some(ref body) = branches[0].body {
-                    gen_view_node_tsx(w, body, component_map, signal_names, motion_names);
+                    gen_view_node_tsx(
+                        w,
+                        body,
+                        component_map,
+                        signal_names,
+                        motion_names,
+                        ref_names,
+                    );
                 }
                 w.dedent();
                 w.emit(")");
@@ -586,11 +647,18 @@ pub(super) fn gen_view_node_tsx(
 
             if let Some((first_branch, rest)) = branches.split_first() {
                 // First branch: `cond ? ( body )`
-                let cond_str = format_expr_ir_tsx(&first_branch.condition, &FxHashSet::default());
+                let cond_str = format_expr_ir_tsx(&first_branch.condition, ref_names);
                 w.emit_fmt(format_args!("{} ? (", cond_str));
                 w.indent();
                 if let Some(ref body) = first_branch.body {
-                    gen_view_node_tsx(w, body, component_map, signal_names, motion_names);
+                    gen_view_node_tsx(
+                        w,
+                        body,
+                        component_map,
+                        signal_names,
+                        motion_names,
+                        ref_names,
+                    );
                 }
                 w.dedent();
 
@@ -598,11 +666,18 @@ pub(super) fn gen_view_node_tsx(
                 for branch in rest {
                     w.emit(") : (");
                     w.indent();
-                    let cond_str = format_expr_ir_tsx(&branch.condition, &FxHashSet::default());
+                    let cond_str = format_expr_ir_tsx(&branch.condition, ref_names);
                     w.emit_fmt(format_args!("{} ? (", cond_str));
                     w.indent();
                     if let Some(ref body) = branch.body {
-                        gen_view_node_tsx(w, body, component_map, signal_names, motion_names);
+                        gen_view_node_tsx(
+                            w,
+                            body,
+                            component_map,
+                            signal_names,
+                            motion_names,
+                            ref_names,
+                        );
                     }
                     w.dedent();
                 }
@@ -611,7 +686,7 @@ pub(super) fn gen_view_node_tsx(
                 if let Some(ref fb) = fallback {
                     w.emit(") : (");
                     w.indent();
-                    gen_view_node_tsx(w, fb, component_map, signal_names, motion_names);
+                    gen_view_node_tsx(w, fb, component_map, signal_names, motion_names, ref_names);
                     w.dedent();
                     w.emit(")");
                 } else {
@@ -623,17 +698,17 @@ pub(super) fn gen_view_node_tsx(
                 }
             } else if let Some(ref fb) = fallback {
                 // No branches, just fallback
-                gen_view_node_tsx(w, fb, component_map, signal_names, motion_names);
+                gen_view_node_tsx(w, fb, component_map, signal_names, motion_names, ref_names);
             }
 
             w.dedent();
             w.emit("}");
         }
         ViewTree::ListRendering(list) => {
-            let iterable_str = format_expr_ir_tsx(&list.iterable, &FxHashSet::default());
+            let iterable_str = format_expr_ir_tsx(&list.iterable, ref_names);
             let item_name = &list.item_binding.name;
             let key_attr = if let Some(ref ke) = list.key_expr {
-                format!(" key={{{}}}", format_expr_ir_tsx(ke, &FxHashSet::default()))
+                format!(" key={{{}}}", format_expr_ir_tsx(ke, ref_names))
             } else {
                 // Use item identity as key to avoid index-as-key anti-pattern
                 format!(" key={{{}}}", item_name)
@@ -647,7 +722,14 @@ pub(super) fn gen_view_node_tsx(
                 ));
                 w.indent();
                 if let Some(ref empty_body) = list.empty_body {
-                    gen_view_node_tsx(w, empty_body, component_map, signal_names, motion_names);
+                    gen_view_node_tsx(
+                        w,
+                        empty_body,
+                        component_map,
+                        signal_names,
+                        motion_names,
+                        ref_names,
+                    );
                 }
                 w.dedent();
                 w.emit_fmt(format_args!(
@@ -666,7 +748,14 @@ pub(super) fn gen_view_node_tsx(
             w.emit_fmt(format_args!("<React.Fragment{}>", key_attr));
             w.indent();
             if let Some(ref body) = list.body {
-                gen_view_node_tsx(w, body, component_map, signal_names, motion_names);
+                gen_view_node_tsx(
+                    w,
+                    body,
+                    component_map,
+                    signal_names,
+                    motion_names,
+                    ref_names,
+                );
             }
             w.dedent();
             w.emit("</React.Fragment>");
@@ -705,12 +794,19 @@ pub(super) fn gen_view_node_tsx(
             }
         }
         ViewTree::Interpolation(expr) => {
-            let js_expr = format_expr_ir_tsx(expr, &FxHashSet::default());
+            let js_expr = format_expr_ir_tsx(expr, ref_names);
             w.emit_fmt(format_args!("{{{}}}", js_expr));
         }
         ViewTree::Fragment(children) => {
             for child in children {
-                gen_view_node_tsx(w, child, component_map, signal_names, motion_names);
+                gen_view_node_tsx(
+                    w,
+                    child,
+                    component_map,
+                    signal_names,
+                    motion_names,
+                    ref_names,
+                );
             }
         }
         ViewTree::Slot(name) => {
@@ -809,11 +905,12 @@ fn format_inline_handler(
     body: &BlockIR,
     signal_names: &FxHashSet<String>,
     params: &[String],
+    ref_names: &FxHashSet<String>,
 ) -> String {
     // Generate the body content first to check which params are actually used
     let mut body_w = CodeWriter::new();
     for stmt in &body.statements {
-        generate_statement_tsx(&mut body_w, stmt, signal_names);
+        generate_statement_tsx(&mut body_w, stmt, signal_names, ref_names);
     }
     let body_content = body_w.into_string();
 
@@ -846,6 +943,6 @@ fn format_inline_handler(
         use_writer: false,
     };
     build_inline_handler(body, &config, |w, s| {
-        generate_statement_tsx(w, s, signal_names)
+        generate_statement_tsx(w, s, signal_names, ref_names)
     })
 }
