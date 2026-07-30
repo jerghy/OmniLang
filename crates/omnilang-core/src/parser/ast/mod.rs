@@ -460,6 +460,14 @@ pub enum ImportStmt {
     Lib(String), // "omniview" — bare import marker
 }
 
+/// Module-level const declaration: `const NAME = <expr>;`
+#[derive(Debug, Clone, Serialize)]
+pub struct ConstDef {
+    pub name: String,
+    pub value: Expr,
+    pub span: Span,
+}
+
 // ── Module & Program ──────────────────────────────────
 
 /// A single source module — corresponds to one .omni file.
@@ -476,6 +484,7 @@ pub struct Module {
     pub imports: Vec<ImportStmt>,
     pub exports: Vec<ExportFrom>,
     pub motions: Vec<MotionDef>,
+    pub consts: Vec<ConstDef>,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]

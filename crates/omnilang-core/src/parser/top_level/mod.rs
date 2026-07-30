@@ -140,25 +140,28 @@ impl<'a> Parser<'a> {
                         }
                     }
                     TokenKind::Const => {
-                        // Parse and discard module-level const declarations.
-                        // const values (e.g., theme constants) are handled via imports.
-                        self.advance();
-                        if *self.peek_kind() == TokenKind::Dollar {
-                            self.advance();
-                            self.expect_ident("expected identifier after $")?;
-                        } else {
-                            self.expect_ident("expected constant name")?;
+                        self.advance(); // 'const'
+                        let has_dollar = *self.peek_kind() == TokenKind::Dollar;
+                        if has_dollar {
+                            self.advance(); // '$'
                         }
+                        let name = self.expect_ident("expected constant name")?;
+                        let full_name = if has_dollar {
+                            format!("${}", name)
+                        } else {
+                            name
+                        };
                         self.expect_token(TokenKind::Eq, "expected '='")?;
-                        // Consume the value expression (literal or array)
-                        if *self.peek_kind() == TokenKind::LBracket {
-                            self.parse_expr()?;
-                        } else {
-                            self.advance();
-                        }
+                        let value = self.parse_expr()?;
+                        let span = self.peek_span();
                         if *self.peek_kind() == TokenKind::Semicolon {
                             self.advance();
                         }
+                        module.consts.push(ConstDef {
+                            name: full_name,
+                            value,
+                            span,
+                        });
                     }
                     _ => {
                         let t = self.advance();

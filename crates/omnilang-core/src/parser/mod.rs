@@ -1380,4 +1380,25 @@ mod roundtrip_tests {
         assert_eq!(module.functions[0].name, "foo");
         assert_eq!(module.functions[1].name, "bar");
     }
+
+    #[test]
+    fn parse_module_level_const() {
+        let src = r##"
+            import omniview;
+            const BRAND = "#6366f1";
+            const SPACING = "16px";
+            component App { view { <div /> } }
+        "##;
+        let tokens = tokenize(src);
+        let (program, _) = parse(tokens, src);
+        let module = program.modules.get("input.omni").expect("should have module");
+        assert_eq!(module.consts.len(), 2);
+        assert_eq!(module.consts[0].name, "BRAND");
+        assert_eq!(module.consts[1].name, "SPACING");
+        // Check values are string literals
+        match &module.consts[0].value {
+            Expr::Literal(Literal::String(s), _) => assert_eq!(s, "#6366f1"),
+            _ => panic!("expected string literal"),
+        }
+    }
 }

@@ -108,6 +108,7 @@ mod tests {
                 designs: vec![],
                 imports: vec![],
                 exports: vec![],
+                consts: vec![],
                 components: vec![ComponentDef {
                     name: "Counter".into(),
                     props: vec![],
@@ -191,6 +192,7 @@ mod tests {
                 designs: vec![],
                 imports: vec![],
                 exports: vec![],
+                consts: vec![],
                 components: vec![ComponentDef {
                     name: "Counter".into(),
                     props: vec![],

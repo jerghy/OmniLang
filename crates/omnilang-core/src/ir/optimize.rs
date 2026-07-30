@@ -9,6 +9,7 @@
 //! removes all subsequent statements in that block. Also recursively cleans
 //! nested blocks inside if/while/for/try-catch statements.
 
+use crate::ir::walk::*;
 use crate::ir::*;
 use rustc_hash::FxHashSet;
 
@@ -34,172 +35,37 @@ fn walk_json_for_signal_refs(value: &serde_json::Value, used: &mut FxHashSet<Str
     }
 }
 
-/// Walk an ExprIR tree and collect all IdentifierExpr names into `used`.
-fn walk_expr_for_idents(expr: &ExprIR, used: &mut FxHashSet<String>) {
-    match expr {
-        ExprIR::IdentifierExpr { name, .. } => {
+/// Collect all IdentifierExpr names from an expression tree.
+fn collect_idents(expr: &ExprIR, used: &mut FxHashSet<String>) {
+    walk::walk_expr(expr, &mut |e| {
+        if let ExprIR::IdentifierExpr { name, .. } = e {
             used.insert(name.clone());
         }
-        ExprIR::FieldAccessExpr { object, .. } => walk_expr_for_idents(object, used),
-        ExprIR::OptionalChainExpr { object, .. } => walk_expr_for_idents(object, used),
-        ExprIR::BinaryOpExpr { left, right, .. } => {
-            walk_expr_for_idents(left, used);
-            walk_expr_for_idents(right, used);
-        }
-        ExprIR::UnaryOpExpr { operand, .. } => walk_expr_for_idents(operand, used),
-        ExprIR::CallExpr { name, args, .. } => {
+    });
+}
+
+/// Collect all IdentifierExpr names from a statement.
+fn collect_idents_from_stmt(stmt: &StatementIR, used: &mut FxHashSet<String>) {
+    walk::walk_stmt(stmt, &mut |e| {
+        if let ExprIR::IdentifierExpr { name, .. } = e {
             used.insert(name.clone());
-            for arg in args {
-                walk_expr_for_idents(arg, used);
-            }
         }
-        ExprIR::MethodCallExpr { object, args, .. } => {
-            walk_expr_for_idents(object, used);
-            for arg in args {
-                walk_expr_for_idents(arg, used);
-            }
-        }
-        ExprIR::TernaryIR {
-            cond,
-            then_expr,
-            else_expr,
-        } => {
-            walk_expr_for_idents(cond, used);
-            walk_expr_for_idents(then_expr, used);
-            walk_expr_for_idents(else_expr, used);
-        }
-        ExprIR::IndexExpr { object, index } => {
-            walk_expr_for_idents(object, used);
-            walk_expr_for_idents(index, used);
-        }
-        ExprIR::ArrayExpr { elements } => {
-            for elem in elements {
-                walk_expr_for_idents(elem, used);
-            }
-        }
-        ExprIR::SpreadExpr { operand } => walk_expr_for_idents(operand, used),
-        ExprIR::StructExpr { fields, .. } => {
-            for (_, field_expr) in fields {
-                walk_expr_for_idents(field_expr, used);
-            }
-        }
-        ExprIR::StoreFieldAccessExpr { call_args, .. } => {
-            for arg in call_args {
-                walk_expr_for_idents(arg, used);
-            }
-        }
-        ExprIR::BlockExpr { statements, tail } => {
-            for stmt in statements {
-                walk_stmt_for_idents(stmt, used);
-            }
-            walk_expr_for_idents(tail, used);
-        }
-        ExprIR::ClosureExpr { body, .. } => walk_expr_for_idents(body, used),
-        ExprIR::AwaitExpr { operand } => walk_expr_for_idents(operand, used),
-        ExprIR::VariantLiteral { fields, .. } => {
-            for (_, field_expr) in fields {
-                walk_expr_for_idents(field_expr, used);
-            }
-        }
-        ExprIR::MatchExpr { matched, arms } => {
-            walk_expr_for_idents(matched, used);
-            for arm in arms {
-                walk_block_for_idents(&arm.body, used);
-            }
-        }
-        ExprIR::MapExpr { entries } => {
-            for (key, value) in entries {
-                walk_expr_for_idents(key, used);
-                walk_expr_for_idents(value, used);
-            }
-        }
-        // Literals contain no identifiers
-        ExprIR::LiteralExpr { .. } => {}
-    }
+    });
 }
 
-/// Walk a single StatementIR and collect all identifier names.
-fn walk_stmt_for_idents(stmt: &StatementIR, used: &mut FxHashSet<String>) {
-    match stmt {
-        StatementIR::ExprStmtIR { expr } => walk_expr_for_idents(expr, used),
-        StatementIR::LetStmtIR { value, .. } => {
-            if let Some(v) = value {
-                walk_expr_for_idents(v, used);
-            }
-        }
-        StatementIR::ReturnStmtIR { value } => {
-            if let Some(v) = value {
-                walk_expr_for_idents(v, used);
-            }
-        }
-        StatementIR::IfStmtIR {
-            condition,
-            then_body,
-            else_ifs,
-            else_body,
-        } => {
-            walk_expr_for_idents(condition, used);
-            walk_block_for_idents(then_body, used);
-            for (cond, body) in else_ifs {
-                walk_expr_for_idents(cond, used);
-                walk_block_for_idents(body, used);
-            }
-            if let Some(b) = else_body {
-                walk_block_for_idents(b, used);
-            }
-        }
-        StatementIR::MutationStmt { intent } => {
-            if let Some(intent) = intent {
-                walk_mutation_intent(intent, used);
-            }
-        }
-        StatementIR::EventEmitStmtIR { args, .. } => {
-            for arg in args {
-                walk_expr_for_idents(arg, used);
-            }
-        }
-        StatementIR::BlockStmtIR { body } => walk_block_for_idents(body, used),
-        StatementIR::WhileStmtIR { condition, body } => {
-            walk_expr_for_idents(condition, used);
-            walk_block_for_idents(body, used);
-        }
-        StatementIR::ForInStmtIR { iterable, body, .. } => {
-            walk_expr_for_idents(iterable, used);
-            walk_block_for_idents(body, used);
-        }
-        StatementIR::ThrowStmtIR { expr } => walk_expr_for_idents(expr, used),
-        StatementIR::TryCatchStmtIR {
-            try_body,
-            catch_body,
-            finally_body,
-            ..
-        } => {
-            walk_block_for_idents(try_body, used);
-            if let Some(b) = catch_body {
-                walk_block_for_idents(b, used);
-            }
-            if let Some(b) = finally_body {
-                walk_block_for_idents(b, used);
-            }
-        }
-        // Break and continue have no expressions
-        StatementIR::BreakStmtIR | StatementIR::ContinueStmtIR => {}
-    }
-}
-
-/// Walk a BlockIR and collect all identifier names.
-fn walk_block_for_idents(block: &BlockIR, used: &mut FxHashSet<String>) {
+/// Collect all IdentifierExpr names from a block.
+fn collect_idents_from_block(block: &BlockIR, used: &mut FxHashSet<String>) {
     for stmt in &block.statements {
-        walk_stmt_for_idents(stmt, used);
+        collect_idents_from_stmt(stmt, used);
     }
 }
 
 /// Walk a MutationIntent and collect all identifier names from expressions it wraps.
-fn walk_mutation_intent(intent: &MutationIntent, used: &mut FxHashSet<String>) {
+fn collect_idents_from_mutation(intent: &MutationIntent, used: &mut FxHashSet<String>) {
     match intent {
         MutationIntent::DirectAssign { value, .. } => {
             if let Some(v) = value {
-                walk_expr_for_idents(v, used);
+                collect_idents(v, used);
             }
         }
         MutationIntent::Increment { amount, .. }
@@ -208,144 +74,135 @@ fn walk_mutation_intent(intent: &MutationIntent, used: &mut FxHashSet<String>) {
         | MutationIntent::Divide { amount, .. }
         | MutationIntent::Modulo { amount, .. } => {
             if let Some(v) = amount {
-                walk_expr_for_idents(v, used);
+                collect_idents(v, used);
             }
         }
         MutationIntent::Push { item, .. } => {
             if let Some(v) = item {
-                walk_expr_for_idents(v, used);
+                collect_idents(v, used);
             }
         }
         MutationIntent::Pop { .. } => {}
     }
 }
 
-/// Walk a ViewTree and collect all identifier names.
-fn walk_view_for_idents(view: &ViewTree, used: &mut FxHashSet<String>) {
-    match view {
-        ViewTree::Element(el) => {
-            // Element bindings reference signals by name (e.g. in React codegen)
-            for binding in el.bindings.values() {
-                used.insert(binding.name.clone());
-            }
-            // Props are full expressions
-            for prop in el.props.values() {
-                walk_expr_for_idents(prop, used);
-            }
-            // Class map bindings are expressions
-            for expr in el.class_map_bindings.values() {
-                walk_expr_for_idents(expr, used);
-            }
-            // Event handlers — walk inline function bodies
-            for handler in el.events.values() {
-                match handler {
-                    EventHandlerIR::InlineFn { body, .. } => {
-                        walk_block_for_idents(body, used);
-                    }
-                    EventHandlerIR::FnRef { .. } | EventHandlerIR::StoreAction { .. } => {}
-                }
-            }
-            // Walk inline style — may contain $signal references to computed properties
-            if let Some(ref inline_style) = el.inline_style {
-                walk_json_for_signal_refs(inline_style, used);
-            }
-
-            // Recurse into child view trees
-            for child in &el.children {
-                walk_view_for_idents(child, used);
-            }
-
-            // Walk element-level behavior fields that can reference computed properties
-            if let Some(ref motion) = el.motion {
-                // Direct ExprIR fields on MotionBehavior
-                if let Some(ref expr) = motion.paused_override {
-                    walk_expr_for_idents(expr, used);
-                }
-                if let Some(ref expr) = motion.in_view_once {
-                    walk_expr_for_idents(expr, used);
-                }
-                if let Some(ref expr) = motion.in_view_repeat {
-                    walk_expr_for_idents(expr, used);
-                }
-                if let Some(ref expr) = motion.in_view_threshold {
-                    walk_expr_for_idents(expr, used);
-                }
-                // Triggers on MotionBehavior
-                for trigger in &motion.triggers {
-                    if let Some(ref body) = trigger.inline_motion {
-                        walk_motion_body(body, used);
-                    }
-                }
-            }
-            if let Some(ref scroll) = el.scroll {
-                if let Some(ref expr) = scroll.scrub {
-                    walk_expr_for_idents(expr, used);
-                }
-            }
-            if let Some(ref drag) = el.drag {
-                if let Some(ref expr) = drag.elastic {
-                    walk_expr_for_idents(expr, used);
-                }
-                if let Some(ref expr) = drag.threshold {
-                    walk_expr_for_idents(expr, used);
-                }
-                if let Some(ref expr) = drag.velocity_max {
-                    walk_expr_for_idents(expr, used);
-                }
-            }
-        }
-        ViewTree::Interpolation(expr) => walk_expr_for_idents(expr, used),
-        ViewTree::ListRendering(lr) => {
-            walk_expr_for_idents(&lr.iterable, used);
-            if let Some(ref body) = lr.body {
-                walk_view_for_idents(body, used);
-            }
-            if let Some(ref key) = lr.key_expr {
-                walk_expr_for_idents(key, used);
-            }
-            if let Some(ref empty) = lr.empty_body {
-                walk_view_for_idents(empty, used);
-            }
-        }
-        ViewTree::Conditional(cond) => {
-            for branch in &cond.branches {
-                walk_expr_for_idents(&branch.condition, used);
-                if let Some(ref body) = branch.body {
-                    walk_view_for_idents(body, used);
-                }
-            }
-            if let Some(ref fallback) = cond.fallback {
-                walk_view_for_idents(fallback, used);
-            }
-        }
-        ViewTree::Fragment(children) => {
-            for child in children {
-                walk_view_for_idents(child, used);
-            }
-        }
-        ViewTree::Text(_) | ViewTree::Slot(_) => {}
-    }
-}
-
 /// Walk PlaybackIR ExprIR fields and collect all identifier names.
-fn walk_playback(pb: &PlaybackIR, used: &mut FxHashSet<String>) {
+fn collect_idents_from_playback(pb: &PlaybackIR, used: &mut FxHashSet<String>) {
     if let Some(ref expr) = pb.delay {
-        walk_expr_for_idents(expr, used);
+        collect_idents(expr, used);
     }
 }
 
 /// Walk a MotionBodyIR and collect all identifier names from ExprIR fields.
-fn walk_motion_body(body: &MotionBodyIR, used: &mut FxHashSet<String>) {
-    match body {
-        kf => {
-            walk_expr_for_idents(&kf.over, used);
-            for stop in &kf.stops {
-                for expr in stop.properties.values() {
-                    walk_expr_for_idents(expr, used);
+fn collect_idents_from_motion_body(body: &MotionBodyIR, used: &mut FxHashSet<String>) {
+    let kf = body;
+    collect_idents(&kf.over, used);
+    for stop in &kf.stops {
+        for expr in stop.properties.values() {
+            collect_idents(expr, used);
+        }
+    }
+    collect_idents_from_playback(&kf.playback, used);
+}
+
+/// Collect all identifier names from a view tree.
+/// Uses `walk_view` for element iteration and handles non-element expressions
+/// (Interpolation, ListRendering, Conditional) via direct traversal.
+fn collect_idents_from_view(view: &ViewTree, used: &mut FxHashSet<String>) {
+    // Walk elements via the shared walker
+    walk::walk_view(view, &mut |el| {
+        // Element bindings reference signals by name (e.g. in React codegen)
+        for binding in el.bindings.values() {
+            used.insert(binding.name.clone());
+        }
+        // Props are full expressions
+        for prop in el.props.values() {
+            collect_idents(prop, used);
+        }
+        // Class map bindings are expressions
+        for expr in el.class_map_bindings.values() {
+            collect_idents(expr, used);
+        }
+        // Event handlers — walk inline function bodies
+        for handler in el.events.values() {
+            if let EventHandlerIR::InlineFn { body, .. } = handler {
+                collect_idents_from_block(body, used);
+            }
+        }
+        // Walk inline style — may contain $signal references to computed properties
+        if let Some(ref inline_style) = el.inline_style {
+            walk_json_for_signal_refs(inline_style, used);
+        }
+        // Walk element-level behavior fields that can reference computed properties
+        if let Some(ref motion) = el.motion {
+            if let Some(ref expr) = motion.paused_override {
+                collect_idents(expr, used);
+            }
+            if let Some(ref expr) = motion.in_view_once {
+                collect_idents(expr, used);
+            }
+            if let Some(ref expr) = motion.in_view_repeat {
+                collect_idents(expr, used);
+            }
+            if let Some(ref expr) = motion.in_view_threshold {
+                collect_idents(expr, used);
+            }
+            for trigger in &motion.triggers {
+                if let Some(ref body) = trigger.inline_motion {
+                    collect_idents_from_motion_body(body, used);
                 }
             }
-            walk_playback(&kf.playback, used);
         }
+        if let Some(ref scroll) = el.scroll {
+            if let Some(ref expr) = scroll.scrub {
+                collect_idents(expr, used);
+            }
+        }
+        if let Some(ref drag) = el.drag {
+            if let Some(ref expr) = drag.elastic {
+                collect_idents(expr, used);
+            }
+            if let Some(ref expr) = drag.threshold {
+                collect_idents(expr, used);
+            }
+            if let Some(ref expr) = drag.velocity_max {
+                collect_idents(expr, used);
+            }
+        }
+    });
+
+    // Collect identifiers from non-element expressions in the view tree
+    // (walk_view only visits ElementIR nodes)
+    collect_idents_from_view_exprs(view, used);
+}
+
+/// Collect identifiers from expression-only view nodes (Interpolation, ListRendering,
+/// Conditional conditions) that are not covered by `walk_view`.
+fn collect_idents_from_view_exprs(view: &ViewTree, used: &mut FxHashSet<String>) {
+    match view {
+        ViewTree::Interpolation(expr) => collect_idents(expr, used),
+        ViewTree::ListRendering(lr) => {
+            collect_idents(&lr.iterable, used);
+            if let Some(ref key) = lr.key_expr {
+                collect_idents(key, used);
+            }
+        }
+        ViewTree::Conditional(cond) => {
+            for branch in &cond.branches {
+                collect_idents(&branch.condition, used);
+            }
+        }
+        ViewTree::Fragment(children) => {
+            for child in children {
+                collect_idents_from_view_exprs(child, used);
+            }
+        }
+        ViewTree::Element(el) => {
+            for child in &el.children {
+                collect_idents_from_view_exprs(child, used);
+            }
+        }
+        ViewTree::Text(_) | ViewTree::Slot(_) => {}
     }
 }
 
@@ -356,28 +213,28 @@ pub fn eliminate_dead_computeds(comp: &mut ComponentIR) {
 
     // Walk all known reference sites within the component
     for f in &comp.fns {
-        walk_block_for_idents(&f.body, &mut used);
+        collect_idents_from_block(&f.body, &mut used);
     }
     for e in &comp.effects {
-        walk_block_for_idents(&e.body, &mut used);
+        collect_idents_from_block(&e.body, &mut used);
     }
     for lc in &comp.lifecycles {
-        walk_block_for_idents(&lc.body, &mut used);
+        collect_idents_from_block(&lc.body, &mut used);
     }
     for c in &comp.computeds {
-        walk_expr_for_idents(&c.body, &mut used);
+        collect_idents(&c.body, &mut used);
     }
     if let Some(ref view) = comp.view {
-        walk_view_for_idents(view, &mut used);
+        collect_idents_from_view(view, &mut used);
     }
 
     // Walk component-level fields that can reference computed properties
     for expr in comp.prop_defaults.values() {
-        walk_expr_for_idents(expr, &mut used);
+        collect_idents(expr, &mut used);
     }
     for style in &comp.styles {
         for expr in style.properties.values() {
-            walk_expr_for_idents(expr, &mut used);
+            collect_idents(expr, &mut used);
         }
     }
     // motions and timelines are now canonical in ModuleIR, not ComponentIR

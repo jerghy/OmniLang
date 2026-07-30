@@ -12,6 +12,7 @@ mod signals;
 mod types;
 mod types_motion;
 pub mod visibility;
+pub mod walk;
 
 pub use lower::lower;
 pub use lower::lower_design;

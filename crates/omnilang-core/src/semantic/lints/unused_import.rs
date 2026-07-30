@@ -154,6 +154,7 @@ mod tests {
                     },
                 })],
                 exports: vec![],
+                consts: vec![],
             },
         );
         let program = Program { modules };
@@ -231,6 +232,7 @@ mod tests {
                     },
                 })],
                 exports: vec![],
+                consts: vec![],
             },
         );
         let program = Program { modules };
