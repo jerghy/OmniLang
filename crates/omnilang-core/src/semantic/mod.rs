@@ -25,7 +25,7 @@ use rustc_hash::FxHashMap;
 use symbols::*;
 
 /// Result of semantic analysis — always returned (diagnostics may contain errors/warnings).
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct SemanticResult {
     pub symbols: SymbolTable,
     pub dependencies: FxHashMap<String, Vec<String>>,

@@ -208,7 +208,7 @@ pub fn lower(
         let designs: Vec<super::DesignIR> = module
             .designs
             .iter()
-            .map(|d| lower_design_with_consts(d, &const_values))
+            .map(|d| lower_design_with_consts(d, &const_values, &variant_map, semantics))
             .collect();
 
         let module_ir = ModuleIR {

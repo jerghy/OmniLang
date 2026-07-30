@@ -7,13 +7,17 @@
 //! - Variant lowering: base properties + branch properties with token resolution
 
 use crate::ir::design::*;
+use crate::ir::lower::expr::lower_expr;
 use crate::parser::ast::design::*;
+use crate::semantic::SemanticResult;
 use rustc_hash::FxHashMap;
 /// Lower a parsed `design` block AST into a `DesignIR`,
 /// using an empty const_values map (backward-compatible wrapper).
 pub fn lower_design(ast: &DesignDef) -> DesignIR {
     let const_values = FxHashMap::default();
-    lower_design_with_consts(ast, &const_values)
+    let variant_map = FxHashMap::default();
+    let mut semantics = SemanticResult::default();
+    lower_design_with_consts(ast, &const_values, &variant_map, &mut semantics)
 }
 
 /// Lower a parsed `design` block AST into a `DesignIR`,
@@ -22,6 +26,8 @@ pub fn lower_design(ast: &DesignDef) -> DesignIR {
 pub fn lower_design_with_consts(
     ast: &DesignDef,
     const_values: &FxHashMap<String, String>,
+    variant_map: &FxHashMap<String, String>,
+    semantics: &mut SemanticResult,
 ) -> DesignIR {
     let tokens: FxHashMap<String, TokenIR> = ast
         .tokens
@@ -42,11 +48,11 @@ pub fn lower_design_with_consts(
                 TokenType::Opacity => TokenTypeIR::Opacity,
                 TokenType::ZIndex => TokenTypeIR::ZIndex,
             };
-            let resolved_value = resolve_token_value_ir(&t.value, const_values);
+            let resolved_value = resolve_token_value_ir(&t.value, const_values, variant_map, semantics);
             let theme_values: FxHashMap<String, TokenValueIR> = t
                 .theme_values
                 .iter()
-                .map(|(theme, val)| (theme.clone(), resolve_token_value_ir(val, const_values)))
+                .map(|(theme, val)| (theme.clone(), resolve_token_value_ir(val, const_values, variant_map, semantics)))
                 .collect();
             (
                 t.name.clone(),
@@ -87,6 +93,8 @@ pub fn lower_design_with_consts(
 fn resolve_token_value_ir(
     value: &TokenValue,
     const_values: &FxHashMap<String, String>,
+    variant_map: &FxHashMap<String, String>,
+    semantics: &mut SemanticResult,
 ) -> TokenValueIR {
     match value {
         TokenValue::Literal(s) => TokenValueIR::Static(s.clone()),
@@ -98,10 +106,10 @@ fn resolve_token_value_ir(
                 TokenValueIR::Static(format!("var(--{})", name))
             }
         }
-        TokenValue::Expression(_expr) => {
-            // Phase 2: will be implemented in Task 5 (needs LowerContext)
-            // For now, placeholder — static empty string
-            TokenValueIR::Static(String::new())
+        TokenValue::Expression(expr) => {
+            // Phase 2: Lower the AST expression to ExprIR using the standard pipeline
+            let expr_ir = lower_expr(expr, variant_map, None, semantics);
+            TokenValueIR::Dynamic(expr_ir)
         }
     }
 }
@@ -109,8 +117,14 @@ fn resolve_token_value_ir(
 /// Resolve a `TokenValue` to a CSS string using the compile-time constant map.
 /// Convenience wrapper for places that still need a plain string (e.g. class
 /// / variant property resolution where dynamic expressions are Phase 2+).
-fn resolve_token_value(value: &TokenValue, const_values: &FxHashMap<String, String>) -> String {
-    match resolve_token_value_ir(value, const_values) {
+#[allow(dead_code)]
+fn resolve_token_value(
+    value: &TokenValue,
+    const_values: &FxHashMap<String, String>,
+    variant_map: &FxHashMap<String, String>,
+    semantics: &mut SemanticResult,
+) -> String {
+    match resolve_token_value_ir(value, const_values, variant_map, semantics) {
         TokenValueIR::Static(s) => s,
         TokenValueIR::Dynamic(_) => String::new(),
     }
@@ -362,6 +376,8 @@ fn check_value_tokens(
 mod tests {
     use super::*;
     use crate::lexer::tokenize;
+    use crate::lexer::Span;
+    use crate::parser::ast::Expr;
     use crate::parser::parse;
 
     /// Helper: parse a design block from source and lower it.
@@ -377,7 +393,9 @@ mod tests {
             .first()
             .expect("should have at least one design");
         let const_values = FxHashMap::default(); // no consts in test helper
-        lower_design_with_consts(ast, &const_values)
+        let variant_map = FxHashMap::default();
+        let mut semantics = SemanticResult::default();
+        lower_design_with_consts(ast, &const_values, &variant_map, &mut semantics)
     }
 
     #[test]
@@ -605,7 +623,9 @@ mod tests {
             variants: vec![],
         };
 
-        let design = lower_design_with_consts(&design_def, &const_values);
+        let variant_map = FxHashMap::default();
+        let mut semantics = SemanticResult::default();
+        let design = lower_design_with_consts(&design_def, &const_values, &variant_map, &mut semantics);
         let primary = design.tokens.get("primary").expect("should have primary");
         assert!(matches!(primary.value, TokenValueIR::Static(ref s) if s == "#6366f1"));
         assert!(primary.theme_values.is_empty());
@@ -629,8 +649,79 @@ mod tests {
             variants: vec![],
         };
 
-        let design = lower_design_with_consts(&design_def, &const_values);
+        let variant_map = FxHashMap::default();
+        let mut semantics = SemanticResult::default();
+        let design = lower_design_with_consts(&design_def, &const_values, &variant_map, &mut semantics);
         let primary = design.tokens.get("primary").expect("should have primary");
         assert!(matches!(primary.value, TokenValueIR::Static(ref s) if s == "var(--UNKNOWN)"));
+    }
+
+    #[test]
+    fn lower_expression_token_value_to_dynamic() {
+        let design_def = DesignDef {
+            name: "Test".to_string(),
+            themes: vec![],
+            default_theme: None,
+            tokens: vec![TokenDef {
+                name: "primary".to_string(),
+                token_type: TokenType::Color,
+                value: TokenValue::Expression(Expr::FieldAccess {
+                    object: Box::new(Expr::VarRef(
+                        "ThemeStore".to_string(),
+                        Span {
+                            start: 0,
+                            end: 0,
+                            line: 0,
+                            col: 0,
+                        },
+                    )),
+                    field: "primaryColor".to_string(),
+                    span: Span {
+                        start: 0,
+                        end: 0,
+                        line: 0,
+                        col: 0,
+                    },
+                }),
+                theme_values: vec![],
+            }],
+            classes: vec![],
+            variants: vec![],
+        };
+
+        let const_values = FxHashMap::default();
+        let variant_map = FxHashMap::default();
+        let mut semantics = SemanticResult::default();
+        let design =
+            lower_design_with_consts(&design_def, &const_values, &variant_map, &mut semantics);
+
+        let primary = design.tokens.get("primary").expect("should have primary");
+        assert!(matches!(primary.value, TokenValueIR::Dynamic(_)));
+    }
+
+    #[test]
+    fn lower_static_token_still_works() {
+        let design_def = DesignDef {
+            name: "Test".to_string(),
+            themes: vec![],
+            default_theme: None,
+            tokens: vec![TokenDef {
+                name: "spacing".to_string(),
+                token_type: TokenType::Size,
+                value: TokenValue::Literal("16px".to_string()),
+                theme_values: vec![],
+            }],
+            classes: vec![],
+            variants: vec![],
+        };
+
+        let const_values = FxHashMap::default();
+        let variant_map = FxHashMap::default();
+        let mut semantics = SemanticResult::default();
+        let design =
+            lower_design_with_consts(&design_def, &const_values, &variant_map, &mut semantics);
+
+        let spacing = design.tokens.get("spacing").expect("should have spacing");
+        assert!(matches!(spacing.value, TokenValueIR::Static(ref s) if s == "16px"));
     }
 }
