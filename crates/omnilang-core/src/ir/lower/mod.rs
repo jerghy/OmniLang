@@ -13,6 +13,7 @@ mod view;
 
 pub(crate) use component::*;
 pub use design::lower_design;
+pub use design::lower_design_with_consts;
 #[allow(unused_imports)]
 pub(super) use motion::*;
 pub(crate) use stmt::*;
@@ -46,6 +47,18 @@ pub fn lower(program: &Program, semantics: &mut SemanticResult) -> IRProgram {
         for tu in &module.tagged_unions {
             for variant in &tu.variants {
                 variant_map.insert(variant.name.clone(), tu.name.clone());
+            }
+        }
+    }
+
+    // Build const → value map for design token compile-time resolution
+    let mut const_values: FxHashMap<String, String> = FxHashMap::default();
+    for module in program.modules.values() {
+        for const_def in &module.consts {
+            if let crate::parser::ast::Expr::Literal(crate::parser::ast::Literal::String(s), _) =
+                &const_def.value
+            {
+                const_values.insert(const_def.name.clone(), s.clone());
             }
         }
     }
@@ -177,7 +190,11 @@ pub fn lower(program: &Program, semantics: &mut SemanticResult) -> IRProgram {
             }
         }
 
-        let designs: Vec<super::DesignIR> = module.designs.iter().map(lower_design).collect();
+        let designs: Vec<super::DesignIR> = module
+    .designs
+    .iter()
+    .map(|d| lower_design_with_consts(d, &const_values))
+    .collect();
 
         let module_ir = ModuleIR {
             name: module_name.clone(),

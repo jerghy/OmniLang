@@ -9,14 +9,20 @@
 use crate::ir::design::*;
 use crate::parser::ast::design::*;
 use rustc_hash::FxHashMap;
-/// Lower a parsed `design` block AST into a `DesignIR`.
-///
-/// This function performs:
-/// 1. Token collection — maps token names to their `TokenIR` values
-/// 2. Class lowering — resolves `token(...)` references in class properties
-/// 3. Variant lowering — resolves `token(...)` references in variant properties
+/// Lower a parsed `design` block AST into a `DesignIR`,
+/// using an empty const_values map (backward-compatible wrapper).
 pub fn lower_design(ast: &DesignDef) -> DesignIR {
-    // ── Step 1: Collect tokens ──
+    let const_values = FxHashMap::default();
+    lower_design_with_consts(ast, &const_values)
+}
+
+/// Lower a parsed `design` block AST into a `DesignIR`,
+/// resolving `TokenValue::Variable` references using the compile-time
+/// constant value map. Falls back to `var(--name)` if unresolved.
+pub fn lower_design_with_consts(
+    ast: &DesignDef,
+    const_values: &FxHashMap<String, String>,
+) -> DesignIR {
     let tokens: FxHashMap<String, TokenIR> = ast
         .tokens
         .iter()
@@ -36,23 +42,16 @@ pub fn lower_design(ast: &DesignDef) -> DesignIR {
                 TokenType::Opacity => TokenTypeIR::Opacity,
                 TokenType::ZIndex => TokenTypeIR::ZIndex,
             };
-            // Convert per-theme value overrides from Vec<(String, TokenValue)> to FxHashMap
-            let theme_values: FxHashMap<String, String> = t.theme_values.iter()
-                .map(|(k, v)| {
-                    let val = match v {
-                        TokenValue::Literal(s) => s.clone(),
-                        TokenValue::Variable(name) => format!("var(--{})", name),
-                    };
-                    (k.clone(), val)
-                })
+            let resolved_value = resolve_token_value(&t.value, const_values);
+            let theme_values: FxHashMap<String, String> = t
+                .theme_values
+                .iter()
+                .map(|(theme, val)| (theme.clone(), resolve_token_value(val, const_values)))
                 .collect();
             (
                 t.name.clone(),
                 TokenIR {
-                    value: match &t.value {
-                        TokenValue::Literal(s) => s.clone(),
-                        TokenValue::Variable(name) => format!("var(--{})", name),
-                    },
+                    value: resolved_value,
                     token_type,
                     theme_values,
                     source_span: None,
@@ -61,19 +60,8 @@ pub fn lower_design(ast: &DesignDef) -> DesignIR {
         })
         .collect();
 
-    // ── Step 2: Lower classes ──
-    let classes: Vec<ClassIR> = ast
-        .classes
-        .iter()
-        .map(|c| lower_class(c, &tokens))
-        .collect();
-
-    // ── Step 3: Lower variants ──
-    let variants: Vec<VariantIR> = ast
-        .variants
-        .iter()
-        .map(|v| lower_variant(v, &tokens))
-        .collect();
+    let classes: Vec<ClassIR> = ast.classes.iter().map(|c| lower_class(c, &tokens)).collect();
+    let variants: Vec<VariantIR> = ast.variants.iter().map(|v| lower_variant(v, &tokens)).collect();
 
     DesignIR {
         name: ast.name.clone(),
@@ -83,6 +71,20 @@ pub fn lower_design(ast: &DesignDef) -> DesignIR {
         classes,
         variants,
         source_span: None,
+    }
+}
+
+/// Resolve a `TokenValue` to a CSS string using the compile-time constant map.
+fn resolve_token_value(value: &TokenValue, const_values: &FxHashMap<String, String>) -> String {
+    match value {
+        TokenValue::Literal(s) => s.clone(),
+        TokenValue::Variable(name) => {
+            if let Some(resolved) = const_values.get(name) {
+                resolved.clone()
+            } else {
+                format!("var(--{})", name)
+            }
+        }
     }
 }
 
@@ -346,7 +348,8 @@ mod tests {
             .designs
             .first()
             .expect("should have at least one design");
-        lower_design(ast)
+        let const_values = FxHashMap::default(); // no consts in test helper
+        lower_design_with_consts(ast, &const_values)
     }
 
     #[test]
@@ -550,5 +553,53 @@ mod tests {
         let errors = validate_design(&ast);
         // No @themes declared, so theme_values with undeclared themes are not validated
         assert!(errors.is_empty(), "no themes = skip theme validation");
+    }
+
+    #[test]
+    fn lower_design_resolves_const_reference() {
+        let mut const_values = FxHashMap::default();
+        const_values.insert("BRAND".to_string(), "#6366f1".to_string());
+
+        let design_def = DesignDef {
+            name: "Test".to_string(),
+            themes: vec![],
+            default_theme: None,
+            tokens: vec![TokenDef {
+                name: "primary".to_string(),
+                token_type: TokenType::Color,
+                value: TokenValue::Variable("BRAND".to_string()),
+                theme_values: vec![],
+            }],
+            classes: vec![],
+            variants: vec![],
+        };
+
+        let design = lower_design_with_consts(&design_def, &const_values);
+        let primary = design.tokens.get("primary").expect("should have primary");
+        assert_eq!(primary.value, "#6366f1");
+        assert!(primary.theme_values.is_empty());
+    }
+
+    #[test]
+    fn lower_design_variable_fallback_to_var() {
+        let const_values = FxHashMap::default(); // empty — nothing defined
+
+        let design_def = DesignDef {
+            name: "Test".to_string(),
+            themes: vec![],
+            default_theme: None,
+            tokens: vec![TokenDef {
+                name: "primary".to_string(),
+                token_type: TokenType::Color,
+                value: TokenValue::Variable("UNKNOWN".to_string()),
+                theme_values: vec![],
+            }],
+            classes: vec![],
+            variants: vec![],
+        };
+
+        let design = lower_design_with_consts(&design_def, &const_values);
+        let primary = design.tokens.get("primary").expect("should have primary");
+        assert_eq!(primary.value, "var(--UNKNOWN)");
     }
 }
