@@ -110,7 +110,7 @@ impl OmniViewGenerator {
                         let prefixed = format!("{}_{}", child_comp.name, f.name);
                         self.scope.name_renames.insert(f.name.clone(), prefixed);
                     }
-                    for prop_name in child_comp.prop_defaults.keys() {
+                    for (prop_name, default_value) in &child_comp.prop_defaults {
                         // Use per-instance signal names (based on nid) so that
                         // multiple instances of the same component each have
                         // their own prop storage. Without this, all instances
@@ -122,9 +122,7 @@ impl OmniViewGenerator {
                         // the child's view effects (which reference e.g.
                         // Comp_prop_nid.value) don't hit the JS temporal dead zone.
                         let prefixed = format!("{}_{}_{}", child_comp.name, prop_name, nid.replace("-", "_"));
-                        let default_js = self.expr_to_js(
-                            child_comp.prop_defaults.get(prop_name).unwrap()
-                        );
+                        let default_js = self.expr_to_js(default_value);
                         let _ = writeln!(
                             self.js,
                             "const {} = __omni_signal(\"{}\", {});",
