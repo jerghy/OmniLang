@@ -105,10 +105,15 @@ impl ReactCodegen {
                     }
                 }
                 LifecycleKind::Unmount => {
+                    let body_has_await = lc.body.statements.iter().any(stmt_contains_await);
                     w.emit("useEffect(() => {");
                     w.indent();
                     w.emit("return () => {");
                     w.indent();
+                    if body_has_await {
+                        w.emit("(async () => {");
+                        w.indent();
+                    }
                     for stmt in &lc.body.statements {
                         expr::generate_statement_tsx_with_mode(
                             &mut *w,
@@ -116,6 +121,10 @@ impl ReactCodegen {
                             signal_names,
                             self.store_mode,
                         );
+                    }
+                    if body_has_await {
+                        w.dedent();
+                        w.emit("})();");
                     }
                     w.dedent();
                     w.emit("};");
