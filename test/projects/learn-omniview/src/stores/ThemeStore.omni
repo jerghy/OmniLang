@@ -1,47 +1,48 @@
 // ╔══════════════════════════════════════════════════════════════╗
-// ║  ThemeStore.omni —— 主题状态管理                              ║
+// ║  ThemeStore.omni —— 多主题状态管理 (4 themes)                  ║
 // ║                                                              ║
-// ║  颜色值来自 design.omni 的 @themes 声明的主题令牌，            ║
-// ║  通过 CSS 变量自动切换，不需要在此维护颜色 getter。             ║
-// ║  本 store 仅管理 mode 标签和 toggleCount 用于 UI 显示。       ║
+// ║  支持 light / dark / sepia / highContrast 四个主题。           ║
+// ║  颜色值来自 design.omni 的 @themes 声明，通过 CSS 变量        ║
+// ║  (var(--surface)) 自动切换，不在 store 中维护颜色 getter。    ║
+// ║  本 store 仅管理 mode 信号和切换计数。                        ║
+// ║                                                              ║
+// ║  ADR-044 自动同步 mode ↔ __omni_theme.set() 到 data-theme。  ║
 // ╚══════════════════════════════════════════════════════════════╝
 
 import omniview;
 
 store ThemeStore {
-    // 当前主题模式："light" 或 "dark"
+    // 当前主题模式："light" / "dark" / "sepia" / "highContrast"
     signal mode: String = "light";
 
     // 切换次数追踪
     signal toggleCount: i32 = 0;
 
-    // getter: 模式标签
-    getter modeLabel: String = if mode == "dark" { "Dark" } else { "Light" };
+    // getter: 当前主题的显示标签
+    getter modeLabel: String =
+        if mode == "light" { "☀️ Light" }
+        else if mode == "dark" { "🌙 Dark" }
+        else if mode == "sepia" { "📜 Sepia" }
+        else { "🔲 High Contrast" };
 
-    // getter: 下一个模式标签
-    getter nextLabel: String = if mode == "dark" { "Light" } else { "Dark" };
-
-    // action: 切换深浅色模式
+    // action: 循环切换 light → dark → sepia → highContrast → light
     action toggle() {
-        if mode == "dark" {
-            mode = "light";
-        } else {
-            mode = "dark";
-        }
+        if mode == "light" { mode = "dark"; }
+        else if mode == "dark" { mode = "sepia"; }
+        else if mode == "sepia" { mode = "highContrast"; }
+        else { mode = "light"; }
         toggleCount = toggleCount + 1;
     }
 
-    // action: 设置指定模式
+    // action: 设置指定模式（验证有效性）
     action setMode(newMode: String) {
-        if newMode == "dark" {
-            mode = "dark";
-        } else {
-            mode = "light";
+        if newMode == "light" || newMode == "dark" || newMode == "sepia" || newMode == "highContrast" {
+            mode = newMode;
         }
     }
 
     // action: 初始化（主题由 CSS 的 [data-theme] 属性驱动）
     action load() {
-        // Nothing needed here — design block's @default-theme sets initial CSS
+        // Nothing needed — design block's @default-theme + __omni_theme.init() handle CSS
     }
 }
