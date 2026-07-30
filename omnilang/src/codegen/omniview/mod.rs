@@ -354,12 +354,7 @@ pub fn generate(
     // Build per-component output map for editor hot-replace
     let mut components: FxHashMap<String, ComponentOutput> = FxHashMap::default();
     for (name, js) in &gen.component_js {
-        components.insert(
-            name.clone(),
-            ComponentOutput {
-                js: js.clone(),
-            },
-        );
+        components.insert(name.clone(), ComponentOutput { js: js.clone() });
     }
 
     // ── Emit scoped design CSS (tokens, classes, variants) ──

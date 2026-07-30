@@ -769,7 +769,7 @@ fn test_store_hook_with_signals() {
     let hook = codegen.gen_store_hook("AppStore", &store);
     assert!(hook.contains("const [count, setCount] = useState<number>(0);"));
     assert!(hook.contains("const [name, setName] = useState<string>(\"world\");"));
-    assert!(hook.contains("return {"));
+    assert!(hook.contains("return useMemo("));
     assert!(hook.contains("count"));
     assert!(hook.contains("name"));
 }
@@ -813,7 +813,7 @@ fn test_store_hook_with_getters() {
     let hook = codegen.gen_store_hook("CalcStore", &store);
     assert!(hook.contains("const [count, setCount] = useState<number>(0);"));
     assert!(hook.contains("const doubleCount = useMemo(() => { return count * 2; }, [count]);"));
-    assert!(hook.contains("return { count, doubleCount };"));
+    assert!(hook.contains("return useMemo(() => ({ count, doubleCount }), [count, doubleCount]);"));
 }
 
 // ── Zustand store codegen tests ───────────────────────────

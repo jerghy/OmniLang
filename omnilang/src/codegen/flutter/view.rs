@@ -12,11 +12,11 @@ use super::expr::format_expr_ir_flutter;
 use super::motion::wrap_with_motion_widgets;
 use super::motion_widgets::{emit_event_object_flutter, field_extract_flutter};
 use super::stmt::{generate_statement_flutter, FlutterStmtFormatter};
-use std::fmt::Write;
 use super::utils::{
     binding_to_flutter_param, event_to_flutter_callback, prop_to_flutter_param_name,
     tag_to_flutter_widget,
 };
+use std::fmt::Write;
 
 // ═══════════════════════════════════════════════════════════════
 // View tree formatting (single-line Flutter widget expressions)

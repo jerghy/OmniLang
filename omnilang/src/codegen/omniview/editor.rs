@@ -286,7 +286,11 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, wind
         } else {
             // No @else — hide all branches when no condition matches
             if is_wait_mode {
-                let _ = writeln!(self.js, "  else {{ _hideAll(null); _current_{var} = null; }}", var = nid_js);
+                let _ = writeln!(
+                    self.js,
+                    "  else {{ _hideAll(null); _current_{var} = null; }}",
+                    var = nid_js
+                );
             } else {
                 self.js.push_str("  else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = \"none\"; }); }\n");
             }

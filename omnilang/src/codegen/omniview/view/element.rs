@@ -15,12 +15,20 @@ use crate::ir::*;
 use crate::sourcemap::{SourceMapEntry, SourceSpan, TargetSpan, TargetSpanKind};
 
 const HTML_BOOLEAN_ATTRS: &[&str] = &[
-    "disabled", "checked", "required", "readonly", "selected",
-    "autofocus", "multiple", "controls", "loop", "muted", "async", "defer",
+    "disabled",
+    "checked",
+    "required",
+    "readonly",
+    "selected",
+    "autofocus",
+    "multiple",
+    "controls",
+    "loop",
+    "muted",
+    "async",
+    "defer",
 ];
-const HTML_URL_ATTRS: &[&str] = &[
-    "href", "src", "srcset", "action", "formaction", "poster",
-];
+const HTML_URL_ATTRS: &[&str] = &["href", "src", "srcset", "action", "formaction", "poster"];
 
 /// Check whether a static URL attribute value contains a dangerous protocol
 /// scheme. Returns `true` if the value should be blocked.

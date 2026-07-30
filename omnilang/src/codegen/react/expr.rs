@@ -219,8 +219,7 @@ impl FormatStmt for ReactStmtFormatter {
                 // Note: `owner` field removed from SignalRefIR — store signal
                 // detection via target.owner is no longer available.
                 let is_store_signal = false;
-                let is_component_state =
-                    self.signal_names.contains(target_str.as_str());
+                let is_component_state = self.signal_names.contains(target_str.as_str());
                 let use_setter = is_store_signal || is_component_state;
                 if is_store_signal && self.store_mode == super::ReactStoreMode::Zustand {
                     // Zustand mode: useStoreName.setState({ signal: value })
@@ -297,8 +296,7 @@ impl ReactStmtFormatter {
         // Note: `owner` field removed from SignalRefIR — store signal
         // detection via target.owner is no longer available.
         let is_store_signal = false;
-        let is_component_state =
-            self.signal_names.contains(target_str.as_str());
+        let is_component_state = self.signal_names.contains(target_str.as_str());
         let use_setter = is_store_signal || is_component_state;
         let in_zustand = is_store_signal && self.store_mode == super::ReactStoreMode::Zustand;
 

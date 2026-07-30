@@ -121,7 +121,12 @@ impl OmniViewGenerator {
                         // Emit the const declaration BEFORE view_to_html so that
                         // the child's view effects (which reference e.g.
                         // Comp_prop_nid.value) don't hit the JS temporal dead zone.
-                        let prefixed = format!("{}_{}_{}", child_comp.name, prop_name, nid.replace("-", "_"));
+                        let prefixed = format!(
+                            "{}_{}_{}",
+                            child_comp.name,
+                            prop_name,
+                            nid.replace("-", "_")
+                        );
                         let default_js = self.expr_to_js(default_value);
                         let _ = writeln!(
                             self.js,
@@ -143,7 +148,9 @@ impl OmniViewGenerator {
                     if saved_scope.signal_names.contains(prefixed.as_str()) {
                         if !self.scope.name_renames.contains_key(name.as_str()) {
                             self.scope.signal_names.insert(prefixed.clone());
-                            self.scope.name_renames.insert(name.clone(), prefixed.clone());
+                            self.scope
+                                .name_renames
+                                .insert(name.clone(), prefixed.clone());
                         }
                     }
                 }
@@ -214,7 +221,8 @@ impl OmniViewGenerator {
                     let instance_suffix = format!("_{}", nid.replace("-", "_"));
                     for (prop_name, prop_value) in &el.props {
                         let js_value = self.expr_to_js(prop_value);
-                        let child_prefixed = format!("{}_{}{}", child_comp_name, prop_name, instance_suffix);
+                        let child_prefixed =
+                            format!("{}_{}{}", child_comp_name, prop_name, instance_suffix);
                         let _ = writeln!(
                             self.js,
                             "__omni_effect(() => {{ __omni_subs.get(\"{0}\").set({1}); }});",

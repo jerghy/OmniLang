@@ -33,5 +33,5 @@ export function useAppStore() {
     const increment = useCallback(() => {
         setCount(prev => prev + 1);
     }, []);
-    return { increment, count };
+    return useMemo(() => ({ increment, count }), [count]);
 }

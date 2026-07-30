@@ -7,5 +7,5 @@ import { useState, useCallback, useMemo } from 'react';
 
 export function useAppStore() {
     const [count, setCount] = useState<number>(0);
-    return { count };
+    return useMemo(() => ({ count }), [count]);
 }

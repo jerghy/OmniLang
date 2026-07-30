@@ -317,14 +317,31 @@ impl ReactCodegen {
             }
         }
 
-        // Return value
+        // Return value — wrap in useMemo for reference stability.
+        // Deps include only signals and getters (state values), not actions
+        // (actions are already stable via useCallback).
         for sig_name in store.signals.keys() {
             return_keys.push(sig_name.clone());
         }
         for getter_name in store.getters.keys() {
             return_keys.push(getter_name.clone());
         }
-        w.emit_fmt(format_args!("return {{ {} }};", return_keys.join(", ")));
+        let state_deps: Vec<String> = store
+            .signals
+            .keys()
+            .chain(store.getters.keys())
+            .cloned()
+            .collect();
+        let deps_str = if state_deps.is_empty() {
+            "[]".to_string()
+        } else {
+            format!("[{}]", state_deps.join(", "))
+        };
+        w.emit_fmt(format_args!(
+            "return useMemo(() => ({{ {} }}), {});",
+            return_keys.join(", "),
+            deps_str
+        ));
 
         w.dedent();
         w.emit("}");
