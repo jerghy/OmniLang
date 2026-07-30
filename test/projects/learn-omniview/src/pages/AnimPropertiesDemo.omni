@@ -98,7 +98,7 @@ import omniview;
 
 // ── 颜色：color + borderColor 组合 ──────────────────────
 @motion textColorDemo {
-    from { color: "#1f2937", borderColor: "#d4d4d8" }
+    from { color: "var(--textPrimary)", borderColor: "#d4d4d8" }
     to   { color: "#dc2626", borderColor: "#dc2626" }
     over 800 ease power2Out
 }
@@ -321,26 +321,26 @@ component AnimPropertiesDemo {
     }
 
     style {
-        .container { background: white; border: 1px solid #d4d4d8; border-radius: 12px; padding: 20px 16px; margin: 16px 0; }
-        .title { font-size: 18px; color: #1f2937; margin: 0 0 4px 0; }
-        .subtitle { font-size: 12px; color: #9ca3af; margin: 0 0 8px 0; line-height: 1.5; }
+        .container { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 16px; margin: 16px 0; }
+        .title { font-size: 18px; color: var(--textPrimary); margin: 0 0 4px 0; }
+        .subtitle { font-size: 12px; color: var(--textSecondary); margin: 0 0 8px 0; line-height: 1.5; }
         .trigger-btn { padding: 8px 16px; background: #6366f1; color: #fff; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; margin-bottom: 8px; }
-        .group-title { font-size: 14px; font-weight: 600; color: #374151; margin: 20px 0 10px 0; padding-bottom: 4px; border-bottom: 1px solid #e5e7eb; }
+        .group-title { font-size: 14px; font-weight: 600; color: var(--textPrimary); margin: 20px 0 10px 0; padding-bottom: 4px; border-bottom: 1px solid var(--borderLight); }
         .grid { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 4px; }
-        .card { flex: 0 0 auto; padding: 14px 16px; background: #f9fafb; border-radius: 10px; border: 1px solid #e5e7eb; text-align: center; min-width: 120px; }
-        .card strong { font-size: 13px; color: #374151; display: block; margin-bottom: 4px; }
-        .card p { font-size: 11px; color: #6b7280; margin: 0; }
-        .card-border { flex: 0 0 auto; padding: 14px 16px; background: #f9fafb; border-radius: 10px; border: 2px solid #d4d4d8; text-align: center; min-width: 140px; }
-        .card-border strong { font-size: 13px; color: #374151; display: block; margin-bottom: 4px; }
-        .card-border p { font-size: 11px; color: #6b7280; margin: 0; }
+        .card { flex: 0 0 auto; padding: 14px 16px; background: var(--surfaceMuted); border-radius: 10px; border: 1px solid var(--borderLight); text-align: center; min-width: 120px; }
+        .card strong { font-size: 13px; color: var(--textPrimary); display: block; margin-bottom: 4px; }
+        .card p { font-size: 11px; color: var(--textSecondary); margin: 0; }
+        .card-border { flex: 0 0 auto; padding: 14px 16px; background: var(--surfaceMuted); border-radius: 10px; border: 2px solid var(--border); text-align: center; min-width: 140px; }
+        .card-border strong { font-size: 13px; color: var(--textPrimary); display: block; margin-bottom: 4px; }
+        .card-border p { font-size: 11px; color: var(--textSecondary); margin: 0; }
         .box { flex: 0 0 auto; padding: 12px; background: #eef2ff; border-radius: 8px; border: 1px solid #6366f1; text-align: center; overflow: hidden; }
         .box strong { font-size: 12px; color: #4338ca; display: block; margin-bottom: 4px; }
         .box p { font-size: 11px; color: #6366f1; margin: 0; white-space: nowrap; }
-        .card-border-demo { flex: 0 0 auto; padding: 14px 16px; background: #f9fafb; border-radius: 10px; border: 2px solid #d4d4d8; text-align: center; min-width: 120px; }
-        .card-border-demo strong { font-size: 13px; color: #374151; display: block; margin-bottom: 4px; }
-        .card-border-demo p { font-size: 11px; color: #6b7280; margin: 0; }
+        .card-border-demo { flex: 0 0 auto; padding: 14px 16px; background: var(--surfaceMuted); border-radius: 10px; border: 2px solid var(--border); text-align: center; min-width: 120px; }
+        .card-border-demo strong { font-size: 13px; color: var(--textPrimary); display: block; margin-bottom: 4px; }
+        .card-border-demo p { font-size: 11px; color: var(--textSecondary); margin: 0; }
         .card-pos { flex: 0 0 auto; padding: 14px 16px; background: #fef9c3; border-radius: 10px; border: 1px solid #eab308; text-align: center; min-width: 120px; position: relative; }
-        .card-pos strong { font-size: 13px; color: #374151; display: block; margin-bottom: 4px; }
-        .card-pos p { font-size: 11px; color: #6b7280; margin: 0; }
+        .card-pos strong { font-size: 13px; color: var(--textPrimary); display: block; margin-bottom: 4px; }
+        .card-pos p { font-size: 11px; color: var(--textSecondary); margin: 0; }
     }
 }

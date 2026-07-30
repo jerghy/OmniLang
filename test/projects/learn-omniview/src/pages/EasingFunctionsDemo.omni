@@ -257,14 +257,14 @@ component EasingFunctionsDemo {
     }
 
     style {
-        .container { background: white; border: 1px solid #d4d4d8; border-radius: 12px; padding: 20px 16px; margin: 16px 0; }
-        .title { font-size: 18px; color: #1f2937; margin: 0 0 4px 0; }
-        .subtitle { font-size: 12px; color: #9ca3af; margin: 0 0 12px 0; }
-        .trigger-btn { padding: 8px 16px; background: #6366f1; color: #fff; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; margin-bottom: 8px; }
-        .group-title { font-size: 14px; font-weight: 600; color: #374151; margin: 20px 0 10px 0; padding-bottom: 4px; border-bottom: 1px solid #e5e7eb; }
+        .container { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 16px; margin: 16px 0; }
+        .title { font-size: 18px; color: var(--textPrimary); margin: 0 0 4px 0; }
+        .subtitle { font-size: 12px; color: var(--textSecondary); margin: 0 0 12px 0; }
+        .trigger-btn { padding: 8px 16px; background: var(--primary); color: #fff; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; margin-bottom: 8px; }
+        .group-title { font-size: 14px; font-weight: 600; color: var(--textPrimary); margin: 20px 0 10px 0; padding-bottom: 4px; border-bottom: 1px solid var(--borderLight); }
         .grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
-        .card { flex: 0 0 auto; padding: 12px 14px; background: #f9fafb; border-radius: 10px; border: 1px solid #e5e7eb; text-align: center; min-width: 110px; }
-        .card strong { font-size: 11px; color: #374151; display: block; margin-bottom: 2px; }
-        .card p { font-size: 10px; color: #6b7280; margin: 0; }
+        .card { flex: 0 0 auto; padding: 12px 14px; background: var(--surfaceMuted); border-radius: 10px; border: 1px solid var(--borderLight); text-align: center; min-width: 110px; }
+        .card strong { font-size: 11px; color: var(--textPrimary); display: block; margin-bottom: 2px; }
+        .card p { font-size: 10px; color: var(--textSecondary); margin: 0; }
     }
 }
