@@ -13,6 +13,7 @@ use super::expr::{format_expr_ir_tsx, generate_statement_tsx};
 use super::utils::{emit_event_object_react, to_jsx_attr, to_react_event, to_react_tag};
 use crate::codegen::omniview::is_dangerous_url;
 use crate::codegen::{format_json_value, JSON_REACT};
+use omnilang_core::codegen::sanitize::sanitize_css_value;
 
 pub(super) fn gen_view_node_tsx(
     w: &mut CodeWriter,
@@ -744,8 +745,18 @@ pub(crate) fn format_style_prop_key(key: &str) -> String {
 /// Handles $signal, $call, and $concat meta-objects.
 pub(crate) fn format_style_value_expr(val: &serde_json::Value) -> String {
     match val {
-        // Static string: 'value'
-        serde_json::Value::String(s) => format!("'{}'", s),
+        // Static string: 'value' (with CSS sanitization)
+        serde_json::Value::String(s) => {
+            let sanitized = sanitize_css_value(s);
+            if sanitized.is_empty() {
+                // Value was blocked — emit empty string as safe fallback
+                "''".to_string()
+            } else {
+                // Escape single quotes in the sanitized value
+                let escaped = sanitized.replace('\\', "\\\\").replace('\'', "\\'");
+                format!("'{}'", escaped)
+            }
+        },
         // Static number: 42 (with px suffix for numbers)
         serde_json::Value::Number(n) => {
             if let Some(f) = n.as_f64() {
