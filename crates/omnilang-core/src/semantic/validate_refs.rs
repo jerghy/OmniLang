@@ -248,6 +248,7 @@ mod tests {
                 .iter()
                 .map(|n| RefDeclIR {
                     name: n.to_string(),
+                    element_tag: None,
                 })
                 .collect(),
             view: if els.is_empty() {
@@ -298,7 +299,8 @@ mod tests {
         let comp = ComponentIR {
             name: "Test".to_string(),
             refs: vec![RefDeclIR {
-                name: "btn".to_string(),
+                element_tag: None,
+                name:"btn".to_string(),
             }],
             view: Some(ViewTree::Fragment(vec![
                 ViewTree::Element(make_el("div", Some("btn"))),
@@ -353,9 +355,11 @@ mod tests {
             name: "Test".to_string(),
             refs: vec![
                 RefDeclIR {
+                    element_tag: None,
                     name: "btn".to_string(),
                 },
                 RefDeclIR {
+                    element_tag: None,
                     name: "header".to_string(),
                 },
             ],
@@ -405,7 +409,8 @@ mod tests {
         let comp = ComponentIR {
             name: "TestComp".into(),
             refs: vec![RefDeclIR {
-                name: "box".into(),
+                element_tag: None,
+                name:"box".into(),
             }],
             view: Some(ViewTree::ListRendering(Box::new(ListRenderingIntent {
                 iterable: ExprIR::ident("items"),

@@ -1263,7 +1263,7 @@ component TestRef {
     );
     // useRef declaration
     assert!(
-        content.contains("const boxRef = useRef<HTMLDivElement>(null)"),
+        content.contains("const boxRef = useRef<HTMLElement>(null)"),
         "Should generate useRef declaration. Got:\n{}",
         content
     );
@@ -1311,7 +1311,7 @@ component DragRef {
     );
     // useRef declaration
     assert!(
-        content.contains("const boxRef = useRef<HTMLDivElement>(null)"),
+        content.contains("const boxRef = useRef<HTMLElement>(null)"),
         "Should generate useRef declaration for 'box'. Got:\n{}",
         content
     );

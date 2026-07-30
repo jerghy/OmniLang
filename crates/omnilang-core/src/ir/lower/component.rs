@@ -251,6 +251,7 @@ pub(super) fn lower_component(
             .iter()
             .map(|r| RefDeclIR {
                 name: r.name.clone(),
+                element_tag: None,
             })
             .collect(),
         events: comp

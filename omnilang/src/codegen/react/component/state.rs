@@ -558,17 +558,41 @@ fn collect_view_store_refs_from_handlers(node: &ViewTree, acc: &mut FxHashSet<St
 // Ref codegen: ref declarations → useRef hooks
 // ═══════════════════════════════════════════════════════════
 
-/// Generate `useRef<HTMLDivElement>(null)` declarations for each ref in the component.
+/// Generate `useRef<T>(null)` declarations for each ref in the component.
+/// Maps known HTML element tags to their TypeScript types (e.g., input→HTMLInputElement).
+/// Falls back to HTMLElement for unknown or missing tags.
 /// Called after gen_state_hooks and before gen_effects in gen_component_tsx.
 pub(super) fn gen_ref_hooks(w: &mut CodeWriter, comp: &ComponentIR) {
     if comp.refs.is_empty() {
         return;
     }
     for ref_decl in &comp.refs {
+        let ts_type = ref_element_type(ref_decl.element_tag.as_deref());
         w.emit_fmt(format_args!(
-            "const {}Ref = useRef<HTMLDivElement>(null);",
-            ref_decl.name
+            "const {}Ref = useRef<{}>(null);",
+            ref_decl.name, ts_type
         ));
     }
     w.emit("");
+}
+
+/// Map an OmniView HTML element tag to its TypeScript element type.
+fn ref_element_type(tag: Option<&str>) -> &str {
+    match tag {
+        Some("input") | Some("textarea") => "HTMLInputElement",
+        Some("select") => "HTMLSelectElement",
+        Some("button") => "HTMLButtonElement",
+        Some("form") => "HTMLFormElement",
+        Some("img") | Some("image") => "HTMLImageElement",
+        Some("video") => "HTMLVideoElement",
+        Some("audio") => "HTMLAudioElement",
+        Some("canvas") => "HTMLCanvasElement",
+        Some("a") | Some("link") => "HTMLAnchorElement",
+        Some("table") => "HTMLTableElement",
+        Some("svg") => "SVGSVGElement",
+        Some("div") | Some("section") | Some("article") | Some("nav")
+        | Some("header") | Some("footer") | Some("main") | Some("aside") => "HTMLDivElement",
+        // For unknown tags, use HTMLElement (generic) — better than HTMLDivElement
+        _ => "HTMLElement",
+    }
 }

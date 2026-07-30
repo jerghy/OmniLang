@@ -706,6 +706,11 @@ pub struct ParamIR {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RefDeclIR {
     pub name: String,
+    /// The HTML element tag this ref is bound to (e.g., "input", "video", "canvas").
+    /// Used by React codegen to emit the correct TypeScript type for useRef.
+    /// None means default to HTMLElement (generic fallback).
+    #[serde(default)]
+    pub element_tag: Option<String>,
 }
 
 /// A declared component event with its TypeScript parameter type.
