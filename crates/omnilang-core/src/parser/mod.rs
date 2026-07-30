@@ -832,7 +832,7 @@ mod roundtrip_tests {
         let stmt = first_stmt("x = 10");
         assert!(matches!(
             stmt,
-            Stmt::ExprStmt { ref expr, .. }
+            Stmt::ExprStmt { expr: _, .. }
         ));
         if let Stmt::ExprStmt { expr, .. } = &stmt {
             assert!(matches!(

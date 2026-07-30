@@ -278,6 +278,21 @@ pub fn analyse_multi(
     let validation = crate::validate::validate_multi_ref(&programs, path_mapping);
     diags.extend(validation.errors);
 
+    // Build cross-file const → value map for design token resolution
+    let mut global_const_values: FxHashMap<String, String> = FxHashMap::default();
+    for program in programs.values() {
+        for module in program.modules.values() {
+            for const_def in &module.consts {
+                if let crate::parser::ast::Expr::Literal(
+                    crate::parser::ast::Literal::String(s), _,
+                ) = &const_def.value
+                {
+                    global_const_values.insert(const_def.name.clone(), s.clone());
+                }
+            }
+        }
+    }
+
     // Phase 3a: Parallel per-file semantic analysis + IR lowering
     let ir_results: Vec<(String, IRProgram, Vec<Diagnostic>)> = programs
         .par_iter()
@@ -292,7 +307,8 @@ pub fn analyse_multi(
                 }
                 local_diags.push(d);
             }
-            let ir_program = crate::ir::lower(program_ref, &mut semantics);
+            let ir_program =
+                crate::ir::lower(program_ref, &mut semantics, Some(&global_const_values));
             (path.clone(), ir_program, local_diags)
         })
         .collect();
@@ -422,6 +438,21 @@ pub fn analyse_multi_cached(
     let validation = crate::validate::validate_multi_ref(&all_programs, path_mapping);
     diags.extend(validation.errors);
 
+    // Build cross-file const → value map (cached path)
+    let mut global_const_values: FxHashMap<String, String> = FxHashMap::default();
+    for program in all_programs.values() {
+        for module in program.modules.values() {
+            for const_def in &module.consts {
+                if let crate::parser::ast::Expr::Literal(
+                    crate::parser::ast::Literal::String(s), _,
+                ) = &const_def.value
+                {
+                    global_const_values.insert(const_def.name.clone(), s.clone());
+                }
+            }
+        }
+    }
+
     // Phase 3a: Parallel per-file semantic analysis + IR lowering for changed files only
     let mut per_file_ir: FxHashMap<String, (IRProgram, Vec<Diagnostic>)> = to_reprocess
         .par_iter()
@@ -436,7 +467,8 @@ pub fn analyse_multi_cached(
                 }
                 local_diags.push(d);
             }
-            let ir_program = crate::ir::lower(program, &mut semantics);
+            let ir_program =
+                crate::ir::lower(program, &mut semantics, Some(&global_const_values));
             (path.clone(), (ir_program, local_diags))
         })
         .collect();

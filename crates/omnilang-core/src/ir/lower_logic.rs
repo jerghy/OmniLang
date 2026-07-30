@@ -138,7 +138,7 @@ mod tests {
             diagnostics: Vec::new(),
             event_param_name: None,
         };
-        let ir = crate::ir::lower(&program, &mut semantics);
+        let ir = crate::ir::lower(&program, &mut semantics, None);
         let main_module = ir.modules.get("input.omni").unwrap();
         assert!(main_module.functions.contains_key("main"));
         let main_fn = &main_module.functions["main"];
@@ -157,7 +157,7 @@ mod tests {
             diagnostics: Vec::new(),
             event_param_name: None,
         };
-        let ir = crate::ir::lower(&program, &mut semantics);
+        let ir = crate::ir::lower(&program, &mut semantics, None);
         let main_module = ir.modules.get("input.omni").unwrap();
         assert!(main_module.structs.contains_key("Point"));
     }

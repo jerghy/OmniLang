@@ -37,7 +37,17 @@ fn span_to_source_span(span: &crate::lexer::Span) -> SourceSpan {
 }
 
 /// Lower AST -> IR.
-pub fn lower(program: &Program, semantics: &mut SemanticResult) -> IRProgram {
+///
+/// `external_const_values` supplies cross-file constant values (built from all
+/// source files in `analyse_multi`).  When present it is merged into the
+/// per-file const map so that `import { BRAND } from "./tokens.omni"` followed
+/// by `token primary: color = BRAND;` resolves correctly.  Local const
+/// declarations always take precedence.
+pub fn lower(
+    program: &Program,
+    semantics: &mut SemanticResult,
+    external_const_values: Option<&FxHashMap<String, String>>,
+) -> IRProgram {
     let mut modules = FxHashMap::default();
     let mut source_map: FxHashMap<String, SourceMapEntry> = FxHashMap::default();
 
@@ -51,8 +61,13 @@ pub fn lower(program: &Program, semantics: &mut SemanticResult) -> IRProgram {
         }
     }
 
-    // Build const → value map for design token compile-time resolution
+    // Build const → value map for design token compile-time resolution.
+    // External values (cross-file) are merged first; local declarations then
+    // overwrite them so same-file definitions always win.
     let mut const_values: FxHashMap<String, String> = FxHashMap::default();
+    if let Some(ext) = external_const_values {
+        const_values.extend(ext.iter().map(|(k, v)| (k.clone(), v.clone())));
+    }
     for module in program.modules.values() {
         for const_def in &module.consts {
             if let crate::parser::ast::Expr::Literal(crate::parser::ast::Literal::String(s), _) =
@@ -304,7 +319,7 @@ mod tests {
         let tokens = tokenize(source);
         let (program, _) = parse(tokens, source);
         let mut semantics = analyze(&program);
-        lower(&program, &mut semantics)
+        lower(&program, &mut semantics, None)
     }
 
     #[test]

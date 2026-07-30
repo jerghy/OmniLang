@@ -108,7 +108,7 @@ pub fn run_pipeline(source: &str) -> PipelineOutput {
     let has_errors = diagnostics
         .iter()
         .any(|d| matches!(d.severity, crate::error::Severity::Error));
-    let mut ir = ir::lower(&program, &mut semantics);
+    let mut ir = ir::lower(&program, &mut semantics, None);
     crate::ir::optimize::optimize(&mut ir);
     PipelineOutput {
         ir,

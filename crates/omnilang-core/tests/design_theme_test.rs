@@ -19,7 +19,7 @@ fn lower_first_design(source: &str) -> DesignIR {
     let tokens = tokenize(source);
     let (program, _) = parse(tokens, source);
     let mut semantics = analyze(&program);
-    let ir = lower(&program, &mut semantics);
+    let ir = lower(&program, &mut semantics, None);
 
     let module = ir
         .modules
@@ -54,7 +54,7 @@ design AppDesign {
     let tokens = tokenize(source);
     let (program, _) = parse(tokens, source);
     let mut semantics = analyze(&program);
-    let ir = lower(&program, &mut semantics);
+    let ir = lower(&program, &mut semantics, None);
 
     // Find the design in the IR
     let module = ir

@@ -107,7 +107,7 @@ mod tests {
         let tokens = tokenize(source);
         let (program, _) = parse(tokens, source);
         let mut semantics = analyze(&program);
-        let _ir = crate::ir::lower(&program, &mut semantics);
+        let _ir = crate::ir::lower(&program, &mut semantics, None);
         semantics.diagnostics
     }
 
