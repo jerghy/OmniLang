@@ -254,7 +254,8 @@ pub(super) fn html_document_wrapper(
         r#"<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self'; base-uri 'self'; frame-ancestors 'self'; form-action 'self'; object-src 'none'; frame-src 'none';">"
 "#
     } else {
-        ""
+        r#"<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self';">"
+"#
     };
     format!(
         r#"<!DOCTYPE html>
