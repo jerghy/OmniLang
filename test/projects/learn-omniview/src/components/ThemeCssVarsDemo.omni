@@ -117,12 +117,12 @@ component ThemeCssVarsDemo {
             <!-- 切换按钮（在 CSS 变量作用域之外） -->
             <div class: action-row>
                 <button class: toggle-btn @onPress={() => { ThemeStore.toggle(); }}>
-                    Switch to {ThemeStore.nextLabel} Mode
+                    Toggle Theme (light → dark → sepia → highContrast)
                 </button>
                 <p class: hint>
-                    当前主题: <strong>{ThemeStore.modeLabel}</strong> ·
-                    切换次数: {ThemeStore.toggleCount} ·
-                    代码路径: <code>[data-theme] CSS</code>
+                    Current: {ThemeStore.modeLabel} ·
+                    Toggles: {ThemeStore.toggleCount} ·
+                    <code>@themes light, dark, sepia, highContrast</code>
                 </p>
             </div>
 
