@@ -92,6 +92,13 @@ window.__omni_editor = {
 };
 
 function __omni_replaceComponent(name, factoryCode) {
+  // Defense-in-depth: validate factoryCode is a string before eval.
+  // The primary protection is the postMessage origin check, but this
+  // guards against same-origin XSS in the parent editor page sending
+  // a crafted message with non-string js payload.
+  if (typeof factoryCode !== 'string' || factoryCode.length === 0) {
+    return;
+  }
   var oldComp = window.__omni_components[name];
   var savedSignals = {};
   if (oldComp && oldComp.signals) {
