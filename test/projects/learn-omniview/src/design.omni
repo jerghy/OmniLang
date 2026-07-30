@@ -15,7 +15,7 @@ import omniview;
 
 design LearnDesign {
     // ── 主题声明 ──
-    @themes light, dark;
+    @themes light, dark, sepia, highContrast;
     @default-theme light;
 
     // ═══════════════════════════════════════════════════════════
@@ -29,26 +29,26 @@ design LearnDesign {
     // ═══════════════════════════════════════════════════════════
 
     // ── 品牌色 ──
-    token primary: color = "#6366f1" dark "#a5b4fc";
-    token primaryLight: color = "#a5b4fc";
-    token primaryDark: color = "#4338ca";
+    token primary: color = "#6366f1" dark "#a5b4fc" sepia "#8B4513" highContrast "#ffff00";
+    token primaryLight: color = "#a5b4fc" sepia "#D2A679" highContrast "#ffff99";
+    token primaryDark: color = "#4338ca" sepia "#5D3A1A" highContrast "#cccc00";
 
     // ── 语义色 ──
-    token success: color = "#10b981";
-    token warning: color = "#f59e0b";
-    token danger: color = "#ef4444";
-    token accent: color = "#f97316";
+    token success: color = "#10b981" sepia "#6B8E23" highContrast "#00ff00";
+    token warning: color = "#f59e0b" sepia "#CC7722" highContrast "#ffaa00";
+    token danger: color = "#ef4444" sepia "#A0522D" highContrast "#ff4444";
+    token accent: color = "#f97316" sepia "#CD853F" highContrast "#ff8800";
 
-    // ── 中性色（双主题） ──
-    token surface: color = "#ffffff" dark "#111827";
-    token surfaceMuted: color = "#f9fafb" dark "#1f2937";
-    token surfaceSubtle: color = "#f3f4f6" dark "#374151";
-    token textPrimary: color = "#111827" dark "#f9fafb";
-    token textSecondary: color = "#6b7280" dark "#9ca3af";
-    token textMuted: color = "#9ca3af" dark "#d1d5db";
-    token border: color = "#d4d4d8" dark "#4b5563";
-    token borderLight: color = "#e5e7eb" dark "#374151";
-    token borderLighter: color = "#f3f4f6" dark "#1f2937";
+    // ── 中性色（多主题） ──
+    token surface: color = "#ffffff" dark "#111827" sepia "#F5E6C8" highContrast "#000000";
+    token surfaceMuted: color = "#f9fafb" dark "#1f2937" sepia "#EDE0C8" highContrast "#0a0a0a";
+    token surfaceSubtle: color = "#f3f4f6" dark "#374151" sepia "#E0D0B0" highContrast "#1a1a1a";
+    token textPrimary: color = "#111827" dark "#f9fafb" sepia "#3E2723" highContrast "#ffffff";
+    token textSecondary: color = "#6b7280" dark "#9ca3af" sepia "#5D4037" highContrast "#cccccc";
+    token textMuted: color = "#9ca3af" dark "#d1d5db" sepia "#8D6E63" highContrast "#999999";
+    token border: color = "#d4d4d8" dark "#4b5563" sepia "#BCAAA4" highContrast "#666666";
+    token borderLight: color = "#e5e7eb" dark "#374151" sepia "#D7CCC8" highContrast "#444444";
+    token borderLighter: color = "#f3f4f6" dark "#1f2937" sepia "#EFEBE9" highContrast "#333333";
 
     // ── 间距 ──
     token spaceXs: size = "4px";
