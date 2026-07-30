@@ -12,6 +12,28 @@
 use crate::ir::*;
 use rustc_hash::FxHashSet;
 
+/// Walk a serde_json::Value tree to find `$signal` references and collect their
+/// names into `used`. These are inline style values lowered to JSON by the lowering
+/// phase (e.g. `"5px solid " + activeStyle` → `{"$concat": ["5px solid ", {"$signal": "activeStyle"}]}`).
+fn walk_json_for_signal_refs(value: &serde_json::Value, used: &mut FxHashSet<String>) {
+    match value {
+        serde_json::Value::Object(obj) => {
+            if let Some(sig_name) = obj.get("$signal").and_then(|v| v.as_str()) {
+                used.insert(sig_name.to_string());
+            }
+            for val in obj.values() {
+                walk_json_for_signal_refs(val, used);
+            }
+        }
+        serde_json::Value::Array(arr) => {
+            for item in arr {
+                walk_json_for_signal_refs(item, used);
+            }
+        }
+        _ => {}
+    }
+}
+
 /// Walk an ExprIR tree and collect all IdentifierExpr names into `used`.
 fn walk_expr_for_idents(expr: &ExprIR, used: &mut FxHashSet<String>) {
     match expr {
@@ -25,7 +47,8 @@ fn walk_expr_for_idents(expr: &ExprIR, used: &mut FxHashSet<String>) {
             walk_expr_for_idents(right, used);
         }
         ExprIR::UnaryOpExpr { operand, .. } => walk_expr_for_idents(operand, used),
-        ExprIR::CallExpr { args, .. } => {
+        ExprIR::CallExpr { name, args, .. } => {
+            used.insert(name.clone());
             for arg in args {
                 walk_expr_for_idents(arg, used);
             }
@@ -222,6 +245,11 @@ fn walk_view_for_idents(view: &ViewTree, used: &mut FxHashSet<String>) {
                     EventHandlerIR::FnRef { .. } | EventHandlerIR::StoreAction { .. } => {}
                 }
             }
+            // Walk inline style — may contain $signal references to computed properties
+            if let Some(ref inline_style) = el.inline_style {
+                walk_json_for_signal_refs(inline_style, used);
+            }
+
             // Recurse into child view trees
             for child in &el.children {
                 walk_view_for_idents(child, used);
