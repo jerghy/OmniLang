@@ -160,32 +160,14 @@ impl SemanticAnalyzer {
         // Resolve variable references in design token values
         for design in &module.designs {
             for token in &design.tokens {
-                if let TokenValue::Variable(name) = &token.value {
-                    if !self.symbols.contains(name) {
-                        self.diagnostics.push(Diagnostic::error(
-                            DiagnosticKind::E0001,
-                            &format!(
-                                "Undefined variable '{}' in design token '{}'",
-                                name, token.name
-                            ),
-                            &Span {
-                                start: 0,
-                                end: 0,
-                                line: 0,
-                                col: 0,
-                            },
-                        ));
-                    }
-                }
-                // Also check theme_values
-                for (theme_name, theme_val) in &token.theme_values {
-                    if let TokenValue::Variable(name) = theme_val {
+                match &token.value {
+                    TokenValue::Variable(name) => {
                         if !self.symbols.contains(name) {
                             self.diagnostics.push(Diagnostic::error(
                                 DiagnosticKind::E0001,
                                 &format!(
-                                    "Undefined variable '{}' in theme '{}' of design token '{}'",
-                                    name, theme_name, token.name
+                                    "Undefined variable '{}' in design token '{}'",
+                                    name, token.name
                                 ),
                                 &Span {
                                     start: 0,
@@ -195,6 +177,38 @@ impl SemanticAnalyzer {
                                 },
                             ));
                         }
+                    }
+                    TokenValue::Expression(expr) => {
+                        let mut vctx = ValidationContext::new();
+                        self.resolve_expr_refs(expr, &mut vctx);
+                    }
+                    TokenValue::Literal(_) => {}
+                }
+                // Also check theme_values
+                for (theme_name, theme_val) in &token.theme_values {
+                    match theme_val {
+                        TokenValue::Variable(name) => {
+                            if !self.symbols.contains(name) {
+                                self.diagnostics.push(Diagnostic::error(
+                                    DiagnosticKind::E0001,
+                                    &format!(
+                                        "Undefined variable '{}' in theme '{}' of design token '{}'",
+                                        name, theme_name, token.name
+                                    ),
+                                    &Span {
+                                        start: 0,
+                                        end: 0,
+                                        line: 0,
+                                        col: 0,
+                                    },
+                                ));
+                            }
+                        }
+                        TokenValue::Expression(expr) => {
+                            let mut vctx = ValidationContext::new();
+                            self.resolve_expr_refs(expr, &mut vctx);
+                        }
+                        TokenValue::Literal(_) => {}
                     }
                 }
             }

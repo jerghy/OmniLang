@@ -193,3 +193,60 @@ design AppDesign {
         .collect();
     assert!(brand_errors.is_empty(), "BRAND should be resolved");
 }
+
+#[test]
+fn semantic_accepts_store_field_access_in_token_expression() {
+    // ThemeStore.primaryColor is a field access on a defined store,
+    // NOT a bare variable reference.  The resolver should not produce
+    // E0001 for the store name (it's a module-level symbol).
+    let source = r##"
+import omniview;
+
+store ThemeStore {
+    signal primaryColor: string = "#6366f1";
+}
+
+design AppDesign {
+    token primary: color = ThemeStore.primaryColor;
+}
+"##;
+    let tokens = tokenize(source);
+    let (program, _) = parse(tokens, source);
+    let semantics = analyze(&program);
+
+    let errors: Vec<_> = semantics
+        .diagnostics
+        .iter()
+        .filter(|d| matches!(d.kind, omnilang_core::error::DiagnosticKind::E0001))
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "should have no E0001 for ThemeStore.primaryColor, got: {:?}",
+        errors
+    );
+}
+
+#[test]
+fn semantic_rejects_undefined_variable_in_token_expression() {
+    // A function call to an undefined function inside a token expression
+    // should produce E0001.
+    let source = r##"
+import omniview;
+
+design AppDesign {
+    token primary: color = undefinedFunc();
+}
+"##;
+    let tokens = tokenize(source);
+    let (program, _) = parse(tokens, source);
+    let semantics = analyze(&program);
+
+    let has_error = semantics
+        .diagnostics
+        .iter()
+        .any(|d| d.message.contains("undefinedFunc"));
+    assert!(
+        has_error,
+        "should report undefined variable in token expression"
+    );
+}

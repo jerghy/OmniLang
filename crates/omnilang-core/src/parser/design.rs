@@ -48,7 +48,11 @@ pub fn parse_design_body(input: &str, design_tokens: &[Token]) -> ParseResult<De
     let mut variants = Vec::new();
     let mut themes: Vec<String> = Vec::new();
     let mut default_theme: Option<String> = None;
-    let mut remaining = input.trim();
+    // Only trim leading whitespace so that remaining is a suffix of input.
+    // This keeps the offset calculation in parse_token_value correct:
+    //   offset = design_body_full.len() - raw_input.len()
+    // which relies on raw_input being a suffix of design_body_full.
+    let mut remaining = input.trim_start();
 
     while !remaining.is_empty() {
         remaining = skip_ws_and_comments(remaining);

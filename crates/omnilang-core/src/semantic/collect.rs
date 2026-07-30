@@ -116,8 +116,17 @@ impl SemanticAnalyzer {
             self.dependencies.insert(comp.name.clone(), deps);
         }
 
-        // Stores
+        // Stores — declare store names as module-level symbols so store field
+        // accesses in design token expressions (e.g. `ThemeStore.primaryColor`)
+        // resolve without producing E0001 for the store name.
         for store in &module.stores {
+            self.declare_or_warn(Symbol {
+                name: store.name.clone(),
+                kind: SymbolKind::Store,
+                type_ann: None,
+                mutable: false,
+                declared_at: 0,
+            });
             self.symbols.push_scope(&format!("store:{}", store.name));
 
             for sig in &store.signals {
