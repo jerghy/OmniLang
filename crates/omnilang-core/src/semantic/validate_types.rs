@@ -333,8 +333,7 @@ pub fn types_compatible(expected: &SemanticType, actual: &SemanticType) -> bool 
         if let SemanticType::Named(name) = expected {
             if matches!(
                 name.as_str(),
-                "i8" | "i16" | "i32" | "i64" | "isize" | "usize"
-                    | "u8" | "u16" | "u32" | "u64"
+                "i8" | "i16" | "i32" | "i64" | "isize" | "usize" | "u8" | "u16" | "u32" | "u64"
             ) {
                 return true;
             }

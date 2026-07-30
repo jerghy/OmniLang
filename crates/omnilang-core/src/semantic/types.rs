@@ -34,7 +34,8 @@ impl SemanticType {
             TypeAnnotation::Named {
                 name, type_args, ..
             } => match name.as_str() {
-                "i8" | "i16" | "i32" | "i64" | "int" | "Int" | "integer" | "isize" | "usize" | "u8" | "u16" | "u32" | "u64" => SemanticType::Int,
+                "i8" | "i16" | "i32" | "i64" | "int" | "Int" | "integer" | "isize" | "usize"
+                | "u8" | "u16" | "u32" | "u64" => SemanticType::Int,
                 "f64" | "f32" | "float" | "Float" | "num" | "number" => SemanticType::Float,
                 "String" | "str" | "string" => SemanticType::String,
                 "bool" | "Bool" | "boolean" => SemanticType::Bool,
@@ -71,7 +72,8 @@ impl SemanticType {
     /// Handles simple built-in names; complex types fall back to Any.
     pub fn parse_type_string(s: &str) -> Self {
         match s {
-            "i8" | "i16" | "i32" | "i64" | "int" | "Int" | "integer" | "isize" | "usize" | "u8" | "u16" | "u32" | "u64" => SemanticType::Int,
+            "i8" | "i16" | "i32" | "i64" | "int" | "Int" | "integer" | "isize" | "usize" | "u8"
+            | "u16" | "u32" | "u64" => SemanticType::Int,
             "f64" | "f32" | "float" | "Float" | "num" | "number" => SemanticType::Float,
             "String" | "str" | "string" => SemanticType::String,
             "bool" | "Bool" | "boolean" => SemanticType::Bool,

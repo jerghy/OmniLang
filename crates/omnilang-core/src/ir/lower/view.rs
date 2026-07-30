@@ -540,12 +540,9 @@ fn lower_element(
         {
             let sig_name = string_signals[idx].clone();
             sig_counter.set(idx + 1);
-            bindings.get_or_insert_with(Default::default).insert(
-                "value".into(),
-                SignalRefIR {
-                    name: sig_name,
-                },
-            );
+            bindings
+                .get_or_insert_with(Default::default)
+                .insert("value".into(), SignalRefIR { name: sig_name });
         }
     }
 

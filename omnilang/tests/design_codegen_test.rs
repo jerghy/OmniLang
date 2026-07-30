@@ -93,10 +93,7 @@ component App {
         "compilation should succeed, got errors: {:?}",
         result.errors
     );
-    let css = result
-        .files
-        .expect("should have compiled files")
-        .css;
+    let css = result.files.expect("should have compiled files").css;
 
     // Token declarations on :root should contain resolved const values
     assert!(

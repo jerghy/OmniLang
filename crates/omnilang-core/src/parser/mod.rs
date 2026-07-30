@@ -830,10 +830,7 @@ mod roundtrip_tests {
     #[test]
     fn stmt_assignment() {
         let stmt = first_stmt("x = 10");
-        assert!(matches!(
-            stmt,
-            Stmt::ExprStmt { expr: _, .. }
-        ));
+        assert!(matches!(stmt, Stmt::ExprStmt { expr: _, .. }));
         if let Stmt::ExprStmt { expr, .. } = &stmt {
             assert!(matches!(
                 *expr,
@@ -1391,7 +1388,10 @@ mod roundtrip_tests {
         "##;
         let tokens = tokenize(src);
         let (program, _) = parse(tokens, src);
-        let module = program.modules.get("input.omni").expect("should have module");
+        let module = program
+            .modules
+            .get("input.omni")
+            .expect("should have module");
         assert_eq!(module.consts.len(), 2);
         assert_eq!(module.consts[0].name, "BRAND");
         assert_eq!(module.consts[1].name, "SPACING");

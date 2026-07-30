@@ -284,7 +284,8 @@ pub fn analyse_multi(
         for module in program.modules.values() {
             for const_def in &module.consts {
                 if let crate::parser::ast::Expr::Literal(
-                    crate::parser::ast::Literal::String(s), _,
+                    crate::parser::ast::Literal::String(s),
+                    _,
                 ) = &const_def.value
                 {
                     global_const_values.insert(const_def.name.clone(), s.clone());
@@ -444,7 +445,8 @@ pub fn analyse_multi_cached(
         for module in program.modules.values() {
             for const_def in &module.consts {
                 if let crate::parser::ast::Expr::Literal(
-                    crate::parser::ast::Literal::String(s), _,
+                    crate::parser::ast::Literal::String(s),
+                    _,
                 ) = &const_def.value
                 {
                     global_const_values.insert(const_def.name.clone(), s.clone());
@@ -467,8 +469,7 @@ pub fn analyse_multi_cached(
                 }
                 local_diags.push(d);
             }
-            let ir_program =
-                crate::ir::lower(program, &mut semantics, Some(&global_const_values));
+            let ir_program = crate::ir::lower(program, &mut semantics, Some(&global_const_values));
             (path.clone(), (ir_program, local_diags))
         })
         .collect();

@@ -206,10 +206,10 @@ pub fn lower(
         }
 
         let designs: Vec<super::DesignIR> = module
-    .designs
-    .iter()
-    .map(|d| lower_design_with_consts(d, &const_values))
-    .collect();
+            .designs
+            .iter()
+            .map(|d| lower_design_with_consts(d, &const_values))
+            .collect();
 
         let module_ir = ModuleIR {
             name: module_name.clone(),
@@ -537,7 +537,8 @@ component InputComp {
                 );
                 assert!(
                     binding.name == "text",
-                    "binding should reference 'text' signal, got '{}'", binding.name
+                    "binding should reference 'text' signal, got '{}'",
+                    binding.name
                 );
             }
             other => panic!("expected Element, got {:?}", other),

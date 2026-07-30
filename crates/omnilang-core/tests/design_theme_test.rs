@@ -163,9 +163,10 @@ design AppDesign {
     let semantics = analyze(&program);
 
     // Should have an E0001 diagnostic for UNDEFINED_VAR
-    let has_error = semantics.diagnostics.iter().any(|d| {
-        d.message.contains("UNDEFINED_VAR")
-    });
+    let has_error = semantics
+        .diagnostics
+        .iter()
+        .any(|d| d.message.contains("UNDEFINED_VAR"));
     assert!(has_error, "should report undefined variable in token value");
 }
 
@@ -185,7 +186,9 @@ design AppDesign {
     let semantics = analyze(&program);
 
     // No E0001 for BRAND since it's defined
-    let brand_errors: Vec<_> = semantics.diagnostics.iter()
+    let brand_errors: Vec<_> = semantics
+        .diagnostics
+        .iter()
         .filter(|d| d.message.contains("BRAND"))
         .collect();
     assert!(brand_errors.is_empty(), "BRAND should be resolved");

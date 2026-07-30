@@ -256,28 +256,30 @@ fn parse_token_value<'a>(
         Ok((TokenValue::Literal(input[..end].to_string()), &input[end..]))
     } else {
         let (ident, rest) = parse_ident(input)?;
+
+        // ── Phase 2: Check if this is an expression (dotted path or function call) ──
+        // Must check BEFORE the CSS-value heuristic so that identifiers like
+        // `store.getColor(primary)` are not miscategorized as literals.
+        let after_ident = rest.trim_start();
+        let is_expression = after_ident.starts_with('.')
+            || after_ident.starts_with('(')
+            || after_ident.starts_with('[');
+
+        if is_expression && !design_tokens.is_empty() {
+            let offset = design_body_full.len().saturating_sub(input.len());
+            if let Ok((expr, remaining)) =
+                parse_design_value_expression(design_body_full, design_tokens, offset)
+            {
+                return Ok((TokenValue::Expression(expr), remaining));
+            }
+            // Fallback: treat as simple variable reference
+            return Ok((TokenValue::Variable(ident), rest));
+        }
+
         // Heuristic: if it looks like a CSS value, treat as literal
         if is_css_value(&ident) {
             Ok((TokenValue::Literal(ident), rest))
         } else {
-            // ── Phase 2: Check if this is an expression (dotted path or function call) ──
-            let after_ident = rest.trim_start();
-            let is_expression = after_ident.starts_with('.')
-                || after_ident.starts_with('(')
-                || after_ident.starts_with('[');
-
-            if is_expression && !design_tokens.is_empty() {
-                let offset = design_body_full.len().saturating_sub(input.len());
-                match parse_design_value_expression(design_body_full, design_tokens, offset) {
-                    Ok((expr, remaining)) => {
-                        return Ok((TokenValue::Expression(expr), remaining));
-                    }
-                    Err(_) => {
-                        // Fallback: treat as simple variable reference
-                    }
-                }
-            }
-
             Ok((TokenValue::Variable(ident), rest))
         }
     }
@@ -300,21 +302,34 @@ fn parse_design_value_expression<'a>(
         .position(|t| matches!(t.kind, TokenKind::Ident(_)) && t.span.start >= offset)
         .ok_or_else(|| err("could not locate expression start in design tokens"))?;
 
-    // Scan forward to find expression end: stop at `;`, `}`, or bare identifier
+    // Scan forward to find expression end: stop at `;`, `}`, or bare identifier.
+    // Track paren/bracket depth so identifiers inside `(...)` or `[...]` are not
+    // mistaken for theme name boundaries.
     let mut end_idx = start_idx + 1;
+    let mut depth: i32 = 0;
     while end_idx < design_tokens.len() {
         match &design_tokens[end_idx].kind {
-            TokenKind::Semicolon => break,
+            TokenKind::Semicolon if depth == 0 => break,
+            TokenKind::RBrace => break,
+            TokenKind::LParen | TokenKind::LBracket => {
+                depth += 1;
+                end_idx += 1;
+            }
+            TokenKind::RParen | TokenKind::RBracket => {
+                depth -= 1;
+                end_idx += 1;
+            }
             TokenKind::Ident(_) => {
-                // Bare identifier (not preceded by `.`) = theme name boundary
-                let prev_is_dot =
-                    end_idx > 0 && matches!(&design_tokens[end_idx - 1].kind, TokenKind::Dot);
-                if !prev_is_dot {
-                    break;
+                if depth == 0 {
+                    // Bare identifier (not preceded by `.`) = theme name boundary
+                    let prev_is_dot =
+                        end_idx > 0 && matches!(&design_tokens[end_idx - 1].kind, TokenKind::Dot);
+                    if !prev_is_dot {
+                        break;
+                    }
                 }
                 end_idx += 1;
             }
-            TokenKind::RBrace => break,
             _ => end_idx += 1,
         }
     }
@@ -1092,6 +1107,30 @@ mod tests {
         assert!(
             matches!(result.tokens[0].value, TokenValue::Expression(_)),
             "expected Expression variant for function call, got {:?}",
+            result.tokens[0].value
+        );
+    }
+
+    #[test]
+    fn parse_token_value_function_call_with_arg() {
+        let src = r#"token primary: color = getColor(primary);"#;
+        let tokens = crate::lexer::tokenize(src);
+        let result = parse_design_body(src, &tokens).unwrap();
+        assert!(
+            matches!(result.tokens[0].value, TokenValue::Expression(_)),
+            "expected Expression variant for function call with arg, got {:?}",
+            result.tokens[0].value
+        );
+    }
+
+    #[test]
+    fn parse_token_value_method_call_with_arg() {
+        let src = r#"token primary: color = store.getColor(primary);"#;
+        let tokens = crate::lexer::tokenize(src);
+        let result = parse_design_body(src, &tokens).unwrap();
+        assert!(
+            matches!(result.tokens[0].value, TokenValue::Expression(_)),
+            "expected Expression variant for method call with arg, got {:?}",
             result.tokens[0].value
         );
     }

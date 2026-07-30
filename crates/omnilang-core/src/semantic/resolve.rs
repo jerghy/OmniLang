@@ -13,7 +13,6 @@
 
 use super::helpers::type_to_string;
 use super::symbols::{Symbol, SymbolKind};
-use crate::lexer::Span;
 use super::types::SemanticType;
 use super::validate_inline::{check_control_flow, check_expr_await, ValidationContext};
 use super::validate_types::{
@@ -23,6 +22,7 @@ use super::SemanticAnalyzer;
 use crate::error::suggest_similar_name;
 use crate::error::Diagnostic;
 use crate::error::DiagnosticKind;
+use crate::lexer::Span;
 use crate::parser::ast::*;
 
 impl SemanticAnalyzer {
@@ -168,7 +168,12 @@ impl SemanticAnalyzer {
                                 "Undefined variable '{}' in design token '{}'",
                                 name, token.name
                             ),
-                            &Span { start: 0, end: 0, line: 0, col: 0 },
+                            &Span {
+                                start: 0,
+                                end: 0,
+                                line: 0,
+                                col: 0,
+                            },
                         ));
                     }
                 }
@@ -182,7 +187,12 @@ impl SemanticAnalyzer {
                                     "Undefined variable '{}' in theme '{}' of design token '{}'",
                                     name, theme_name, token.name
                                 ),
-                                &Span { start: 0, end: 0, line: 0, col: 0 },
+                                &Span {
+                                    start: 0,
+                                    end: 0,
+                                    line: 0,
+                                    col: 0,
+                                },
                             ));
                         }
                     }
@@ -408,11 +418,9 @@ impl SemanticAnalyzer {
                 let rhs = infer_expr_type(right, &self.symbols, scope);
                 if let Err(msg) = check_binary_op(op, &lhs, &rhs) {
                     self.diagnostics.push(
-                        Diagnostic::error(DiagnosticKind::E0010, &msg, span)
-                            .with_suggestion(&format!(
-                                "expected compatible types, got {} and {}",
-                                lhs, rhs
-                            )),
+                        Diagnostic::error(DiagnosticKind::E0010, &msg, span).with_suggestion(
+                            &format!("expected compatible types, got {} and {}", lhs, rhs),
+                        ),
                     );
                 }
             }
@@ -491,15 +499,11 @@ impl SemanticAnalyzer {
                                         .collect::<Vec<_>>()
                                         .join(", ");
                                     self.diagnostics.push(
-                                        Diagnostic::error(
-                                            DiagnosticKind::E0010,
-                                            &msg,
-                                            span,
-                                        )
-                                        .with_suggestion(&format!(
-                                            "expected [{}], got [{}]",
-                                            param_types_str, arg_types_str
-                                        )),
+                                        Diagnostic::error(DiagnosticKind::E0010, &msg, span)
+                                            .with_suggestion(&format!(
+                                                "expected [{}], got [{}]",
+                                                param_types_str, arg_types_str
+                                            )),
                                     );
                                 }
                             }

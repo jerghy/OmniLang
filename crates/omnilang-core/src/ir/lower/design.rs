@@ -60,8 +60,16 @@ pub fn lower_design_with_consts(
         })
         .collect();
 
-    let classes: Vec<ClassIR> = ast.classes.iter().map(|c| lower_class(c, &tokens)).collect();
-    let variants: Vec<VariantIR> = ast.variants.iter().map(|v| lower_variant(v, &tokens)).collect();
+    let classes: Vec<ClassIR> = ast
+        .classes
+        .iter()
+        .map(|c| lower_class(c, &tokens))
+        .collect();
+    let variants: Vec<VariantIR> = ast
+        .variants
+        .iter()
+        .map(|v| lower_variant(v, &tokens))
+        .collect();
 
     DesignIR {
         name: ast.name.clone(),
@@ -426,7 +434,10 @@ mod tests {
                 name: "primary".to_string(),
                 token_type: TokenType::Color,
                 value: TokenValue::Literal("#6366f1".to_string()),
-                theme_values: vec![("dark".to_string(), TokenValue::Literal("#a5b4fc".to_string()))],
+                theme_values: vec![(
+                    "dark".to_string(),
+                    TokenValue::Literal("#a5b4fc".to_string()),
+                )],
             }],
             classes: vec![],
             variants: vec![],
