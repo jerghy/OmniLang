@@ -7,7 +7,6 @@
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
 use crate::codegen::shared::build_component_map;
 use crate::codegen::shared::types::{FormatType, JsTypeFormatter};
-use crate::codegen::shared::ui_codegen::UiCodegen;
 use crate::codegen::{format_json_value, JSON_REACT};
 use crate::ir::*;
 use rustc_hash::FxHashMap;
@@ -852,32 +851,3 @@ pub(super) fn escape_js_ident(name: &str) -> String {
     }
 }
 
-// ═══════════════════════════════════════════════════════════
-// UiCodegen trait implementation — thin delegation to existing methods
-// ═══════════════════════════════════════════════════════════
-
-impl UiCodegen for ReactCodegen {
-    fn generate_component_code(&self, name: &str, comp: &ComponentIR, ir: &IRProgram) -> String {
-        let component_map = build_component_map(ir);
-        self.gen_component_tsx(name, comp, ir, &component_map)
-    }
-
-    fn generate_component_css(&self, name: &str, comp: &ComponentIR) -> String {
-        self.gen_component_css(name, comp)
-    }
-
-    fn generate_store_code(&self, name: &str, store: &StoreIR) -> String {
-        match self.store_mode {
-            ReactStoreMode::Hooks => self.gen_store_hook(name, store),
-            ReactStoreMode::Zustand => self.gen_zustand_store(name, store),
-        }
-    }
-
-    fn component_file_extension(&self) -> &str {
-        ".tsx"
-    }
-
-    fn store_file_extension(&self) -> &str {
-        ".ts"
-    }
-}

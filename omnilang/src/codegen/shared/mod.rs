@@ -12,7 +12,6 @@ pub(crate) use omnilang_core::codegen::shared::html;
 pub(crate) use omnilang_core::codegen::shared::inline_handler;
 pub(crate) use omnilang_core::codegen::shared::stmt;
 pub(crate) use omnilang_core::codegen::shared::types;
-pub use omnilang_core::codegen::shared::ui_codegen;
 pub(crate) use omnilang_core::codegen::shared::visitor;
 
 // ── Re-exported from omnilang-core (P-gen dedup) ──
