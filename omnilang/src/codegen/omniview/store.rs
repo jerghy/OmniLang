@@ -587,17 +587,21 @@ impl OmniViewGenerator {
     /// Called during generate_component, after signal/computed/fn declarations,
     /// before the view emission.
     pub(super) fn emit_ref_wrappers(&mut self, comp: &ComponentIR) {
+        // css_only mode: styles only, no JS emission
+        if self.css_only {
+            return;
+        }
         // Only emit if the component has ref declarations
         if comp.refs.is_empty() || self.ref_nid_map.is_empty() {
             return;
         }
 
-        let _ = writeln!(self.js, "\n  /// ── Element Refs ──");
+        let _ = writeln!(self.js, "\n  // ── Element Refs ──");
 
         for (ref_name, nid) in &self.ref_nid_map {
             let _ = writeln!(
                 self.js,
-                "/// ── ref: {ref_name} → nid=\"{nid}\" ──\n\
+                "// ── ref: {ref_name} → nid=\"{nid}\" ──\n\
                  const {ref_name} = (function() {{\n\
                  \x20 const _nid = \"{nid}\";\n\
                  \x20 const _el = function() {{ return __omni_el(_nid); }};\n\
@@ -610,6 +614,8 @@ impl OmniViewGenerator {
                  \x20\x20 blur() {{ const e = _el(); if (e) e.blur(); }},\n\
                  \x20\x20 get offsetWidth() {{ const e = _el(); return e ? e.offsetWidth : 0; }},\n\
                  \x20\x20 get offsetHeight() {{ const e = _el(); return e ? e.offsetHeight : 0; }},\n\
+                 \x20\x20 scrollTo(x, y) {{ const e = _el(); if (e) e.scrollTo(x, y); }},\n\
+                 \x20\x20 scrollBy(dx, dy) {{ const e = _el(); if (e) e.scrollBy(dx, dy); }},\n\
                  \x20 }};\n\
                  }})();",
                 ref_name = ref_name,

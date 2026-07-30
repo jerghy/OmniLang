@@ -137,8 +137,6 @@ pub(super) struct ReactStmtFormatter {
     pub expr: ReactFormatExpr,
     pub signal_names: FxHashSet<String>,
     pub store_mode: super::ReactStoreMode,
-    #[allow(dead_code)]
-    pub ref_names: FxHashSet<String>,
 }
 
 impl FormatStmt for ReactStmtFormatter {
@@ -422,7 +420,6 @@ pub(super) fn generate_statement_tsx_with_mode(
         },
         signal_names: signal_names.clone(),
         store_mode,
-        ref_names: ref_names.clone(),
     };
     fmt.format_stmt(w, stmt);
 }
@@ -434,14 +431,10 @@ pub(super) fn generate_statement_tsx_with_mode(
 pub(super) fn format_expr_ir_tsx(expr: &ExprIR, ref_names: &FxHashSet<String>) -> String {
     match expr {
         ExprIR::IdentifierExpr { name, .. } => {
-            if ref_names.contains(name.as_str()) {
-                format!("{}Ref.current", name)
-            } else {
-                ReactFormatExpr {
-                    ref_names: ref_names.clone(),
-                }
-                .format_identifier(name)
+            ReactFormatExpr {
+                ref_names: ref_names.clone(),
             }
+            .format_identifier(name)
         }
         ExprIR::FieldAccessExpr { object, field } => {
             let obj_str = format_expr_ir_tsx(object, ref_names);

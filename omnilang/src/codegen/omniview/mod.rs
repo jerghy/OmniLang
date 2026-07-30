@@ -262,7 +262,7 @@ pub fn generate(
             if !module.motions.is_empty() {
                 let _ = writeln!(
                     gen.js,
-                    "\n/// ── Module Motion Definitions: {} ──\n",
+                    "\n// ── Module Motion Definitions: {} ──\n",
                     module.name
                 );
                 for motion in &module.motions {
@@ -614,7 +614,7 @@ impl OmniViewGenerator {
     /// Panics (debug_assert) on duplicates — the semantic validator
     /// should catch duplicates before codegen, but this is defense-in-depth.
     pub(super) fn push_ref_nid(&mut self, ref_name: String, nid: String) {
-        debug_assert!(
+        assert!(
             !self.ref_nid_set.contains(&ref_name),
             "duplicate ref binding '{}' — semantic validator should have caught this",
             ref_name
