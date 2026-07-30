@@ -1,34 +1,22 @@
-// MotionPage — 运动动画：全部 12 个 motion demo
+// MotionPage — 运动动画：全部 motion + ref demo（ADR-032 后 14 项功能）
 import omniview;
 import { LearnDesign } from "../design";
 import { MotionDemo } from "./MotionDemo";
-import { MotionPlaybackDemo } from "./MotionPlaybackDemo";
 import { EasingFunctionsDemo } from "./EasingFunctionsDemo";
 import { AnimPropertiesDemo } from "./AnimPropertiesDemo";
 import { MotionTriggersDemo } from "./MotionTriggersDemo";
-import { MotionCallbackDemo } from "../components/MotionCallbackDemo";
-import { TimelinePositionDemo } from "../components/TimelinePositionDemo";
-import { StaggerAndTimelineDemo } from "./StaggerAndTimelineDemo";
-import { TimelineMotionDemo } from "./TimelineMotionDemo";
-import { PlaybackAdvancedDemo } from "./PlaybackAdvancedDemo";
-import { HeroTransitionDemo } from "./HeroTransitionDemo";
-import { ComponentSpecialsDemo } from "./ComponentSpecialsDemo";
+import { KeyframeAnimationDemo } from "./KeyframeAnimationDemo";
+import { ElementRefDemo } from "./ElementRefDemo";
 
 component MotionPage {
     view {
         <section class: LearnDesign.DemoSection>
             <div class: LearnDesign.DemoFull><MotionDemo /></div>
-            <div class: LearnDesign.DemoFull><MotionPlaybackDemo /></div>
+            <div class: LearnDesign.DemoFull><KeyframeAnimationDemo /></div>
             <div class: LearnDesign.DemoFull><EasingFunctionsDemo /></div>
             <div class: LearnDesign.DemoFull><AnimPropertiesDemo /></div>
             <div class: LearnDesign.DemoFull><MotionTriggersDemo /></div>
-            <div class: LearnDesign.DemoFull><MotionCallbackDemo /></div>
-            <div class: LearnDesign.DemoFull><TimelinePositionDemo /></div>
-            <div class: LearnDesign.DemoFull><StaggerAndTimelineDemo /></div>
-            <div class: LearnDesign.DemoFull><TimelineMotionDemo /></div>
-            <div class: LearnDesign.DemoFull><PlaybackAdvancedDemo /></div>
-            <div class: LearnDesign.DemoFull><HeroTransitionDemo /></div>
-            <div class: LearnDesign.DemoFull><ComponentSpecialsDemo /></div>
+            <div class: LearnDesign.DemoFull><ElementRefDemo /></div>
         </section>
     }
 }

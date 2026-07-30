@@ -1,13 +1,12 @@
 // ╔══════════════════════════════════════════════════════════════════════╗
-// ║  EasingFunctionsDemo — 缓动全家桶覆盖（24 种未使用的缓动）          ║
+// ║  EasingFunctionsDemo — 缓动全家桶覆盖（20 种缓动）                  ║
 // ║                                                                    ║
 // ║  Power 组：   easeIn, power1In/Out/InOut, power2In/InOut,          ║
 // ║               power3In/InOut, power4In/Out/InOut                   ║
-// ║  Back 组：    backIn/Out/InOut (with intensity)                    ║
+// ║  Back 组：    backIn/Out/InOut (named-only)                        ║
 // ║  Bounce 组：  bounceIn/Out/InOut                                   ║
-// ║  Elastic 组： elasticIn/Out/InOut (with amplitude/period)          ║
-// ║  Spring 组：  spring(tension, friction, velocity)                  ║
-// ║  Custom 组：  cubic(x1,y1,x2,y2), steps(count,direction)           ║
+// ║  Elastic 组： elasticIn/Out/InOut (named-only)                     ║
+// ║  Custom 组：  cubic(x1,y1,x2,y2)                                   ║
 // ╚══════════════════════════════════════════════════════════════════════╝
 import omniview;
 
@@ -16,26 +15,21 @@ import omniview;
 // ║                                                            ║
 // ║  **Steps:**                                                ║
 // ║  1. Navigate to EasingFunctionsDemo component page.        ║
-// ║  2. Verify all 24 easing function cards render.            ║
+// ║  2. Verify all 20 easing function cards render.            ║
 // ║  3. Check Power group: easeIn, power1/2/3/4 variants.      ║
-// ║  4. Check Back group: backIn/Out/InOut + custom intensity. ║
+// ║  4. Check Back group: backIn/Out/InOut.                    ║
 // ║  5. Check Bounce group: bounceIn/Out/InOut.               ║
-// ║  6. Check Elastic group: elasticIn/Out/InOut + custom.     ║
-// ║  7. Check Spring group: spring(tension,friction,velocity). ║
-// ║  8. Check Custom group: cubic-bezier and steps.            ║
-// ║  9. Click "Play All Animations" button to trigger @enter   ║
+// ║  6. Check Elastic group: elasticIn/Out/InOut.              ║
+// ║  7. Check Custom group: cubic-bezier.                       ║
+// ║  8. Click "Play All Animations" button to trigger @enter   ║
 // ║     on all cards.                                          ║
 // ║                                                            ║
 // ║  **Expected:**                                             ║
-// ║  - 24 cards rendered, each with @enter motion data attr.   ║
+// ║  - 20 cards rendered, each with @enter motion data attr.   ║
 // ║  - easeIn card has @enter={easeInMove} (ease easeIn).      ║
 // ║  - power4InOut card has @enter={power4InOutMove} (ease     ║
 // ║    power4InOut).                                           ║
-// ║  - backOutIntensity card has ease backOut(intensity:3.5).  ║
-// ║  - elasticCustom card has ease elasticOut(amp:2,per:0.8).  ║
-// ║  - springBouncy card uses spring(120,8,2).                 ║
 // ║  - cubicCustom card uses cubic(x1,y1,x2,y2).              ║
-// ║  - stepsDemo card uses steps(count:6,direction:end).       ║
 // ║  - "Play All Animations" button rendered and clickable.    ║
 // ╚══════════════════════════════════════════════════════════════╝
 
@@ -144,12 +138,6 @@ import omniview;
     over 800 ease backInOut
 }
 
-@motion backOutIntensity {
-    from { x: 0 }
-    to   { x: 200 }
-    over 800 ease backOut(intensity: 3.5)
-}
-
 // ══════════════════════════════════════════════════════════════════════
 //  BOUNCE 系列
 // ══════════════════════════════════════════════════════════════════════
@@ -194,34 +182,6 @@ import omniview;
     over 1200 ease elasticInOut
 }
 
-@motion elasticCustomMove {
-    from { x: 0 }
-    to   { x: 200 }
-    over 1500 ease elasticOut(amplitude: 2.0, period: 0.8)
-}
-
-// ══════════════════════════════════════════════════════════════════════
-//  SPRING 物理缓动
-// ══════════════════════════════════════════════════════════════════════
-
-@motion springDefault {
-    from { x: 0, opacity: 0.3 }
-    to   { x: 180, opacity: 1 }
-    over 1000 ease spring(tension: 180, friction: 12)
-}
-
-@motion springBouncy {
-    from { x: 0 }
-    to   { x: 200 }
-    over 1000 ease spring(tension: 120, friction: 8, velocity: 2)
-}
-
-@motion springStiff {
-    from { scale: 1 }
-    to   { scale: 1.3 }
-    over 600 ease spring(tension: 400, friction: 30)
-}
-
 // ══════════════════════════════════════════════════════════════════════
 //  CUBIC BEZIER — 4 参数自定义三次贝塞尔
 // ══════════════════════════════════════════════════════════════════════
@@ -230,16 +190,6 @@ import omniview;
     from { x: 0 }
     to   { x: 180 }
     over 800 ease cubic(x1: 0.68, y1: -0.55, x2: 0.27, y2: 1.55)
-}
-
-// ══════════════════════════════════════════════════════════════════════
-//  STEPS — 逐帧动画
-// ══════════════════════════════════════════════════════════════════════
-
-@motion stepsDemo {
-    from { x: 0 }
-    to   { x: 180 }
-    over 1000 ease steps(count: 6, direction: end)
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -253,8 +203,8 @@ component EasingFunctionsDemo {
     view {
         <div class: container>
             <h3 class: title>缓动函数全家桶</h3>
-            <p class: subtitle>24 种未测试缓动 · 点击按钮播放当前屏幕所有 @enter 动画</p>
-            <button @press={springStiff} @click={toggleAll} class: trigger-btn>
+            <p class: subtitle>20 种缓动 · 点击按钮播放当前屏幕所有 @enter 动画</p>
+            <button @press={backOutMove} @click={toggleAll} class: trigger-btn>
                 {if playAll { "Reset" } else { "Play All Animations" }}
             </button>
 
@@ -275,12 +225,11 @@ component EasingFunctionsDemo {
             </div>
 
             <!-- ═══ Back 组 ═══ -->
-            <h4 class: group-title>Back 弹回（带可选 intensity 参数）</h4>
+            <h4 class: group-title>Back 弹回（named-only）</h4>
             <div class: grid>
-                <div class: card @enter={backInMove}><strong>backIn</strong><p>默认 intensity 1.7</p></div>
-                <div class: card @enter={backOutMove}><strong>backOut</strong><p>默认 intensity 1.7</p></div>
-                <div class: card @enter={backInOutMove}><strong>backInOut</strong><p>默认 intensity 1.7</p></div>
-                <div class: card @enter={backOutIntensity}><strong>backOut(3.5)</strong><p>自定义弹回强度</p></div>
+                <div class: card @enter={backInMove}><strong>backIn</strong><p>回弹入</p></div>
+                <div class: card @enter={backOutMove}><strong>backOut</strong><p>回弹出</p></div>
+                <div class: card @enter={backInOutMove}><strong>backInOut</strong><p>回弹出入</p></div>
             </div>
 
             <!-- ═══ Bounce 组 ═══ -->
@@ -292,27 +241,17 @@ component EasingFunctionsDemo {
             </div>
 
             <!-- ═══ Elastic 组 ═══ -->
-            <h4 class: group-title>Elastic 弹性（带可选 amplitude/period 参数）</h4>
+            <h4 class: group-title>Elastic 弹性（named-only）</h4>
             <div class: grid>
-                <div class: card @enter={elasticInMove}><strong>elasticIn</strong><p>默认振幅 1.0/周期 0.5</p></div>
-                <div class: card @enter={elasticOutMove}><strong>elasticOut</strong><p>默认振幅 1.0/周期 0.5</p></div>
-                <div class: card @enter={elasticInOutMove}><strong>elasticInOut</strong><p>默认振幅 1.0/周期 0.5</p></div>
-                <div class: card @enter={elasticCustomMove}><strong>elasticOut(2,0.8)</strong><p>自定义振幅/周期</p></div>
-            </div>
-
-            <!-- ═══ Spring 组 ═══ -->
-            <h4 class: group-title>Spring 物理缓动（tension · friction · velocity）</h4>
-            <div class: grid>
-                <div class: card @enter={springDefault}><strong>spring(180,12)</strong><p>默认弹簧参数</p></div>
-                <div class: card @enter={springBouncy}><strong>spring(120,8,2)</strong><p>弹性大·阻尼小</p></div>
-                <div class: card @enter={springStiff}><strong>spring(400,30)</strong><p>刚硬弹簧·scale</p></div>
+                <div class: card @enter={elasticInMove}><strong>elasticIn</strong><p>弹性入</p></div>
+                <div class: card @enter={elasticOutMove}><strong>elasticOut</strong><p>弹性出</p></div>
+                <div class: card @enter={elasticInOutMove}><strong>elasticInOut</strong><p>弹性出入</p></div>
             </div>
 
             <!-- ═══ Custom 组 ═══ -->
-            <h4 class: group-title>自定义缓动（cubic-bezier · steps）</h4>
+            <h4 class: group-title>自定义缓动（cubic-bezier）</h4>
             <div class: grid>
                 <div class: card @enter={cubicCustom}><strong>cubic(x1,y1,x2,y2)</strong><p>自定义贝塞尔 overshoot</p></div>
-                <div class: card @enter={stepsDemo}><strong>steps(6,end)</strong><p>6 帧逐帧动画</p></div>
             </div>
         </div>
     }

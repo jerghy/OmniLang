@@ -1,0 +1,330 @@
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  KeyframeAnimationDemo.omni — 全触发器 + 播放属性 + 缓动     ║
+// ║                                                              ║
+// ║  覆盖 ADR-032 保留的全部 14 项动画功能：                     ║
+// ║    7 触发器: @enter @hover @press @inView @scroll            ║
+// ║              @dragHorizontal @dragVertical                    ║
+// ║    5 播放属性: Loop Direction Fill Delay Paused              ║
+// ║    4 缓动变体: Named CubicBezier Back Elastic                ║
+// ║    多停靠关键帧（百分比）                                     ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+import omniview;
+import { LearnDesign } from "../design";
+
+// ═══════════════════════════════════════════════════════════════
+// @motion 定义 — 覆盖全部 7 触发器 + 5 播放属性 + 4 缓动变体
+// ═══════════════════════════════════════════════════════════════
+
+// ── @enter 入场动画 ──
+@motion enterFadeUp {
+    from { opacity: 0, y: 20 }
+    to   { opacity: 1, y: 0 }
+    over 500 ease power2Out
+}
+
+// ── @hover 悬停动画 ──
+@motion hoverScale {
+    to { scale: 1.05 }
+    over 200 ease easeOut
+}
+
+// ── @press 按压动画 ──
+@motion pressShrink {
+    to { scale: 0.95 }
+    over 100 ease easeOut
+}
+
+// ── @inView 滚动入视（带子属性） ──
+@motion inViewSlide {
+    from { opacity: 0, y: 30 }
+    to   { opacity: 1, y: 0 }
+    over 600 ease power2Out
+}
+
+// ── @scroll 滚动驱动 ──
+@motion scrollProgress {
+    from { opacity: 0.3, scale: 0.95 }
+    to   { opacity: 1, scale: 1 }
+    over 500 ease easeOut
+}
+
+// ── @dragHorizontal 水平拖拽 ──
+@motion dragSlideX {
+    from { x: 0 }
+    to   { x: 100 }
+    over 300 ease power2Out
+}
+
+// ── @dragVertical 垂直拖拽 ──
+@motion dragSlideY {
+    from { y: 0 }
+    to   { y: 60 }
+    over 300 ease power2Out
+}
+
+// ── Loop（循环） ──
+@motion spinLoop {
+    to { rotate: 360 }
+    over 2000 ease linear
+    loop
+}
+
+// ── Direction（方向） ──
+@motion dirAlternate {
+    from { scale: 1 }
+    to   { scale: 1.3 }
+    over 800 ease power2Out
+    direction alternate
+}
+
+@motion dirAltReverse {
+    from { scale: 1 }
+    to   { scale: 1.4 }
+    over 800 ease power2Out
+    direction alternateReverse
+}
+
+// ── Fill（填充） ──
+@motion fillForwards {
+    from { x: -20, opacity: 0 }
+    to   { x: 0, opacity: 1 }
+    over 1000 ease power2Out
+    fill forwards
+}
+
+@motion fillBackwards {
+    from { opacity: 0 }
+    to   { opacity: 1 }
+    over 600 ease power2Out
+    delay 500
+    fill backwards
+}
+
+@motion fillBoth {
+    from { scale: 0.8, opacity: 0 }
+    to   { scale: 1.2, opacity: 1 }
+    over 600 ease power2Out
+    delay 300
+    fill both
+}
+
+// ── Delay（延迟） ──
+@motion delayedEntrance {
+    from { y: 20, opacity: 0 }
+    to   { y: 0, opacity: 1 }
+    over 400 ease power2Out
+    delay 500
+}
+
+// ── Paused（暂停） ──
+@motion pausedAnim {
+    from { x: 0 }
+    to   { x: 180 }
+    over 800 ease power2Out
+    paused
+}
+
+// ── CubicBezier 缓动 ──
+@motion cubicDemo {
+    from { x: 0 }
+    to   { x: 180 }
+    over 800 ease cubic(x1: 0.68, y1: -0.55, x2: 0.27, y2: 1.55)
+}
+
+// ── Back 缓动（named-only） ──
+@motion backEaseDemo {
+    from { x: 0 }
+    to   { x: 180 }
+    over 800 ease backOut
+}
+
+// ── Elastic 缓动（named-only） ──
+@motion elasticEaseDemo {
+    from { x: 0 }
+    to   { x: 180 }
+    over 1200 ease elasticOut
+}
+
+// ── 多停靠关键帧（百分比） ──
+@motion multiStopDemo {
+    0%   { opacity: 0, scale: 0.5, background: "#6366f1" }
+    25%  { opacity: 0.5, scale: 0.8 }
+    50%  { opacity: 1, scale: 1.2, background: "#10b981" }
+    75%  { opacity: 1, scale: 1.05 }
+    100% { opacity: 1, scale: 1, background: "#f59e0b" }
+    over 1200 ease easeInOut
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 组件
+// ═══════════════════════════════════════════════════════════════
+component KeyframeAnimationDemo {
+    signal playTriggers: bool = false;
+    signal playPlayback: bool = false;
+    signal isPaused: bool = false;
+
+    fn toggleTriggers() { playTriggers = !playTriggers; }
+    fn togglePlayback() { playPlayback = !playPlayback; }
+    fn togglePaused() { isPaused = !isPaused; }
+
+    view {
+        <div class: LearnDesign.Container>
+            <h3 class: LearnDesign.CardTitle>Keyframe Animation Demo</h3>
+            <p class: LearnDesign.Subtitle>7 触发器 · 5 播放属性 · 4 缓动变体 · 多停靠关键帧 (ADR-032)</p>
+
+            <!-- ═══ 触发器组 ═══ -->
+            <h4 class: LearnDesign.SectionTitle>全部 7 触发器</h4>
+            <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={toggleTriggers}>
+                {if playTriggers { "Reset Triggers" } else { "Play All Triggers" }}
+            </button>
+
+            <div class: trigger-grid>
+                <!-- @enter -->
+                <div class: card @enter={enterFadeUp}>
+                    <strong>@enter</strong>
+                    <p>入场动画 fadeUp 500ms</p>
+                </div>
+
+                <!-- @hover -->
+                <div class: card @hover={hoverScale}>
+                    <strong>@hover</strong>
+                    <p>悬停缩放 1.05x</p>
+                </div>
+
+                <!-- @press -->
+                <div class: card @press={pressShrink}>
+                    <strong>@press</strong>
+                    <p>按压缩小 0.95x</p>
+                </div>
+
+                <!-- @inView + 子属性 -->
+                <div class: card @inView={inViewSlide}
+                     @in-view-once={true}
+                     @in-view-threshold={0.5}>
+                    <strong>@inView</strong>
+                    <p>进入视口触发 (once, threshold 0.5)</p>
+                </div>
+
+                <!-- @scroll + 子属性 -->
+                <div class: "card scroll-area"
+                     @scroll={scrollProgress}
+                     @scroll-start="top 80%"
+                     @scroll-end="bottom 20%"
+                     @scroll-scrub={0.5}>
+                    <strong>@scroll</strong>
+                    <p>滚动驱动 (scrub 0.5)</p>
+                </div>
+
+                <!-- @dragHorizontal + 子属性 -->
+                <div class: card
+                     @dragHorizontal={dragSlideX}
+                     @drag-constraints="left:0 right:250"
+                     @drag-elastic={0.2}
+                     @drag-scrub={true}
+                     @drag-momentum={0.95}>
+                    <strong>@dragHorizontal</strong>
+                    <p>水平拖拽 →</p>
+                </div>
+
+                <!-- @dragVertical + 子属性 -->
+                <div class: card
+                     @dragVertical={dragSlideY}
+                     @drag-constraints="top:0 bottom:120"
+                     @drag-elastic={0.3}
+                     @drag-scrub={true}>
+                    <strong>@dragVertical</strong>
+                    <p>垂直拖拽 ↓</p>
+                </div>
+            </div>
+
+            <!-- ═══ 播放属性组 ═══ -->
+            <h4 class: LearnDesign.SectionTitle>5 个播放属性：Loop · Direction · Fill · Delay · Paused</h4>
+            <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={togglePlayback}>
+                {if playPlayback { "Reset" } else { "Play Playback Props" }}
+            </button>
+
+            <div class: trigger-grid>
+                <div class: card @enter={spinLoop}>
+                    <strong>Loop</strong>
+                    <p>无限旋转 360°</p>
+                </div>
+                <div class: card @enter={dirAlternate}>
+                    <strong>Direction alternate</strong>
+                    <p>交替往返</p>
+                </div>
+                <div class: card @enter={dirAltReverse}>
+                    <strong>Direction alternateReverse</strong>
+                    <p>交替反向</p>
+                </div>
+                <div class: card @enter={fillForwards}>
+                    <strong>Fill forwards</strong>
+                    <p>保持终点状态</p>
+                </div>
+                <div class: card @enter={fillBackwards}>
+                    <strong>Fill backwards + Delay</strong>
+                    <p>delay 500ms 前即跳到 from 态</p>
+                </div>
+                <div class: card @enter={fillBoth}>
+                    <strong>Fill both + Delay</strong>
+                    <p>前后都填充 · delay 300ms</p>
+                </div>
+                <div class: card @enter={delayedEntrance}>
+                    <strong>Delay 500ms</strong>
+                    <p>延迟 0.5 秒开始</p>
+                </div>
+                <div class: card @enter={pausedAnim}>
+                    <strong>Paused</strong>
+                    <p>初始暂停（需手动播放）</p>
+                </div>
+            </div>
+
+            <!-- ═══ 缓动变体组 ═══ -->
+            <h4 class: LearnDesign.SectionTitle>4 种缓动变体：Named · CubicBezier · Back · Elastic</h4>
+            <div class: trigger-grid>
+                <div class: card @enter={enterFadeUp}>
+                    <strong>Named (power2Out)</strong>
+                    <p>29 种命名曲线之一</p>
+                </div>
+                <div class: card @enter={cubicDemo}>
+                    <strong>CubicBezier</strong>
+                    <p>cubic(0.68, -0.55, 0.27, 1.55)</p>
+                </div>
+                <div class: card @enter={backEaseDemo}>
+                    <strong>Back (named-only)</strong>
+                    <p>backOut 回弹曲线</p>
+                </div>
+                <div class: card @enter={elasticEaseDemo}>
+                    <strong>Elastic (named-only)</strong>
+                    <p>elasticOut 弹性曲线</p>
+                </div>
+            </div>
+
+            <!-- ═══ 多停靠关键帧 ═══ -->
+            <h4 class: LearnDesign.SectionTitle>多停靠关键帧（百分比：0% 25% 50% 75% 100%）</h4>
+            <div class: "card multi-stop" @enter={multiStopDemo}>
+                <strong>Multi-stop Keyframe</strong>
+                <p>5 个停靠点 · 颜色渐变 · 缩放循环</p>
+            </div>
+
+            <!-- ═══ @paused 属性 ═══ -->
+            <h4 class: LearnDesign.SectionTitle>@paused 元素属性</h4>
+            <div class: "card multi-stop" @enter={spinLoop} @paused={isPaused}>
+                <strong>@paused={isPaused}</strong>
+                <p>Loop 旋转 · 点击按钮暂停/恢复</p>
+            </div>
+            <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={togglePaused}>
+                {if isPaused { "▶ Resume" } else { "⏸ Pause" }}
+            </button>
+        </div>
+    }
+
+    style {
+        .trigger-grid { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
+        .card { flex: 0 0 auto; padding: 14px 16px; background: var(--surfaceMuted); border-radius: var(--radiusMd); border: 1px solid var(--borderLight); text-align: center; min-width: 140px; cursor: default; }
+        .card strong { font-size: 13px; color: var(--textPrimary); display: block; margin-bottom: 4px; }
+        .card p { font-size: 11px; color: var(--textSecondary); margin: 0; }
+        .scroll-area { height: 100px; overflow-y: auto; }
+        .multi-stop { padding: 24px; text-align: center; background: var(--surfaceMuted); }
+    }
+}

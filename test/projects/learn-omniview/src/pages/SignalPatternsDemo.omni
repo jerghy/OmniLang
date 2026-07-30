@@ -1,0 +1,230 @@
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  SignalPatternsDemo.omni — Signal/Store/Component 模式      ║
+// ║                                                              ║
+// ║  演示核心响应式模式：                                        ║
+// ║    · @store 引用 + inline store 定义                         ║
+// ║    · signal + computed 派生计算                              ║
+// ║    · @effect / @mount / @unmount 生命周期                    ║
+// ║    · bind:value 双向绑定                                     ║
+// ║    · @for key={expr}  身份追踪列表渲染                       ║
+// ║    · @if mode="wait"  过渡模式条件渲染                       ║
+// ║    · @slot / @slot(name)  命名插槽                            ║
+// ║    · event 声明 + 中继                                      ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+import omniview;
+import { LearnDesign } from "../design";
+
+// ── 插槽容器子组件 ──
+component SlotBox {
+    event onClose: Void;
+
+    view {
+        <div class: slot-container>
+            <div class: slot-header-area>
+                @slot(header)
+                <strong class: slot-default-header>Default Header</strong>
+            </div>
+            <div class: slot-body-area>
+                @slot(body)
+                <p class: slot-default-body>Default body content goes here.</p>
+            </div>
+            <div class: slot-footer-area>
+                @slot(footer)
+                <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={onClose}>
+                    Close
+                </button>
+            </div>
+        </div>
+    }
+
+    style {
+        .slot-container { border: 1px solid var(--border); border-radius: var(--radiusLg); overflow: hidden; background: var(--surface); }
+        .slot-header-area { padding: 12px 14px; background: var(--surfaceMuted); border-bottom: 1px solid var(--borderLight); }
+        .slot-default-header { font-size: 14px; color: var(--textPrimary); }
+        .slot-body-area { padding: 14px; min-height: 40px; }
+        .slot-default-body { font-size: 13px; color: var(--textSecondary); margin: 0; }
+        .slot-footer-area { padding: 10px 14px; background: var(--surfaceMuted); border-top: 1px solid var(--borderLight); display: flex; justify-content: flex-end; gap: 8px; }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 主组件
+// ═══════════════════════════════════════════════════════════════
+component SignalPatternsDemo {
+    // ── 本地 signal + computed ──
+    // (Inline store 模式见 InlineStoreDemo.omni)
+    signal count: i32 = 0;
+    signal name: String = "";
+    signal email: String = "";
+    signal showSlot: bool = false;
+    signal items: Array<String> = ["apple", "banana", "cherry"];
+    signal nextId: i32 = 3;
+    signal mountTime: String = "—";
+    signal effectCount: i32 = 0;
+    signal showPanel: bool = false;
+
+    computed doubleCount: i32 = count * 2;
+    computed isEven: bool = count % 2 == 0;
+    computed isValid: bool = name.len() > 0 && email.len() > 0;
+    computed totalItems: i32 = items.len();
+
+    // ── 事件声明 ──
+    event onItemAdded: String;
+    event onItemRemoved: i32;
+
+    // ── 函数 ──
+    fn inc() { count = count + 1; }
+    fn dec() { count = count - 1; }
+    fn resetCounter() { count = 0; }
+
+    fn addItem() {
+        let id = nextId;
+        nextId = nextId + 1;
+        items = [...items, "item-" + id.to_string()];
+        onItemAdded("item-" + id.to_string());
+    }
+
+    fn removeLast() {
+        if items.len() > 0 {
+            items = items.slice(0, items.len() - 1);
+            onItemRemoved(items.len());
+        }
+    }
+
+    fn toggleSlot() { showSlot = !showSlot; }
+    fn togglePanel() { showPanel = !showPanel; }
+
+    // ── 生命周期 ──
+    @mount {
+        mountTime = "mounted!";
+    }
+
+    @effect {
+        effectCount = effectCount + 1;
+    }
+
+    @unmount {
+        mountTime = "unmounting...";
+    }
+
+    view {
+        <div class: LearnDesign.Container>
+            <h3 class: LearnDesign.CardTitle>Signal & Store Patterns</h3>
+            <p class: LearnDesign.Subtitle>@store · computed · @effect · bind:value · @for key · @if mode · @slot</p>
+
+            <!-- ═══ Inline Store + Computed ═══ -->
+            <h4 class: LearnDesign.SectionTitle>Inline Store + Computed 派生</h4>
+            <div class: pattern-card>
+                <p class: big-number>{count}</p>
+                <p class: info>Double: {doubleCount} | {if isEven { "Even" } else { "Odd" }}</p>
+                <div class: LearnDesign.Row>
+                    <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={inc}>
+                        +1
+                    </button>
+                    <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={dec}>
+                        -1
+                    </button>
+                    <button variant: LearnDesign.Button(color=danger, size=sm) @onPress={resetCounter}>
+                        Reset
+                    </button>
+                </div>
+            </div>
+
+            <!-- ═══ bind:value 双向绑定 ═══ -->
+            <h4 class: LearnDesign.SectionTitle>bind:value 双向绑定 + 验证</h4>
+            <div class: pattern-card>
+                <div class: form-row>
+                    <label class: form-label>Name:</label>
+                    <input class: form-input bind:value={name} placeholder="Enter name" />
+                </div>
+                <div class: form-row>
+                    <label class: form-label>Email:</label>
+                    <input class: form-input bind:value={email} placeholder="Enter email" />
+                </div>
+                <p class: info>
+                    Name: "{name}" | Email: "{email}" |
+                    {if isValid { "✅ Valid" } else { "❌ Fill both fields" }}
+                </p>
+            </div>
+
+            <!-- ═══ @for key={expr} 身份追踪 ═══ -->
+            <h4 class: LearnDesign.SectionTitle>@for key={expr} 身份追踪列表</h4>
+            <div class: pattern-card>
+                <p class: info>Total: {totalItems} items</p>
+                <div class: LearnDesign.Row>
+                    <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={addItem}>
+                        Add Item
+                    </button>
+                    <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={removeLast}>
+                        Remove Last
+                    </button>
+                </div>
+                <ul class: item-list>
+                    @for item in items key={item} {
+                        <li class: list-item>{item}</li>
+                    }
+                    @empty {
+                        <li class: list-item empty>No items yet</li>
+                    }
+                </ul>
+            </div>
+
+            <!-- ═══ @if mode="wait" 过渡模式 ═══ -->
+            <h4 class: LearnDesign.SectionTitle>@if mode="wait" 过渡模式</h4>
+            <div class: pattern-card>
+                <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={togglePanel}>
+                    {if showPanel { "Hide Panel" } else { "Show Panel" }}
+                </button>
+                @if showPanel mode="wait" {
+                    <div class: panel>
+                        <p>这个面板在 mode="wait" 下渲染——旧内容离开动画完成后才插入新内容</p>
+                    </div>
+                }
+            </div>
+
+            <!-- ═══ @slot 命名插槽 ═══ -->
+            <h4 class: LearnDesign.SectionTitle>@slot(name) 命名插槽</h4>
+            <div class: pattern-card>
+                <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={toggleSlot}>
+                    {if showSlot { "Close Slot Demo" } else { "Open Slot Demo" }}
+                </button>
+                @if showSlot {
+                    <SlotBox @onClose={toggleSlot}>
+                        <h4 slot="header">Custom Header via Slot</h4>
+                        <div slot="body">
+                            <p class: slot-content>This body content is projected into @slot(body)</p>
+                            <p class: slot-content>Counter: {count}</p>
+                        </div>
+                        <button slot="footer" variant: LearnDesign.Button(color=primary, size=sm) @onPress={toggleSlot}>
+                            Confirm
+                        </button>
+                    </SlotBox>
+                }
+            </div>
+
+            <!-- ═══ 生命周期状态 ═══ -->
+            <h4 class: LearnDesign.SectionTitle>生命周期：@mount · @effect · @unmount</h4>
+            <div class: pattern-card>
+                <p class: info>Mount: {mountTime}</p>
+                <p class: info>@effect 触发次数: {effectCount}</p>
+            </div>
+        </div>
+    }
+
+    style {
+        .pattern-card { padding: 14px; background: var(--surfaceMuted); border-radius: var(--radiusMd); border: 1px solid var(--borderLight); margin-bottom: 12px; }
+        .big-number { font-size: 36px; font-weight: bold; color: var(--primary); margin: 4px 0; }
+        .info { font-size: 13px; color: var(--textSecondary); margin: 4px 0; }
+        .form-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+        .form-label { font-size: 14px; color: var(--textPrimary); min-width: 50px; }
+        .form-input { flex: 1; padding: 8px 12px; border: 2px solid var(--border); border-radius: var(--radiusMd); font-size: 14px; outline: none; }
+        .form-input:focus { border-color: var(--primary); }
+        .item-list { margin: 8px 0; padding: 0; list-style: none; }
+        .list-item { padding: 6px 12px; font-size: 13px; color: var(--textPrimary); border-bottom: 1px solid var(--borderLighter); }
+        .list-item.empty { color: var(--textMuted); font-style: italic; }
+        .panel { padding: 14px; background: var(--surfaceSubtle); border-radius: var(--radiusMd); border: 1px solid var(--borderLight); margin-top: 10px; }
+        .panel p { font-size: 13px; color: var(--textPrimary); margin: 0; }
+        .slot-content { font-size: 13px; color: var(--textSecondary); margin: 4px 0; }
+    }
+}

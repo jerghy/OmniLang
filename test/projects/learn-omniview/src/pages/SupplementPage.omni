@@ -1,12 +1,11 @@
-// SupplementPage — 补充特性：三元表达式、块表达式、@for key、伪类高级、steps、路径时间线
+// SupplementPage — 补充特性：三元表达式、块表达式、@for key、伪类高级、信号模式
 import omniview;
 import { LearnDesign } from "../design";
 import { TernaryExprDemo } from "../components/TernaryExprDemo";
 import { BlockExprDemo } from "../components/BlockExprDemo";
 import { ForDirectiveKeyDemo } from "../components/ForDirectiveKeyDemo";
 import { AdvancedPseudoDemo } from "../components/AdvancedPseudoDemo";
-import { StepsStartDemo } from "../components/StepsStartDemo";
-import { PathTimelineDemo } from "../components/PathTimelineDemo";
+import { SignalPatternsDemo } from "./SignalPatternsDemo";
 
 component SupplementPage {
     view {
@@ -17,8 +16,7 @@ component SupplementPage {
             </div>
             <div class: LearnDesign.DemoFull><ForDirectiveKeyDemo /></div>
             <div class: LearnDesign.DemoFull><AdvancedPseudoDemo /></div>
-            <div class: LearnDesign.DemoFull><StepsStartDemo /></div>
-            <div class: LearnDesign.DemoFull><PathTimelineDemo /></div>
+            <div class: LearnDesign.DemoFull><SignalPatternsDemo /></div>
         </section>
     }
 }

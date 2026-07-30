@@ -56,7 +56,7 @@ component MotionDemo {
       </button>
 
       @if isOpen mode="sync" {
-        <div @enter={fadeInUp} @leave={fadeInUp}>
+        <div @enter={fadeInUp}>
           <h2>Modal Content</h2>
         </div>
       }
@@ -64,11 +64,7 @@ component MotionDemo {
       <button @press={scalePress} @click={addItem}>Add Item</button>
       <button @press={scalePress} @click={removeItem}>Remove Item</button>
 
-      <div states: {
-        idle:    { scale: 1, opacity: 1 }   over: 150,
-        hover:   { scale: 1.05, opacity: 1 } over: 150,
-        pressed: { scale: 0.95, opacity: 0.8 } over: 100
-      }>
+      <div @hover={pulse} @press={scalePress}>
         Interactive Panel
       </div>
     </div>

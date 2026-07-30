@@ -1,0 +1,159 @@
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  ElementRefDemo.omni — Element Reference System (ADR-036)    ║
+// ║                                                              ║
+// ║  演示 ref 声明 + @ref 绑定 + 直接 DOM 操作 API:              ║
+// ║    · ref name: Element   — 元素引用声明                      ║
+// ║    · @ref={name}         — 绑定到元素                        ║
+// ║    · .style              — 直接样式操作（高频场景）          ║
+// ║    · .focus() / .blur()  — 焦点管理                          ║
+// ║    · .scrollTo() / .scrollBy() — 滚动控制                    ║
+// ║    · .getBoundingClientRect()    — 位置/尺寸查询             ║
+// ║    · @dragHorizontal 配合 ref 实现高频拖拽                   ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+import omniview;
+import { LearnDesign } from "../design";
+
+// ── 入场动画 ───────────────────────────────────────────────
+@motion fadeSlideUp {
+    from { opacity: 0, y: 20 }
+    to   { opacity: 1, y: 0 }
+    over 400 ease power2Out
+}
+
+component ElementRefDemo {
+    // ── ref 声明（ADR-036：Element Reference System） ──
+    ref inputBox: Element;
+    ref scrollArea: Element;
+    ref dragTarget: Element;
+
+    // ── 本地信号 ──
+    signal focusStatus: String = "not focused";
+    signal scrollPos: String = "top";
+    signal dragX: f64 = 0;
+    signal dragY: f64 = 0;
+    signal rectInfo: String = "—";
+
+    // ── 焦点操作 ──
+    fn focusInput() {
+        inputBox.focus();
+        focusStatus = "focused";
+    }
+    fn blurInput() {
+        inputBox.blur();
+        focusStatus = "blurred";
+    }
+
+    // ── 滚动操作 ──
+    fn scrollToTop() {
+        scrollArea.scrollTo(0, 0);
+        scrollPos = "top";
+    }
+    fn scrollToBottom() {
+        scrollArea.scrollTo(0, 9999);
+        scrollPos = "bottom";
+    }
+    fn scrollByDown() {
+        scrollArea.scrollBy(0, 100);
+        scrollPos = "scrolled +100px";
+    }
+
+    // ── 位置查询 ──
+    fn queryRect() {
+        let rect = dragTarget.getBoundingClientRect();
+        rectInfo = "x:" + rect.x.to_string() + " y:" + rect.y.to_string()
+                 + " w:" + rect.width.to_string() + " h:" + rect.height.to_string();
+    }
+
+    // ── 高频拖拽（ref + @dragVertical 配合） ──
+    fn onDragUpdate(e) {
+        // ref 上的 .style 支持高频直接 DOM 操作（60fps）
+        // 避免 signal → reconciliation 的性能开销
+        dragX = e.x;
+        dragY = e.y;
+    }
+
+    view {
+        <div class: LearnDesign.Container>
+            <h3 class: LearnDesign.CardTitle>Element Reference System</h3>
+            <p class: LearnDesign.Subtitle>ref · @ref · .style · .focus() · .scrollTo() · .getBoundingClientRect()</p>
+
+            <!-- ═══ 焦点管理 ═══ -->
+            <h4 class: LearnDesign.SectionTitle>焦点管理 (.focus / .blur)</h4>
+            <div class: demo-row>
+                <input
+                    class: ref-input
+                    @ref={inputBox}
+                    placeholder="ref-bound input"
+                />
+                <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={focusInput}>
+                    Focus
+                </button>
+                <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={blurInput}>
+                    Blur
+                </button>
+                <span class: status-text>Status: {focusStatus}</span>
+            </div>
+
+            <!-- ═══ 滚动控制 ═══ -->
+            <h4 class: LearnDesign.SectionTitle>滚动控制 (.scrollTo / .scrollBy)</h4>
+            <div @ref={scrollArea} class: scroll-box>
+                <p class: scroll-item>Item 1 — 滚动演示区域</p>
+                <p class: scroll-item>Item 2 — 使用 .scrollTo() 跳转</p>
+                <p class: scroll-item>Item 3 — 使用 .scrollBy() 增量</p>
+                <p class: scroll-item>Item 4 — Element Ref API</p>
+                <p class: scroll-item>Item 5 — ADR-036 / ADR-038</p>
+                <p class: scroll-item>Item 6 — 底部</p>
+            </div>
+            <div class: LearnDesign.Row>
+                <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={scrollToTop}>
+                    Scroll To Top
+                </button>
+                <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={scrollToBottom}>
+                    Scroll To Bottom
+                </button>
+                <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={scrollByDown}>
+                    ScrollBy +100px
+                </button>
+                <span class: status-text>Pos: {scrollPos}</span>
+            </div>
+
+            <!-- ═══ 位置查询 ═══ -->
+            <h4 class: LearnDesign.SectionTitle>位置查询 (.getBoundingClientRect)</h4>
+            <div @ref={dragTarget} class: rect-box>
+                <p>Drag Target — click "Query Rect" to read position</p>
+            </div>
+            <div class: LearnDesign.Row>
+                <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={queryRect}>
+                    Query Rect
+                </button>
+                <span class: status-text>{rectInfo}</span>
+            </div>
+
+            <!-- ═══ 高频拖拽（@dragHorizontal + ref） ═══ -->
+            <h4 class: LearnDesign.SectionTitle>高频拖拽 (@dragHorizontal)</h4>
+            <p class: LearnDesign.Hint>直接 DOM 操作 → 60fps 拖拽 → signal 仅在结束时更新</p>
+            <div class: LearnDesign.Row>
+                <div
+                    @dragHorizontal={fadeSlideUp}
+                    @drag-constraints="left:0 right:300"
+                    @drag-elastic={0.2}
+                    @drag-scrub={true}
+                    class: drag-box>
+                    <p>Drag me → x:{dragX.to_string()} y:{dragY.to_string()}</p>
+                </div>
+            </div>
+        </div>
+    }
+
+    style {
+        .demo-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+        .status-text { font-size: 13px; color: var(--textSecondary); }
+        .ref-input { padding: 10px 12px; border: 2px solid var(--border); border-radius: var(--radiusMd); font-size: 14px; outline: none; flex: 1; min-width: 180px; }
+        .ref-input:focus { border-color: var(--primary); }
+        .scroll-box { height: 120px; overflow-y: auto; background: var(--surfaceMuted); border: 1px solid var(--border); border-radius: var(--radiusMd); padding: 8px 12px; margin-bottom: 8px; }
+        .scroll-item { padding: 8px 0; font-size: 13px; color: var(--textSecondary); border-bottom: 1px solid var(--borderLighter); }
+        .rect-box { padding: 16px; background: var(--surfaceMuted); border: 1px solid var(--border); border-radius: var(--radiusMd); text-align: center; margin-bottom: 8px; }
+        .drag-box { width: 120px; padding: 16px; background: var(--accent); color: white; border-radius: var(--radiusMd); text-align: center; cursor: grab; user-select: none; }
+    }
+}
