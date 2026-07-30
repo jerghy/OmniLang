@@ -245,6 +245,8 @@ pub(super) fn stmt_contains_await(stmt: &StatementIR) -> bool {
         | StatementIR::BreakStmtIR
         | StatementIR::ContinueStmtIR
         | StatementIR::EventEmitStmtIR { .. } => false,
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown StatementIR variant — update codegen for new variant"),
     }
 }
 
@@ -295,6 +297,8 @@ pub(super) fn expr_contains_await(expr: &ExprIR) -> bool {
         ExprIR::MapExpr { entries } => entries
             .iter()
             .any(|(k, v)| expr_contains_await(k) || expr_contains_await(v)),
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown ExprIR variant — update codegen for new variant"),
     }
 }
 
@@ -345,5 +349,7 @@ pub(super) fn view_has_motion_or_effects(node: &ViewTree) -> bool {
         }
         ViewTree::Fragment(children) => children.iter().any(view_has_motion_or_effects),
         ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => false,
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
     }
 }

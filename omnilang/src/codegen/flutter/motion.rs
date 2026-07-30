@@ -283,5 +283,7 @@ fn find_enter_inner(node: &ViewTree, result: &mut Vec<String>) {
             }
         }
         ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => {}
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
     }
 }

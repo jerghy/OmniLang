@@ -100,6 +100,8 @@ fn collect_view_child_components_inner(
             }
         }
         ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => {}
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
     }
 }
 
@@ -160,6 +162,8 @@ pub(super) fn collect_view_identifiers(node: &ViewTree, acc: &mut FxHashSet<Stri
                 collect_view_identifiers(child, acc);
             }
         }
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
     }
 }
 
@@ -200,6 +204,8 @@ pub(super) fn collect_motion_identifiers(node: &ViewTree, acc: &mut FxHashSet<St
             }
         }
         ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => {}
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
     }
 }
 
@@ -253,5 +259,7 @@ fn collect_used_style_classes_inner(node: &ViewTree, acc: &mut FxHashSet<String>
             }
         }
         ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => {}
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
     }
 }

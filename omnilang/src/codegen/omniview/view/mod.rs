@@ -216,6 +216,8 @@ impl OmniViewGenerator {
                 }
                 out
             }
+            #[allow(unreachable_patterns)]
+            _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
         }
     }
 }

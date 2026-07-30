@@ -155,28 +155,29 @@ fn warn_refs_in_for_bodies(
 
     match view {
         ViewTree::Element(el) => {
-            if el.ref_binding.is_some() && in_for_template {
-                let name = el.ref_binding.as_ref().unwrap();
-                warnings.push(Diagnostic {
-                    severity: Severity::Warning,
-                    kind: DiagnosticKind::E0006,
-                    message: format!(
-                        "ref '{}' is used inside @for — each @ref inside a loop binds to the \
-                         template element, not individual items. @ref inside @for is not yet \
-                         supported (planned for Phase 2). Move the @ref outside the loop or \
-                         use a different approach.",
-                        name
-                    ),
-                    file: comp.source_file.clone(),
-                    line,
-                    col,
-                    end_line: None,
-                    end_col: None,
-                    suggestion: Some(
-                        "move @ref outside the @for loop, or wait for Phase 2 @for+@ref support"
-                            .to_string(),
-                    ),
-                });
+            if in_for_template {
+                if let Some(ref name) = el.ref_binding {
+                    warnings.push(Diagnostic {
+                        severity: Severity::Warning,
+                        kind: DiagnosticKind::E0006,
+                        message: format!(
+                            "ref '{}' is used inside @for — each @ref inside a loop binds to the \
+                             template element, not individual items. @ref inside @for is not yet \
+                             supported (planned for Phase 2). Move the @ref outside the loop or \
+                             use a different approach.",
+                            name
+                        ),
+                        file: comp.source_file.clone(),
+                        line,
+                        col,
+                        end_line: None,
+                        end_col: None,
+                        suggestion: Some(
+                            "move @ref outside the @for loop, or wait for Phase 2 @for+@ref support"
+                                .to_string(),
+                        ),
+                    });
+                }
             }
             for child in &el.children {
                 warn_refs_in_for_bodies(child, comp, in_for_template, warnings);
@@ -212,7 +213,9 @@ fn warn_refs_in_for_bodies(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{BindingIR, ConstructionKind, ElementIR, ExprIR, ListRenderingIntent, RefDeclIR};
+    use crate::ir::{
+        BindingIR, ConstructionKind, ElementIR, ExprIR, ListRenderingIntent, RefDeclIR,
+    };
     use rustc_hash::FxHashMap;
 
     /// Helper to build a minimal ElementIR with only the fields we need.
@@ -300,7 +303,7 @@ mod tests {
             name: "Test".to_string(),
             refs: vec![RefDeclIR {
                 element_tag: None,
-                name:"btn".to_string(),
+                name: "btn".to_string(),
             }],
             view: Some(ViewTree::Fragment(vec![
                 ViewTree::Element(make_el("div", Some("btn"))),
@@ -410,7 +413,7 @@ mod tests {
             name: "TestComp".into(),
             refs: vec![RefDeclIR {
                 element_tag: None,
-                name:"box".into(),
+                name: "box".into(),
             }],
             view: Some(ViewTree::ListRendering(Box::new(ListRenderingIntent {
                 iterable: ExprIR::ident("items"),

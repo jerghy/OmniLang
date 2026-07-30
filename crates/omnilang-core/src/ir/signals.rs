@@ -46,6 +46,7 @@ impl std::fmt::Display for MutationOp {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "operation")]
+#[non_exhaustive]
 pub enum MutationIntent {
     #[serde(rename = "direct_assign")]
     DirectAssign {

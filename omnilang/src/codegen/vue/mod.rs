@@ -356,4 +356,3 @@ impl VueCodegen {
         w.into_string()
     }
 }
-

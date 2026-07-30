@@ -277,6 +277,8 @@ pub(crate) fn gen_view_node_dioxus(w: &mut CodeWriter, node: &ViewTree, is_root:
                 gen_view_node_dioxus(w, child, is_root);
             }
         }
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
     }
 }
 

@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 /// Event payload categories. Each variant has a fixed set of fields
 /// defined in `event_data_schema()`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[non_exhaustive]
 pub enum EventDataKind {
     PointerEvent,
     TouchEvent,

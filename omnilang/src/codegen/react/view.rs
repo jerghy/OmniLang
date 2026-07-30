@@ -149,7 +149,8 @@ pub(super) fn gen_view_node_tsx(
                             // Mirrors the OmniView backend's compile-time is_dangerous_url() defense-in-depth
                             // against supply-chain compromises where a third-party .omni component
                             // contains literal javascript:/data: URLs.
-                            let url_attrs: &[&str] = &["href", "src", "srcset", "action", "formaction", "poster"];
+                            let url_attrs: &[&str] =
+                                &["href", "src", "srcset", "action", "formaction", "poster"];
                             if url_attrs.contains(&jsx_attr.as_str()) && is_dangerous_url(s) {
                                 attrs.push(format!("{}=\"#blocked\"", jsx_attr));
                             } else {
@@ -824,6 +825,8 @@ pub(super) fn gen_view_node_tsx(
             let slot_desc = name.as_deref().unwrap_or("default");
             w.emit_fmt(format_args!("{{/* WARNING: <slot name=\"{}\"> is not supported in React. Use children or named props instead. */}}", slot_desc));
         }
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
     }
 }
 
@@ -839,7 +842,10 @@ pub(crate) fn format_style_prop_key(key: &str) -> String {
 
 /// Translate an inline style value from the IR JSON representation into a TSX expression.
 /// Handles $signal, $call, and $concat meta-objects.
-pub(crate) fn format_style_value_expr(val: &serde_json::Value, ref_names: &FxHashSet<String>) -> String {
+pub(crate) fn format_style_value_expr(
+    val: &serde_json::Value,
+    ref_names: &FxHashSet<String>,
+) -> String {
     match val {
         // Static string: 'value' (with CSS sanitization)
         serde_json::Value::String(s) => {
@@ -852,7 +858,7 @@ pub(crate) fn format_style_value_expr(val: &serde_json::Value, ref_names: &FxHas
                 let escaped = sanitized.replace('\\', "\\\\").replace('\'', "\\'");
                 format!("'{}'", escaped)
             }
-        },
+        }
         // Static number: 42 (with px suffix for numbers)
         serde_json::Value::Number(n) => {
             if let Some(f) = n.as_f64() {
@@ -875,8 +881,10 @@ pub(crate) fn format_style_value_expr(val: &serde_json::Value, ref_names: &FxHas
             if let Some(call_obj) = obj.get("$call").and_then(|v| v.as_object()) {
                 let fn_name = call_obj.get("name").and_then(|v| v.as_str()).unwrap_or("");
                 let args_str = if let Some(args) = call_obj.get("args").and_then(|v| v.as_array()) {
-                    let translated: Vec<String> =
-                        args.iter().map(|v| format_style_value_expr(v, ref_names)).collect();
+                    let translated: Vec<String> = args
+                        .iter()
+                        .map(|v| format_style_value_expr(v, ref_names))
+                        .collect();
                     translated.join(", ")
                 } else {
                     String::new()
@@ -915,7 +923,10 @@ pub(crate) fn format_style_value_expr(val: &serde_json::Value, ref_names: &FxHas
         serde_json::Value::Null => "null".into(),
         // Array (unlikely in style context)
         serde_json::Value::Array(arr) => {
-            let items: Vec<_> = arr.iter().map(|v| format_style_value_expr(v, ref_names)).collect();
+            let items: Vec<_> = arr
+                .iter()
+                .map(|v| format_style_value_expr(v, ref_names))
+                .collect();
             format!("[{}]", items.join(", "))
         }
     }

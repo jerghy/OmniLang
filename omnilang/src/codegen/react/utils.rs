@@ -57,6 +57,8 @@ fn statement_contains_ident(stmt: &StatementIR, ident: &str) -> bool {
                 .as_ref()
                 .is_some_and(|i| getter_expr_contains_ident(i, ident)),
             MutationIntent::Pop { .. } => false,
+            #[allow(unreachable_patterns)]
+            _ => unreachable!("Unknown MutationIntent variant — update codegen for new variant"),
         },
         StatementIR::BlockStmtIR { body } => body
             .statements

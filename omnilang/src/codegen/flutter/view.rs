@@ -60,6 +60,8 @@ pub(crate) fn format_view_tree(
                 slot_desc
             )
         }
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
     }
 }
 

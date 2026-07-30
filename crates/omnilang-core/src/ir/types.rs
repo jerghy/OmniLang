@@ -132,6 +132,7 @@ impl std::fmt::Display for UnaryOpIR {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "_kind")]
+#[non_exhaustive]
 pub enum ExprIR {
     LiteralExpr {
         value: serde_json::Value,
@@ -278,7 +279,6 @@ pub enum MatchPatternKindIR {
 /// Generic type arguments are stored only in `TypeIR::type_args`.
 
 #[derive(Debug, Clone, PartialEq)]
-#[non_exhaustive]
 pub enum TypeKind {
     String,
     Int,
@@ -518,6 +518,7 @@ pub struct BlockIR {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "_kind")]
+#[non_exhaustive]
 pub enum StatementIR {
     LetStmtIR {
         name: String,
@@ -661,6 +662,7 @@ impl ElementIR {
 // ═══════════════════════════════════════════════════════
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
 #[serde(untagged)]
 #[allow(clippy::large_enum_variant)]
 pub enum ViewTree {

@@ -114,7 +114,10 @@ pub(crate) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &impl 
                     let mut pairs: Vec<String> = Vec::new();
                     for (prop, val) in obj {
                         let js_prop = crate::codegen::react::view::format_style_prop_key(prop);
-                        let js_val = crate::codegen::react::view::format_style_value_expr(val, &FxHashSet::default());
+                        let js_val = crate::codegen::react::view::format_style_value_expr(
+                            val,
+                            &FxHashSet::default(),
+                        );
                         pairs.push(format!("{}: {}", js_prop, js_val));
                     }
                     if !pairs.is_empty() {
@@ -279,6 +282,8 @@ pub(crate) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &impl 
                 gen_template_node(w, child, fmt);
             }
         }
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
     }
 }
 

@@ -184,6 +184,8 @@ fn collect_called_fns_from_view_transitively(node: &ViewTree, acc: &mut FxHashSe
             }
         }
         ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => {}
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
     }
 }
 
@@ -231,6 +233,8 @@ fn collect_called_fns_from_view(node: &ViewTree, acc: &mut FxHashSet<String>) {
             }
         }
         ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => {}
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
     }
 }
 
@@ -322,6 +326,8 @@ fn collect_called_fns_from_stmt(stmt: &StatementIR, acc: &mut FxHashSet<String>)
         StatementIR::EventEmitStmtIR { .. }
         | StatementIR::BreakStmtIR
         | StatementIR::ContinueStmtIR => {}
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown StatementIR variant — update codegen for new variant"),
     }
 }
 
@@ -407,5 +413,7 @@ fn collect_called_fns_from_expr(expr: &ExprIR, acc: &mut FxHashSet<String>) {
             collect_called_fns_from_expr(operand, acc);
         }
         ExprIR::IdentifierExpr { .. } | ExprIR::LiteralExpr { .. } => {}
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown ExprIR variant — update codegen for new variant"),
     }
 }

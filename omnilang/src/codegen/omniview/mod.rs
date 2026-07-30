@@ -15,7 +15,8 @@ mod editor;
 mod expr;
 mod list;
 mod scope;
-#[cfg(test)] pub mod typescript;
+#[cfg(test)]
+pub mod typescript;
 
 mod motion;
 mod motion_config;

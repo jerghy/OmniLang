@@ -172,6 +172,8 @@ fn collect_mutation_targets_from_stmt(stmt: &StatementIR, acc: &mut FxHashSet<St
         | StatementIR::ContinueStmtIR
         | StatementIR::ThrowStmtIR { .. }
         | StatementIR::EventEmitStmtIR { .. } => {}
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown StatementIR variant — update codegen for new variant"),
     }
 }
 
@@ -186,6 +188,8 @@ fn collect_mutation_targets_from_intent(intent: &MutationIntent, acc: &mut FxHas
         | MutationIntent::Modulo { target, .. }
         | MutationIntent::Push { target, .. }
         | MutationIntent::Pop { target } => target,
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown MutationIntent variant — update codegen for new variant"),
     };
     acc.insert(target.name.clone());
 }
@@ -250,6 +254,8 @@ fn collect_view_mutation_targets(node: &ViewTree, acc: &mut FxHashSet<String>) {
             }
         }
         ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => {}
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
     }
 }
 
@@ -293,6 +299,8 @@ pub(super) fn collect_view_inline_handler_reads(node: &ViewTree, acc: &mut FxHas
             }
         }
         ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => {}
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
     }
 }
 
@@ -415,6 +423,10 @@ fn collect_expr_ids_from_stmt(stmt: &StatementIR, acc: &mut FxHashSet<String>) {
                     MutationIntent::Pop { target } => {
                         acc.insert(target.name.clone());
                     }
+                    #[allow(unreachable_patterns)]
+                    _ => unreachable!(
+                        "Unknown MutationIntent variant — update codegen for new variant"
+                    ),
                 }
             }
         }
@@ -444,6 +456,8 @@ fn collect_expr_ids_from_stmt(stmt: &StatementIR, acc: &mut FxHashSet<String>) {
         StatementIR::EventEmitStmtIR { .. }
         | StatementIR::BreakStmtIR
         | StatementIR::ContinueStmtIR => {}
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown StatementIR variant — update codegen for new variant"),
     }
 }
 
@@ -496,6 +510,8 @@ fn collect_view_read_signals_inner(node: &ViewTree, acc: &mut FxHashSet<String>)
                 collect_view_read_signals_inner(child, acc);
             }
         }
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
     }
 }
 
@@ -551,6 +567,8 @@ fn collect_view_store_refs_from_handlers(node: &ViewTree, acc: &mut FxHashSet<St
             }
         }
         ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => {}
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
     }
 }
 
@@ -590,8 +608,8 @@ fn ref_element_type(tag: Option<&str>) -> &str {
         Some("a") | Some("link") => "HTMLAnchorElement",
         Some("table") => "HTMLTableElement",
         Some("svg") => "SVGSVGElement",
-        Some("div") | Some("section") | Some("article") | Some("nav")
-        | Some("header") | Some("footer") | Some("main") | Some("aside") => "HTMLDivElement",
+        Some("div") | Some("section") | Some("article") | Some("nav") | Some("header")
+        | Some("footer") | Some("main") | Some("aside") => "HTMLDivElement",
         // For unknown tags, use HTMLElement (generic) — better than HTMLDivElement
         _ => "HTMLElement",
     }

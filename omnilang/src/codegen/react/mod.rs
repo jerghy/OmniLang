@@ -611,6 +611,10 @@ fn stmt_needs_zustand_state(stmt: &StatementIR, signal_names: &FxHashSet<String>
                 | MutationIntent::Pop { target } => &target.name,
                 // DirectAssign uses set({}) and does not need state
                 MutationIntent::DirectAssign { .. } => return false,
+                #[allow(unreachable_patterns)]
+                _ => {
+                    unreachable!("Unknown MutationIntent variant — update codegen for new variant")
+                }
             };
             signal_names.contains(target_name)
         }
@@ -779,6 +783,8 @@ fn format_zustand_mutation(
                 w.emit_fmt(format_args!("{} %= {};", target_str, amt));
             }
         }
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown MutationIntent variant — update codegen for new variant"),
     }
 }
 
@@ -855,4 +861,3 @@ pub(super) fn escape_js_ident(name: &str) -> String {
         name.to_string()
     }
 }
-

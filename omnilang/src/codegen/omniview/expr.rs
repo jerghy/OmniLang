@@ -281,6 +281,8 @@ impl OmniViewGenerator {
                     .collect();
                 format!("{{{}}}", items.join(", "))
             }
+            #[allow(unreachable_patterns)]
+            _ => unreachable!("Unknown ExprIR variant — update codegen for new variant"),
         }
     }
 

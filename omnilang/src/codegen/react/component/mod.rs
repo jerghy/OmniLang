@@ -471,6 +471,8 @@ fn collect_expr_identifiers(expr: &ExprIR, acc: &mut FxHashSet<String>) {
             collect_expr_identifiers(operand, acc);
         }
         ExprIR::LiteralExpr { .. } => {}
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown ExprIR variant — update codegen for new variant"),
     }
 }
 
@@ -560,6 +562,8 @@ fn collect_stmt_identifiers(stmt: &StatementIR, acc: &mut FxHashSet<String>) {
         StatementIR::EventEmitStmtIR { .. }
         | StatementIR::BreakStmtIR
         | StatementIR::ContinueStmtIR => {}
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown StatementIR variant — update codegen for new variant"),
     }
 }
 
@@ -586,5 +590,7 @@ fn collect_mutation_identifiers(intent: &MutationIntent, acc: &mut FxHashSet<Str
             }
         }
         MutationIntent::Pop { .. } => {}
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown MutationIntent variant — update codegen for new variant"),
     }
 }

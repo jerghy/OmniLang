@@ -430,12 +430,10 @@ pub(super) fn generate_statement_tsx_with_mode(
 
 pub(super) fn format_expr_ir_tsx(expr: &ExprIR, ref_names: &FxHashSet<String>) -> String {
     match expr {
-        ExprIR::IdentifierExpr { name, .. } => {
-            ReactFormatExpr {
-                ref_names: ref_names.clone(),
-            }
-            .format_identifier(name)
+        ExprIR::IdentifierExpr { name, .. } => ReactFormatExpr {
+            ref_names: ref_names.clone(),
         }
+        .format_identifier(name),
         ExprIR::FieldAccessExpr { object, field } => {
             let obj_str = format_expr_ir_tsx(object, ref_names);
             format!("{}.{}", obj_str, field)

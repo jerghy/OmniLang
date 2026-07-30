@@ -280,6 +280,8 @@ impl OmniViewGenerator {
                 let t = resolve_target(target);
                 let _ = writeln!(self.js, "  __omni_subs.get(\"{0}\").value.pop(); __omni_subs.get(\"{0}\").set(__omni_subs.get(\"{0}\").value.slice());", t);
             }
+            #[allow(unreachable_patterns)]
+            _ => unreachable!("Unknown MutationIntent variant — update codegen for new variant"),
         }
     }
 }
