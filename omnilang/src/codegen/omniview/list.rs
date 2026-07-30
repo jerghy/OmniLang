@@ -278,8 +278,7 @@ impl OmniViewGenerator {
             for (nid, js_expr) in &self.scope.for_text_bindings {
                 let _ = writeln!(
                     self.js,
-                    "      var _el = _elCache.get(\"{}\"); if (!_el) {{ _el = clone.querySelector('[data-nid=\"{}\"]'); if (_el) _elCache.set(\"{}\", _el); }}",
-                    nid, nid, nid
+                    "      var _unid = \"{nid}_\" + _idx; var _el = _elCache.get(_unid); if (!_el) {{ _el = clone.querySelector('[data-nid=\"' + _unid + '\"]'); if (_el) _elCache.set(_unid, _el); }}",
                 );
                 let _ = writeln!(self.js, "      if (_el) try {{ _el.textContent = String({}); }} catch(e) {{ __omni_reportError(\"warn:for:text\", e); }}", js_expr);
             }
@@ -319,8 +318,7 @@ impl OmniViewGenerator {
             for (nid, class_name, js_expr) in &self.scope.for_class_bindings {
                 let _ = writeln!(
                     self.js,
-                    "      var _el = _elCache.get(\"{}\"); if (!_el) {{ _el = clone.querySelector('[data-nid=\"{}\"]'); if (_el) _elCache.set(\"{}\", _el); }}",
-                    nid, nid, nid
+                    "      var _unid = \"{nid}_\" + _idx; var _el = _elCache.get(_unid); if (!_el) {{ _el = clone.querySelector('[data-nid=\"' + _unid + '\"]'); if (_el) _elCache.set(_unid, _el); }}"
                 );
                 let _ = writeln!(self.js, "      if (_el) try {{ _el.classList.toggle(\"{}\", !!({})); }} catch(e) {{ __omni_reportError(\"warn:for:class\", e); }}", class_name, js_expr);
             }
@@ -349,7 +347,7 @@ impl OmniViewGenerator {
                 } else {
                     format!("({})", val_parts.join(" + "))
                 };
-                let _ = writeln!(self.js, "      var _el = _elCache.get(\"{}\"); if (!_el) {{ _el = clone.querySelector('[data-nid=\"{}\"]'); if (_el) _elCache.set(\"{}\", _el); }} if (_el) try {{ _el.setAttribute(\"{}\", {}); }} catch(e) {{ __omni_reportError(\"warn:for:attr\", e); }}", nid, nid, nid, attr_name, resolved);
+                let _ = writeln!(self.js, "      var _unid = \"{nid}_\" + _idx; var _el = _elCache.get(_unid); if (!_el) {{ _el = clone.querySelector('[data-nid=\"' + _unid + '\"]'); if (_el) _elCache.set(_unid, _el); }} if (_el) try {{ _el.setAttribute(\"{}\", {}); }} catch(e) {{ __omni_reportError(\"warn:for:attr\", e); }}", attr_name, resolved);
             }
             self.js.push_str("    })();\n");
         }
@@ -552,8 +550,7 @@ impl OmniViewGenerator {
                 for (nid, js_expr) in &self.scope.for_text_bindings {
                     let _ = writeln!(
                         self.js,
-                        "    var _el = comp.querySelector('[data-nid=\"{}\"]');",
-                        nid
+                        "    var _el = comp.querySelector('[data-nid^=\"{nid}_\"]') || comp.querySelector('[data-nid=\"{nid}\"]');",
                     );
                     let _ = writeln!(self.js, "    if (_el) try {{ _el.textContent = String({}); }} catch(e) {{ __omni_reportError(\"warn:for:rebind\", e); }}", js_expr);
                 }
