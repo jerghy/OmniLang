@@ -2,7 +2,7 @@
 import omniview;
 
 component TabBar {
-    prop activeTab: String = "home";
+    prop activeTab: String = "overview";
     event onSwitch: String;
 
     fn isActive(tab: String) -> bool { return activeTab == tab; }
