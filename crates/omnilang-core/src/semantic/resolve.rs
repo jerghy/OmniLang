@@ -221,11 +221,13 @@ impl SemanticAnalyzer {
                         let expected = SemanticType::from_type_annotation(ta);
                         let actual = infer_expr_type(e, &self.symbols, scope);
                         if let Err(msg) = check_assignment(&expected, &actual) {
-                            self.diagnostics.push(Diagnostic::error(
-                                DiagnosticKind::E0010,
-                                &msg,
-                                span,
-                            ));
+                            self.diagnostics.push(
+                                Diagnostic::error(DiagnosticKind::E0010, &msg, span)
+                                    .with_suggestion(&format!(
+                                        "expected {}, got {}",
+                                        expected, actual
+                                    )),
+                            );
                         }
                     }
                 }
@@ -247,11 +249,13 @@ impl SemanticAnalyzer {
                         let expected = SemanticType::parse_type_string(ret_type_str);
                         let actual = infer_expr_type(e, &self.symbols, scope);
                         if let Err(msg) = check_return(&expected, &actual) {
-                            self.diagnostics.push(Diagnostic::error(
-                                DiagnosticKind::E0010,
-                                &msg,
-                                span,
-                            ));
+                            self.diagnostics.push(
+                                Diagnostic::error(DiagnosticKind::E0010, &msg, span)
+                                    .with_suggestion(&format!(
+                                        "expected {}, got {}",
+                                        expected, actual
+                                    )),
+                            );
                         }
                     }
                 }
@@ -360,8 +364,13 @@ impl SemanticAnalyzer {
                 let lhs = infer_expr_type(left, &self.symbols, scope);
                 let rhs = infer_expr_type(right, &self.symbols, scope);
                 if let Err(msg) = check_binary_op(op, &lhs, &rhs) {
-                    self.diagnostics
-                        .push(Diagnostic::error(DiagnosticKind::E0010, &msg, span));
+                    self.diagnostics.push(
+                        Diagnostic::error(DiagnosticKind::E0010, &msg, span)
+                            .with_suggestion(&format!(
+                                "expected compatible types, got {} and {}",
+                                lhs, rhs
+                            )),
+                    );
                 }
             }
             Expr::UnaryOp { operand, .. } => self.resolve_expr_refs(operand, vctx),
@@ -428,11 +437,27 @@ impl SemanticAnalyzer {
                                 if let Err(msg) =
                                     check_call(fn_name, &param_types, &arg_types, &return_type)
                                 {
-                                    self.diagnostics.push(Diagnostic::error(
-                                        DiagnosticKind::E0010,
-                                        &msg,
-                                        span,
-                                    ));
+                                    let arg_types_str = arg_types
+                                        .iter()
+                                        .map(|t| t.to_string())
+                                        .collect::<Vec<_>>()
+                                        .join(", ");
+                                    let param_types_str = param_types
+                                        .iter()
+                                        .map(|t| t.to_string())
+                                        .collect::<Vec<_>>()
+                                        .join(", ");
+                                    self.diagnostics.push(
+                                        Diagnostic::error(
+                                            DiagnosticKind::E0010,
+                                            &msg,
+                                            span,
+                                        )
+                                        .with_suggestion(&format!(
+                                            "expected [{}], got [{}]",
+                                            param_types_str, arg_types_str
+                                        )),
+                                    );
                                 }
                             }
                         }
