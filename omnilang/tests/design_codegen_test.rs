@@ -9,6 +9,7 @@
 
 use omnilang::codegen::omniview::design::*;
 use omnilang::ir::design::*;
+use omnilang::ir::ExprIR;
 use rustc_hash::FxHashMap;
 
 #[test]
@@ -116,6 +117,54 @@ component App {
     assert!(
         css.contains("border-radius: var(--radiusLg);"),
         "CSS should contain border-radius: var(--radiusLg);\nGot:\n{}",
+        css
+    );
+}
+
+#[test]
+fn css_output_skips_dynamic_tokens() {
+    let mut tokens = FxHashMap::default();
+    tokens.insert(
+        "primary".to_string(),
+        TokenIR {
+            value: TokenValueIR::Static("#6366f1".to_string()),
+            token_type: TokenTypeIR::Color,
+            theme_values: FxHashMap::default(),
+            source_span: None,
+        },
+    );
+    tokens.insert(
+        "dynamicAccent".to_string(),
+        TokenIR {
+            value: TokenValueIR::Dynamic(ExprIR::ident("ThemeStore_primaryColor")),
+            token_type: TokenTypeIR::Color,
+            theme_values: FxHashMap::default(),
+            source_span: None,
+        },
+    );
+
+    let design = DesignIR {
+        name: "App".to_string(),
+        themes: vec![],
+        default_theme: None,
+        tokens,
+        classes: vec![],
+        variants: vec![],
+        source_span: None,
+    };
+
+    let css = emit_design_css(&design, "App").unwrap();
+
+    // Static token should appear in :root
+    assert!(
+        css.contains("--primary: #6366f1"),
+        "Static token --primary should appear in CSS\nGot:\n{}",
+        css
+    );
+    // Dynamic token should NOT appear in :root
+    assert!(
+        !css.contains("--dynamicAccent"),
+        "Dynamic token --dynamicAccent should NOT appear in CSS\nGot:\n{}",
         css
     );
 }
