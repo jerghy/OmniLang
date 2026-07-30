@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted (implemented 2026-07-30)
 
 ## Context
 
@@ -363,15 +363,15 @@ This decision represents appropriate engineering for current needs. It resists t
 ## Validation
 
 **Acceptance Criteria:**
-- [ ] `const BRAND = "#6366f1";` is stored in AST and not discarded
-- [ ] `token primary: color = BRAND;` parses as `TokenValue::Variable("BRAND")`
-- [ ] `token primary: color = white;` parses as `TokenValue::Literal("white")` (CSS keyword)
-- [ ] Semantic analyzer produces E0001 error for undefined variable references in tokens
-- [ ] IR lowering resolves `TokenValue::Variable("BRAND")` to `"#6366f1"` when const is defined
-- [ ] Unresolved variable references fall back to `var(--name)` in IR
-- [ ] Cross-file `import { BRAND } from "./tokens.omni"` followed by `token primary = BRAND` works
-- [ ] All existing design tests pass without modification
-- [ ] Generated CSS is byte-identical to static literal tokens
+- [x] `const BRAND = "#6366f1";` is stored in AST and not discarded
+- [x] `token primary: color = BRAND;` parses as `TokenValue::Variable("BRAND")`
+- [x] `token primary: color = white;` parses as `TokenValue::Literal("white")` (CSS keyword)
+- [x] Semantic analyzer produces E0001 error for undefined variable references in tokens
+- [x] IR lowering resolves `TokenValue::Variable("BRAND")` to `"#6366f1"` when const is defined
+- [x] Unresolved variable references fall back to `var(--name)` in IR
+- [x] Cross-file `import { BRAND } from "./tokens.omni"` followed by `token primary = BRAND` works
+- [x] All existing design tests pass without modification
+- [x] Generated CSS is byte-identical to static literal tokens
 
 **Testing Approach:**
 * Unit tests for `is_css_value()` heuristic edge cases
