@@ -85,6 +85,11 @@ fn resolve_token_value(value: &TokenValue, const_values: &FxHashMap<String, Stri
                 format!("var(--{})", name)
             }
         }
+        TokenValue::Expression(_expr) => {
+            // Phase 2: will be lowered once ExprIR paths are set up
+            // Temporary fallback — expression tokens are not yet resolved.
+            String::new()
+        }
     }
 }
 

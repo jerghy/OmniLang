@@ -6,6 +6,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use super::Expr;
+
 /// Top-level design block: `design AppDesign { ... }`
 ///
 /// Theme support:
@@ -44,16 +46,89 @@ pub enum TokenType {
     ZIndex,
 }
 
-/// A design token value -- either a static literal string or a variable reference.
+/// A design token value -- static literal, compile-time variable reference,
+/// or runtime expression (Phase 2).
 ///
 /// Static: `token primary: color = "#6366f1";`
 /// Variable ref: `token primary: color = BRAND;` (resolved at compile time)
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+/// Expression: `token primary: color = ThemeStore.primaryColor;` (Phase 2)
+///
+/// Note: `PartialEq` and `Deserialize` are implemented manually to avoid
+/// requiring those traits on the recursive `Expr` type (used only by the
+/// `Expression` variant).
+#[derive(Debug, Clone, Serialize)]
 pub enum TokenValue {
     /// Static literal value: `"#6366f1"`, `"16px"`, `white`
     Literal(String),
-    /// Variable reference: `BRAND`, `SPACING`
+    /// Variable reference: `BRAND`, `SPACING` (resolved at compile time, Phase 1)
     Variable(String),
+    /// Runtime expression: `ThemeStore.primaryColor`, `App_dynamicAccent` (Phase 2)
+    #[serde(skip)]
+    Expression(Expr),
+}
+
+impl PartialEq for TokenValue {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (TokenValue::Literal(a), TokenValue::Literal(b)) => a == b,
+            (TokenValue::Variable(a), TokenValue::Variable(b)) => a == b,
+            // Expression variants are not compared structurally (Phase 2+).
+            _ => false,
+        }
+    }
+}
+
+/// Manual Deserialize for `TokenValue` to avoid requiring `Expr: Deserialize`.
+///
+/// Format (externally tagged, same as the serde derive would produce):
+/// - `{"Literal": "str"}` -> `TokenValue::Literal(String)`
+/// - `{"Variable": "str"}` -> `TokenValue::Variable(String)`
+/// - `{"Expression": ...}` -> error (not deserializable yet, Phase 2)
+impl<'de> serde::Deserialize<'de> for TokenValue {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use serde::de::{self, MapAccess, Visitor};
+
+        struct TokenValueVisitor;
+
+        impl<'de> Visitor<'de> for TokenValueVisitor {
+            type Value = TokenValue;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("a TokenValue with Literal or Variable variant")
+            }
+
+            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+            where
+                A: MapAccess<'de>,
+            {
+                let key: String = map
+                    .next_key()?
+                    .ok_or_else(|| de::Error::custom("expected single-entry map"))?;
+
+                match key.as_str() {
+                    "Literal" => {
+                        let value: String = map.next_value()?;
+                        Ok(TokenValue::Literal(value))
+                    }
+                    "Variable" => {
+                        let value: String = map.next_value()?;
+                        Ok(TokenValue::Variable(value))
+                    }
+                    "Expression" => Err(de::Error::custom(
+                        "TokenValue::Expression cannot be deserialized yet",
+                    )),
+                    other => Err(de::Error::custom(format!(
+                        "unknown variant '{other}', expected Literal, Variable, or Expression"
+                    ))),
+                }
+            }
+        }
+
+        deserializer.deserialize_map(TokenValueVisitor)
+    }
 }
 
 /// `token primary: color = "#6366f1";`
