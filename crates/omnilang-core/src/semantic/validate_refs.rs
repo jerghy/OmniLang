@@ -242,7 +242,7 @@ mod tests {
     fn make_component(name: &str, ref_names: &[&str], bindings: &[&str]) -> ComponentIR {
         let els: Vec<ViewTree> = bindings
             .iter()
-            .map(|&binding_name| ViewTree::Element(make_el("div", Some(binding_name))))
+            .map(|&binding_name| ViewTree::Element(Box::new(make_el("div", Some(binding_name)))))
             .collect();
 
         ComponentIR {
@@ -306,8 +306,8 @@ mod tests {
                 name: "btn".to_string(),
             }],
             view: Some(ViewTree::Fragment(vec![
-                ViewTree::Element(make_el("div", Some("btn"))),
-                ViewTree::Element(make_el("span", Some("btn"))),
+                ViewTree::Element(Box::new(make_el("div", Some("btn")))),
+                ViewTree::Element(Box::new(make_el("span", Some("btn")))),
             ])),
             source_file: None,
             props: FxHashMap::default(),
@@ -367,10 +367,10 @@ mod tests {
                 },
             ],
             view: Some(ViewTree::Fragment(vec![
-                ViewTree::Element(make_el("button", Some("btn"))),
-                ViewTree::Element(make_el("input", Some("input"))),
-                ViewTree::Element(make_el("div", Some("btn2"))),
-                ViewTree::Element(make_el("span", Some("btn2"))),
+                ViewTree::Element(Box::new(make_el("button", Some("btn")))),
+                ViewTree::Element(Box::new(make_el("input", Some("input")))),
+                ViewTree::Element(Box::new(make_el("div", Some("btn2")))),
+                ViewTree::Element(Box::new(make_el("span", Some("btn2")))),
             ])),
             source_file: None,
             props: FxHashMap::default(),
@@ -422,7 +422,7 @@ mod tests {
                     r#type: None,
                 },
                 key_expr: None,
-                body: Some(ViewTree::Element(ElementIR {
+                body: Some(ViewTree::Element(Box::new(ElementIR {
                     tag: "div".into(),
                     ref_binding: Some("box".into()), // ← ref inside @for!
                     children: vec![],
@@ -437,7 +437,7 @@ mod tests {
                     motion: None,
                     scroll: None,
                     drag: None,
-                })),
+                }))),
                 empty_body: None,
             }))),
             source_file: Some("test.omni".into()),

@@ -132,7 +132,7 @@ mod tests {
         // `event_data` field was removed from StoreAction — the lint
         // cannot detect event data access for StoreAction anymore.
         // Verify that a store action handler passes cleanly.
-        let view = Some(ViewTree::Element(ElementIR {
+        let view = Some(ViewTree::Element(Box::new(ElementIR {
             tag: "button".into(),
             props: FxHashMap::default(),
             bindings: FxHashMap::default(),
@@ -159,7 +159,7 @@ mod tests {
             scroll: None,
             drag: None,
             ref_binding: None,
-        }));
+        })));
         let ir = make_test_ir_with_view("App", view);
 
         let diags = StoreActionEventData.check_ir(&ir, &FxHashMap::default());
@@ -171,7 +171,7 @@ mod tests {
 
     #[test]
     fn test_store_action_allows_no_event_data() {
-        let view = Some(ViewTree::Element(ElementIR {
+        let view = Some(ViewTree::Element(Box::new(ElementIR {
             tag: "button".into(),
             props: FxHashMap::default(),
             bindings: FxHashMap::default(),
@@ -193,7 +193,7 @@ mod tests {
             scroll: None,
             drag: None,
             ref_binding: None,
-        }));
+        })));
         let ir = make_test_ir_with_view("App", view);
 
         let diags = StoreActionEventData.check_ir(&ir, &FxHashMap::default());
@@ -205,7 +205,7 @@ mod tests {
 
     #[test]
     fn test_store_action_skips_inline_handlers() {
-        let view = Some(ViewTree::Element(ElementIR {
+        let view = Some(ViewTree::Element(Box::new(ElementIR {
             tag: "button".into(),
             props: FxHashMap::default(),
             bindings: FxHashMap::default(),
@@ -232,7 +232,7 @@ mod tests {
             scroll: None,
             drag: None,
             ref_binding: None,
-        }));
+        })));
         let ir = make_test_ir_with_view("App", view);
 
         let diags = StoreActionEventData.check_ir(&ir, &FxHashMap::default());

@@ -662,9 +662,8 @@ impl ElementIR {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[non_exhaustive]
 #[serde(untagged)]
-#[allow(clippy::large_enum_variant)]
 pub enum ViewTree {
-    Element(ElementIR),
+    Element(Box<ElementIR>),
     Conditional(Box<ConditionalIntent>),
     ListRendering(Box<ListRenderingIntent>),
     /// A template interpolation `{ expr }` — the inner ExprIR is lowered from the AST,

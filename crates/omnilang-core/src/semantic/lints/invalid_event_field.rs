@@ -153,7 +153,7 @@ mod tests {
 
     #[test]
     fn test_invalid_event_field_detects_invalid_field() {
-        let view = Some(ViewTree::Element(ElementIR {
+        let view = Some(ViewTree::Element(Box::new(ElementIR {
             tag: "input".into(),
             props: FxHashMap::default(),
             bindings: FxHashMap::default(),
@@ -185,7 +185,7 @@ mod tests {
             scroll: None,
             drag: None,
             ref_binding: None,
-        }));
+        })));
         let ir = make_test_ir_with_view("Form", view);
 
         let diags = InvalidEventField.check_ir(&ir, &FxHashMap::default());
@@ -209,7 +209,7 @@ mod tests {
 
     #[test]
     fn test_invalid_event_field_allows_valid_field() {
-        let view = Some(ViewTree::Element(ElementIR {
+        let view = Some(ViewTree::Element(Box::new(ElementIR {
             tag: "input".into(),
             props: FxHashMap::default(),
             bindings: FxHashMap::default(),
@@ -236,7 +236,7 @@ mod tests {
             scroll: None,
             drag: None,
             ref_binding: None,
-        }));
+        })));
         let ir = make_test_ir_with_view("Form", view);
 
         let diags = InvalidEventField.check_ir(&ir, &FxHashMap::default());
@@ -248,7 +248,7 @@ mod tests {
 
     #[test]
     fn test_invalid_event_field_succeeds_on_missing_event_data() {
-        let view = Some(ViewTree::Element(ElementIR {
+        let view = Some(ViewTree::Element(Box::new(ElementIR {
             tag: "div".into(),
             props: FxHashMap::default(),
             bindings: FxHashMap::default(),
@@ -275,7 +275,7 @@ mod tests {
             scroll: None,
             drag: None,
             ref_binding: None,
-        }));
+        })));
         let ir = make_test_ir_with_view("Widget", view);
 
         let diags = InvalidEventField.check_ir(&ir, &FxHashMap::default());

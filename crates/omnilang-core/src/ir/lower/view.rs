@@ -554,7 +554,7 @@ fn lower_element(
         .map(|c| lower_view_node(c, string_signals, sig_idx, variant_map, semantics, fns))
         .collect();
 
-    ViewTree::Element(ElementIR {
+    ViewTree::Element(Box::new(ElementIR {
         tag: el.tag.clone(),
         props: props.unwrap_or_default(),
         bindings: bindings.unwrap_or_default(),
@@ -614,7 +614,7 @@ fn lower_element(
             }
         },
         ref_binding,
-    })
+    }))
 }
 
 // ── If-directive lowering ─────────────────────────────────
@@ -913,7 +913,7 @@ fn walk_expr_event_fields(expr: &ExprIR, fields: &mut Vec<String>, param_name: &
 /// Creates a "fragment" `ElementIR` that wraps child view nodes.
 /// Used by conditional/list directives that need a synthetic wrapper element.
 fn make_fragment_element(children: Vec<ViewTree>, construction_kind: ConstructionKind) -> ViewTree {
-    ViewTree::Element(ElementIR {
+    ViewTree::Element(Box::new(ElementIR {
         tag: "fragment".into(),
         props: FxHashMap::default(),
         bindings: FxHashMap::default(),
@@ -928,7 +928,7 @@ fn make_fragment_element(children: Vec<ViewTree>, construction_kind: Constructio
         scroll: None,
         drag: None,
         ref_binding: None,
-    })
+    }))
 }
 
 #[cfg(test)]

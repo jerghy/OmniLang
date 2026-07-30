@@ -718,7 +718,7 @@ mod tests {
         let mut comp = ComponentIR {
             name: "TestComp".to_string(),
             computeds: vec![int_computed("click_handler")],
-            view: Some(ViewTree::Element(ElementIR {
+            view: Some(ViewTree::Element(Box::new(ElementIR {
                 tag: "button".to_string(),
                 props: FxHashMap::default(),
                 bindings: FxHashMap::default(),
@@ -751,7 +751,7 @@ mod tests {
                 scroll: None,
                 drag: None,
                 ref_binding: None,
-            })),
+            }))),
             ..ComponentIR::default()
         };
 
@@ -765,7 +765,7 @@ mod tests {
         let mut comp = ComponentIR {
             name: "TestComp".to_string(),
             computeds: vec![int_computed("dynamic_src")],
-            view: Some(ViewTree::Element(ElementIR {
+            view: Some(ViewTree::Element(Box::new(ElementIR {
                 tag: "img".to_string(),
                 props: {
                     let mut props = FxHashMap::default();
@@ -784,7 +784,7 @@ mod tests {
                 scroll: None,
                 drag: None,
                 ref_binding: None,
-            })),
+            }))),
             ..ComponentIR::default()
         };
 
@@ -798,7 +798,7 @@ mod tests {
         let mut comp = ComponentIR {
             name: "TestComp".to_string(),
             computeds: vec![int_computed("is_active")],
-            view: Some(ViewTree::Element(ElementIR {
+            view: Some(ViewTree::Element(Box::new(ElementIR {
                 tag: "div".to_string(),
                 props: FxHashMap::default(),
                 bindings: FxHashMap::default(),
@@ -817,7 +817,7 @@ mod tests {
                 scroll: None,
                 drag: None,
                 ref_binding: None,
-            })),
+            }))),
             ..ComponentIR::default()
         };
 
@@ -932,7 +932,7 @@ mod tests {
         let mut comp = ComponentIR {
             name: "TestComp".to_string(),
             computeds: vec![int_computed("x"), int_computed("y")],
-            view: Some(ViewTree::Element(ElementIR {
+            view: Some(ViewTree::Element(Box::new(ElementIR {
                 tag: "div".to_string(),
                 props: {
                     let mut props = FxHashMap::default();
@@ -952,7 +952,7 @@ mod tests {
                 scroll: None,
                 drag: None,
                 ref_binding: None,
-            })),
+            }))),
             ..ComponentIR::default()
         };
 

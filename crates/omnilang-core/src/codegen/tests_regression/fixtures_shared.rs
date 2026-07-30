@@ -95,7 +95,7 @@ pub(crate) fn fixture_component() -> IRProgram {
             name: "onUpdate".into(),
             param_type: String::new(),
         }],
-        view: Some(ViewTree::Element(ElementIR {
+        view: Some(ViewTree::Element(Box::new(ElementIR {
             tag: "div".into(),
             props: FxHashMap::default(),
             bindings: FxHashMap::default(),
@@ -116,7 +116,7 @@ pub(crate) fn fixture_component() -> IRProgram {
             ref_binding: None,
             construction_kind: ConstructionKind::Static,
             source_span: None,
-        })),
+        }))),
         styles: vec![],
         ..Default::default()
     };
@@ -252,7 +252,7 @@ pub(crate) fn fixture_component_with_store() -> IRProgram {
         store_refs: vec!["AppStore".into()],
         refs: vec![],
         events: vec![],
-        view: Some(ViewTree::Element(ElementIR {
+        view: Some(ViewTree::Element(Box::new(ElementIR {
             tag: "div".into(),
             props: FxHashMap::default(),
             bindings: FxHashMap::default(),
@@ -279,7 +279,7 @@ pub(crate) fn fixture_component_with_store() -> IRProgram {
             ref_binding: None,
             construction_kind: ConstructionKind::Static,
             source_span: None,
-        })),
+        }))),
         styles: vec![],
         ..Default::default()
     };
