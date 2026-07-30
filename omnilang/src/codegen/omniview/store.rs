@@ -150,6 +150,7 @@ impl OmniViewGenerator {
         self.enter_trigger_nids.clear();
         // Clear ref→nid mapping for this component
         self.ref_nid_map.clear();
+        self.ref_nid_set.clear();
         // Populate component-local style class names for class: validation
         self.component_style_classes.clear();
         for style_rule in &comp.styles {

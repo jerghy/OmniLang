@@ -643,7 +643,7 @@ impl OmniViewGenerator {
         let nid = self.next_nid(&el.tag);
         // Collect ref → nid mapping for wrapper object generation
         if let Some(ref ref_name) = el.ref_binding {
-            self.ref_nid_map.push((ref_name.clone(), nid.clone()));
+            self.push_ref_nid(ref_name.clone(), nid.clone());
         }
         // Map omni tags to HTML tags
         let html_tag = map_tag(&el.tag);
