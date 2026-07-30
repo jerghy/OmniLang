@@ -20,7 +20,7 @@ insta = { version = "1", features = ["glob"] }
 proptest = "1"
 
 [features]
-default = ["codegen-omniview", "codegen-react", "codegen-flutter"]
+default = ["codegen-omniview", "codegen-react"]
 
 # Per-backend codegen feature flags — gate compilation of individual targets.
 # Forward to omnilang-core for shared utilities (event helpers, CSS block gen, etc.).

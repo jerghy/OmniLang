@@ -14,6 +14,14 @@ use super::super::OmniViewGenerator;
 use crate::ir::*;
 use crate::sourcemap::{SourceMapEntry, SourceSpan, TargetSpan, TargetSpanKind};
 
+const HTML_BOOLEAN_ATTRS: &[&str] = &[
+    "disabled", "checked", "required", "readonly", "selected",
+    "autofocus", "multiple", "controls", "loop", "muted", "async", "defer",
+];
+const HTML_URL_ATTRS: &[&str] = &[
+    "href", "src", "srcset", "action", "formaction", "poster",
+];
+
 /// Check whether a static URL attribute value contains a dangerous protocol
 /// scheme. Returns `true` if the value should be blocked.
 ///
@@ -137,21 +145,7 @@ impl OmniViewGenerator {
                 | "translate" | "autocapitalize" | "capture" => {
                     let val_str = self.expr_to_static_str(value);
                     // Known boolean attributes with value "true" — emit bare attribute name
-                    let is_boolean_attr = matches!(
-                        name.as_str(),
-                        "disabled"
-                            | "checked"
-                            | "required"
-                            | "readonly"
-                            | "selected"
-                            | "autofocus"
-                            | "multiple"
-                            | "controls"
-                            | "loop"
-                            | "muted"
-                            | "async"
-                            | "defer"
-                    );
+                    let is_boolean_attr = HTML_BOOLEAN_ATTRS.contains(&name.as_str());
                     // Dynamic attributes: use ExprIR type matching instead of string heuristic.
                     // The old heuristic (starts_with('{') && ends_with('}')) only caught
                     // simple identifiers like {count}. Complex expressions like
@@ -165,10 +159,7 @@ impl OmniViewGenerator {
                         } else {
                             js_val
                         };
-                        let is_url_attr = matches!(
-                            name.as_str(),
-                            "href" | "src" | "srcset" | "action" | "formaction" | "poster"
-                        );
+                        let is_url_attr = HTML_URL_ATTRS.contains(&name.as_str());
                         if is_boolean_attr {
                             // Boolean attributes must use the DOM property (e.g. el.checked = bool)
                             // rather than setAttribute (which treats all values as strings — "false"
