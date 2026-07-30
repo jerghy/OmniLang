@@ -476,7 +476,7 @@ pub(super) fn gen_view_node_tsx(
                     let mut pairs: Vec<String> = Vec::new();
                     for (prop, val) in obj {
                         let js_prop = format_style_prop_key(prop);
-                        let js_val = format_style_value_expr(val, &FxHashSet::default());
+                        let js_val = format_style_value_expr(val, ref_names);
                         pairs.push(format!("{}: {}", js_prop, js_val));
                     }
                     if !pairs.is_empty() {
