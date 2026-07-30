@@ -325,6 +325,15 @@ pub fn generate(
 
     // Generate each component (signals, fns). Only root component emits its view.
     for (comp_name, comp) in ir.all_components() {
+        // SAFETY: element_tree_stack must be empty before each component.
+        // A non-empty stack indicates a bug in the previous component's
+        // element_to_html tree_push/tree_pop pairing.
+        debug_assert!(
+            gen.element_tree_stack.is_empty(),
+            "element_tree_stack not empty before component '{comp_name}' \
+             — previous component has unbalanced tree_push/tree_pop"
+        );
+
         gen.generate_component(comp_name, comp, ir, comp_name == root_name);
     }
 
