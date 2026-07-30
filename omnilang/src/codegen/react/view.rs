@@ -428,7 +428,7 @@ pub(super) fn gen_view_node_tsx(
                     let mut pairs: Vec<String> = Vec::new();
                     for (prop, val) in obj {
                         let js_prop = format_style_prop_key(prop);
-                        let js_val = format_style_value_expr(val);
+                        let js_val = format_style_value_expr(val, &FxHashSet::default());
                         pairs.push(format!("{}: {}", js_prop, js_val));
                     }
                     if !pairs.is_empty() {
@@ -743,7 +743,7 @@ pub(crate) fn format_style_prop_key(key: &str) -> String {
 
 /// Translate an inline style value from the IR JSON representation into a TSX expression.
 /// Handles $signal, $call, and $concat meta-objects.
-pub(crate) fn format_style_value_expr(val: &serde_json::Value) -> String {
+pub(crate) fn format_style_value_expr(val: &serde_json::Value, ref_names: &FxHashSet<String>) -> String {
     match val {
         // Static string: 'value' (with CSS sanitization)
         serde_json::Value::String(s) => {
@@ -770,6 +770,9 @@ pub(crate) fn format_style_value_expr(val: &serde_json::Value) -> String {
         // $concat: { "$concat": [part1, part2, ...] } -> `part1${part2}`
         serde_json::Value::Object(obj) => {
             if let Some(sig_name) = obj.get("$signal").and_then(|v| v.as_str()) {
+                if ref_names.contains(sig_name) {
+                    return format!("{}Ref.current", sig_name);
+                }
                 return sig_name.to_string();
             }
             // $call
@@ -777,7 +780,7 @@ pub(crate) fn format_style_value_expr(val: &serde_json::Value) -> String {
                 let fn_name = call_obj.get("name").and_then(|v| v.as_str()).unwrap_or("");
                 let args_str = if let Some(args) = call_obj.get("args").and_then(|v| v.as_array()) {
                     let translated: Vec<String> =
-                        args.iter().map(format_style_value_expr).collect();
+                        args.iter().map(|v| format_style_value_expr(v, ref_names)).collect();
                     translated.join(", ")
                 } else {
                     String::new()
@@ -798,7 +801,7 @@ pub(crate) fn format_style_value_expr(val: &serde_json::Value) -> String {
                         }
                         _ => {
                             // Dynamic part — resolve to expression and wrap in ${...}
-                            let inner = format_style_value_expr(part);
+                            let inner = format_style_value_expr(part, ref_names);
                             template_parts.push(format!("${{{}}}", inner));
                         }
                     }
@@ -816,7 +819,7 @@ pub(crate) fn format_style_value_expr(val: &serde_json::Value) -> String {
         serde_json::Value::Null => "null".into(),
         // Array (unlikely in style context)
         serde_json::Value::Array(arr) => {
-            let items: Vec<_> = arr.iter().map(format_style_value_expr).collect();
+            let items: Vec<_> = arr.iter().map(|v| format_style_value_expr(v, ref_names)).collect();
             format!("[{}]", items.join(", "))
         }
     }

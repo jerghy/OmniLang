@@ -6,6 +6,7 @@ use crate::codegen::shared::expr::FormatExpr;
 use crate::codegen::shared::inline_handler::{build_inline_handler, InlineHandlerConfig};
 use crate::codegen::shared::types::{FormatType, JsTypeFormatter};
 use crate::ir::*;
+use rustc_hash::FxHashSet;
 
 // ═══════════════════════════════════════════════════════════
 // Vue template node generation
@@ -113,7 +114,7 @@ pub(crate) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &impl 
                     let mut pairs: Vec<String> = Vec::new();
                     for (prop, val) in obj {
                         let js_prop = crate::codegen::react::view::format_style_prop_key(prop);
-                        let js_val = crate::codegen::react::view::format_style_value_expr(val);
+                        let js_val = crate::codegen::react::view::format_style_value_expr(val, &FxHashSet::default());
                         pairs.push(format!("{}: {}", js_prop, js_val));
                     }
                     if !pairs.is_empty() {
