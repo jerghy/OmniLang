@@ -71,7 +71,7 @@ fn compile_source(source: &str, target: Target) -> omnilang::codegen::CompileOut
         diagnostics: vec![],
         event_param_name: None,
     };
-    let ir = lower(&program, &mut semantics);
+    let ir = lower(&program, &mut semantics, None);
     let source_files: FxHashMap<String, String> =
         FxHashMap::from_iter([("input.omni".to_string(), source.to_string())]);
 

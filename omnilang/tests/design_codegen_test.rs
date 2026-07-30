@@ -61,3 +61,64 @@ fn emit_class_with_multiple_pseudo_states() {
     assert!(css.contains("[data-design~=\"FormDesign\"] .Input:focus {"));
     assert!(css.contains("border-color: #6366f1;"));
 }
+
+#[test]
+fn design_token_from_const_produces_correct_css() {
+    let source = r##"
+import omniview;
+
+const BRAND_COLOR = "#6366f1";
+const CARD_RADIUS = "12px";
+
+design AppDesign {
+    token primary: color = BRAND_COLOR;
+    token radiusLg: size = CARD_RADIUS;
+
+    class Card {
+        background: token(primary);
+        border-radius: token(radiusLg);
+    }
+}
+
+component App {
+    view {
+        <div class="Card">Hello</div>
+    }
+}
+"##;
+
+    let result = omnilang::compile_omniview(source, false, false);
+    assert!(
+        result.success,
+        "compilation should succeed, got errors: {:?}",
+        result.errors
+    );
+    let css = result
+        .files
+        .expect("should have compiled files")
+        .css;
+
+    // Token declarations on :root should contain resolved const values
+    assert!(
+        css.contains("--primary: #6366f1;"),
+        "CSS should contain --primary: #6366f1;\nGot:\n{}",
+        css
+    );
+    assert!(
+        css.contains("--radiusLg: 12px;"),
+        "CSS should contain --radiusLg: 12px;\nGot:\n{}",
+        css
+    );
+
+    // Class properties should reference via var()
+    assert!(
+        css.contains("background: var(--primary);"),
+        "CSS should contain background: var(--primary);\nGot:\n{}",
+        css
+    );
+    assert!(
+        css.contains("border-radius: var(--radiusLg);"),
+        "CSS should contain border-radius: var(--radiusLg);\nGot:\n{}",
+        css
+    );
+}
