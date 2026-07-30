@@ -336,8 +336,8 @@ pub fn generate(
         gen.generate_component(comp_name, comp, ir, comp_name == root_name);
     }
 
-    // Emit global __mergeTouches helper for TouchEvent support
-    if !css_only {
+    // Emit global __mergeTouches helper for TouchEvent support (only if needed)
+    if !css_only && project_uses_touch_events(ir) {
         gen.js.push_str(
             "function __mergeTouches(e) {\n\
              \x20 const seen = new Map();\n\
@@ -440,6 +440,29 @@ pub fn generate(
         nid_map: gen.nid_map,
         types,
     }
+}
+
+/// Returns true if any component in the IR program uses touch or pointer events.
+/// Guards the __mergeTouches helper from being emitted unconditionally.
+/// Checks both component-level declared events and element-level DOM events
+/// in the view tree (where __mergeTouches is actually referenced via TouchEvent data extraction).
+fn project_uses_touch_events(ir: &IRProgram) -> bool {
+    ir.modules.values().any(|m| {
+        m.components.values().any(|c| {
+            // Check component-level declared events (e.g., @onTouchStart in component signature)
+            c.events.iter().any(|ev| {
+                ev.name.contains("touch") || ev.name.contains("pointer")
+            })
+            // Check element-level DOM events in the view tree
+            || c.view.as_ref().is_some_and(|view| {
+                omnilang_core::codegen::shared::view_tree::view_tree_any(view, |el| {
+                    el.events.keys().any(|name| {
+                        name.contains("touch") || name.contains("pointer")
+                    })
+                })
+            })
+        })
+    })
 }
 
 /// Returns true if any part of the IR program uses motion/animation features.

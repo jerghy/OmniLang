@@ -311,15 +311,6 @@ function AppStore_increment() {
 /// ── Component: CounterWithStore ──
 
 
-function __mergeTouches(e) {
-  const seen = new Map();
-  for (const t of e.touches)
-    seen.set(t.identifier, { x: t.clientX, y: t.clientY, id: t.identifier });
-  for (const t of e.changedTouches)
-    if (!seen.has(t.identifier))
-      seen.set(t.identifier, { x: t.clientX, y: t.clientY, id: t.identifier });
-  return [...seen.values()];
-}
 
 /// ── Initial DOM ──
 document.getElementById("root").innerHTML = `<div id="root" data-component="CounterWithStore">
