@@ -3,6 +3,7 @@
 // language symbols.
 
 use crate::codegen::binary_op_to_str;
+use crate::codegen::sanitize::sanitize_css_value;
 use crate::ir::BinaryOpIR;
 
 #[test]
@@ -105,4 +106,44 @@ fn binary_op_to_str_assignment() {
     assert_eq!(binary_op_to_str(&MulAssign, false, false), "*=");
     assert_eq!(binary_op_to_str(&DivAssign, false, false), "/=");
     assert_eq!(binary_op_to_str(&ModAssign, false, false), "%=");
+}
+
+#[test]
+fn sanitize_css_value_blocks_crlf_javascript_bypass() {
+    // CR/LF before "javascript:" should be stripped and caught
+    assert_eq!(
+        sanitize_css_value("url(jav\r\nascript:alert(1))"),
+        "",
+        "CR/LF should be stripped and javascript: caught"
+    );
+    // TAB before "expression(" should be stripped and caught
+    assert_eq!(
+        sanitize_css_value("url(jav\tascript:alert(1))"),
+        "",
+        "TAB should be stripped and javascript: caught"
+    );
+    // CR-only between "java" and "script:"
+    assert_eq!(
+        sanitize_css_value("url(java\rscript:alert(1))"),
+        "",
+        "CR should be stripped and javascript: caught"
+    );
+    // LF-only between "java" and "script:"
+    assert_eq!(
+        sanitize_css_value("url(java\nscript:alert(1))"),
+        "",
+        "LF should be stripped and javascript: caught"
+    );
+    // Multiple whitespace chars combined
+    assert_eq!(
+        sanitize_css_value("url(jav\ta\r\nscript:alert(1))"),
+        "",
+        "Mixed TAB/CR/LF should all be stripped and javascript: caught"
+    );
+    // Normal safe values should still pass
+    assert_eq!(
+        sanitize_css_value("url(https://example.com/image.png)"),
+        "url(https://example.com/image.png)",
+        "Normal safe URLs should pass sanitization unchanged"
+    );
 }

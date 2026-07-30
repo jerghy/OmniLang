@@ -61,8 +61,13 @@ pub fn normalize_css_escapes(value: &str) -> String {
 /// Returns the original string if safe, or an empty string with a warning.
 #[must_use]
 pub fn sanitize_css_value(value: &str) -> String {
-    // First normalize CSS escape sequences to prevent bypasses
-    let normalized = normalize_css_escapes(value);
+    // Strip CR, LF, TAB — browsers normalize these during CSS tokenization.
+    // Must be done before normalize_css_escapes so hex-encoded versions
+    // of these characters are caught by the escape normalizer, while
+    // literal whitespace is stripped here.
+    let value = value.replace(&['\r', '\n', '\t'][..], "");
+    // Normalize CSS escape sequences to prevent bypasses
+    let normalized = normalize_css_escapes(&value);
     let lower = normalized.to_lowercase();
 
     if lower.contains("javascript:")
