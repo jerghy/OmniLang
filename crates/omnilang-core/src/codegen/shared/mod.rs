@@ -10,6 +10,5 @@ pub mod html;
 pub mod inline_handler;
 pub mod stmt;
 pub mod types;
-pub mod ui_codegen;
 pub mod view_tree;
 pub mod visitor;

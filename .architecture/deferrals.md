@@ -66,7 +66,53 @@
 
 ## 当前活跃推迟项
 
-**无。** 所有原本推迟的项目已被 ADR-006 重新分类为立即执行。新的推迟项将追加到本文件末尾。
+以下推迟项来自 2026-07-30 的 11 专家架构评审（见 `.architecture/reviews/component-omniview-2026-07-30.md`）。
+
+### 来自 ADR-036/038 (Element Reference System)
+
+| # | 项目 | 触发条件 | 影响 |
+|---|------|---------|------|
+| 1 | `@ref` inside `@for` loop bodies (Phase 2) | User demand for per-item refs | Currently emits compiler warning; unsupported |
+| 2 | Flutter `GlobalKey` codegen for `@ref` | Flutter P0 commitment | All Flutter test fixtures pass `ref_binding: None` |
+| 3 | Custom component ref forwarding (`forwardRef`) | Cross-component ref patterns | Not yet designed |
+| 4 | `ref_names` threading through React store codegen (16 call sites) | User reports store + ref combination bugs | 16 call sites pass `&FxHashSet::default()` |
+| 5 | `element_tag` population from ElementIR tag | Non-div elements with refs | Currently uses tag→type mapping (ADR-038 D3) |
+
+### 来自 ADR-037 (Signal Batching)
+
+| # | 项目 | 触发条件 | 影响 |
+|---|------|---------|------|
+| 6 | Signal batching with microtask deferral | Profiling gate: real app, measurable frame drops, bottleneck confirmed | Synchronous notification on every set() |
+
+### 来自 ADR-021 (Cross-Target Feature Parity)
+
+| # | 项目 | 触发条件 | 影响 |
+|---|------|---------|------|
+| 7 | Cross-target regression test matrix | New backend added or paused backend reactivated | 4 confirmed silent-drop bugs fixed; no automated guard |
+
+### 来自 ADR-001 (Pipeline Architecture)
+
+| # | 项目 | 触发条件 | 影响 |
+|---|------|---------|------|
+| 8 | TypeKind recursive validation for `Named` types | Language adds generic structs with custom type params | Unvalidated type names pass through IR silently |
+| 9 | Source map pipeline completion (non-OmniView backends) | React/Flutter debugging needs | target_spans empty for React/Flutter |
+| 10 | Codegen trait full adoption (OmniView) | Next major IR refactoring | OmniView bypasses standard compile() path; see also ADR-013 |
+| 11 | IR `#[non_exhaustive]` migration | Next ExprIR/StatementIR variant addition | Cascading compile errors across 10 backends |
+
+### 来自 ADR-032 (Animation Scoping) — Parked
+
+| # | 项目 | 触发条件 | 影响 |
+|---|------|---------|------|
+| 12 | Dead @focus JS codegen in React backend | React focus animation feature | mod.rs:127-144 unused code |
+| 13 | Removed trigger tokens still in lexer | Lexer cleanup pass | token.rs, keywords.rs dead tokens |
+| 14 | Stale doc comments referencing removed features | Doc audit | 5+ files with outdated animation docs |
+
+### 来自 ADR-034/035 (v4 Review Structural Fixes)
+
+| # | 项目 | 触发条件 | 影响 |
+|---|------|---------|------|
+| 15 | OmniViewGenerator decomposition into phase structs | Next major OmniView feature | 47-field struct with coupled phases |
+| 16 | Complete React FormatExpr migration (remove direct variant handlers) | Next ExprIR variant addition | 3 variants handled directly, rest delegated to trait
 
 ---
 

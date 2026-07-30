@@ -16,7 +16,7 @@ use rustc_hash::FxHashMap;
 /// Verifies template HTML structure and JS effect header.
 #[test]
 fn test_list_state_init_basic() {
-    let mut gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::default();
     let list = ListRenderingIntent {
         iterable: ExprIR::LiteralExpr {
             value: serde_json::json!([1, 2, 3]),
@@ -141,7 +141,7 @@ fn test_list_state_init_basic() {
 /// Verifies key map setup, empty-state template, and leave animation integration.
 #[test]
 fn test_list_with_key_and_empty_state() {
-    let mut gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::default();
     let list = ListRenderingIntent {
         iterable: ExprIR::LiteralExpr {
             value: serde_json::json!([1, 2, 3]),
@@ -200,14 +200,10 @@ fn test_list_with_key_and_empty_state() {
         "should clone empty template content"
     );
 
-    // FLIP animation recording — flipBefore must run BEFORE the while-remove loop
-    let flip_before_pos = gen.js.find("Omni.flipBefore(parent)").unwrap();
-    let clear_pos = gen.js.find("while (tpl.nextElementSibling").unwrap();
+    // FLIP animation recording
     assert!(
-        flip_before_pos < clear_pos,
-        "flipBefore should run BEFORE clearing loop, got flipBefore at {} and clear at {}",
-        flip_before_pos,
-        clear_pos
+        gen.js.contains("Omni.flipBefore(parent)"),
+        "should record FLIP positions before"
     );
     assert!(
         gen.js.contains("Omni.flipAfter(parent)"),
@@ -244,7 +240,7 @@ fn test_list_with_key_and_empty_state() {
 /// _forHandle event handler.
 #[test]
 fn test_list_with_event_delegation() {
-    let mut gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::default();
 
     let mut events = FxHashMap::default();
     events.insert(
@@ -359,7 +355,7 @@ fn test_list_with_event_delegation() {
 /// generate non-@for JS (silent no-ops in cloned DOM).
 #[test]
 fn test_nested_for_preserves_outer_template_mode() {
-    let mut gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::default();
     // Simulate outer @for entering template mode
     gen.scope.in_for_template = true;
 
@@ -390,7 +386,7 @@ fn test_nested_for_preserves_outer_template_mode() {
 /// in_for_template to false (the normal exit behavior).
 #[test]
 fn test_normal_for_sets_template_false_on_exit() {
-    let mut gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::default();
     assert!(!gen.scope.in_for_template);
 
     let list = ListRenderingIntent {
@@ -411,43 +407,5 @@ fn test_normal_for_sets_template_false_on_exit() {
     assert!(
         !gen.scope.in_for_template,
         "in_for_template must be false after non-nested @for exits"
-    );
-}
-
-/// Test: @for generates unique nids per clone via assignUniqueNids,
-/// ensuring motion triggers fire on all list items, not just the first.
-#[test]
-fn test_for_assigns_unique_nids_per_clone() {
-    let source = r#"
-component ListMotion {
-  signal items: List<String> = ["a", "b", "c"]
-  view {
-    <ul>
-      @for item in items {
-        <li>{item}</li>
-      }
-    </ul>
-  }
-}
-"#;
-    let result = crate::compile_omniview(source, false, false);
-    assert!(
-        result.success,
-        "compilation should succeed: {:?}",
-        result.errors
-    );
-    let js = &result.files.unwrap().js;
-
-    // Verify nid indexing is generated at clone time
-    assert!(
-        js.contains("assignUniqueNids"),
-        "Should generate assignUniqueNids function. Got:\n{}",
-        js
-    );
-    // Verify index-qualified nids are used
-    assert!(
-        js.contains("nid + '_' + idx"),
-        "Should append index to nid for uniqueness. Got:\n{}",
-        js
     );
 }

@@ -3,7 +3,7 @@
 //! These are the first regression tests for the OmniView backend. They test motion
 //! codegen output at three levels:
 //!   Phase 1: Pure functions (no generator state needed)
-//!   Phase 2: Read-only conversion (need OmniViewGenerator::test_new())
+//!   Phase 2: Read-only conversion (need OmniViewGenerator::default())
 //!   Phase 3: State-mutating functions (need &mut OmniViewGenerator)
 
 use super::super::*;
@@ -17,13 +17,13 @@ use rustc_hash::FxHashMap;
 // [Removed] test_is_transform_prop — is_transform_prop fn no longer exists
 
 // ═════════════════════════════════════════════════════════════════════════════
-// Phase 2: Read-Only Conversion Tests (need OmniViewGenerator::test_new())
+// Phase 2: Read-Only Conversion Tests (need OmniViewGenerator::default())
 // ═════════════════════════════════════════════════════════════════════════════
 
 /// Tests all 6 EasingIR variants, including optional field defaults.
 #[test]
 fn test_easing_all_variants() {
-    let gen = OmniViewGenerator::test_new();
+    let gen = OmniViewGenerator::default();
 
     // Named easing → JSON string
     assert_eq!(
@@ -76,7 +76,7 @@ fn test_easing_all_variants() {
 /// Tests keyframe_to_animate_call with both from/to stops.
 #[test]
 fn test_keyframe_animate_call_basic() {
-    let mut gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::default();
     let kf = KeyframeIR {
         stops: vec![
             KeyframeStopIR {
@@ -144,7 +144,7 @@ fn test_keyframe_animate_call_basic() {
 /// Tests keyframe_to_animate_call edge cases: empty stops, from-only, per-stop easing.
 #[test]
 fn test_keyframe_animate_call_edge_cases() {
-    let mut gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::default();
 
     // Edge case 1: No stops → empty keyframe array
     let empty = KeyframeIR {
@@ -247,7 +247,7 @@ fn test_keyframe_animate_call_edge_cases() {
 /// function for a simple keyframe animation (fade-in: opacity 0 → 1).
 #[test]
 fn test_emit_motion_js_keyframe() {
-    let mut gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::default();
     let motion = MotionIntent {
         name: "fadeIn".into(),
         body: MotionBodyIR::Keyframe(KeyframeIR {
@@ -298,7 +298,7 @@ fn test_emit_motion_js_keyframe() {
 /// Verifies the mount_js output and the enter_trigger_nids registration.
 #[test]
 fn test_motion_trigger_enter_named() {
-    let mut gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::default();
     let el = ElementIR {
         tag: "div".into(),
         props: FxHashMap::default(),
@@ -360,7 +360,7 @@ fn test_motion_trigger_enter_named() {
 /// @hover auto-binds mouseenter/mouseleave events in the JS output.
 #[test]
 fn test_motion_trigger_hover_named() {
-    let mut gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::default();
     let el = ElementIR {
         tag: "button".into(),
         props: FxHashMap::default(),
@@ -403,7 +403,7 @@ fn test_motion_trigger_hover_named() {
 /// Tests the Scroll trigger path which reads scroll behavior fields (start, end, scrub).
 #[test]
 fn test_scroll_trigger() {
-    let mut gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::default();
     let el = ElementIR {
         tag: "div".into(),
         props: FxHashMap::default(),
@@ -455,7 +455,7 @@ fn test_scroll_trigger() {
 /// Tests the Drag trigger path which reads drag behavior fields (constraints, elastic, etc.).
 #[test]
 fn test_drag_trigger() {
-    let mut gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::default();
     let el = ElementIR {
         tag: "div".into(),
         props: FxHashMap::default(),
@@ -508,7 +508,7 @@ fn test_drag_trigger() {
 /// in_view_once / in_view_threshold configurations.
 #[test]
 fn test_inview_trigger() {
-    let mut gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::default();
     let el = ElementIR {
         tag: "div".into(),
         props: FxHashMap::default(),
@@ -558,7 +558,7 @@ fn test_inview_trigger() {
 /// emit_element_motion_bindings, but this verifies the trigger path is correct).
 #[test]
 fn test_driven_by() {
-    let mut gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::default();
     let el = ElementIR {
         tag: "div".into(),
         props: FxHashMap::default(),
@@ -604,7 +604,7 @@ fn test_driven_by() {
 /// separately by emit_element_motion_bindings).
 #[test]
 fn test_paused_override() {
-    let mut gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::default();
     let el = ElementIR {
         tag: "div".into(),
         props: FxHashMap::default(),
@@ -656,7 +656,7 @@ fn test_paused_override() {
 /// Verifies the factory function includes stagger configuration in the options.
 #[test]
 fn test_stagger_children() {
-    let mut gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::default();
     let motion = MotionIntent {
         name: "staggerAnim".into(),
         body: MotionBodyIR::Keyframe(KeyframeIR {

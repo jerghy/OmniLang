@@ -296,7 +296,7 @@ fn props_are_emitted_as_readonly_wrappers() {
 
 #[test]
 fn test_expr_literal() {
-    let mut gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::default();
     assert_eq!(
         gen.expr_to_js(&ExprIR::LiteralExpr {
             value: serde_json::json!(42)
@@ -307,7 +307,7 @@ fn test_expr_literal() {
 
 #[test]
 fn test_expr_literal_string() {
-    let mut gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::default();
     assert_eq!(
         gen.expr_to_js(&ExprIR::LiteralExpr {
             value: serde_json::json!("hello")
@@ -330,7 +330,7 @@ fn test_expr_literal_string() {
 
 #[test]
 fn test_expr_identifier() {
-    let mut gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::default();
     assert_eq!(
         gen.expr_to_js(&ExprIR::IdentifierExpr {
             name: "count".into(),
@@ -342,7 +342,7 @@ fn test_expr_identifier() {
 
 #[test]
 fn test_expr_binary() {
-    let mut gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::default();
     assert_eq!(
         gen.expr_to_js(&ExprIR::BinaryOpExpr {
             op: BinaryOpIR::Add,
@@ -389,7 +389,7 @@ fn test_expr_binary() {
 
 #[test]
 fn test_expr_unary() {
-    let mut gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::default();
     assert_eq!(
         gen.expr_to_js(&ExprIR::UnaryOpExpr {
             op: UnaryOpIR::Not,
@@ -414,7 +414,7 @@ fn test_expr_unary() {
 
 #[test]
 fn test_expr_ternary() {
-    let mut gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::default();
     assert_eq!(
         gen.expr_to_js(&ExprIR::TernaryIR {
             cond: Box::new(ExprIR::IdentifierExpr {
@@ -434,7 +434,7 @@ fn test_expr_ternary() {
 
 #[test]
 fn test_expr_field_access() {
-    let mut gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::default();
     assert_eq!(
         gen.expr_to_js(&ExprIR::FieldAccessExpr {
             object: Box::new(ExprIR::IdentifierExpr {
@@ -449,7 +449,7 @@ fn test_expr_field_access() {
 
 #[test]
 fn test_expr_method_call() {
-    let mut gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::default();
     assert_eq!(
         gen.expr_to_js(&ExprIR::MethodCallExpr {
             object: Box::new(ExprIR::IdentifierExpr {
@@ -478,7 +478,7 @@ fn test_expr_method_call() {
 
 #[test]
 fn test_expr_closure() {
-    let mut gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::default();
     assert_eq!(
         gen.expr_to_js(&ExprIR::ClosureExpr {
             params: vec!["x".into()],
@@ -499,7 +499,7 @@ fn test_expr_closure() {
 
 #[test]
 fn test_expr_array() {
-    let mut gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::default();
     assert_eq!(
         gen.expr_to_js(&ExprIR::ArrayExpr {
             elements: vec![
@@ -520,7 +520,7 @@ fn test_expr_array() {
 
 #[test]
 fn test_expr_store_field_access() {
-    let mut gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::default();
     gen.store_names.insert("AppStore".into());
     let js = gen.expr_to_js(&ExprIR::StoreFieldAccessExpr {
         store_alias: "AppStore".into(),
@@ -532,7 +532,7 @@ fn test_expr_store_field_access() {
 
 #[test]
 fn test_expr_block() {
-    let mut gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::default();
     let js = gen.expr_to_js(&ExprIR::BlockExpr {
         statements: vec![StatementIR::LetStmtIR {
             name: "x".into(),
@@ -553,7 +553,7 @@ fn test_expr_block() {
 
 #[test]
 fn test_expr_variant_literal() {
-    let mut gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::default();
     let js = gen.expr_to_js(&ExprIR::VariantLiteral {
         union_type: "Result".into(),
         variant: "ok".into(),
@@ -572,7 +572,7 @@ fn test_expr_variant_literal() {
 
 #[test]
 fn test_stmt_let() {
-    let mut gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::default();
     gen.emit_statement(&StatementIR::LetStmtIR {
         name: "x".into(),
         value: Some(ExprIR::LiteralExpr {
@@ -585,7 +585,7 @@ fn test_stmt_let() {
 
 #[test]
 fn test_stmt_return() {
-    let mut gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::default();
     gen.emit_statement(&StatementIR::ReturnStmtIR {
         value: Some(ExprIR::IdentifierExpr {
             name: "result".into(),
@@ -597,7 +597,7 @@ fn test_stmt_return() {
 
 #[test]
 fn test_stmt_if_else() {
-    let mut gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::default();
     gen.emit_statement(&StatementIR::IfStmtIR {
         condition: ExprIR::IdentifierExpr {
             name: "cond".into(),
@@ -631,7 +631,7 @@ fn test_stmt_if_else() {
 
 #[test]
 fn test_stmt_while() {
-    let mut gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::default();
     gen.emit_statement(&StatementIR::WhileStmtIR {
         condition: ExprIR::IdentifierExpr {
             name: "running".into(),
@@ -647,7 +647,7 @@ fn test_stmt_while() {
 
 #[test]
 fn test_stmt_for_in() {
-    let mut gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::default();
     gen.emit_statement(&StatementIR::ForInStmtIR {
         var_name: "item".into(),
         iterable: ExprIR::IdentifierExpr {
@@ -672,7 +672,7 @@ fn test_stmt_for_in() {
 
 #[test]
 fn test_stmt_mutation_assign() {
-    let mut gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::default();
     gen.emit_statement(&StatementIR::MutationStmt {
         intent: Some(MutationIntent::DirectAssign {
             target: SignalRefIR {
@@ -690,7 +690,7 @@ fn test_stmt_mutation_assign() {
 
 #[test]
 fn test_stmt_mutation_increment() {
-    let mut gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::default();
     gen.emit_statement(&StatementIR::MutationStmt {
         intent: Some(MutationIntent::Increment {
             target: SignalRefIR {
@@ -708,7 +708,7 @@ fn test_stmt_mutation_increment() {
 
 #[test]
 fn test_stmt_mutation_signal_set() {
-    let mut gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::default();
     gen.scope.signal_names.insert("App_count".into());
     gen.scope
         .name_renames
@@ -730,7 +730,7 @@ fn test_stmt_mutation_signal_set() {
 
 #[test]
 fn test_stmt_try_catch() {
-    let mut gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::default();
     gen.emit_statement(&StatementIR::TryCatchStmtIR {
         try_body: BlockIR {
             statements: vec![StatementIR::ExprStmtIR {
@@ -762,7 +762,7 @@ fn test_stmt_try_catch() {
 
 #[test]
 fn test_stmt_throw() {
-    let mut gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::default();
     gen.emit_statement(&StatementIR::ThrowStmtIR {
         expr: ExprIR::LiteralExpr {
             value: serde_json::json!("error!"),
@@ -774,7 +774,7 @@ fn test_stmt_throw() {
 
 #[test]
 fn test_stmt_continue() {
-    let mut gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::default();
     gen.emit_statement(&StatementIR::ContinueStmtIR);
     assert!(gen.js.contains("continue"));
 }

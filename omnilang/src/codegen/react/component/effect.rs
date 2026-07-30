@@ -110,10 +110,15 @@ impl ReactCodegen {
                     }
                 }
                 LifecycleKind::Unmount => {
+                    let body_has_await = lc.body.statements.iter().any(stmt_contains_await);
                     w.emit("useEffect(() => {");
                     w.indent();
                     w.emit("return () => {");
                     w.indent();
+                    if body_has_await {
+                        w.emit("(async () => {");
+                        w.indent();
+                    }
                     for stmt in &lc.body.statements {
                         expr::generate_statement_tsx_with_mode(
                             &mut *w,
@@ -122,6 +127,10 @@ impl ReactCodegen {
                             self.store_mode,
                             ref_names,
                         );
+                    }
+                    if body_has_await {
+                        w.dedent();
+                        w.emit("})();");
                     }
                     w.dedent();
                     w.emit("};");
@@ -294,16 +303,15 @@ pub(super) fn expr_contains_await(expr: &ExprIR) -> bool {
 // ═══════════════════════════════════════════════════════════
 
 /// Check if a view tree has motion triggers or effects that need useEffect.
-/// Only returns true for motion types that actually generate useEffect hooks:
-/// @enter, @hover/@press/@focus triggers, driven_by, in_view, scroll, drag.
-/// Bare @timeline references do NOT need useEffect.
+/// All trigger types (Enter, Hover, Press, InView, Scroll, DragHorizontal,
+/// DragVertical) generate useEffect hooks. Also checks in_view_once/in_view_repeat,
+/// scroll, and drag fields.
 pub(super) fn view_has_motion_or_effects(node: &ViewTree) -> bool {
     match node {
         ViewTree::Element(el) => {
             // Check for motion behaviors that generate useEffect
             if let Some(ref motion) = el.motion {
-                // Triggers like @enter, @hover, @press, @focus generate useEffect
-                // @timeline and @animate triggers do NOT generate useEffect (they're WAAPI-only)
+                // All TriggerKind variants generate useEffect hooks
                 if motion.triggers.iter().any(|_| true) {
                     return true;
                 }

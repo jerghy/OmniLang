@@ -11,7 +11,7 @@ use super::super::*;
 /// Verify __omni_sanitizeUrl is emitted and blocks key dangerous schemes.
 #[test]
 fn test_sanitize_url_blocks_dangerous_schemes() {
-    let mut gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::default();
     gen.emit_signal_runtime();
 
     let js = &gen.js;
@@ -56,7 +56,7 @@ fn test_sanitize_url_blocks_dangerous_schemes() {
 /// Verify __omni_sanitizeCss is emitted and blocks key injection patterns.
 #[test]
 fn test_sanitize_css_blocks_injection_patterns() {
-    let mut gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::default();
     gen.emit_signal_runtime();
 
     let js = &gen.js;
@@ -167,7 +167,7 @@ fn design_block_css_values_are_sanitized() {
 /// Verify both sanitizer functions exist in the emitted runtime.
 #[test]
 fn test_both_sanitizers_emitted() {
-    let mut gen = OmniViewGenerator::test_new();
+    let mut gen = OmniViewGenerator::default();
     gen.emit_signal_runtime();
 
     let js = &gen.js;

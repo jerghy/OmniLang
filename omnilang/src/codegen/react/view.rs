@@ -11,7 +11,9 @@ use rustc_hash::FxHashSet;
 use super::super::capitalize_first;
 use super::expr::{format_expr_ir_tsx, generate_statement_tsx};
 use super::utils::{emit_event_object_react, to_jsx_attr, to_react_event, to_react_tag};
+use crate::codegen::omniview::is_dangerous_url;
 use crate::codegen::{format_json_value, JSON_REACT};
+use omnilang_core::codegen::sanitize::sanitize_css_value;
 
 pub(super) fn gen_view_node_tsx(
     w: &mut CodeWriter,
@@ -143,8 +145,17 @@ pub(super) fn gen_view_node_tsx(
                                 attrs.push(format!("className={{styles['{}']}}", classes[0]));
                             }
                         } else {
-                            let escaped = s.replace('\\', "\\\\").replace('"', "\\\"");
-                            attrs.push(format!("{}=\"{}\"", jsx_attr, escaped));
+                            // Check URL attributes for dangerous schemes (javascript:, data:, vbscript:)
+                            // Mirrors the OmniView backend's compile-time is_dangerous_url() defense-in-depth
+                            // against supply-chain compromises where a third-party .omni component
+                            // contains literal javascript:/data: URLs.
+                            let url_attrs: &[&str] = &["href", "src", "srcset", "action", "formaction", "poster"];
+                            if url_attrs.contains(&jsx_attr.as_str()) && is_dangerous_url(s) {
+                                attrs.push(format!("{}=\"#blocked\"", jsx_attr));
+                            } else {
+                                let escaped = s.replace('\\', "\\\\").replace('"', "\\\"");
+                                attrs.push(format!("{}=\"{}\"", jsx_attr, escaped));
+                            }
                         }
                     }
                     _ => {
@@ -464,7 +475,7 @@ pub(super) fn gen_view_node_tsx(
                     let mut pairs: Vec<String> = Vec::new();
                     for (prop, val) in obj {
                         let js_prop = format_style_prop_key(prop);
-                        let js_val = format_style_value_expr(val);
+                        let js_val = format_style_value_expr(val, &FxHashSet::default());
                         pairs.push(format!("{}: {}", js_prop, js_val));
                     }
                     if !pairs.is_empty() {
@@ -828,10 +839,20 @@ pub(crate) fn format_style_prop_key(key: &str) -> String {
 
 /// Translate an inline style value from the IR JSON representation into a TSX expression.
 /// Handles $signal, $call, and $concat meta-objects.
-pub(crate) fn format_style_value_expr(val: &serde_json::Value) -> String {
+pub(crate) fn format_style_value_expr(val: &serde_json::Value, ref_names: &FxHashSet<String>) -> String {
     match val {
-        // Static string: 'value'
-        serde_json::Value::String(s) => format!("'{}'", s),
+        // Static string: 'value' (with CSS sanitization)
+        serde_json::Value::String(s) => {
+            let sanitized = sanitize_css_value(s);
+            if sanitized.is_empty() {
+                // Value was blocked — emit empty string as safe fallback
+                "''".to_string()
+            } else {
+                // Escape single quotes in the sanitized value
+                let escaped = sanitized.replace('\\', "\\\\").replace('\'', "\\'");
+                format!("'{}'", escaped)
+            }
+        },
         // Static number: 42 (with px suffix for numbers)
         serde_json::Value::Number(n) => {
             if let Some(f) = n.as_f64() {
@@ -845,6 +866,9 @@ pub(crate) fn format_style_value_expr(val: &serde_json::Value) -> String {
         // $concat: { "$concat": [part1, part2, ...] } -> `part1${part2}`
         serde_json::Value::Object(obj) => {
             if let Some(sig_name) = obj.get("$signal").and_then(|v| v.as_str()) {
+                if ref_names.contains(sig_name) {
+                    return format!("{}Ref.current", sig_name);
+                }
                 return sig_name.to_string();
             }
             // $call
@@ -852,7 +876,7 @@ pub(crate) fn format_style_value_expr(val: &serde_json::Value) -> String {
                 let fn_name = call_obj.get("name").and_then(|v| v.as_str()).unwrap_or("");
                 let args_str = if let Some(args) = call_obj.get("args").and_then(|v| v.as_array()) {
                     let translated: Vec<String> =
-                        args.iter().map(format_style_value_expr).collect();
+                        args.iter().map(|v| format_style_value_expr(v, ref_names)).collect();
                     translated.join(", ")
                 } else {
                     String::new()
@@ -873,7 +897,7 @@ pub(crate) fn format_style_value_expr(val: &serde_json::Value) -> String {
                         }
                         _ => {
                             // Dynamic part — resolve to expression and wrap in ${...}
-                            let inner = format_style_value_expr(part);
+                            let inner = format_style_value_expr(part, ref_names);
                             template_parts.push(format!("${{{}}}", inner));
                         }
                     }
@@ -891,7 +915,7 @@ pub(crate) fn format_style_value_expr(val: &serde_json::Value) -> String {
         serde_json::Value::Null => "null".into(),
         // Array (unlikely in style context)
         serde_json::Value::Array(arr) => {
-            let items: Vec<_> = arr.iter().map(format_style_value_expr).collect();
+            let items: Vec<_> = arr.iter().map(|v| format_style_value_expr(v, ref_names)).collect();
             format!("[{}]", items.join(", "))
         }
     }

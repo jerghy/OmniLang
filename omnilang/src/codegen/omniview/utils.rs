@@ -212,6 +212,12 @@ body {{ margin: 0; padding: 8px; font-family: system-ui, sans-serif; }}
 <body>
 {body_html}
 <script>
+console.warn(
+  '%cOmniView Debug Mode%c\n' +
+  'This page was generated in DEBUG mode and has NO Content-Security-Policy.\n' +
+  'Do NOT deploy this HTML to production. Use the React production backend instead.',
+  'font-weight: bold; font-size: 14px;', ''
+);
 /// ─── @omni/animation v0.1.0 (embedded) ───
 {animation_runtime}
 /// ─── App code ───
