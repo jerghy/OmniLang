@@ -26,6 +26,7 @@ mod store;
 mod utils;
 mod view;
 pub use utils::{build_file_output, wrap_debug_html};
+pub(crate) use view::element::is_dangerous_url;
 mod debug;
 
 use crate::error::Diagnostic;

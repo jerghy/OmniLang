@@ -11,6 +11,7 @@ use rustc_hash::FxHashSet;
 use super::super::capitalize_first;
 use super::expr::{format_expr_ir_tsx, generate_statement_tsx};
 use super::utils::{emit_event_object_react, to_jsx_attr, to_react_event, to_react_tag};
+use crate::codegen::omniview::is_dangerous_url;
 use crate::codegen::{format_json_value, JSON_REACT};
 
 pub(super) fn gen_view_node_tsx(
@@ -127,8 +128,17 @@ pub(super) fn gen_view_node_tsx(
                                 attrs.push(format!("className={{styles['{}']}}", classes[0]));
                             }
                         } else {
-                            let escaped = s.replace('\\', "\\\\").replace('"', "\\\"");
-                            attrs.push(format!("{}=\"{}\"", jsx_attr, escaped));
+                            // Check URL attributes for dangerous schemes (javascript:, data:, vbscript:)
+                            // Mirrors the OmniView backend's compile-time is_dangerous_url() defense-in-depth
+                            // against supply-chain compromises where a third-party .omni component
+                            // contains literal javascript:/data: URLs.
+                            let url_attrs: &[&str] = &["href", "src", "srcset", "action", "formaction", "poster"];
+                            if url_attrs.contains(&jsx_attr.as_str()) && is_dangerous_url(s) {
+                                attrs.push(format!("{}=\"#blocked\"", jsx_attr));
+                            } else {
+                                let escaped = s.replace('\\', "\\\\").replace('"', "\\\"");
+                                attrs.push(format!("{}=\"{}\"", jsx_attr, escaped));
+                            }
                         }
                     }
                     _ => {
