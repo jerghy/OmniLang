@@ -89,7 +89,7 @@ pub struct User { name: String, ... }         // 公共
 pub type Percentage = f64;                    // 公共
 ```
 
-`pub` 适用于 `fn`、`struct`、`type`。`component`、`store`、`design`、`@motion`、`@timeline` 默认即可被导入（不需要 `pub`）。
+`pub` 适用于 `fn`、`struct`、`type`。`component`、`store`、`design`、`@motion` 默认即可被导入（不需要 `pub`）。
 
 ## 路径别名 (.omnilang.toml)
 

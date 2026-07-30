@@ -374,16 +374,13 @@ fn lower_element(
                         //   dynamic     → unknown at compile time → JS handles
                         let mut static_classes: Vec<String> = Vec::new();
                         for (key, val_expr) in entries {
-                            let mut skip = false;
-                            if let Expr::Literal(Literal::Bool(false), _) = val_expr {
-                                // Explicitly false: exclude the class entirely
-                                skip = true;
-                            }
-                            // For true or dynamic values, include the class.
-                            // Dynamic toggling will be handled by JS later.
-                            if !skip {
+                            // Bool(true)  → static truth  → include in HTML
+                            // Bool(false) → static falsy → exclude entirely
+                            // dynamic     → unknown at compile time → JS handles with classList.toggle
+                            if let Expr::Literal(Literal::Bool(true), _) = val_expr {
                                 static_classes.push(key.clone());
                             }
+                            // Collect dynamic bindings (non-literal values) for reactive JS toggling
                             // Collect dynamic bindings (non-literal values) for reactive JS toggling
                             if !matches!(val_expr, Expr::Literal(Literal::Bool(_), _)) {
                                 class_map_bindings.insert(

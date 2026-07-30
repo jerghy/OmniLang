@@ -12,13 +12,13 @@ component ComponentName {
     computed ...     // 派生计算值
     event ...        // 自定义事件
     fn ...           // 组件函数
-    ref ...          // DOM 引用
+    ref ...          // DOM 元素引用
     const ...        // 编译时常量
 
     @store ...       // Store 引用
-    @mount { ... }   // 生命周期
-    @unmount { ... }
-    @effect(...) { ... }
+    @mount { ... }   // 生命周期：挂载
+    @unmount { ... } // 生命周期：卸载
+    @effect(...) { ... } // 生命周期：响应式副作用
 
     view { ... }     // UI 模板
     style { ... }    // 组件样式
@@ -112,7 +112,7 @@ view {
 ```omni
 component Child {
     event onSelect: String;
-    event onClose: bool?;
+    event onClose: bool?;       // 可选事件（父组件可忽略）
 
     fn trigger() {
         onSelect("item-1");         // 两种等价写法
@@ -122,6 +122,7 @@ component Child {
 
 // 父组件接收
 <Child @onSelect={handleSelect} />
+<Child @onClose={() => { closed = true; }} />
 ```
 
 父组件的 `handleSelect` 直接接收事件 payload 作为参数。
@@ -145,21 +146,70 @@ fn handleAdd() {
 
 ## ref（DOM 元素引用）
 
+`ref` 声明一个对 DOM 元素的引用，用于直接的、高频率的 DOM 操作（ADR-036）。
+
+### 声明与绑定
+
 ```omni
 component MyComponent {
-    ref myInput: Element;
-    ref scrollContainer: Element;
-
-    fn focus() {
-        // 通过 ref 名访问 DOM 元素
-    }
+    ref myInput: Element;          // ref 声明
+    ref scrollContainer: Element;  // 多个 ref
 
     view {
+        <!-- 方式 A：冒号简写（原语） -->
         <input ref: myInput bind:value={text} />
-        <div ref: scrollContainer>...</div>
+
+        <!-- 方式 B：@ref 事件风格（推荐，与 @onClick 一致性高）-->
+        <div @ref={scrollContainer}>...</div>
     }
 }
 ```
+
+两种绑定语法等价，推荐 `@ref={name}`。
+
+### Ref API 表面（跨后端安全子集）
+
+| API | 用途 | 示例 |
+|-----|------|------|
+| `.focus()` | 聚焦元素 | `myInput.focus()` |
+| `.blur()` | 失焦 | `myInput.blur()` |
+| `.scrollTo(x, y)` | 滚动到指定位置 | `scrollArea.scrollTo(0, 0)` |
+| `.scrollBy(dx, dy)` | 增量滚动 | `scrollArea.scrollBy(0, 100)` |
+| `.getBoundingClientRect()` | 位置/尺寸查询 | `let rect = el.getBoundingClientRect()` |
+| `.style` | 直接 CSS 操作（60fps 高频） | `dragBox.style.transform = "translate(100px, 0)"` |
+
+**不暴露**：`innerHTML`、`addEventListener`、`querySelector`、`parentElement`——这些会破坏跨后端抽象。
+
+### 高频场景：ref + @drag 配合
+
+```omni
+component Draggable {
+    ref dragBox: Element;
+    signal x: f64 = 0;
+    signal y: f64 = 0;
+
+    fn onDragUpdate(e) {
+        // .style 直接写 DOM，避免 signal→reconciliation 的开销
+        dragBox.style.transform = `translate({e.x}px, {e.y}px)`;
+        x = e.x;
+        y = e.y;
+    }
+
+    view {
+        <div @ref={dragBox}
+             @dragHorizontal={fadeSlideUp}>
+            <p>Drag me — x:{x.to_string()} y:{y.to_string()}</p>
+        </div>
+    }
+}
+```
+
+在 `@dragHorizontal` / `@dragVertical` 触发器中更新 ref.style（高帧率）和 signal（最终值）。
+
+### 边界情况
+
+- **`@for` + `@ref`**：在 `@for` 循环内使用 `@ref` 会绑定到循环的最后一个元素（Phase 2 解决语义）
+- **自定义组件 ref**：`@ref` 在 `<MyComponent>` 上尚不支持（需要 React `forwardRef` 等价物）
 
 ## const（编译时常量）
 
@@ -170,7 +220,7 @@ const API_URL = "https://api.example.com";
 signal limit: i32 = MAX_ITEMS;
 ```
 
-常量值编译时确定，可用于 signal 初始值。
+常量值编译时确定，可用于 signal 初始值和列表渲染。
 
 ## 生命周期钩子
 
@@ -194,12 +244,15 @@ signal limit: i32 = MAX_ITEMS;
 ```omni
 @unmount {
     println("Component unmounting");
+    // 清理定时器、取消订阅等
 }
 ```
 
 ### @effect
 
-追踪指定 signal 变化时自动执行：
+追踪 signal 变化时自动执行副作用。有两种形式：
+
+**追踪指定 signal**：
 
 ```omni
 @effect(searchQuery) {
@@ -214,6 +267,15 @@ signal limit: i32 = MAX_ITEMS;
 }
 ```
 
+**无参数**（每次组件更新时执行）：
+
+```omni
+@effect {
+    effectCount = effectCount + 1;  // 每次更新时递增
+}
+```
+
+要点：
 - effect 在 DOM 更新后异步执行
 - 追踪 Store signal 需用 `StoreName.field` 语法
 - 避免在 effect 中产生无限循环
@@ -256,6 +318,20 @@ component CartDemo {
     }
 }
 ```
+
+## @for key={expr} 身份追踪
+
+```omni
+@for item in items key={item.id} {
+    <div class: list-item>
+        <span>{item.name}</span>
+    </div>
+} @empty {
+    <p>No items yet</p>
+}
+```
+
+`key={...}` 提供稳定的 DOM 标识，支持列表项的增量更新和 FLIP 动画。
 
 ## view 和 style
 

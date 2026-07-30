@@ -471,6 +471,21 @@ impl<'a> Parser<'a> {
                 })
             }
         };
+        // @ref={name} is a ref binding, not an event
+        if event_name == "ref" {
+            let handler = self.parse_event_handler_value()?;
+            let ref_name = match &handler {
+                EventHandler::FnRef(n) => n.clone(),
+                _ => {
+                    return Err(ParseError {
+                        message: format!("Expected ref name, got {:?}", handler),
+                        span: t.span,
+                    })
+                }
+            };
+            return Ok(ElementProp::Ref(ref_name));
+        }
+
         let handler = self.parse_event_handler_value()?;
         Ok(ElementProp::Event {
             name: event_name,

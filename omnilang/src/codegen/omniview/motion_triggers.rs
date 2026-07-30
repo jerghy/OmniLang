@@ -153,7 +153,7 @@ impl OmniViewGenerator {
              }\n\
              function __omni_scrollRemoveEntry(nid) {\n\
              \x20 var el = __omni_el(nid);\n\
-             \x20 if (!el) return;\n\
+             \x20 if (!el || !__omni_scrollElements) return;\n\
              \x20 __omni_scrollElements = __omni_scrollElements.filter(function(entry) {\n\
              \x20\x20 return entry.el !== el;\n\
              \x20 });\n\

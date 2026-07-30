@@ -16,6 +16,9 @@
 
 <!-- 带参数调用函数 -->
 <button @onPress={switchTab("home")}>Home</button>
+
+<!-- 事件简写：直接传参数 -->
+<button @onPress={(e) => { handleEvent(e); }}>Log</button>
 ```
 
 `@onPress` 和 `@onClick` 等价（都映射到 `click`），`@onPress` 是推荐写法。
@@ -49,12 +52,13 @@ fn handleMouse(e) {
 
 ### 鼠标/指针
 
-| 事件 | 典型字段 |
-|------|---------|
-| `@onPress` | `x`, `y`, `button` |
-| `@onDoubleClick` | `x`, `y` |
-| `@onContextMenu` | `x`, `y` |
-| `@onMouseEnter` / `@onMouseLeave` | — |
+| 事件 | 典型字段 | 说明 |
+|------|---------|------|
+| `@onPress` / `@onClick` | `x`, `y`, `button` | 点击 |
+| `@onDoubleClick` | `x`, `y` | 双击 |
+| `@onContextMenu` | `x`, `y` | 右键菜单 |
+| `@onMouseEnter` / `@onMouseLeave` | — | 悬停进出 |
+| `@onMouseMove` | `x`, `y` | 鼠标移动 |
 
 ### 输入/键盘
 
@@ -63,6 +67,8 @@ fn handleMouse(e) {
 | `@onInput` | `value` |
 | `@onChange` | `value`, `checked` |
 | `@onKeyUp` / `@onKeyDown` | `key`, `code` |
+| `@onFocus` / `@onBlur` | `value` |
+| `@onSubmit` | `values` |
 
 ### 剪贴板
 
@@ -89,20 +95,26 @@ fn handleMouse(e) {
 | `@onWheel` | `deltaX`, `deltaY`, `deltaZ`, `x`, `y` |
 | `@onScroll` | `x`, `y` |
 
-### 焦点/表单
+### 媒体
 
 | 事件 | 字段 |
 |------|------|
-| `@onFocus` / `@onBlur` | `value` |
-| `@onSubmit` | `values` |
-| `@onToggle` | `checked` |
+| `@onPlay` / `@onPause` / `@onEnded` | — |
+| `@onLoad` / `@onError` | — |
 
 ### 动画/过渡
 
 | 事件 | 字段 |
 |------|------|
 | `@onAnimationStart` / `@onAnimationEnd` | `animationName`, `elapsedTime` |
+| `@onAnimationIteration` | `animationName`, `elapsedTime` |
 | `@onTransitionEnd` | `propertyName`, `elapsedTime` |
+
+### 切换
+
+| 事件 | 字段 |
+|------|------|
+| `@onToggle` | — |
 
 ### 窗口
 
@@ -117,6 +129,7 @@ fn handleMouse(e) {
 ```omni
 component Child {
     event onCustomEvent: String;
+    event onOptionalEvent: bool?;          // 可选事件，父组件可不处理
 
     fn trigger() {
         emit onCustomEvent("hello from child");
@@ -177,3 +190,13 @@ view {
 
 - 所有事件默认冒泡，通过 `addEventListener` 绑定
 - 在 `@for` 循环内，事件使用委托模式——容器上单一监听器，通过 `data-event-*` 分派
+
+## 事件风格对比
+
+| 风格 | 示例 | 说明 |
+|------|------|------|
+| 标准 | `@onClick={handler}` | 显式命名事件 |
+| 简写 | `({ fnName })` 或 `{handler}` | 自动包装（部分场景） |
+| 内联闭包 | `@onPress={() => { ... }}` | 直接写逻辑 |
+| Store action | `@onPress={TodoStore.add("x")}` | 调用 store 方法 |
+| 函数调用 | `@onPress={switchTab("home")}` | 带参数调用组件函数 |

@@ -29,7 +29,7 @@ function __omni_ensureScrollHandler() {
 }
 function __omni_scrollRemoveEntry(nid) {
   var el = __omni_el(nid);
-  if (!el) return;
+  if (!el || !__omni_scrollElements) return;
   __omni_scrollElements = __omni_scrollElements.filter(function(entry) {
    return entry.el !== el;
   });

@@ -387,6 +387,35 @@ pub fn generate(
     if !css_only {
         // Emit theme runtime JS if any design block declares @themes
         gen.emit_theme_runtime();
+
+        // ── Sync store "mode" signals to __omni_theme ──
+        // When a design block declares @themes, __omni_theme manages data-theme on <html>.
+        // Stores with a "mode" signal (common naming for theme switching) must sync bidirectionally:
+        //   1. Init: if __omni_theme.current (from localStorage/prefers-color-scheme) differs from the
+        //      store default, override the store to respect the saved/preferred theme.
+        //   2. Reactive: any store "mode" change propagates to __omni_theme, updating data-theme.
+        let has_themes = gen.design_map.values().any(|d| !d.themes.is_empty());
+        if has_themes {
+            for (store_name, store) in ir.all_stores() {
+                if store.signals.contains_key("mode") {
+                    let var_name = format!("{}_{}", store_name, "mode");
+                    let _ = writeln!(
+                        gen.mount_js,
+                        "\
+        // ── Theme mode sync: {var_name} ↔ __omni_theme ──
+        (function() {{
+          // 1. Init: respect saved/preferred theme from __omni_theme.init()
+          if ({var_name}.value !== __omni_theme.current) {{
+            __omni_subs.get(\"{var_name}\").set(__omni_theme.current);
+          }}
+          // 2. Reactive: store mode changes propagate to __omni_theme
+          __omni_effect(function () {{ __omni_theme.set({var_name}.value); }});
+        }})();\n"
+                    );
+                }
+            }
+        }
+
         gen.emit_dom_and_bindings();
         // Inject editor bridge code (postMessage, nid_map, highlight, hot-replace)
         gen.emit_editor_bridge();

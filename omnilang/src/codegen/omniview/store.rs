@@ -591,8 +591,11 @@ impl OmniViewGenerator {
         if self.css_only {
             return;
         }
-        // Only emit if the component has ref declarations
-        if comp.refs.is_empty() || self.ref_nid_map.is_empty() {
+        // Only emit if there are ref→nid bindings to generate wrappers for.
+        // Note: we check ref_nid_map (not comp.refs) because inlined child components
+        // push their entries here even when comp.refs is empty (the root component
+        // may declare no refs while its inlined children do).
+        if self.ref_nid_map.is_empty() {
             return;
         }
 

@@ -4355,34 +4355,34 @@ body { margin: 0; padding: 8px; font-family: system-ui, sans-serif; }
     </div>
     <div data-nid="el-TabBar-008" data-component="TabBar">
       <div data-nid="el-div-009" class="tab-strip">
-        <button data-nid="el-button-010" class="tab tabActive">
+        <button data-nid="el-button-010" class="tab">
           首页
         </button>
-        <button data-nid="el-button-012" class="tab tabActive">
+        <button data-nid="el-button-012" class="tab">
           待办
         </button>
-        <button data-nid="el-button-014" class="tab tabActive">
+        <button data-nid="el-button-014" class="tab">
           基础交互
         </button>
-        <button data-nid="el-button-016" class="tab tabActive">
+        <button data-nid="el-button-016" class="tab">
           编译器特性
         </button>
-        <button data-nid="el-button-018" class="tab tabActive">
+        <button data-nid="el-button-018" class="tab">
           运动动画
         </button>
-        <button data-nid="el-button-020" class="tab tabActive">
+        <button data-nid="el-button-020" class="tab">
           CSS 特性
         </button>
-        <button data-nid="el-button-022" class="tab tabActive">
+        <button data-nid="el-button-022" class="tab">
           事件/表单
         </button>
-        <button data-nid="el-button-024" class="tab tabActive">
+        <button data-nid="el-button-024" class="tab">
           语言特性
         </button>
-        <button data-nid="el-button-026" class="tab tabActive">
+        <button data-nid="el-button-026" class="tab">
           设置
         </button>
-        <button data-nid="el-button-028" class="tab tabActive">
+        <button data-nid="el-button-028" class="tab">
           补充
         </button>
       </div>
@@ -4886,8 +4886,8 @@ body { margin: 0; padding: 8px; font-family: system-ui, sans-serif; }
                       </p>
                       <div data-nid="el-if-402-b0" style="display:none">
                         <fragment data-nid="el-fragment-403">
-                          <div data-nid="el-div-404" class="overlay visible hidden">
-                            <div data-nid="el-div-405" class="modalcontent hover">
+                          <div data-nid="el-div-404" class="overlay">
+                            <div data-nid="el-div-405" class="modalcontent">
                               <div data-nid="el-div-406" class="modal-header">
                                 <slot name="header"></slot>
                                 <h3 data-nid="el-h3-407" class="modal-title">
@@ -4926,13 +4926,13 @@ body { margin: 0; padding: 8px; font-family: system-ui, sans-serif; }
                   <div data-nid="el-TabPanel-422" data-component="TabPanel">
                     <div data-nid="el-div-423" class="Card">
                       <div data-nid="el-div-424" class="tab-bar">
-                        <button data-nid="el-button-425" class="active Button primary sm">
+                        <button data-nid="el-button-425" class="Button primary sm">
                           Home
                         </button>
-                        <button data-nid="el-button-427" class="active Button primary sm">
+                        <button data-nid="el-button-427" class="Button primary sm">
                           About
                         </button>
-                        <button data-nid="el-button-429" class="active Button primary sm">
+                        <button data-nid="el-button-429" class="Button primary sm">
                           Settings
                         </button>
                       </div>
@@ -5047,7 +5047,7 @@ body { margin: 0; padding: 8px; font-family: system-ui, sans-serif; }
                                   <span data-nid="el-interp-502"></span>
                                 </td>
                                 <td data-nid="el-td-504" class="td">
-                                  <span data-nid="el-span-505" class="badge active inactive">
+                                  <span data-nid="el-span-505" class="badge">
                                     <span data-nid="el-interp-506"></span>
                                   </span>
                                 </td>
@@ -5203,7 +5203,7 @@ body { margin: 0; padding: 8px; font-family: system-ui, sans-serif; }
                         </p>
                       </div>
                       <div data-nid="el-div-616" class="status-area">
-                        <p data-nid="el-p-617" class="status success">
+                        <p data-nid="el-p-617" class="status">
                           <span data-nid="el-interp-618"></span>
                         </p>
                       </div>
@@ -8509,7 +8509,7 @@ body { margin: 0; padding: 8px; font-family: system-ui, sans-serif; }
                       <h4 data-nid="el-h4-2809" class="label">
                         组合选择器 .activeCard.cardActive
                       </h4>
-                      <div data-nid="el-div-2811" class="activeCard cardActive">
+                      <div data-nid="el-div-2811" class="activeCard">
                         <p data-nid="el-p-2812">
                           Toggle me to see .activeCard.cardActive style
                         </p>
@@ -9188,7 +9188,7 @@ function __omni_signal(name, init) {
           const prev = __omni_activeEffect;
           __omni_activeEffect = e;
           try { e.run(); }
-          catch(err) { __omni_reportError("error", "effect:run", String(err), ""); }
+          catch(err) { __omni_reportError("error", "effect:run", String(err) + (err.stack ? ' at ' + err.stack.split('\n')[1]?.trim() : ''), ""); }
           finally { __omni_activeEffect = prev; }
         });
         setting = false;
@@ -12256,6 +12256,93 @@ function App_switchTab(tab) {
 }
 
 
+  // ── Element Refs ──
+// ── ref: container → nid="el-div-074" ──
+const container = (function() {
+  const _nid = "el-div-074";
+  const _el = function() { return __omni_el(_nid); };
+  return {
+   get style() { const e = _el(); return e ? e.style : null; },
+   capturePointer(id) { const e = _el(); if (e) e.setPointerCapture(id); },
+   releasePointer(id) { const e = _el(); if (e) e.releasePointer(id); },
+   getBoundingClientRect() { const e = _el(); return e ? e.getBoundingClientRect() : null; },
+   focus() { const e = _el(); if (e) e.focus(); },
+   blur() { const e = _el(); if (e) e.blur(); },
+   get offsetWidth() { const e = _el(); return e ? e.offsetWidth : 0; },
+   get offsetHeight() { const e = _el(); return e ? e.offsetHeight : 0; },
+   scrollTo(x, y) { const e = _el(); if (e) e.scrollTo(x, y); },
+   scrollBy(dx, dy) { const e = _el(); if (e) e.scrollBy(dx, dy); },
+  };
+})();
+// ── ref: scrollContainer → nid="el-div-662" ──
+const scrollContainer = (function() {
+  const _nid = "el-div-662";
+  const _el = function() { return __omni_el(_nid); };
+  return {
+   get style() { const e = _el(); return e ? e.style : null; },
+   capturePointer(id) { const e = _el(); if (e) e.setPointerCapture(id); },
+   releasePointer(id) { const e = _el(); if (e) e.releasePointer(id); },
+   getBoundingClientRect() { const e = _el(); return e ? e.getBoundingClientRect() : null; },
+   focus() { const e = _el(); if (e) e.focus(); },
+   blur() { const e = _el(); if (e) e.blur(); },
+   get offsetWidth() { const e = _el(); return e ? e.offsetWidth : 0; },
+   get offsetHeight() { const e = _el(); return e ? e.offsetHeight : 0; },
+   scrollTo(x, y) { const e = _el(); if (e) e.scrollTo(x, y); },
+   scrollBy(dx, dy) { const e = _el(); if (e) e.scrollBy(dx, dy); },
+  };
+})();
+// ── ref: inputBox → nid="el-input-1241" ──
+const inputBox = (function() {
+  const _nid = "el-input-1241";
+  const _el = function() { return __omni_el(_nid); };
+  return {
+   get style() { const e = _el(); return e ? e.style : null; },
+   capturePointer(id) { const e = _el(); if (e) e.setPointerCapture(id); },
+   releasePointer(id) { const e = _el(); if (e) e.releasePointer(id); },
+   getBoundingClientRect() { const e = _el(); return e ? e.getBoundingClientRect() : null; },
+   focus() { const e = _el(); if (e) e.focus(); },
+   blur() { const e = _el(); if (e) e.blur(); },
+   get offsetWidth() { const e = _el(); return e ? e.offsetWidth : 0; },
+   get offsetHeight() { const e = _el(); return e ? e.offsetHeight : 0; },
+   scrollTo(x, y) { const e = _el(); if (e) e.scrollTo(x, y); },
+   scrollBy(dx, dy) { const e = _el(); if (e) e.scrollBy(dx, dy); },
+  };
+})();
+// ── ref: scrollArea → nid="el-div-1252" ──
+const scrollArea = (function() {
+  const _nid = "el-div-1252";
+  const _el = function() { return __omni_el(_nid); };
+  return {
+   get style() { const e = _el(); return e ? e.style : null; },
+   capturePointer(id) { const e = _el(); if (e) e.setPointerCapture(id); },
+   releasePointer(id) { const e = _el(); if (e) e.releasePointer(id); },
+   getBoundingClientRect() { const e = _el(); return e ? e.getBoundingClientRect() : null; },
+   focus() { const e = _el(); if (e) e.focus(); },
+   blur() { const e = _el(); if (e) e.blur(); },
+   get offsetWidth() { const e = _el(); return e ? e.offsetWidth : 0; },
+   get offsetHeight() { const e = _el(); return e ? e.offsetHeight : 0; },
+   scrollTo(x, y) { const e = _el(); if (e) e.scrollTo(x, y); },
+   scrollBy(dx, dy) { const e = _el(); if (e) e.scrollBy(dx, dy); },
+  };
+})();
+// ── ref: dragTarget → nid="el-div-1278" ──
+const dragTarget = (function() {
+  const _nid = "el-div-1278";
+  const _el = function() { return __omni_el(_nid); };
+  return {
+   get style() { const e = _el(); return e ? e.style : null; },
+   capturePointer(id) { const e = _el(); if (e) e.setPointerCapture(id); },
+   releasePointer(id) { const e = _el(); if (e) e.releasePointer(id); },
+   getBoundingClientRect() { const e = _el(); return e ? e.getBoundingClientRect() : null; },
+   focus() { const e = _el(); if (e) e.focus(); },
+   blur() { const e = _el(); if (e) e.blur(); },
+   get offsetWidth() { const e = _el(); return e ? e.offsetWidth : 0; },
+   get offsetHeight() { const e = _el(); return e ? e.offsetHeight : 0; },
+   scrollTo(x, y) { const e = _el(); if (e) e.scrollTo(x, y); },
+   scrollBy(dx, dy) { const e = _el(); if (e) e.scrollBy(dx, dy); },
+  };
+})();
+
 
 /// ── Component: OptionalChainDemo ──
 
@@ -12345,34 +12432,34 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
     </div>
     <div data-nid="el-TabBar-008" data-component="TabBar">
       <div data-nid="el-div-009" class="tab-strip">
-        <button data-nid="el-button-010" class="tab tabActive">
+        <button data-nid="el-button-010" class="tab">
           首页
         </button>
-        <button data-nid="el-button-012" class="tab tabActive">
+        <button data-nid="el-button-012" class="tab">
           待办
         </button>
-        <button data-nid="el-button-014" class="tab tabActive">
+        <button data-nid="el-button-014" class="tab">
           基础交互
         </button>
-        <button data-nid="el-button-016" class="tab tabActive">
+        <button data-nid="el-button-016" class="tab">
           编译器特性
         </button>
-        <button data-nid="el-button-018" class="tab tabActive">
+        <button data-nid="el-button-018" class="tab">
           运动动画
         </button>
-        <button data-nid="el-button-020" class="tab tabActive">
+        <button data-nid="el-button-020" class="tab">
           CSS 特性
         </button>
-        <button data-nid="el-button-022" class="tab tabActive">
+        <button data-nid="el-button-022" class="tab">
           事件/表单
         </button>
-        <button data-nid="el-button-024" class="tab tabActive">
+        <button data-nid="el-button-024" class="tab">
           语言特性
         </button>
-        <button data-nid="el-button-026" class="tab tabActive">
+        <button data-nid="el-button-026" class="tab">
           设置
         </button>
-        <button data-nid="el-button-028" class="tab tabActive">
+        <button data-nid="el-button-028" class="tab">
           补充
         </button>
       </div>
@@ -12876,8 +12963,8 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                       </p>
                       <div data-nid="el-if-402-b0" style="display:none">
                         <fragment data-nid="el-fragment-403">
-                          <div data-nid="el-div-404" class="overlay visible hidden">
-                            <div data-nid="el-div-405" class="modalcontent hover">
+                          <div data-nid="el-div-404" class="overlay">
+                            <div data-nid="el-div-405" class="modalcontent">
                               <div data-nid="el-div-406" class="modal-header">
                                 <slot name="header"></slot>
                                 <h3 data-nid="el-h3-407" class="modal-title">
@@ -12916,13 +13003,13 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                   <div data-nid="el-TabPanel-422" data-component="TabPanel">
                     <div data-nid="el-div-423" class="Card">
                       <div data-nid="el-div-424" class="tab-bar">
-                        <button data-nid="el-button-425" class="active Button primary sm">
+                        <button data-nid="el-button-425" class="Button primary sm">
                           Home
                         </button>
-                        <button data-nid="el-button-427" class="active Button primary sm">
+                        <button data-nid="el-button-427" class="Button primary sm">
                           About
                         </button>
-                        <button data-nid="el-button-429" class="active Button primary sm">
+                        <button data-nid="el-button-429" class="Button primary sm">
                           Settings
                         </button>
                       </div>
@@ -13037,7 +13124,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                                   <span data-nid="el-interp-502"></span>
                                 </td>
                                 <td data-nid="el-td-504" class="td">
-                                  <span data-nid="el-span-505" class="badge active inactive">
+                                  <span data-nid="el-span-505" class="badge">
                                     <span data-nid="el-interp-506"></span>
                                   </span>
                                 </td>
@@ -13193,7 +13280,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                         </p>
                       </div>
                       <div data-nid="el-div-616" class="status-area">
-                        <p data-nid="el-p-617" class="status success">
+                        <p data-nid="el-p-617" class="status">
                           <span data-nid="el-interp-618"></span>
                         </p>
                       </div>
@@ -16499,7 +16586,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                       <h4 data-nid="el-h4-2809" class="label">
                         组合选择器 .activeCard.cardActive
                       </h4>
-                      <div data-nid="el-div-2811" class="activeCard cardActive">
+                      <div data-nid="el-div-2811" class="activeCard">
                         <p data-nid="el-p-2812">
                           Toggle me to see .activeCard.cardActive style
                         </p>
@@ -17839,7 +17926,7 @@ function __omni_ensureScrollHandler() {
 }
 function __omni_scrollRemoveEntry(nid) {
   var el = __omni_el(nid);
-  if (!el) return;
+  if (!el || !__omni_scrollElements) return;
   __omni_scrollElements = __omni_scrollElements.filter(function(entry) {
    return entry.el !== el;
   });
@@ -18291,19 +18378,16 @@ __omni_effect(() => { const el = __omni_el("el-interp-1075"); if (el) try { el.t
    }
   });
 })();
-{ const el = __omni_el("el-input-1241"); if (el) el.addEventListener("ref", (e) => { try {   ElementRefDemo_inputBox(e.detail); } catch(err) { __omni_reportError("error:event:ref", err); } }); }
 let _guard_value_el_input_1241 = false;
 { const el = __omni_el("el-input-1241"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_1241) { __omni_subs.get("ElementRefDemo_focusStatus").set(e.target.value); } }); }
 __omni_effect(() => { const el = __omni_el("el-input-1241"); if (el) { _guard_value_el_input_1241 = true; el.value = __omni_subs.get("ElementRefDemo_focusStatus").value; _guard_value_el_input_1241 = false; } });
 { const el = __omni_el("el-button-1242"); if (el) el.addEventListener("click", (e) => { try {   ElementRefDemo_focusInput({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
 { const el = __omni_el("el-button-1244"); if (el) el.addEventListener("click", (e) => { try {   ElementRefDemo_blurInput({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
 __omni_effect(() => { const el = __omni_el("el-interp-1248"); if (el) try { el.textContent = String(ElementRefDemo_focusStatus.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
-{ const el = __omni_el("el-div-1252"); if (el) el.addEventListener("ref", (e) => { try {   ElementRefDemo_scrollArea(e.detail); } catch(err) { __omni_reportError("error:event:ref", err); } }); }
 { const el = __omni_el("el-button-1266"); if (el) el.addEventListener("click", (e) => { try {   ElementRefDemo_scrollToTop({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
 { const el = __omni_el("el-button-1268"); if (el) el.addEventListener("click", (e) => { try {   ElementRefDemo_scrollToBottom({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
 { const el = __omni_el("el-button-1270"); if (el) el.addEventListener("click", (e) => { try {   ElementRefDemo_scrollByDown({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
 __omni_effect(() => { const el = __omni_el("el-interp-1274"); if (el) try { el.textContent = String(ElementRefDemo_scrollPos.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
-{ const el = __omni_el("el-div-1278"); if (el) el.addEventListener("ref", (e) => { try {   ElementRefDemo_dragTarget(e.detail); } catch(err) { __omni_reportError("error:event:ref", err); } }); }
 { const el = __omni_el("el-button-1282"); if (el) el.addEventListener("click", (e) => { try {   ElementRefDemo_queryRect({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
 __omni_effect(() => { const el = __omni_el("el-interp-1285"); if (el) try { el.textContent = String(ElementRefDemo_rectInfo.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
 // @drag-x trigger
@@ -19474,7 +19558,7 @@ __omni_effect(() => {
 });
 { const el = __omni_el("el-button-2916"); if (el) el.addEventListener("click", (e) => { try {   SignalPatternsDemo_toggleSlot({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
 __omni_effect(() => { const el = __omni_el("el-interp-2917"); if (el) try { el.textContent = String(SignalPatternsDemo_showSlot.value ? "Close Slot Demo" : "Open Slot Demo"); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-2934"); if (el) try { el.textContent = String(count); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-2934"); if (el) try { el.textContent = String(SignalPatternsDemo_count.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
 { const el = __omni_el("el-button-2939"); if (el) el.addEventListener("click", (e) => { try {   SlotBox_toggleSlot({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
 { const el = __omni_el("el-button-2941"); if (el) el.addEventListener("click", (e) => { try {   SlotBox_onClose({ x: e.clientX ?? 0, y: e.clientY ?? 0, button: e.button ?? 0, pressure: e.pressure ?? 0, tiltX: e.tiltX ?? 0, tiltY: e.tiltY ?? 0, pointerType: e.pointerType ?? "", alt: e.altKey ?? false, ctrl: e.ctrlKey ?? false, shift: e.shiftKey ?? false, meta: e.metaKey ?? false }); } catch(err) { __omni_reportError("error:event:click", err); } }); }
 { const el = __omni_el("el-SlotBox-2921"); if (el) el.addEventListener("close", (e) => { try {   SignalPatternsDemo_toggleSlot(e.detail); } catch(err) { __omni_reportError("error:event:close", err); } }); }
@@ -20200,6 +20284,16 @@ __omni_effect(function __omni_enter_replay_EasingFunctionsDemo() {
   EasingFunctionsDemo_playAll.value;
   (function() { var el = __omni_el("el-div-950"); if (el) { var _old = __omni_animations.get("el-div-950_enter"); if (_old) _old.cancel(); var p = __omni_motion_easeInMove(el, {trigger: "enter"}); __omni_animations.set("el-div-950_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-955"); if (el) { var _old = __omni_animations.get("el-div-955_enter"); if (_old) _old.cancel(); var p = __omni_motion_power1InMove(el, {trigger: "enter"}); __omni_animations.set("el-div-955_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-960"); if (el) { var _old = __omni_animations.get("el-div-960_enter"); if (_old) _old.cancel(); var p = __omni_motion_power1OutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-960_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-965"); if (el) { var _old = __omni_animations.get("el-div-965_enter"); if (_old) _old.cancel(); var p = __omni_motion_power1InOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-965_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-970"); if (el) { var _old = __omni_animations.get("el-div-970_enter"); if (_old) _old.cancel(); var p = __omni_motion_power2InMove(el, {trigger: "enter"}); __omni_animations.set("el-div-970_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-975"); if (el) { var _old = __omni_animations.get("el-div-975_enter"); if (_old) _old.cancel(); var p = __omni_motion_power2InOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-975_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-980"); if (el) { var _old = __omni_animations.get("el-div-980_enter"); if (_old) _old.cancel(); var p = __omni_motion_power3InMove(el, {trigger: "enter"}); __omni_animations.set("el-div-980_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-985"); if (el) { var _old = __omni_animations.get("el-div-985_enter"); if (_old) _old.cancel(); var p = __omni_motion_power3InOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-985_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-990"); if (el) { var _old = __omni_animations.get("el-div-990_enter"); if (_old) _old.cancel(); var p = __omni_motion_power4InMove(el, {trigger: "enter"}); __omni_animations.set("el-div-990_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-995"); if (el) { var _old = __omni_animations.get("el-div-995_enter"); if (_old) _old.cancel(); var p = __omni_motion_power4OutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-995_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1000"); if (el) { var _old = __omni_animations.get("el-div-1000_enter"); if (_old) _old.cancel(); var p = __omni_motion_power4InOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-1000_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1008"); if (el) { var _old = __omni_animations.get("el-div-1008_enter"); if (_old) _old.cancel(); var p = __omni_motion_backInMove(el, {trigger: "enter"}); __omni_animations.set("el-div-1008_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1013"); if (el) { var _old = __omni_animations.get("el-div-1013_enter"); if (_old) _old.cancel(); var p = __omni_motion_backOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-1013_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1018"); if (el) { var _old = __omni_animations.get("el-div-1018_enter"); if (_old) _old.cancel(); var p = __omni_motion_backInOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-1018_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1026"); if (el) { var _old = __omni_animations.get("el-div-1026_enter"); if (_old) _old.cancel(); var p = __omni_motion_bounceInMove(el, {trigger: "enter"}); __omni_animations.set("el-div-1026_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1031"); if (el) { var _old = __omni_animations.get("el-div-1031_enter"); if (_old) _old.cancel(); var p = __omni_motion_bounceOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-1031_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1036"); if (el) { var _old = __omni_animations.get("el-div-1036_enter"); if (_old) _old.cancel(); var p = __omni_motion_bounceInOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-1036_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1044"); if (el) { var _old = __omni_animations.get("el-div-1044_enter"); if (_old) _old.cancel(); var p = __omni_motion_elasticInMove(el, {trigger: "enter"}); __omni_animations.set("el-div-1044_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1049"); if (el) { var _old = __omni_animations.get("el-div-1049_enter"); if (_old) _old.cancel(); var p = __omni_motion_elasticOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-1049_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1054"); if (el) { var _old = __omni_animations.get("el-div-1054_enter"); if (_old) _old.cancel(); var p = __omni_motion_elasticInOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-1054_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1062"); if (el) { var _old = __omni_animations.get("el-div-1062_enter"); if (_old) _old.cancel(); var p = __omni_motion_cubicCustom(el, {trigger: "enter"}); __omni_animations.set("el-div-1062_enter", p); if (el.offsetParent !== null) p.play(); } })()
 });
+// ── Theme mode sync: ThemeStore_mode ↔ __omni_theme ──
+        (function() {
+          // 1. Init: respect saved/preferred theme from __omni_theme.init()
+          if (ThemeStore_mode.value !== __omni_theme.current) {
+            __omni_subs.get("ThemeStore_mode").set(__omni_theme.current);
+          }
+          // 2. Reactive: store mode changes propagate to __omni_theme
+          __omni_effect(function () { __omni_theme.set(ThemeStore_mode.value); });
+        })();
+
 
 })();
 

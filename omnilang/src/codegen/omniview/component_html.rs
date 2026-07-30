@@ -120,6 +120,19 @@ impl OmniViewGenerator {
                     }
                 }
 
+                // Merge parent signal renames into child scope so slot content
+                // referencing parent signals (e.g. {count}) resolves to the
+                // parent's prefixed signal name (SignalPatternsDemo_count.value)
+                // rather than a bare `count` identifier.
+                for (name, prefixed) in &saved_scope.name_renames {
+                    if saved_scope.signal_names.contains(prefixed.as_str()) {
+                        if !self.scope.name_renames.contains_key(name.as_str()) {
+                            self.scope.signal_names.insert(prefixed.clone());
+                            self.scope.name_renames.insert(name.clone(), prefixed.clone());
+                        }
+                    }
+                }
+
                 // Extract owned data from child_comp before the mutable borrow
                 // in view_to_html, releasing the borrow on self.component_map.
                 let child_comp_name = child_comp.name.clone();

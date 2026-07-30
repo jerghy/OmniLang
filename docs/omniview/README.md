@@ -33,7 +33,7 @@ OmniView 是 OmniLang 语言的 UI 框架层，用于构建响应式 Web 应用�
 
 | 文件 | 内容 |
 |------|------|
-| [11-运动与动画](11-motion-animation.md) | `@motion`、`@timeline`、触发器、缓动、`states:`、Hero |
+| [11-运动与动画](11-motion-animation.md) | `@motion`、7 触发器、缓动函数、播放控制、拖拽/滚动/视口子属性 |
 | [12-标准库参考](12-standard-library.md) | `std/*` 全部 7 个模块 + 内置方法 |
 | [13-项目结构与模块](13-project-structure.md) | 文件组织、`import`/`export`、`pub` 可见性、模块系统 |
 
@@ -53,8 +53,8 @@ OmniView 将以下概念提升为**语言第一公民**（Language-First Citizen
 | 组件 | `component` | 编译为 JS 工厂函数 + 内联 HTML |
 | 信号 | `signal` | 编译为 `__omni_signal()` getter/setter |
 | Store | `store` | 编译为全局 JS 变量（`{StoreName}_{field}` 命名） |
-| 设计系统 | `design` | 编译为 `:root { --token }` + scoped CSS |
-| 动画 | `@motion` / `@timeline` | 编译为 WAAPI `el.animate()` 调用 |
+| 设计系统 | `design` | 编译为 `:root { --token }` + scoped CSS + `[data-theme]` 主题切换 |
+| 动画 | `@motion` | 编译为 WAAPI `el.animate()` 调用，GSAP 兼容层 |
 | 类型 | `struct` / `type` | 编译时擦除，仅用于类型检查 |
 
 ## 编译器命令
@@ -63,11 +63,12 @@ OmniView 将以下概念提升为**语言第一公民**（Language-First Citizen
 omnic run                              # 开发服务器（自动编译 + 热更新）
 omnic build --target omniview          # 构建到 OmniView（HTML/CSS/JS）
 omnic build --target react             # 构建到 React（TSX + CSS Modules）
+omnic check <file>                     # 静态分析（类型 + lint）
 ```
 
 ## 文件类型
 
-- **UI 文件**：以 `import omniview;` 开头，可包含 component、store、design
+- **UI 文件**：以 `import omniview;` 开头，可包含 component、store、design、@motion
 - **纯逻辑文件**：不写 `import omniview;`，只包含 `fn`、`struct`、`type`、`pub` 导出
 - **入口文件**：通常是 `src/main.omni`，作为编译入口
 
@@ -77,6 +78,8 @@ omnic build --target react             # 构建到 React（TSX + CSS Modules）
 src/
 ├── main.omni              # 入口 + App 根组件
 ├── design.omni            # 全局设计系统（LearnDesign）
+│                          #   @themes light, dark
+│                          #   token / class / variant
 ├── lib.omni               # 入口级工具函数
 ├── lib/                   # 纯逻辑库模块
 │   ├── types.omni         # pub struct + pub type 定义

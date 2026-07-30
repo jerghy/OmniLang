@@ -38,7 +38,7 @@ component Card {
 ```omni
 .button { ... }
 .card { ... }
-.app-shell { ... }   /* 连字符 */
+.app-shell { ... }   /* 连字号 */
 ```
 
 ### 标签选择器
@@ -60,22 +60,44 @@ h1, h2, h3 { font-weight: 600; }
 ### 复合选择器
 
 ```omni
+/* 两个类同时存在 */
 .button.primary { font-weight: 700; }
 .card.highlighted { border-color: #6366f1; }
+
+/* 复合 + 伪类 */
+.var-card.alt:hover { border-color: var(--primary-alt); }
+
+/* 组件变体通过复合选择器实现 */
+.ghost.primary { background: transparent; }
 ```
 
 ## 属性值
 
 ### 单位
 
-支持所有标准 CSS 单位：`px` `rem` `em` `vh` `vw` `%` `ms` `s` `deg` 等。
+支持 30+ 标准 CSS 单位。数字后缀自动处理：无引号的数字默认加 `px`（如 `16` → `16px`），但部分属性如 `fontWeight` 需用引号字符串 `"700"`。
 
 ```omni
 width: 200px;
 height: 50vh;
 font-size: 1.5rem;
 transition: 300ms;
+opacity: 0.5;
+font-weight: "600";
 ```
+
+**支持的 CSS 单位**：
+
+| 类别 | 单位 |
+|------|------|
+| 固定 | `px`, `pt`, `cm`, `mm`, `in`, `pc`, `Q` |
+| 相对（字体） | `em`, `rem`, `ex`, `ch`, `ic` |
+| 相对（视口） | `vh`, `vw`, `vmin`, `vmax`, `svh`, `svw`, `lvh`, `lvw`, `dvh`, `dvw` |
+| 相对（容器查询） | `cqw`, `cqh`, `cqi`, `cqb`, `cqmin`, `cqmax` |
+| 百分比 | `%`, `fr` |
+| 时间 | `ms`, `s` |
+| 角度 | `deg`, `rad`, `grad`, `turn` |
+| 其他 | `lh`, `rlh` |
 
 ### 颜色
 
@@ -83,6 +105,7 @@ transition: 300ms;
 color: #1f2937;
 background: "#6366f1";           /* 引号 hex */
 background: "rgba(0,0,0,0.05)";  /* rgba */
+border: "1px solid #d4d4d8";     /* 属性值拼接 */
 ```
 
 ### 多值属性
@@ -105,7 +128,9 @@ padding-right: 16px;
 
 ## CSS 变量
 
-在 style 块中定义 `--*` 自定义属性：
+OmniView 支持 CSS 自定义属性（`--*`）的四种用法：
+
+### 1. Style 块中声明 `--*` 属性
 
 ```omni
 style {
@@ -113,43 +138,84 @@ style {
         --card-radius: 12px;
         --accent: #6366f1;
     }
+}
+```
+
+### 2. Style 块中使用 `var()` 引用
+
+```omni
+style {
     .card {
         border-radius: "var(--card-radius)";
+        background: "var(--accent)";
     }
 }
 ```
 
-### CSS 变量 + Signal 联动（主题化）
-
-将 signal 注入为 CSS 变量，实现声明式主题切换：
+### 3. 内联样式静态 CSS 变量
 
 ```omni
-component ThemedPage {
-    @store ThemeStore;
+view {
+    <div style: {
+        --box-bg: "#e0e7ff",
+        --box-text: "#3730a3",
+        --box-radius: "8px"
+    }>
+        <div class: content>Content</div>
+    </div>
+}
+```
+
+编译器对 `--*` 属性使用 `setProperty()` 输出，而非普通的 `el.style.prop = value`。
+
+### 4. 内联样式动态 CSS 变量（信号 → setProperty）
+
+```omni
+component ThemeDemo {
+    signal accentColor: String = "#6366f1";
+    signal accentHue: i32 = 221;
 
     view {
         <div style: {
-            --bg: ThemeStore.currentBg,
-            --text: ThemeStore.currentText,
-            --primary: ThemeStore.currentPrimary
+            --accent: accentColor,           // 信号 → 响应式 setProperty
+            --accent-h: accentHue            // 数值信号自动 px 后缀
         }>
-            <div class: card>
-                <h2>Themed Content</h2>
+            <div class: themed-box>
+                <p>Current accent: {accentColor}</p>
             </div>
         </div>
     }
 
     style {
-        .card {
-            background: "var(--bg)";
-            color: "var(--text)";
-            border: "1px solid var(--primary)";
+        .themed-box {
+            background: "var(--accent)";
+            border: "1px solid var(--accent-h)";
         }
     }
 }
 ```
 
-编译器为 `style: { --var: signal }` 生成响应式 `setProperty()` 调用，store 更新时所有 CSS 变量自动级联。
+编译器为 `style: { --var: signal }` 生成响应式 `setProperty()` 调用，signal 变化时所有 CSS 变量自动级联。
+
+## 设计系统主题变量
+
+OmniView 的设计系统 `@themes` 声明将令牌编译为 `:root { --name: value }` 和 `[data-theme="dark"] { --name: value }`。组件直接使用 `var(--name)` 引用，无需手动管理主题切换：
+
+```omni
+component ThemedPage {
+    view {
+        <div style: {
+            background: "var(--surface)",
+            color: "var(--textPrimary)",
+            border: "1px solid var(--border)"
+        }>
+            Theme-aware content
+        </div>
+    }
+}
+```
+
+主题切换通过设计系统的 `@themes` 声明自动处理——运行时代码仅需切换 `document.documentElement.dataset.theme`。详见 [10-设计系统](10-design-system.md)。
 
 ## 设计系统引用
 
@@ -187,7 +253,7 @@ style {
 }>
 ```
 
-支持静态值和动态表达式。
+支持静态值、动态表达式和 CSS 变量。
 
 ## 样式最佳实践
 
@@ -196,4 +262,4 @@ style {
 3. **语义化类名**：`.card`、`.header`、`.actions`
 4. **利用伪类**：`:hover`、`:focus` 提供交互反馈
 5. **CSS 属性自动 kebab-case**：`borderRadius` → `border-radius`
-6. **使用 CSS 变量做主题**：优于每个元素单独绑定 `style: { color: signal }`
+6. **使用 CSS 变量做主题**：通过 `--var: signal` 响应式注入，优于每个元素单独绑定

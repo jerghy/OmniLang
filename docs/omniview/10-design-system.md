@@ -8,10 +8,11 @@
 import omniview;
 
 design LearnDesign {
-    // 1. 令牌 — 编译为 :root { --name: value }
-    token primary: color = "#6366f1";
+    // 1. 令牌 — 编译为 :root { --name: value } CSS 变量
+    //    支持双主题：light 值 dark "dark 值"
+    token primary: color = "#6366f1" dark "#a5b4fc";
 
-    // 2. 类 — 可复用的 CSS 规则
+    // 2. 类 — 可复用的 CSS 规则（引用令牌用 token(name)）
     class Card { ... }
 
     // 3. 变体 — 多维度参数化组件样式
@@ -27,7 +28,7 @@ design LearnDesign {
 
 令牌是命名的设计变量，编译为 CSS 自定义属性声明在 `:root` 上。
 
-### 令牌类型（13 种）
+### 令牌类型（18 种）
 
 | 类型 | CSS 应用 | 示例 |
 |------|---------|------|
@@ -47,25 +48,58 @@ design LearnDesign {
 
 编译后：`token primary: color = "#6366f1"` → `:root { --primary: "#6366f1"; }`
 
+### 双主题令牌
+
+每个令牌可以为浅色和深色主题分别指定值：
+
+```omni
+token surface: color = "#ffffff" dark "#111827";
+token textPrimary: color = "#111827" dark "#f9fafb";
+token primary: color = "#6366f1" dark "#a5b4fc";
+token border: color = "#d4d4d8" dark "#4b5563";
+```
+
+编译为：
+```css
+:root { --surface: "#ffffff"; --textPrimary: "#111827"; --primary: "#6366f1"; }
+[data-theme="dark"] { --surface: "#111827"; --textPrimary: "#f9fafb"; --primary: "#a5b4fc"; }
+```
+
+### @themes 和 @default-theme 指令
+
+```omni
+design LearnDesign {
+    @themes light, dark;          // 声明支持的主题名
+    @default-theme light;         // 默认主题
+    // ...
+}
+```
+
+- `@themes` 声明该设计系统支持的主题列表
+- `@default-theme` 指定初始主题（无 `data-theme` 属性时使用）
+- 主题名与令牌值中 `dark` 等关键字匹配
+
+运行时切换只需设置 `document.documentElement.dataset.theme = "dark"`。
+
 ### 组织令牌
 
 ```omni
 design LearnDesign {
     // 品牌色
-    token primary: color = "#6366f1";
+    token primary: color = "#6366f1" dark "#a5b4fc";
     token primaryDark: color = "#4338ca";
 
     // 语义色
     token success: color = "#10b981";
     token danger: color = "#ef4444";
 
-    // 中性色
-    token surface: color = "#ffffff";
-    token textPrimary: color = "#111827";
-    token border: color = "#d4d4d8";
+    // 中性色（双主题）
+    token surface: color = "#ffffff" dark "#111827";
+    token textPrimary: color = "#111827" dark "#f9fafb";
+    token border: color = "#d4d4d8" dark "#4b5563";
 
     // 间距
-    token spaceSm: size = "8px";
+    token spaceSm: size = "4px";
     token spaceMd: size = "16px";
     token spaceLg: size = "24px";
 
@@ -73,8 +107,13 @@ design LearnDesign {
     token radiusMd: radius = "8px";
     token radiusLg: radius = "12px";
 
-    // 过渡
+    // 过渡时长
     token durationFast: duration = "150ms";
+    token durationNormal: duration = "300ms";
+
+    // 层级
+    token zModal: zIndex = "100";
+    token zToast: zIndex = "150";
 }
 ```
 
@@ -200,58 +239,6 @@ design LearnDesign {
 
 ---
 
-## 4. Theme 关键字（Theme Keyword）
-
-`theme` 是 OmniView 的一等公民关键字（`TokenKind::Theme`），用于对设计令牌进行**元级别分组**。
-
-### 语法
-
-```omni
-theme AppTheme {
-    colors {
-        primary: "#6366f1",
-        surface: "#ffffff",
-        text: "#111827",
-    }
-    spacing {
-        sm: "8px",
-        md: "16px",
-        lg: "24px",
-    }
-    typography {
-        fontFamily: "system-ui, sans-serif",
-        headingSize: "24px",
-        bodySize: "14px",
-    }
-    radii {
-        sm: "4px",
-        md: "8px",
-        lg: "12px",
-    }
-}
-```
-
-### 与 `design` 关键字的区别
-
-| 维度 | `theme` | `design` |
-|------|---------|----------|
-| 用途 | 元级别组织：将设计令牌按类别分组 | 定义具体令牌值、CSS 类、组件变体 |
-| 分组方式 | 命名类别（colors、spacing、typography 等） | token 声明、class 定义、variant 定义 |
-| 输出 | 结构化的令牌分组（未来用于 CSS 自定义属性） | CSS 自定义属性声明、CSS 规则 |
-| 层级 | 更高抽象层级 | 实现层级 |
-
-简而言之：`theme` 定义"有哪些类别的令牌"，`design` 定义"每个令牌的具体值是什么以及如何使用"。
-
-### 当前状态
-
-- **解析已完成**：`theme` 块被编译器正确解析为 `ThemeDef` AST 节点
-- **代码生成尚未实现**：目前 `theme` 块仅被解析，编译器不会为其生成任何 CSS 输出
-- **未来计划**：`theme` 块的类别结构将用于自动生成 CSS 自定义属性分组，例如 `--colors-primary`、`--spacing-md` 等
-
-> **注意**：在代码生成就绪之前，`theme` 块主要用作设计令牌的文档化组织结构。实际样式定义仍需依赖 `design` 块。
-
----
-
 ## 完整示例
 
 **design.omni**：
@@ -259,9 +246,12 @@ theme AppTheme {
 import omniview;
 
 design LearnDesign {
-    token primary: color = "#6366f1";
-    token surface: color = "#ffffff";
-    token border: color = "#d4d4d8";
+    @themes light, dark;
+    @default-theme light;
+
+    token primary: color = "#6366f1" dark "#a5b4fc";
+    token surface: color = "#ffffff" dark "#111827";
+    token border: color = "#d4d4d8" dark "#4b5563";
 
     class Card {
         background: token(surface);
@@ -308,3 +298,4 @@ component MyPage {
 3. **合理粒度**：类代表有意义的 UI 模式，不为单属性创建类
 4. **变体 2-3 维度**：避免组合爆炸
 5. **一个主设计系统**：通常一个 `design` 块覆盖整个项目
+6. **双主题**：为常用令牌指定 `dark` 值，运行时只需切换 `data-theme` attribute

@@ -31,6 +31,11 @@ view {
 <p>Items: {items.len()} items</p>
 ```
 
+也支持模板字符串（反引号）：
+```omni
+<p>`Hello {name}, count is {count}`</p>
+```
+
 ## 组件标签
 
 PascalCase 标签引用其他组件——编译时视图会被内联展开：
@@ -64,6 +69,13 @@ PascalCase 标签引用其他组件——编译时视图会被内联展开：
 </Modal>
 ```
 
+### 事件监听（@onEvent 语法）
+
+```omni
+<Counter @onCountChange={handleCount} />
+<Child @onAction={(val) => { doSomething(val); }} />
+```
+
 ## 元素属性
 
 ### class 类名绑定
@@ -78,7 +90,7 @@ PascalCase 标签引用其他组件——编译时视图会被内联展开：
 <!-- 条件类名（对象映射） -->
 <div class: { active: isActive, disabled: isLocked }>...</div>
 
-<!-- Tailwind 等字符串类名 -->
+<!-- 字符串字面量类名 -->
 <div class: "bg-blue-100 border rounded-lg">...</div>
 ```
 
@@ -101,6 +113,15 @@ PascalCase 标签引用其他组件——编译时视图会被内联展开：
 }>
 ```
 
+内联样式也支持 CSS 变量——静态值直接 `setProperty()`，信号值响应式同步：
+
+```omni
+<div style: {
+    --accent: accentColor,       // 信号 → setProperty 响应式
+    --radius: "8px"              // 静态 → 直接 setProperty
+}>
+```
+
 ### 动态属性
 
 ```omni
@@ -115,6 +136,7 @@ PascalCase 标签引用其他组件——编译时视图会被内联展开：
 <input type="checkbox" checked={isChecked} />
 <button disabled={isSubmitting}>Save</button>
 <details open={isOpen}>...</details>
+<input readonly={isReadonly} required={isRequired} />
 ```
 
 ### bind: 双向绑定
@@ -133,39 +155,70 @@ PascalCase 标签引用其他组件——编译时视图会被内联展开：
 ### 动画触发器
 
 ```omni
-<div @enter={fadeInUp} @leave={fadeOut}>...</div>
+<div @enter={fadeInUp}>...</div>
 <button @press={scalePress} @hover={pulse}>Click</button>
-<div @inView={slideIn} @scroll={scrollFade}>...</div>
-<div @dragHorizontal={dragSlide}>...</div>
+
+<!-- @inView + 子属性 -->
+<div @inView={slideIn}
+     @in-view-once={true}
+     @in-view-threshold={0.5}>...</div>
+
+<!-- @scroll + 子属性 -->
+<div @scroll={scrollFade}
+     @scroll-start="top 80%"
+     @scroll-end="bottom 20%"
+     @scroll-scrub={0.5}>...</div>
+
+<!-- @dragHorizontal / @dragVertical + 拖拽子属性 -->
+<div @dragHorizontal={dragSlide}
+     @drag-constraints="left:0 right:300"
+     @drag-elastic={0.2}
+     @drag-scrub={true}
+     @drag-momentum={0.95}>...</div>
+
+<div @dragVertical={dragSlideY}
+     @drag-constraints="top:0 bottom:120">...</div>
 ```
 
 详见 [11-运动与动画](11-motion-animation.md)。
 
-### states: 多状态动画
+### @paused 运行时控制
 
 ```omni
-<div states: {
-    idle:    { scale: 1, opacity: 1 }   over: 150,
-    hover:   { scale: 1.05 }            over: 150,
-    pressed: { scale: 0.95 }            over: 100
-}>
-    Interactive
-</div>
+<div @enter={spinLoop} @paused={isPaused}>...</div>
 ```
 
-### ref: DOM 引用
+signal 为 `true` 时暂停动画，`false` 时恢复。详见 [11-运动与动画](11-motion-animation.md)。
+
+### ref: / @ref={} DOM 引用
+
+两种等价的元素引用绑定语法：
 
 ```omni
+<!-- 冒号简写 -->
 <input ref: myInput bind:value={text} />
+
+<!-- @ref 事件风格（推荐，与 @onClick 等一致性更高）-->
+<input @ref={myInput} bind:value={text} />
+<div @ref={scrollContainer}>...</div>
 ```
+
+详见 [05-组件](05-components.md) 的 `ref` 章节。
 
 ### 特殊属性
 
 | 属性 | 编译为 |
 |------|--------|
-| `testId: "value"` | `data-testid="value"` |
+| `testId: "value"` 或 `testId="value"` | `data-testid="value"` |
 | `data-*` | 原生 data 属性 |
 | `aria-*` | 原生 aria 属性 |
+| `id="..."` | `id` 原生属性 |
+| `href="..."` | `href` 原生属性 |
+| `title="..."` | `title` 原生属性 |
+| `type="..."` | HTML `type` 属性（input/button） |
+| `placeholder="..."` | 占位文本 |
+| `src="..."` | `<img>` / `<video>` 等资源路径 |
+| `alt="..."` | 图片替代文本 |
 
 ## 模板指令
 
@@ -186,6 +239,15 @@ PascalCase 标签引用其他组件——编译时视图会被内联展开：
 ```omni
 @if isOpen mode="sync" {
     <div @enter={fadeIn} @leave={fadeOut}>Content</div>
+}
+```
+
+`mode="wait"` 等待旧内容的离场动画完成后再插入新内容：
+```omni
+@if showPanel mode="wait" {
+    <div class: panel>
+        <p>旧内容的离开动画完成后新内容才插入</p>
+    </div>
 }
 ```
 
@@ -222,22 +284,21 @@ PascalCase 标签引用其他组件——编译时视图会被内联展开：
 </Panel>
 ```
 
-## 组件调用语法
+## emit 关键字
 
-两种等价风格：
+在组件内部触发自定义事件：
 
-**HTML 风格**（简洁调用）：
 ```omni
-<Counter />
-<Button label="Click" />
+component Child {
+    event onAction: String;
+
+    fn trigger() {
+        emit onAction("hello from child");
+    }
+}
 ```
 
-**组件风格**（带子内容时推荐）：
-```omni
-<Button(label: "Submit", disabled: {isLoading})>
-    <span>Submit Form</span>
-</Button>
-```
+详见 [07-事件与绑定](07-events-and-bindings.md)。
 
 ## 属性速查表
 
@@ -251,4 +312,7 @@ PascalCase 标签引用其他组件——编译时视图会被内联展开：
 | 双向绑定 | `bind:prop={s}` | `bind:value={name}` |
 | 事件 | `@onEvent={fn}` | `@onPress={handle}` |
 | 动画 | `@trigger={m}` | `@enter={fadeIn}` |
-| 引用 | `ref: name` | `ref: myInput` |
+| 动画运行时控制 | `@paused={s}` | `@paused={isPaused}` |
+| 引用（简写） | `ref: name` | `ref: myInput` |
+| 引用（事件风格） | `@ref={name}` | `@ref={myInput}` |
+| 测试 ID | `testId="v"` | `testId="btn-save"` |
