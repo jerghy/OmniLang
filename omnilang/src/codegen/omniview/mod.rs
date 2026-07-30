@@ -437,6 +437,7 @@ fn view_tree_has_motion(view: &ViewTree) -> bool {
     })
 }
 
+#[derive(Default)]
 struct OmniViewGenerator {
     js: String,
     html: String,
@@ -544,52 +545,7 @@ pub(super) enum AttrPart {
 }
 
 impl OmniViewGenerator {
-    /// Create a minimal generator instance for testing.
-    #[cfg(test)]
-    pub(super) fn test_new() -> Self {
-        OmniViewGenerator {
-            js: String::new(),
-            html: String::new(),
-            css: String::new(),
-            source_map: Vec::new(),
-            node_counter: 0,
-            scope: ComponentScope::new(),
-            signal_defaults: FxHashMap::default(),
-            store_signal_names: FxHashSet::default(),
-            store_field_names: FxHashSet::default(),
-            store_names: FxHashSet::default(),
-            global_renames: FxHashMap::default(),
-            component_map: FxHashMap::default(),
-            deferred_js: String::new(),
-            all_deferred_js: String::new(),
-            dom_emitted: false,
-            guard_counter: 0,
-            mount_js: String::new(),
-            editor_mode: false,
-            comp_mount_js: String::new(),
-            component_js: FxHashMap::default(),
-            enter_trigger_nids: Vec::new(),
-            for_state_names: FxHashMap::default(),
-            motion_names: FxHashSet::default(),
-            design_names: Vec::new(),
-            design_class_names: FxHashSet::default(),
-            design_map: FxHashMap::default(),
-            warnings: Vec::new(),
-            css_only: false,
-            element_classes: FxHashMap::default(),
-            element_tags: FxHashMap::default(),
-            per_component_css: FxHashMap::default(),
-            current_css_start: 0,
-            component_style_classes: FxHashSet::default(),
-            element_tree_stack: Vec::new(),
-            element_tree: Vec::new(),
-            nid_map: FxHashMap::default(),
-            debug_mode: false,
-            scroll_handler_emitted: false,
-            ref_nid_map: Vec::new(),
-            ref_nid_set: FxHashSet::default(),
-        }
-    }
+    // test_new() removed — use OmniViewGenerator::default() instead
 
     /// Assert that JS emission is allowed (not after DOM emission).
     /// Only active in debug builds — zero cost in release.

@@ -17,7 +17,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 /// All state scoped to a single component during codegen.
 /// Saved before inlining a child component, restored after.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub(super) struct ComponentScope {
     pub current_component: String,
     pub signal_names: FxHashSet<String>,
