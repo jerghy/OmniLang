@@ -9,7 +9,6 @@
 //! removes all subsequent statements in that block. Also recursively cleans
 //! nested blocks inside if/while/for/try-catch statements.
 
-use crate::ir::walk::*;
 use crate::ir::*;
 use rustc_hash::FxHashSet;
 
@@ -57,32 +56,6 @@ fn collect_idents_from_stmt(stmt: &StatementIR, used: &mut FxHashSet<String>) {
 fn collect_idents_from_block(block: &BlockIR, used: &mut FxHashSet<String>) {
     for stmt in &block.statements {
         collect_idents_from_stmt(stmt, used);
-    }
-}
-
-/// Walk a MutationIntent and collect all identifier names from expressions it wraps.
-fn collect_idents_from_mutation(intent: &MutationIntent, used: &mut FxHashSet<String>) {
-    match intent {
-        MutationIntent::DirectAssign { value, .. } => {
-            if let Some(v) = value {
-                collect_idents(v, used);
-            }
-        }
-        MutationIntent::Increment { amount, .. }
-        | MutationIntent::Decrement { amount, .. }
-        | MutationIntent::Multiply { amount, .. }
-        | MutationIntent::Divide { amount, .. }
-        | MutationIntent::Modulo { amount, .. } => {
-            if let Some(v) = amount {
-                collect_idents(v, used);
-            }
-        }
-        MutationIntent::Push { item, .. } => {
-            if let Some(v) = item {
-                collect_idents(v, used);
-            }
-        }
-        MutationIntent::Pop { .. } => {}
     }
 }
 
