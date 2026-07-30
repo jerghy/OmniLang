@@ -1363,7 +1363,7 @@ component Parent {
                             child_el.tag, "Child",
                             "child component tag should be 'Child'"
                         );
-                        assert_eq!(child_el.construction_kind, ConstructionKind::TagMapping);
+                        assert_eq!(child_el.construction_kind, ConstructionKind::Component);
                         // Check that props were passed correctly
                         let prop = child_el.props.get("prop1").expect("should have prop1");
                         match prop {

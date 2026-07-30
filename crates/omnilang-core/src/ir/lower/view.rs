@@ -563,7 +563,7 @@ fn lower_element(
         style_classes: None,
         inline_style,
         children,
-        construction_kind: ConstructionKind::TagMapping,
+        construction_kind: ConstructionKind::Component,
         class_map_bindings: class_map_bindings_from_prop.unwrap_or_default(),
         source_span: Some(el.span),
         motion: {

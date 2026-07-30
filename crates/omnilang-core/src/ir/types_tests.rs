@@ -157,12 +157,12 @@ fn serde_roundtrip_mutation_op_pop() {
 }
 
 #[test]
-fn serde_roundtrip_construction_kind_tag_mapping() {
-    let v = ConstructionKind::TagMapping;
+fn serde_roundtrip_construction_kind_component() {
+    let v = ConstructionKind::Component;
     let json = serde_json::to_string(&v).unwrap();
-    assert_eq!(json, "\"tag_mapping\"");
+    assert_eq!(json, "\"component\"");
     let back: ConstructionKind = serde_json::from_str(&json).unwrap();
-    assert_eq!(back, ConstructionKind::TagMapping);
+    assert_eq!(back, ConstructionKind::Component);
 }
 
 #[test]
