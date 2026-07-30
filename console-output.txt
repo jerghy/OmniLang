@@ -1,0 +1,39 @@
+Total messages: 8 (Errors: 6, Warnings: 0)
+Returning 6 messages for level "error"
+
+[ERROR] [OmniCapture] TypeError: Cannot read properties of undefined (reading 'filter')
+    at __omni_scrollRemoveEntry (http://localhost:3000/index.js:8774:49)
+    at __omni_cleanupElement (http://localhost:3000/index.js:276:6)
+    at http://localhost:3000/index.js:7771:379
+    at NodeList.forEach (<anonymous>)
+    at http://localhost:3000/index.js:7771:357
+    at Array.forEach (<anonymous>)
+    at _show (http://localhost:3000/index.js:7771:34)
+    at http://localhost:3000/index.js:7774:51
+    at e.run (http://localhost:3000/index.js:94:11)
+    at __omni_effect (http://localhost:3000/index.js:101:11) @ http://localhost:3000/index.js:94
+[ERROR] [OmniView] ERROR effect:run: TypeError: Cannot read properties of undefined (reading 'filter') @ http://localhost:3000/index.js:118
+[ERROR] [OmniCapture] TypeError: Cannot read properties of undefined (reading 'filter')
+    at __omni_scrollRemoveEntry (http://localhost:3000/index.js:8774:49)
+    at __omni_cleanupElement (http://localhost:3000/index.js:276:6)
+    at http://localhost:3000/index.js:8184:379
+    at NodeList.forEach (<anonymous>)
+    at http://localhost:3000/index.js:8184:357
+    at Array.forEach (<anonymous>)
+    at _show (http://localhost:3000/index.js:8184:34)
+    at http://localhost:3000/index.js:8185:46
+    at e.run (http://localhost:3000/index.js:94:11)
+    at __omni_effect (http://localhost:3000/index.js:101:11) @ http://localhost:3000/index.js:94
+[ERROR] [OmniView] ERROR effect:run: TypeError: Cannot read properties of undefined (reading 'filter') @ http://localhost:3000/index.js:118
+[ERROR] [OmniCapture] TypeError: Cannot read properties of undefined (reading 'filter')
+    at __omni_scrollRemoveEntry (http://localhost:3000/index.js:8774:49)
+    at __omni_cleanupElement (http://localhost:3000/index.js:276:6)
+    at http://localhost:3000/index.js:8585:379
+    at NodeList.forEach (<anonymous>)
+    at http://localhost:3000/index.js:8585:357
+    at Array.forEach (<anonymous>)
+    at _show (http://localhost:3000/index.js:8585:34)
+    at http://localhost:3000/index.js:8589:10
+    at e.run (http://localhost:3000/index.js:94:11)
+    at __omni_effect (http://localhost:3000/index.js:101:11) @ http://localhost:3000/index.js:94
+[ERROR] [OmniView] ERROR effect:run: TypeError: Cannot read properties of undefined (reading 'filter') @ http://localhost:3000/index.js:118

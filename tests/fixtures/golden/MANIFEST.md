@@ -9,10 +9,10 @@ Files are grouped by primary feature. Many files demonstrate multiple features.
 
 ## Views
 
-- `test/projects/learn-omniview/src/pages/HomePage.omni` — Basic views, nested component composition, section layout
+- `test/projects/learn-omniview/src/pages/Overview.omni` — Capability matrix page with CapabilityCard grid + theme stats
 - `test/projects/learn-omniview/src/components/SlotDefaultDemo.omni` — `@slot` with default fallback content (3 slot forms: named, named+default, anonymous+default)
 - `test/projects/learn-omniview/src/components/Modal.omni` — `@slot` projection (header/body/footer), `@onKeyDown` (Escape), mouse hover tracking
-- `test/projects/learn-omniview/src/pages/Dashboard.omni` — Page-level component aggregation, multi-demo composition
+- `test/projects/learn-omniview/src/components/ThemeSwitcher.omni` — Multi-theme selector with 4 theme cards and token palette preview
 
 ## Components
 
@@ -40,7 +40,6 @@ Files are grouped by primary feature. Many files demonstrate multiple features.
 
 ## Events
 
-- `test/projects/learn-omniview/src/pages/EventDataDemo.omni` — Event data fields: scroll (`e.y`), key (`e.key`, `e.ctrl`), mouse (`e.x`, `e.y`), wheel (`e.deltaY`)
 - `test/projects/learn-omniview/src/components/EmitEventDemo.omni` — `event` declaration (with return type), `event?` optional event, parent `@onEvent` binding
 - `test/projects/learn-omniview/src/components/EmitKeywordDemo.omni` — `emit` keyword syntax vs function-call event triggering
 - `test/projects/learn-omniview/src/components/EventShorthand.omni` — `{fnName(args)}` auto-wrapping, `{store.action}` reference, `@eventName` shorthand
@@ -86,8 +85,12 @@ Files are grouped by primary feature. Many files demonstrate multiple features.
 
 ## Design System
 
-- `test/projects/learn-omniview/src/design.omni` — `design` block: design tokens (Color, Size, Radius, Shadow, FontFamily, etc.), CSS classes, component variants
-- `test/projects/learn-omniview/src/main.omni` — Application root: imports, `PageSwitcher`, component-to-page mapping
+- `test/projects/learn-omniview/src/design.omni` — `design` block: design tokens (Color, Size, Radius, Shadow, FontFamily, etc.), CSS classes, component variants, `@themes light, dark, sepia, highContrast`
+- `test/projects/learn-omniview/src/stores/ThemeStore.omni` — Multi-theme store with 4-theme cycling toggle/setMode
+- `test/projects/learn-omniview/src/components/DesignTokenPanel.omni` — Live design token visualizer with `var(--name)` CSS variables
+- `test/projects/learn-omniview/src/components/ThemeSourceDemo.omni` — `@themes` syntax showcase with generated CSS output
+- `test/projects/learn-omniview/src/components/VariantShowcase.omni` — Button component variant cross-theme demo
+- `test/projects/learn-omniview/src/main.omni` — Application root: imports, 7-tab routing, component-to-page mapping
 
 ## Minimal
 
@@ -95,7 +98,7 @@ Files are grouped by primary feature. Many files demonstrate multiple features.
 
 ---
 
-**(total: 51 files)**
+**(total: 53 files)**
 
 ## Usage
 

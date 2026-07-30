@@ -1,0 +1,122 @@
+- generic [ref=e4]:
+  - banner [ref=e6]:
+    - heading "OmniView 教学项目" [level=1] [ref=e7]
+    - paragraph [ref=e8]: 涵盖 Store、Signal、Computed、Prop、Event、bind:value 等核心特性
+  - generic [ref=e10]:
+    - button "首页" [ref=e11] [cursor=pointer]
+    - button "待办" [ref=e12] [cursor=pointer]
+    - button "基础交互" [ref=e13] [cursor=pointer]
+    - button "编译器特性" [ref=e14] [cursor=pointer]
+    - button "运动动画" [ref=e15] [cursor=pointer]
+    - button "CSS 特性" [ref=e16] [cursor=pointer]
+    - button "事件/表单" [ref=e17] [cursor=pointer]
+    - button "语言特性" [ref=e18] [cursor=pointer]
+    - button "设置" [ref=e19] [cursor=pointer]
+    - button "补充" [active] [ref=e20] [cursor=pointer]
+  - generic [ref=e1455]:
+    - generic [ref=e1456]:
+      - generic [ref=e1459]:
+        - 'heading "Ternary ( ? : ) 三元表达式 Demo" [level=3] [ref=e1460]'
+        - paragraph [ref=e1461]: "演示 cond ? then : else 运算符"
+        - generic [ref=e1462]:
+          - 'heading "数值判定: count = 0" [level=4] [ref=e1463]'
+          - paragraph [ref=e1464]: "结果: Zero or negative"
+          - paragraph [ref=e1465]: "直接内联: 非正数哦"
+          - generic [ref=e1466]:
+            - button "count + 1" [ref=e1467] [cursor=pointer]
+            - button "count - 1" [ref=e1468] [cursor=pointer]
+        - generic [ref=e1469]:
+          - 'heading "成绩判定: score = 75" [level=4] [ref=e1470]'
+          - paragraph [ref=e1471]: "等级: C"
+          - generic [ref=e1472]:
+            - button "95 → A" [ref=e1473] [cursor=pointer]
+            - button "85 → B" [ref=e1474] [cursor=pointer]
+            - button "72 → C" [ref=e1475] [cursor=pointer]
+            - button "55 → F" [ref=e1476] [cursor=pointer]
+        - paragraph [ref=e1477]: "三元 ? : 是 if-expr 的紧凑形式，用于值上下文"
+      - generic [ref=e1480]:
+        - heading "Block Expression Demo" [level=3] [ref=e1481]
+        - paragraph [ref=e1482]: "演示 {;} 块表达式"
+        - generic [ref=e1483]:
+          - 'heading "输入值: a= 10 , b= 5" [level=4] [ref=e1484]'
+          - generic [ref=e1485]:
+            - button "a + 5" [ref=e1486] [cursor=pointer]
+            - button "b + 5" [ref=e1487] [cursor=pointer]
+            - button "Reset" [ref=e1488] [cursor=pointer]
+        - generic [ref=e1489]:
+          - 'heading "块表达式 computed: calculation" [level=4] [ref=e1490]'
+          - paragraph [ref=e1491]: a×2=20, b×3=15
+        - generic [ref=e1492]:
+          - 'heading "块表达式 computed: total = {+,}" [level=4] [ref=e1493]'
+          - paragraph [ref=e1494]: total = 30
+        - generic [ref=e1495]:
+          - 'heading "对比：普通 computed: simpleSum" [level=4] [ref=e1496]'
+          - paragraph [ref=e1497]: simpleSum = a + b = 15
+        - paragraph [ref=e1498]: 块表达式允许在值上下文中声明临时变量，最后一行表达式即为块的值
+    - generic [ref=e1501]:
+      - heading "@forkey=exprDemo" [level=3] [ref=e1502]
+      - paragraph [ref=e1503]: 演示 @foriteminiterablekey=expr用法
+      - list [ref=e1504]:
+        - listitem [ref=e1505]: Apple
+        - listitem [ref=e1506]: Banana
+        - listitem [ref=e1507]: Cherry
+        - listitem [ref=e1508]: Date
+        - listitem [ref=e1509]: Elderberry
+    - generic [ref=e1512]:
+      - heading "Advanced CSS Selectors Demo" [level=3] [ref=e1513]
+      - paragraph [ref=e1514]: 演示 .class1.class2 组合选择器和 .class1.class2:hover 伪类链接
+      - generic [ref=e1515]:
+        - heading "组合选择器 .activeCard.cardActive" [level=4] [ref=e1516]
+        - paragraph [ref=e1518]: Toggle me to see .activeCard.cardActive style
+        - button "Toggle Active ( OFF )" [ref=e1519] [cursor=pointer]
+      - generic [ref=e1520]:
+        - 'heading "组合选择器 + 伪类: .darkBtn:hover, .darkBtn:focus, .darkBtn:active" [level=4] [ref=e1521]'
+        - generic [ref=e1522]:
+          - button "Dark Variant" [ref=e1523] [cursor=pointer]
+          - button "Reset" [ref=e1524] [cursor=pointer]
+        - paragraph [ref=e1525]: .darkBtn:hover .darkBtn:focus .darkBtn:active —— 三态组合伪类
+      - generic [ref=e1526]:
+        - 'heading "多组合 + 多伪类: .panel-highlight:hover, .panel-highlight:focus" [level=4] [ref=e1527]'
+        - generic [ref=e1528]:
+          - paragraph [ref=e1529]: Hover or Focus this panel
+          - textbox "Tab to focus me" [ref=e1530]: default
+    - generic [ref=e1533]:
+      - heading "Signal & Store Patterns" [level=3] [ref=e1534]
+      - paragraph [ref=e1535]: · computed · · bind:value · @forkey· @ifmode·
+      - heading "Inline Store + Computed 派生" [level=4] [ref=e1536]
+      - generic [ref=e1537]:
+        - paragraph [ref=e1538]: "0"
+        - paragraph [ref=e1539]: "Double: 0 | Even"
+        - generic [ref=e1540]:
+          - button "+1" [ref=e1541] [cursor=pointer]
+          - button "-1" [ref=e1542] [cursor=pointer]
+          - button "Reset" [ref=e1543] [cursor=pointer]
+      - heading "bind:value 双向绑定 + 验证" [level=4] [ref=e1544]
+      - generic [ref=e1545]:
+        - generic [ref=e1546]:
+          - generic [ref=e1547]: "Name:"
+          - textbox "Enter name" [ref=e1548]
+        - generic [ref=e1549]:
+          - generic [ref=e1550]: "Email:"
+          - textbox "Enter email" [ref=e1551]
+        - paragraph [ref=e1552]: "Name: \"{name}\" | Email: \"{email}\" | ❌ Fill both fields"
+      - 'heading "@forkey={expr}身份追踪列表" [level=4] [ref=e1553]'
+      - generic [ref=e1554]:
+        - paragraph [ref=e1555]: "Total: 3 items"
+        - generic [ref=e1556]:
+          - button "Add Item" [ref=e1557] [cursor=pointer]
+          - button "Remove Last" [ref=e1558] [cursor=pointer]
+        - list [ref=e1559]:
+          - listitem [ref=e1560]: apple
+          - listitem [ref=e1561]: banana
+          - listitem [ref=e1562]: cherry
+      - heading "@ifmode=\"wait\"过渡模式" [level=4] [ref=e1563]
+      - button "Show Panel" [ref=e1565] [cursor=pointer]
+      - heading "命名插槽" [level=4] [ref=e1567]
+      - button "Open Slot Demo" [ref=e1569] [cursor=pointer]
+      - heading "生命周期： · ·" [level=4] [ref=e1571]
+      - generic [ref=e1572]:
+        - paragraph [ref=e1573]: "Mount: mounted!"
+        - paragraph [ref=e1574]: "触发次数: 1"
+  - contentinfo [ref=e116]:
+    - paragraph [ref=e117]: OmniView 教学项目 · 66+ 源文件 · omnic run

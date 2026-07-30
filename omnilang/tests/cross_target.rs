@@ -166,11 +166,11 @@ fn cross_target_component_files_produce_output() {
     let component_files = [
         "test/projects/learn-omniview/src/components/Counter.omni",
         "test/projects/learn-omniview/src/components/AddTodo.omni",
-        "test/projects/learn-omniview/src/components/StatsPanel.omni",
-        "test/projects/learn-omniview/src/components/DataTable.omni",
+        "test/projects/learn-omniview/src/components/ThemeSwitcher.omni",
+        "test/projects/learn-omniview/src/components/DesignTokenPanel.omni",
         "test/projects/learn-omniview/src/stores/TodoStore.omni",
-        "test/projects/learn-omniview/src/pages/HomePage.omni",
-        "test/projects/learn-omniview/src/pages/Dashboard.omni",
+        "test/projects/learn-omniview/src/stores/ThemeStore.omni",
+        "test/projects/learn-omniview/src/pages/Overview.omni",
     ];
 
     let repo = repo_root();

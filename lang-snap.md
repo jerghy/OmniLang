@@ -1,0 +1,150 @@
+- generic [ref=e4]:
+  - banner [ref=e6]:
+    - heading "OmniView 教学项目" [level=1] [ref=e7]
+    - paragraph [ref=e8]: 涵盖 Store、Signal、Computed、Prop、Event、bind:value 等核心特性
+  - generic [ref=e10]:
+    - button "首页" [ref=e11] [cursor=pointer]
+    - button "待办" [ref=e12] [cursor=pointer]
+    - button "基础交互" [ref=e13] [cursor=pointer]
+    - button "编译器特性" [ref=e14] [cursor=pointer]
+    - button "运动动画" [ref=e15] [cursor=pointer]
+    - button "CSS 特性" [ref=e16] [cursor=pointer]
+    - button "事件/表单" [ref=e17] [cursor=pointer]
+    - button "语言特性" [active] [ref=e18] [cursor=pointer]
+    - button "设置" [ref=e19] [cursor=pointer]
+    - button "补充" [ref=e20] [cursor=pointer]
+  - generic [ref=e1305]:
+    - generic [ref=e1306]:
+      - generic [ref=e1309]:
+        - heading "Inline Store Demo" [level=3] [ref=e1310]
+        - paragraph [ref=e1311]: "Items: 0"
+        - paragraph [ref=e1312]: "Summary: cart empty"
+        - paragraph [ref=e1313]: "Total: 0"
+        - generic [ref=e1314]:
+          - button "Add Apple" [ref=e1315] [cursor=pointer]
+          - button "Remove" [ref=e1316] [cursor=pointer]
+        - paragraph
+      - generic [ref=e1317]: test
+    - generic [ref=e1322]:
+      - heading "字符串字面量演示" [level=3] [ref=e1323]
+      - paragraph [ref=e1324]: 反引号字符串 · 单引号字符串
+      - generic [ref=e1325]:
+        - heading "反引号字符串" [level=4] [ref=e1326]
+        - paragraph [ref=e1327]: "signal = `{\"Hello \\\"OmniView\\\" world\"}`"
+        - paragraph [ref=e1328]: "结果: Hello \"OmniView\" world"
+      - generic [ref=e1329]:
+        - heading "单引号字符串" [level=4] [ref=e1330]
+        - paragraph [ref=e1331]: "结果: Single-quoted text with \"double\" inside"
+      - generic [ref=e1332]:
+        - heading "混合字符串" [level=4] [ref=e1333]
+        - paragraph [ref=e1334]: "结果: Backtick with 'single' and \"double\" quotes"
+      - generic [ref=e1335]:
+        - 'heading "模板字符串插值 `${expr}`" [level=4] [ref=e1336]'
+        - paragraph [ref=e1337]: "buildGreeting(\"Alice\", 30) -> \"{buildGreeting(\"Alice\", 30)}\""
+        - paragraph [ref=e1338]: "dynamic: Hello OmniView, current version is 1"
+        - button "Update" [ref=e1339] [cursor=pointer]
+    - generic [ref=e1340]:
+      - generic [ref=e1343]:
+        - heading "类型系统全覆盖" [level=3] [ref=e1344]
+        - paragraph [ref=e1345]: i8 · i16 · i64 · u8 · u16 · u32 · u64 · f32 · isize · usize · Void
+        - generic [ref=e1346]:
+          - heading "有符号整数" [level=4] [ref=e1347]
+          - list [ref=e1348]:
+            - listitem [ref=e1349]:
+              - code [ref=e1350]: i8
+              - text: max = 127
+            - listitem [ref=e1351]:
+              - code [ref=e1352]: i16
+              - text: max = 32767
+            - listitem [ref=e1353]:
+              - code [ref=e1354]: i64
+              - text: max = 9223372036854775807
+            - listitem [ref=e1355]:
+              - code [ref=e1356]: isize
+              - text: = -42
+        - generic [ref=e1357]:
+          - heading "无符号整数" [level=4] [ref=e1358]
+          - list [ref=e1359]:
+            - listitem [ref=e1360]:
+              - code [ref=e1361]: u8
+              - text: max = 255
+            - listitem [ref=e1362]:
+              - code [ref=e1363]: u16
+              - text: max = 65535
+            - listitem [ref=e1364]:
+              - code [ref=e1365]: u32
+              - text: max = 4294967295
+            - listitem [ref=e1366]:
+              - code [ref=e1367]: u64
+              - text: max = 18446744073709551615
+            - listitem [ref=e1368]:
+              - code [ref=e1369]: usize
+              - text: = 100
+        - generic [ref=e1370]:
+          - heading "浮点类型" [level=4] [ref=e1371]
+          - list [ref=e1372]:
+            - listitem [ref=e1373]:
+              - code [ref=e1374]: f32
+              - text: = 3.14
+        - paragraph [ref=e1376]: "综合: i8=127 i16=32767 u8=255 u16=65535 u32=4294967295 f32=3.14 isize=-42 usize=100"
+      - generic [ref=e1379]:
+        - heading "视图属性演示" [level=3] [ref=e1380]
+        - paragraph [ref=e1381]: testId · class:string · bind:checked
+        - generic [ref=e1382]:
+          - heading "testId 属性标记" [level=4] [ref=e1383]
+          - paragraph [ref=e1385]: 此 div 使用 testId 属性标记，用于测试定位
+        - generic [ref=e1386]:
+          - heading "bind:checked 复选框绑定" [level=4] [ref=e1387]
+          - generic [ref=e1388]:
+            - 'checkbox "同意条款: false" [ref=e1389]'
+            - generic [ref=e1390]: "同意条款: false"
+        - generic [ref=e1391]:
+          - heading "bind:value 文本输入" [level=4] [ref=e1392]
+          - textbox "输入文本..." [ref=e1393]
+          - paragraph [ref=e1394]: "预览:"
+        - generic [ref=e1395]:
+          - heading "class:\"string\" 字面量绑定" [level=4] [ref=e1396]
+          - paragraph [ref=e1398]: "此 div 使用 class: \"bg-blue-100 ...\" 字符串字面量"
+          - paragraph [ref=e1400]: "此 div 使用 class: \"bg-green-100 ...\" 字符串字面量"
+          - paragraph [ref=e1402]: 字符串字面量 class 适用于无对应 style 规则的工具类
+    - generic [ref=e1403]:
+      - generic [ref=e1406]:
+        - heading "Computed Function Form Demo" [level=3] [ref=e1407]
+        - paragraph [ref=e1408]: "演示 computed name() → Type { } 函数式写法"
+        - generic [ref=e1409]:
+          - 'heading "Simple form: computed simple: String = expr" [level=4] [ref=e1410]'
+          - paragraph [ref=e1411]: Zhang
+        - generic [ref=e1412]:
+          - 'heading "Function form: computed fullName() → String {...}" [level=4] [ref=e1413]'
+          - paragraph [ref=e1414]: Zhang
+        - generic [ref=e1415]:
+          - button "Clear Last Name" [ref=e1416] [cursor=pointer]
+          - button "Set \"San\"" [ref=e1417] [cursor=pointer]
+        - paragraph [ref=e1419]: "Calls: 0"
+      - generic [ref=e1422]:
+        - heading "Optional Chain ( ?. ) Demo" [level=3] [ref=e1423]
+        - paragraph [ref=e1424]: 演示 ?. 可选链 和 ?? 空值合并运算符
+        - generic [ref=e1425]:
+          - paragraph [ref=e1426]: user?.len() ?? 0 → 5
+          - paragraph [ref=e1427]: user ?? "Guest" → Alice
+        - generic [ref=e1428]:
+          - button "Set null → test ?." [ref=e1429] [cursor=pointer]
+          - button "Set \"Bob\"" [ref=e1430] [cursor=pointer]
+          - button "Toggle Details" [ref=e1431] [cursor=pointer]
+        - paragraph [ref=e1435]: Click "Toggle Details" to expand
+    - generic [ref=e1438]:
+      - heading "CSS Pseudo-Classes Demo" [level=3] [ref=e1439]
+      - paragraph [ref=e1440]: 演示 :hover :focus :active 伪类
+      - generic [ref=e1441]:
+        - heading "伪类按钮" [level=4] [ref=e1442]
+        - button "Hover me (:hover)" [ref=e1443] [cursor=pointer]
+        - button "Focus me (:focus) x 0" [ref=e1444] [cursor=pointer]
+        - button "Press me (:active)" [ref=e1445] [cursor=pointer]
+      - generic [ref=e1446]:
+        - heading "伪类输入框" [level=4] [ref=e1447]
+        - textbox "Focus to see :focus style" [ref=e1448]
+      - generic [ref=e1449]:
+        - heading "组合伪类" [level=4] [ref=e1450]
+        - generic [ref=e1451] [cursor=pointer]: Hover this card (:hover)
+  - contentinfo [ref=e116]:
+    - paragraph [ref=e117]: OmniView 教学项目 · 66+ 源文件 · omnic run
