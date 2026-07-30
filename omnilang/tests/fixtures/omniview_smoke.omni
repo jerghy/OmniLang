@@ -1,0 +1,20 @@
+import omniview;
+
+component SmokeApp {
+  signal count: i32 = 0;
+
+  fn increment() { count = count + 1; }
+
+  view {
+    <div class="app">
+      <h1>Smoke Test</h1>
+      <p>Count: {count}</p>
+      <button @onPress={increment}>+1</button>
+    </div>
+  }
+
+  style {
+    .app { padding: 20px; font-family: sans-serif; }
+    h1 { color: #333; }
+  }
+}

@@ -117,10 +117,18 @@ fn test_list_state_init_basic() {
         "should define clone function"
     );
 
-    // Insert before container marker
+    // DocumentFragment batching before container marker
     assert!(
-        gen.js.contains("parent.insertBefore(clone, ctr)"),
-        "should insert before container marker"
+        gen.js.contains("var frag = document.createDocumentFragment();"),
+        "should create DocumentFragment for batch insert"
+    );
+    assert!(
+        gen.js.contains("frag.appendChild(clone)"),
+        "should append clone to fragment"
+    );
+    assert!(
+        gen.js.contains("parent.insertBefore(frag, ctr)"),
+        "should insert fragment before container marker"
     );
 
     // No key-specific code
@@ -255,7 +263,7 @@ fn test_list_with_event_delegation() {
         },
     );
 
-    let body = ViewTree::Element(ElementIR {
+    let body = ViewTree::Element(Box::new(ElementIR {
         tag: "button".into(),
         props: FxHashMap::default(),
         bindings: FxHashMap::default(),
@@ -270,7 +278,7 @@ fn test_list_with_event_delegation() {
         scroll: None,
         drag: None,
         ref_binding: None,
-    });
+    }));
 
     let list = ListRenderingIntent {
         iterable: ExprIR::LiteralExpr {

@@ -19,22 +19,35 @@ export function MotionHover() {
         pulse:{kf:[{offset:0,properties:{}},{offset:1,properties:{"scale":1.05}}],opts:{duration:200,easing:"ease-out",fill:"forwards"}},
     };
 
-    // @enter: mount animations (empty deps = mount only)
+    // @enter: mount animations + MutationObserver for conditional rendering
     useEffect(()=>{
-        document.querySelectorAll('[data-motion-enter]').forEach(el=>{
+        const runEnter=el=>{
             const n=el.getAttribute('data-motion-name');
             if(n&&_M[n]){
                 const{kf,opts}=_M[n];
                 animate(el,kf,opts);
             }
+        };
+        document.querySelectorAll('[data-motion-enter]').forEach(runEnter);
+        const obs=new MutationObserver(muts=>{
+            muts.forEach(mut=>{
+                mut.addedNodes.forEach(node=>{
+                    if(node.nodeType===1){
+                        if(node.matches&&node.matches('[data-motion-enter]'))runEnter(node);
+                        if(node.querySelectorAll)node.querySelectorAll('[data-motion-enter]').forEach(runEnter);
+                    }
+                });
+            });
         });
+        obs.observe(document.body,{childList:true,subtree:true});
+        return()=>obs.disconnect();
     },[]);
 
-    // @hover/@press: interactive triggers with cleanup
+    // @hover/@press: interactive triggers with cleanup + MutationObserver
     useEffect(()=>{
-        // @hover: mouse enter/leave animations
         const hoverHandlers=[];
-        document.querySelectorAll('[data-motion-hover]').forEach(el=>{
+        const pressHandlers=[];
+        const setupHover=el=>{
             const n=el.getAttribute('data-motion-hover-name');
             if(n&&_M[n]){
                 const{kf,opts}=_M[n];
@@ -44,10 +57,8 @@ export function MotionHover() {
                 el.addEventListener('mouseleave',leave);
                 hoverHandlers.push({el,enter,leave});
             }
-        });
-        // @press: mouse down/up animations
-        const pressHandlers=[];
-        document.querySelectorAll('[data-motion-press]').forEach(el=>{
+        };
+        const setupPress=el=>{
             const n=el.getAttribute('data-motion-press-name');
             if(n&&_M[n]){
                 const{kf,opts}=_M[n];
@@ -57,7 +68,24 @@ export function MotionHover() {
                 el.addEventListener('mouseup',up);
                 pressHandlers.push({el,down,up});
             }
+        };
+        document.querySelectorAll('[data-motion-hover]').forEach(setupHover);
+        document.querySelectorAll('[data-motion-press]').forEach(setupPress);
+        const obs=new MutationObserver(muts=>{
+            muts.forEach(mut=>{
+                mut.addedNodes.forEach(node=>{
+                    if(node.nodeType===1){
+                        if(node.matches&&node.matches('[data-motion-hover]'))setupHover(node);
+                        if(node.matches&&node.matches('[data-motion-press]'))setupPress(node);
+                        if(node.querySelectorAll){
+                            node.querySelectorAll('[data-motion-hover]').forEach(setupHover);
+                            node.querySelectorAll('[data-motion-press]').forEach(setupPress);
+                        }
+                    }
+                });
+            });
         });
+        obs.observe(document.body,{childList:true,subtree:true});
         return()=>{
             hoverHandlers.forEach(({el,enter,leave})=>{
                 el.removeEventListener('mouseenter',enter);
@@ -67,6 +95,7 @@ export function MotionHover() {
                 el.removeEventListener('mousedown',down);
                 el.removeEventListener('mouseup',up);
             });
+            obs.disconnect();
         };
     },[]);
 

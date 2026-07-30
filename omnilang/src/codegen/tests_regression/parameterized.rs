@@ -79,6 +79,7 @@ macro_rules! gen_tests_for_fixture {
     };
     // Flutter
     (@flutter, $fixture_fn:ident) => {
+        #[cfg(feature = "codegen-flutter")]
         #[test]
         fn flutter() {
             use crate::codegen::Codegen;

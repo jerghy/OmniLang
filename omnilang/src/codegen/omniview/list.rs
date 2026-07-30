@@ -188,6 +188,9 @@ impl OmniViewGenerator {
             );
         }
 
+        // Batch insert via DocumentFragment to reduce DOM reflow
+        self.js.push_str("  var frag = document.createDocumentFragment();\n");
+
         // Iterate and clone
         let _ = writeln!(
             self.js,
@@ -354,11 +357,12 @@ impl OmniViewGenerator {
 
         if has_key {
             self.js
-                .push_str("    if (isNew) { parent.insertBefore(clone, ctr); }\n");
+                .push_str("    if (isNew) { frag.appendChild(clone); }\n");
         } else {
-            self.js.push_str("    parent.insertBefore(clone, ctr);\n");
+            self.js.push_str("    frag.appendChild(clone);\n");
         }
         self.js.push_str("  });\n");
+        self.js.push_str("  parent.insertBefore(frag, ctr);\n");
 
         // Key-based cleanup: remove items whose keys disappeared
         if has_key {

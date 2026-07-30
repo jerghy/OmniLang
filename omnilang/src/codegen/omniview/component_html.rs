@@ -290,10 +290,10 @@ fn inject_slot_children(view: ViewTree, slot_children: &[ViewTree]) -> ViewTree 
                 .iter()
                 .map(|c| inject_slot_children(c.clone(), slot_children))
                 .collect();
-            ViewTree::Element(ElementIR {
+            ViewTree::Element(Box::new(ElementIR {
                 children: new_children,
-                ..el
-            })
+                ..*el
+            }))
         }
         ViewTree::Conditional(cond) => {
             let new_branches = cond
@@ -348,10 +348,10 @@ fn strip_slot_prop(view: &ViewTree) -> ViewTree {
             if el.props.contains_key("slot") {
                 let mut props = el.props.clone();
                 props.remove("slot");
-                ViewTree::Element(ElementIR {
+                ViewTree::Element(Box::new(ElementIR {
                     props,
-                    ..el.clone()
-                })
+                    ..*el.clone()
+                }))
             } else {
                 view.clone()
             }

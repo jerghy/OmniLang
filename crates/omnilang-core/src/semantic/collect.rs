@@ -181,6 +181,17 @@ impl SemanticAnalyzer {
             }
         }
 
+        // Module-level const declarations — collect as Const symbols
+        for const_def in &module.consts {
+            self.declare_or_warn(Symbol {
+                name: const_def.name.clone(),
+                kind: SymbolKind::Const,
+                type_ann: infer_type_from_expr(&const_def.value),
+                mutable: false,
+                declared_at: const_def.span.start,
+            });
+        }
+
         // Imports — declare imported names as symbols so they can be resolved.
         // Cross-file validation (validate_cross_file) checks these against pub symbols.
         for import in &module.imports {
@@ -388,5 +399,16 @@ impl SemanticAnalyzer {
             }
             _ => {}
         }
+    }
+}
+
+/// Infer a simple type annotation string from a literal expression.
+fn infer_type_from_expr(expr: &Expr) -> Option<String> {
+    match expr {
+        Expr::Literal(Literal::String(_), _) => Some("String".to_string()),
+        Expr::Literal(Literal::Int(_), _) => Some("Int".to_string()),
+        Expr::Literal(Literal::Float(_), _) => Some("Float".to_string()),
+        Expr::Literal(Literal::Bool(_), _) => Some("Bool".to_string()),
+        _ => None,
     }
 }

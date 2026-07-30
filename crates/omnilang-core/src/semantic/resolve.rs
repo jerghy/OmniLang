@@ -13,6 +13,7 @@
 
 use super::helpers::type_to_string;
 use super::symbols::{Symbol, SymbolKind};
+use crate::lexer::Span;
 use super::types::SemanticType;
 use super::validate_inline::{check_control_flow, check_expr_await, ValidationContext};
 use super::validate_types::{
@@ -154,6 +155,39 @@ impl SemanticAnalyzer {
             }
 
             self.symbols.set_current_scope(0);
+        }
+
+        // Resolve variable references in design token values
+        for design in &module.designs {
+            for token in &design.tokens {
+                if let TokenValue::Variable(name) = &token.value {
+                    if !self.symbols.contains(name) {
+                        self.diagnostics.push(Diagnostic::error(
+                            DiagnosticKind::E0001,
+                            &format!(
+                                "Undefined variable '{}' in design token '{}'",
+                                name, token.name
+                            ),
+                            &Span { start: 0, end: 0, line: 0, col: 0 },
+                        ));
+                    }
+                }
+                // Also check theme_values
+                for (theme_name, theme_val) in &token.theme_values {
+                    if let TokenValue::Variable(name) = theme_val {
+                        if !self.symbols.contains(name) {
+                            self.diagnostics.push(Diagnostic::error(
+                                DiagnosticKind::E0001,
+                                &format!(
+                                    "Undefined variable '{}' in theme '{}' of design token '{}'",
+                                    name, theme_name, token.name
+                                ),
+                                &Span { start: 0, end: 0, line: 0, col: 0 },
+                            ));
+                        }
+                    }
+                }
+            }
         }
 
         // Motion validation (still a standalone call, not inlined)

@@ -224,7 +224,7 @@ mod tests {
                 store_refs: vec![],
                 refs: vec![],
                 events: vec![],
-                view: Some(ViewTree::Element(ElementIR {
+                view: Some(ViewTree::Element(Box::new(ElementIR {
                     tag: "div".into(),
                     props: FxHashMap::default(),
                     bindings: FxHashMap::default(),
@@ -286,7 +286,7 @@ mod tests {
                 store_refs: vec![],
                 refs: vec![],
                 events: vec![],
-                view: Some(ViewTree::Element(ElementIR {
+                view: Some(ViewTree::Element(Box::new(ElementIR {
                     tag: "div".into(),
                     props: FxHashMap::from_iter([(
                         "class".into(),
@@ -994,7 +994,7 @@ mod tests {
             construction_kind: ConstructionKind::Static,
             source_span: None,
         };
-        crate::codegen::vue::gen_template_node(&mut w, &ViewTree::Element(el), &fmt);
+        crate::codegen::vue::gen_template_node(&mut w, &ViewTree::Element(Box::new(el)), &fmt);
         let out = w.into_string();
         // Dangerous javascript: URL should be neutralized to empty string
         assert!(out.contains(r#"href="""#));
@@ -1026,7 +1026,7 @@ mod tests {
             construction_kind: ConstructionKind::Static,
             source_span: None,
         };
-        crate::codegen::vue::gen_template_node(&mut w, &ViewTree::Element(el), &fmt);
+        crate::codegen::vue::gen_template_node(&mut w, &ViewTree::Element(Box::new(el)), &fmt);
         let out = w.into_string();
         // Safe URL should pass through unchanged
         assert!(out.contains(r#"href="https://example.com""#));
@@ -1057,7 +1057,7 @@ mod tests {
             construction_kind: ConstructionKind::Static,
             source_span: None,
         };
-        crate::codegen::vue::gen_template_node(&mut w, &ViewTree::Element(el), &fmt);
+        crate::codegen::vue::gen_template_node(&mut w, &ViewTree::Element(Box::new(el)), &fmt);
         let out = w.into_string();
         // data: URL in src should be neutralized
         assert!(out.contains(r#"src="""#));
@@ -1089,7 +1089,7 @@ mod tests {
             construction_kind: ConstructionKind::Static,
             source_span: None,
         };
-        crate::codegen::vue::gen_template_node(&mut w, &ViewTree::Element(el), &fmt);
+        crate::codegen::vue::gen_template_node(&mut w, &ViewTree::Element(Box::new(el)), &fmt);
         let out = w.into_string();
         // Non-URL attributes should not be sanitized
         assert!(out.contains(r#"title="javascript:not-a-url""#));

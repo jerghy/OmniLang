@@ -448,7 +448,7 @@ fn test_tsx_interpolation_renders_expr() {
     let _codegen = ReactCodegen::default();
     let comp = make_test_component(
         "Test",
-        ViewTree::Element(ElementIR {
+        ViewTree::Element(Box::new(ElementIR {
             tag: "div".into(),
             props: FxHashMap::default(),
             bindings: FxHashMap::default(),
@@ -466,7 +466,7 @@ fn test_tsx_interpolation_renders_expr() {
             ref_binding: None,
             construction_kind: ConstructionKind::Static,
             source_span: None,
-        }),
+        })),
     );
     let ir = make_ir(
         vec![("Test".into(), comp)]

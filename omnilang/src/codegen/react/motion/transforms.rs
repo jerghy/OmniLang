@@ -15,12 +15,11 @@ pub(crate) fn emit_inview_effects_tsx(w: &mut CodeWriter, node: &ViewTree) {
         return;
     }
 
-    w.emit("// @in-view: IntersectionObserver for entrance animations");
+    w.emit("// @in-view: IntersectionObserver for entrance animations + MutationObserver");
     w.emit("useEffect(() => {");
     w.indent();
-    w.emit("const els = document.querySelectorAll('[data-motion-inview]');");
     w.emit("const observers = [];");
-    w.emit("els.forEach(el => {");
+    w.emit("const setupInview = (el) => {");
     w.indent();
     w.emit("const threshold = parseFloat(el.getAttribute('data-inview-threshold') || '0');");
     w.emit("const observer = new IntersectionObserver((entries) => {");
@@ -50,8 +49,28 @@ pub(crate) fn emit_inview_effects_tsx(w: &mut CodeWriter, node: &ViewTree) {
     w.emit("observer.observe(el);");
     w.emit("observers.push(observer);");
     w.dedent();
+    w.emit("};");
+    w.emit("document.querySelectorAll('[data-motion-inview]').forEach(setupInview);");
+    w.emit("const obs = new MutationObserver(muts => {");
+    w.indent();
+    w.emit("muts.forEach(mut => {");
+    w.indent();
+    w.emit("mut.addedNodes.forEach(node => {");
+    w.indent();
+    w.emit("if (node.nodeType === 1) {");
+    w.indent();
+    w.emit("if (node.matches && node.matches('[data-motion-inview]')) setupInview(node);");
+    w.emit("if (node.querySelectorAll) node.querySelectorAll('[data-motion-inview]').forEach(setupInview);");
+    w.dedent();
+    w.emit("}");
+    w.dedent();
     w.emit("});");
-    w.emit("return () => observers.forEach(o => o.disconnect());");
+    w.dedent();
+    w.emit("});");
+    w.dedent();
+    w.emit("});");
+    w.emit("obs.observe(document.body, { childList: true, subtree: true });");
+    w.emit("return () => { observers.forEach(o => o.disconnect()); obs.disconnect(); };");
     w.dedent();
     w.emit("}, []);");
 }
@@ -77,11 +96,10 @@ pub(crate) fn emit_scroll_effects_tsx(w: &mut CodeWriter, node: &ViewTree) {
         return;
     }
 
-    w.emit("// @scroll: scroll-driven animation progress");
+    w.emit("// @scroll: scroll-driven animation progress + MutationObserver");
     w.emit("useEffect(() => {");
     w.indent();
-    w.emit("const els = document.querySelectorAll('[data-motion-scroll]');");
-    w.emit("if (!els.length) return;");
+    w.emit("var els = document.querySelectorAll('[data-motion-scroll]');");
     w.emit("function parseScrollTrigger(cfg, el, vh) {");
     w.indent();
     w.emit("if (!cfg || typeof cfg !== 'string') return 0;");
@@ -113,8 +131,6 @@ pub(crate) fn emit_scroll_effects_tsx(w: &mut CodeWriter, node: &ViewTree) {
     w.emit("}");
     w.emit("function computeProgress(el) {");
     w.indent();
-    // rect is fetched inside parseScrollTrigger, not used here
-
     w.emit("const vh = window.innerHeight;");
     w.emit("const startCfg = el.getAttribute('data-scroll-start') || 'top 80%';");
     w.emit("const endCfg = el.getAttribute('data-scroll-end') || 'bottom 20%';");
@@ -135,7 +151,7 @@ pub(crate) fn emit_scroll_effects_tsx(w: &mut CodeWriter, node: &ViewTree) {
     w.emit("return target;");
     w.dedent();
     w.emit("}");
-    w.emit("const scrubCache = new Map();");
+    w.emit("var scrubCache = new Map();");
     w.emit("const handleScroll = () => {");
     w.indent();
     w.emit("els.forEach(el => {");
@@ -156,7 +172,26 @@ pub(crate) fn emit_scroll_effects_tsx(w: &mut CodeWriter, node: &ViewTree) {
     w.emit("};");
     w.emit("window.addEventListener('scroll', handleScroll, { passive: true });");
     w.emit("handleScroll();");
-    w.emit("return () => window.removeEventListener('scroll', handleScroll);");
+    w.emit("const obs = new MutationObserver(muts => {");
+    w.indent();
+    w.emit("muts.forEach(mut => {");
+    w.indent();
+    w.emit("mut.addedNodes.forEach(node => {");
+    w.indent();
+    w.emit("if (node.nodeType === 1) {");
+    w.indent();
+    w.emit("if (node.matches && node.matches('[data-motion-scroll]')) els = document.querySelectorAll('[data-motion-scroll]');");
+    w.emit("if (node.querySelectorAll && node.querySelectorAll('[data-motion-scroll]').length) els = document.querySelectorAll('[data-motion-scroll]');");
+    w.dedent();
+    w.emit("}");
+    w.dedent();
+    w.emit("});");
+    w.dedent();
+    w.emit("});");
+    w.dedent();
+    w.emit("});");
+    w.emit("obs.observe(document.body, { childList: true, subtree: true });");
+    w.emit("return () => { window.removeEventListener('scroll', handleScroll); obs.disconnect(); };");
     w.dedent();
     w.emit("}, []);");
 }
@@ -196,11 +231,10 @@ pub(crate) fn emit_drag_effects_tsx(w: &mut CodeWriter, node: &ViewTree) {
         return;
     }
 
-    w.emit("// @drag-horizontal / @drag-vertical: gesture-driven animation progress");
+    w.emit("// @drag-horizontal / @drag-vertical: gesture-driven animation progress + MutationObserver");
     w.emit("useEffect(() => {");
     w.indent();
-    w.emit("const els = document.querySelectorAll('[data-motion-drag]');");
-    w.emit("if (!els.length) return;");
+    w.emit("var els = document.querySelectorAll('[data-motion-drag]');");
     w.emit("");
     w.emit("function parseConstraint(cfg) {");
     w.indent();
@@ -227,7 +261,7 @@ pub(crate) fn emit_drag_effects_tsx(w: &mut CodeWriter, node: &ViewTree) {
     w.dedent();
     w.emit("}");
     w.emit("");
-    w.emit("els.forEach(el => {");
+    w.emit("function setupDrag(el) {");
     w.indent();
     w.emit("const axis = el.getAttribute('data-motion-drag') || 'x';");
     w.emit("const constraints = el.getAttribute('data-drag-constraints') || '';");
@@ -318,7 +352,29 @@ pub(crate) fn emit_drag_effects_tsx(w: &mut CodeWriter, node: &ViewTree) {
     w.dedent();
     w.emit("};");
     w.dedent();
+    w.emit("}");
+    w.emit("");
+    w.emit("els.forEach(setupDrag);");
+    w.emit("const obs = new MutationObserver(muts => {");
+    w.indent();
+    w.emit("muts.forEach(mut => {");
+    w.indent();
+    w.emit("mut.addedNodes.forEach(node => {");
+    w.indent();
+    w.emit("if (node.nodeType === 1) {");
+    w.indent();
+    w.emit("if (node.matches && node.matches('[data-motion-drag]')) { setupDrag(node); els = document.querySelectorAll('[data-motion-drag]'); }");
+    w.emit("if (node.querySelectorAll) node.querySelectorAll('[data-motion-drag]').forEach(n => { setupDrag(n); });");
+    w.emit("if (node.querySelectorAll && node.querySelectorAll('[data-motion-drag]').length) els = document.querySelectorAll('[data-motion-drag]');");
+    w.dedent();
+    w.emit("}");
+    w.dedent();
     w.emit("});");
+    w.dedent();
+    w.emit("});");
+    w.dedent();
+    w.emit("});");
+    w.emit("obs.observe(document.body, { childList: true, subtree: true });");
     w.emit("");
     w.emit("return () => {");
     w.indent();
@@ -327,6 +383,7 @@ pub(crate) fn emit_drag_effects_tsx(w: &mut CodeWriter, node: &ViewTree) {
     w.emit("if (el._dragCleanup) el._dragCleanup();");
     w.dedent();
     w.emit("});");
+    w.emit("obs.disconnect();");
     w.dedent();
     w.emit("};");
     w.dedent();

@@ -19,22 +19,35 @@ export function MotionInView() {
         slideIn:{kf:[{offset:0,properties:{"opacity":0,"x":-30}},{offset:1,properties:{"opacity":1,"x":0}}],opts:{duration:500,easing:"cubic-bezier(0.215,0.610,0.355,1.000)",fill:"forwards"}},
     };
 
-    // @enter: mount animations (empty deps = mount only)
+    // @enter: mount animations + MutationObserver for conditional rendering
     useEffect(()=>{
-        document.querySelectorAll('[data-motion-enter]').forEach(el=>{
+        const runEnter=el=>{
             const n=el.getAttribute('data-motion-name');
             if(n&&_M[n]){
                 const{kf,opts}=_M[n];
                 animate(el,kf,opts);
             }
+        };
+        document.querySelectorAll('[data-motion-enter]').forEach(runEnter);
+        const obs=new MutationObserver(muts=>{
+            muts.forEach(mut=>{
+                mut.addedNodes.forEach(node=>{
+                    if(node.nodeType===1){
+                        if(node.matches&&node.matches('[data-motion-enter]'))runEnter(node);
+                        if(node.querySelectorAll)node.querySelectorAll('[data-motion-enter]').forEach(runEnter);
+                    }
+                });
+            });
         });
+        obs.observe(document.body,{childList:true,subtree:true});
+        return()=>obs.disconnect();
     },[]);
 
-    // @hover/@press: interactive triggers with cleanup
+    // @hover/@press: interactive triggers with cleanup + MutationObserver
     useEffect(()=>{
-        // @hover: mouse enter/leave animations
         const hoverHandlers=[];
-        document.querySelectorAll('[data-motion-hover]').forEach(el=>{
+        const pressHandlers=[];
+        const setupHover=el=>{
             const n=el.getAttribute('data-motion-hover-name');
             if(n&&_M[n]){
                 const{kf,opts}=_M[n];
@@ -44,10 +57,8 @@ export function MotionInView() {
                 el.addEventListener('mouseleave',leave);
                 hoverHandlers.push({el,enter,leave});
             }
-        });
-        // @press: mouse down/up animations
-        const pressHandlers=[];
-        document.querySelectorAll('[data-motion-press]').forEach(el=>{
+        };
+        const setupPress=el=>{
             const n=el.getAttribute('data-motion-press-name');
             if(n&&_M[n]){
                 const{kf,opts}=_M[n];
@@ -57,7 +68,24 @@ export function MotionInView() {
                 el.addEventListener('mouseup',up);
                 pressHandlers.push({el,down,up});
             }
+        };
+        document.querySelectorAll('[data-motion-hover]').forEach(setupHover);
+        document.querySelectorAll('[data-motion-press]').forEach(setupPress);
+        const obs=new MutationObserver(muts=>{
+            muts.forEach(mut=>{
+                mut.addedNodes.forEach(node=>{
+                    if(node.nodeType===1){
+                        if(node.matches&&node.matches('[data-motion-hover]'))setupHover(node);
+                        if(node.matches&&node.matches('[data-motion-press]'))setupPress(node);
+                        if(node.querySelectorAll){
+                            node.querySelectorAll('[data-motion-hover]').forEach(setupHover);
+                            node.querySelectorAll('[data-motion-press]').forEach(setupPress);
+                        }
+                    }
+                });
+            });
         });
+        obs.observe(document.body,{childList:true,subtree:true});
         return()=>{
             hoverHandlers.forEach(({el,enter,leave})=>{
                 el.removeEventListener('mouseenter',enter);
@@ -67,13 +95,13 @@ export function MotionInView() {
                 el.removeEventListener('mousedown',down);
                 el.removeEventListener('mouseup',up);
             });
+            obs.disconnect();
         };
     },[]);
-    // @in-view: IntersectionObserver for entrance animations
+    // @in-view: IntersectionObserver for entrance animations + MutationObserver
     useEffect(() => {
-        const els = document.querySelectorAll('[data-motion-inview]');
         const observers = [];
-        els.forEach(el => {
+        const setupInview = (el) => {
             const threshold = parseFloat(el.getAttribute('data-inview-threshold') || '0');
             const observer = new IntersectionObserver((entries) => {
                 entries.forEach(entry => {
@@ -91,8 +119,20 @@ export function MotionInView() {
             }, { threshold });
             observer.observe(el);
             observers.push(observer);
+        };
+        document.querySelectorAll('[data-motion-inview]').forEach(setupInview);
+        const obs = new MutationObserver(muts => {
+            muts.forEach(mut => {
+                mut.addedNodes.forEach(node => {
+                    if (node.nodeType === 1) {
+                        if (node.matches && node.matches('[data-motion-inview]')) setupInview(node);
+                        if (node.querySelectorAll) node.querySelectorAll('[data-motion-inview]').forEach(setupInview);
+                    }
+                });
+            });
         });
-        return () => observers.forEach(o => o.disconnect());
+        obs.observe(document.body, { childList: true, subtree: true });
+        return () => { observers.forEach(o => o.disconnect()); obs.disconnect(); };
     }, []);
 
     return (

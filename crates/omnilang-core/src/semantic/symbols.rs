@@ -26,6 +26,8 @@ pub enum SymbolKind {
     Component,
     Getter,
     Param,
+    /// Module-level const declaration — `const NAME = <expr>;`
+    Const,
     Unknown,
 }
 
@@ -130,7 +132,7 @@ impl SymbolTable {
         self.scope_by_name.get(name).copied()
     }
 
-    // ── Read-only accessors ────────────────────────────
+    // -- Read-only accessors ----------------------------
 
     /// Return the current scope index.
     #[must_use]

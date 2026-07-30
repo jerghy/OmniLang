@@ -952,7 +952,7 @@ fn test_component_with_lifecycle_mount() {
                     }],
                 },
             }],
-            view: Some(ViewTree::Element(make_element("div"))),
+            view: Some(ViewTree::Element(Box::new(make_element("div")))),
             ..make_component("App")
         },
     );
@@ -1053,11 +1053,11 @@ fn test_html_element_with_attributes() {
             value: serde_json::json!("label"),
         },
     );
-    el.children = vec![ViewTree::Element(child)];
+    el.children = vec![ViewTree::Element(Box::new(child))];
     module.components.insert(
         "App".to_string(),
         ComponentIR {
-            view: Some(ViewTree::Element(el)),
+            view: Some(ViewTree::Element(Box::new(el))),
             ..make_component("App")
         },
     );
@@ -1074,7 +1074,7 @@ fn test_html_data_nid_present() {
     module.components.insert(
         "App".to_string(),
         ComponentIR {
-            view: Some(ViewTree::Element(make_element("button"))),
+            view: Some(ViewTree::Element(Box::new(make_element("button")))),
             ..make_component("App")
         },
     );
@@ -1105,7 +1105,7 @@ fn test_html_interpolation() {
                     value: serde_json::json!("World"),
                 },
             }],
-            view: Some(ViewTree::Element(el)),
+            view: Some(ViewTree::Element(Box::new(el))),
             ..make_component("App")
         },
     );
@@ -1132,9 +1132,9 @@ fn test_html_conditional() {
                         name: "show".into(),
                         type_ann: None,
                     },
-                    body: Some(ViewTree::Element(visible_el)),
+                    body: Some(ViewTree::Element(Box::new(visible_el))),
                 }],
-                fallback: Some(ViewTree::Element(hidden_el)),
+                fallback: Some(ViewTree::Element(Box::new(hidden_el))),
                 transition_mode: None,
             }))),
             ..make_component("App")
@@ -1174,7 +1174,7 @@ fn test_full_pipeline_component_only() {
                     value: serde_json::json!(0),
                 },
             }],
-            view: Some(ViewTree::Element(el)),
+            view: Some(ViewTree::Element(Box::new(el))),
             ..make_component("App")
         },
     );
@@ -1237,7 +1237,7 @@ fn test_full_pipeline_component_with_store() {
         "App".to_string(),
         ComponentIR {
             store_refs: vec!["AppStore".into()],
-            view: Some(ViewTree::Element(make_element("div"))),
+            view: Some(ViewTree::Element(Box::new(make_element("div")))),
             ..make_component("App")
         },
     );
@@ -1276,7 +1276,7 @@ fn test_event_binding_click() {
 
                 source_span: None,
             }],
-            view: Some(ViewTree::Element(el)),
+            view: Some(ViewTree::Element(Box::new(el))),
             ..make_component("App")
         },
     );
@@ -1348,7 +1348,7 @@ fn test_style_emission() {
     module.components.insert(
         "App".to_string(),
         ComponentIR {
-            view: Some(ViewTree::Element(make_element("div"))),
+            view: Some(ViewTree::Element(Box::new(make_element("div")))),
             styles: vec![StyleRuleIR {
                 class_name: "myClass".into(),
                 properties: FxHashMap::from_iter([(
@@ -1385,7 +1385,7 @@ fn test_source_map_entries() {
     module.components.insert(
         "App".to_string(),
         ComponentIR {
-            view: Some(ViewTree::Element(el)),
+            view: Some(ViewTree::Element(Box::new(el))),
             ..make_component("App")
         },
     );
@@ -1422,7 +1422,7 @@ fn test_runtime_error_reporting() {
                     value: serde_json::json!("World"),
                 },
             }],
-            view: Some(ViewTree::Element(el)),
+            view: Some(ViewTree::Element(Box::new(el))),
             ..make_component("App")
         },
     );
@@ -1476,7 +1476,7 @@ fn test_theme_runtime_emitted_when_design_has_themes() {
     module.components.insert(
         "App".to_string(),
         ComponentIR {
-            view: Some(ViewTree::Element(make_element("div"))),
+            view: Some(ViewTree::Element(Box::new(make_element("div")))),
             ..make_component("App")
         },
     );
@@ -1526,7 +1526,7 @@ fn test_theme_runtime_not_emitted_without_themes() {
     module.components.insert(
         "App".to_string(),
         ComponentIR {
-            view: Some(ViewTree::Element(make_element("div"))),
+            view: Some(ViewTree::Element(Box::new(make_element("div")))),
             ..make_component("App")
         },
     );
@@ -1551,7 +1551,7 @@ fn slot_projection_inlines_parent_children_into_default_slot() {
     module.components.insert(
         "Button".to_string(),
         ComponentIR {
-            view: Some(ViewTree::Element(btn_div)),
+            view: Some(ViewTree::Element(Box::new(btn_div))),
             ..make_component("Button")
         },
     );
@@ -1562,7 +1562,7 @@ fn slot_projection_inlines_parent_children_into_default_slot() {
     module.components.insert(
         "App".to_string(),
         ComponentIR {
-            view: Some(ViewTree::Element(app_el)),
+            view: Some(ViewTree::Element(Box::new(app_el))),
             ..make_component("App")
         },
     );
@@ -1587,7 +1587,7 @@ fn slot_projection_maps_named_slots_correctly() {
     module.components.insert(
         "Panel".to_string(),
         ComponentIR {
-            view: Some(ViewTree::Element(panel_div)),
+            view: Some(ViewTree::Element(Box::new(panel_div))),
             ..make_component("Panel")
         },
     );
@@ -1603,11 +1603,11 @@ fn slot_projection_maps_named_slots_correctly() {
     span.children = vec![ViewTree::Text("H".into())];
 
     let mut app_el = make_element("Panel");
-    app_el.children = vec![ViewTree::Element(span), ViewTree::Text("body".into())];
+    app_el.children = vec![ViewTree::Element(Box::new(span)), ViewTree::Text("body".into())];
     module.components.insert(
         "App".to_string(),
         ComponentIR {
-            view: Some(ViewTree::Element(app_el)),
+            view: Some(ViewTree::Element(Box::new(app_el))),
             ..make_component("App")
         },
     );

@@ -851,7 +851,7 @@ mod tests {
             construction_kind: ConstructionKind::Static,
             source_span: None,
         };
-        crate::codegen::dioxus::gen_view_node_dioxus(&mut w, &ViewTree::Element(el), true);
+        crate::codegen::dioxus::gen_view_node_dioxus(&mut w, &ViewTree::Element(Box::new(el)), true);
         let out = w.into_string();
         // Dangerous javascript: URL should be neutralized to empty string
         assert!(out.contains(r#"href: ""#));
@@ -882,7 +882,7 @@ mod tests {
             construction_kind: ConstructionKind::Static,
             source_span: None,
         };
-        crate::codegen::dioxus::gen_view_node_dioxus(&mut w, &ViewTree::Element(el), true);
+        crate::codegen::dioxus::gen_view_node_dioxus(&mut w, &ViewTree::Element(Box::new(el)), true);
         let out = w.into_string();
         // Safe URL should pass through unchanged
         assert!(out.contains(r#"href: "https://example.com""#));
@@ -912,7 +912,7 @@ mod tests {
             construction_kind: ConstructionKind::Static,
             source_span: None,
         };
-        crate::codegen::dioxus::gen_view_node_dioxus(&mut w, &ViewTree::Element(el), true);
+        crate::codegen::dioxus::gen_view_node_dioxus(&mut w, &ViewTree::Element(Box::new(el)), true);
         let out = w.into_string();
         // data: URL in src should be neutralized
         assert!(out.contains(r#"src: ""#));
@@ -943,7 +943,7 @@ mod tests {
             construction_kind: ConstructionKind::Static,
             source_span: None,
         };
-        crate::codegen::dioxus::gen_view_node_dioxus(&mut w, &ViewTree::Element(el), true);
+        crate::codegen::dioxus::gen_view_node_dioxus(&mut w, &ViewTree::Element(Box::new(el)), true);
         let out = w.into_string();
         // Non-URL attributes should not be sanitized
         assert!(out.contains(r#"title: "javascript:not-a-url""#));

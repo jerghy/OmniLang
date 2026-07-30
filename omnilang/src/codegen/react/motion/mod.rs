@@ -64,11 +64,11 @@ pub(super) fn emit_motion_effects_tsx(
     w.emit("};");
     w.emit("");
 
-    // ── Effect 1: @enter (mount-only) ──
-    w.emit("// @enter: mount animations (empty deps = mount only)");
+    // ── Effect 1: @enter (mount-only + MutationObserver for conditional rendering) ──
+    w.emit("// @enter: mount animations + MutationObserver for conditional rendering");
     w.emit("useEffect(()=>{");
     w.indent();
-    w.emit("document.querySelectorAll('[data-motion-enter]').forEach(el=>{");
+    w.emit("const runEnter=el=>{");
     w.indent();
     w.emit("const n=el.getAttribute('data-motion-name');");
     w.emit("if(n&&_M[n]){");
@@ -78,19 +78,40 @@ pub(super) fn emit_motion_effects_tsx(
     w.dedent();
     w.emit("}");
     w.dedent();
+    w.emit("};");
+    w.emit("document.querySelectorAll('[data-motion-enter]').forEach(runEnter);");
+    w.emit("const obs=new MutationObserver(muts=>{");
+    w.indent();
+    w.emit("muts.forEach(mut=>{");
+    w.indent();
+    w.emit("mut.addedNodes.forEach(node=>{");
+    w.indent();
+    w.emit("if(node.nodeType===1){");
+    w.indent();
+    w.emit("if(node.matches&&node.matches('[data-motion-enter]'))runEnter(node);");
+    w.emit("if(node.querySelectorAll)node.querySelectorAll('[data-motion-enter]').forEach(runEnter);");
+    w.dedent();
+    w.emit("}");
+    w.dedent();
     w.emit("});");
+    w.dedent();
+    w.emit("});");
+    w.dedent();
+    w.emit("});");
+    w.emit("obs.observe(document.body,{childList:true,subtree:true});");
+    w.emit("return()=>obs.disconnect();");
     w.dedent();
     w.emit("},[]);");
     w.emit("");
 
-    // ── Effect 2: interactive triggers (@hover, @press) with cleanup ──
-    w.emit("// @hover/@press: interactive triggers with cleanup");
+    // ── Effect 2: interactive triggers (@hover, @press) with cleanup + MutationObserver ──
+    w.emit("// @hover/@press: interactive triggers with cleanup + MutationObserver");
     w.emit("useEffect(()=>{");
     w.indent();
-    // @hover: mouse enter/leave
-    w.emit("// @hover: mouse enter/leave animations");
     w.emit("const hoverHandlers=[];");
-    w.emit("document.querySelectorAll('[data-motion-hover]').forEach(el=>{");
+    w.emit("const pressHandlers=[];");
+    // @hover setup function
+    w.emit("const setupHover=el=>{");
     w.indent();
     w.emit("const n=el.getAttribute('data-motion-hover-name');");
     w.emit("if(n&&_M[n]){");
@@ -104,11 +125,9 @@ pub(super) fn emit_motion_effects_tsx(
     w.dedent();
     w.emit("}");
     w.dedent();
-    w.emit("});");
-    // @press: mouse down/up
-    w.emit("// @press: mouse down/up animations");
-    w.emit("const pressHandlers=[];");
-    w.emit("document.querySelectorAll('[data-motion-press]').forEach(el=>{");
+    w.emit("};");
+    // @press setup function
+    w.emit("const setupPress=el=>{");
     w.indent();
     w.emit("const n=el.getAttribute('data-motion-press-name');");
     w.emit("if(n&&_M[n]){");
@@ -122,7 +141,36 @@ pub(super) fn emit_motion_effects_tsx(
     w.dedent();
     w.emit("}");
     w.dedent();
+    w.emit("};");
+    // Process existing elements
+    w.emit("document.querySelectorAll('[data-motion-hover]').forEach(setupHover);");
+    w.emit("document.querySelectorAll('[data-motion-press]').forEach(setupPress);");
+    // MutationObserver for conditionally rendered elements
+    w.emit("const obs=new MutationObserver(muts=>{");
+    w.indent();
+    w.emit("muts.forEach(mut=>{");
+    w.indent();
+    w.emit("mut.addedNodes.forEach(node=>{");
+    w.indent();
+    w.emit("if(node.nodeType===1){");
+    w.indent();
+    w.emit("if(node.matches&&node.matches('[data-motion-hover]'))setupHover(node);");
+    w.emit("if(node.matches&&node.matches('[data-motion-press]'))setupPress(node);");
+    w.emit("if(node.querySelectorAll){");
+    w.indent();
+    w.emit("node.querySelectorAll('[data-motion-hover]').forEach(setupHover);");
+    w.emit("node.querySelectorAll('[data-motion-press]').forEach(setupPress);");
+    w.dedent();
+    w.emit("}");
+    w.dedent();
+    w.emit("}");
+    w.dedent();
     w.emit("});");
+    w.dedent();
+    w.emit("});");
+    w.dedent();
+    w.emit("});");
+    w.emit("obs.observe(document.body,{childList:true,subtree:true});");
     // Cleanup
     w.emit("return()=>{");
     w.indent();
@@ -138,6 +186,7 @@ pub(super) fn emit_motion_effects_tsx(
     w.emit("el.removeEventListener('mouseup',up);");
     w.dedent();
     w.emit("});");
+    w.emit("obs.disconnect();");
     w.dedent();
     w.emit("};");
     w.dedent();
