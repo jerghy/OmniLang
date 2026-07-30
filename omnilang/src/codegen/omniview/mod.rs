@@ -406,6 +406,30 @@ pub fn generate(
             }
         }
 
+        // ── Phase 2: Dynamic token effects ──
+        // Generate __omni_effect blocks for tokens with runtime expression values.
+        // These set CSS custom properties on document.documentElement reactively.
+        // Pre-collect to avoid borrow checker conflict between design_map (immutable)
+        // and expr_to_js (mutable borrow of generator).
+        let dynamic_tokens: Vec<(String, ExprIR)> = gen
+            .design_map
+            .values()
+            .flat_map(|d| d.tokens.iter())
+            .filter_map(|(name, token)| match &token.value {
+                TokenValueIR::Dynamic(expr) => Some((name.clone(), expr.clone())),
+                _ => None,
+            })
+            .collect();
+        if !dynamic_tokens.is_empty() {
+            // Separate steps to satisfy the borrow checker: the closure captures
+            // &mut gen for expr_to_js, so the call must finish before gen.js is accessed.
+            let effects_js = design::emit_dynamic_token_effects(
+                &dynamic_tokens,
+                |expr| gen.expr_to_js(expr),
+            );
+            gen.js.push_str(&effects_js);
+        }
+
         gen.emit_dom_and_bindings();
         // Inject editor bridge code (postMessage, nid_map, highlight, hot-replace)
         gen.emit_editor_bridge();

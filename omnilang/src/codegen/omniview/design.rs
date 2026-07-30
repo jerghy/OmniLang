@@ -12,6 +12,7 @@
 
 use crate::codegen::{camel_to_kebab, sanitize_css_value};
 use crate::ir::design::*;
+use crate::ir::ExprIR;
 use rustc_hash::FxHashMap;
 use std::fmt::Write;
 
@@ -257,6 +258,43 @@ pub fn resolve_class_pseudo_states<'a>(
         .find(|c| c.name == class_name)
         .map(|c| c.pseudo_states.as_slice())
         .unwrap_or(&[])
+}
+
+/// Emit JS `__omni_effect` blocks for all dynamic design tokens.
+///
+/// Takes a pre-collected slice of `(token_name, ExprIR)` pairs and a
+/// function that converts each `ExprIR` into its JavaScript expression string.
+///
+/// For each pair, generates:
+/// ```javascript
+/// __omni_effect(() => {
+///   const root = document.documentElement;
+///   root.style.setProperty("--name", __omni_sanitizeCss(expr));
+/// });
+/// ```
+///
+/// This sets CSS custom properties on `<html>` at runtime, giving them
+/// the highest CSS specificity (inline style on root element).
+pub fn emit_dynamic_token_effects<F>(
+    tokens: &[(String, ExprIR)],
+    mut expr_to_js: F,
+) -> String
+where
+    F: FnMut(&ExprIR) -> String,
+{
+    let mut js = String::new();
+    for (name, expr) in tokens {
+        let js_expr = expr_to_js(expr);
+        let _ = writeln!(
+            js,
+            "__omni_effect(() => {{\n\
+             \x20 const root = document.documentElement;\n\
+             \x20 root.style.setProperty(\"--{}\", __omni_sanitizeCss({}));\n\
+             }});\n",
+            name, js_expr
+        );
+    }
+    js
 }
 
 // Tests moved to tests_regression/design.rs

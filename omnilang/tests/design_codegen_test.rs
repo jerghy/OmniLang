@@ -168,3 +168,54 @@ fn css_output_skips_dynamic_tokens() {
         css
     );
 }
+
+#[test]
+fn emits_js_effect_for_dynamic_token() {
+    let tokens = vec![(
+        "primary".to_string(),
+        ExprIR::FieldAccessExpr {
+            object: Box::new(ExprIR::IdentifierExpr {
+                name: "ThemeStore".to_string(),
+                type_ann: None,
+            }),
+            field: "primaryColor".to_string(),
+        },
+    )];
+
+    let js = emit_dynamic_token_effects(&tokens, |expr| match expr {
+        ExprIR::FieldAccessExpr { object, field } => {
+            if let ExprIR::IdentifierExpr { name, .. } = object.as_ref() {
+                format!("{}_{}.value", name, field)
+            } else {
+                String::new()
+            }
+        }
+        _ => String::new(),
+    });
+
+    assert!(
+        js.contains("__omni_effect"),
+        "should emit __omni_effect, got:\n{}",
+        js
+    );
+    assert!(
+        js.contains("--primary"),
+        "should set --primary CSS variable, got:\n{}",
+        js
+    );
+    assert!(
+        js.contains("ThemeStore_primaryColor.value"),
+        "should reference signal value, got:\n{}",
+        js
+    );
+    assert!(
+        js.contains("style.setProperty"),
+        "should use setProperty, got:\n{}",
+        js
+    );
+    assert!(
+        js.contains("__omni_sanitizeCss"),
+        "should call __omni_sanitizeCss, got:\n{}",
+        js
+    );
+}
