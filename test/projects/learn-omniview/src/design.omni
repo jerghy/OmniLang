@@ -84,6 +84,8 @@ design LearnDesign {
     token fontWeightSemibold: fontWeight = "600";
     token fontWeightBold: fontWeight = "700";
     token lineHeight: lineHeight = "1.5";
+    token letterSpacing: letterSpacing = "0px";
+    token easing: easing = "ease";
 
     // ── 过渡时长 ──
     token durationFast: duration = "150ms";
