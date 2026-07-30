@@ -1,6 +1,7 @@
 //! Symbol table and scope types for semantic analysis.
 
 use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 /// A single symbol (variable, function, signal, etc.)
 #[derive(Debug, Clone)]
 pub struct Symbol {
@@ -158,6 +159,28 @@ impl SymbolTable {
     #[must_use]
     pub fn scopes(&self) -> &[Scope] {
         &self.scopes
+    }
+
+    /// Collect all symbol names visible from the current scope (walking up the parent chain).
+    /// Returns names in no particular order, without duplicates.
+    #[must_use]
+    pub fn all_visible_names(&self) -> Vec<String> {
+        let mut names = Vec::new();
+        let mut seen = FxHashSet::default();
+        let mut scope_idx = Some(self.current_scope);
+        while let Some(idx) = scope_idx {
+            if let Some(scope) = self.scopes.get(idx) {
+                for name in scope.symbols.keys() {
+                    if seen.insert(name.clone()) {
+                        names.push(name.clone());
+                    }
+                }
+                scope_idx = scope.parent;
+            } else {
+                break;
+            }
+        }
+        names
     }
 }
 

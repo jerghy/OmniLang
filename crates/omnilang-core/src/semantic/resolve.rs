@@ -19,6 +19,7 @@ use super::validate_types::{
     check_assignment, check_binary_op, check_call, check_return, infer_expr_type,
 };
 use super::SemanticAnalyzer;
+use crate::error::suggest_similar_name;
 use crate::error::Diagnostic;
 use crate::error::DiagnosticKind;
 use crate::parser::ast::*;
@@ -344,11 +345,19 @@ impl SemanticAnalyzer {
         match expr {
             Expr::VarRef(name, span) => {
                 if !self.symbols.contains(name) && !self.resolving_interpolation {
-                    self.diagnostics.push(Diagnostic::error(
+                    let all_names = self.symbols.all_visible_names();
+                    let known_names: Vec<&str> = all_names.iter().map(|s| s.as_str()).collect();
+                    let suggestion = suggest_similar_name(name, &known_names)
+                        .map(|s| format!("did you mean '{}'?", s));
+                    let mut diag = Diagnostic::error(
                         DiagnosticKind::E0001,
                         &format!("Undeclared variable '{}'", name),
                         span,
-                    ));
+                    );
+                    if let Some(ref sug) = suggestion {
+                        diag = diag.with_suggestion(sug);
+                    }
+                    self.diagnostics.push(diag);
                 }
             }
             Expr::BinaryOp {
