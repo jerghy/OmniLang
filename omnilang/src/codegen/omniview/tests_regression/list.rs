@@ -200,10 +200,14 @@ fn test_list_with_key_and_empty_state() {
         "should clone empty template content"
     );
 
-    // FLIP animation recording
+    // FLIP animation recording — flipBefore must run BEFORE the while-remove loop
+    let flip_before_pos = gen.js.find("Omni.flipBefore(parent)").unwrap();
+    let clear_pos = gen.js.find("while (tpl.nextElementSibling").unwrap();
     assert!(
-        gen.js.contains("Omni.flipBefore(parent)"),
-        "should record FLIP positions before"
+        flip_before_pos < clear_pos,
+        "flipBefore should run BEFORE clearing loop, got flipBefore at {} and clear at {}",
+        flip_before_pos,
+        clear_pos
     );
     assert!(
         gen.js.contains("Omni.flipAfter(parent)"),

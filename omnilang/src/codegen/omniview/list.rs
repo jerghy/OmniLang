@@ -113,6 +113,10 @@ impl OmniViewGenerator {
         // Re-render loop
         // If key_expr is present, use key-based identity tracking for enter/leave animations.
         // Otherwise, clear and re-render all items.
+        // FLIP: record element positions BEFORE clearing (must run before removal)
+        if list.key_expr.is_some() {
+            self.js.push_str("  Omni.flipBefore(parent);\n");
+        }
         // Clear existing rendered items (elements between tpl template and container marker)
         self.js.push_str("  // Clear existing rendered items\n");
         self.js
@@ -182,11 +186,6 @@ impl OmniViewGenerator {
                 &mut for_event_kinds,
                 &mut used_fields_by_kind,
             );
-        }
-
-        // FLIP: record element positions before re-render (for @for with key)
-        if has_key {
-            self.js.push_str("  Omni.flipBefore(parent);\n");
         }
 
         // Iterate and clone
