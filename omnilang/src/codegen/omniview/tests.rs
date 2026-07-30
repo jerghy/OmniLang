@@ -521,7 +521,7 @@ fn test_expr_array() {
 #[test]
 fn test_expr_store_field_access() {
     let mut gen = OmniViewGenerator::default();
-    gen.store_names.insert("AppStore".into());
+    gen.name_resolver.store_names.insert("AppStore".into());
     let js = gen.expr_to_js(&ExprIR::StoreFieldAccessExpr {
         store_alias: "AppStore".into(),
         field_name: "count".into(),
@@ -707,8 +707,8 @@ fn test_stmt_mutation_increment() {
 #[test]
 fn test_stmt_mutation_signal_set() {
     let mut gen = OmniViewGenerator::default();
-    gen.scope.signal_names.insert("App_count".into());
-    gen.scope
+    gen.name_resolver.signal_names.insert("App_count".into());
+    gen.name_resolver
         .name_renames
         .insert("count".into(), "App_count".into());
     gen.emit_statement(&StatementIR::MutationStmt {

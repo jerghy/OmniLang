@@ -52,7 +52,7 @@ impl OmniViewGenerator {
             self.scope.for_text_bindings.clear();
             self.scope.for_class_bindings.clear();
             self.scope.for_attr_bindings.clear();
-            self.for_state_names.clear();
+            self.name_resolver.for_state_names.clear();
             // Set rebind function name for this @for loop
             let rebind_name = format!(
                 "__omni_rebind_{}_{}",

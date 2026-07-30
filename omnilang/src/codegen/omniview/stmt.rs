@@ -10,8 +10,7 @@ impl OmniViewGenerator {
                 let safe_name = super::super::sanitize_js_ident(name);
                 // Register rename for body references
                 if safe_name != *name {
-                    self.scope
-                        .name_renames
+                    self.name_resolver.name_renames
                         .insert(name.clone(), safe_name.clone());
                 }
                 let val = value
@@ -123,7 +122,7 @@ impl OmniViewGenerator {
             StatementIR::EventEmitStmtIR { event_name, args } => {
                 let arg_str: Vec<String> = args.iter().map(|a| self.expr_to_js(a)).collect();
                 let resolved_name = self
-                    .scope
+                    .name_resolver
                     .name_renames
                     .get(event_name.as_str())
                     .cloned()
@@ -206,7 +205,7 @@ impl OmniViewGenerator {
         js_op: &str,
         default: &str,
     ) {
-        let is_signal = self.scope.signal_names.contains(t) || self.store_signal_names.contains(t);
+        let is_signal = self.name_resolver.signal_names.contains(t) || self.name_resolver.store_signal_names.contains(t);
         let amt = amount
             .as_ref()
             .map(|v| self.expr_to_js(v))
@@ -226,7 +225,7 @@ impl OmniViewGenerator {
 
     pub(super) fn emit_mutation(&mut self, intent: &MutationIntent) {
         let resolve_target = |sig_ref: &SignalRefIR| -> String {
-            self.scope
+            self.name_resolver
                 .name_renames
                 .get(sig_ref.name.as_str())
                 .cloned()
@@ -237,7 +236,7 @@ impl OmniViewGenerator {
             MutationIntent::DirectAssign { target, value } => {
                 let t = resolve_target(target);
                 let is_signal =
-                    self.scope.signal_names.contains(&t) || self.store_signal_names.contains(&t);
+                    self.name_resolver.signal_names.contains(&t) || self.name_resolver.store_signal_names.contains(&t);
                 let val = value
                     .as_ref()
                     .map(|v| self.expr_to_js(v))

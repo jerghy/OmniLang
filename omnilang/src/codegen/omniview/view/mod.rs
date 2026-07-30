@@ -179,7 +179,7 @@ impl OmniViewGenerator {
                     let js_expr = self.expr_to_js(expr);
                     // Strip trailing () for signal/computed name lookup
                     let js_expr_base = js_expr.trim_end_matches("()");
-                    let value_access = if self.scope.signal_names.contains(js_expr_base) {
+                    let value_access = if self.name_resolver.signal_names.contains(js_expr_base) {
                         format!("{}.value", js_expr_base)
                     } else {
                         js_expr

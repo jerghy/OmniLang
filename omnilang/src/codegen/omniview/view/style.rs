@@ -34,10 +34,10 @@ impl OmniViewGenerator {
                             // Dynamic style: signal reference → JS effect
                             if let Some(sig_name) = obj.get("$signal").and_then(|v| v.as_str()) {
                                 let prefixed = self
-                                    .scope
+                                    .name_resolver
                                     .name_renames
                                     .get(sig_name)
-                                    .or_else(|| self.global_renames.get(sig_name))
+                                    .or_else(|| self.name_resolver.global_renames.get(sig_name))
                                     .cloned()
                                     .unwrap_or_else(|| sig_name.to_string());
                                 // Use camelCase for JS el.style, not kebab-case
@@ -64,7 +64,7 @@ impl OmniViewGenerator {
                                             part_obj.get("$signal").and_then(|v| v.as_str())
                                         {
                                             let prefixed = self
-                                                .scope
+                                                .name_resolver
                                                 .name_renames
                                                 .get(sig_name)
                                                 .cloned()
@@ -96,6 +96,7 @@ impl OmniViewGenerator {
                                     call_obj.get("args").and_then(|v| v.as_array()),
                                 ) {
                                     let prefixed = self
+                                        .name_resolver
                                         .global_renames
                                         .get(fn_name)
                                         .cloned()

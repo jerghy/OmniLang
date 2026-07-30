@@ -16,7 +16,7 @@ impl OmniViewGenerator {
         pad: &str,
     ) -> Option<String> {
         self.assert_can_emit_js();
-        if let Some(child_comp) = self.component_map.get(&el.tag).map(Arc::clone) {
+        if let Some(child_comp) = self.name_resolver.component_map.get(&el.tag).map(Arc::clone) {
             if let Some(ref child_view) = child_comp.view {
                 // Save and update current component context
                 let saved_scope = ComponentScope::take(self);
@@ -37,25 +37,23 @@ impl OmniViewGenerator {
                     for state in &child_comp.signals {
                         let prefixed = format!("{}_{}", child_comp.name, state.name);
                         let default_js = self.expr_to_js(&state.initial_value);
-                        self.scope
-                            .name_renames
+                        self.name_resolver.name_renames
                             .insert(state.name.clone(), prefixed.clone());
-                        self.for_state_names
+                        self.name_resolver.for_state_names
                             .insert(prefixed, (state.name.clone(), default_js));
                     }
                     for c in &child_comp.computeds {
                         let prefixed = format!("{}_{}", child_comp.name, c.name);
-                        self.scope
-                            .name_renames
+                        self.name_resolver.name_renames
                             .insert(c.name.clone(), prefixed.clone());
-                        self.scope.signal_names.insert(prefixed);
+                        self.name_resolver.signal_names.insert(prefixed);
                     }
                     // Add child component functions so class: map and call
                     // expressions in the inlined view resolve to the correct
                     // prefixed name (e.g. isActive -> TabPanel_isActive).
                     for f in &child_comp.fns {
                         let prefixed = format!("{}_{}", child_comp.name, f.name);
-                        self.scope.name_renames.insert(f.name.clone(), prefixed);
+                        self.name_resolver.name_renames.insert(f.name.clone(), prefixed);
                     }
                     // Props: map to their value expression (which references
                     // the @for loop variable), not to prefixed signal names.
@@ -64,42 +62,39 @@ impl OmniViewGenerator {
                     // expr_to_js to emit "text.value" instead of the mapped "item".
                     for (prop_name, prop_value) in &el.props {
                         let js_value = self.expr_to_js(prop_value);
-                        self.scope.name_renames.insert(prop_name.clone(), js_value);
+                        self.name_resolver.name_renames.insert(prop_name.clone(), js_value);
                     }
                     // Default props that aren't passed: use prefixed names.
                     for prop_name in child_comp.prop_defaults.keys() {
                         if !el.props.contains_key(prop_name) {
                             let prefixed = format!("{}_{}", child_comp.name, prop_name);
-                            self.scope
-                                .name_renames
+                            self.name_resolver.name_renames
                                 .insert(prop_name.clone(), prefixed.clone());
-                            self.scope.signal_names.insert(prefixed);
+                            self.name_resolver.signal_names.insert(prefixed);
                         }
                     }
                 } else {
                     // Normal (non-@for) mode: use prefixed signal names.
                     for state in &child_comp.signals {
                         let prefixed = format!("{}_{}", child_comp.name, state.name);
-                        self.scope
-                            .name_renames
+                        self.name_resolver.name_renames
                             .insert(state.name.clone(), prefixed.clone());
-                        self.scope.signal_names.insert(prefixed);
+                        self.name_resolver.signal_names.insert(prefixed);
                     }
                     for c in &child_comp.computeds {
                         let prefixed = format!("{}_{}", child_comp.name, c.name);
-                        self.scope
-                            .name_renames
+                        self.name_resolver.name_renames
                             .insert(c.name.clone(), prefixed.clone());
-                        self.scope.signal_names.insert(prefixed);
+                        self.name_resolver.signal_names.insert(prefixed);
                     }
                     // Add store signal/getter names for .value access when the
                     // child component references stores (e.g. {TodoStore.totalCount}).
                     // store_signal_names is populated globally during emit_store.
                     for store_name in &child_comp.store_refs {
                         let prefix = format!("{}_", store_name);
-                        for name in &self.store_signal_names {
+                        for name in &self.name_resolver.store_signal_names {
                             if name.starts_with(&prefix) {
-                                self.scope.signal_names.insert(name.clone());
+                                self.name_resolver.signal_names.insert(name.clone());
                             }
                         }
                     }
@@ -108,7 +103,7 @@ impl OmniViewGenerator {
                     // prefixed name (e.g. isActive -> TabPanel_isActive).
                     for f in &child_comp.fns {
                         let prefixed = format!("{}_{}", child_comp.name, f.name);
-                        self.scope.name_renames.insert(f.name.clone(), prefixed);
+                        self.name_resolver.name_renames.insert(f.name.clone(), prefixed);
                     }
                     for (prop_name, default_value) in &child_comp.prop_defaults {
                         // Use per-instance signal names (based on nid) so that
@@ -133,10 +128,9 @@ impl OmniViewGenerator {
                             "const {} = __omni_signal(\"{}\", {});",
                             prefixed, prefixed, default_js
                         );
-                        self.scope
-                            .name_renames
+                        self.name_resolver.name_renames
                             .insert(prop_name.clone(), prefixed.clone());
-                        self.scope.signal_names.insert(prefixed);
+                        self.name_resolver.signal_names.insert(prefixed);
                     }
                 }
 
@@ -146,17 +140,16 @@ impl OmniViewGenerator {
                 // rather than a bare `count` identifier.
                 for (name, prefixed) in &saved_scope.name_renames {
                     if saved_scope.signal_names.contains(prefixed.as_str()) {
-                        if !self.scope.name_renames.contains_key(name.as_str()) {
-                            self.scope.signal_names.insert(prefixed.clone());
-                            self.scope
-                                .name_renames
+                        if !self.name_resolver.name_renames.contains_key(name.as_str()) {
+                            self.name_resolver.signal_names.insert(prefixed.clone());
+                            self.name_resolver.name_renames
                                 .insert(name.clone(), prefixed.clone());
                         }
                     }
                 }
 
                 // Extract owned data from child_comp before the mutable borrow
-                // in view_to_html, releasing the borrow on self.component_map.
+                // in view_to_html, releasing the borrow on self.name_resolver.component_map.
                 let child_comp_name = child_comp.name.clone();
                 let for_states_attr =
                     if self.scope.in_for_template && !child_comp.signals.is_empty() {

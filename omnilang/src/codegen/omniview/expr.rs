@@ -13,28 +13,28 @@ impl OmniViewGenerator {
             ExprIR::LiteralExpr { value } => serde_value_to_js(value),
             ExprIR::IdentifierExpr { name, .. } => {
                 let resolved = self
-                    .scope
+                    .name_resolver
                     .name_renames
                     .get(name.as_str())
-                    .or_else(|| self.global_renames.get(name.as_str()))
+                    .or_else(|| self.name_resolver.global_renames.get(name.as_str()))
                     .cloned()
                     .unwrap_or_else(|| name.clone());
-                if self.scope.signal_names.contains(resolved.as_str()) {
+                if self.name_resolver.signal_names.contains(resolved.as_str()) {
                     if self.editor_mode {
                         format!("__omni_subs.get(\"{}\").value", resolved)
                     } else {
                         format!("{}.value", resolved)
                     }
-                } else if self.scope.signal_names.contains(name.as_str()) {
+                } else if self.name_resolver.signal_names.contains(name.as_str()) {
                     if self.editor_mode {
                         format!("__omni_subs.get(\"{}\").value", name)
                     } else {
                         format!("{}.value", name)
                     }
                 } else if self.scope.in_for_template
-                    && self.for_state_names.contains_key(resolved.as_str())
+                    && self.name_resolver.for_state_names.contains_key(resolved.as_str())
                 {
-                    let (orig_name, default_js) = &self.for_state_names[resolved.as_str()];
+                    let (orig_name, default_js) = &self.name_resolver.for_state_names[resolved.as_str()];
                     format!("__omni_forGetState(el, '{}', {})", orig_name, default_js)
                 } else {
                     resolved
@@ -66,10 +66,10 @@ impl OmniViewGenerator {
                     return native;
                 }
                 let resolved = self
-                    .scope
+                    .name_resolver
                     .name_renames
                     .get(name.as_str())
-                    .or_else(|| self.global_renames.get(name.as_str()))
+                    .or_else(|| self.name_resolver.global_renames.get(name.as_str()))
                     .cloned()
                     .unwrap_or_else(|| name.clone());
                 format!("{}({})", resolved, arg_strs.join(", "))
@@ -83,14 +83,14 @@ impl OmniViewGenerator {
                 // Resolve store alias through renames (supports inline stores
                 // where "CartStore" → "InlineStoreDemo")
                 let resolved_alias = self
-                    .scope
+                    .name_resolver
                     .name_renames
                     .get(store_alias.as_str())
                     .cloned()
                     .unwrap_or_else(|| store_alias.clone());
                 let var_name = format!("{}_{}", resolved_alias, field_name);
                 if call_args.is_empty() {
-                    if self.scope.signal_names.contains(&var_name) {
+                    if self.name_resolver.signal_names.contains(&var_name) {
                         format!("{}.value", var_name)
                     } else {
                         var_name.clone()
@@ -124,11 +124,11 @@ impl OmniViewGenerator {
                     String::new()
                 };
                 let base = self.expr_to_js(object);
-                if self.store_names.contains(&raw_store_name) || self.store_names.contains(&base) {
+                if self.name_resolver.store_names.contains(&raw_store_name) || self.name_resolver.store_names.contains(&base) {
                     // First try: resolve the method through name_renames (handles inline stores
                     // where the store action is merged as a component function, e.g.
                     // CartStore.addItem → InlineStoreDemo_addItem)
-                    if let Some(resolved_fn) = self.scope.name_renames.get(method.as_str()).cloned()
+                    if let Some(resolved_fn) = self.name_resolver.name_renames.get(method.as_str()).cloned()
                     {
                         let arg_strs: Vec<String> =
                             args.iter().map(|a| self.expr_to_js(a)).collect();
@@ -136,17 +136,17 @@ impl OmniViewGenerator {
                     }
                     // Fallback: resolve the store name through name_renames
                     let renamed_base = self
-                        .scope
+                        .name_resolver
                         .name_renames
                         .get(raw_store_name.as_str())
-                        .or_else(|| self.scope.name_renames.get(base.as_str()))
+                        .or_else(|| self.name_resolver.name_renames.get(base.as_str()))
                         .cloned()
                         .unwrap_or_else(|| base.clone());
                     let var_name = format!("{}_{}", renamed_base, method);
                     let arg_strs: Vec<String> = args.iter().map(|a| self.expr_to_js(a)).collect();
                     return format!("{}({})", var_name, arg_strs.join(", "));
                 }
-                let obj = if self.scope.signal_names.contains(&base) {
+                let obj = if self.name_resolver.signal_names.contains(&base) {
                     format!("{}.value", base)
                 } else {
                     base
@@ -224,7 +224,7 @@ impl OmniViewGenerator {
             ExprIR::IndexExpr { object, index } => {
                 let obj = self.expr_to_js(object);
                 let idx = self.expr_to_js(index);
-                let obj_access = if self.scope.signal_names.contains(&obj) {
+                let obj_access = if self.name_resolver.signal_names.contains(&obj) {
                     format!("{}.value", obj)
                 } else {
                     obj
@@ -323,16 +323,16 @@ impl OmniViewGenerator {
         };
         let obj = self.expr_to_js(object);
         let check_name = raw_obj_name.as_deref().unwrap_or(&obj);
-        if self.store_names.contains(check_name) || self.store_names.contains(&obj) {
+        if self.name_resolver.store_names.contains(check_name) || self.name_resolver.store_names.contains(&obj) {
             let renamed_obj = self
-                .scope
+                .name_resolver
                 .name_renames
                 .get(check_name)
-                .or_else(|| self.scope.name_renames.get(obj.as_str()))
+                .or_else(|| self.name_resolver.name_renames.get(obj.as_str()))
                 .cloned()
                 .unwrap_or_else(|| obj.clone());
             let var_name = format!("{}_{}", renamed_obj, field);
-            if self.scope.signal_names.contains(&var_name) {
+            if self.name_resolver.signal_names.contains(&var_name) {
                 format!("{}{}", var_name, value_op)
             } else {
                 var_name

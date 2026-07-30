@@ -17,6 +17,8 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 /// All state scoped to a single component during codegen.
 /// Saved before inlining a child component, restored after.
+/// Note: `signal_names` and `name_renames` live on `NameResolver` but are
+/// snapshotted here because they are per-component (cleared per inlining).
 #[derive(Debug, Clone, Default)]
 pub(super) struct ComponentScope {
     pub current_component: String,
@@ -36,8 +38,8 @@ impl ComponentScope {
     pub(super) fn take(gen: &mut super::OmniViewGenerator) -> Self {
         ComponentScope {
             current_component: std::mem::take(&mut gen.scope.current_component),
-            signal_names: std::mem::take(&mut gen.scope.signal_names),
-            name_renames: std::mem::take(&mut gen.scope.name_renames),
+            signal_names: std::mem::take(&mut gen.name_resolver.signal_names),
+            name_renames: std::mem::take(&mut gen.name_resolver.name_renames),
             for_text_bindings: std::mem::take(&mut gen.scope.for_text_bindings),
             for_class_bindings: std::mem::take(&mut gen.scope.for_class_bindings),
             for_attr_bindings: std::mem::take(&mut gen.scope.for_attr_bindings),
@@ -50,8 +52,8 @@ impl ComponentScope {
     /// Restore per-component state back to the generator.
     pub(super) fn restore(self, gen: &mut super::OmniViewGenerator) {
         gen.scope.current_component = self.current_component;
-        gen.scope.signal_names = self.signal_names;
-        gen.scope.name_renames = self.name_renames;
+        gen.name_resolver.signal_names = self.signal_names;
+        gen.name_resolver.name_renames = self.name_renames;
         gen.scope.for_text_bindings = self.for_text_bindings;
         gen.scope.for_class_bindings = self.for_class_bindings;
         gen.scope.for_attr_bindings = self.for_attr_bindings;

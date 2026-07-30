@@ -148,7 +148,7 @@ impl OmniViewGenerator {
     ) {
         match handler {
             EventHandlerIR::FnRef { r#ref, .. } => {
-                if self.motion_names.contains(r#ref.as_str()) {
+                if self.name_resolver.motion_names.contains(r#ref.as_str()) {
                     // Motion reference: call factory and play on event
                     let _ = writeln!(self.js,
                         "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ try {{ if (el.offsetParent !== null) {{ var p = __omni_motion_{motion}(el, {{}}); __omni_animations.set(\"{nid}_{js_event}\", p); p.play(); }} }} catch(err) {{ __omni_reportError(\"error:event:{js_event}\", err); }} }}); }}",

@@ -162,7 +162,7 @@ impl OmniViewGenerator {
                     if is_dynamic {
                         // Dynamic attribute: bind reactively
                         let js_val = self.expr_to_js(value);
-                        let js_access = if self.scope.signal_names.contains(&js_val) {
+                        let js_access = if self.name_resolver.signal_names.contains(&js_val) {
                             format!("{}.value", js_val)
                         } else {
                             js_val
@@ -325,10 +325,10 @@ impl OmniViewGenerator {
             if prop_name == "value" || prop_name == "checked" {
                 // Resolve signal name through renames (component-prefixed or global)
                 let sig_name = self
-                    .scope
+                    .name_resolver
                     .name_renames
                     .get(&binding.name)
-                    .or_else(|| self.global_renames.get(&binding.name))
+                    .or_else(|| self.name_resolver.global_renames.get(&binding.name))
                     .cloned()
                     .unwrap_or_else(|| binding.name.clone());
                 // Prevent infinite loop: guard flag to stop the effect from re-triggering input event
@@ -609,7 +609,7 @@ impl OmniViewGenerator {
     fn emit_class_map_effects(&mut self, el: &ElementIR, nid: &str) {
         for (class_name, binding) in &el.class_map_bindings {
             let js_expr = self.expr_to_js(binding);
-            let js_access = if self.scope.signal_names.contains(&js_expr) {
+            let js_access = if self.name_resolver.signal_names.contains(&js_expr) {
                 format!("{}.value", js_expr)
             } else {
                 js_expr

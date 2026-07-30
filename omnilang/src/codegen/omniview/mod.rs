@@ -14,6 +14,7 @@ pub mod design;
 mod editor;
 mod expr;
 mod list;
+mod name_resolver;
 mod scope;
 #[cfg(feature = "codegen-dts")]
 pub mod typescript;
@@ -197,12 +198,8 @@ pub fn generate(
         source_map: Vec::new(),
         node_counter: 0,
         scope: ComponentScope::new(),
+        name_resolver: name_resolver::NameResolver::default(),
         signal_defaults: FxHashMap::default(),
-        store_signal_names: FxHashSet::default(),
-        store_field_names: FxHashSet::default(),
-        store_names: FxHashSet::default(),
-        global_renames: FxHashMap::default(),
-        component_map: FxHashMap::default(),
         deferred_js: String::new(),
         all_deferred_js: String::new(),
         dom_emitted: false,
@@ -212,8 +209,6 @@ pub fn generate(
         comp_mount_js: String::new(),
         component_js: FxHashMap::default(),
         enter_trigger_nids: Vec::new(),
-        for_state_names: FxHashMap::default(),
-        motion_names: FxHashSet::default(),
         design_names: Vec::new(),
         design_class_names: FxHashSet::default(),
         design_map: FxHashMap::default(),
@@ -271,7 +266,7 @@ pub fn generate(
                     module.name
                 );
                 for motion in &module.motions {
-                    gen.motion_names.insert(motion.name.clone());
+                    gen.name_resolver.motion_names.insert(motion.name.clone());
                     gen.emit_motion_js(motion);
                 }
             }
@@ -280,18 +275,18 @@ pub fn generate(
 
     // Build component map for view inlining
     for (comp_name, comp) in ir.all_components() {
-        gen.component_map
+        gen.name_resolver.component_map
             .insert(comp_name.to_string(), Arc::new(comp.clone()));
         // Pre-register ALL component function & event renames globally.
         // These never get cleared so template interpolations like {getModStatus()}
         // resolve correctly even when the component is inlined as a child.
         for f in &comp.fns {
             let prefixed = format!("{}_{}", comp_name, f.name);
-            gen.global_renames.insert(f.name.clone(), prefixed);
+            gen.name_resolver.global_renames.insert(f.name.clone(), prefixed);
         }
         for event in &comp.events {
             let prefixed = format!("{}_{}", comp_name, event.name);
-            gen.global_renames.insert(event.name.clone(), prefixed);
+            gen.name_resolver.global_renames.insert(event.name.clone(), prefixed);
         }
     }
 
@@ -511,20 +506,8 @@ struct OmniViewGenerator {
     pub(super) scope: ComponentScope,
     /// Default values for signals (name → JS value string), for editor canvas preview
     signal_defaults: FxHashMap<String, String>,
-    /// Store signal/getter names with prefix (e.g. "TodoStore_items") — need .value access
-    store_signal_names: FxHashSet<String>,
-    /// All store field names with prefix (e.g. "TodoStore_items", "TodoStore_add") — defined globally
-    store_field_names: FxHashSet<String>,
-    /// Store names (without prefix) for recognizing store references like "TodoStore"
-    store_names: FxHashSet<String>,
-    /// Global function/event renames — never cleared.
-    /// All component functions/events are registered here so template calls
-    /// like {getModStatus()} resolve to the correct prefixed name.
-    global_renames: FxHashMap<String, String>,
-    /// Cache of all component IRs for view inlining (keyed by component name)
-    component_map: FxHashMap<String, Arc<ComponentIR>>,
-    /// Set of known motion names — used to detect @click={motionName} patterns
-    motion_names: FxHashSet<String>,
+    /// Name resolution state (signal names, store names, renames, component map, etc.)
+    pub(super) name_resolver: name_resolver::NameResolver,
     /// Deferred event/reactive binding JS — emitted AFTER DOM insertion.
     /// This ensures the DOM exists before we try to bind events.
     deferred_js: String,
@@ -550,8 +533,6 @@ struct OmniViewGenerator {
     /// trigger_kind is "enter" or "timeline" — used to build correct replay code.
     /// component_name identifies which component the trigger belongs to for per-component effects.
     enter_trigger_nids: Vec<(String, String, String, String)>,
-    /// @for template: maps child component state names -> (original_name, default_js)
-    for_state_names: FxHashMap<String, (String, String)>,
     /// Design names collected during codegen, used for `data-design` attribute emission.
     design_names: Vec<String>,
     /// Pre-built HashSet of all design class names for O(1) lookup during element codegen.
