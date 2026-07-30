@@ -12,7 +12,7 @@
 //! component / module.
 
 use super::helpers::type_to_string;
-use super::symbols::{Symbol, SymbolKind};
+use super::symbols::{Symbol, SymbolKind, SymbolTable};
 use super::types::SemanticType;
 use super::validate_inline::{check_control_flow, check_expr_await, ValidationContext};
 use super::validate_types::{
@@ -24,6 +24,124 @@ use crate::error::Diagnostic;
 use crate::error::DiagnosticKind;
 use crate::lexer::Span;
 use crate::parser::ast::*;
+
+/// Check that an expression's inferred type is compatible with the design token type.
+///
+/// Compatibility rules (Phase 2):
+/// - `String` / `Any` (unknown) → always compatible (all token types accept CSS string values)
+/// - `Int` / `Float` → compatible with Duration, Opacity, ZIndex, Size, LineHeight
+/// - Everything else → type mismatch diagnostic
+fn check_token_type_compatibility(
+    expr: &Expr,
+    token_type: &TokenType,
+    token_name: &str,
+    symbols: &SymbolTable,
+    scope: usize,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let inferred = infer_token_expr_type(expr, symbols, scope);
+
+    // String and Any are always compatible — CSS custom properties accept any string
+    if matches!(inferred, SemanticType::String | SemanticType::Any) {
+        return;
+    }
+
+    // Numeric types are compatible with numeric-accepting token types
+    if matches!(inferred, SemanticType::Int | SemanticType::Float) {
+        let numeric_ok = matches!(
+            token_type,
+            TokenType::Duration
+                | TokenType::Opacity
+                | TokenType::ZIndex
+                | TokenType::Size
+                | TokenType::LineHeight
+        );
+        if numeric_ok {
+            return;
+        }
+    }
+
+    // Type mismatch — emit diagnostic
+    let type_name = match inferred {
+        SemanticType::Int => "int",
+        SemanticType::Float => "float",
+        SemanticType::Bool => "bool",
+        SemanticType::Void => "void",
+        SemanticType::Null => "null",
+        SemanticType::Named(ref n) => n.as_str(),
+        SemanticType::Array(_) => "array",
+        SemanticType::Map(..) => "map",
+        SemanticType::Optional(_) => "optional",
+        SemanticType::Union(_) => "union",
+        SemanticType::Fn(..) => "function",
+        SemanticType::Any | SemanticType::String => unreachable!(),
+    };
+
+    let token_type_str = token_type_name(token_type);
+
+    diagnostics.push(Diagnostic::error(
+        DiagnosticKind::E0010,
+        &format!(
+            "Type mismatch in design token '{}': expression has type '{}' \
+             but token type '{}' expects a string value. \
+             Wrap the value in a string or use a compatible signal type.",
+            token_name, type_name, token_type_str
+        ),
+        &Span {
+            start: 0,
+            end: 0,
+            line: 0,
+            col: 0,
+        },
+    ));
+}
+
+/// Extended type inference for design token expressions.
+///
+/// Unlike `infer_expr_type()`, this resolves `FieldAccess` expressions
+/// (e.g. `ThemeStore.primaryColor`) by looking up the store signal's type
+/// rather than returning `Any`.
+fn infer_token_expr_type(expr: &Expr, symbols: &SymbolTable, scope: usize) -> SemanticType {
+    match expr {
+        Expr::FieldAccess { object, field, .. } => {
+            // Resolve object → store name → signal type
+            if let Expr::VarRef(store_name, _) = object.as_ref() {
+                // Look up the store signal: store scope is "store:<StoreName>"
+                let store_scope_name = format!("store:{}", store_name);
+                if let Some(store_scope_idx) = symbols.find_scope_by_name(&store_scope_name) {
+                    if let Some(scope) = symbols.get_scope(store_scope_idx) {
+                        if let Some(sig_symbol) = scope.symbols.get(field) {
+                            if let Some(type_str) = &sig_symbol.type_ann {
+                                return SemanticType::parse_type_string(type_str);
+                            }
+                        }
+                    }
+                }
+            }
+            SemanticType::Any
+        }
+        _ => infer_expr_type(expr, symbols, scope),
+    }
+}
+
+/// Human-readable name for a design token type (for diagnostic messages).
+fn token_type_name(tt: &TokenType) -> &'static str {
+    match tt {
+        TokenType::Color => "color",
+        TokenType::Size => "size",
+        TokenType::Radius => "radius",
+        TokenType::FontFamily => "fontFamily",
+        TokenType::FontSize => "fontSize",
+        TokenType::FontWeight => "fontWeight",
+        TokenType::LineHeight => "lineHeight",
+        TokenType::LetterSpacing => "letterSpacing",
+        TokenType::Shadow => "shadow",
+        TokenType::Duration => "duration",
+        TokenType::Easing => "easing",
+        TokenType::Opacity => "opacity",
+        TokenType::ZIndex => "zIndex",
+    }
+}
 
 impl SemanticAnalyzer {
     /// Walk all expressions in a module and check VarRef names resolve.
@@ -181,6 +299,16 @@ impl SemanticAnalyzer {
                     TokenValue::Expression(expr) => {
                         let mut vctx = ValidationContext::new();
                         self.resolve_expr_refs(expr, &mut vctx);
+
+                        // Phase 2: Check expression type is compatible with token type
+                        check_token_type_compatibility(
+                            expr,
+                            &token.token_type,
+                            &token.name,
+                            &self.symbols,
+                            self.symbols.current_scope_index(),
+                            &mut self.diagnostics,
+                        );
 
                         // Phase 2 restriction: dynamic tokens cannot have theme overrides
                         if !token.theme_values.is_empty() {

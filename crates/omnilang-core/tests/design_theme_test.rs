@@ -282,3 +282,131 @@ design AppDesign {
         "should report undefined variable in token expression"
     );
 }
+
+#[test]
+fn semantic_accepts_string_signal_for_color_token() {
+    // A string signal is compatible with any token type (Color expects a string value)
+    let source = r##"
+import omniview;
+
+store ThemeStore {
+    signal primaryColor: string = "#6366f1";
+}
+
+design AppDesign {
+    token primary: color = ThemeStore.primaryColor;
+}
+"##;
+    let tokens = tokenize(source);
+    let (program, _) = parse(tokens, source);
+    let semantics = analyze(&program);
+
+    let type_errors: Vec<_> = semantics
+        .diagnostics
+        .iter()
+        .filter(|d| d.message.contains("Type mismatch"))
+        .collect();
+    assert!(
+        type_errors.is_empty(),
+        "string signal should be compatible with color token, got: {:?}",
+        type_errors
+    );
+}
+
+#[test]
+fn semantic_rejects_bool_expression_for_color_token() {
+    // A bool expression is NOT compatible with a Color token (expects string)
+    let source = r##"
+import omniview;
+
+store ThemeStore {
+    signal flag: bool = true;
+}
+
+design AppDesign {
+    token primary: color = ThemeStore.flag;
+}
+"##;
+    let tokens = tokenize(source);
+    let (program, _) = parse(tokens, source);
+    let semantics = analyze(&program);
+
+    let type_errors: Vec<_> = semantics
+        .diagnostics
+        .iter()
+        .filter(|d| d.message.contains("Type mismatch"))
+        .collect();
+    assert!(
+        !type_errors.is_empty(),
+        "bool signal should be rejected for color token"
+    );
+    assert!(
+        type_errors[0].message.contains("bool"),
+        "error should mention bool type, got: {}",
+        type_errors[0].message
+    );
+    assert!(
+        type_errors[0].message.contains("color"),
+        "error should mention color token type"
+    );
+}
+
+#[test]
+fn semantic_accepts_int_for_duration_token() {
+    // An int signal is compatible with Duration (numeric-accepting token type)
+    let source = r##"
+import omniview;
+
+store AnimStore {
+    signal speed: int = 300;
+}
+
+design AppDesign {
+    token duration: duration = AnimStore.speed;
+}
+"##;
+    let tokens = tokenize(source);
+    let (program, _) = parse(tokens, source);
+    let semantics = analyze(&program);
+
+    let type_errors: Vec<_> = semantics
+        .diagnostics
+        .iter()
+        .filter(|d| d.message.contains("Type mismatch"))
+        .collect();
+    assert!(
+        type_errors.is_empty(),
+        "int signal should be compatible with duration token, got: {:?}",
+        type_errors
+    );
+}
+
+#[test]
+fn semantic_accepts_literal_int_for_opacity_token() {
+    // A literal int in an expression is compatible with Opacity
+    let source = r##"
+import omniview;
+
+fn getOpacity(): int {
+    return 1;
+}
+
+design AppDesign {
+    token alpha: opacity = getOpacity();
+}
+"##;
+    let tokens = tokenize(source);
+    let (program, _) = parse(tokens, source);
+    let semantics = analyze(&program);
+
+    let type_errors: Vec<_> = semantics
+        .diagnostics
+        .iter()
+        .filter(|d| d.message.contains("Type mismatch"))
+        .collect();
+    assert!(
+        type_errors.is_empty(),
+        "int return should be compatible with opacity token, got: {:?}",
+        type_errors
+    );
+}
