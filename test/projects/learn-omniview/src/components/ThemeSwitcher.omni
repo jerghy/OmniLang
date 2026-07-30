@@ -3,7 +3,6 @@
 // ║                                                              ║
 // ║  演示：                                                      ║
 // ║  - @store ThemeStore（N 主题模式）                             ║
-// ║  - @for 列表渲染 + const 数组                                 ║
 // ║  - CSS var() 驱动主题色预览                                  ║
 // ║  - 鼠标悬停 + 选中态动画                                      ║
 // ║                                                              ║
@@ -18,14 +17,6 @@ import { ThemeStore } from "../stores/ThemeStore";
 component ThemeSwitcher {
     @store ThemeStore;
 
-    // 主题元数据（用于 UI 渲染）
-    const themes = ["light", "dark", "sepia", "highContrast"];
-    const themeIcons = ["☀️", "🌙", "📜", "🔲"];
-    const themeLabels = ["Light", "Dark", "Sepia", "High Contrast"];
-
-    // 本地信号
-    signal hoveredIndex: i32 = -1;
-
     fn isActive(theme: String) -> bool { return ThemeStore.mode == theme; }
 
     fn selectTheme(theme: String) {
@@ -39,9 +30,7 @@ component ThemeSwitcher {
 
             <div class: theme-grid>
                 <div class: { themeCard: true, active: isActive("light") }
-                     @onPress={() => { selectTheme("light"); }}
-                     @onMouseEnter={() => { hoveredIndex = 0; }}
-                     @onMouseLeave={() => { hoveredIndex = -1; }}>
+                     @onPress={() => { selectTheme("light"); }}>
                     <span class: card-icon>☀️</span>
                     <span class: card-name>Light</span>
                     <div class: card-swatches>
@@ -52,9 +41,7 @@ component ThemeSwitcher {
                 </div>
 
                 <div class: { themeCard: true, active: isActive("dark") }
-                     @onPress={() => { selectTheme("dark"); }}
-                     @onMouseEnter={() => { hoveredIndex = 1; }}
-                     @onMouseLeave={() => { hoveredIndex = -1; }}>
+                     @onPress={() => { selectTheme("dark"); }}>
                     <span class: card-icon>🌙</span>
                     <span class: card-name>Dark</span>
                     <div class: card-swatches>
@@ -65,9 +52,7 @@ component ThemeSwitcher {
                 </div>
 
                 <div class: { themeCard: true, active: isActive("sepia") }
-                     @onPress={() => { selectTheme("sepia"); }}
-                     @onMouseEnter={() => { hoveredIndex = 2; }}
-                     @onMouseLeave={() => { hoveredIndex = -1; }}>
+                     @onPress={() => { selectTheme("sepia"); }}>
                     <span class: card-icon>📜</span>
                     <span class: card-name>Sepia</span>
                     <div class: card-swatches>
@@ -78,9 +63,7 @@ component ThemeSwitcher {
                 </div>
 
                 <div class: { themeCard: true, active: isActive("highContrast") }
-                     @onPress={() => { selectTheme("highContrast"); }}
-                     @onMouseEnter={() => { hoveredIndex = 3; }}
-                     @onMouseLeave={() => { hoveredIndex = -1; }}>
+                     @onPress={() => { selectTheme("highContrast"); }}>
                     <span class: card-icon>🔲</span>
                     <span class: card-name>High Contrast</span>
                     <div class: card-swatches>
@@ -152,7 +135,7 @@ component ThemeSwitcher {
         }
         .themeCard.active {
             border-color: var(--primary);
-            box-shadow: "0 0 0 3px " token(primaryLight);
+            box-shadow: "0 0 0 3px " var(--primaryLight);
             background: var(--surfaceMuted);
         }
 
