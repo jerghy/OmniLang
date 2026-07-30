@@ -61,6 +61,12 @@ Prior to Phase 2, the design token pipeline was completely isolated from the exp
    ```
    The `document.documentElement.style.setProperty()` path gives dynamic values the highest CSS specificity (inline style on `<html>`), ensuring they take precedence over CSS `[data-theme]` selectors and `:root` declarations.
 
+8. **Type Compatibility Check**: `check_token_type_compatibility()` verifies the inferred expression type matches the token's expected type:
+   - `String` / `Any` → compatible with all token types
+   - `Int` / `Float` → compatible with Duration, Opacity, ZIndex, Size, LineHeight
+   - Other types → E0010 type mismatch diagnostic
+   - `infer_token_expr_type()` extends generic inference to resolve `FieldAccess` expressions (e.g. `ThemeStore.flag`) by looking up store signal types — avoiding the `Any` fallback that generic `infer_expr_type()` would produce for field accesses.
+
 ### Theme Interaction Restriction
 
 Dynamic tokens cannot have theme overrides. A mixed declaration like `token primary: color = ThemeStore.primaryColor dark "#fff"` produces a compile-time diagnostic (E0001). The rationale:
@@ -73,7 +79,7 @@ Dynamic tokens cannot have theme overrides. A mixed declaration like `token prim
 * `crates/omnilang-core/src/parser/design.rs` — expression parsing + depth tracking
 * `crates/omnilang-core/src/parser/top_level/design.rs` — tokenize design body
 * `crates/omnilang-core/src/semantic/collect.rs` — store name symbol collection
-* `crates/omnilang-core/src/semantic/resolve.rs` — expression ref resolution + theme restriction
+* `crates/omnilang-core/src/semantic/resolve.rs` — expression ref resolution + theme restriction + type compatibility check
 * `crates/omnilang-core/src/ir/design.rs` — `TokenValueIR` enum
 * `crates/omnilang-core/src/ir/lower/design.rs` — `lower_expr()` for token values
 * `crates/omnilang-core/src/ir/lower/mod.rs` — pass lowering context to design lowering
@@ -181,7 +187,7 @@ Dynamic tokens cannot have theme overrides. A mixed declaration like `token prim
 
 ## Implementation
 
-**Phase 2 implementation** (10 tasks, 11 commits, 2026-07-30):
+**Phase 2 implementation** (10 tasks, 11 commits + 1 follow-up, 2026-07-30):
 
 1. AST: `TokenValue::Expression(Expr)` variant with manual `PartialEq`/`Deserialize`
 2. Parser: Tokenize design body, thread `design_tokens` through parser chain
@@ -193,8 +199,9 @@ Dynamic tokens cannot have theme overrides. A mixed declaration like `token prim
 8. JS Codegen: `emit_dynamic_token_effects()` generating `__omni_effect` + `setProperty()`
 9. E2E test: Full source-to-IR pipeline verification
 10. Validation: Dynamic+theme combination rejected at compile time
+11. Type check: Expression-to-TokenType compatibility with FieldAccess resolution (`b5909b3b`)
 
-**Metrics**: 21 files changed, +1005/-178 lines. 547 core tests + 5 design codegen tests pass.
+**Metrics**: 23 files changed, +1270/-180 lines. 547 core tests + 11 design_theme tests + 5 design codegen tests pass.
 
 ## Alternatives Considered
 
