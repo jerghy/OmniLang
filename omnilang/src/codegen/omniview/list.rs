@@ -232,6 +232,32 @@ impl OmniViewGenerator {
         self.js
             .push_str("    else { clone.setAttribute('data-for-item', _idx); }\n");
 
+        // Assign unique nids per clone to avoid collisions with motion triggers
+        // Without this, all clones share the template nid, and __omni_el()
+        // (via querySelector) only finds the first clone.
+        self.js
+            .push_str("    // Assign unique nids per clone for motion trigger isolation\n");
+        self.js
+            .push_str("    (function assignUniqueNids(el, idx) {\n");
+        self.js
+            .push_str("      var nid = el.getAttribute('data-nid');\n");
+        self.js.push_str("      if (nid) {\n");
+        self.js
+            .push_str("        var uniqueNid = nid + '_' + idx;\n");
+        self.js
+            .push_str("        el.setAttribute('data-nid', uniqueNid);\n");
+        self.js.push_str("      }\n");
+        self.js
+            .push_str("      el.querySelectorAll('[data-nid]').forEach(function(child) {\n");
+        self.js
+            .push_str("        var childNid = child.getAttribute('data-nid');\n");
+        self.js.push_str("        if (childNid) {\n");
+        self.js
+            .push_str("          child.setAttribute('data-nid', childNid + '_' + idx);\n");
+        self.js.push_str("        }\n");
+        self.js.push_str("      });\n");
+        self.js.push_str("    })(clone, _idx);\n");
+
         // Cache element references for O(1) lookup in bindings
         self.js.push_str("    var _elCache = new Map();\n");
         self.js.push_str("    (function cacheElements(el) {\n");

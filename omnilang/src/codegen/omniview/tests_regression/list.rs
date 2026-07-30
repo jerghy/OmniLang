@@ -413,3 +413,41 @@ fn test_normal_for_sets_template_false_on_exit() {
         "in_for_template must be false after non-nested @for exits"
     );
 }
+
+/// Test: @for generates unique nids per clone via assignUniqueNids,
+/// ensuring motion triggers fire on all list items, not just the first.
+#[test]
+fn test_for_assigns_unique_nids_per_clone() {
+    let source = r#"
+component ListMotion {
+  signal items: List<String> = ["a", "b", "c"]
+  view {
+    <ul>
+      @for item in items {
+        <li>{item}</li>
+      }
+    </ul>
+  }
+}
+"#;
+    let result = crate::compile_omniview(source, false, false);
+    assert!(
+        result.success,
+        "compilation should succeed: {:?}",
+        result.errors
+    );
+    let js = &result.files.unwrap().js;
+
+    // Verify nid indexing is generated at clone time
+    assert!(
+        js.contains("assignUniqueNids"),
+        "Should generate assignUniqueNids function. Got:\n{}",
+        js
+    );
+    // Verify index-qualified nids are used
+    assert!(
+        js.contains("nid + '_' + idx"),
+        "Should append index to nid for uniqueness. Got:\n{}",
+        js
+    );
+}
