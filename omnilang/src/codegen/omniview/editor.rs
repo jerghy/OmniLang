@@ -186,6 +186,10 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, wind
 
         let is_wait_mode = cond.transition_mode.as_deref() == Some("wait");
 
+        // nid contains hyphens (e.g. "el-if-2908") which are invalid in JS identifiers.
+        // Create a safe version for JS variable names.
+        let nid_js = nid.replace('-', "_");
+
         let _ = writeln!(self.js, "\n/// ── @if conditional {} ──", nid);
 
         // Emit all NIDs as a JS array for efficient bulk toggling
@@ -198,13 +202,13 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, wind
 
         if is_wait_mode {
             // Wait mode: play @leave on old branch, wait for completion, then show new branch
-            let _ = writeln!(self.js, "var _current_{nid} = null;\n\
+            let _ = writeln!(self.js, "var _current_{nid_js} = null;\n\
                  __omni_effect(() => {{\n\
                  \x20 const _nids = {nids};\n\
                  \x20 const _hideAll = (except) => {{ _nids.forEach(id => {{ const e = __omni_el(id); if (e && id !== except) e.style.display = \"none\"; }}); }};\n\
-                 \x20 const _showNow = (nid) => {{ const e = __omni_el(nid); if (e) e.style.display = \"block\"; _hideAll(nid); _current_{nid} = nid; }};\n\
+                 \x20 const _showNow = (nid) => {{ const e = __omni_el(nid); if (e) e.style.display = \"block\"; _hideAll(nid); _current_{nid_js} = nid; }};\n\
                  \x20 const _transition = (newNid) => {{\n\
-                 \x20\x20 const oldNid = _current_{nid};\n\
+                 \x20\x20 const oldNid = _current_{nid_js};\n\
                  \x20\x20 if (oldNid === newNid) return;\n\
                  \x20\x20 if (!oldNid) {{ _showNow(newNid); return; }}\n\
                  \x20\x20 // Play @leave on old branch, then show new\n\
@@ -245,8 +249,8 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, wind
                  \x20\x20\x20 }}\n\
                  \x20\x20\x20 _showNow(newNid);\n\
                  \x20\x20 }}\n\
-                 \x20 }};", nid = nid,
-                nids = nid_array);
+                 \x20 }};",
+                nids = nid_array, nid_js = nid_js);
         } else {
             // Sync mode (default): instant branch switching, @enter/@leave coexist in DOM
             self.js.push_str("__omni_effect(() => {\n");
@@ -282,8 +286,7 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, wind
         } else {
             // No @else — hide all branches when no condition matches
             if is_wait_mode {
-                self.js
-                    .push_str("  else { _hideAll(null); _current_{nid} = null; }\n");
+                let _ = writeln!(self.js, "  else {{ _hideAll(null); _current_{var} = null; }}", var = nid_js);
             } else {
                 self.js.push_str("  else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = \"none\"; }); }\n");
             }
