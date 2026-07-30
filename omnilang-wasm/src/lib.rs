@@ -155,29 +155,26 @@ fn parse_source_internal(source: &str) -> serde_json::Value {
         });
     }
     let tokens = omnilang::lexer::tokenize(source);
-    match omnilang::parser::parse(tokens, source) {
-        Ok(program) => {
+    let (program, parse_errors) = omnilang::parser::parse(tokens, source);
+    let success = parse_errors.is_empty();
+    let errors: Vec<serde_json::Value> = parse_errors
+        .into_iter()
+        .map(|err| {
             serde_json::json!({
-                "success": true,
-                "program": program,
-                "errors": [],
+                "severity": "error",
+                "code": "E_PARSE",
+                "message": err.message,
+                "file": null,
+                "line": err.span.line,
+                "col": err.span.col,
             })
-        }
-        Err(err) => {
-            serde_json::json!({
-                "success": false,
-                "program": null,
-                "errors": [{
-                    "severity": "error",
-                    "code": "E_PARSE",
-                    "message": err.message,
-                    "file": null,
-                    "line": err.span.line,
-                    "col": err.span.col,
-                }],
-            })
-        }
-    }
+        })
+        .collect();
+    serde_json::json!({
+        "success": success,
+        "program": program,
+        "errors": errors,
+    })
 }
 
 /// Parse complete .omni source text (lex + parse in one call).

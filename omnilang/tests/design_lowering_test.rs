@@ -12,7 +12,7 @@ use omnilang::parser::parse;
 /// Helper: parse a design block from inline source and lower it to DesignIR.
 fn lower_design_source(source: &str) -> DesignIR {
     let tokens = tokenize(source);
-    let program = parse(tokens, source).expect("parse should succeed");
+    let (program, _) = parse(tokens, source);
     let module = program
         .modules
         .get("input.omni")

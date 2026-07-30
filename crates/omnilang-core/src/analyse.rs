@@ -253,39 +253,25 @@ pub fn analyse_multi(
     let mut programs: FxHashMap<String, Arc<Program>> = FxHashMap::default();
 
     // Phase 1: Parallel parse all sources
-    let parse_results: Vec<(String, Result<Program, Vec<Diagnostic>>)> = sources
+    let parse_results: Vec<(String, Program, Vec<Diagnostic>)> = sources
         .par_iter()
         .map(|(path, source)| {
             let tokens = crate::lexer::tokenize(source);
-            match crate::parser::parse(tokens, source) {
-                Ok(program) => (path.clone(), Ok(program)),
-                Err(e) => {
+            let (program, parse_errors) = crate::parser::parse(tokens, source);
+            let file_diags: Vec<Diagnostic> = parse_errors
+                .into_iter()
+                .map(|e| {
                     let d: Diagnostic = e.into();
-                    (path.clone(), Err(vec![d.with_file(path)]))
-                }
-            }
+                    d.with_file(path)
+                })
+                .collect();
+            (path.clone(), program, file_diags)
         })
         .collect();
 
-    for (path, result) in parse_results {
-        match result {
-            Ok(program) => {
-                programs.insert(path, Arc::new(program));
-            }
-            Err(errs) => {
-                diags.extend(errs);
-            }
-        }
-    }
-
-    if !diags.is_empty() {
-        return AnalyseOutput {
-            success: false,
-            diagnostics: diags,
-            ir: None,
-            warnings: vec![],
-            programs,
-        };
+    for (path, program, file_diags) in parse_results {
+        diags.extend(file_diags);
+        programs.insert(path, Arc::new(program));
     }
 
     // Phase 2: Cross-file validation using pre-parsed programs
@@ -408,43 +394,27 @@ pub fn analyse_multi_cached(
 
     // Phase 1: Parse only changed + transitively affected files
     if !to_reprocess.is_empty() {
-        let parse_results: Vec<(String, Result<Program, Vec<Diagnostic>>)> = to_reprocess
+        let parse_results: Vec<(String, Program, Vec<Diagnostic>)> = to_reprocess
             .par_iter()
             .map(|path| {
                 let source = &sources[path];
                 let tokens = crate::lexer::tokenize(source);
-                match crate::parser::parse(tokens, source) {
-                    Ok(program) => (path.clone(), Ok(program)),
-                    Err(e) => {
+                let (program, parse_errors) = crate::parser::parse(tokens, source);
+                let file_diags: Vec<Diagnostic> = parse_errors
+                    .into_iter()
+                    .map(|e| {
                         let d: Diagnostic = e.into();
-                        (path.clone(), Err(vec![d.with_file(path)]))
-                    }
-                }
+                        d.with_file(path)
+                    })
+                    .collect();
+                (path.clone(), program, file_diags)
             })
             .collect();
 
-        for (path, result) in parse_results {
-            match result {
-                Ok(program) => {
-                    all_programs.insert(path, Arc::new(program));
-                }
-                Err(errs) => {
-                    diags.extend(errs);
-                }
-            }
+        for (path, program, file_diags) in parse_results {
+            diags.extend(file_diags);
+            all_programs.insert(path, Arc::new(program));
         }
-    }
-
-    if !diags.is_empty() {
-        // Clean up stale cache entries before returning early
-        cache.entries.retain(|k, _| sources.contains_key(k));
-        return AnalyseOutput {
-            success: false,
-            diagnostics: diags,
-            ir: None,
-            warnings: vec![],
-            programs: all_programs,
-        };
     }
 
     // Phase 2: Cross-file validation using the full program set
@@ -509,10 +479,6 @@ pub fn analyse_multi_cached(
                     }
                 }
             }
-        } else {
-            // Parse failed — remove stale cache entry
-            cache.entries.remove(path);
-            cache.insertion_order.retain(|p| p != path);
         }
     }
 

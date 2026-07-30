@@ -105,7 +105,7 @@ mod tests {
     /// Helper: compile source and return all diagnostics (parse + analysis + lowering + prop validation).
     fn compile_to_diagnostics(source: &str) -> Vec<Diagnostic> {
         let tokens = tokenize(source);
-        let program = parse(tokens, source).expect("parse should succeed");
+        let (program, _) = parse(tokens, source);
         let mut semantics = analyze(&program);
         let _ir = crate::ir::lower(&program, &mut semantics);
         semantics.diagnostics

@@ -15,27 +15,15 @@ use ast::Program;
 use ast::Visibility;
 use rustc_hash::FxHashMap;
 
-/// Parse a token stream into an AST Program.
-/// Returns `Ok(program)` on success, or `Err(ParseError)` if any parse errors were
-/// collected during recovery. The first collected error is returned.
-pub fn parse(tokens: Vec<Token>, source: &str) -> Result<Program, ParseError> {
+/// Parse a token stream into an AST Program and all collected parse errors.
+/// Always returns a Program (possibly incomplete if errors exist).
+/// Returns an empty Vec on clean parse.
+pub fn parse(tokens: Vec<Token>, source: &str) -> (Program, Vec<ParseError>) {
     let mut parser = Parser::new(tokens, source);
-    let module = parser.parse_module()?;
-    // Return the first collected parse error (if any) so callers know the AST
-    // may be incomplete. The remaining errors are discarded at this level.
-    if let Some(err) = parser.errors.first() {
-        return Err(ParseError {
-            message: format!(
-                "{} (and {} more error(s))",
-                err.message,
-                parser.errors.len() - 1
-            ),
-            span: err.span,
-        });
-    }
+    let module = parser.parse_module();
     let mut modules = FxHashMap::default();
     modules.insert("input.omni".to_string(), module);
-    Ok(Program { modules })
+    (Program { modules }, parser.errors)
 }
 
 /// Maximum recursion depth for the parser to prevent stack overflow.
@@ -297,7 +285,7 @@ mod roundtrip_tests {
         // Wrap with semicolon to ensure it goes into stmts[], not trailing_expr
         let wrapped = format!("pub fn test() {{ {}; }}", source);
         let tokens = tokenize(&wrapped);
-        let program = parse(tokens, &wrapped).unwrap();
+        let (program, _) = parse(tokens, &wrapped);
         let module = program.modules.get("input.omni").unwrap();
         let body = &module.functions[0].body;
         if !body.stmts.is_empty() {
@@ -330,7 +318,7 @@ mod roundtrip_tests {
     /// Parse a component definition and return its view children.
     fn view_children(source: &str) -> Vec<ViewNode> {
         let tokens = tokenize(source);
-        let program = parse(tokens, source).unwrap();
+        let (program, _) = parse(tokens, source);
         let module = program.modules.get("input.omni").unwrap();
         module.components[0]
             .view
@@ -783,7 +771,7 @@ mod roundtrip_tests {
             // Parse directly to handle multi-stmt
             let wrapped = "pub fn test() { let _a = 1; let _m = {_a} }";
             let tokens = tokenize(wrapped);
-            let program = parse(tokens, wrapped).unwrap();
+            let (program, _) = parse(tokens, wrapped);
             let module = program.modules.get("input.omni").unwrap();
             module.functions[0].body.stmts[1].clone()
         };
@@ -1276,7 +1264,7 @@ mod roundtrip_tests {
     fn roundtrip_function_def() {
         let source = "pub fn main() { return 42; }";
         let tokens = tokenize(source);
-        let program = parse(tokens, source).unwrap();
+        let (program, _) = parse(tokens, source);
         assert_eq!(program.modules.len(), 1);
         let module = program.modules.get("input.omni").unwrap();
         assert_eq!(module.functions.len(), 1);
@@ -1289,7 +1277,7 @@ mod roundtrip_tests {
     fn roundtrip_struct_def() {
         let source = "struct Point { x: i32, y: i32 }";
         let tokens = tokenize(source);
-        let program = parse(tokens, source).unwrap();
+        let (program, _) = parse(tokens, source);
         let module = program.modules.get("input.omni").unwrap();
         assert_eq!(module.structs.len(), 1);
         assert_eq!(module.structs[0].name, "Point");
@@ -1300,7 +1288,7 @@ mod roundtrip_tests {
     fn roundtrip_enum_def() {
         let source = "type Color = Red | Green | Blue";
         let tokens = tokenize(source);
-        let program = parse(tokens, source).unwrap();
+        let (program, _) = parse(tokens, source);
         let module = program.modules.get("input.omni").unwrap();
         assert_eq!(module.tagged_unions.len(), 1);
     }
@@ -1309,7 +1297,7 @@ mod roundtrip_tests {
     fn roundtrip_type_alias() {
         let source = "type UserId = i32;";
         let tokens = tokenize(source);
-        let program = parse(tokens, source).unwrap();
+        let (program, _) = parse(tokens, source);
         let module = program.modules.get("input.omni").unwrap();
         assert_eq!(module.type_aliases.len(), 1);
         assert_eq!(module.type_aliases[0].name, "UserId");
@@ -1319,7 +1307,7 @@ mod roundtrip_tests {
     fn roundtrip_import_export() {
         let source = "import { add } from \"./utils/math.omni\";\nexport { main } from \"./utils/math.omni\";";
         let tokens = tokenize(source);
-        let program = parse(tokens, source).unwrap();
+        let (program, _) = parse(tokens, source);
         let module = program.modules.get("input.omni").unwrap();
         assert_eq!(module.imports.len(), 1);
         assert_eq!(module.exports.len(), 1);
@@ -1329,9 +1317,9 @@ mod roundtrip_tests {
     fn test_reject_invalid_hex() {
         let source = "let x = 0xFFG;";
         let tokens = tokenize(source);
-        let result = parse(tokens, source);
+        let (_, errors) = parse(tokens, source);
         assert!(
-            result.is_err(),
+            !errors.is_empty(),
             "Invalid hex '0xFFG' should produce parse error"
         );
     }
@@ -1340,9 +1328,9 @@ mod roundtrip_tests {
     fn test_reject_invalid_float() {
         let source = "let x = 1.2.3;";
         let tokens = tokenize(source);
-        let result = parse(tokens, source);
+        let (_, errors) = parse(tokens, source);
         assert!(
-            result.is_err(),
+            !errors.is_empty(),
             "Invalid float '1.2.3' should produce parse error"
         );
     }
@@ -1357,7 +1345,7 @@ mod roundtrip_tests {
         let source = "pub fn main() { let x = ; let y = 42; return y; }";
         let tokens = tokenize(source);
         let mut parser = Parser::new(tokens, source);
-        let module = parser.parse_module().unwrap();
+        let module = parser.parse_module();
         assert_eq!(
             parser.errors.len(),
             1,
@@ -1378,7 +1366,7 @@ mod roundtrip_tests {
         let source = "pub fn foo() { return 1; } quux pub fn bar() { return 2; }";
         let tokens = tokenize(source);
         let mut parser = Parser::new(tokens, source);
-        let module = parser.parse_module().unwrap();
+        let module = parser.parse_module();
         assert_eq!(
             parser.errors.len(),
             1,

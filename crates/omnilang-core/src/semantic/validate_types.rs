@@ -384,7 +384,7 @@ mod tests {
     /// Parse and semantically analyze source, return diagnostics.
     fn check_source(source: &str) -> Vec<crate::error::Diagnostic> {
         let tokens = tokenize(source);
-        let program = parse(tokens, source).expect("parse should succeed");
+        let (program, _) = parse(tokens, source);
         let result = analyze(&program);
         result.diagnostics
     }

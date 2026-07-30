@@ -59,16 +59,15 @@ pub(crate) fn verify_pid_roundtrip(
 
     // Parse using omnilang
     let tokens = omnilang::lexer::tokenize(&source);
-    let program = match omnilang::parser::parse(tokens, &source) {
-        Ok(p) => p,
-        Err(e) => {
-            return Ok(serde_json::json!({
-                "consistent": false,
-                "pids": [],
-                "error": e.message
-            }));
-        }
-    };
+    let (program, parse_errors) = omnilang::parser::parse(tokens, &source);
+    if !parse_errors.is_empty() {
+        let msgs: Vec<String> = parse_errors.iter().map(|e| e.message.clone()).collect();
+        return Ok(serde_json::json!({
+            "consistent": false,
+            "pids": [],
+            "error": msgs.join("; ")
+        }));
+    }
 
     // Extract @pid annotations from comments in source
     let mut pids_from_comments: Vec<String> = Vec::new();

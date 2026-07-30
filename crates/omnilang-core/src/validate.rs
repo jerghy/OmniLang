@@ -56,22 +56,12 @@ pub fn validate_multi(
     // Phase 1: Parse all sources
     for (path, source) in &sources {
         let tokens = crate::lexer::tokenize(source);
-        match crate::parser::parse(tokens, source) {
-            Ok(program) => {
-                programs.insert(path.clone(), Arc::new(program));
-            }
-            Err(e) => {
-                let diag: Diagnostic = e.into();
-                errors.push(diag.with_file(path));
-            }
+        let (program, parse_errors) = crate::parser::parse(tokens, source);
+        for e in parse_errors {
+            let diag: Diagnostic = e.into();
+            errors.push(diag.with_file(path));
         }
-    }
-
-    if !errors.is_empty() {
-        return MultiFileResult {
-            success: false,
-            errors,
-        };
+        programs.insert(path.clone(), Arc::new(program));
     }
 
     validate_multi_ref(&programs, &path_mapping)

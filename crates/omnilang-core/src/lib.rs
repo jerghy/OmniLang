@@ -54,21 +54,13 @@ pub struct CompileResult {
 /// Compile .omni source -> IR. Core function shared by WASM and native.
 #[must_use]
 pub fn compile(source: &str) -> CompileResult {
-    match run_pipeline(source) {
-        Err(errors) => CompileResult {
-            success: false,
-            ir: None,
-            errors,
-            symbols: Vec::new(),
-            dependencies: FxHashMap::default(),
-        },
-        Ok(output) => CompileResult {
-            success: !output.has_errors,
-            ir: Some(output.ir),
-            errors: output.diagnostics,
-            symbols: output.symbols,
-            dependencies: output.dependencies,
-        },
+    let output = run_pipeline(source);
+    CompileResult {
+        success: !output.has_errors,
+        ir: Some(output.ir),
+        errors: output.diagnostics,
+        symbols: output.symbols,
+        dependencies: output.dependencies,
     }
 }
 
@@ -87,11 +79,14 @@ pub struct PipelineOutput {
 }
 
 /// Run the shared compilation pipeline: lex -> parse -> semantic -> IR lowering.
-/// Returns `Err` on parse failure (with parse errors), or `Ok` with the pipeline
-/// output including all semantic diagnostics.
-pub fn run_pipeline(source: &str) -> Result<PipelineOutput, Vec<error::Diagnostic>> {
+/// Always returns a PipelineOutput with all diagnostics (parse errors, semantic
+/// errors, etc.) bundled together. Parse errors are included in `diagnostics`.
+pub fn run_pipeline(source: &str) -> PipelineOutput {
     let tokens = lexer::tokenize(source);
-    let program = parser::parse(tokens, source).map_err(|e| vec![e.into()])?;
+    let (program, parse_errors) = parser::parse(tokens, source);
+    let mut diagnostics: Vec<error::Diagnostic> =
+        parse_errors.into_iter().map(|e| e.into()).collect();
+
     let mut semantics = semantic::analyze(&program);
 
     // Extract symbols before ir::lower() which borrows semantics mutably
@@ -109,19 +104,19 @@ pub fn run_pipeline(source: &str) -> Result<PipelineOutput, Vec<error::Diagnosti
         .collect();
     let dependencies = std::mem::take(&mut semantics.dependencies);
 
-    let has_errors = semantics
-        .diagnostics
+    diagnostics.extend(std::mem::take(&mut semantics.diagnostics));
+    let has_errors = diagnostics
         .iter()
         .any(|d| matches!(d.severity, crate::error::Severity::Error));
     let mut ir = ir::lower(&program, &mut semantics);
     crate::ir::optimize::optimize(&mut ir);
-    Ok(PipelineOutput {
+    PipelineOutput {
         ir,
-        diagnostics: semantics.diagnostics,
+        diagnostics,
         has_errors,
         symbols,
         dependencies,
-    })
+    }
 }
 
 // ═══════════════════════════════════════════════════════

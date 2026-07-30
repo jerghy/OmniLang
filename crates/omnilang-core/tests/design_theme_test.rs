@@ -17,7 +17,7 @@ use omnilang_core::semantic::analyze;
 /// for the first design block found.
 fn lower_first_design(source: &str) -> DesignIR {
     let tokens = tokenize(source);
-    let program = parse(tokens, source).expect("parse should succeed");
+    let (program, _) = parse(tokens, source);
     let mut semantics = analyze(&program);
     let ir = lower(&program, &mut semantics);
 
@@ -52,7 +52,7 @@ design AppDesign {
 }
 "##;
     let tokens = tokenize(source);
-    let program = parse(tokens, source).expect("parse should succeed");
+    let (program, _) = parse(tokens, source);
     let mut semantics = analyze(&program);
     let ir = lower(&program, &mut semantics);
 

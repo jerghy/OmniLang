@@ -18,8 +18,9 @@ impl<'a> Parser<'a> {
     // ── Top-Level Module ───────────────────────────────
 
     /// Parse the top-level of a single source module.
-    /// Returns a `Module` with all top-level declarations populated.
-    pub fn parse_module(&mut self) -> Result<Module, ParseError> {
+    /// Always returns a `Module` (possibly incomplete if errors occurred).
+    /// All parse errors are accumulated in `self.errors`.
+    pub fn parse_module(&mut self) -> Module {
         let mut module = Module {
             name: "input".to_string(),
             ..Default::default()
@@ -175,6 +176,6 @@ impl<'a> Parser<'a> {
             }
         }
 
-        Ok(module)
+        module
     }
 }

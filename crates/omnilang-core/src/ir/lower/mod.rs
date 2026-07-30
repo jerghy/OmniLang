@@ -276,7 +276,7 @@ mod tests {
 
     fn lower_source(source: &str) -> IRProgram {
         let tokens = tokenize(source);
-        let program = parse(tokens, source).expect("parse should succeed");
+        let (program, _) = parse(tokens, source);
         let mut semantics = analyze(&program);
         lower(&program, &mut semantics)
     }

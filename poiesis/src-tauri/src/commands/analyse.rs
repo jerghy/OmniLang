@@ -36,22 +36,25 @@ pub(crate) fn analyse_source(source: String, file_path: String) -> AnalyseResult
         };
     }
     let tokens = omnilang::lexer::tokenize(&source);
-    let program = match omnilang::parser::parse(tokens, &source) {
-        Ok(p) => p,
-        Err(e) => {
-            return AnalyseResult {
-                success: false,
-                diagnostics: vec![Diagnostic {
-                    severity: "error".to_string(),
-                    code: "PARSE_ERROR".to_string(),
-                    message: e.message,
-                    file: file_path,
-                    line: e.span.line,
-                    col: e.span.col,
-                }],
-            };
-        }
-    };
+    let (program, parse_errors) = omnilang::parser::parse(tokens, &source);
+    if !parse_errors.is_empty() {
+        let mut diagnostics: Vec<Diagnostic> = parse_errors
+            .into_iter()
+            .map(|e| Diagnostic {
+                severity: "error".to_string(),
+                code: "PARSE_ERROR".to_string(),
+                message: e.message,
+                file: file_path.clone(),
+                line: e.span.line,
+                col: e.span.col,
+            })
+            .collect();
+        diagnostics.sort_by(|a, b| a.line.cmp(&b.line).then(a.col.cmp(&b.col)));
+        return AnalyseResult {
+            success: false,
+            diagnostics,
+        };
+    }
 
     let semantics = omnilang::semantic::analyze(&program);
     let diagnostics: Vec<Diagnostic> = semantics

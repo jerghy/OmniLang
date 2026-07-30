@@ -42,12 +42,13 @@ fn read_manifest_paths() -> Vec<String> {
 /// Compile source text to a specific target.
 fn compile_source(source: &str, target: Target) -> omnilang::codegen::CompileOutput {
     let tokens = tokenize(source);
-    let program = match parser::parse(tokens, source) {
-        Ok(p) => p,
-        Err(e) => {
-            return omnilang::codegen::CompileOutput {
-                files: vec![],
-                errors: vec![omnilang::error::Diagnostic {
+    let (program, parse_errors) = parser::parse(tokens, source);
+    if !parse_errors.is_empty() {
+        return omnilang::codegen::CompileOutput {
+            files: vec![],
+            errors: parse_errors
+                .into_iter()
+                .map(|e| omnilang::error::Diagnostic {
                     severity: omnilang::error::Severity::Error,
                     kind: omnilang::error::DiagnosticKind::ECodegen,
                     message: format!("Parse error: {}", e.message),
@@ -57,12 +58,12 @@ fn compile_source(source: &str, target: Target) -> omnilang::codegen::CompileOut
                     end_line: None,
                     end_col: None,
                     suggestion: None,
-                }],
-                source_map: vec![],
-                warnings: vec![],
-            };
-        }
-    };
+                })
+                .collect(),
+            source_map: vec![],
+            warnings: vec![],
+        };
+    }
 
     let mut semantics = SemanticResult {
         symbols: omnilang::semantic::symbols::SymbolTable::new(),

@@ -40,7 +40,7 @@ pub use omnilang_core::{compile, CompileResult, SymbolInfo};
 // ═══════════════════════════════════════════════════════
 
 /// Delegate to omnilang-core's run_pipeline (single source of truth).
-fn run_pipeline(source: &str) -> Result<omnilang_core::PipelineOutput, Vec<error::Diagnostic>> {
+fn run_pipeline(source: &str) -> omnilang_core::PipelineOutput {
     omnilang_core::run_pipeline(source)
 }
 
@@ -79,33 +79,23 @@ pub struct OmniViewFiles {
 #[cfg(feature = "codegen-omniview")]
 #[must_use]
 pub fn compile_omniview(source: &str, editor_mode: bool, debug_mode: bool) -> OmniViewResult {
-    match run_pipeline(source) {
-        Err(errors) => OmniViewResult {
-            success: false,
-            files: None,
-            components: None,
-            source_map: None,
-            errors,
+    let pipeline = run_pipeline(source);
+    let gen_output =
+        codegen::omniview::generate(&pipeline.ir, editor_mode, false, debug_mode);
+    OmniViewResult {
+        success: !pipeline.has_errors,
+        files: Some(OmniViewFiles {
+            js: gen_output.js,
+            html: gen_output.html,
+            css: gen_output.css,
+        }),
+        components: if gen_output.components.is_empty() {
+            None
+        } else {
+            Some(gen_output.components)
         },
-        Ok(pipeline) => {
-            let gen_output =
-                codegen::omniview::generate(&pipeline.ir, editor_mode, false, debug_mode);
-            OmniViewResult {
-                success: !pipeline.has_errors,
-                files: Some(OmniViewFiles {
-                    js: gen_output.js,
-                    html: gen_output.html,
-                    css: gen_output.css,
-                }),
-                components: if gen_output.components.is_empty() {
-                    None
-                } else {
-                    Some(gen_output.components)
-                },
-                source_map: Some(gen_output.source_map),
-                errors: pipeline.diagnostics,
-            }
-        }
+        source_map: Some(gen_output.source_map),
+        errors: pipeline.diagnostics,
     }
 }
 
@@ -145,35 +135,24 @@ pub fn compile_omniview_full(
     editor_mode: bool,
     debug_mode: bool,
 ) -> OmniViewFullResult {
-    match run_pipeline(source) {
-        Err(errors) => OmniViewFullResult {
-            success: false,
-            ir: None,
-            files: None,
-            components: None,
-            source_map: None,
-            errors,
+    let pipeline = run_pipeline(source);
+    let gen_output =
+        codegen::omniview::generate(&pipeline.ir, editor_mode, false, debug_mode);
+    OmniViewFullResult {
+        success: !pipeline.has_errors,
+        ir: Some(pipeline.ir),
+        files: Some(OmniViewFiles {
+            js: gen_output.js,
+            html: gen_output.html,
+            css: gen_output.css,
+        }),
+        components: if gen_output.components.is_empty() {
+            None
+        } else {
+            Some(gen_output.components)
         },
-        Ok(pipeline) => {
-            let gen_output =
-                codegen::omniview::generate(&pipeline.ir, editor_mode, false, debug_mode);
-            OmniViewFullResult {
-                success: !pipeline.has_errors,
-                ir: Some(pipeline.ir),
-                files: Some(OmniViewFiles {
-                    js: gen_output.js,
-                    html: gen_output.html,
-                    css: gen_output.css,
-                }),
-                components: if gen_output.components.is_empty() {
-                    None
-                } else {
-                    Some(gen_output.components)
-                },
-                source_map: Some(gen_output.source_map),
-                errors: pipeline.diagnostics,
-            }
-        }
+        source_map: Some(gen_output.source_map),
+        errors: pipeline.diagnostics,
     }
 }
 
@@ -192,34 +171,20 @@ pub fn compile_omniview_full(
 #[cfg(feature = "codegen-omniview")]
 #[must_use]
 pub fn resolve_styles(source: &str) -> StyleResolveResult {
-    match run_pipeline(source) {
-        Err(errors) => StyleResolveResult {
-            success: false,
-            design_css: String::new(),
-            component_css: FxHashMap::default(),
-            element_classes: FxHashMap::default(),
-            element_tags: FxHashMap::default(),
-            element_tree: Vec::new(),
-            nid_map: FxHashMap::default(),
-            warnings: Vec::new(),
-            errors,
-        },
-        Ok(pipeline) => {
-            let gen_output =
-                codegen::omniview::generate(&pipeline.ir, true, /* css_only= */ true, false);
+    let pipeline = run_pipeline(source);
+    let gen_output =
+        codegen::omniview::generate(&pipeline.ir, true, /* css_only= */ true, false);
 
-            StyleResolveResult {
-                success: !pipeline.has_errors && gen_output.warnings.is_empty(),
-                design_css: gen_output.css,
-                component_css: gen_output.per_component_css,
-                element_classes: gen_output.element_classes,
-                element_tags: gen_output.element_tags,
-                element_tree: gen_output.element_tree,
-                nid_map: gen_output.nid_map,
-                warnings: gen_output.warnings,
-                errors: pipeline.diagnostics,
-            }
-        }
+    StyleResolveResult {
+        success: !pipeline.has_errors && gen_output.warnings.is_empty(),
+        design_css: gen_output.css,
+        component_css: gen_output.per_component_css,
+        element_classes: gen_output.element_classes,
+        element_tags: gen_output.element_tags,
+        element_tree: gen_output.element_tree,
+        nid_map: gen_output.nid_map,
+        warnings: gen_output.warnings,
+        errors: pipeline.diagnostics,
     }
 }
 

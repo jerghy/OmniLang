@@ -32,10 +32,9 @@ design AppDesign {
 }
 "##;
     let tokens = tokenize(src);
-    let result = parser::parse(tokens, src);
-    assert!(result.is_ok(), "Parse failed: {:?}", result.err());
+    let (program, errors) = parser::parse(tokens, src);
+    assert!(errors.is_empty(), "Parse failed: {:?}", errors);
 
-    let program = result.unwrap();
     let module = program.modules.get("input.omni").unwrap();
     assert_eq!(module.designs.len(), 1, "should have one design block");
 
@@ -50,14 +49,12 @@ design AppDesign {
 fn parse_minimal_design_block() {
     let src = "design Minimal { }";
     let tokens = tokenize(src);
-    let result = parser::parse(tokens, src);
+    let (program, errors) = parser::parse(tokens, src);
     assert!(
-        result.is_ok(),
+        errors.is_empty(),
         "Minimal design parse failed: {:?}",
-        result.err()
+        errors
     );
-
-    let program = result.unwrap();
     let module = program.modules.get("input.omni").unwrap();
     assert_eq!(module.designs.len(), 1);
     assert_eq!(module.designs[0].name, "Minimal");
@@ -76,7 +73,7 @@ fn parse_design_mixed_value() {
         }
     "##;
     let tokens = tokenize(src);
-    let program = parser::parse(tokens, src).expect("parse should succeed");
+    let (program, _) = parser::parse(tokens, src);
     let module = program.modules.get("input.omni").unwrap();
     assert_eq!(module.designs.len(), 1);
     let design = &module.designs[0];
@@ -106,7 +103,7 @@ fn parse_design_pseudo_element() {
         }
     "##;
     let tokens = tokenize(src);
-    let program = parser::parse(tokens, src).expect("parse should succeed");
+    let (program, _) = parser::parse(tokens, src);
     let module = program.modules.get("input.omni").unwrap();
     assert_eq!(module.designs.len(), 1);
     let design = &module.designs[0];
@@ -141,7 +138,7 @@ fn parse_all_token_types() {
         }
     "##;
     let tokens = tokenize(src);
-    let program = parser::parse(tokens, src).expect("parse should succeed");
+    let (program, _) = parser::parse(tokens, src);
     let module = program.modules.get("input.omni").unwrap();
     assert_eq!(module.designs.len(), 1);
     let design = &module.designs[0];
@@ -166,7 +163,7 @@ fn parse_variant_defaults_wrapper() {
         }
     "##;
     let tokens = tokenize(src);
-    let program = parser::parse(tokens, src).expect("parse should succeed");
+    let (program, _) = parser::parse(tokens, src);
     let module = program.modules.get("input.omni").unwrap();
     assert_eq!(module.designs.len(), 1);
     let design = &module.designs[0];
@@ -186,9 +183,9 @@ fn parse_design_error_on_unknown() {
         }
     "##;
     let tokens = tokenize(src);
-    let result = parser::parse(tokens, src);
+    let (_, errors) = parser::parse(tokens, src);
     assert!(
-        result.is_err(),
+        !errors.is_empty(),
         "should produce error for unknown directive"
     );
 }
@@ -202,13 +199,12 @@ fn parse_design_block_comment() {
         }
     "##;
     let tokens = tokenize(src);
-    let result = parser::parse(tokens, src);
+    let (program, errors) = parser::parse(tokens, src);
     assert!(
-        result.is_ok(),
+        errors.is_empty(),
         "comment should not cause parse failure: {:?}",
-        result.err()
+        errors
     );
-    let program = result.unwrap();
     let module = program.modules.get("input.omni").unwrap();
     assert_eq!(module.designs.len(), 1);
     let design = &module.designs[0];

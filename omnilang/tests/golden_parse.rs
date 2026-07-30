@@ -62,13 +62,9 @@ fn golden_files_parse_without_errors() {
         });
 
         let tokens = omnilang::lexer::tokenize(&source);
-        match omnilang::parser::parse(tokens, &source) {
-            Ok(_program) => {
-                // Parse succeeded — golden file is valid for Rust parser
-            }
-            Err(e) => {
-                errors.push(format!("{} (line {}): {}", path, e.span.line, e.message));
-            }
+        let (_program, parse_errors) = omnilang::parser::parse(tokens, &source);
+        for e in &parse_errors {
+            errors.push(format!("{} (line {}): {}", path, e.span.line, e.message));
         }
     }
 
