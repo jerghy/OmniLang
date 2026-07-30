@@ -46,6 +46,8 @@ pub struct EnumIR {
     pub source_span: Option<Span>,
 }
 
+/// A tagged union variant (e.g., `Ok` in `Result<Ok, Err>`).
+/// NOT to be confused with [`design::VariantIR`] for design system variants.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VariantIR {
     pub name: String,

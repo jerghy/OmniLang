@@ -85,8 +85,8 @@ pub struct PseudoStateIR {
     pub source_span: Option<Span>,
 }
 
-/// A design variant — a parameterised group of CSS customisations
-/// used by omni components for theming (e.g. `variant Button`).
+/// A design system variant (e.g., `Button(color=primary, size=md)`).
+/// NOT to be confused with [`logic::VariantIR`] for tagged union variants.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VariantIR {
     pub name: String,
