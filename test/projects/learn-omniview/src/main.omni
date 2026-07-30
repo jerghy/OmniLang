@@ -23,6 +23,7 @@ import { DesignTheme } from "./pages/DesignTheme";
 import { StatePage } from "./pages/StatePage";
 import { LanguagePage } from "./pages/LanguagePage";
 import { CompilerPage } from "./pages/CompilerPage";
+import { ElementRefDemo } from "./pages/ElementRefDemo";
 
 // ── 逻辑库（命名空间导入，供页面内函数/表达式引用） ──
 import "./lib/types" as Types;
@@ -52,11 +53,12 @@ component App {
                 @if activeTab == "design"    { <DesignTheme /> }
                 @if activeTab == "state"     { <StatePage /> }
                 @if activeTab == "language"  { <LanguagePage /> }
+                @if activeTab == "ref"  { <ElementRefDemo /> }
                 @if activeTab == "compiler"  { <CompilerPage /> }
             </div>
 
             <footer class: LearnDesign.Footer>
-                <p class: LearnDesign.FooterText>OmniView 能力展示 · 7 domains · 4 themes · omnic run</p>
+                <p class: LearnDesign.FooterText>OmniView 能力展示 · 8 domains · 4 themes · omnic run</p>
             </footer>
         </div>
     }

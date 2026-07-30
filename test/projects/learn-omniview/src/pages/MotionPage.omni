@@ -1,4 +1,4 @@
-// MotionPage — 运动动画：全部 motion + ref demo（ADR-032 后 14 项功能）
+// MotionPage — 运动动画（ADR-032 后 14 项功能）
 import omniview;
 import { LearnDesign } from "../design";
 import { MotionDemo } from "./MotionDemo";
@@ -6,7 +6,6 @@ import { EasingFunctionsDemo } from "./EasingFunctionsDemo";
 import { AnimPropertiesDemo } from "./AnimPropertiesDemo";
 import { MotionTriggersDemo } from "./MotionTriggersDemo";
 import { KeyframeAnimationDemo } from "./KeyframeAnimationDemo";
-import { ElementRefDemo } from "./ElementRefDemo";
 
 component MotionPage {
     view {
@@ -16,7 +15,6 @@ component MotionPage {
             <div class: LearnDesign.DemoFull><EasingFunctionsDemo /></div>
             <div class: LearnDesign.DemoFull><AnimPropertiesDemo /></div>
             <div class: LearnDesign.DemoFull><MotionTriggersDemo /></div>
-            <div class: LearnDesign.DemoFull><ElementRefDemo /></div>
         </section>
     }
 }

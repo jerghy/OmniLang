@@ -26,6 +26,8 @@ component ElementRefDemo {
     ref inputBox: Element;
     ref scrollArea: Element;
     ref dragTarget: Element;
+    ref sizeBox: Element;
+    ref mirrorInput: Element;
 
     // ── 本地信号 ──
     signal focusStatus: String = "not focused";
@@ -33,6 +35,8 @@ component ElementRefDemo {
     signal dragX: f64 = 0;
     signal dragY: f64 = 0;
     signal rectInfo: String = "—";
+    signal boxWidth: i32 = 200;
+    signal mirrorText: String = "";
 
     // ── 焦点操作 ──
     fn focusInput() {
@@ -63,6 +67,32 @@ component ElementRefDemo {
         let rect = dragTarget.getBoundingClientRect();
         rectInfo = "x:" + rect.x.to_string() + " y:" + rect.y.to_string()
                  + " w:" + rect.width.to_string() + " h:" + rect.height.to_string();
+    }
+
+    // ── 尺寸查询（.offsetWidth / .offsetHeight） ──
+    fn querySize() {
+        let w = sizeBox.offsetWidth;
+        let h = sizeBox.offsetHeight;
+        boxWidth = w;
+    }
+
+    // ── 直接样式操作（.style） ──
+    fn expandBox() {
+        sizeBox.style.width = "300px";
+        sizeBox.style.height = "120px";
+        boxWidth = 300;
+    }
+    fn resetBox() {
+        sizeBox.style.width = "200px";
+        sizeBox.style.height = "80px";
+        boxWidth = 200;
+    }
+
+    // ── 多 ref 联动（输入 → 镜像） ──
+    fn syncMirror() {
+        let val = mirrorInput.value;
+        mirrorInput.style.borderColor = "var(--primary)";
+        mirrorText = val;
     }
 
     // ── 高频拖拽（ref + @dragVertical 配合） ──
@@ -130,6 +160,38 @@ component ElementRefDemo {
                 <span class: status-text>{rectInfo}</span>
             </div>
 
+            <!-- ═══ 尺寸查询 + 直接样式 ═══ -->
+            <h4 class: LearnDesign.SectionTitle>尺寸查询 + 直接样式 (.offsetWidth / .style)</h4>
+            <div class: demo-row>
+                <div @ref={sizeBox} class: size-box>
+                    <p>resize via ref.style</p>
+                </div>
+                <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={querySize}>
+                    Query Size
+                </button>
+                <button variant: LearnDesign.Button(color=accent, size=sm) @onPress={expandBox}>
+                    Expand
+                </button>
+                <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={resetBox}>
+                    Reset
+                </button>
+                <span class: status-text>Width: {boxWidth}px</span>
+            </div>
+
+            <!-- ═══ 多 ref 联动 ═══ -->
+            <h4 class: LearnDesign.SectionTitle>多 ref 联动 (.value / .textContent)</h4>
+            <div class: demo-row>
+                <input
+                    class: ref-input
+                    @ref={mirrorInput}
+                    placeholder="Type here..."
+                    @onInput={syncMirror}
+                />
+                <span class: mirror-text>
+                    Mirror: {mirrorText}
+                </span>
+            </div>
+
             <!-- ═══ 高频拖拽（@dragHorizontal + ref） ═══ -->
             <h4 class: LearnDesign.SectionTitle>高频拖拽 (@dragHorizontal)</h4>
             <p class: LearnDesign.Hint>直接 DOM 操作 → 60fps 拖拽 → signal 仅在结束时更新</p>
@@ -179,6 +241,9 @@ component ElementRefDemo {
         .scroll-item { padding: 8px 0; font-size: 13px; color: var(--textSecondary); border-bottom: 1px solid var(--borderLighter); }
         .rect-box { padding: 16px; background: var(--surfaceMuted); border: 1px solid var(--border); border-radius: var(--radiusMd); text-align: center; margin-bottom: 8px; }
         .drag-box { width: 120px; padding: 16px; background: var(--accent); color: white; border-radius: var(--radiusMd); text-align: center; cursor: grab; user-select: none; }
+        .size-box { width: 200px; height: 80px; background: var(--primaryLight); border-radius: var(--radiusMd); display: flex; align-items: center; justify-content: center; transition: "all 300ms"; }
+        .size-box p { font-size: var(--fontSizeXs); color: white; margin: 0; }
+        .mirror-text { font-size: var(--fontSizeSm); color: var(--textSecondary); padding: 8px 14px; background: var(--surfaceMuted); border-radius: var(--radiusMd); min-width: 150px; }
         .constraints-row { display: flex; gap: 16px; margin-bottom: 12px; flex-wrap: wrap; }
         .drag-demo-box { width: 100px; height: 80px; padding: 12px; background: var(--primary); color: white; border-radius: var(--radiusMd); text-align: center; cursor: grab; user-select: none; }
         .drag-demo-box p { font-size: var(--fontSizeXs); margin: 0; }
