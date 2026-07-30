@@ -723,8 +723,10 @@ pub(super) fn gen_view_node_tsx(
             let key_attr = if let Some(ref ke) = list.key_expr {
                 format!(" key={{{}}}", format_expr_ir_tsx(ke, ref_names))
             } else {
-                // Use item identity as key to avoid index-as-key anti-pattern
-                format!(" key={{{}}}", item_name)
+                // Use item identity as key to avoid index-as-key anti-pattern.
+                // String() wraps so React gets a consistent key for objects
+                // rather than silently calling toString() -> "[object Object]"
+                format!(" key={{String({})}}", item_name)
             };
             if list.empty_body.is_some() {
                 w.emit("{");
