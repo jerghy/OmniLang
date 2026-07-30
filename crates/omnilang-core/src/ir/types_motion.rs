@@ -18,10 +18,8 @@ pub struct MotionIntent {
     pub source_span: Option<Span>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum MotionBodyIR {
-    Keyframe(KeyframeIR),
-}
+/// Type alias: single-variant enum inlined to its only variant.
+pub type MotionBodyIR = KeyframeIR;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KeyframeIR {

@@ -250,7 +250,7 @@ fn test_emit_motion_js_keyframe() {
     let mut gen = OmniViewGenerator::default();
     let motion = MotionIntent {
         name: "fadeIn".into(),
-        body: MotionBodyIR::Keyframe(KeyframeIR {
+        body: KeyframeIR {
             stops: vec![
                 KeyframeStopIR {
                     position: 0.0,
@@ -283,7 +283,7 @@ fn test_emit_motion_js_keyframe() {
             ease: Some(EasingIR::Named("ease-out".into())),
             playback: PlaybackIR::default(),
             source_span: None,
-        }),
+        },
 
         source_span: None,
     };
@@ -659,7 +659,7 @@ fn test_stagger_children() {
     let mut gen = OmniViewGenerator::default();
     let motion = MotionIntent {
         name: "staggerAnim".into(),
-        body: MotionBodyIR::Keyframe(KeyframeIR {
+        body: KeyframeIR {
             stops: vec![
                 KeyframeStopIR {
                     position: 0.0,
@@ -690,7 +690,7 @@ fn test_stagger_children() {
             ease: Some(EasingIR::Named("ease-out".into())),
             playback: PlaybackIR::default(),
             source_span: None,
-        }),
+        },
         source_span: None,
     };
     gen.emit_motion_js(&motion);

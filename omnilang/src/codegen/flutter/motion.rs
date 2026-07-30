@@ -102,7 +102,7 @@ pub(crate) fn format_named_curve(name: &str) -> String {
 /// Inspects keyframe properties to determine what widget wrappers to use
 /// (Opacity, Transform.scale, Transform.translate, Transform.rotate).
 pub(crate) fn build_animated_builder_body(motion: &MotionIntent, anim_name: &str) -> String {
-    let MotionBodyIR::Keyframe(kf) = &motion.body;
+    let kf = &motion.body;
     let properties = extract_keyframe_properties(kf);
     if properties.is_empty() {
         return format!("Opacity(opacity: {}.value, child: child)", anim_name);

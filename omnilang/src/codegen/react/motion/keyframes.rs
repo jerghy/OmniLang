@@ -9,7 +9,7 @@ use rustc_hash::FxHashSet;
 /// Format a MotionBodyIR into JS: `{kf:{...},opts:{...}}` for use with animate().
 pub(super) fn format_motion_to_animate(motion: &MotionBodyIR) -> String {
     match motion {
-        MotionBodyIR::Keyframe(kf) => {
+        kf => {
             let kf_items = format_keyframe_stops(kf);
             let opts = format_animate_options(&kf.over, &kf.ease, &kf.playback);
             format!("{{kf:{kf},opts:{opts}}}", kf = kf_items, opts = opts)

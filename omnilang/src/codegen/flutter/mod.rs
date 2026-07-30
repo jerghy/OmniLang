@@ -205,7 +205,7 @@ impl FlutterCodegen {
             for motion in ir.modules.values().flat_map(|m| &m.motions) {
                 let ctrl_name = format!("_{}Controller", motion.name);
                 let anim_name = format!("_{}Animation", motion.name);
-                let MotionBodyIR::Keyframe(kf) = &motion.body;
+                let kf = &motion.body;
                 let duration_ms = extract_duration_ms(&kf.over);
                 let ease_str = format_easing_flutter(&kf.ease);
                 let properties = extract_keyframe_properties(kf);

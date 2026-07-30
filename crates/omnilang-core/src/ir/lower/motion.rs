@@ -22,7 +22,7 @@ pub(super) fn lower_motion_def(
 ) -> MotionIntent {
     let body = match &def.body {
         crate::parser::ast::MotionBody::Keyframe(kf) => {
-            MotionBodyIR::Keyframe(lower_keyframe_body(kf, variant_map, semantics))
+            lower_keyframe_body(kf, variant_map, semantics)
         }
     };
     MotionIntent {

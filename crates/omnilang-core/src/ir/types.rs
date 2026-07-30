@@ -297,13 +297,13 @@ impl From<String> for TypeKind {
 
 impl From<&str> for TypeKind {
     fn from(s: &str) -> Self {
-        match s.to_lowercase().as_str() {
-            "string" => Self::String,
-            "int" | "i32" | "i64" => Self::Int,
-            "float" | "f32" | "f64" => Self::Float,
-            "bool" => Self::Bool,
-            "void" => Self::Void,
-            "any" => Self::Any,
+        match s {
+            "string" | "String" => Self::String,
+            "int" | "Int" | "i32" | "I32" | "i64" | "I64" => Self::Int,
+            "float" | "Float" | "f32" | "F32" | "f64" | "F64" => Self::Float,
+            "bool" | "Bool" | "boolean" | "Boolean" => Self::Bool,
+            "void" | "Void" => Self::Void,
+            "any" | "Any" => Self::Any,
             _ => Self::Named {
                 name: s.to_string(),
             },

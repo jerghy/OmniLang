@@ -1065,7 +1065,7 @@ fn test_motion_enter_controller_init() {
     // Create a keyframe motion: opacity 0→1 over 300ms
     let motion = MotionIntent {
         name: "fadeIn".into(),
-        body: MotionBodyIR::Keyframe(KeyframeIR {
+        body: KeyframeIR {
             stops: vec![KeyframeStopIR {
                 position: 0.0,
                 properties: FxHashMap::from_iter([(
@@ -1083,7 +1083,7 @@ fn test_motion_enter_controller_init() {
             ease: Some(EasingIR::Named("easeOut".into())),
             playback: PlaybackIR::default(),
             source_span: None,
-        }),
+        },
         source_span: None,
     };
 
@@ -1222,7 +1222,7 @@ fn test_motion_hover_mouse_region_wrapping() {
     // Motion with scale animation
     let motions = vec![MotionIntent {
         name: "scaleOnHover".into(),
-        body: MotionBodyIR::Keyframe(KeyframeIR {
+        body: KeyframeIR {
             stops: vec![KeyframeStopIR {
                 position: 0.0,
                 properties: FxHashMap::from_iter([(
@@ -1240,7 +1240,7 @@ fn test_motion_hover_mouse_region_wrapping() {
             ease: None,
             playback: PlaybackIR::default(),
             source_span: None,
-        }),
+        },
         source_span: None,
     }];
 
@@ -1274,7 +1274,7 @@ fn test_motion_inline_body_handling() {
     // Create a multi-property motion simulating an inline body definition
     let motion = MotionIntent {
         name: "popIn".into(),
-        body: MotionBodyIR::Keyframe(KeyframeIR {
+        body: KeyframeIR {
             stops: vec![KeyframeStopIR {
                 position: 0.0,
                 properties: FxHashMap::from_iter([
@@ -1300,7 +1300,7 @@ fn test_motion_inline_body_handling() {
             ease: Some(EasingIR::Named("power1Out".into())),
             playback: PlaybackIR::default(),
             source_span: None,
-        }),
+        },
         source_span: None,
     };
 
@@ -1321,7 +1321,7 @@ fn test_motion_inline_body_handling() {
             triggers: vec![TriggerIntent {
                 kind: TriggerKind::Enter,
                 motion_ref: Some("popIn".into()),
-                inline_motion: Some(MotionBodyIR::Keyframe(KeyframeIR {
+                inline_motion: Some(KeyframeIR {
                     stops: vec![
                         KeyframeStopIR {
                             position: 0.0,
@@ -1368,7 +1368,7 @@ fn test_motion_inline_body_handling() {
                     ease: Some(EasingIR::Named("power1Out".into())),
                     playback: PlaybackIR::default(),
                     source_span: None,
-                })),
+                }),
                 source_span: None,
             }],
             ..Default::default()

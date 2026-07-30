@@ -337,7 +337,7 @@ fn walk_playback(pb: &PlaybackIR, used: &mut FxHashSet<String>) {
 /// Walk a MotionBodyIR and collect all identifier names from ExprIR fields.
 fn walk_motion_body(body: &MotionBodyIR, used: &mut FxHashSet<String>) {
     match body {
-        MotionBodyIR::Keyframe(kf) => {
+        kf => {
             walk_expr_for_idents(&kf.over, used);
             for stop in &kf.stops {
                 for expr in stop.properties.values() {

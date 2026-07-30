@@ -7,7 +7,7 @@ impl OmniViewGenerator {
     /// Emit a JS function that creates a WAAPI animation for a named @motion block.
     pub(super) fn emit_motion_js(&mut self, motion: &MotionIntent) {
         let (kf_js, opts_js) = match &motion.body {
-            MotionBodyIR::Keyframe(kf) => self.keyframe_to_animate_call(kf),
+            kf => self.keyframe_to_animate_call(kf),
         };
 
         let _ = writeln!(
