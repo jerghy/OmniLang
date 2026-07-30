@@ -5,16 +5,15 @@
 
 import omniview;
 import { LearnDesign } from "../design";
+import { ThemeStore } from "../stores/ThemeStore";
 
 component Header {
+    @store ThemeStore;
+
     view {
         <header class: LearnDesign.Banner>
-            <!-- 标题：使用 h1 语义标签 -->
-            <h1 class: LearnDesign.BannerTitle>OmniView 教学项目</h1>
-            <!-- 副标题：项目特性简介 -->
-            <p class: LearnDesign.BannerSubtitle>涵盖 Store、Signal、Computed、Prop、Event、bind:value 等核心特性</p>
+            <h1 class: LearnDesign.BannerTitle>OmniView Capability Showcase</h1>
+            <p class: LearnDesign.BannerSubtitle>7 domains · 4 themes · 60+ source files · {ThemeStore.modeLabel}</p>
         </header>
     }
-    // 样式完全由 LearnDesign.Banner / BannerTitle / BannerSubtitle 提供
-    // 无需组件级 style { } 块 —— Design 是第一公民
 }

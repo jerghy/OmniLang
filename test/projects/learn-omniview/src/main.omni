@@ -1,8 +1,7 @@
-// OmniView 教学项目 — 66+ 源文件
+// OmniView 能力展示 — 7 域 · 4 主题 · 60+ 源文件
 // 运行：omnic run    编译：omnic build --target omniview
 //
 // 架构：design（设计系统）→ components/pages（UI 组件）→ main（根组装）
-// 详见：src/design.omni（LearnDesign 设计系统）
 
 import omniview;
 
@@ -16,17 +15,14 @@ import { Header } from "./components/Header";
 import { TabBar } from "./components/TabBar";
 import { LearnDesign } from "./design";
 
-// ── 页面聚合组件 ──
-import { HomePage } from "./pages/HomePage";
-import { TodoPage } from "./pages/TodoPage";
-import { InteractivePage } from "./pages/InteractivePage";
-import { CompilerPage } from "./pages/CompilerPage";
+// ── 7 标签页页面 ──
+import { Overview } from "./pages/Overview";
+import { UiComponents } from "./pages/UiComponents";
 import { MotionPage } from "./pages/MotionPage";
-import { CssPage } from "./pages/CssPage";
-import { EventsPage } from "./pages/EventsPage";
+import { DesignTheme } from "./pages/DesignTheme";
+import { StatePage } from "./pages/StatePage";
 import { LanguagePage } from "./pages/LanguagePage";
-import { SettingsPage } from "./pages/SettingsPage";
-import { SupplementPage } from "./pages/SupplementPage";
+import { CompilerPage } from "./pages/CompilerPage";
 
 // ── 逻辑库（命名空间导入，供页面内函数/表达式引用） ──
 import "./lib/types" as Types;
@@ -40,7 +36,7 @@ component App {
     @store ThemeStore;
     @store NotificationStore;
 
-    signal activeTab: String = "home";
+    signal activeTab: String = "overview";
 
     fn switchTab(tab: String) { activeTab = tab; }
 
@@ -50,20 +46,17 @@ component App {
             <TabBar activeTab={activeTab} @onSwitch={switchTab} />
 
             <div class: LearnDesign.TabContent>
-                @if activeTab == "home"        { <HomePage /> }
-                @if activeTab == "todo"        { <TodoPage /> }
-                @if activeTab == "interactive" { <InteractivePage /> }
-                @if activeTab == "compiler"    { <CompilerPage /> }
-                @if activeTab == "motion"      { <MotionPage /> }
-                @if activeTab == "css"         { <CssPage /> }
-                @if activeTab == "events"      { <EventsPage /> }
-                @if activeTab == "language"    { <LanguagePage /> }
-                @if activeTab == "settings"    { <SettingsPage /> }
-                @if activeTab == "supplement"  { <SupplementPage /> }
+                @if activeTab == "overview"  { <Overview @onNavigate={switchTab} /> }
+                @if activeTab == "ui"        { <UiComponents /> }
+                @if activeTab == "motion"    { <MotionPage /> }
+                @if activeTab == "design"    { <DesignTheme /> }
+                @if activeTab == "state"     { <StatePage /> }
+                @if activeTab == "language"  { <LanguagePage /> }
+                @if activeTab == "compiler"  { <CompilerPage /> }
             </div>
 
             <footer class: LearnDesign.Footer>
-                <p class: LearnDesign.FooterText>OmniView 教学项目 · 66+ 源文件 · omnic run</p>
+                <p class: LearnDesign.FooterText>OmniView 能力展示 · 7 domains · 4 themes · omnic run</p>
             </footer>
         </div>
     }

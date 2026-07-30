@@ -9,16 +9,13 @@ component TabBar {
 
     view {
         <div class: tab-strip>
-            <button class: { tab: true, tabActive: isActive("home") } @onPress={() => { onSwitch("home"); }}>首页</button>
-            <button class: { tab: true, tabActive: isActive("todo") } @onPress={() => { onSwitch("todo"); }}>待办</button>
-            <button class: { tab: true, tabActive: isActive("interactive") } @onPress={() => { onSwitch("interactive"); }}>基础交互</button>
-            <button class: { tab: true, tabActive: isActive("compiler") } @onPress={() => { onSwitch("compiler"); }}>编译器特性</button>
-            <button class: { tab: true, tabActive: isActive("motion") } @onPress={() => { onSwitch("motion"); }}>运动动画</button>
-            <button class: { tab: true, tabActive: isActive("css") } @onPress={() => { onSwitch("css"); }}>CSS 特性</button>
-            <button class: { tab: true, tabActive: isActive("events") } @onPress={() => { onSwitch("events"); }}>事件/表单</button>
-            <button class: { tab: true, tabActive: isActive("language") } @onPress={() => { onSwitch("language"); }}>语言特性</button>
-            <button class: { tab: true, tabActive: isActive("settings") } @onPress={() => { onSwitch("settings"); }}>设置</button>
-            <button class: { tab: true, tabActive: isActive("supplement") } @onPress={() => { onSwitch("supplement"); }}>补充</button>
+            <button class: { tab: true, tabActive: isActive("overview") } @onPress={() => { onSwitch("overview"); }}>📋 Overview</button>
+            <button class: { tab: true, tabActive: isActive("ui") } @onPress={() => { onSwitch("ui"); }}>🎨 UI</button>
+            <button class: { tab: true, tabActive: isActive("motion") } @onPress={() => { onSwitch("motion"); }}>🎬 Motion</button>
+            <button class: { tab: true, tabActive: isActive("design") } @onPress={() => { onSwitch("design"); }}>💅 Design</button>
+            <button class: { tab: true, tabActive: isActive("state") } @onPress={() => { onSwitch("state"); }}>⚡ State</button>
+            <button class: { tab: true, tabActive: isActive("language") } @onPress={() => { onSwitch("language"); }}>🔤 Language</button>
+            <button class: { tab: true, tabActive: isActive("compiler") } @onPress={() => { onSwitch("compiler"); }}>⚙️ Compiler</button>
         </div>
     }
     style {
