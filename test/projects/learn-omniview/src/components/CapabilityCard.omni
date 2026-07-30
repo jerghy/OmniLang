@@ -1,0 +1,42 @@
+// CapabilityCard.omni -- reusable capability domain card
+
+import omniview;
+import { LearnDesign } from "../design";
+
+component CapabilityCard {
+    prop icon: String = "\u{1F527}";
+    prop title: String = "";
+    prop description: String = "";
+    prop tabName: String = "";
+    event onNavigate: String;
+
+    view {
+        <div class: capability-card @onPress={() => { onNavigate(tabName); }}>
+            <span class: card-icon>{icon}</span>
+            <h3 class: card-title>{title}</h3>
+            <p class: card-desc>{description}</p>
+            <span class: card-link>Explore →</span>
+        </div>
+    }
+
+    style {
+        .capability-card {
+            padding: 20px;
+            background: var(--surface);
+            border: 1px solid var(--borderLight);
+            border-radius: var(--radiusLg);
+            cursor: pointer;
+            transition: all var(--durationFast);
+            display: flex; flex-direction: column;
+        }
+        .capability-card:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadowMd);
+            border-color: var(--primaryLight);
+        }
+        .card-icon { font-size: 32px; margin: 0 0 10px 0; }
+        .card-title { font-size: var(--fontSizeLg); font-weight: var(--fontWeightSemibold); color: var(--textPrimary); margin: 0 0 6px 0; }
+        .card-desc { font-size: var(--fontSizeSm); color: var(--textSecondary); margin: 0 0 12px 0; flex: 1; }
+        .card-link { font-size: var(--fontSizeXs); color: var(--primary); font-weight: var(--fontWeightSemibold); }
+    }
+}

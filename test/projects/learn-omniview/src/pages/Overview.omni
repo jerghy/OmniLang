@@ -1,0 +1,90 @@
+// Overview.omni -- capability matrix landing page
+
+import omniview;
+import { LearnDesign } from "../design";
+import { CapabilityCard } from "../components/CapabilityCard";
+import { ThemeStore } from "../stores/ThemeStore";
+
+component Overview {
+    @store ThemeStore;
+
+    event onNavigate: String;
+
+    view {
+        <section class: overview-section>
+            <div class: LearnDesign.Banner>
+                <h1 class: LearnDesign.BannerTitle>{'\u{1F680}'} OmniLang Capability Showcase</h1>
+                <p class: LearnDesign.BannerSubtitle>
+                    v1.0.0 · 60+ source files · 4 themes · 7 capability domains
+                </p>
+            </div>
+
+            <div class: capability-grid>
+                <CapabilityCard
+                    icon="\u{1F3A8}" title="UI Components"
+                    description="Forms, modals, tables, todo app, notifications, slots, @for rendering"
+                    tabName="ui"
+                    @onNavigate={onNavigate}
+                />
+                <CapabilityCard
+                    icon="\u{1F3AC}" title="Motion & Animation"
+                    description="Keyframes, easing, triggers, drag-and-drop, element refs, 60fps DOM"
+                    tabName="motion"
+                    @onNavigate={onNavigate}
+                />
+                <CapabilityCard
+                    icon="\u{1F485}" title="Design & Theme"
+                    description="4 themes · N-theme @themes directive · CSS cascade · design tokens · variants"
+                    tabName="design"
+                    @onNavigate={onNavigate}
+                />
+                <CapabilityCard
+                    icon="⚡" title="State & Signals"
+                    description="Signal reactivity, computed, @effect, stores (global/inline), bind:value"
+                    tabName="state"
+                    @onNavigate={onNavigate}
+                />
+                <CapabilityCard
+                    icon="\u{1F524}" title="Language Features"
+                    description="Nullish, optional chaining, ternary, block expressions, type system, style pseudos"
+                    tabName="language"
+                    @onNavigate={onNavigate}
+                />
+                <CapabilityCard
+                    icon="⚙️" title="Compiler Features"
+                    description="HTTP fetch, data submit, error handling, async patterns, user settings"
+                    tabName="compiler"
+                    @onNavigate={onNavigate}
+                />
+            </div>
+
+            <div class: stats-bar>
+                <div class: stat-item>
+                    <span class: stat-value>60+</span>
+                    <span class: stat-label>Source Files</span>
+                </div>
+                <div class: stat-item>
+                    <span class: stat-value>7</span>
+                    <span class: stat-label>Domains</span>
+                </div>
+                <div class: stat-item>
+                    <span class: stat-value>4</span>
+                    <span class: stat-label>Themes</span>
+                </div>
+                <div class: stat-item>
+                    <span class: stat-value>{ThemeStore.toggleCount}</span>
+                    <span class: stat-label>Theme Toggles</span>
+                </div>
+            </div>
+        </section>
+    }
+
+    style {
+        .overview-section { }
+        .capability-grid { display: grid; grid-template-columns: "1fr 1fr 1fr"; gap: 14px; margin: 0 0 20px 0; }
+        .stats-bar { display: flex; gap: 16px; justify-content: center; padding: 16px; background: var(--surface); border-radius: var(--radiusLg); border: 1px solid var(--borderLight); }
+        .stat-item { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 80px; }
+        .stat-value { font-size: var(--fontSize3xl); font-weight: var(--fontWeightBold); color: var(--primary); }
+        .stat-label { font-size: var(--fontSizeXs); color: var(--textSecondary); }
+    }
+}
