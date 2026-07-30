@@ -244,12 +244,21 @@ pub fn lower(program: &Program, semantics: &mut SemanticResult) -> IRProgram {
         }
     }
 
+    // Build motion name index for O(1) lookups
+    let mut motion_index: FxHashMap<String, MotionIntent> = FxHashMap::default();
+    for module in modules.values() {
+        for motion in &module.motions {
+            motion_index.insert(motion.name.clone(), motion.clone());
+        }
+    }
+
     let ir_program = IRProgram {
         version: "1.0".to_string(),
         modules,
         source_map,
         stdlib_imports,
         source_span: None,
+        motion_index,
     };
 
     // Validate required props at component call sites

@@ -22,6 +22,7 @@ pub(crate) fn fixture_empty() -> IRProgram {
         source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
         source_span: None,
+        motion_index: FxHashMap::default(),
     }
 }
 
@@ -132,6 +133,7 @@ pub(crate) fn fixture_component() -> IRProgram {
         source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
         source_span: None,
+        motion_index: FxHashMap::default(),
     }
 }
 
@@ -197,6 +199,7 @@ pub(crate) fn fixture_store() -> IRProgram {
         source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
         source_span: None,
+        motion_index: FxHashMap::default(),
     }
 }
 
@@ -294,6 +297,7 @@ pub(crate) fn fixture_component_with_store() -> IRProgram {
         source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
         source_span: None,
+        motion_index: FxHashMap::default(),
     }
 }
 
@@ -636,6 +640,7 @@ pub(crate) fn fixture_expressions() -> IRProgram {
         source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
         source_span: None,
+        motion_index: FxHashMap::default(),
     }
 }
 

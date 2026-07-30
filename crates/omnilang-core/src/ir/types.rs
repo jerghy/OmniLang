@@ -784,14 +784,16 @@ pub struct IRProgram {
     /// Source location in .omni file
     #[serde(default)]
     pub source_span: Option<Span>,
+    /// Motion name → MotionIntent index for O(1) lookups.
+    /// Built during lowering (lower/mod.rs) after all modules are processed.
+    #[serde(skip)]
+    pub motion_index: FxHashMap<String, MotionIntent>,
 }
 
 impl IRProgram {
-    /// Find a motion definition by name across all modules.
+    /// Find a motion definition by name (O(1) via `motion_index`).
     pub fn find_motion(&self, name: &str) -> Option<&MotionIntent> {
-        self.modules
-            .values()
-            .find_map(|m| m.motions.iter().find(|mo| mo.name == name))
+        self.motion_index.get(name)
     }
 }
 
@@ -803,6 +805,7 @@ impl Default for IRProgram {
             source_map: FxHashMap::default(),
             stdlib_imports: FxHashSet::default(),
             source_span: None,
+            motion_index: FxHashMap::default(),
         }
     }
 }

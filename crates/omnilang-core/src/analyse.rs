@@ -304,6 +304,7 @@ pub fn analyse_multi(
         source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
         source_span: None,
+        motion_index: FxHashMap::default(),
     };
 
     let mut merge_warnings: Vec<Diagnostic> = Vec::new();
@@ -519,6 +520,7 @@ pub fn analyse_multi_cached(
         source_map: FxHashMap::default(),
         stdlib_imports: Default::default(),
         source_span: None,
+        motion_index: FxHashMap::default(),
     };
 
     let mut merge_warnings: Vec<Diagnostic> = Vec::new();

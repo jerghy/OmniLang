@@ -127,6 +127,7 @@ mod tests {
             source_map: FxHashMap::default(),
             stdlib_imports: Default::default(),
             source_span: None,
+            motion_index: FxHashMap::default(),
         };
 
         let diags = run_all(&programs, &ir);
