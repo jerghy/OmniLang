@@ -1,52 +1,56 @@
-//! Integration tests that run the JS runtime behavioral tests via Node.js.
+//! Integration tests for JS runtime functions (sanitizers, signals).
 //!
-//! These tests execute the actual signal/sanitizer runtime functions in a JS
-//! engine, going beyond the Rust-side string-content snapshot tests.
+//! These tests invoke the exact JS runtime functions emitted by `runtime.rs`
+//! via Node.js. If Node.js is not available (e.g., in minimal CI images),
+//! the tests gracefully skip with a diagnostic message.
 //!
-//! Requires Node.js to be installed. Skipped gracefully if not available.
+//! JS test files live in `tests/js_runtime/` alongside this file.
 
 use std::process::Command;
 
-fn node_available() -> bool {
-    Command::new("node")
-        .arg("--version")
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
-}
+#[test]
+fn js_runtime_sanitizers_pass() {
+    // Skip if Node.js is not available (e.g., in minimal CI images)
+    if Command::new("node").arg("--version").output().is_err() {
+        eprintln!("SKIP: Node.js not found -- skipping JS runtime tests");
+        return;
+    }
 
-fn run_js_test(test_file: &str) {
     let output = Command::new("node")
-        .arg(test_file)
+        .arg(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/js_runtime/test_sanitizers.js"
+        ))
         .output()
         .expect("failed to execute node");
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-
     assert!(
         output.status.success(),
-        "JS test {} failed.\nstdout:\n{}\nstderr:\n{}",
-        test_file,
-        stdout,
-        stderr,
+        "JS sanitizer tests failed:\nstdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
     );
 }
 
 #[test]
-fn js_runtime_signals_tests() {
-    if !node_available() {
-        eprintln!("Skipping JS runtime tests: Node.js not available");
+fn js_runtime_signals_pass() {
+    if Command::new("node").arg("--version").output().is_err() {
+        eprintln!("SKIP: Node.js not found -- skipping JS runtime tests");
         return;
     }
-    run_js_test("tests/js_runtime/test_signals.js");
-}
 
-#[test]
-fn js_runtime_sanitizers_tests() {
-    if !node_available() {
-        eprintln!("Skipping JS runtime tests: Node.js not available");
-        return;
-    }
-    run_js_test("tests/js_runtime/test_sanitizers.js");
+    let output = Command::new("node")
+        .arg(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/js_runtime/test_signals.js"
+        ))
+        .output()
+        .expect("failed to execute node");
+
+    assert!(
+        output.status.success(),
+        "JS signal tests failed:\nstdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
