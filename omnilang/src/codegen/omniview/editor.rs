@@ -92,11 +92,12 @@ window.__omni_editor = {
 };
 
 function __omni_replaceComponent(name, factoryCode) {
-  // Defense-in-depth: validate factoryCode is a string before eval.
+  // Defense-in-depth: validate factoryCode is a function expression before eval.
   // The primary protection is the postMessage origin check, but this
   // guards against same-origin XSS in the parent editor page sending
-  // a crafted message with non-string js payload.
-  if (typeof factoryCode !== 'string' || factoryCode.length === 0) {
+  // a crafted message with non-function js payload.
+  if (typeof factoryCode !== 'string' || !/^\s*function\s*\(/.test(factoryCode)) {
+    __omni_reportError('warn', 'editor', 'Invalid factory code: expected function expression');
     return;
   }
   var oldComp = window.__omni_components[name];
