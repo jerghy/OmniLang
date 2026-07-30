@@ -328,6 +328,26 @@ pub fn types_compatible(expected: &SemanticType, actual: &SemanticType) -> bool 
     if *expected == SemanticType::Float && *actual == SemanticType::Int {
         return true;
     }
+    // Narrow integer types (i8, i16, u8, etc.) accept Int literals
+    if *actual == SemanticType::Int {
+        if let SemanticType::Named(name) = expected {
+            if matches!(
+                name.as_str(),
+                "i8" | "i16" | "i32" | "i64" | "isize" | "usize"
+                    | "u8" | "u16" | "u32" | "u64"
+            ) {
+                return true;
+            }
+        }
+    }
+    // Array<T> compatibility: recursive element type check
+    if let (SemanticType::Array(elem_e), SemanticType::Array(elem_a)) = (expected, actual) {
+        return types_compatible(elem_e, elem_a);
+    }
+    // Map<K,V> compatibility: recursive key and value type check
+    if let (SemanticType::Map(ek_e, ev_e), SemanticType::Map(ek_a, ev_a)) = (expected, actual) {
+        return types_compatible(ek_e, ek_a) && types_compatible(ev_e, ev_a);
+    }
     // Null is compatible with Optional<T> (check before unwrapping Optional)
     if *actual == SemanticType::Null {
         return matches!(expected, SemanticType::Optional(_));

@@ -526,6 +526,9 @@ impl SemanticAnalyzer {
             }
             Expr::ClosureExpr { params, body, .. } => {
                 // params are available inside the closure body
+                // Push a proper closure scope so params don't leak into the
+                // enclosing function scope (matching collect pass behavior)
+                self.symbols.push_scope("closure");
                 for p in params {
                     self.declare_or_warn(Symbol {
                         name: p.clone(),
@@ -536,6 +539,7 @@ impl SemanticAnalyzer {
                     });
                 }
                 self.resolve_expr_refs(body, vctx);
+                self.symbols.pop_scope();
             }
             Expr::StoreFieldAccess { .. } => {
                 // store.field — resolved at codegen time, skip here

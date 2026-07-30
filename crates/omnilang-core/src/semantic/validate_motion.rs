@@ -184,32 +184,8 @@ impl SemanticAnalyzer {
                 ));
             }
         }
-        if let EasingExpr::Back {
-            direction: Some(ref dir_name),
-            ..
-        } = e
-        {
-            if !is_valid_easing_name(dir_name) {
-                self.diagnostics.push(Diagnostic::error(
-                    DiagnosticKind::E0006,
-                    &format!("Unknown easing name '{}'", dir_name),
-                    span,
-                ));
-            }
-        }
-        if let EasingExpr::Elastic {
-            direction: Some(ref dir_name),
-            ..
-        } = e
-        {
-            if !is_valid_easing_name(dir_name) {
-                self.diagnostics.push(Diagnostic::error(
-                    DiagnosticKind::E0006,
-                    &format!("Unknown easing name '{}'", dir_name),
-                    span,
-                ));
-            }
-        }
+        // Back/Elastic direction strings ("in", "out", "inout") are validated by the parser
+        // and handled correctly by codegen. No need to re-check against the full easing table.
     }
 
     /// Validate element-level motion properties.

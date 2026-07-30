@@ -227,12 +227,7 @@ impl SemanticAnalyzer {
         self.declare_or_warn(Symbol {
             name: f.name.clone(),
             kind: SymbolKind::Function,
-            type_ann: Some(
-                f.return_type
-                    .as_ref()
-                    .map(type_to_string)
-                    .unwrap_or_else(|| "void".to_string()),
-            ),
+            type_ann: f.return_type.as_ref().map(|rt| type_to_string(rt)),
             mutable: false,
             declared_at: f.span.start,
         });
