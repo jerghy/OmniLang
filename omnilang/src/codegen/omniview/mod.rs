@@ -225,6 +225,7 @@ pub fn generate(
         debug_mode,
         scroll_handler_emitted: false,
         ref_nid_map: Vec::new(),
+        ref_nid_set: FxHashSet::default(),
     };
 
     // In css_only mode, skip ALL JS emission — we only need CSS + element mappings.
@@ -527,6 +528,9 @@ struct OmniViewGenerator {
     /// Accumulates (ref_name, nid) pairs during element_to_html.
     /// Cleared per component. Consumed by emit_ref_wrappers.
     pub ref_nid_map: Vec<(String, String)>,
+    /// Enforce uniqueness — duplicate ref_binding names would produce
+    /// duplicate const declarations in generated JS (SyntaxError).
+    ref_nid_set: FxHashSet<String>,
 }
 
 /// A parsed part of an attribute template value with {word} placeholders.
@@ -582,6 +586,7 @@ impl OmniViewGenerator {
             debug_mode: false,
             scroll_handler_emitted: false,
             ref_nid_map: Vec::new(),
+            ref_nid_set: FxHashSet::default(),
         }
     }
 
@@ -603,6 +608,19 @@ impl OmniViewGenerator {
     #[track_caller]
     fn assert_not_css_only(&self) {
         debug_assert!(!self.css_only, "JS emission in css_only mode");
+    }
+
+    /// Register a ref→nid binding with uniqueness enforcement.
+    /// Panics (debug_assert) on duplicates — the semantic validator
+    /// should catch duplicates before codegen, but this is defense-in-depth.
+    pub(super) fn push_ref_nid(&mut self, ref_name: String, nid: String) {
+        debug_assert!(
+            !self.ref_nid_set.contains(&ref_name),
+            "duplicate ref binding '{}' — semantic validator should have caught this",
+            ref_name
+        );
+        self.ref_nid_set.insert(ref_name.clone());
+        self.ref_nid_map.push((ref_name, nid));
     }
 
     // ══════════════════════════════════════════════════════
