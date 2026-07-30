@@ -131,9 +131,6 @@ fn typeir_to_ts(ty: &TypeIR) -> String {
 }
 
 /// Convert a `TypeKind` (with type arguments) to a TypeScript type string.
-///
-/// # Panics
-/// Panics if a new `#[non_exhaustive]` variant is added without updating this match.
 fn typekind_to_ts(kind: &TypeKind, type_args: &[TypeIR]) -> String {
     match kind {
         TypeKind::String => "string".to_string(),
@@ -142,11 +139,6 @@ fn typekind_to_ts(kind: &TypeKind, type_args: &[TypeIR]) -> String {
         TypeKind::Void => "void".to_string(),
         TypeKind::Any => "any".to_string(),
         TypeKind::Named { name } => map_named_type_to_ts(name, type_args),
-        _other => {
-            // TypeKind is #[non_exhaustive] — future variants degrade gracefully
-            // rather than crashing the compiler.
-            "/* unknown type kind */ any".to_string()
-        }
     }
 }
 

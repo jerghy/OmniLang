@@ -116,7 +116,7 @@ fn sanitize_css_value_blocks_crlf_javascript_bypass() {
         "",
         "CR/LF should be stripped and javascript: caught"
     );
-    // TAB before "expression(" should be stripped and caught
+    // TAB before "javascript:" should be stripped and caught
     assert_eq!(
         sanitize_css_value("url(jav\tascript:alert(1))"),
         "",
