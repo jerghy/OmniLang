@@ -27,7 +27,13 @@ pub fn parse(tokens: Vec<Token>, source: &str) -> (Program, Vec<ParseError>) {
 }
 
 /// Maximum recursion depth for the parser to prevent stack overflow.
-const MAX_RECURSION_DEPTH: usize = 256;
+///
+/// 40 (not 256): the guard must fire BEFORE the stack runs out, and the
+/// worst Pratt path (a unary chain) costs ~17 KB per level in debug builds.
+/// Measured on a ~1 MiB Windows main-thread stack (what `omnic` runs on):
+/// ~57 levels survive, 60 overflow — so the guard fires at 39, leaving a
+/// ~34% margin. 39 nested expression levels is far beyond any real source.
+const MAX_RECURSION_DEPTH: usize = 40;
 
 /// The recursive descent parser.
 pub struct Parser<'a> {

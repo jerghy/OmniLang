@@ -25,8 +25,11 @@ type Bp = u8;
 
 impl<'a> Parser<'a> {
     /// Parse an expression starting at current position. Uses Pratt parsing.
+    ///
+    /// Depth accounting lives in `parse_expr_bp` — every expression recursion
+    /// path (unary `-`/`!`, `await`, binary ops, assignment, compound-assign,
+    /// ternary, parens, call args, index, struct literals) funnels through it.
     pub fn parse_expr(&mut self) -> Result<Expr, ParseError> {
-        self.enter_recursion()?;
         let mut expr = self.parse_expr_bp(0)?;
 
         // After Pratt: check for struct literal suffix — TypeName { field: val, ... }
@@ -38,12 +41,30 @@ impl<'a> Parser<'a> {
                 }
             }
         }
-        self.leave_recursion();
         Ok(expr)
     }
 
     /// Pratt: parse expression with minimum binding power.
+    ///
+    /// Depth accounting lives here so EVERY recursive Pratt path (unary `-`/`!`,
+    /// `await`, binary ops, assignment, compound-assign, ternary) goes through
+    /// `MAX_RECURSION_DEPTH`, not just `parse_expr`. Previously only
+    /// `parse_expr` entered, so a deep unary chain (`!!!!...`) recursed
+    /// unboundedly through `parse_expr_bp` and overflowed the stack (~300
+    /// bytes crashed `omnic`).
+    ///
+    /// `leave_recursion` runs on error paths too: a depth error unwinds the
+    /// counter so statement-level recovery can make progress instead of
+    /// re-failing immediately at `enter_recursion` forever (which would stall
+    /// `parse_block`'s recovery loop without consuming tokens).
     fn parse_expr_bp(&mut self, min_bp: Bp) -> Result<Expr, ParseError> {
+        self.enter_recursion()?;
+        let result = self.parse_expr_bp_inner(min_bp);
+        self.leave_recursion();
+        result
+    }
+
+    fn parse_expr_bp_inner(&mut self, min_bp: Bp) -> Result<Expr, ParseError> {
         let mut left = self.parse_prefix()?;
 
         loop {
