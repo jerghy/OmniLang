@@ -357,6 +357,7 @@ fn test_format_element_empty() {
         scroll: None,
         drag: None,
         ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
     };
     assert_eq!(
         format_view_tree(&ViewTree::Element(Box::new(el)), &[], &FxHashMap::default()),
@@ -381,6 +382,7 @@ fn test_format_element_with_text_child() {
         scroll: None,
         drag: None,
         ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
     };
     let expr = format_view_tree(&ViewTree::Element(Box::new(el)), &[], &FxHashMap::default());
     assert_eq!(expr, "Container(child: Text('Hello'))");
@@ -406,6 +408,7 @@ fn test_format_element_with_multiple_children() {
         scroll: None,
         drag: None,
         ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
     };
     let expr = format_view_tree(&ViewTree::Element(Box::new(el)), &[], &FxHashMap::default());
     assert_eq!(expr, "Column(children: [Text('First'), Text('Second')])");
@@ -440,6 +443,7 @@ fn test_format_element_with_event() {
         scroll: None,
         drag: None,
         ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
     };
     let expr = format_view_tree(&ViewTree::Element(Box::new(el)), &[], &FxHashMap::default());
     assert!(expr.contains("ElevatedButton("));
@@ -471,6 +475,7 @@ fn test_format_element_with_class_map_bindings() {
         scroll: None,
         drag: None,
         ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
     };
     let expr = format_view_tree(&ViewTree::Element(Box::new(el)), &[], &FxHashMap::default());
     // Should emit conditional decoration that uses the binding expression
@@ -515,6 +520,7 @@ fn test_format_element_with_class_map_bindings_static_true() {
         scroll: None,
         drag: None,
         ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
     };
     let expr = format_view_tree(&ViewTree::Element(Box::new(el)), &[], &FxHashMap::default());
     // Static true class bindings should not add wrapping Container
@@ -545,6 +551,7 @@ fn test_format_element_with_class_map_bindings_static_false() {
         scroll: None,
         drag: None,
         ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
     };
     let expr = format_view_tree(&ViewTree::Element(Box::new(el)), &[], &FxHashMap::default());
     // Static false class bindings should be skipped entirely
@@ -576,6 +583,7 @@ fn test_format_element_with_class_map_bindings_and_child() {
         scroll: None,
         drag: None,
         ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
     };
     let expr = format_view_tree(&ViewTree::Element(Box::new(el)), &[], &FxHashMap::default());
     // Should wrap the child Container inside a conditional Container
@@ -1112,6 +1120,7 @@ fn test_motion_enter_controller_init() {
         scroll: None,
         drag: None,
         ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
     };
 
     let view = ViewTree::Element(Box::new(el));
@@ -1378,6 +1387,7 @@ fn test_motion_inline_body_handling() {
         scroll: None,
         drag: None,
         ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
     };
 
     let view = ViewTree::Element(Box::new(el));

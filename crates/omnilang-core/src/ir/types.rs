@@ -227,6 +227,13 @@ pub enum ExprIR {
     MapExpr {
         entries: Vec<(ExprIR, ExprIR)>,
     },
+    /// Semantic ref method call: `refName.focus()`, `refName.scrollTo(x, y)`, etc.
+    /// Populated by the semantic pass from `@ref`-bound element method calls;
+    /// consumed by codegen backends (Phase 4-6).
+    RefOpExpr {
+        ref_name: String,
+        op: RefOpIR,
+    },
 }
 
 impl ExprIR {
@@ -641,6 +648,11 @@ pub struct ElementIR {
     /// or GlobalKey (Flutter).
     #[serde(default)]
     pub ref_binding: Option<String>,
+    /// Semantic ref bindings extracted from `@ref`-bound elements:
+    /// binding kind (e.g. "focus", "scroll_x", "scroll_y", "value") → expression.
+    /// Populated by the semantic pass; consumed by codegen backends (Phase 4-6).
+    #[serde(default)]
+    pub semantic_bindings: FxHashMap<String, ExprIR>,
 }
 
 impl ElementIR {
@@ -675,6 +687,53 @@ pub enum ViewTree {
     Slot(Option<String>),
     /// Inline list of child nodes (no wrapper element) — used for slot projection.
     Fragment(Vec<ViewTree>),
+}
+
+// ═══════════════════════════════════════════════════════
+// RefOpIR — semantic element ref operations
+// ═══════════════════════════════════════════════════════
+
+/// A semantic operation invoked on an element bound via `@ref={name}`.
+///
+/// Lowered from AST ref method calls (e.g. `myRef.focus()`) by the semantic
+/// pass into `ExprIR::RefOpExpr`. Each variant carries the expressions needed
+/// by the target backend; `Option` fields are `None` when the source call
+/// omitted that argument. `ExprIR` children are boxed to break the recursive
+/// size cycle with `ExprIR::RefOpExpr`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
+pub enum RefOpIR {
+    /// `ref.focus()` — move focus to the element.
+    Focus,
+    /// `ref.blur()` — remove focus from the element.
+    Blur,
+    /// `ref.scrollTo(x?, y?)` — absolute scroll position.
+    ScrollTo {
+        x: Option<Box<ExprIR>>,
+        y: Option<Box<ExprIR>>,
+    },
+    /// `ref.scrollBy(dx?, dy?)` — relative scroll delta.
+    ScrollBy {
+        dx: Option<Box<ExprIR>>,
+        dy: Option<Box<ExprIR>>,
+    },
+    /// `ref.measure()` — read the element's bounding box.
+    Measure,
+    /// `ref.select()` — select the element's text content.
+    Select,
+    /// `ref.setSelection(start, end)` — select a range of text.
+    SetSelection {
+        start: Box<ExprIR>,
+        end: Box<ExprIR>,
+    },
+    /// `ref.value` — read the element's current value (input/textarea).
+    Value,
+    /// `ref.setValue(value)` — set the element's value.
+    SetValue { value: Box<ExprIR> },
+    /// `ref.capturePointer(id)` — capture a pointer on the element.
+    CapturePointer { id: Box<ExprIR> },
+    /// `ref.releasePointer(id)` — release a captured pointer.
+    ReleasePointer { id: Box<ExprIR> },
 }
 
 // ═══════════════════════════════════════════════════════

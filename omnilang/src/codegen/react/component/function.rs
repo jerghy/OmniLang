@@ -417,6 +417,8 @@ fn collect_called_fns_from_expr(expr: &ExprIR, acc: &mut FxHashSet<String>) {
             collect_called_fns_from_expr(operand, acc);
         }
         ExprIR::IdentifierExpr { .. } | ExprIR::LiteralExpr { .. } => {}
+        // Ref ops don't call functions — their args are value expressions.
+        ExprIR::RefOpExpr { .. } => {}
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown ExprIR variant — update codegen for new variant"),
     }

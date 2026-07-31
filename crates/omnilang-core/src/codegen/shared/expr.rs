@@ -303,6 +303,10 @@ pub trait FormatExpr {
                 // Use empty type_name since MapExpr has no struct type
                 self.format_struct("", &fields.join(", "))
             }
+            ExprIR::RefOpExpr { ref_name, op } => {
+                // Placeholder — real ref-op codegen lands in Phase 4-6.
+                format!("/* RefOp::{op:?} on {ref_name} */")
+            }
         }
     }
 }

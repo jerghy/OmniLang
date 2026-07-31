@@ -281,6 +281,10 @@ impl OmniViewGenerator {
                     .collect();
                 format!("{{{}}}", items.join(", "))
             }
+            ExprIR::RefOpExpr { ref_name, op } => {
+                // Placeholder — real ref-op codegen lands in Phase 4.3.
+                format!("/* RefOp::{op:?} on {ref_name} */")
+            }
             #[allow(unreachable_patterns)]
             _ => unreachable!("Unknown ExprIR variant — update codegen for new variant"),
         }

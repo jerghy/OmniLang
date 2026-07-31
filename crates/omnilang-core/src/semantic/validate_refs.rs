@@ -235,6 +235,7 @@ mod tests {
             motion: None,
             scroll: None,
             drag: None,
+            semantic_bindings: FxHashMap::default(),
         }
     }
 
@@ -437,6 +438,7 @@ mod tests {
                     motion: None,
                     scroll: None,
                     drag: None,
+                    semantic_bindings: FxHashMap::default(),
                 }))),
                 empty_body: None,
             }))),

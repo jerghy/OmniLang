@@ -95,6 +95,39 @@ pub fn walk_expr(expr: &ExprIR, f: &mut impl FnMut(&ExprIR)) {
                 walk_expr(value, f);
             }
         }
+        ExprIR::RefOpExpr { op, .. } => {
+            walk_ref_op(op, f);
+        }
+    }
+}
+
+/// Walk the `ExprIR` children carried by a `RefOpIR` operation.
+fn walk_ref_op(op: &RefOpIR, f: &mut impl FnMut(&ExprIR)) {
+    match op {
+        RefOpIR::Focus | RefOpIR::Blur | RefOpIR::Measure | RefOpIR::Select | RefOpIR::Value => {}
+        RefOpIR::ScrollTo { x, y } => {
+            if let Some(x) = x {
+                walk_expr(x, f);
+            }
+            if let Some(y) = y {
+                walk_expr(y, f);
+            }
+        }
+        RefOpIR::ScrollBy { dx, dy } => {
+            if let Some(dx) = dx {
+                walk_expr(dx, f);
+            }
+            if let Some(dy) = dy {
+                walk_expr(dy, f);
+            }
+        }
+        RefOpIR::SetSelection { start, end } => {
+            walk_expr(start, f);
+            walk_expr(end, f);
+        }
+        RefOpIR::SetValue { value } => walk_expr(value, f),
+        RefOpIR::CapturePointer { id } => walk_expr(id, f),
+        RefOpIR::ReleasePointer { id } => walk_expr(id, f),
     }
 }
 

@@ -481,12 +481,11 @@ fn lower_element(
                     inline_motion: None,
                     source_span: None,
                 });
-            }
-            // Deleted sub-attribute ElementProps (@paused, in-view once/repeat/
-            // threshold, scroll start/end/scrub, drag constraints/elastic/scrub/
-            // momentum/threshold/velocity-max) no longer exist — they are parsed
-            // as regular ident-based attrs per semantic-level DSL spec §3.2 and
-            // will be lowered again once the new attr syntax lands (Tasks 0.3-0.4).
+            } // Deleted sub-attribute ElementProps (@paused, in-view once/repeat/
+              // threshold, scroll start/end/scrub, drag constraints/elastic/scrub/
+              // momentum/threshold/velocity-max) no longer exist — they are parsed
+              // as regular ident-based attrs per semantic-level DSL spec §3.2 and
+              // will be lowered again once the new attr syntax lands (Tasks 0.3-0.4).
         }
     }
 
@@ -592,6 +591,7 @@ fn lower_element(
             }
         },
         ref_binding,
+        semantic_bindings: FxHashMap::default(),
     }))
 }
 
@@ -731,6 +731,7 @@ fn make_fragment_element(children: Vec<ViewTree>, construction_kind: Constructio
         scroll: None,
         drag: None,
         ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
     }))
 }
 

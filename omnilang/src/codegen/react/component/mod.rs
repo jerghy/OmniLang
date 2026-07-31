@@ -474,8 +474,44 @@ fn collect_expr_identifiers(expr: &ExprIR, acc: &mut FxHashSet<String>) {
             collect_expr_identifiers(operand, acc);
         }
         ExprIR::LiteralExpr { .. } => {}
+        ExprIR::RefOpExpr { op, .. } => {
+            collect_ref_op_identifiers(op, acc);
+        }
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown ExprIR variant — update codegen for new variant"),
+    }
+}
+
+/// Collect identifier references from a `RefOpIR`'s child expressions
+/// (e.g. ScrollTo/ScrollBy/SetSelection/SetValue arguments).
+fn collect_ref_op_identifiers(op: &RefOpIR, acc: &mut FxHashSet<String>) {
+    match op {
+        RefOpIR::Focus | RefOpIR::Blur | RefOpIR::Measure | RefOpIR::Select | RefOpIR::Value => {}
+        RefOpIR::ScrollTo { x, y } => {
+            if let Some(x) = x {
+                collect_expr_identifiers(x, acc);
+            }
+            if let Some(y) = y {
+                collect_expr_identifiers(y, acc);
+            }
+        }
+        RefOpIR::ScrollBy { dx, dy } => {
+            if let Some(dx) = dx {
+                collect_expr_identifiers(dx, acc);
+            }
+            if let Some(dy) = dy {
+                collect_expr_identifiers(dy, acc);
+            }
+        }
+        RefOpIR::SetSelection { start, end } => {
+            collect_expr_identifiers(start, acc);
+            collect_expr_identifiers(end, acc);
+        }
+        RefOpIR::SetValue { value } => collect_expr_identifiers(value, acc),
+        RefOpIR::CapturePointer { id } => collect_expr_identifiers(id, acc),
+        RefOpIR::ReleasePointer { id } => collect_expr_identifiers(id, acc),
+        #[allow(unreachable_patterns)]
+        _ => {}
     }
 }
 

@@ -464,6 +464,7 @@ fn test_tsx_interpolation_renders_expr() {
             scroll: None,
             drag: None,
             ref_binding: None,
+            semantic_bindings: FxHashMap::default(),
             construction_kind: ConstructionKind::Static,
             source_span: None,
         })),
