@@ -63,8 +63,7 @@ pub use writer::{CodeWriter, CompileOutput, CompiledFile};
     feature = "codegen-rust",
     feature = "codegen-dart",
     feature = "codegen-vue",
-    feature = "codegen-dioxus",
-    feature = "codegen-flutter"
+    feature = "codegen-dioxus"
 ))]
 const DESIGN_BLOCK_WARNING: &str = "Design blocks are only supported on the OmniView target. \
     Design tokens, classes, and variants will not be emitted in this output. \
@@ -77,8 +76,7 @@ const DESIGN_BLOCK_WARNING: &str = "Design blocks are only supported on the Omni
     feature = "codegen-rust",
     feature = "codegen-dart",
     feature = "codegen-vue",
-    feature = "codegen-dioxus",
-    feature = "codegen-flutter"
+    feature = "codegen-dioxus"
 ))]
 fn has_design_blocks(ir: &IRProgram) -> bool {
     ir.modules.values().any(|m| !m.designs.is_empty())
@@ -194,18 +192,10 @@ pub fn compile(
             }
             dioxus::DioxusCodegen.generate(ir, source_files)
         }
+        // Flutter compiles design blocks (semantic DSL) — no gate. Unmapped
+        // design features degrade to warnings emitted by the Flutter codegen.
         #[cfg(feature = "codegen-flutter")]
-        Target::Flutter => {
-            if has_design_blocks(ir) {
-                return CompileOutput {
-                    files: vec![],
-                    errors: vec![],
-                    source_map: vec![],
-                    warnings: vec![DESIGN_BLOCK_WARNING.into()],
-                };
-            }
-            flutter::FlutterCodegen.generate(ir, source_files)
-        }
+        Target::Flutter => flutter::FlutterCodegen.generate(ir, source_files),
         _ => CompileOutput::error(format!(
             "Backend for '{:?}' is not enabled (compile with the corresponding codegen-* feature flag)",
             target

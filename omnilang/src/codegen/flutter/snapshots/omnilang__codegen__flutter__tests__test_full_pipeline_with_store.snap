@@ -6,5 +6,30 @@ expression: "&file.content"
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-// — Signal providers —
-final appStoreCountProvider = StateProvider<int>((ref) => 0);
+/// Immutable state for AppStore.
+class AppStoreState {
+    final int count;
+
+    const AppStoreState({
+        required this.count,
+    });
+
+    AppStoreState copyWith({
+        int? count,
+    }) {
+        return AppStoreState(
+            count: count ?? this.count,
+        );
+    }
+}
+
+/// Riverpod 3.0 Notifier for AppStore.
+class AppStore extends Notifier<AppStoreState> {
+    @override
+    AppStoreState build() {
+        return const AppStoreState(count: 0);
+    }
+
+}
+
+final appStoreProvider = NotifierProvider<AppStore, AppStoreState>(AppStore.new);

@@ -4,28 +4,40 @@ use crate::codegen::shared::expr::{DartFormatExpr, FormatExpr};
 use crate::codegen::shared::stmt::FormatStmt;
 use crate::codegen::CodeWriter;
 use crate::ir::*;
+use rustc_hash::FxHashSet;
 use std::fmt::Write;
 
 // ═══════════════════════════════════════════════════════════════
 // Statement generation (Flutter/Dart)
 // ═══════════════════════════════════════════════════════════════
 
-/// Flutter statement formatter — wraps mutations in `setState`.
-///
-/// In store-action mode (`in_store_action: true`), mutations use the Riverpod
-/// `ref.read(prefix<Name>Provider.notifier).state` pattern instead of `setState`.
-pub(crate) struct FlutterStmtFormatter {
-    pub(crate) expr: DartFormatExpr,
-    /// When true, mutations use Riverpod state mutation pattern
-    /// instead of setState wrapping.
-    pub(crate) in_store_action: bool,
-    /// Store name prefix for constructing Riverpod provider names
-    /// (e.g., "appStore" for store named "AppStore").
-    pub(crate) store_prefix: Option<String>,
+/// Shared Dart-family `let` statement formatting.
+fn format_dart_let_stmt<F: FormatExpr>(
+    expr: &F,
+    w: &mut CodeWriter,
+    name: &str,
+    value: &Option<ExprIR>,
+    type_ann: &Option<TypeIR>,
+) {
+    let rhs = value
+        .as_ref()
+        .map(|v| expr.format_expr(v))
+        .unwrap_or_else(|| "null".into());
+    if let Some(ref ty) = type_ann {
+        let ann = super::super::dart::dart_type(ty.kind.as_str(), &ty.type_args);
+        w.emit_fmt(format_args!("{ann} {name} = {rhs};"));
+    } else {
+        w.emit_fmt(format_args!("var {name} = {rhs};"));
+    }
 }
 
-impl FormatStmt for FlutterStmtFormatter {
-    type ExprFormatter = DartFormatExpr;
+/// Component-mode Flutter statement formatter — wraps mutations in `setState`.
+pub(crate) struct FlutterStmtFormatter<F: FormatExpr> {
+    pub(crate) expr: F,
+}
+
+impl<F: FormatExpr> FormatStmt for FlutterStmtFormatter<F> {
+    type ExprFormatter = F;
 
     fn expr_fmt(&self) -> &Self::ExprFormatter {
         &self.expr
@@ -50,44 +62,143 @@ impl FormatStmt for FlutterStmtFormatter {
         value: &Option<ExprIR>,
         type_ann: &Option<TypeIR>,
     ) {
-        let rhs = value
-            .as_ref()
-            .map(|v| self.expr.format_expr(v))
-            .unwrap_or_else(|| "null".into());
-        if let Some(ref ty) = type_ann {
-            let ann = super::super::dart::dart_type(ty.kind.as_str(), &ty.type_args);
-            w.emit_fmt(format_args!("{ann} {name} = {rhs};"));
-        } else {
-            w.emit_fmt(format_args!("var {name} = {rhs};"));
-        }
+        format_dart_let_stmt(&self.expr, w, name, value, type_ann);
     }
 
+    /// Component-local mutations target the plain field name.
     fn mutation_target_expr(&self, target: &str) -> String {
-        if let Some(ref prefix) = self.store_prefix {
-            // In store action: `count` → `ref.read(appStoreCountProvider.notifier).state`
-            format!(
-                "ref.read({}{}Provider.notifier).state",
-                prefix,
-                super::super::capitalize_first(target)
-            )
-        } else {
-            target.to_string()
-        }
+        target.to_string()
     }
 
+    /// Component-local mutations are wrapped in setState.
     fn mutation_stmt_prefix(&self) -> Option<&str> {
-        if self.in_store_action {
-            None // No setState wrapping in store actions
-        } else {
-            Some("setState(() {")
-        }
+        Some("setState(() {")
     }
 
     fn mutation_stmt_suffix(&self) -> Option<&str> {
-        if self.in_store_action {
-            None // No setState wrapping in store actions
-        } else {
-            Some("});")
+        Some("});")
+    }
+}
+
+/// Store-action-mode Flutter statement formatter (Riverpod 3.0 Notifier
+/// methods). Mutations use the `state = state.copyWith(...)` pattern with no
+/// setState wrapping; bare signal/getter identifiers are rewritten to
+/// `state.<name>` by `StoreActionExprFormatter`.
+pub(crate) struct StoreActionStmtFormatter<'a> {
+    pub(crate) expr: super::expr::StoreActionExprFormatter<'a>,
+}
+
+impl<'a> FormatStmt for StoreActionStmtFormatter<'a> {
+    type ExprFormatter = super::expr::StoreActionExprFormatter<'a>;
+
+    fn expr_fmt(&self) -> &Self::ExprFormatter {
+        &self.expr
+    }
+
+    fn null_value(&self) -> &str {
+        "null"
+    }
+
+    fn for_in_keyword(&self) -> &str {
+        "var"
+    }
+
+    fn for_in_uses_of(&self) -> bool {
+        false
+    }
+
+    fn format_let_stmt(
+        &self,
+        w: &mut CodeWriter,
+        name: &str,
+        value: &Option<ExprIR>,
+        type_ann: &Option<TypeIR>,
+    ) {
+        format_dart_let_stmt(&self.expr, w, name, value, type_ann);
+    }
+
+    /// Riverpod 3.0 store mutations: `state = state.copyWith(field: value)`.
+    fn format_mutation_stmt(&self, w: &mut CodeWriter, intent: &MutationIntent) {
+        let fmt_expr = |e: &ExprIR| self.expr.format_expr(e);
+        match intent {
+            MutationIntent::DirectAssign { target, value, .. } => {
+                let v = value
+                    .as_deref()
+                    .map(fmt_expr)
+                    .unwrap_or_else(|| "null".into());
+                w.emit_fmt(format_args!(
+                    "state = state.copyWith({}: {});",
+                    target.name, v
+                ));
+            }
+            MutationIntent::Increment { target, amount } => {
+                let amt = amount
+                    .as_deref()
+                    .map(fmt_expr)
+                    .unwrap_or_else(|| "1".into());
+                w.emit_fmt(format_args!(
+                    "state = state.copyWith({}: state.{} + {});",
+                    target.name, target.name, amt
+                ));
+            }
+            MutationIntent::Decrement { target, amount } => {
+                let amt = amount
+                    .as_deref()
+                    .map(fmt_expr)
+                    .unwrap_or_else(|| "1".into());
+                w.emit_fmt(format_args!(
+                    "state = state.copyWith({}: state.{} - {});",
+                    target.name, target.name, amt
+                ));
+            }
+            MutationIntent::Multiply { target, amount } => {
+                let amt = amount
+                    .as_deref()
+                    .map(fmt_expr)
+                    .unwrap_or_else(|| "2".into());
+                w.emit_fmt(format_args!(
+                    "state = state.copyWith({}: state.{} * {});",
+                    target.name, target.name, amt
+                ));
+            }
+            MutationIntent::Divide { target, amount } => {
+                let amt = amount
+                    .as_deref()
+                    .map(fmt_expr)
+                    .unwrap_or_else(|| "2".into());
+                w.emit_fmt(format_args!(
+                    "state = state.copyWith({}: state.{} / {});",
+                    target.name, target.name, amt
+                ));
+            }
+            MutationIntent::Modulo { target, amount } => {
+                let amt = amount
+                    .as_deref()
+                    .map(fmt_expr)
+                    .unwrap_or_else(|| "2".into());
+                w.emit_fmt(format_args!(
+                    "state = state.copyWith({}: state.{} % {});",
+                    target.name, target.name, amt
+                ));
+            }
+            MutationIntent::Push { target, item } => {
+                let it = item
+                    .as_deref()
+                    .map(fmt_expr)
+                    .unwrap_or_else(|| "null".into());
+                w.emit_fmt(format_args!(
+                    "state = state.copyWith({}: [...state.{}]..add({}));",
+                    target.name, target.name, it
+                ));
+            }
+            MutationIntent::Pop { target } => {
+                w.emit_fmt(format_args!(
+                    "state = state.copyWith({}: state.{}.sublist(0, state.{}.length - 1));",
+                    target.name, target.name, target.name
+                ));
+            }
+            #[allow(unreachable_patterns)]
+            _ => {}
         }
     }
 }
@@ -97,29 +208,27 @@ pub(crate) fn generate_statement_flutter(w: &mut CodeWriter, stmt: &StatementIR)
         expr: DartFormatExpr {
             event_param_name: None,
         },
-        in_store_action: false,
-        store_prefix: None,
     };
     fmt.format_stmt(w, stmt);
 }
 
-/// Generate statements inside a store action body (Riverpod state mutations).
-///
-/// Uses `ref.read(prefix<Name>Provider.notifier).state` instead of `setState`.
-pub(crate) fn generate_store_action_stmt(w: &mut CodeWriter, stmt: &StatementIR, store_name: &str) {
-    let lower = |s: &str| {
-        let mut c = s.chars();
-        match c.next() {
-            None => String::new(),
-            Some(first) => first.to_lowercase().to_string() + c.as_str(),
-        }
-    };
-    let fmt = FlutterStmtFormatter {
-        expr: DartFormatExpr {
-            event_param_name: None,
+/// Generate statements inside a store action body (Riverpod 3.0 Notifier
+/// method — `state = state.copyWith(...)` mutations with bare signal
+/// identifiers rewritten to `state.<name>`).
+pub(crate) fn generate_store_action_stmt(w: &mut CodeWriter, stmt: &StatementIR, store: &StoreIR) {
+    let store_names: FxHashSet<String> = store
+        .signals
+        .keys()
+        .chain(store.getters.keys())
+        .cloned()
+        .collect();
+    let fmt = StoreActionStmtFormatter {
+        expr: super::expr::StoreActionExprFormatter {
+            inner: DartFormatExpr {
+                event_param_name: None,
+            },
+            store_names: &store_names,
         },
-        in_store_action: true,
-        store_prefix: Some(lower(store_name)),
     };
     fmt.format_stmt(w, stmt);
 }

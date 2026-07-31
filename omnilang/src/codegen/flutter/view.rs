@@ -8,13 +8,14 @@ use crate::ir::*;
 use rustc_hash::FxHashMap;
 
 use super::capitalize_first;
-use super::expr::format_expr_ir_flutter;
+use super::expr::{format_expr_ir_flutter, rewrite_stmt_store_accesses, rewrite_store_accesses};
 use super::motion::wrap_with_motion_widgets;
 use super::motion_widgets::{emit_event_object_flutter, field_extract_flutter};
 use super::stmt::{generate_statement_flutter, FlutterStmtFormatter};
 use super::utils::{
-    binding_to_flutter_param, event_to_flutter_callback, prop_to_flutter_param_name,
-    tag_to_flutter_widget,
+    binding_to_flutter_param, css_color_to_dart, event_to_flutter_callback, lower_first,
+    prop_to_flutter_param_name, tag_to_flutter_widget, widget_allows_event, widget_allows_param,
+    widget_param_rename, widget_param_wrapper,
 };
 use std::fmt::Write;
 
@@ -22,14 +23,37 @@ use std::fmt::Write;
 // View tree formatting (single-line Flutter widget expressions)
 // ═══════════════════════════════════════════════════════════════
 
+/// Per-component context threaded through view-tree formatting.
+pub(crate) struct ViewContext<'a> {
+    pub(crate) component_map: &'a FxHashMap<&'a str, &'a ComponentIR>,
+    /// Store alias → Riverpod provider variable name
+    /// (e.g. "TodoStore" → "todoStoreProvider").
+    pub(crate) store_provider_map: &'a FxHashMap<String, String>,
+    pub(crate) ir: &'a IRProgram,
+    /// Compiler warnings accumulated during view formatting (C6).
+    pub(crate) warnings: &'a mut Vec<String>,
+}
+
+impl ViewContext<'_> {
+    /// Format an expression in view context — `StoreFieldAccessExpr` is
+    /// rewritten to Riverpod 3.0 `ref.watch(...)` / `ref.read(...)` forms (C4).
+    fn format_expr(&self, expr: &ExprIR) -> String {
+        format_expr_ir_flutter(&rewrite_store_accesses(
+            expr,
+            self.store_provider_map,
+            self.ir,
+        ))
+    }
+}
+
 /// Render a ViewTree as a single-line Flutter widget expression string.
 pub(crate) fn format_view_tree(
     node: &ViewTree,
     motions: &[MotionIntent],
-    component_map: &FxHashMap<&str, &ComponentIR>,
+    ctx: &mut ViewContext,
 ) -> String {
     match node {
-        ViewTree::Element(el) => format_element(el, motions, component_map),
+        ViewTree::Element(el) => format_element(el, motions, ctx),
         ViewTree::Text(text) => {
             if text.starts_with('{') && text.ends_with('}') {
                 // OmniView interpolation: {name} -> Text('$name')
@@ -44,24 +68,25 @@ pub(crate) fn format_view_tree(
             }
         }
         ViewTree::Interpolation(expr) => {
-            let dart_expr = format_expr_ir_flutter(expr);
+            let dart_expr = ctx.format_expr(expr);
             format!("Text({})", dart_expr)
         }
-        ViewTree::Conditional(cond) => format_conditional(cond, motions, component_map),
-        ViewTree::ListRendering(list) => format_list_rendering(list, motions, component_map),
+        ViewTree::Conditional(cond) => format_conditional(cond, motions, ctx),
+        ViewTree::ListRendering(list) => format_list_rendering(list, motions, ctx),
         ViewTree::Fragment(children) => children
             .iter()
-            .map(|c| format_view_tree(c, motions, component_map))
+            .map(|c| format_view_tree(c, motions, ctx))
             .collect::<Vec<_>>()
             .join(", "),
         ViewTree::Slot { name, .. } => {
             // TODO(1.2): render the preserved `fallback` children when the parent
             // provides no content for this slot.
             let slot_desc = name.as_deref().unwrap_or("default");
-            format!(
-                "/* WARNING: <slot name=\"{}\"> is not supported in Flutter. */ SizedBox.shrink()",
+            ctx.warnings.push(format!(
+                "[flutter] <slot name=\"{}\"> is not supported in Flutter; emitted SizedBox.shrink()",
                 slot_desc
-            )
+            ));
+            "SizedBox.shrink()".to_string()
         }
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
@@ -102,21 +127,13 @@ fn css_prop_to_flutter_param(prop: &str) -> Option<&'static str> {
 /// Format an ElementIR node as a Flutter widget constructor expression.
 /// Wraps with motion animation widgets (AnimatedBuilder, MouseRegion, GestureDetector)
 /// when the element has motion triggers.
-fn format_element(
-    el: &ElementIR,
-    motions: &[MotionIntent],
-    component_map: &FxHashMap<&str, &ComponentIR>,
-) -> String {
+fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContext) -> String {
     // Component composition: check if tag is a known component
-    if let Some(_child_comp) = component_map.get(el.tag.as_str()) {
+    if let Some(_child_comp) = ctx.component_map.get(el.tag.as_str()) {
         let mut child_args: Vec<String> = Vec::new();
         // Props become constructor parameters
         for (prop_name, prop_value) in &el.props {
-            child_args.push(format!(
-                "{}: {}",
-                prop_name,
-                format_expr_ir_flutter(prop_value)
-            ));
+            child_args.push(format!("{}: {}", prop_name, ctx.format_expr(prop_value)));
         }
         // Events become callback parameters
         for (event_name, handler) in &el.events {
@@ -124,7 +141,7 @@ fn format_element(
                 EventHandlerIR::FnRef { r#ref, .. } => {
                     format!("() {{ {}(); }}", r#ref)
                 }
-                EventHandlerIR::InlineFn { body, .. } => format_inline_handler_flutter(body),
+                EventHandlerIR::InlineFn { body, .. } => format_inline_handler_flutter(body, ctx),
                 EventHandlerIR::StoreAction { r#ref, .. } => format_store_action_handler(r#ref),
             };
             let stem = event_name.strip_prefix("on").unwrap_or(event_name);
@@ -138,7 +155,7 @@ fn format_element(
             let children_str: Vec<String> = el
                 .children
                 .iter()
-                .map(|c| format_view_tree(c, motions, component_map))
+                .map(|c| format_view_tree(c, motions, ctx))
                 .collect();
             return format!(
                 "{}({}, children: [{}])",
@@ -152,61 +169,102 @@ fn format_element(
     let widget = tag_to_flutter_widget(&el.tag);
     let mut args: Vec<String> = Vec::new();
 
-    // Props -> widget constructor parameters
+    // Props -> widget constructor parameters (C6: per-widget whitelist —
+    // unmapped params emit a compiler warning instead of invalid Dart).
+    // Params that belong to a sub-object (TextStyle/InputDecoration) are
+    // collected and merged into a single wrapper argument.
+    let mut wrapped: Vec<(&'static str, Vec<String>)> = Vec::new();
     for (name, value) in &el.props {
-        let formatted = format_expr_ir_flutter(value);
-        let param = prop_to_flutter_param_name(name);
-        if !param.is_empty() {
-            args.push(format!("{}: {}", param, formatted));
+        let formatted = ctx.format_expr(value);
+        let param = widget_param_rename(widget, prop_to_flutter_param_name(name));
+        if param.is_empty() {
+            continue; // slug props (class/style/id/value/...) — intentionally dropped
         }
+        if let Some((wrapper, member)) = widget_param_wrapper(widget, param) {
+            match wrapped.iter_mut().find(|(w, _)| *w == wrapper) {
+                Some((_, members)) => members.push(format!("{}: {}", member, formatted)),
+                None => wrapped.push((wrapper, vec![format!("{}: {}", member, formatted)])),
+            }
+            continue;
+        }
+        if !widget_allows_param(widget, param) {
+            ctx.warnings.push(format!(
+                "[flutter] prop '{name}' → param '{param}' is not supported on '{widget}'; skipped"
+            ));
+            continue;
+        }
+        args.push(format!("{}: {}", param, formatted));
+    }
+    // Merge wrapped params into sub-object constructor args
+    for (wrapper, members) in wrapped {
+        let arg_name = match wrapper {
+            "TextStyle" => "style",
+            "InputDecoration" => "decoration",
+            _ => wrapper,
+        };
+        args.push(format!("{}: {}({})", arg_name, wrapper, members.join(", ")));
     }
 
     // Inline style (style: { prop: value }) — map CSS properties to Flutter widget parameters
-    if let Some(ref style_json) = el.inline_style {
-        if let Some(obj) = style_json.as_object() {
-            for (css_prop, css_val) in obj {
-                let css_val_str = css_val.as_str().unwrap_or("");
-                match css_prop_to_flutter_param(css_prop) {
-                    Some("padding") | Some("margin") => {
-                        if css_val_str.ends_with("px")
-                            || css_val_str.ends_with("em")
-                            || css_val_str.ends_with("rem")
-                            || css_val_str.ends_with("%")
-                            || css_val_str.ends_with("pt")
-                        {
-                            let num_str = css_value_to_dart_number(css_val_str);
-                            args.push(format!("{}: EdgeInsets.all({})", css_prop, num_str));
-                        } else if let Ok(num) = css_val_str.parse::<f64>() {
-                            args.push(format!("{}: EdgeInsets.all({})", css_prop, num));
-                        } else {
-                            args.push(format!(
-                                "{}: EdgeInsets.all({})",
-                                css_prop,
-                                css_value_to_dart_number(css_val_str)
-                            ));
-                        }
-                    }
-                    Some("width") | Some("height") => {
+    if let Some(obj) = el
+        .inline_style
+        .as_ref()
+        .and_then(|style_json| style_json.as_object())
+    {
+        for (css_prop, css_val) in obj {
+            let css_val_str = css_val.as_str().unwrap_or("");
+            match css_prop_to_flutter_param(css_prop) {
+                Some("padding") | Some("margin") => {
+                    if css_val_str.ends_with("px")
+                        || css_val_str.ends_with("em")
+                        || css_val_str.ends_with("rem")
+                        || css_val_str.ends_with("%")
+                        || css_val_str.ends_with("pt")
+                    {
                         let num_str = css_value_to_dart_number(css_val_str);
-                        args.push(format!("{}: {}", css_prop, num_str));
+                        args.push(format!("{}: EdgeInsets.all({})", css_prop, num_str));
+                    } else if let Ok(num) = css_val_str.parse::<f64>() {
+                        args.push(format!("{}: EdgeInsets.all({})", css_prop, num));
+                    } else {
+                        args.push(format!(
+                            "{}: EdgeInsets.all({})",
+                            css_prop,
+                            css_value_to_dart_number(css_val_str)
+                        ));
                     }
-                    Some("color") => {
-                        args.push(format!("color: {}", css_val_str));
+                }
+                Some("width") | Some("height") => {
+                    let num_str = css_value_to_dart_number(css_val_str);
+                    args.push(format!("{}: {}", css_prop, num_str));
+                }
+                Some("color") => {
+                    // C5: CSS colors → Dart Color literals (#ff0000 → Color(0xFFFF0000))
+                    match css_color_to_dart(css_val_str) {
+                        Some(color_expr) => args.push(format!("color: {}", color_expr)),
+                        None => ctx.warnings.push(format!(
+                            "[flutter] unsupported color value '{css_val_str}' for '{css_prop}'; skipped"
+                        )),
                     }
-                    Some(_) => {
-                        // Known Flutter param but unexpected value format — skip
-                    }
-                    None => {
-                        // Unsupported CSS property — skip
-                    }
+                }
+                Some(_) => {
+                    // Known Flutter param but unexpected value format — skip
+                }
+                None => {
+                    // Unsupported CSS property — skip
                 }
             }
         }
     }
 
-    // Events -> callback parameters
+    // Events -> callback parameters (C6: per-widget event whitelist)
     for (name, handler) in &el.events {
         let callback_name = event_to_flutter_callback(name);
+        if !widget_allows_event(widget, callback_name) {
+            ctx.warnings.push(format!(
+                "[flutter] event '{name}' → callback '{callback_name}' is not supported on '{widget}'; skipped"
+            ));
+            continue;
+        }
         let body = match handler {
             EventHandlerIR::FnRef {
                 r#ref, event_data, ..
@@ -246,23 +304,25 @@ fn format_element(
                         hw.emit_fmt(format_args!("final {} = {};", field, extract));
                     }
                     for stmt in &body.statements {
+                        // Store accesses inside handler bodies resolve to
+                        // ref.watch/ref.read on the Riverpod providers (C4).
+                        let stmt =
+                            rewrite_stmt_store_accesses(stmt, ctx.store_provider_map, ctx.ir);
                         // Use custom formatter with event_param_name set
                         // so FieldAccess on "e" emits bare field name (local final binding)
                         let fmt = FlutterStmtFormatter {
                             expr: DartFormatExpr {
                                 event_param_name: Some("e".to_string()),
                             },
-                            in_store_action: false,
-                            store_prefix: None,
                         };
-                        fmt.format_stmt(&mut hw, stmt);
+                        fmt.format_stmt(&mut hw, &stmt);
                     }
                     hw.dedent();
                     hw.emit("}");
                     let result = hw.into_string().trim().to_string();
                     result
                 } else {
-                    format_inline_handler_flutter(body)
+                    format_inline_handler_flutter(body, ctx)
                 }
             }
             EventHandlerIR::StoreAction { r#ref, .. } => format_store_action_handler(r#ref),
@@ -270,25 +330,32 @@ fn format_element(
         args.push(format!("{}: {}", callback_name, body));
     }
 
-    // Bindings
+    // Bindings (C6: per-widget whitelist)
     for (bind_name, signal_ref) in &el.bindings {
         let param = binding_to_flutter_param(bind_name);
-        if !param.is_empty() {
-            args.push(format!("{}: {}", param, signal_ref.name));
+        if param.is_empty() {
+            continue;
         }
+        if !widget_allows_param(widget, param) {
+            ctx.warnings.push(format!(
+                "[flutter] binding 'bind:{bind_name}' → param '{param}' is not supported on '{widget}'; skipped"
+            ));
+            continue;
+        }
+        args.push(format!("{}: {}", param, signal_ref.name));
     }
 
     // Children
     if el.children.is_empty() {
         // No children
     } else if el.children.len() == 1 {
-        let child_str = format_view_tree(&el.children[0], motions, component_map);
+        let child_str = format_view_tree(&el.children[0], motions, ctx);
         args.push(format!("child: {}", child_str));
     } else {
         let children: Vec<String> = el
             .children
             .iter()
-            .map(|c| format_view_tree(c, motions, component_map))
+            .map(|c| format_view_tree(c, motions, ctx))
             .collect();
         args.push(format!("children: [{}]", children.join(", ")));
     }
@@ -319,7 +386,7 @@ fn format_element(
                     // Never-applied class (literal false): skip entirely.
                 }
                 _ => {
-                    let cond = format_expr_ir_flutter(expr);
+                    let cond = ctx.format_expr(expr);
                     has_dynamic = true;
                     dynamic_conditions.push(cond);
                 }
@@ -371,7 +438,7 @@ fn format_element(
                 .motion_behavior()
                 .and_then(|m| m.in_view_threshold.as_ref())
             {
-                Some(expr) => format_expr_ir_flutter(expr),
+                Some(expr) => ctx.format_expr(expr),
                 None => "0.0".to_string(),
             };
             let once = if el
@@ -412,7 +479,7 @@ fn format_element(
                 .and_then(|s| s.end.as_deref())
                 .unwrap_or("bottom 20%");
             let scrub = match el.scroll_behavior().and_then(|s| s.scrub.as_ref()) {
-                Some(expr) => format_expr_ir_flutter(expr),
+                Some(expr) => ctx.format_expr(expr),
                 None => "0.0".to_string(),
             };
             let motion_ref = el
@@ -463,12 +530,12 @@ fn format_element(
                                 .unwrap_or("");
                             let elastic_val =
                                 match el.drag_behavior().and_then(|d| d.elastic.as_ref()) {
-                                    Some(expr) => format_expr_ir_flutter(expr),
+                                    Some(expr) => ctx.format_expr(expr),
                                     None => "0.0".to_string(),
                                 };
                             let threshold_val =
                                 match el.drag_behavior().and_then(|d| d.threshold.as_ref()) {
-                                    Some(expr) => format_expr_ir_flutter(expr),
+                                    Some(expr) => ctx.format_expr(expr),
                                     None => "0.0".to_string(),
                                 };
                             result = format!(
@@ -495,22 +562,22 @@ fn format_element(
 fn format_conditional(
     cond: &ConditionalIntent,
     motions: &[MotionIntent],
-    component_map: &FxHashMap<&str, &ComponentIR>,
+    ctx: &mut ViewContext,
 ) -> String {
     if cond.branches.is_empty() {
         if let Some(ref fb) = cond.fallback {
-            return format_view_tree(fb, motions, component_map);
+            return format_view_tree(fb, motions, ctx);
         }
         return "SizedBox()".to_string();
     }
 
     let mut result = String::new();
     for (i, branch) in cond.branches.iter().enumerate() {
-        let cond_str = format_expr_ir_flutter(&branch.condition);
+        let cond_str = ctx.format_expr(&branch.condition);
         let body_str = branch
             .body
             .as_ref()
-            .map(|b| format_view_tree(b, motions, component_map))
+            .map(|b| format_view_tree(b, motions, ctx))
             .unwrap_or_else(|| "SizedBox()".to_string());
         if i == 0 {
             let _ = write!(result, "{} ? {}", cond_str, body_str);
@@ -521,11 +588,7 @@ fn format_conditional(
 
     // Fallback
     if let Some(ref fb) = cond.fallback {
-        let _ = write!(
-            result,
-            " : {}",
-            format_view_tree(fb, motions, component_map)
-        );
+        let _ = write!(result, " : {}", format_view_tree(fb, motions, ctx));
     } else {
         result.push_str(" : SizedBox()");
     }
@@ -548,14 +611,14 @@ fn format_conditional(
 fn format_list_rendering(
     list: &ListRenderingIntent,
     motions: &[MotionIntent],
-    component_map: &FxHashMap<&str, &ComponentIR>,
+    ctx: &mut ViewContext,
 ) -> String {
-    let iterable_str = format_expr_ir_flutter(&list.iterable);
+    let iterable_str = ctx.format_expr(&list.iterable);
     let item_name = &list.item_binding.name;
     let body_str = list
         .body
         .as_ref()
-        .map(|b| format_view_tree(b, motions, component_map))
+        .map(|b| format_view_tree(b, motions, ctx))
         .unwrap_or_else(|| "SizedBox()".to_string());
     let list_builder = format!(
         "ListView.builder(\n  itemCount: {iter}.length,\n  itemBuilder: (context, index) {{\n    var {item} = {iter}[index];\n    return {body};\n  }},\n)",
@@ -565,7 +628,7 @@ fn format_list_rendering(
         let empty_str = list
             .empty_body
             .as_ref()
-            .map(|b| format_view_tree(b, motions, component_map))
+            .map(|b| format_view_tree(b, motions, ctx))
             .unwrap_or_else(|| "SizedBox()".to_string());
         format!(
             "Builder(\n  builder: (context) => {}.isEmpty ? {} : {},\n)",
@@ -581,7 +644,8 @@ fn format_list_rendering(
 // ═══════════════════════════════════════════════════════════════
 
 /// Build an inline callback string from a BlockIR for Flutter event handlers.
-fn format_inline_handler_flutter(body: &BlockIR) -> String {
+/// Store accesses in the body are rewritten to Riverpod provider reads (C4).
+fn format_inline_handler_flutter(body: &BlockIR, ctx: &ViewContext) -> String {
     let config = InlineHandlerConfig {
         opener: "() {".into(),
         closer: "}".into(),
@@ -589,27 +653,25 @@ fn format_inline_handler_flutter(body: &BlockIR) -> String {
         indent: "    ",
         use_writer: true,
     };
-    build_inline_handler(body, &config, generate_statement_flutter)
+    let rewritten = BlockIR {
+        statements: body
+            .statements
+            .iter()
+            .map(|s| rewrite_stmt_store_accesses(s, ctx.store_provider_map, ctx.ir))
+            .collect(),
+    };
+    build_inline_handler(&rewritten, &config, generate_statement_flutter)
 }
 
-/// Format a StoreAction event handler that calls a store action function with ref.
+/// Format a StoreAction event handler that calls a store action through its
+/// Riverpod 3.0 Notifier provider.
 ///
-/// The `r#ref` format is `"StoreName.actionName"`, which is transformed into
-/// `"() {{ storeActionName(ref); }}"` where the function name is computed as
-/// `{lowercase_first(store_name)}{capitalize_first(action_name)}`.
-fn format_store_action_handler(r#ref: &str) -> String {
-    let action_fn = r#ref.split('.').next_back().unwrap_or(r#ref);
+/// The `r#ref` format is `"StoreName.actionName"`, transformed into
+/// `"() {{ ref.read(storeNameProvider.notifier).actionName(); }}"`.
+pub(crate) fn format_store_action_handler(r#ref: &str) -> String {
     let parts: Vec<&str> = r#ref.split('.').collect();
-    let store_lower = if parts.len() >= 2 {
-        let s = parts[0];
-        let mut c = s.chars();
-        match c.next() {
-            None => s.to_string(),
-            Some(first) => first.to_lowercase().to_string() + c.as_str(),
-        }
-    } else {
-        action_fn.to_string()
-    };
-    let full_action = format!("{}{}", store_lower, capitalize_first(action_fn));
-    format!("() {{ {}(ref); }}", full_action)
+    let store = parts.first().copied().unwrap_or(r#ref);
+    let action = parts.last().copied().unwrap_or(r#ref);
+    let provider = format!("{}Provider", lower_first(store));
+    format!("() {{ ref.read({}.notifier).{}(); }}", provider, action)
 }

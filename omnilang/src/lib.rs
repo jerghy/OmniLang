@@ -394,6 +394,26 @@ fn compile_multi_internal_post(
     // Codegen errors are already Diagnostic objects
     diags.extend(output.errors);
 
+    // Forward codegen warnings (e.g. Flutter unmapped-prop diagnostics, C6)
+    // into the structured result as warning diagnostics.
+    let mut warnings = warnings;
+    warnings.extend(
+        output
+            .warnings
+            .into_iter()
+            .map(|message| crate::error::Diagnostic {
+                severity: error::Severity::Warning,
+                kind: error::DiagnosticKind::ECodegen,
+                message,
+                file: None,
+                line: 0,
+                col: 0,
+                end_line: None,
+                end_col: None,
+                suggestion: None,
+            }),
+    );
+
     let success = diags.iter().all(|d| d.severity != error::Severity::Error);
     InternalCompileResult {
         success,

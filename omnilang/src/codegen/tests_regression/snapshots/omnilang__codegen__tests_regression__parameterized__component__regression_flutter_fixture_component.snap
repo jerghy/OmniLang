@@ -1,5 +1,6 @@
 ---
 source: omnilang/src/codegen/tests_regression/parameterized.rs
+assertion_line: 110
 expression: "& super :: super :: format_output(& output)"
 ---
 === Counter.dart ===
@@ -8,7 +9,7 @@ expression: "& super :: super :: format_output(& output)"
 import 'package:flutter/material.dart';
 
 class Counter extends StatefulWidget {
-    const {
+    const Counter({
         super.key,
         required this.name,
     });
@@ -22,6 +23,8 @@ class Counter extends StatefulWidget {
 class _CounterState extends State<Counter> {
     int count = 0;
 
+    late int _prevcount;
+
     int get doubled {
         return count * 2;
     }
@@ -30,8 +33,19 @@ class _CounterState extends State<Counter> {
     void initState() {
         super.initState();
         _runEffect_0();
+    }
+
+    @override
+    void didUpdateWidget(Counter oldWidget) {
+        super.didUpdateWidget(oldWidget);
+        if (_prevcount != count) {
+            _runEffect_0();
+        }
+    }
+
+    void _runEffect_0() {
         console.log(count);
-        // @effect: re-executes on setState
+        _prevcount = count;
     }
 
     @override
