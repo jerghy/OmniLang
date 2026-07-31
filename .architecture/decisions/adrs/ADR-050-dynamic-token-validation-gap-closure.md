@@ -224,6 +224,6 @@ Strict enforcement: only `SymbolKind::Const` passes, everything else (including 
 ## References
 
 - [Architecture Review: Dynamic Design Tokens 2026-07-31](../../.architecture/reviews/dynamic-design-tokens-2026-07-31.md)
-- [ADR-047: Dynamic Design Tokens Phase 1](ADR-047-dynamic-design-tokens.md)
-- [ADR-049: Dynamic Design Tokens Phase 2 Runtime Signal References](ADR-049-dynamic-tokens-phase2-runtime-signals.md)
+- [ADR-047: Dynamic Variable References in Design Tokens Phase 1](ADR-047-dynamic-variable-design-tokens.md)
+- [ADR-049: Dynamic Token Variables Phase 2 Runtime Signal References](ADR-049-dynamic-token-variables-phase2-runtime-signals.md)
 - [Implementation Plan: Dynamic Token Validation Fixes](../../../docs/superpowers/plans/2026-07-31-dynamic-token-validation-fixes.md)

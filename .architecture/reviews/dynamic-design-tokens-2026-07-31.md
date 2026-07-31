@@ -434,7 +434,7 @@ Phase 1 (const refs) and Phase 2 (runtime signals) are complete and stable. Reco
 - `docs/designs/dynamic-token-variables.md` — Design document
 - `.architecture/decisions/adrs/ADR-047-*.md` — Phase 1 ADR
 - `.architecture/decisions/adrs/ADR-049-*.md` — Phase 2 ADR
-- `.architecture/decisions/adrs/ADR-048-*.md` — Architecture review fixes
+- `.architecture/decisions/adrs/ADR-050-*.md` — Dynamic token validation gap closure
 - `crates/omnilang-core/src/parser/ast/design.rs` — TokenValue AST types
 - `crates/omnilang-core/src/parser/design.rs` — Design body parser
 - `crates/omnilang-core/src/ir/design.rs` — Design IR types
