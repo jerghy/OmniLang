@@ -351,12 +351,10 @@ fn parse_design_value_expression<'a>(
     }
 
     // Extract tokens for the expression and create a sub-Parser
-    let expr_tokens: Vec<Token> = design_tokens[start_idx..end_idx].iter().cloned().collect();
+    let expr_tokens: Vec<Token> = design_tokens[start_idx..end_idx].to_vec();
 
-    // Capture offset before moving expr_tokens into Parser
-    let error_offset = expr_tokens.first().map(|t| t.span.start).unwrap_or(offset);
-
-    // Use the full design body as source (token spans are offsets into it)
+    // Capture offset before moving expr_tokens into Parser.
+    // Uses the full design body as source (token spans are offsets into it).
     let error_offset = expr_tokens.first().map(|t| t.span.start).unwrap_or(offset);
     let mut expr_parser = Parser::new(expr_tokens, design_body_full);
     let expr = expr_parser.parse_expr().map_err(|e| DesignParseError {
