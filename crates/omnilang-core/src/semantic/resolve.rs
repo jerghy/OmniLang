@@ -380,6 +380,32 @@ impl SemanticAnalyzer {
                                         col: 0,
                                     },
                                 ));
+                            } else if let Some(sym) = self.symbols.resolve(name) {
+                                if sym.kind != SymbolKind::Const
+                                    // Allow Unknown — cross-file imported symbols may not have
+                                    // their final kind resolved yet at design token validation
+                                    // time.
+                                    && sym.kind != SymbolKind::Unknown
+                                {
+                                    self.diagnostics.push(Diagnostic::error(
+                                        DiagnosticKind::E0001,
+                                        &format!(
+                                            "'{}' is a {} in theme '{}' of design token '{}', \
+                                             not a compile-time constant. Theme override values \
+                                             must use const declarations or static literals.",
+                                            name,
+                                            format!("{:?}", sym.kind).to_lowercase(),
+                                            theme_name,
+                                            token.name,
+                                        ),
+                                        &Span {
+                                            start: 0,
+                                            end: 0,
+                                            line: 0,
+                                            col: 0,
+                                        },
+                                    ));
+                                }
                             }
                         }
                         TokenValue::Expression(expr) => {
