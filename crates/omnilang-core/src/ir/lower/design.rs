@@ -114,22 +114,6 @@ fn resolve_token_value_ir(
     }
 }
 
-/// Resolve a `TokenValue` to a CSS string using the compile-time constant map.
-/// Convenience wrapper for places that still need a plain string (e.g. class
-/// / variant property resolution where dynamic expressions are Phase 2+).
-#[allow(dead_code)]
-fn resolve_token_value(
-    value: &TokenValue,
-    const_values: &FxHashMap<String, String>,
-    variant_map: &FxHashMap<String, String>,
-    semantics: &mut SemanticResult,
-) -> String {
-    match resolve_token_value_ir(value, const_values, variant_map, semantics) {
-        TokenValueIR::Static(s) => s,
-        TokenValueIR::Dynamic(_) => String::new(),
-    }
-}
-
 // ═══════════════════════════════════════════════════════════
 // Token resolution helpers
 // ═══════════════════════════════════════════════════════════
