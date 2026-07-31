@@ -109,7 +109,10 @@ impl SemanticAnalyzer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::error::DiagnosticKind;
     use crate::lexer::tokenize;
+    use crate::lexer::Span;
+    use crate::parser::ast::{DesignDef, Expr, Module, TokenDef, TokenType, TokenValue};
     use crate::parser::parse;
 
     fn analyze_source(source: &str) -> SemanticResult {
@@ -164,5 +167,52 @@ mod tests {
             .filter(|d| d.severity == crate::error::Severity::Error)
             .collect();
         assert!(errors.is_empty(), "expected no errors, got: {:?}", errors);
+    }
+
+    #[test]
+    fn rejects_expression_in_theme_value() {
+        let design = DesignDef {
+            name: "App".to_string(),
+            themes: vec!["dark".to_string()],
+            default_theme: None,
+            tokens: vec![TokenDef {
+                name: "primary".to_string(),
+                token_type: TokenType::Color,
+                value: TokenValue::Literal("#ffffff".to_string()),
+                theme_values: vec![(
+                    "dark".to_string(),
+                    TokenValue::Expression(Expr::FieldAccess {
+                        object: Box::new(Expr::VarRef(
+                            "ThemeStore".to_string(),
+                            Span { start: 0, end: 10, line: 0, col: 0 },
+                        )),
+                        field: "darkColor".to_string(),
+                        span: Span { start: 0, end: 0, line: 0, col: 0 },
+                    }),
+                )],
+            }],
+            classes: vec![],
+            variants: vec![],
+        };
+        let module = Module {
+            designs: vec![design],
+            ..Default::default()
+        };
+        let mut analyzer = SemanticAnalyzer::new();
+        analyzer.resolve_and_validate_module(&module);
+        let errors: Vec<_> = analyzer
+            .diagnostics
+            .iter()
+            .filter(|d| d.kind == DiagnosticKind::E0001)
+            .collect();
+        assert!(
+            !errors.is_empty(),
+            "should reject expression in theme value"
+        );
+        assert!(
+            errors.iter().any(|e| e.message.contains("Theme") && e.message.contains("dynamic")),
+            "diagnostic should mention Theme and dynamic expression restriction, got: {:?}",
+            errors.iter().map(|e| &e.message).collect::<Vec<_>>()
+        );
     }
 }

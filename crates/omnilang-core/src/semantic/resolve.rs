@@ -352,6 +352,20 @@ impl SemanticAnalyzer {
                             }
                         }
                         TokenValue::Expression(expr) => {
+                            // Phase 2 restriction: dynamic expressions are not supported in theme
+                            // overrides because neither CSS [data-theme] selectors nor JS codegen
+                            // has a path for per-theme dynamic values.
+                            self.diagnostics.push(Diagnostic::error(
+                                DiagnosticKind::E0001,
+                                &format!(
+                                    "Theme value '{}' for token '{}' cannot be a dynamic expression. \
+                                     Theme overrides must use static values (literals or compile-time constants).",
+                                    theme_name, token.name
+                                ),
+                                &Span { start: 0, end: 0, line: 0, col: 0 },
+                            ));
+                            // Still resolve refs so other diagnostics (e.g., undefined variables)
+                            // within the expression are also emitted.
                             let mut vctx = ValidationContext::new();
                             self.resolve_expr_refs(expr, &mut vctx);
                         }
