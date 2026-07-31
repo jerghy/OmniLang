@@ -325,6 +325,18 @@ pub fn lower(
         }
     }
 
+    // Validate semantic ref bindings: focus={sig}, scroll-x={sig}, scroll-y={sig},
+    // value={sig} must appear only on elements with a @ref binding whose ref is
+    // declared on the component.
+    for module in ir_program.modules.values_mut() {
+        for component in module.components.values_mut() {
+            crate::semantic::validate_semantic_bindings::validate_semantic_bindings(
+                component,
+                &mut semantics.diagnostics,
+            );
+        }
+    }
+
     ir_program
 }
 
@@ -611,6 +623,157 @@ component FormField {
                 }
             }
             other => panic!("expected Element, got {:?}", other),
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // Semantic ref binding validation tests
+    // ═══════════════════════════════════════════════════════
+
+    /// Helper: run the full pipeline (parse → analyze → lower) and return
+    /// the resulting diagnostics.
+    fn lower_source_with_diagnostics(source: &str) -> Vec<crate::error::Diagnostic> {
+        let tokens = tokenize(source);
+        let (program, _) = parse(tokens, source);
+        let mut semantics = analyze(&program);
+        let _ir = lower(&program, &mut semantics, None);
+        semantics.diagnostics
+    }
+
+    #[test]
+    fn semantic_binding_without_ref_errors_in_pipeline() {
+        // focus={sig} on an element WITHOUT @ref → error from the semantic
+        // binding validation pass (wired into lower()).
+        let diagnostics = lower_source_with_diagnostics(
+            r#"
+import omniview;
+component App {
+    signal isActive: bool = false;
+    view {
+        <div focus={isActive} />
+    }
+}
+"#,
+        );
+        let errors: Vec<_> = diagnostics
+            .iter()
+            .filter(|d| d.severity == crate::error::Severity::Error)
+            .collect();
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.message.contains("'focus' requires @ref")),
+            "expected 'focus requires @ref' error, got: {:?}",
+            errors
+        );
+    }
+
+    #[test]
+    fn semantic_binding_with_ref_passes_in_pipeline() {
+        // focus={sig} on an element WITH @ref + declared ref → no semantic
+        // binding errors.
+        let diagnostics = lower_source_with_diagnostics(
+            r#"
+import omniview;
+component App {
+    ref inputBox: Element;
+    signal isActive: bool = false;
+    view {
+        <input @ref={inputBox} focus={isActive} />
+    }
+}
+"#,
+        );
+        let errors: Vec<_> = diagnostics
+            .iter()
+            .filter(|d| d.severity == crate::error::Severity::Error)
+            .collect();
+        assert!(
+            errors
+                .iter()
+                .all(|d| !d.message.contains("semantic binding")),
+            "expected no semantic binding errors, got: {:?}",
+            errors
+        );
+    }
+
+    #[test]
+    fn semantic_binding_with_undeclared_ref_warns_via_validate_refs() {
+        // scroll-y={sig} with @ref={pane} but no `ref pane: Element`
+        // declaration → handled by validate_refs (warning). The semantic
+        // binding pass must NOT duplicate it as an error.
+        let diagnostics = lower_source_with_diagnostics(
+            r#"
+import omniview;
+component App {
+    signal pos: f64 = 0;
+    view {
+        <div @ref={pane} scroll-y={pos} />
+    }
+}
+"#,
+        );
+        assert!(
+            diagnostics.iter().any(|d| {
+                d.severity == crate::error::Severity::Warning
+                    && d.message.contains("no `ref pane: Element` declaration")
+            }),
+            "expected validate_refs warning for undeclared ref, got: {:?}",
+            diagnostics
+        );
+        assert!(
+            diagnostics
+                .iter()
+                .all(|d| !d.message.contains("undeclared ref")),
+            "semantic binding pass must not duplicate the undeclared-ref check, got: {:?}",
+            diagnostics
+        );
+    }
+
+    #[test]
+    fn computed_value_expr_stays_static_prop_in_pipeline() {
+        // value={age.to_string()} is a computed expression — a generic Static
+        // prop, not a semantic binding. It must NOT trigger semantic binding
+        // validation and must remain in ElementIR.props (one-way computed
+        // binding pattern, e.g. FormControlsDemo).
+        let source = r#"
+import omniview;
+component App {
+    signal age: i32 = 30;
+    view {
+        <input type="number" value={age.to_string()} />
+    }
+}
+"#;
+        let tokens = tokenize(source);
+        let (program, _) = parse(tokens, source);
+        let mut semantics = analyze(&program);
+        let ir = lower(&program, &mut semantics, None);
+        assert!(
+            semantics
+                .diagnostics
+                .iter()
+                .all(|d| !d.message.contains("semantic binding")),
+            "computed value expr must not trigger semantic binding errors, got: {:?}",
+            semantics.diagnostics
+        );
+        let module = ir.modules.get("input.omni").expect("should have module");
+        let comp = module
+            .components
+            .get("App")
+            .expect("should have App component");
+        match comp.view.as_ref() {
+            Some(ViewTree::Element(el)) => {
+                assert!(
+                    el.props.contains_key("value"),
+                    "value prop should remain in props for computed expressions"
+                );
+                assert!(
+                    el.semantic_bindings.is_empty(),
+                    "computed value expr must not lower into semantic_bindings"
+                );
+            }
+            other => panic!("expected root Element, got {:?}", other),
         }
     }
 

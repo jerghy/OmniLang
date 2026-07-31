@@ -270,6 +270,7 @@ fn lower_element(
     let drag_threshold: Option<ExprIR> = None;
     let drag_velocity_max: Option<ExprIR> = None;
     let mut ref_binding: Option<String> = None;
+    let mut semantic_bindings: Option<FxHashMap<String, ExprIR>> = None;
 
     for prop in &el.props {
         match prop {
@@ -473,14 +474,16 @@ fn lower_element(
                 ref_binding = Some(r.clone());
             }
             // Semantic ref bindings: focus={sig}, scroll-x={sig}, scroll-y={sig},
-            // value={sig}. Lowered as regular props (keyed by binding name) until
-            // ElementIR.semantic_bindings lands in Phase 1.1 — codegen sees the
-            // same props map as before, so emitted output is unchanged.
+            // value={sig}. Extracted into ElementIR.semantic_bindings (consumed
+            // by codegen backends in later phases); the semantic pass enforces
+            // that they appear only on @ref-bound elements.
             ElementProp::RefBinding { binding, signal } => {
-                props.get_or_insert_with(Default::default).insert(
-                    binding.clone(),
-                    lower_expr(signal, variant_map, None, semantics),
-                );
+                semantic_bindings
+                    .get_or_insert_with(Default::default)
+                    .insert(
+                        binding.clone(),
+                        lower_expr(signal, variant_map, None, semantics),
+                    );
             }
             // Motion animation triggers: on:hover={fadeIn}, etc.
             ElementProp::MotionTrigger(mt) => {
@@ -523,9 +526,13 @@ fn lower_element(
     }
 
     // Auto-bind <input> elements to String signals if no explicit bind:value
-    // and no existing value={expr} prop (one-way reactive binding).
+    // and no existing value={expr} prop or value semantic binding (one-way
+    // reactive binding).
     // Skip checkbox/radio inputs — they use "checked" property, not "value".
-    let has_value_prop = props.as_ref().is_some_and(|p| p.contains_key("value"));
+    let has_value_prop = props.as_ref().is_some_and(|p| p.contains_key("value"))
+        || semantic_bindings
+            .as_ref()
+            .is_some_and(|s| s.contains_key("value"));
     let is_checkbox_or_radio = props.as_ref().is_some_and(|p| {
         p.get("type").is_some_and(|v| {
             matches!(v, ExprIR::LiteralExpr { value: serde_json::Value::String(s) } if s == "checkbox" || s == "radio")
@@ -622,7 +629,7 @@ fn lower_element(
             }
         },
         ref_binding,
-        semantic_bindings: FxHashMap::default(),
+        semantic_bindings: semantic_bindings.unwrap_or_default(),
     }))
 }
 
@@ -852,9 +859,10 @@ mod tests {
     }
 
     #[test]
-    fn test_lower_element_ref_binding_lowers_to_prop() {
-        // Phase 0: RefBinding is lowered as a regular prop keyed by binding
-        // name (ElementIR.semantic_bindings arrives in Phase 1.1).
+    fn test_lower_element_ref_binding_lowers_to_semantic_bindings() {
+        // RefBinding props lower into ElementIR.semantic_bindings — not into
+        // the props map. Codegen backends consume semantic_bindings directly
+        // (focus={sig}, scroll-x={sig}, scroll-y={sig}, value={sig}).
         let span = Span {
             start: 0,
             end: 0,
@@ -881,15 +889,69 @@ mod tests {
         match result {
             ViewTree::Element(el_ir) => {
                 assert!(
-                    el_ir.props.contains_key("scroll-y"),
-                    "scroll-y should be lowered into props"
+                    el_ir.semantic_bindings.contains_key("scroll-y"),
+                    "scroll-y should be lowered into semantic_bindings"
                 );
                 assert!(
                     matches!(
-                        el_ir.props.get("scroll-y"),
+                        el_ir.semantic_bindings.get("scroll-y"),
                         Some(ExprIR::IdentifierExpr { name, .. }) if name == "pos"
                     ),
                     "signal expr should lower to IdentifierExpr(pos)"
+                );
+                assert!(
+                    !el_ir.props.contains_key("scroll-y"),
+                    "scroll-y should NOT be lowered into props"
+                );
+            }
+            _ => panic!("Expected ViewTree::Element"),
+        }
+    }
+
+    #[test]
+    fn test_auto_bind_skipped_when_semantic_value_binding_present() {
+        // <input value={sig} /> is a semantic binding — the auto-bind logic
+        // must not also insert a bind:value for a String signal.
+        let span = Span {
+            start: 0,
+            end: 0,
+            line: 1,
+            col: 1,
+        };
+        let el = Element {
+            tag: "input".into(),
+            props: vec![ElementProp::RefBinding {
+                binding: "value".into(),
+                signal: Expr::VarRef("text".into(), span),
+            }],
+            children: vec![],
+            self_closing: true,
+            span,
+        };
+        let mut semantics = SemanticResult {
+            symbols: SymbolTable::default(),
+            dependencies: FxHashMap::default(),
+            diagnostics: vec![],
+            event_param_name: None,
+        };
+        let string_signals = vec!["unrelated".to_string()];
+        let result = lower_element(
+            &el,
+            &string_signals,
+            Some(&Cell::new(0usize)),
+            &FxHashMap::default(),
+            &mut semantics,
+            &[],
+        );
+        match result {
+            ViewTree::Element(el_ir) => {
+                assert!(
+                    el_ir.semantic_bindings.contains_key("value"),
+                    "value should be a semantic binding"
+                );
+                assert!(
+                    !el_ir.bindings.contains_key("value"),
+                    "auto-bind must not add bind:value when value={{sig}} exists"
                 );
             }
             _ => panic!("Expected ViewTree::Element"),

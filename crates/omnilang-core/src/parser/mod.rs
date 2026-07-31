@@ -1174,8 +1174,9 @@ mod roundtrip_tests {
     #[test]
     fn view_slot_directive_with_type_constraint() {
         // @slot name: Type — optional type annotation between name and body
-        let children =
-            view_children("component App { view { @slot header: String { Text { \"fallback\" } } } }");
+        let children = view_children(
+            "component App { view { @slot header: String { Text { \"fallback\" } } } }",
+        );
         assert_eq!(children.len(), 1);
         match &children[0] {
             ViewNode::SlotDirective {
@@ -1245,8 +1246,9 @@ mod roundtrip_tests {
     #[test]
     fn view_for_scroll_hint() {
         // @for item in list [scroll] — scroll hint (whitespace-separated bracket)
-        let children =
-            view_children("component App { view { @for item in list [scroll] { Text { item } } } }");
+        let children = view_children(
+            "component App { view { @for item in list [scroll] { Text { item } } } }",
+        );
         assert_eq!(children.len(), 1);
         if let ViewNode::ForDirective(dir) = &children[0] {
             assert!(dir.scroll_hint);
@@ -1467,6 +1469,45 @@ mod roundtrip_tests {
                         );
                     }
                     other => panic!("expected Static prop, got {:?}", other),
+                }
+            }
+            _ => panic!("expected Element"),
+        }
+    }
+
+    #[test]
+    fn view_computed_semantic_name_prop_stays_static() {
+        // A computed expression on a semantic binding name (value={age.to_string()},
+        // focus={isActive && ready}) is a generic Static prop — RefBinding is
+        // reserved for the bare-signal form value={sig} per the spec.
+        let children = view_children(
+            "component App { view { \
+             <input type=\"number\" value={age.to_string()} focus={isActive && ready} /> } }",
+        );
+        assert_eq!(children.len(), 1);
+        match &children[0] {
+            ViewNode::Element(el) => {
+                assert_eq!(el.tag, "input");
+                assert_eq!(el.props.len(), 3);
+                for prop in &el.props {
+                    match prop {
+                        ElementProp::Static { name, value } => {
+                            if name == "value" || name == "focus" {
+                                assert!(
+                                    matches!(
+                                        value,
+                                        Expr::MethodCall { .. } | Expr::BinaryOp { .. }
+                                    ),
+                                    "computed expr should stay a Static prop, got: {:?}",
+                                    value
+                                );
+                            }
+                        }
+                        other => panic!(
+                            "expected Static prop for computed expression, got: {:?}",
+                            other
+                        ),
+                    }
                 }
             }
             _ => panic!("expected Element"),

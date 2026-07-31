@@ -652,8 +652,9 @@ pub struct ElementIR {
     #[serde(default)]
     pub ref_binding: Option<String>,
     /// Semantic ref bindings extracted from `@ref`-bound elements:
-    /// binding kind (e.g. "focus", "scroll_x", "scroll_y", "value") → expression.
-    /// Populated by the semantic pass; consumed by codegen backends (Phase 4-6).
+    /// binding kind (e.g. "focus", "scroll-x", "scroll-y", "value") → expression.
+    /// Populated during view lowering; validated by the semantic pass; consumed
+    /// by codegen backends (Phase 4-6).
     #[serde(default)]
     pub semantic_bindings: FxHashMap<String, ExprIR>,
 }

@@ -7,6 +7,7 @@ pub mod types;
 pub mod validate_props;
 pub mod validate_ref_ops;
 pub mod validate_refs;
+pub mod validate_semantic_bindings;
 pub mod walk_view;
 
 mod collect;

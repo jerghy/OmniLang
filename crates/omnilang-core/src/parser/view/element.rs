@@ -73,9 +73,11 @@ impl<'a> Parser<'a> {
         }
 
         // Check for semantic binding attributes (focus, scroll-x, scroll-y, value).
-        // These are compiler-recognized ref bindings, not generic static props —
-        // they only bind to a signal expression: name={expr}. The string-literal
-        // form (value="text") and bare boolean form stay generic Static props.
+        // These are compiler-recognized ref bindings, not generic static props.
+        // Per the semantic-level DSL spec they bind a bare signal: name={sig}.
+        // The string-literal form (value="text") and bare boolean form stay
+        // generic Static props, and so does a computed expression
+        // (value={age.to_string()}) — only a bare VarRef is a semantic binding.
         // Validation (element has @ref, ref declared) happens in the semantic pass.
         const SEMANTIC_BINDINGS: &[&str] = &["focus", "scroll-x", "scroll-y", "value"];
         if SEMANTIC_BINDINGS.contains(&name.as_str())
@@ -89,9 +91,18 @@ impl<'a> Parser<'a> {
             self.advance(); // '{'
             let signal = self.parse_expr()?;
             self.expect_token(TokenKind::RBrace, "expected '}'")?;
-            return Ok(ElementProp::RefBinding {
-                binding: name,
-                signal,
+            // Only a bare signal reference ({sig}) is a compiler-recognized
+            // semantic binding; computed expressions stay generic Static props
+            // (equivalent to the {expr} arm of the match below).
+            if matches!(signal, Expr::VarRef(..)) {
+                return Ok(ElementProp::RefBinding {
+                    binding: name,
+                    signal,
+                });
+            }
+            return Ok(ElementProp::Static {
+                name,
+                value: signal,
             });
         }
 
