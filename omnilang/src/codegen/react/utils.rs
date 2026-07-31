@@ -6,6 +6,7 @@ use super::super::capitalize_first;
 use crate::ir::*;
 
 /// Check if a StatementIR references a given identifier anywhere in its tree.
+/// Used by `getter_expr_contains_ident` for block expressions.
 fn statement_contains_ident(stmt: &StatementIR, ident: &str) -> bool {
     match stmt {
         StatementIR::LetStmtIR { value, .. } => value
@@ -104,17 +105,11 @@ fn statement_contains_ident(stmt: &StatementIR, ident: &str) -> bool {
     }
 }
 
-/// Check if any statement in the action body references the given identifier.
-/// Returns true if the identifier is referenced anywhere in the action's statements.
-pub(super) fn action_body_contains_ident(action: &crate::ir::FunctionIR, ident: &str) -> bool {
-    action
-        .body
-        .statements
-        .iter()
-        .any(|s| statement_contains_ident(s, ident))
-}
-
 /// Check if an ExprIR references a given identifier anywhere in its tree.
+///
+/// NOTE: This walker is intentionally partial (used for computed dependency
+/// analysis). Store-action prologue detection uses the complete walker in
+/// `mod.rs` (`expr_references_store_name`).
 pub(super) fn getter_expr_contains_ident(expr: &ExprIR, ident: &str) -> bool {
     match expr {
         ExprIR::IdentifierExpr { name, .. } => name == ident,

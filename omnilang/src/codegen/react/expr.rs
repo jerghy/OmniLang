@@ -10,6 +10,7 @@ use crate::codegen::{
     capitalize_first, try_format_stdlib_call, JsonFormatConfig, Target, JSON_REACT,
 };
 use crate::ir::*;
+use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 
 /// React TSX expression formatter.
@@ -18,6 +19,10 @@ use rustc_hash::FxHashSet;
 /// and `translate_method_call` for method dispatch.
 pub(crate) struct ReactFormatExpr {
     pub ref_names: FxHashSet<String>,
+    /// Identifier → replacement map (e.g. store signal `count` → `state.count`
+    /// inside Zustand action bodies). Applied at identifier level only — string
+    /// literals and object keys are never touched (C8 fix, HIGH #2).
+    pub renames: FxHashMap<String, String>,
 }
 
 impl FormatExpr for ReactFormatExpr {
@@ -25,18 +30,44 @@ impl FormatExpr for ReactFormatExpr {
         &JSON_REACT
     }
 
-    fn format_block_expr(&self, _statements: &[StatementIR], tail: &ExprIR) -> String {
-        // Block statements not supported in expression context — drop them.
-        self.format_expr(tail)
+    /// Block expressions emit an IIFE so statements execute in expression position.
+    /// Statements are formatted through the full React statement machinery
+    /// (`const` lets, setter mutations, semicolons).
+    fn format_block_expr(&self, statements: &[StatementIR], tail: &ExprIR) -> String {
+        if statements.is_empty() {
+            return self.format_expr(tail);
+        }
+        let mut w = CodeWriter::new();
+        let fmt = ReactStmtFormatter {
+            expr: ReactFormatExpr {
+                ref_names: self.ref_names.clone(),
+                renames: self.renames.clone(),
+            },
+            signal_names: FxHashSet::default(),
+            store_signal_owners: FxHashMap::default(),
+        };
+        for stmt in statements {
+            fmt.format_stmt(&mut w, stmt);
+        }
+        let stmts = w.into_string();
+        let stmts = stmts.trim_end().to_string();
+        format!(
+            "(() => {{ {} return {}; }})()",
+            stmts,
+            self.format_expr(tail)
+        )
     }
 
     /// Strip `$` prefix from identifier names — `$` is an IR internal
     /// convention for store signal references and should not appear in
     /// generated TypeScript/React code.
-    /// Additionally, if the identifier matches a ref name, translate it to
+    /// Renames (Zustand action bodies) apply first, then ref translation to
     /// `nameRef.current` for proper ref access in function bodies (ADR-036).
     fn format_identifier(&self, name: &str) -> String {
         let stripped = name.trim_start_matches('$');
+        if let Some(renamed) = self.renames.get(stripped) {
+            return renamed.clone();
+        }
         if self.ref_names.contains(stripped) {
             format!("{}Ref.current", stripped)
         } else {
@@ -92,6 +123,52 @@ impl FormatExpr for ReactFormatExpr {
         translate_method_call(obj, method, args)
     }
 
+    /// Semantic ref ops map to native DOM APIs on `nameRef.current`
+    /// (ADR-036 Phase 2). All calls use optional chaining so a not-yet-mounted
+    /// ref degrades to a no-op instead of throwing.
+    fn format_ref_op(&self, ref_name: &str, op: &RefOpIR) -> String {
+        let base = format!("{}Ref.current", ref_name);
+        match op {
+            RefOpIR::Focus => format!("{base}?.focus()"),
+            RefOpIR::Blur => format!("{base}?.blur()"),
+            RefOpIR::ScrollTo { x, y } => {
+                format_ref_scroll(&base, self, x.as_deref(), y.as_deref())
+            }
+            RefOpIR::ScrollBy { dx, dy } => {
+                format_ref_scroll_by(&base, self, dx.as_deref(), dy.as_deref())
+            }
+            RefOpIR::Measure { what } => match what {
+                MeasureWhat::Position => format!("{base}?.getBoundingClientRect()"),
+                MeasureWhat::Width => format!("{base}?.getBoundingClientRect().width"),
+                MeasureWhat::Height => format!("{base}?.getBoundingClientRect().height"),
+            },
+            RefOpIR::Select => format!("{base}?.select()"),
+            RefOpIR::SetSelection { start, end } => format!(
+                "{base}?.setSelectionRange({}, {})",
+                self.format_expr(start),
+                self.format_expr(end)
+            ),
+            RefOpIR::Value => format!("{base}?.value"),
+            // Assignment needs an explicit guard — `?.` is illegal on an
+            // assignment LHS, and a setValue from @mount runs before the
+            // ref attaches (would otherwise throw TypeError).
+            RefOpIR::SetValue { value } => {
+                format!(
+                    "if ({base}) {{ {base}.value = {}; }}",
+                    self.format_expr(value)
+                )
+            }
+            RefOpIR::CapturePointer { id } => {
+                format!("{base}?.setPointerCapture({})", self.format_expr(id))
+            }
+            RefOpIR::ReleasePointer { id } => {
+                format!("{base}?.releasePointerCapture({})", self.format_expr(id))
+            }
+            #[allow(unreachable_patterns)]
+            _ => format!("/* RefOp::{op:?} on {ref_name} */"),
+        }
+    }
+
     fn format_match(&self, matched: &str, arms: &[MatchArmIR]) -> String {
         let cases: Vec<String> = arms
             .iter()
@@ -134,14 +211,51 @@ impl FormatExpr for ReactFormatExpr {
     }
 }
 
+/// Format `ref.scrollTo({ left: x, top: y })` — only axes provided in the
+/// source call are included in the options object.
+fn format_ref_scroll(
+    base: &str,
+    fmt: &ReactFormatExpr,
+    x: Option<&ExprIR>,
+    y: Option<&ExprIR>,
+) -> String {
+    let mut parts: Vec<String> = Vec::new();
+    if let Some(x) = x {
+        parts.push(format!("left: {}", fmt.format_expr(x)));
+    }
+    if let Some(y) = y {
+        parts.push(format!("top: {}", fmt.format_expr(y)));
+    }
+    format!("{base}?.scrollTo({{ {} }})", parts.join(", "))
+}
+
+/// Format `ref.scrollBy({ left: dx, top: dy })` — relative scroll delta.
+fn format_ref_scroll_by(
+    base: &str,
+    fmt: &ReactFormatExpr,
+    dx: Option<&ExprIR>,
+    dy: Option<&ExprIR>,
+) -> String {
+    let mut parts: Vec<String> = Vec::new();
+    if let Some(dx) = dx {
+        parts.push(format!("left: {}", fmt.format_expr(dx)));
+    }
+    if let Some(dy) = dy {
+        parts.push(format!("top: {}", fmt.format_expr(dy)));
+    }
+    format!("{base}?.scrollBy({{ {} }})", parts.join(", "))
+}
+
 /// React TSX statement formatter.
 ///
-/// Uses `signal_names` to determine mutation strategy (setter calls vs direct assignment).
-/// In Zustand mode, store-signal mutations use `useStoreName.setState(...)`.
+/// Uses `signal_names` to determine mutation strategy (setter calls vs direct
+/// assignment) and `store_signal_owners` (store signal name → store ref name)
+/// so store-signal mutations emit `useStoreName.setState(...)` (C7).
 pub(super) struct ReactStmtFormatter {
     pub expr: ReactFormatExpr,
     pub signal_names: FxHashSet<String>,
-    pub store_mode: super::ReactStoreMode,
+    /// Maps store signal names to their owning store ref (e.g. `count` → `AppStore`).
+    pub store_signal_owners: FxHashMap<String, String>,
 }
 
 impl FormatStmt for ReactStmtFormatter {
@@ -210,21 +324,19 @@ impl FormatStmt for ReactStmtFormatter {
 
     fn format_mutation_stmt(&self, w: &mut CodeWriter, intent: &MutationIntent) {
         match intent {
-            MutationIntent::DirectAssign { target, value } => {
+            MutationIntent::DirectAssign { target, value, .. } => {
                 let target_str = &target.name;
                 let amount = value
                     .as_ref()
                     .map(|v| self.expr.format_expr(v))
                     .unwrap_or_else(|| "0".into());
-                // Note: `owner` field removed from SignalRefIR — store signal
-                // detection via target.owner is no longer available.
-                let is_store_signal = false;
-                let is_component_state = self.signal_names.contains(target_str.as_str());
-                let use_setter = is_store_signal || is_component_state;
-                if is_store_signal && self.store_mode == super::ReactStoreMode::Zustand {
-                    // Zustand mode: useStoreName.setState({ signal: value })
-                    // (unreachable without `owner` field on SignalRefIR)
-                } else if use_setter {
+                // Store signal → Zustand setState on the imported store hook (C7)
+                if let Some(owner) = self.store_signal_owners.get(target_str.as_str()) {
+                    w.emit_fmt(format_args!(
+                        "use{}.setState({{ {}: {} }});",
+                        owner, target_str, amount
+                    ));
+                } else if self.signal_names.contains(target_str.as_str()) {
                     let setter = format!("set{}", capitalize_first(target_str));
                     w.emit_fmt(format_args!("{}({});", setter, amount));
                 } else {
@@ -239,19 +351,13 @@ impl FormatStmt for ReactStmtFormatter {
     }
 }
 
-/// Helper: emit a Zustand `useStore.setState(...)` mutation from a component context.
-/// Note: `owner` field removed from SignalRefIR — always returns empty string.
-fn zustand_store_setter(_target: &SignalRefIR) -> String {
-    String::new()
-}
-
-/// Generate Zustand/Setter/Direct assignment for arithmetic compound mutations.
+/// Generate Zustand setState / setter / direct assignment for compound mutations.
 macro_rules! compound_op {
-    ($w:ident, $s:ident, $target_str:ident, $amt:ident, $in_zustand:ident, $use_setter:ident, $op:tt) => {{
-        if $in_zustand {
+    ($w:ident, $target_str:ident, $amt:ident, $owner:ident, $use_setter:ident, $op:tt) => {{
+        if let Some(owner) = $owner {
             $w.emit_fmt(format_args!(
-                "{}.setState((s) => ({{ {}: s.{} {} {} }}));",
-                $s,
+                "use{}.setState((s) => ({{ {}: s.{} {} {} }}));",
+                owner,
                 $target_str,
                 $target_str,
                 stringify!($op),
@@ -278,8 +384,9 @@ macro_rules! compound_op {
 }
 
 impl ReactStmtFormatter {
-    /// Format compound mutations (Increment, Decrement, Push, Pop, etc.) with
-    /// Zustand-aware store signal handling.
+    /// Format compound mutations (Increment, Decrement, Push, Pop, etc.).
+    /// Store signals (via `store_signal_owners`) emit `useStoreName.setState(...)`,
+    /// component signals emit setter calls, everything else is a bare assignment.
     fn format_compound_mutation(&self, w: &mut CodeWriter, intent: &MutationIntent) {
         let (target, amount_expr, item_expr) = match intent {
             MutationIntent::Increment { target, amount } => (target, amount.as_deref(), None),
@@ -293,43 +400,40 @@ impl ReactStmtFormatter {
         };
 
         let target_str = &target.name;
-        // Note: `owner` field removed from SignalRefIR — store signal
-        // detection via target.owner is no longer available.
-        let is_store_signal = false;
-        let is_component_state = self.signal_names.contains(target_str.as_str());
-        let use_setter = is_store_signal || is_component_state;
-        let in_zustand = is_store_signal && self.store_mode == super::ReactStoreMode::Zustand;
+        let owner = self
+            .store_signal_owners
+            .get(target_str.as_str())
+            .map(|s| s.as_str());
+        let use_setter = self.signal_names.contains(target_str.as_str());
 
         let amt = amount_expr
             .map(|v| self.expr.format_expr(v))
             .unwrap_or_else(|| "0".into());
 
-        let s = zustand_store_setter(target);
-
         match intent {
             MutationIntent::Increment { .. } => {
-                compound_op!(w, s, target_str, amt, in_zustand, use_setter, +);
+                compound_op!(w, target_str, amt, owner, use_setter, +);
             }
             MutationIntent::Decrement { .. } => {
-                compound_op!(w, s, target_str, amt, in_zustand, use_setter, -);
+                compound_op!(w, target_str, amt, owner, use_setter, -);
             }
             MutationIntent::Multiply { .. } => {
-                compound_op!(w, s, target_str, amt, in_zustand, use_setter, *);
+                compound_op!(w, target_str, amt, owner, use_setter, *);
             }
             MutationIntent::Divide { .. } => {
-                compound_op!(w, s, target_str, amt, in_zustand, use_setter, /);
+                compound_op!(w, target_str, amt, owner, use_setter, /);
             }
             MutationIntent::Modulo { .. } => {
-                compound_op!(w, s, target_str, amt, in_zustand, use_setter, %);
+                compound_op!(w, target_str, amt, owner, use_setter, %);
             }
             MutationIntent::Push { .. } => {
                 let it = item_expr
                     .map(|v| self.expr.format_expr(v))
                     .unwrap_or_else(|| "undefined".into());
-                if in_zustand {
+                if let Some(owner) = owner {
                     w.emit_fmt(format_args!(
-                        "{}.setState((s) => ({{ {}: [...s.{}, {}] }}));",
-                        s, target_str, target_str, it
+                        "use{}.setState((s) => ({{ {}: [...s.{}, {}] }}));",
+                        owner, target_str, target_str, it
                     ));
                 } else if use_setter {
                     let setter = format!("set{}", capitalize_first(target_str));
@@ -342,10 +446,10 @@ impl ReactStmtFormatter {
                 }
             }
             MutationIntent::Pop { .. } => {
-                if in_zustand {
+                if let Some(owner) = owner {
                     w.emit_fmt(format_args!(
-                        "{}.setState((s) => ({{ {}: s.{}.slice(0, -1) }}));",
-                        s, target_str, target_str
+                        "use{}.setState((s) => ({{ {}: s.{}.slice(0, -1) }}));",
+                        owner, target_str, target_str
                     ));
                 } else if use_setter {
                     let setter = format!("set{}", capitalize_first(target_str));
@@ -366,26 +470,11 @@ pub(super) fn generate_statement_tsx(
     w: &mut CodeWriter,
     stmt: &StatementIR,
     signal_names: &FxHashSet<String>,
-    ref_names: &FxHashSet<String>,
-) {
-    generate_statement_tsx_with_mode(
-        w,
-        stmt,
-        signal_names,
-        super::ReactStoreMode::Hooks,
-        ref_names,
-    );
-}
-
-pub(super) fn generate_statement_tsx_with_mode(
-    w: &mut CodeWriter,
-    stmt: &StatementIR,
-    signal_names: &FxHashSet<String>,
-    store_mode: super::ReactStoreMode,
+    store_signal_owners: &FxHashMap<String, String>,
     ref_names: &FxHashSet<String>,
 ) {
     // Intercept array_push / array_pop calls on signals — these should
-    // be emitted as setter-based mutations, not pure expressions.
+    // be emitted as setter/setState-based mutations, not pure expressions.
     if let StatementIR::ExprStmtIR {
         expr: ExprIR::CallExpr { name, args },
     } = stmt
@@ -395,19 +484,39 @@ pub(super) fn generate_statement_tsx_with_mode(
                 name: target_name, ..
             }) = args.first()
             {
-                if signal_names.contains(target_name.as_str()) {
-                    let setter = format!("set{}", capitalize_first(target_name));
+                if signal_names.contains(target_name.as_str())
+                    || store_signal_owners.contains_key(target_name.as_str())
+                {
                     match name.as_str() {
                         "array_push" => {
                             let item = args
                                 .get(1)
                                 .map(|e| format_expr_ir_tsx(e, ref_names))
                                 .unwrap_or_else(|| "undefined".into());
-                            w.emit_fmt(format_args!("{}(prev => [...prev, {}]);", setter, item));
+                            if let Some(owner) = store_signal_owners.get(target_name.as_str()) {
+                                w.emit_fmt(format_args!(
+                                    "use{}.setState((s) => ({{ {}: [...s.{}, {}] }}));",
+                                    owner, target_name, target_name, item
+                                ));
+                            } else {
+                                let setter = format!("set{}", capitalize_first(target_name));
+                                w.emit_fmt(format_args!(
+                                    "{}(prev => [...prev, {}]);",
+                                    setter, item
+                                ));
+                            }
                             return;
                         }
                         "array_pop" => {
-                            w.emit_fmt(format_args!("{}(prev => prev.slice(0, -1));", setter));
+                            if let Some(owner) = store_signal_owners.get(target_name.as_str()) {
+                                w.emit_fmt(format_args!(
+                                    "use{}.setState((s) => ({{ {}: s.{}.slice(0, -1) }}));",
+                                    owner, target_name, target_name
+                                ));
+                            } else {
+                                let setter = format!("set{}", capitalize_first(target_name));
+                                w.emit_fmt(format_args!("{}(prev => prev.slice(0, -1));", setter));
+                            }
                             return;
                         }
                         _ => {}
@@ -419,9 +528,10 @@ pub(super) fn generate_statement_tsx_with_mode(
     let fmt = ReactStmtFormatter {
         expr: ReactFormatExpr {
             ref_names: ref_names.clone(),
+            renames: FxHashMap::default(),
         },
         signal_names: signal_names.clone(),
-        store_mode,
+        store_signal_owners: store_signal_owners.clone(),
     };
     fmt.format_stmt(w, stmt);
 }
@@ -431,13 +541,26 @@ pub(super) fn generate_statement_tsx_with_mode(
 // ═══════════════════════════════════════════════════════════
 
 pub(super) fn format_expr_ir_tsx(expr: &ExprIR, ref_names: &FxHashSet<String>) -> String {
+    format_expr_ir_tsx_renamed(expr, ref_names, &FxHashMap::default())
+}
+
+/// Format an expression with an identifier rename map (used inside Zustand
+/// store action bodies and getter accessors — C8). Renaming happens at the
+/// AST identifier level, so string literals and object keys are never
+/// corrupted (HIGH #2) and list/object literals are covered (CRITICAL).
+pub(super) fn format_expr_ir_tsx_renamed(
+    expr: &ExprIR,
+    ref_names: &FxHashSet<String>,
+    renames: &FxHashMap<String, String>,
+) -> String {
     match expr {
         ExprIR::IdentifierExpr { name, .. } => ReactFormatExpr {
             ref_names: ref_names.clone(),
+            renames: renames.clone(),
         }
         .format_identifier(name),
         ExprIR::FieldAccessExpr { object, field } => {
-            let obj_str = format_expr_ir_tsx(object, ref_names);
+            let obj_str = format_expr_ir_tsx_renamed(object, ref_names, renames);
             format!("{}.{}", obj_str, field)
         }
         ExprIR::MethodCallExpr {
@@ -446,15 +569,16 @@ pub(super) fn format_expr_ir_tsx(expr: &ExprIR, ref_names: &FxHashSet<String>) -
             args,
             ..
         } => {
-            let obj_str = format_expr_ir_tsx(object, ref_names);
+            let obj_str = format_expr_ir_tsx_renamed(object, ref_names, renames);
             let args_str: Vec<String> = args
                 .iter()
-                .map(|a| format_expr_ir_tsx(a, ref_names))
+                .map(|a| format_expr_ir_tsx_renamed(a, ref_names, renames))
                 .collect();
             translate_method_call(&obj_str, method, &args_str)
         }
         _ => ReactFormatExpr {
             ref_names: ref_names.clone(),
+            renames: renames.clone(),
         }
         .format_expr(expr),
     }

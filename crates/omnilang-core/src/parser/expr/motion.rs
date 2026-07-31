@@ -1,5 +1,6 @@
 //! Motion expression and easing parsers for OmniView.
 
+use crate::codegen::shared::easing::resolve_easing;
 use crate::error::ParseError;
 use crate::lexer::TokenKind;
 use crate::parser::ast::*;
@@ -40,40 +41,55 @@ impl<'a> Parser<'a> {
         self.parse_prefix()
     }
 
-    /// Parse easing expression: easeOut, power2In, backOut,
-    /// cubic(x1:0,y1:0,x2:1,y2:1)
+    /// Read an easing name, reassembling hyphenated idents (the lexer does not
+    /// include '-' in identifiers, so "ease-out" arrives as Ident, Minus, Ident).
+    fn read_easing_name(&mut self) -> Result<String, ParseError> {
+        let mut name = self.expect_ident("expected easing name")?;
+        while *self.peek_kind() == TokenKind::Minus {
+            self.advance(); // consume '-'
+            let part = self.expect_ident("expected identifier after '-' in easing name")?;
+            name = format!("{}-{}", name, part);
+        }
+        Ok(name)
+    }
+
+    /// Map an easing name to its canonical kebab-case form.
+    ///
+    /// Accepts both camelCase (existing code — transition period) and
+    /// kebab-case (semantic DSL spec). Old GSAP-style names map to their
+    /// closest semantic equivalents.
+    fn normalize_easing_name(name: &str) -> String {
+        match name {
+            "easeIn" | "ease-in" => "ease-in".into(),
+            "easeOut" | "ease-out" => "ease-out".into(),
+            "easeInOut" | "ease-in-out" => "ease-in-out".into(),
+            "power2Out" => "ease-out".into(), // closest semantic equivalent
+            "backOut" => "back-out".into(),
+            "elasticOut" => "elastic-out".into(),
+            other => camel_to_kebab(other),
+        }
+    }
+
+    /// Extract the direction suffix ("in" | "out" | "inout") from a kebab-case
+    /// back/elastic name. `family` is "back" or "elastic".
+    fn easing_direction(name: &str, family: &str) -> String {
+        let dir = name
+            .strip_prefix(family)
+            .and_then(|s| s.strip_prefix('-'))
+            .unwrap_or("out")
+            .to_lowercase();
+        if dir == "in-out" {
+            "inout".into()
+        } else {
+            dir
+        }
+    }
+
+    /// Parse easing expression: ease-out, ease-in, linear, back-in,
+    /// cubic(x1:0,y1:0,x2:1,y2:1), steps(6, end)
     pub fn parse_easing(&mut self) -> Result<EasingExpr, ParseError> {
-        let name = self.expect_ident("expected easing name")?;
+        let name = self.read_easing_name()?;
         let easing = match name.as_str() {
-            "linear" => EasingExpr::Named("linear".into()),
-            "easeIn" | "easeOut" | "easeInOut" => EasingExpr::Named(name.clone()),
-            "power1In" | "power1Out" | "power1InOut" | "power2In" | "power2Out" | "power2InOut"
-            | "power3In" | "power3Out" | "power3InOut" | "power4In" | "power4Out"
-            | "power4InOut" | "bounceIn" | "bounceOut" | "bounceInOut" => {
-                EasingExpr::Named(name.clone())
-            }
-            "backIn" | "backOut" | "backInOut" => {
-                let dir = name.strip_prefix("back").unwrap_or("out");
-                let dir_lower = dir.to_lowercase();
-                EasingExpr::Back {
-                    direction: if dir_lower == "out" {
-                        None
-                    } else {
-                        Some(dir_lower)
-                    },
-                }
-            }
-            "elasticIn" | "elasticOut" | "elasticInOut" => {
-                let dir = name.strip_prefix("elastic").unwrap_or("out");
-                let dir_lower = dir.to_lowercase();
-                EasingExpr::Elastic {
-                    direction: if dir_lower == "out" {
-                        None
-                    } else {
-                        Some(dir_lower)
-                    },
-                }
-            }
             "cubic" => {
                 self.expect_token(TokenKind::LParen, "expected '('")?;
                 self.expect_ident_eq("x1")?;
@@ -94,7 +110,42 @@ impl<'a> Parser<'a> {
                 self.expect_token(TokenKind::RParen, "expected ')'")?;
                 EasingExpr::CubicBezier { x1, y1, x2, y2 }
             }
-            _ => return Err(self.error(format!("unknown easing: '{}'", name))),
+            "steps" => {
+                self.expect_token(TokenKind::LParen, "expected '('")?;
+                let count: u32 = match self.peek_kind() {
+                    TokenKind::IntLiteral(n) => {
+                        let count = *n as u32;
+                        self.advance();
+                        count
+                    }
+                    _ => return Err(self.error("expected step count")),
+                };
+                self.expect_token(TokenKind::Comma, "expected ','")?;
+                let direction = self.expect_ident("expected 'start' or 'end'")?;
+                if direction != "start" && direction != "end" {
+                    return Err(self.error(format!(
+                        "expected 'start' or 'end' as steps direction, got '{}'",
+                        direction
+                    )));
+                }
+                self.expect_token(TokenKind::RParen, "expected ')'")?;
+                EasingExpr::Steps { count, direction }
+            }
+            _ => {
+                let canonical = Self::normalize_easing_name(&name);
+                match canonical.as_str() {
+                    "back-in" | "back-out" | "back-in-out" => EasingExpr::Back {
+                        direction: Self::easing_direction(&canonical, "back"),
+                    },
+                    "elastic-in" | "elastic-out" | "elastic-in-out" => EasingExpr::Elastic {
+                        direction: Self::easing_direction(&canonical, "elastic"),
+                    },
+                    n if resolve_easing(n).is_some() => EasingExpr::Named(n.to_string()),
+                    _ => {
+                        return Err(self.error(format!("unknown easing: '{}'", name)));
+                    }
+                }
+            }
         };
         Ok(easing)
     }
@@ -104,4 +155,20 @@ impl<'a> Parser<'a> {
         // Named motion reference
         self.parse_expr()
     }
+}
+
+/// Convert a camelCase identifier to kebab-case ("easeInOut" -> "ease-in-out").
+fn camel_to_kebab(name: &str) -> String {
+    let mut out = String::with_capacity(name.len() + 4);
+    for (i, c) in name.chars().enumerate() {
+        if c.is_ascii_uppercase() {
+            if i > 0 {
+                out.push('-');
+            }
+            out.push(c.to_ascii_lowercase());
+        } else {
+            out.push(c);
+        }
+    }
+    out
 }

@@ -28,6 +28,12 @@ pub struct DesignIR {
     pub tokens: FxHashMap<String, TokenIR>,
     pub classes: Vec<ClassIR>,
     pub variants: Vec<VariantIR>,
+    /// Source file path relative to project root (e.g. "src/design.omni").
+    /// Populated during multi-file compilation; used by multi-file codegens
+    /// (React) to place design outputs (design.css, hooks) in the same
+    /// output directory as the design's source file.
+    #[serde(default)]
+    pub source_file: Option<String>,
     #[serde(default)]
     pub source_span: Option<Span>,
 }

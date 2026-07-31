@@ -440,12 +440,32 @@ impl OmniViewGenerator {
                     &extra,
                 ));
             }
+            TriggerKind::Focus => {
+                let comment = if is_inline {
+                    "// @focus (inline)"
+                } else {
+                    "// @focus trigger"
+                };
+                let extra = format!(
+                    "\x20\x20 el.addEventListener(\"focusin\", function() {{ __omni_animations.get(\"{nid}\")?.get(\"{trigger}\")?.play(); }});\n\
+                     \x20\x20 el.addEventListener(\"focusout\", function() {{ __omni_animations.get(\"{nid}\")?.get(\"{trigger}\")?.reverse(); }});\n",
+                    nid = nid,
+                    trigger = trigger_str,
+                );
+                self.js.push_str(&format_simple_trigger_js(
+                    comment,
+                    nid,
+                    trigger_str,
+                    anim_call,
+                    &extra,
+                ));
+            }
             TriggerKind::InView
             | TriggerKind::Scroll
             | TriggerKind::DragHorizontal
             | TriggerKind::DragVertical => {
                 unreachable!(
-                    "emit_trigger_with_anim_call only handles Enter/Hover/Press — \
+                    "emit_trigger_with_anim_call only handles Enter/Hover/Press/Focus — \
                      other variants are dispatched to their own dedicated methods"
                 )
             }
@@ -464,6 +484,7 @@ impl OmniViewGenerator {
                 TriggerKind::Enter => "enter",
                 TriggerKind::Hover => "hover",
                 TriggerKind::Press => "press",
+                TriggerKind::Focus => "focus",
                 TriggerKind::InView => "inView",
                 TriggerKind::Scroll => "scroll",
                 TriggerKind::DragHorizontal => "dragHorizontal",
@@ -494,7 +515,10 @@ impl OmniViewGenerator {
                     ));
                 }
                 match trigger.kind {
-                    TriggerKind::Enter | TriggerKind::Hover | TriggerKind::Press => {
+                    TriggerKind::Enter
+                    | TriggerKind::Hover
+                    | TriggerKind::Press
+                    | TriggerKind::Focus => {
                         self.emit_trigger_with_anim_call(
                             nid,
                             trigger_str,
@@ -526,7 +550,10 @@ impl OmniViewGenerator {
                 let anim_call =
                     format!("Omni.animate(el, {}, {{ {} }})", kf_override, opts_override);
                 match trigger.kind {
-                    TriggerKind::Enter | TriggerKind::Hover | TriggerKind::Press => {
+                    TriggerKind::Enter
+                    | TriggerKind::Hover
+                    | TriggerKind::Press
+                    | TriggerKind::Focus => {
                         self.emit_trigger_with_anim_call(
                             nid,
                             trigger_str,

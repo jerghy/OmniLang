@@ -12,6 +12,12 @@
 // ╚══════════════════════════════════════════════════════════════╝
 
 import omniview;
+import { DynamicTokenStore } from "./stores/DynamicTokenStore";
+
+// ── Phase 1 编译时常量 ──
+const TOKEN_RADIUS = "12px";
+const TOKEN_SHADOW = "0 4px 12px rgba(0,0,0,0.08)";
+const TOKEN_SPACING = "16px";
 
 design LearnDesign {
     // ── 主题声明 ──
@@ -98,6 +104,18 @@ design LearnDesign {
     token zDropdown: zIndex = "50";
     token zModal: zIndex = "100";
     token zToast: zIndex = "150";
+
+    // ── Phase 1: 编译时常量引用（const → token 值） ──
+    token constRadius: radius = TOKEN_RADIUS;
+    token constShadow: shadow = TOKEN_SHADOW;
+    token constSpacing: size = TOKEN_SPACING;
+
+    // ── Phase 2: 运行时信号引用（Store.signal → token 值） ──
+    // 这些 token 通过 __omni_effect 动态更新 CSS 变量
+    // ⚠ 动态 token 不能有 theme 覆盖值
+    token dynColor: color = DynamicTokenStore.liveColor;
+    token dynBg: color = DynamicTokenStore.liveBg;
+    token dynAccent: color = DynamicTokenStore.liveAccent;
 
     // ═══════════════════════════════════════════════════════════
     // 2. CSS 类（DESIGN CLASSES）

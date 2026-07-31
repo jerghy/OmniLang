@@ -25,6 +25,7 @@ fn make_element(tag: &str) -> ElementIR {
         scroll: None,
         drag: None,
         ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
     }
 }
 
@@ -682,6 +683,7 @@ fn test_stmt_mutation_assign() {
             value: Some(Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!(42),
             })),
+            field_object: None,
         }),
     });
     assert!(gen.js.contains("count = 42"));
@@ -720,6 +722,7 @@ fn test_stmt_mutation_signal_set() {
             value: Some(Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!(99),
             })),
+            field_object: None,
         }),
     });
     assert!(gen.js.contains(".set(99)"));
@@ -1450,7 +1453,10 @@ fn test_runtime_error_reporting() {
 fn test_theme_runtime_emitted_when_design_has_themes() {
     let mut tokens = FxHashMap::default();
     let mut theme_values_dark = FxHashMap::default();
-    theme_values_dark.insert("dark".to_string(), TokenValueIR::Static("#a5b4fc".to_string()));
+    theme_values_dark.insert(
+        "dark".to_string(),
+        TokenValueIR::Static("#a5b4fc".to_string()),
+    );
     tokens.insert(
         "primary".to_string(),
         TokenIR {
@@ -1469,6 +1475,7 @@ fn test_theme_runtime_emitted_when_design_has_themes() {
         classes: vec![],
         variants: vec![],
         source_span: None,
+        source_file: None,
     };
 
     let mut module = make_module("main");
@@ -1519,6 +1526,7 @@ fn test_theme_runtime_not_emitted_without_themes() {
         classes: vec![],
         variants: vec![],
         source_span: None,
+        source_file: None,
     };
 
     let mut module = make_module("main");
@@ -1547,7 +1555,12 @@ fn slot_projection_inlines_parent_children_into_default_slot() {
 
     // Button component: <div><slot></slot></div>
     let mut btn_div = make_element("div");
-    btn_div.children = vec![ViewTree::Slot(None)];
+    btn_div.children = vec![ViewTree::Slot {
+        name: None,
+        fallback: Vec::new(),
+        type_constraint: None,
+        data_param: None,
+    }];
     module.components.insert(
         "Button".to_string(),
         ComponentIR {
@@ -1583,7 +1596,20 @@ fn slot_projection_maps_named_slots_correctly() {
 
     // Panel component: <div><slot name="header"></slot><slot></slot></div>
     let mut panel_div = make_element("div");
-    panel_div.children = vec![ViewTree::Slot(Some("header".into())), ViewTree::Slot(None)];
+    panel_div.children = vec![
+        ViewTree::Slot {
+            name: Some("header".into()),
+            fallback: Vec::new(),
+            type_constraint: None,
+            data_param: None,
+        },
+        ViewTree::Slot {
+            name: None,
+            fallback: Vec::new(),
+            type_constraint: None,
+            data_param: None,
+        },
+    ];
     module.components.insert(
         "Panel".to_string(),
         ComponentIR {
@@ -1603,7 +1629,10 @@ fn slot_projection_maps_named_slots_correctly() {
     span.children = vec![ViewTree::Text("H".into())];
 
     let mut app_el = make_element("Panel");
-    app_el.children = vec![ViewTree::Element(Box::new(span)), ViewTree::Text("body".into())];
+    app_el.children = vec![
+        ViewTree::Element(Box::new(span)),
+        ViewTree::Text("body".into()),
+    ];
     module.components.insert(
         "App".to_string(),
         ComponentIR {

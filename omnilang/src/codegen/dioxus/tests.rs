@@ -782,6 +782,7 @@ mod tests {
             body: Some(ViewTree::Text("Item".into())),
             key_expr: None,
             empty_body: None,
+            scroll_hint: false,
         };
         crate::codegen::dioxus::gen_view_node_dioxus(
             &mut w,
@@ -810,6 +811,7 @@ mod tests {
             body: Some(ViewTree::Text("Item".into())),
             key_expr: None,
             empty_body: Some(ViewTree::Text("Nothing".into())),
+            scroll_hint: false,
         };
         crate::codegen::dioxus::gen_view_node_dioxus(
             &mut w,
@@ -850,8 +852,13 @@ mod tests {
             ref_binding: None,
             construction_kind: ConstructionKind::Static,
             source_span: None,
+            semantic_bindings: FxHashMap::default(),
         };
-        crate::codegen::dioxus::gen_view_node_dioxus(&mut w, &ViewTree::Element(Box::new(el)), true);
+        crate::codegen::dioxus::gen_view_node_dioxus(
+            &mut w,
+            &ViewTree::Element(Box::new(el)),
+            true,
+        );
         let out = w.into_string();
         // Dangerous javascript: URL should be neutralized to empty string
         assert!(out.contains(r#"href: ""#));
@@ -881,8 +888,13 @@ mod tests {
             ref_binding: None,
             construction_kind: ConstructionKind::Static,
             source_span: None,
+            semantic_bindings: FxHashMap::default(),
         };
-        crate::codegen::dioxus::gen_view_node_dioxus(&mut w, &ViewTree::Element(Box::new(el)), true);
+        crate::codegen::dioxus::gen_view_node_dioxus(
+            &mut w,
+            &ViewTree::Element(Box::new(el)),
+            true,
+        );
         let out = w.into_string();
         // Safe URL should pass through unchanged
         assert!(out.contains(r#"href: "https://example.com""#));
@@ -911,8 +923,13 @@ mod tests {
             ref_binding: None,
             construction_kind: ConstructionKind::Static,
             source_span: None,
+            semantic_bindings: FxHashMap::default(),
         };
-        crate::codegen::dioxus::gen_view_node_dioxus(&mut w, &ViewTree::Element(Box::new(el)), true);
+        crate::codegen::dioxus::gen_view_node_dioxus(
+            &mut w,
+            &ViewTree::Element(Box::new(el)),
+            true,
+        );
         let out = w.into_string();
         // data: URL in src should be neutralized
         assert!(out.contains(r#"src: ""#));
@@ -942,8 +959,13 @@ mod tests {
             ref_binding: None,
             construction_kind: ConstructionKind::Static,
             source_span: None,
+            semantic_bindings: FxHashMap::default(),
         };
-        crate::codegen::dioxus::gen_view_node_dioxus(&mut w, &ViewTree::Element(Box::new(el)), true);
+        crate::codegen::dioxus::gen_view_node_dioxus(
+            &mut w,
+            &ViewTree::Element(Box::new(el)),
+            true,
+        );
         let out = w.into_string();
         // Non-URL attributes should not be sanitized
         assert!(out.contains(r#"title: "javascript:not-a-url""#));

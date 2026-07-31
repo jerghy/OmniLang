@@ -252,7 +252,7 @@ impl OmniViewGenerator {
 /// slot="name" attributes go to named slots.
 fn inject_slot_children(view: ViewTree, slot_children: &[ViewTree]) -> ViewTree {
     match view {
-        ViewTree::Slot(ref slot_name) => {
+        ViewTree::Slot { name: ref slot_name, .. } => {
             if let Some(name) = slot_name.as_deref() {
                 let named: Vec<ViewTree> = slot_children
                     .iter()

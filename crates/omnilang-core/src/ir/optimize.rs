@@ -108,9 +108,6 @@ fn collect_idents_from_view(view: &ViewTree, used: &mut FxHashSet<String>) {
         }
         // Walk element-level behavior fields that can reference computed properties
         if let Some(ref motion) = el.motion {
-            if let Some(ref expr) = motion.paused_override {
-                collect_idents(expr, used);
-            }
             if let Some(ref expr) = motion.in_view_once {
                 collect_idents(expr, used);
             }
@@ -175,7 +172,7 @@ fn collect_idents_from_view_exprs(view: &ViewTree, used: &mut FxHashSet<String>)
                 collect_idents_from_view_exprs(child, used);
             }
         }
-        ViewTree::Text(_) | ViewTree::Slot(_) => {}
+        ViewTree::Text(_) | ViewTree::Slot { .. } => {}
     }
 }
 
@@ -347,7 +344,7 @@ fn eliminate_unreachable_in_view(view: &mut ViewTree) -> bool {
                 changed |= eliminate_unreachable_in_view(child);
             }
         }
-        ViewTree::Interpolation(_) | ViewTree::Text(_) | ViewTree::Slot(_) => {}
+        ViewTree::Interpolation(_) | ViewTree::Text(_) | ViewTree::Slot { .. } => {}
     }
     changed
 }
@@ -581,6 +578,7 @@ mod tests {
                 scroll: None,
                 drag: None,
                 ref_binding: None,
+                semantic_bindings: FxHashMap::default(),
             }))),
             ..ComponentIR::default()
         };
@@ -614,6 +612,7 @@ mod tests {
                 scroll: None,
                 drag: None,
                 ref_binding: None,
+                semantic_bindings: FxHashMap::default(),
             }))),
             ..ComponentIR::default()
         };
@@ -647,6 +646,7 @@ mod tests {
                 scroll: None,
                 drag: None,
                 ref_binding: None,
+                semantic_bindings: FxHashMap::default(),
             }))),
             ..ComponentIR::default()
         };
@@ -692,6 +692,7 @@ mod tests {
                 body: None,
                 key_expr: None,
                 empty_body: None,
+                scroll_hint: false,
             }))),
             ..ComponentIR::default()
         };
@@ -782,6 +783,7 @@ mod tests {
                 scroll: None,
                 drag: None,
                 ref_binding: None,
+                semantic_bindings: FxHashMap::default(),
             }))),
             ..ComponentIR::default()
         };

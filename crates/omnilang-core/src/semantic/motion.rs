@@ -69,7 +69,7 @@ pub(super) fn has_enter_leave_animation(nodes: &[ViewNode]) -> bool {
 
 /// Parse a duration string (e.g. "300ms", "1.5s") to milliseconds.
 /// Returns `Err` with a description if the value cannot be parsed.
-pub(super) fn parse_duration_ms(val: &str) -> Result<f64, String> {
+pub fn parse_duration_ms(val: &str) -> Result<f64, String> {
     let val = val.trim();
     if let Some(ms_part) = val.strip_suffix("ms") {
         ms_part

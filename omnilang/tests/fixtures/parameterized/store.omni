@@ -1,0 +1,25 @@
+// store.omni — top-level store (signal + action) consumed by a component
+// via @store, qualified field reads, and store action calls. Exercises the
+// Zustand (React) / Riverpod (Flutter) / inline runtime (OmniView) store
+// consumption paths across all P0 backends.
+
+import omniview;
+
+store CounterStore {
+    signal count: i32 = 0;
+
+    action increment() {
+        count = count + 1;
+    }
+}
+
+component Counter {
+    @store CounterStore;
+
+    view {
+        <div>
+            {CounterStore.count}
+            <button @onPress={CounterStore.increment()}>+</button>
+        </div>
+    }
+}

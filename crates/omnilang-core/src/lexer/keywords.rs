@@ -65,12 +65,6 @@ pub(super) fn ident_to_keyword(ident: &str) -> Option<TokenKind> {
         "emit" => Some(TokenKind::Emit),
         // Motion keywords (context-sensitive, recognized in @motion blocks)
         "if_mode" => Some(TokenKind::IfMode),
-        "drag_constraints" => Some(TokenKind::DragConstraints),
-        "drag_elastic" => Some(TokenKind::DragElastic),
-        "drag_scrub" => Some(TokenKind::DragScrub),
-        "drag_momentum" => Some(TokenKind::DragMomentum),
-        "drag_threshold" => Some(TokenKind::DragThreshold),
-        "drag_velocity_max" => Some(TokenKind::DragVelocityMax),
         _ => None,
     }
 }
@@ -95,24 +89,11 @@ pub(super) fn at_keyword_to_token(kw: &str) -> Option<TokenKind> {
         "@enter" => Some(TokenKind::AtEnter),
         "@hover" => Some(TokenKind::AtHover),
         "@press" => Some(TokenKind::AtPress),
-        "@in-view" | "@inView" => Some(TokenKind::AtInView),
+        "@focus" => Some(TokenKind::AtFocus),
+        "@in-view" => Some(TokenKind::AtInView),
         "@scroll" => Some(TokenKind::AtScroll),
-        "@drag-horizontal" | "@dragHorizontal" => Some(TokenKind::AtDragHorizontal),
-        "@drag-vertical" | "@dragVertical" => Some(TokenKind::AtDragVertical),
-        "@paused" => Some(TokenKind::AtPaused),
-        "@in-view-once" => Some(TokenKind::AtInViewOnce),
-        "@in-view-repeat" => Some(TokenKind::AtInViewRepeat),
-        "@in-view-threshold" => Some(TokenKind::AtInViewThreshold),
-        "@scroll-start" => Some(TokenKind::AtScrollStart),
-        "@scroll-end" => Some(TokenKind::AtScrollEnd),
-        "@scroll-scrub" => Some(TokenKind::AtScrollScrub),
-        // Drag sub-attributes
-        "@drag-constraints" => Some(TokenKind::DragConstraints),
-        "@drag-elastic" => Some(TokenKind::DragElastic),
-        "@drag-scrub" => Some(TokenKind::DragScrub),
-        "@drag-momentum" => Some(TokenKind::DragMomentum),
-        "@drag-threshold" => Some(TokenKind::DragThreshold),
-        "@drag-velocity-max" => Some(TokenKind::DragVelocityMax),
+        "@drag-horizontal" => Some(TokenKind::AtDragHorizontal),
+        "@drag-vertical" => Some(TokenKind::AtDragVertical),
         // @hero support
         "@hero" => Some(TokenKind::AtHero),
         // @if-mode component prop

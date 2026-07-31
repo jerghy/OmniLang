@@ -520,6 +520,7 @@ fn test_generate_statement_mutation_assign() {
             value: Some(Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!("hello"),
             })),
+            field_object: None,
         }),
     };
     generate_statement(&mut w, &stmt);

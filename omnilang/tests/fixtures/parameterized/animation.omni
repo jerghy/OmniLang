@@ -1,0 +1,22 @@
+// animation.omni — semantic-level DSL motion: named @motion with colon
+// timing (over:/easing:), inline tween triggers, and named trigger refs.
+
+import omniview;
+
+@motion pulse {
+    from { scale: 1.0 }
+    to { scale: 1.05 }
+    over: 200ms
+    easing: ease-out
+}
+
+component MotionCard {
+    view {
+        <div class: card @enter={{ opacity: 0, translateY: 20 }}>
+            Hello
+        </div>
+        <div class: card @hover={pulse}>
+            Hover me
+        </div>
+    }
+}

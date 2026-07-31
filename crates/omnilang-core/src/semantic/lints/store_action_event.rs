@@ -159,6 +159,7 @@ mod tests {
             scroll: None,
             drag: None,
             ref_binding: None,
+            semantic_bindings: FxHashMap::default(),
         })));
         let ir = make_test_ir_with_view("App", view);
 
@@ -193,6 +194,7 @@ mod tests {
             scroll: None,
             drag: None,
             ref_binding: None,
+            semantic_bindings: FxHashMap::default(),
         })));
         let ir = make_test_ir_with_view("App", view);
 
@@ -232,6 +234,7 @@ mod tests {
             scroll: None,
             drag: None,
             ref_binding: None,
+            semantic_bindings: FxHashMap::default(),
         })));
         let ir = make_test_ir_with_view("App", view);
 

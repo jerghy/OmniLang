@@ -318,7 +318,6 @@ fn test_motion_trigger_enter_named() {
 
                 source_span: None,
             }],
-            paused_override: None,
             in_view_once: None,
             in_view_repeat: None,
             in_view_threshold: None,
@@ -327,6 +326,7 @@ fn test_motion_trigger_enter_named() {
         scroll: None,
         drag: None,
         ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
     };
     gen.emit_motion_triggers_for_element("el-div-001", &el);
 
@@ -380,7 +380,6 @@ fn test_motion_trigger_hover_named() {
 
                 source_span: None,
             }],
-            paused_override: None,
             in_view_once: None,
             in_view_repeat: None,
             in_view_threshold: None,
@@ -389,10 +388,49 @@ fn test_motion_trigger_hover_named() {
         scroll: None,
         drag: None,
         ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
     };
     gen.emit_motion_triggers_for_element("el-btn-002", &el);
 
     insta::assert_snapshot!("motion_trigger_hover_named", &gen.js);
+}
+
+/// @focus auto-binds focusin/focusout events in the JS output.
+#[test]
+fn test_motion_trigger_focus_named() {
+    let mut gen = OmniViewGenerator::default();
+    let el = ElementIR {
+        tag: "input".into(),
+        props: FxHashMap::default(),
+        bindings: FxHashMap::default(),
+        events: FxHashMap::default(),
+        style_classes: None,
+        inline_style: None,
+        children: vec![],
+        construction_kind: ConstructionKind::Static,
+        class_map_bindings: FxHashMap::default(),
+        source_span: None,
+        motion: Some(Box::new(MotionBehavior {
+            triggers: vec![TriggerIntent {
+                kind: TriggerKind::Focus,
+                motion_ref: Some("pulse".into()),
+                inline_motion: None,
+
+                source_span: None,
+            }],
+            in_view_once: None,
+            in_view_repeat: None,
+            in_view_threshold: None,
+            source_span: None,
+        })),
+        scroll: None,
+        drag: None,
+        ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
+    };
+    gen.emit_motion_triggers_for_element("el-input-003", &el);
+
+    insta::assert_snapshot!("motion_trigger_focus_named", &gen.js);
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -422,7 +460,6 @@ fn test_scroll_trigger() {
                 inline_motion: None,
                 source_span: None,
             }],
-            paused_override: None,
             in_view_once: None,
             in_view_repeat: None,
             in_view_threshold: None,
@@ -438,6 +475,7 @@ fn test_scroll_trigger() {
         })),
         drag: None,
         ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
     };
     gen.emit_motion_triggers_for_element("el-scroll-001", &el);
     let output = format!(
@@ -474,7 +512,6 @@ fn test_drag_trigger() {
                 inline_motion: None,
                 source_span: None,
             }],
-            paused_override: None,
             in_view_once: None,
             in_view_repeat: None,
             in_view_threshold: None,
@@ -491,6 +528,7 @@ fn test_drag_trigger() {
             source_span: None,
         })),
         ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
     };
     gen.emit_motion_triggers_for_element("el-drag-001", &el);
     let output = format!(
@@ -527,7 +565,6 @@ fn test_inview_trigger() {
                 inline_motion: None,
                 source_span: None,
             }],
-            paused_override: None,
             in_view_once: Some(ExprIR::LiteralExpr {
                 value: serde_json::json!(true),
             }),
@@ -540,6 +577,7 @@ fn test_inview_trigger() {
         scroll: None,
         drag: None,
         ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
     };
     gen.emit_motion_triggers_for_element("el-inview-001", &el);
     let output = format!(
@@ -577,7 +615,6 @@ fn test_driven_by() {
                 inline_motion: None,
                 source_span: None,
             }],
-            paused_override: None,
             in_view_once: None,
             in_view_repeat: None,
             in_view_threshold: None,
@@ -586,6 +623,7 @@ fn test_driven_by() {
         scroll: None,
         drag: None,
         ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
     };
     gen.emit_motion_triggers_for_element("el-driven-001", &el);
     let output = format!(
@@ -597,55 +635,6 @@ fn test_driven_by() {
         "should contain enter trigger output"
     );
     insta::assert_snapshot!("driven_by", &output);
-}
-
-/// Tests emit_motion_triggers_for_element with an @enter trigger on an element
-/// that has a paused_override signal binding (paused_override is processed
-/// separately by emit_element_motion_bindings).
-#[test]
-fn test_paused_override() {
-    let mut gen = OmniViewGenerator::default();
-    let el = ElementIR {
-        tag: "div".into(),
-        props: FxHashMap::default(),
-        bindings: FxHashMap::default(),
-        events: FxHashMap::default(),
-        style_classes: None,
-        inline_style: None,
-        children: vec![],
-        construction_kind: ConstructionKind::Static,
-        class_map_bindings: FxHashMap::default(),
-        source_span: None,
-        motion: Some(Box::new(MotionBehavior {
-            triggers: vec![TriggerIntent {
-                kind: TriggerKind::Enter,
-                motion_ref: Some("fadeIn".into()),
-                inline_motion: None,
-                source_span: None,
-            }],
-            paused_override: Some(ExprIR::IdentifierExpr {
-                name: "isPaused".into(),
-                type_ann: None,
-            }),
-            in_view_once: None,
-            in_view_repeat: None,
-            in_view_threshold: None,
-            source_span: None,
-        })),
-        scroll: None,
-        drag: None,
-        ref_binding: None,
-    };
-    gen.emit_motion_triggers_for_element("el-paused-001", &el);
-    let output = format!(
-        "// === mount_js ===\n{}\n// === js ===\n{}\n// === enter_trigger_nids ===\n{:?}",
-        gen.mount_js, gen.js, gen.enter_trigger_nids
-    );
-    assert!(
-        output.contains("enter trigger"),
-        "should contain enter trigger output"
-    );
-    insta::assert_snapshot!("paused_override", &output);
 }
 
 // ═════════════════════════════════════════════════════════════════════════════

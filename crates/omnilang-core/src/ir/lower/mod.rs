@@ -7,6 +7,7 @@
 mod component;
 pub(crate) mod design;
 mod expr;
+mod lower_inline_motions;
 mod motion;
 mod stmt;
 mod view;
@@ -228,6 +229,15 @@ pub fn lower(
         modules.insert(module_name.clone(), module_ir);
     }
 
+    // Hoist inline motion bodies on element triggers into named MotionIntents
+    // (__anon_m_N) in each module's motion table. Runs after component
+    // lowering (so triggers' inline_motion fields are populated) and before
+    // the motion_index build below, so the synthesized motions are indexed
+    // too. Codegen then sees only named motions.
+    for module in modules.values_mut() {
+        lower_inline_motions::lower_inline_motions(module);
+    }
+
     // ── Resolve cross-file design imports ──
     // Collect all designs from all modules into a global map (keyed by design name).
     // Designs are implicitly public (like components/stores) — no visibility gate.
@@ -283,7 +293,7 @@ pub fn lower(
         }
     }
 
-    let ir_program = IRProgram {
+    let mut ir_program = IRProgram {
         version: "1.0".to_string(),
         modules,
         source_map,
@@ -302,6 +312,29 @@ pub fn lower(
     let ref_errors = crate::semantic::validate_refs::validate_refs(&ir_program);
     for err in ref_errors {
         semantics.diagnostics.push(err);
+    }
+
+    // Validate ref operations: rewrite legal ref method calls / field reads to
+    // ExprIR::RefOpExpr, error on DOM-specific APIs with migration hints.
+    for module in ir_program.modules.values_mut() {
+        for component in module.components.values_mut() {
+            crate::semantic::validate_ref_ops::validate_ref_ops(
+                component,
+                &mut semantics.diagnostics,
+            );
+        }
+    }
+
+    // Validate semantic ref bindings: focus={sig}, scroll-x={sig}, scroll-y={sig},
+    // value={sig} must appear only on elements with a @ref binding whose ref is
+    // declared on the component.
+    for module in ir_program.modules.values_mut() {
+        for component in module.components.values_mut() {
+            crate::semantic::validate_semantic_bindings::validate_semantic_bindings(
+                component,
+                &mut semantics.diagnostics,
+            );
+        }
     }
 
     ir_program
@@ -594,6 +627,157 @@ component FormField {
     }
 
     // ═══════════════════════════════════════════════════════
+    // Semantic ref binding validation tests
+    // ═══════════════════════════════════════════════════════
+
+    /// Helper: run the full pipeline (parse → analyze → lower) and return
+    /// the resulting diagnostics.
+    fn lower_source_with_diagnostics(source: &str) -> Vec<crate::error::Diagnostic> {
+        let tokens = tokenize(source);
+        let (program, _) = parse(tokens, source);
+        let mut semantics = analyze(&program);
+        let _ir = lower(&program, &mut semantics, None);
+        semantics.diagnostics
+    }
+
+    #[test]
+    fn semantic_binding_without_ref_errors_in_pipeline() {
+        // focus={sig} on an element WITHOUT @ref → error from the semantic
+        // binding validation pass (wired into lower()).
+        let diagnostics = lower_source_with_diagnostics(
+            r#"
+import omniview;
+component App {
+    signal isActive: bool = false;
+    view {
+        <div focus={isActive} />
+    }
+}
+"#,
+        );
+        let errors: Vec<_> = diagnostics
+            .iter()
+            .filter(|d| d.severity == crate::error::Severity::Error)
+            .collect();
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.message.contains("'focus' requires @ref")),
+            "expected 'focus requires @ref' error, got: {:?}",
+            errors
+        );
+    }
+
+    #[test]
+    fn semantic_binding_with_ref_passes_in_pipeline() {
+        // focus={sig} on an element WITH @ref + declared ref → no semantic
+        // binding errors.
+        let diagnostics = lower_source_with_diagnostics(
+            r#"
+import omniview;
+component App {
+    ref inputBox: Element;
+    signal isActive: bool = false;
+    view {
+        <input @ref={inputBox} focus={isActive} />
+    }
+}
+"#,
+        );
+        let errors: Vec<_> = diagnostics
+            .iter()
+            .filter(|d| d.severity == crate::error::Severity::Error)
+            .collect();
+        assert!(
+            errors
+                .iter()
+                .all(|d| !d.message.contains("semantic binding")),
+            "expected no semantic binding errors, got: {:?}",
+            errors
+        );
+    }
+
+    #[test]
+    fn semantic_binding_with_undeclared_ref_warns_via_validate_refs() {
+        // scroll-y={sig} with @ref={pane} but no `ref pane: Element`
+        // declaration → handled by validate_refs (warning). The semantic
+        // binding pass must NOT duplicate it as an error.
+        let diagnostics = lower_source_with_diagnostics(
+            r#"
+import omniview;
+component App {
+    signal pos: f64 = 0;
+    view {
+        <div @ref={pane} scroll-y={pos} />
+    }
+}
+"#,
+        );
+        assert!(
+            diagnostics.iter().any(|d| {
+                d.severity == crate::error::Severity::Warning
+                    && d.message.contains("no `ref pane: Element` declaration")
+            }),
+            "expected validate_refs warning for undeclared ref, got: {:?}",
+            diagnostics
+        );
+        assert!(
+            diagnostics
+                .iter()
+                .all(|d| !d.message.contains("undeclared ref")),
+            "semantic binding pass must not duplicate the undeclared-ref check, got: {:?}",
+            diagnostics
+        );
+    }
+
+    #[test]
+    fn computed_value_expr_stays_static_prop_in_pipeline() {
+        // value={age.to_string()} is a computed expression — a generic Static
+        // prop, not a semantic binding. It must NOT trigger semantic binding
+        // validation and must remain in ElementIR.props (one-way computed
+        // binding pattern, e.g. FormControlsDemo).
+        let source = r#"
+import omniview;
+component App {
+    signal age: i32 = 30;
+    view {
+        <input type="number" value={age.to_string()} />
+    }
+}
+"#;
+        let tokens = tokenize(source);
+        let (program, _) = parse(tokens, source);
+        let mut semantics = analyze(&program);
+        let ir = lower(&program, &mut semantics, None);
+        assert!(
+            semantics
+                .diagnostics
+                .iter()
+                .all(|d| !d.message.contains("semantic binding")),
+            "computed value expr must not trigger semantic binding errors, got: {:?}",
+            semantics.diagnostics
+        );
+        let module = ir.modules.get("input.omni").expect("should have module");
+        let comp = module
+            .components
+            .get("App")
+            .expect("should have App component");
+        match comp.view.as_ref() {
+            Some(ViewTree::Element(el)) => {
+                assert!(
+                    el.props.contains_key("value"),
+                    "value prop should remain in props for computed expressions"
+                );
+                assert!(
+                    el.semantic_bindings.is_empty(),
+                    "computed value expr must not lower into semantic_bindings"
+                );
+            }
+            other => panic!("expected root Element, got {:?}", other),
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════
     // Event handler tests
     // ═══════════════════════════════════════════════════════
 
@@ -740,6 +924,63 @@ component StoreActionDemo {
                         "expected InlineFn handler (store action call), got {:?}",
                         other
                     ),
+                }
+            }
+            other => panic!("expected Element, got {:?}", other),
+        }
+    }
+
+    /// Regression: a store action whose name collides with the signal
+    /// mutation method map (`increment`/`set`/`push`/...) must stay a call —
+    /// previously `CounterStore.increment()` was mis-lowered to
+    /// `MutationIntent::Increment { target: "CounterStore" }`, mutating a
+    /// non-existent signal instead of invoking the store action.
+    #[test]
+    fn lower_store_action_with_mutation_method_name_stays_a_call() {
+        let source = r#"
+import omniview;
+store CounterStore {
+    signal count: i32 = 0;
+    action increment() {
+        count = count + 1;
+    }
+}
+component CounterDemo {
+    @store CounterStore;
+    view {
+        <button @onPress={CounterStore.increment()}>+</button>
+    }
+}
+"#;
+        let comp = lower_first_component(source);
+        let view = comp.view.expect("should have view");
+        match &view {
+            ViewTree::Element(el) => {
+                let handler = el.events.get("onPress").expect("should have onPress event");
+                match handler {
+                    EventHandlerIR::InlineFn { body, .. } => {
+                        let stmts = &body.statements;
+                        let has_call = stmts.iter().any(|s| {
+                            matches!(s, StatementIR::ExprStmtIR { expr: ExprIR::MethodCallExpr { method, object, .. } }
+                                if method == "increment"
+                                    && matches!(&**object, ExprIR::IdentifierExpr { name, .. } if name == "CounterStore"))
+                        });
+                        assert!(
+                            has_call,
+                            "handler must contain the CounterStore.increment() call, got: {:?}",
+                            stmts
+                        );
+                        assert!(
+                            !stmts.iter().any(|s| matches!(
+                                s,
+                                StatementIR::MutationStmt {
+                                    intent: Some(MutationIntent::Increment { .. })
+                                }
+                            )),
+                            "must NOT lower the store action to an Increment mutation"
+                        );
+                    }
+                    other => panic!("expected InlineFn handler, got {:?}", other),
                 }
             }
             other => panic!("expected Element, got {:?}", other),
@@ -1421,7 +1662,7 @@ component Layout {
                         assert_eq!(header_el.tag, "header");
                         assert_eq!(header_el.children.len(), 1);
                         match &header_el.children[0] {
-                            ViewTree::Slot(name) => {
+                            ViewTree::Slot { name, .. } => {
                                 assert_eq!(
                                     name.as_deref(),
                                     Some("header"),
@@ -1439,13 +1680,72 @@ component Layout {
                         assert_eq!(main_el.tag, "main");
                         assert_eq!(main_el.children.len(), 1);
                         match &main_el.children[0] {
-                            ViewTree::Slot(name) => {
+                            ViewTree::Slot { name, .. } => {
                                 assert!(name.is_none(), "should be default (unnamed) slot");
                             }
                             other => panic!("expected Slot, got {:?}", other),
                         }
                     }
                     other => panic!("expected Element, got {:?}", other),
+                }
+            }
+            other => panic!("expected Element, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn lower_slot_preserves_fallback_and_type_constraint() {
+        let source = r#"
+import omniview;
+component Card {
+    view {
+        <div>
+            @slot body: String { <p>Default body</p> }
+        </div>
+    }
+}
+"#;
+        let comp = lower_first_component(source);
+        let view = comp.view.expect("should have view");
+        match &view {
+            ViewTree::Element(el) => {
+                assert_eq!(el.tag, "div");
+                assert_eq!(el.children.len(), 1);
+                match &el.children[0] {
+                    ViewTree::Slot {
+                        name,
+                        fallback,
+                        type_constraint,
+                        data_param,
+                    } => {
+                        assert_eq!(name.as_deref(), Some("body"), "should be named slot 'body'");
+                        assert_eq!(
+                            fallback.len(),
+                            1,
+                            "fallback content must be preserved during lowering"
+                        );
+                        match &fallback[0] {
+                            ViewTree::Element(p) => {
+                                assert_eq!(p.tag, "p");
+                                assert_eq!(p.children.len(), 1);
+                                match &p.children[0] {
+                                    ViewTree::Text(t) => assert_eq!(t, "Default body"),
+                                    other => panic!("expected Text, got {:?}", other),
+                                }
+                            }
+                            other => panic!("expected Element fallback, got {:?}", other),
+                        }
+                        assert!(
+                            type_constraint.is_some(),
+                            "type constraint must be preserved during lowering"
+                        );
+                        assert_eq!(
+                            data_param.as_deref(),
+                            Some("body"),
+                            "data_param should derive from the slot name"
+                        );
+                    }
+                    other => panic!("expected Slot, got {:?}", other),
                 }
             }
             other => panic!("expected Element, got {:?}", other),

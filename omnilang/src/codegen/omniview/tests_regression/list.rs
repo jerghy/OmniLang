@@ -28,6 +28,7 @@ fn test_list_state_init_basic() {
         body: None,
         key_expr: None,
         empty_body: None,
+        scroll_hint: false,
     };
     let html = gen.emit_list_rendering_html(&list, 0);
 
@@ -119,7 +120,8 @@ fn test_list_state_init_basic() {
 
     // DocumentFragment batching before container marker
     assert!(
-        gen.js.contains("var frag = document.createDocumentFragment();"),
+        gen.js
+            .contains("var frag = document.createDocumentFragment();"),
         "should create DocumentFragment for batch insert"
     );
     assert!(
@@ -161,6 +163,7 @@ fn test_list_with_key_and_empty_state() {
         body: None,
         key_expr: Some(ExprIR::ident("item")),
         empty_body: Some(ViewTree::Text("Nothing to show".into())),
+        scroll_hint: false,
     };
     let html = gen.emit_list_rendering_html(&list, 0);
 
@@ -278,6 +281,7 @@ fn test_list_with_event_delegation() {
         scroll: None,
         drag: None,
         ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
     }));
 
     let list = ListRenderingIntent {
@@ -291,6 +295,7 @@ fn test_list_with_event_delegation() {
         body: Some(body),
         key_expr: None,
         empty_body: None,
+        scroll_hint: false,
     };
     let _html = gen.emit_list_rendering_html(&list, 0);
 
@@ -379,6 +384,7 @@ fn test_nested_for_preserves_outer_template_mode() {
         body: Some(ViewTree::Text("x".into())),
         key_expr: None,
         empty_body: None,
+        scroll_hint: false,
     };
 
     gen.emit_list_rendering_html(&inner_list, 0);
@@ -408,6 +414,7 @@ fn test_normal_for_sets_template_false_on_exit() {
         body: Some(ViewTree::Text("y".into())),
         key_expr: None,
         empty_body: None,
+        scroll_hint: false,
     };
 
     gen.emit_list_rendering_html(&list, 0);

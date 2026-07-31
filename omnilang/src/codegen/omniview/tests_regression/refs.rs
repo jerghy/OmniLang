@@ -126,3 +126,266 @@ component MultiRef {
         "Expected footer ref wrapper"
     );
 }
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Semantic ref bindings → __omni_effect wrappers
+// ═════════════════════════════════════════════════════════════════════════════
+
+/// Test: focus/scroll-x/scroll-y/value semantic bindings emit __omni_effect
+/// wrappers driving the bound signal → native DOM side effects.
+#[test]
+fn test_semantic_bindings_emit_effects() {
+    let source = r#"
+component SearchBox {
+  signal active: Bool = false
+  signal pos: Float = 0
+  signal hpos: Float = 0
+  signal text: String = ""
+  ref field: Element
+  view {
+    <input ref:field focus={active} scroll-y={pos} scroll-x={hpos} value={text} />
+  }
+}
+"#;
+    let result = crate::compile_omniview(source, false, false);
+    assert!(
+        result.success,
+        "compilation should succeed: {:?}",
+        result.errors
+    );
+    let js = result
+        .files
+        .as_ref()
+        .expect("Expected JS output")
+        .js
+        .clone();
+
+    // focus binding → focus()/blur() on the boolean signal
+    assert!(
+        js.contains("if (SearchBox_active.value) { el.focus(); } else { el.blur(); }"),
+        "focus binding should emit focus/blur effect. Got:\n{}",
+        js
+    );
+    // scroll-y binding → el.scrollTop
+    assert!(
+        js.contains("el.scrollTop = SearchBox_pos.value;"),
+        "scroll-y binding should emit scrollTop assignment. Got:\n{}",
+        js
+    );
+    // scroll-x binding → el.scrollLeft
+    assert!(
+        js.contains("el.scrollLeft = SearchBox_hpos.value;"),
+        "scroll-x binding should emit scrollLeft assignment. Got:\n{}",
+        js
+    );
+    // value binding → guarded one-way value sync
+    assert!(
+        js.contains("if (el.value !== SearchBox_text.value) { el.value = SearchBox_text.value; }"),
+        "value binding should emit guarded value sync. Got:\n{}",
+        js
+    );
+}
+
+/// Test: the semantic binding effects key on the element nid via __omni_el.
+#[test]
+fn test_semantic_bindings_use_omniel() {
+    let source = r#"
+component FocusBox {
+  signal on: Bool = false
+  ref box: Element
+  view {
+    <div ref:box focus={on}>content</div>
+  }
+}
+"#;
+    let result = crate::compile_omniview(source, false, false);
+    assert!(
+        result.success,
+        "compilation should succeed: {:?}",
+        result.errors
+    );
+    let js = result
+        .files
+        .as_ref()
+        .expect("Expected JS output")
+        .js
+        .clone();
+
+    assert!(
+        js.contains("const el = __omni_el(\"el-div-"),
+        "binding effect should look up the element by nid. Got:\n{}",
+        js
+    );
+    assert!(
+        js.contains("if (el) { if (FocusBox_on.value) { el.focus(); }"),
+        "binding effect should guard on element presence. Got:\n{}",
+        js
+    );
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// RefOpExpr → native DOM APIs
+// ═════════════════════════════════════════════════════════════════════════════
+
+/// Test: every RefOpIR variant formats to a native DOM call on the ref wrapper.
+#[test]
+fn test_ref_ops_format_native_dom_calls() {
+    let source = r#"
+component RefOps {
+  signal x: Float = 0
+  signal y: Float = 0
+  signal text: String = ""
+  signal ptr: Float = 0
+  ref box: Element
+  fn runAll() {
+    box.focus()
+    box.blur()
+    box.scrollTo(x, y)
+    box.scrollBy(1, 2)
+    box.measure()
+    box.width
+    box.height
+    box.position
+    box.select()
+    box.setSelection(0, 3)
+    box.value
+    box.value = text
+    box.capturePointer(ptr)
+    box.releasePointer(ptr)
+  }
+  view {
+    <div ref:box @onClick={runAll}>click</div>
+  }
+}
+"#;
+    let result = crate::compile_omniview(source, false, false);
+    assert!(
+        result.success,
+        "compilation should succeed: {:?}",
+        result.errors
+    );
+    let js = result
+        .files
+        .as_ref()
+        .expect("Expected JS output")
+        .js
+        .clone();
+    let expectations = [
+        "box.focus();",
+        "box.blur();",
+        "box.scrollTo({ left: RefOps_x.value, top: RefOps_y.value });",
+        "box.scrollBy({ left: 1, top: 2 });",
+        "box.getBoundingClientRect();",
+        "box.getBoundingClientRect().width;",
+        "box.getBoundingClientRect().height;",
+        "box.select();",
+        "box.setSelectionRange(0, 3);",
+        "box.value;",
+        "if (box) { box.value = RefOps_text.value; };",
+        "box.capturePointer(RefOps_ptr.value);",
+        "box.releasePointer(RefOps_ptr.value);",
+    ];
+    for expected in expectations {
+        assert!(
+            js.contains(expected),
+            "expected RefOp output to contain {:?}. Got:\n{}",
+            expected,
+            js
+        );
+    }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Slot fallback rendering
+// ═════════════════════════════════════════════════════════════════════════════
+
+/// Test: slot fallback content renders inside the <slot> element.
+#[test]
+fn test_slot_fallback_renders_inside_slot() {
+    let source = r#"
+component Panel {
+  view {
+    <div>
+      @slot header {
+        <h4>Default header</h4>
+      }
+      @slot {
+        Default body
+      }
+    </div>
+  }
+}
+"#;
+    let result = crate::compile_omniview(source, false, false);
+    assert!(
+        result.success,
+        "compilation should succeed: {:?}",
+        result.errors
+    );
+    let html = result
+        .files
+        .as_ref()
+        .expect("Expected HTML output")
+        .html
+        .clone();
+
+    // Fallback content must appear between the slot's open and close tags.
+    let named_open = "<slot name=\"header\">";
+    let named_pos = html.find(named_open).expect("named slot opening tag");
+    let named_close = html[named_pos..]
+        .find("</slot>")
+        .expect("named slot closing tag");
+    assert!(
+        html[named_pos..named_pos + named_close].contains("Default header"),
+        "named slot fallback should render inside the slot element. Got:\n{}",
+        html
+    );
+    let default_open = "<slot>";
+    let default_pos = html.find(default_open).expect("default slot opening tag");
+    let default_close = html[default_pos..]
+        .find("</slot>")
+        .expect("default slot closing tag");
+    assert!(
+        html[default_pos..default_pos + default_close].contains("Default body"),
+        "default slot fallback should render inside the slot element. Got:\n{}",
+        html
+    );
+}
+
+/// Test: slot without fallback stays empty (childrenMap injection fills it).
+#[test]
+fn test_slot_without_fallback_stays_empty() {
+    let source = r#"
+component EmptySlots {
+  view {
+    <div>
+      @slot header
+      @slot
+    </div>
+  }
+}
+"#;
+    let result = crate::compile_omniview(source, false, false);
+    assert!(
+        result.success,
+        "compilation should succeed: {:?}",
+        result.errors
+    );
+    let html = result
+        .files
+        .as_ref()
+        .expect("Expected HTML output")
+        .html
+        .clone();
+
+    assert!(
+        html.contains("<slot name=\"header\"></slot>"),
+        "named slot without fallback should stay empty. Got:\n{}",
+        html
+    );
+    assert!(
+        html.contains("<slot></slot>"),
+        "default slot without fallback should stay empty. Got:\n{}",
+        html
+    );
+}

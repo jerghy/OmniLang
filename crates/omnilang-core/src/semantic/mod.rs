@@ -5,7 +5,9 @@ pub mod lints;
 pub mod symbols;
 pub mod types;
 pub mod validate_props;
+pub mod validate_ref_ops;
 pub mod validate_refs;
+pub mod validate_semantic_bindings;
 pub mod walk_view;
 
 mod collect;
@@ -18,6 +20,8 @@ mod validate_motion;
 mod validate_motion_triggers;
 mod validate_store_access;
 mod validate_types;
+
+pub use motion::parse_duration_ms;
 
 use crate::error::Diagnostic;
 use crate::parser::ast::Program;
@@ -133,6 +137,32 @@ mod tests {
         assert!(errors.is_empty(), "expected no errors, got: {:?}", errors);
         // Should have collected at least: global scope, function:main
         assert!(!result.symbols.scopes().is_empty(), "should have scopes");
+    }
+
+    #[test]
+    fn analyze_if_mode_fade_wait_none_accepted() {
+        // Parser and semantic whitelist must agree: "fade", "wait", "none"
+        // are the only valid transition modes (regression: semantic used to
+        // reject "fade"/"none" with E0006).
+        for mode in ["fade", "wait", "none"] {
+            let src = format!(
+                "component App {{ signal open: Bool = true; \
+                 view {{ @if open mode: \"{}\" {{ <div/> }} }} }}",
+                mode
+            );
+            let result = analyze_source(&src);
+            let mode_errors: Vec<_> = result
+                .diagnostics
+                .iter()
+                .filter(|d| d.message.contains("mode"))
+                .collect();
+            assert!(
+                mode_errors.is_empty(),
+                "mode '{}' should be accepted, got: {:?}",
+                mode,
+                mode_errors
+            );
+        }
     }
 
     #[test]

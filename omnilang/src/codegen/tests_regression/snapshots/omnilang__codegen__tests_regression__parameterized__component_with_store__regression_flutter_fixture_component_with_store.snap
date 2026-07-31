@@ -1,5 +1,6 @@
 ---
 source: omnilang/src/codegen/tests_regression/parameterized.rs
+assertion_line: 120
 expression: "& super :: super :: format_output(& output)"
 ---
 === CounterWithStore.dart ===
@@ -21,7 +22,7 @@ class CounterWithStore extends ConsumerStatefulWidget {
 class _CounterWithStoreState extends ConsumerState<CounterWithStore> {
     @override
     Widget build(BuildContext context) {
-        return Container(onPressed: () { appStoreIncrement(ref); }, children: [Text('Count: '), Text(AppStore.count)]);
+        return Container(child: Column(children: [Text('Count: '), Text(ref.watch(appStoreProvider.select(((s) => s.count))))]));
     }
 }
 === AppStore_store.dart ===
@@ -29,10 +30,34 @@ class _CounterWithStoreState extends ConsumerState<CounterWithStore> {
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-// — Signal providers —
-final appStoreCountProvider = StateProvider<int>((ref) => 0);
+/// Immutable state for AppStore.
+class AppStoreState {
+    final int count;
 
-// — Action functions —
-void appStoreIncrement(WidgetRef ref) {
-    ref.read(appStoreCountProvider.notifier).state += 1;
+    const AppStoreState({
+        required this.count,
+    });
+
+    AppStoreState copyWith({
+        int? count,
+    }) {
+        return AppStoreState(
+            count: count ?? this.count,
+        );
+    }
 }
+
+/// Riverpod 3.0 Notifier for AppStore.
+class AppStore extends Notifier<AppStoreState> {
+    @override
+    AppStoreState build() {
+        return const AppStoreState(count: 0);
+    }
+
+    void increment() {
+        state = state.copyWith(count: state.count + 1);
+    }
+
+}
+
+final appStoreProvider = NotifierProvider<AppStore, AppStoreState>(AppStore.new);

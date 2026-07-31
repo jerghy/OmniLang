@@ -585,12 +585,8 @@ pub(super) fn is_text_token(kind: &TokenKind) -> bool {
             // @-keyword tokens that may appear in text content
             | TokenKind::AtEnter | TokenKind::AtHover
             | TokenKind::AtPress | TokenKind::AtInView
-            | TokenKind::AtPaused
             | TokenKind::AtHero
-            | TokenKind::AtInViewOnce | TokenKind::AtInViewRepeat
-            | TokenKind::AtInViewThreshold
-            | TokenKind::AtScroll | TokenKind::AtScrollStart
-            | TokenKind::AtScrollEnd | TokenKind::AtScrollScrub
+            | TokenKind::AtScroll
             | TokenKind::AtDragHorizontal | TokenKind::AtDragVertical
             | TokenKind::AtStore | TokenKind::AtMotion | TokenKind::AtNative
             | TokenKind::AtFallback | TokenKind::AtError | TokenKind::AtMount
@@ -665,8 +661,8 @@ pub(super) fn token_text(kind: &TokenKind) -> String {
         TokenKind::QuestionDot => "?.".into(),
         TokenKind::QuestionQuestion => "??".into(),
         TokenKind::At => "@".into(),
-        TokenKind::AtDragHorizontal => "@dragHorizontal".into(),
-        TokenKind::AtDragVertical => "@dragVertical".into(),
+        TokenKind::AtDragHorizontal => "@drag-horizontal".into(),
+        TokenKind::AtDragVertical => "@drag-vertical".into(),
         TokenKind::LBracket => "[".into(),
         TokenKind::RBracket => "]".into(),
         TokenKind::TemplateString(s) => format!("`{}`", s),

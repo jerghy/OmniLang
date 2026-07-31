@@ -99,6 +99,7 @@ pub enum ViewNode {
     SlotDirective {
         name: Option<String>,
         default_content: Option<Vec<ViewNode>>,
+        type_constraint: Option<TypeAnnotation>, // NEW: @slot name: Type
     },
     Text(String),
     Interpolation(Expr),
@@ -123,6 +124,14 @@ pub enum ElementProp {
         name: String,
         signal_path: String,
     },
+    /// Semantic ref binding: focus={sig}, scroll-x={sig}, scroll-y={sig}, value={sig}
+    /// These are compiler-recognized — not generic static props.
+    RefBinding {
+        /// The semantic binding name: "focus", "scroll-x", "scroll-y", "value"
+        binding: String,
+        /// The signal expression driving the binding
+        signal: Expr,
+    },
     Event {
         name: String,
         handler: EventHandler,
@@ -142,31 +151,6 @@ pub enum ElementProp {
     TestId(String),
     Ref(String),
     MotionTrigger(MotionTrigger),
-    PausedOverride(Expr),
-    /// @in-view-once={bool}
-    InViewOnce(Expr),
-    /// @in-view-repeat={bool}
-    InViewRepeat(Expr),
-    /// @in-view-threshold={number}
-    InViewThreshold(Expr),
-    /// @scroll-start="top 80%"
-    ScrollStart(String),
-    /// @scroll-end="bottom 20%"
-    ScrollEnd(String),
-    /// @scroll-scrub={0.5}
-    ScrollScrub(Expr),
-    /// @drag-constraints="left:0 right:300"
-    DragConstraints(String),
-    /// @drag-elastic={0.2}
-    DragElastic(Expr),
-    /// @drag-scrub={true}
-    DragScrub(Expr),
-    /// @drag-momentum={friction:0.95}
-    DragMomentum(Expr),
-    /// @drag-threshold={30%}
-    DragThreshold(Expr),
-    /// @drag-velocity-max={2000px}
-    DragVelocityMax(Expr),
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -205,6 +189,8 @@ pub struct ForDirective {
     pub body: Vec<ViewNode>,
     pub empty_body: Option<Vec<ViewNode>>,
     pub key_expr: Option<Expr>,
+    /// `@for item in list [scroll]` — hint for Flutter ListView.builder codegen.
+    pub scroll_hint: bool,
     pub span: Span,
 }
 

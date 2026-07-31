@@ -46,7 +46,6 @@ pub struct PlaybackIR {
     pub direction: Option<DirectionValue>,
     pub fill: Option<FillValue>,
     pub delay: Option<ExprIR>,
-    pub paused: bool,
     #[serde(default)]
     pub source_span: Option<Span>,
 }
@@ -73,6 +72,7 @@ pub enum TriggerKind {
     Enter,
     Hover,
     Press,
+    Focus,
     InView,
     Scroll,
     DragHorizontal,
@@ -111,7 +111,6 @@ pub enum FillValue {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct MotionBehavior {
     pub triggers: Vec<TriggerIntent>,
-    pub paused_override: Option<ExprIR>,
     pub in_view_once: Option<ExprIR>,
     pub in_view_repeat: Option<ExprIR>,
     pub in_view_threshold: Option<ExprIR>,

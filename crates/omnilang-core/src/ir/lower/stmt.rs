@@ -5,9 +5,24 @@
 use super::expr::lower_expr;
 use crate::ir::types::*;
 use crate::parser::ast::*;
+use crate::semantic::symbols::SymbolKind;
 use crate::semantic::SemanticResult;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
+
+/// Whether a method-call receiver name resolves to a store symbol.
+///
+/// Store action calls like `CounterStore.increment()` must NOT be lowered to
+/// signal mutations — the mutation method map (`inc`/`increment`/`set`/
+/// `push`/`pop`/...) collides with store action names, and treating the store
+/// name as a signal target silently rewrites the call into a mutation of a
+/// non-existent `CounterStore` signal.
+fn is_store_symbol(semantics: &SemanticResult, name: &str) -> bool {
+    matches!(
+        semantics.symbols.resolve(name).map(|s| &s.kind),
+        Some(SymbolKind::Store)
+    )
+}
 
 // ═══════════════════════════════════════════════════════
 // Statement lowering
@@ -122,10 +137,12 @@ pub(super) fn lower_stmt(
             body: lower_block(body, variant_map, event_fields.as_deref_mut(), semantics),
         },
         Stmt::Assign { target, value, .. } => {
-            let name = match target {
-                AssignTarget::Name(n) => n.clone(),
-                AssignTarget::Field { object: _, field } => field.clone(),
-                AssignTarget::Index { object, .. } => object.clone(),
+            // Preserve the owner identifier for `owner.field = x` writes so the
+            // semantic ref pass can rewrite ref field assignments to SetValue.
+            let (name, field_object) = match target {
+                AssignTarget::Name(n) => (n.clone(), None),
+                AssignTarget::Field { object, field } => (field.clone(), Some(object.clone())),
+                AssignTarget::Index { object, .. } => (object.clone(), None),
             };
             StatementIR::MutationStmt {
                 intent: Some(MutationIntent::DirectAssign {
@@ -136,6 +153,7 @@ pub(super) fn lower_stmt(
                         event_fields.as_deref_mut(),
                         semantics,
                     ))),
+                    field_object,
                 }),
             }
         }
@@ -200,6 +218,11 @@ pub(super) fn try_lower_mutation(
     {
         if let Expr::VarRef(target_name, _) = object.as_ref() {
             if args.len() <= 1 {
+                // Store action calls (CounterStore.increment()) are calls, not
+                // signal mutations — never lower them through the mutation map.
+                if is_store_symbol(semantics, target_name) {
+                    return None;
+                }
                 return mutation_for_method(
                     target_name,
                     method,
@@ -218,6 +241,11 @@ pub(super) fn try_lower_mutation(
         if let Expr::FieldAccess { object, field, .. } = func.as_ref() {
             if let Expr::VarRef(target_name, _) = object.as_ref() {
                 if args.len() <= 1 {
+                    // Store action calls (CounterStore.increment()) are calls, not
+                    // signal mutations — never lower them through the mutation map.
+                    if is_store_symbol(semantics, target_name) {
+                        return None;
+                    }
                     return mutation_for_method(
                         target_name,
                         field,
@@ -250,6 +278,7 @@ pub(super) fn try_lower_mutation(
                             event_fields.as_deref_mut(),
                             semantics,
                         ))),
+                        field_object: None,
                     });
                 }
                 BinaryOpKind::AddAssign => {
@@ -321,8 +350,10 @@ pub(super) fn try_lower_mutation(
             }
         }
         // Pattern 4: Assignment to store field: MyStore.count = value or MyStore.count += 1
+        // Also covers ref field writes like myRef.value = x — the owner name is
+        // preserved in `field_object` so the semantic ref pass can rewrite them.
         if let Expr::FieldAccess { object, field, .. } = left.as_ref() {
-            if let Expr::VarRef(_owner_name, _) = object.as_ref() {
+            if let Expr::VarRef(owner_name, _) = object.as_ref() {
                 match op {
                     BinaryOpKind::Assign => {
                         return Some(MutationIntent::DirectAssign {
@@ -335,6 +366,7 @@ pub(super) fn try_lower_mutation(
                                 event_fields.as_deref_mut(),
                                 semantics,
                             ))),
+                            field_object: Some(owner_name.clone()),
                         });
                     }
                     BinaryOpKind::AddAssign => {
@@ -387,6 +419,7 @@ pub(super) fn mutation_for_method(
         "set" | "setValue" => Some(MutationIntent::DirectAssign {
             target,
             value: amount,
+            field_object: None,
         }),
         "inc" | "increment" => Some(MutationIntent::Increment { target, amount }),
         "dec" | "decrement" => Some(MutationIntent::Decrement { target, amount }),

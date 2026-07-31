@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════
-// Motion effect codegen: @enter/@hover/@press/@driven-by/scroll/drag
+// Motion effect codegen: per-ref native effects for all 8 triggers
 // ═══════════════════════════════════════════════════════════
 
 use crate::codegen::CodeWriter;
@@ -8,28 +8,27 @@ use rustc_hash::FxHashMap;
 
 use crate::codegen::react::motion;
 
-/// Emit all five motion-related effect blocks:
-///   1. @enter / @hover / @press  (animation triggers)
-///   2. @driven-by                         (external progress control)
-///   3. @in-view                           (IntersectionObserver)
-///   4. @scroll                            (scroll-driven progress)
-///   5. @drag-horizontal / @drag-vertical  (gesture-driven progress)
-pub(super) fn gen_motion_effects(w: &mut CodeWriter, view: &ViewTree, ir: &IRProgram) {
-    // Build complete motion definition map (component-level + module-level)
+/// Emit all motion effect blocks:
+///   1. `_M` motion definition table (named @motion defs, WAAPI keyframes)
+///   2. Per motion element: useCallback handlers for @hover/@press and
+///      useEffect blocks for @enter/@focus/@in-view/@scroll/@drag-*
+///
+/// All effects are keyed on element refs (user `@ref` or synthesized
+/// `__el_N`) — no data-* attributes, no document.querySelectorAll, no
+/// MutationObserver.
+pub(super) fn gen_motion_effects(
+    w: &mut CodeWriter,
+    view: &ViewTree,
+    ir: &IRProgram,
+    component_map: &FxHashMap<&str, &ComponentIR>,
+) {
+    // Build complete motion definition map (module-level + component-level
+    // motions; inline bodies are hoisted to named motions by lowering)
     let mut motion_map: FxHashMap<String, MotionBodyIR> = FxHashMap::default();
     for m in ir.modules.values().flat_map(|m| &m.motions) {
         motion_map.insert(m.name.clone(), m.body.clone());
     }
 
-    // 1. @enter / @hover / @press animation triggers
-    motion::emit_motion_effects_tsx(w, view, &motion_map);
-
-    // 2. @in-view effects — IntersectionObserver for entrance animations
-    motion::emit_inview_effects_tsx(w, view);
-
-    // 3. @scroll effects — scroll-driven animation progress
-    motion::emit_scroll_effects_tsx(w, view);
-
-    // 4. @drag-horizontal / @drag-vertical effects — gesture-driven animation
-    motion::emit_drag_effects_tsx(w, view);
+    // Per-element @enter/@hover/@press/@focus/@in-view/@scroll/@drag effects
+    motion::emit_motion_effects_tsx(w, view, &motion_map, component_map);
 }

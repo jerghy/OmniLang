@@ -1149,6 +1149,167 @@ mod roundtrip_tests {
         if let ViewNode::ForDirective(dir) = &children[0] {
             assert_eq!(dir.item_name, "item");
             assert_eq!(dir.body.len(), 1);
+            assert!(!dir.scroll_hint);
+        }
+    }
+
+    #[test]
+    fn view_slot_directive_plain() {
+        let children = view_children("component App { view { @slot header } }");
+        assert_eq!(children.len(), 1);
+        match &children[0] {
+            ViewNode::SlotDirective {
+                name,
+                default_content,
+                type_constraint,
+            } => {
+                assert_eq!(name.as_deref(), Some("header"));
+                assert!(default_content.is_none());
+                assert!(type_constraint.is_none());
+            }
+            _ => panic!("expected SlotDirective"),
+        }
+    }
+
+    #[test]
+    fn view_slot_directive_with_type_constraint() {
+        // @slot name: Type — optional type annotation between name and body
+        let children = view_children(
+            "component App { view { @slot header: String { Text { \"fallback\" } } } }",
+        );
+        assert_eq!(children.len(), 1);
+        match &children[0] {
+            ViewNode::SlotDirective {
+                name,
+                default_content,
+                type_constraint,
+            } => {
+                assert_eq!(name.as_deref(), Some("header"));
+                assert!(matches!(
+                    type_constraint,
+                    Some(TypeAnnotation::Named { name, .. }) if name == "String"
+                ));
+                assert_eq!(default_content.as_ref().map(|c| c.len()), Some(1));
+            }
+            _ => panic!("expected SlotDirective"),
+        }
+    }
+
+    #[test]
+    fn view_slot_directive_generic_type_constraint() {
+        let children =
+            view_children("component App { view { @slot onSelect: fn(String) -> Void { } } }");
+        match &children[0] {
+            ViewNode::SlotDirective {
+                type_constraint: Some(TypeAnnotation::Fn { .. }),
+                ..
+            } => {}
+            other => panic!("expected SlotDirective with fn type, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn view_if_mode_colon_string() {
+        // New syntax: mode: "wait" — colon separator
+        let children =
+            view_children("component App { view { @if show mode: \"wait\" { Text { \"a\" } } } }");
+        assert_eq!(children.len(), 1);
+        if let ViewNode::IfDirective(dir) = &children[0] {
+            assert_eq!(dir.transition_mode.as_deref(), Some("wait"));
+        } else {
+            panic!("expected IfDirective");
+        }
+    }
+
+    #[test]
+    fn view_if_mode_colon_ident() {
+        // Bare ident values also accepted: mode: fade
+        let children =
+            view_children("component App { view { @if show mode: fade { Text { \"a\" } } } }");
+        if let ViewNode::IfDirective(dir) = &children[0] {
+            assert_eq!(dir.transition_mode.as_deref(), Some("fade"));
+        } else {
+            panic!("expected IfDirective");
+        }
+    }
+
+    #[test]
+    fn view_if_mode_invalid_value_rejected() {
+        // Invalid mode value → @if directive rejected → parse error recorded,
+        // component skipped (module-level error recovery drops the component).
+        let src = "component App { view { @if show mode: \"sync\" { Text { \"a\" } } } }";
+        let (program, errors) = parse(tokenize(src), src);
+        assert!(!errors.is_empty(), "expected parse error for invalid mode");
+        assert!(program.modules["input.omni"].components.is_empty());
+    }
+
+    #[test]
+    fn view_for_scroll_hint() {
+        // @for item in list [scroll] — scroll hint (whitespace-separated bracket)
+        let children = view_children(
+            "component App { view { @for item in list [scroll] { Text { item } } } }",
+        );
+        assert_eq!(children.len(), 1);
+        if let ViewNode::ForDirective(dir) = &children[0] {
+            assert!(dir.scroll_hint);
+            assert!(matches!(&dir.iterable, Expr::VarRef(name, _) if name == "list"));
+        } else {
+            panic!("expected ForDirective");
+        }
+    }
+
+    #[test]
+    fn view_for_scroll_hint_before_key() {
+        // Spec §7.3 example: @for item in allItems [scroll] key={item.id}
+        let children = view_children(
+            "component App { view { @for item in allItems [scroll] key={item.id} { Text { item } } } }",
+        );
+        if let ViewNode::ForDirective(dir) = &children[0] {
+            assert!(dir.scroll_hint);
+            assert!(matches!(&dir.iterable, Expr::VarRef(name, _) if name == "allItems"));
+            assert!(dir.key_expr.is_some());
+        } else {
+            panic!("expected ForDirective");
+        }
+    }
+
+    #[test]
+    fn view_for_scroll_hint_after_key() {
+        // BNF order: key_expr? scroll_hint? — hint may come after key={...}
+        let children = view_children(
+            "component App { view { @for item in list key={item.id} [scroll] { Text { item } } } }",
+        );
+        if let ViewNode::ForDirective(dir) = &children[0] {
+            assert!(dir.scroll_hint);
+            assert!(dir.key_expr.is_some());
+        } else {
+            panic!("expected ForDirective");
+        }
+    }
+
+    #[test]
+    fn view_for_adjacent_bracket_is_index_access() {
+        // list[scroll] (no whitespace) stays index access, not a scroll hint
+        let children =
+            view_children("component App { view { @for item in list[scroll] { Text { item } } } }");
+        if let ViewNode::ForDirective(dir) = &children[0] {
+            assert!(!dir.scroll_hint);
+            assert!(matches!(&dir.iterable, Expr::IndexGet { .. }));
+        } else {
+            panic!("expected ForDirective");
+        }
+    }
+
+    #[test]
+    fn view_for_spaced_index_access_preserved() {
+        // Spaced bracket with non-scroll index stays index access
+        let children =
+            view_children("component App { view { @for item in list [0] { Text { item } } } }");
+        if let ViewNode::ForDirective(dir) = &children[0] {
+            assert!(!dir.scroll_hint);
+            assert!(matches!(&dir.iterable, Expr::IndexGet { .. }));
+        } else {
+            panic!("expected ForDirective");
         }
     }
 
@@ -1247,6 +1408,106 @@ mod roundtrip_tests {
                         );
                     }
                     _ => panic!("expected Static prop"),
+                }
+            }
+            _ => panic!("expected Element"),
+        }
+    }
+
+    #[test]
+    fn view_semantic_binding_props() {
+        // focus={sig}, scroll-x={sig}, scroll-y={sig}, value={sig} parse as
+        // ElementProp::RefBinding — compiler-recognized semantic bindings.
+        let children = view_children(
+            "component App { view { <div focus={mySig} scroll-x={pos} scroll-y={posY} value={text} /> } }",
+        );
+        assert_eq!(children.len(), 1);
+        match &children[0] {
+            ViewNode::Element(el) => {
+                assert_eq!(el.tag, "div");
+                assert_eq!(el.props.len(), 4);
+                let bindings: Vec<(&str, &Expr)> = el
+                    .props
+                    .iter()
+                    .filter_map(|p| match p {
+                        ElementProp::RefBinding { binding, signal } => {
+                            Some((binding.as_str(), signal))
+                        }
+                        _ => None,
+                    })
+                    .collect();
+                assert_eq!(
+                    bindings.iter().map(|(b, _)| *b).collect::<Vec<_>>(),
+                    vec!["focus", "scroll-x", "scroll-y", "value"]
+                );
+                assert!(
+                    bindings
+                        .iter()
+                        .all(|(_, sig)| matches!(sig, Expr::VarRef(_, _))),
+                    "each binding should carry a signal expression"
+                );
+            }
+            _ => panic!("expected Element"),
+        }
+    }
+
+    #[test]
+    fn view_value_string_prop_stays_static() {
+        // value="option1" is a generic static prop — RefBinding syntax only
+        // applies to the value={expr} form.
+        let children =
+            view_children("component App { view { <option value=\"option1\">x</option> } }");
+        assert_eq!(children.len(), 1);
+        match &children[0] {
+            ViewNode::Element(el) => {
+                assert_eq!(el.tag, "option");
+                match &el.props[0] {
+                    ElementProp::Static { name, value } => {
+                        assert_eq!(name, "value");
+                        assert!(
+                            matches!(value, Expr::Literal(Literal::String(s), _) if s == "option1")
+                        );
+                    }
+                    other => panic!("expected Static prop, got {:?}", other),
+                }
+            }
+            _ => panic!("expected Element"),
+        }
+    }
+
+    #[test]
+    fn view_computed_semantic_name_prop_stays_static() {
+        // A computed expression on a semantic binding name (value={age.to_string()},
+        // focus={isActive && ready}) is a generic Static prop — RefBinding is
+        // reserved for the bare-signal form value={sig} per the spec.
+        let children = view_children(
+            "component App { view { \
+             <input type=\"number\" value={age.to_string()} focus={isActive && ready} /> } }",
+        );
+        assert_eq!(children.len(), 1);
+        match &children[0] {
+            ViewNode::Element(el) => {
+                assert_eq!(el.tag, "input");
+                assert_eq!(el.props.len(), 3);
+                for prop in &el.props {
+                    match prop {
+                        ElementProp::Static { name, value } => {
+                            if name == "value" || name == "focus" {
+                                assert!(
+                                    matches!(
+                                        value,
+                                        Expr::MethodCall { .. } | Expr::BinaryOp { .. }
+                                    ),
+                                    "computed expr should stay a Static prop, got: {:?}",
+                                    value
+                                );
+                            }
+                        }
+                        other => panic!(
+                            "expected Static prop for computed expression, got: {:?}",
+                            other
+                        ),
+                    }
                 }
             }
             _ => panic!("expected Element"),

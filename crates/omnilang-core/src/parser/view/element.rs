@@ -72,6 +72,48 @@ impl<'a> Parser<'a> {
             name = format!("{}-{}", name, next);
         }
 
+        // Check for semantic binding attributes (focus, scroll-x, scroll-y, value).
+        // These are compiler-recognized ref bindings, not generic static props.
+        // Per the semantic-level DSL spec they bind a bare signal: name={sig}.
+        // The string-literal form (value="text") and bare boolean form stay
+        // generic Static props, and so does a computed expression
+        // (value={age.to_string()}) — only a bare VarRef is a semantic binding.
+        // Validation (element has @ref, ref declared) happens in the semantic pass.
+        const SEMANTIC_BINDINGS: &[&str] = &["focus", "scroll-x", "scroll-y", "value"];
+        if SEMANTIC_BINDINGS.contains(&name.as_str())
+            && self.at(&TokenKind::Eq)
+            && matches!(
+                self.tokens.get(self.pos + 1).map(|t| &t.kind),
+                Some(TokenKind::LBrace)
+            )
+        {
+            self.advance(); // '='
+            self.advance(); // '{'
+            let signal = self.parse_expr()?;
+            self.expect_token(TokenKind::RBrace, "expected '}'")?;
+            // Only a bare signal reference ({sig}) or a qualified store signal
+            // ({Store.sig}) is a compiler-recognized semantic binding —
+            // store signals are referenced qualified and bare store signal
+            // names are not in component scope. Computed expressions stay
+            // generic Static props (equivalent to the {expr} arm of the
+            // match below).
+            let is_bare_signal = matches!(&signal, Expr::VarRef(..));
+            let is_qualified_store_signal = matches!(
+                &signal,
+                Expr::FieldAccess { object, .. } if matches!(object.as_ref(), Expr::VarRef(..))
+            );
+            if is_bare_signal || is_qualified_store_signal {
+                return Ok(ElementProp::RefBinding {
+                    binding: name,
+                    signal,
+                });
+            }
+            return Ok(ElementProp::Static {
+                name,
+                value: signal,
+            });
+        }
+
         let kind = self.peek_kind().clone();
         match kind {
             TokenKind::Eq => {

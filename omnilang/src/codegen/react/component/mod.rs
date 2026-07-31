@@ -40,6 +40,28 @@ impl ReactCodegen {
             .view
             .as_ref()
             .is_some_and(effect::view_has_motion_or_effects);
+        let has_semantic_bindings = comp
+            .view
+            .as_ref()
+            .is_some_and(state::view_has_semantic_bindings);
+
+        // Motion elements without a user @ref get synthesized `__el_N` refs.
+        // Collected here (DFS pre-order over motion elements) so useRef
+        // imports and declarations exist for them; the JSX emitter and the
+        // motion effect emitter derive the same names from the same order.
+        let mut motion_internal_refs: Vec<(String, String)> = Vec::new(); // (ref_name, tag)
+        if let Some(ref view) = comp.view {
+            super::motion::walk_motion_elements(view, component_map, |el, idx| {
+                if el.ref_binding.is_none() {
+                    motion_internal_refs.push((format!("__el_{}", idx), el.tag.clone()));
+                }
+            });
+        }
+        // @hover/@press emit useCallback handlers wired into the JSX
+        let has_interactive_motion = comp
+            .view
+            .as_ref()
+            .is_some_and(|v| super::motion::view_has_interactive_triggers(v, component_map));
 
         // Scan all code paths for signal mutations and function calls
         let called_fns = function::collect_called_local_fns(comp);
@@ -88,35 +110,46 @@ impl ReactCodegen {
         if has_computeds {
             hooks.push("useMemo".to_string());
         }
-        if has_fn_form_computed {
+        if has_fn_form_computed || has_interactive_motion {
             hooks.push("useCallback".to_string());
         }
-        if has_effects_or_lifecycles || has_motion {
+        if has_effects_or_lifecycles || has_motion || has_semantic_bindings {
             hooks.push("useEffect".to_string());
         }
 
-        // Ref declarations → useRef
-        let has_refs = !comp.refs.is_empty();
+        // Ref declarations → useRef (user @refs + synthesized motion refs)
+        let has_refs = !comp.refs.is_empty() || !motion_internal_refs.is_empty();
         if has_refs {
             hooks.push("useRef".to_string());
         }
 
-        // Style check — import CSS module whenever any style classes are
-        // referenced in the view, even if they come from imported design
-        // systems (e.g. `class: LearnDesign.Page` → `styles['Page']`).
+        // Design context — design classes/variant classes are global CSS in
+        // design.css and are emitted as literal class names (HIGH #1); the
+        // CSS module import is only needed for component-local classes.
+        let design_ctx = super::design::DesignCtx::new(ir);
         let used_style_classes = comp
             .view
             .as_ref()
             .map(jsx::collect_used_style_classes)
             .unwrap_or_default();
-        let has_styles = !used_style_classes.is_empty()
+        let local_style_classes: FxHashSet<String> = used_style_classes
+            .difference(&design_ctx.global_class_names)
+            .cloned()
+            .collect();
+        let has_styles = !local_style_classes.is_empty()
             || (!comp.styles.is_empty()
-                && used_style_classes
+                && local_style_classes
                     .iter()
                     .any(|c| comp.styles.iter().any(|s| &s.class_name == c)));
 
-        // Props interface check
-        let has_props = !comp.props.is_empty() || !comp.events.is_empty();
+        // Props interface check — slot declarations also become props
+        // (`children` for the unnamed slot, same-named props for named slots).
+        let mut declared_slots: Vec<(Option<String>, Option<TypeIR>)> = Vec::new();
+        if let Some(ref view) = comp.view {
+            jsx::collect_view_slots(view, component_map, &mut declared_slots);
+        }
+        let has_props =
+            !comp.props.is_empty() || !comp.events.is_empty() || !declared_slots.is_empty();
 
         // ── Store-related computation ──
         let all_stores = ir.all_stores();
@@ -146,10 +179,13 @@ impl ReactCodegen {
             }
         }
 
-        // Build signal_names (all state + store aliases) and store_signal_map
+        // Build signal_names (all state + store aliases), store_signal_map
+        // (signal → "StoreRef.signal" for effect deps) and store_signal_owners
+        // (signal → "StoreRef" for setState mutations, C7).
         let mut signal_names: FxHashSet<String> =
             comp.signals.iter().map(|s| s.name.clone()).collect();
         let mut store_signal_map: FxHashMap<String, String> = FxHashMap::default();
+        let mut store_signal_owners: FxHashMap<String, String> = FxHashMap::default();
         for store_ref in &comp.store_refs {
             if !used_store_refs.contains(store_ref.as_str()) {
                 continue;
@@ -160,12 +196,18 @@ impl ReactCodegen {
                     signal_names.insert(sig_name.clone());
                     store_signal_map
                         .insert(sig_name.clone(), format!("{}.{}", store_ref, sig_name));
+                    store_signal_owners.insert(sig_name.clone(), store_ref.clone());
                 }
             }
         }
 
         // Build ref_names set for expression translation (ADR-036 Phase 2)
         let ref_names: FxHashSet<String> = comp.refs.iter().map(|r| r.name.clone()).collect();
+
+        // Ref name → element tag map (typing useRef declarations) — scanned
+        // from the view because RefDeclIR.element_tag is not populated by
+        // lowering yet.
+        let ref_tags = state::collect_ref_tags(comp.view.as_ref());
 
         // Motion animation names — used to filter motion refs from event handlers
         let motion_names: FxHashSet<String> = ir
@@ -175,6 +217,21 @@ impl ReactCodegen {
             .map(|m| m.name.clone())
             .collect();
 
+        // ── Design runtime wiring (root component only) ──
+        // The root component mounts the design system: it imports and calls
+        // the `useDesignTokens` hooks (dynamic token effects) and imports
+        // `useThemeStore` (side effect: data-theme subscription) so design
+        // runtime behavior activates with the app (HIGH #2).
+        let is_root = super::design::is_root_component(name, ir);
+        let design_wiring = if is_root {
+            super::design::root_design_wiring(ir, comp.source_file.as_deref())
+        } else {
+            super::design::DesignWiring {
+                import_lines: Vec::new(),
+                hook_calls: Vec::new(),
+            }
+        };
+
         // ── Emit imports ──
         let comp_imports = imports::collect_component_imports(
             comp,
@@ -183,7 +240,7 @@ impl ReactCodegen {
             &used_store_refs,
             &hooks,
             has_styles,
-            has_motion,
+            &design_wiring.import_lines,
         );
         comp_imports.emit(&mut w, name, comp, has_props);
 
@@ -242,11 +299,11 @@ impl ReactCodegen {
             let mut body_w = crate::codegen::CodeWriter::new();
             body_w.indent();
             for stmt in &fun.body.statements {
-                expr::generate_statement_tsx_with_mode(
+                expr::generate_statement_tsx(
                     &mut body_w,
                     stmt,
                     &FxHashSet::default(),
-                    self.store_mode,
+                    &store_signal_owners,
                     &ref_names,
                 );
             }
@@ -288,6 +345,14 @@ impl ReactCodegen {
                     prop_list.push(event.name.clone());
                 }
             }
+            // Slot props must be destructured so `{children}` / `{header}`
+            // render correctly in the JSX body.
+            for (slot_name, _) in &declared_slots {
+                let slot_prop = slot_name.as_deref().unwrap_or("children").to_string();
+                if !prop_list.iter().any(|p| p == &slot_prop) {
+                    prop_list.push(slot_prop);
+                }
+            }
             if prop_list.is_empty() {
                 w.emit_fmt(format_args!(
                     "export function {}(_props: {}Props) {{",
@@ -315,11 +380,32 @@ impl ReactCodegen {
             }
         }
 
+        // Design system hooks — called from the root component so the
+        // dynamic-token effects and theme subscription activate (HIGH #2).
+        if is_root {
+            for hook_call in &design_wiring.hook_calls {
+                w.emit_fmt(format_args!("{}();", hook_call));
+            }
+        }
+
         // State hooks + effects
         let fn_names: FxHashSet<String> = comp.fns.iter().map(|f| f.name.clone()).collect();
         self.gen_state_hooks(&mut w, comp, &read_signals, &mutated_signals, &fn_names);
-        state::gen_ref_hooks(&mut w, comp);
-        self.gen_effects(&mut w, comp, &store_signal_map, &signal_names, &ref_names);
+        state::gen_ref_hooks(&mut w, comp, &ref_tags, &motion_internal_refs);
+        self.gen_effects(
+            &mut w,
+            comp,
+            &store_signal_map,
+            &store_signal_owners,
+            &signal_names,
+            &ref_names,
+        );
+        state::gen_semantic_binding_effects(
+            &mut w,
+            comp.view.as_ref(),
+            &store_signal_map,
+            &ref_names,
+        );
 
         // Computed values (useMemo / useCallback)
         let mut known_signal_names: Vec<String> =
@@ -331,7 +417,7 @@ impl ReactCodegen {
             comp,
             &known_signal_names,
             &signal_names,
-            self.store_mode,
+            &store_signal_owners,
             &ref_names,
         );
 
@@ -341,26 +427,31 @@ impl ReactCodegen {
             comp,
             &called_fns,
             &signal_names,
+            &store_signal_owners,
             &fn_names,
             &ref_names,
         );
 
-        // Motion animation effects
+        // Motion animation effects — per-ref native effects (all triggers)
         if let Some(ref view) = comp.view {
-            motion_effects::gen_motion_effects(&mut w, view, ir);
+            motion_effects::gen_motion_effects(&mut w, view, ir, component_map);
         }
 
         w.emit("");
 
         // Render return (JSX view tree)
+        let mut motion_counter = 0usize;
         self.gen_jsx_return(
             &mut w,
             comp,
             component_map,
+            &design_ctx,
             &signal_names,
+            &store_signal_owners,
             &motion_names,
             name,
             &ref_names,
+            &mut motion_counter,
         );
         w.dedent();
         w.emit("}");
@@ -474,8 +565,48 @@ fn collect_expr_identifiers(expr: &ExprIR, acc: &mut FxHashSet<String>) {
             collect_expr_identifiers(operand, acc);
         }
         ExprIR::LiteralExpr { .. } => {}
+        ExprIR::RefOpExpr { op, .. } => {
+            collect_ref_op_identifiers(op, acc);
+        }
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown ExprIR variant — update codegen for new variant"),
+    }
+}
+
+/// Collect identifier references from a `RefOpIR`'s child expressions
+/// (e.g. ScrollTo/ScrollBy/SetSelection/SetValue arguments).
+fn collect_ref_op_identifiers(op: &RefOpIR, acc: &mut FxHashSet<String>) {
+    match op {
+        RefOpIR::Focus
+        | RefOpIR::Blur
+        | RefOpIR::Measure { .. }
+        | RefOpIR::Select
+        | RefOpIR::Value => {}
+        RefOpIR::ScrollTo { x, y } => {
+            if let Some(x) = x {
+                collect_expr_identifiers(x, acc);
+            }
+            if let Some(y) = y {
+                collect_expr_identifiers(y, acc);
+            }
+        }
+        RefOpIR::ScrollBy { dx, dy } => {
+            if let Some(dx) = dx {
+                collect_expr_identifiers(dx, acc);
+            }
+            if let Some(dy) = dy {
+                collect_expr_identifiers(dy, acc);
+            }
+        }
+        RefOpIR::SetSelection { start, end } => {
+            collect_expr_identifiers(start, acc);
+            collect_expr_identifiers(end, acc);
+        }
+        RefOpIR::SetValue { value } => collect_expr_identifiers(value, acc),
+        RefOpIR::CapturePointer { id } => collect_expr_identifiers(id, acc),
+        RefOpIR::ReleasePointer { id } => collect_expr_identifiers(id, acc),
+        #[allow(unreachable_patterns)]
+        _ => {}
     }
 }
 

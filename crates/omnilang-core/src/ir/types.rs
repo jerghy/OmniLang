@@ -227,6 +227,13 @@ pub enum ExprIR {
     MapExpr {
         entries: Vec<(ExprIR, ExprIR)>,
     },
+    /// Semantic ref method call: `refName.focus()`, `refName.scrollTo(x, y)`, etc.
+    /// Populated by the semantic pass from `@ref`-bound element method calls;
+    /// consumed by codegen backends (Phase 4-6).
+    RefOpExpr {
+        ref_name: String,
+        op: RefOpIR,
+    },
 }
 
 impl ExprIR {
@@ -592,6 +599,9 @@ pub struct ListRenderingIntent {
     pub body: Option<ViewTree>,
     pub key_expr: Option<ExprIR>,
     pub empty_body: Option<ViewTree>,
+    /// `@for item in list [scroll]` — hint for Flutter ListView.builder codegen.
+    #[serde(default)]
+    pub scroll_hint: bool,
 }
 
 // ═══════════════════════════════════════════════════════
@@ -641,6 +651,12 @@ pub struct ElementIR {
     /// or GlobalKey (Flutter).
     #[serde(default)]
     pub ref_binding: Option<String>,
+    /// Semantic ref bindings extracted from `@ref`-bound elements:
+    /// binding kind (e.g. "focus", "scroll-x", "scroll-y", "value") → expression.
+    /// Populated during view lowering; validated by the semantic pass; consumed
+    /// by codegen backends (Phase 4-6).
+    #[serde(default)]
+    pub semantic_bindings: FxHashMap<String, ExprIR>,
 }
 
 impl ElementIR {
@@ -670,11 +686,84 @@ pub enum ViewTree {
     /// so codegen can emit proper JS for any expression (VarRef, if-else, binary, call, …).
     Interpolation(Box<ExprIR>),
     Text(String),
-    /// A `<slot>` placeholder directive. `Some("name")` for named slots,
-    /// `None` for the default/unnamed slot.
-    Slot(Option<String>),
+    /// A `<slot>` placeholder directive.
+    Slot {
+        /// Slot name — `None` for the default/unnamed slot.
+        name: Option<String>,
+        /// Fallback content rendered when the parent provides no content
+        /// for this slot. Preserved from the AST `default_content` during
+        /// lowering (was previously discarded).
+        fallback: Vec<ViewTree>,
+        /// Optional type constraint declared in the source (`@slot name: Type`).
+        /// Lowered from the AST `type_constraint`.
+        type_constraint: Option<TypeIR>,
+        /// Data variable name derived from the slot name when a type
+        /// constraint is present — used as the data variable name in codegen.
+        data_param: Option<String>,
+    },
     /// Inline list of child nodes (no wrapper element) — used for slot projection.
     Fragment(Vec<ViewTree>),
+}
+
+// ═══════════════════════════════════════════════════════
+// RefOpIR — semantic element ref operations
+// ═══════════════════════════════════════════════════════
+
+/// Which geometric quantity a `ref.measure()` read (`ref.width`, `ref.height`,
+/// `ref.position`) requests. Codegen appends the corresponding property to the
+/// measure result (or returns the position object for `position`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MeasureWhat {
+    Width,
+    Height,
+    Position,
+}
+
+/// A semantic operation invoked on an element bound via `@ref={name}`.
+///
+/// Lowered from AST ref method calls (e.g. `myRef.focus()`) by the semantic
+/// pass into `ExprIR::RefOpExpr`. Each variant carries the expressions needed
+/// by the target backend; `Option` fields are `None` when the source call
+/// omitted that argument. `ExprIR` children are boxed to break the recursive
+/// size cycle with `ExprIR::RefOpExpr`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
+pub enum RefOpIR {
+    /// `ref.focus()` — move focus to the element.
+    Focus,
+    /// `ref.blur()` — remove focus from the element.
+    Blur,
+    /// `ref.scrollTo(x?, y?)` — absolute scroll position.
+    ScrollTo {
+        x: Option<Box<ExprIR>>,
+        y: Option<Box<ExprIR>>,
+    },
+    /// `ref.scrollBy(dx?, dy?)` — relative scroll delta.
+    ScrollBy {
+        dx: Option<Box<ExprIR>>,
+        dy: Option<Box<ExprIR>>,
+    },
+    /// `ref.measure()` — read the element's bounding box.
+    /// `what` records which dimension the source requested (`ref.width`,
+    /// `ref.height`, or `ref.position`), so codegen can append the right
+    /// property to the measure result.
+    Measure { what: MeasureWhat },
+    /// `ref.select()` — select the element's text content.
+    Select,
+    /// `ref.setSelection(start, end)` — select a range of text.
+    SetSelection {
+        start: Box<ExprIR>,
+        end: Box<ExprIR>,
+    },
+    /// `ref.value` — read the element's current value (input/textarea).
+    Value,
+    /// `ref.setValue(value)` — set the element's value.
+    SetValue { value: Box<ExprIR> },
+    /// `ref.capturePointer(id)` — capture a pointer on the element.
+    CapturePointer { id: Box<ExprIR> },
+    /// `ref.releasePointer(id)` — release a captured pointer.
+    ReleasePointer { id: Box<ExprIR> },
 }
 
 // ═══════════════════════════════════════════════════════

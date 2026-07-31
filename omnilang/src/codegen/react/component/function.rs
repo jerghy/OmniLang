@@ -8,17 +8,20 @@ use crate::codegen::react::expr;
 use crate::codegen::react::ReactCodegen;
 use crate::codegen::CodeWriter;
 use crate::ir::*;
+use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 
 impl ReactCodegen {
     /// Generate component-local function declarations (fn → const fn = (...) => {...}).
     /// Only generates functions that are actually called from the view/effects/lifecycles.
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn gen_functions(
         &self,
         w: &mut CodeWriter,
         comp: &ComponentIR,
         called_fns: &FxHashSet<String>,
         signal_names: &FxHashSet<String>,
+        store_signal_owners: &FxHashMap<String, String>,
         fn_names: &FxHashSet<String>,
         ref_names: &FxHashSet<String>,
     ) {
@@ -49,11 +52,11 @@ impl ReactCodegen {
             let mut body_w = crate::codegen::CodeWriter::new();
             body_w.indent();
             for stmt in &fun.body.statements {
-                expr::generate_statement_tsx_with_mode(
+                expr::generate_statement_tsx(
                     &mut body_w,
                     stmt,
                     signal_names,
-                    self.store_mode,
+                    store_signal_owners,
                     ref_names,
                 );
             }
@@ -183,7 +186,12 @@ fn collect_called_fns_from_view_transitively(node: &ViewTree, acc: &mut FxHashSe
                 collect_called_fns_from_view_transitively(child, acc);
             }
         }
-        ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => {}
+        ViewTree::Slot { fallback, .. } => {
+            for child in fallback {
+                collect_called_fns_from_view_transitively(child, acc);
+            }
+        }
+        ViewTree::Text(_) | ViewTree::Interpolation(_) => {}
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
     }
@@ -236,7 +244,12 @@ fn collect_called_fns_from_view(node: &ViewTree, acc: &mut FxHashSet<String>) {
                 collect_called_fns_from_view(child, acc);
             }
         }
-        ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => {}
+        ViewTree::Slot { fallback, .. } => {
+            for child in fallback {
+                collect_called_fns_from_view(child, acc);
+            }
+        }
+        ViewTree::Text(_) | ViewTree::Interpolation(_) => {}
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
     }
@@ -417,6 +430,8 @@ fn collect_called_fns_from_expr(expr: &ExprIR, acc: &mut FxHashSet<String>) {
             collect_called_fns_from_expr(operand, acc);
         }
         ExprIR::IdentifierExpr { .. } | ExprIR::LiteralExpr { .. } => {}
+        // Ref ops don't call functions — their args are value expressions.
+        ExprIR::RefOpExpr { .. } => {}
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown ExprIR variant — update codegen for new variant"),
     }

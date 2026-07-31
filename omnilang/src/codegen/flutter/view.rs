@@ -1,20 +1,22 @@
 //! View tree formatting for Flutter codegen.
 
-use crate::codegen::shared::expr::DartFormatExpr;
 use crate::codegen::shared::inline_handler::{build_inline_handler, InlineHandlerConfig};
 use crate::codegen::shared::stmt::FormatStmt;
 use crate::codegen::CodeWriter;
 use crate::ir::*;
 use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 
 use super::capitalize_first;
-use super::expr::format_expr_ir_flutter;
+use super::expr::{format_expr_ir_flutter, rewrite_stmt_store_accesses, rewrite_store_accesses};
 use super::motion::wrap_with_motion_widgets;
 use super::motion_widgets::{emit_event_object_flutter, field_extract_flutter};
+use super::r#ref::{ref_focus_name, ref_key_name, ref_scroll_name, ref_text_name, RefUsage};
 use super::stmt::{generate_statement_flutter, FlutterStmtFormatter};
 use super::utils::{
-    binding_to_flutter_param, event_to_flutter_callback, prop_to_flutter_param_name,
-    tag_to_flutter_widget,
+    binding_to_flutter_param, css_color_to_dart, event_to_flutter_callback, lower_first,
+    prop_to_flutter_param_name, tag_to_flutter_widget, widget_allows_event, widget_allows_param,
+    widget_param_rename, widget_param_wrapper,
 };
 use std::fmt::Write;
 
@@ -22,14 +24,43 @@ use std::fmt::Write;
 // View tree formatting (single-line Flutter widget expressions)
 // ═══════════════════════════════════════════════════════════════
 
+/// Per-component context threaded through view-tree formatting.
+pub(crate) struct ViewContext<'a> {
+    pub(crate) component_map: &'a FxHashMap<&'a str, &'a ComponentIR>,
+    /// Store alias → Riverpod provider variable name
+    /// (e.g. "TodoStore" → "todoStoreProvider").
+    pub(crate) store_provider_map: &'a FxHashMap<String, String>,
+    /// Per-ref capability flags — drives on-demand controller attachment
+    /// (focusNode/controller params) on ref-bound elements (Task 5.2).
+    pub(crate) ref_usage: &'a FxHashMap<String, RefUsage>,
+    /// Component name → declared slot names (`"children"` for the unnamed
+    /// slot) — drives consumer-side slot projection (Task 5.3).
+    pub(crate) component_slots: &'a FxHashMap<String, FxHashSet<String>>,
+    pub(crate) ir: &'a IRProgram,
+    /// Compiler warnings accumulated during view formatting (C6).
+    pub(crate) warnings: &'a mut Vec<String>,
+}
+
+impl ViewContext<'_> {
+    /// Format an expression in view context — `StoreFieldAccessExpr` is
+    /// rewritten to Riverpod 3.0 `ref.watch(...)` / `ref.read(...)` forms (C4).
+    fn format_expr(&self, expr: &ExprIR) -> String {
+        format_expr_ir_flutter(&rewrite_store_accesses(
+            expr,
+            self.store_provider_map,
+            self.ir,
+        ))
+    }
+}
+
 /// Render a ViewTree as a single-line Flutter widget expression string.
 pub(crate) fn format_view_tree(
     node: &ViewTree,
     motions: &[MotionIntent],
-    component_map: &FxHashMap<&str, &ComponentIR>,
+    ctx: &mut ViewContext,
 ) -> String {
     match node {
-        ViewTree::Element(el) => format_element(el, motions, component_map),
+        ViewTree::Element(el) => format_element(el, motions, ctx),
         ViewTree::Text(text) => {
             if text.starts_with('{') && text.ends_with('}') {
                 // OmniView interpolation: {name} -> Text('$name')
@@ -44,26 +75,179 @@ pub(crate) fn format_view_tree(
             }
         }
         ViewTree::Interpolation(expr) => {
-            let dart_expr = format_expr_ir_flutter(expr);
+            let dart_expr = ctx.format_expr(expr);
             format!("Text({})", dart_expr)
         }
-        ViewTree::Conditional(cond) => format_conditional(cond, motions, component_map),
-        ViewTree::ListRendering(list) => format_list_rendering(list, motions, component_map),
+        ViewTree::Conditional(cond) => format_conditional(cond, motions, ctx),
+        ViewTree::ListRendering(list) => format_list_rendering(list, motions, ctx),
         ViewTree::Fragment(children) => children
             .iter()
-            .map(|c| format_view_tree(c, motions, component_map))
+            .map(|c| format_view_tree(c, motions, ctx))
             .collect::<Vec<_>>()
             .join(", "),
-        ViewTree::Slot(name) => {
-            let slot_desc = name.as_deref().unwrap_or("default");
-            format!(
-                "/* WARNING: <slot name=\"{}\"> is not supported in Flutter. */ SizedBox.shrink()",
-                slot_desc
-            )
+        ViewTree::Slot { name, fallback, .. } => {
+            // Slots render as `widget.{name} ?? fallback` — parent-projected
+            // content takes precedence; the preserved fallback (Task 1.2)
+            // renders otherwise. Unnamed slots map to the `children` param
+            // (Flutter analogue of React's `{props[name] ?? (fallback)}`).
+            let param = format!("widget.{}", name.as_deref().unwrap_or("children"));
+            match format_slot_content(fallback, motions, ctx) {
+                Some(fb) => format!("{} ?? {}", param, fb),
+                None => param,
+            }
         }
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
     }
+}
+
+/// Format slot content (fallback or consumer-projected) as a single widget
+/// expression. Multi-node content is wrapped in a Column — the Flutter
+/// analogue of React's fragment — so `??`/param expressions stay single
+/// widgets. Fragments are flattened transparently. Returns `None` when the
+/// content is empty (a bare consumer `@slot name` directive projects
+/// nothing).
+fn format_slot_content(
+    content: &[ViewTree],
+    motions: &[MotionIntent],
+    ctx: &mut ViewContext,
+) -> Option<String> {
+    let nodes: Vec<&ViewTree> = content
+        .iter()
+        .flat_map(|c| match c {
+            ViewTree::Fragment(children) => children.iter().collect(),
+            other => vec![other],
+        })
+        .collect();
+    match nodes.len() {
+        0 => None,
+        1 => Some(format_view_tree(nodes[0], motions, ctx)),
+        _ => {
+            let children: Vec<String> = nodes
+                .iter()
+                .map(|c| format_view_tree(c, motions, ctx))
+                .collect();
+            Some(format!(
+                "Column(mainAxisSize: MainAxisSize.min, children: [{}])",
+                children.join(", ")
+            ))
+        }
+    }
+}
+
+/// Consumer-side slot projection name for a child of a component
+/// instantiation. Two forms are recognized:
+/// - an element with a literal `slot="name"` prop (mirrors the OmniView
+///   backend's `has_slot_attr`);
+/// - a consumer-position `@slot name { ... }` directive, whose fallback
+///   content is the projected content.
+fn child_slot_name(node: &ViewTree) -> Option<String> {
+    match node {
+        ViewTree::Element(el) => el.props.get("slot").and_then(|v| match v {
+            ExprIR::LiteralExpr { value } => value.as_str().map(str::to_string),
+            _ => None,
+        }),
+        ViewTree::Slot { name, .. } => name.clone(),
+        _ => None,
+    }
+}
+
+/// Remove the `slot` prop from an element subtree root so it never reaches
+/// the generated widget after projection into a named slot param.
+fn strip_slot_prop(node: &ViewTree) -> ViewTree {
+    match node {
+        ViewTree::Element(el) if el.props.contains_key("slot") => {
+            let mut props = el.props.clone();
+            props.remove("slot");
+            ViewTree::Element(Box::new(ElementIR {
+                props,
+                ..*el.clone()
+            }))
+        }
+        other => other.clone(),
+    }
+}
+
+/// Collect slot declarations (name + type constraint) from a view tree.
+/// Used to emit `Widget?` constructor params for declared slots. Slots
+/// inside a child component's children are consumer-side projections, not
+/// declarations — they are skipped (the child component types them via its
+/// own declarations; mirrors the React backend).
+pub(crate) fn collect_view_slots(
+    node: &ViewTree,
+    component_map: &FxHashMap<&str, &ComponentIR>,
+    acc: &mut Vec<(Option<String>, Option<TypeIR>)>,
+) {
+    match node {
+        ViewTree::Slot {
+            name,
+            type_constraint,
+            fallback,
+            ..
+        } => {
+            acc.push((name.clone(), type_constraint.clone()));
+            for child in fallback {
+                collect_view_slots(child, component_map, acc);
+            }
+        }
+        ViewTree::Element(el) => {
+            if component_map.contains_key(el.tag.as_str()) {
+                // Children of a component instantiation are projections —
+                // the child component types them via its own declarations.
+                return;
+            }
+            for child in &el.children {
+                collect_view_slots(child, component_map, acc);
+            }
+        }
+        ViewTree::Conditional(cond) => {
+            for branch in &cond.branches {
+                if let Some(ref body) = branch.body {
+                    collect_view_slots(body, component_map, acc);
+                }
+            }
+            if let Some(ref fb) = cond.fallback {
+                collect_view_slots(fb, component_map, acc);
+            }
+        }
+        ViewTree::ListRendering(list) => {
+            if let Some(ref body) = list.body {
+                collect_view_slots(body, component_map, acc);
+            }
+            if let Some(ref empty_body) = list.empty_body {
+                collect_view_slots(empty_body, component_map, acc);
+            }
+        }
+        ViewTree::Fragment(children) => {
+            for child in children {
+                collect_view_slots(child, component_map, acc);
+            }
+        }
+        ViewTree::Text(_) | ViewTree::Interpolation(_) => {}
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
+    }
+}
+
+/// Precompute each component's declared slot names for consumer-side
+/// projection. The unnamed slot is keyed as `"children"` — the Dart
+/// constructor param it maps to.
+pub(crate) fn build_component_slot_map(
+    component_map: &FxHashMap<&str, &ComponentIR>,
+) -> FxHashMap<String, FxHashSet<String>> {
+    let mut map: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    for (name, comp) in component_map {
+        let mut slots: FxHashSet<String> = FxHashSet::default();
+        if let Some(ref view) = comp.view {
+            let mut acc: Vec<(Option<String>, Option<TypeIR>)> = Vec::new();
+            collect_view_slots(view, component_map, &mut acc);
+            for (n, _) in acc {
+                slots.insert(n.unwrap_or_else(|| "children".to_string()));
+            }
+        }
+        map.insert(name.to_string(), slots);
+    }
+    map
 }
 
 /// Strip CSS units from a value string and return a Dart-compatible numeric literal.
@@ -100,21 +284,18 @@ fn css_prop_to_flutter_param(prop: &str) -> Option<&'static str> {
 /// Format an ElementIR node as a Flutter widget constructor expression.
 /// Wraps with motion animation widgets (AnimatedBuilder, MouseRegion, GestureDetector)
 /// when the element has motion triggers.
-fn format_element(
-    el: &ElementIR,
-    motions: &[MotionIntent],
-    component_map: &FxHashMap<&str, &ComponentIR>,
-) -> String {
+fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContext) -> String {
     // Component composition: check if tag is a known component
-    if let Some(_child_comp) = component_map.get(el.tag.as_str()) {
+    if let Some(_child_comp) = ctx.component_map.get(el.tag.as_str()) {
         let mut child_args: Vec<String> = Vec::new();
+        // Ref binding (Step 6): GlobalKey attaches to any widget, including
+        // custom component widgets.
+        if let Some(ref_name) = &el.ref_binding {
+            child_args.push(format!("key: {}", ref_key_name(ref_name)));
+        }
         // Props become constructor parameters
         for (prop_name, prop_value) in &el.props {
-            child_args.push(format!(
-                "{}: {}",
-                prop_name,
-                format_expr_ir_flutter(prop_value)
-            ));
+            child_args.push(format!("{}: {}", prop_name, ctx.format_expr(prop_value)));
         }
         // Events become callback parameters
         for (event_name, handler) in &el.events {
@@ -122,89 +303,169 @@ fn format_element(
                 EventHandlerIR::FnRef { r#ref, .. } => {
                     format!("() {{ {}(); }}", r#ref)
                 }
-                EventHandlerIR::InlineFn { body, .. } => format_inline_handler_flutter(body),
+                EventHandlerIR::InlineFn { body, .. } => format_inline_handler_flutter(body, ctx),
                 EventHandlerIR::StoreAction { r#ref, .. } => format_store_action_handler(r#ref),
             };
             let stem = event_name.strip_prefix("on").unwrap_or(event_name);
             child_args.push(format!("on{}: {}", capitalize_first(stem), cb));
         }
-        // Return component constructor with children
+        // Slot projection (Task 5.3): children carrying a literal
+        // `slot="name"` prop, or a consumer-position `@slot name { ... }`
+        // directive, matching a slot the component declares, project into
+        // the named constructor param; everything else flows into the
+        // unnamed `children` param. `slot` props are stripped so they never
+        // reach the generated widget (mirrors the React backend).
+        let target_slots = ctx
+            .component_slots
+            .get(el.tag.as_str())
+            .cloned()
+            .unwrap_or_default();
+        let mut default_children: Vec<String> = Vec::new();
+        for child in &el.children {
+            let slot_name = child_slot_name(child);
+            let content = match child {
+                // Consumer-position `@slot { ... }` — the fallback IS the
+                // projected content; a bare `@slot name` projects nothing.
+                ViewTree::Slot { fallback, .. } => format_slot_content(fallback, motions, ctx),
+                _ => Some(format_view_tree(&strip_slot_prop(child), motions, ctx)),
+            };
+            let Some(content) = content else { continue };
+            match slot_name.as_deref() {
+                Some(name) if target_slots.contains(name) => {
+                    child_args.push(format!("{}: {}", name, content));
+                }
+                Some(name) => {
+                    ctx.warnings.push(format!(
+                        "[flutter] component '{}' has no slot '{}'; content emitted as default child",
+                        el.tag, name
+                    ));
+                    default_children.push(content);
+                }
+                None => default_children.push(content),
+            }
+        }
+        // Unnamed content projects into the `children` param — only when
+        // the component declares the unnamed slot; otherwise the generated
+        // Dart would be invalid, so warn and drop.
         let args_str = child_args.join(", ");
-        if el.children.is_empty() {
+        if default_children.is_empty() {
             return format!("{}({})", el.tag, args_str);
-        } else {
-            let children_str: Vec<String> = el
-                .children
-                .iter()
-                .map(|c| format_view_tree(c, motions, component_map))
-                .collect();
+        }
+        if target_slots.contains("children") {
             return format!(
                 "{}({}, children: [{}])",
                 el.tag,
                 args_str,
-                children_str.join(", ")
+                default_children.join(", ")
             );
         }
+        ctx.warnings.push(format!(
+            "[flutter] component '{}' declares no default slot; {} child node(s) dropped",
+            el.tag,
+            default_children.len()
+        ));
+        return format!("{}({})", el.tag, args_str);
     }
     // Otherwise, fall through to HTML tag mapping
     let widget = tag_to_flutter_widget(&el.tag);
     let mut args: Vec<String> = Vec::new();
 
-    // Props -> widget constructor parameters
+    // Props -> widget constructor parameters (C6: per-widget whitelist —
+    // unmapped params emit a compiler warning instead of invalid Dart).
+    // Params that belong to a sub-object (TextStyle/InputDecoration) are
+    // collected and merged into a single wrapper argument.
+    let mut wrapped: Vec<(&'static str, Vec<String>)> = Vec::new();
     for (name, value) in &el.props {
-        let formatted = format_expr_ir_flutter(value);
-        let param = prop_to_flutter_param_name(name);
-        if !param.is_empty() {
-            args.push(format!("{}: {}", param, formatted));
+        let formatted = ctx.format_expr(value);
+        let param = widget_param_rename(widget, prop_to_flutter_param_name(name));
+        if param.is_empty() {
+            continue; // slug props (class/style/id/value/...) — intentionally dropped
         }
+        if let Some((wrapper, member)) = widget_param_wrapper(widget, param) {
+            match wrapped.iter_mut().find(|(w, _)| *w == wrapper) {
+                Some((_, members)) => members.push(format!("{}: {}", member, formatted)),
+                None => wrapped.push((wrapper, vec![format!("{}: {}", member, formatted)])),
+            }
+            continue;
+        }
+        if !widget_allows_param(widget, param) {
+            ctx.warnings.push(format!(
+                "[flutter] prop '{name}' → param '{param}' is not supported on '{widget}'; skipped"
+            ));
+            continue;
+        }
+        args.push(format!("{}: {}", param, formatted));
+    }
+    // Merge wrapped params into sub-object constructor args
+    for (wrapper, members) in wrapped {
+        let arg_name = match wrapper {
+            "TextStyle" => "style",
+            "InputDecoration" => "decoration",
+            _ => wrapper,
+        };
+        args.push(format!("{}: {}({})", arg_name, wrapper, members.join(", ")));
     }
 
     // Inline style (style: { prop: value }) — map CSS properties to Flutter widget parameters
-    if let Some(ref style_json) = el.inline_style {
-        if let Some(obj) = style_json.as_object() {
-            for (css_prop, css_val) in obj {
-                let css_val_str = css_val.as_str().unwrap_or("");
-                match css_prop_to_flutter_param(css_prop) {
-                    Some("padding") | Some("margin") => {
-                        if css_val_str.ends_with("px")
-                            || css_val_str.ends_with("em")
-                            || css_val_str.ends_with("rem")
-                            || css_val_str.ends_with("%")
-                            || css_val_str.ends_with("pt")
-                        {
-                            let num_str = css_value_to_dart_number(css_val_str);
-                            args.push(format!("{}: EdgeInsets.all({})", css_prop, num_str));
-                        } else if let Ok(num) = css_val_str.parse::<f64>() {
-                            args.push(format!("{}: EdgeInsets.all({})", css_prop, num));
-                        } else {
-                            args.push(format!(
-                                "{}: EdgeInsets.all({})",
-                                css_prop,
-                                css_value_to_dart_number(css_val_str)
-                            ));
-                        }
-                    }
-                    Some("width") | Some("height") => {
+    if let Some(obj) = el
+        .inline_style
+        .as_ref()
+        .and_then(|style_json| style_json.as_object())
+    {
+        for (css_prop, css_val) in obj {
+            let css_val_str = css_val.as_str().unwrap_or("");
+            match css_prop_to_flutter_param(css_prop) {
+                Some("padding") | Some("margin") => {
+                    if css_val_str.ends_with("px")
+                        || css_val_str.ends_with("em")
+                        || css_val_str.ends_with("rem")
+                        || css_val_str.ends_with("%")
+                        || css_val_str.ends_with("pt")
+                    {
                         let num_str = css_value_to_dart_number(css_val_str);
-                        args.push(format!("{}: {}", css_prop, num_str));
+                        args.push(format!("{}: EdgeInsets.all({})", css_prop, num_str));
+                    } else if let Ok(num) = css_val_str.parse::<f64>() {
+                        args.push(format!("{}: EdgeInsets.all({})", css_prop, num));
+                    } else {
+                        args.push(format!(
+                            "{}: EdgeInsets.all({})",
+                            css_prop,
+                            css_value_to_dart_number(css_val_str)
+                        ));
                     }
-                    Some("color") => {
-                        args.push(format!("color: {}", css_val_str));
+                }
+                Some("width") | Some("height") => {
+                    let num_str = css_value_to_dart_number(css_val_str);
+                    args.push(format!("{}: {}", css_prop, num_str));
+                }
+                Some("color") => {
+                    // C5: CSS colors → Dart Color literals (#ff0000 → Color(0xFFFF0000))
+                    match css_color_to_dart(css_val_str) {
+                        Some(color_expr) => args.push(format!("color: {}", color_expr)),
+                        None => ctx.warnings.push(format!(
+                            "[flutter] unsupported color value '{css_val_str}' for '{css_prop}'; skipped"
+                        )),
                     }
-                    Some(_) => {
-                        // Known Flutter param but unexpected value format — skip
-                    }
-                    None => {
-                        // Unsupported CSS property — skip
-                    }
+                }
+                Some(_) => {
+                    // Known Flutter param but unexpected value format — skip
+                }
+                None => {
+                    // Unsupported CSS property — skip
                 }
             }
         }
     }
 
-    // Events -> callback parameters
+    // Events -> callback parameters (C6: per-widget event whitelist)
     for (name, handler) in &el.events {
         let callback_name = event_to_flutter_callback(name);
+        if !widget_allows_event(widget, callback_name) {
+            ctx.warnings.push(format!(
+                "[flutter] event '{name}' → callback '{callback_name}' is not supported on '{widget}'; skipped"
+            ));
+            continue;
+        }
         let body = match handler {
             EventHandlerIR::FnRef {
                 r#ref, event_data, ..
@@ -244,23 +505,23 @@ fn format_element(
                         hw.emit_fmt(format_args!("final {} = {};", field, extract));
                     }
                     for stmt in &body.statements {
+                        // Store accesses inside handler bodies resolve to
+                        // ref.watch/ref.read on the Riverpod providers (C4).
+                        let stmt =
+                            rewrite_stmt_store_accesses(stmt, ctx.store_provider_map, ctx.ir);
                         // Use custom formatter with event_param_name set
                         // so FieldAccess on "e" emits bare field name (local final binding)
                         let fmt = FlutterStmtFormatter {
-                            expr: DartFormatExpr {
-                                event_param_name: Some("e".to_string()),
-                            },
-                            in_store_action: false,
-                            store_prefix: None,
+                            expr: super::r#ref::FlutterFormatExpr::new(Some("e".to_string())),
                         };
-                        fmt.format_stmt(&mut hw, stmt);
+                        fmt.format_stmt(&mut hw, &stmt);
                     }
                     hw.dedent();
                     hw.emit("}");
                     let result = hw.into_string().trim().to_string();
                     result
                 } else {
-                    format_inline_handler_flutter(body)
+                    format_inline_handler_flutter(body, ctx)
                 }
             }
             EventHandlerIR::StoreAction { r#ref, .. } => format_store_action_handler(r#ref),
@@ -268,11 +529,40 @@ fn format_element(
         args.push(format!("{}: {}", callback_name, body));
     }
 
-    // Bindings
+    // Bindings (C6: per-widget whitelist)
     for (bind_name, signal_ref) in &el.bindings {
         let param = binding_to_flutter_param(bind_name);
-        if !param.is_empty() {
-            args.push(format!("{}: {}", param, signal_ref.name));
+        if param.is_empty() {
+            continue;
+        }
+        if !widget_allows_param(widget, param) {
+            ctx.warnings.push(format!(
+                "[flutter] binding 'bind:{bind_name}' → param '{param}' is not supported on '{widget}'; skipped"
+            ));
+            continue;
+        }
+        args.push(format!("{}: {}", param, signal_ref.name));
+    }
+
+    // Ref binding (Step 6): attach the GlobalKey plus any on-demand
+    // controllers the component uses on this ref. Controllers attach only to
+    // widgets that support them (TextField/scrollables); focus on other
+    // widgets falls back to a Focus wrapper below.
+    let mut focus_wrap_ref: Option<&str> = None;
+    if let Some(ref_name) = &el.ref_binding {
+        let usage = ctx.ref_usage.get(ref_name).copied().unwrap_or_default();
+        args.push(format!("key: {}", ref_key_name(ref_name)));
+        if usage.needs_text && widget == "TextField" {
+            args.push(format!("controller: {}", ref_text_name(ref_name)));
+        }
+        if usage.needs_focus && widget == "TextField" {
+            args.push(format!("focusNode: {}", ref_focus_name(ref_name)));
+        }
+        if usage.needs_scroll && matches!(widget, "ListView" | "SingleChildScrollView") {
+            args.push(format!("controller: {}", ref_scroll_name(ref_name)));
+        }
+        if usage.needs_focus && widget != "TextField" {
+            focus_wrap_ref = Some(ref_name);
         }
     }
 
@@ -280,21 +570,45 @@ fn format_element(
     if el.children.is_empty() {
         // No children
     } else if el.children.len() == 1 {
-        let child_str = format_view_tree(&el.children[0], motions, component_map);
+        let child_str = format_view_tree(&el.children[0], motions, ctx);
         args.push(format!("child: {}", child_str));
     } else {
         let children: Vec<String> = el
             .children
             .iter()
-            .map(|c| format_view_tree(c, motions, component_map))
+            .map(|c| format_view_tree(c, motions, ctx))
             .collect();
-        args.push(format!("children: [{}]", children.join(", ")));
+        let children_arg = format!("children: [{}]", children.join(", "));
+        if widget_allows_param(widget, "children") {
+            // Multi-child widgets (Row, Column, Stack, ListView, ...) take
+            // `children:` directly.
+            args.push(children_arg);
+        } else {
+            // Single-child widgets (Container, Center, ...) host multiple
+            // children via an inner Column — `Container(children: [...])`
+            // would be invalid Dart.
+            args.push(format!("child: Column({})", children_arg));
+        }
     }
 
     let inner = if args.is_empty() {
         format!("{}()", widget)
     } else {
         format!("{}({})", widget, args.join(", "))
+    };
+
+    // Ref-bound elements that need focus but map to a non-TextField widget:
+    // wrap in `Focus(focusNode: _nameFocus, ...)` so the FocusNode is
+    // attached and `requestFocus()`/`unfocus()` work (Task 5.2).
+    let inner = match focus_wrap_ref {
+        Some(ref_name) => {
+            format!(
+                "Focus(focusNode: {}, child: {})",
+                ref_focus_name(ref_name),
+                inner
+            )
+        }
+        None => inner,
     };
 
     // ── Dynamic class bindings (class_map_bindings) ──
@@ -317,7 +631,7 @@ fn format_element(
                     // Never-applied class (literal false): skip entirely.
                 }
                 _ => {
-                    let cond = format_expr_ir_flutter(expr);
+                    let cond = ctx.format_expr(expr);
                     has_dynamic = true;
                     dynamic_conditions.push(cond);
                 }
@@ -369,7 +683,7 @@ fn format_element(
                 .motion_behavior()
                 .and_then(|m| m.in_view_threshold.as_ref())
             {
-                Some(expr) => format_expr_ir_flutter(expr),
+                Some(expr) => ctx.format_expr(expr),
                 None => "0.0".to_string(),
             };
             let once = if el
@@ -392,9 +706,10 @@ fn format_element(
 
             if let Some(motion_name) = motion_ref {
                 let ctrl_name = format!("_{}Controller", motion_name);
+                let active_name = format!("_{}Active", motion_name);
                 result = format!(
-                    "_OmniInViewWidget(\n  once: {},\n  threshold: {},\n  onInView: () {{ {}.forward(); }},\n  child: {},\n)",
-                    once, threshold, ctrl_name, result
+                    "_OmniInViewWidget(\n  once: {},\n  threshold: {},\n  onInView: () {{ {} = true; {}.forward(); }},\n  child: {},\n)",
+                    once, threshold, active_name, ctrl_name, result
                 );
             }
         }
@@ -410,7 +725,7 @@ fn format_element(
                 .and_then(|s| s.end.as_deref())
                 .unwrap_or("bottom 20%");
             let scrub = match el.scroll_behavior().and_then(|s| s.scrub.as_ref()) {
-                Some(expr) => format_expr_ir_flutter(expr),
+                Some(expr) => ctx.format_expr(expr),
                 None => "0.0".to_string(),
             };
             let motion_ref = el
@@ -424,9 +739,10 @@ fn format_element(
 
             if let Some(motion_name) = motion_ref {
                 let ctrl_name = format!("_{}Controller", motion_name);
+                let active_name = format!("_{}Active", motion_name);
                 result = format!(
-                    "_OmniScrollDrivenWidget(\n  start: '{}',\n  end: '{}',\n  scrub: {},\n  onProgress: (p) {{ {}.value = p; }},\n  child: {},\n)",
-                    scroll_start, scroll_end, scrub, ctrl_name, result
+                    "_OmniScrollDrivenWidget(\n  start: '{}',\n  end: '{}',\n  scrub: {},\n  onProgress: (p) {{ {} = true; {}.value = p; }},\n  child: {},\n)",
+                    scroll_start, scroll_end, scrub, active_name, ctrl_name, result
                 );
             }
         }
@@ -455,23 +771,24 @@ fn format_element(
                                 "Axis.vertical"
                             };
                             let ctrl_name = format!("_{}Controller", motion_name);
+                            let active_name = format!("_{}Active", motion_name);
                             let constraints_str = el
                                 .drag_behavior()
                                 .and_then(|d| d.constraints.as_deref())
                                 .unwrap_or("");
                             let elastic_val =
                                 match el.drag_behavior().and_then(|d| d.elastic.as_ref()) {
-                                    Some(expr) => format_expr_ir_flutter(expr),
+                                    Some(expr) => ctx.format_expr(expr),
                                     None => "0.0".to_string(),
                                 };
                             let threshold_val =
                                 match el.drag_behavior().and_then(|d| d.threshold.as_ref()) {
-                                    Some(expr) => format_expr_ir_flutter(expr),
+                                    Some(expr) => ctx.format_expr(expr),
                                     None => "0.0".to_string(),
                                 };
                             result = format!(
-                                "_OmniDragWidget(\n  axis: {},\n  constraints: '{}',\n  elastic: {},\n  threshold: {},\n  onDragStart: () {{ }},\n  onDragProgress: (p) {{ {}.value = p; }},\n  onDragEnd: (completed) {{ if (completed) {{ {}.forward(); }} else {{ {}.reverse(); }} }},\n  child: {},\n)",
-                                axis_type, constraints_str, elastic_val, threshold_val, ctrl_name, ctrl_name, ctrl_name, result
+                                "_OmniDragWidget(\n  axis: {},\n  constraints: '{}',\n  elastic: {},\n  threshold: {},\n  onDragStart: () {{ {} = true; }},\n  onDragProgress: (p) {{ {} = true; {}.value = p; }},\n  onDragEnd: (completed) {{ if (completed) {{ {}.forward(); }} else {{ {}.reverse().whenComplete(() {{ if (mounted && {}.value == 0.0) setState(() {{ {} = false; }}); }}); }} }},\n  child: {},\n)",
+                                axis_type, constraints_str, elastic_val, threshold_val, active_name, active_name, ctrl_name, ctrl_name, ctrl_name, ctrl_name, active_name, result
                             );
                         }
                     }
@@ -493,22 +810,22 @@ fn format_element(
 fn format_conditional(
     cond: &ConditionalIntent,
     motions: &[MotionIntent],
-    component_map: &FxHashMap<&str, &ComponentIR>,
+    ctx: &mut ViewContext,
 ) -> String {
     if cond.branches.is_empty() {
         if let Some(ref fb) = cond.fallback {
-            return format_view_tree(fb, motions, component_map);
+            return format_view_tree(fb, motions, ctx);
         }
         return "SizedBox()".to_string();
     }
 
     let mut result = String::new();
     for (i, branch) in cond.branches.iter().enumerate() {
-        let cond_str = format_expr_ir_flutter(&branch.condition);
+        let cond_str = ctx.format_expr(&branch.condition);
         let body_str = branch
             .body
             .as_ref()
-            .map(|b| format_view_tree(b, motions, component_map))
+            .map(|b| format_view_tree(b, motions, ctx))
             .unwrap_or_else(|| "SizedBox()".to_string());
         if i == 0 {
             let _ = write!(result, "{} ? {}", cond_str, body_str);
@@ -519,11 +836,7 @@ fn format_conditional(
 
     // Fallback
     if let Some(ref fb) = cond.fallback {
-        let _ = write!(
-            result,
-            " : {}",
-            format_view_tree(fb, motions, component_map)
-        );
+        let _ = write!(result, " : {}", format_view_tree(fb, motions, ctx));
     } else {
         result.push_str(" : SizedBox()");
     }
@@ -546,14 +859,14 @@ fn format_conditional(
 fn format_list_rendering(
     list: &ListRenderingIntent,
     motions: &[MotionIntent],
-    component_map: &FxHashMap<&str, &ComponentIR>,
+    ctx: &mut ViewContext,
 ) -> String {
-    let iterable_str = format_expr_ir_flutter(&list.iterable);
+    let iterable_str = ctx.format_expr(&list.iterable);
     let item_name = &list.item_binding.name;
     let body_str = list
         .body
         .as_ref()
-        .map(|b| format_view_tree(b, motions, component_map))
+        .map(|b| format_view_tree(b, motions, ctx))
         .unwrap_or_else(|| "SizedBox()".to_string());
     let list_builder = format!(
         "ListView.builder(\n  itemCount: {iter}.length,\n  itemBuilder: (context, index) {{\n    var {item} = {iter}[index];\n    return {body};\n  }},\n)",
@@ -563,7 +876,7 @@ fn format_list_rendering(
         let empty_str = list
             .empty_body
             .as_ref()
-            .map(|b| format_view_tree(b, motions, component_map))
+            .map(|b| format_view_tree(b, motions, ctx))
             .unwrap_or_else(|| "SizedBox()".to_string());
         format!(
             "Builder(\n  builder: (context) => {}.isEmpty ? {} : {},\n)",
@@ -579,7 +892,8 @@ fn format_list_rendering(
 // ═══════════════════════════════════════════════════════════════
 
 /// Build an inline callback string from a BlockIR for Flutter event handlers.
-fn format_inline_handler_flutter(body: &BlockIR) -> String {
+/// Store accesses in the body are rewritten to Riverpod provider reads (C4).
+fn format_inline_handler_flutter(body: &BlockIR, ctx: &ViewContext) -> String {
     let config = InlineHandlerConfig {
         opener: "() {".into(),
         closer: "}".into(),
@@ -587,27 +901,25 @@ fn format_inline_handler_flutter(body: &BlockIR) -> String {
         indent: "    ",
         use_writer: true,
     };
-    build_inline_handler(body, &config, generate_statement_flutter)
+    let rewritten = BlockIR {
+        statements: body
+            .statements
+            .iter()
+            .map(|s| rewrite_stmt_store_accesses(s, ctx.store_provider_map, ctx.ir))
+            .collect(),
+    };
+    build_inline_handler(&rewritten, &config, generate_statement_flutter)
 }
 
-/// Format a StoreAction event handler that calls a store action function with ref.
+/// Format a StoreAction event handler that calls a store action through its
+/// Riverpod 3.0 Notifier provider.
 ///
-/// The `r#ref` format is `"StoreName.actionName"`, which is transformed into
-/// `"() {{ storeActionName(ref); }}"` where the function name is computed as
-/// `{lowercase_first(store_name)}{capitalize_first(action_name)}`.
-fn format_store_action_handler(r#ref: &str) -> String {
-    let action_fn = r#ref.split('.').next_back().unwrap_or(r#ref);
+/// The `r#ref` format is `"StoreName.actionName"`, transformed into
+/// `"() {{ ref.read(storeNameProvider.notifier).actionName(); }}"`.
+pub(crate) fn format_store_action_handler(r#ref: &str) -> String {
     let parts: Vec<&str> = r#ref.split('.').collect();
-    let store_lower = if parts.len() >= 2 {
-        let s = parts[0];
-        let mut c = s.chars();
-        match c.next() {
-            None => s.to_string(),
-            Some(first) => first.to_lowercase().to_string() + c.as_str(),
-        }
-    } else {
-        action_fn.to_string()
-    };
-    let full_action = format!("{}{}", store_lower, capitalize_first(action_fn));
-    format!("() {{ {}(ref); }}", full_action)
+    let store = parts.first().copied().unwrap_or(r#ref);
+    let action = parts.last().copied().unwrap_or(r#ref);
+    let provider = format!("{}Provider", lower_first(store));
+    format!("() {{ ref.read({}.notifier).{}(); }}", provider, action)
 }

@@ -18,12 +18,16 @@ pub(super) struct ComponentImports {
     pub hooks: Vec<String>,
     /// Whether the component has styles that need `./name.module.css`.
     pub has_styles: bool,
-    /// Whether the component needs `import { animate } from "@omni/animation"`.
-    pub has_motion: bool,
     /// Pre-formatted import lines for each used store hook.
     pub store_hook_lines: Vec<String>,
     /// Pre-formatted import lines for each used child component.
     pub child_import_lines: Vec<String>,
+    /// Design runtime imports on the root component: `useDesignTokens` hook
+    /// imports and `useThemeStore` side-effect imports (HIGH #2).
+    pub design_import_lines: Vec<String>,
+    /// Slot declarations (name + type constraint) that become typed props in
+    /// the Props interface. Consumer-side projections are excluded.
+    pub slot_infos: Vec<(Option<String>, Option<TypeIR>)>,
 }
 
 /// Collect all import data needed by the component.
@@ -38,7 +42,7 @@ pub(super) fn collect_component_imports(
     used_store_refs: &FxHashSet<String>,
     hooks: &[String],
     has_styles: bool,
-    has_motion: bool,
+    design_import_lines: &[String],
 ) -> ComponentImports {
     // ── Store hook imports ──────────────────────────────────
     let all_stores = ir.all_stores();
@@ -60,6 +64,23 @@ pub(super) fn collect_component_imports(
                 hook_name, import_path
             ));
         }
+    }
+
+    // ── Slot props — typed as ReactNode in the Props interface, so the
+    // named type import must exist whenever the view declares any slot. ──
+    let mut hooks = hooks.to_vec();
+    if comp
+        .view
+        .as_ref()
+        .is_some_and(|v| jsx::view_has_slots(v, component_map))
+        && !hooks.iter().any(|h| h == "ReactNode")
+    {
+        hooks.push("ReactNode".to_string());
+    }
+    // Slot declarations (consumer-side projections are excluded).
+    let mut slot_infos: Vec<(Option<String>, Option<TypeIR>)> = Vec::new();
+    if let Some(ref view) = comp.view {
+        jsx::collect_view_slots(view, component_map, &mut slot_infos);
     }
 
     // ── Child component imports ─────────────────────────────
@@ -86,11 +107,12 @@ pub(super) fn collect_component_imports(
         .collect();
 
     ComponentImports {
-        hooks: hooks.to_vec(),
+        hooks,
         has_styles,
-        has_motion,
         store_hook_lines,
         child_import_lines,
+        design_import_lines: design_import_lines.to_vec(),
+        slot_infos,
     }
 }
 
@@ -100,12 +122,11 @@ impl ComponentImports {
     /// Order of emission:
     /// 1. React hooks
     /// 2. `./name.module.css` (styles)
-    /// 3. `@omni/animation`
-    /// 4. Props interface (`{name}Props`)
-    /// 5. Store hook imports
-    /// 6. Child component imports
+    /// 3. Props interface (`{name}Props`)
+    /// 4. Store hook imports
+    /// 5. Child component imports
     pub(super) fn emit(&self, w: &mut CodeWriter, name: &str, comp: &ComponentIR, has_props: bool) {
-        // ── 1-3: React / styles / animate imports ───────────
+        // ── 1-2: React / styles imports ─────────────────────
         if !self.hooks.is_empty() {
             w.emit_fmt(format_args!(
                 "import React, {{ {} }} from 'react';",
@@ -115,10 +136,7 @@ impl ComponentImports {
         if self.has_styles {
             w.emit_fmt(format_args!("import styles from './{}.module.css';", name));
         }
-        if self.has_motion {
-            w.emit("import { animate } from \"@omni/animation\";");
-        }
-        if !self.hooks.is_empty() || self.has_styles || self.has_motion {
+        if !self.hooks.is_empty() || self.has_styles {
             w.emit("");
         }
 
@@ -146,6 +164,33 @@ impl ComponentImports {
                     event.name, ts_type
                 ));
             }
+            // Slot props — unnamed slot → `children`, named slots → same-named
+            // prop. Typed as ReactNode unless the source declared a type
+            // constraint (`@slot header: String` → `header?: string`).
+            // Dedup guards against parser artifacts where the literal text
+            // "@slot …" inside view content is parsed as a directive.
+            let mut emitted_slot_props: FxHashSet<String> = FxHashSet::default();
+            for (slot_name, type_constraint) in &self.slot_infos {
+                let slot_prop = slot_name.as_deref().unwrap_or("children");
+                if comp.props.contains_key(slot_prop)
+                    || comp.events.iter().any(|e| e.name == slot_prop)
+                    || !emitted_slot_props.insert(slot_prop.to_string())
+                {
+                    continue;
+                }
+                let ts_type = match type_constraint {
+                    Some(ty) => {
+                        let t = JsTypeFormatter.format_type(ty.kind.as_str(), &ty.type_args);
+                        if t.is_empty() {
+                            "ReactNode".to_string()
+                        } else {
+                            t
+                        }
+                    }
+                    None => "ReactNode".to_string(),
+                };
+                w.emit_fmt(format_args!("  {}?: {};", slot_prop, ts_type));
+            }
             w.emit("}");
             w.emit("");
         }
@@ -157,9 +202,16 @@ impl ComponentImports {
         for line in &self.child_import_lines {
             w.emit(line);
         }
+        // ── 7: Design runtime imports (root component) ─────
+        for line in &self.design_import_lines {
+            w.emit(line);
+        }
 
-        // Blank line after store/child imports
-        if !self.store_hook_lines.is_empty() || !self.child_import_lines.is_empty() {
+        // Blank line after store/child/design imports
+        if !self.store_hook_lines.is_empty()
+            || !self.child_import_lines.is_empty()
+            || !self.design_import_lines.is_empty()
+        {
             w.emit("");
         }
     }

@@ -2,6 +2,7 @@
 //!
 //! Includes: `lower_view_block`, `lower_view_node`.
 
+use super::component::lower_type;
 use super::expr::lower_expr;
 use super::stmt::lower_block;
 use crate::ir::logic::FunctionIR;
@@ -26,18 +27,29 @@ pub(super) fn lower_view_block(
     semantics: &mut SemanticResult,
     fns: &[FunctionIR],
 ) -> ViewTree {
-    if let Some(first) = view.children.first() {
-        let sig_idx = Cell::new(0usize);
-        lower_view_node(
-            first,
+    if view.children.is_empty() {
+        return ViewTree::Text("".into());
+    }
+    let sig_idx = Cell::new(0usize);
+    let mut lowered: Vec<ViewTree> = Vec::with_capacity(view.children.len());
+    for child in &view.children {
+        lowered.push(lower_view_node(
+            child,
             string_signals,
             Some(&sig_idx),
             variant_map,
             semantics,
             fns,
-        )
+        ));
+    }
+    // A single child lowers to that child directly; multiple top-level view
+    // nodes lower to a fragment so no node is silently dropped (previously
+    // only `children.first()` was lowered — multi-root views lost everything
+    // after the first element).
+    if lowered.len() == 1 {
+        lowered.pop().expect("len == 1")
     } else {
-        ViewTree::Text("".into())
+        ViewTree::Fragment(lowered)
     }
 }
 
@@ -204,8 +216,32 @@ pub(super) fn lower_view_node(
         }
         ViewNode::SlotDirective {
             name,
-            default_content: _,
-        } => ViewTree::Slot(name.clone()),
+            default_content,
+            type_constraint,
+        } => {
+            let fallback = default_content
+                .as_ref()
+                .map(|nodes| {
+                    nodes
+                        .iter()
+                        .map(|n| {
+                            lower_view_node(n, string_signals, sig_idx, variant_map, semantics, fns)
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            let (tc, dp) = if let Some(tc) = type_constraint {
+                (Some(lower_type(tc)), Some(name.clone().unwrap_or_default()))
+            } else {
+                (None, None)
+            };
+            ViewTree::Slot {
+                name: name.clone(),
+                fallback,
+                type_constraint: tc,
+                data_param: dp,
+            }
+        }
     }
 }
 
@@ -229,18 +265,23 @@ fn lower_element(
     let mut has_value_binding = false;
     let mut class_map_bindings_from_prop: Option<FxHashMap<String, ExprIR>> = None;
     let mut motion_triggers: Vec<TriggerIntent> = Vec::new();
-    let mut paused_override: Option<ExprIR> = None;
-    let mut in_view_once: Option<ExprIR> = None;
-    let mut in_view_repeat: Option<ExprIR> = None;
-    let mut in_view_threshold: Option<ExprIR> = None;
-    let mut scroll_start: Option<String> = None;
-    let mut scroll_end: Option<String> = None;
-    let mut scroll_scrub: Option<ExprIR> = None;
-    let mut drag_constraints: Option<String> = None;
-    let mut drag_elastic: Option<ExprIR> = None;
-    let mut drag_threshold: Option<ExprIR> = None;
-    let mut drag_velocity_max: Option<ExprIR> = None;
+    // Sub-attribute values (in-view once/repeat/threshold, scroll start/end/
+    // scrub, drag constraints/elastic/threshold/velocity-max) were removed as
+    // @-prefixed tokens per semantic-level DSL spec §3.2. The IR behavior
+    // structs keep their fields for now (always None) until Phase 1
+    // restructures them. paused_override was deleted outright (ADR-053).
+    let in_view_once: Option<ExprIR> = None;
+    let in_view_repeat: Option<ExprIR> = None;
+    let in_view_threshold: Option<ExprIR> = None;
+    let scroll_start: Option<String> = None;
+    let scroll_end: Option<String> = None;
+    let scroll_scrub: Option<ExprIR> = None;
+    let drag_constraints: Option<String> = None;
+    let drag_elastic: Option<ExprIR> = None;
+    let drag_threshold: Option<ExprIR> = None;
+    let drag_velocity_max: Option<ExprIR> = None;
     let mut ref_binding: Option<String> = None;
+    let mut semantic_bindings: Option<FxHashMap<String, ExprIR>> = None;
 
     for prop in &el.props {
         match prop {
@@ -443,17 +484,39 @@ fn lower_element(
             ElementProp::Ref(r) => {
                 ref_binding = Some(r.clone());
             }
+            // Semantic ref bindings: focus={sig}, scroll-x={sig}, scroll-y={sig},
+            // value={sig}. Extracted into ElementIR.semantic_bindings (consumed
+            // by codegen backends in later phases); the semantic pass enforces
+            // that they appear only on @ref-bound elements.
+            ElementProp::RefBinding { binding, signal } => {
+                semantic_bindings
+                    .get_or_insert_with(Default::default)
+                    .insert(
+                        binding.clone(),
+                        lower_expr(signal, variant_map, None, semantics),
+                    );
+            }
             // Motion animation triggers: on:hover={fadeIn}, etc.
             ElementProp::MotionTrigger(mt) => {
-                let motion_ref = match &mt.motion_expr {
-                    Expr::VarRef(name, _) => Some(name.clone()),
-                    _ => None,
+                // Two forms: a named motion reference (@enter={fadeIn}) or an
+                // inline tween body (@enter={{ opacity: 0, scale: 0.8 }} —
+                // parsed as a MapLiteral). Inline bodies are lowered to a
+                // KeyframeIR here and hoisted into the module motion table by
+                // the lower_inline_motions pass.
+                let (motion_ref, inline_motion) = match &mt.motion_expr {
+                    Expr::VarRef(name, _) => (Some(name.clone()), None),
+                    Expr::MapLiteral { entries, .. } => (
+                        None,
+                        Some(lower_inline_motion_map(entries, variant_map, semantics)),
+                    ),
+                    _ => (None, None),
                 };
                 motion_triggers.push(TriggerIntent {
                     kind: match &mt.trigger {
                         crate::parser::ast::TriggerKind::Enter => TriggerKind::Enter,
                         crate::parser::ast::TriggerKind::Hover => TriggerKind::Hover,
                         crate::parser::ast::TriggerKind::Press => TriggerKind::Press,
+                        crate::parser::ast::TriggerKind::Focus => TriggerKind::Focus,
                         crate::parser::ast::TriggerKind::InView => TriggerKind::InView,
                         crate::parser::ast::TriggerKind::Scroll => TriggerKind::Scroll,
                         crate::parser::ast::TriggerKind::DragHorizontal => {
@@ -462,58 +525,25 @@ fn lower_element(
                         crate::parser::ast::TriggerKind::DragVertical => TriggerKind::DragVertical,
                     },
                     motion_ref,
-                    inline_motion: None,
+                    inline_motion,
                     source_span: None,
                 });
-            }
-            // Paused override: @paused={expr}
-            ElementProp::PausedOverride(expr) => {
-                paused_override = Some(lower_expr(expr, variant_map, None, semantics));
-            }
-            // InView trigger: once
-            ElementProp::InViewOnce(expr) => {
-                in_view_once = Some(lower_expr(expr, variant_map, None, semantics));
-            }
-            // InView trigger: repeat
-            ElementProp::InViewRepeat(expr) => {
-                in_view_repeat = Some(lower_expr(expr, variant_map, None, semantics));
-            }
-            // InView trigger: threshold
-            ElementProp::InViewThreshold(expr) => {
-                in_view_threshold = Some(lower_expr(expr, variant_map, None, semantics));
-            }
-            // Scroll sub-attributes
-            ElementProp::ScrollStart(s) => {
-                scroll_start = Some(s.clone());
-            }
-            ElementProp::ScrollEnd(s) => {
-                scroll_end = Some(s.clone());
-            }
-            ElementProp::ScrollScrub(expr) => {
-                scroll_scrub = Some(lower_expr(expr, variant_map, None, semantics));
-            }
-            // Drag sub-attributes
-            ElementProp::DragConstraints(s) => {
-                drag_constraints = Some(s.clone());
-            }
-            ElementProp::DragElastic(expr) => {
-                drag_elastic = Some(lower_expr(expr, variant_map, None, semantics));
-            }
-            ElementProp::DragThreshold(expr) => {
-                drag_threshold = Some(lower_expr(expr, variant_map, None, semantics));
-            }
-            ElementProp::DragVelocityMax(expr) => {
-                drag_velocity_max = Some(lower_expr(expr, variant_map, None, semantics));
-            }
-            // DragScrub and DragMomentum are no longer supported — silently ignore
-            ElementProp::DragScrub(_) | ElementProp::DragMomentum(_) => {}
+            } // Deleted sub-attribute ElementProps (@paused, in-view once/repeat/
+              // threshold, scroll start/end/scrub, drag constraints/elastic/scrub/
+              // momentum/threshold/velocity-max) no longer exist — they are parsed
+              // as regular ident-based attrs per semantic-level DSL spec §3.2 and
+              // will be lowered again once the new attr syntax lands (Tasks 0.3-0.4).
         }
     }
 
     // Auto-bind <input> elements to String signals if no explicit bind:value
-    // and no existing value={expr} prop (one-way reactive binding).
+    // and no existing value={expr} prop or value semantic binding (one-way
+    // reactive binding).
     // Skip checkbox/radio inputs — they use "checked" property, not "value".
-    let has_value_prop = props.as_ref().is_some_and(|p| p.contains_key("value"));
+    let has_value_prop = props.as_ref().is_some_and(|p| p.contains_key("value"))
+        || semantic_bindings
+            .as_ref()
+            .is_some_and(|s| s.contains_key("value"));
     let is_checkbox_or_radio = props.as_ref().is_some_and(|p| {
         p.get("type").is_some_and(|v| {
             matches!(v, ExprIR::LiteralExpr { value: serde_json::Value::String(s) } if s == "checkbox" || s == "radio")
@@ -565,14 +595,12 @@ fn lower_element(
         source_span: Some(el.span),
         motion: {
             let has_any = !motion_triggers.is_empty()
-                || paused_override.is_some()
                 || in_view_once.is_some()
                 || in_view_repeat.is_some()
                 || in_view_threshold.is_some();
             if has_any {
                 Some(Box::new(MotionBehavior {
                     triggers: motion_triggers,
-                    paused_override,
                     in_view_once,
                     in_view_repeat,
                     in_view_threshold,
@@ -612,7 +640,47 @@ fn lower_element(
             }
         },
         ref_binding,
+        semantic_bindings: semantic_bindings.unwrap_or_default(),
     }))
+}
+
+/// Lower an inline motion tween body (`@enter={{ opacity: 0, scale: 0.8 }}`)
+/// into a `KeyframeIR`.
+///
+/// The map is a single "from" stop at position 0.0: the element animates from
+/// these values to its natural state when the trigger fires. Inline tweens
+/// carry no `over`/`easing` clauses, so the duration defaults to 400ms — the
+/// same default used by the inline-motion codegen fixtures. The
+/// `lower_inline_motions` pass later hoists the body into the module motion
+/// table under a synthesized name.
+fn lower_inline_motion_map(
+    entries: &[(Expr, Expr)],
+    variant_map: &FxHashMap<String, String>,
+    semantics: &mut SemanticResult,
+) -> KeyframeIR {
+    let mut properties = FxHashMap::default();
+    for (key, value) in entries {
+        if let Expr::Literal(Literal::String(name), _) = key {
+            properties.insert(
+                name.clone(),
+                lower_expr(value, variant_map, None, semantics),
+            );
+        }
+    }
+    KeyframeIR {
+        stops: vec![KeyframeStopIR {
+            position: 0.0,
+            properties,
+            ease: None,
+            source_span: None,
+        }],
+        over: ExprIR::LiteralExpr {
+            value: serde_json::json!(400),
+        },
+        ease: None,
+        playback: PlaybackIR::default(),
+        source_span: None,
+    }
 }
 
 // ── If-directive lowering ─────────────────────────────────
@@ -707,6 +775,7 @@ fn lower_for_directive(
             .empty_body
             .as_ref()
             .and_then(|nodes| lower_body(nodes.as_slice(), semantics)),
+        scroll_hint: for_dir.scroll_hint,
     }))
 }
 
@@ -751,6 +820,7 @@ fn make_fragment_element(children: Vec<ViewTree>, construction_kind: Constructio
         scroll: None,
         drag: None,
         ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
     }))
 }
 
@@ -796,6 +866,155 @@ mod tests {
                 );
             }
             _ => panic!("Expected ViewTree::Element"),
+        }
+    }
+
+    #[test]
+    fn test_lower_element_ref_binding_lowers_to_semantic_bindings() {
+        // RefBinding props lower into ElementIR.semantic_bindings — not into
+        // the props map. Codegen backends consume semantic_bindings directly
+        // (focus={sig}, scroll-x={sig}, scroll-y={sig}, value={sig}).
+        let span = Span {
+            start: 0,
+            end: 0,
+            line: 1,
+            col: 1,
+        };
+        let el = Element {
+            tag: "div".into(),
+            props: vec![ElementProp::RefBinding {
+                binding: "scroll-y".into(),
+                signal: Expr::VarRef("pos".into(), span),
+            }],
+            children: vec![],
+            self_closing: true,
+            span,
+        };
+        let mut semantics = SemanticResult {
+            symbols: SymbolTable::default(),
+            dependencies: FxHashMap::default(),
+            diagnostics: vec![],
+            event_param_name: None,
+        };
+        let result = lower_element(&el, &[], None, &FxHashMap::default(), &mut semantics, &[]);
+        match result {
+            ViewTree::Element(el_ir) => {
+                assert!(
+                    el_ir.semantic_bindings.contains_key("scroll-y"),
+                    "scroll-y should be lowered into semantic_bindings"
+                );
+                assert!(
+                    matches!(
+                        el_ir.semantic_bindings.get("scroll-y"),
+                        Some(ExprIR::IdentifierExpr { name, .. }) if name == "pos"
+                    ),
+                    "signal expr should lower to IdentifierExpr(pos)"
+                );
+                assert!(
+                    !el_ir.props.contains_key("scroll-y"),
+                    "scroll-y should NOT be lowered into props"
+                );
+            }
+            _ => panic!("Expected ViewTree::Element"),
+        }
+    }
+
+    #[test]
+    fn test_auto_bind_skipped_when_semantic_value_binding_present() {
+        // <input value={sig} /> is a semantic binding — the auto-bind logic
+        // must not also insert a bind:value for a String signal.
+        let span = Span {
+            start: 0,
+            end: 0,
+            line: 1,
+            col: 1,
+        };
+        let el = Element {
+            tag: "input".into(),
+            props: vec![ElementProp::RefBinding {
+                binding: "value".into(),
+                signal: Expr::VarRef("text".into(), span),
+            }],
+            children: vec![],
+            self_closing: true,
+            span,
+        };
+        let mut semantics = SemanticResult {
+            symbols: SymbolTable::default(),
+            dependencies: FxHashMap::default(),
+            diagnostics: vec![],
+            event_param_name: None,
+        };
+        let string_signals = vec!["unrelated".to_string()];
+        let result = lower_element(
+            &el,
+            &string_signals,
+            Some(&Cell::new(0usize)),
+            &FxHashMap::default(),
+            &mut semantics,
+            &[],
+        );
+        match result {
+            ViewTree::Element(el_ir) => {
+                assert!(
+                    el_ir.semantic_bindings.contains_key("value"),
+                    "value should be a semantic binding"
+                );
+                assert!(
+                    !el_ir.bindings.contains_key("value"),
+                    "auto-bind must not add bind:value when value={{sig}} exists"
+                );
+            }
+            _ => panic!("Expected ViewTree::Element"),
+        }
+    }
+
+    /// Regression: a view block with multiple top-level nodes must lower ALL
+    /// of them (previously only `children.first()` was lowered, silently
+    /// dropping every node after the first element).
+    #[test]
+    fn test_multi_root_view_block_preserves_all_children() {
+        let source = r#"
+component MultiRoot {
+    view {
+        <div class: a>A</div>
+        <div class: b @hover={pulse}>B</div>
+    }
+}
+"#;
+        let tokens = crate::lexer::tokenize(source);
+        let (program, errors) = crate::parser::parse(tokens, source);
+        assert!(
+            errors.is_empty(),
+            "unexpected parse errors: {:?}",
+            errors.iter().map(|e| &e.message).collect::<Vec<_>>()
+        );
+        let mut semantics = SemanticResult {
+            symbols: SymbolTable::default(),
+            dependencies: FxHashMap::default(),
+            diagnostics: vec![],
+            event_param_name: None,
+        };
+        let ir = crate::ir::lower(&program, &mut semantics, None);
+        let module = ir.modules.get("input.omni").expect("module");
+        let comp = module.components.get("MultiRoot").expect("component");
+        let view = comp.view.as_ref().expect("view");
+        match view {
+            ViewTree::Fragment(children) => {
+                assert_eq!(children.len(), 2, "both top-level nodes must survive");
+                let texts: Vec<&str> = children
+                    .iter()
+                    .filter_map(|c| match c {
+                        ViewTree::Element(el) => el.children.iter().find_map(|g| match g {
+                            ViewTree::Text(t) => Some(t.as_str()),
+                            _ => None,
+                        }),
+                        _ => None,
+                    })
+                    .collect();
+                assert_eq!(texts, vec!["A", "B"], "both elements must be present");
+            }
+            _ => panic!("Expected ViewTree::Fragment for a multi-root view"),
         }
     }
 }

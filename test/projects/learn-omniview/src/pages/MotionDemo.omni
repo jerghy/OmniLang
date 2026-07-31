@@ -55,7 +55,7 @@ component MotionDemo {
         Toggle Modal
       </button>
 
-      @if isOpen mode="sync" {
+      @if isOpen mode: "fade" {
         <div @enter={fadeInUp}>
           <h2>Modal Content</h2>
         </div>

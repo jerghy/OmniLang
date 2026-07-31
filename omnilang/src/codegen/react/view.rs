@@ -9,20 +9,25 @@ use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 
 use super::super::capitalize_first;
+use super::component::jsx::collect_view_slots;
+use super::design::DesignCtx;
 use super::expr::{format_expr_ir_tsx, generate_statement_tsx};
 use super::utils::{emit_event_object_react, to_jsx_attr, to_react_event, to_react_tag};
 use crate::codegen::omniview::is_dangerous_url;
-use crate::codegen::{format_json_value, JSON_REACT};
 use omnilang_core::codegen::sanitize::sanitize_css_value;
 use std::fmt::Write;
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn gen_view_node_tsx(
     w: &mut CodeWriter,
     node: &ViewTree,
     component_map: &FxHashMap<&str, &ComponentIR>,
+    design_ctx: &DesignCtx,
     signal_names: &FxHashSet<String>,
+    store_signal_owners: &FxHashMap<String, String>,
     motion_names: &FxHashSet<String>,
     ref_names: &FxHashSet<String>,
+    motion_counter: &mut usize,
 ) {
     match node {
         ViewTree::Element(el) => {
@@ -36,19 +41,37 @@ pub(super) fn gen_view_node_tsx(
                         w,
                         child,
                         component_map,
+                        design_ctx,
                         signal_names,
+                        store_signal_owners,
                         motion_names,
                         ref_names,
+                        motion_counter,
                     );
                 }
                 return;
             }
 
             // Component composition: check if tag is a known component
-            if let Some(_child_comp) = component_map.get(el.tag.as_str()) {
+            if let Some(child_comp) = component_map.get(el.tag.as_str()) {
                 // Ref forwarding for custom components is Phase 2 — skip for now
                 if el.ref_binding.is_some() {
                     // Only native HTML elements support @ref in the current phase
+                }
+                // Slots the child component actually declares — children
+                // carrying a `slot="name"` attribute project into the matching
+                // named prop; anything else flows into the `children` prop.
+                // Unknown slot names fall back into `children` (content stays
+                // visible and the generated TS never breaks).
+                let mut declared_slot_names: FxHashSet<String> = FxHashSet::default();
+                if let Some(ref child_view) = child_comp.view {
+                    let mut slot_infos: Vec<(Option<String>, Option<TypeIR>)> = Vec::new();
+                    collect_view_slots(child_view, component_map, &mut slot_infos);
+                    for (slot_name, _) in slot_infos {
+                        if let Some(n) = slot_name {
+                            declared_slot_names.insert(n);
+                        }
+                    }
                 }
                 let mut comp_attrs: Vec<String> = Vec::new();
                 for (prop_name, prop_value) in &el.props {
@@ -62,8 +85,13 @@ pub(super) fn gen_view_node_tsx(
                             comp_attrs.push(format!("{}={{{}}}", jsx_event, r#ref));
                         }
                         EventHandlerIR::InlineFn { body, params, .. } => {
-                            let handler_str =
-                                format_inline_handler(body, signal_names, params, ref_names);
+                            let handler_str = format_inline_handler(
+                                body,
+                                signal_names,
+                                store_signal_owners,
+                                params,
+                                ref_names,
+                            );
                             comp_attrs.push(format!("{}={{{}}}", jsx_event, handler_str));
                         }
                         EventHandlerIR::StoreAction { r#ref, .. } => {
@@ -73,20 +101,60 @@ pub(super) fn gen_view_node_tsx(
                         }
                     }
                 }
+                // Partition children: elements carrying a literal
+                // `slot="name"` attribute, or consumer-position
+                // `@slot name { ... }` projections, matching a declared slot
+                // project into the named prop; everything else goes to the
+                // default `children` prop.
+                let mut default_children: Vec<&ViewTree> = Vec::new();
+                let mut named_children: Vec<(String, &ViewTree)> = Vec::new();
+                for child in &el.children {
+                    match child_slot_name(child) {
+                        Some(slot_name) if declared_slot_names.contains(&slot_name) => {
+                            named_children.push((slot_name, child));
+                        }
+                        _ => default_children.push(child),
+                    }
+                }
+                for (slot_name, child) in &named_children {
+                    // Render the projected content into the named prop and
+                    // strip the `slot` attribute so it never leaks into the
+                    // DOM (it is only meaningful for web components).
+                    let mut child_w = crate::codegen::CodeWriter::new();
+                    gen_consumer_child_tsx(
+                        &mut child_w,
+                        child,
+                        component_map,
+                        design_ctx,
+                        signal_names,
+                        store_signal_owners,
+                        motion_names,
+                        ref_names,
+                        motion_counter,
+                    );
+                    let child_jsx = child_w.into_string();
+                    let trimmed = child_jsx.trim();
+                    if !trimmed.is_empty() {
+                        comp_attrs.push(format!("{}={{{}}}", slot_name, trimmed));
+                    }
+                }
                 let attrs_str = comp_attrs.join(" ");
-                if el.children.is_empty() {
+                if default_children.is_empty() {
                     w.emit_fmt(format_args!("<{} {}/>", el.tag, attrs_str));
                 } else {
                     w.emit_fmt(format_args!("<{} {}>", el.tag, attrs_str));
                     w.indent();
-                    for child in &el.children {
-                        gen_view_node_tsx(
+                    for child in default_children {
+                        gen_consumer_child_tsx(
                             w,
                             child,
                             component_map,
+                            design_ctx,
                             signal_names,
+                            store_signal_owners,
                             motion_names,
                             ref_names,
+                            motion_counter,
                         );
                     }
                     w.dedent();
@@ -115,9 +183,14 @@ pub(super) fn gen_view_node_tsx(
                 .collect();
 
             // Static props — skip names that will be populated by bindings
+            // `_design_variant` (variant: DesignName.Variant(dim=val)) is
+            // expanded into literal global class names after the other class
+            // attributes are merged (see below).
+            let mut variant_classes: Option<Vec<String>> = None;
             for (prop_name, prop_value) in &el.props {
                 // Skip internal IR props (not valid HTML/React attributes)
                 if prop_name == "_design_variant" {
+                    variant_classes = design_ctx.expand_variant_classes(prop_value);
                     continue;
                 }
                 let jsx_attr = to_jsx_attr(prop_name);
@@ -128,10 +201,11 @@ pub(super) fn gen_view_node_tsx(
                 match prop_value {
                     ExprIR::LiteralExpr { value } if value.is_string() => {
                         let s = value.as_str().unwrap_or_default(); // defense-in-depth fallback
-                                                                    // Use CSS module syntax for className props
                         if jsx_attr == "className" {
                             // Split multi-class names: "browserTab tabActive" → styles['browserTab'] + ' ' + styles['tabActive']
-                            // Exclude class names that are handled by class_map_bindings
+                            // Exclude class names that are handled by class_map_bindings.
+                            // Design classes are global CSS in design.css and
+                            // are emitted as literal class names (HIGH #1).
                             let classes: Vec<&str> = s
                                 .split_whitespace()
                                 .filter(|c| !binding_names.contains(c))
@@ -139,11 +213,16 @@ pub(super) fn gen_view_node_tsx(
                             if classes.is_empty() {
                                 // All classes are handled by bindings — skip static className
                             } else if classes.len() > 1 {
-                                let parts: Vec<String> =
-                                    classes.iter().map(|c| format!("styles['{}']", c)).collect();
+                                let parts: Vec<String> = classes
+                                    .iter()
+                                    .map(|c| design_ctx.format_class_ref(c))
+                                    .collect();
                                 attrs.push(format!("className={{{}}}", parts.join(" + ' ' + ")));
                             } else {
-                                attrs.push(format!("className={{styles['{}']}}", classes[0]));
+                                attrs.push(format!(
+                                    "className={{{}}}",
+                                    design_ctx.format_class_ref(classes[0])
+                                ));
                             }
                         } else {
                             // Check URL attributes for dangerous schemes (javascript:, data:, vbscript:)
@@ -190,127 +269,31 @@ pub(super) fn gen_view_node_tsx(
                 }
             }
 
-            // Motion triggers — add data-motion-enter for @enter effects, inline handlers for interactive
-
-            /// Emit a motion data attribute value. Literal numbers become quoted strings
-            /// (parseFloat-compatible); expression values become JSX `{expr}` interpolation.
-            fn emit_motion_data_attr(
-                attrs: &mut Vec<String>,
-                attr_name: &str,
-                expr: &ExprIR,
-                ref_names: &FxHashSet<String>,
-            ) {
-                match expr {
-                    ExprIR::LiteralExpr { value } if value.is_number() => {
-                        let s = format_json_value(value, &JSON_REACT);
-                        attrs.push(format!("{}=\"{}\"", attr_name, s));
-                    }
-                    _ => {
-                        let js = format_expr_ir_tsx(expr, ref_names);
-                        attrs.push(format!("{}={{{}}}", attr_name, js));
-                    }
+            // Motion triggers — per-element ref + JSX handler wiring. The
+            // effects themselves live in motion_effects.rs; this site only:
+            // 1. assigns the element's motion ref (user @ref, or synthesized
+            //    `__el_N` — see motion::classify_motion_el), and
+            // 2. wires @hover/@press to useCallback handlers emitted there.
+            let motion_info = super::motion::classify_motion_el(el, component_map, motion_counter);
+            if let Some((ref motion_ref_name, motion_idx)) = &motion_info {
+                if el.ref_binding.is_none() {
+                    // Synthesized refs are declared as `const __el_NRef = useRef(...)`
+                    attrs.push(format!("ref={{{}Ref}}", motion_ref_name));
                 }
-            }
-
-            for trigger in el
-                .motion_behavior()
-                .map_or(&[] as &[TriggerIntent], |m| &m.triggers)
-            {
-                match trigger.kind {
-                    TriggerKind::Enter => {
-                        attrs.push("data-motion-enter=\"true\"".into());
-                        if let Some(ref motion_name) = trigger.motion_ref {
-                            attrs.push(format!("data-motion-name=\"{}\"", motion_name));
+                for trigger in el
+                    .motion_behavior()
+                    .map_or(&[] as &[TriggerIntent], |m| &m.triggers)
+                {
+                    match trigger.kind {
+                        TriggerKind::Hover => {
+                            attrs.push(format!("onMouseEnter={{handleEnter_{}}}", motion_idx));
+                            attrs.push(format!("onMouseLeave={{handleLeave_{}}}", motion_idx));
                         }
-                    }
-                    TriggerKind::Hover => {
-                        attrs.push("data-motion-hover=\"true\"".into());
-                        if let Some(ref motion_name) = trigger.motion_ref {
-                            attrs.push(format!("data-motion-hover-name=\"{}\"", motion_name));
+                        TriggerKind::Press => {
+                            attrs.push(format!("onPointerDown={{handleDown_{}}}", motion_idx));
+                            attrs.push(format!("onPointerUp={{handleUp_{}}}", motion_idx));
                         }
-                    }
-                    TriggerKind::Press => {
-                        attrs.push("data-motion-press=\"true\"".into());
-                        if let Some(ref motion_name) = trigger.motion_ref {
-                            attrs.push(format!("data-motion-press-name=\"{}\"", motion_name));
-                        }
-                    }
-                    TriggerKind::InView => {
-                        match el
-                            .motion_behavior()
-                            .and_then(|m| m.in_view_threshold.as_ref())
-                        {
-                            Some(expr) => emit_motion_data_attr(
-                                &mut attrs,
-                                "data-inview-threshold",
-                                expr,
-                                ref_names,
-                            ),
-                            None => attrs.push("data-inview-threshold=\"0\"".into()),
-                        };
-                        attrs.push("data-motion-inview=\"true\"".into());
-                        if let Some(ref motion_name) = trigger.motion_ref {
-                            attrs.push(format!("data-motion-inview-name=\"{}\"", motion_name));
-                        }
-                    }
-                    TriggerKind::Scroll => {
-                        let scroll_start_str = el
-                            .scroll_behavior()
-                            .and_then(|s| s.start.as_deref())
-                            .unwrap_or("top 80%");
-                        let scroll_end_str = el
-                            .scroll_behavior()
-                            .and_then(|s| s.end.as_deref())
-                            .unwrap_or("bottom 20%");
-                        attrs.push("data-motion-scroll=\"true\"".into());
-                        attrs.push(format!("data-scroll-start=\"{}\"", scroll_start_str));
-                        attrs.push(format!("data-scroll-end=\"{}\"", scroll_end_str));
-                        match el.scroll_behavior().and_then(|s| s.scrub.as_ref()) {
-                            Some(expr) => emit_motion_data_attr(
-                                &mut attrs,
-                                "data-scroll-scrub",
-                                expr,
-                                ref_names,
-                            ),
-                            None => attrs.push("data-scroll-scrub=\"0\"".into()),
-                        };
-                    }
-                    TriggerKind::DragHorizontal | TriggerKind::DragVertical => {
-                        let is_horizontal = matches!(trigger.kind, TriggerKind::DragHorizontal);
-                        let axis_str = if is_horizontal { "x" } else { "y" };
-                        let constraints_str = el
-                            .drag_behavior()
-                            .and_then(|d| d.constraints.as_deref())
-                            .unwrap_or("");
-                        attrs.push(format!("data-motion-drag=\"{}\"", axis_str));
-                        attrs.push(format!("data-drag-constraints=\"{}\"", constraints_str));
-                        match el.drag_behavior().and_then(|d| d.elastic.as_ref()) {
-                            Some(expr) => emit_motion_data_attr(
-                                &mut attrs,
-                                "data-drag-elastic",
-                                expr,
-                                ref_names,
-                            ),
-                            None => attrs.push("data-drag-elastic=\"0\"".into()),
-                        };
-                        match el.drag_behavior().and_then(|d| d.threshold.as_ref()) {
-                            Some(expr) => emit_motion_data_attr(
-                                &mut attrs,
-                                "data-drag-threshold",
-                                expr,
-                                ref_names,
-                            ),
-                            None => attrs.push("data-drag-threshold=\"0\"".into()),
-                        };
-                        match el.drag_behavior().and_then(|d| d.velocity_max.as_ref()) {
-                            Some(expr) => emit_motion_data_attr(
-                                &mut attrs,
-                                "data-drag-velocity-max",
-                                expr,
-                                ref_names,
-                            ),
-                            None => attrs.push("data-drag-velocity-max=\"2000\"".into()),
-                        };
+                        _ => {}
                     }
                 }
             }
@@ -382,6 +365,7 @@ pub(super) fn gen_view_node_tsx(
                                     &mut merged_hw,
                                     stmt,
                                     signal_names,
+                                    store_signal_owners,
                                     ref_names,
                                 );
                             }
@@ -410,6 +394,7 @@ pub(super) fn gen_view_node_tsx(
                                         &mut merged_hw,
                                         stmt,
                                         signal_names,
+                                        store_signal_owners,
                                         ref_names,
                                     );
                                 }
@@ -426,8 +411,13 @@ pub(super) fn gen_view_node_tsx(
                                 result.push_str("      }");
                                 attrs.push(format!("{}={{{}}}", react_event, result));
                             } else {
-                                let handler_str =
-                                    format_inline_handler(body, signal_names, params, ref_names);
+                                let handler_str = format_inline_handler(
+                                    body,
+                                    signal_names,
+                                    store_signal_owners,
+                                    params,
+                                    ref_names,
+                                );
                                 attrs.push(format!("{}={{{}}}", react_event, handler_str));
                             }
                         }
@@ -455,18 +445,23 @@ pub(super) fn gen_view_node_tsx(
                 attrs.push(format!("{}={{(e) => {{ {}; }}}}", event_name, setter_call));
             }
 
-            // Style classes from view
+            // Style classes from view — design classes emit literal names
+            // (global rules in design.css), component classes stay CSS-module
+            // lookups (HIGH #1).
             if let Some(ref classes) = el.style_classes {
                 if let Some(classes_str) = classes.as_str() {
                     let class_parts: Vec<&str> = classes_str.split_whitespace().collect();
                     if class_parts.len() > 1 {
                         let parts: Vec<String> = class_parts
                             .iter()
-                            .map(|c| format!("styles['{}']", c))
+                            .map(|c| design_ctx.format_class_ref(c))
                             .collect();
                         attrs.push(format!("className={{{}}}", parts.join(" + ' ' + ")));
                     } else {
-                        attrs.push(format!("className={{styles['{}']}}", classes_str));
+                        attrs.push(format!(
+                            "className={{{}}}",
+                            design_ctx.format_class_ref(classes_str)
+                        ));
                     }
                 }
             }
@@ -486,21 +481,24 @@ pub(super) fn gen_view_node_tsx(
                 }
             }
 
-            // Dynamic class bindings: class:active={isOpen} → className using CSS module syntax
+            // Dynamic class bindings: class:active={isOpen} → className using
+            // CSS module syntax for component classes, literal names for
+            // design classes (global rules in design.css, HIGH #1).
             if !el.class_map_bindings.is_empty() {
                 let mut static_classes: Vec<String> = Vec::new();
                 let mut dynamic_parts: Vec<String> = Vec::new();
                 for (cls, expr) in &el.class_map_bindings {
                     match expr {
                         ExprIR::LiteralExpr { value } if value.as_bool() == Some(true) => {
-                            static_classes.push(format!("styles['{}']", cls));
+                            static_classes.push(design_ctx.format_class_ref(cls));
                         }
                         ExprIR::LiteralExpr { value } if value.as_bool() == Some(false) => {
                             // skip — class not applied
                         }
                         _ => {
                             let cond = format_expr_ir_tsx(expr, ref_names);
-                            dynamic_parts.push(format!("${{{cond} ? styles['{cls}'] : ''}}"));
+                            let class_ref = design_ctx.format_class_ref(cls);
+                            dynamic_parts.push(format!("${{{cond} ? {class_ref} : ''}}"));
                         }
                     }
                 }
@@ -543,6 +541,15 @@ pub(super) fn gen_view_node_tsx(
                         attrs.push(format!("className={{{}}}", new_class));
                     }
                 }
+            }
+
+            // Design variant binding: `variant: LearnDesign.Button(color=primary)`
+            // → literal global class names ("Button primary") matching the
+            // combination rules in design.css (HIGH #1).  Merged last so a
+            // `class:` on the same element keeps both.
+            if let Some(variant_classes) = variant_classes {
+                let joined = variant_classes.join(" ");
+                append_class_attr(&mut attrs, format!("\"{}\"", joined));
             }
 
             // Ensure <button> has explicit type to prevent accidental form submission
@@ -607,9 +614,12 @@ pub(super) fn gen_view_node_tsx(
                     w,
                     child,
                     component_map,
+                    design_ctx,
                     signal_names,
+                    store_signal_owners,
                     motion_names,
                     ref_names,
+                    motion_counter,
                 );
             }
             w.dedent();
@@ -623,7 +633,17 @@ pub(super) fn gen_view_node_tsx(
 
             if branches.is_empty() {
                 if let Some(ref fb) = fallback {
-                    gen_view_node_tsx(w, fb, component_map, signal_names, motion_names, ref_names);
+                    gen_branch_body_tsx(
+                        w,
+                        fb,
+                        component_map,
+                        design_ctx,
+                        signal_names,
+                        store_signal_owners,
+                        motion_names,
+                        ref_names,
+                        motion_counter,
+                    );
                 }
                 return;
             }
@@ -636,13 +656,16 @@ pub(super) fn gen_view_node_tsx(
                 w.emit_fmt(format_args!("{} && (", cond_str));
                 w.indent();
                 if let Some(ref body) = branches[0].body {
-                    gen_view_node_tsx(
+                    gen_branch_body_tsx(
                         w,
                         body,
                         component_map,
+                        design_ctx,
                         signal_names,
+                        store_signal_owners,
                         motion_names,
                         ref_names,
+                        motion_counter,
                     );
                 }
                 w.dedent();
@@ -664,13 +687,16 @@ pub(super) fn gen_view_node_tsx(
                 w.emit_fmt(format_args!("{} ? (", cond_str));
                 w.indent();
                 if let Some(ref body) = first_branch.body {
-                    gen_view_node_tsx(
+                    gen_branch_body_tsx(
                         w,
                         body,
                         component_map,
+                        design_ctx,
                         signal_names,
+                        store_signal_owners,
                         motion_names,
                         ref_names,
+                        motion_counter,
                     );
                 }
                 w.dedent();
@@ -683,13 +709,16 @@ pub(super) fn gen_view_node_tsx(
                     w.emit_fmt(format_args!("{} ? (", cond_str));
                     w.indent();
                     if let Some(ref body) = branch.body {
-                        gen_view_node_tsx(
+                        gen_branch_body_tsx(
                             w,
                             body,
                             component_map,
+                            design_ctx,
                             signal_names,
+                            store_signal_owners,
                             motion_names,
                             ref_names,
+                            motion_counter,
                         );
                     }
                     w.dedent();
@@ -699,7 +728,17 @@ pub(super) fn gen_view_node_tsx(
                 if let Some(ref fb) = fallback {
                     w.emit(") : (");
                     w.indent();
-                    gen_view_node_tsx(w, fb, component_map, signal_names, motion_names, ref_names);
+                    gen_branch_body_tsx(
+                        w,
+                        fb,
+                        component_map,
+                        design_ctx,
+                        signal_names,
+                        store_signal_owners,
+                        motion_names,
+                        ref_names,
+                        motion_counter,
+                    );
                     w.dedent();
                     w.emit(")");
                 } else {
@@ -711,7 +750,17 @@ pub(super) fn gen_view_node_tsx(
                 }
             } else if let Some(ref fb) = fallback {
                 // No branches, just fallback
-                gen_view_node_tsx(w, fb, component_map, signal_names, motion_names, ref_names);
+                gen_branch_body_tsx(
+                    w,
+                    fb,
+                    component_map,
+                    design_ctx,
+                    signal_names,
+                    store_signal_owners,
+                    motion_names,
+                    ref_names,
+                    motion_counter,
+                );
             }
 
             w.dedent();
@@ -737,13 +786,16 @@ pub(super) fn gen_view_node_tsx(
                 ));
                 w.indent();
                 if let Some(ref empty_body) = list.empty_body {
-                    gen_view_node_tsx(
+                    gen_branch_body_tsx(
                         w,
                         empty_body,
                         component_map,
+                        design_ctx,
                         signal_names,
+                        store_signal_owners,
                         motion_names,
                         ref_names,
+                        motion_counter,
                     );
                 }
                 w.dedent();
@@ -767,9 +819,12 @@ pub(super) fn gen_view_node_tsx(
                     w,
                     body,
                     component_map,
+                    design_ctx,
                     signal_names,
+                    store_signal_owners,
                     motion_names,
                     ref_names,
+                    motion_counter,
                 );
             }
             w.dedent();
@@ -818,18 +873,169 @@ pub(super) fn gen_view_node_tsx(
                     w,
                     child,
                     component_map,
+                    design_ctx,
                     signal_names,
+                    store_signal_owners,
                     motion_names,
                     ref_names,
+                    motion_counter,
                 );
             }
         }
-        ViewTree::Slot(name) => {
-            let slot_desc = name.as_deref().unwrap_or("default");
-            w.emit_fmt(format_args!("{{/* WARNING: <slot name=\"{}\"> is not supported in React. Use children or named props instead. */}}", slot_desc));
+        ViewTree::Slot { name, fallback, .. } => {
+            // Named slots map to same-named props; the unnamed slot maps to
+            // `children`. When the parent provides no content for the slot,
+            // the preserved fallback (Task 1.2) is rendered instead:
+            //   {header ?? (fallback JSX)}
+            // Multi-node fallbacks are wrapped in a fragment by
+            // gen_branch_body_tsx so the emitted TSX stays valid.
+            let prop_name = name.as_deref().unwrap_or("children");
+            if fallback.is_empty() {
+                w.emit_fmt(format_args!("{{{}}}", prop_name));
+            } else {
+                w.emit_fmt(format_args!("{{{} ?? (", prop_name));
+                w.indent();
+                gen_branch_body_tsx(
+                    w,
+                    &ViewTree::Fragment(fallback.clone()),
+                    component_map,
+                    design_ctx,
+                    signal_names,
+                    store_signal_owners,
+                    motion_names,
+                    ref_names,
+                    motion_counter,
+                );
+                w.dedent();
+                w.emit(")}");
+            }
         }
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
+    }
+}
+
+/// Emit a conditional/ternary branch body (also used for `@for` empty
+/// states). A body with multiple top-level nodes is wrapped in a React
+/// fragment (`<>...</>`) so the adjacent JSX children stay valid inside the
+/// parenthesized `(body)` expression — e.g. an `@if` body containing a slot
+/// plus a sibling element.
+#[allow(clippy::too_many_arguments)]
+fn gen_branch_body_tsx(
+    w: &mut CodeWriter,
+    body: &ViewTree,
+    component_map: &FxHashMap<&str, &ComponentIR>,
+    design_ctx: &DesignCtx,
+    signal_names: &FxHashSet<String>,
+    store_signal_owners: &FxHashMap<String, String>,
+    motion_names: &FxHashSet<String>,
+    ref_names: &FxHashSet<String>,
+    motion_counter: &mut usize,
+) {
+    let is_multi = match body {
+        // Lowering wraps multi-node bodies in an element with tag "fragment";
+        // ViewTree::Fragment is the inline form.
+        ViewTree::Fragment(children) => children.len() > 1,
+        ViewTree::Element(el) if el.tag == "fragment" => el.children.len() > 1,
+        _ => false,
+    };
+    if is_multi {
+        w.emit("<>");
+        w.indent();
+    }
+    gen_view_node_tsx(
+        w,
+        body,
+        component_map,
+        design_ctx,
+        signal_names,
+        store_signal_owners,
+        motion_names,
+        ref_names,
+        motion_counter,
+    );
+    if is_multi {
+        w.dedent();
+        w.emit("</>");
+    }
+}
+
+/// If the view tree is a consumer-side slot projection, return the slot
+/// name. Two forms are recognized:
+/// - an element with a literal `slot="name"` prop (mirrors the OmniView
+///   backend's `has_slot_attr`);
+/// - a consumer-position `@slot name { ... }` directive, whose fallback
+///   content is the projected content.
+fn child_slot_name(node: &ViewTree) -> Option<String> {
+    match node {
+        ViewTree::Element(el) => el.props.get("slot").and_then(|v| match v {
+            ExprIR::LiteralExpr { value } => value.as_str().map(str::to_string),
+            _ => None,
+        }),
+        ViewTree::Slot { name, .. } => name.clone(),
+        _ => None,
+    }
+}
+
+/// Render a child of a component instantiation (consumer-side projection
+/// content). Consumer-position `@slot name { ... }` directives render their
+/// fallback — that IS the projected content — instead of the slot placeholder.
+/// Elements get the `slot` attribute stripped so it never reaches the DOM.
+#[allow(clippy::too_many_arguments)]
+fn gen_consumer_child_tsx(
+    w: &mut CodeWriter,
+    child: &ViewTree,
+    component_map: &FxHashMap<&str, &ComponentIR>,
+    design_ctx: &DesignCtx,
+    signal_names: &FxHashSet<String>,
+    store_signal_owners: &FxHashMap<String, String>,
+    motion_names: &FxHashSet<String>,
+    ref_names: &FxHashSet<String>,
+    motion_counter: &mut usize,
+) {
+    match child {
+        ViewTree::Slot { fallback, .. } => {
+            gen_branch_body_tsx(
+                w,
+                &ViewTree::Fragment(fallback.clone()),
+                component_map,
+                design_ctx,
+                signal_names,
+                store_signal_owners,
+                motion_names,
+                ref_names,
+                motion_counter,
+            );
+        }
+        _ => {
+            gen_view_node_tsx(
+                w,
+                &strip_slot_prop(child),
+                component_map,
+                design_ctx,
+                signal_names,
+                store_signal_owners,
+                motion_names,
+                ref_names,
+                motion_counter,
+            );
+        }
+    }
+}
+
+/// Remove the `slot` prop from an element so it never reaches the DOM as a
+/// web-component attribute after projection into a React named prop.
+fn strip_slot_prop(node: &ViewTree) -> ViewTree {
+    match node {
+        ViewTree::Element(el) if el.props.contains_key("slot") => {
+            let mut props = el.props.clone();
+            props.remove("slot");
+            ViewTree::Element(Box::new(ElementIR {
+                props,
+                ..*el.clone()
+            }))
+        }
+        other => other.clone(),
     }
 }
 
@@ -942,13 +1148,20 @@ pub(crate) fn format_style_value_expr(
 fn format_inline_handler(
     body: &BlockIR,
     signal_names: &FxHashSet<String>,
+    store_signal_owners: &FxHashMap<String, String>,
     params: &[String],
     ref_names: &FxHashSet<String>,
 ) -> String {
     // Generate the body content first to check which params are actually used
     let mut body_w = CodeWriter::new();
     for stmt in &body.statements {
-        generate_statement_tsx(&mut body_w, stmt, signal_names, ref_names);
+        generate_statement_tsx(
+            &mut body_w,
+            stmt,
+            signal_names,
+            store_signal_owners,
+            ref_names,
+        );
     }
     let body_content = body_w.into_string();
 
@@ -981,6 +1194,24 @@ fn format_inline_handler(
         use_writer: false,
     };
     build_inline_handler(body, &config, |w, s| {
-        generate_statement_tsx(w, s, signal_names, ref_names)
+        generate_statement_tsx(w, s, signal_names, store_signal_owners, ref_names)
     })
+}
+
+/// Append a static class expression to the element's `className` attribute,
+/// merging into the existing attribute when present and creating a new one
+/// otherwise (used for design variant combination classes).
+fn append_class_attr(attrs: &mut Vec<String>, class_expr: String) {
+    if let Some(pos) = attrs.iter().position(|a| a.starts_with("className=")) {
+        let old = attrs[pos].clone();
+        if let Some(inner) = old.strip_prefix("className={") {
+            if let Some(existing) = inner.strip_suffix('}') {
+                attrs[pos] = format!("className={{{} + ' ' + {}}}", existing, class_expr);
+                return;
+            }
+        }
+        attrs[pos] = format!("className={{{}}}", class_expr);
+    } else {
+        attrs.push(format!("className={{{}}}", class_expr));
+    }
 }

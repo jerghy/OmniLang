@@ -62,7 +62,7 @@ pub(super) fn lower_keyframe_body(
         })
         .collect();
     let over = lower_expr(&kf.over, variant_map, None, semantics);
-    let ease = kf.ease.as_ref().map(lower_easing);
+    let ease = kf.easing.as_ref().map(lower_easing);
     let playback = lower_playback_props(&kf.playback, variant_map, semantics);
     KeyframeIR {
         stops,
@@ -74,6 +74,11 @@ pub(super) fn lower_keyframe_body(
 }
 
 /// Lower an easing expression to an EasingIR.
+///
+/// `steps(count, direction)` lowers to a named "steps(N,dir)" string so it
+/// flows through the existing named-easing string path (WAAPI accepts
+/// "steps(6,end)" natively). A dedicated EasingIR::Steps variant can be
+/// added when the Flutter diagnostic for steps easing is implemented.
 pub(super) fn lower_easing(e: &crate::parser::ast::EasingExpr) -> EasingIR {
     match e {
         crate::parser::ast::EasingExpr::Named(n) => EasingIR::Named(n.clone()),
@@ -83,11 +88,22 @@ pub(super) fn lower_easing(e: &crate::parser::ast::EasingExpr) -> EasingIR {
             x2: *x2,
             y2: *y2,
         },
+        crate::parser::ast::EasingExpr::Steps { count, direction } => {
+            EasingIR::Named(format!("steps({},{})", count, direction))
+        }
         crate::parser::ast::EasingExpr::Back { direction } => EasingIR::Back {
-            direction: direction.clone(),
+            direction: if direction == "out" {
+                None
+            } else {
+                Some(direction.clone())
+            },
         },
         crate::parser::ast::EasingExpr::Elastic { direction } => EasingIR::Elastic {
-            direction: direction.clone(),
+            direction: if direction == "out" {
+                None
+            } else {
+                Some(direction.clone())
+            },
         },
     }
 }
@@ -128,8 +144,10 @@ pub(super) fn lower_playback_props(
             crate::parser::ast::PlaybackProp::Delay(e) => {
                 pb.delay = Some(lower_expr(e, variant_map, None, semantics));
             }
-            crate::parser::ast::PlaybackProp::Paused(b) => {
-                pb.paused = *b;
+            crate::parser::ast::PlaybackProp::Paused(_) => {
+                // `paused` playback keyword: still parsed for syntax
+                // compatibility, but PlaybackIR.paused was deleted per
+                // semantic-level DSL spec §11 (ADR-053) — accepted and ignored.
             }
         }
     }

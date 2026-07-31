@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted
+Accepted — **redefined by ADR-052 (2026-07-31)**
+
+> **2026-07-31 更新**（[[ADR-052]]）：本 ADR 的原始表述（"All codegen backends must produce semantically equivalent output"）已被重新定义为：**"All P0 backends must produce semantically equivalent behavior for the documented feature floor, with hard diagnostics outside it."** 原始发现（4 个 silent-drop bug）的修复仍然有效，但 parity 策略已从"相同输出"演进为"语义等价行为 + documented floor + diagnostic enforcement"。详见 [[ADR-052]] § "ADR-021 重新定义"。
 
 ## Context
 

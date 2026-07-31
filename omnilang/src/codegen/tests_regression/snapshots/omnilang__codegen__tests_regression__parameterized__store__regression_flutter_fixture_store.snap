@@ -7,15 +7,37 @@ expression: "& super :: super :: format_output(& output)"
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-// — Signal providers —
-final appStoreCountProvider = StateProvider<int>((ref) => 0);
+/// Immutable state for AppStore.
+class AppStoreState {
+    final int count;
 
-final appStoreDoubleCountProvider = Provider<dynamic>((ref) {
-    final count = ref.watch(appStoreCountProvider);
-    return count * 2;
-});
+    /// Computed getter: doubleCount.
+    dynamic get doubleCount => count * 2;
 
-// — Action functions —
-void appStoreIncrement(WidgetRef ref) {
-    ref.read(appStoreCountProvider.notifier).state += 1;
+    const AppStoreState({
+        required this.count,
+    });
+
+    AppStoreState copyWith({
+        int? count,
+    }) {
+        return AppStoreState(
+            count: count ?? this.count,
+        );
+    }
 }
+
+/// Riverpod 3.0 Notifier for AppStore.
+class AppStore extends Notifier<AppStoreState> {
+    @override
+    AppStoreState build() {
+        return const AppStoreState(count: 0);
+    }
+
+    void increment() {
+        state = state.copyWith(count: state.count + 1);
+    }
+
+}
+
+final appStoreProvider = NotifierProvider<AppStore, AppStoreState>(AppStore.new);

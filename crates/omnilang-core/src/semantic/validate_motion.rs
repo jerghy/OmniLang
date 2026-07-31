@@ -91,7 +91,7 @@ impl SemanticAnalyzer {
                 self.validate_keyframe_type_mismatch(motion, kf);
 
                 // Check: valid easing name
-                if let Some(ref e) = kf.ease {
+                if let Some(ref e) = kf.easing {
                     self.validate_easing_name(e, &motion.span);
                 }
                 for stop in &kf.stops {
@@ -210,11 +210,19 @@ impl SemanticAnalyzer {
     }
 
     /// Validate @if mode string.
+    ///
+    /// Defense-in-depth: the parser already restricts `mode:` values to
+    /// "fade" | "wait" | "none", but the semantic pass also runs on ASTs
+    /// built programmatically (editor tooling, tests), so keep the check
+    /// aligned with the parser's whitelist.
     pub(super) fn validate_if_mode(&mut self, mode: &str, span: &Span) {
-        if mode != "sync" && mode != "wait" {
+        if !matches!(mode, "fade" | "wait" | "none") {
             self.diagnostics.push(Diagnostic::error(
                 DiagnosticKind::E0006,
-                &format!("@if mode '{}' is invalid; expected 'sync' or 'wait'", mode),
+                &format!(
+                    "@if mode '{}' is invalid; expected 'fade', 'wait', or 'none'",
+                    mode
+                ),
                 span,
             ));
         }

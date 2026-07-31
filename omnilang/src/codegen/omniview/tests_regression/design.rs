@@ -98,6 +98,7 @@ fn make_test_design() -> DesignIR {
         classes,
         variants,
         source_span: None,
+        source_file: None,
     }
 }
 
@@ -161,6 +162,7 @@ fn emit_empty_design() {
         classes: vec![],
         variants: vec![],
         source_span: None,
+        source_file: None,
     };
     let css = emit_design_css(&design, "Empty").expect("should emit empty CSS");
     assert!(css.is_empty(), "empty design should produce no CSS");
@@ -245,6 +247,7 @@ fn emit_design_css_with_themes() {
         classes: vec![],
         variants: vec![],
         source_span: None,
+        source_file: None,
     };
 
     let css = emit_design_css(&design, "AppDesign").expect("should emit CSS");
@@ -280,6 +283,7 @@ fn emit_design_css_without_themes_unchanged() {
         classes: vec![],
         variants: vec![],
         source_span: None,
+        source_file: None,
     };
 
     let css = emit_design_css(&design, "Simple").expect("should emit CSS");

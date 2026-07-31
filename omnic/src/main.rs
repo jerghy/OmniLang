@@ -42,9 +42,6 @@ enum Command {
         /// Output directory (default: ./build)
         #[arg(short, long, default_value = "./build")]
         output: String,
-        /// Store state management mode (react target only)
-        #[arg(long, default_value = "hooks", value_parser = clap::builder::PossibleValuesParser::new(["hooks", "zustand"]))]
-        store_mode: String,
     },
 
     /// Run static analysis on .omni source
@@ -96,8 +93,7 @@ fn main() {
             files,
             target,
             output,
-            store_mode,
-        } => commands::cmd_build(files, target, &output, &store_mode),
+        } => commands::cmd_build(files, target, &output),
         Command::Run { file, target } => commands::cmd_run(file, target),
         Command::Create { name, r#type } => commands::cmd_create(&name, &r#type),
         Command::Watch {

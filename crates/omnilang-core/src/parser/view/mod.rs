@@ -77,6 +77,13 @@ impl<'a> Parser<'a> {
                 } else {
                     None
                 };
+                // Parse optional type constraint: @slot name: Type { ... }
+                let type_constraint = if self.at(&TokenKind::Colon) {
+                    self.advance(); // ':'
+                    Some(self.parse_type_annotation()?)
+                } else {
+                    None
+                };
                 // Parse optional default content body: @slot name { ... }
                 let default_content = if self.at(&TokenKind::LBrace) {
                     self.advance(); // consume '{'
@@ -92,6 +99,7 @@ impl<'a> Parser<'a> {
                 Ok(ViewNode::SlotDirective {
                     name,
                     default_content,
+                    type_constraint,
                 })
             }
             TokenKind::StringLiteral(s) => {
@@ -457,6 +465,10 @@ impl<'a> Parser<'a> {
                     let trigger = self.parse_motion_trigger(TriggerKind::Press)?;
                     props.push(ElementProp::MotionTrigger(trigger));
                 }
+                TokenKind::AtFocus => {
+                    let trigger = self.parse_motion_trigger(TriggerKind::Focus)?;
+                    props.push(ElementProp::MotionTrigger(trigger));
+                }
                 TokenKind::AtInView => {
                     let trigger = self.parse_motion_trigger(TriggerKind::InView)?;
                     props.push(ElementProp::MotionTrigger(trigger));
@@ -473,77 +485,11 @@ impl<'a> Parser<'a> {
                     let trigger = self.parse_motion_trigger(TriggerKind::DragVertical)?;
                     props.push(ElementProp::MotionTrigger(trigger));
                 }
-                TokenKind::AtPaused => {
-                    // @paused={expr} — per-element pause override
-                    self.advance();
-                    self.expect_token(TokenKind::Eq, "expected '='")?;
-                    self.expect_token(TokenKind::LBrace, "expected '{'")?;
-                    let expr = self.parse_expr()?;
-                    self.expect_token(TokenKind::RBrace, "expected '}'")?;
-                    props.push(ElementProp::PausedOverride(expr));
-                }
-                TokenKind::AtInViewOnce
-                | TokenKind::AtInViewRepeat
-                | TokenKind::AtInViewThreshold => {
-                    let kind = self.advance().kind.clone();
-                    self.expect_token(TokenKind::Eq, "expected '='")?;
-                    self.expect_token(TokenKind::LBrace, "expected '{'")?;
-                    let val = self.parse_expr()?;
-                    self.expect_token(TokenKind::RBrace, "expected '}'")?;
-                    match kind {
-                        TokenKind::AtInViewOnce => props.push(ElementProp::InViewOnce(val)),
-                        TokenKind::AtInViewRepeat => props.push(ElementProp::InViewRepeat(val)),
-                        TokenKind::AtInViewThreshold => {
-                            props.push(ElementProp::InViewThreshold(val))
-                        }
-                        _ => {}
-                    }
-                }
-                // Scroll sub-attributes
-                TokenKind::AtScrollStart | TokenKind::AtScrollEnd => {
-                    let kind = self.advance().kind.clone();
-                    self.expect_token(TokenKind::Eq, "expected '='")?;
-                    let val = self.expect_string("expected string value")?;
-                    match kind {
-                        TokenKind::AtScrollStart => props.push(ElementProp::ScrollStart(val)),
-                        TokenKind::AtScrollEnd => props.push(ElementProp::ScrollEnd(val)),
-                        _ => {}
-                    }
-                }
-                TokenKind::AtScrollScrub => {
-                    self.advance();
-                    self.expect_token(TokenKind::Eq, "expected '='")?;
-                    self.expect_token(TokenKind::LBrace, "expected '{'")?;
-                    let val = self.parse_expr()?;
-                    self.expect_token(TokenKind::RBrace, "expected '}'")?;
-                    props.push(ElementProp::ScrollScrub(val));
-                }
-                // Drag sub-attributes
-                TokenKind::DragConstraints => {
-                    self.advance();
-                    self.expect_token(TokenKind::Eq, "expected '='")?;
-                    let val = self.expect_string("expected string value")?;
-                    props.push(ElementProp::DragConstraints(val));
-                }
-                TokenKind::DragElastic
-                | TokenKind::DragScrub
-                | TokenKind::DragMomentum
-                | TokenKind::DragThreshold
-                | TokenKind::DragVelocityMax => {
-                    let kind = self.advance().kind.clone();
-                    self.expect_token(TokenKind::Eq, "expected '='")?;
-                    self.expect_token(TokenKind::LBrace, "expected '{'")?;
-                    let val = self.parse_expr()?;
-                    self.expect_token(TokenKind::RBrace, "expected '}'")?;
-                    match kind {
-                        TokenKind::DragElastic => props.push(ElementProp::DragElastic(val)),
-                        TokenKind::DragScrub => props.push(ElementProp::DragScrub(val)),
-                        TokenKind::DragMomentum => props.push(ElementProp::DragMomentum(val)),
-                        TokenKind::DragThreshold => props.push(ElementProp::DragThreshold(val)),
-                        TokenKind::DragVelocityMax => props.push(ElementProp::DragVelocityMax(val)),
-                        _ => {}
-                    }
-                }
+                // Sub-attribute tokens (@paused, @in-view-once, @scroll-start,
+                // @drag-constraints, etc.) were removed per semantic-level DSL
+                // spec §3.2 — they are re-parsed as regular ident-based attrs in
+                // later tasks. Unknown @-prefixed tokens fall through to
+                // parse_event_prop via the Ident("@...") arm above.
                 _ => {
                     let t = self.advance();
                     return Err(ParseError {

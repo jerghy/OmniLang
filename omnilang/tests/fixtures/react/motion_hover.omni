@@ -1,7 +1,7 @@
 @motion pulse {
   to { scale: 1.05 }
-  over 200
-  ease easeOut
+  over: 200ms
+  easing: ease-out
 }
 
 component MotionHover {

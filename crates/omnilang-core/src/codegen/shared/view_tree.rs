@@ -36,6 +36,6 @@ fn view_tree_any_dyn(view: &ViewTree, predicate: &dyn Fn(&ElementIR) -> bool) ->
                     .is_some_and(|v| view_tree_any_dyn(v, predicate))
         }
         ViewTree::Fragment(children) => children.iter().any(|c| view_tree_any_dyn(c, predicate)),
-        ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => false,
+        ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot { .. } => false,
     }
 }

@@ -52,6 +52,7 @@ fn emit_class_with_multiple_pseudo_states() {
         classes,
         variants: vec![],
         source_span: None,
+        source_file: None,
     };
 
     let css = emit_design_css(&design, "FormDesign").expect("should emit CSS");
@@ -151,6 +152,7 @@ fn css_output_skips_dynamic_tokens() {
         classes: vec![],
         variants: vec![],
         source_span: None,
+        source_file: None,
     };
 
     let css = emit_design_css(&design, "App").unwrap();

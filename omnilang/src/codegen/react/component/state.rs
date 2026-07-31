@@ -7,6 +7,7 @@ use crate::codegen::react::expr;
 use crate::codegen::react::ReactCodegen;
 use crate::codegen::CodeWriter;
 use crate::ir::*;
+use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 
 use super::collect_expr_identifiers;
@@ -253,7 +254,12 @@ fn collect_view_mutation_targets(node: &ViewTree, acc: &mut FxHashSet<String>) {
                 collect_view_mutation_targets(child, acc);
             }
         }
-        ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => {}
+        ViewTree::Slot { fallback, .. } => {
+            for child in fallback {
+                collect_view_mutation_targets(child, acc);
+            }
+        }
+        ViewTree::Text(_) | ViewTree::Interpolation(_) => {}
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
     }
@@ -298,7 +304,12 @@ pub(super) fn collect_view_inline_handler_reads(node: &ViewTree, acc: &mut FxHas
                 collect_view_inline_handler_reads(child, acc);
             }
         }
-        ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => {}
+        ViewTree::Slot { fallback, .. } => {
+            for child in fallback {
+                collect_view_inline_handler_reads(child, acc);
+            }
+        }
+        ViewTree::Text(_) | ViewTree::Interpolation(_) => {}
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
     }
@@ -477,6 +488,13 @@ fn collect_view_read_signals_inner(node: &ViewTree, acc: &mut FxHashSet<String>)
             for sig_ref in el.bindings.values() {
                 acc.insert(sig_ref.name.clone());
             }
+            // Semantic ref bindings (focus={sig}, value={Store.sig}, ...)
+            // read their bound signals inside generated effects — they must
+            // count toward useState / store hook decisions or a store-backed
+            // binding silently loses its `useStore()` import.
+            for binding_expr in el.semantic_bindings.values() {
+                collect_expr_identifiers(binding_expr, acc);
+            }
             for child in &el.children {
                 collect_view_read_signals_inner(child, acc);
             }
@@ -504,7 +522,14 @@ fn collect_view_read_signals_inner(node: &ViewTree, acc: &mut FxHashSet<String>)
         ViewTree::Interpolation(expr) => {
             collect_expr_identifiers(expr, acc);
         }
-        ViewTree::Text(_) | ViewTree::Slot(_) => {}
+        ViewTree::Slot { fallback, .. } => {
+            // Fallback content renders inside the component — signals it
+            // reads must count toward useState / store hook decisions.
+            for child in fallback {
+                collect_view_read_signals_inner(child, acc);
+            }
+        }
+        ViewTree::Text(_) => {}
         ViewTree::Fragment(children) => {
             for child in children {
                 collect_view_read_signals_inner(child, acc);
@@ -566,7 +591,12 @@ fn collect_view_store_refs_from_handlers(node: &ViewTree, acc: &mut FxHashSet<St
                 collect_view_store_refs_from_handlers(child, acc);
             }
         }
-        ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => {}
+        ViewTree::Slot { fallback, .. } => {
+            for child in fallback {
+                collect_view_store_refs_from_handlers(child, acc);
+            }
+        }
+        ViewTree::Text(_) | ViewTree::Interpolation(_) => {}
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
     }
@@ -576,41 +606,381 @@ fn collect_view_store_refs_from_handlers(node: &ViewTree, acc: &mut FxHashSet<St
 // Ref codegen: ref declarations → useRef hooks
 // ═══════════════════════════════════════════════════════════
 
+/// Build a map of ref name → HTML element tag by scanning the view tree for
+/// elements carrying `ref_binding: Some(name)`. `RefDeclIR.element_tag` is
+/// currently always None (lowering does not populate it), so this scan is the
+/// source of truth for typing useRef declarations. The first binding found
+/// wins (all bindings of one ref should share a tag anyway).
+pub(super) fn collect_ref_tags(view: Option<&ViewTree>) -> FxHashMap<String, String> {
+    let mut acc = FxHashMap::default();
+    if let Some(ref view) = view {
+        collect_ref_tags_inner(view, &mut acc);
+    }
+    acc
+}
+
+fn collect_ref_tags_inner(node: &ViewTree, acc: &mut FxHashMap<String, String>) {
+    match node {
+        ViewTree::Element(el) => {
+            if let Some(ref binding) = el.ref_binding {
+                acc.entry(binding.clone()).or_insert_with(|| el.tag.clone());
+            }
+            for child in &el.children {
+                collect_ref_tags_inner(child, acc);
+            }
+        }
+        ViewTree::Conditional(cond) => {
+            for branch in &cond.branches {
+                if let Some(ref body) = branch.body {
+                    collect_ref_tags_inner(body, acc);
+                }
+            }
+            if let Some(ref fb) = cond.fallback {
+                collect_ref_tags_inner(fb, acc);
+            }
+        }
+        ViewTree::ListRendering(list) => {
+            if let Some(ref body) = list.body {
+                collect_ref_tags_inner(body, acc);
+            }
+            if let Some(ref empty_body) = list.empty_body {
+                collect_ref_tags_inner(empty_body, acc);
+            }
+        }
+        ViewTree::Fragment(children) => {
+            for child in children {
+                collect_ref_tags_inner(child, acc);
+            }
+        }
+        ViewTree::Slot { fallback, .. } => {
+            for child in fallback {
+                collect_ref_tags_inner(child, acc);
+            }
+        }
+        ViewTree::Text(_) | ViewTree::Interpolation(_) => {}
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
+    }
+}
+
 /// Generate `useRef<T>(null)` declarations for each ref in the component.
 /// Maps known HTML element tags to their TypeScript types (e.g., input→HTMLInputElement).
 /// Falls back to HTMLElement for unknown or missing tags.
 /// Called after gen_state_hooks and before gen_effects in gen_component_tsx.
-pub(super) fn gen_ref_hooks(w: &mut CodeWriter, comp: &ComponentIR) {
-    if comp.refs.is_empty() {
+///
+/// `motion_internal_refs` are synthesized `__el_N` refs for motion elements
+/// without a user `@ref` — (ref_name, tag) pairs in DFS pre-order.
+pub(super) fn gen_ref_hooks(
+    w: &mut CodeWriter,
+    comp: &ComponentIR,
+    ref_tags: &FxHashMap<String, String>,
+    motion_internal_refs: &[(String, String)],
+) {
+    if comp.refs.is_empty() && motion_internal_refs.is_empty() {
         return;
     }
     for ref_decl in &comp.refs {
-        let ts_type = ref_element_type(ref_decl.element_tag.as_deref());
+        // Prefer the declared element_tag if a future pass populates it;
+        // otherwise use the tag of the element bound via @ref in the view.
+        let tag = ref_decl
+            .element_tag
+            .as_deref()
+            .or_else(|| ref_tags.get(&ref_decl.name).map(String::as_str));
+        let ts_type = ref_element_type(tag);
         w.emit_fmt(format_args!(
             "const {}Ref = useRef<{}>(null);",
             ref_decl.name, ts_type
+        ));
+    }
+    for (ref_name, tag) in motion_internal_refs {
+        let ts_type = ref_element_type(Some(tag));
+        w.emit_fmt(format_args!(
+            "const {}Ref = useRef<{}>(null);",
+            ref_name, ts_type
         ));
     }
     w.emit("");
 }
 
 /// Map an OmniView HTML element tag to its TypeScript element type.
+///
+/// The mapping must be accurate enough that `useRef<T>` is assignable to the
+/// JSX `ref` prop — React refs are invariant in `current`, so a generic
+/// `HTMLElement` fallback is NOT assignable to e.g. `Ref<HTMLHeadingElement>`.
 fn ref_element_type(tag: Option<&str>) -> &str {
     match tag {
-        Some("input") | Some("textarea") => "HTMLInputElement",
+        Some("input") => "HTMLInputElement",
+        Some("textarea") => "HTMLTextAreaElement",
         Some("select") => "HTMLSelectElement",
+        Some("option") => "HTMLOptionElement",
+        Some("optgroup") => "HTMLOptGroupElement",
         Some("button") => "HTMLButtonElement",
         Some("form") => "HTMLFormElement",
+        Some("fieldset") => "HTMLFieldSetElement",
+        Some("legend") => "HTMLLegendElement",
+        Some("label") => "HTMLLabelElement",
+        Some("output") => "HTMLOutputElement",
         Some("img") | Some("image") => "HTMLImageElement",
         Some("video") => "HTMLVideoElement",
         Some("audio") => "HTMLAudioElement",
         Some("canvas") => "HTMLCanvasElement",
         Some("a") | Some("link") => "HTMLAnchorElement",
         Some("table") => "HTMLTableElement",
+        Some("thead") | Some("tbody") | Some("tfoot") => "HTMLTableSectionElement",
+        Some("tr") => "HTMLTableRowElement",
+        Some("td") | Some("th") => "HTMLTableCellElement",
+        Some("caption") => "HTMLTableCaptionElement",
+        Some("progress") => "HTMLProgressElement",
+        Some("meter") => "HTMLMeterElement",
         Some("svg") => "SVGSVGElement",
         Some("div") | Some("section") | Some("article") | Some("nav") | Some("header")
         | Some("footer") | Some("main") | Some("aside") => "HTMLDivElement",
+        Some("h1") | Some("h2") | Some("h3") | Some("h4") | Some("h5") | Some("h6") => {
+            "HTMLHeadingElement"
+        }
+        Some("p") => "HTMLParagraphElement",
+        Some("span") => "HTMLSpanElement",
+        Some("ul") => "HTMLUListElement",
+        Some("ol") => "HTMLOListElement",
+        Some("li") => "HTMLLIElement",
+        Some("dl") => "HTMLDListElement",
+        Some("blockquote") | Some("q") => "HTMLQuoteElement",
+        Some("pre") => "HTMLPreElement",
+        Some("br") => "HTMLBRElement",
+        Some("hr") => "HTMLHRElement",
+        Some("time") => "HTMLTimeElement",
+        Some("iframe") => "HTMLIFrameElement",
+        Some("details") => "HTMLDetailsElement",
+        Some("dialog") => "HTMLDialogElement",
+        Some("menu") => "HTMLMenuElement",
+        Some("map") => "HTMLMapElement",
+        Some("area") => "HTMLAreaElement",
+        Some("picture") => "HTMLPictureElement",
+        Some("source") => "HTMLSourceElement",
+        Some("track") => "HTMLTrackElement",
+        Some("object") => "HTMLObjectElement",
+        Some("embed") => "HTMLEmbedElement",
         // For unknown tags, use HTMLElement (generic) — better than HTMLDivElement
         _ => "HTMLElement",
     }
+}
+
+// ═══════════════════════════════════════════════════════════
+// Semantic binding codegen: focus={sig} / scroll-x / scroll-y / value={sig}
+// → useEffect
+// ═══════════════════════════════════════════════════════════
+
+/// Whether any element in the view tree carries semantic ref bindings
+/// (focus={sig}, scroll-x={sig}, scroll-y={sig}, value={sig}) — used to
+/// decide whether the component needs a useEffect import.
+pub(super) fn view_has_semantic_bindings(node: &ViewTree) -> bool {
+    match node {
+        ViewTree::Element(el) => {
+            !el.semantic_bindings.is_empty() || el.children.iter().any(view_has_semantic_bindings)
+        }
+        ViewTree::Conditional(cond) => {
+            cond.branches
+                .iter()
+                .any(|b| b.body.as_ref().is_some_and(view_has_semantic_bindings))
+                || cond
+                    .fallback
+                    .as_ref()
+                    .is_some_and(view_has_semantic_bindings)
+        }
+        ViewTree::ListRendering(list) => {
+            list.body.as_ref().is_some_and(view_has_semantic_bindings)
+                || list
+                    .empty_body
+                    .as_ref()
+                    .is_some_and(view_has_semantic_bindings)
+        }
+        ViewTree::Fragment(children) => children.iter().any(view_has_semantic_bindings),
+        ViewTree::Slot { fallback, .. } => fallback.iter().any(view_has_semantic_bindings),
+        ViewTree::Text(_) | ViewTree::Interpolation(_) => false,
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
+    }
+}
+
+/// Generate `useEffect` calls for semantic ref bindings on @ref-bound elements.
+///
+/// Each binding kind maps to a native DOM side effect keyed on the bound
+/// signal (validation guarantees the element has a ref binding):
+///
+/// - `focus={sig}`    → focus()/blur() driven by the boolean signal
+/// - `scroll-x={sig}` → scrollTo({ left: sig })
+/// - `scroll-y={sig}` → scrollTo({ top: sig })
+/// - `value={sig}`    → imperative value sync (one-way, keeps caret position)
+///
+/// Called after gen_effects in gen_component_tsx.
+pub(super) fn gen_semantic_binding_effects(
+    w: &mut CodeWriter,
+    view: Option<&ViewTree>,
+    store_signal_map: &FxHashMap<String, String>,
+    ref_names: &FxHashSet<String>,
+) {
+    let Some(ref view) = view else {
+        return;
+    };
+    let mut emitted = false;
+    walk_semantic_binding_effects(w, view, store_signal_map, ref_names, &mut emitted);
+}
+
+fn walk_semantic_binding_effects(
+    w: &mut CodeWriter,
+    node: &ViewTree,
+    store_signal_map: &FxHashMap<String, String>,
+    ref_names: &FxHashSet<String>,
+    emitted: &mut bool,
+) {
+    match node {
+        ViewTree::Element(el) => {
+            if let Some(ref ref_name) = el.ref_binding {
+                if !el.semantic_bindings.is_empty() {
+                    emit_element_binding_effects(
+                        w,
+                        ref_name,
+                        &el.semantic_bindings,
+                        store_signal_map,
+                        ref_names,
+                        emitted,
+                    );
+                }
+            }
+            for child in &el.children {
+                walk_semantic_binding_effects(w, child, store_signal_map, ref_names, emitted);
+            }
+        }
+        ViewTree::Conditional(cond) => {
+            for branch in &cond.branches {
+                if let Some(ref body) = branch.body {
+                    walk_semantic_binding_effects(w, body, store_signal_map, ref_names, emitted);
+                }
+            }
+            if let Some(ref fb) = cond.fallback {
+                walk_semantic_binding_effects(w, fb, store_signal_map, ref_names, emitted);
+            }
+        }
+        ViewTree::ListRendering(list) => {
+            if let Some(ref body) = list.body {
+                walk_semantic_binding_effects(w, body, store_signal_map, ref_names, emitted);
+            }
+            if let Some(ref empty_body) = list.empty_body {
+                walk_semantic_binding_effects(w, empty_body, store_signal_map, ref_names, emitted);
+            }
+        }
+        ViewTree::Fragment(children) => {
+            for child in children {
+                walk_semantic_binding_effects(w, child, store_signal_map, ref_names, emitted);
+            }
+        }
+        ViewTree::Slot { fallback, .. } => {
+            for child in fallback {
+                walk_semantic_binding_effects(w, child, store_signal_map, ref_names, emitted);
+            }
+        }
+        ViewTree::Text(_) | ViewTree::Interpolation(_) => {}
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
+    }
+}
+
+/// Emit one useEffect per semantic binding on a ref-bound element.
+fn emit_element_binding_effects(
+    w: &mut CodeWriter,
+    ref_name: &str,
+    bindings: &FxHashMap<String, ExprIR>,
+    store_signal_map: &FxHashMap<String, String>,
+    ref_names: &FxHashSet<String>,
+    emitted: &mut bool,
+) {
+    let base = format!("{}Ref.current", ref_name);
+    for (kind, expr) in bindings {
+        let val = expr::format_expr_ir_tsx(expr, ref_names);
+        let deps_str = semantic_binding_deps(expr, store_signal_map);
+        if !*emitted {
+            w.emit("");
+            *emitted = true;
+        }
+        match kind.as_str() {
+            // focus={sig}: boolean signal drives focus()/blur()
+            "focus" => {
+                w.emit("useEffect(() => {");
+                w.indent();
+                w.emit_fmt(format_args!("if ({}) {{", val));
+                w.indent();
+                w.emit_fmt(format_args!("{base}?.focus();"));
+                w.dedent();
+                w.emit("} else {");
+                w.indent();
+                w.emit_fmt(format_args!("{base}?.blur();"));
+                w.dedent();
+                w.emit("}");
+                w.dedent();
+                w.emit_fmt(format_args!("}}, [{}]);", deps_str));
+            }
+            // scroll-y={sig}: vertical scroll position
+            "scroll-y" => {
+                w.emit("useEffect(() => {");
+                w.indent();
+                w.emit_fmt(format_args!("{base}?.scrollTo({{ top: {} }});", val));
+                w.dedent();
+                w.emit_fmt(format_args!("}}, [{}]);", deps_str));
+            }
+            // scroll-x={sig}: horizontal scroll position
+            "scroll-x" => {
+                w.emit("useEffect(() => {");
+                w.indent();
+                w.emit_fmt(format_args!("{base}?.scrollTo({{ left: {} }});", val));
+                w.dedent();
+                w.emit_fmt(format_args!("}}, [{}]);", deps_str));
+            }
+            // value={sig}: one-way value sync (unlike bind:value this never
+            // moves the caret or clobbers user input mid-typing)
+            "value" => {
+                w.emit("useEffect(() => {");
+                w.indent();
+                w.emit_fmt(format_args!("if ({base} && {base}.value !== {}) {{", val));
+                w.indent();
+                w.emit_fmt(format_args!("{base}.value = {};", val));
+                w.dedent();
+                w.emit("}");
+                w.dedent();
+                w.emit_fmt(format_args!("}}, [{}]);", deps_str));
+            }
+            // Unknown binding kind — emit nothing (future-proofing; the
+            // semantic pass only produces the four kinds above).
+            _ => {}
+        }
+    }
+}
+
+/// Collect the dependency list for a semantic binding effect.
+///
+/// - A qualified store signal (`CounterStore.text`) depends on the exact
+///   expression the effect body reads (`CounterStore.text`), not on the store
+///   hook object — Zustand re-renders with a fresh object on every change,
+///   so depending on the root would re-fire the effect on unrelated updates.
+/// - A bare signal depends on its own name (resolved through the store
+///   signal map for future-proofing); anything else falls back to collecting
+///   identifiers, sorted for deterministic output.
+fn semantic_binding_deps(expr: &ExprIR, store_signal_map: &FxHashMap<String, String>) -> String {
+    if let ExprIR::FieldAccessExpr { object, field } = expr {
+        if let ExprIR::IdentifierExpr { name, .. } = object.as_ref() {
+            return format!("{}.{}", name, field);
+        }
+    }
+    let mut ids: Vec<String> = Vec::new();
+    let mut acc = FxHashSet::default();
+    collect_expr_identifiers(expr, &mut acc);
+    for id in acc {
+        ids.push(
+            store_signal_map
+                .get(&id)
+                .cloned()
+                .unwrap_or_else(|| id.clone()),
+        );
+    }
+    ids.sort();
+    ids.join(", ")
 }

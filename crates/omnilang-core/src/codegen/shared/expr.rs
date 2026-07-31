@@ -6,7 +6,7 @@
 //! | Struct | Family | Key characteristics |
 //! |--------|--------|-------------------|
 //! | `JsFormatExpr` | JS (React, Vue, JavaScript) | `===`, `?.`, `undefined` fallback |
-//! | `DartFormatExpr` | Dart (Dart, Flutter) | `==`, `.`, `null` fallback |
+//! | `DartFormatExpr` | Dart (Dart, Flutter) | `==`, `?.`, `null` fallback |
 //! | `RustFormatExpr` | Rust (Rust, Dioxus) | `if/else`, `vec![]`, `.await`, `None` fallback |
 
 use crate::codegen::{
@@ -133,9 +133,10 @@ pub trait FormatExpr {
         format!("{op_str}{operand}")
     }
 
-    /// Optional chain access: `obj?.field` (JS) vs `obj.field` (others).
+    /// Optional chain access: `obj?.field` (JS/Dart) vs `obj.field` (Rust/Python).
+    /// The default is JS-family syntax; Rust and Python override to plain `.`.
     fn format_optional_chain(&self, object: &str, field: &str) -> String {
-        format!("{object}.{field}")
+        format!("{object}?.{field}")
     }
 
     /// Block expression (ExprIR::BlockExpr). Default: just the tail expression.
@@ -189,6 +190,16 @@ pub trait FormatExpr {
     fn format_block_as_expr(&self, block: &BlockIR) -> String {
         let fmt = |e: &ExprIR| self.format_expr(e);
         format_block_as_expr(block, &fmt, self.null_fallback())
+    }
+
+    /// Format a semantic ref operation (`ref.focus()`, `ref.scrollTo(...)`, …).
+    ///
+    /// The default is a placeholder comment — backends that support ref ops
+    /// (React) override this with native DOM API calls. `ref_name` is the
+    /// declared ref name (e.g. `box` for `box.focus()`); backends append the
+    /// runtime ref accessor (e.g. `boxRef.current`).
+    fn format_ref_op(&self, ref_name: &str, op: &RefOpIR) -> String {
+        format!("/* RefOp::{op:?} on {ref_name} */")
     }
 
     // ── Main dispatch ────────────────────────────────────
@@ -303,6 +314,7 @@ pub trait FormatExpr {
                 // Use empty type_name since MapExpr has no struct type
                 self.format_struct("", &fields.join(", "))
             }
+            ExprIR::RefOpExpr { ref_name, op } => self.format_ref_op(ref_name, op),
         }
     }
 }
@@ -392,7 +404,10 @@ impl FormatExpr for DartFormatExpr {
                     MatchPatternKindIR::Wildcard => {
                         format!("  default: return {body};")
                     }
-                    _ => String::new(),
+                    MatchPatternKindIR::Literal { value } => {
+                        let v = format_json_value(value, self.json_config());
+                        format!("  case {v}: return {body};")
+                    }
                 }
             })
             .collect();
@@ -407,9 +422,21 @@ impl FormatExpr for DartFormatExpr {
         format!("{{{}}}", fields)
     }
 
-    fn format_block_expr(&self, _statements: &[StatementIR], tail: &ExprIR) -> String {
-        // Block statements not supported in expression context — drop them.
-        self.format_expr(tail)
+    // Dart supports block-body closures — emit an immediately-invoked closure
+    // so statements inside the block execute in expression position.
+    fn format_block_expr(&self, statements: &[StatementIR], tail: &ExprIR) -> String {
+        if statements.is_empty() {
+            return self.format_expr(tail);
+        }
+        let stmts: Vec<String> = statements
+            .iter()
+            .map(|s| format!("  {};", format_block_stmt_dart(s, self)))
+            .collect();
+        format!(
+            "(() {{\n{}\n  return {};\n}})()",
+            stmts.join("\n"),
+            self.format_expr(tail)
+        )
     }
 }
 
@@ -447,6 +474,11 @@ impl FormatExpr for RustFormatExpr {
 
     fn format_ternary(&self, cond: &str, t: &str, e: &str) -> String {
         format!("if {cond} {{ {t} }} else {{ {e} }}")
+    }
+
+    // Rust has no `?.` operator — optional chain degrades to plain field access.
+    fn format_optional_chain(&self, object: &str, field: &str) -> String {
+        format!("{object}.{field}")
     }
 
     fn format_array(&self, items: &str) -> String {
@@ -522,5 +554,126 @@ impl FormatExpr for RustFormatExpr {
     fn format_block_expr(&self, _statements: &[StatementIR], tail: &ExprIR) -> String {
         // Block statements not supported in expression context — drop them.
         self.format_expr(tail)
+    }
+}
+
+/// Format a single statement as a Dart string for use inside block-expression IIFEs.
+/// Mirrors `DartStmtFormatter` conventions (`var` bindings, `;` appended by caller).
+fn format_block_stmt_dart(stmt: &StatementIR, fmt: &impl FormatExpr) -> String {
+    match stmt {
+        StatementIR::LetStmtIR { name, value, .. } => {
+            let val = value
+                .as_ref()
+                .map(|e| fmt.format_expr(e))
+                .unwrap_or_else(|| fmt.null_fallback().into());
+            format!("var {} = {}", fmt.format_identifier(name), val)
+        }
+        StatementIR::ExprStmtIR { expr } => fmt.format_expr(expr),
+        StatementIR::ReturnStmtIR { value } => {
+            let val = value
+                .as_ref()
+                .map(|e| fmt.format_expr(e))
+                .unwrap_or_else(|| fmt.null_fallback().into());
+            format!("return {}", val)
+        }
+        _ => "/* stmt */".into(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn opt_chain(user: &str) -> ExprIR {
+        ExprIR::OptionalChainExpr {
+            object: Box::new(ExprIR::IdentifierExpr {
+                name: user.into(),
+                type_ann: None,
+            }),
+            field: "name".into(),
+        }
+    }
+
+    fn block_expr_with_stmt() -> ExprIR {
+        ExprIR::BlockExpr {
+            statements: vec![StatementIR::LetStmtIR {
+                name: "x".into(),
+                value: Some(ExprIR::LiteralExpr {
+                    value: serde_json::json!(5),
+                }),
+                r#type: None,
+            }],
+            tail: Box::new(ExprIR::IdentifierExpr {
+                name: "x".into(),
+                type_ann: None,
+            }),
+        }
+    }
+
+    #[test]
+    fn optional_chain_default_preserves_question_dot() {
+        // JS-family default must keep `?.` (was silently dropped as `.`).
+        assert_eq!(JsFormatExpr.format_expr(&opt_chain("user")), "user?.name");
+    }
+
+    #[test]
+    fn dart_optional_chain_keeps_question_dot() {
+        // Dart supports null-aware access — `?.` is valid and semantic-preserving.
+        let fmt = DartFormatExpr {
+            event_param_name: None,
+        };
+        assert_eq!(fmt.format_expr(&opt_chain("user")), "user?.name");
+    }
+
+    #[test]
+    fn rust_optional_chain_degrades_to_field_access() {
+        // Rust has no `?.` — must degrade to plain field access.
+        let fmt = RustFormatExpr {
+            move_closures: false,
+            event_param_name: None,
+        };
+        assert_eq!(fmt.format_expr(&opt_chain("user")), "user.name");
+    }
+
+    #[test]
+    fn dart_block_expr_emits_iife() {
+        let fmt = DartFormatExpr {
+            event_param_name: None,
+        };
+        let out = fmt.format_expr(&block_expr_with_stmt());
+        assert!(
+            out.contains("(() {") && out.contains("var x = 5;") && out.contains("return x;"),
+            "dart block expr: {out}"
+        );
+    }
+
+    #[test]
+    fn dart_match_literal_arm_emits_case() {
+        let fmt = DartFormatExpr {
+            event_param_name: None,
+        };
+        let expr = ExprIR::MatchExpr {
+            matched: Box::new(ExprIR::IdentifierExpr {
+                name: "v".into(),
+                type_ann: None,
+            }),
+            arms: vec![MatchArmIR {
+                pattern: MatchPatternIR {
+                    kind: MatchPatternKindIR::Literal {
+                        value: serde_json::json!("red"),
+                    },
+                },
+                body: BlockIR {
+                    statements: Vec::new(),
+                },
+                union_type: None,
+            }],
+        };
+        let out = fmt.format_expr(&expr);
+        // JSON_DART formats strings with single quotes.
+        assert!(
+            out.contains("case 'red': return"),
+            "dart match literal arm: {out}"
+        );
     }
 }

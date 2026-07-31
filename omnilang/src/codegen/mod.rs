@@ -54,12 +54,32 @@ pub use stdlib::{try_format_stdlib_call, validate_stdlib_imports};
 pub use traits::Codegen;
 pub use writer::{CodeWriter, CompileOutput, CompiledFile};
 
-/// Warning emitted when design blocks are compiled to a non-OmniView target.
-const DESIGN_BLOCK_WARNING: &str = "Design blocks are only supported on the OmniView target. \
-    Design tokens, classes, and variants will not be emitted in this output. \
-    Compile with Target::OmniView for design system features.";
+/// Error emitted when design blocks are compiled to a target that does not
+/// support them. Design blocks (semantic DSL) are only compiled by the
+/// OmniView, React, and Flutter targets — all other targets fail with a hard
+/// error rather than silently dropping design features.
+#[cfg(any(
+    feature = "codegen-python",
+    feature = "codegen-javascript",
+    feature = "codegen-rust",
+    feature = "codegen-dart",
+    feature = "codegen-vue",
+    feature = "codegen-dioxus"
+))]
+const DESIGN_BLOCK_ERROR: &str =
+    "Design blocks are only supported on the OmniView, React, and Flutter targets. \
+    Design tokens, classes, and variants cannot be emitted for this target. \
+    Compile with Target::OmniView, Target::React, or Target::Flutter for design system features.";
 
 /// Check whether the IR program contains any non-empty design blocks.
+#[cfg(any(
+    feature = "codegen-python",
+    feature = "codegen-javascript",
+    feature = "codegen-rust",
+    feature = "codegen-dart",
+    feature = "codegen-vue",
+    feature = "codegen-dioxus"
+))]
 fn has_design_blocks(ir: &IRProgram) -> bool {
     ir.modules.values().any(|m| !m.designs.is_empty())
 }
@@ -74,7 +94,6 @@ pub fn compile(
     ir: &IRProgram,
     target: Target,
     #[allow(unused_variables)] source_files: &FxHashMap<String, String>,
-    #[allow(unused_variables)] store_mode: Option<&str>,
 ) -> CompileOutput {
     // Validate stdlib imports for the target
     if let Err(errors) = validate_stdlib_imports(ir, target) {
@@ -92,115 +111,58 @@ pub fn compile(
         #[cfg(feature = "codegen-python")]
         Target::Python => {
             if has_design_blocks(ir) {
-                return CompileOutput {
-                    files: vec![],
-                    errors: vec![],
-                    source_map: vec![],
-                    warnings: vec![DESIGN_BLOCK_WARNING.into()],
-                };
+                return CompileOutput::error(DESIGN_BLOCK_ERROR.into());
             }
             python::PythonCodegen.generate(ir, source_files)
         }
         #[cfg(feature = "codegen-javascript")]
         Target::JavaScript => {
             if has_design_blocks(ir) {
-                return CompileOutput {
-                    files: vec![],
-                    errors: vec![],
-                    source_map: vec![],
-                    warnings: vec![DESIGN_BLOCK_WARNING.into()],
-                };
+                return CompileOutput::error(DESIGN_BLOCK_ERROR.into());
             }
             javascript::JavaScriptCodegen::new(false).generate(ir, source_files)
         }
         #[cfg(feature = "codegen-javascript")]
         Target::TypeScript => {
             if has_design_blocks(ir) {
-                return CompileOutput {
-                    files: vec![],
-                    errors: vec![],
-                    source_map: vec![],
-                    warnings: vec![DESIGN_BLOCK_WARNING.into()],
-                };
+                return CompileOutput::error(DESIGN_BLOCK_ERROR.into());
             }
             javascript::JavaScriptCodegen::new(true).generate(ir, source_files)
         }
         #[cfg(feature = "codegen-rust")]
         Target::Rust => {
             if has_design_blocks(ir) {
-                return CompileOutput {
-                    files: vec![],
-                    errors: vec![],
-                    source_map: vec![],
-                    warnings: vec![DESIGN_BLOCK_WARNING.into()],
-                };
+                return CompileOutput::error(DESIGN_BLOCK_ERROR.into());
             }
             rust::RustCodegen.generate(ir, source_files)
         }
         #[cfg(feature = "codegen-dart")]
         Target::Dart => {
             if has_design_blocks(ir) {
-                return CompileOutput {
-                    files: vec![],
-                    errors: vec![],
-                    source_map: vec![],
-                    warnings: vec![DESIGN_BLOCK_WARNING.into()],
-                };
+                return CompileOutput::error(DESIGN_BLOCK_ERROR.into());
             }
             dart::DartCodegen.generate(ir, source_files)
         }
         #[cfg(feature = "codegen-react")]
-        Target::React => {
-            if has_design_blocks(ir) {
-                return CompileOutput {
-                    files: vec![],
-                    errors: vec![],
-                    source_map: vec![],
-                    warnings: vec![DESIGN_BLOCK_WARNING.into()],
-                };
-            }
-            let mode: react::ReactStoreMode = store_mode
-                .unwrap_or("hooks")
-                .parse()
-                .unwrap_or_default();
-            react::ReactCodegen { store_mode: mode }.generate(ir, source_files)
-        }
+        Target::React => react::ReactCodegen.generate(ir, source_files),
         #[cfg(feature = "codegen-vue")]
         Target::Vue => {
             if has_design_blocks(ir) {
-                return CompileOutput {
-                    files: vec![],
-                    errors: vec![],
-                    source_map: vec![],
-                    warnings: vec![DESIGN_BLOCK_WARNING.into()],
-                };
+                return CompileOutput::error(DESIGN_BLOCK_ERROR.into());
             }
             vue::VueCodegen.generate(ir, source_files)
         }
         #[cfg(feature = "codegen-dioxus")]
         Target::Dioxus => {
             if has_design_blocks(ir) {
-                return CompileOutput {
-                    files: vec![],
-                    errors: vec![],
-                    source_map: vec![],
-                    warnings: vec![DESIGN_BLOCK_WARNING.into()],
-                };
+                return CompileOutput::error(DESIGN_BLOCK_ERROR.into());
             }
             dioxus::DioxusCodegen.generate(ir, source_files)
         }
+        // Flutter compiles design blocks (semantic DSL) — no gate. Unmapped
+        // design features degrade to warnings emitted by the Flutter codegen.
         #[cfg(feature = "codegen-flutter")]
-        Target::Flutter => {
-            if has_design_blocks(ir) {
-                return CompileOutput {
-                    files: vec![],
-                    errors: vec![],
-                    source_map: vec![],
-                    warnings: vec![DESIGN_BLOCK_WARNING.into()],
-                };
-            }
-            flutter::FlutterCodegen.generate(ir, source_files)
-        }
+        Target::Flutter => flutter::FlutterCodegen.generate(ir, source_files),
         _ => CompileOutput::error(format!(
             "Backend for '{:?}' is not enabled (compile with the corresponding codegen-* feature flag)",
             target

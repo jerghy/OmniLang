@@ -934,23 +934,15 @@ impl SemanticAnalyzer {
                 ElementProp::Event { handler, .. } => {
                     self.resolve_event_handler_refs(handler, vctx);
                 }
+                // The driving signal expression is resolved like any other
+                // prop expression (ref-existence validation is Phase 2.1).
+                ElementProp::RefBinding { signal, .. } => {
+                    self.resolve_expr_refs(signal, vctx);
+                }
                 ElementProp::Bind { .. }
                 | ElementProp::TestId(_)
                 | ElementProp::Ref(_)
                 | ElementProp::MotionTrigger(_)
-                | ElementProp::PausedOverride(_)
-                | ElementProp::InViewOnce(_)
-                | ElementProp::InViewRepeat(_)
-                | ElementProp::InViewThreshold(_)
-                | ElementProp::ScrollStart(_)
-                | ElementProp::ScrollEnd(_)
-                | ElementProp::ScrollScrub(_)
-                | ElementProp::DragConstraints(_)
-                | ElementProp::DragElastic(_)
-                | ElementProp::DragScrub(_)
-                | ElementProp::DragMomentum(_)
-                | ElementProp::DragThreshold(_)
-                | ElementProp::DragVelocityMax(_)
                 | ElementProp::Variant { .. } => {}
             }
         }

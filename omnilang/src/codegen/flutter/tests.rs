@@ -4,6 +4,7 @@ use super::*;
 use crate::codegen::shared::build_component_map;
 use crate::codegen::{format_json_value, JSON_FLUTTER};
 use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use std::collections::HashMap;
 use std::fmt::Write;
 
@@ -253,6 +254,7 @@ fn test_stmt_mutation_assign() {
             value: Some(Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!("hello"),
             })),
+            field_object: None,
         }),
     };
     generate_statement_flutter(&mut w, &stmt);
@@ -322,22 +324,39 @@ fn test_stmt_if() {
 
 // ── format_view_tree / format_element tests ───────────────
 
+/// Format a view tree with an empty component/store context, returning
+/// (formatted_string, warnings).
+fn fmt_view(node: &ViewTree) -> (String, Vec<String>) {
+    let ir = empty_program();
+    let component_map: FxHashMap<&str, &ComponentIR> = FxHashMap::default();
+    let store_provider_map: FxHashMap<String, String> = FxHashMap::default();
+    let mut warnings = Vec::new();
+    let ref_usage: FxHashMap<String, RefUsage> = FxHashMap::default();
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let mut ctx = ViewContext {
+        component_map: &component_map,
+        store_provider_map: &store_provider_map,
+        ref_usage: &ref_usage,
+        component_slots: &component_slots,
+        ir: &ir,
+        warnings: &mut warnings,
+    };
+    let result = format_view_tree(node, &[], &mut ctx);
+    (result, warnings)
+}
+
 #[test]
 fn test_format_text_node() {
     let node = ViewTree::Text("Hello".into());
-    assert_eq!(
-        format_view_tree(&node, &[], &FxHashMap::default()),
-        "Text('Hello')"
-    );
+    let (expr, _) = fmt_view(&node);
+    assert_eq!(expr, "Text('Hello')");
 }
 
 #[test]
 fn test_format_text_with_interpolation() {
     let node = ViewTree::Text("{name}".into());
-    assert_eq!(
-        format_view_tree(&node, &[], &FxHashMap::default()),
-        "Text('$name')"
-    );
+    let (expr, _) = fmt_view(&node);
+    assert_eq!(expr, "Text('$name')");
 }
 
 #[test]
@@ -357,11 +376,10 @@ fn test_format_element_empty() {
         scroll: None,
         drag: None,
         ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
     };
-    assert_eq!(
-        format_view_tree(&ViewTree::Element(Box::new(el)), &[], &FxHashMap::default()),
-        "Container()"
-    );
+    let (expr, _) = fmt_view(&ViewTree::Element(Box::new(el)));
+    assert_eq!(expr, "Container()");
 }
 
 #[test]
@@ -381,8 +399,9 @@ fn test_format_element_with_text_child() {
         scroll: None,
         drag: None,
         ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
     };
-    let expr = format_view_tree(&ViewTree::Element(Box::new(el)), &[], &FxHashMap::default());
+    let (expr, _) = fmt_view(&ViewTree::Element(Box::new(el)));
     assert_eq!(expr, "Container(child: Text('Hello'))");
 }
 
@@ -406,9 +425,41 @@ fn test_format_element_with_multiple_children() {
         scroll: None,
         drag: None,
         ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
     };
-    let expr = format_view_tree(&ViewTree::Element(Box::new(el)), &[], &FxHashMap::default());
+    let (expr, _) = fmt_view(&ViewTree::Element(Box::new(el)));
     assert_eq!(expr, "Column(children: [Text('First'), Text('Second')])");
+}
+
+#[test]
+fn test_format_element_div_multiple_children_wraps_column() {
+    // div → Container is a single-child widget: multiple children must be
+    // hosted via an inner Column — `Container(children: [...])` is invalid Dart.
+    let el = ElementIR {
+        class_map_bindings: FxHashMap::default(),
+        tag: "div".into(),
+        props: FxHashMap::default(),
+        bindings: FxHashMap::default(),
+        events: FxHashMap::default(),
+        style_classes: None,
+        inline_style: None,
+        children: vec![
+            ViewTree::Text("First".into()),
+            ViewTree::Text("Second".into()),
+        ],
+        construction_kind: ConstructionKind::Component,
+        source_span: None,
+        motion: None,
+        scroll: None,
+        drag: None,
+        ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
+    };
+    let (expr, _) = fmt_view(&ViewTree::Element(Box::new(el)));
+    assert_eq!(
+        expr,
+        "Container(child: Column(children: [Text('First'), Text('Second')]))"
+    );
 }
 
 #[test]
@@ -440,8 +491,9 @@ fn test_format_element_with_event() {
         scroll: None,
         drag: None,
         ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
     };
-    let expr = format_view_tree(&ViewTree::Element(Box::new(el)), &[], &FxHashMap::default());
+    let (expr, _) = fmt_view(&ViewTree::Element(Box::new(el)));
     assert!(expr.contains("ElevatedButton("));
     assert!(expr.contains("onPressed: () { handleClick(); }"));
 }
@@ -471,8 +523,9 @@ fn test_format_element_with_class_map_bindings() {
         scroll: None,
         drag: None,
         ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
     };
-    let expr = format_view_tree(&ViewTree::Element(Box::new(el)), &[], &FxHashMap::default());
+    let (expr, _) = fmt_view(&ViewTree::Element(Box::new(el)));
     // Should emit conditional decoration that uses the binding expression
     assert!(
         expr.contains("isOpen"),
@@ -515,8 +568,9 @@ fn test_format_element_with_class_map_bindings_static_true() {
         scroll: None,
         drag: None,
         ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
     };
-    let expr = format_view_tree(&ViewTree::Element(Box::new(el)), &[], &FxHashMap::default());
+    let (expr, _) = fmt_view(&ViewTree::Element(Box::new(el)));
     // Static true class bindings should not add wrapping Container
     assert_eq!(expr, "Container()");
 }
@@ -545,8 +599,9 @@ fn test_format_element_with_class_map_bindings_static_false() {
         scroll: None,
         drag: None,
         ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
     };
-    let expr = format_view_tree(&ViewTree::Element(Box::new(el)), &[], &FxHashMap::default());
+    let (expr, _) = fmt_view(&ViewTree::Element(Box::new(el)));
     // Static false class bindings should be skipped entirely
     assert_eq!(expr, "Container()");
 }
@@ -576,8 +631,9 @@ fn test_format_element_with_class_map_bindings_and_child() {
         scroll: None,
         drag: None,
         ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
     };
-    let expr = format_view_tree(&ViewTree::Element(Box::new(el)), &[], &FxHashMap::default());
+    let (expr, _) = fmt_view(&ViewTree::Element(Box::new(el)));
     // Should wrap the child Container inside a conditional Container
     assert!(
         expr.contains("Container("),
@@ -675,6 +731,41 @@ fn make_ir(components: FxHashMap<String, ComponentIR>) -> IRProgram {
     }
 }
 
+/// Empty IRProgram (no modules) for isolated view-formatting tests.
+fn empty_program() -> IRProgram {
+    IRProgram {
+        version: "1.0".into(),
+        modules: FxHashMap::default(),
+        stdlib_imports: Default::default(),
+        source_map: FxHashMap::default(),
+        motion_index: FxHashMap::default(),
+        source_span: None,
+    }
+}
+
+/// Build an IRProgram with a single module containing the given stores.
+fn make_ir_with_stores(
+    components: FxHashMap<String, ComponentIR>,
+    stores: FxHashMap<String, StoreIR>,
+) -> IRProgram {
+    IRProgram {
+        version: "1.0".into(),
+        modules: FxHashMap::from_iter([(
+            "main".to_string(),
+            ModuleIR {
+                name: "main".to_string(),
+                components,
+                stores,
+                ..Default::default()
+            },
+        )]),
+        stdlib_imports: Default::default(),
+        source_map: FxHashMap::default(),
+        motion_index: FxHashMap::default(),
+        source_span: None,
+    }
+}
+
 #[test]
 fn test_empty_component() {
     let codegen = FlutterCodegen;
@@ -707,7 +798,9 @@ fn test_empty_component() {
         .get("App")
         .unwrap();
     let component_map = build_component_map(&ir);
-    let dart = codegen.gen_component_dart("App", comp_ref, &ir, &component_map);
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let (dart, _warnings) =
+        codegen.gen_component_dart("App", comp_ref, &ir, &component_map, &component_slots);
     assert!(dart.contains("import 'package:flutter/material.dart';"));
     assert!(dart.contains("class App extends StatefulWidget {"));
     assert!(dart.contains("const App({super.key});"));
@@ -784,7 +877,9 @@ fn test_component_with_state() {
         .get("Counter")
         .unwrap();
     let component_map = build_component_map(&ir);
-    let dart = codegen.gen_component_dart("Counter", comp_ref, &ir, &component_map);
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let (dart, _warnings) =
+        codegen.gen_component_dart("Counter", comp_ref, &ir, &component_map, &component_slots);
     assert!(dart.contains("int count = 0;"));
     assert!(dart.contains("increment() {"));
     assert!(dart.contains("setState(() {"));
@@ -842,7 +937,9 @@ fn test_component_with_props() {
         .get("Greeting")
         .unwrap();
     let component_map = build_component_map(&ir);
-    let dart = codegen.gen_component_dart("Greeting", comp_ref, &ir, &component_map);
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let (dart, _warnings) =
+        codegen.gen_component_dart("Greeting", comp_ref, &ir, &component_map, &component_slots);
     assert!(dart.contains("required this.name,"));
     assert!(dart.contains("required this.age,"));
     assert!(dart.contains("final String name;"));
@@ -892,7 +989,9 @@ fn test_component_with_mount_lifecycle() {
         .get("App")
         .unwrap();
     let component_map = build_component_map(&ir);
-    let dart = codegen.gen_component_dart("App", comp_ref, &ir, &component_map);
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let (dart, _warnings) =
+        codegen.gen_component_dart("App", comp_ref, &ir, &component_map, &component_slots);
     assert!(dart.contains("@override"));
     assert!(dart.contains("void initState() {"));
     assert!(dart.contains("super.initState();"));
@@ -942,7 +1041,9 @@ fn test_component_with_unmount_lifecycle() {
         .get("App")
         .unwrap();
     let component_map = build_component_map(&ir);
-    let dart = codegen.gen_component_dart("App", comp_ref, &ir, &component_map);
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let (dart, _warnings) =
+        codegen.gen_component_dart("App", comp_ref, &ir, &component_map, &component_slots);
     assert!(dart.contains("@override"));
     assert!(dart.contains("void dispose() {"));
     assert!(dart.contains("super.dispose();"));
@@ -1002,15 +1103,59 @@ fn test_store_dart_with_signals() {
         ..Default::default()
     };
     let store_dart = codegen.gen_store_dart("AppStore", &store);
+    // Riverpod 3.0: immutable state class
     assert!(
-        store_dart.contains("final appStoreCountProvider = StateProvider<int>((ref) => 0);"),
-        "should emit count provider: {}",
+        store_dart.contains("class AppStoreState {"),
+        "should emit state class: {}",
         store_dart
     );
     assert!(
+        store_dart.contains("final int count;"),
+        "should emit count field: {}",
         store_dart
-            .contains(r#"final appStoreNameProvider = StateProvider<String>((ref) => 'world');"#),
-        "should emit name provider: {}",
+    );
+    assert!(
+        store_dart.contains("final String name;"),
+        "should emit name field: {}",
+        store_dart
+    );
+    assert!(
+        store_dart.contains("required this.count,"),
+        "should emit required count constructor param: {}",
+        store_dart
+    );
+    assert!(
+        store_dart.contains("AppStoreState copyWith({"),
+        "should emit copyWith: {}",
+        store_dart
+    );
+    // Notifier class + provider
+    assert!(
+        store_dart.contains("class AppStore extends Notifier<AppStoreState> {"),
+        "should emit Notifier class: {}",
+        store_dart
+    );
+    assert!(
+        store_dart.contains("AppStoreState build() {"),
+        "should emit build(): {}",
+        store_dart
+    );
+    assert!(
+        store_dart.contains("count: 0") && store_dart.contains("name: 'world'"),
+        "should emit signal defaults in build(): {}",
+        store_dart
+    );
+    assert!(
+        store_dart.contains(
+            "final appStoreProvider = NotifierProvider<AppStore, AppStoreState>(AppStore.new);"
+        ),
+        "should emit NotifierProvider: {}",
+        store_dart
+    );
+    // No stale Riverpod 2.x StateProvider API
+    assert!(
+        !store_dart.contains("StateProvider"),
+        "should not emit Riverpod 2.x StateProvider: {}",
         store_dart
     );
 }
@@ -1048,13 +1193,33 @@ fn test_store_dart_with_getters() {
         signals,
         signal_defaults: defaults,
         getters,
+        getter_types: FxHashMap::from_iter([(
+            "doubleCount".into(),
+            TypeIR {
+                kind: "i32".into(),
+                type_args: vec![],
+                is_nullable: false,
+            },
+        )]),
         actions: vec![],
         ..Default::default()
     };
     let store_dart = codegen.gen_store_dart("CalcStore", &store);
-    assert!(store_dart.contains("final calcStoreCountProvider = StateProvider<int>((ref) => 0);"));
-    assert!(store_dart.contains("final calcStoreDoubleCountProvider = Provider<dynamic>((ref) {"));
-    assert!(store_dart.contains("final count = ref.watch(calcStoreCountProvider);"));
+    // Riverpod 3.0: getters are computed properties on the immutable state class
+    assert!(store_dart.contains("class CalcStoreState {"));
+    assert!(
+        store_dart.contains("int get doubleCount => count * 2;"),
+        "should emit getter on state class: {}",
+        store_dart
+    );
+    assert!(store_dart.contains(
+        "final calcStoreProvider = NotifierProvider<CalcStore, CalcStoreState>(CalcStore.new);"
+    ));
+    assert!(
+        !store_dart.contains("Provider<dynamic>"),
+        "should not emit Riverpod 2.x Provider<dynamic>: {}",
+        store_dart
+    );
 }
 
 // ── Motion codegen tests ───────────────────────────────
@@ -1112,6 +1277,7 @@ fn test_motion_enter_controller_init() {
         scroll: None,
         drag: None,
         ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
     };
 
     let view = ViewTree::Element(Box::new(el));
@@ -1151,7 +1317,9 @@ fn test_motion_enter_controller_init() {
         .get("App")
         .unwrap();
     let component_map = build_component_map(&ir);
-    let dart = codegen.gen_component_dart("App", comp_ref, &ir, &component_map);
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let (dart, _warnings) =
+        codegen.gen_component_dart("App", comp_ref, &ir, &component_map, &component_slots);
 
     // Field declarations
     assert!(
@@ -1159,8 +1327,14 @@ fn test_motion_enter_controller_init() {
         "should declare _fadeInController field"
     );
     assert!(
-        dart.contains("late final Animation<double> _fadeInAnimation;"),
-        "should declare _fadeInAnimation field"
+        dart.contains("late final Animation<double> _fadeInOpacity;"),
+        "should declare per-property _fadeInOpacity field: {}",
+        dart
+    );
+    assert!(
+        dart.contains("bool _fadeInActive = false;"),
+        "should declare the motion active flag: {}",
+        dart
     );
 
     // initState: AnimationController init
@@ -1175,34 +1349,44 @@ fn test_motion_enter_controller_init() {
         dart
     );
 
-    // Tween + Curve
+    // Per-property Tween + Curve
     assert!(
-        dart.contains("Tween<double>(begin: 0.0, end: 1.0)"),
-        "should create Tween: {}",
-        dart
-    );
-    assert!(
-        dart.contains("CurveTween(curve: Curves.easeOut)"),
-        "should apply easing: {}",
+        dart.contains("_fadeInOpacity = Tween<double>(begin: 0.0, end: 1.0).chain(CurveTween(curve: Curves.easeOut)).animate(_fadeInController);"),
+        "should create per-property Tween: {}",
         dart
     );
 
-    // @enter → forward() on mount
+    // @enter → activate + forward() on mount
+    assert!(
+        dart.contains("_fadeInActive = true;"),
+        "should activate the motion on mount: {}",
+        dart
+    );
     assert!(
         dart.contains("_fadeInController.forward();"),
         "should call forward() for @enter trigger: {}",
         dart
     );
 
-    // AnimatedBuilder wrapping in build method
+    // AnimatedBuilder wrapping in build method — listens to the shared
+    // controller, reads per-property animation values, and gates the
+    // wrappers on the active flag (natural style while inactive)
     assert!(
         dart.contains("AnimatedBuilder("),
         "should emit AnimatedBuilder in build: {}",
         dart
     );
     assert!(
-        dart.contains("animation: _fadeInAnimation"),
-        "AnimatedBuilder should reference animation"
+        dart.contains("animation: _fadeInController"),
+        "AnimatedBuilder should listen to the shared controller: {}",
+        dart
+    );
+    assert!(
+        dart.contains(
+            "_fadeInActive ? Opacity(opacity: _fadeInOpacity.value, child: child) : child ?? const SizedBox.shrink()"
+        ),
+        "builder body should gate per-property animation value on the active flag: {}",
+        dart
     );
 
     // dispose
@@ -1258,13 +1442,15 @@ fn test_motion_hover_mouse_region_wrapping() {
         result
     );
     assert!(
-        result.contains("onEnter: (_) => _scaleOnHoverController.forward()"),
-        "should call forward on mouse enter: {}",
+        result.contains(
+            "onEnter: (_) { _scaleOnHoverActive = true; _scaleOnHoverController.forward(); }"
+        ),
+        "should activate and forward on mouse enter: {}",
         result
     );
     assert!(
-        result.contains("onExit: (_) => _scaleOnHoverController.reverse()"),
-        "should call reverse on mouse exit: {}",
+        result.contains("onExit: (_) { _scaleOnHoverController.reverse().whenComplete(() { if (mounted && _scaleOnHoverController.value == 0.0) setState(() { _scaleOnHoverActive = false; }); }); }"),
+        "should reverse and deactivate on mouse exit: {}",
         result
     );
 }
@@ -1378,6 +1564,7 @@ fn test_motion_inline_body_handling() {
         scroll: None,
         drag: None,
         ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
     };
 
     let view = ViewTree::Element(Box::new(el));
@@ -1417,7 +1604,9 @@ fn test_motion_inline_body_handling() {
         .get("App")
         .unwrap();
     let component_map = build_component_map(&ir);
-    let dart = codegen.gen_component_dart("App", comp_ref, &ir, &component_map);
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let (dart, _warnings) =
+        codegen.gen_component_dart("App", comp_ref, &ir, &component_map, &component_slots);
 
     // Numeric duration init
     assert!(
@@ -1457,18 +1646,19 @@ fn test_motion_inline_body_handling() {
     );
 
     // AnimatedBuilder with multi-property wrapping (Opacity + Transform.scale)
+    // — per-property animations drive each wrapper independently
     assert!(
         dart.contains("AnimatedBuilder("),
         "should emit AnimatedBuilder: {}",
         dart
     );
     assert!(
-        dart.contains("Transform.scale(scale: _popInAnimation.value"),
+        dart.contains("Transform.scale(scale: _popInScale.value"),
         "should wrap with Transform.scale: {}",
         dart
     );
     assert!(
-        dart.contains("Opacity(opacity: _popInAnimation.value"),
+        dart.contains("Opacity(opacity: _popInOpacity.value"),
         "should wrap with Opacity: {}",
         dart
     );
@@ -1522,12 +1712,13 @@ fn test_motion_extract_duration_ms() {
         "300"
     );
 
-    // String "1.5s" → no "ms" suffix, returns as-is
+    // String "1.5s" → converted to milliseconds (was passed through unparsed,
+    // producing invalid `Duration(milliseconds: 1.5s)` Dart)
     assert_eq!(
         extract_duration_ms(&ExprIR::LiteralExpr {
             value: serde_json::json!("1.5s")
         }),
-        "1.5s"
+        "1500"
     );
 
     // Numeric → stringified
@@ -1544,6 +1735,32 @@ fn test_motion_extract_duration_ms() {
         "400"
     );
 
+    // Bare numeric string "0.5" → seconds semantics (CSS duration): 500ms
+    // (previously emitted invalid `Duration(milliseconds: 0.5)`)
+    assert_eq!(
+        extract_duration_ms(&ExprIR::LiteralExpr {
+            value: serde_json::json!("0.5")
+        }),
+        "500"
+    );
+
+    // Fractional millisecond values round to an int — Dart's
+    // `Duration(milliseconds:)` takes an `int`, so `250.5` would not compile.
+    assert_eq!(
+        extract_duration_ms(&ExprIR::LiteralExpr {
+            value: serde_json::json!("250.5ms")
+        }),
+        "251"
+    );
+
+    // Garbage → default fallback "300"
+    assert_eq!(
+        extract_duration_ms(&ExprIR::LiteralExpr {
+            value: serde_json::json!("not-a-duration")
+        }),
+        "300"
+    );
+
     // IdentifierExpr (non-literal) → default fallback "300"
     assert_eq!(
         extract_duration_ms(&ExprIR::IdentifierExpr {
@@ -1551,6 +1768,716 @@ fn test_motion_extract_duration_ms() {
             type_ann: None,
         }),
         "300"
+    );
+}
+
+/// Build a KeyframeIR from (position, property → json value) triples.
+fn test_keyframe(stops: &[(f64, &[(&str, serde_json::Value)])]) -> KeyframeIR {
+    KeyframeIR {
+        stops: stops
+            .iter()
+            .map(|(pos, props)| KeyframeStopIR {
+                position: *pos,
+                properties: FxHashMap::from_iter(
+                    props
+                        .iter()
+                        .map(|(k, v)| (k.to_string(), ExprIR::LiteralExpr { value: v.clone() })),
+                ),
+                ease: None,
+                source_span: None,
+            })
+            .collect(),
+        over: ExprIR::LiteralExpr {
+            value: serde_json::json!("300ms"),
+        },
+        ease: None,
+        playback: PlaybackIR::default(),
+        source_span: None,
+    }
+}
+
+#[test]
+fn test_build_prop_tween_expr_two_stops() {
+    // 2 stops → plain Tween
+    let kf = test_keyframe(&[
+        (0.0, &[("opacity", serde_json::json!(0.0))]),
+        (1.0, &[("opacity", serde_json::json!(1.0))]),
+    ]);
+    assert_eq!(
+        build_prop_tween_expr(&kf, "opacity", false),
+        "Tween<double>(begin: 0.0, end: 1.0)"
+    );
+}
+
+#[test]
+fn test_build_prop_tween_expr_three_stops_sequence() {
+    // 3 stops → TweenSequence with weight-proportional segments (50/50)
+    let kf = test_keyframe(&[
+        (0.0, &[("opacity", serde_json::json!(0.0))]),
+        (0.5, &[("opacity", serde_json::json!(0.5))]),
+        (1.0, &[("opacity", serde_json::json!(1.0))]),
+    ]);
+    assert_eq!(
+        build_prop_tween_expr(&kf, "opacity", false),
+        "TweenSequence<double>([TweenSequenceItem(tween: Tween<double>(begin: 0.0, end: 0.5), weight: 50), \
+         TweenSequenceItem(tween: Tween<double>(begin: 0.5, end: 1.0), weight: 50)])"
+    );
+}
+
+#[test]
+fn test_build_prop_tween_expr_nonuniform_weights() {
+    // Stops at 0/0.25/1 → weights proportional to spans (25/75)
+    let kf = test_keyframe(&[
+        (0.0, &[("opacity", serde_json::json!(0.0))]),
+        (0.25, &[("opacity", serde_json::json!(0.5))]),
+        (1.0, &[("opacity", serde_json::json!(1.0))]),
+    ]);
+    assert_eq!(
+        build_prop_tween_expr(&kf, "opacity", false),
+        "TweenSequence<double>([TweenSequenceItem(tween: Tween<double>(begin: 0.0, end: 0.5), weight: 25), \
+         TweenSequenceItem(tween: Tween<double>(begin: 0.5, end: 1.0), weight: 75)])"
+    );
+}
+
+#[test]
+fn test_build_prop_tween_expr_boundary_synthesis() {
+    // To-only (single stop at 1.0): begin defaults to the natural value
+    // (opacity is naturally fully visible — 1.0, not 0.0)
+    let kf = test_keyframe(&[(1.0, &[("opacity", serde_json::json!(1.0))])]);
+    assert_eq!(
+        build_prop_tween_expr(&kf, "opacity", false),
+        "Tween<double>(begin: 1.0, end: 1.0)"
+    );
+    // To-only scale animates from the natural scale 1.0
+    let kf = test_keyframe(&[(1.0, &[("scale", serde_json::json!(1.05))])]);
+    assert_eq!(
+        build_prop_tween_expr(&kf, "scale", false),
+        "Tween<double>(begin: 1.0, end: 1.05)"
+    );
+    // To-only rotate interpolates from the natural rotation 0.0
+    let kf = test_keyframe(&[(1.0, &[("rotate", serde_json::json!(90))])]);
+    assert_eq!(
+        build_prop_tween_expr(&kf, "rotate", false),
+        "Tween<double>(begin: 0.0, end: 1.5707963267948966)"
+    );
+
+    // From-only (single stop at 0.0): end defaults to the natural value
+    // (opacity naturally fully visible — 1.0)
+    let kf = test_keyframe(&[(0.0, &[("opacity", serde_json::json!(0.0))])]);
+    assert_eq!(
+        build_prop_tween_expr(&kf, "opacity", false),
+        "Tween<double>(begin: 0.0, end: 1.0)"
+    );
+    // From-only translate returns to the natural offset 0.0
+    let kf = test_keyframe(&[(0.0, &[("translateX", serde_json::json!(20))])]);
+    assert_eq!(
+        build_prop_tween_expr(&kf, "translateX", false),
+        "Tween<double>(begin: 20.0, end: 0.0)"
+    );
+
+    // Partial boundaries (0% and 50% only) → synthesized 100% end becomes a
+    // third TweenSequence point
+    let kf = test_keyframe(&[
+        (0.0, &[("opacity", serde_json::json!(0.0))]),
+        (0.5, &[("opacity", serde_json::json!(1.0))]),
+    ]);
+    assert_eq!(
+        build_prop_tween_expr(&kf, "opacity", false),
+        "TweenSequence<double>([TweenSequenceItem(tween: Tween<double>(begin: 0.0, end: 1.0), weight: 50), \
+         TweenSequenceItem(tween: Tween<double>(begin: 1.0, end: 1.0), weight: 50)])"
+    );
+}
+
+#[test]
+fn test_build_prop_tween_expr_color() {
+    // Color property → Tween<Color> with css_color_to_dart conversions
+    let kf = test_keyframe(&[
+        (0.0, &[("backgroundColor", serde_json::json!("#ffffff"))]),
+        (1.0, &[("backgroundColor", serde_json::json!("#ff0000"))]),
+    ]);
+    assert_eq!(
+        build_prop_tween_expr(&kf, "backgroundColor", false),
+        "Tween<Color>(begin: Color(0xFFFFFFFF), end: Color(0xFFFF0000))"
+    );
+}
+
+#[test]
+fn test_build_prop_tween_expr_per_property_isolation() {
+    // A property present at only two of three stops interpolates over its own
+    // span — other properties' extra stops don't affect it.
+    let kf = test_keyframe(&[
+        (0.0, &[("opacity", serde_json::json!(0.0))]),
+        (0.5, &[("scale", serde_json::json!(0.5))]),
+        (
+            1.0,
+            &[
+                ("opacity", serde_json::json!(1.0)),
+                ("scale", serde_json::json!(1.0)),
+            ],
+        ),
+    ]);
+    assert_eq!(
+        build_prop_tween_expr(&kf, "opacity", false),
+        "Tween<double>(begin: 0.0, end: 1.0)"
+    );
+    // scale's missing 0% boundary synthesizes its natural value 1.0
+    assert_eq!(
+        build_prop_tween_expr(&kf, "scale", false),
+        "TweenSequence<double>([TweenSequenceItem(tween: Tween<double>(begin: 1.0, end: 0.5), weight: 50), \
+         TweenSequenceItem(tween: Tween<double>(begin: 0.5, end: 1.0), weight: 50)])"
+    );
+}
+
+#[test]
+fn test_build_prop_tween_expr_reverse() {
+    // `direction: reverse` + loop → swapped Tween direction (Flutter can
+    // only repeat forward passes)
+    let kf = test_keyframe(&[
+        (0.0, &[("opacity", serde_json::json!(0.0))]),
+        (1.0, &[("opacity", serde_json::json!(1.0))]),
+    ]);
+    assert_eq!(
+        build_prop_tween_expr(&kf, "opacity", true),
+        "Tween<double>(begin: 1.0, end: 0.0)"
+    );
+
+    // TweenSequence: segments reverse and swap begin/end
+    let kf = test_keyframe(&[
+        (0.0, &[("opacity", serde_json::json!(0.0))]),
+        (0.5, &[("opacity", serde_json::json!(0.5))]),
+        (1.0, &[("opacity", serde_json::json!(1.0))]),
+    ]);
+    assert_eq!(
+        build_prop_tween_expr(&kf, "opacity", true),
+        "TweenSequence<double>([TweenSequenceItem(tween: Tween<double>(begin: 1.0, end: 0.5), weight: 50), \
+         TweenSequenceItem(tween: Tween<double>(begin: 0.5, end: 0.0), weight: 50)])"
+    );
+}
+
+#[test]
+fn test_build_prop_tween_expr_rotate_radians() {
+    // rotate is declared in degrees but Transform.rotate takes radians:
+    // 45deg → 0.7853981633974483, 360deg → 6.283185307179586
+    let kf = test_keyframe(&[
+        (0.0, &[("rotate", serde_json::json!(0))]),
+        (1.0, &[("rotate", serde_json::json!(360))]),
+    ]);
+    assert_eq!(
+        build_prop_tween_expr(&kf, "rotate", false),
+        "Tween<double>(begin: 0.0, end: 6.283185307179586)"
+    );
+}
+
+#[test]
+fn test_prop_anim_field_naming() {
+    assert_eq!(prop_anim_field("fadeIn", "opacity"), "_fadeInOpacity");
+    assert_eq!(prop_anim_field("fadeIn", "scale"), "_fadeInScale");
+    assert_eq!(prop_anim_field("fadeIn", "translateX"), "_fadeInTranslateX");
+    assert_eq!(
+        prop_anim_field("fadeIn", "backgroundColor"),
+        "_fadeInBackgroundColor"
+    );
+    assert_eq!(prop_anim_type("opacity"), "double");
+    assert_eq!(prop_anim_type("backgroundColor"), "Color");
+}
+
+#[test]
+fn test_emit_playback_start_default() {
+    // Default fill (forwards-like): activate at play start, no reset
+    let pb = PlaybackIR::default();
+    assert_eq!(
+        emit_playback_start("_fadeInController", Some("_fadeInActive"), &pb),
+        vec!["_fadeInActive = true; _fadeInController.forward();"]
+    );
+}
+
+#[test]
+fn test_emit_playback_start_loop() {
+    let pb = PlaybackIR {
+        loop_count: Some(LoopValue::Infinite),
+        ..Default::default()
+    };
+    assert_eq!(
+        emit_playback_start("_c", Some("_cActive"), &pb),
+        vec!["_cActive = true;", "_c.repeat();"]
+    );
+
+    let pb = PlaybackIR {
+        loop_count: Some(LoopValue::Count(3)),
+        ..Default::default()
+    };
+    assert_eq!(
+        emit_playback_start("_c", Some("_cActive"), &pb),
+        vec!["_cActive = true;", "_c.repeat(count: 3);"]
+    );
+
+    // loop + alternate → reversing repeat (WAAPI: F,R,F,R)
+    let pb = PlaybackIR {
+        loop_count: Some(LoopValue::Infinite),
+        direction: Some(DirectionValue::Alternate),
+        ..Default::default()
+    };
+    assert_eq!(
+        emit_playback_start("_c", Some("_cActive"), &pb),
+        vec!["_cActive = true;", "_c.repeat(reverse: true);"]
+    );
+
+    // loop + alternate-reverse → preset to 1.0 so the first pass is reversed
+    // (WAAPI: R,F,R,F)
+    let pb = PlaybackIR {
+        loop_count: Some(LoopValue::Infinite),
+        direction: Some(DirectionValue::AlternateReverse),
+        ..Default::default()
+    };
+    assert_eq!(
+        emit_playback_start("_c", Some("_cActive"), &pb),
+        vec![
+            "_cActive = true;",
+            "_c.value = 1.0;",
+            "_c.repeat(reverse: true);"
+        ]
+    );
+}
+
+#[test]
+fn test_emit_playback_start_direction() {
+    // WAAPI with iterations=1: reverse/alternate-reverse play a single
+    // reversed pass; alternate plays a single forward pass
+    let pb = PlaybackIR {
+        direction: Some(DirectionValue::Reverse),
+        ..Default::default()
+    };
+    assert_eq!(
+        emit_playback_start("_c", Some("_cActive"), &pb),
+        vec!["_cActive = true; _c.reverse();"]
+    );
+
+    let pb = PlaybackIR {
+        direction: Some(DirectionValue::Alternate),
+        ..Default::default()
+    };
+    assert_eq!(
+        emit_playback_start("_c", Some("_cActive"), &pb),
+        vec!["_cActive = true; _c.forward();"]
+    );
+
+    let pb = PlaybackIR {
+        direction: Some(DirectionValue::AlternateReverse),
+        ..Default::default()
+    };
+    assert_eq!(
+        emit_playback_start("_c", Some("_cActive"), &pb),
+        vec!["_cActive = true; _c.reverse();"]
+    );
+}
+
+#[test]
+fn test_emit_playback_start_fill() {
+    // forwards/both (and default) hold the end value — no reset
+    let pb = PlaybackIR {
+        fill: Some(FillValue::Forwards),
+        ..Default::default()
+    };
+    assert_eq!(
+        emit_playback_start("_c", Some("_cActive"), &pb),
+        vec!["_cActive = true; _c.forward();"]
+    );
+
+    // none/backwards → deactivate the animated wrapper on completion so the
+    // element returns to its natural style (NOT `value = 0` — that would
+    // leave a fade-in permanently invisible)
+    let pb = PlaybackIR {
+        fill: Some(FillValue::None),
+        ..Default::default()
+    };
+    assert_eq!(
+        emit_playback_start("_c", Some("_cActive"), &pb),
+        vec!["_cActive = true; _c.forward().whenComplete(() { if (mounted && _c.value == 1.0) setState(() { _cActive = false; }); });"]
+    );
+}
+
+#[test]
+fn test_emit_playback_start_no_wrappers() {
+    // Motions with no supported properties (e.g. skew-only) have no active
+    // flag — playback statements must not reference one.
+    let pb = PlaybackIR::default();
+    assert_eq!(emit_playback_start("_c", None, &pb), vec!["_c.forward();"]);
+    let pb = PlaybackIR {
+        fill: Some(FillValue::None),
+        ..Default::default()
+    };
+    assert_eq!(emit_playback_start("_c", None, &pb), vec!["_c.forward();"]);
+    let pb = PlaybackIR {
+        loop_count: Some(LoopValue::Infinite),
+        ..Default::default()
+    };
+    assert_eq!(emit_playback_start("_c", None, &pb), vec!["_c.repeat();"]);
+}
+
+#[test]
+fn test_emit_playback_start_delay() {
+    // delay → Future.delayed with a mounted guard; activation inside the
+    // callback (natural style during the delay)
+    let pb = PlaybackIR {
+        delay: Some(ExprIR::LiteralExpr {
+            value: serde_json::json!("500ms"),
+        }),
+        ..Default::default()
+    };
+    assert_eq!(
+        emit_playback_start("_c", Some("_cActive"), &pb),
+        vec!["Future.delayed(Duration(milliseconds: 500), () { if (mounted) { _cActive = true; _c.forward(); } });"]
+    );
+
+    // delay + fill backwards → active immediately (begin state during the
+    // delay), deactivated after completion
+    let pb = PlaybackIR {
+        fill: Some(FillValue::Backwards),
+        delay: Some(ExprIR::LiteralExpr {
+            value: serde_json::json!("500ms"),
+        }),
+        ..Default::default()
+    };
+    assert_eq!(
+        emit_playback_start("_c", Some("_cActive"), &pb),
+        vec![
+            "_cActive = true;",
+            "Future.delayed(Duration(milliseconds: 500), () { if (mounted) { _c.forward().whenComplete(() { if (mounted && _c.value == 1.0) setState(() { _cActive = false; }); }); } });"
+        ]
+    );
+
+    // delay + loop
+    let pb = PlaybackIR {
+        loop_count: Some(LoopValue::Infinite),
+        delay: Some(ExprIR::LiteralExpr {
+            value: serde_json::json!("1s"),
+        }),
+        ..Default::default()
+    };
+    assert_eq!(
+        emit_playback_start("_c", Some("_cActive"), &pb),
+        vec!["Future.delayed(Duration(milliseconds: 1000), () { if (mounted) { _cActive = true; _c.repeat(); } });"]
+    );
+}
+
+#[test]
+fn test_easing_flutter_diagnostic() {
+    assert!(easing_flutter_diagnostic("m", &Some(EasingIR::Named("easeOut".into()))).is_none());
+    assert!(easing_flutter_diagnostic(
+        "m",
+        &Some(EasingIR::CubicBezier {
+            x1: 0.0,
+            y1: 0.0,
+            x2: 1.0,
+            y2: 1.0
+        })
+    )
+    .is_none());
+    // steps(N,dir) strings lower from steps() easing — no Flutter equivalent
+    let diag = easing_flutter_diagnostic("m", &Some(EasingIR::Named("steps(6,end)".into())));
+    assert!(diag.is_some());
+    assert!(diag.unwrap().contains("steps()"));
+    // Named step aliases (stepStart/stepEnd lower to steps(1,...))
+    assert!(easing_flutter_diagnostic("m", &Some(EasingIR::Named("stepEnd".into()))).is_some());
+}
+
+#[test]
+fn test_prop_flutter_diagnostic() {
+    assert!(prop_flutter_diagnostic("m", "opacity").is_none());
+    assert!(prop_flutter_diagnostic("m", "translateX").is_none());
+
+    let diag = prop_flutter_diagnostic("m", "width").unwrap();
+    assert!(diag.contains("layout-dependent"), "width diag: {}", diag);
+
+    let diag = prop_flutter_diagnostic("m", "skewX").unwrap();
+    assert!(diag.contains("skew"), "skew diag: {}", diag);
+
+    let diag = prop_flutter_diagnostic("m", "blur").unwrap();
+    assert!(
+        diag.contains("unsupported property 'blur'"),
+        "unknown diag: {}",
+        diag
+    );
+}
+
+#[test]
+fn test_build_animated_builder_body_per_property() {
+    let motion = MotionIntent {
+        name: "popIn".into(),
+        body: test_keyframe(&[
+            (
+                0.0,
+                &[
+                    ("opacity", serde_json::json!(0.0)),
+                    ("translateX", serde_json::json!(-50)),
+                    ("rotate", serde_json::json!(0)),
+                ],
+            ),
+            (
+                1.0,
+                &[
+                    ("opacity", serde_json::json!(1.0)),
+                    ("translateX", serde_json::json!(0)),
+                    ("rotate", serde_json::json!(45)),
+                ],
+            ),
+        ]),
+        source_span: None,
+    };
+    let body = build_animated_builder_body(&motion, "popIn");
+    assert!(
+        body.contains("Opacity(opacity: _popInOpacity.value"),
+        "opacity wrapper: {}",
+        body
+    );
+    assert!(
+        body.contains("Transform.translate(offset: Offset(_popInTranslateX.value, 0.0)"),
+        "translate wrapper: {}",
+        body
+    );
+    assert!(
+        body.contains("Transform.rotate(angle: _popInRotate.value"),
+        "rotate wrapper: {}",
+        body
+    );
+}
+
+#[test]
+fn test_build_animated_builder_body_color_and_size() {
+    let motion = MotionIntent {
+        name: "tint".into(),
+        body: test_keyframe(&[
+            (
+                0.0,
+                &[
+                    ("backgroundColor", serde_json::json!("#ffffff")),
+                    ("width", serde_json::json!(100)),
+                    ("color", serde_json::json!("#000000")),
+                ],
+            ),
+            (
+                1.0,
+                &[
+                    ("backgroundColor", serde_json::json!("#ff0000")),
+                    ("width", serde_json::json!(200)),
+                    ("color", serde_json::json!("#ffffff")),
+                ],
+            ),
+        ]),
+        source_span: None,
+    };
+    let body = build_animated_builder_body(&motion, "tint");
+    assert!(
+        body.contains("Container(color: _tintBackgroundColor.value"),
+        "backgroundColor wrapper: {}",
+        body
+    );
+    assert!(
+        body.contains("DefaultTextStyle(style: TextStyle(color: _tintColor.value)"),
+        "color wrapper: {}",
+        body
+    );
+    assert!(
+        body.contains("SizedBox(width: _tintWidth.value"),
+        "width wrapper: {}",
+        body
+    );
+}
+
+#[test]
+fn test_build_animated_builder_body_no_wrappers() {
+    // Motion whose only property is unsupported (skew) must still produce a
+    // Widget-typed body — the builder closure's `child` is `Widget?`.
+    let motion = MotionIntent {
+        name: "skew".into(),
+        body: test_keyframe(&[
+            (0.0, &[("skewX", serde_json::json!(0))]),
+            (1.0, &[("skewX", serde_json::json!(45))]),
+        ]),
+        source_span: None,
+    };
+    assert_eq!(
+        build_animated_builder_body(&motion, "skew"),
+        "child ?? const SizedBox.shrink()"
+    );
+}
+
+#[test]
+fn test_motion_pipeline_warnings_and_playback() {
+    // Full pipeline: motion with steps() easing + width property + loop +
+    // delay must produce warnings and playback honoring loop/delay.
+    let codegen = FlutterCodegen;
+    let motion = MotionIntent {
+        name: "pulse".into(),
+        body: KeyframeIR {
+            stops: vec![
+                KeyframeStopIR {
+                    position: 0.0,
+                    properties: FxHashMap::from_iter([
+                        (
+                            "opacity".into(),
+                            ExprIR::LiteralExpr {
+                                value: serde_json::json!(0.0),
+                            },
+                        ),
+                        (
+                            "width".into(),
+                            ExprIR::LiteralExpr {
+                                value: serde_json::json!(100),
+                            },
+                        ),
+                    ]),
+                    ease: None,
+                    source_span: None,
+                },
+                KeyframeStopIR {
+                    position: 1.0,
+                    properties: FxHashMap::from_iter([
+                        (
+                            "opacity".into(),
+                            ExprIR::LiteralExpr {
+                                value: serde_json::json!(1.0),
+                            },
+                        ),
+                        (
+                            "width".into(),
+                            ExprIR::LiteralExpr {
+                                value: serde_json::json!(200),
+                            },
+                        ),
+                    ]),
+                    ease: None,
+                    source_span: None,
+                },
+            ],
+            over: ExprIR::LiteralExpr {
+                value: serde_json::json!("300ms"),
+            },
+            ease: Some(EasingIR::Named("steps(6,end)".into())),
+            playback: PlaybackIR {
+                loop_count: Some(LoopValue::Infinite),
+                delay: Some(ExprIR::LiteralExpr {
+                    value: serde_json::json!("1s"),
+                }),
+                ..Default::default()
+            },
+            source_span: None,
+        },
+        source_span: None,
+    };
+
+    let el = ElementIR {
+        tag: "div".into(),
+        props: FxHashMap::default(),
+        bindings: FxHashMap::default(),
+        events: FxHashMap::default(),
+        style_classes: None,
+        inline_style: None,
+        children: vec![ViewTree::Text("Hello".into())],
+        construction_kind: ConstructionKind::Component,
+        class_map_bindings: FxHashMap::default(),
+        source_span: None,
+        motion: Some(Box::new(MotionBehavior {
+            triggers: vec![TriggerIntent {
+                kind: TriggerKind::Enter,
+                motion_ref: Some("pulse".into()),
+                inline_motion: None,
+                source_span: None,
+            }],
+            ..Default::default()
+        })),
+        scroll: None,
+        drag: None,
+        ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
+    };
+
+    let view = ViewTree::Element(Box::new(el));
+    let mut components = FxHashMap::default();
+    components.insert(
+        "App".into(),
+        ComponentIR {
+            name: "App".into(),
+            view: Some(view),
+            ..Default::default()
+        },
+    );
+    let ir = IRProgram {
+        version: "1.0".into(),
+        modules: FxHashMap::from_iter([(
+            "main".into(),
+            ModuleIR {
+                name: "main".into(),
+                components,
+                motions: vec![motion],
+                ..Default::default()
+            },
+        )]),
+        stdlib_imports: Default::default(),
+        source_map: FxHashMap::default(),
+        motion_index: FxHashMap::default(),
+        source_span: None,
+    };
+    let comp_ref = ir
+        .modules
+        .get("main")
+        .unwrap()
+        .components
+        .get("App")
+        .unwrap();
+    let component_map = build_component_map(&ir);
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let (dart, warnings) =
+        codegen.gen_component_dart("App", comp_ref, &ir, &component_map, &component_slots);
+
+    // steps() easing → diagnostic warning
+    assert!(
+        warnings.iter().any(|w| w.contains("steps() easing")),
+        "steps() warning: {:?}",
+        warnings
+    );
+    // width → layout-dependent warning
+    assert!(
+        warnings
+            .iter()
+            .any(|w| w.contains("'width'") && w.contains("layout-dependent")),
+        "width warning: {:?}",
+        warnings
+    );
+
+    // Per-property animations: opacity Tween + width Tween
+    assert!(
+        dart.contains("_pulseOpacity = Tween<double>(begin: 0.0, end: 1.0)"),
+        "opacity tween: {}",
+        dart
+    );
+    assert!(
+        dart.contains("_pulseWidth = Tween<double>(begin: 100.0, end: 200.0)"),
+        "width tween: {}",
+        dart
+    );
+
+    // steps() falls back to Curves.linear
+    assert!(
+        dart.contains("CurveTween(curve: Curves.linear)"),
+        "steps fallback: {}",
+        dart
+    );
+
+    // Playback: loop + delay → delayed repeat (mounted-guarded)
+    assert!(
+        dart.contains(
+            "Future.delayed(Duration(milliseconds: 1000), () { if (mounted) { _pulseActive = true; _pulseController.repeat(); } });"
+        ),
+        "delayed repeat: {}",
+        dart
+    );
+
+    // Builder body wraps both properties
+    assert!(
+        dart.contains("SizedBox(width: _pulseWidth.value"),
+        "width wrapper: {}",
+        dart
     );
 }
 
@@ -1596,7 +2523,22 @@ fn test_store_dart_with_action() {
         ..Default::default()
     };
     let store_dart = codegen.gen_store_dart("AppStore", &store);
-    assert!(store_dart.contains("void appStoreIncrement(WidgetRef ref) {"));
+    // Riverpod 3.0: actions are Notifier methods mutating state via copyWith
+    assert!(
+        store_dart.contains("void increment() {"),
+        "should emit action as Notifier method: {}",
+        store_dart
+    );
+    assert!(
+        store_dart.contains("state = state.copyWith(count: state.count + 1);"),
+        "should mutate via copyWith: {}",
+        store_dart
+    );
+    assert!(
+        !store_dart.contains("WidgetRef ref"),
+        "actions should not take WidgetRef: {}",
+        store_dart
+    );
 }
 
 // ── Full pipeline through Codegen trait ───────────────────
@@ -1806,8 +2748,154 @@ fn compile_flutter(source: &str) -> Option<crate::InternalCompileResult> {
     }
 }
 
+/// Full-pipeline motion coverage (Task 5.4): real @motion syntax through
+/// parse → IR → Flutter codegen. Verifies per-property Tween/TweenSequence,
+/// playback properties, color mapping, and motion diagnostics.
 #[test]
-fn warns_on_slot_in_flutter() {
+fn motion_full_pipeline_per_property_and_playback() {
+    let source = r##"
+import omniview;
+
+@motion enterFadeUp {
+    from { opacity: 0, translateY: 20 }
+    to   { opacity: 1, translateY: 0 }
+    over: 500, easing: power2Out
+}
+
+@motion multiStopDemo {
+    0%   { opacity: 0, scale: 0.5, backgroundColor: "#6366f1" }
+    50%  { opacity: 1, scale: 1.2, backgroundColor: "#10b981" }
+    100% { opacity: 1, scale: 1, backgroundColor: "#f59e0b" }
+    over: 1200, easing: easeInOut
+}
+
+@motion spinLoop {
+    to { rotate: 360 }
+    over: 2000, easing: linear
+    loop
+}
+
+@motion fillBackwards {
+    from { opacity: 0 }
+    to   { opacity: 1 }
+    over: 600, easing: power2Out
+    delay 500
+    fill backwards
+}
+
+@motion stepsMotion {
+    from { opacity: 0 }
+    to   { opacity: 1 }
+    over: 600, easing: steps(6, end)
+}
+
+component MotionCheck {
+    view {
+        <div>
+            <div @enter={enterFadeUp}>hello</div>
+            <div @enter={multiStopDemo}>multi</div>
+            <div @enter={spinLoop}>spin</div>
+            <div @enter={fillBackwards}>fill</div>
+            <div @enter={stepsMotion}>steps</div>
+        </div>
+    }
+}
+    "##;
+    let output = compile_flutter(source).expect("motion pipeline compile failed");
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    // Per-property Animation fields (lowerCamelCase, no underscores mid-name)
+    assert!(
+        content.contains("late final Animation<double> _enterFadeUpOpacity;"),
+        "opacity field: {}",
+        content
+    );
+    assert!(
+        content.contains("late final Animation<double> _enterFadeUpTranslateY;"),
+        "translate field: {}",
+        content
+    );
+    assert!(
+        content.contains("late final Animation<Color> _multiStopDemoBackgroundColor;"),
+        "color field: {}",
+        content
+    );
+
+    // 2 stops → Tween; 3 stops → weight-proportional TweenSequence
+    assert!(
+        content.contains("_enterFadeUpOpacity = Tween<double>(begin: 0.0, end: 1.0)"),
+        "2-stop tween: {}",
+        content
+    );
+    assert!(
+        content.contains("_multiStopDemoOpacity = TweenSequence<double>(["),
+        "3-stop sequence: {}",
+        content
+    );
+    assert!(
+        content.contains("weight: 50)"),
+        "weight-proportional items: {}",
+        content
+    );
+    assert!(
+        content.contains("TweenSequence<Color>(["),
+        "color sequence: {}",
+        content
+    );
+    // Color tweens use CurvedAnimation — CurveTween is Animatable<double>
+    // and cannot chain onto Tween<Color>
+    assert!(
+        content.contains("]).animate(CurvedAnimation(parent: _multiStopDemoController, curve: Curves.easeInOut));"),
+        "color CurvedAnimation: {}",
+        content
+    );
+    // rotate is declared in degrees → emitted as radians (360deg = 2π)
+    assert!(
+        content.contains("_spinLoopRotate = Tween<double>(begin: 0.0, end: 6.283185307179586)"),
+        "rotate radians: {}",
+        content
+    );
+
+    // Playback: loop → repeat(); delay+fill backwards → active immediately,
+    // delayed forward, deactivated (natural style) on completion
+    assert!(
+        content.contains("_spinLoopController.repeat();"),
+        "loop: {}",
+        content
+    );
+    assert!(
+        content.contains("_fillBackwardsActive = true;"),
+        "fill backwards activation: {}",
+        content
+    );
+    assert!(content.contains("Future.delayed(Duration(milliseconds: 500), () { if (mounted) { _fillBackwardsController.forward().whenComplete(() { if (mounted && _fillBackwardsController.value == 1.0) setState(() { _fillBackwardsActive = false; }); }); } });"), "delay+fill: {}", content);
+
+    // Builder body: per-property wrappers gated on the active flag
+    assert!(
+        content.contains("_enterFadeUpActive ? Transform.translate(offset: Offset(0.0, _enterFadeUpTranslateY.value), child: Opacity(opacity: _enterFadeUpOpacity.value, child: child)) : child ?? const SizedBox.shrink()"),
+        "enter body: {}",
+        content
+    );
+    assert!(content.contains("_multiStopDemoActive ? Container(color: _multiStopDemoBackgroundColor.value, child: Transform.scale(scale: _multiStopDemoScale.value, child: Opacity(opacity: _multiStopDemoOpacity.value, child: child))) : child ?? const SizedBox.shrink()"), "multi-property body: {}", content);
+
+    // Diagnostics: steps() easing warning
+    assert!(
+        output
+            .warnings
+            .iter()
+            .any(|w| w.message.contains("steps() easing")),
+        "steps warning: {:?}",
+        output.warnings
+    );
+}
+
+#[test]
+fn slot_unnamed_emits_children_param() {
     let source = r#"
 component Card {
     view {
@@ -1823,11 +2911,421 @@ component Card {
         .collect::<Vec<_>>()
         .join("\n");
     assert!(
-        content.contains("WARNING:")
-            && content.contains("slot")
-            && content.contains("not supported"),
-        "Expected slot warning in Flutter output, got: {}",
+        content.contains("final Widget? children;"),
+        "Expected children slot field, got:\n{}",
         content
+    );
+    assert!(
+        content.contains("widget.children"),
+        "Expected widget.children render, got:\n{}",
+        content
+    );
+    assert!(
+        !content.contains("SizedBox.shrink()"),
+        "Slot must not degrade to SizedBox.shrink(), got:\n{}",
+        content
+    );
+    assert!(
+        !output.warnings.iter().any(|w| w.message.contains("slot")),
+        "Slot warning should be gone, got: {:?}",
+        output.warnings
+    );
+}
+
+/// Named slot with fallback: `final Widget? header;` + `widget.header ?? fallback`.
+#[test]
+fn slot_named_emits_param_with_fallback() {
+    let source = r#"
+component Card {
+    view {
+        <div class="card">
+            @slot header {
+                <h4>Default Header</h4>
+            }
+        </div>
+    }
+}
+"#;
+    let output = compile_flutter(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        content.contains("final Widget? header;"),
+        "Expected header slot field, got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("this.header,"),
+        "Expected header constructor param, got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("widget.header ?? Text(child: Text('Default Header'))"),
+        "Expected fallback-wrapped header render, got:\n{}",
+        content
+    );
+}
+
+/// `@slot header: String { ... }` types the param as `String?` instead of `Widget?`.
+#[test]
+fn slot_type_constraint_defers_to_widget_with_warning() {
+    let source = r#"
+component Badge {
+    view {
+        <div>
+            @slot header: String { <span>Fallback</span> }
+        </div>
+    }
+}
+"#;
+    let output = compile_flutter(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    // Typed slots are deferred: the param stays `Widget?` so the
+    // `widget.header ?? <fallback widget>` render stays statically valid.
+    assert!(
+        content.contains("final Widget? header;"),
+        "Expected Widget? header param (type constraint deferred), got:\n{}",
+        content
+    );
+    assert!(
+        !content.contains("final String? header;"),
+        "Must not emit a String-typed slot field, got:\n{}",
+        content
+    );
+    assert!(
+        output
+            .warnings
+            .iter()
+            .any(|w| w.message.contains("type constraint")),
+        "Expected type-constraint deferral warning, got: {:?}",
+        output.warnings
+    );
+}
+
+/// A slot whose name collides with a prop is skipped — a duplicate
+/// constructor param/field would be invalid Dart (mirrors the React
+/// backend's collision guard).
+#[test]
+fn slot_colliding_with_prop_is_skipped() {
+    let source = r#"
+component Card {
+    prop title: String = "T"
+    view {
+        <div>
+            @slot title {
+                <span>Fallback</span>
+            }
+        </div>
+    }
+}
+"#;
+    let output = compile_flutter(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert_eq!(
+        content.matches("this.title,").count(),
+        1,
+        "Constructor must declare exactly one title param (the prop), got:\n{}",
+        content
+    );
+    assert!(
+        !content.contains("final Widget? title;"),
+        "Colliding slot must not emit a duplicate field, got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("final String title;"),
+        "Prop field must still be emitted, got:\n{}",
+        content
+    );
+}
+
+/// Multi-node fallbacks wrap in a Column so the `??` expression stays a
+/// single widget (Flutter's analogue of React's fragment).
+#[test]
+fn slot_multi_node_fallback_wraps_in_column() {
+    let source = r#"
+component Card {
+    view {
+        <div class="card">
+            @slot header {
+                <h4>Title</h4>
+                <p>Subtitle</p>
+            }
+        </div>
+    }
+}
+"#;
+    let output = compile_flutter(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        content.contains(
+            "widget.header ?? Column(mainAxisSize: MainAxisSize.min, children: [Text(child: Text('Title')), Text(child: Text('Subtitle'))])"
+        ),
+        "Expected Column-wrapped multi-node fallback, got:\n{}",
+        content
+    );
+}
+
+/// Consumer-side `slot="name"` children project into named constructor
+/// params at the call site (with the `slot` attribute stripped); plain
+/// children flow into the unnamed `children` param.
+#[test]
+fn slot_projection_at_call_site() {
+    let source = r#"
+component SlotBox {
+    view {
+        <div>
+            <div>@slot header</div>
+            <div>@slot body</div>
+            <div>@slot</div>
+        </div>
+    }
+}
+
+component Consumer {
+    view {
+        <SlotBox>
+            <h4 slot="header">Custom Header</h4>
+            <div slot="body">
+                <p>Body content</p>
+            </div>
+            <span>Default child</span>
+        </SlotBox>
+    }
+}
+"#;
+    let output = compile_flutter(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        content.contains("header: Text(child: Text('Custom Header'))"),
+        "Expected named slot projected to header param, got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("body: Container(child: Text(child: Text('Body content')))"),
+        "Expected named slot projected to body param, got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("children: [Text(child: Text('Default child'))]"),
+        "Expected default children param, got:\n{}",
+        content
+    );
+    assert!(
+        !content.contains("slot:"),
+        "slot prop must be stripped after projection, got:\n{}",
+        content
+    );
+}
+
+/// Consumer-position `@slot name { ... }` directives project into the named
+/// param (the fallback IS the projected content); the consumer component
+/// itself must not declare slot params for projections.
+#[test]
+fn slot_projection_directive_at_call_site() {
+    let source = r#"
+component SlotBox {
+    view {
+        <div>
+            <div>@slot header</div>
+            <div>@slot</div>
+        </div>
+    }
+}
+
+component Consumer {
+    view {
+        <SlotBox>
+            @slot header {
+                <h4>Custom Header</h4>
+            }
+            @slot {
+                <p>Body content</p>
+            }
+            <span>Default child</span>
+        </SlotBox>
+    }
+}
+"#;
+    let output = compile_flutter(source).unwrap();
+    let consumer: String = output
+        .files
+        .iter()
+        .filter(|(path, _)| path.contains("Consumer.dart"))
+        .map(|(_, c)| c.clone())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        consumer.contains("header: Text(child: Text('Custom Header'))"),
+        "Expected projected header param, got:\n{}",
+        consumer
+    );
+    assert!(
+        consumer.contains(
+            "children: [Text(child: Text('Body content')), Text(child: Text('Default child'))]"
+        ),
+        "Expected default children projection, got:\n{}",
+        consumer
+    );
+    assert!(
+        !consumer.contains("final Widget? header;"),
+        "Consumer must not declare params for projections, got:\n{}",
+        consumer
+    );
+}
+
+/// An unknown slot name at the call site warns and falls back to the
+/// default children instead of emitting invalid Dart.
+#[test]
+fn slot_projection_unknown_slot_warns_and_falls_back() {
+    let source = r#"
+component Box {
+    view {
+        <div>
+            <div>@slot header</div>
+            <div>@slot</div>
+        </div>
+    }
+}
+
+component Consumer {
+    view {
+        <Box>
+            <h4 slot="missing">Content</h4>
+        </Box>
+    }
+}
+"#;
+    let output = compile_flutter(source).unwrap();
+    assert!(
+        output
+            .warnings
+            .iter()
+            .any(|w| w.message.contains("no slot 'missing'")),
+        "Expected unknown-slot warning, got: {:?}",
+        output.warnings
+    );
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        content.contains("children: [Text(child: Text('Content'))]"),
+        "Unknown slot content should fall back to default children, got:\n{}",
+        content
+    );
+}
+
+/// A component without an unnamed slot drops default children with a
+/// warning instead of emitting invalid Dart.
+#[test]
+fn slot_default_children_dropped_when_no_default_slot() {
+    let source = r#"
+component Box {
+    view {
+        <div>
+            <div>@slot header</div>
+        </div>
+    }
+}
+
+component Consumer {
+    view {
+        <Box>
+            <span>Orphan child</span>
+        </Box>
+    }
+}
+"#;
+    let output = compile_flutter(source).unwrap();
+    assert!(
+        output
+            .warnings
+            .iter()
+            .any(|w| w.message.contains("declares no default slot")),
+        "Expected no-default-slot warning, got: {:?}",
+        output.warnings
+    );
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        !content.contains("children:"),
+        "Must not emit children param for slot-less default, got:\n{}",
+        content
+    );
+}
+
+/// Enter-triggered motions inside slot fallbacks must be found so their
+/// controllers are created in initState — otherwise the fallback's @enter
+/// animation never plays (Task 5.3 review fix).
+#[test]
+fn enter_motion_in_slot_fallback_is_found() {
+    let el = ElementIR {
+        tag: "div".into(),
+        props: FxHashMap::default(),
+        bindings: FxHashMap::default(),
+        events: FxHashMap::default(),
+        style_classes: None,
+        inline_style: None,
+        children: vec![],
+        construction_kind: ConstructionKind::Component,
+        class_map_bindings: FxHashMap::default(),
+        source_span: None,
+        motion: Some(Box::new(MotionBehavior {
+            triggers: vec![TriggerIntent {
+                kind: TriggerKind::Enter,
+                motion_ref: Some("fadeIn".into()),
+                inline_motion: None,
+                source_span: None,
+            }],
+            ..Default::default()
+        })),
+        scroll: None,
+        drag: None,
+        ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
+    };
+    let view = ViewTree::Slot {
+        name: None,
+        fallback: vec![ViewTree::Element(Box::new(el))],
+        type_constraint: None,
+        data_param: None,
+    };
+    let motions = find_enter_motions(&view);
+    assert_eq!(
+        motions,
+        vec!["fadeIn".to_string()],
+        "enter motion inside a slot fallback must be found"
     );
 }
 
@@ -1863,4 +3361,1517 @@ component Styled {
         "Must not emit CSS unit string for margin, got: {}",
         content
     );
+}
+
+// ── C2: @effect generates real _runEffect_N method ────────
+
+#[test]
+fn test_effect_emits_real_method_and_lifecycle_wiring() {
+    let codegen = FlutterCodegen;
+    let effect = EffectIntent {
+        deps: vec!["count".into(), "title".into()],
+        body: BlockIR {
+            statements: vec![StatementIR::ExprStmtIR {
+                expr: ExprIR::IdentifierExpr {
+                    name: "log".into(),
+                    type_ann: None,
+                },
+            }],
+        },
+    };
+    let mut props = FxHashMap::default();
+    props.insert(
+        "title".into(),
+        TypeIR {
+            kind: "string".into(),
+            type_args: vec![],
+            is_nullable: false,
+        },
+    );
+    let mut components = FxHashMap::default();
+    components.insert(
+        "App".into(),
+        ComponentIR {
+            name: "App".into(),
+            props,
+            prop_defaults: FxHashMap::default(),
+            signals: vec![SignalIntent {
+                name: "count".into(),
+                r#type: TypeIR {
+                    kind: "i32".into(),
+                    type_args: vec![],
+                    is_nullable: false,
+                },
+                initial_value: ExprIR::LiteralExpr {
+                    value: serde_json::json!(0),
+                },
+            }],
+            computeds: vec![],
+            effects: vec![effect],
+            lifecycles: vec![],
+            fns: vec![],
+            store_refs: vec![],
+            refs: vec![],
+            events: vec![],
+            view: None,
+            styles: vec![],
+            ..Default::default()
+        },
+    );
+    let ir = make_ir(components);
+    let comp_ref = ir
+        .modules
+        .get("main")
+        .unwrap()
+        .components
+        .get("App")
+        .unwrap();
+    let component_map = build_component_map(&ir);
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let (dart, _warnings) =
+        codegen.gen_component_dart("App", comp_ref, &ir, &component_map, &component_slots);
+
+    // Real method body (was: undefined stub call + inline body + false comment)
+    assert!(
+        dart.contains("void _runEffect_0() {"),
+        "should define _runEffect_0: {}",
+        dart
+    );
+    assert!(
+        dart.contains("log;"),
+        "should emit effect body statements: {}",
+        dart
+    );
+    assert!(
+        !dart.contains("re-executes on setState"),
+        "false comment removed: {}",
+        dart
+    );
+
+    // initState calls the method
+    assert!(
+        dart.contains("_runEffect_0();"),
+        "should call _runEffect_0 from initState: {}",
+        dart
+    );
+
+    // didUpdateWidget re-runs after deps equality check
+    assert!(
+        dart.contains("void didUpdateWidget(App oldWidget) {"),
+        "should emit didUpdateWidget with concrete widget type: {}",
+        dart
+    );
+    assert!(
+        dart.contains("oldWidget.title != widget.title"),
+        "prop dep compared via oldWidget vs widget: {}",
+        dart
+    );
+    assert!(
+        dart.contains("_prevcount != count"),
+        "signal dep compared via snapshot field: {}",
+        dart
+    );
+    assert!(
+        dart.contains("late int _prevcount;"),
+        "should declare snapshot field: {}",
+        dart
+    );
+    assert!(
+        dart.contains("_prevcount = count;"),
+        "should snapshot dep after run: {}",
+        dart
+    );
+}
+
+// ── C3: const CompName({ constructor ──────────────────────
+
+#[test]
+fn test_component_constructor_includes_class_name() {
+    let codegen = FlutterCodegen;
+    let mut props = FxHashMap::default();
+    props.insert(
+        "name".into(),
+        TypeIR {
+            kind: "string".into(),
+            type_args: vec![],
+            is_nullable: false,
+        },
+    );
+    let mut components = FxHashMap::default();
+    components.insert(
+        "Greeting".into(),
+        ComponentIR {
+            name: "Greeting".into(),
+            props,
+            prop_defaults: FxHashMap::default(),
+            signals: vec![],
+            computeds: vec![],
+            effects: vec![],
+            lifecycles: vec![],
+            fns: vec![],
+            store_refs: vec![],
+            refs: vec![],
+            events: vec![],
+            view: None,
+            styles: vec![],
+            ..Default::default()
+        },
+    );
+    let ir = make_ir(components);
+    let comp_ref = ir
+        .modules
+        .get("main")
+        .unwrap()
+        .components
+        .get("Greeting")
+        .unwrap();
+    let component_map = build_component_map(&ir);
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let (dart, _warnings) =
+        codegen.gen_component_dart("Greeting", comp_ref, &ir, &component_map, &component_slots);
+    assert!(
+        dart.contains("const Greeting({"),
+        "constructor must include class name, got: {}",
+        dart
+    );
+    assert!(
+        !dart.contains("const {"),
+        "must not emit bare 'const {{': {}",
+        dart
+    );
+}
+
+// ── C4: store reads in views → ref.watch(...) ─────────────
+
+#[test]
+fn test_view_store_field_read_uses_ref_watch() {
+    let codegen = FlutterCodegen;
+    let store = StoreIR {
+        name: "TodoStore".into(),
+        signals: FxHashMap::from_iter([(
+            "filterStatus".into(),
+            TypeIR {
+                kind: "string".into(),
+                type_args: vec![],
+                is_nullable: false,
+            },
+        )]),
+        signal_defaults: FxHashMap::from_iter([("filterStatus".into(), serde_json::json!("all"))]),
+        getters: FxHashMap::from_iter([(
+            "totalCount".into(),
+            ExprIR::MethodCallExpr {
+                object: Box::new(ExprIR::IdentifierExpr {
+                    name: "items".into(),
+                    type_ann: None,
+                }),
+                method: "len".into(),
+                args: vec![],
+                is_optional: false,
+            },
+        )]),
+        actions: vec![FunctionIR {
+            name: "fetchReminders".into(),
+            visibility: Visibility::Public,
+            params: vec![],
+            return_type: None,
+            body: BlockIR { statements: vec![] },
+            is_async: false,
+            source_span: None,
+        }],
+        ..Default::default()
+    };
+    let view = ViewTree::Fragment(vec![
+        // Getter read → ref.watch(provider.select((s) => s.totalCount))
+        ViewTree::Interpolation(Box::new(ExprIR::StoreFieldAccessExpr {
+            store_alias: "TodoStore".into(),
+            field_name: "totalCount".into(),
+            call_args: vec![],
+        })),
+        // Signal read → ref.watch(provider.select((s) => s.filterStatus))
+        ViewTree::Interpolation(Box::new(ExprIR::StoreFieldAccessExpr {
+            store_alias: "TodoStore".into(),
+            field_name: "filterStatus".into(),
+            call_args: vec![],
+        })),
+        // Action with no args → ref.read(provider.notifier).fetchReminders()
+        ViewTree::Interpolation(Box::new(ExprIR::StoreFieldAccessExpr {
+            store_alias: "TodoStore".into(),
+            field_name: "fetchReminders".into(),
+            call_args: vec![],
+        })),
+    ]);
+    let mut components = FxHashMap::default();
+    components.insert(
+        "FilterBar".into(),
+        ComponentIR {
+            name: "FilterBar".into(),
+            store_refs: vec!["TodoStore".into()],
+            view: Some(view),
+            ..Default::default()
+        },
+    );
+    let ir = make_ir_with_stores(
+        components,
+        FxHashMap::from_iter([("TodoStore".into(), store)]),
+    );
+    let comp_ref = ir
+        .modules
+        .get("main")
+        .unwrap()
+        .components
+        .get("FilterBar")
+        .unwrap();
+    let component_map = build_component_map(&ir);
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let (dart, _warnings) =
+        codegen.gen_component_dart("FilterBar", comp_ref, &ir, &component_map, &component_slots);
+    assert!(
+        dart.contains("ref.watch(todoStoreProvider.select(((s) => s.totalCount)))"),
+        "getter read must become ref.watch select: {}",
+        dart
+    );
+    assert!(
+        dart.contains("ref.watch(todoStoreProvider.select(((s) => s.filterStatus)))"),
+        "signal read must become ref.watch select: {}",
+        dart
+    );
+    assert!(
+        dart.contains("ref.read(todoStoreProvider.notifier).fetchReminders()"),
+        "action call must become ref.read notifier: {}",
+        dart
+    );
+    assert!(
+        !dart.contains("TodoStore.totalCount"),
+        "must not emit bare store.field access: {}",
+        dart
+    );
+}
+
+// ── C5: CSS color conversion ──────────────────────────────
+
+#[test]
+fn test_css_hex_to_dart_color() {
+    assert_eq!(
+        css_hex_to_dart_color("#ff0000").as_deref(),
+        Some("Color(0xFFFF0000)")
+    );
+    assert_eq!(
+        css_hex_to_dart_color("#f00").as_deref(),
+        Some("Color(0xFFFF0000)")
+    );
+    assert_eq!(
+        css_hex_to_dart_color("#00ff00").as_deref(),
+        Some("Color(0xFF00FF00)")
+    );
+    assert_eq!(
+        css_hex_to_dart_color("  #abcdef  ").as_deref(),
+        Some("Color(0xFFABCDEF)")
+    );
+    assert_eq!(
+        css_hex_to_dart_color("#ffff").as_deref(),
+        None,
+        "4-digit hex unsupported"
+    );
+    assert_eq!(
+        css_hex_to_dart_color("red").as_deref(),
+        None,
+        "named colors unsupported"
+    );
+    assert_eq!(
+        css_hex_to_dart_color("#gg0000").as_deref(),
+        None,
+        "non-hex digits rejected"
+    );
+}
+
+#[test]
+fn test_css_color_to_dart_rgb() {
+    assert_eq!(
+        css_color_to_dart("rgb(255, 0, 0)").as_deref(),
+        Some("Color.fromARGB(255, 255, 0, 0)")
+    );
+    assert_eq!(
+        css_color_to_dart("rgba(0, 128, 255, 0.5)").as_deref(),
+        Some("Color.fromARGB(128, 0, 128, 255)")
+    );
+    assert_eq!(css_color_to_dart("50%").as_deref(), None);
+}
+
+#[test]
+fn test_inline_style_hex_color_emits_color_literal() {
+    let el = ElementIR {
+        class_map_bindings: FxHashMap::default(),
+        tag: "div".into(),
+        props: FxHashMap::default(),
+        bindings: FxHashMap::default(),
+        events: FxHashMap::default(),
+        style_classes: None,
+        inline_style: Some(serde_json::json!({ "color": "#ff0000" })),
+        children: vec![],
+        construction_kind: ConstructionKind::Component,
+        source_span: None,
+        motion: None,
+        scroll: None,
+        drag: None,
+        ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
+    };
+    let (expr, _warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
+    assert!(
+        expr.contains("color: Color(0xFFFF0000)"),
+        "hex color must convert to Color literal: {}",
+        expr
+    );
+}
+
+#[test]
+fn test_inline_style_unsupported_color_warns() {
+    let el = ElementIR {
+        class_map_bindings: FxHashMap::default(),
+        tag: "div".into(),
+        props: FxHashMap::default(),
+        bindings: FxHashMap::default(),
+        events: FxHashMap::default(),
+        style_classes: None,
+        inline_style: Some(serde_json::json!({ "color": "red" })),
+        children: vec![],
+        construction_kind: ConstructionKind::Component,
+        source_span: None,
+        motion: None,
+        scroll: None,
+        drag: None,
+        ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
+    };
+    let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
+    assert!(
+        !expr.contains("color:"),
+        "unsupported color must be skipped: {}",
+        expr
+    );
+    assert!(
+        warnings
+            .iter()
+            .any(|w| w.contains("unsupported color value")),
+        "unsupported color should warn: {:?}",
+        warnings
+    );
+}
+
+// ── C6: per-widget parameter whitelist ────────────────────
+
+#[test]
+fn test_unmapped_prop_warns_and_is_skipped() {
+    let mut props = FxHashMap::default();
+    props.insert(
+        "ariaLabel".into(),
+        ExprIR::LiteralExpr {
+            value: serde_json::json!("close"),
+        },
+    );
+    let el = ElementIR {
+        class_map_bindings: FxHashMap::default(),
+        tag: "div".into(),
+        props,
+        bindings: FxHashMap::default(),
+        events: FxHashMap::default(),
+        style_classes: None,
+        inline_style: None,
+        children: vec![],
+        construction_kind: ConstructionKind::Component,
+        source_span: None,
+        motion: None,
+        scroll: None,
+        drag: None,
+        ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
+    };
+    let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
+    assert_eq!(
+        expr, "Container()",
+        "unmapped prop must not be silently included: {}",
+        expr
+    );
+    assert!(
+        warnings
+            .iter()
+            .any(|w| w.contains("ariaLabel") && w.contains("not supported on 'Container'")),
+        "unmapped prop should produce a compiler warning: {:?}",
+        warnings
+    );
+}
+
+#[test]
+fn test_slug_props_skipped_silently() {
+    let mut props = FxHashMap::default();
+    props.insert(
+        "class".into(),
+        ExprIR::LiteralExpr {
+            value: serde_json::json!("card"),
+        },
+    );
+    let mut style = FxHashMap::default();
+    style.insert(
+        "padding".into(),
+        ExprIR::LiteralExpr {
+            value: serde_json::json!("8px"),
+        },
+    );
+    let el = ElementIR {
+        class_map_bindings: FxHashMap::default(),
+        tag: "div".into(),
+        props,
+        bindings: FxHashMap::default(),
+        events: FxHashMap::default(),
+        style_classes: None,
+        inline_style: None,
+        children: vec![],
+        construction_kind: ConstructionKind::Component,
+        source_span: None,
+        motion: None,
+        scroll: None,
+        drag: None,
+        ref_binding: None,
+        semantic_bindings: style,
+    };
+    let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
+    assert_eq!(expr, "Container()");
+    assert!(
+        !warnings.iter().any(|w| w.contains("class")),
+        "slug props (class/style) are intentionally dropped without warnings: {:?}",
+        warnings
+    );
+}
+
+#[test]
+fn test_event_not_supported_on_widget_warns() {
+    let mut events = FxHashMap::default();
+    events.insert(
+        "click".into(),
+        EventHandlerIR::FnRef {
+            r#ref: "handleClick".into(),
+            params: vec![],
+            event_data: None,
+            used_fields: None,
+            needs_prevent_default: false,
+            needs_stop_propagation: false,
+        },
+    );
+    let el = ElementIR {
+        class_map_bindings: FxHashMap::default(),
+        tag: "div".into(),
+        props: FxHashMap::default(),
+        bindings: FxHashMap::default(),
+        events,
+        style_classes: None,
+        inline_style: None,
+        children: vec![],
+        construction_kind: ConstructionKind::Component,
+        source_span: None,
+        motion: None,
+        scroll: None,
+        drag: None,
+        ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
+    };
+    let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
+    assert_eq!(
+        expr, "Container()",
+        "Container has no onPressed — event must not be emitted: {}",
+        expr
+    );
+    assert!(
+        warnings
+            .iter()
+            .any(|w| w.contains("click") && w.contains("not supported on 'Container'")),
+        "event on unsupported widget should warn: {:?}",
+        warnings
+    );
+}
+
+#[test]
+fn test_event_on_button_is_allowed() {
+    let mut events = FxHashMap::default();
+    events.insert(
+        "click".into(),
+        EventHandlerIR::FnRef {
+            r#ref: "handleClick".into(),
+            params: vec![],
+            event_data: None,
+            used_fields: None,
+            needs_prevent_default: false,
+            needs_stop_propagation: false,
+        },
+    );
+    let el = ElementIR {
+        class_map_bindings: FxHashMap::default(),
+        tag: "button".into(),
+        props: FxHashMap::default(),
+        bindings: FxHashMap::default(),
+        events,
+        style_classes: None,
+        inline_style: None,
+        children: vec![],
+        construction_kind: ConstructionKind::Component,
+        source_span: None,
+        motion: None,
+        scroll: None,
+        drag: None,
+        ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
+    };
+    let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
+    assert!(
+        expr.contains("onPressed: () { handleClick(); }"),
+        "click on ElevatedButton maps to onPressed: {}",
+        expr
+    );
+    assert!(
+        warnings.is_empty(),
+        "allowed event should not warn: {:?}",
+        warnings
+    );
+}
+
+#[test]
+fn test_store_action_handler_uses_provider() {
+    assert_eq!(
+        format_store_action_handler("TodoStore.setFilter"),
+        "() { ref.read(todoStoreProvider.notifier).setFilter(); }"
+    );
+}
+
+// ── C6: TextStyle/InputDecoration wrapper emission ────────
+
+#[test]
+fn test_text_style_props_wrapped_in_text_style() {
+    let mut props = FxHashMap::default();
+    props.insert(
+        "fontSize".into(),
+        ExprIR::LiteralExpr {
+            value: serde_json::json!(16),
+        },
+    );
+    props.insert(
+        "fontWeight".into(),
+        ExprIR::LiteralExpr {
+            value: serde_json::json!("bold"),
+        },
+    );
+    let el = ElementIR {
+        class_map_bindings: FxHashMap::default(),
+        tag: "p".into(),
+        props,
+        bindings: FxHashMap::default(),
+        events: FxHashMap::default(),
+        style_classes: None,
+        inline_style: None,
+        children: vec![],
+        construction_kind: ConstructionKind::Component,
+        source_span: None,
+        motion: None,
+        scroll: None,
+        drag: None,
+        ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
+    };
+    let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
+    // fontSize/fontWeight are TextStyle members — merged into a single style: arg
+    assert!(
+        expr.contains("style: TextStyle(")
+            && expr.contains("fontSize: 16")
+            && expr.contains("fontWeight: 'bold'"),
+        "Text style props must merge into TextStyle: {}",
+        expr
+    );
+    assert!(
+        !expr.contains("Text(fontSize"),
+        "must not emit fontSize as a direct Text param: {}",
+        expr
+    );
+    assert!(
+        warnings.is_empty(),
+        "wrapped props must not warn: {:?}",
+        warnings
+    );
+}
+
+#[test]
+fn test_text_semantics_label_rename() {
+    let mut props = FxHashMap::default();
+    props.insert(
+        "alt".into(),
+        ExprIR::LiteralExpr {
+            value: serde_json::json!("icon"),
+        },
+    );
+    let el = ElementIR {
+        class_map_bindings: FxHashMap::default(),
+        tag: "p".into(),
+        props,
+        bindings: FxHashMap::default(),
+        events: FxHashMap::default(),
+        style_classes: None,
+        inline_style: None,
+        children: vec![],
+        construction_kind: ConstructionKind::Component,
+        source_span: None,
+        motion: None,
+        scroll: None,
+        drag: None,
+        ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
+    };
+    let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
+    assert!(
+        expr.contains("semanticsLabel: 'icon'"),
+        "alt on Text must map to semanticsLabel (Text param): {}",
+        expr
+    );
+    assert!(
+        !expr.contains("semanticLabel"),
+        "must not emit semanticLabel on Text: {}",
+        expr
+    );
+    assert!(
+        warnings.is_empty(),
+        "renamed prop must not warn: {:?}",
+        warnings
+    );
+}
+
+#[test]
+fn test_text_field_placeholder_wrapped_in_decoration() {
+    let mut props = FxHashMap::default();
+    props.insert(
+        "placeholder".into(),
+        ExprIR::LiteralExpr {
+            value: serde_json::json!("Search..."),
+        },
+    );
+    let el = ElementIR {
+        class_map_bindings: FxHashMap::default(),
+        tag: "input".into(),
+        props,
+        bindings: FxHashMap::default(),
+        events: FxHashMap::default(),
+        style_classes: None,
+        inline_style: None,
+        children: vec![],
+        construction_kind: ConstructionKind::Component,
+        source_span: None,
+        motion: None,
+        scroll: None,
+        drag: None,
+        ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
+    };
+    let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
+    assert!(
+        expr.contains("decoration: InputDecoration(hintText: 'Search...')"),
+        "hintText must be wrapped in InputDecoration: {}",
+        expr
+    );
+    assert!(
+        warnings.is_empty(),
+        "wrapped prop must not warn: {:?}",
+        warnings
+    );
+}
+
+#[test]
+fn test_store_action_in_inline_handler_body() {
+    // `@onClick={TodoStore.clear}` lowers to an InlineFn whose body contains a
+    // bare store-action reference — it must rewrite to ref.read(...notifier).
+    let store = StoreIR {
+        name: "TodoStore".into(),
+        signals: FxHashMap::from_iter([(
+            "items".into(),
+            TypeIR {
+                kind: "array".into(),
+                type_args: vec![],
+                is_nullable: false,
+            },
+        )]),
+        signal_defaults: FxHashMap::from_iter([("items".into(), serde_json::json!([]))]),
+        getters: FxHashMap::default(),
+        actions: vec![FunctionIR {
+            name: "clear".into(),
+            visibility: Visibility::Public,
+            params: vec![],
+            return_type: None,
+            body: BlockIR { statements: vec![] },
+            is_async: false,
+            source_span: None,
+        }],
+        ..Default::default()
+    };
+    let mut events = FxHashMap::default();
+    events.insert(
+        "click".into(),
+        EventHandlerIR::InlineFn {
+            body: BlockIR {
+                statements: vec![StatementIR::ExprStmtIR {
+                    expr: ExprIR::FieldAccessExpr {
+                        object: Box::new(ExprIR::IdentifierExpr {
+                            name: "TodoStore".into(),
+                            type_ann: None,
+                        }),
+                        field: "clear".into(),
+                    },
+                }],
+            },
+            params: vec![],
+            event_data: None,
+            used_fields: None,
+            needs_prevent_default: false,
+            needs_stop_propagation: false,
+        },
+    );
+    let el = ElementIR {
+        class_map_bindings: FxHashMap::default(),
+        tag: "button".into(),
+        props: FxHashMap::default(),
+        bindings: FxHashMap::default(),
+        events,
+        style_classes: None,
+        inline_style: None,
+        children: vec![],
+        construction_kind: ConstructionKind::Component,
+        source_span: None,
+        motion: None,
+        scroll: None,
+        drag: None,
+        ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
+    };
+    let view = ViewTree::Element(Box::new(el));
+    let ir = make_ir_with_stores(
+        FxHashMap::default(),
+        FxHashMap::from_iter([("TodoStore".into(), store)]),
+    );
+    let mut warnings = Vec::new();
+    let component_map: FxHashMap<&str, &ComponentIR> = FxHashMap::default();
+    let store_provider_map: FxHashMap<String, String> =
+        FxHashMap::from_iter([("TodoStore".into(), "todoStoreProvider".into())]);
+    let ref_usage: FxHashMap<String, RefUsage> = FxHashMap::default();
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let mut ctx = ViewContext {
+        component_map: &component_map,
+        store_provider_map: &store_provider_map,
+        ref_usage: &ref_usage,
+        component_slots: &component_slots,
+        ir: &ir,
+        warnings: &mut warnings,
+    };
+    let expr = format_view_tree(&view, &[], &mut ctx);
+    assert!(
+        expr.contains("ref.read(todoStoreProvider.notifier).clear();"),
+        "store action in handler body must rewrite to ref.read: {}",
+        expr
+    );
+}
+
+#[test]
+fn test_store_action_method_call_form_in_handler() {
+    // `@onClick={TodoStore.clear()}` (with parens) lowers the handler body to
+    // a MethodCallExpr on the store identifier — same Riverpod rewrite.
+    let codegen = FlutterCodegen;
+    let store = StoreIR {
+        name: "TodoStore".into(),
+        signals: FxHashMap::from_iter([(
+            "items".into(),
+            TypeIR {
+                kind: "array".into(),
+                type_args: vec![],
+                is_nullable: false,
+            },
+        )]),
+        signal_defaults: FxHashMap::from_iter([("items".into(), serde_json::json!([]))]),
+        getters: FxHashMap::default(),
+        actions: vec![FunctionIR {
+            name: "clear".into(),
+            visibility: Visibility::Public,
+            params: vec![],
+            return_type: None,
+            body: BlockIR { statements: vec![] },
+            is_async: false,
+            source_span: None,
+        }],
+        ..Default::default()
+    };
+    let mut events = FxHashMap::default();
+    events.insert(
+        "click".into(),
+        EventHandlerIR::InlineFn {
+            body: BlockIR {
+                statements: vec![StatementIR::ExprStmtIR {
+                    expr: ExprIR::MethodCallExpr {
+                        object: Box::new(ExprIR::IdentifierExpr {
+                            name: "TodoStore".into(),
+                            type_ann: None,
+                        }),
+                        method: "clear".into(),
+                        args: vec![],
+                        is_optional: false,
+                    },
+                }],
+            },
+            params: vec![],
+            event_data: None,
+            used_fields: None,
+            needs_prevent_default: false,
+            needs_stop_propagation: false,
+        },
+    );
+    let el = ElementIR {
+        class_map_bindings: FxHashMap::default(),
+        tag: "button".into(),
+        props: FxHashMap::default(),
+        bindings: FxHashMap::default(),
+        events,
+        style_classes: None,
+        inline_style: None,
+        children: vec![],
+        construction_kind: ConstructionKind::Component,
+        source_span: None,
+        motion: None,
+        scroll: None,
+        drag: None,
+        ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
+    };
+    let view = ViewTree::Element(Box::new(el));
+    let ir = make_ir_with_stores(
+        FxHashMap::default(),
+        FxHashMap::from_iter([("TodoStore".into(), store)]),
+    );
+    let mut warnings = Vec::new();
+    let component_map: FxHashMap<&str, &ComponentIR> = FxHashMap::default();
+    let store_provider_map: FxHashMap<String, String> =
+        FxHashMap::from_iter([("TodoStore".into(), "todoStoreProvider".into())]);
+    let ref_usage: FxHashMap<String, RefUsage> = FxHashMap::default();
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let mut ctx = ViewContext {
+        component_map: &component_map,
+        store_provider_map: &store_provider_map,
+        ref_usage: &ref_usage,
+        component_slots: &component_slots,
+        ir: &ir,
+        warnings: &mut warnings,
+    };
+    let expr = format_view_tree(&view, &[], &mut ctx);
+    assert!(
+        expr.contains("ref.read(todoStoreProvider.notifier).clear()"),
+        "MethodCallExpr store action must rewrite to ref.read: {}",
+        expr
+    );
+}
+
+// ── Ref codegen tests (Task 5.2) ──────────────────────────
+
+/// Build a minimal element with a tag, optional @ref binding, and semantic
+/// bindings (kind → expression).
+fn ref_el(tag: &str, ref_binding: Option<&str>, semantic: &[(&str, ExprIR)]) -> ElementIR {
+    ElementIR {
+        tag: tag.to_string(),
+        props: FxHashMap::default(),
+        bindings: FxHashMap::default(),
+        events: FxHashMap::default(),
+        style_classes: None,
+        inline_style: None,
+        children: vec![],
+        construction_kind: ConstructionKind::Normal,
+        class_map_bindings: FxHashMap::default(),
+        source_span: None,
+        motion: None,
+        scroll: None,
+        drag: None,
+        ref_binding: ref_binding.map(String::from),
+        semantic_bindings: semantic
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.clone()))
+            .collect(),
+    }
+}
+
+/// Build a component with the given refs, signals, fns, and view.
+fn ref_component(
+    name: &str,
+    refs: &[&str],
+    signals: Vec<SignalIntent>,
+    fns: Vec<FunctionIR>,
+    view: Option<ViewTree>,
+) -> ComponentIR {
+    ComponentIR {
+        name: name.into(),
+        refs: refs
+            .iter()
+            .map(|n| RefDeclIR {
+                name: n.to_string(),
+                element_tag: None,
+            })
+            .collect(),
+        signals,
+        fns,
+        view,
+        ..Default::default()
+    }
+}
+
+#[test]
+fn test_ref_global_key_and_on_demand_controllers() {
+    // One ref used with a focus op, one with a scroll op, one unused.
+    let codegen = FlutterCodegen;
+    let focus_fn = FunctionIR {
+        name: "focusIt".into(),
+        visibility: Visibility::Private,
+        params: vec![],
+        return_type: None,
+        body: BlockIR {
+            statements: vec![StatementIR::ExprStmtIR {
+                expr: ExprIR::RefOpExpr {
+                    ref_name: "inputBox".into(),
+                    op: RefOpIR::Focus,
+                },
+            }],
+        },
+        is_async: false,
+        source_span: None,
+    };
+    let scroll_fn = FunctionIR {
+        name: "scrollIt".into(),
+        visibility: Visibility::Private,
+        params: vec![],
+        return_type: None,
+        body: BlockIR {
+            statements: vec![StatementIR::ExprStmtIR {
+                expr: ExprIR::RefOpExpr {
+                    ref_name: "pane".into(),
+                    op: RefOpIR::ScrollTo {
+                        x: None,
+                        y: Some(Box::new(ExprIR::LiteralExpr {
+                            value: serde_json::json!(100),
+                        })),
+                    },
+                },
+            }],
+        },
+        is_async: false,
+        source_span: None,
+    };
+    let comp = ref_component(
+        "RefDemo",
+        &["inputBox", "pane", "unused"],
+        vec![],
+        vec![focus_fn, scroll_fn],
+        None,
+    );
+    let mut components = FxHashMap::default();
+    components.insert("RefDemo".into(), comp);
+    let ir = make_ir(components);
+    let comp_ref = ir
+        .modules
+        .get("main")
+        .unwrap()
+        .components
+        .get("RefDemo")
+        .unwrap();
+    let component_map = build_component_map(&ir);
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let (dart, _warnings) =
+        codegen.gen_component_dart("RefDemo", comp_ref, &ir, &component_map, &component_slots);
+
+    // GlobalKey for every declared ref
+    assert!(dart.contains("final GlobalKey _inputBoxKey = GlobalKey();"));
+    assert!(dart.contains("final GlobalKey _paneKey = GlobalKey();"));
+    assert!(dart.contains("final GlobalKey _unusedKey = GlobalKey();"));
+
+    // On-demand controllers: only for used capabilities
+    assert!(dart.contains("final FocusNode _inputBoxFocus = FocusNode();"));
+    assert!(dart.contains("final ScrollController _paneScroll = ScrollController();"));
+    assert!(
+        !dart.contains("_unusedFocus"),
+        "unused ref must not get a FocusNode: {dart}"
+    );
+    assert!(
+        !dart.contains("_inputBoxScroll"),
+        "focus-only ref must not get a ScrollController: {dart}"
+    );
+    assert!(
+        !dart.contains("_inputBoxText"),
+        "focus-only ref must not get a TextEditingController: {dart}"
+    );
+
+    // Ref ops format to Flutter idioms in fn bodies
+    assert!(dart.contains("_inputBoxFocus.requestFocus();"));
+    assert!(dart.contains("if (_paneScroll.hasClients) { _paneScroll.jumpTo(100); }"));
+
+    // dispose() disposes only declared controllers
+    assert!(dart.contains("void dispose() {"));
+    assert!(dart.contains("_inputBoxFocus.dispose();"));
+    assert!(dart.contains("_paneScroll.dispose();"));
+    assert!(!dart.contains("_unusedFocus.dispose();"));
+}
+
+#[test]
+fn test_ref_key_on_widget_and_controller_attachment() {
+    // input (needs_text + needs_focus) → key/controller/focusNode params
+    let el = ref_el("input", Some("inputBox"), &[]);
+    let mut usage: FxHashMap<String, RefUsage> = FxHashMap::default();
+    usage.insert(
+        "inputBox".into(),
+        RefUsage {
+            needs_focus: true,
+            needs_text: true,
+            ..Default::default()
+        },
+    );
+    let ref_usage: &FxHashMap<String, RefUsage> = &usage;
+    let mut warnings = Vec::new();
+    let ir = empty_program();
+    let component_map: FxHashMap<&str, &ComponentIR> = FxHashMap::default();
+    let store_provider_map: FxHashMap<String, String> = FxHashMap::default();
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let mut ctx = ViewContext {
+        component_map: &component_map,
+        store_provider_map: &store_provider_map,
+        ref_usage,
+        component_slots: &component_slots,
+        ir: &ir,
+        warnings: &mut warnings,
+    };
+    let view = ViewTree::Element(Box::new(el));
+    let expr = format_view_tree(&view, &[], &mut ctx);
+    assert!(expr.contains("key: _inputBoxKey"), "missing key: {expr}");
+    assert!(
+        expr.contains("controller: _inputBoxText"),
+        "missing text controller: {expr}"
+    );
+    assert!(
+        expr.contains("focusNode: _inputBoxFocus"),
+        "missing focusNode: {expr}"
+    );
+
+    // non-TextField element with focus need → Focus wrapper
+    let el2 = ref_el("div", Some("box"), &[]);
+    let mut usage2: FxHashMap<String, RefUsage> = FxHashMap::default();
+    usage2.insert(
+        "box".into(),
+        RefUsage {
+            needs_focus: true,
+            ..Default::default()
+        },
+    );
+    let ref_usage2: &FxHashMap<String, RefUsage> = &usage2;
+    let mut warnings2 = Vec::new();
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let mut ctx2 = ViewContext {
+        component_map: &component_map,
+        store_provider_map: &store_provider_map,
+        ref_usage: ref_usage2,
+        component_slots: &component_slots,
+        ir: &ir,
+        warnings: &mut warnings2,
+    };
+    let view2 = ViewTree::Element(Box::new(el2));
+    let expr2 = format_view_tree(&view2, &[], &mut ctx2);
+    assert!(
+        expr2.contains("Focus(focusNode: _boxFocus, child: Container("),
+        "non-TextField focus needs a Focus wrapper: {expr2}"
+    );
+
+    // scrollable element with scroll need → ScrollController attachment
+    let el3 = ref_el("listview", Some("list"), &[]);
+    let mut usage3: FxHashMap<String, RefUsage> = FxHashMap::default();
+    usage3.insert(
+        "list".into(),
+        RefUsage {
+            needs_scroll: true,
+            ..Default::default()
+        },
+    );
+    let ref_usage3: &FxHashMap<String, RefUsage> = &usage3;
+    let mut warnings3 = Vec::new();
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let mut ctx3 = ViewContext {
+        component_map: &component_map,
+        store_provider_map: &store_provider_map,
+        ref_usage: ref_usage3,
+        component_slots: &component_slots,
+        ir: &ir,
+        warnings: &mut warnings3,
+    };
+    let view3 = ViewTree::Element(Box::new(el3));
+    let expr3 = format_view_tree(&view3, &[], &mut ctx3);
+    assert!(
+        expr3.contains("controller: _listScroll"),
+        "scrollable ref needs a ScrollController: {expr3}"
+    );
+}
+
+#[test]
+fn test_semantic_binding_post_frame_setup() {
+    // input with focus={active} + value={text}; div with scroll-y={pos}
+    let codegen = FlutterCodegen;
+    let el_input = ref_el(
+        "input",
+        Some("inputBox"),
+        &[
+            ("focus", ExprIR::ident("active")),
+            ("value", ExprIR::ident("text")),
+        ],
+    );
+    let el_pane = ref_el("div", Some("pane"), &[("scroll-y", ExprIR::ident("pos"))]);
+    let view = ViewTree::Fragment(vec![
+        ViewTree::Element(Box::new(el_input)),
+        ViewTree::Element(Box::new(el_pane)),
+    ]);
+    let signals = vec![
+        SignalIntent {
+            name: "active".into(),
+            r#type: TypeIR {
+                kind: "bool".into(),
+                type_args: vec![],
+                is_nullable: false,
+            },
+            initial_value: ExprIR::LiteralExpr {
+                value: serde_json::json!(false),
+            },
+        },
+        SignalIntent {
+            name: "text".into(),
+            r#type: TypeIR {
+                kind: "string".into(),
+                type_args: vec![],
+                is_nullable: false,
+            },
+            initial_value: ExprIR::LiteralExpr {
+                value: serde_json::json!(""),
+            },
+        },
+        SignalIntent {
+            name: "pos".into(),
+            r#type: TypeIR {
+                kind: "f64".into(),
+                type_args: vec![],
+                is_nullable: false,
+            },
+            initial_value: ExprIR::LiteralExpr {
+                value: serde_json::json!(0.0),
+            },
+        },
+    ];
+    let comp = ref_component(
+        "BindDemo",
+        &["inputBox", "pane"],
+        signals,
+        vec![],
+        Some(view),
+    );
+    let mut components = FxHashMap::default();
+    components.insert("BindDemo".into(), comp);
+    let ir = make_ir(components);
+    let comp_ref = ir
+        .modules
+        .get("main")
+        .unwrap()
+        .components
+        .get("BindDemo")
+        .unwrap();
+    let component_map = build_component_map(&ir);
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let (dart, _warnings) =
+        codegen.gen_component_dart("BindDemo", comp_ref, &ir, &component_map, &component_slots);
+
+    // Controllers + guard flag declared
+    assert!(dart.contains("final FocusNode _inputBoxFocus = FocusNode();"));
+    assert!(dart.contains("final TextEditingController _inputBoxText = TextEditingController();"));
+    assert!(dart.contains("final ScrollController _paneScroll = ScrollController();"));
+    assert!(dart.contains("bool _syncingInputBoxText = false;"));
+
+    // value listener with guard: user edits flow into the signal via
+    // setState (a bare field write would leave consumers of the signal stale)
+    assert!(dart.contains("_inputBoxText.addListener(() {"));
+    assert!(dart.contains("if (_syncingInputBoxText) {"));
+    assert!(dart.contains("setState(() {"));
+    assert!(dart.contains("text = _inputBoxText.text;"));
+
+    // Reactive sync method re-applying all binding kinds after every
+    // rebuild (parity with React's useEffect-on-deps)
+    assert!(dart.contains("void _syncSemanticBindings() {"));
+    assert!(dart.contains("if (active) {"));
+    assert!(dart.contains("_inputBoxFocus.requestFocus();"));
+    assert!(dart.contains("_inputBoxFocus.unfocus();"));
+    assert!(dart.contains(
+        "_paneScroll.animateTo(pos, duration: Duration(milliseconds: 300), curve: Curves.easeInOut);"
+    ));
+    assert!(dart.contains("_syncingInputBoxText = true;"));
+    assert!(dart.contains("_inputBoxText.text = text;"));
+    assert!(dart.contains("_syncingInputBoxText = false;"));
+
+    // build registers the sync post-frame with a mounted guard (prevents
+    // use-after-dispose on fast unmount)
+    assert!(dart.contains("WidgetsBinding.instance.addPostFrameCallback((_) {"));
+    assert!(dart.contains("if (!mounted) return;"));
+    assert!(dart.contains("_syncSemanticBindings();"));
+
+    // dispose() covers all controllers
+    assert!(dart.contains("_inputBoxFocus.dispose();"));
+    assert!(dart.contains("_inputBoxText.dispose();"));
+    assert!(dart.contains("_paneScroll.dispose();"));
+}
+
+#[test]
+fn test_format_ref_op_flutter_variants() {
+    let op = |ref_name: &str, op: RefOpIR| ExprIR::RefOpExpr {
+        ref_name: ref_name.into(),
+        op,
+    };
+
+    // Focus / Blur
+    assert_eq!(
+        format_expr_ir_flutter(&op("box", RefOpIR::Focus)),
+        "_boxFocus.requestFocus()"
+    );
+    assert_eq!(
+        format_expr_ir_flutter(&op("box", RefOpIR::Blur)),
+        "_boxFocus.unfocus()"
+    );
+
+    // ScrollTo — y wins; guarded by hasClients
+    assert_eq!(
+        format_expr_ir_flutter(&op(
+            "box",
+            RefOpIR::ScrollTo {
+                x: Some(Box::new(ExprIR::LiteralExpr {
+                    value: serde_json::json!(10),
+                })),
+                y: Some(Box::new(ExprIR::LiteralExpr {
+                    value: serde_json::json!(100),
+                })),
+            }
+        )),
+        "if (_boxScroll.hasClients) { _boxScroll.jumpTo(100); }"
+    );
+    // ScrollTo — x only
+    assert_eq!(
+        format_expr_ir_flutter(&op(
+            "box",
+            RefOpIR::ScrollTo {
+                x: Some(Box::new(ExprIR::LiteralExpr {
+                    value: serde_json::json!(10),
+                })),
+                y: None,
+            }
+        )),
+        "if (_boxScroll.hasClients) { _boxScroll.jumpTo(10); }"
+    );
+
+    // ScrollBy — relative delta via animateTo with duration/curve
+    assert_eq!(
+        format_expr_ir_flutter(&op(
+            "box",
+            RefOpIR::ScrollBy {
+                dx: None,
+                dy: Some(Box::new(ExprIR::LiteralExpr {
+                    value: serde_json::json!(50),
+                })),
+            }
+        )),
+        "if (_boxScroll.hasClients) { _boxScroll.animateTo(_boxScroll.position.pixels + 50, duration: Duration(milliseconds: 200), curve: Curves.easeInOut); }"
+    );
+
+    // Measure — width / height / position
+    assert_eq!(
+        format_expr_ir_flutter(&op(
+            "box",
+            RefOpIR::Measure {
+                what: MeasureWhat::Width
+            }
+        )),
+        "(_boxKey.currentContext?.findRenderObject() as RenderBox?)?.size.width"
+    );
+    assert_eq!(
+        format_expr_ir_flutter(&op(
+            "box",
+            RefOpIR::Measure {
+                what: MeasureWhat::Height
+            }
+        )),
+        "(_boxKey.currentContext?.findRenderObject() as RenderBox?)?.size.height"
+    );
+    assert_eq!(
+        format_expr_ir_flutter(&op(
+            "box",
+            RefOpIR::Measure {
+                what: MeasureWhat::Position
+            }
+        )),
+        "(_boxKey.currentContext?.findRenderObject() as RenderBox?)?.localToGlobal(Offset.zero)"
+    );
+
+    // Value read / write
+    assert_eq!(
+        format_expr_ir_flutter(&op("box", RefOpIR::Value)),
+        "_boxText.text"
+    );
+    assert_eq!(
+        format_expr_ir_flutter(&op(
+            "box",
+            RefOpIR::SetValue {
+                value: Box::new(ExprIR::LiteralExpr {
+                    value: serde_json::json!("hi"),
+                }),
+            }
+        )),
+        "_boxText.text = 'hi'"
+    );
+
+    // Select / SetSelection
+    assert_eq!(
+        format_expr_ir_flutter(&op("box", RefOpIR::Select)),
+        "_boxText.selection = TextSelection(baseOffset: 0, extentOffset: _boxText.text.length)"
+    );
+    assert_eq!(
+        format_expr_ir_flutter(&op(
+            "box",
+            RefOpIR::SetSelection {
+                start: Box::new(ExprIR::LiteralExpr {
+                    value: serde_json::json!(1),
+                }),
+                end: Box::new(ExprIR::LiteralExpr {
+                    value: serde_json::json!(5),
+                }),
+            }
+        )),
+        "_boxText.selection = TextSelection(baseOffset: 1, extentOffset: 5)"
+    );
+
+    // Pointer capture — placeholder TODO for now
+    assert!(format_expr_ir_flutter(&op(
+        "box",
+        RefOpIR::CapturePointer {
+            id: Box::new(ExprIR::LiteralExpr {
+                value: serde_json::json!(1),
+            }),
+        }
+    ))
+    .contains("TODO(flutter)"));
+    assert!(format_expr_ir_flutter(&op(
+        "box",
+        RefOpIR::ReleasePointer {
+            id: Box::new(ExprIR::LiteralExpr {
+                value: serde_json::json!(1),
+            }),
+        }
+    ))
+    .contains("TODO(flutter)"));
+}
+
+#[test]
+fn test_ref_ops_in_effect_and_inline_handler_are_detected() {
+    // @effect body calling ref.scrollTo → ScrollController declared even
+    // though no fn body references it.
+    let codegen = FlutterCodegen;
+    let el = ref_el("listview", Some("list"), &[]);
+    let view = ViewTree::Element(Box::new(el));
+    let mut comp = ref_component("EffectRef", &["list"], vec![], vec![], Some(view));
+    comp.effects = vec![EffectIntent {
+        deps: vec!["count".into()],
+        body: BlockIR {
+            statements: vec![StatementIR::ExprStmtIR {
+                expr: ExprIR::RefOpExpr {
+                    ref_name: "list".into(),
+                    op: RefOpIR::ScrollTo {
+                        x: None,
+                        y: Some(Box::new(ExprIR::LiteralExpr {
+                            value: serde_json::json!(42),
+                        })),
+                    },
+                },
+            }],
+        },
+    }];
+    let mut components = FxHashMap::default();
+    components.insert("EffectRef".into(), comp);
+    let ir = make_ir(components);
+    let comp_ref = ir
+        .modules
+        .get("main")
+        .unwrap()
+        .components
+        .get("EffectRef")
+        .unwrap();
+    let component_map = build_component_map(&ir);
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let (dart, _warnings) =
+        codegen.gen_component_dart("EffectRef", comp_ref, &ir, &component_map, &component_slots);
+    assert!(
+        dart.contains("final ScrollController _listScroll = ScrollController();"),
+        "effect-body ref op must trigger the controller declaration: {dart}"
+    );
+    assert!(
+        dart.contains("_listScroll.jumpTo(42)"),
+        "missing scroll op in effect body: {dart}"
+    );
+}
+
+#[test]
+fn test_end_to_end_ref_component_compiles() {
+    // Full pipeline: .omni source with a ref declaration, semantic bindings,
+    // and a ref op in a fn → valid Dart StatefulWidget with GlobalKey +
+    // on-demand controllers.
+    let source = r##"
+component SearchBox {
+  signal active: Bool = false
+  signal pos: Float = 0
+  signal text: String = ""
+  ref field: Element
+  fn focusField() {
+    field.focus()
+  }
+  view {
+    <input ref:field focus={active} scroll-y={pos} value={text} />
+  }
+}
+"##;
+    let mut sources = FxHashMap::default();
+    sources.insert("input.omni".to_string(), source.to_string());
+    let pm = crate::path_mapping::derive_path_mapping(&sources);
+    let result = crate::compile_multi_internal(
+        sources,
+        crate::codegen::Target::Flutter,
+        pm,
+        false,
+        false,
+        None,
+    );
+    assert!(
+        result.success,
+        "flutter compile failed: {:?}",
+        result.errors
+    );
+    let content: String = result
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(content.contains("final GlobalKey _fieldKey = GlobalKey();"));
+    assert!(content.contains("final FocusNode _fieldFocus = FocusNode();"));
+    assert!(content.contains("final ScrollController _fieldScroll = ScrollController();"));
+    assert!(content.contains("final TextEditingController _fieldText = TextEditingController();"));
+    assert!(content.contains("bool _syncingFieldText = false;"));
+    assert!(content.contains("key: _fieldKey"));
+    assert!(content.contains("focusNode: _fieldFocus"));
+    assert!(content.contains("controller: _fieldText"));
+    assert!(content.contains("_fieldFocus.requestFocus();"));
+    assert!(content.contains("WidgetsBinding.instance.addPostFrameCallback((_) {"));
+    assert!(content.contains("if (!mounted) return;"));
+    assert!(content.contains("_syncSemanticBindings();"));
+    assert!(content.contains("void _syncSemanticBindings() {"));
+    assert!(content.contains("_fieldText.addListener(() {"));
+    assert!(content.contains("_fieldFocus.dispose();"));
+    assert!(content.contains("_fieldText.dispose();"));
 }
