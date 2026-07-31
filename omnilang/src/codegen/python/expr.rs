@@ -56,6 +56,11 @@ impl FormatExpr for PythonFormatExpr {
         self.format_expr(tail)
     }
 
+    // Python has no `?.` operator — optional chain degrades to plain field access.
+    fn format_optional_chain(&self, object: &str, field: &str) -> String {
+        format!("{object}.{field}")
+    }
+
     // ── Unary operators ───────────────────────────────────
 
     fn format_unary_op(&self, op: &str, operand: &str) -> String {

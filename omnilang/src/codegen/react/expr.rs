@@ -25,9 +25,31 @@ impl FormatExpr for ReactFormatExpr {
         &JSON_REACT
     }
 
-    fn format_block_expr(&self, _statements: &[StatementIR], tail: &ExprIR) -> String {
-        // Block statements not supported in expression context — drop them.
-        self.format_expr(tail)
+    /// Block expressions emit an IIFE so statements execute in expression position.
+    /// Statements are formatted through the full React statement machinery
+    /// (`const` lets, setter mutations, semicolons).
+    fn format_block_expr(&self, statements: &[StatementIR], tail: &ExprIR) -> String {
+        if statements.is_empty() {
+            return self.format_expr(tail);
+        }
+        let mut w = CodeWriter::new();
+        let fmt = ReactStmtFormatter {
+            expr: ReactFormatExpr {
+                ref_names: self.ref_names.clone(),
+            },
+            signal_names: FxHashSet::default(),
+            store_mode: super::ReactStoreMode::Hooks,
+        };
+        for stmt in statements {
+            fmt.format_stmt(&mut w, stmt);
+        }
+        let stmts = w.into_string();
+        let stmts = stmts.trim_end().to_string();
+        format!(
+            "(() => {{ {} return {}; }})()",
+            stmts,
+            self.format_expr(tail)
+        )
     }
 
     /// Strip `$` prefix from identifier names — `$` is an IR internal
