@@ -82,6 +82,7 @@ pub fn lower_design_with_consts(
         tokens,
         classes,
         variants,
+        source_file: None,
         source_span: None,
     }
 }

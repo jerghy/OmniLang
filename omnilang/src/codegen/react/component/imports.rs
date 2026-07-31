@@ -22,6 +22,9 @@ pub(super) struct ComponentImports {
     pub store_hook_lines: Vec<String>,
     /// Pre-formatted import lines for each used child component.
     pub child_import_lines: Vec<String>,
+    /// Design runtime imports on the root component: `useDesignTokens` hook
+    /// imports and `useThemeStore` side-effect imports (HIGH #2).
+    pub design_import_lines: Vec<String>,
     /// Slot declarations (name + type constraint) that become typed props in
     /// the Props interface. Consumer-side projections are excluded.
     pub slot_infos: Vec<(Option<String>, Option<TypeIR>)>,
@@ -39,6 +42,7 @@ pub(super) fn collect_component_imports(
     used_store_refs: &FxHashSet<String>,
     hooks: &[String],
     has_styles: bool,
+    design_import_lines: &[String],
 ) -> ComponentImports {
     // ── Store hook imports ──────────────────────────────────
     let all_stores = ir.all_stores();
@@ -107,6 +111,7 @@ pub(super) fn collect_component_imports(
         has_styles,
         store_hook_lines,
         child_import_lines,
+        design_import_lines: design_import_lines.to_vec(),
         slot_infos,
     }
 }
@@ -197,9 +202,16 @@ impl ComponentImports {
         for line in &self.child_import_lines {
             w.emit(line);
         }
+        // ── 7: Design runtime imports (root component) ─────
+        for line in &self.design_import_lines {
+            w.emit(line);
+        }
 
-        // Blank line after store/child imports
-        if !self.store_hook_lines.is_empty() || !self.child_import_lines.is_empty() {
+        // Blank line after store/child/design imports
+        if !self.store_hook_lines.is_empty()
+            || !self.child_import_lines.is_empty()
+            || !self.design_import_lines.is_empty()
+        {
             w.emit("");
         }
     }

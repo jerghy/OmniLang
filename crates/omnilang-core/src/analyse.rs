@@ -199,6 +199,11 @@ fn merge_file_ir_into(
                 store.source_file = Some(path.to_string());
             }
         }
+        for design in mod_ir.designs.iter_mut() {
+            if design.source_file.is_none() {
+                design.source_file = Some(path.to_string());
+            }
+        }
         let existing = merged.modules.entry(mod_name).or_default();
         extend_and_warn(
             &mut existing.components,

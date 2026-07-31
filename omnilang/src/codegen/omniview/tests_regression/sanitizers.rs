@@ -118,6 +118,7 @@ fn design_block_css_values_are_sanitized() {
         default_theme: None,
         themes: vec![],
         source_span: None,
+        source_file: None,
     };
     let comp = ComponentIR {
         name: "Test".into(),

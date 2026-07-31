@@ -123,17 +123,22 @@ impl ReactCodegen {
             hooks.push("useRef".to_string());
         }
 
-        // Style check — import CSS module whenever any style classes are
-        // referenced in the view, even if they come from imported design
-        // systems (e.g. `class: LearnDesign.Page` → `styles['Page']`).
+        // Design context — design classes/variant classes are global CSS in
+        // design.css and are emitted as literal class names (HIGH #1); the
+        // CSS module import is only needed for component-local classes.
+        let design_ctx = super::design::DesignCtx::new(ir);
         let used_style_classes = comp
             .view
             .as_ref()
             .map(jsx::collect_used_style_classes)
             .unwrap_or_default();
-        let has_styles = !used_style_classes.is_empty()
+        let local_style_classes: FxHashSet<String> = used_style_classes
+            .difference(&design_ctx.global_class_names)
+            .cloned()
+            .collect();
+        let has_styles = !local_style_classes.is_empty()
             || (!comp.styles.is_empty()
-                && used_style_classes
+                && local_style_classes
                     .iter()
                     .any(|c| comp.styles.iter().any(|s| &s.class_name == c)));
 
@@ -212,6 +217,21 @@ impl ReactCodegen {
             .map(|m| m.name.clone())
             .collect();
 
+        // ── Design runtime wiring (root component only) ──
+        // The root component mounts the design system: it imports and calls
+        // the `useDesignTokens` hooks (dynamic token effects) and imports
+        // `useThemeStore` (side effect: data-theme subscription) so design
+        // runtime behavior activates with the app (HIGH #2).
+        let is_root = super::design::is_root_component(name, ir);
+        let design_wiring = if is_root {
+            super::design::root_design_wiring(ir, comp.source_file.as_deref())
+        } else {
+            super::design::DesignWiring {
+                import_lines: Vec::new(),
+                hook_calls: Vec::new(),
+            }
+        };
+
         // ── Emit imports ──
         let comp_imports = imports::collect_component_imports(
             comp,
@@ -220,6 +240,7 @@ impl ReactCodegen {
             &used_store_refs,
             &hooks,
             has_styles,
+            &design_wiring.import_lines,
         );
         comp_imports.emit(&mut w, name, comp, has_props);
 
@@ -359,6 +380,14 @@ impl ReactCodegen {
             }
         }
 
+        // Design system hooks — called from the root component so the
+        // dynamic-token effects and theme subscription activate (HIGH #2).
+        if is_root {
+            for hook_call in &design_wiring.hook_calls {
+                w.emit_fmt(format_args!("{}();", hook_call));
+            }
+        }
+
         // State hooks + effects
         let fn_names: FxHashSet<String> = comp.fns.iter().map(|f| f.name.clone()).collect();
         self.gen_state_hooks(&mut w, comp, &read_signals, &mutated_signals, &fn_names);
@@ -416,6 +445,7 @@ impl ReactCodegen {
             &mut w,
             comp,
             component_map,
+            &design_ctx,
             &signal_names,
             &store_signal_owners,
             &motion_names,

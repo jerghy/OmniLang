@@ -1475,6 +1475,7 @@ fn test_theme_runtime_emitted_when_design_has_themes() {
         classes: vec![],
         variants: vec![],
         source_span: None,
+        source_file: None,
     };
 
     let mut module = make_module("main");
@@ -1525,6 +1526,7 @@ fn test_theme_runtime_not_emitted_without_themes() {
         classes: vec![],
         variants: vec![],
         source_span: None,
+        source_file: None,
     };
 
     let mut module = make_module("main");

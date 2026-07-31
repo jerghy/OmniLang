@@ -13,6 +13,7 @@ use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 
 pub(super) mod component;
+pub(super) mod design;
 pub(super) mod expr;
 pub(super) mod motion;
 #[cfg(test)]
@@ -26,7 +27,14 @@ pub struct ReactCodegen;
 
 impl Codegen for ReactCodegen {
     fn generate(&self, ir: &IRProgram, source_files: &FxHashMap<String, String>) -> CompileOutput {
-        self.generate_per_component(ir, source_files)
+        let mut output = self.generate_per_component(ir, source_files);
+        // Module-level design blocks → design.css + design runtime files
+        // (useDesignTokens.ts / useThemeStore.ts). Designs are grouped per
+        // source file (DesignIR.source_file), so multiple design blocks in
+        // one .omni file share a single set of outputs next to the other
+        // compiled files of that source directory.
+        output.files.extend(design::gen_design_files(ir));
+        output
     }
 
     fn gen_component_file(

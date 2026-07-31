@@ -329,6 +329,7 @@ mod tests {
             classes,
             variants,
             source_span: None,
+            source_file: None,
         }
     }
 
@@ -380,6 +381,7 @@ mod tests {
             classes: vec![],
             variants: vec![],
             source_span: None,
+            source_file: None,
         };
         let css = emit_design_css(&design, "").expect("should emit CSS");
         assert!(css.is_empty(), "empty design should produce no CSS");

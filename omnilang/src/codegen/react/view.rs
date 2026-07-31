@@ -10,6 +10,7 @@ use rustc_hash::FxHashSet;
 
 use super::super::capitalize_first;
 use super::component::jsx::collect_view_slots;
+use super::design::DesignCtx;
 use super::expr::{format_expr_ir_tsx, generate_statement_tsx};
 use super::utils::{emit_event_object_react, to_jsx_attr, to_react_event, to_react_tag};
 use crate::codegen::omniview::is_dangerous_url;
@@ -21,6 +22,7 @@ pub(super) fn gen_view_node_tsx(
     w: &mut CodeWriter,
     node: &ViewTree,
     component_map: &FxHashMap<&str, &ComponentIR>,
+    design_ctx: &DesignCtx,
     signal_names: &FxHashSet<String>,
     store_signal_owners: &FxHashMap<String, String>,
     motion_names: &FxHashSet<String>,
@@ -39,6 +41,7 @@ pub(super) fn gen_view_node_tsx(
                         w,
                         child,
                         component_map,
+                        design_ctx,
                         signal_names,
                         store_signal_owners,
                         motion_names,
@@ -122,6 +125,7 @@ pub(super) fn gen_view_node_tsx(
                         &mut child_w,
                         child,
                         component_map,
+                        design_ctx,
                         signal_names,
                         store_signal_owners,
                         motion_names,
@@ -145,6 +149,7 @@ pub(super) fn gen_view_node_tsx(
                             w,
                             child,
                             component_map,
+                            design_ctx,
                             signal_names,
                             store_signal_owners,
                             motion_names,
@@ -178,9 +183,14 @@ pub(super) fn gen_view_node_tsx(
                 .collect();
 
             // Static props — skip names that will be populated by bindings
+            // `_design_variant` (variant: DesignName.Variant(dim=val)) is
+            // expanded into literal global class names after the other class
+            // attributes are merged (see below).
+            let mut variant_classes: Option<Vec<String>> = None;
             for (prop_name, prop_value) in &el.props {
                 // Skip internal IR props (not valid HTML/React attributes)
                 if prop_name == "_design_variant" {
+                    variant_classes = design_ctx.expand_variant_classes(prop_value);
                     continue;
                 }
                 let jsx_attr = to_jsx_attr(prop_name);
@@ -191,10 +201,11 @@ pub(super) fn gen_view_node_tsx(
                 match prop_value {
                     ExprIR::LiteralExpr { value } if value.is_string() => {
                         let s = value.as_str().unwrap_or_default(); // defense-in-depth fallback
-                                                                    // Use CSS module syntax for className props
                         if jsx_attr == "className" {
                             // Split multi-class names: "browserTab tabActive" → styles['browserTab'] + ' ' + styles['tabActive']
-                            // Exclude class names that are handled by class_map_bindings
+                            // Exclude class names that are handled by class_map_bindings.
+                            // Design classes are global CSS in design.css and
+                            // are emitted as literal class names (HIGH #1).
                             let classes: Vec<&str> = s
                                 .split_whitespace()
                                 .filter(|c| !binding_names.contains(c))
@@ -202,11 +213,16 @@ pub(super) fn gen_view_node_tsx(
                             if classes.is_empty() {
                                 // All classes are handled by bindings — skip static className
                             } else if classes.len() > 1 {
-                                let parts: Vec<String> =
-                                    classes.iter().map(|c| format!("styles['{}']", c)).collect();
+                                let parts: Vec<String> = classes
+                                    .iter()
+                                    .map(|c| design_ctx.format_class_ref(c))
+                                    .collect();
                                 attrs.push(format!("className={{{}}}", parts.join(" + ' ' + ")));
                             } else {
-                                attrs.push(format!("className={{styles['{}']}}", classes[0]));
+                                attrs.push(format!(
+                                    "className={{{}}}",
+                                    design_ctx.format_class_ref(classes[0])
+                                ));
                             }
                         } else {
                             // Check URL attributes for dangerous schemes (javascript:, data:, vbscript:)
@@ -429,18 +445,23 @@ pub(super) fn gen_view_node_tsx(
                 attrs.push(format!("{}={{(e) => {{ {}; }}}}", event_name, setter_call));
             }
 
-            // Style classes from view
+            // Style classes from view — design classes emit literal names
+            // (global rules in design.css), component classes stay CSS-module
+            // lookups (HIGH #1).
             if let Some(ref classes) = el.style_classes {
                 if let Some(classes_str) = classes.as_str() {
                     let class_parts: Vec<&str> = classes_str.split_whitespace().collect();
                     if class_parts.len() > 1 {
                         let parts: Vec<String> = class_parts
                             .iter()
-                            .map(|c| format!("styles['{}']", c))
+                            .map(|c| design_ctx.format_class_ref(c))
                             .collect();
                         attrs.push(format!("className={{{}}}", parts.join(" + ' ' + ")));
                     } else {
-                        attrs.push(format!("className={{styles['{}']}}", classes_str));
+                        attrs.push(format!(
+                            "className={{{}}}",
+                            design_ctx.format_class_ref(classes_str)
+                        ));
                     }
                 }
             }
@@ -460,21 +481,24 @@ pub(super) fn gen_view_node_tsx(
                 }
             }
 
-            // Dynamic class bindings: class:active={isOpen} → className using CSS module syntax
+            // Dynamic class bindings: class:active={isOpen} → className using
+            // CSS module syntax for component classes, literal names for
+            // design classes (global rules in design.css, HIGH #1).
             if !el.class_map_bindings.is_empty() {
                 let mut static_classes: Vec<String> = Vec::new();
                 let mut dynamic_parts: Vec<String> = Vec::new();
                 for (cls, expr) in &el.class_map_bindings {
                     match expr {
                         ExprIR::LiteralExpr { value } if value.as_bool() == Some(true) => {
-                            static_classes.push(format!("styles['{}']", cls));
+                            static_classes.push(design_ctx.format_class_ref(cls));
                         }
                         ExprIR::LiteralExpr { value } if value.as_bool() == Some(false) => {
                             // skip — class not applied
                         }
                         _ => {
                             let cond = format_expr_ir_tsx(expr, ref_names);
-                            dynamic_parts.push(format!("${{{cond} ? styles['{cls}'] : ''}}"));
+                            let class_ref = design_ctx.format_class_ref(cls);
+                            dynamic_parts.push(format!("${{{cond} ? {class_ref} : ''}}"));
                         }
                     }
                 }
@@ -517,6 +541,15 @@ pub(super) fn gen_view_node_tsx(
                         attrs.push(format!("className={{{}}}", new_class));
                     }
                 }
+            }
+
+            // Design variant binding: `variant: LearnDesign.Button(color=primary)`
+            // → literal global class names ("Button primary") matching the
+            // combination rules in design.css (HIGH #1).  Merged last so a
+            // `class:` on the same element keeps both.
+            if let Some(variant_classes) = variant_classes {
+                let joined = variant_classes.join(" ");
+                append_class_attr(&mut attrs, format!("\"{}\"", joined));
             }
 
             // Ensure <button> has explicit type to prevent accidental form submission
@@ -581,6 +614,7 @@ pub(super) fn gen_view_node_tsx(
                     w,
                     child,
                     component_map,
+                    design_ctx,
                     signal_names,
                     store_signal_owners,
                     motion_names,
@@ -603,6 +637,7 @@ pub(super) fn gen_view_node_tsx(
                         w,
                         fb,
                         component_map,
+                        design_ctx,
                         signal_names,
                         store_signal_owners,
                         motion_names,
@@ -625,6 +660,7 @@ pub(super) fn gen_view_node_tsx(
                         w,
                         body,
                         component_map,
+                        design_ctx,
                         signal_names,
                         store_signal_owners,
                         motion_names,
@@ -655,6 +691,7 @@ pub(super) fn gen_view_node_tsx(
                         w,
                         body,
                         component_map,
+                        design_ctx,
                         signal_names,
                         store_signal_owners,
                         motion_names,
@@ -676,6 +713,7 @@ pub(super) fn gen_view_node_tsx(
                             w,
                             body,
                             component_map,
+                            design_ctx,
                             signal_names,
                             store_signal_owners,
                             motion_names,
@@ -694,6 +732,7 @@ pub(super) fn gen_view_node_tsx(
                         w,
                         fb,
                         component_map,
+                        design_ctx,
                         signal_names,
                         store_signal_owners,
                         motion_names,
@@ -715,6 +754,7 @@ pub(super) fn gen_view_node_tsx(
                     w,
                     fb,
                     component_map,
+                    design_ctx,
                     signal_names,
                     store_signal_owners,
                     motion_names,
@@ -750,6 +790,7 @@ pub(super) fn gen_view_node_tsx(
                         w,
                         empty_body,
                         component_map,
+                        design_ctx,
                         signal_names,
                         store_signal_owners,
                         motion_names,
@@ -778,6 +819,7 @@ pub(super) fn gen_view_node_tsx(
                     w,
                     body,
                     component_map,
+                    design_ctx,
                     signal_names,
                     store_signal_owners,
                     motion_names,
@@ -831,6 +873,7 @@ pub(super) fn gen_view_node_tsx(
                     w,
                     child,
                     component_map,
+                    design_ctx,
                     signal_names,
                     store_signal_owners,
                     motion_names,
@@ -856,6 +899,7 @@ pub(super) fn gen_view_node_tsx(
                     w,
                     &ViewTree::Fragment(fallback.clone()),
                     component_map,
+                    design_ctx,
                     signal_names,
                     store_signal_owners,
                     motion_names,
@@ -881,6 +925,7 @@ fn gen_branch_body_tsx(
     w: &mut CodeWriter,
     body: &ViewTree,
     component_map: &FxHashMap<&str, &ComponentIR>,
+    design_ctx: &DesignCtx,
     signal_names: &FxHashSet<String>,
     store_signal_owners: &FxHashMap<String, String>,
     motion_names: &FxHashSet<String>,
@@ -902,6 +947,7 @@ fn gen_branch_body_tsx(
         w,
         body,
         component_map,
+        design_ctx,
         signal_names,
         store_signal_owners,
         motion_names,
@@ -940,6 +986,7 @@ fn gen_consumer_child_tsx(
     w: &mut CodeWriter,
     child: &ViewTree,
     component_map: &FxHashMap<&str, &ComponentIR>,
+    design_ctx: &DesignCtx,
     signal_names: &FxHashSet<String>,
     store_signal_owners: &FxHashMap<String, String>,
     motion_names: &FxHashSet<String>,
@@ -952,6 +999,7 @@ fn gen_consumer_child_tsx(
                 w,
                 &ViewTree::Fragment(fallback.clone()),
                 component_map,
+                design_ctx,
                 signal_names,
                 store_signal_owners,
                 motion_names,
@@ -964,6 +1012,7 @@ fn gen_consumer_child_tsx(
                 w,
                 &strip_slot_prop(child),
                 component_map,
+                design_ctx,
                 signal_names,
                 store_signal_owners,
                 motion_names,
@@ -1147,4 +1196,22 @@ fn format_inline_handler(
     build_inline_handler(body, &config, |w, s| {
         generate_statement_tsx(w, s, signal_names, store_signal_owners, ref_names)
     })
+}
+
+/// Append a static class expression to the element's `className` attribute,
+/// merging into the existing attribute when present and creating a new one
+/// otherwise (used for design variant combination classes).
+fn append_class_attr(attrs: &mut Vec<String>, class_expr: String) {
+    if let Some(pos) = attrs.iter().position(|a| a.starts_with("className=")) {
+        let old = attrs[pos].clone();
+        if let Some(inner) = old.strip_prefix("className={") {
+            if let Some(existing) = inner.strip_suffix('}') {
+                attrs[pos] = format!("className={{{} + ' ' + {}}}", existing, class_expr);
+                return;
+            }
+        }
+        attrs[pos] = format!("className={{{}}}", class_expr);
+    } else {
+        attrs.push(format!("className={{{}}}", class_expr));
+    }
 }

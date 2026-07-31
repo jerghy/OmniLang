@@ -1442,6 +1442,488 @@ fn compile_react(source: &str) -> Option<crate::InternalCompileResult> {
     }
 }
 
+// ── Design codegen integration tests ─────────────────────
+
+/// Test: a design block compiles to design.css (unscoped, plain HTML) plus
+/// useThemeStore.ts when @themes is declared.
+#[test]
+fn react_design_emits_css_and_theme_store() {
+    let source = r##"
+design AppDesign {
+    @themes light, dark;
+    @default-theme light;
+
+    token primary: color = "#6366f1" dark "#a5b4fc";
+    token surface: color = "#ffffff" dark "#111827";
+
+    class Card {
+        background: token(surface);
+        border-radius: "8px";
+    }
+
+    variant Button {
+        @dim color: primary | danger;
+        @default { color: primary; }
+        base {
+            display: inline-flex;
+        }
+        color.primary { background: token(primary); }
+    }
+}
+"##;
+    let output = compile_react(source).unwrap();
+    // design.css + useThemeStore.ts
+    let css = output
+        .files
+        .get("design.css")
+        .expect("design.css should be emitted");
+    assert!(
+        css.contains(":root {"),
+        "tokens must be declared on :root. Got:\n{}",
+        css
+    );
+    assert!(
+        css.contains("--primary: #6366f1;"),
+        "static token value must be emitted. Got:\n{}",
+        css
+    );
+    assert!(
+        css.contains("[data-theme=\"dark\"] {"),
+        "theme overrides must be emitted. Got:\n{}",
+        css
+    );
+    assert!(
+        css.contains("--primary: #a5b4fc;"),
+        "dark theme token override must be emitted. Got:\n{}",
+        css
+    );
+    assert!(
+        css.contains("\n.Card {") && css.contains("background: var(--surface);"),
+        "class rules must be emitted unscoped. Got:\n{}",
+        css
+    );
+    assert!(
+        css.contains("\n.Button {") && css.contains("\n.Button.primary {"),
+        "variant base + branch rules must be emitted. Got:\n{}",
+        css
+    );
+    assert!(
+        !css.contains("[data-design~="),
+        "React design CSS must be unscoped (plain HTML, no data-design wrapper)"
+    );
+
+    let theme_store = output
+        .files
+        .get("useThemeStore.ts")
+        .expect("useThemeStore.ts should be emitted when @themes is declared");
+    assert!(
+        theme_store.contains("theme: 'light',"),
+        "default theme must come from @default-theme. Got:\n{}",
+        theme_store
+    );
+    assert!(
+        theme_store.contains("setTheme: (theme) => set({ theme }),"),
+        "setTheme action must be emitted. Got:\n{}",
+        theme_store
+    );
+    assert!(
+        theme_store.contains(
+            "document.documentElement.setAttribute('data-theme', state.theme);"
+        ),
+        "data-theme subscription must be emitted. Got:\n{}",
+        theme_store
+    );
+
+    // No dynamic tokens → no useDesignTokens.ts
+    assert!(
+        !output.files.contains_key("useDesignTokens.ts"),
+        "no hook without dynamic tokens"
+    );
+}
+
+/// Test: dynamic tokens referencing store signals emit a useDesignTokens.ts
+/// hook with per-token useEffect setProperty calls and the store hook import.
+#[test]
+fn react_design_dynamic_tokens_emit_hook() {
+    let source = r##"
+store DynamicTokenStore {
+    signal liveColor: String = "#6366f1";
+    signal liveBg: String = "#eef2ff";
+}
+
+design AppDesign {
+    token dynColor: color = DynamicTokenStore.liveColor;
+    token dynBg: color = DynamicTokenStore.liveBg;
+    token staticColor: color = "#ffffff";
+}
+"##;
+    let output = compile_react(source).unwrap();
+    let hook = output
+        .files
+        .get("useDesignTokens.ts")
+        .expect("useDesignTokens.ts should be emitted for dynamic tokens");
+    assert!(
+        hook.contains("import { useEffect } from 'react';"),
+        "useEffect must be imported. Got:\n{}",
+        hook
+    );
+    assert!(
+        hook.contains("const DynamicTokenStore = useDynamicTokenStore();"),
+        "store hook must be instantiated. Got:\n{}",
+        hook
+    );
+    assert!(
+        hook.contains(
+            "document.documentElement.style.setProperty('--dynColor', sanitizeCss(DynamicTokenStore.liveColor));"
+        ),
+        "dynamic token must set the CSS custom property at runtime. Got:\n{}",
+        hook
+    );
+    assert!(
+        hook.contains("}, [DynamicTokenStore.liveColor]);"),
+        "effect deps must be the exact store signal expression. Got:\n{}",
+        hook
+    );
+    assert!(
+        hook.contains("}, [DynamicTokenStore.liveBg]);"),
+        "one effect per dynamic token. Got:\n{}",
+        hook
+    );
+    // The store hook file itself must also be generated
+    assert!(
+        output.files.contains_key("useDynamicTokenStore.ts"),
+        "referenced store hook must be generated"
+    );
+}
+
+/// Test: design outputs land in the directory mirroring the design's source
+/// file, and multiple design blocks in one file share one set of outputs.
+#[test]
+fn react_design_files_follow_source_directory() {
+    let store_source = r##"
+store DynamicTokenStore {
+    signal liveColor: String = "#6366f1";
+}
+"##;
+    let design_source = r##"
+design ADesign {
+    token a: color = "#111111";
+}
+design BDesign {
+    token b: color = "#222222";
+}
+"##;
+    let comp_source = r#"
+component App {
+    view {
+        <div>hello</div>
+    }
+}
+"#;
+    let mut sources = FxHashMap::default();
+    sources.insert("src/stores/DynamicTokenStore.omni".to_string(), store_source.to_string());
+    sources.insert("src/design.omni".to_string(), design_source.to_string());
+    sources.insert("src/main.omni".to_string(), comp_source.to_string());
+    let pm = path_mapping::derive_path_mapping(&sources);
+    let result = crate::compile_multi_internal(
+        sources,
+        crate::codegen::Target::React,
+        pm,
+        false,
+        false,
+        None,
+    );
+    assert!(
+        result.success,
+        "design compilation must succeed. Errors: {:?}",
+        result.errors
+    );
+    // design.css at the design file's level (src/ → output root)
+    let css = result
+        .files
+        .get("design.css")
+        .expect("design.css should be emitted at output root");
+    assert!(
+        css.contains("Design: ADesign") && css.contains("Design: BDesign"),
+        "both design blocks must be concatenated into one design.css. Got:\n{}",
+        css
+    );
+    assert!(css.contains("--a: #111111;") && css.contains("--b: #222222;"));
+    // Store hook generated in stores/
+    assert!(result.files.contains_key("stores/useDynamicTokenStore.ts"));
+    // Component at root (src/main.omni → output root)
+    assert!(result.files.contains_key("App.tsx"));
+}
+
+/// Test (HIGH #1): design classes and variant combination classes are
+/// emitted as literal class names so the global rules in design.css match;
+/// component-local style classes keep CSS-module lookups.
+#[test]
+fn react_design_classes_emit_literal_class_names() {
+    let source = r##"
+design LearnDesign {
+    @themes light, dark;
+    token primary: color = "#6366f1";
+
+    class Page {
+        background: token(primary);
+    }
+    class Card {
+        border-radius: "8px";
+    }
+
+    variant Button {
+        @dim color: primary | danger;
+        @default { color: primary; }
+        base { display: inline-flex; }
+        color.primary { background: token(primary); }
+    }
+}
+
+component App {
+    signal isActive: bool = true
+    style {
+        .box { padding: 8px; }
+    }
+    view {
+        <div>
+            <div class: LearnDesign.Page>page</div>
+            <button variant: LearnDesign.Button(color=primary)>go</button>
+            <div class: { Card: true, box: isActive }>card</div>
+        </div>
+    }
+}
+"##;
+    let output = compile_react(source).unwrap();
+    let app = output
+        .files
+        .get("App.tsx")
+        .expect("App.tsx should be emitted");
+
+    // `class: LearnDesign.Page` → literal class name (global .Page rule)
+    assert!(
+        app.contains("className={\"Page\"}"),
+        "design class must be a literal class name. Got:\n{}",
+        app
+    );
+    assert!(
+        !app.contains("styles['Page']"),
+        "design class must NOT go through the CSS module. Got:\n{}",
+        app
+    );
+    // `variant: LearnDesign.Button(color=primary)` → "Button primary"
+    assert!(
+        app.contains("className={\"Button primary\"}"),
+        "variant binding must emit combination classes as literals. Got:\n{}",
+        app
+    );
+    assert!(
+        !app.contains("styles['Button']"),
+        "variant classes must NOT go through the CSS module. Got:\n{}",
+        app
+    );
+    // class map: design class literal + local class CSS-module lookup
+    assert!(
+        app.contains("\"Card\"") && app.contains("styles['box']"),
+        "class map must mix design literals and module lookups. Got:\n{}",
+        app
+    );
+    // design.css still emits the global rules the literals match
+    let css = output
+        .files
+        .get("design.css")
+        .expect("design.css should be emitted");
+    assert!(css.contains("\n.Page {"), "global .Page rule missing");
+    assert!(
+        css.contains("\n.Button.primary {"),
+        "global .Button.primary rule missing"
+    );
+}
+
+/// Test (HIGH #1): a component using ONLY design classes does not import a
+/// CSS module (nothing local to look up).
+#[test]
+fn react_design_only_classes_skip_css_module_import() {
+    let source = r##"
+design LearnDesign {
+    token primary: color = "#6366f1";
+    class Page {
+        background: token(primary);
+    }
+}
+
+component App {
+    view {
+        <div class: LearnDesign.Page>page</div>
+    }
+}
+"##;
+    let output = compile_react(source).unwrap();
+    let app = output
+        .files
+        .get("App.tsx")
+        .expect("App.tsx should be emitted");
+    assert!(
+        !app.contains("import styles from './App.module.css';"),
+        "no CSS module import when only design classes are used. Got:\n{}",
+        app
+    );
+    assert!(
+        app.contains("className={\"Page\"}"),
+        "design class must still be a literal. Got:\n{}",
+        app
+    );
+}
+
+/// Test (HIGH #2): the root component imports and calls `useDesignTokens`
+/// and side-effect-imports `useThemeStore`, so the emitted design runtime
+/// actually activates.
+#[test]
+fn react_root_component_wires_design_runtime() {
+    let source = r##"
+store DynamicTokenStore {
+    signal liveColor: String = "#6366f1";
+}
+
+design AppDesign {
+    @themes light, dark;
+    @default-theme light;
+    token dynColor: color = DynamicTokenStore.liveColor;
+    token staticColor: color = "#ffffff";
+}
+
+component App {
+    view {
+        <div>hello</div>
+    }
+}
+"##;
+    let output = compile_react(source).unwrap();
+    let app = output
+        .files
+        .get("App.tsx")
+        .expect("App.tsx should be emitted");
+    assert!(
+        app.contains("import { useDesignTokens } from './useDesignTokens';"),
+        "root component must import the design tokens hook. Got:\n{}",
+        app
+    );
+    assert!(
+        app.contains("useDesignTokens();"),
+        "root component must call the design tokens hook. Got:\n{}",
+        app
+    );
+    assert!(
+        app.contains("import './useThemeStore';"),
+        "root component must import the theme store (side effect). Got:\n{}",
+        app
+    );
+    // Non-root components must not import the wiring
+    let non_root = r##"
+store DynamicTokenStore {
+    signal liveColor: String = "#6366f1";
+}
+
+design AppDesign {
+    @themes light, dark;
+    token dynColor: color = DynamicTokenStore.liveColor;
+}
+
+component App {
+    view {
+        <div>app</div>
+    }
+}
+
+component Sidebar {
+    view {
+        <div>side</div>
+    }
+}
+"##;
+    let output = compile_react(non_root).unwrap();
+    let sidebar = output
+        .files
+        .get("Sidebar.tsx")
+        .expect("Sidebar.tsx should be emitted");
+    assert!(
+        !sidebar.contains("useDesignTokens"),
+        "non-root components must not import design hooks. Got:\n{}",
+        sidebar
+    );
+    let app = output
+        .files
+        .get("App.tsx")
+        .expect("App.tsx should be emitted");
+    assert!(
+        app.contains("useDesignTokens();"),
+        "App must still be wired as root. Got:\n{}",
+        app
+    );
+}
+
+/// Test (HIGH #2): the root component wires hooks from a design file in a
+/// different source directory via a correct relative import path.
+#[test]
+fn react_root_component_wires_design_across_directories() {
+    let store_source = r##"
+store DynamicTokenStore {
+    signal liveColor: String = "#6366f1";
+}
+"##;
+    let design_source = r##"
+import { DynamicTokenStore } from "./stores/DynamicTokenStore";
+
+design AppDesign {
+    @themes light, dark;
+    token dynColor: color = DynamicTokenStore.liveColor;
+}
+"##;
+    let comp_source = r#"
+component App {
+    view {
+        <div>app</div>
+    }
+}
+"#;
+    let mut sources = FxHashMap::default();
+    sources.insert("src/stores/DynamicTokenStore.omni".to_string(), store_source.to_string());
+    sources.insert("src/designs/theme.omni".to_string(), design_source.to_string());
+    sources.insert("src/main.omni".to_string(), comp_source.to_string());
+    let pm = path_mapping::derive_path_mapping(&sources);
+    let result = crate::compile_multi_internal(
+        sources,
+        crate::codegen::Target::React,
+        pm,
+        false,
+        false,
+        None,
+    );
+    assert!(
+        result.success,
+        "design compilation must succeed. Errors: {:?}",
+        result.errors
+    );
+    let app = result
+        .files
+        .get("App.tsx")
+        .expect("App.tsx should be emitted");
+    assert!(
+        app.contains("import { useDesignTokens } from './designs/useDesignTokens';"),
+        "hook import must resolve across directories. Got:\n{}",
+        app
+    );
+    assert!(
+        app.contains("useDesignTokens();"),
+        "hook must be called. Got:\n{}",
+        app
+    );
+    assert!(
+        result.files.contains_key("designs/useDesignTokens.ts"),
+        "hook file must be emitted next to the design source"
+    );
+}
+
 // ── Ref codegen integration tests ────────────────────────
 
 /// Test: ref declaration generates useRef + ref={} JSX attribute
