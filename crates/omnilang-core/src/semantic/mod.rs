@@ -305,4 +305,49 @@ mod tests {
             errors
         );
     }
+
+    #[test]
+    fn bare_signal_name_in_token_value_gets_const_kind_diagnostic() {
+        let mut analyzer = SemanticAnalyzer::new();
+        analyzer
+            .symbols
+            .declare(Symbol {
+                name: "App_dynamicAccent".to_string(),
+                kind: SymbolKind::Signal,
+                type_ann: Some("String".to_string()),
+                mutable: false,
+                declared_at: 0,
+            })
+            .ok();
+        let design = DesignDef {
+            name: "App".to_string(),
+            themes: vec![],
+            default_theme: None,
+            tokens: vec![TokenDef {
+                name: "accent".to_string(),
+                token_type: TokenType::Color,
+                value: TokenValue::Variable("App_dynamicAccent".to_string()),
+                theme_values: vec![],
+            }],
+            classes: vec![],
+            variants: vec![],
+        };
+        let module = Module {
+            designs: vec![design],
+            ..Default::default()
+        };
+        analyzer.resolve_and_validate_module(&module);
+        let errors: Vec<_> = analyzer
+            .diagnostics
+            .iter()
+            .filter(|d| d.kind == DiagnosticKind::E0001)
+            .collect();
+        assert!(
+            errors.iter().any(|e| e.message.contains("signal")
+                && e.message.contains("App_dynamicAccent")
+                && e.message.contains("compile-time constant")),
+            "bare signal name should produce const-kind diagnostic. Got: {:?}",
+            errors.iter().map(|e| &e.message).collect::<Vec<_>>()
+        );
+    }
 }
