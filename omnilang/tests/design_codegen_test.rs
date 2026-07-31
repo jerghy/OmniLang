@@ -182,23 +182,28 @@ fn e2e_dynamic_token_full_pipeline() {
         }
     "##;
 
-    let sources: FxHashMap<String, String> = [
-        ("test.omni".to_string(), src.to_string()),
-    ]
-    .into_iter()
-    .collect();
+    let sources: FxHashMap<String, String> = [("test.omni".to_string(), src.to_string())]
+        .into_iter()
+        .collect();
 
     let path_mapping = FxHashMap::default();
     let result = omnilang::analyse::analyse_multi(&sources, &path_mapping);
 
-    assert!(result.success, "analysis should succeed: {:?}", result.diagnostics);
+    assert!(
+        result.success,
+        "analysis should succeed: {:?}",
+        result.diagnostics
+    );
 
     let ir = result.ir.expect("should have IR");
 
     // Verify the token was lowered as Dynamic
     let module = ir.modules.values().next().expect("should have module");
     let design = module.designs.first().expect("should have design");
-    let primary = design.tokens.get("primary").expect("should have primary token");
+    let primary = design
+        .tokens
+        .get("primary")
+        .expect("should have primary token");
     assert!(
         matches!(primary.value, TokenValueIR::Dynamic(_)),
         "ThemeStore.primaryColor should be Dynamic, got {:?}",
@@ -206,7 +211,10 @@ fn e2e_dynamic_token_full_pipeline() {
     );
 
     // Verify spacing is still Static
-    let spacing = design.tokens.get("spacing").expect("should have spacing token");
+    let spacing = design
+        .tokens
+        .get("spacing")
+        .expect("should have spacing token");
     assert!(
         matches!(spacing.value, TokenValueIR::Static(_)),
         "static value should remain Static"

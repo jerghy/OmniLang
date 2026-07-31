@@ -108,13 +108,13 @@ impl SemanticAnalyzer {
 
 #[cfg(test)]
 mod tests {
+    use super::symbols::{Symbol, SymbolKind};
     use super::*;
     use crate::error::DiagnosticKind;
     use crate::lexer::tokenize;
     use crate::lexer::Span;
     use crate::parser::ast::{DesignDef, Expr, Module, TokenDef, TokenType, TokenValue};
     use crate::parser::parse;
-    use super::symbols::{Symbol, SymbolKind};
 
     fn analyze_source(source: &str) -> SemanticResult {
         let tokens = tokenize(source);
@@ -185,10 +185,20 @@ mod tests {
                     TokenValue::Expression(Expr::FieldAccess {
                         object: Box::new(Expr::VarRef(
                             "ThemeStore".to_string(),
-                            Span { start: 0, end: 10, line: 0, col: 0 },
+                            Span {
+                                start: 0,
+                                end: 10,
+                                line: 0,
+                                col: 0,
+                            },
                         )),
                         field: "darkColor".to_string(),
-                        span: Span { start: 0, end: 0, line: 0, col: 0 },
+                        span: Span {
+                            start: 0,
+                            end: 0,
+                            line: 0,
+                            col: 0,
+                        },
                     }),
                 )],
             }],
@@ -211,7 +221,9 @@ mod tests {
             "should reject expression in theme value"
         );
         assert!(
-            errors.iter().any(|e| e.message.contains("Theme") && e.message.contains("dynamic")),
+            errors
+                .iter()
+                .any(|e| e.message.contains("Theme") && e.message.contains("dynamic")),
             "diagnostic should mention Theme and dynamic expression restriction, got: {:?}",
             errors.iter().map(|e| &e.message).collect::<Vec<_>>()
         );
@@ -258,7 +270,9 @@ mod tests {
             "should warn when TokenValue::Variable references a non-const symbol"
         );
         assert!(
-            errors.iter().any(|w| w.message.contains("compile-time constant")),
+            errors
+                .iter()
+                .any(|w| w.message.contains("compile-time constant")),
             "diagnostic should explain that only compile-time constants are valid"
         );
     }

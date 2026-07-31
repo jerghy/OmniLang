@@ -277,10 +277,7 @@ pub fn resolve_class_pseudo_states<'a>(
 ///
 /// This sets CSS custom properties on `<html>` at runtime, giving them
 /// the highest CSS specificity (inline style on root element).
-pub fn emit_dynamic_token_effects<F>(
-    tokens: &[(String, ExprIR)],
-    mut expr_to_js: F,
-) -> String
+pub fn emit_dynamic_token_effects<F>(tokens: &[(String, ExprIR)], mut expr_to_js: F) -> String
 where
     F: FnMut(&ExprIR) -> String,
 {
@@ -288,7 +285,9 @@ where
         return String::new();
     }
     let mut js = String::new();
-    js.push_str("__omni_effect(() => {\n");
+    // Dispose previous dynamic token effects (hot-reload safety)
+    js.push_str("if (window.__omni_tokenEffectCleanup) window.__omni_tokenEffectCleanup();\n");
+    js.push_str("window.__omni_tokenEffectCleanup = __omni_effect(() => {\n");
     js.push_str("  const root = document.documentElement;\n");
     js.push_str("  if (!root) return;\n");
     for (name, expr) in tokens {
