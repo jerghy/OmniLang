@@ -5,6 +5,7 @@
 //! (`Notifier<T>` + `NotifierProvider`).
 //! Uses `super::dart::dart_type()` for Dart type annotations.
 
+mod design;
 mod expr;
 mod motion;
 mod motion_widgets;
@@ -55,6 +56,10 @@ impl Codegen for FlutterCodegen {
         for (name, store) in ir.all_stores() {
             files.extend(self.gen_store_file(name, store));
         }
+        // Module-level design blocks → design.dart with typed token
+        // constants, BoxDecoration factories, ThemeExtension variants,
+        // theme switching, and the dynamic token provider (Task 5.5).
+        files.extend(design::gen_design_files(ir));
         CompileOutput {
             files,
             errors: vec![],
