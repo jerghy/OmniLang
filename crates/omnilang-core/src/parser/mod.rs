@@ -1253,6 +1253,67 @@ mod roundtrip_tests {
         }
     }
 
+    #[test]
+    fn view_semantic_binding_props() {
+        // focus={sig}, scroll-x={sig}, scroll-y={sig}, value={sig} parse as
+        // ElementProp::RefBinding — compiler-recognized semantic bindings.
+        let children = view_children(
+            "component App { view { <div focus={mySig} scroll-x={pos} scroll-y={posY} value={text} /> } }",
+        );
+        assert_eq!(children.len(), 1);
+        match &children[0] {
+            ViewNode::Element(el) => {
+                assert_eq!(el.tag, "div");
+                assert_eq!(el.props.len(), 4);
+                let bindings: Vec<(&str, &Expr)> = el
+                    .props
+                    .iter()
+                    .filter_map(|p| match p {
+                        ElementProp::RefBinding { binding, signal } => {
+                            Some((binding.as_str(), signal))
+                        }
+                        _ => None,
+                    })
+                    .collect();
+                assert_eq!(
+                    bindings.iter().map(|(b, _)| *b).collect::<Vec<_>>(),
+                    vec!["focus", "scroll-x", "scroll-y", "value"]
+                );
+                assert!(
+                    bindings
+                        .iter()
+                        .all(|(_, sig)| matches!(sig, Expr::VarRef(_, _))),
+                    "each binding should carry a signal expression"
+                );
+            }
+            _ => panic!("expected Element"),
+        }
+    }
+
+    #[test]
+    fn view_value_string_prop_stays_static() {
+        // value="option1" is a generic static prop — RefBinding syntax only
+        // applies to the value={expr} form.
+        let children =
+            view_children("component App { view { <option value=\"option1\">x</option> } }");
+        assert_eq!(children.len(), 1);
+        match &children[0] {
+            ViewNode::Element(el) => {
+                assert_eq!(el.tag, "option");
+                match &el.props[0] {
+                    ElementProp::Static { name, value } => {
+                        assert_eq!(name, "value");
+                        assert!(
+                            matches!(value, Expr::Literal(Literal::String(s), _) if s == "option1")
+                        );
+                    }
+                    other => panic!("expected Static prop, got {:?}", other),
+                }
+            }
+            _ => panic!("expected Element"),
+        }
+    }
+
     // ════════════════════════════════════════════════════════
     // Original roundtrip tests (preserved)
     // ════════════════════════════════════════════════════════

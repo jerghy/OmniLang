@@ -123,6 +123,14 @@ pub enum ElementProp {
         name: String,
         signal_path: String,
     },
+    /// Semantic ref binding: focus={sig}, scroll-x={sig}, scroll-y={sig}, value={sig}
+    /// These are compiler-recognized — not generic static props.
+    RefBinding {
+        /// The semantic binding name: "focus", "scroll-x", "scroll-y", "value"
+        binding: String,
+        /// The signal expression driving the binding
+        signal: Expr,
+    },
     Event {
         name: String,
         handler: EventHandler,

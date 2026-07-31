@@ -448,6 +448,16 @@ fn lower_element(
             ElementProp::Ref(r) => {
                 ref_binding = Some(r.clone());
             }
+            // Semantic ref bindings: focus={sig}, scroll-x={sig}, scroll-y={sig},
+            // value={sig}. Lowered as regular props (keyed by binding name) until
+            // ElementIR.semantic_bindings lands in Phase 1.1 — codegen sees the
+            // same props map as before, so emitted output is unchanged.
+            ElementProp::RefBinding { binding, signal } => {
+                props.get_or_insert_with(Default::default).insert(
+                    binding.clone(),
+                    lower_expr(signal, variant_map, None, semantics),
+                );
+            }
             // Motion animation triggers: on:hover={fadeIn}, etc.
             ElementProp::MotionTrigger(mt) => {
                 let motion_ref = match &mt.motion_expr {
@@ -762,6 +772,51 @@ mod tests {
                 assert!(
                     !el_ir.props.contains_key("data-ref"),
                     "no data-ref prop should be emitted"
+                );
+            }
+            _ => panic!("Expected ViewTree::Element"),
+        }
+    }
+
+    #[test]
+    fn test_lower_element_ref_binding_lowers_to_prop() {
+        // Phase 0: RefBinding is lowered as a regular prop keyed by binding
+        // name (ElementIR.semantic_bindings arrives in Phase 1.1).
+        let span = Span {
+            start: 0,
+            end: 0,
+            line: 1,
+            col: 1,
+        };
+        let el = Element {
+            tag: "div".into(),
+            props: vec![ElementProp::RefBinding {
+                binding: "scroll-y".into(),
+                signal: Expr::VarRef("pos".into(), span),
+            }],
+            children: vec![],
+            self_closing: true,
+            span,
+        };
+        let mut semantics = SemanticResult {
+            symbols: SymbolTable::default(),
+            dependencies: FxHashMap::default(),
+            diagnostics: vec![],
+            event_param_name: None,
+        };
+        let result = lower_element(&el, &[], None, &FxHashMap::default(), &mut semantics, &[]);
+        match result {
+            ViewTree::Element(el_ir) => {
+                assert!(
+                    el_ir.props.contains_key("scroll-y"),
+                    "scroll-y should be lowered into props"
+                );
+                assert!(
+                    matches!(
+                        el_ir.props.get("scroll-y"),
+                        Some(ExprIR::IdentifierExpr { name, .. }) if name == "pos"
+                    ),
+                    "signal expr should lower to IdentifierExpr(pos)"
                 );
             }
             _ => panic!("Expected ViewTree::Element"),

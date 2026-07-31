@@ -202,6 +202,9 @@ pub(super) fn collect_used_names_in_view_node<'a>(
                             used.insert(signal_path.as_str());
                         }
                     }
+                    ElementProp::RefBinding { signal, .. } => {
+                        collect_used_names_in_expr(signal, used);
+                    }
                     ElementProp::Event { handler, .. } => match handler {
                         EventHandler::InlineFn { body, .. } => {
                             collect_used_names_in_block(body, used);

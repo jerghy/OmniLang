@@ -72,6 +72,29 @@ impl<'a> Parser<'a> {
             name = format!("{}-{}", name, next);
         }
 
+        // Check for semantic binding attributes (focus, scroll-x, scroll-y, value).
+        // These are compiler-recognized ref bindings, not generic static props —
+        // they only bind to a signal expression: name={expr}. The string-literal
+        // form (value="text") and bare boolean form stay generic Static props.
+        // Validation (element has @ref, ref declared) happens in the semantic pass.
+        const SEMANTIC_BINDINGS: &[&str] = &["focus", "scroll-x", "scroll-y", "value"];
+        if SEMANTIC_BINDINGS.contains(&name.as_str())
+            && self.at(&TokenKind::Eq)
+            && matches!(
+                self.tokens.get(self.pos + 1).map(|t| &t.kind),
+                Some(TokenKind::LBrace)
+            )
+        {
+            self.advance(); // '='
+            self.advance(); // '{'
+            let signal = self.parse_expr()?;
+            self.expect_token(TokenKind::RBrace, "expected '}'")?;
+            return Ok(ElementProp::RefBinding {
+                binding: name,
+                signal,
+            });
+        }
+
         let kind = self.peek_kind().clone();
         match kind {
             TokenKind::Eq => {

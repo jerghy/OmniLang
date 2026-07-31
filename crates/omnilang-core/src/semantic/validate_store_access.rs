@@ -275,6 +275,9 @@ impl SemanticAnalyzer {
                             ElementProp::Static { value, .. } => {
                                 check_expr_for_undeclared_store(value, store_refs, diagnostics);
                             }
+                            ElementProp::RefBinding { signal, .. } => {
+                                check_expr_for_undeclared_store(signal, store_refs, diagnostics);
+                            }
                             ElementProp::Style { entries, .. } => {
                                 for (_, expr) in entries {
                                     check_expr_for_undeclared_store(expr, store_refs, diagnostics);

@@ -934,6 +934,11 @@ impl SemanticAnalyzer {
                 ElementProp::Event { handler, .. } => {
                     self.resolve_event_handler_refs(handler, vctx);
                 }
+                // The driving signal expression is resolved like any other
+                // prop expression (ref-existence validation is Phase 2.1).
+                ElementProp::RefBinding { signal, .. } => {
+                    self.resolve_expr_refs(signal, vctx);
+                }
                 ElementProp::Bind { .. }
                 | ElementProp::TestId(_)
                 | ElementProp::Ref(_)
