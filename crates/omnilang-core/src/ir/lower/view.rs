@@ -2,6 +2,7 @@
 //!
 //! Includes: `lower_view_block`, `lower_view_node`.
 
+use super::component::lower_type;
 use super::expr::lower_expr;
 use super::stmt::lower_block;
 use crate::ir::logic::FunctionIR;
@@ -204,9 +205,32 @@ pub(super) fn lower_view_node(
         }
         ViewNode::SlotDirective {
             name,
-            default_content: _,
-            type_constraint: _, // consumed in Task 1.2 — ViewTree::Slot gains type_constraint
-        } => ViewTree::Slot(name.clone()),
+            default_content,
+            type_constraint,
+        } => {
+            let fallback = default_content
+                .as_ref()
+                .map(|nodes| {
+                    nodes
+                        .iter()
+                        .map(|n| {
+                            lower_view_node(n, string_signals, sig_idx, variant_map, semantics, fns)
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            let (tc, dp) = if let Some(tc) = type_constraint {
+                (Some(lower_type(tc)), Some(name.clone().unwrap_or_default()))
+            } else {
+                (None, None)
+            };
+            ViewTree::Slot {
+                name: name.clone(),
+                fallback,
+                type_constraint: tc,
+                data_param: dp,
+            }
+        }
     }
 }
 

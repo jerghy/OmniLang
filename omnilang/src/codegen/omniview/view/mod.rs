@@ -205,10 +205,14 @@ impl OmniViewGenerator {
                 }
             }
             ViewTree::ListRendering(list) => self.emit_list_rendering_html(list, indent),
-            ViewTree::Slot(name) => match name {
-                Some(ref n) => format!("{}<slot name=\"{}\"></slot>\n", pad, n),
-                None => format!("{}<slot></slot>\n", pad),
-            },
+            ViewTree::Slot { name, .. } => {
+                // TODO(1.2): render the preserved `fallback` children inside the
+                // <slot> element when slot projection provides no content for it.
+                match name {
+                    Some(ref n) => format!("{}<slot name=\"{}\"></slot>\n", pad, n),
+                    None => format!("{}<slot></slot>\n", pad),
+                }
+            }
             ViewTree::Fragment(children) => {
                 let mut out = String::new();
                 for child in children {

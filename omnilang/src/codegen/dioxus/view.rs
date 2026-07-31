@@ -279,7 +279,7 @@ pub(crate) fn gen_view_node_dioxus(w: &mut CodeWriter, node: &ViewTree, is_root:
             let formatted = format_expr_ir_dioxus(expr);
             w.emit_fmt(format_args!("\"{formatted}\"{comma}"));
         }
-        ViewTree::Slot(_) => {
+        ViewTree::Slot { .. } => {
             // slots not supported in Dioxus — emit placeholder
         }
         ViewTree::Fragment(children) => {

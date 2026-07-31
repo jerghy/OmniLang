@@ -175,7 +175,7 @@ fn collect_idents_from_view_exprs(view: &ViewTree, used: &mut FxHashSet<String>)
                 collect_idents_from_view_exprs(child, used);
             }
         }
-        ViewTree::Text(_) | ViewTree::Slot(_) => {}
+        ViewTree::Text(_) | ViewTree::Slot { .. } => {}
     }
 }
 
@@ -347,7 +347,7 @@ fn eliminate_unreachable_in_view(view: &mut ViewTree) -> bool {
                 changed |= eliminate_unreachable_in_view(child);
             }
         }
-        ViewTree::Interpolation(_) | ViewTree::Text(_) | ViewTree::Slot(_) => {}
+        ViewTree::Interpolation(_) | ViewTree::Text(_) | ViewTree::Slot { .. } => {}
     }
     changed
 }

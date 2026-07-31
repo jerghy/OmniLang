@@ -54,7 +54,9 @@ pub(crate) fn format_view_tree(
             .map(|c| format_view_tree(c, motions, component_map))
             .collect::<Vec<_>>()
             .join(", "),
-        ViewTree::Slot(name) => {
+        ViewTree::Slot { name, .. } => {
+            // TODO(1.2): render the preserved `fallback` children when the parent
+            // provides no content for this slot.
             let slot_desc = name.as_deref().unwrap_or("default");
             format!(
                 "/* WARNING: <slot name=\"{}\"> is not supported in Flutter. */ SizedBox.shrink()",

@@ -138,7 +138,7 @@ fn collect_ref_bindings<'a>(view: &'a ViewTree, out: &mut Vec<&'a str>) {
                 collect_ref_bindings(child, out);
             }
         }
-        ViewTree::Interpolation(_) | ViewTree::Text(_) | ViewTree::Slot(_) => {}
+        ViewTree::Interpolation(_) | ViewTree::Text(_) | ViewTree::Slot { .. } => {}
     }
 }
 
@@ -206,7 +206,7 @@ fn warn_refs_in_for_bodies(
                 warn_refs_in_for_bodies(child, comp, in_for_template, warnings);
             }
         }
-        ViewTree::Interpolation(_) | ViewTree::Text(_) | ViewTree::Slot(_) => {}
+        ViewTree::Interpolation(_) | ViewTree::Text(_) | ViewTree::Slot { .. } => {}
     }
 }
 

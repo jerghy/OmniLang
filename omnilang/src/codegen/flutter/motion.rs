@@ -290,7 +290,7 @@ fn find_enter_inner(node: &ViewTree, result: &mut Vec<String>) {
                 find_enter_inner(child, result);
             }
         }
-        ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => {}
+        ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot { .. } => {}
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
     }

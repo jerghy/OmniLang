@@ -682,9 +682,21 @@ pub enum ViewTree {
     /// so codegen can emit proper JS for any expression (VarRef, if-else, binary, call, …).
     Interpolation(Box<ExprIR>),
     Text(String),
-    /// A `<slot>` placeholder directive. `Some("name")` for named slots,
-    /// `None` for the default/unnamed slot.
-    Slot(Option<String>),
+    /// A `<slot>` placeholder directive.
+    Slot {
+        /// Slot name — `None` for the default/unnamed slot.
+        name: Option<String>,
+        /// Fallback content rendered when the parent provides no content
+        /// for this slot. Preserved from the AST `default_content` during
+        /// lowering (was previously discarded).
+        fallback: Vec<ViewTree>,
+        /// Optional type constraint declared in the source (`@slot name: Type`).
+        /// Lowered from the AST `type_constraint`.
+        type_constraint: Option<TypeIR>,
+        /// Data variable name derived from the slot name when a type
+        /// constraint is present — used as the data variable name in codegen.
+        data_param: Option<String>,
+    },
     /// Inline list of child nodes (no wrapper element) — used for slot projection.
     Fragment(Vec<ViewTree>),
 }

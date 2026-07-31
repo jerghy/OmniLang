@@ -1421,7 +1421,7 @@ component Layout {
                         assert_eq!(header_el.tag, "header");
                         assert_eq!(header_el.children.len(), 1);
                         match &header_el.children[0] {
-                            ViewTree::Slot(name) => {
+                            ViewTree::Slot { name, .. } => {
                                 assert_eq!(
                                     name.as_deref(),
                                     Some("header"),
@@ -1439,13 +1439,72 @@ component Layout {
                         assert_eq!(main_el.tag, "main");
                         assert_eq!(main_el.children.len(), 1);
                         match &main_el.children[0] {
-                            ViewTree::Slot(name) => {
+                            ViewTree::Slot { name, .. } => {
                                 assert!(name.is_none(), "should be default (unnamed) slot");
                             }
                             other => panic!("expected Slot, got {:?}", other),
                         }
                     }
                     other => panic!("expected Element, got {:?}", other),
+                }
+            }
+            other => panic!("expected Element, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn lower_slot_preserves_fallback_and_type_constraint() {
+        let source = r#"
+import omniview;
+component Card {
+    view {
+        <div>
+            @slot body: String { <p>Default body</p> }
+        </div>
+    }
+}
+"#;
+        let comp = lower_first_component(source);
+        let view = comp.view.expect("should have view");
+        match &view {
+            ViewTree::Element(el) => {
+                assert_eq!(el.tag, "div");
+                assert_eq!(el.children.len(), 1);
+                match &el.children[0] {
+                    ViewTree::Slot {
+                        name,
+                        fallback,
+                        type_constraint,
+                        data_param,
+                    } => {
+                        assert_eq!(name.as_deref(), Some("body"), "should be named slot 'body'");
+                        assert_eq!(
+                            fallback.len(),
+                            1,
+                            "fallback content must be preserved during lowering"
+                        );
+                        match &fallback[0] {
+                            ViewTree::Element(p) => {
+                                assert_eq!(p.tag, "p");
+                                assert_eq!(p.children.len(), 1);
+                                match &p.children[0] {
+                                    ViewTree::Text(t) => assert_eq!(t, "Default body"),
+                                    other => panic!("expected Text, got {:?}", other),
+                                }
+                            }
+                            other => panic!("expected Element fallback, got {:?}", other),
+                        }
+                        assert!(
+                            type_constraint.is_some(),
+                            "type constraint must be preserved during lowering"
+                        );
+                        assert_eq!(
+                            data_param.as_deref(),
+                            Some("body"),
+                            "data_param should derive from the slot name"
+                        );
+                    }
+                    other => panic!("expected Slot, got {:?}", other),
                 }
             }
             other => panic!("expected Element, got {:?}", other),

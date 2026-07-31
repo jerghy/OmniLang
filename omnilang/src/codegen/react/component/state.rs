@@ -253,7 +253,7 @@ fn collect_view_mutation_targets(node: &ViewTree, acc: &mut FxHashSet<String>) {
                 collect_view_mutation_targets(child, acc);
             }
         }
-        ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => {}
+        ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot { .. } => {}
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
     }
@@ -298,7 +298,7 @@ pub(super) fn collect_view_inline_handler_reads(node: &ViewTree, acc: &mut FxHas
                 collect_view_inline_handler_reads(child, acc);
             }
         }
-        ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => {}
+        ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot { .. } => {}
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
     }
@@ -504,7 +504,7 @@ fn collect_view_read_signals_inner(node: &ViewTree, acc: &mut FxHashSet<String>)
         ViewTree::Interpolation(expr) => {
             collect_expr_identifiers(expr, acc);
         }
-        ViewTree::Text(_) | ViewTree::Slot(_) => {}
+        ViewTree::Text(_) | ViewTree::Slot { .. } => {}
         ViewTree::Fragment(children) => {
             for child in children {
                 collect_view_read_signals_inner(child, acc);
@@ -566,7 +566,7 @@ fn collect_view_store_refs_from_handlers(node: &ViewTree, acc: &mut FxHashSet<St
                 collect_view_store_refs_from_handlers(child, acc);
             }
         }
-        ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => {}
+        ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot { .. } => {}
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
     }

@@ -269,6 +269,6 @@ pub fn walk_view(tree: &ViewTree, f: &mut impl FnMut(&ElementIR)) {
                 walk_view(child, f);
             }
         }
-        ViewTree::Interpolation(_) | ViewTree::Text(_) | ViewTree::Slot(_) => {}
+        ViewTree::Interpolation(_) | ViewTree::Text(_) | ViewTree::Slot { .. } => {}
     }
 }

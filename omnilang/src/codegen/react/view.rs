@@ -824,7 +824,9 @@ pub(super) fn gen_view_node_tsx(
                 );
             }
         }
-        ViewTree::Slot(name) => {
+        ViewTree::Slot { name, .. } => {
+            // TODO(1.2): render the preserved `fallback` children when the parent
+            // provides no content for this slot.
             let slot_desc = name.as_deref().unwrap_or("default");
             w.emit_fmt(format_args!("{{/* WARNING: <slot name=\"{}\"> is not supported in React. Use children or named props instead. */}}", slot_desc));
         }
