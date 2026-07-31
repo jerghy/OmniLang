@@ -14,6 +14,11 @@ pub const NAMED_EASINGS: &[(&str, &str, &str)] = &[
     ("easeIn", "ease-in", "Curves.easeIn"),
     ("easeOut", "ease-out", "Curves.easeOut"),
     ("easeInOut", "ease-in-out", "Curves.easeInOut"),
+    // Kebab-case canonical names (semantic DSL). The parser normalizes all
+    // easing names to these; camelCase entries above remain for transition.
+    ("ease-in", "ease-in", "Curves.easeIn"),
+    ("ease-out", "ease-out", "Curves.easeOut"),
+    ("ease-in-out", "ease-in-out", "Curves.easeInOut"),
     // GSAP power1 (quadratic)
     (
         "power1In",
@@ -78,6 +83,67 @@ pub const NAMED_EASINGS: &[(&str, &str, &str)] = &[
         "cubic-bezier(0.860,0.000,0.070,1.000)",
         "Curves.easeInOutQuint",
     ),
+    // Kebab-case canonical names (power family)
+    (
+        "power1-in",
+        "cubic-bezier(0.550,0.085,0.680,0.530)",
+        "Curves.easeInQuad",
+    ),
+    (
+        "power1-out",
+        "cubic-bezier(0.250,0.460,0.450,0.940)",
+        "Curves.easeOutQuad",
+    ),
+    (
+        "power1-in-out",
+        "cubic-bezier(0.455,0.030,0.515,0.955)",
+        "Curves.easeInOutQuad",
+    ),
+    (
+        "power2-in",
+        "cubic-bezier(0.550,0.055,0.675,0.190)",
+        "Curves.easeInCubic",
+    ),
+    (
+        "power2-out",
+        "cubic-bezier(0.215,0.610,0.355,1.000)",
+        "Curves.easeOutCubic",
+    ),
+    (
+        "power2-in-out",
+        "cubic-bezier(0.645,0.045,0.355,1.000)",
+        "Curves.easeInOutCubic",
+    ),
+    (
+        "power3-in",
+        "cubic-bezier(0.895,0.030,0.685,0.220)",
+        "Curves.easeInQuart",
+    ),
+    (
+        "power3-out",
+        "cubic-bezier(0.165,0.840,0.440,1.000)",
+        "Curves.easeOutQuart",
+    ),
+    (
+        "power3-in-out",
+        "cubic-bezier(0.770,0.000,0.175,1.000)",
+        "Curves.easeInOutQuart",
+    ),
+    (
+        "power4-in",
+        "cubic-bezier(0.755,0.050,0.855,0.060)",
+        "Curves.easeInQuint",
+    ),
+    (
+        "power4-out",
+        "cubic-bezier(0.230,1.000,0.320,1.000)",
+        "Curves.easeOutQuint",
+    ),
+    (
+        "power4-in-out",
+        "cubic-bezier(0.860,0.000,0.070,1.000)",
+        "Curves.easeInOutQuint",
+    ),
     // Back easings (support overshoot in WAAPI)
     (
         "backIn",
@@ -137,6 +203,54 @@ pub const NAMED_EASINGS: &[(&str, &str, &str)] = &[
     // Steps (discrete — no Flutter Curves equivalent)
     ("stepStart", "steps(1,start)", "Curves.linear"),
     ("stepEnd", "steps(1,end)", "Curves.linear"),
+    // Kebab-case canonical names (back/bounce/elastic/steps family)
+    (
+        "back-in",
+        "cubic-bezier(0.600,-0.280,0.735,0.045)",
+        "Curves.easeInBack",
+    ),
+    (
+        "back-out",
+        "cubic-bezier(0.175,0.885,0.320,1.275)",
+        "Curves.easeOutBack",
+    ),
+    (
+        "back-in-out",
+        "cubic-bezier(0.680,-0.550,0.265,1.550)",
+        "Curves.easeInOutBack",
+    ),
+    (
+        "bounce-in",
+        "cubic-bezier(0.215,0.610,0.355,1.000)",
+        "Curves.bounceIn",
+    ),
+    (
+        "bounce-out",
+        "cubic-bezier(0.175,0.885,0.320,1.275)",
+        "Curves.bounceOut",
+    ),
+    (
+        "bounce-in-out",
+        "cubic-bezier(0.645,0.045,0.355,1.000)",
+        "Curves.bounceInOut",
+    ),
+    (
+        "elastic-in",
+        "cubic-bezier(0.600,0.040,0.980,0.335)",
+        "Curves.easeInElastic",
+    ),
+    (
+        "elastic-out",
+        "cubic-bezier(0.250,0.460,0.450,0.940)",
+        "Curves.easeOutElastic",
+    ),
+    (
+        "elastic-in-out",
+        "cubic-bezier(0.680,-0.550,0.265,1.550)",
+        "Curves.easeInOutElastic",
+    ),
+    ("step-start", "steps(1,start)", "Curves.linear"),
+    ("step-end", "steps(1,end)", "Curves.linear"),
 ];
 
 /// Resolve a named easing to its WAAPI-compatible CSS easing string.

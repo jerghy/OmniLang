@@ -59,7 +59,7 @@ fn inview_trigger_renamed_to_kebab_case() {
 @motion fadeIn {
     from { opacity: 0 }
     to { opacity: 1 }
-    over 300
+    over: 300ms
 }
 component Test {
     view {
@@ -83,7 +83,7 @@ fn camelcase_inview_no_longer_emits_trigger() {
 @motion fadeIn {
     from { opacity: 0 }
     to { opacity: 1 }
-    over 300
+    over: 300ms
 }
 component Test {
     view {
@@ -95,6 +95,35 @@ component Test {
     assert!(
         !output.contains("data-motion-inview-name"),
         "camelCase @inView must no longer emit a motion trigger"
+    );
+}
+
+#[test]
+fn steps_easing_emitted_as_waapi_string() {
+    // steps(6, end) must reach the output as the WAAPI-native "steps(6,end)"
+    // string — not silently fall back to "ease-out" via the named table.
+    let source = r#"
+@motion stepFade {
+    from { opacity: 0 }
+    to { opacity: 1 }
+    over: 300ms
+    easing: steps(6, end)
+}
+component Test {
+    view {
+        <div @enter={stepFade}>hello</div>
+    }
+}
+"#;
+    let output = compile_fixture_to_react(source);
+    assert!(
+        output.contains("easing:\"steps(6,end)\""),
+        "Expected steps easing passthrough in output, got partial:\n{}",
+        &output[..output.len().min(800)]
+    );
+    assert!(
+        !output.contains("easing:\"ease-out\""),
+        "steps easing must not silently fall back to ease-out"
     );
 }
 

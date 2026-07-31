@@ -91,7 +91,7 @@ impl SemanticAnalyzer {
                 self.validate_keyframe_type_mismatch(motion, kf);
 
                 // Check: valid easing name
-                if let Some(ref e) = kf.ease {
+                if let Some(ref e) = kf.easing {
                     self.validate_easing_name(e, &motion.span);
                 }
                 for stop in &kf.stops {

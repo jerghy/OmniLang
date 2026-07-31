@@ -1,7 +1,30 @@
 use crate::error::ParseError;
 use crate::lexer::{Span, TokenKind};
 use crate::parser::ast::*;
+use crate::parser::stmt::keyword_as_ident_name;
 use crate::parser::Parser;
+
+/// Whitelist of animation properties allowed in keyframe stops (semantic DSL).
+/// Properties are independent transform/visual primitives rather than raw CSS.
+const SEMANTIC_ANIM_PROPS: &[&str] = &[
+    "opacity",
+    "scale",
+    "scaleX",
+    "scaleY",
+    "translateX",
+    "translateY",
+    "translateZ",
+    "rotate",
+    "rotateX",
+    "rotateY",
+    "rotateZ",
+    "skewX",
+    "skewY",
+    "backgroundColor",
+    "color",
+    "width",
+    "height",
+];
 
 impl<'a> Parser<'a> {
     // ── Motion / Timeline block parsers ─────────────────
@@ -46,7 +69,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    /// Parse keyframe body: from { ... } to { ... } with optional over/ease/playback
+    /// Parse keyframe body: from { ... } to { ... } with optional over/easing/playback
     fn parse_keyframe_body(&mut self) -> Result<KeyframeBody, ParseError> {
         let mut stops = Vec::new();
 
@@ -75,7 +98,7 @@ impl<'a> Parser<'a> {
             }
         }
 
-        // Parse shared over/ease
+        // Parse shared duration/easing
         let mut over = Expr::Literal(
             Literal::Float(0.3),
             Span {
@@ -85,16 +108,16 @@ impl<'a> Parser<'a> {
                 col: 0,
             },
         );
-        let mut ease = None;
+        let mut easing = None;
 
-        self.parse_shared_timing(&mut over, &mut ease)?;
+        self.parse_shared_timing(&mut over, &mut easing)?;
 
         let playback = self.parse_playback_props()?;
 
         Ok(KeyframeBody {
             stops,
             over,
-            ease,
+            easing,
             playback,
         })
     }
@@ -144,7 +167,7 @@ impl<'a> Parser<'a> {
         self.expect_token(TokenKind::LBrace, "expected '{'")?;
         let mut properties = Vec::new();
         while *self.peek_kind() != TokenKind::RBrace && *self.peek_kind() != TokenKind::Eof {
-            let key = self.parse_css_property_name("expected property name")?;
+            let key = self.parse_semantic_anim_prop()?;
             self.expect_token(TokenKind::Colon, "expected ':'")?;
             let value = self.parse_expr()?;
             properties.push((key, value));
@@ -172,36 +195,119 @@ impl<'a> Parser<'a> {
         })
     }
 
-    /// Parse shared over/ease after keyframe stops
+    /// Parse an animation property name against the semantic whitelist.
+    ///
+    /// CSS custom properties (`--*`) are allowed as passthrough for CSS-based
+    /// targets only (ADR-053 D3).
+    fn parse_semantic_anim_prop(&mut self) -> Result<String, ParseError> {
+        if *self.peek_kind() == TokenKind::Minus
+            && self
+                .tokens
+                .get(self.pos + 1)
+                .is_some_and(|t| t.kind == TokenKind::Minus)
+        {
+            self.advance(); // eat first '-'
+            self.advance(); // eat second '-'
+            let mut name = String::from("--");
+            loop {
+                match self.peek_kind() {
+                    TokenKind::Ident(s) => {
+                        name.push_str(s);
+                        self.advance();
+                    }
+                    TokenKind::Minus => {
+                        name.push('-');
+                        self.advance();
+                    }
+                    kind => {
+                        if let Some(kw) = keyword_as_ident_name(kind) {
+                            name.push_str(kw);
+                            self.advance();
+                        } else {
+                            break;
+                        }
+                    }
+                }
+            }
+            return Ok(name);
+        }
+
+        let name = self.expect_ident("expected animation property name")?;
+        if SEMANTIC_ANIM_PROPS.contains(&name.as_str()) {
+            Ok(name)
+        } else {
+            Err(self.error(format!(
+                "'{}' is not a recognized animation property. Use one of: {}",
+                name,
+                SEMANTIC_ANIM_PROPS.join(", ")
+            )))
+        }
+    }
+
+    /// Parse shared timing after keyframe stops:
+    /// `over: 300ms`, `easing: ease-out` (colon separator, comma optional).
     fn parse_shared_timing(
         &mut self,
         over: &mut Expr,
-        ease: &mut Option<EasingExpr>,
+        easing: &mut Option<EasingExpr>,
     ) -> Result<(), ParseError> {
         loop {
             match self.peek_ident_value() {
                 Some(ref s) if s == "over" => {
-                    self.advance();
-                    if *self.peek_kind() == TokenKind::Colon {
-                        self.advance();
-                    }
-                    *over = self.parse_expr()?;
+                    self.advance(); // 'over'
+                    self.expect_token(TokenKind::Colon, "expected ':' after 'over'")?;
+                    *over = self.parse_duration_expr()?;
                 }
-                Some(ref s) if s == "ease" => {
-                    self.advance();
-                    if *self.peek_kind() == TokenKind::Colon {
-                        self.advance();
-                    }
-                    *ease = Some(self.parse_easing()?);
+                Some(ref s) if s == "easing" => {
+                    self.advance(); // 'easing'
+                    self.expect_token(TokenKind::Colon, "expected ':' after 'easing'")?;
+                    *easing = Some(self.parse_easing()?);
                 }
                 _ => break,
             }
-            // Optional comma between timing props
             if *self.peek_kind() == TokenKind::Comma {
                 self.advance();
             }
         }
         Ok(())
+    }
+
+    /// Parse a duration value: "300ms", "1.5s", or a bare number (seconds default).
+    fn parse_duration_expr(&mut self) -> Result<Expr, ParseError> {
+        let t = self.advance();
+        match &t.kind {
+            TokenKind::IntLiteral(n) => {
+                let val_str = format!("{}", n);
+                if self
+                    .peek_ident_value()
+                    .is_some_and(|s| s == "ms" || s == "s")
+                {
+                    let unit = self.expect_ident("expected duration unit")?;
+                    Ok(Expr::Literal(
+                        Literal::String(format!("{}{}", val_str, unit)),
+                        t.span,
+                    ))
+                } else {
+                    Ok(Expr::Literal(Literal::Int(*n), t.span))
+                }
+            }
+            TokenKind::FloatLiteral(f) => {
+                let val_str = format!("{}", f);
+                if self
+                    .peek_ident_value()
+                    .is_some_and(|s| s == "ms" || s == "s")
+                {
+                    let unit = self.expect_ident("expected duration unit")?;
+                    Ok(Expr::Literal(
+                        Literal::String(format!("{}{}", val_str, unit)),
+                        t.span,
+                    ))
+                } else {
+                    Ok(Expr::Literal(Literal::Float(*f), t.span))
+                }
+            }
+            _ => Err(self.error("expected duration value (e.g. 300ms, 1.5s)")),
+        }
     }
 
     /// Parse playback properties (loop, direction, fill, delay, paused)
@@ -269,5 +375,155 @@ impl<'a> Parser<'a> {
             }
         }
         Ok(props)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lexer::tokenize;
+    use crate::parser::parse;
+
+    /// Parse a @motion source string and return the first MotionDef.
+    fn parse_motion(source: &str) -> MotionDef {
+        let tokens = tokenize(source);
+        let (program, errors) = parse(tokens, source);
+        assert!(
+            errors.is_empty(),
+            "unexpected parse errors: {:?}",
+            errors.iter().map(|e| e.message.clone()).collect::<Vec<_>>()
+        );
+        let module = program.modules.get("input.omni").unwrap();
+        module.motions[0].clone()
+    }
+
+    fn keyframe_body(source: &str) -> KeyframeBody {
+        match parse_motion(source).body {
+            MotionBody::Keyframe(kf) => kf,
+        }
+    }
+
+    #[test]
+    fn motion_new_syntax_colon_timing() {
+        let kf = keyframe_body(
+            "@motion fadeIn { from { opacity: 0 } to { opacity: 1 } over: 300ms easing: ease-out }",
+        );
+        assert!(matches!(kf.over, Expr::Literal(Literal::String(ref s), _) if s == "300ms"));
+        assert!(matches!(kf.easing, Some(EasingExpr::Named(ref n)) if n == "ease-out"));
+    }
+
+    #[test]
+    fn motion_duration_units() {
+        // ms unit
+        let kf = keyframe_body("@motion a { from { opacity: 0 } to { opacity: 1 } over: 1.5s }");
+        assert!(matches!(kf.over, Expr::Literal(Literal::String(ref s), _) if s == "1.5s"));
+        // bare number (seconds default)
+        let kf = keyframe_body("@motion b { from { opacity: 0 } to { opacity: 1 } over: 0.5 }");
+        assert!(matches!(kf.over, Expr::Literal(Literal::Float(f), _) if f == 0.5));
+    }
+
+    #[test]
+    fn motion_comma_separated_timing() {
+        let kf = keyframe_body(
+            "@motion fadeIn { from { opacity: 0 } to { opacity: 1 } over: 300ms, easing: linear, loop }",
+        );
+        assert!(matches!(kf.easing, Some(EasingExpr::Named(ref n)) if n == "linear"));
+        assert!(matches!(kf.playback[0], PlaybackProp::Loop(LoopValue::Infinite)));
+    }
+
+    #[test]
+    fn motion_old_timing_syntax_rejected() {
+        // Old syntax (no colon) must fail with a clear error.
+        let source = "@motion fadeIn { from { opacity: 0 } to { opacity: 1 } over 300 }";
+        let tokens = tokenize(source);
+        let (_program, errors) = parse(tokens, source);
+        assert!(
+            errors.iter().any(|e| e.message.contains("expected ':'")),
+            "expected colon error, got: {:?}",
+            errors.iter().map(|e| e.message.clone()).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn motion_whitelist_accepts_semantic_props() {
+        let kf = keyframe_body(
+            "@motion a { from { opacity: 0, scaleX: 0.5, translateY: -20, rotate: 45 } to { opacity: 1, scaleX: 1, translateY: 0, rotate: 0 } }",
+        );
+        assert_eq!(kf.stops[0].properties.len(), 4);
+    }
+
+    #[test]
+    fn motion_whitelist_rejects_unknown_prop() {
+        let source = "@motion a { from { opacity: 0 } to { opacity: 1, boxShadow: \"0 0 4px #000\" } }";
+        let tokens = tokenize(source);
+        let (_program, errors) = parse(tokens, source);
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.message.contains("not a recognized animation property")),
+            "expected whitelist error, got: {:?}",
+            errors.iter().map(|e| e.message.clone()).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn motion_whitelist_allows_custom_properties() {
+        // CSS custom properties are allowed as passthrough (ADR-053 D3).
+        let kf = keyframe_body(
+            "@motion a { from { --accent-h: 221 } to { --accent-h: 350 } over: 600ms }",
+        );
+        assert_eq!(kf.stops[0].properties[0].0, "--accent-h");
+    }
+
+    #[test]
+    fn motion_percent_stops() {
+        let kf = keyframe_body(
+            "@motion a { 0% { opacity: 0 } 50% { opacity: 0.5 } 100% { opacity: 1 } }",
+        );
+        assert_eq!(kf.stops.len(), 3);
+        assert!(matches!(kf.stops[1].position, StopPosition::Percent(p) if p == 50.0));
+    }
+
+    #[test]
+    fn motion_steps_easing_positional() {
+        let kf = keyframe_body("@motion a { from { opacity: 0 } to { opacity: 1 } easing: steps(6, end) }");
+        assert!(matches!(kf.easing, Some(EasingExpr::Steps { count: 6, ref direction }) if direction == "end"));
+    }
+
+    #[test]
+    fn motion_easing_camelcase_normalized() {
+        // Transition period: camelCase accepted and normalized to kebab-case.
+        let kf = keyframe_body("@motion a { from { opacity: 0 } to { opacity: 1 } easing: easeOut }");
+        assert!(matches!(kf.easing, Some(EasingExpr::Named(ref n)) if n == "ease-out"));
+
+        // power2Out maps to the closest semantic equivalent.
+        let kf = keyframe_body("@motion b { from { opacity: 0 } to { opacity: 1 } easing: power2Out }");
+        assert!(matches!(kf.easing, Some(EasingExpr::Named(ref n)) if n == "ease-out"));
+    }
+
+    #[test]
+    fn motion_easing_back_directions() {
+        let kf = keyframe_body("@motion a { from { opacity: 0 } to { opacity: 1 } easing: back-in-out }");
+        assert!(matches!(kf.easing, Some(EasingExpr::Back { ref direction }) if direction == "inout"));
+        let kf = keyframe_body("@motion b { from { opacity: 0 } to { opacity: 1 } easing: backOut }");
+        assert!(matches!(kf.easing, Some(EasingExpr::Back { ref direction }) if direction == "out"));
+    }
+
+    #[test]
+    fn motion_unknown_easing_rejected() {
+        let source = "@motion a { from { opacity: 0 } to { opacity: 1 } easing: bogus }";
+        let tokens = tokenize(source);
+        let (_program, errors) = parse(tokens, source);
+        assert!(
+            errors.iter().any(|e| e.message.contains("unknown easing")),
+            "expected unknown easing error, got: {:?}",
+            errors.iter().map(|e| e.message.clone()).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn motion_bounce_kebab_accepted() {
+        let kf = keyframe_body("@motion a { from { opacity: 0 } to { opacity: 1 } easing: bounce-in-out }");
+        assert!(matches!(kf.easing, Some(EasingExpr::Named(ref n)) if n == "bounce-in-out"));
     }
 }

@@ -19,7 +19,8 @@ import omniview;
 @motion pulseAccent {
     from { --accent-h: 221 }
     to   { --accent-h: 350 }
-    over 600 ease easeInOut
+    over: 600ms
+    easing: ease-in-out
     direction alternate
     loop
 }

@@ -1,21 +1,21 @@
 @motion fadeIn {
-  from { opacity: 0, y: 20 }
-  to   { opacity: 1, y: 0 }
-  over 400
-  ease easeOut
+  from { opacity: 0, translateY: 20 }
+  to   { opacity: 1, translateY: 0 }
+  over: 400ms
+  easing: ease-out
 }
 
 @motion pulse {
   to { scale: 1.05 }
-  over 200
-  ease easeOut
+  over: 200ms
+  easing: ease-out
 }
 
 @motion slideIn {
-  from { opacity: 0, x: -30 }
-  to   { opacity: 1, x: 0 }
-  over 500
-  ease power2Out
+  from { opacity: 0, translateX: -30 }
+  to   { opacity: 1, translateX: 0 }
+  over: 500ms
+  easing: ease-out
 }
 
 component MotionCombined {

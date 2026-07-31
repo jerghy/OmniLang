@@ -19,6 +19,8 @@ mod validate_motion_triggers;
 mod validate_store_access;
 mod validate_types;
 
+pub use motion::parse_duration_ms;
+
 use crate::error::Diagnostic;
 use crate::parser::ast::Program;
 use rustc_hash::FxHashMap;

@@ -24,12 +24,12 @@ pub enum MotionBody {
     Keyframe(KeyframeBody),
 }
 
-/// Keyframe mode: percentage stops with shared over/ease
+/// Keyframe mode: percentage stops with shared duration/easing
 #[derive(Debug, Clone, Serialize)]
 pub struct KeyframeBody {
     pub stops: Vec<KeyframeStop>,
     pub over: Expr,
-    pub ease: Option<EasingExpr>,
+    pub easing: Option<EasingExpr>,
     pub playback: Vec<PlaybackProp>,
 }
 
@@ -81,10 +81,11 @@ pub enum FillValue {
 /// Easing expression
 #[derive(Debug, Clone, Serialize)]
 pub enum EasingExpr {
-    Named(String),
+    Named(String), // ease-in, ease-out, linear (kebab-case canonical)
     CubicBezier { x1: f64, y1: f64, x2: f64, y2: f64 },
-    Back { direction: Option<String> },
-    Elastic { direction: Option<String> },
+    Steps { count: u32, direction: String }, // steps(6, end)
+    Back { direction: String },              // "in" | "out" | "inout"
+    Elastic { direction: String },           // "in" | "out" | "inout"
 }
 
 /// Animation trigger specification (used in @prop attributes)

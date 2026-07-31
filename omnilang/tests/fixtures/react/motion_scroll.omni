@@ -1,8 +1,8 @@
 @motion fadeScroll {
   from { opacity: 0.3 }
   to   { opacity: 1 }
-  over 500
-  ease easeOut
+  over: 500ms
+  easing: ease-out
 }
 
 component MotionScroll {

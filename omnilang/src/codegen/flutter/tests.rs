@@ -1522,12 +1522,13 @@ fn test_motion_extract_duration_ms() {
         "300"
     );
 
-    // String "1.5s" → no "ms" suffix, returns as-is
+    // String "1.5s" → converted to milliseconds (was passed through unparsed,
+    // producing invalid `Duration(milliseconds: 1.5s)` Dart)
     assert_eq!(
         extract_duration_ms(&ExprIR::LiteralExpr {
             value: serde_json::json!("1.5s")
         }),
-        "1.5s"
+        "1500"
     );
 
     // Numeric → stringified

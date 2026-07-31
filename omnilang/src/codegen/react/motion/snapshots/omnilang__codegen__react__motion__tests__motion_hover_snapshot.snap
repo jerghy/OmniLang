@@ -1,5 +1,6 @@
 ---
 source: omnilang/src/codegen/react/motion/tests.rs
+assertion_line: 113
 expression: "&output"
 ---
 === MotionHover.module.css ===
@@ -16,7 +17,7 @@ import { animate } from "@omni/animation";
 export function MotionHover() {
     // -- Motion definitions --
     const _M={
-        pulse:{kf:[{offset:0,properties:{}},{offset:1,properties:{"scale":1.05}}],opts:{duration:200,easing:"ease-out",fill:"forwards"}},
+        pulse:{kf:[{offset:0,properties:{}},{offset:1,properties:{"scale":1.05}}],opts:{duration:"200ms",easing:"ease-out",fill:"forwards"}},
     };
 
     // @enter: mount animations + MutationObserver for conditional rendering

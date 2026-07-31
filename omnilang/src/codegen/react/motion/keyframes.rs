@@ -161,6 +161,11 @@ fn translate_easing(ease: &EasingIR) -> String {
 }
 
 fn translate_named_easing(name: &str) -> String {
+    // "steps(N,dir)" strings (from steps() easing) are not in NAMED_EASINGS
+    // but are natively supported by WAAPI — emit them as-is.
+    if name.starts_with("steps(") {
+        return name.to_string();
+    }
     // Normalize CSS kebab-case to Omni camelCase naming for standard keywords.
     let normalized = match name {
         "ease-in" => "easeIn",

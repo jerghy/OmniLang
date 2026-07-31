@@ -53,6 +53,9 @@ pub(crate) fn extract_tween_end(kf: &KeyframeIR, prop: &str) -> String {
 }
 
 /// Extract duration in milliseconds from the `over` ExprIR.
+///
+/// String durations may carry units ("300ms", "1.5s") — delegated to the
+/// shared [`parse_duration_ms`] parser so seconds convert to milliseconds.
 pub(crate) fn extract_duration_ms(over: &ExprIR) -> String {
     match over {
         ExprIR::LiteralExpr { value } => match value {
@@ -60,7 +63,12 @@ pub(crate) fn extract_duration_ms(over: &ExprIR) -> String {
                 .as_f64()
                 .map(|f| f.to_string())
                 .unwrap_or_else(|| "300".to_string()),
-            serde_json::Value::String(s) => s.trim_end_matches("ms").to_string(),
+            serde_json::Value::String(s) => {
+                match omnilang_core::semantic::parse_duration_ms(s) {
+                    Ok(ms) => ms.to_string(),
+                    Err(_) => s.trim_end_matches("ms").to_string(),
+                }
+            }
             _ => "300".to_string(),
         },
         _ => "300".to_string(),
