@@ -3,6 +3,8 @@
 //! Contains the `FormatExpr`, `FormatStmt`, `FormatType` traits and their
 //! language-family implementations.
 
+pub mod design;
+
 use rustc_hash::FxHashMap;
 
 use crate::ir::{ComponentIR, IRProgram};
