@@ -369,6 +369,7 @@ impl OmniViewGenerator {
                     TriggerKind::Enter => "data-enter",
                     TriggerKind::Hover => "data-hover",
                     TriggerKind::Press => "data-press",
+                    TriggerKind::Focus => "data-focus",
                     TriggerKind::InView => "data-in-view",
                     TriggerKind::Scroll => "data-scroll",
                     TriggerKind::DragHorizontal => "data-drag-horizontal",
@@ -431,35 +432,6 @@ impl OmniViewGenerator {
             }
 
             self.emit_motion_triggers_for_element(nid, el);
-        }
-    }
-
-    /// Emit motion @paused per-element pause override.
-    ///
-    /// These are deferred JS bindings written to `self.mount_js` that connect
-    /// runtime animation state to signals and external controllers.
-    fn emit_element_motion_bindings(&mut self, el: &ElementIR, nid: &str) {
-        // @paused override — per-element pause override for all animations
-        if let Some(paused) = el
-            .motion_behavior()
-            .and_then(|m| m.paused_override.as_ref())
-        {
-            let paused_js = self.expr_to_js(paused);
-            let _ = write!(
-                self.mount_js,
-                "// @paused override\n\
-                 (function() {{\n\
-                 \x20 var _paused = Boolean({paused});\n\
-                 \x20 var anims = __omni_animations.get(\"{nid}\");\n\
-                 \x20 if (anims) {{\n\
-                 \x20\x20 anims.forEach((anim) => {{\n\
-                 \x20\x20\x20 if (_paused) {{ anim.pause(); }} else {{ anim.play(); }}\n\
-                 \x20\x20 }});\n\
-                 \x20 }}\n\
-                 }})();\n",
-                nid = nid,
-                paused = paused_js
-            );
         }
     }
 
@@ -717,8 +689,6 @@ impl OmniViewGenerator {
 
         // Motion triggers — emit animation setup for @enter, @hover, @press, @focus, @leave
         self.emit_element_motion_attrs(el, &nid, &mut attrs);
-
-        self.emit_element_motion_bindings(el, &nid);
 
         // Class map dynamic bindings for @for templates: collect pre-compiled bindings
         if self.scope.in_for_template && !el.class_map_bindings.is_empty() {

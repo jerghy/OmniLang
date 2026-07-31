@@ -254,12 +254,11 @@ fn lower_element(
     let mut has_value_binding = false;
     let mut class_map_bindings_from_prop: Option<FxHashMap<String, ExprIR>> = None;
     let mut motion_triggers: Vec<TriggerIntent> = Vec::new();
-    // Sub-attribute values (@paused, in-view once/repeat/threshold, scroll
-    // start/end/scrub, drag constraints/elastic/threshold/velocity-max) were
-    // removed as @-prefixed tokens per semantic-level DSL spec §3.2. The IR
-    // behavior structs keep their fields for now (always None) until Phase 1
-    // restructures them.
-    let paused_override: Option<ExprIR> = None;
+    // Sub-attribute values (in-view once/repeat/threshold, scroll start/end/
+    // scrub, drag constraints/elastic/threshold/velocity-max) were removed as
+    // @-prefixed tokens per semantic-level DSL spec §3.2. The IR behavior
+    // structs keep their fields for now (always None) until Phase 1
+    // restructures them. paused_override was deleted outright (ADR-053).
     let in_view_once: Option<ExprIR> = None;
     let in_view_repeat: Option<ExprIR> = None;
     let in_view_threshold: Option<ExprIR> = None;
@@ -494,6 +493,7 @@ fn lower_element(
                         crate::parser::ast::TriggerKind::Enter => TriggerKind::Enter,
                         crate::parser::ast::TriggerKind::Hover => TriggerKind::Hover,
                         crate::parser::ast::TriggerKind::Press => TriggerKind::Press,
+                        crate::parser::ast::TriggerKind::Focus => TriggerKind::Focus,
                         crate::parser::ast::TriggerKind::InView => TriggerKind::InView,
                         crate::parser::ast::TriggerKind::Scroll => TriggerKind::Scroll,
                         crate::parser::ast::TriggerKind::DragHorizontal => {
@@ -568,14 +568,12 @@ fn lower_element(
         source_span: Some(el.span),
         motion: {
             let has_any = !motion_triggers.is_empty()
-                || paused_override.is_some()
                 || in_view_once.is_some()
                 || in_view_repeat.is_some()
                 || in_view_threshold.is_some();
             if has_any {
                 Some(Box::new(MotionBehavior {
                     triggers: motion_triggers,
-                    paused_override,
                     in_view_once,
                     in_view_repeat,
                     in_view_threshold,
@@ -711,6 +709,7 @@ fn lower_for_directive(
             .empty_body
             .as_ref()
             .and_then(|nodes| lower_body(nodes.as_slice(), semantics)),
+        scroll_hint: for_dir.scroll_hint,
     }))
 }
 

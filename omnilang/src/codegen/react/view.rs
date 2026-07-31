@@ -235,6 +235,12 @@ pub(super) fn gen_view_node_tsx(
                             attrs.push(format!("data-motion-press-name=\"{}\"", motion_name));
                         }
                     }
+                    TriggerKind::Focus => {
+                        attrs.push("data-motion-focus=\"true\"".into());
+                        if let Some(ref motion_name) = trigger.motion_ref {
+                            attrs.push(format!("data-motion-focus-name=\"{}\"", motion_name));
+                        }
+                    }
                     TriggerKind::InView => {
                         match el
                             .motion_behavior()

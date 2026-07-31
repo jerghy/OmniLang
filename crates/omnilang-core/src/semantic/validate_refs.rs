@@ -441,6 +441,7 @@ mod tests {
                     semantic_bindings: FxHashMap::default(),
                 }))),
                 empty_body: None,
+                scroll_hint: false,
             }))),
             source_file: Some("test.omni".into()),
             ..ComponentIR::default()

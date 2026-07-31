@@ -239,7 +239,8 @@ mod tests {
                     ref_binding: None,
                     construction_kind: ConstructionKind::Static,
                     source_span: None,
-                })),
+                    semantic_bindings: FxHashMap::default(),
+                }))),
                 styles: vec![],
                 ..Default::default()
             },
@@ -306,7 +307,8 @@ mod tests {
                     ref_binding: None,
                     construction_kind: ConstructionKind::Static,
                     source_span: None,
-                })),
+                    semantic_bindings: FxHashMap::default(),
+                }))),
                 styles: vec![],
                 ..Default::default()
             },
@@ -922,6 +924,7 @@ mod tests {
             body: Some(ViewTree::Text("Item".into())),
             key_expr: None,
             empty_body: None,
+            scroll_hint: false,
         };
         crate::codegen::vue::gen_template_node(
             &mut w,
@@ -952,6 +955,7 @@ mod tests {
             body: Some(ViewTree::Text("Item".into())),
             key_expr: None,
             empty_body: Some(ViewTree::Text("Nothing".into())),
+            scroll_hint: false,
         };
         crate::codegen::vue::gen_template_node(
             &mut w,
@@ -993,6 +997,7 @@ mod tests {
             ref_binding: None,
             construction_kind: ConstructionKind::Static,
             source_span: None,
+            semantic_bindings: FxHashMap::default(),
         };
         crate::codegen::vue::gen_template_node(&mut w, &ViewTree::Element(Box::new(el)), &fmt);
         let out = w.into_string();
@@ -1025,6 +1030,7 @@ mod tests {
             ref_binding: None,
             construction_kind: ConstructionKind::Static,
             source_span: None,
+            semantic_bindings: FxHashMap::default(),
         };
         crate::codegen::vue::gen_template_node(&mut w, &ViewTree::Element(Box::new(el)), &fmt);
         let out = w.into_string();
@@ -1056,6 +1062,7 @@ mod tests {
             ref_binding: None,
             construction_kind: ConstructionKind::Static,
             source_span: None,
+            semantic_bindings: FxHashMap::default(),
         };
         crate::codegen::vue::gen_template_node(&mut w, &ViewTree::Element(Box::new(el)), &fmt);
         let out = w.into_string();
@@ -1088,6 +1095,7 @@ mod tests {
             ref_binding: None,
             construction_kind: ConstructionKind::Static,
             source_span: None,
+            semantic_bindings: FxHashMap::default(),
         };
         crate::codegen::vue::gen_template_node(&mut w, &ViewTree::Element(Box::new(el)), &fmt);
         let out = w.into_string();

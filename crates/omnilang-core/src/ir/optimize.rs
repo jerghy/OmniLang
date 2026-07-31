@@ -108,9 +108,6 @@ fn collect_idents_from_view(view: &ViewTree, used: &mut FxHashSet<String>) {
         }
         // Walk element-level behavior fields that can reference computed properties
         if let Some(ref motion) = el.motion {
-            if let Some(ref expr) = motion.paused_override {
-                collect_idents(expr, used);
-            }
             if let Some(ref expr) = motion.in_view_once {
                 collect_idents(expr, used);
             }
@@ -695,6 +692,7 @@ mod tests {
                 body: None,
                 key_expr: None,
                 empty_body: None,
+                scroll_hint: false,
             }))),
             ..ComponentIR::default()
         };

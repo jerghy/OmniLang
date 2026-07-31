@@ -100,6 +100,7 @@ pub enum TriggerKind {
     Enter,
     Hover,
     Press,
+    Focus,
     InView,
     Scroll,
     DragHorizontal,

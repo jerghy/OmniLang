@@ -440,7 +440,8 @@ impl OmniViewGenerator {
                     &extra,
                 ));
             }
-            TriggerKind::InView
+            TriggerKind::Focus
+            | TriggerKind::InView
             | TriggerKind::Scroll
             | TriggerKind::DragHorizontal
             | TriggerKind::DragVertical => {
@@ -464,6 +465,7 @@ impl OmniViewGenerator {
                 TriggerKind::Enter => "enter",
                 TriggerKind::Hover => "hover",
                 TriggerKind::Press => "press",
+                TriggerKind::Focus => "focus",
                 TriggerKind::InView => "inView",
                 TriggerKind::Scroll => "scroll",
                 TriggerKind::DragHorizontal => "dragHorizontal",
@@ -503,6 +505,14 @@ impl OmniViewGenerator {
                             false,
                         );
                     }
+                    TriggerKind::Focus => {
+                        // @focus trigger JS (focusin + WAAPI) lands together
+                        // with the AtFocus parser token in Phase 2 — unreachable
+                        // until then since the parser cannot produce Focus yet.
+                        unreachable!(
+                            "@focus codegen not yet wired — AtFocus token lands in Phase 2"
+                        )
+                    }
                     TriggerKind::InView => {
                         self.emit_trigger_inview_js(nid, trigger_str, &anim_call, el, false);
                     }
@@ -534,6 +544,11 @@ impl OmniViewGenerator {
                             trigger.kind,
                             true,
                         );
+                    }
+                    TriggerKind::Focus => {
+                        unreachable!(
+                            "@focus codegen not yet wired — AtFocus token lands in Phase 2"
+                        )
                     }
                     TriggerKind::InView => {
                         self.emit_trigger_inview_js(nid, trigger_str, &anim_call, el, true);

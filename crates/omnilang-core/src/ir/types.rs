@@ -599,6 +599,9 @@ pub struct ListRenderingIntent {
     pub body: Option<ViewTree>,
     pub key_expr: Option<ExprIR>,
     pub empty_body: Option<ViewTree>,
+    /// `@for item in list [scroll]` — hint for Flutter ListView.builder codegen.
+    #[serde(default)]
+    pub scroll_hint: bool,
 }
 
 // ═══════════════════════════════════════════════════════
