@@ -109,6 +109,20 @@ Several validation gaps remain in the semantic analysis layer:
 
 ---
 
+## Intentional Design Decisions (Aligned with ADRs)
+
+The following findings from the global review align with explicit design decisions documented in past ADRs. These are NOT bugs — they represent intentional trade-offs that should be preserved:
+
+| Finding | ADR | Design Intent |
+|---------|-----|---------------|
+| Theme sync is unidirectional | [ADR-044](.architecture/decisions/adrs/ADR-044-theme-store-mode-omni-theme-auto-sync.md) L83 | "The coupling is unidirectional (mode → \_\_omni\_theme)" — the store is the single source of truth. `__omni_theme.toggle()` is designed to be called FROM store actions, not independently |
+| Binary operators not in expression scope | [ADR-047](.architecture/decisions/adrs/ADR-047-dynamic-variable-design-tokens.md) L137 | "Not a full expression system… not expressions like `BRAND + "80"` or function calls. This is intentional" |
+| `var(--name)` fallback is graceful degradation | [ADR-047](.architecture/decisions/adrs/ADR-047-dynamic-variable-design-tokens.md) L128 | "Graceful degradation: Unresolved variables emit `var(--name)` CSS fallback — no compile error" (listed as Positive consequence) |
+| `SymbolKind::Unknown` exemption | [ADR-050](.architecture/decisions/adrs/ADR-050-dynamic-token-validation-gap-closure.md) L159-162 | Rejecting Unknown would "break every cross-file const import." The exemption is the pragmatic choice until cross-file kind propagation is implemented |
+| Effect consolidation trade-off | [ADR-050](.architecture/decisions/adrs/ADR-050-dynamic-token-validation-gap-closure.md) L109 | "Per-token dependency granularity is lost… Accepted because `setProperty` with the same value is a browser no-op" |
+
+---
+
 ## Prioritized Recommendations
 
 ### Critical (0-2 weeks)
@@ -164,20 +178,14 @@ Several validation gaps remain in the semantic analysis layer:
 
 ---
 
-## Deferred Items Re-Assessment
+## Deferred Items (Explicitly Deferred)
 
-Based on the global review findings, the previous deferred items should be re-rated:
-
-| # | Original Rating | New Rating | Rationale |
-|---|----------------|------------|-----------|
-| M1 (zero source spans) | MEDIUM | **MEDIUM** (confirmed) | 6 specialists flagged it; debugging friction is real but not blocking |
-| P3-1 (is_css_value heuristic) | LOW | **LOW** (confirmed) | Documented workaround; Pragmatic Enforcer suggests future deprecation |
-| P3-2 (Unknown exemption regression test) | LOW | **LOW** (confirmed) | No production impact until cross-file kind propagation changes |
-| P3-3 (infer_token_expr_type depth) | LOW | **MEDIUM** (upgraded) | Chained store access silently bypasses type checking; S-effort fix |
-| P3-4 (theme value parse backtrack) | LOW | **LOW** (confirmed) | Unlikely in practice; `@themes` typically declared first |
-| **NEW** Cross-backend design codegen gap | — | **CRITICAL** | Non-omniview backends silently produce zero design CSS |
-| **NEW** Hot-reload effect lifecycle | — | **CRITICAL** | Memory leak in core editor workflow |
-| **NEW** User-facing documentation gap | — | **CRITICAL** | Feature invisible to end users |
+| # | Item | Effort | Rationale |
+|---|------|--------|-----------|
+| E1 | `infer_token_expr_type()` chained FieldAccess resolution | S | Upgrade P3-3 LOW→MEDIUM. Recursive FieldAccess needed for `Store.nested.field`. S-effort fix when demand materializes |
+| E2 | Per-element effect cleanup in `@for` re-renders | M | Requires `__omni_cleanupElement` extension + effect registry per-nid. Performance impact only at scale (50+ dynamic elements in @for loops) |
+| E3 | Poiesis `DesignToken` type dynamic expression support | M | Requires discriminated union on DesignToken.value + emitter changes. Editor integration is not on critical path for compiler correctness |
+| E4 | Feature flag `dynamic-tokens` for omnilang-core | S | Adds build-time gate for size-constrained builds. Deferred until cross-backend design support exists |
 
 ---
 

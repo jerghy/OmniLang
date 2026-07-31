@@ -321,6 +321,77 @@ mod tests {
     }
 
     #[test]
+    fn rejects_non_const_variable_in_theme_value() {
+        let mut analyzer = SemanticAnalyzer::new();
+        analyzer
+            .symbols
+            .declare(Symbol {
+                name: "darkColor".to_string(),
+                kind: SymbolKind::Variable,
+                type_ann: Some("String".to_string()),
+                mutable: false,
+                declared_at: 0,
+            })
+            .ok();
+        let design = DesignDef {
+            name: "App".to_string(),
+            themes: vec![],
+            default_theme: None,
+            tokens: vec![TokenDef {
+                name: "primary".to_string(),
+                token_type: TokenType::Color,
+                value: TokenValue::Literal("#ffffff".to_string()),
+                theme_values: vec![(
+                    "dark".to_string(),
+                    TokenValue::Variable("darkColor".to_string()),
+                )],
+            }],
+            classes: vec![],
+            variants: vec![],
+        };
+        let module = Module {
+            designs: vec![design],
+            ..Default::default()
+        };
+        analyzer.resolve_and_validate_module(&module);
+        let errors: Vec<_> = analyzer
+            .diagnostics
+            .iter()
+            .filter(|d| d.kind == DiagnosticKind::E0001)
+            .collect();
+        assert!(
+            !errors.is_empty(),
+            "should warn when theme value Variable references a non-const symbol"
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|w| w.message.contains("compile-time constant")),
+            "diagnostic should explain that only compile-time constants are valid in theme values"
+        );
+    }
+
+    #[test]
+    fn accepts_numeric_for_fontweight_token() {
+        let src = r#"
+            fn getWeight(): int { return 700; }
+            design Test {
+                token bold: fontWeight = getWeight();
+            }
+        "#;
+        let result = analyze_source(src);
+        let has_type_error = result
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("type") && d.message.contains("fontWeight"));
+        assert!(
+            !has_type_error,
+            "FontWeight should accept numeric expressions, got: {:?}",
+            result.diagnostics
+        );
+    }
+
+    #[test]
     fn bare_signal_name_in_token_value_gets_const_kind_diagnostic() {
         let mut analyzer = SemanticAnalyzer::new();
         analyzer

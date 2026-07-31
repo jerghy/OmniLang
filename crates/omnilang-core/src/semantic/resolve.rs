@@ -11,6 +11,8 @@
 //! store field access, motions) are called after the resolve walk for each
 //! component / module.
 
+use std::fmt::Write as _;
+
 use super::helpers::type_to_string;
 use super::symbols::{Symbol, SymbolKind, SymbolTable};
 use super::types::SemanticType;
@@ -29,7 +31,7 @@ use crate::parser::ast::*;
 ///
 /// Compatibility rules (Phase 2):
 /// - `String` / `Any` (unknown) → always compatible (all token types accept CSS string values)
-/// - `Int` / `Float` → compatible with Duration, Opacity, ZIndex, Size, LineHeight
+/// - `Int` / `Float` → compatible with Duration, Opacity, ZIndex, Size, LineHeight, FontWeight
 /// - Everything else → type mismatch diagnostic
 fn check_token_type_compatibility(
     expr: &Expr,
@@ -55,6 +57,7 @@ fn check_token_type_compatibility(
                 | TokenType::ZIndex
                 | TokenType::Size
                 | TokenType::LineHeight
+                | TokenType::FontWeight
         );
         if numeric_ok {
             return;
@@ -281,12 +284,25 @@ impl SemanticAnalyzer {
                 match &token.value {
                     TokenValue::Variable(name) => {
                         if !self.symbols.contains(name) {
+                            let all_names = self.symbols.all_visible_names();
+                            let known_names: Vec<&str> =
+                                all_names.iter().map(|s| s.as_str()).collect();
+                            let suggestion = suggest_similar_name(name, &known_names);
+                            let mut msg = format!(
+                                "Undefined variable '{}' in design token '{}'",
+                                name, token.name
+                            );
+                            if let Some(sug) = suggestion {
+                                let _ = write!(msg, ". Did you mean '{}'?", sug);
+                            }
+                            msg.push_str(
+                                ". Variable references in design token values must use \
+                                 compile-time constants (PascalCase or UPPER_SNAKE_CASE). \
+                                 Lowercase names are treated as CSS values.",
+                            );
                             self.diagnostics.push(Diagnostic::error(
                                 DiagnosticKind::E0001,
-                                &format!(
-                                    "Undefined variable '{}' in design token '{}'",
-                                    name, token.name
-                                ),
+                                &msg,
                                 &Span {
                                     start: 0,
                                     end: 0,
@@ -400,6 +416,32 @@ impl SemanticAnalyzer {
                                         col: 0,
                                     },
                                 ));
+                            } else if let Some(sym) = self.symbols.resolve(name) {
+                                if sym.kind != SymbolKind::Const
+                                    // Allow Unknown — cross-file imported symbols may not have
+                                    // their final kind resolved yet at design token validation
+                                    // time.
+                                    && sym.kind != SymbolKind::Unknown
+                                {
+                                    self.diagnostics.push(Diagnostic::error(
+                                        DiagnosticKind::E0001,
+                                        &format!(
+                                            "'{}' is a {} in theme '{}' of design token '{}', \
+                                             not a compile-time constant. Theme override values \
+                                             must use const declarations or static literals.",
+                                            name,
+                                            format!("{:?}", sym.kind).to_lowercase(),
+                                            theme_name,
+                                            token.name,
+                                        ),
+                                        &Span {
+                                            start: 0,
+                                            end: 0,
+                                            line: 0,
+                                            col: 0,
+                                        },
+                                    ));
+                                }
                             }
                         }
                         TokenValue::Expression(expr) => {

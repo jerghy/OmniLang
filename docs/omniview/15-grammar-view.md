@@ -625,30 +625,31 @@ The design block body is parsed as a raw string (not token-by-token). A dedicate
 ### 6.2 Token Definition
 
 ```
-token_def ::= 'token' <ident> '=' value
+token_def    ::= 'token' <ident> ':' <token_type> '=' <token_value> ';'
 
-// Token categories (by naming convention):
-//   color-*     → color tokens
-//   size-*      → spacing/size tokens
-//   font-*      → typography tokens
-//   radius-*    → border radius tokens
-//   shadow-*    → box shadow tokens
-//   z-*         → z-index tokens
-//   duration-*  → animation duration tokens
-//   ease-*      → easing curve tokens
+token_type   ::= 'color' | 'size' | 'radius' | 'fontFamily' | 'fontSize'
+               | 'fontWeight' | 'lineHeight' | 'letterSpacing' | 'shadow'
+               | 'duration' | 'easing' | 'opacity' | 'zIndex'
+
+token_value  ::= <string_literal>           // "#6366f1", "16px"
+               | <ident>                    // CSS keyword or const reference
+               | <expr>                     // Phase 2: runtime expression
 ```
 
+Theme overrides: `token primary: color = "#6366f1" dark "#a5b4fc";`
+Theme values may be literals or const references (not runtime expressions).
+
 ```
-design Colors {
-    token color-primary = #3B82F6
-    token color-bg = #FFFFFF
-    token color-text = #111827
-    token size-sm = 8
-    token size-md = 16
-    token size-lg = 24
-    token font-base = "Inter"
-    token radius-md = 8
-    token duration-fast = 150
+design AppDesign {
+    @themes light, dark;
+    @default-theme light;
+
+    token primary: color = "#6366f1" dark "#a5b4fc";
+    token spacing: size = "16px";
+    token radiusMd: radius = "8px";
+    token fontBase: fontFamily = "Inter";
+    token durationFast: duration = "150ms";
+    token easeOut: easing = "cubic-bezier(0.16, 1, 0.3, 1)";
 }
 ```
 

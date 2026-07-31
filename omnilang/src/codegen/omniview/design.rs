@@ -92,7 +92,8 @@ fn emit_design_css_impl(
                 if let Some(pairs) = theme_token_map.get(theme_name) {
                     let _ = writeln!(css, "[data-theme=\"{}\"] {{", theme_name);
                     for (name, val) in pairs {
-                        let _ = writeln!(css, "  --{}: {};", name, val);
+                        let sanitized = sanitize_css_value(val);
+                        let _ = writeln!(css, "  --{}: {};", name, sanitized);
                     }
                     css.push_str("}\n\n");
                 }
@@ -106,7 +107,8 @@ fn emit_design_css_impl(
             css.push_str("@media (prefers-color-scheme: dark) {\n");
             css.push_str("  :root:not([data-theme]) {\n");
             for (name, val) in dark_pairs {
-                let _ = writeln!(css, "    --{}: {};", name, val);
+                let sanitized = sanitize_css_value(val);
+                let _ = writeln!(css, "    --{}: {};", name, sanitized);
             }
             css.push_str("  }\n");
             css.push_str("}\n\n");
@@ -149,7 +151,8 @@ fn emit_class_css(class: &ClassIR, scope_prefix: &str) -> String {
             };
             css.push_str(&pseudo_selector);
             for (prop, val) in &ps.properties {
-                let _ = writeln!(css, "  {}: {};", camel_to_kebab(prop), val);
+                let sanitized = sanitize_css_value(val);
+                let _ = writeln!(css, "  {}: {};", camel_to_kebab(prop), sanitized);
             }
             css.push_str("}\n\n");
         }
@@ -285,9 +288,7 @@ where
         return String::new();
     }
     let mut js = String::new();
-    // Dispose previous dynamic token effects (hot-reload safety)
-    js.push_str("if (window.__omni_tokenEffectCleanup) window.__omni_tokenEffectCleanup();\n");
-    js.push_str("window.__omni_tokenEffectCleanup = __omni_effect(() => {\n");
+    js.push_str("__omni_effect(() => {\n");
     js.push_str("  const root = document.documentElement;\n");
     js.push_str("  if (!root) return;\n");
     for (name, expr) in tokens {
