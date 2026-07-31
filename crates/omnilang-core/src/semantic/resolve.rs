@@ -325,6 +325,27 @@ impl SemanticAnalyzer {
                                 ));
                             }
                         }
+                        // Warn for cross-file imports whose kind hasn't been resolved yet
+                        if let Some(sym) = self.symbols.resolve(name) {
+                            if sym.kind == SymbolKind::Unknown {
+                                self.diagnostics.push(Diagnostic::warning(
+                                    DiagnosticKind::E0001,
+                                    &format!(
+                                        "Symbol '{}' referenced in design token '{}' was imported \
+                                         from another file and its kind could not be verified at \
+                                         compile time. Ensure '{}' is declared as a const in its \
+                                         source file.",
+                                        name, token.name, name
+                                    ),
+                                    &Span {
+                                        start: 0,
+                                        end: 0,
+                                        line: 0,
+                                        col: 0,
+                                    },
+                                ));
+                            }
+                        }
                     }
                     TokenValue::Expression(expr) => {
                         let mut vctx = ValidationContext::new();
