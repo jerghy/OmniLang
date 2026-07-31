@@ -205,6 +205,7 @@ pub(super) fn lower_view_node(
         ViewNode::SlotDirective {
             name,
             default_content: _,
+            type_constraint: _, // consumed in Task 1.2 — ViewTree::Slot gains type_constraint
         } => ViewTree::Slot(name.clone()),
     }
 }

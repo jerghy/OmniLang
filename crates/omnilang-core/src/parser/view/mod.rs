@@ -77,6 +77,13 @@ impl<'a> Parser<'a> {
                 } else {
                     None
                 };
+                // Parse optional type constraint: @slot name: Type { ... }
+                let type_constraint = if self.at(&TokenKind::Colon) {
+                    self.advance(); // ':'
+                    Some(self.parse_type_annotation()?)
+                } else {
+                    None
+                };
                 // Parse optional default content body: @slot name { ... }
                 let default_content = if self.at(&TokenKind::LBrace) {
                     self.advance(); // consume '{'
@@ -92,6 +99,7 @@ impl<'a> Parser<'a> {
                 Ok(ViewNode::SlotDirective {
                     name,
                     default_content,
+                    type_constraint,
                 })
             }
             TokenKind::StringLiteral(s) => {

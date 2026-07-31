@@ -7,7 +7,7 @@
 // ║    · @effect / @mount / @unmount 生命周期                    ║
 // ║    · bind:value 双向绑定                                     ║
 // ║    · @for key={expr}  身份追踪列表渲染                       ║
-// ║    · @if mode="wait"  过渡模式条件渲染                       ║
+// ║    · @if mode: "wait"  过渡模式条件渲染                       ║
 // ║    · @slot / @slot(name)  命名插槽                            ║
 // ║    · event 声明 + 中继                                      ║
 // ╚══════════════════════════════════════════════════════════════╝
@@ -170,15 +170,15 @@ component SignalPatternsDemo {
                 </ul>
             </div>
 
-            <!-- ═══ @if mode="wait" 过渡模式 ═══ -->
-            <h4 class: LearnDesign.SectionTitle>@if mode="wait" 过渡模式</h4>
+            <!-- ═══ @if mode: "wait" 过渡模式 ═══ -->
+            <h4 class: LearnDesign.SectionTitle>@if mode: "wait" 过渡模式</h4>
             <div class: pattern-card>
                 <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={togglePanel}>
                     {if showPanel { "Hide Panel" } else { "Show Panel" }}
                 </button>
-                @if showPanel mode="wait" {
+                @if showPanel mode: "wait" {
                     <div class: panel>
-                        <p>这个面板在 mode="wait" 下渲染——旧内容离开动画完成后才插入新内容</p>
+                        <p>这个面板在 mode: "wait" 下渲染——旧内容离开动画完成后才插入新内容</p>
                     </div>
                 }
             </div>

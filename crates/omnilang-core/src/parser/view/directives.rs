@@ -13,11 +13,24 @@ impl<'a> Parser<'a> {
     pub(super) fn parse_if_directive(&mut self) -> Result<ViewNode, ParseError> {
         self.advance(); // '@if'
         let condition = self.parse_expr()?;
-        // Parse optional mode= "wait|sync" after condition, before {
+        // Parse optional mode: "fade"|"wait"|"none" after condition, before {
         let transition_mode = if self.peek_ident_value().is_some_and(|s| s == "mode") {
-            self.advance(); // consume 'mode'
-            self.expect_token(TokenKind::Eq, "expected '='")?;
-            Some(self.expect_string("expected string literal")?)
+            self.advance(); // 'mode'
+            self.expect_token(TokenKind::Colon, "expected ':' after 'mode'")?;
+            // Accept both string literals ("fade", "wait") and idents (fade, wait)
+            let mode_val = if matches!(*self.peek_kind(), TokenKind::StringLiteral(_)) {
+                self.expect_string("expected mode value")?
+            } else {
+                self.expect_ident("expected mode value (fade, wait, none)")?
+            };
+            // Validate: only "fade", "wait", "none" are valid
+            if !matches!(mode_val.as_str(), "fade" | "wait" | "none") {
+                return Err(self.error(format!(
+                    "invalid transition_mode '{}' — use 'fade', 'wait', or 'none'",
+                    mode_val
+                )));
+            }
+            Some(mode_val)
         } else {
             None
         };
@@ -85,7 +98,25 @@ impl<'a> Parser<'a> {
         self.advance(); // '@for'
         let item_name = self.expect_ident("expected item variable name")?;
         self.expect_token(TokenKind::In, "expected 'in'")?;
-        let iterable = self.parse_expr()?;
+        let mut iterable = self.parse_expr()?;
+
+        // Disambiguate `@for item in list [scroll] {` (scroll hint) from
+        // `list[scroll]` (index access): parse_expr greedily treats any '['
+        // as IndexGet. A bracket separated by whitespace from the iterable
+        // whose index is the identifier `scroll` is reinterpreted as the
+        // scroll hint (spec §7.2: scroll_hint ::= '[' 'scroll' ']').
+        let mut scroll_hint = matches!(
+            &iterable,
+            Expr::IndexGet { object, index, span }
+                if matches!(&**index, Expr::VarRef(name, _) if name == "scroll")
+                    && span.start > crate::parser::expr::span_of(object).end
+        );
+        if scroll_hint {
+            iterable = match iterable {
+                Expr::IndexGet { object, .. } => *object,
+                other => other,
+            };
+        }
 
         // Optional key={expr} for identity tracking
         let key_expr = if self.peek_ident_value().as_deref() == Some("key") {
@@ -98,6 +129,17 @@ impl<'a> Parser<'a> {
         } else {
             None
         };
+
+        // Optional [scroll] hint after key={...} (BNF: key_expr? scroll_hint?)
+        if *self.peek_kind() == TokenKind::LBracket {
+            self.advance(); // '['
+            let hint = self.expect_ident("expected 'scroll'")?;
+            if hint != "scroll" {
+                return Err(self.error("expected 'scroll' inside brackets, e.g. [scroll]"));
+            }
+            self.expect_token(TokenKind::RBracket, "expected ']'")?;
+            scroll_hint = true;
+        }
 
         self.expect_token(TokenKind::LBrace, "expected '{'")?;
 
@@ -126,6 +168,7 @@ impl<'a> Parser<'a> {
             body,
             empty_body,
             key_expr,
+            scroll_hint,
             span: for_span,
         }))
     }

@@ -138,6 +138,32 @@ mod tests {
     }
 
     #[test]
+    fn analyze_if_mode_fade_wait_none_accepted() {
+        // Parser and semantic whitelist must agree: "fade", "wait", "none"
+        // are the only valid transition modes (regression: semantic used to
+        // reject "fade"/"none" with E0006).
+        for mode in ["fade", "wait", "none"] {
+            let src = format!(
+                "component App {{ signal open: Bool = true; \
+                 view {{ @if open mode: \"{}\" {{ <div/> }} }} }}",
+                mode
+            );
+            let result = analyze_source(&src);
+            let mode_errors: Vec<_> = result
+                .diagnostics
+                .iter()
+                .filter(|d| d.message.contains("mode"))
+                .collect();
+            assert!(
+                mode_errors.is_empty(),
+                "mode '{}' should be accepted, got: {:?}",
+                mode,
+                mode_errors
+            );
+        }
+    }
+
+    #[test]
     fn analyze_unresolved_variable() {
         // 'y' is not declared anywhere — should produce an error diagnostic
         let result = analyze_source("fn main() { let x = y; }");

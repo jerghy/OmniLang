@@ -99,6 +99,7 @@ pub enum ViewNode {
     SlotDirective {
         name: Option<String>,
         default_content: Option<Vec<ViewNode>>,
+        type_constraint: Option<TypeAnnotation>, // NEW: @slot name: Type
     },
     Text(String),
     Interpolation(Expr),
@@ -188,6 +189,8 @@ pub struct ForDirective {
     pub body: Vec<ViewNode>,
     pub empty_body: Option<Vec<ViewNode>>,
     pub key_expr: Option<Expr>,
+    /// `@for item in list [scroll]` — hint for Flutter ListView.builder codegen.
+    pub scroll_hint: bool,
     pub span: Span,
 }
 
