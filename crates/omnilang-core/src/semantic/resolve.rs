@@ -294,6 +294,34 @@ impl SemanticAnalyzer {
                                     col: 0,
                                 },
                             ));
+                        } else if let Some(sym) = self.symbols.resolve(name) {
+                            if sym.kind != SymbolKind::Const
+                                && sym.kind != SymbolKind::Unknown
+                            {
+                                self.diagnostics.push(Diagnostic::error(
+                                    DiagnosticKind::E0001,
+                                    &format!(
+                                        "'{}' is a {} in design token '{}', not a \
+                                         compile-time constant. Only const declarations \
+                                         can be used as direct variable references. \
+                                         For runtime values, use dotted expression \
+                                         syntax: `token {}: {} = {}.{};`",
+                                        name,
+                                        format!("{:?}", sym.kind).to_lowercase(),
+                                        token.name,
+                                        token.name,
+                                        format!("{:?}", token.token_type).to_lowercase(),
+                                        name,
+                                        name,
+                                    ),
+                                    &Span {
+                                        start: 0,
+                                        end: 0,
+                                        line: 0,
+                                        col: 0,
+                                    },
+                                ));
+                            }
                         }
                     }
                     TokenValue::Expression(expr) => {

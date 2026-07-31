@@ -114,6 +114,7 @@ mod tests {
     use crate::lexer::Span;
     use crate::parser::ast::{DesignDef, Expr, Module, TokenDef, TokenType, TokenValue};
     use crate::parser::parse;
+    use super::symbols::{Symbol, SymbolKind};
 
     fn analyze_source(source: &str) -> SemanticResult {
         let tokens = tokenize(source);
@@ -213,6 +214,95 @@ mod tests {
             errors.iter().any(|e| e.message.contains("Theme") && e.message.contains("dynamic")),
             "diagnostic should mention Theme and dynamic expression restriction, got: {:?}",
             errors.iter().map(|e| &e.message).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn rejects_non_const_symbol_in_token_variable_reference() {
+        let mut analyzer = SemanticAnalyzer::new();
+        analyzer
+            .symbols
+            .declare(Symbol {
+                name: "ThemeStore".to_string(),
+                kind: SymbolKind::Store,
+                type_ann: None,
+                mutable: false,
+                declared_at: 0,
+            })
+            .ok();
+        let design = DesignDef {
+            name: "App".to_string(),
+            themes: vec![],
+            default_theme: None,
+            tokens: vec![TokenDef {
+                name: "primary".to_string(),
+                token_type: TokenType::Color,
+                value: TokenValue::Variable("ThemeStore".to_string()),
+                theme_values: vec![],
+            }],
+            classes: vec![],
+            variants: vec![],
+        };
+        let module = Module {
+            designs: vec![design],
+            ..Default::default()
+        };
+        analyzer.resolve_and_validate_module(&module);
+        let errors: Vec<_> = analyzer
+            .diagnostics
+            .iter()
+            .filter(|d| d.kind == DiagnosticKind::E0001)
+            .collect();
+        assert!(
+            !errors.is_empty(),
+            "should warn when TokenValue::Variable references a non-const symbol"
+        );
+        assert!(
+            errors.iter().any(|w| w.message.contains("compile-time constant")),
+            "diagnostic should explain that only compile-time constants are valid"
+        );
+    }
+
+    #[test]
+    fn accepts_const_symbol_in_token_variable_reference() {
+        let mut analyzer = SemanticAnalyzer::new();
+        analyzer
+            .symbols
+            .declare(Symbol {
+                name: "BRAND".to_string(),
+                kind: SymbolKind::Const,
+                type_ann: Some("String".to_string()),
+                mutable: false,
+                declared_at: 0,
+            })
+            .ok();
+        let design = DesignDef {
+            name: "App".to_string(),
+            themes: vec![],
+            default_theme: None,
+            tokens: vec![TokenDef {
+                name: "primary".to_string(),
+                token_type: TokenType::Color,
+                value: TokenValue::Variable("BRAND".to_string()),
+                theme_values: vec![],
+            }],
+            classes: vec![],
+            variants: vec![],
+        };
+        let module = Module {
+            designs: vec![design],
+            ..Default::default()
+        };
+        analyzer.resolve_and_validate_module(&module);
+        let errors: Vec<_> = analyzer
+            .diagnostics
+            .iter()
+            .filter(|d| d.kind == DiagnosticKind::E0001)
+            .collect();
+        assert!(
+            errors.is_empty(),
+            "should accept const symbol in TokenValue::Variable, got: {:?}",
+            errors
         );
     }
 }
