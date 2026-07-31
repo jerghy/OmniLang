@@ -7,6 +7,7 @@
 mod component;
 pub(crate) mod design;
 mod expr;
+mod lower_inline_motions;
 mod motion;
 mod stmt;
 mod view;
@@ -226,6 +227,15 @@ pub fn lower(
         };
 
         modules.insert(module_name.clone(), module_ir);
+    }
+
+    // Hoist inline motion bodies on element triggers into named MotionIntents
+    // (__anon_m_N) in each module's motion table. Runs after component
+    // lowering (so triggers' inline_motion fields are populated) and before
+    // the motion_index build below, so the synthesized motions are indexed
+    // too. Codegen then sees only named motions.
+    for module in modules.values_mut() {
+        lower_inline_motions::lower_inline_motions(module);
     }
 
     // ── Resolve cross-file design imports ──

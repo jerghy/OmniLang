@@ -484,9 +484,18 @@ fn lower_element(
             }
             // Motion animation triggers: on:hover={fadeIn}, etc.
             ElementProp::MotionTrigger(mt) => {
-                let motion_ref = match &mt.motion_expr {
-                    Expr::VarRef(name, _) => Some(name.clone()),
-                    _ => None,
+                // Two forms: a named motion reference (@enter={fadeIn}) or an
+                // inline tween body (@enter={{ opacity: 0, scale: 0.8 }} —
+                // parsed as a MapLiteral). Inline bodies are lowered to a
+                // KeyframeIR here and hoisted into the module motion table by
+                // the lower_inline_motions pass.
+                let (motion_ref, inline_motion) = match &mt.motion_expr {
+                    Expr::VarRef(name, _) => (Some(name.clone()), None),
+                    Expr::MapLiteral { entries, .. } => (
+                        None,
+                        Some(lower_inline_motion_map(entries, variant_map, semantics)),
+                    ),
+                    _ => (None, None),
                 };
                 motion_triggers.push(TriggerIntent {
                     kind: match &mt.trigger {
@@ -502,7 +511,7 @@ fn lower_element(
                         crate::parser::ast::TriggerKind::DragVertical => TriggerKind::DragVertical,
                     },
                     motion_ref,
-                    inline_motion: None,
+                    inline_motion,
                     source_span: None,
                 });
             } // Deleted sub-attribute ElementProps (@paused, in-view once/repeat/
@@ -615,6 +624,45 @@ fn lower_element(
         ref_binding,
         semantic_bindings: FxHashMap::default(),
     }))
+}
+
+/// Lower an inline motion tween body (`@enter={{ opacity: 0, scale: 0.8 }}`)
+/// into a `KeyframeIR`.
+///
+/// The map is a single "from" stop at position 0.0: the element animates from
+/// these values to its natural state when the trigger fires. Inline tweens
+/// carry no `over`/`easing` clauses, so the duration defaults to 400ms — the
+/// same default used by the inline-motion codegen fixtures. The
+/// `lower_inline_motions` pass later hoists the body into the module motion
+/// table under a synthesized name.
+fn lower_inline_motion_map(
+    entries: &[(Expr, Expr)],
+    variant_map: &FxHashMap<String, String>,
+    semantics: &mut SemanticResult,
+) -> KeyframeIR {
+    let mut properties = FxHashMap::default();
+    for (key, value) in entries {
+        if let Expr::Literal(Literal::String(name), _) = key {
+            properties.insert(
+                name.clone(),
+                lower_expr(value, variant_map, None, semantics),
+            );
+        }
+    }
+    KeyframeIR {
+        stops: vec![KeyframeStopIR {
+            position: 0.0,
+            properties,
+            ease: None,
+            source_span: None,
+        }],
+        over: ExprIR::LiteralExpr {
+            value: serde_json::json!(400),
+        },
+        ease: None,
+        playback: PlaybackIR::default(),
+        source_span: None,
+    }
 }
 
 // ── If-directive lowering ─────────────────────────────────
