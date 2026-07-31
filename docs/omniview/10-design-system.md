@@ -149,6 +149,53 @@ design LearnDesign {
 
 **注意**：非颜色令牌（spacing、radius、shadow、typography、duration、easing、opacity、zIndex）通常不随主题变化，因此不需要每主题值。CSS 变量的级联机制会自动继承默认值。
 
+### Dynamic Token Values
+
+Token values can reference compile-time constants or runtime signals, in addition to static literals:
+
+**Static literals** (unchanged):
+```omni
+token primary: color = "#6366f1";
+token spacing: size = "16px";
+```
+
+**Compile-time constant references** (Phase 1):
+```omni
+const BRAND = "#6366f1";
+const SPACING = "16px";
+
+design App {
+    token primary: color = BRAND;    // resolves to "#6366f1" at compile time
+    token spacing: size = SPACING;   // resolves to "16px" at compile time
+}
+```
+
+**Naming convention for constants:** Use PascalCase (`BrandColor`) or
+UPPER_SNAKE_CASE (`BRAND_COLOR`). All-lowercase identifiers are treated
+as CSS literal values (e.g., `white`, `ease-in-out`, `solid`).
+
+To force a value to be treated as a CSS literal regardless of case, wrap
+it in quotes: `token primary: color = "white";`
+
+**Runtime signal references** (Phase 2):
+```omni
+store ThemeStore {
+    signal primaryColor: string = "#6366f1";
+}
+
+design App {
+    token primary: color = ThemeStore.primaryColor;
+    // Generates a reactive CSS custom property that updates
+    // automatically when ThemeStore.primaryColor changes
+}
+```
+
+**Restrictions:**
+- Dynamic tokens (Phase 2) cannot have theme overrides. Use store-level
+  theme switching instead.
+- Design blocks are currently only supported on the OmniView target.
+  Compiling to React, Flutter, or other targets will produce a warning.
+
 ---
 
 ## 2. CSS 类（Design Classes）
