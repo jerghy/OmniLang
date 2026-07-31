@@ -11,6 +11,8 @@
 //! store field access, motions) are called after the resolve walk for each
 //! component / module.
 
+use std::fmt::Write as _;
+
 use super::helpers::type_to_string;
 use super::symbols::{Symbol, SymbolKind, SymbolTable};
 use super::types::SemanticType;
@@ -282,12 +284,25 @@ impl SemanticAnalyzer {
                 match &token.value {
                     TokenValue::Variable(name) => {
                         if !self.symbols.contains(name) {
+                            let all_names = self.symbols.all_visible_names();
+                            let known_names: Vec<&str> =
+                                all_names.iter().map(|s| s.as_str()).collect();
+                            let suggestion = suggest_similar_name(name, &known_names);
+                            let mut msg = format!(
+                                "Undefined variable '{}' in design token '{}'",
+                                name, token.name
+                            );
+                            if let Some(sug) = suggestion {
+                                let _ = write!(msg, ". Did you mean '{}'?", sug);
+                            }
+                            msg.push_str(
+                                ". Variable references in design token values must use \
+                                 compile-time constants (PascalCase or UPPER_SNAKE_CASE). \
+                                 Lowercase names are treated as CSS values.",
+                            );
                             self.diagnostics.push(Diagnostic::error(
                                 DiagnosticKind::E0001,
-                                &format!(
-                                    "Undefined variable '{}' in design token '{}'",
-                                    name, token.name
-                                ),
+                                &msg,
                                 &Span {
                                     start: 0,
                                     end: 0,
