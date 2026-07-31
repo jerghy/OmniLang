@@ -382,6 +382,24 @@ variant_dim ::= '@dim' <ident> ':' <ident> ('|' <ident>)+ ';'?
 variant_default ::= '@default' '{' css_property ':' css_value (','? css_property ':' css_value)* '}' ';'?
 
 variant_branch ::= <ident> '.' <ident> '{' css_property ':' css_value (','? css_property ':' css_value)* '}' ';'?
+
+// ── 组件中使用 class / variant（元素属性）──
+
+class_attr ::= 'class:' design_class_ref
+             | 'class:' '{' class_map_entry (',' class_map_entry)* '}'
+
+design_class_ref ::= <design_name> '.' <class_name>
+
+class_map_entry ::= <ident> ':' expr        // className: booleanExpr
+
+variant_attr ::= 'variant:' design_branch_ref
+               | 'variant:' design_call_ref
+
+design_branch_ref ::= <design_name> '.' <variant_name> '.' <branch_name>
+
+design_call_ref ::= <design_name> '.' <variant_name> '(' variant_dim_value (',' variant_dim_value)* ')'
+
+variant_dim_value ::= <ident> '=' <ident>   // dimName=valueName
 ```
 
 ### 4.3 完整示例
@@ -441,17 +459,44 @@ design AppTheme {
 
 ```omni
 component MyPage {
+  // ── Class 引用 ──
   <div class: AppTheme.Card>
     <h2>标题</h2>
   </div>
-  
+
+  // ── Class 条件 map ──
+  <div class: { overlay: true, visible: isOpen, hidden: !isOpen }>
+    弹窗内容
+  </div>
+
+  // ── Variant 单维度（dot-ident 形式）──
   <button class: AppTheme.Button variant: AppTheme.Size.lg>
     大按钮
   </button>
 
+  // ── Variant 多维度（调用形式）──
+  <button class: AppTheme.Button variant: AppTheme.Button(color=primary, size=sm)>
+    小主色按钮
+  </button>
+
+  // ── 直接引用 token ──
   <div style: { color: token(AppTheme.primaryColor) } />
 }
 ```
+
+#### Class 的两种形式
+
+| 形式 | 语法 | 语义 | 示例 |
+|------|------|------|------|
+| **设计 class 引用** | `class: DesignName.ClassName` | 应用 design block 中定义的 class 样式 | `class: AppTheme.Card` |
+| **条件 class map** | `class: { name: bool_expr, ... }` | 根据条件动态开关 CSS class | `class: { active: isActive }` |
+
+#### Variant 的两种形式
+
+| 形式 | 语法 | 语义 | 示例 |
+|------|------|------|------|
+| **单维度选择** | `variant: DesignName.VariantName.branch` | 选择 variant 的一个分支 | `variant: AppTheme.Size.lg` |
+| **多维度指定** | `variant: DesignName.VariantName(dim1=val1, dim2=val2)` | 为每个维度指定值，编译时查表选择对应分支 | `variant: AppTheme.Button(color=primary, size=sm)` |
 
 ### 4.5 主题切换
 
@@ -600,7 +645,9 @@ action_decl  ::= 'action' <ident> '(' params? ')' block
 
 // ── 组件内状态 ──
 
-component_signal ::= 'signal' <ident> ':' type_annotation '=' expr ';'?
+component_signal  ::= 'signal' <ident> ':' type_annotation '=' expr ';'?
+component_computed ::= 'computed' <ident> ':' type_annotation '=' expr ';'?
+                    | 'computed' <ident> '(' params? ')' '->' type_annotation block
 
 // ── 组件引用 store ──
 
@@ -695,13 +742,13 @@ component TodoPage {
 
 **关键**：`items = [...]` 在 action 内编译器知道这是 signal 赋值（不是普通变量赋值）→ 生成对应的 setState/copyWith 代码。
 
-### 6.6 删除的特性
+### 6.6 保留与废弃
 
-| 删除 | 原因 |
-|------|------|
-| React Hooks 模式 | Zustand v5 唯一方案 |
-| 组件内 inline store 定义 | 统一用顶层 store + `@store` 引用或组件内 `signal` |
-| `computed`（组件内）| 用 `getter` 或 `fn` 替代 |
+| 特性 | 状态 | 说明 |
+|------|------|------|
+| `computed`（组件内）| ✅ **保留** | 语义明确的派生值声明，React → `useMemo`，Flutter → getter |
+| 组件内 inline store 定义 | ⚠️ **废弃警告** | 建议提取为顶层 store + `@store` 引用，或直接用组件内 `signal` |
+| React Hooks 模式 | ❌ **删除** | Zustand v5 唯一方案 |
 
 ---
 
