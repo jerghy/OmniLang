@@ -116,17 +116,21 @@ export function analyse_multi_cached(sources, path_mapping, cache_state) {
 }
 
 /**
- * Compile multiple .omni source files to OmniView.
- * sources: JS object mapping file path to source content, e.g. {"path": "source content", ...}
- * editor_mode: enable debug wrappers for editor preview.
- * Returns JsValue with `success`, `files`, `errors`, and `warnings`.
+ * Compile multiple .omni source files to OmniView with incremental cache.
+ *
+ * `sources`: JS object mapping file path to source content, e.g. {"path": "source content", ...}
+ * `editor_mode`: enable debug wrappers for editor preview.
+ * `cache_state`: serialized incremental cache from previous call (or null/undefined).
+ *
+ * Returns `{ result: InternalCompileResult, cache_state: string }`.
  * @param {any} sources
  * @param {boolean} editor_mode
  * @param {boolean} debug_mode
+ * @param {any} cache_state
  * @returns {any}
  */
-export function compile_multi_to_omniview(sources, editor_mode, debug_mode) {
-    const ret = wasm.compile_multi_to_omniview(addHeapObject(sources), editor_mode, debug_mode);
+export function compile_multi_to_omniview(sources, editor_mode, debug_mode, cache_state) {
+    const ret = wasm.compile_multi_to_omniview(addHeapObject(sources), editor_mode, debug_mode, addHeapObject(cache_state));
     return takeObject(ret);
 }
 
@@ -260,6 +264,23 @@ export function resolve_styles_multi(sources, path_mapping) {
  */
 export function resolve_styles_multi_cached(sources, path_mapping, cache_state) {
     const ret = wasm.resolve_styles_multi_cached(addHeapObject(sources), addHeapObject(path_mapping), addHeapObject(cache_state));
+    return takeObject(ret);
+}
+
+/**
+ * Serialize the thread-local analysis cache to a JSON string for explicit persistence.
+ *
+ * Call this from JS on `beforeunload` to preserve the incremental cache across
+ * page navigations. Returns the full cached state as a JSON string, or empty
+ * string on serialization failure.
+ *
+ * The cache is NOT serialized automatically on every analysis call — it lives
+ * in WASM memory for the page lifetime. Use this function only when you need
+ * to persist the cache externally (session storage, beforeunload, etc.).
+ * @returns {any}
+ */
+export function save_cache_state() {
+    const ret = wasm.save_cache_state();
     return takeObject(ret);
 }
 

@@ -9,9 +9,8 @@
       "env": {}
     },
     "victauri": {
-      "type": "stdio",
-      "command": "victauri",
-      "args": ["bridge"]
+      "type": "http",
+      "url": "http://127.0.0.1:7373/mcp"
     }
   }
 }

@@ -109,8 +109,12 @@ impl SemanticAnalyzer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::error::DiagnosticKind;
     use crate::lexer::tokenize;
+    use crate::lexer::Span;
+    use crate::parser::ast::{DesignDef, Expr, Module, TokenDef, TokenType, TokenValue};
     use crate::parser::parse;
+    use super::symbols::{Symbol, SymbolKind};
 
     fn analyze_source(source: &str) -> SemanticResult {
         let tokens = tokenize(source);
@@ -164,5 +168,186 @@ mod tests {
             .filter(|d| d.severity == crate::error::Severity::Error)
             .collect();
         assert!(errors.is_empty(), "expected no errors, got: {:?}", errors);
+    }
+
+    #[test]
+    fn rejects_expression_in_theme_value() {
+        let design = DesignDef {
+            name: "App".to_string(),
+            themes: vec!["dark".to_string()],
+            default_theme: None,
+            tokens: vec![TokenDef {
+                name: "primary".to_string(),
+                token_type: TokenType::Color,
+                value: TokenValue::Literal("#ffffff".to_string()),
+                theme_values: vec![(
+                    "dark".to_string(),
+                    TokenValue::Expression(Expr::FieldAccess {
+                        object: Box::new(Expr::VarRef(
+                            "ThemeStore".to_string(),
+                            Span { start: 0, end: 10, line: 0, col: 0 },
+                        )),
+                        field: "darkColor".to_string(),
+                        span: Span { start: 0, end: 0, line: 0, col: 0 },
+                    }),
+                )],
+            }],
+            classes: vec![],
+            variants: vec![],
+        };
+        let module = Module {
+            designs: vec![design],
+            ..Default::default()
+        };
+        let mut analyzer = SemanticAnalyzer::new();
+        analyzer.resolve_and_validate_module(&module);
+        let errors: Vec<_> = analyzer
+            .diagnostics
+            .iter()
+            .filter(|d| d.kind == DiagnosticKind::E0001)
+            .collect();
+        assert!(
+            !errors.is_empty(),
+            "should reject expression in theme value"
+        );
+        assert!(
+            errors.iter().any(|e| e.message.contains("Theme") && e.message.contains("dynamic")),
+            "diagnostic should mention Theme and dynamic expression restriction, got: {:?}",
+            errors.iter().map(|e| &e.message).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn rejects_non_const_symbol_in_token_variable_reference() {
+        let mut analyzer = SemanticAnalyzer::new();
+        analyzer
+            .symbols
+            .declare(Symbol {
+                name: "ThemeStore".to_string(),
+                kind: SymbolKind::Store,
+                type_ann: None,
+                mutable: false,
+                declared_at: 0,
+            })
+            .ok();
+        let design = DesignDef {
+            name: "App".to_string(),
+            themes: vec![],
+            default_theme: None,
+            tokens: vec![TokenDef {
+                name: "primary".to_string(),
+                token_type: TokenType::Color,
+                value: TokenValue::Variable("ThemeStore".to_string()),
+                theme_values: vec![],
+            }],
+            classes: vec![],
+            variants: vec![],
+        };
+        let module = Module {
+            designs: vec![design],
+            ..Default::default()
+        };
+        analyzer.resolve_and_validate_module(&module);
+        let errors: Vec<_> = analyzer
+            .diagnostics
+            .iter()
+            .filter(|d| d.kind == DiagnosticKind::E0001)
+            .collect();
+        assert!(
+            !errors.is_empty(),
+            "should warn when TokenValue::Variable references a non-const symbol"
+        );
+        assert!(
+            errors.iter().any(|w| w.message.contains("compile-time constant")),
+            "diagnostic should explain that only compile-time constants are valid"
+        );
+    }
+
+    #[test]
+    fn accepts_const_symbol_in_token_variable_reference() {
+        let mut analyzer = SemanticAnalyzer::new();
+        analyzer
+            .symbols
+            .declare(Symbol {
+                name: "BRAND".to_string(),
+                kind: SymbolKind::Const,
+                type_ann: Some("String".to_string()),
+                mutable: false,
+                declared_at: 0,
+            })
+            .ok();
+        let design = DesignDef {
+            name: "App".to_string(),
+            themes: vec![],
+            default_theme: None,
+            tokens: vec![TokenDef {
+                name: "primary".to_string(),
+                token_type: TokenType::Color,
+                value: TokenValue::Variable("BRAND".to_string()),
+                theme_values: vec![],
+            }],
+            classes: vec![],
+            variants: vec![],
+        };
+        let module = Module {
+            designs: vec![design],
+            ..Default::default()
+        };
+        analyzer.resolve_and_validate_module(&module);
+        let errors: Vec<_> = analyzer
+            .diagnostics
+            .iter()
+            .filter(|d| d.kind == DiagnosticKind::E0001)
+            .collect();
+        assert!(
+            errors.is_empty(),
+            "should accept const symbol in TokenValue::Variable, got: {:?}",
+            errors
+        );
+    }
+
+    #[test]
+    fn bare_signal_name_in_token_value_gets_const_kind_diagnostic() {
+        let mut analyzer = SemanticAnalyzer::new();
+        analyzer
+            .symbols
+            .declare(Symbol {
+                name: "App_dynamicAccent".to_string(),
+                kind: SymbolKind::Signal,
+                type_ann: Some("String".to_string()),
+                mutable: false,
+                declared_at: 0,
+            })
+            .ok();
+        let design = DesignDef {
+            name: "App".to_string(),
+            themes: vec![],
+            default_theme: None,
+            tokens: vec![TokenDef {
+                name: "accent".to_string(),
+                token_type: TokenType::Color,
+                value: TokenValue::Variable("App_dynamicAccent".to_string()),
+                theme_values: vec![],
+            }],
+            classes: vec![],
+            variants: vec![],
+        };
+        let module = Module {
+            designs: vec![design],
+            ..Default::default()
+        };
+        analyzer.resolve_and_validate_module(&module);
+        let errors: Vec<_> = analyzer
+            .diagnostics
+            .iter()
+            .filter(|d| d.kind == DiagnosticKind::E0001)
+            .collect();
+        assert!(
+            errors.iter().any(|e| e.message.contains("signal")
+                && e.message.contains("App_dynamicAccent")
+                && e.message.contains("compile-time constant")),
+            "bare signal name should produce const-kind diagnostic. Got: {:?}",
+            errors.iter().map(|e| &e.message).collect::<Vec<_>>()
+        );
     }
 }

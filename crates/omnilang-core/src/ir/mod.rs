@@ -15,7 +15,7 @@ pub mod visibility;
 pub mod walk;
 
 pub use lower::lower;
-pub use lower::lower_design;
+pub use lower::lower_design_with_consts;
 
 // ── Explicit re-exports from types.rs ──
 pub use types::{

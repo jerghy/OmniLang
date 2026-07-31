@@ -12,7 +12,6 @@ mod stmt;
 mod view;
 
 pub(crate) use component::*;
-pub use design::lower_design;
 pub use design::lower_design_with_consts;
 #[allow(unused_imports)]
 pub(super) use motion::*;

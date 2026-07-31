@@ -11,14 +11,6 @@ use crate::ir::lower::expr::lower_expr;
 use crate::parser::ast::design::*;
 use crate::semantic::SemanticResult;
 use rustc_hash::FxHashMap;
-/// Lower a parsed `design` block AST into a `DesignIR`,
-/// using an empty const_values map (backward-compatible wrapper).
-pub fn lower_design(ast: &DesignDef) -> DesignIR {
-    let const_values = FxHashMap::default();
-    let variant_map = FxHashMap::default();
-    let mut semantics = SemanticResult::default();
-    lower_design_with_consts(ast, &const_values, &variant_map, &mut semantics)
-}
 
 /// Lower a parsed `design` block AST into a `DesignIR`,
 /// resolving `TokenValue::Variable` references using the compile-time
@@ -111,22 +103,6 @@ fn resolve_token_value_ir(
             let expr_ir = lower_expr(expr, variant_map, None, semantics);
             TokenValueIR::Dynamic(expr_ir)
         }
-    }
-}
-
-/// Resolve a `TokenValue` to a CSS string using the compile-time constant map.
-/// Convenience wrapper for places that still need a plain string (e.g. class
-/// / variant property resolution where dynamic expressions are Phase 2+).
-#[allow(dead_code)]
-fn resolve_token_value(
-    value: &TokenValue,
-    const_values: &FxHashMap<String, String>,
-    variant_map: &FxHashMap<String, String>,
-    semantics: &mut SemanticResult,
-) -> String {
-    match resolve_token_value_ir(value, const_values, variant_map, semantics) {
-        TokenValueIR::Static(s) => s,
-        TokenValueIR::Dynamic(_) => String::new(),
     }
 }
 
@@ -476,7 +452,7 @@ mod tests {
             variants: vec![],
         };
 
-        let design = lower_design(&design_def);
+        let design = lower_design_with_consts(&design_def, &FxHashMap::default(), &FxHashMap::default(), &mut SemanticResult::default());
         assert_eq!(design.name, "App");
         assert_eq!(design.themes, vec!["light", "dark"]);
         assert_eq!(design.default_theme, Some("light".to_string()));

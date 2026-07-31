@@ -314,6 +314,14 @@ fn parse_design_value_expression<'a>(
     while end_idx < design_tokens.len() {
         match &design_tokens[end_idx].kind {
             TokenKind::Semicolon if depth == 0 => break,
+            TokenKind::LBrace => {
+                depth += 1;
+                end_idx += 1;
+            }
+            TokenKind::RBrace if depth > 0 => {
+                depth -= 1;
+                end_idx += 1;
+            }
             TokenKind::RBrace => break,
             TokenKind::LParen | TokenKind::LBracket => {
                 depth += 1;
@@ -349,6 +357,7 @@ fn parse_design_value_expression<'a>(
     let error_offset = expr_tokens.first().map(|t| t.span.start).unwrap_or(offset);
 
     // Use the full design body as source (token spans are offsets into it)
+    let error_offset = expr_tokens.first().map(|t| t.span.start).unwrap_or(offset);
     let mut expr_parser = Parser::new(expr_tokens, design_body_full);
     let expr = expr_parser.parse_expr().map_err(|e| DesignParseError {
         message: format!("failed to parse expression in token value: {}", e.message),
@@ -364,6 +373,16 @@ fn parse_design_value_expression<'a>(
 
 /// Returns true if the identifier looks like a static CSS value
 /// rather than a variable/constant reference.
+///
+/// **Naming convention**: This heuristic classifies identifiers containing
+/// uppercase characters as variable references and all-lowercase identifiers
+/// as CSS literals. To reference a compile-time constant in a token value,
+/// use PascalCase or UPPER_SNAKE_CASE (e.g., `BRAND`, `SpacingUnit`).
+/// Lowercase names like `brand` or `primary` are treated as CSS keywords.
+///
+/// See ADR-047 (Phase 1 Dynamic Design Tokens) for the design rationale.
+/// If this convention proves confusing in practice, a future language version
+/// may add explicit reference syntax (e.g., `$BRAND` or `@brand`).
 fn is_css_value(s: &str) -> bool {
     if s.is_empty() {
         return true;
@@ -1138,6 +1157,19 @@ mod tests {
         assert!(
             matches!(result.tokens[0].value, TokenValue::Expression(_)),
             "expected Expression variant for method call with arg, got {:?}",
+            result.tokens[0].value
+        );
+    }
+
+    #[test]
+    fn parse_expression_with_brace_object_argument() {
+        let src = r#"token config: color = store.getConfig({theme: "dark"});"#;
+        let tokens = crate::lexer::tokenize(src);
+        let result = parse_design_body(src, &tokens).unwrap();
+        assert_eq!(result.tokens.len(), 1);
+        assert!(
+            matches!(result.tokens[0].value, TokenValue::Expression(_)),
+            "expression with object literal arg should parse as Expression, got {:?}",
             result.tokens[0].value
         );
     }

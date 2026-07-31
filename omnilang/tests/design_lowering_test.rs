@@ -5,9 +5,10 @@
 //! in class/variant properties are resolved.
 
 use omnilang::ir::design::*;
-use omnilang::ir::lower_design;
+use omnilang::ir::lower_design_with_consts;
 use omnilang::lexer::tokenize;
 use omnilang::parser::parse;
+use rustc_hash::FxHashMap;
 
 /// Helper: parse a design block from inline source and lower it to DesignIR.
 fn lower_design_source(source: &str) -> DesignIR {
@@ -21,7 +22,8 @@ fn lower_design_source(source: &str) -> DesignIR {
         .designs
         .first()
         .expect("should have at least one design block");
-    lower_design(ast)
+    let mut semantics = omnilang::semantic::SemanticResult::default();
+    lower_design_with_consts(ast, &FxHashMap::default(), &FxHashMap::default(), &mut semantics)
 }
 
 #[test]
