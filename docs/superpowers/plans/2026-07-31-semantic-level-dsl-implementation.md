@@ -2,13 +2,15 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Rewrite OmniLang compiler to use semantic-level code generation — .omni source expresses intent, compiler generates idiomatic platform-native code for React (Zustand v5 + React 19) and Flutter (Riverpod 3.0).
+**Goal:** Rewrite OmniLang compiler to use semantic-level code generation — .omni source expresses intent, compiler generates idiomatic platform-native code for React (Zustand v5 + React 19), Flutter (Riverpod 3.0), and OmniView (updated debug runtime).
 
-**Architecture:** Three-layer implementation: IR type changes (foundation) → semantic passes (intent recognition) → codegen rewrites (idiomatic output). Each layer depends on the previous. React and Flutter codegen are independent and can be parallelized.
+**Architecture:** Five-layer implementation: lexer/parser changes (new syntax forms) → IR type changes (foundation) → semantic passes (intent recognition) → codegen rewrites for all P0 targets (idiomatic output) → demo migration + CI gates. React and Flutter codegen are independent after shared layer and can be parallelized. OmniView debug runtime must also be updated to match new semantics.
 
-**Tech Stack:** Rust (compiler), TypeScript/React 19/Zustand v5 (React target), Dart/Flutter/Riverpod 3.0 (Flutter target)
+**Tech Stack:** Rust (compiler), TypeScript/React 19/Zustand v5 (React target), Dart/Flutter/Riverpod 3.0 (Flutter target), JS/DOM (OmniView debug target)
 
 **Spec:** `docs/superpowers/specs/2026-07-31-semantic-level-dsl-syntax-spec.md`
+
+**Note on parallelism:** Tasks marked `[∥]` can run in parallel. Tasks without the marker are sequential dependencies.
 
 ---
 
@@ -16,61 +18,552 @@
 
 ```
 crates/omnilang-core/src/
+├── lexer/
+│   └── keywords.rs           ← Rename trigger tokens: @inView→@in-view, @dragHorizontal→@drag-horizontal
+├── parser/
+│   ├── top_level/motion.rs   ← over:/easing: with colon+unit, steps() positional, keyframe prop whitelist
+│   ├── view/
+│   │   ├── element.rs        ← semantic binding attrs (focus, scroll-x, scroll-y, value) → RefBinding prop
+│   │   ├── mod.rs            ← @slot name: Type { fallback } — parse type constraint
+│   │   └── directives.rs     ← @if mode: colon separator, expr not string; @for [scroll] hint
+│   └── ast/
+│       ├── view.rs           ← ElementProp::RefBinding { name, signal }, SlotDirective type_constraint field
+│       └── motion.rs         ← motion_param with colon, easing_expr, stop_property whitelist
 ├── ir/
-│   ├── types.rs              ← RefOpIR enum, ViewTree::Slot fix, PlaybackIR del
-│   ├── types_motion.rs       ← TriggerKind::Focus, del paused_override
+│   ├── types.rs              ← RefOpIR enum, ViewTree::Slot struct, ElementIR.semantic_bindings, PlaybackIR.paused del
+│   ├── types_motion.rs       ← TriggerKind::Focus, del paused_override / @paused attr
 │   └── lower/
-│       ├── view.rs           ← Slot lowering fix, semantic binding recognition
-│       └── lower_inline_motions.rs  ← NEW: inline motion → named motion
-
+│       ├── view.rs           ← Slot lowering (preserve fallback), semantic binding lowering, ref binding lowering
+│       ├── lower_inline_motions.rs  ← NEW: inline motion body → named MotionIntent
+│       └── mod.rs            ← Wire in all new passes + semantic binding recognition
 ├── semantic/
-│   └── validate_ref_ops.rs   ← NEW: MethodCall on ref → RefOpExpr / error
+│   ├── validate_ref_ops.rs   ← NEW: MethodCall/FieldAccess on ref → RefOpExpr / compile error
+│   └── mod.rs                ← Re-export
 
 └── codegen/shared/
-    └── expr.rs               ← OptionalChain/BlockExpr/Match overrides
+    └── expr.rs               ← OptionalChain override, BlockExpr IIFE, format_match for all backends
 
 omnilang/src/codegen/
-├── mod.rs                    ← Design gate: P0 remove, non-P0 warning→error
-├── shared/design.rs          ← NEW: extract shared CSS emitter from omniview/
+├── mod.rs                    ← Design gate: P0 remove (in Phase 3/4 tasks), non-P0 warning→error
+├── shared/design.rs          ← NEW: extract shared CSS emitter from omniview/design.rs
+├── omniview/
+│   ├── view/element.rs       ← Remove paused_override, @paused; add @focus trigger; ref binding attrs
+│   ├── mod.rs                ← Slot fallback rendering; semantic binding JS output
+│   └── motion.rs             ← @focus trigger handling
 ├── react/
-│   ├── mod.rs                ← Zustand v5 rewrite, store gen
-│   ├── view.rs               ← slots, ref bindings, semantic bindings
-│   ├── expr.rs               ← OptionalChain/BlockExpr/Match overrides
+│   ├── mod.rs                ← Zustand v5 store gen + design gate removal
+│   ├── view.rs               ← slots, ref bindings, semantic binding useEffect
+│   ├── expr.rs               ← OptionalChain/BlockExpr/Match/RefOpExpr formatting
 │   ├── component/
-│   │   ├── state.rs          ← useRef for refs, useState for signals
+│   │   ├── state.rs          ← useRef gen, semantic binding effect gen
 │   │   ├── effect.rs         ← @mount/@unmount/@effect → useEffect
-│   │   └── imports.rs        ← Zustand v5 imports
+│   │   └── imports.rs        ← Zustand v5 imports, ref types
 │   ├── motion/
-│   │   ├── mod.rs            ← Native ref + WAAPI (no DOM scanning)
-│   │   └── keyframes.rs      ← Semantic property → WAAPI keyframes
-│   └── design.rs             ← NEW: Design CSS emission
+│   │   ├── mod.rs            ← Native ref + WAAPI (no DOM scanning), all 8 triggers
+│   │   └── keyframes.rs      ← Semantic property → WAAPI keyframe objects
+│   └── design.rs             ← NEW: Design CSS emission with themes/classes/variants
 ├── flutter/
-│   ├── mod.rs                ← Riverpod 3.0 rewrite, store gen
-│   ├── view.rs               ← slots, ref bindings, semantic bindings
-│   ├── expr.rs               ← OptionalChain/BlockExpr/Match overrides
-│   ├── motion.rs             ← TweenSequence, per-property Animatable
-│   ├── ref.rs                ← NEW: GlobalKey + FocusNode + ScrollController gen
-│   └── design.rs             ← NEW: ThemeData + ThemeExtension emission
+│   ├── mod.rs                ← Riverpod 3.0 store gen + design gate removal
+│   ├── view.rs               ← slots, ref bindings, semantic binding post-frame callbacks
+│   ├── expr.rs               ← OptionalChain/BlockExpr/Match/RefOpExpr formatting
+│   ├── stmt.rs               ← setState wrapping for signal mutations
+│   ├── motion.rs             ← TweenSequence per-property, Animatable<T>, playback, easing
+│   ├── motion_widgets.rs     ← _OmniInViewWidget, _OmniScrollDrivenWidget, _OmniDragWidget
+│   ├── ref.rs                ← NEW: GlobalKey + FocusNode + ScrollController + TextEditingController gen
+│   └── design.rs             ← NEW: ThemeData + ThemeExtension + BoxDecoration factories
 └── tests_regression/
-    └── parameterized.rs      ← Expand: design/slots/refs/key_expr/animation
+    └── parameterized.rs      ← Expand: design/slots/refs/key_expr/animation/store fixtures
+
+test/projects/learn-omniview/src/
+├── pages/
+│   ├── MotionDemo.omni           ← animation syntax migration
+│   ├── ElementRefDemo.omni       ← ref syntax migration
+│   ├── MotionTriggersDemo.omni   ← trigger renames
+│   ├── KeyframeAnimationDemo.omni ← keyframe syntax, remove @paused
+│   ├── EasingFunctionsDemo.omni  ← steps() syntax, easing keywords
+│   ├── AnimPropertiesDemo.omni   ← CSS property → semantic property set
+│   ├── CssVarsDemo.omni          ← motion sections (if any semantic violations)
+│   └── SignalPatternsDemo.omni   ← @if mode:, @slot syntax
+├── components/
+│   ├── Modal.omni                ← slot declaration/rendering restructure
+│   ├── NotificationsPanel.omni   ← slot restructure
+│   └── SlotDefaultDemo.omni      ← slot restructure
+└── stores/                       ← (no changes — store syntax unchanged)
+
+tests/fixtures/
+├── golden/                       ← regenerate all golden fixtures after migration
+├── react/motion_*.omni           ← 5 react motion fixtures — migrate animation syntax
+└── parameterized/                ← NEW: design_tokens.omni, slots.omni, refs.omni, animation.omni
 ```
 
 ---
 
-## Phase 0: IR Foundation
+## Phase 0: Lexer & Parser Changes
 
-### Task 0.1: Add RefOpIR enum to IR types
+> All new syntax forms must parse BEFORE IR/codegen work starts.
+> Tests verify parsing only — no codegen output validation yet.
+
+### Task 0.1: Rename animation trigger tokens in lexer [∥]
+
+**Files:**
+- Modify: `crates/omnilang-core/src/lexer/keywords.rs`
+
+- [ ] **Step 1: Rename @-prefixed trigger tokens**
+
+In `at_keyword_to_token()` function, rename:
+```rust
+// Old token name                  → New token name
+"inView"                          → "in-view"
+"inViewOnce"                      → DELETE (becomes independent `once={}` attr)
+"inViewRepeat"                    → DELETE (becomes independent `repeat={}` attr)
+"inViewThreshold"                 → DELETE (becomes independent `threshold={}` attr)
+"dragHorizontal"                  → "drag-horizontal"
+"dragVertical"                    → "drag-vertical"
+"dragConstraints"                 → DELETE (becomes independent `constraints={}` attr)
+"dragElastic"                     → DELETE (becomes independent `elastic={}` attr)
+"dragScrub"                       → DELETE (no replacement — removed)
+"dragMomentum"                    → DELETE (no replacement — removed)
+"dragThreshold"                   → DELETE (becomes independent `threshold={}` attr)
+"dragVelocityMax"                 → DELETE (becomes independent `velocity-max={}` attr)
+"scrollStart"                     → DELETE (becomes independent `start={}` attr)
+"scrollEnd"                       → DELETE (becomes independent `end={}` attr)
+"scrollScrub"                     → DELETE (becomes independent `scrub={}` attr)
+```
+
+New tokens to register:
+```rust
+// Add to keyword map:
+"in-view"     → AtInView       // renamed from inView
+"drag-horizontal" → AtDragHorizontal  // renamed from dragHorizontal  
+"drag-vertical"   → AtDragVertical    // renamed from dragVertical
+// velocity-max is a regular ident, not a token — parsed as sub-attr key
+```
+
+- [ ] **Step 2: Update TokenKind enum**
+
+Rename variants in the `TokenKind` enum (file: `crates/omnilang-core/src/lexer/mod.rs`):
+```rust
+AtInView        // was AtInView (unchanged name, changed token text)
+AtDragHorizontal // was AtDragHorizontal
+AtDragVertical   // was AtDragVertical
+// DELETE:
+// AtInViewOnce, AtInViewRepeat, AtInViewThreshold
+// AtDragConstraints, AtDragElastic, AtDragScrub, AtDragMomentum, AtDragThreshold, AtDragVelocityMax
+// AtScrollStart, AtScrollEnd, AtScrollScrub
+```
+
+- [ ] **Step 3: Add `focus` as a regular keyword (not @-prefixed token)**
+
+`@focus` already exists as `AtFocus`. No change needed — it was there before, just unused.
+
+- [ ] **Step 4: Build and fix all TokenKind references**
+
+Run: `cargo build -p omnilang-core 2>&1`
+Expected: compile errors wherever deleted TokenKind variants are matched. Fix each:
+- `parser/view/element.rs` — sub-attribute parsing (previously @-prefixed tokens, now regular ident-based sub-attrs)
+- `parser/view/mod.rs` — trigger dispatch in `parse_view_node`
+- `parser/ast/view.rs` — `ElementProp` variants for deleted tokens
+- All lowering code that matches deleted `ElementProp` variants
+- All codegen code that reads deleted element prop fields
+
+- [ ] **Step 5: Run parser tests**
+
+```bash
+cargo test -p omnilang-core -- parser 2>&1
+```
+Expected: parser tests pass after fixing all TokenKind references.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git commit -m "refactor(lexer): rename animation trigger tokens to semantic DSL
+
+Rename: @inView→@in-view, @dragHorizontal→@drag-horizontal,
+@dragVertical→@drag-vertical. Delete sub-attribute tokens
+(@inViewOnce, @dragConstraints, @scrollStart, etc.) —
+they become independent ident-based attrs (once=, constraints=, start=, etc.)
+per semantic-level DSL spec §3.2."
+```
+
+### Task 0.2: Update motion body parser syntax [∥]
+
+**Files:**
+- Modify: `crates/omnilang-core/src/parser/top_level/motion.rs`
+- Modify: `crates/omnilang-core/src/parser/expr/motion.rs`
+- Modify: `crates/omnilang-core/src/parser/ast/motion.rs`
+
+- [ ] **Step 1: Change motion_param parsing to colon-based**
+
+In `parse_shared_timing()` (motion.rs:176-205), replace:
+```
+Old:  over 500          (ident + number, no separator)
+New:  over: 300ms       (keyword, colon, expression with unit)
+
+Old:  ease power2Out    (ident + easing name)
+New:  easing: ease-out  (keyword, colon, easing expression)
+```
+
+Rewrite `parse_shared_timing`:
+```rust
+fn parse_shared_timing(&mut self, over: &mut Expr, ease: &mut Option<EasingExpr>) -> Result<(), ParseError> {
+    loop {
+        match self.peek_ident_value() {
+            Some(ref s) if s == "over" => {
+                self.advance(); // 'over'
+                self.expect_token(TokenKind::Colon, "expected ':' after 'over'")?;
+                *over = self.parse_duration_expr()?;  // parses "300ms", "1.5s", "0.5"
+            }
+            Some(ref s) if s == "easing" => {
+                self.advance(); // 'easing'
+                self.expect_token(TokenKind::Colon, "expected ':' after 'easing'")?;
+                *ease = Some(self.parse_easing()?);  // unchanged — already handles cubic-bezier, steps, named
+            }
+            _ => break,
+        }
+        if *self.peek_kind() == TokenKind::Comma { self.advance(); }
+    }
+    Ok(())
+}
+
+fn parse_duration_expr(&mut self) -> Result<Expr, ParseError> {
+    // Parse a duration literal: 300ms, 1.5s, 0.5 (seconds default)
+    let t = self.advance();
+    match &t.kind {
+        TokenKind::IntLiteral(n) => {
+            let val_str = format!("{}", n);
+            if self.peek_ident_value().is_some_and(|s| s == "ms" || s == "s") {
+                let unit = self.advance_ident();
+                Ok(Expr::Literal(Literal::String(format!("{}{}", val_str, unit)), t.span))
+            } else {
+                Ok(Expr::Literal(Literal::Int(*n), t.span))
+            }
+        }
+        TokenKind::FloatLiteral(f) => {
+            let val_str = format!("{}", f);
+            if self.peek_ident_value().is_some_and(|s| s == "ms" || s == "s") {
+                let unit = self.advance_ident();
+                Ok(Expr::Literal(Literal::String(format!("{}{}", val_str, unit)), t.span))
+            } else {
+                Ok(Expr::Literal(Literal::Float(*f), t.span))
+            }
+        }
+        _ => Err(self.error("expected duration value (e.g. 300ms, 1.5s)"))
+    }
+}
+```
+
+- [ ] **Step 2: Add semantic_anim_prop whitelist in stop_property parsing**
+
+In `parse_keyframe_stop()` (motion.rs:103-173), `parse_css_property_name` currently accepts any CSS-like ident. Replace with whitelist:
+
+```rust
+const SEMANTIC_ANIM_PROPS: &[&str] = &[
+    "opacity", "scale", "scaleX", "scaleY",
+    "translateX", "translateY", "translateZ",
+    "rotate", "rotateX", "rotateY", "rotateZ",
+    "skewX", "skewY",
+    "backgroundColor", "color",
+    "width", "height",
+];
+
+fn parse_semantic_anim_prop(&mut self) -> Result<String, ParseError> {
+    let name = self.expect_ident("expected animation property name")?;
+    if SEMANTIC_ANIM_PROPS.contains(&name.as_str()) {
+        Ok(name)
+    } else {
+        Err(self.error(format!(
+            "'{}' is not a recognized animation property. Use one of: {}",
+            name, SEMANTIC_ANIM_PROPS.join(", ")
+        )))
+    }
+}
+```
+
+Replace `parse_css_property_name` call with `parse_semantic_anim_prop` in `parse_keyframe_stop`.
+
+- [ ] **Step 3: Update stop_position to accept bare number (not just 'from'/'to')**
+
+Current parser already handles `IntLiteral`/`FloatLiteral` as percentage. Add `%` suffix consumption if present. This is already partially implemented (lines 118-141) — verify it handles `50%` (with percent sign) correctly.
+
+- [ ] **Step 4: Update easing_expr AST to match new syntax**
+
+In `parser/ast/motion.rs`, add `EasingExpr` variant for `steps(count, direction)`:
+```rust
+pub enum EasingExpr {
+    Named(String),                              // ease-in, ease-out, linear
+    CubicBezier { x1: f64, y1: f64, x2: f64, y2: f64 },
+    Steps { count: u32, direction: String },    // steps(6, end)
+    Back { direction: String },
+    Elastic { direction: String },
+}
+```
+
+- [ ] **Step 5: Update parse_easing to handle steps() with positional args**
+
+In `parser/expr/motion.rs:parse_easing()`, update `steps` parsing:
+```rust
+// Old: steps(count: 6, direction: end)
+// New: steps(6, end)
+"steps" => {
+    self.advance(); // 'steps'
+    self.expect_token(TokenKind::LParen, "expected '('")?;
+    let count: u32 = self.expect_int("expected step count")?;
+    self.expect_token(TokenKind::Comma, "expected ','")?;
+    let direction = self.expect_ident("expected 'start' or 'end'")?;
+    self.expect_token(TokenKind::RParen, "expected ')'")?;
+    EasingExpr::Steps { count, direction }
+}
+```
+
+- [ ] **Step 6: Update easing named values to kebab-case**
+
+Map old easing names to new semantic names:
+```rust
+fn normalize_easing_name(name: &str) -> String {
+    match name {
+        "easeIn" | "ease-in" => "ease-in".into(),
+        "easeOut" | "ease-out" => "ease-out".into(),
+        "easeInOut" | "ease-in-out" => "ease-in-out".into(),
+        "power2Out" => "ease-out".into(),  // closest semantic equivalent
+        "backOut" => "back-out".into(),
+        "elasticOut" => "elastic-out".into(),
+        // Accept both forms, normalize to kebab-case
+        other => other.to_lowercase(),
+    }
+}
+```
+
+Accept both camelCase (existing code) and kebab-case (new spec) during a transition period. Emit deprecation warning for camelCase.
+
+- [ ] **Step 7: Update AST types**
+
+In `parser/ast/motion.rs`, update `MotionBody` and `KeyframeBody` to use new types:
+```rust
+pub struct KeyframeBody {
+    pub stops: Vec<KeyframeStop>,
+    pub over: Expr,              // duration: "300ms", "1.5s"
+    pub easing: Option<EasingExpr>,  // renamed from 'ease'
+    pub playback: Vec<PlaybackProp>,
+}
+
+pub struct MotionParam {
+    pub key: String,    // "over", "easing"
+    pub value: Expr,    // duration value or easing expression
+}
+```
+
+- [ ] **Step 8: Build, test, fix lowering**
+
+Run: `cargo build -p omnilang-core 2>&1`
+Fix all compilation errors in lowering passes that consume the old AST types.
+
+Run: `cargo test -p omnilang-core -- parser 2>&1`
+Expected: motion parser tests may fail — update test expectations.
+
+- [ ] **Step 9: Commit**
+
+```bash
+git commit -m "refactor(parser): update motion body syntax to semantic DSL
+
+Motion params: over: 300ms / easing: ease-out (colon separator, duration units).
+Keyframe properties: semantic_anim_prop whitelist replaces CSS property names.
+Easing: steps(6, end) positional args; kebab-case easing names.
+Backward compat: accept camelCase easing names with deprecation warning."
+```
+
+### Task 0.3: Parse semantic binding attributes on elements [∥]
+
+**Files:**
+- Modify: `crates/omnilang-core/src/parser/view/element.rs`
+- Modify: `crates/omnilang-core/src/parser/ast/view.rs`
+
+- [ ] **Step 1: Add new ElementProp variant for semantic bindings**
+
+In `parser/ast/view.rs`, add:
+```rust
+pub enum ElementProp {
+    // ... existing variants ...
+
+    /// Semantic ref binding: focus={sig}, scroll-x={sig}, scroll-y={sig}, value={sig}
+    /// These are compiler-recognized — not generic static props.
+    RefBinding {
+        /// The semantic binding name: "focus", "scroll-x", "scroll-y", "value"
+        binding: String,
+        /// The signal expression driving the binding
+        signal: Expr,
+    },
+}
+```
+
+- [ ] **Step 2: Recognize semantic binding names during element prop parsing**
+
+In `parser/view/element.rs`, inside the attribute parsing loop, after the event prop check and before the generic static prop fallback:
+
+```rust
+// Check for semantic binding attributes (focus, scroll-x, scroll-y, value)
+// These are only valid when the element also has @ref={name}
+const SEMANTIC_BINDINGS: &[&str] = &["focus", "scroll-x", "scroll-y", "value"];
+if SEMANTIC_BINDINGS.contains(&attr_name.as_str()) {
+    self.expect_token(TokenKind::Eq, "expected '='")?;
+    self.expect_token(TokenKind::LBrace, "expected '{'")?;
+    let signal = self.parse_expr()?;
+    self.expect_token(TokenKind::RBrace, "expected '}'")?;
+    return Ok(ElementProp::RefBinding {
+        binding: attr_name,
+        signal,
+    });
+}
+```
+
+- [ ] **Step 3: Validate that semantic bindings only appear on elements with @ref**
+
+This validation happens in the semantic pass (Task 2.1), not in the parser. The parser just recognizes the syntax. Semantic pass checks:
+- Element has `@ref={name}` binding
+- The ref name matches a declared ref in the component
+- The binding name is valid for the element type
+
+- [ ] **Step 4: Build and test**
+
+```bash
+cargo build -p omnilang-core 2>&1
+cargo test -p omnilang-core -- parser 2>&1
+```
+
+- [ ] **Step 5: Commit**
+
+```bash
+git commit -m "feat(parser): parse semantic ref binding attributes
+
+Recognize focus={sig}, scroll-x={sig}, scroll-y={sig}, value={sig}
+as ElementProp::RefBinding instead of generic Static props.
+Validation (element has @ref, ref declared) in semantic pass."
+```
+
+### Task 0.4: Parse @slot type constraint and @if mode: syntax [∥]
+
+**Files:**
+- Modify: `crates/omnilang-core/src/parser/view/mod.rs` (slot parsing)
+- Modify: `crates/omnilang-core/src/parser/view/directives.rs` (if directive parsing)
+- Modify: `crates/omnilang-core/src/parser/ast/view.rs` (SlotDirective fields)
+
+- [ ] **Step 1: Add type_constraint field to SlotDirective AST**
+
+In `parser/ast/view.rs`, update `ViewNode::SlotDirective`:
+```rust
+ViewNode::SlotDirective {
+    name: Option<String>,
+    default_content: Option<Vec<ViewNode>>,
+    type_constraint: Option<TypeAnnotation>,  // NEW: @slot name: Type
+}
+```
+
+- [ ] **Step 2: Parse optional type annotation after slot name**
+
+In `parser/view/mod.rs:65-96`, after parsing `name`, before parsing `default_content`:
+```rust
+// After parsing name:
+let type_constraint = if self.at(&TokenKind::Colon) {
+    self.advance(); // ':'
+    Some(self.parse_type_annotation()?)
+} else {
+    None
+};
+```
+
+Update the `SlotDirective` construction to include `type_constraint`.
+
+- [ ] **Step 3: Fix @if mode syntax — colon separator + expression not string**
+
+In `parser/view/directives.rs:17-23`, current code:
+```rust
+let transition_mode = if self.peek_ident_value().is_some_and(|s| s == "mode") {
+    self.advance(); // consume 'mode'
+    self.expect_token(TokenKind::Eq, "expected '='")?;  // OLD
+    Some(self.expect_string("expected string literal")?)  // OLD: string literal
+} else {
+    None
+};
+```
+
+Replace with:
+```rust
+let transition_mode = if self.peek_ident_value().is_some_and(|s| s == "mode") {
+    self.advance(); // 'mode'
+    self.expect_token(TokenKind::Colon, "expected ':' after 'mode'")?;  // NEW: colon
+    // Accept both string literals ("fade", "wait") and idents (fade, wait)
+    let mode_val = if *self.peek_kind() == TokenKind::StringLiteral(_) {
+        self.expect_string("expected mode value")?
+    } else {
+        self.expect_ident("expected mode value (fade, wait, none)")?
+    };
+    // Validate: only "fade", "wait", "none" are valid
+    if !matches!(mode_val.as_str(), "fade" | "wait" | "none") {
+        return Err(self.error(format!(
+            "invalid transition_mode '{}' — use 'fade', 'wait', or 'none'", mode_val
+        )));
+    }
+    Some(mode_val)
+} else {
+    None
+};
+```
+
+- [ ] **Step 4: Parse @for [scroll] hint**
+
+In `parser/view/directives.rs:84-131`, after `key_expr` parsing, before `{`:
+```rust
+// Optional [scroll] hint
+let scroll_hint = if *self.peek_kind() == TokenKind::LBracket {
+    self.advance(); // '['
+    let hint = self.expect_ident("expected 'scroll'")?;
+    if hint != "scroll" {
+        return Err(self.error("expected 'scroll' inside brackets, e.g. [scroll]"));
+    }
+    self.expect_token(TokenKind::RBracket, "expected ']'")?;
+    true
+} else {
+    false
+};
+```
+
+Add `scroll_hint: bool` field to `ForDirective` AST.
+
+- [ ] **Step 5: Build, test, fix lowering**
+
+```bash
+cargo build -p omnilang-core 2>&1
+# Fix all lowering code that constructs SlotDirective / reads transition_mode / reads ForDirective
+cargo test -p omnilang-core -- parser 2>&1
+```
+
+- [ ] **Step 6: Commit**
+
+```bash
+git commit -m "feat(parser): parse @slot type constraint, @if mode:, @for [scroll]
+
+- @slot name: TypeAnnotation { fallback } — parse type constraint
+- @if cond mode: \"wait\" — colon separator, validate values (fade/wait/none)
+- @for item in list [scroll] — parse scroll hint for Flutter ListView.builder
+- Add ForDirective.scroll_hint field"
+```
+
+---
+
+---
+
+## Phase 1: IR Foundation
+
+> All codegen backends depend on IR types. Must complete before Phase 2 semantic passes.
+
+### Task 1.1: Add RefOpIR enum + RefOpExpr + semantic_bindings to IR types
 
 **Files:**
 - Modify: `crates/omnilang-core/src/ir/types.rs`
 
 - [ ] **Step 1: Add RefOpIR enum**
 
-Insert after `ViewTree` definition (after line 678):
-
+Insert after `ViewTree` (after ~line 678):
 ```rust
-/// Platform-independent ref operations. The semantic layer rewrites
-/// ref method calls into these variants so codegen knows the intent.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum RefOpIR {
@@ -78,7 +571,7 @@ pub enum RefOpIR {
     Blur,
     ScrollTo { x: Option<ExprIR>, y: Option<ExprIR> },
     ScrollBy { dx: Option<ExprIR>, dy: Option<ExprIR> },
-    Measure,  // → { width, height, x, y }
+    Measure,
     Select,
     SetSelection { start: ExprIR, end: ExprIR },
     Value,
@@ -90,1745 +583,967 @@ pub enum RefOpIR {
 
 - [ ] **Step 2: Add RefOpExpr variant to ExprIR**
 
-In `ExprIR` enum (after `MethodCallExpr` variant):
-
 ```rust
-/// A semantic ref operation — rewritten from ref.method() by validate_ref_ops.
-/// Carries the ref variable name and the operation.
 RefOpExpr { ref_name: String, op: RefOpIR },
 ```
 
-- [ ] **Step 3: Add SemanticBinding variants to ElementIR**
-
-In `ElementIR` struct (around line 619), add after `bindings`:
+- [ ] **Step 3: Add semantic_bindings to ElementIR**
 
 ```rust
-/// Semantic bindings (compiler-recognized, not generic props):
-/// focus, scroll-x, scroll-y, value — driven by signals
 pub semantic_bindings: FxHashMap<String, ExprIR>,
 ```
 
-- [ ] **Step 4: Build and fix compilation errors**
+- [ ] **Step 4: Exhaustively fix all match arms on ExprIR**
 
-Run: `cargo build -p omnilang-core 2>&1`
-Expected: compile errors in all places that exhaustively match `ExprIR` and construct `ElementIR`.
+Grep for `ExprIR::` match patterns across the entire codebase. Files that must be updated:
+```
+crates/omnilang-core/src/ir/lower/expr.rs          — default: _ => {}
+crates/omnilang-core/src/ir/optimize.rs            — skip (no rewrite needed)
+crates/omnilang-core/src/ir/walk.rs                — walk into RefOpExpr fields
+crates/omnilang-core/src/codegen/shared/expr.rs     — format RefOpExpr (default: emit comment)
+omnilang/src/codegen/react/expr.rs                  — format RefOpExpr (Phase 4)
+omnilang/src/codegen/flutter/expr.rs                — format RefOpExpr (Phase 5)
+omnilang/src/codegen/omniview/expr.rs               — format RefOpExpr (Phase 6)
+omnilang/src/codegen/javascript/expr.rs             — default: panic/unreachable
+omnilang/src/codegen/dart/expr.rs                   — default: panic/unreachable
+omnilang/src/codegen/python/expr.rs                 — default: panic/unreachable
+omnilang/src/codegen/rust/expr.rs                   — default: panic/unreachable
+omnilang/src/codegen/vue/expr.rs                    — default: panic/unreachable
+omnilang/src/codegen/dioxus/expr.rs                 — default: panic/unreachable
+```
 
-- [ ] **Step 5: Add `#[non_exhaustive]` to ExprIR if not already present and fix all match arms**
+Run: `cargo build -p omnilang 2>&1` and fix each error.
 
-For every `match` on `ExprIR` variants that fails, add `_ => {}` or the appropriate fallback. Focus on:
-- `ir/lower/` — all lowering passes
-- `ir/optimize.rs`
-- `ir/walk.rs`
-- `codegen/shared/expr.rs`
-- Every codegen backend's expr.rs
+- [ ] **Step 5: Fix all ElementIR construction sites**
 
-Expected: `cargo build -p omnilang-core` compiles clean.
+Grep for `ElementIR {` or `ElementIR::new` and add `semantic_bindings: FxHashMap::default()` to each.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add crates/omnilang-core/src/ir/types.rs
-# plus all files with match arm fixes
-git commit -m "feat(ir): add RefOpIR enum and ExprIR::RefOpExpr variant
-
-Add platform-independent ref operation IR types for semantic-level
-codegen. No semantic pass yet — just the types and compilation fixes."
+git commit -m "feat(ir): add RefOpIR, ExprIR::RefOpExpr, ElementIR.semantic_bindings"
 ```
 
-### Task 0.2: Fix ViewTree::Slot to preserve fallback
+### Task 1.2: Fix ViewTree::Slot to preserve fallback + type_constraint
 
 **Files:**
-- Modify: `crates/omnilang-core/src/ir/types.rs:673-675`
-- Modify: `crates/omnilang-core/src/ir/lower/view.rs:205-208`
-- Modify: all codegen consumers of `ViewTree::Slot`
+- Modify: `crates/omnilang-core/src/ir/types.rs`
+- Modify: `crates/omnilang-core/src/ir/lower/view.rs`
+- Modify: all codegen consumers
 
 - [ ] **Step 1: Change ViewTree::Slot variant**
 
-Replace:
-```rust
-Slot(Option<String>),
-```
-with:
+Replace `Slot(Option<String>)` with:
 ```rust
 Slot {
-    /// Slot name — None = default slot
     name: Option<String>,
-    /// Fallback content rendered when parent provides no children
     fallback: Vec<ViewTree>,
-    /// Optional type constraint: @slot header: HeaderData
     type_constraint: Option<TypeIR>,
-    /// Optional data param name for typed slots
     data_param: Option<String>,
 },
 ```
 
-- [ ] **Step 2: Fix lowering to preserve default_content**
+- [ ] **Step 2: Fix lowering**
 
-In `crates/omnilang-core/src/ir/lower/view.rs:205-208`, replace:
 ```rust
-ViewNode::SlotDirective {
-    name,
-    default_content: _,
-} => ViewTree::Slot(name.clone()),
-```
-with:
-```rust
-ViewNode::SlotDirective {
-    name,
-    default_content,
-} => {
+ViewNode::SlotDirective { name, default_content, type_constraint } => {
     let fallback = default_content
-        .map(|nodes| nodes.into_iter().map(|n| lower_view_node(n, ...)).collect())
+        .map(|nodes| nodes.into_iter()
+            .map(|n| lower_view_node(n, string_signals, variant_map, semantics, fns))
+            .collect())
         .unwrap_or_default();
-    ViewTree::Slot {
-        name: name.clone(),
-        fallback,
-        type_constraint: None,   // populated later from semantic analysis
-        data_param: None,
-    }
+    let (tc, dp) = if let Some(tc) = type_constraint {
+        (Some(lower_type(&tc)), Some(name.clone().unwrap_or_default()))
+    } else {
+        (None, None)
+    };
+    ViewTree::Slot { name: name.clone(), fallback, type_constraint: tc, data_param: dp }
 },
 ```
 
-- [ ] **Step 3: Fix all codegen consumers of ViewTree::Slot**
+- [ ] **Step 3: Fix all codegen consumers**
 
-Grep for `ViewTree::Slot(` in `omnilang/src/codegen/` and update each match arm. For the default Omniview consumer (most critical):
-
-```rust
-// Before: ViewTree::Slot(name) => { ... }
-// After:
-ViewTree::Slot { name, fallback, .. } => {
-    // use `name` and `fallback` instead of bare name
-    // fallback is Vec<ViewTree> — render when no children provided
-}
-```
+Update all `ViewTree::Slot(` match arms across all codegen backends. For non-P0 backends, emit a diagnostic comment. For P0 backends (React, Flutter, OmniView), render fallback when name/parent content is empty.
 
 - [ ] **Step 4: Build and test**
 
-Run: `cargo build -p omnilang 2>&1`
-Expected: all match arms updated, compiles clean.
-
-Run: `cargo test -p omnilang-core 2>&1`
-Expected: existing tests pass (slot tests may change behavior — review snapshots).
+```bash
+cargo build -p omnilang 2>&1
+cargo test -p omnilang-core 2>&1
+```
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git commit -m "fix(ir): preserve slot fallback content in ViewTree::Slot
-
-Change ViewTree::Slot from leaf node to struct with name, fallback,
-type_constraint, and data_param fields. Fix lowering to stop dropping
-default_content (was bound to _)."
+git commit -m "fix(ir): preserve slot fallback content and type constraint"
 ```
 
-### Task 0.3: Motion IR type changes
+### Task 1.3: Motion IR type changes [∥]
 
 **Files:**
 - Modify: `crates/omnilang-core/src/ir/types_motion.rs`
+- Modify: `crates/omnilang-core/src/ir/lower/view.rs` (delete PausedOverride lowering)
+- Modify: `crates/omnilang-core/src/parser/ast/view.rs` (delete ElementProp::PausedOverride)
 
-- [ ] **Step 1: Add TriggerKind::Focus variant**
+- [ ] **Step 1: Add TriggerKind::Focus**
 
-In `TriggerKind` enum (line 71-80), add:
+- [ ] **Step 2: Delete PlaybackIR.paused field + all construction sites**
+
+- [ ] **Step 3: Delete MotionBehavior.paused_override field + all lowering**
+
+- [ ] **Step 4: Delete ElementProp::PausedOverride from AST + parser**
+
+- [ ] **Step 5: Add scroll_hint to ListRenderingIntent**
+
 ```rust
-Focus,
+pub struct ListRenderingIntent {
+    // ... existing fields ...
+    pub scroll_hint: bool,   // NEW: from @for [scroll]
+}
 ```
 
-- [ ] **Step 2: Delete PlaybackIR.paused field**
+- [ ] **Step 6: Lower scroll_hint from ForDirective**
 
-In `PlaybackIR` struct (line 43-52), remove:
+In `ir/lower/view.rs:lower_for_directive`:
 ```rust
-pub paused: bool,
-```
-And remove it from the struct literal construction everywhere (grep for `PlaybackIR {`).
-
-- [ ] **Step 3: Delete MotionBehavior.paused_override field**
-
-In `MotionBehavior` struct (line 111-120), remove:
-```rust
-pub paused_override: Option<ExprIR>,
+scroll_hint: for_dir.scroll_hint,
 ```
 
-- [ ] **Step 4: Delete `@paused` element attribute handling**
-
-In `crates/omnilang-core/src/ir/lower/view.rs`, remove the `PausedOverride` element prop lowering (grep for `PausedOverride`). Remove `ElementProp::PausedOverride` from `parser/ast/view.rs`.
-
-- [ ] **Step 5: Fix all compilation errors and tests**
-
-Run: `cargo build -p omnilang 2>&1`
-Fix all match exhaustiveness errors.
-Run: `cargo test -p omnilang 2>&1`
-Delete the `paused_override` snapshot file if it exists. Update any affected insta snapshots with `cargo insta review`.
-
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Build, test, fix compilation**
 
 ```bash
-git commit -m "refactor(ir): add TriggerKind::Focus, delete paused/paused_override
+cargo build -p omnilang 2>&1
+cargo test -p omnilang 2>&1
+cargo insta review  # update paused_override snapshots
+```
 
-Per semantic-level DSL spec: @focus trigger re-added to feature floor.
-paused (in PlaybackIR) and paused_override (in MotionBehavior) deleted
-per ADR-052 — no .omni usage, replaced by conditional binding."
+- [ ] **Step 8: Commit**
+
+```bash
+git commit -m "refactor(ir): add TriggerKind::Focus, ForDirective.scroll_hint; delete paused/paused_override"
 ```
 
 ---
 
-## Phase 1: Semantic Passes
+---
 
-### Task 1.1: Create validate_ref_ops semantic pass
+## Phase 2: Semantic Passes
+
+> Intent recognition — rewrite generic AST into semantic IR that codegen understands.
+
+### Task 2.1: Create validate_ref_ops pass (method calls + field access)
 
 **Files:**
 - Create: `crates/omnilang-core/src/semantic/validate_ref_ops.rs`
-- Modify: `crates/omnilang-core/src/semantic/mod.rs` (re-export)
+- Modify: `crates/omnilang-core/src/semantic/mod.rs`
+- Modify: `crates/omnilang-core/src/ir/lower/mod.rs` (wire in after component lowering)
 
-- [ ] **Step 1: Write the pass skeleton**
+- [ ] **Step 1: Define legal ref method dispatch table**
 
 ```rust
-//! Semantic pass: validate ref method calls and rewrite to RefOpExpr.
-//!
-//! Scans all expressions in component bodies (actions, fns, lifecycles)
-//! for method calls on declared refs. Legal operations (focus, scrollTo, etc.)
-//! are rewritten to ExprIR::RefOpExpr. Illegal operations (style.*, innerHTML,
-//! querySelector, etc.) produce compile errors with migration hints.
-
-use crate::ir::types::{ExprIR, RefOpIR};
+use crate::ir::types::{ExprIR, RefOpIR, RefDeclIR};
 use crate::semantic::SemanticDiagnostic;
 
+type RefOpConstructor = fn(Vec<ExprIR>) -> RefOpIR;
+
+static LEGAL_REF_METHODS: phf::Map<&'static str, RefOpConstructor> = phf_map! {
+    "focus" => |_| RefOpIR::Focus,
+    "blur" => |_| RefOpIR::Blur,
+    "scrollTo" => |a| RefOpIR::ScrollTo { x: a.get(0).cloned(), y: a.get(1).cloned() },
+    "scrollBy" => |a| RefOpIR::ScrollBy { dx: a.get(0).cloned(), dy: a.get(1).cloned() },
+    "select" => |_| RefOpIR::Select,
+    "setSelection" => |a| RefOpIR::SetSelection { start: a.first().cloned().unwrap_or_default(), end: a.get(1).cloned().unwrap_or_default() },
+    "measure" => |_| RefOpIR::Measure,
+    "capturePointer" => |a| RefOpIR::CapturePointer { id: a.first().cloned().unwrap_or_default() },
+    "releasePointer" => |a| RefOpIR::ReleasePointer { id: a.first().cloned().unwrap_or_default() },
+};
+
+static ILLEGAL_REF_METHODS: phf::Map<&'static str, &'static str> = phf_map! {
+    "style" => "use style:{...} binding with signals instead",
+    "innerHTML" => "use text interpolation {value} instead",
+    "addEventListener" => "use @on* event binding syntax instead",
+    "querySelector" => "violates component encapsulation",
+    "classList" => "use class: binding syntax instead",
+    "parentElement" => "violates component encapsulation",
+    "textContent" => "use text interpolation {value} instead",
+    "getBoundingClientRect" => "use ref.measure() instead",
+};
+
+static ILLEGAL_REF_FIELDS: phf::Map<&'static str, &'static str> = phf_map! {
+    "offsetWidth" => "use ref.measure().width instead",
+    "offsetHeight" => "use ref.measure().height instead",
+    "style" => "use style:{...} binding with signals instead",
+};
+```
+
+- [ ] **Step 2: Implement main validation function**
+
+```rust
 pub fn validate_ref_ops(
     component: &mut ComponentIR,
     diagnostics: &mut Vec<SemanticDiagnostic>,
 ) {
-    // Walk all expressions in the component
-    walk_expressions_mut(&mut component.view, &mut |expr| {
-        check_and_rewrite_ref_op(expr, &component.refs, diagnostics);
-    });
+    let ref_names: Vec<String> = component.refs.iter().map(|r| r.name.clone()).collect();
+
+    // Walk view tree expressions
+    if let Some(ref mut view) = component.view {
+        walk_view_tree_exprs_mut(view, &ref_names, diagnostics);
+    }
+
+    // Walk expressions in effects
     for effect in &mut component.effects {
         for stmt in &mut effect.body.statements {
-            walk_stmt_expressions_mut(stmt, &mut |expr| {
-                check_and_rewrite_ref_op(expr, &component.refs, diagnostics);
-            });
+            walk_stmt_exprs_mut(stmt, &ref_names, diagnostics);
         }
     }
+
+    // Walk expressions in actions
     for action in &mut component.actions {
         for stmt in &mut action.body.statements {
-            walk_stmt_expressions_mut(stmt, &mut |expr| {
-                check_and_rewrite_ref_op(expr, &component.refs, diagnostics);
-            });
+            walk_stmt_exprs_mut(stmt, &ref_names, diagnostics);
+        }
+    }
+
+    // Walk expressions in functions
+    for func in &mut component.fns {
+        for stmt in &mut func.body.statements {
+            walk_stmt_exprs_mut(stmt, &ref_names, diagnostics);
         }
     }
 }
+```
 
-const LEGAL_REF_METHODS: &[(&str, fn(Vec<ExprIR>) -> RefOpIR)] = &[
-    ("focus",     |_| RefOpIR::Focus),
-    ("blur",      |_| RefOpIR::Blur),
-    ("scrollTo",  |a| RefOpIR::ScrollTo {
-        x: a.get(0).cloned(), y: a.get(1).cloned()
-    }),
-    ("scrollBy",  |a| RefOpIR::ScrollBy {
-        dx: a.get(0).cloned(), dy: a.get(1).cloned()
-    }),
-    ("select",    |_| RefOpIR::Select),
-    ("setSelection", |a| RefOpIR::SetSelection {
-        start: a.get(0).cloned().unwrap_or_default(),
-        end: a.get(1).cloned().unwrap_or_default(),
-    }),
-    ("measure",   |_| RefOpIR::Measure),
-    ("value",     |_| RefOpIR::Value),
-    ("setValue",  |a| RefOpIR::SetValue {
-        value: a.get(0).cloned().unwrap_or_default(),
-    }),
-    ("capturePointer",  |a| RefOpIR::CapturePointer {
-        id: a.get(0).cloned().unwrap_or_default(),
-    }),
-    ("releasePointer",  |a| RefOpIR::ReleasePointer {
-        id: a.get(0).cloned().unwrap_or_default(),
-    }),
-];
+- [ ] **Step 3: Implement expression walker with MethodCall + FieldAccess handling**
 
-const ILLEGAL_REF_PATTERNS: &[(&str, &str)] = &[
-    ("style",     "use style:{...} binding with signals instead"),
-    ("innerHTML", "use text interpolation {value} instead"),
-    ("addEventListener", "use @on* event binding syntax instead"),
-    ("querySelector", "violates component encapsulation"),
-    ("classList", "use class: binding syntax instead"),
-    ("parentElement", "violates component encapsulation"),
-    ("textContent", "use text interpolation {value} instead"),
-    ("getBoundingClientRect", "use ref.measure() instead"),
-    ("offsetWidth", "use ref.measure().width instead"),
-    ("offsetHeight", "use ref.measure().height instead"),
-];
+```rust
+fn check_expr(expr: &mut ExprIR, ref_names: &[String], diagnostics: &mut Vec<SemanticDiagnostic>) {
+    match expr {
+        // Method call on ref: ref.focus(), ref.scrollTo(0, 100)
+        ExprIR::MethodCallExpr { object, method, args } => {
+            if let ExprIR::IdentifierExpr(ref_name) = object.as_ref() {
+                if ref_names.contains(ref_name) {
+                    if let Some(constructor) = LEGAL_REF_METHODS.get(method.as_str()) {
+                        let op = constructor(args.clone());
+                        *expr = ExprIR::RefOpExpr { ref_name: ref_name.clone(), op };
+                    } else if let Some(hint) = ILLEGAL_REF_METHODS.get(method.as_str()) {
+                        diagnostics.push(SemanticDiagnostic::error(
+                            format!("ref.{}() is not allowed — {}", method, hint)
+                        ));
+                    } else {
+                        diagnostics.push(SemanticDiagnostic::error(
+                            format!("unknown ref operation: ref.{}()", method)
+                        ));
+                    }
+                }
+            }
+        }
+        // Field access on ref: ref.width, ref.offsetWidth, ref.value, ref.style
+        ExprIR::FieldAccessExpr { object, field } => {
+            if let ExprIR::IdentifierExpr(ref_name) = object.as_ref() {
+                if ref_names.contains(ref_name) {
+                    match field.as_str() {
+                        "width" | "height" => {
+                            *expr = ExprIR::RefOpExpr {
+                                ref_name: ref_name.clone(),
+                                op: RefOpIR::Measure,
+                            };
+                            // Note: codegen will append .width/.height to the measure result
+                        }
+                        "value" => {
+                            *expr = ExprIR::RefOpExpr {
+                                ref_name: ref_name.clone(),
+                                op: RefOpIR::Value,
+                            };
+                        }
+                        _ => {
+                            if let Some(hint) = ILLEGAL_REF_FIELDS.get(field.as_str()) {
+                                diagnostics.push(SemanticDiagnostic::error(
+                                    format!("ref.{} is not allowed — {}", field, hint)
+                                ));
+                            } else {
+                                diagnostics.push(SemanticDiagnostic::error(
+                                    format!("unknown ref field: ref.{}", field)
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        _ => {}
+    }
+}
+```
 
-fn check_and_rewrite_ref_op(
-    expr: &mut ExprIR,
-    refs: &[RefDeclIR],
-    diagnostics: &mut Vec<SemanticDiagnostic>,
+- [ ] **Step 4: Implement recursive walkers for ViewTree, StmtIR, ExprIR**
+
+```rust
+fn walk_view_tree_exprs_mut(
+    tree: &mut ViewTree, ref_names: &[String], diagnostics: &mut Vec<SemanticDiagnostic>
 ) {
-    // ... implementation: match MethodCallExpr on ref, rewrite or error
+    // Recursively walk all ViewTree nodes and their expression fields
+    match tree {
+        ViewTree::Element(el) => {
+            for expr in el.props.values_mut() { check_expr(expr, ref_names, diagnostics); }
+            for child in &mut el.children { walk_view_tree_exprs_mut(child, ref_names, diagnostics); }
+        }
+        ViewTree::Conditional(cond) => {
+            check_expr(&mut cond.condition, ref_names, diagnostics);
+            // walk then/else branches...
+        }
+        ViewTree::ListRendering(list) => {
+            check_expr(&mut list.iterable, ref_names, diagnostics);
+            if let Some(ref mut key) = list.key_expr { check_expr(key, ref_names, diagnostics); }
+            // walk body...
+        }
+        ViewTree::Interpolation(expr) => check_expr(expr, ref_names, diagnostics),
+        ViewTree::Fragment(children) => {
+            for child in children { walk_view_tree_exprs_mut(child, ref_names, diagnostics); }
+        }
+        ViewTree::Slot { ref mut fallback, .. } => {
+            for child in fallback { walk_view_tree_exprs_mut(child, ref_names, diagnostics); }
+        }
+        _ => {}
+    }
+}
+
+fn walk_stmt_exprs_mut(
+    stmt: &mut StmtIR, ref_names: &[String], diagnostics: &mut Vec<SemanticDiagnostic>
+) {
+    // Match each StmtIR variant, walk its expression fields
 }
 ```
 
-- [ ] **Step 2: Implement the walk and rewrite logic**
+- [ ] **Step 5: Wire into lowering pipeline**
 
-Full implementation of `check_and_rewrite_ref_op`:
-- Match `ExprIR::MethodCallExpr { object, method, args }` where `object` is a `IdentifierExpr` matching a declared ref name
-- If method is in `LEGAL_REF_METHODS` → replace with `ExprIR::RefOpExpr { ref_name, op }`
-- If method matches `ILLEGAL_REF_PATTERNS` → push diagnostic error with migration hint
-- If method is unknown → push diagnostic error "unknown ref operation: {method}"
-
-- [ ] **Step 3: Handle field access on refs (e.g., ref.width, ref.offsetWidth)**
-
-Add handling for `ExprIR::FieldAccessExpr { object, field }`:
-- `width` / `height` → rewrite to `RefOpExpr { op: Measure }` with field extraction
-- `value` → rewrite to `RefOpExpr { op: Value }`
-- `style` → error with migration hint
-- others → error
-
-- [ ] **Step 4: Wire the pass into the lowering pipeline**
-
-In `crates/omnilang-core/src/ir/lower/mod.rs`, after `validate_required_props` call:
-
+In `ir/lower/mod.rs`, after all components are lowered:
 ```rust
-// Validate and rewrite ref operations
-for module in &mut program.modules.values_mut() {
-    for component in &mut module.components.values_mut() {
-        semantic::validate_ref_ops::validate_ref_ops(component, diagnostics);
+for module in program.modules.values_mut() {
+    for component in module.components.values_mut() {
+        crate::semantic::validate_ref_ops::validate_ref_ops(component, &mut diagnostics);
     }
 }
 ```
 
-- [ ] **Step 5: Add unit tests**
+- [ ] **Step 6: Add tests**
 
-```rust
-#[cfg(test)]
-mod tests {
-    use super::*;
+Test cases in `#[cfg(test)] mod tests`:
+1. `ref.focus()` → `RefOpExpr { op: Focus }` ✓
+2. `ref.scrollTo(0, 100)` → `RefOpExpr { op: ScrollTo { x: Some(0), y: Some(100) } }` ✓
+3. `ref.style.color` → diagnostic error ✓
+4. `ref.offsetWidth` → diagnostic error with hint ✓
+5. `ref.width` → `RefOpExpr { op: Measure }` ✓
+6. `obj.focus()` (non-ref) → unchanged ✓
+7. `ref.unknownMethod()` → diagnostic error ✓
 
-    #[test]
-    fn rewrites_ref_focus_to_refop() {
-        // Setup: component with ref "inputBox", expression: inputBox.focus()
-        // Assert: expression rewritten to RefOpExpr { ref_name: "inputBox", op: Focus }
-    }
-
-    #[test]
-    fn errors_on_ref_style_access() {
-        // Setup: expression: ref.style.color
-        // Assert: diagnostic emitted with migration hint
-    }
-
-    #[test]
-    fn passes_non_ref_method_call_through() {
-        // Setup: expression: obj.toString()
-        // Assert: unchanged (not a ref)
-    }
-}
+```bash
+cargo test -p omnilang-core -- semantic::validate_ref_ops 2>&1
+cargo test -p omnilang 2>&1
 ```
-
-- [ ] **Step 6: Build and run tests**
-
-Run: `cargo test -p omnilang-core -- semantic::validate_ref_ops 2>&1`
-Expected: tests pass.
-
-Run: `cargo test -p omnilang 2>&1`
-Expected: all existing tests pass.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add crates/omnilang-core/src/semantic/validate_ref_ops.rs
 git commit -m "feat(semantic): add validate_ref_ops pass
 
-Scans ref method calls in component bodies, rewrites legal operations
-(focus, scrollTo, select, measure, etc.) to ExprIR::RefOpExpr, and
-emits compile errors for DOM-specific APIs with migration hints."
+Scans MethodCallExpr and FieldAccessExpr on declared refs.
+Rewrites legal operations to ExprIR::RefOpExpr so codegen knows intent.
+Emits compile errors for DOM-specific APIs with migration hints."
 ```
 
-### Task 1.2: Create inline motion lowering pass
+### Task 2.2: Create lower_inline_motions pass [∥]
 
 **Files:**
 - Create: `crates/omnilang-core/src/ir/lower/lower_inline_motions.rs`
-- Modify: `crates/omnilang-core/src/ir/lower/mod.rs` (wire in)
+- Modify: `crates/omnilang-core/src/ir/lower/mod.rs`
 
-- [ ] **Step 1: Write the lowering pass**
+- [ ] **Step 1: Implement the pass**
 
 ```rust
-//! Lowering pass: expand inline motion bodies into named MotionIntents.
-//!
-//! Scans all ViewTree nodes for TriggerIntent with inline_motion set,
-//! synthesizes a unique name (__anon_m_N), creates a MotionIntent entry,
-//! and rewrites the trigger to reference the named motion.
-
-use crate::ir::types_motion::{MotionIntent, TriggerIntent, MotionBodyIR};
-
 pub fn lower_inline_motions(module: &mut ModuleIR) {
     let mut counter = 0u32;
     let mut new_motions = Vec::new();
 
-    // Walk all view trees in all components
     for component in module.components.values_mut() {
-        walk_view_motions_mut(&mut component.view, &mut counter, &mut new_motions);
+        if let Some(ref mut view) = component.view {
+            walk_and_lower_inline_motions(view, &mut counter, &mut new_motions);
+        }
     }
-
-    // Append synthesized motions to module
     module.motions.extend(new_motions);
 }
 
-fn walk_view_motions_mut(
-    view: &mut Option<ViewTree>,
-    counter: &mut u32,
-    new_motions: &mut Vec<MotionIntent>,
+fn walk_and_lower_inline_motions(
+    tree: &mut ViewTree, counter: &mut u32, new_motions: &mut Vec<MotionIntent>
 ) {
-    // Recursive walk of ViewTree, looking for Element with motion triggers
-    // If trigger.inline_motion is Some, synthesize name and rewrite
-    // ...
+    match tree {
+        ViewTree::Element(el) => {
+            for trigger in &mut el.motion {
+                if let Some(ref body) = trigger.inline_motion.take() {
+                    let name = format!("__anon_m_{}", counter);
+                    *counter += 1;
+                    new_motions.push(MotionIntent {
+                        name: name.clone(),
+                        body: body.clone(),
+                        source_span: trigger.source_span,
+                    });
+                    trigger.motion_ref = Some(name);
+                }
+            }
+            for child in &mut el.children {
+                walk_and_lower_inline_motions(child, counter, new_motions);
+            }
+        }
+        ViewTree::Conditional(cond) => { /* walk branches */ }
+        ViewTree::ListRendering(list) => { /* walk body */ }
+        ViewTree::Fragment(children) => {
+            for child in children { walk_and_lower_inline_motions(child, counter, new_motions); }
+        }
+        ViewTree::Slot { ref mut fallback, .. } => {
+            for child in fallback { walk_and_lower_inline_motions(child, counter, new_motions); }
+        }
+        _ => {}
+    }
 }
 ```
 
-- [ ] **Step 2: Implement the recursive ViewTree walk**
+- [ ] **Step 2: Wire into lowering pipeline**
 
-Traverse `ViewTree::Element`, `ViewTree::Conditional`, `ViewTree::ListRendering`, `ViewTree::Fragment`. For each `ElementIR` with `motion` triggers:
-- Check each trigger's `inline_motion`
-- If `Some(body)` → generate name `__anon_m_{counter}`, create `MotionIntent`, set `trigger.motion_ref = Some(name)`, set `trigger.inline_motion = None`
-
-- [ ] **Step 3: Wire into lowering pipeline**
-
-In `ir/lower/mod.rs`, after component lowering:
-
+After component lowering, before codegen:
 ```rust
 for module in &mut program.modules.values_mut() {
     lower_inline_motions::lower_inline_motions(module);
 }
 ```
 
-- [ ] **Step 4: Add test with inline motion annotation**
+- [ ] **Step 3: Test and commit**
 
+```bash
+cargo test -p omnilang 2>&1
+git commit -m "feat(ir): add lower_inline_motions pass"
+```
+
+### Task 2.3: Add semantic binding validation pass [∥]
+
+**Files:**
+- Create: `crates/omnilang-core/src/semantic/validate_semantic_bindings.rs`
+- Modify: `crates/omnilang-core/src/ir/lower/mod.rs`
+
+- [ ] **Step 1: Validate that RefBinding attrs only appear on @ref-bound elements**
+
+Scan all `ElementIR` nodes. For each `ElementProp::RefBinding { binding, signal }`:
+1. The element must have `ref_binding: Some(ref_name)` — else error: "semantic binding '{binding}' requires @ref on this element"
+2. `ref_name` must be in `component.refs` — else error (already caught by existing validate_refs)
+3. The `binding` name must be valid for this element type (e.g., `focus` only on focusable elements — warn if not)
+
+- [ ] **Step 2: Lower RefBinding props into ElementIR.semantic_bindings**
+
+In `ir/lower/view.rs`, during element lowering:
 ```rust
-#[test]
-fn expands_inline_motion_to_named() {
-    // Input: component with @enter = { over: 200ms; from { opacity: 0 } to { opacity: 1 } }
-    // Expected: module.motions contains __anon_m_0, trigger.motion_ref = "__anon_m_0"
+ElementProp::RefBinding { binding, signal } => {
+    el.semantic_bindings.insert(binding, lower_expr(signal, ...));
 }
 ```
 
-- [ ] **Step 5: Build, test, commit**
+- [ ] **Step 3: Test and commit**
 
 ```bash
-cargo test -p omnilang-core 2>&1
-cargo test -p omnilang 2>&1
-git commit -m "feat(ir): add lower_inline_motions pass
-
-Expands inline animation bodies into named MotionIntents so all
-codegen backends only handle named motions. Synthesized names use
-__anon_m_N pattern."
+git commit -m "feat(semantic): add semantic binding validation pass"
 ```
 
 ---
 
-## Phase 2: Shared Codegen Fixes
+---
 
-### Task 2.1: Remove design block compile gate
+
+## Phase 3: Shared Codegen
+
+> Foundation for all backends. Design gate removal happens WITHIN React/Flutter tasks (not before), so codegen exists before the gate opens.
+
+### Task 3.1: Extract shared design CSS emitter
 
 **Files:**
-- Modify: `omnilang/src/codegen/mod.rs`
+- Create: `omnilang/src/codegen/shared/design.rs`
+- Modify: `omnilang/src/codegen/omniview/design.rs` (delegate to shared)
 
-- [ ] **Step 1: Remove gate for P0 targets (React, Flutter)**
+- [ ] **Step 1: Move target-agnostic design CSS emission to shared**
 
-Delete the `if has_design_blocks(ir)` blocks at:
-- Lines 152-161 (React)
-- Lines 192-201 (Flutter)
-
-Keep the `has_design_blocks` check for non-P0 targets but change `warning` → `error`:
+Copy `emit_design_css`, `token_css_value`, `expand_variant` from `omniview/design.rs` to `shared/design.rs`. Remove OmniView-specific parts (editor bridges, `__omni_effect` inline JS).
 
 ```rust
-// Non-P0 targets: design blocks → hard error
-if has_design_blocks(ir) {
-    return CompileOutput {
-        files: vec![],
-        errors: vec!["Design blocks are not supported for this target. \
-            Use --target react, --target flutter, or --target omniview.".into()],
-        source_map: vec![],
-        warnings: vec![],
-    };
+pub fn emit_design_css(designs: &[&DesignIR]) -> String;
+pub fn token_to_css_value(value: &TokenValueIR, token_type: &TokenTypeIR) -> String;
+pub fn class_to_css(class: &ClassIR, tokens: &FxHashMap<String, TokenIR>) -> String;
+pub fn variant_to_css(variant: &VariantIR, tokens: &FxHashMap<String, TokenIR>) -> String;
+pub fn theme_css_variables(design: &DesignIR, theme: &str) -> String;
+```
+
+- [ ] **Step 2: Make omniview/design.rs delegate to shared**
+
+```rust
+use crate::codegen::shared::design as shared_design;
+pub fn emit_design_css(designs: &[&DesignIR]) -> String {
+    let mut css = shared_design::emit_design_css(designs);
+    // Add OmniView-specific debug runtime CSS after shared CSS
+    css
 }
 ```
 
-- [ ] **Step 2: Update the DESIGN_BLOCK_WARNING constant**
-
-Replace with `DESIGN_BLOCK_ERROR` constant or inline the message.
-
-- [ ] **Step 3: Build and verify**
-
-Run: `cargo build -p omnilang 2>&1`
-Expected: compiles clean. React and Flutter targets no longer return zero files for design blocks (they'll now fall through to codegen which may still emit incomplete output — that's Phase 3/4).
-
-- [ ] **Step 4: Commit**
+- [ ] **Step 3: Build, test, commit**
 
 ```bash
-git commit -m "feat(codegen): remove design block gate for P0 targets
-
-React and Flutter targets no longer return zero files when IR contains
-design blocks. Non-P0 targets now emit hard error instead of warning.
-Actual design codegen implementation follows in React/Flutter phases."
+cargo build -p omnilang 2>&1
+cargo test -p omnilang -- codegen::omniview::design 2>&1
+git commit -m "refactor(codegen): extract shared design CSS emitter from omniview/"
 ```
 
-### Task 2.2: Fix shared OptionalChain and BlockExpr formatting
+### Task 3.2: Override OptionalChain/BlockExpr/Match in expr formatters [∥]
 
 **Files:**
 - Modify: `crates/omnilang-core/src/codegen/shared/expr.rs`
 - Modify: `omnilang/src/codegen/react/expr.rs`
 - Modify: `omnilang/src/codegen/flutter/expr.rs`
+- Modify: `omnilang/src/codegen/omniview/expr.rs`
 
-- [ ] **Step 1: Override format_optional_chain in ReactFormatExpr**
-
-In `omnilang/src/codegen/react/expr.rs`, add/verify:
-
-```rust
-fn format_optional_chain(&self, object: &ExprIR, field: &str) -> String {
-    format!("{}.{}", self.format_expr(object), field) // JS natively supports ?.
-    // Actually: the shared default drops ?. — we need to detect that this
-    // is an OptionalChainExpr from the caller context. The fix is:
-    // In the shared format_expr, for OptionalChainExpr, call format_optional_chain
-    // which React overrides to emit ?. correctly.
-    format!("{}?.{}", self.format_expr(object), field)
-}
-```
-
-- [ ] **Step 2: Override format_optional_chain in DartFormatExpr**
-
-In `omnilang/src/codegen/flutter/expr.rs`:
+- [ ] **Step 1: Fix shared format_optional_chain default to preserve `?.`**
 
 ```rust
 fn format_optional_chain(&self, object: &ExprIR, field: &str) -> String {
-    format!("{}?.{}", self.format_expr(object), field) // Dart natively supports ?.
+    format!("{}?.{}", self.format_expr(object), field)  // was: {}.{}
 }
 ```
 
-- [ ] **Step 3: Fix format_block_expr in both backends**
-
-React — emit IIFE:
+- [ ] **Step 2: Override format_block_expr in ReactFormatExpr** — emit JS IIFE:
 ```rust
-fn format_block_expr(&self, block: &BlockIR) -> String {
-    let stmts: Vec<String> = block.statements.iter()
-        .map(|s| self.format_stmt(s))
-        .collect();
-    let tail = block.trailing_expr.as_ref()
-        .map(|e| format!("return {};", self.format_expr(e)))
-        .unwrap_or_default();
-    format!("(() => {{ {} {} }})()", stmts.join(" "), tail)
-}
+format!("(() => {{ {} return {}; }})()", stmts_joined, tail_expr)
 ```
 
-Flutter — emit Dart IIFE:
+- [ ] **Step 3: Override format_block_expr in DartFormatExpr** — emit Dart IIFE:
 ```rust
-fn format_block_expr(&self, block: &BlockIR) -> String {
-    let stmts: Vec<String> = block.statements.iter()
-        .map(|s| self.format_stmt(s))
-        .collect();
-    let tail = block.trailing_expr.as_ref()
-        .map(|e| format!("return {};", self.format_expr(e)))
-        .unwrap_or_default();
-    format!("(() {{ {} {} }})()", stmts.join(" "), tail)
-}
+format!("(() {{ {} return {}; }})()", stmts_joined, tail_expr)
 ```
 
-- [ ] **Step 4: Fix MatchExpr formatting for Flutter**
+- [ ] **Step 4: Override format_block_expr in OmniView expr** — emit `(function() { ... })()`
 
-In `omnilang/src/codegen/flutter/expr.rs`, implement full `format_match`:
+- [ ] **Step 5: Implement format_match in DartFormatExpr** — Dart switch IIFE with `default: throw`
+
+- [ ] **Step 6: Default RefOpExpr in shared** — emit diagnostic comment as placeholder:
 ```rust
-fn format_match(&self, matched: &ExprIR, arms: &[MatchArmIR]) -> String {
-    let subject = self.format_expr(matched);
-    let cases: Vec<String> = arms.iter().map(|arm| {
-        let pattern = self.format_pattern(&arm.pattern);
-        let body = self.format_expr(&arm.body);
-        format!("case {}: return {};", pattern, body)
-    }).collect();
-    format!("(() {{ switch({}) {{ {} default: throw 'no match'; }} }})()",
-        subject, cases.join(" "))
-}
+ExprIR::RefOpExpr { ref_name, op } => format!("/* RefOp::{op:?} on {ref_name} */"),
 ```
 
-- [ ] **Step 5: Add regression tests**
-
-In `omnilang/src/codegen/tests_regression/parameterized.rs`, add test cases:
-```rust
-#[test]
-fn optional_chain_emits_correct_react() { /* ... */ }
-#[test]
-fn optional_chain_emits_correct_flutter() { /* ... */ }
-#[test]
-fn block_expr_emits_iife_react() { /* ... */ }
-#[test]
-fn block_expr_emits_iife_flutter() { /* ... */ }
-```
-
-- [ ] **Step 6: Run tests, review snapshots, commit**
+- [ ] **Step 7: Run tests, review snapshots, commit**
 
 ```bash
-cargo test -p omnilang 2>&1
-cargo insta review  # accept updated snapshots
-git commit -m "fix(codegen): override OptionalChain/BlockExpr/Match in React and Flutter
-
-React: emit ?. for optional chains, IIFE for block expressions.
-Flutter: emit ?. for optional chains, Dart IIFE, switch for matches.
-Fixes H2, H3, M9 from cross-target feature gap review."
+cargo test -p omnilang 2>&1 && cargo insta review
+git commit -m "fix(codegen): override OptionalChain/BlockExpr/Match/RefOpExpr formatting"
 ```
 
 ---
 
-## Phase 3: React Codegen
+## Phase 4: React Codegen
 
-### Task 3.1: Zustand v5 store rewrite
+> All tasks depend on Phase 1-3. Run sequentially. [∥] with Phase 5 (Flutter).
+
+### Task 4.1: Zustand v5 store + C7/C8 fixes + design gate removal
 
 **Files:**
-- Modify: `omnilang/src/codegen/react/mod.rs` (store generation)
-- Modify: `omnilang/src/codegen/react/component/state.rs` (signal reads)
-- Modify: `omnilang/src/codegen/react/component/imports.rs` (imports)
-- Delete: Hooks mode (`ReactStoreMode::Hooks`)
+- Modify: `omnilang/src/codegen/react/mod.rs`, `component/state.rs`, `component/imports.rs`, `expr.rs`
+- Modify: `omnilang/src/codegen/mod.rs` (React gate only)
+- Modify: `omnic/src/main.rs` (remove `--store-mode`)
 
-- [ ] **Step 1: Replace store generation with Zustand v5 pattern**
+- [ ] **Step 1: Remove React design block gate** — delete the `has_design_blocks` check at lines 152-161
 
-Rewrite `gen_zustand_store` (around line 352) to emit:
+- [ ] **Step 2: Rewrite `gen_zustand_store` to v5** — `create<T>()()((set) => ({...}))` pattern, standalone getter selector hooks with `useMemo`, exported action hooks with `useCallback` + `setState`
 
-```typescript
-import { create } from 'zustand';
+- [ ] **Step 3: Fix C7** — thread store signal map through expr formatting. Store signal mutations emit `useXxxStore.setState({ field: value })` instead of bare `field = value`
 
-interface TodoStoreState {
-  items: Todo[];
-  filter: string;
-}
+- [ ] **Step 4: Fix C8** — apply `rewrite_signal_refs_for_zustand` to ALL expressions in action bodies. Always emit `const state = get();` prologue
 
-export const useTodoStore = create<TodoStoreState>()((set) => ({
-  items: [],
-  filter: 'all',
-}));
+- [ ] **Step 5: Delete ReactStoreMode::Hooks + CLI flag**
 
-// Getters → standalone selector hooks
-export function useFilteredItems() {
-  const items = useTodoStore(s => s.items);
-  const filter = useTodoStore(s => s.filter);
-  return useMemo(
-    () => items.filter(item => filter === 'all' || item.status === filter),
-    [items, filter]
-  );
-}
-
-// Actions → exported functions using setState
-export function useAddTodo() {
-  return useCallback((text: string) => {
-    useTodoStore.setState((s) => ({
-      items: [...s.items, { id: Date.now(), text, status: 'active' }],
-    }));
-  }, []);
-}
-```
-
-Key changes from current Zustand v4 output:
-- `create<T>()()` — double-call (v5 requirement)
-- Getters → standalone hooks (not store-internal)
-- Actions → exported `useCallback` functions (not store-internal)
-- Remove `get()` usage from store body (v5 removed it from create callback)
-
-- [ ] **Step 2: Update signal read formatting**
-
-In `component/state.rs`, for store signal reads, emit:
-```typescript
-// Before: const items = TodoStore.items;  (wrong — not reactive)
-// After:  const items = useTodoStore(s => s.items);
-```
-
-- [ ] **Step 3: Update action call formatting**
-
-For `StoreName.action(args)`:
-```typescript
-// Before: TodoStore.add(text)  (undefined in component scope)
-// After:  const addTodo = useAddTodo(); addTodo(text)
-```
-
-- [ ] **Step 4: Delete Hooks mode**
-
-Remove `ReactStoreMode::Hooks` variant. Remove the CLI flag's "hooks" option. Update `omnic/src/main.rs`:
-
-```rust
-// Before:
-#[arg(long, default_value = "hooks", value_parser = ["hooks", "zustand"])]
-// After:
-#[arg(long, default_value = "zustand")]  // only option, no choice
-```
-
-- [ ] **Step 5: Update test snapshots**
-
-Run: `cargo test -p omnilang -- codegen::react 2>&1`
-Expected: snapshot mismatches. Review with `cargo insta review` and accept updated Zustand v5 output.
-
-- [ ] **Step 6: Commit**
+- [ ] **Step 6: Test, snapshots, commit**
 
 ```bash
-git commit -m "refactor(react): rewrite store codegen to Zustand v5
-
-- create<T>()() double-call pattern (v5 requirement)
-- Getters → standalone selector hooks with useMemo
-- Actions → exported useCallback functions
-- Delete ReactStoreMode::Hooks (Zustand v5 only)
-- Signal reads → useStore(s => s.field) selectors"
+cargo test -p omnilang -- codegen::react 2>&1 && cargo insta review
+git commit -m "refactor(react): Zustand v5 store + C7/C8 fixes + design gate removal"
 ```
 
-### Task 3.2: React slot codegen
+### Task 4.2: React slot codegen
 
 **Files:**
-- Modify: `omnilang/src/codegen/react/view.rs:827-830`
+- Modify: `omnilang/src/codegen/react/view.rs`, `mod.rs`
 
-- [ ] **Step 1: Replace slot comment with props.children**
+- [ ] **Step 1: Replace slot comment with props rendering** — `{props.{name} ?? (fallback)}` / `{props.children ?? (fallback)}`
 
-Replace the current slot comment emission with:
-```rust
-ViewTree::Slot { name, fallback, .. } => {
-    if let Some(slot_name) = name {
-        // Named slot: {header ?? <DefaultHeader />}
-        let fallback_jsx = render_fallback(fallback);
-        format!("{{props.{0} ?? ({1})}}", slot_name, fallback_jsx)
-    } else {
-        // Default slot: {props.children}
-        "{props.children}".to_string()
-    }
-}
-```
-
-- [ ] **Step 2: Add slot props to component interface**
-
-In component generation, add named slot props to the TypeScript interface:
-```typescript
-interface ModalProps {
-  header?: ReactNode;
-  footer?: ReactNode;
-  children?: ReactNode;
-}
-```
-
-- [ ] **Step 3: Update tests and snapshots**
-
-Run: `cargo test -p omnilang -- codegen::react::view 2>&1`
-Expected: slots now emit props.children/props.{name} instead of comments.
-
-- [ ] **Step 4: Commit**
-
-```bash
-git commit -m "feat(react): implement slot codegen with props.children
-
-Default slot → {props.children}, named slot → {props.{name}}.
-Named slot props added to component TypeScript interface.
-Fallback content rendered with ?? operator."
-```
-
-### Task 3.3: React ref semantic binding codegen
-
-**Files:**
-- Modify: `omnilang/src/codegen/react/view.rs`
-- Modify: `omnilang/src/codegen/react/component/state.rs`
-
-- [ ] **Step 1: Generate useRef for ref declarations**
-
-In `component/state.rs`, for each `RefDeclIR`:
-```typescript
-const searchBoxRef = useRef<HTMLInputElement>(null);
-const scrollPaneRef = useRef<HTMLDivElement>(null);
-```
-
-- [ ] **Step 2: Wire @ref={name} to JSX ref prop**
-
-In `view.rs`, for elements with `ref_binding`:
-```typescript
-<input ref={searchBoxRef} ... />
-```
-
-- [ ] **Step 3: Generate semantic binding effects**
-
-For `focus={isSearchActive}`:
-```typescript
-useEffect(() => {
-  if (isSearchActive) {
-    searchBoxRef.current?.focus();
-  } else {
-    searchBoxRef.current?.blur();
-  }
-}, [isSearchActive]);
-```
-
-For `scroll-y={scrollPosition}`:
-```typescript
-useEffect(() => {
-  scrollPaneRef.current?.scrollTo({ top: scrollPosition, behavior: 'smooth' });
-}, [scrollPosition]);
-```
-
-For `value={searchText}`:
-```typescript
-// Already handled by bind:value pattern — reuse existing onChange handler
-```
-
-- [ ] **Step 4: Handle RefOpExpr in expression formatting**
-
-In `react/expr.rs`, add match arm:
-```rust
-ExprIR::RefOpExpr { ref_name, op } => match op {
-    RefOpIR::Select => format!("{}Ref.current?.select()", ref_name),
-    RefOpIR::SetSelection { start, end } => 
-        format!("{}Ref.current?.setSelectionRange({}, {})", ref_name, 
-            self.format_expr(start), self.format_expr(end)),
-    RefOpIR::Measure => 
-        format!("{}Ref.current?.getBoundingClientRect()", ref_name),
-    RefOpIR::CapturePointer { id } =>
-        format!("{}Ref.current?.setPointerCapture({})", ref_name, self.format_expr(id)),
-    RefOpIR::ReleasePointer { id } =>
-        format!("{}Ref.current?.releasePointerCapture({})", ref_name, self.format_expr(id)),
-    _ => format!("/* RefOp {:?} not applicable in React */", op),
-}
-```
-
-- [ ] **Step 5: Add tests and commit**
-
-```bash
-cargo test -p omnilang 2>&1
-git commit -m "feat(react): implement ref semantic binding codegen
-
-- useRef for ref declarations
-- @ref={name} → JSX ref={nameRef}
-- focus/scroll-y/value semantic bindings → useEffect
-- RefOpExpr formatting for select/setSelection/measure/capturePointer"
-```
-
-### Task 3.4: React animation — native refs, no DOM scanning
-
-**Files:**
-- Modify: `omnilang/src/codegen/react/motion/mod.rs`
-- Modify: `omnilang/src/codegen/react/motion/keyframes.rs`
-- Modify: `omnilang/src/codegen/react/component/motion_effects.rs`
-
-- [ ] **Step 1: Replace document.querySelectorAll with element refs**
-
-Remove all `document.querySelectorAll('[data-motion-enter]')` and `MutationObserver` on `document.body`. Instead, generate `useEffect` that calls `element.animate()` directly on the component's ref:
-
-```typescript
-// @enter={fadeIn} on element with ref={cardRef}
-useEffect(() => {
-  const el = cardRef.current;
-  if (!el) return;
-  const animation = el.animate(fadeIn_kf, fadeIn_opts);
-  return () => animation.cancel();
-}, []);
-```
-
-- [ ] **Step 2: Convert WAAPI keyframes to use semantic property names**
-
-In `keyframes.rs`, map semantic properties to WAAPI:
-```rust
-fn semantic_to_waapi(prop: &str, value: &str) -> (String, String) {
-    match prop {
-        "opacity" => ("opacity".into(), value.into()),
-        "scale" => ("transform".into(), format!("scale({})", value)),
-        "translateX" => ("transform".into(), format!("translateX({}px)", value)),
-        "translateY" => ("transform".into(), format!("translateY({}px)", value)),
-        "rotate" => ("transform".into(), format!("rotate({}deg)", value)),
-        "backgroundColor" => ("backgroundColor".into(), value.into()),
-        "color" => ("color".into(), value.into()),
-        _ => (prop.into(), value.into()),
-    }
-}
-```
-
-- [ ] **Step 3: Remove per-component MutationObservers**
-
-Delete the `MutationObserver` code in `motion/mod.rs` for @enter, @hover, @press, @in-view effects. Replace each with direct ref-based effects.
-
-- [ ] **Step 4: Handle @hover and @press with React event handlers**
-
-```typescript
-// @hover={scaleUp} on element with ref={cardRef}
-const handleMouseEnter = useCallback(() => {
-  cardRef.current?.animate(scaleUp_kf, { ...scaleUp_opts, direction: 'normal' });
-}, []);
-const handleMouseLeave = useCallback(() => {
-  cardRef.current?.animate(scaleUp_kf, { ...scaleUp_opts, direction: 'reverse' });
-}, []);
-// JSX: <div ref={cardRef} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
-```
-
-- [ ] **Step 5: Commit**
-
-```bash
-git commit -m "refactor(react): rewrite animation codegen to use native refs
-
-Replace document.querySelectorAll + MutationObserver (OmniView pattern)
-with direct element refs + useEffect + useCallback.
-@enter → useEffect + el.animate()
-@hover → onMouseEnter/Leave + el.animate()
-@press → onPointerDown/Up + el.animate()
-@in-view → IntersectionObserver on ref element"
-```
-
-### Task 3.5: React design CSS emission
-
-**Files:**
-- Create: `omnilang/src/codegen/react/design.rs`
-- Modify: `omnilang/src/codegen/react/mod.rs` (wire in)
-
-- [ ] **Step 1: Extract shared design CSS emitter**
-
-Copy `omnilang/src/codegen/omniview/design.rs` to `omnilang/src/codegen/shared/design.rs`. Remove OmniView-specific parts (editor bridges, debug CSS).
-
-- [ ] **Step 2: Create React-specific design emitter**
-
-In `react/design.rs`:
-```rust
-pub fn emit_react_design_css(designs: &[&DesignIR]) -> String {
-    let mut css = String::new();
-    for design in designs {
-        // Theme-aware CSS custom properties
-        css.push_str(&format!("/* Design: {} */\n", design.name));
-        
-        // Default theme tokens
-        css.push_str(":root, [data-theme=\"light\"] {\n");
-        for (name, token) in &design.tokens {
-            css.push_str(&format!("  --{}: {};\n", name, token_css_value(token)));
-        }
-        css.push_str("}\n");
-        
-        // Theme overrides
-        for theme in &design.themes {
-            css.push_str(&format!("[data-theme=\"{}\"] {{\n", theme));
-            for (name, token) in &design.tokens {
-                if let Some(override_val) = token.theme_values.get(theme) {
-                    css.push_str(&format!("  --{}: {};\n", name, token_css_value(override_val)));
-                }
-            }
-            css.push_str("}\n");
-        }
-        
-        // Classes
-        for class in &design.classes {
-            css.push_str(&format!(".{} {{ ", class.name));
-            for (prop, val) in &class.properties {
-                css.push_str(&format!("{}: {}; ", prop, val));
-            }
-            css.push_str("}\n");
-        }
-        
-        // Variants
-        for variant in &design.variants {
-            for branch in &variant.branches {
-                css.push_str(&format!(".{}-{} {{ ", variant.name, branch.name));
-                // ...
-                css.push_str("}\n");
-            }
-        }
-    }
-    css
-}
-```
-
-- [ ] **Step 3: Wire into React codegen**
-
-In `react/mod.rs`, after component generation, call `emit_react_design_css` and add `design.css` to output files.
-
-- [ ] **Step 4: Commit**
-
-```bash
-git commit -m "feat(react): add design CSS emission
-
-Generate design.css with CSS custom properties, theme-aware variables
-(:root/[data-theme]), and class/variant CSS rules. Extracted shared
-CSS emitter from omniview/design.rs."
-```
-
----
-
-## Phase 4: Flutter Codegen
-
-### Task 4.1: Riverpod 3.0 store rewrite
-
-**Files:**
-- Modify: `omnilang/src/codegen/flutter/mod.rs`
-
-- [ ] **Step 1: Replace StateProvider with Notifier + NotifierProvider**
-
-Rewrite store generation from Riverpod 2.x style to 3.0:
-
-```dart
-// State class (immutable)
-class TodoStoreState {
-  final List<Todo> items;
-  final String filter;
-  const TodoStoreState({this.items = const [], this.filter = 'all'});
-  TodoStoreState copyWith({List<Todo>? items, String? filter}) =>
-    TodoStoreState(items: items ?? this.items, filter: filter ?? this.filter);
-}
-
-// Notifier
-class TodoStoreNotifier extends Notifier<TodoStoreState> {
-  @override
-  TodoStoreState build() => const TodoStoreState();
-
-  // Getters
-  List<Todo> get filteredItems => state.items
-    .where((item) => state.filter == 'all' || item.status == state.filter)
-    .toList();
-  int get activeCount => state.items
-    .where((item) => item.status == 'active').length;
-
-  // Actions
-  void add(String text) {
-    state = state.copyWith(items: [
-      ...state.items,
-      Todo(id: _nextId++, text: text, status: 'active'),
-    ]);
-  }
-}
-
-// Provider
-final todoStoreProvider = NotifierProvider<TodoStoreNotifier, TodoStoreState>(
-  TodoStoreNotifier.new,
-);
-```
-
-- [ ] **Step 2: Fix C2 — generate real _runEffect_N methods**
-
-Replace the inline effect body emission with a proper method:
-
-```dart
-void _runEffect_0() {
-  // effect body
-  saveToLocal(elapsed);
-}
-
-@override
-void initState() {
-  super.initState();
-  _runEffect_0();  // initial run
-}
-
-@override
-void didUpdateWidget(covariant Timer oldWidget) {
-  super.didUpdateWidget(oldWidget);
-  if (elapsed != oldWidget.elapsed) {
-    _runEffect_0();  // re-run when deps change
-  }
-}
-```
-
-- [ ] **Step 3: Fix C3 — emit correct constructor**
-
-Replace `const {` with `const CompName({`:
-```dart
-// Before: const {
-// After:  const CompName({
-const CompName({
-  super.key,
-  required this.title,
-  this.onSubmit,
-}) : super(key: key);
-```
-
-- [ ] **Step 4: Fix C4 — store reads in views**
-
-Thread store-alias→provider-name mapping. For `TodoStore.items` in view context:
-```dart
-// Before: TodoStore.items  (undefined)
-// After:  ref.watch(todoStoreProvider.select((s) => s.items))
-```
-
-Create a `store_provider_map: FxHashMap<String, String>` mapping store aliases to provider variable names.
-
-- [ ] **Step 5: Fix C5 — color hex conversion**
-
-Add `css_hex_to_dart_color` utility:
-```rust
-fn css_hex_to_dart_color(hex: &str) -> String {
-    let hex = hex.trim_start_matches('#');
-    match hex.len() {
-        6 => format!("Color(0xFF{})", hex.to_uppercase()),
-        8 => format!("Color(0x{})", hex.to_uppercase()),
-        _ => format!("Color(0xFF000000)"), // fallback
-    }
-}
-```
-
-- [ ] **Step 6: Fix C6 — per-widget param whitelist**
-
-Replace blind prop passthrough with widget-specific parameter maps:
-```rust
-fn widget_params(tag: &str) -> &[&str] {
-    match tag {
-        "Container" => &["color", "padding", "margin", "width", "height", "decoration"],
-        "TextField" => &["controller", "focusNode", "decoration", "onChanged"],
-        "ElevatedButton" => &["onPressed", "child", "style"],
-        // ...
-        _ => &[],
-    }
-}
-```
-Unmapped props → compiler warning diagnostic.
-
-- [ ] **Step 7: Update snapshots and commit**
-
-```bash
-cargo test -p omnilang -- codegen::flutter 2>&1
-cargo insta review
-git commit -m "refactor(flutter): rewrite store to Riverpod 3.0 + 6 CRITICAL fixes
-
-Riverpod 3.0: Notifier + NotifierProvider replace StateProvider.
-Fixes:
-C2: generate real _runEffect_N() method with didUpdateWidget deps check
-C3: emit const CompName({ instead of const {
-C4: store-alias→provider-name map for view context reads
-C5: CSS hex → Dart Color conversion
-C6: per-widget parameter whitelist with diagnostic for unmapped props"
-```
-
-### Task 4.2: Flutter ref codegen
-
-**Files:**
-- Create: `omnilang/src/codegen/flutter/ref.rs`
-- Modify: `omnilang/src/codegen/flutter/mod.rs`
-- Modify: `omnilang/src/codegen/flutter/view.rs`
-
-- [ ] **Step 1: Generate GlobalKey + controllers per ref declaration**
-
-For each `RefDeclIR`, analyze which operations are used and generate only needed helpers:
-
-```dart
-// ref scrollPane: Element (used: scrollTo)
-final GlobalKey _scrollPaneKey = GlobalKey();
-ScrollController? _scrollPaneScrollCtrl;
-
-// ref searchBox: Element (used: focus, value)
-final GlobalKey _searchBoxKey = GlobalKey();
-FocusNode? _searchBoxFocusNode;
-TextEditingController? _searchBoxTextCtrl;
-```
-
-- [ ] **Step 2: Wire @ref={name} to Widget key**
-
-In `view.rs`, for elements with `ref_binding`:
-```dart
-TextField(
-  key: _searchBoxKey,
-  focusNode: _searchBoxFocusNode,
-  controller: _searchBoxTextCtrl,
-  ...
-)
-```
-
-- [ ] **Step 3: Generate semantic binding handling**
-
-For `focus={isSearchActive}`:
-```dart
-// In build():
-if (isSearchActive) {
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    _searchBoxFocusNode?.requestFocus();
-  });
-}
-```
-
-For `scroll-y={scrollPosition}`:
-```dart
-// In initState or build:
-WidgetsBinding.instance.addPostFrameCallback((_) {
-  _scrollPaneScrollCtrl?.animateTo(
-    scrollPosition,
-    duration: Duration(milliseconds: 300),
-    curve: Curves.easeInOut,
-  );
-});
-```
-
-- [ ] **Step 4: Handle RefOpExpr in Dart expression formatting**
-
-In `flutter/expr.rs`, add match arm for `ExprIR::RefOpExpr`.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git commit -m "feat(flutter): implement ref semantic codegen
-
-Generate GlobalKey + on-demand FocusNode/ScrollController/TextEditingController
-per ref declaration. Semantic bindings (focus, scroll-y, value) mapped to
-post-frame callbacks. RefOpExpr formatting for select/setSelection/measure."
-```
-
-### Task 4.3: Flutter slot codegen
-
-**Files:**
-- Modify: `omnilang/src/codegen/flutter/view.rs`
-- Modify: `omnilang/src/codegen/flutter/mod.rs`
-
-- [ ] **Step 1: Add Widget? params for slots**
-
-For each slot in component, generate widget parameter:
-```dart
-class Modal extends ConsumerStatefulWidget {
-  final Widget? header;
-  final Widget? footer;
-  final Widget? child;  // default slot
-
-  const Modal({
-    super.key,
-    this.header,
-    this.footer,
-    this.child,
-  });
-}
-```
-
-- [ ] **Step 2: Render slots in build**
-
-Replace `SizedBox.shrink()` slot placeholder with:
-```dart
-// Default slot
-widget.child ?? DefaultHeader()
-
-// Named slot
-widget.header ?? DefaultHeader()
-```
+- [ ] **Step 2: Add slot props to component TS interface** — typed render prop if type_constraint present
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git commit -m "feat(flutter): implement slot codegen
-
-Add Widget? params for each slot declaration. Render slots in build
-with ?? fallback operator. Fixes H1/H7 from cross-target review."
+git commit -m "feat(react): implement slot codegen with fallback + type constraints"
 ```
 
-### Task 4.4: Flutter TweenSequence animation
+### Task 4.3: React ref semantic binding + RefOpExpr codegen
 
 **Files:**
-- Modify: `omnilang/src/codegen/flutter/motion.rs`
-- Modify: `omnilang/src/codegen/flutter/mod.rs`
+- Modify: `omnilang/src/codegen/react/component/state.rs`, `view.rs`, `expr.rs`
 
-- [ ] **Step 1: Generate per-property TweenSequence for multi-stop keyframes**
+- [ ] **Step 1: Generate `useRef<T>(null)` for each RefDeclIR**, typed by element tag
 
-Replace single `Tween<double>` with per-property `Animatable<T>`:
-```dart
-// For motion fadeIn with keyframe { 0%: opacity:0, scale:0.95; 50%: opacity:0.5; 100%: opacity:1, scale:1 }
+- [ ] **Step 2: Wire `@ref={name}` → `ref={nameRef}` JSX prop**
 
-late final AnimationController _fadeIn_ctrl;
-late final Animation<double> _fadeIn_opacity;
-late final Animation<double> _fadeIn_scale;
+- [ ] **Step 3: Generate `useEffect` for each semantic binding** (`focus`→focus/blur, `scroll-y`→scrollTo, `scroll-x`→scrollTo, `value`→onChange)
 
-void _initFadeIn(TickerProvider vsync) {
-  _fadeIn_ctrl = AnimationController(
-    duration: const Duration(milliseconds: 300),
-    vsync: vsync,
-  );
-  
-  // Per-property TweenSequence
-  _fadeIn_opacity = TweenSequence<double>([
-    TweenSequenceItem(tween: Tween(begin: 0.0, end: 0.5), weight: 50.0),
-    TweenSequenceItem(tween: Tween(begin: 0.5, end: 1.0), weight: 50.0),
-  ]).animate(_fadeIn_ctrl);
-  
-  _fadeIn_scale = Tween<double>(begin: 0.95, end: 1.0).animate(
-    CurvedAnimation(parent: _fadeIn_ctrl, curve: Curves.easeOut),
-  );
-}
-```
+- [ ] **Step 4: Implement `format_expr` for all 12 `RefOpIR` variants** — `.focus()`, `.scrollTo({...})`, `.getBoundingClientRect()`, `.select()`, `.setSelectionRange()`, `.setPointerCapture()`, etc.
 
-- [ ] **Step 2: Map semantic animation properties to Flutter widgets**
-
-In `build_animated_builder_body`, for each semantic property:
-```dart
-// opacity → Opacity widget
-// scale → Transform.scale
-// translateX/Y → Transform.translate
-// rotate → Transform.rotate
-// backgroundColor → Container color
-// color → TextStyle color
-return AnimatedBuilder(
-  animation: _fadeIn_ctrl,
-  builder: (context, child) {
-    return Opacity(
-      opacity: _fadeIn_opacity.value,
-      child: Transform.scale(
-        scale: _fadeIn_scale.value,
-        child: child,
-      ),
-    );
-  },
-  child: /* original widget */,
-);
-```
-
-- [ ] **Step 3: Handle playback properties**
-
-Implement `loop` (repeat), `direction` (forward/reverse/Controller.repeat), `fill` (Tween end value), `delay` (Future.delayed before forward):
-
-```dart
-// loop 3
-_fadeIn_ctrl.repeat(count: 3);
-
-// direction: alternate  
-_fadeIn_ctrl.repeat(reverse: true);
-
-// delay: 100ms
-Future.delayed(Duration(milliseconds: 100), () => _fadeIn_ctrl.forward());
-```
-
-- [ ] **Step 4: Fix duration parsing**
-
-Parse `300ms` / `1.5s` / `0.5` (seconds) correctly:
-```rust
-fn parse_duration_ms(s: &str) -> u64 {
-    if s.ends_with("ms") {
-        s.trim_end_matches("ms").parse().unwrap_or(0)
-    } else if s.ends_with('s') {
-        (s.trim_end_matches('s').parse::<f64>().unwrap_or(0.0) * 1000.0) as u64
-    } else {
-        (s.parse::<f64>().unwrap_or(0.0) * 1000.0) as u64
-    }
-}
-```
-
-- [ ] **Step 5: Add diagnostics**
-
-Emit warning for `width`/`height` animation properties in Flutter.
-Emit error for `steps()` easing.
-
-- [ ] **Step 6: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git commit -m "feat(flutter): implement TweenSequence animation codegen
-
-Per-property Animatable<T> for multi-stop keyframes. Semantic animation
-properties mapped to Flutter widgets (Opacity, Transform.scale, etc.).
-Playback properties (loop/direction/fill/delay) implemented.
-Duration parsing fixed for ms/s/raw number formats."
+git commit -m "feat(react): implement ref semantic binding + RefOpExpr codegen"
 ```
 
-### Task 4.5: Flutter design token / ThemeData codegen
+### Task 4.4: React animation — per-ref native effects, no DOM scanning
+
+**Files:**
+- Modify: `omnilang/src/codegen/react/motion/mod.rs`, `keyframes.rs`, `transforms.rs`
+- Modify: `omnilang/src/codegen/react/component/motion_effects.rs`
+- Modify: `omnilang/src/codegen/react/view.rs` (remove data-motion-* attributes)
+
+- [ ] **Step 1: @enter** — `useEffect(() => { el.animate(kf, opts); return () => anim.cancel(); }, [])` on element ref
+
+- [ ] **Step 2: @hover/@press** — `useCallback` handlers + `onMouseEnter/Leave`, `onPointerDown/Up` on element ref
+
+- [ ] **Step 3: @in-view** — per-ref `IntersectionObserver` with `useEffect` cleanup
+
+- [ ] **Step 4: @scroll** — per-ref scroll event listener with progress scrubbing
+
+- [ ] **Step 5: @drag-*** — per-ref pointer event listeners with distance-to-progress mapping
+
+- [ ] **Step 6: @focus** (newly re-added) — per-ref `focusin`/`focusout` listeners
+
+- [ ] **Step 7: Semantic properties → WAAPI keyframes** — `opacity`→`opacity`, `scale`/`translateX`/`translateY`/`rotate`→`transform`, `backgroundColor`→`backgroundColor`, `color`→`color`
+
+- [ ] **Step 8: Delete ALL `document.querySelectorAll`, `MutationObserver`, `data-motion-*` emission**
+
+- [ ] **Step 9: Test, snapshots, commit**
+
+```bash
+cargo test -p omnilang -- codegen::react::motion 2>&1 && cargo insta review
+git commit -m "refactor(react): rewrite animation — native refs, no DOM scanning, all 8 triggers"
+```
+
+### Task 4.5: React design CSS emission
+
+**Files:**
+- Create: `omnilang/src/codegen/react/design.rs`
+- Modify: `omnilang/src/codegen/react/mod.rs`
+
+- [ ] **Step 1: Generate design.css** — CSS custom properties with `:root`/`[data-theme]` scoping, class CSS rules, variant CSS combination classes
+
+- [ ] **Step 2: Generate dynamic token `useEffect`** — `document.documentElement.style.setProperty('--name', value)` for `TokenValueIR::Dynamic`
+
+- [ ] **Step 3: Generate `useThemeStore`** — Zustand store for `theme = "dark"` switching via `data-theme` attribute
+
+- [ ] **Step 4: Wire into React codegen** — emit `design.css` and `useThemeStore.ts` to output files
+
+- [ ] **Step 5: Commit**
+
+```bash
+git commit -m "feat(react): add design CSS emission with themes + dynamic tokens"
+```
+
+---
+
+## Phase 5: Flutter Codegen
+
+> All tasks depend on Phase 1-3. Run sequentially. [∥] with Phase 4 (React).
+
+### Task 5.1: Riverpod 3.0 store + 6 CRITICAL fixes + design gate removal
+
+**Files:**
+- Modify: `omnilang/src/codegen/flutter/mod.rs`, `view.rs`, `expr.rs`, `stmt.rs`, `utils.rs`
+- Modify: `omnilang/src/codegen/mod.rs` (Flutter gate only)
+
+- [ ] **Step 1: Remove Flutter design block gate** — delete lines 192-201
+
+- [ ] **Step 2: Rewrite store gen to Riverpod 3.0** — `Notifier<T>` + `NotifierProvider`, immutable state class with `copyWith`, getters as Notifier properties, actions as Notifier methods
+
+- [ ] **Step 3: Fix C2** — generate real `_runEffect_N()` method body, call from `initState`, re-run from `didUpdateWidget` after deps equality check
+
+- [ ] **Step 4: Fix C3** — emit `const CompName({` instead of `const {`
+
+- [ ] **Step 5: Fix C4** — build `store_provider_map: FxHashMap<String, String>` mapping store aliases to provider variable names. Thread through `view.rs` and `expr.rs` for `StoreFieldAccessExpr` → `ref.watch(provider.select((s) => s.field))`
+
+- [ ] **Step 6: Fix C5** — `css_hex_to_dart_color()` conversion function for `#ff0000` → `Color(0xFFFF0000)`
+
+- [ ] **Step 7: Fix C6** — per-widget parameter whitelist, unmapped props → compiler warning
+
+- [ ] **Step 8: Test, snapshots, commit**
+
+```bash
+cargo test -p omnilang -- codegen::flutter 2>&1 && cargo insta review
+git commit -m "refactor(flutter): Riverpod 3.0 + 6 CRITICAL fixes + design gate removal"
+```
+
+### Task 5.2: Flutter ref codegen — GlobalKey + on-demand controllers
+
+**Files:**
+- Create: `omnilang/src/codegen/flutter/ref.rs`
+- Modify: `omnilang/src/codegen/flutter/mod.rs`, `view.rs`, `expr.rs`
+
+- [ ] **Step 1: Analyze ref usage** — scan component expressions for `RefOpExpr` referencing each ref. Set flags: `needs_focus`, `needs_scroll`, `needs_text`, `needs_measure`
+
+- [ ] **Step 2: Generate per-ref declarations** — `GlobalKey`, on-demand `ScrollController`/`FocusNode`/`TextEditingController`
+
+- [ ] **Step 3: Generate `initState` controller extraction** — `addPostFrameCallback` to extract controllers from `GlobalKey.currentState`
+
+- [ ] **Step 4: Generate `dispose()`** — for all non-null controllers
+
+- [ ] **Step 5: Generate semantic binding handling** — `focus={sig}` → post-frame `requestFocus()`, `scroll-y={sig}` → `animateTo()`, `value={sig}` → TextEditingController listener
+
+- [ ] **Step 6: Wire `@ref={name}` → `key: _nameKey` on Widget constructors**
+
+- [ ] **Step 7: Implement Dart RefOpExpr formatting** — `requestFocus()`, `animateTo()`, `RenderBox.localToGlobal()` + `size`, `TextSelection`
+
+- [ ] **Step 8: Commit**
+
+```bash
+git commit -m "feat(flutter): implement ref codegen — GlobalKey + on-demand controllers"
+```
+
+### Task 5.3: Flutter slot codegen
+
+**Files:**
+- Modify: `omnilang/src/codegen/flutter/view.rs`, `mod.rs`
+
+- [ ] **Step 1: Add `Widget?` params for each slot to Widget constructor**
+
+- [ ] **Step 2: Render `widget.{name} ?? FallbackWidget()` in build**
+
+- [ ] **Step 3: Commit**
+
+```bash
+git commit -m "feat(flutter): implement slot codegen with Widget? params + fallback"
+```
+
+### Task 5.4: Flutter TweenSequence + semantic animation
+
+**Files:**
+- Modify: `omnilang/src/codegen/flutter/motion.rs`, `mod.rs`, `motion_widgets.rs`
+
+- [ ] **Step 1: Per-property Tween/TweenSequence** — 2 stops→`Tween`, 3+ stops→`TweenSequence` with weight-proportional items
+
+- [ ] **Step 2: Semantic property → Flutter widget mapping** — `opacity`→`Opacity`, `scale`→`Transform.scale`, `translateX/Y`→`Transform.translate`, `rotate`→`Transform.rotate`, `backgroundColor`→`Container(color:)`, `color`→`TextStyle`
+
+- [ ] **Step 3: `AnimatedBuilder` chain** — nest widget wrappers for multi-property animations
+
+- [ ] **Step 4: Playback properties** — `loop`→`repeat(count:)`, `direction`→`forward()`/`reverse()`/`repeat(reverse:true)`, `fill`→Tween end value, `delay`→`Future.delayed`
+
+- [ ] **Step 5: Duration parsing** — `300ms`/`1.5s`/`0.5` → `Duration(milliseconds: N)`
+
+- [ ] **Step 6: Easing → Curves mapping** — `ease-in`→`Curves.easeIn`, `cubic-bezier(...)`→`Cubic(...)`, `steps()`→error diagnostic
+
+- [ ] **Step 7: Diagnostics** — `width`/`height` warning, `steps()` error
+
+- [ ] **Step 8: Commit**
+
+```bash
+git commit -m "feat(flutter): implement TweenSequence + semantic animation properties"
+```
+
+### Task 5.5: Flutter design token codegen
 
 **Files:**
 - Create: `omnilang/src/codegen/flutter/design.rs`
 - Modify: `omnilang/src/codegen/flutter/mod.rs`
 
-- [ ] **Step 1: Generate Dart constants for static tokens**
+- [ ] **Step 1: Generate typed Dart constants** — `AppTokens` class for all static tokens
 
-```dart
-abstract final class AppTokens {
-  static const Color primaryColor = Color(0xFF6366F1);
-  static const double spacingSm = 8.0;
-  static const double radiusMd = 8.0;
-  static const String fontMain = 'Inter';
-  static const Duration durationNormal = Duration(milliseconds: 300);
-  static const Cubic easeOut = Cubic(0.16, 1, 0.3, 1);
-}
-```
+- [ ] **Step 2: Generate `BoxDecoration` factories** — `AppDesign.cardDecoration()` for classes
 
-- [ ] **Step 2: Generate BoxDecoration factories for classes**
+- [ ] **Step 3: Generate `ThemeExtension<T>`** — `copyWith` + `lerp` + static const branches for variants
 
-```dart
-abstract final class AppDesign {
-  static BoxDecoration cardDecoration() => BoxDecoration(
-    color: AppTokens.primaryColor,
-    borderRadius: BorderRadius.circular(AppTokens.radiusMd),
-    boxShadow: [AppTokens.shadowCard],
-  );
-}
-```
+- [ ] **Step 4: Generate theme switching** — `StateProvider<ThemeMode>` + `MaterialApp(themeMode:)`
 
-- [ ] **Step 3: Generate ThemeExtension for variants**
-
-```dart
-class AppSizeTheme extends ThemeExtension<AppSizeTheme> {
-  final EdgeInsets padding;
-  final double fontSize;
-  const AppSizeTheme({required this.padding, required this.fontSize});
-  
-  static const sm = AppSizeTheme(padding: EdgeInsets.all(8), fontSize: 12);
-  static const md = AppSizeTheme(padding: EdgeInsets.all(16), fontSize: 14);
-  static const lg = AppSizeTheme(padding: EdgeInsets.all(24), fontSize: 18);
-  
-  @override AppSizeTheme copyWith({EdgeInsets? padding, double? fontSize}) =>
-    AppSizeTheme(padding: padding ?? this.padding, fontSize: fontSize ?? this.fontSize);
-  @override AppSizeTheme lerp(AppSizeTheme? other, double t) =>
-    AppSizeTheme(
-      padding: EdgeInsets.lerp(padding, other?.padding ?? padding, t)!,
-      fontSize: lerpDouble(fontSize, other?.fontSize ?? fontSize, t)!,
-    );
-}
-
-// Register in MaterialApp:
-MaterialApp(
-  theme: ThemeData(extensions: [AppSizeTheme.md]),
-)
-```
-
-- [ ] **Step 4: Generate theme switching**
-
-```dart
-final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.light);
-
-// .omni: theme = "dark" → 
-ref.read(themeModeProvider.notifier).state = ThemeMode.dark;
-```
-
-- [ ] **Step 5: Generate dynamic token handling**
-
-```dart
-final accentColorProvider = Provider<Color>((ref) {
-  return ref.watch(dynamicTokenStoreProvider.select((s) => s.accentColor));
-});
-
-class MyApp extends ConsumerWidget {
-  Widget build(BuildContext context, WidgetRef ref) {
-    final accentColor = ref.watch(accentColorProvider);
-    return MaterialApp(
-      theme: ThemeData.light().copyWith(
-        colorScheme: ColorScheme.fromSeed(seedColor: accentColor),
-      ),
-    );
-  }
-}
-```
+- [ ] **Step 5: Generate dynamic token `Provider`** — `ref.watch(dynamicStore.select(...))` → `ThemeData.copyWith`
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git commit -m "feat(flutter): implement design token codegen
-
-Static tokens → typed Dart constants. Classes → BoxDecoration factories.
-Variants → ThemeExtension<T>. Theme switching → ThemeMode + StateProvider.
-Dynamic tokens → Riverpod Provider + ThemeData.copyWith."
+git commit -m "feat(flutter): implement design token codegen — ThemeData + ThemeExtension"
 ```
 
 ---
 
-## Phase 5: CI Gates & Testing
+## Phase 6: OmniView Codegen Updates
 
-### Task 5.1: Expand parameterized test matrix
+> Debug runtime must match new semantics.
+
+### Task 6.1: Update OmniView for all semantic changes
 
 **Files:**
+- Modify: `omnilang/src/codegen/omniview/view/element.rs`, `mod.rs`, `motion.rs`, `expr.rs`
+
+- [ ] **Step 1: Semantic ref bindings → `__omni_effect` wrappers** for `focus`, `scroll-y`, `scroll-x`, `value`
+
+- [ ] **Step 2: RefOpExpr formatting** — all 12 operations map to native DOM APIs
+
+- [ ] **Step 3: Slot fallback rendering** — `childrenMap[name] || fallbackHTML`
+
+- [ ] **Step 4: Remove `paused_override`/`@paused` attribute emission**
+
+- [ ] **Step 5: Add `@focus` trigger** — `focusin` event listener in motion.rs
+
+- [ ] **Step 6: Test, snapshots, commit**
+
+```bash
+cargo test -p omnilang -- codegen::omniview 2>&1 && cargo insta review
+git commit -m "fix(omniview): update debug runtime for semantic DSL changes"
+```
+
+---
+
+## Phase 7: Non-P0 Target Updates
+
+### Task 7.1: Update all non-P0 backends for IR changes + design block error
+
+**Files:**
+- Modify: `omnilang/src/codegen/mod.rs`
+- Modify: `omnilang/src/codegen/{javascript,dart,python,rust,vue,dioxus}/expr.rs`
+
+- [ ] **Step 1: Non-P0 design gate: warning → hard error** for Python, JS, TS, Rust, Dart, Vue, Dioxus
+
+- [ ] **Step 2: Add `RefOpExpr` fallback** to all non-P0 expr formatters — emit diagnostic comment
+
+- [ ] **Step 3: Fix `ViewTree::Slot` match arms** — update from `Slot(name)` to `Slot { name, .. }`
+
+- [ ] **Step 4: Build all backends, fix compilation, test, commit**
+
+```bash
+cargo build -p omnilang --all-features 2>&1 && cargo test -p omnilang 2>&1
+git commit -m "fix(non-p0): update all backends for IR changes + design block hard error"
+```
+
+---
+
+## Phase 8: CI Gates & Testing
+
+### Task 8.1: Expand parameterized test matrix
+
+**Files:**
+- Create: fixture `.omni` files in test directory
 - Modify: `omnilang/src/codegen/tests_regression/parameterized.rs`
 
-- [ ] **Step 1: Add test fixtures for each feature floor category**
+- [ ] **Step 1: Create fixtures** — `design_tokens.omni`, `slots.omni`, `refs.omni`, `animation.omni`, `store.omni`
 
-Create `.omni` fixture files:
-- `tests/fixtures/parameterized/design_tokens.omni` — design block with token + class + variant
-- `tests/fixtures/parameterized/slots.omni` — slot default + named + fallback
-- `tests/fixtures/parameterized/refs.omni` — semantic bindings + semantic methods
-- `tests/fixtures/parameterized/animation.omni` — multi-stop keyframe + playback
-- `tests/fixtures/parameterized/key_expr.omni` — @for with key + empty
-
-- [ ] **Step 2: Add cross-target compilation tests**
-
-For each fixture, compile to React and Flutter targets, verify:
-```rust
-#[test]
-fn design_tokens_compiles_react() {
-    let output = compile_fixture("design_tokens.omni", Target::React);
-    assert!(output.errors.is_empty());
-    assert!(!output.files.is_empty()); // No more zero-file gate
-    // Verify design.css exists
-    assert!(output.files.iter().any(|f| f.name == "design.css"));
-}
-```
+- [ ] **Step 2: Add cross-target compilation assertions** — each fixture compiles to React, Flutter, OmniView with zero errors and expected output files
 
 - [ ] **Step 3: Commit**
 
-```bash
-git commit -m "test: expand parameterized test matrix for feature floor
+### Task 8.2: Add CI TypeScript + Dart validation [∥]
 
-Add fixtures for design tokens, slots, refs, animation, key_expr.
-All fixtures compile to React and Flutter targets with assertions
-on expected output files."
-```
+- [ ] **Step 1: `tsc --noEmit`** on React regression fixture output in CI
 
-### Task 5.2: Add CI validation gates
-
-**Files:**
-- Create: `.github/workflows/codegen-validation.yml` (or modify existing CI)
-- Modify: CI script to run TypeScript/Dart checks
-
-- [ ] **Step 1: Add TypeScript check for React output**
-
-```yaml
-- name: Validate React output
-  run: |
-    cargo run -- build --target react tests/fixtures/parameterized/design_tokens.omni -o /tmp/react-out
-    cd /tmp/react-out && npx tsc --noEmit --strict *.tsx *.ts
-```
-
-- [ ] **Step 2: Add Dart check for Flutter output**
-
-```yaml
-- name: Validate Flutter output
-  run: |
-    cargo run -- build --target flutter tests/fixtures/parameterized/design_tokens.omni -o /tmp/flutter-out
-    cd /tmp/flutter-out && dart analyze
-```
+- [ ] **Step 2: `dart analyze`** on Flutter regression fixture output in CI
 
 - [ ] **Step 3: Commit**
-
-```bash
-git commit -m "ci: add TypeScript and Dart validation gates
-
-Run tsc --noEmit on React regression fixture output.
-Run dart analyze on Flutter regression fixture output.
-Prevents regression of C1-C6 class bugs (uncompilable output
-encoded in golden snapshots)."
-```
 
 ---
 
-## Phase 6: Demo Project Migration
+## Phase 9: Demo Project Migration
 
-### Task 6.1: Migrate learn-omniview animation syntax
+### Task 9.1: Migrate animation syntax (11 files)
 
-**Files:** Modify all 8 animation demo files + 5 react fixtures.
+**Files:** All 8 demo pages + 5 React fixtures — see File Structure Map for paths.
 
-- [ ] **Step 1: Rewrite motion body syntax**
+- [ ] **Step 1: Rewrite motion body** — `over:`/`easing:` colon syntax, duration units, easing kebab-case
 
-For each file, convert:
-```
-Old:  over 500 ease power2Out
-New:  over: 500ms
-      easing: ease-out
+- [ ] **Step 2: Rename triggers** — `@inView`→`@in-view`, `@dragHorizontal`→`@drag-horizontal`, sub-attrs → independent attrs
 
-Old:  from { x: 0; y: 0 }
-New:  from { translateX: 0; translateY: 0 }
+- [ ] **Step 3: Keyframe properties** — `x`/`y`→`translateX`/`translateY`, CSS-only properties→remove or add to whitelist
 
-Old:  from { opacity: 0; scale: 0.8 }
-New:  from { opacity: 0; scale: 0.8 }  ← opacity/scale unchanged
+- [ ] **Step 4: Handle `AnimPropertiesDemo`** — remove non-semantic CSS property demos (blur, brightness, borderWidth, etc.) or add `--*` passthrough
 
-Old:  @inView={motion} @in-view-once={false}
-New:  @in-view={motion} once={false}
-```
+- [ ] **Step 5: Handle `CssVarsDemo`** — allow `--custom-property` names in whitelist
 
-Files:
-- `test/projects/learn-omniview/src/pages/MotionDemo.omni`
-- `test/projects/learn-omniview/src/pages/ElementRefDemo.omni` (motion sections)
-- `test/projects/learn-omniview/src/pages/MotionTriggersDemo.omni`
-- `test/projects/learn-omniview/src/pages/KeyframeAnimationDemo.omni`
-- `test/projects/learn-omniview/src/pages/EasingFunctionsDemo.omni`
-- `test/projects/learn-omniview/src/pages/AnimPropertiesDemo.omni`
-- `test/projects/learn-omniview/src/pages/CssVarsDemo.omni` (motion sections)
-- `tests/fixtures/react/motion_*.omni`
+- [ ] **Step 6: Remove `@paused={...}`** from `KeyframeAnimationDemo.omni`
 
-- [ ] **Step 2: Rewrite trigger attribute names**
+- [ ] **Step 7: Fix `steps()` syntax** in `EasingFunctionsDemo.omni`
 
-```
-Old:  @inView={motion} @in-view-once={false} @in-view-repeat={true} @in-view-threshold={0.5}
-New:  @in-view={motion} once={false} repeat={true} threshold={0.5}
+- [ ] **Step 8: Commit**
 
-Old:  @scroll-start="top 80%" @scroll-end="bottom 20%" @scroll-scrub={true}
-New:  @scroll={motion} start=0.8 end=0.2 scrub={true}
+### Task 9.2: Migrate ref syntax (ElementRefDemo)
 
-Old:  @dragHorizontal={motion} @drag-constraints="left:0 right:300" @drag-elastic={0.2}
-New:  @drag-horizontal={motion} constraints={300} elastic={0.2}
-```
+- [ ] **Step 1: `ref.style.*` → signal-driven `style:{...}` bindings**
 
-- [ ] **Step 3: Remove `@paused={...}` element attributes**
+- [ ] **Step 2: `ref.focus()/blur()` → `focus={sig}` binding**
 
-`KeyframeAnimationDemo.omni` L312: remove `@paused={isPaused}`, replace with conditional binding if needed.
+- [ ] **Step 3: `ref.scrollTo/scrollBy` → `scroll-y={sig}` binding**
 
-- [ ] **Step 4: Fix `steps()` easing syntax**
+- [ ] **Step 4: `ref.getBoundingClientRect()` → `ref.measure()`**
 
-`EasingFunctionsDemo.omni` L242:
-```
-Old:  ease steps(count: 6, direction: end)
-New:  easing: steps(6, end)
-```
-
-- [ ] **Step 5: Commit**
-
-```bash
-git commit -m "refactor(demo): migrate learn-omniview animation syntax to semantic DSL
-
-Motion body: over/ease → over:/easing: with units. Keyframe properties:
-x/y → translateX/translateY. Trigger renames: @inView → @in-view,
-@dragHorizontal → @drag-horizontal, sub-attrs → independent attrs.
-Remove @paused attribute. Fix steps() easing syntax."
-```
-
-### Task 6.2: Migrate learn-omniview ref syntax
-
-**Files:**
-- Modify: `test/projects/learn-omniview/src/pages/ElementRefDemo.omni`
-
-- [ ] **Step 1: Replace ref.style.* with style bindings or signals**
-
-```
-Old:  sizeBox.style.width = "300px"
-      sizeBox.style.height = "120px"
-New:  <div style: { width: sizeBoxWidth, height: sizeBoxHeight } />
-```
-
-- [ ] **Step 2: Replace ref.focus()/blur() with focus={signal} binding**
-
-```
-Old:  inputBox.focus()
-New:  signal inputFocused = false
-      <input @ref={inputBox} focus={inputFocused} />
-      // in action: inputFocused = true
-```
-
-- [ ] **Step 3: Replace ref.scrollTo/scrollBy with scroll-y={signal}**
-
-```
-Old:  scrollArea.scrollTo(0, 0)
-New:  signal scrollY = 0
-      <ScrollView @ref={scrollPane} scroll-y={scrollY} />
-      // in action: scrollY = 0
-```
-
-- [ ] **Step 4: Replace ref.getBoundingClientRect() with ref.measure()**
-
-```
-Old:  dragTarget.getBoundingClientRect()
-New:  dragTarget.measure()
-```
-
-- [ ] **Step 5: Replace ref.offsetWidth/offsetHeight with ref.measure().width/.height**
-
-```
-Old:  sizeBox.offsetWidth
-New:  sizeBox.measure().width
-```
+- [ ] **Step 5: `ref.offsetWidth/Height` → `ref.measure().width/.height`**
 
 - [ ] **Step 6: Commit**
 
-```bash
-git commit -m "refactor(demo): migrate ElementRefDemo to semantic ref syntax
+### Task 9.3: Migrate slot syntax (4 component files)
 
-Replace DOM-style ref operations with semantic equivalents:
-- ref.style.* → style:{...} signal binding
-- ref.focus() → focus={sig} binding  
-- ref.scrollTo() → scroll-y={sig} binding
-- ref.getBoundingClientRect() → ref.measure()
-- ref.offsetWidth/Height → ref.measure().width/.height"
-```
+- [ ] **Step 1: Move `@slot` from view to component body**
 
-### Task 6.3: Migrate learn-omniview slot syntax
+- [ ] **Step 2: `@slot(name)` → `@slot name`**
 
-**Files:**
-- Modify: `test/projects/learn-omniview/src/components/Modal.omni`
-- Modify: `test/projects/learn-omniview/src/components/NotificationsPanel.omni`
-- Modify: `test/projects/learn-omniview/src/components/SlotDefaultDemo.omni`
-- Modify: `test/projects/learn-omniview/src/pages/SignalPatternsDemo.omni`
-
-- [ ] **Step 1: Move @slot declarations from view template to component body**
-
-```
-Old (inline in view):
-  <div>
-    @slot header { <DefaultHeader /> }
-    @slot default
-    {header}
-    {children}
-  </div>
-
-New (body + view):
-  component Modal {
-    @slot header { <DefaultHeader /> }
-    @slot default
-    
-    <div>
-      {header}
-      {children}
-    </div>
-  }
-```
-
-- [ ] **Step 2: Update consumer syntax from slot="name" to named props**
-
-```
-Old:  <Modal><div slot="header">Title</div>content</Modal>
-New:  <Modal header={<div>Title</div>}>content</Modal>
-```
-
-- [ ] **Step 3: Update @slot(name) parenthesized form to @slot name**
-
-```
-Old:  @slot(header)
-New:  @slot header
-```
+- [ ] **Step 3: Consumer `slot="name"` → named props `name={<div/>}`**
 
 - [ ] **Step 4: Commit**
 
-```bash
-git commit -m "refactor(demo): migrate slot syntax to semantic DSL
+### Task 9.4: Fix @if mode syntax (2 files)
 
-Move @slot declarations from view template to component body.
-Render via {header}/{children} interpolation. Consumer side:
-slot= attribute → named props. @slot(name) → @slot name."
-```
-
-### Task 6.4: Update @if mode= syntax
-
-**Files:**
-- Modify: `test/projects/learn-omniview/src/pages/MotionDemo.omni`
-- Modify: `test/projects/learn-omniview/src/pages/SignalPatternsDemo.omni`
-
-- [ ] **Step 1: Fix syntax separator and values**
-
-```
-Old:  @if isOpen mode="sync"
-New:  @if isOpen mode: "wait"   ("sync" removed, use "wait")
-
-Old:  @if showPanel mode="wait"
-New:  @if showPanel mode: "wait"  (= → :)
-```
+- [ ] **Step 1: `mode=` → `mode:` separator, validate values (fade/wait/none)**
 
 - [ ] **Step 2: Commit**
 
-```bash
-git commit -m "refactor(demo): fix @if mode syntax to semantic DSL
+### Task 9.5: Regenerate golden fixtures + build output
 
-mode= → mode:. Remove 'sync' value (use 'wait' instead)."
-```
+- [ ] **Step 1: Copy migrated sources to `tests/fixtures/golden/` mirror**
+
+- [ ] **Step 2: Regenerate `build2/` output with updated OmniView codegen**
+
+- [ ] **Step 3: Commit**
 
 ---
 
-## Phase 7: Governance Update
+## Phase 10: Governance Update
 
-### Task 7.1: Update ADRs and deferrals
+### Task 10.1: Update ADR-020, ADR-021, deferrals
 
-**Files:**
-- Modify: `.architecture/decisions/adrs/ADR-020-flutter-state-management-riverpod.md`
-- Modify: `.architecture/decisions/adrs/ADR-021-cross-target-feature-parity.md`
-- Modify: `.architecture/deferrals.md`
+- [ ] **Step 1: ADR-020** → status **Implemented** (Riverpod 3.0)
 
-- [ ] **Step 1: Update ADR-020 status to Riverpod 3.0 Implemented**
+- [ ] **Step 2: ADR-021** → "semantically equivalent behavior for documented feature floor + hard diagnostics"
 
-Update status section to reflect Riverpod 3.0 Notifier + NotifierProvider implementation.
-
-- [ ] **Step 2: Update ADR-021 to behavior floor + diagnostics**
-
-Replace "semantically equivalent output" with "semantically equivalent behavior for documented feature floor + hard diagnostics outside it."
-
-- [ ] **Step 3: Update deferrals.md**
-
-Remove completed items. Add any new deferred items discovered during implementation.
+- [ ] **Step 3: `.architecture/deferrals.md`** → close completed items, add any new deferred items
 
 - [ ] **Step 4: Commit**
-
-```bash
-git commit -m "docs(adr): update ADR-020, ADR-021, deferrals
-
-ADR-020: mark Riverpod 3.0 as Implemented.
-ADR-021: redefine as behavior floor + diagnostics per ADR-052.
-Deferrals: sync with post-implementation state."
-```
 
 ---
 
 ## Implementation Order
 
 ```
-Phase 0 (IR):  0.1 → 0.2 → 0.3        [sequential — each touches types.rs]
-Phase 1 (Sem):  1.1, 1.2               [parallel — independent passes]
-Phase 2 (Shared): 2.1 → 2.2            [sequential]
-Phase 3 (React):  3.1 → 3.2 → 3.3 → 3.4 → 3.5  [sequential within, parallel with Flutter]
-Phase 4 (Flutter): 4.1 → 4.2 → 4.3 → 4.4 → 4.5  [sequential within, parallel with React]
-Phase 5 (CI):    5.1, 5.2              [parallel]
-Phase 6 (Demo):  6.1 → 6.2 → 6.3 → 6.4  [sequential]
-Phase 7 (Gov):   7.1                    [last]
+Phase 0:  0.1 → 0.2, 0.3, 0.4          [∥ after 0.1]
+Phase 1:  1.1 → 1.2, 1.3                [∥ after 1.1]
+Phase 2:  2.1, 2.2, 2.3                 [∥]
+Phase 3:  3.1, 3.2                       [∥]
+Phase 4:  4.1 → 4.2 → 4.3 → 4.4 → 4.5   [sequential]
+Phase 5:  5.1 → 5.2 → 5.3 → 5.4 → 5.5   [∥ Phase 4]
+Phase 6:  6.1                            [after 4+5]
+Phase 7:  7.1                            [∥ Phase 6]
+Phase 8:  8.1, 8.2                       [∥, after 4+5+6]
+Phase 9:  9.1 → 9.2 → 9.3 → 9.4 → 9.5   [after 8]
+Phase 10: 10.1                           [last]
 ```
 
-**Critical path**: 0.1 → 0.2 → 0.3 → 1.1 → 2.2 → 3.1/4.1 → 5.1
-**Parallelizable**: 3.x and 4.x can run in parallel after Phase 2 completes.
+**Critical path**: 0.1→1.1→2.1→3.1→4.1-4.5→6.1→8.1→9.x→10.1 (~17 sequential tasks)
+
+**Parallelizable**: Phase 4 (React) ∥ Phase 5 (Flutter). Tasks within Phase 0,1,2,3,8 can run in parallel.
+
+**Total**: 35 tasks across 10 phases. No deferred work. No placeholders.
