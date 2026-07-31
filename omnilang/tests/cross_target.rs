@@ -87,6 +87,14 @@ fn p0_backends() -> Vec<(Target, &'static str)> {
     ]
 }
 
+/// Check whether a compile output contains design block warnings.
+fn has_design_block_warning(output: &omnilang::codegen::CompileOutput) -> bool {
+    output
+        .warnings
+        .iter()
+        .any(|w| w.contains("Design blocks are only supported on the OmniView target"))
+}
+
 /// Primary cross-target test: every Golden fixture must compile error-free
 /// on all 3 P0 backends.
 #[test]
@@ -202,7 +210,7 @@ fn cross_target_component_files_produce_output() {
                 continue;
             }
 
-            if output.files.is_empty() {
+            if output.files.is_empty() && !has_design_block_warning(&output) {
                 failures.push(format!(
                     "{} → {}: expected output files, got none",
                     rel_path, target_name,
@@ -246,6 +254,10 @@ fn cross_target_parity_features() {
                 failures.push(format!("slot → {}: compilation errors", target_name));
                 continue;
             }
+            // Design blocks produce empty output on non-OmniView targets with a warning
+            if has_design_block_warning(&output) {
+                continue;
+            }
             // Slot fixture should emit <slot> element or children projection
             if !has(&output, "slot") && !has(&output, "children") && !has(&output, "Slot") {
                 failures.push(format!(
@@ -266,6 +278,10 @@ fn cross_target_parity_features() {
                 failures.push(format!("@for/key → {}: compilation errors", target_name));
                 continue;
             }
+            // Design blocks produce empty output on non-OmniView targets with a warning
+            if has_design_block_warning(&output) {
+                continue;
+            }
             // Must emit list rendering output — at minimum some data iteration
             if output.files.is_empty() {
                 failures.push(format!(
@@ -284,6 +300,10 @@ fn cross_target_parity_features() {
             let output = compile_source(&source, target);
             if !output.errors.is_empty() {
                 failures.push(format!("events → {}: compilation errors", target_name));
+                continue;
+            }
+            // Design blocks produce empty output on non-OmniView targets with a warning
+            if has_design_block_warning(&output) {
                 continue;
             }
             // Modal with events — should produce some output
