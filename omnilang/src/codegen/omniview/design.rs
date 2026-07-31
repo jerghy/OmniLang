@@ -76,7 +76,8 @@ fn emit_design_css_impl(
         css.push_str(":root {\n");
         for (name, token) in &sorted {
             if let TokenValueIR::Static(s) = &token.value {
-                let _ = writeln!(css, "  --{}: {};", name, s);
+                let sanitized = sanitize_css_value(s);
+                let _ = writeln!(css, "  --{}: {};", name, sanitized);
             }
             // Dynamic values are skipped here; they are emitted as runtime
             // CSS custom property assignments via __omni_effect (Task 6).

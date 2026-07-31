@@ -15,7 +15,10 @@ export default defineConfig(async () => ({
       ? { protocol: "ws", host, port: 1421 }
       : undefined,
     watch: {
-      ignored: ["**/src-tauri/**"],
+      ignored: [
+        "**/src-tauri/**",
+        "**/.claude/worktrees/**", // 隔离 worktree，防止 HMR 误触发
+      ],
     },
   },
   build: {
