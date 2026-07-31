@@ -354,10 +354,11 @@ fn parse_design_value_expression<'a>(
     let expr_tokens: Vec<Token> = design_tokens[start_idx..end_idx].iter().cloned().collect();
 
     // Use the full design body as source (token spans are offsets into it)
+    let error_offset = expr_tokens.first().map(|t| t.span.start).unwrap_or(offset);
     let mut expr_parser = Parser::new(expr_tokens, design_body_full);
     let expr = expr_parser.parse_expr().map_err(|e| DesignParseError {
         message: format!("failed to parse expression in token value: {}", e.message),
-        offset: 0,
+        offset: error_offset,
     })?;
 
     // Remaining string starts after the last expression token
