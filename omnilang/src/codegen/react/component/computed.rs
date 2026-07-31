@@ -4,9 +4,9 @@
 
 use crate::codegen::react::expr;
 use crate::codegen::react::utils;
-use crate::codegen::react::ReactStoreMode;
 use crate::codegen::CodeWriter;
 use crate::ir::*;
+use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 
 /// Generate useMemo / useCallback hooks for all @computed declarations.
@@ -15,7 +15,7 @@ pub(super) fn gen_computed_values(
     comp: &ComponentIR,
     known_signal_names: &[String],
     signal_names: &FxHashSet<String>,
-    store_mode: ReactStoreMode,
+    store_signal_owners: &FxHashMap<String, String>,
     ref_names: &FxHashSet<String>,
 ) {
     for computed in &comp.computeds {
@@ -47,13 +47,7 @@ pub(super) fn gen_computed_values(
         if let ExprIR::BlockExpr { statements, tail } = &computed.body {
             // Render preceding statements (let declarations, if/return, etc.)
             for stmt in statements {
-                expr::generate_statement_tsx_with_mode(
-                    w,
-                    stmt,
-                    signal_names,
-                    store_mode,
-                    ref_names,
-                );
+                expr::generate_statement_tsx(w, stmt, signal_names, store_signal_owners, ref_names);
             }
             // Render tail as return value if non-null
             // (null tail means the block has explicit return statements)

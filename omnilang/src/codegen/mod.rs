@@ -55,11 +55,31 @@ pub use traits::Codegen;
 pub use writer::{CodeWriter, CompileOutput, CompiledFile};
 
 /// Warning emitted when design blocks are compiled to a non-OmniView target.
+/// The React target compiles design blocks (semantic DSL) — all other
+/// non-OmniView targets warn and skip output.
+#[cfg(any(
+    feature = "codegen-python",
+    feature = "codegen-javascript",
+    feature = "codegen-rust",
+    feature = "codegen-dart",
+    feature = "codegen-vue",
+    feature = "codegen-dioxus",
+    feature = "codegen-flutter"
+))]
 const DESIGN_BLOCK_WARNING: &str = "Design blocks are only supported on the OmniView target. \
     Design tokens, classes, and variants will not be emitted in this output. \
     Compile with Target::OmniView for design system features.";
 
 /// Check whether the IR program contains any non-empty design blocks.
+#[cfg(any(
+    feature = "codegen-python",
+    feature = "codegen-javascript",
+    feature = "codegen-rust",
+    feature = "codegen-dart",
+    feature = "codegen-vue",
+    feature = "codegen-dioxus",
+    feature = "codegen-flutter"
+))]
 fn has_design_blocks(ir: &IRProgram) -> bool {
     ir.modules.values().any(|m| !m.designs.is_empty())
 }
@@ -74,7 +94,6 @@ pub fn compile(
     ir: &IRProgram,
     target: Target,
     #[allow(unused_variables)] source_files: &FxHashMap<String, String>,
-    #[allow(unused_variables)] store_mode: Option<&str>,
 ) -> CompileOutput {
     // Validate stdlib imports for the target
     if let Err(errors) = validate_stdlib_imports(ir, target) {
@@ -150,21 +169,7 @@ pub fn compile(
             dart::DartCodegen.generate(ir, source_files)
         }
         #[cfg(feature = "codegen-react")]
-        Target::React => {
-            if has_design_blocks(ir) {
-                return CompileOutput {
-                    files: vec![],
-                    errors: vec![],
-                    source_map: vec![],
-                    warnings: vec![DESIGN_BLOCK_WARNING.into()],
-                };
-            }
-            let mode: react::ReactStoreMode = store_mode
-                .unwrap_or("hooks")
-                .parse()
-                .unwrap_or_default();
-            react::ReactCodegen { store_mode: mode }.generate(ir, source_files)
-        }
+        Target::React => react::ReactCodegen.generate(ir, source_files),
         #[cfg(feature = "codegen-vue")]
         Target::Vue => {
             if has_design_blocks(ir) {

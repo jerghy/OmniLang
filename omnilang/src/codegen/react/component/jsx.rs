@@ -20,6 +20,7 @@ impl ReactCodegen {
         comp: &ComponentIR,
         component_map: &FxHashMap<&str, &ComponentIR>,
         signal_names: &FxHashSet<String>,
+        store_signal_owners: &FxHashMap<String, String>,
         motion_names: &FxHashSet<String>,
         name: &str,
         ref_names: &FxHashSet<String>,
@@ -32,6 +33,7 @@ impl ReactCodegen {
                 view,
                 component_map,
                 signal_names,
+                store_signal_owners,
                 motion_names,
                 ref_names,
             );

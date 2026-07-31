@@ -21,6 +21,7 @@ pub(super) fn gen_view_node_tsx(
     node: &ViewTree,
     component_map: &FxHashMap<&str, &ComponentIR>,
     signal_names: &FxHashSet<String>,
+    store_signal_owners: &FxHashMap<String, String>,
     motion_names: &FxHashSet<String>,
     ref_names: &FxHashSet<String>,
 ) {
@@ -37,6 +38,7 @@ pub(super) fn gen_view_node_tsx(
                         child,
                         component_map,
                         signal_names,
+                        store_signal_owners,
                         motion_names,
                         ref_names,
                     );
@@ -62,8 +64,13 @@ pub(super) fn gen_view_node_tsx(
                             comp_attrs.push(format!("{}={{{}}}", jsx_event, r#ref));
                         }
                         EventHandlerIR::InlineFn { body, params, .. } => {
-                            let handler_str =
-                                format_inline_handler(body, signal_names, params, ref_names);
+                            let handler_str = format_inline_handler(
+                                body,
+                                signal_names,
+                                store_signal_owners,
+                                params,
+                                ref_names,
+                            );
                             comp_attrs.push(format!("{}={{{}}}", jsx_event, handler_str));
                         }
                         EventHandlerIR::StoreAction { r#ref, .. } => {
@@ -85,6 +92,7 @@ pub(super) fn gen_view_node_tsx(
                             child,
                             component_map,
                             signal_names,
+                            store_signal_owners,
                             motion_names,
                             ref_names,
                         );
@@ -388,6 +396,7 @@ pub(super) fn gen_view_node_tsx(
                                     &mut merged_hw,
                                     stmt,
                                     signal_names,
+                                    store_signal_owners,
                                     ref_names,
                                 );
                             }
@@ -416,6 +425,7 @@ pub(super) fn gen_view_node_tsx(
                                         &mut merged_hw,
                                         stmt,
                                         signal_names,
+                                        store_signal_owners,
                                         ref_names,
                                     );
                                 }
@@ -432,8 +442,13 @@ pub(super) fn gen_view_node_tsx(
                                 result.push_str("      }");
                                 attrs.push(format!("{}={{{}}}", react_event, result));
                             } else {
-                                let handler_str =
-                                    format_inline_handler(body, signal_names, params, ref_names);
+                                let handler_str = format_inline_handler(
+                                    body,
+                                    signal_names,
+                                    store_signal_owners,
+                                    params,
+                                    ref_names,
+                                );
                                 attrs.push(format!("{}={{{}}}", react_event, handler_str));
                             }
                         }
@@ -614,6 +629,7 @@ pub(super) fn gen_view_node_tsx(
                     child,
                     component_map,
                     signal_names,
+                    store_signal_owners,
                     motion_names,
                     ref_names,
                 );
@@ -629,7 +645,15 @@ pub(super) fn gen_view_node_tsx(
 
             if branches.is_empty() {
                 if let Some(ref fb) = fallback {
-                    gen_view_node_tsx(w, fb, component_map, signal_names, motion_names, ref_names);
+                    gen_view_node_tsx(
+                        w,
+                        fb,
+                        component_map,
+                        signal_names,
+                        store_signal_owners,
+                        motion_names,
+                        ref_names,
+                    );
                 }
                 return;
             }
@@ -647,6 +671,7 @@ pub(super) fn gen_view_node_tsx(
                         body,
                         component_map,
                         signal_names,
+                        store_signal_owners,
                         motion_names,
                         ref_names,
                     );
@@ -675,6 +700,7 @@ pub(super) fn gen_view_node_tsx(
                         body,
                         component_map,
                         signal_names,
+                        store_signal_owners,
                         motion_names,
                         ref_names,
                     );
@@ -694,6 +720,7 @@ pub(super) fn gen_view_node_tsx(
                             body,
                             component_map,
                             signal_names,
+                            store_signal_owners,
                             motion_names,
                             ref_names,
                         );
@@ -705,7 +732,15 @@ pub(super) fn gen_view_node_tsx(
                 if let Some(ref fb) = fallback {
                     w.emit(") : (");
                     w.indent();
-                    gen_view_node_tsx(w, fb, component_map, signal_names, motion_names, ref_names);
+                    gen_view_node_tsx(
+                        w,
+                        fb,
+                        component_map,
+                        signal_names,
+                        store_signal_owners,
+                        motion_names,
+                        ref_names,
+                    );
                     w.dedent();
                     w.emit(")");
                 } else {
@@ -717,7 +752,15 @@ pub(super) fn gen_view_node_tsx(
                 }
             } else if let Some(ref fb) = fallback {
                 // No branches, just fallback
-                gen_view_node_tsx(w, fb, component_map, signal_names, motion_names, ref_names);
+                gen_view_node_tsx(
+                    w,
+                    fb,
+                    component_map,
+                    signal_names,
+                    store_signal_owners,
+                    motion_names,
+                    ref_names,
+                );
             }
 
             w.dedent();
@@ -748,6 +791,7 @@ pub(super) fn gen_view_node_tsx(
                         empty_body,
                         component_map,
                         signal_names,
+                        store_signal_owners,
                         motion_names,
                         ref_names,
                     );
@@ -774,6 +818,7 @@ pub(super) fn gen_view_node_tsx(
                     body,
                     component_map,
                     signal_names,
+                    store_signal_owners,
                     motion_names,
                     ref_names,
                 );
@@ -825,6 +870,7 @@ pub(super) fn gen_view_node_tsx(
                     child,
                     component_map,
                     signal_names,
+                    store_signal_owners,
                     motion_names,
                     ref_names,
                 );
@@ -950,13 +996,20 @@ pub(crate) fn format_style_value_expr(
 fn format_inline_handler(
     body: &BlockIR,
     signal_names: &FxHashSet<String>,
+    store_signal_owners: &FxHashMap<String, String>,
     params: &[String],
     ref_names: &FxHashSet<String>,
 ) -> String {
     // Generate the body content first to check which params are actually used
     let mut body_w = CodeWriter::new();
     for stmt in &body.statements {
-        generate_statement_tsx(&mut body_w, stmt, signal_names, ref_names);
+        generate_statement_tsx(
+            &mut body_w,
+            stmt,
+            signal_names,
+            store_signal_owners,
+            ref_names,
+        );
     }
     let body_content = body_w.into_string();
 
@@ -989,6 +1042,6 @@ fn format_inline_handler(
         use_writer: false,
     };
     build_inline_handler(body, &config, |w, s| {
-        generate_statement_tsx(w, s, signal_names, ref_names)
+        generate_statement_tsx(w, s, signal_names, store_signal_owners, ref_names)
     })
 }

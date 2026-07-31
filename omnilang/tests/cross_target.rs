@@ -75,7 +75,7 @@ fn compile_source(source: &str, target: Target) -> omnilang::codegen::CompileOut
     let source_files: FxHashMap<String, String> =
         FxHashMap::from_iter([("input.omni".to_string(), source.to_string())]);
 
-    compile(&ir, target, &source_files, None)
+    compile(&ir, target, &source_files)
 }
 
 fn p0_backends() -> Vec<(Target, &'static str)> {

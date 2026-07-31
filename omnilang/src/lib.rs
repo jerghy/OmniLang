@@ -80,8 +80,7 @@ pub struct OmniViewFiles {
 #[must_use]
 pub fn compile_omniview(source: &str, editor_mode: bool, debug_mode: bool) -> OmniViewResult {
     let pipeline = run_pipeline(source);
-    let gen_output =
-        codegen::omniview::generate(&pipeline.ir, editor_mode, false, debug_mode);
+    let gen_output = codegen::omniview::generate(&pipeline.ir, editor_mode, false, debug_mode);
     OmniViewResult {
         success: !pipeline.has_errors,
         files: Some(OmniViewFiles {
@@ -136,8 +135,7 @@ pub fn compile_omniview_full(
     debug_mode: bool,
 ) -> OmniViewFullResult {
     let pipeline = run_pipeline(source);
-    let gen_output =
-        codegen::omniview::generate(&pipeline.ir, editor_mode, false, debug_mode);
+    let gen_output = codegen::omniview::generate(&pipeline.ir, editor_mode, false, debug_mode);
     OmniViewFullResult {
         success: !pipeline.has_errors,
         ir: Some(pipeline.ir),
@@ -242,9 +240,8 @@ pub fn compile_to_target_json(
     ir: &ir::IRProgram,
     target: codegen::Target,
     source_files: &FxHashMap<String, String>,
-    store_mode: Option<&str>,
 ) -> String {
-    let output = codegen::compile(ir, target, source_files, store_mode);
+    let output = codegen::compile(ir, target, source_files);
     let files_map: FxHashMap<String, String> = output
         .files
         .into_iter()
@@ -377,14 +374,14 @@ fn compile_multi_internal_post(
             (files, comps)
         } else {
             (
-                codegen::compile(&merged_ir, target, sources, store_mode),
+                codegen::compile(&merged_ir, target, sources),
                 FxHashMap::default(),
             )
         }
     };
     #[cfg(not(feature = "codegen-omniview"))]
     let (output, components): (_, FxHashMap<String, serde_json::Value>) = (
-        codegen::compile(&merged_ir, target, sources, store_mode),
+        codegen::compile(&merged_ir, target, sources),
         FxHashMap::default(),
     );
 
@@ -529,7 +526,7 @@ mod source_map_integration_tests {
     #[test]
     fn compile_to_target_json_contains_source_map() {
         let ir = crate::ir::IRProgram::default();
-        let json = crate::compile_to_target_json(&ir, Target::Python, &FxHashMap::default(), None);
+        let json = crate::compile_to_target_json(&ir, Target::Python, &FxHashMap::default());
         assert!(
             json.contains("\"sourceMap\""),
             "compile_to_target_json output should contain sourceMap key.\nGot: {}",

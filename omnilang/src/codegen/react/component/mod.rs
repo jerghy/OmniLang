@@ -146,10 +146,13 @@ impl ReactCodegen {
             }
         }
 
-        // Build signal_names (all state + store aliases) and store_signal_map
+        // Build signal_names (all state + store aliases), store_signal_map
+        // (signal → "StoreRef.signal" for effect deps) and store_signal_owners
+        // (signal → "StoreRef" for setState mutations, C7).
         let mut signal_names: FxHashSet<String> =
             comp.signals.iter().map(|s| s.name.clone()).collect();
         let mut store_signal_map: FxHashMap<String, String> = FxHashMap::default();
+        let mut store_signal_owners: FxHashMap<String, String> = FxHashMap::default();
         for store_ref in &comp.store_refs {
             if !used_store_refs.contains(store_ref.as_str()) {
                 continue;
@@ -160,6 +163,7 @@ impl ReactCodegen {
                     signal_names.insert(sig_name.clone());
                     store_signal_map
                         .insert(sig_name.clone(), format!("{}.{}", store_ref, sig_name));
+                    store_signal_owners.insert(sig_name.clone(), store_ref.clone());
                 }
             }
         }
@@ -242,11 +246,11 @@ impl ReactCodegen {
             let mut body_w = crate::codegen::CodeWriter::new();
             body_w.indent();
             for stmt in &fun.body.statements {
-                expr::generate_statement_tsx_with_mode(
+                expr::generate_statement_tsx(
                     &mut body_w,
                     stmt,
                     &FxHashSet::default(),
-                    self.store_mode,
+                    &store_signal_owners,
                     &ref_names,
                 );
             }
@@ -319,7 +323,14 @@ impl ReactCodegen {
         let fn_names: FxHashSet<String> = comp.fns.iter().map(|f| f.name.clone()).collect();
         self.gen_state_hooks(&mut w, comp, &read_signals, &mutated_signals, &fn_names);
         state::gen_ref_hooks(&mut w, comp);
-        self.gen_effects(&mut w, comp, &store_signal_map, &signal_names, &ref_names);
+        self.gen_effects(
+            &mut w,
+            comp,
+            &store_signal_map,
+            &store_signal_owners,
+            &signal_names,
+            &ref_names,
+        );
 
         // Computed values (useMemo / useCallback)
         let mut known_signal_names: Vec<String> =
@@ -331,7 +342,7 @@ impl ReactCodegen {
             comp,
             &known_signal_names,
             &signal_names,
-            self.store_mode,
+            &store_signal_owners,
             &ref_names,
         );
 
@@ -341,6 +352,7 @@ impl ReactCodegen {
             comp,
             &called_fns,
             &signal_names,
+            &store_signal_owners,
             &fn_names,
             &ref_names,
         );
@@ -358,6 +370,7 @@ impl ReactCodegen {
             comp,
             component_map,
             &signal_names,
+            &store_signal_owners,
             &motion_names,
             name,
             &ref_names,

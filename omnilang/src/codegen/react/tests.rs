@@ -207,7 +207,13 @@ fn test_tsx_stmt_let() {
         }),
         r#type: None,
     };
-    generate_statement_tsx(&mut w, &stmt, &FxHashSet::default(), &FxHashSet::default());
+    generate_statement_tsx(
+        &mut w,
+        &stmt,
+        &FxHashSet::default(),
+        &FxHashMap::default(),
+        &FxHashSet::default(),
+    );
     assert_eq!(w.into_string(), "const x = 42;\n");
 }
 
@@ -220,7 +226,13 @@ fn test_tsx_stmt_return() {
             type_ann: None,
         }),
     };
-    generate_statement_tsx(&mut w, &stmt, &FxHashSet::default(), &FxHashSet::default());
+    generate_statement_tsx(
+        &mut w,
+        &stmt,
+        &FxHashSet::default(),
+        &FxHashMap::default(),
+        &FxHashSet::default(),
+    );
     assert_eq!(w.into_string(), "return result;\n");
 }
 
@@ -239,7 +251,13 @@ fn test_tsx_stmt_mutation_increment_local() {
         }),
     };
     // owner=None + not in signal_names → direct assignment
-    generate_statement_tsx(&mut w, &stmt, &FxHashSet::default(), &FxHashSet::default());
+    generate_statement_tsx(
+        &mut w,
+        &stmt,
+        &FxHashSet::default(),
+        &FxHashMap::default(),
+        &FxHashSet::default(),
+    );
     assert_eq!(w.into_string(), "count = count + 1;\n");
 }
 
@@ -260,7 +278,13 @@ fn test_tsx_stmt_mutation_increment_signal() {
     // owner=None but "count" IS in signal_names → setter call
     let mut sig_names = FxHashSet::default();
     sig_names.insert("count".to_string());
-    generate_statement_tsx(&mut w, &stmt, &sig_names, &FxHashSet::default());
+    generate_statement_tsx(
+        &mut w,
+        &stmt,
+        &sig_names,
+        &FxHashMap::default(),
+        &FxHashSet::default(),
+    );
     assert_eq!(w.into_string(), "setCount(prev => prev + 1);\n");
 }
 
@@ -280,7 +304,13 @@ fn test_tsx_stmt_mutation_assign_local() {
         }),
     };
     // owner=None + not in signal_names → direct assignment
-    generate_statement_tsx(&mut w, &stmt, &FxHashSet::default(), &FxHashSet::default());
+    generate_statement_tsx(
+        &mut w,
+        &stmt,
+        &FxHashSet::default(),
+        &FxHashMap::default(),
+        &FxHashSet::default(),
+    );
     assert_eq!(w.into_string(), "name = \"alice\";\n");
 }
 
@@ -302,7 +332,13 @@ fn test_tsx_stmt_mutation_assign_store() {
     // Note: `owner` field removed from SignalRefIR — store signal
     // detection via target.owner is no longer available, so this
     // falls through to direct assignment.
-    generate_statement_tsx(&mut w, &stmt, &FxHashSet::default(), &FxHashSet::default());
+    generate_statement_tsx(
+        &mut w,
+        &stmt,
+        &FxHashSet::default(),
+        &FxHashMap::default(),
+        &FxHashSet::default(),
+    );
     assert_eq!(w.into_string(), "name = \"alice\";\n");
 }
 
@@ -326,7 +362,13 @@ fn test_tsx_stmt_if() {
         else_ifs: vec![],
         else_body: None,
     };
-    generate_statement_tsx(&mut w, &stmt, &FxHashSet::default(), &FxHashSet::default());
+    generate_statement_tsx(
+        &mut w,
+        &stmt,
+        &FxHashSet::default(),
+        &FxHashMap::default(),
+        &FxHashSet::default(),
+    );
     let out = w.into_string();
     assert!(out.contains("if (cond) {"));
     assert!(out.contains("const x = 1;"));
@@ -721,112 +763,11 @@ fn test_tsx_component_with_lifecycle_mount() {
     assert!(tsx.contains("}, []);"));
 }
 
-// ── gen_store_hook tests ─────────────────────────────────
-
-#[test]
-fn test_store_hook_empty() {
-    let codegen = ReactCodegen::default();
-    let store = StoreIR {
-        name: "AppStore".into(),
-        signals: FxHashMap::default(),
-        signal_defaults: FxHashMap::default(),
-        getters: FxHashMap::default(),
-        actions: vec![],
-        ..Default::default()
-    };
-    let hook = codegen.gen_store_hook("AppStore", &store);
-    assert!(hook.contains("export function useAppStore() {"));
-    assert!(hook.contains("import { useState, useCallback, useMemo } from 'react';"));
-}
-
-#[test]
-fn test_store_hook_with_signals() {
-    let codegen = ReactCodegen::default();
-    let mut signals = FxHashMap::default();
-    signals.insert(
-        "count".into(),
-        TypeIR {
-            kind: "i32".into(),
-            type_args: vec![],
-            is_nullable: false,
-        },
-    );
-    signals.insert(
-        "name".into(),
-        TypeIR {
-            kind: "string".into(),
-            type_args: vec![],
-            is_nullable: false,
-        },
-    );
-    let mut defaults = FxHashMap::default();
-    defaults.insert("count".into(), serde_json::json!(0));
-    defaults.insert("name".into(), serde_json::json!("world"));
-    let store = StoreIR {
-        name: "AppStore".into(),
-        signals,
-        signal_defaults: defaults,
-        getters: FxHashMap::default(),
-        actions: vec![],
-        ..Default::default()
-    };
-    let hook = codegen.gen_store_hook("AppStore", &store);
-    assert!(hook.contains("const [count, setCount] = useState<number>(0);"));
-    assert!(hook.contains("const [name, setName] = useState<string>(\"world\");"));
-    assert!(hook.contains("return useMemo("));
-    assert!(hook.contains("count"));
-    assert!(hook.contains("name"));
-}
-
-#[test]
-fn test_store_hook_with_getters() {
-    let codegen = ReactCodegen::default();
-    let mut getters = FxHashMap::default();
-    getters.insert(
-        "doubleCount".into(),
-        ExprIR::BinaryOpExpr {
-            op: BinaryOpIR::Mul,
-            left: Box::new(ExprIR::IdentifierExpr {
-                name: "count".into(),
-                type_ann: None,
-            }),
-            right: Box::new(ExprIR::LiteralExpr {
-                value: serde_json::json!(2),
-            }),
-        },
-    );
-    let mut signals = FxHashMap::default();
-    signals.insert(
-        "count".into(),
-        TypeIR {
-            kind: "i32".into(),
-            type_args: vec![],
-            is_nullable: false,
-        },
-    );
-    let mut defaults = FxHashMap::default();
-    defaults.insert("count".into(), serde_json::json!(0));
-    let store = StoreIR {
-        name: "CalcStore".into(),
-        signals,
-        signal_defaults: defaults,
-        getters,
-        actions: vec![],
-        ..Default::default()
-    };
-    let hook = codegen.gen_store_hook("CalcStore", &store);
-    assert!(hook.contains("const [count, setCount] = useState<number>(0);"));
-    assert!(hook.contains("const doubleCount = useMemo(() => { return count * 2; }, [count]);"));
-    assert!(hook.contains("return useMemo(() => ({ count, doubleCount }), [count, doubleCount]);"));
-}
-
 // ── Zustand store codegen tests ───────────────────────────
 
 #[test]
 fn test_zustand_store_empty() {
-    let codegen = ReactCodegen {
-        store_mode: super::ReactStoreMode::Zustand,
-    };
+    let codegen = ReactCodegen::default();
     let store = StoreIR {
         name: "AppStore".into(),
         signals: FxHashMap::default(),
@@ -843,9 +784,7 @@ fn test_zustand_store_empty() {
 
 #[test]
 fn test_zustand_store_with_signals_and_getters() {
-    let codegen = ReactCodegen {
-        store_mode: super::ReactStoreMode::Zustand,
-    };
+    let codegen = ReactCodegen::default();
     let mut signals = FxHashMap::default();
     signals.insert(
         "count".into(),
@@ -919,13 +858,26 @@ fn test_zustand_store_with_signals_and_getters() {
         "should emit typed getter return: {}",
         result
     );
+    assert!(
+        result.contains("export function useCount() {"),
+        "should emit standalone signal selector hook: {}",
+        result
+    );
+    assert!(
+        result.contains("export function useDoubleCount() {"),
+        "should emit standalone getter selector hook: {}",
+        result
+    );
+    assert!(
+        result.contains("return useCalcStore((s) => s.count);"),
+        "selector hook should subscribe via the store hook: {}",
+        result
+    );
 }
 
 #[test]
 fn test_zustand_store_mutation_multiply_in_action() {
-    let codegen = ReactCodegen {
-        store_mode: super::ReactStoreMode::Zustand,
-    };
+    let codegen = ReactCodegen::default();
     let mut signals = FxHashMap::default();
     signals.insert(
         "count".into(),
@@ -986,6 +938,257 @@ fn test_zustand_store_mutation_multiply_in_action() {
     assert!(
         result.contains("multiply: (factor: number) => void;"),
         "should emit typed action param, got: {}",
+        result
+    );
+    assert!(
+        result.contains("export function useMultiply() {"),
+        "should emit standalone action selector hook, got: {}",
+        result
+    );
+}
+
+/// Regression (CRITICAL): `items = [...items, {...}]` must emit the
+/// `const state = get();` prologue and rename `items` to `state.items`.
+/// The prologue walker must recurse into list/object literals.
+#[test]
+fn test_zustand_store_array_literal_mutation_emits_prologue() {
+    let codegen = ReactCodegen::default();
+    let mut signals = FxHashMap::default();
+    signals.insert(
+        "items".into(),
+        TypeIR {
+            kind: "Vec".into(),
+            type_args: vec![TypeIR {
+                kind: "string".into(),
+                type_args: vec![],
+                is_nullable: false,
+            }],
+            is_nullable: false,
+        },
+    );
+    let mut defaults = FxHashMap::default();
+    defaults.insert("items".into(), serde_json::json!([]));
+    let store = StoreIR {
+        name: "TodoStore".into(),
+        signals,
+        signal_defaults: defaults,
+        getters: FxHashMap::default(),
+        actions: vec![FunctionIR {
+            name: "add".into(),
+            visibility: Visibility::Public,
+            params: vec![ParamIR {
+                name: "text".into(),
+                r#type: Some(TypeIR {
+                    kind: "string".into(),
+                    type_args: vec![],
+                    is_nullable: false,
+                }),
+            }],
+            return_type: None,
+            body: BlockIR {
+                statements: vec![StatementIR::MutationStmt {
+                    intent: Some(MutationIntent::DirectAssign {
+                        target: SignalRefIR {
+                            name: "items".into(),
+                        },
+                        value: Some(Box::new(ExprIR::ArrayExpr {
+                            elements: vec![
+                                ExprIR::SpreadExpr {
+                                    operand: Box::new(ExprIR::IdentifierExpr {
+                                        name: "items".into(),
+                                        type_ann: None,
+                                    }),
+                                },
+                                ExprIR::MapExpr {
+                                    entries: vec![
+                                        (
+                                            ExprIR::LiteralExpr {
+                                                value: serde_json::json!("text"),
+                                            },
+                                            ExprIR::IdentifierExpr {
+                                                name: "text".into(),
+                                                type_ann: None,
+                                            },
+                                        ),
+                                        (
+                                            ExprIR::LiteralExpr {
+                                                value: serde_json::json!("done"),
+                                            },
+                                            ExprIR::LiteralExpr {
+                                                value: serde_json::json!(false),
+                                            },
+                                        ),
+                                    ],
+                                },
+                            ],
+                        })),
+                        field_object: None,
+                    }),
+                }],
+            },
+            is_async: false,
+            source_span: None,
+        }],
+        ..Default::default()
+    };
+    let result = codegen.gen_zustand_store("TodoStore", &store);
+    assert!(
+        result.contains("const state = get();"),
+        "array-literal mutation must emit the prologue, got: {}",
+        result
+    );
+    assert!(
+        result.contains("set({ items: [...state.items,"),
+        "items must be renamed to state.items inside the array literal, got: {}",
+        result
+    );
+    assert!(
+        result.contains("\"text\": text"),
+        "object literal values must keep local identifiers, got: {}",
+        result
+    );
+}
+
+/// Regression (HIGH #1): getter references inside action bodies must be
+/// renamed to `state.<getter>` and trigger the prologue.
+#[test]
+fn test_zustand_store_getter_ref_renamed_in_action() {
+    let codegen = ReactCodegen::default();
+    let mut signals = FxHashMap::default();
+    signals.insert(
+        "notifications".into(),
+        TypeIR {
+            kind: "Vec".into(),
+            type_args: vec![TypeIR {
+                kind: "string".into(),
+                type_args: vec![],
+                is_nullable: false,
+            }],
+            is_nullable: false,
+        },
+    );
+    let mut defaults = FxHashMap::default();
+    defaults.insert("notifications".into(), serde_json::json!([]));
+    let mut getters = FxHashMap::default();
+    getters.insert(
+        "unreadCount".into(),
+        ExprIR::MethodCallExpr {
+            object: Box::new(ExprIR::IdentifierExpr {
+                name: "notifications".into(),
+                type_ann: None,
+            }),
+            method: "len".into(),
+            args: vec![],
+            is_optional: false,
+        },
+    );
+    let mut getter_types = FxHashMap::default();
+    getter_types.insert(
+        "unreadCount".into(),
+        TypeIR {
+            kind: "i32".into(),
+            type_args: vec![],
+            is_nullable: false,
+        },
+    );
+    let store = StoreIR {
+        name: "NotificationStore".into(),
+        signals,
+        signal_defaults: defaults,
+        getters,
+        getter_types,
+        actions: vec![FunctionIR {
+            name: "logUnread".into(),
+            visibility: Visibility::Public,
+            params: vec![],
+            return_type: None,
+            body: BlockIR {
+                statements: vec![StatementIR::LetStmtIR {
+                    name: "summary".into(),
+                    value: Some(ExprIR::MethodCallExpr {
+                        object: Box::new(ExprIR::IdentifierExpr {
+                            name: "unreadCount".into(),
+                            type_ann: None,
+                        }),
+                        method: "to_string".into(),
+                        args: vec![],
+                        is_optional: false,
+                    }),
+                    r#type: None,
+                }],
+            },
+            is_async: false,
+            source_span: None,
+        }],
+        ..Default::default()
+    };
+    let result = codegen.gen_zustand_store("NotificationStore", &store);
+    assert!(
+        result.contains("const state = get();"),
+        "getter read in action must emit the prologue, got: {}",
+        result
+    );
+    assert!(
+        result.contains("state.unreadCount.toString()"),
+        "getter reference must be renamed to state.unreadCount, got: {}",
+        result
+    );
+}
+
+/// Regression (HIGH #2): string literals containing signal names must NOT be
+/// renamed — the rename happens at the AST identifier level only.
+#[test]
+fn test_zustand_store_string_literal_not_renamed() {
+    let codegen = ReactCodegen::default();
+    let mut signals = FxHashMap::default();
+    signals.insert(
+        "items".into(),
+        TypeIR {
+            kind: "Vec".into(),
+            type_args: vec![TypeIR {
+                kind: "string".into(),
+                type_args: vec![],
+                is_nullable: false,
+            }],
+            is_nullable: false,
+        },
+    );
+    let mut defaults = FxHashMap::default();
+    defaults.insert("items".into(), serde_json::json!([]));
+    let store = StoreIR {
+        name: "CartStore".into(),
+        signals,
+        signal_defaults: defaults,
+        getters: FxHashMap::default(),
+        actions: vec![FunctionIR {
+            name: "logCart".into(),
+            visibility: Visibility::Public,
+            params: vec![],
+            return_type: None,
+            body: BlockIR {
+                statements: vec![StatementIR::ExprStmtIR {
+                    expr: ExprIR::CallExpr {
+                        name: "println".into(),
+                        args: vec![ExprIR::LiteralExpr {
+                            value: serde_json::json!("items in cart"),
+                        }],
+                    },
+                }],
+            },
+            is_async: false,
+            source_span: None,
+        }],
+        ..Default::default()
+    };
+    let result = codegen.gen_zustand_store("CartStore", &store);
+    assert!(
+        result.contains("console.log(\"items in cart\")"),
+        "string literal containing a signal name must stay intact, got: {}",
+        result
+    );
+    assert!(
+        !result.contains("state.items in cart"),
+        "string literal must NOT be renamed, got: {}",
         result
     );
 }

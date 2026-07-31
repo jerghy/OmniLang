@@ -17,6 +17,7 @@ impl ReactCodegen {
         w: &mut CodeWriter,
         comp: &ComponentIR,
         store_signal_map: &FxHashMap<String, String>,
+        store_signal_owners: &FxHashMap<String, String>,
         signal_names: &FxHashSet<String>,
         ref_names: &FxHashSet<String>,
     ) {
@@ -41,11 +42,11 @@ impl ReactCodegen {
                 w.emit("(async () => {");
                 w.indent();
                 for stmt in &effect.body.statements {
-                    expr::generate_statement_tsx_with_mode(
+                    expr::generate_statement_tsx(
                         &mut *w,
                         stmt,
                         signal_names,
-                        self.store_mode,
+                        store_signal_owners,
                         ref_names,
                     );
                 }
@@ -57,11 +58,11 @@ impl ReactCodegen {
                 w.emit("useEffect(() => {");
                 w.indent();
                 for stmt in &effect.body.statements {
-                    expr::generate_statement_tsx_with_mode(
+                    expr::generate_statement_tsx(
                         &mut *w,
                         stmt,
                         signal_names,
-                        self.store_mode,
+                        store_signal_owners,
                         ref_names,
                     );
                 }
@@ -81,11 +82,11 @@ impl ReactCodegen {
                         w.emit("(async () => {");
                         w.indent();
                         for stmt in &lc.body.statements {
-                            expr::generate_statement_tsx_with_mode(
+                            expr::generate_statement_tsx(
                                 &mut *w,
                                 stmt,
                                 signal_names,
-                                self.store_mode,
+                                store_signal_owners,
                                 ref_names,
                             );
                         }
@@ -97,11 +98,11 @@ impl ReactCodegen {
                         w.emit("useEffect(() => {");
                         w.indent();
                         for stmt in &lc.body.statements {
-                            expr::generate_statement_tsx_with_mode(
+                            expr::generate_statement_tsx(
                                 &mut *w,
                                 stmt,
                                 signal_names,
-                                self.store_mode,
+                                store_signal_owners,
                                 ref_names,
                             );
                         }
@@ -120,11 +121,11 @@ impl ReactCodegen {
                         w.indent();
                     }
                     for stmt in &lc.body.statements {
-                        expr::generate_statement_tsx_with_mode(
+                        expr::generate_statement_tsx(
                             &mut *w,
                             stmt,
                             signal_names,
-                            self.store_mode,
+                            store_signal_owners,
                             ref_names,
                         );
                     }
@@ -145,11 +146,11 @@ impl ReactCodegen {
                         w.emit("(async () => {");
                         w.indent();
                         for stmt in &lc.body.statements {
-                            expr::generate_statement_tsx_with_mode(
+                            expr::generate_statement_tsx(
                                 &mut *w,
                                 stmt,
                                 signal_names,
-                                self.store_mode,
+                                store_signal_owners,
                                 ref_names,
                             );
                         }
@@ -161,11 +162,11 @@ impl ReactCodegen {
                         w.emit("useEffect(() => {");
                         w.indent();
                         for stmt in &lc.body.statements {
-                            expr::generate_statement_tsx_with_mode(
+                            expr::generate_statement_tsx(
                                 &mut *w,
                                 stmt,
                                 signal_names,
-                                self.store_mode,
+                                store_signal_owners,
                                 ref_names,
                             );
                         }

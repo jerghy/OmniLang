@@ -10,7 +10,6 @@ pub fn cmd_build(
     files: Vec<String>,
     target: Option<String>,
     output_dir: &str,
-    store_mode: &str,
 ) -> anyhow::Result<()> {
     let sources = api::collect_sources(&files)?;
     let target_str = api::detect_target(&sources, target.as_deref());
@@ -20,13 +19,8 @@ pub fn cmd_build(
         .parse()
         .map_err(|_| anyhow::anyhow!("unknown target: {target_str}"))?;
 
-    let store_mode_opt = if store_mode == "hooks" {
-        None
-    } else {
-        Some(store_mode)
-    };
     let result_json =
-        omnilang::compile_multi_to_target(sources, t, path_mapping, false, false, store_mode_opt);
+        omnilang::compile_multi_to_target(sources, t, path_mapping, false, false, None);
     let data: serde_json::Value = serde_json::from_str(&result_json)?;
 
     // Python checks result.success (cli.py:173)

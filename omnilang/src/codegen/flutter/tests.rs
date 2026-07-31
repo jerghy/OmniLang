@@ -253,6 +253,7 @@ fn test_stmt_mutation_assign() {
             value: Some(Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!("hello"),
             })),
+            field_object: None,
         }),
     };
     generate_statement_flutter(&mut w, &stmt);
