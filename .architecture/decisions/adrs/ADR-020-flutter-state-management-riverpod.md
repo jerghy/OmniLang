@@ -2,9 +2,9 @@
 
 ## Status
 
-Accepted
+Implemented
 
-> **⚠️ 2026-07-29 状态**：此 ADR 已被接受但**尚未实施**。所有验收标准仍为空白。Flutter codegen 仍使用 `ChangeNotifier` + `StatefulWidget` + `setState()`。Riverpod 3.0 迁移是已批准的未来方向，但无实现时间线。
+> **✅ 2026-07-31 更新**（ADR-052）：Riverpod 迁移已完成。当前使用 Riverpod **3.0**（最新稳定版 3.3.2）的 `Notifier<T>` + `NotifierProvider` API，替代了原有的 `ChangeNotifier` + `StateProvider`（2.x）。`StateProvider` 和 `StateNotifierProvider` 在 Riverpod 3.0 中已废弃移至 `legacy.dart`。本 ADR 的选型决策被验证为正确——Riverpod 3.0 的 `Notifier` 模型确实更适合代码生成。参见 [[ADR-052]]。
 
 ## Context
 
