@@ -1468,9 +1468,9 @@ component TestRef {
         "Import should include useRef. Got:\n{}",
         content
     );
-    // useRef declaration
+    // useRef declaration — typed by the bound element's tag (div → HTMLDivElement)
     assert!(
-        content.contains("const boxRef = useRef<HTMLElement>(null)"),
+        content.contains("const boxRef = useRef<HTMLDivElement>(null)"),
         "Should generate useRef declaration. Got:\n{}",
         content
     );
@@ -1516,9 +1516,9 @@ component DragRef {
         "useRef should be imported. Got:\n{}",
         content
     );
-    // useRef declaration
+    // useRef declaration — typed by the bound element's tag (div → HTMLDivElement)
     assert!(
-        content.contains("const boxRef = useRef<HTMLElement>(null)"),
+        content.contains("const boxRef = useRef<HTMLDivElement>(null)"),
         "Should generate useRef declaration for 'box'. Got:\n{}",
         content
     );
@@ -1528,13 +1528,13 @@ component DragRef {
         "JSX should have ref={{boxRef}}. Got:\n{}",
         content
     );
-    // Legal ref ops are rewritten to ExprIR::RefOpExpr by validate_ref_ops;
-    // codegen emits a placeholder comment until the real ref-op codegen
-    // lands (Phase 4-6). (ref.style.* was removed by the semantic DSL —
-    // ADR-052/053 — and now produces a compile error instead.)
+    // Legal ref ops are rewritten to ExprIR::RefOpExpr by validate_ref_ops
+    // and codegen emits the native DOM call on the ref's .current (ADR-036).
+    // (ref.style.* was removed by the semantic DSL — ADR-052/053 — and now
+    // produces a compile error instead.)
     assert!(
-        content.contains("/* RefOp::Focus on box */"),
-        "Handler body should emit the RefOp placeholder. Got:\n{}",
+        content.contains("boxRef.current?.focus()"),
+        "Handler body should emit the native focus() call. Got:\n{}",
         content
     );
 }
@@ -1561,6 +1561,332 @@ component NoRef {
         !content.contains("useRef"),
         "useRef should NOT be imported when no refs. Got:\n{}",
         content
+    );
+}
+
+// ── Ref semantic binding + RefOpExpr codegen tests ────────
+
+/// Test: useRef is typed by the bound element's tag — input → HTMLInputElement,
+/// textarea → HTMLTextAreaElement, canvas → HTMLCanvasElement, div → HTMLDivElement.
+#[test]
+fn test_react_ref_typed_by_element_tag() {
+    let source = r#"
+component TypedRefs {
+  ref field: Element
+  ref area: Element
+  ref canvasEl: Element
+  ref box: Element
+  view {
+    <div>
+      <input ref:field />
+      <textarea ref:area></textarea>
+      <canvas ref:canvasEl></canvas>
+      <div ref:box />
+    </div>
+  }
+}
+"#;
+    let output = compile_react(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        content.contains("const fieldRef = useRef<HTMLInputElement>(null)"),
+        "input should type useRef as HTMLInputElement. Got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("const areaRef = useRef<HTMLTextAreaElement>(null)"),
+        "textarea should type useRef as HTMLTextAreaElement. Got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("const canvasElRef = useRef<HTMLCanvasElement>(null)"),
+        "canvas should type useRef as HTMLCanvasElement. Got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("const boxRef = useRef<HTMLDivElement>(null)"),
+        "div should type useRef as HTMLDivElement. Got:\n{}",
+        content
+    );
+}
+
+/// Test: semantic bindings (focus, scroll-y, value) on a ref-bound element
+/// generate useEffect blocks driven by the bound signal.
+#[test]
+fn test_react_semantic_bindings_generate_effects() {
+    let source = r#"
+component SearchBox {
+  signal active: Bool = false
+  signal pos: Float = 0
+  signal text: String = ""
+  ref field: Element
+  view {
+    <input ref:field focus={active} scroll-y={pos} value={text} />
+  }
+}
+"#;
+    let output = compile_react(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    // useEffect must be imported for the binding effects
+    assert!(
+        content.contains("useEffect"),
+        "useEffect should be imported for semantic bindings. Got:\n{}",
+        content
+    );
+    // focus binding → focus()/blur() on the boolean signal
+    assert!(
+        content.contains("if (active) {")
+            && content.contains("fieldRef.current?.focus();")
+            && content.contains("fieldRef.current?.blur();"),
+        "focus binding should emit focus/blur effect. Got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("}, [active]);"),
+        "focus effect deps should track the bound signal. Got:\n{}",
+        content
+    );
+    // scroll-y binding → scrollTo({ top: pos })
+    assert!(
+        content.contains("fieldRef.current?.scrollTo({ top: pos });"),
+        "scroll-y binding should emit scrollTo top. Got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("}, [pos]);"),
+        "scroll-y effect deps should track the bound signal. Got:\n{}",
+        content
+    );
+    // value binding → guarded imperative value sync
+    assert!(
+        content.contains(
+            "if (fieldRef.current && fieldRef.current.value !== text) {\n            fieldRef.current.value = text;"
+        ),
+        "value binding should emit guarded value sync. Got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("}, [text]);"),
+        "value effect deps should track the bound signal. Got:\n{}",
+        content
+    );
+}
+
+/// Test: scroll-x semantic binding emits scrollTo({ left: sig }).
+#[test]
+fn test_react_semantic_binding_scroll_x() {
+    let source = r#"
+component Carousel {
+  signal pos: Float = 0
+  ref track: Element
+  view {
+    <div ref:track scroll-x={pos}>items</div>
+  }
+}
+"#;
+    let output = compile_react(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        content.contains("trackRef.current?.scrollTo({ left: pos });"),
+        "scroll-x binding should emit scrollTo left. Got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("}, [pos]);"),
+        "scroll-x effect deps should track the bound signal. Got:\n{}",
+        content
+    );
+}
+
+/// Test: store signals work in semantic binding position — `value={Store.sig}`
+/// is a semantic binding (not a raw JSX prop), generates the store hook, and
+/// the effect depends on `Store.sig` (not the store hook object).
+#[test]
+fn test_react_semantic_binding_store_signal() {
+    let store_source = r#"
+store CartStore {
+    signal text: String = "";
+}
+"#;
+    let comp_source = r#"
+import { CartStore } from "./store";
+
+component StoreBinding {
+    @store CartStore;
+    ref field: Element;
+    view {
+        <input ref:field value={CartStore.text} />
+    }
+}
+"#;
+    let mut sources = FxHashMap::default();
+    sources.insert("store.omni".to_string(), store_source.to_string());
+    sources.insert("main.omni".to_string(), comp_source.to_string());
+    let pm = path_mapping::derive_path_mapping(&sources);
+    let result = crate::compile_multi_internal(
+        sources,
+        crate::codegen::Target::React,
+        pm,
+        false,
+        false,
+        None,
+    );
+    assert!(
+        result.success,
+        "store-backed semantic binding must compile. Errors: {:?}",
+        result.errors
+    );
+    let content: String = result
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    // Store hook must be generated — binding signal feeds used_store_refs
+    assert!(
+        content.contains("const CartStore = useCartStore();"),
+        "store hook must be generated for a store-backed binding. Got:\n{}",
+        content
+    );
+    // value={Store.sig} must NOT leak as a raw JSX prop (silent one-way break)
+    assert!(
+        !content.contains("value={CartStore.text}"),
+        "store binding must not emit a raw value prop. Got:\n{}",
+        content
+    );
+    // The generated effect reads the qualified signal and depends on the
+    // exact expression, so unrelated store updates don't re-fire it.
+    assert!(
+        content.contains("fieldRef.current.value !== CartStore.text"),
+        "value binding should read the qualified store signal. Got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("}, [CartStore.text]);"),
+        "value effect deps should be Store.sig, not the store hook. Got:\n{}",
+        content
+    );
+}
+
+/// Test: every RefOpIR variant formats to a native DOM call on `nameRef.current`.
+#[test]
+fn test_react_ref_ops_format_native_dom_calls() {
+    let source = r#"
+component RefOps {
+  signal x: Float = 0
+  signal y: Float = 0
+  signal text: String = ""
+  signal ptr: Float = 0
+  ref box: Element
+  fn runAll() {
+    box.focus()
+    box.blur()
+    box.scrollTo(x, y)
+    box.scrollBy(1, 2)
+    box.measure()
+    box.width
+    box.height
+    box.position
+    box.select()
+    box.setSelection(0, 3)
+    box.value
+    box.value = text
+    box.capturePointer(ptr)
+    box.releasePointer(ptr)
+  }
+  view {
+    <div ref:box @onClick={runAll}>click</div>
+  }
+}
+"#;
+    let output = compile_react(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    let expectations = [
+        "boxRef.current?.focus();",
+        "boxRef.current?.blur();",
+        "boxRef.current?.scrollTo({ left: x, top: y });",
+        "boxRef.current?.scrollBy({ left: 1, top: 2 });",
+        "boxRef.current?.getBoundingClientRect();",
+        "boxRef.current?.getBoundingClientRect().width;",
+        "boxRef.current?.getBoundingClientRect().height;",
+        "boxRef.current?.getBoundingClientRect();",
+        "boxRef.current?.select();",
+        "boxRef.current?.setSelectionRange(0, 3);",
+        "boxRef.current?.value;",
+        "if (boxRef.current) { boxRef.current.value = text; };",
+        "boxRef.current?.setPointerCapture(ptr);",
+        "boxRef.current?.releasePointerCapture(ptr);",
+    ];
+    for expected in expectations {
+        assert!(
+            content.contains(expected),
+            "expected RefOp output to contain {:?}. Got:\n{}",
+            expected,
+            content
+        );
+    }
+}
+
+/// Test: illegal DOM APIs on refs still produce compile errors with migration hints.
+#[test]
+fn test_react_ref_illegal_ops_compile_error() {
+    let source = r#"
+component BadRefOps {
+  ref box: Element
+  fn bad() {
+    box.innerHTML = "x"
+    box.getBoundingClientRect()
+  }
+  view {
+    <div ref:box>content</div>
+  }
+}
+"#;
+    let mut sources = FxHashMap::default();
+    sources.insert("input.omni".to_string(), source.to_string());
+    let pm = path_mapping::derive_path_mapping(&sources);
+    let result = crate::compile_multi_internal(
+        sources,
+        crate::codegen::Target::React,
+        pm,
+        false,
+        false,
+        None,
+    );
+    assert!(!result.success, "illegal ref ops must fail compilation");
+    let messages: Vec<&str> = result.errors.iter().map(|e| e.message.as_str()).collect();
+    assert!(
+        messages.iter().any(|m| m.contains("ref.innerHTML is not allowed")
+            || m.contains("unknown ref field: ref.innerHTML")),
+        "expected innerHTML migration error, got: {:?}",
+        messages
+    );
+    assert!(
+        messages
+            .iter()
+            .any(|m| m.contains("ref.getBoundingClientRect() is not allowed")),
+        "expected getBoundingClientRect migration error, got: {:?}",
+        messages
     );
 }
 

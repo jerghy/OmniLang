@@ -40,6 +40,10 @@ impl ReactCodegen {
             .view
             .as_ref()
             .is_some_and(effect::view_has_motion_or_effects);
+        let has_semantic_bindings = comp
+            .view
+            .as_ref()
+            .is_some_and(state::view_has_semantic_bindings);
 
         // Scan all code paths for signal mutations and function calls
         let called_fns = function::collect_called_local_fns(comp);
@@ -91,7 +95,7 @@ impl ReactCodegen {
         if has_fn_form_computed {
             hooks.push("useCallback".to_string());
         }
-        if has_effects_or_lifecycles || has_motion {
+        if has_effects_or_lifecycles || has_motion || has_semantic_bindings {
             hooks.push("useEffect".to_string());
         }
 
@@ -176,6 +180,11 @@ impl ReactCodegen {
 
         // Build ref_names set for expression translation (ADR-036 Phase 2)
         let ref_names: FxHashSet<String> = comp.refs.iter().map(|r| r.name.clone()).collect();
+
+        // Ref name → element tag map (typing useRef declarations) — scanned
+        // from the view because RefDeclIR.element_tag is not populated by
+        // lowering yet.
+        let ref_tags = state::collect_ref_tags(comp.view.as_ref());
 
         // Motion animation names — used to filter motion refs from event handlers
         let motion_names: FxHashSet<String> = ir
@@ -336,13 +345,19 @@ impl ReactCodegen {
         // State hooks + effects
         let fn_names: FxHashSet<String> = comp.fns.iter().map(|f| f.name.clone()).collect();
         self.gen_state_hooks(&mut w, comp, &read_signals, &mutated_signals, &fn_names);
-        state::gen_ref_hooks(&mut w, comp);
+        state::gen_ref_hooks(&mut w, comp, &ref_tags);
         self.gen_effects(
             &mut w,
             comp,
             &store_signal_map,
             &store_signal_owners,
             &signal_names,
+            &ref_names,
+        );
+        state::gen_semantic_binding_effects(
+            &mut w,
+            comp.view.as_ref(),
+            &store_signal_map,
             &ref_names,
         );
 

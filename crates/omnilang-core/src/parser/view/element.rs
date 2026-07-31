@@ -91,10 +91,18 @@ impl<'a> Parser<'a> {
             self.advance(); // '{'
             let signal = self.parse_expr()?;
             self.expect_token(TokenKind::RBrace, "expected '}'")?;
-            // Only a bare signal reference ({sig}) is a compiler-recognized
-            // semantic binding; computed expressions stay generic Static props
-            // (equivalent to the {expr} arm of the match below).
-            if matches!(signal, Expr::VarRef(..)) {
+            // Only a bare signal reference ({sig}) or a qualified store signal
+            // ({Store.sig}) is a compiler-recognized semantic binding —
+            // store signals are referenced qualified and bare store signal
+            // names are not in component scope. Computed expressions stay
+            // generic Static props (equivalent to the {expr} arm of the
+            // match below).
+            let is_bare_signal = matches!(&signal, Expr::VarRef(..));
+            let is_qualified_store_signal = matches!(
+                &signal,
+                Expr::FieldAccess { object, .. } if matches!(object.as_ref(), Expr::VarRef(..))
+            );
+            if is_bare_signal || is_qualified_store_signal {
                 return Ok(ElementProp::RefBinding {
                     binding: name,
                     signal,

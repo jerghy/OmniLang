@@ -192,6 +192,16 @@ pub trait FormatExpr {
         format_block_as_expr(block, &fmt, self.null_fallback())
     }
 
+    /// Format a semantic ref operation (`ref.focus()`, `ref.scrollTo(...)`, …).
+    ///
+    /// The default is a placeholder comment — backends that support ref ops
+    /// (React) override this with native DOM API calls. `ref_name` is the
+    /// declared ref name (e.g. `box` for `box.focus()`); backends append the
+    /// runtime ref accessor (e.g. `boxRef.current`).
+    fn format_ref_op(&self, ref_name: &str, op: &RefOpIR) -> String {
+        format!("/* RefOp::{op:?} on {ref_name} */")
+    }
+
     // ── Main dispatch ────────────────────────────────────
 
     /// Format any `ExprIR` node according to this language's syntax.
@@ -304,10 +314,7 @@ pub trait FormatExpr {
                 // Use empty type_name since MapExpr has no struct type
                 self.format_struct("", &fields.join(", "))
             }
-            ExprIR::RefOpExpr { ref_name, op } => {
-                // Placeholder — real ref-op codegen lands in Phase 4-6.
-                format!("/* RefOp::{op:?} on {ref_name} */")
-            }
+            ExprIR::RefOpExpr { ref_name, op } => self.format_ref_op(ref_name, op),
         }
     }
 }

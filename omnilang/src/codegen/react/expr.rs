@@ -123,6 +123,52 @@ impl FormatExpr for ReactFormatExpr {
         translate_method_call(obj, method, args)
     }
 
+    /// Semantic ref ops map to native DOM APIs on `nameRef.current`
+    /// (ADR-036 Phase 2). All calls use optional chaining so a not-yet-mounted
+    /// ref degrades to a no-op instead of throwing.
+    fn format_ref_op(&self, ref_name: &str, op: &RefOpIR) -> String {
+        let base = format!("{}Ref.current", ref_name);
+        match op {
+            RefOpIR::Focus => format!("{base}?.focus()"),
+            RefOpIR::Blur => format!("{base}?.blur()"),
+            RefOpIR::ScrollTo { x, y } => {
+                format_ref_scroll(&base, self, x.as_deref(), y.as_deref())
+            }
+            RefOpIR::ScrollBy { dx, dy } => {
+                format_ref_scroll_by(&base, self, dx.as_deref(), dy.as_deref())
+            }
+            RefOpIR::Measure { what } => match what {
+                MeasureWhat::Position => format!("{base}?.getBoundingClientRect()"),
+                MeasureWhat::Width => format!("{base}?.getBoundingClientRect().width"),
+                MeasureWhat::Height => format!("{base}?.getBoundingClientRect().height"),
+            },
+            RefOpIR::Select => format!("{base}?.select()"),
+            RefOpIR::SetSelection { start, end } => format!(
+                "{base}?.setSelectionRange({}, {})",
+                self.format_expr(start),
+                self.format_expr(end)
+            ),
+            RefOpIR::Value => format!("{base}?.value"),
+            // Assignment needs an explicit guard — `?.` is illegal on an
+            // assignment LHS, and a setValue from @mount runs before the
+            // ref attaches (would otherwise throw TypeError).
+            RefOpIR::SetValue { value } => {
+                format!(
+                    "if ({base}) {{ {base}.value = {}; }}",
+                    self.format_expr(value)
+                )
+            }
+            RefOpIR::CapturePointer { id } => {
+                format!("{base}?.setPointerCapture({})", self.format_expr(id))
+            }
+            RefOpIR::ReleasePointer { id } => {
+                format!("{base}?.releasePointerCapture({})", self.format_expr(id))
+            }
+            #[allow(unreachable_patterns)]
+            _ => format!("/* RefOp::{op:?} on {ref_name} */"),
+        }
+    }
+
     fn format_match(&self, matched: &str, arms: &[MatchArmIR]) -> String {
         let cases: Vec<String> = arms
             .iter()
@@ -163,6 +209,41 @@ impl FormatExpr for ReactFormatExpr {
             .collect();
         format!("(() => {{ const _v = {matched}; {} }})()", cases.join(" "))
     }
+}
+
+/// Format `ref.scrollTo({ left: x, top: y })` — only axes provided in the
+/// source call are included in the options object.
+fn format_ref_scroll(
+    base: &str,
+    fmt: &ReactFormatExpr,
+    x: Option<&ExprIR>,
+    y: Option<&ExprIR>,
+) -> String {
+    let mut parts: Vec<String> = Vec::new();
+    if let Some(x) = x {
+        parts.push(format!("left: {}", fmt.format_expr(x)));
+    }
+    if let Some(y) = y {
+        parts.push(format!("top: {}", fmt.format_expr(y)));
+    }
+    format!("{base}?.scrollTo({{ {} }})", parts.join(", "))
+}
+
+/// Format `ref.scrollBy({ left: dx, top: dy })` — relative scroll delta.
+fn format_ref_scroll_by(
+    base: &str,
+    fmt: &ReactFormatExpr,
+    dx: Option<&ExprIR>,
+    dy: Option<&ExprIR>,
+) -> String {
+    let mut parts: Vec<String> = Vec::new();
+    if let Some(dx) = dx {
+        parts.push(format!("left: {}", fmt.format_expr(dx)));
+    }
+    if let Some(dy) = dy {
+        parts.push(format!("top: {}", fmt.format_expr(dy)));
+    }
+    format!("{base}?.scrollBy({{ {} }})", parts.join(", "))
 }
 
 /// React TSX statement formatter.
