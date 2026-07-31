@@ -293,7 +293,7 @@ pub trait FormatStmt {
         }
 
         match intent {
-            MutationIntent::DirectAssign { target, value } => {
+            MutationIntent::DirectAssign { target, value, .. } => {
                 let ref_t = self.mutation_target_expr(&target.name);
                 let amount = value
                     .as_ref()

@@ -683,6 +683,7 @@ fn test_stmt_mutation_assign() {
             value: Some(Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!(42),
             })),
+            field_object: None,
         }),
     });
     assert!(gen.js.contains("count = 42"));
@@ -721,6 +722,7 @@ fn test_stmt_mutation_signal_set() {
             value: Some(Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!(99),
             })),
+            field_object: None,
         }),
     });
     assert!(gen.js.contains(".set(99)"));

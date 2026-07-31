@@ -708,6 +708,17 @@ pub enum ViewTree {
 // RefOpIR — semantic element ref operations
 // ═══════════════════════════════════════════════════════
 
+/// Which geometric quantity a `ref.measure()` read (`ref.width`, `ref.height`,
+/// `ref.position`) requests. Codegen appends the corresponding property to the
+/// measure result (or returns the position object for `position`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MeasureWhat {
+    Width,
+    Height,
+    Position,
+}
+
 /// A semantic operation invoked on an element bound via `@ref={name}`.
 ///
 /// Lowered from AST ref method calls (e.g. `myRef.focus()`) by the semantic
@@ -733,7 +744,10 @@ pub enum RefOpIR {
         dy: Option<Box<ExprIR>>,
     },
     /// `ref.measure()` — read the element's bounding box.
-    Measure,
+    /// `what` records which dimension the source requested (`ref.width`,
+    /// `ref.height`, or `ref.position`), so codegen can append the right
+    /// property to the measure result.
+    Measure { what: MeasureWhat },
     /// `ref.select()` — select the element's text content.
     Select,
     /// `ref.setSelection(start, end)` — select a range of text.

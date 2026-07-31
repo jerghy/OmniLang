@@ -5,6 +5,7 @@ pub mod lints;
 pub mod symbols;
 pub mod types;
 pub mod validate_props;
+pub mod validate_ref_ops;
 pub mod validate_refs;
 pub mod walk_view;
 

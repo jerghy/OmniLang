@@ -301,8 +301,8 @@ pub fn analyse_multi(
             let program_ref: &Program = program.as_ref();
             let mut semantics = crate::semantic::analyze(program_ref);
             let mut local_diags: Vec<Diagnostic> = Vec::new();
-            for d in &semantics.diagnostics {
-                let mut d = d.clone();
+            for d in std::mem::take(&mut semantics.diagnostics) {
+                let mut d = d;
                 if d.file.is_none() {
                     d.file = Some(path.clone());
                 }
@@ -310,6 +310,15 @@ pub fn analyse_multi(
             }
             let ir_program =
                 crate::ir::lower(program_ref, &mut semantics, Some(&global_const_values));
+            // Re-collect diagnostics emitted during lowering (validate_props,
+            // validate_refs, validate_ref_ops, design validation).
+            for d in std::mem::take(&mut semantics.diagnostics) {
+                let mut d = d;
+                if d.file.is_none() {
+                    d.file = Some(path.clone());
+                }
+                local_diags.push(d);
+            }
             (path.clone(), ir_program, local_diags)
         })
         .collect();
@@ -462,14 +471,23 @@ pub fn analyse_multi_cached(
             let program: &Program = all_programs[path].as_ref();
             let mut semantics = crate::semantic::analyze(program);
             let mut local_diags: Vec<Diagnostic> = Vec::new();
-            for d in &semantics.diagnostics {
-                let mut d = d.clone();
+            for d in std::mem::take(&mut semantics.diagnostics) {
+                let mut d = d;
                 if d.file.is_none() {
                     d.file = Some(path.clone());
                 }
                 local_diags.push(d);
             }
             let ir_program = crate::ir::lower(program, &mut semantics, Some(&global_const_values));
+            // Re-collect diagnostics emitted during lowering (validate_props,
+            // validate_refs, validate_ref_ops, design validation).
+            for d in std::mem::take(&mut semantics.diagnostics) {
+                let mut d = d;
+                if d.file.is_none() {
+                    d.file = Some(path.clone());
+                }
+                local_diags.push(d);
+            }
             (path.clone(), (ir_program, local_diags))
         })
         .collect();

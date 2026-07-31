@@ -210,7 +210,7 @@ impl FormatStmt for ReactStmtFormatter {
 
     fn format_mutation_stmt(&self, w: &mut CodeWriter, intent: &MutationIntent) {
         match intent {
-            MutationIntent::DirectAssign { target, value } => {
+            MutationIntent::DirectAssign { target, value, .. } => {
                 let target_str = &target.name;
                 let amount = value
                     .as_ref()

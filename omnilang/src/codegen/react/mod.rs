@@ -660,7 +660,7 @@ fn format_zustand_mutation(
     signal_names: &FxHashSet<String>,
 ) {
     match intent {
-        MutationIntent::DirectAssign { target, value } => {
+        MutationIntent::DirectAssign { target, value, .. } => {
             let val = value
                 .as_ref()
                 .map(|v| {

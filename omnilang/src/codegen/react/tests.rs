@@ -276,6 +276,7 @@ fn test_tsx_stmt_mutation_assign_local() {
             value: Some(Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!("alice"),
             })),
+            field_object: None,
         }),
     };
     // owner=None + not in signal_names → direct assignment
@@ -295,6 +296,7 @@ fn test_tsx_stmt_mutation_assign_store() {
             value: Some(Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!("alice"),
             })),
+            field_object: None,
         }),
     };
     // Note: `owner` field removed from SignalRefIR — store signal
@@ -1291,7 +1293,7 @@ component DragRef {
   signal x: Float = 0
   ref box: Element
   fn onDrag(e) {
-    box.style.transform = "translate(100px, 0)"
+    box.focus()
   }
   view {
     <div ref:box @onPointerMove={onDrag}>drag</div>
@@ -1323,10 +1325,13 @@ component DragRef {
         "JSX should have ref={{boxRef}}. Got:\n{}",
         content
     );
-    // Ref names in function bodies are now translated to nameRef.current (ADR-036)
+    // Legal ref ops are rewritten to ExprIR::RefOpExpr by validate_ref_ops;
+    // codegen emits a placeholder comment until the real ref-op codegen
+    // lands (Phase 4-6). (ref.style.* was removed by the semantic DSL —
+    // ADR-052/053 — and now produces a compile error instead.)
     assert!(
-        content.contains("boxRef.current.style.transform"),
-        "Handler body should reference 'boxRef.current'. Got:\n{}",
+        content.contains("/* RefOp::Focus on box */"),
+        "Handler body should emit the RefOp placeholder. Got:\n{}",
         content
     );
 }

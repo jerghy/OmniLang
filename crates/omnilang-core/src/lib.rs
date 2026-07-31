@@ -105,10 +105,14 @@ pub fn run_pipeline(source: &str) -> PipelineOutput {
     let dependencies = std::mem::take(&mut semantics.dependencies);
 
     diagnostics.extend(std::mem::take(&mut semantics.diagnostics));
+    let mut ir = ir::lower(&program, &mut semantics, None);
+    // Re-collect diagnostics emitted during lowering (validate_required_props,
+    // validate_refs, validate_ref_ops, design validation) and recompute
+    // has_errors — lower-phase errors must surface through compile().
+    diagnostics.extend(std::mem::take(&mut semantics.diagnostics));
     let has_errors = diagnostics
         .iter()
         .any(|d| matches!(d.severity, crate::error::Severity::Error));
-    let mut ir = ir::lower(&program, &mut semantics, None);
     crate::ir::optimize::optimize(&mut ir);
     PipelineOutput {
         ir,
@@ -227,6 +231,45 @@ mod source_map_integration_tests {
         assert!(
             ir.source_map.is_empty(),
             "default IRProgram should have empty source_map"
+        );
+    }
+}
+
+#[cfg(test)]
+mod pipeline_tests {
+    use crate::compile;
+
+    /// Regression: lower-phase diagnostics (validate_required_props,
+    /// validate_refs, validate_ref_ops, design validation) must surface
+    /// through compile() — has_errors must be recomputed after ir::lower().
+    #[test]
+    fn compile_surfaces_lower_phase_ref_op_errors() {
+        let result = compile(
+            "component App {\n    ref box: Element;\n    view {\n        <div @ref={box} />\n    }\n    fn go() {\n        box.getBoundingClientRect();\n    }\n}",
+        );
+        assert!(
+            !result.success,
+            "expected compile failure for illegal ref op"
+        );
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|e| e.message.contains("getBoundingClientRect")),
+            "expected getBoundingClientRect diagnostic, got: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn compile_accepts_legal_ref_ops() {
+        let result = compile(
+            "component App {\n    ref box: Element;\n    view {\n        <div @ref={box} />\n    }\n    fn go() {\n        box.focus();\n        let w = box.width;\n        box.value = \"x\";\n    }\n}",
+        );
+        assert!(
+            result.success,
+            "expected success for legal ref ops, got errors: {:?}",
+            result.errors
         );
     }
 }

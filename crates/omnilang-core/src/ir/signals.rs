@@ -52,6 +52,12 @@ pub enum MutationIntent {
         target: SignalRefIR,
         #[serde(default)]
         value: Option<Box<ExprIR>>,
+        /// The owner identifier for `owner.field = value` writes (e.g. the ref
+        /// name in `myRef.value = x`). `None` for plain signal/name writes.
+        /// Populated by lowering so the semantic ref pass can rewrite ref field
+        /// assignments to `RefOpIR::SetValue`; ignored by codegen.
+        #[serde(default)]
+        field_object: Option<String>,
     },
     #[serde(rename = "increment")]
     Increment {

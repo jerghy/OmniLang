@@ -283,7 +283,7 @@ pub fn lower(
         }
     }
 
-    let ir_program = IRProgram {
+    let mut ir_program = IRProgram {
         version: "1.0".to_string(),
         modules,
         source_map,
@@ -302,6 +302,17 @@ pub fn lower(
     let ref_errors = crate::semantic::validate_refs::validate_refs(&ir_program);
     for err in ref_errors {
         semantics.diagnostics.push(err);
+    }
+
+    // Validate ref operations: rewrite legal ref method calls / field reads to
+    // ExprIR::RefOpExpr, error on DOM-specific APIs with migration hints.
+    for module in ir_program.modules.values_mut() {
+        for component in module.components.values_mut() {
+            crate::semantic::validate_ref_ops::validate_ref_ops(
+                component,
+                &mut semantics.diagnostics,
+            );
+        }
     }
 
     ir_program

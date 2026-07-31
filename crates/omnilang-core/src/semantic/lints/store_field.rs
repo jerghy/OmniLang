@@ -168,6 +168,7 @@ mod tests {
                                 value: Some(Box::new(crate::ir::ExprIR::LiteralExpr {
                                     value: serde_json::Value::Number(99.into()),
                                 })),
+                                field_object: None,
                             }),
                         }],
                     },

@@ -104,7 +104,11 @@ pub fn walk_expr(expr: &ExprIR, f: &mut impl FnMut(&ExprIR)) {
 /// Walk the `ExprIR` children carried by a `RefOpIR` operation.
 fn walk_ref_op(op: &RefOpIR, f: &mut impl FnMut(&ExprIR)) {
     match op {
-        RefOpIR::Focus | RefOpIR::Blur | RefOpIR::Measure | RefOpIR::Select | RefOpIR::Value => {}
+        RefOpIR::Focus
+        | RefOpIR::Blur
+        | RefOpIR::Measure { .. }
+        | RefOpIR::Select
+        | RefOpIR::Value => {}
         RefOpIR::ScrollTo { x, y } => {
             if let Some(x) = x {
                 walk_expr(x, f);

@@ -486,7 +486,11 @@ fn collect_expr_identifiers(expr: &ExprIR, acc: &mut FxHashSet<String>) {
 /// (e.g. ScrollTo/ScrollBy/SetSelection/SetValue arguments).
 fn collect_ref_op_identifiers(op: &RefOpIR, acc: &mut FxHashSet<String>) {
     match op {
-        RefOpIR::Focus | RefOpIR::Blur | RefOpIR::Measure | RefOpIR::Select | RefOpIR::Value => {}
+        RefOpIR::Focus
+        | RefOpIR::Blur
+        | RefOpIR::Measure { .. }
+        | RefOpIR::Select
+        | RefOpIR::Value => {}
         RefOpIR::ScrollTo { x, y } => {
             if let Some(x) = x {
                 collect_expr_identifiers(x, acc);
