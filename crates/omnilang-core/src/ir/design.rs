@@ -33,6 +33,11 @@ pub struct DesignIR {
 }
 
 /// Resolved token value — either a static CSS string or a runtime expression.
+///
+/// `#[non_exhaustive]` sits at a crate boundary (`omnilang-core` → `omnilang`).
+/// Adding a third variant would silently match existing wildcards without it;
+/// this forces compile errors on new variants in downstream code.
+#[non_exhaustive]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum TokenValueIR {
     /// Static CSS value resolved at compile time: `"#6366f1"`, `"16px"`.
