@@ -211,7 +211,6 @@ fn widget_param_whitelist(widget: &str) -> &'static [&'static str] {
             "transform",
             "clipBehavior",
             "child",
-            "children",
         ],
         "Text" => &[
             "key",

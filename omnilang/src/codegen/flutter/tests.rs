@@ -432,6 +432,37 @@ fn test_format_element_with_multiple_children() {
 }
 
 #[test]
+fn test_format_element_div_multiple_children_wraps_column() {
+    // div → Container is a single-child widget: multiple children must be
+    // hosted via an inner Column — `Container(children: [...])` is invalid Dart.
+    let el = ElementIR {
+        class_map_bindings: FxHashMap::default(),
+        tag: "div".into(),
+        props: FxHashMap::default(),
+        bindings: FxHashMap::default(),
+        events: FxHashMap::default(),
+        style_classes: None,
+        inline_style: None,
+        children: vec![
+            ViewTree::Text("First".into()),
+            ViewTree::Text("Second".into()),
+        ],
+        construction_kind: ConstructionKind::Component,
+        source_span: None,
+        motion: None,
+        scroll: None,
+        drag: None,
+        ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
+    };
+    let (expr, _) = fmt_view(&ViewTree::Element(Box::new(el)));
+    assert_eq!(
+        expr,
+        "Container(child: Column(children: [Text('First'), Text('Second')]))"
+    );
+}
+
+#[test]
 fn test_format_element_with_event() {
     let mut events = FxHashMap::default();
     events.insert(
@@ -1296,8 +1327,14 @@ fn test_motion_enter_controller_init() {
         "should declare _fadeInController field"
     );
     assert!(
-        dart.contains("late final Animation<double> _fadeInAnimation;"),
-        "should declare _fadeInAnimation field"
+        dart.contains("late final Animation<double> _fadeInOpacity;"),
+        "should declare per-property _fadeInOpacity field: {}",
+        dart
+    );
+    assert!(
+        dart.contains("bool _fadeInActive = false;"),
+        "should declare the motion active flag: {}",
+        dart
     );
 
     // initState: AnimationController init
@@ -1312,34 +1349,44 @@ fn test_motion_enter_controller_init() {
         dart
     );
 
-    // Tween + Curve
+    // Per-property Tween + Curve
     assert!(
-        dart.contains("Tween<double>(begin: 0.0, end: 1.0)"),
-        "should create Tween: {}",
-        dart
-    );
-    assert!(
-        dart.contains("CurveTween(curve: Curves.easeOut)"),
-        "should apply easing: {}",
+        dart.contains("_fadeInOpacity = Tween<double>(begin: 0.0, end: 1.0).chain(CurveTween(curve: Curves.easeOut)).animate(_fadeInController);"),
+        "should create per-property Tween: {}",
         dart
     );
 
-    // @enter → forward() on mount
+    // @enter → activate + forward() on mount
+    assert!(
+        dart.contains("_fadeInActive = true;"),
+        "should activate the motion on mount: {}",
+        dart
+    );
     assert!(
         dart.contains("_fadeInController.forward();"),
         "should call forward() for @enter trigger: {}",
         dart
     );
 
-    // AnimatedBuilder wrapping in build method
+    // AnimatedBuilder wrapping in build method — listens to the shared
+    // controller, reads per-property animation values, and gates the
+    // wrappers on the active flag (natural style while inactive)
     assert!(
         dart.contains("AnimatedBuilder("),
         "should emit AnimatedBuilder in build: {}",
         dart
     );
     assert!(
-        dart.contains("animation: _fadeInAnimation"),
-        "AnimatedBuilder should reference animation"
+        dart.contains("animation: _fadeInController"),
+        "AnimatedBuilder should listen to the shared controller: {}",
+        dart
+    );
+    assert!(
+        dart.contains(
+            "_fadeInActive ? Opacity(opacity: _fadeInOpacity.value, child: child) : child ?? const SizedBox.shrink()"
+        ),
+        "builder body should gate per-property animation value on the active flag: {}",
+        dart
     );
 
     // dispose
@@ -1395,13 +1442,15 @@ fn test_motion_hover_mouse_region_wrapping() {
         result
     );
     assert!(
-        result.contains("onEnter: (_) => _scaleOnHoverController.forward()"),
-        "should call forward on mouse enter: {}",
+        result.contains(
+            "onEnter: (_) { _scaleOnHoverActive = true; _scaleOnHoverController.forward(); }"
+        ),
+        "should activate and forward on mouse enter: {}",
         result
     );
     assert!(
-        result.contains("onExit: (_) => _scaleOnHoverController.reverse()"),
-        "should call reverse on mouse exit: {}",
+        result.contains("onExit: (_) { _scaleOnHoverController.reverse().whenComplete(() { if (mounted && _scaleOnHoverController.value == 0.0) setState(() { _scaleOnHoverActive = false; }); }); }"),
+        "should reverse and deactivate on mouse exit: {}",
         result
     );
 }
@@ -1597,18 +1646,19 @@ fn test_motion_inline_body_handling() {
     );
 
     // AnimatedBuilder with multi-property wrapping (Opacity + Transform.scale)
+    // — per-property animations drive each wrapper independently
     assert!(
         dart.contains("AnimatedBuilder("),
         "should emit AnimatedBuilder: {}",
         dart
     );
     assert!(
-        dart.contains("Transform.scale(scale: _popInAnimation.value"),
+        dart.contains("Transform.scale(scale: _popInScale.value"),
         "should wrap with Transform.scale: {}",
         dart
     );
     assert!(
-        dart.contains("Opacity(opacity: _popInAnimation.value"),
+        dart.contains("Opacity(opacity: _popInOpacity.value"),
         "should wrap with Opacity: {}",
         dart
     );
@@ -1685,6 +1735,32 @@ fn test_motion_extract_duration_ms() {
         "400"
     );
 
+    // Bare numeric string "0.5" → seconds semantics (CSS duration): 500ms
+    // (previously emitted invalid `Duration(milliseconds: 0.5)`)
+    assert_eq!(
+        extract_duration_ms(&ExprIR::LiteralExpr {
+            value: serde_json::json!("0.5")
+        }),
+        "500"
+    );
+
+    // Fractional millisecond values round to an int — Dart's
+    // `Duration(milliseconds:)` takes an `int`, so `250.5` would not compile.
+    assert_eq!(
+        extract_duration_ms(&ExprIR::LiteralExpr {
+            value: serde_json::json!("250.5ms")
+        }),
+        "251"
+    );
+
+    // Garbage → default fallback "300"
+    assert_eq!(
+        extract_duration_ms(&ExprIR::LiteralExpr {
+            value: serde_json::json!("not-a-duration")
+        }),
+        "300"
+    );
+
     // IdentifierExpr (non-literal) → default fallback "300"
     assert_eq!(
         extract_duration_ms(&ExprIR::IdentifierExpr {
@@ -1692,6 +1768,716 @@ fn test_motion_extract_duration_ms() {
             type_ann: None,
         }),
         "300"
+    );
+}
+
+/// Build a KeyframeIR from (position, property → json value) triples.
+fn test_keyframe(stops: &[(f64, &[(&str, serde_json::Value)])]) -> KeyframeIR {
+    KeyframeIR {
+        stops: stops
+            .iter()
+            .map(|(pos, props)| KeyframeStopIR {
+                position: *pos,
+                properties: FxHashMap::from_iter(
+                    props
+                        .iter()
+                        .map(|(k, v)| (k.to_string(), ExprIR::LiteralExpr { value: v.clone() })),
+                ),
+                ease: None,
+                source_span: None,
+            })
+            .collect(),
+        over: ExprIR::LiteralExpr {
+            value: serde_json::json!("300ms"),
+        },
+        ease: None,
+        playback: PlaybackIR::default(),
+        source_span: None,
+    }
+}
+
+#[test]
+fn test_build_prop_tween_expr_two_stops() {
+    // 2 stops → plain Tween
+    let kf = test_keyframe(&[
+        (0.0, &[("opacity", serde_json::json!(0.0))]),
+        (1.0, &[("opacity", serde_json::json!(1.0))]),
+    ]);
+    assert_eq!(
+        build_prop_tween_expr(&kf, "opacity", false),
+        "Tween<double>(begin: 0.0, end: 1.0)"
+    );
+}
+
+#[test]
+fn test_build_prop_tween_expr_three_stops_sequence() {
+    // 3 stops → TweenSequence with weight-proportional segments (50/50)
+    let kf = test_keyframe(&[
+        (0.0, &[("opacity", serde_json::json!(0.0))]),
+        (0.5, &[("opacity", serde_json::json!(0.5))]),
+        (1.0, &[("opacity", serde_json::json!(1.0))]),
+    ]);
+    assert_eq!(
+        build_prop_tween_expr(&kf, "opacity", false),
+        "TweenSequence<double>([TweenSequenceItem(tween: Tween<double>(begin: 0.0, end: 0.5), weight: 50), \
+         TweenSequenceItem(tween: Tween<double>(begin: 0.5, end: 1.0), weight: 50)])"
+    );
+}
+
+#[test]
+fn test_build_prop_tween_expr_nonuniform_weights() {
+    // Stops at 0/0.25/1 → weights proportional to spans (25/75)
+    let kf = test_keyframe(&[
+        (0.0, &[("opacity", serde_json::json!(0.0))]),
+        (0.25, &[("opacity", serde_json::json!(0.5))]),
+        (1.0, &[("opacity", serde_json::json!(1.0))]),
+    ]);
+    assert_eq!(
+        build_prop_tween_expr(&kf, "opacity", false),
+        "TweenSequence<double>([TweenSequenceItem(tween: Tween<double>(begin: 0.0, end: 0.5), weight: 25), \
+         TweenSequenceItem(tween: Tween<double>(begin: 0.5, end: 1.0), weight: 75)])"
+    );
+}
+
+#[test]
+fn test_build_prop_tween_expr_boundary_synthesis() {
+    // To-only (single stop at 1.0): begin defaults to the natural value
+    // (opacity is naturally fully visible — 1.0, not 0.0)
+    let kf = test_keyframe(&[(1.0, &[("opacity", serde_json::json!(1.0))])]);
+    assert_eq!(
+        build_prop_tween_expr(&kf, "opacity", false),
+        "Tween<double>(begin: 1.0, end: 1.0)"
+    );
+    // To-only scale animates from the natural scale 1.0
+    let kf = test_keyframe(&[(1.0, &[("scale", serde_json::json!(1.05))])]);
+    assert_eq!(
+        build_prop_tween_expr(&kf, "scale", false),
+        "Tween<double>(begin: 1.0, end: 1.05)"
+    );
+    // To-only rotate interpolates from the natural rotation 0.0
+    let kf = test_keyframe(&[(1.0, &[("rotate", serde_json::json!(90))])]);
+    assert_eq!(
+        build_prop_tween_expr(&kf, "rotate", false),
+        "Tween<double>(begin: 0.0, end: 1.5707963267948966)"
+    );
+
+    // From-only (single stop at 0.0): end defaults to the natural value
+    // (opacity naturally fully visible — 1.0)
+    let kf = test_keyframe(&[(0.0, &[("opacity", serde_json::json!(0.0))])]);
+    assert_eq!(
+        build_prop_tween_expr(&kf, "opacity", false),
+        "Tween<double>(begin: 0.0, end: 1.0)"
+    );
+    // From-only translate returns to the natural offset 0.0
+    let kf = test_keyframe(&[(0.0, &[("translateX", serde_json::json!(20))])]);
+    assert_eq!(
+        build_prop_tween_expr(&kf, "translateX", false),
+        "Tween<double>(begin: 20.0, end: 0.0)"
+    );
+
+    // Partial boundaries (0% and 50% only) → synthesized 100% end becomes a
+    // third TweenSequence point
+    let kf = test_keyframe(&[
+        (0.0, &[("opacity", serde_json::json!(0.0))]),
+        (0.5, &[("opacity", serde_json::json!(1.0))]),
+    ]);
+    assert_eq!(
+        build_prop_tween_expr(&kf, "opacity", false),
+        "TweenSequence<double>([TweenSequenceItem(tween: Tween<double>(begin: 0.0, end: 1.0), weight: 50), \
+         TweenSequenceItem(tween: Tween<double>(begin: 1.0, end: 1.0), weight: 50)])"
+    );
+}
+
+#[test]
+fn test_build_prop_tween_expr_color() {
+    // Color property → Tween<Color> with css_color_to_dart conversions
+    let kf = test_keyframe(&[
+        (0.0, &[("backgroundColor", serde_json::json!("#ffffff"))]),
+        (1.0, &[("backgroundColor", serde_json::json!("#ff0000"))]),
+    ]);
+    assert_eq!(
+        build_prop_tween_expr(&kf, "backgroundColor", false),
+        "Tween<Color>(begin: Color(0xFFFFFFFF), end: Color(0xFFFF0000))"
+    );
+}
+
+#[test]
+fn test_build_prop_tween_expr_per_property_isolation() {
+    // A property present at only two of three stops interpolates over its own
+    // span — other properties' extra stops don't affect it.
+    let kf = test_keyframe(&[
+        (0.0, &[("opacity", serde_json::json!(0.0))]),
+        (0.5, &[("scale", serde_json::json!(0.5))]),
+        (
+            1.0,
+            &[
+                ("opacity", serde_json::json!(1.0)),
+                ("scale", serde_json::json!(1.0)),
+            ],
+        ),
+    ]);
+    assert_eq!(
+        build_prop_tween_expr(&kf, "opacity", false),
+        "Tween<double>(begin: 0.0, end: 1.0)"
+    );
+    // scale's missing 0% boundary synthesizes its natural value 1.0
+    assert_eq!(
+        build_prop_tween_expr(&kf, "scale", false),
+        "TweenSequence<double>([TweenSequenceItem(tween: Tween<double>(begin: 1.0, end: 0.5), weight: 50), \
+         TweenSequenceItem(tween: Tween<double>(begin: 0.5, end: 1.0), weight: 50)])"
+    );
+}
+
+#[test]
+fn test_build_prop_tween_expr_reverse() {
+    // `direction: reverse` + loop → swapped Tween direction (Flutter can
+    // only repeat forward passes)
+    let kf = test_keyframe(&[
+        (0.0, &[("opacity", serde_json::json!(0.0))]),
+        (1.0, &[("opacity", serde_json::json!(1.0))]),
+    ]);
+    assert_eq!(
+        build_prop_tween_expr(&kf, "opacity", true),
+        "Tween<double>(begin: 1.0, end: 0.0)"
+    );
+
+    // TweenSequence: segments reverse and swap begin/end
+    let kf = test_keyframe(&[
+        (0.0, &[("opacity", serde_json::json!(0.0))]),
+        (0.5, &[("opacity", serde_json::json!(0.5))]),
+        (1.0, &[("opacity", serde_json::json!(1.0))]),
+    ]);
+    assert_eq!(
+        build_prop_tween_expr(&kf, "opacity", true),
+        "TweenSequence<double>([TweenSequenceItem(tween: Tween<double>(begin: 1.0, end: 0.5), weight: 50), \
+         TweenSequenceItem(tween: Tween<double>(begin: 0.5, end: 0.0), weight: 50)])"
+    );
+}
+
+#[test]
+fn test_build_prop_tween_expr_rotate_radians() {
+    // rotate is declared in degrees but Transform.rotate takes radians:
+    // 45deg → 0.7853981633974483, 360deg → 6.283185307179586
+    let kf = test_keyframe(&[
+        (0.0, &[("rotate", serde_json::json!(0))]),
+        (1.0, &[("rotate", serde_json::json!(360))]),
+    ]);
+    assert_eq!(
+        build_prop_tween_expr(&kf, "rotate", false),
+        "Tween<double>(begin: 0.0, end: 6.283185307179586)"
+    );
+}
+
+#[test]
+fn test_prop_anim_field_naming() {
+    assert_eq!(prop_anim_field("fadeIn", "opacity"), "_fadeInOpacity");
+    assert_eq!(prop_anim_field("fadeIn", "scale"), "_fadeInScale");
+    assert_eq!(prop_anim_field("fadeIn", "translateX"), "_fadeInTranslateX");
+    assert_eq!(
+        prop_anim_field("fadeIn", "backgroundColor"),
+        "_fadeInBackgroundColor"
+    );
+    assert_eq!(prop_anim_type("opacity"), "double");
+    assert_eq!(prop_anim_type("backgroundColor"), "Color");
+}
+
+#[test]
+fn test_emit_playback_start_default() {
+    // Default fill (forwards-like): activate at play start, no reset
+    let pb = PlaybackIR::default();
+    assert_eq!(
+        emit_playback_start("_fadeInController", Some("_fadeInActive"), &pb),
+        vec!["_fadeInActive = true; _fadeInController.forward();"]
+    );
+}
+
+#[test]
+fn test_emit_playback_start_loop() {
+    let pb = PlaybackIR {
+        loop_count: Some(LoopValue::Infinite),
+        ..Default::default()
+    };
+    assert_eq!(
+        emit_playback_start("_c", Some("_cActive"), &pb),
+        vec!["_cActive = true;", "_c.repeat();"]
+    );
+
+    let pb = PlaybackIR {
+        loop_count: Some(LoopValue::Count(3)),
+        ..Default::default()
+    };
+    assert_eq!(
+        emit_playback_start("_c", Some("_cActive"), &pb),
+        vec!["_cActive = true;", "_c.repeat(count: 3);"]
+    );
+
+    // loop + alternate → reversing repeat (WAAPI: F,R,F,R)
+    let pb = PlaybackIR {
+        loop_count: Some(LoopValue::Infinite),
+        direction: Some(DirectionValue::Alternate),
+        ..Default::default()
+    };
+    assert_eq!(
+        emit_playback_start("_c", Some("_cActive"), &pb),
+        vec!["_cActive = true;", "_c.repeat(reverse: true);"]
+    );
+
+    // loop + alternate-reverse → preset to 1.0 so the first pass is reversed
+    // (WAAPI: R,F,R,F)
+    let pb = PlaybackIR {
+        loop_count: Some(LoopValue::Infinite),
+        direction: Some(DirectionValue::AlternateReverse),
+        ..Default::default()
+    };
+    assert_eq!(
+        emit_playback_start("_c", Some("_cActive"), &pb),
+        vec![
+            "_cActive = true;",
+            "_c.value = 1.0;",
+            "_c.repeat(reverse: true);"
+        ]
+    );
+}
+
+#[test]
+fn test_emit_playback_start_direction() {
+    // WAAPI with iterations=1: reverse/alternate-reverse play a single
+    // reversed pass; alternate plays a single forward pass
+    let pb = PlaybackIR {
+        direction: Some(DirectionValue::Reverse),
+        ..Default::default()
+    };
+    assert_eq!(
+        emit_playback_start("_c", Some("_cActive"), &pb),
+        vec!["_cActive = true; _c.reverse();"]
+    );
+
+    let pb = PlaybackIR {
+        direction: Some(DirectionValue::Alternate),
+        ..Default::default()
+    };
+    assert_eq!(
+        emit_playback_start("_c", Some("_cActive"), &pb),
+        vec!["_cActive = true; _c.forward();"]
+    );
+
+    let pb = PlaybackIR {
+        direction: Some(DirectionValue::AlternateReverse),
+        ..Default::default()
+    };
+    assert_eq!(
+        emit_playback_start("_c", Some("_cActive"), &pb),
+        vec!["_cActive = true; _c.reverse();"]
+    );
+}
+
+#[test]
+fn test_emit_playback_start_fill() {
+    // forwards/both (and default) hold the end value — no reset
+    let pb = PlaybackIR {
+        fill: Some(FillValue::Forwards),
+        ..Default::default()
+    };
+    assert_eq!(
+        emit_playback_start("_c", Some("_cActive"), &pb),
+        vec!["_cActive = true; _c.forward();"]
+    );
+
+    // none/backwards → deactivate the animated wrapper on completion so the
+    // element returns to its natural style (NOT `value = 0` — that would
+    // leave a fade-in permanently invisible)
+    let pb = PlaybackIR {
+        fill: Some(FillValue::None),
+        ..Default::default()
+    };
+    assert_eq!(
+        emit_playback_start("_c", Some("_cActive"), &pb),
+        vec!["_cActive = true; _c.forward().whenComplete(() { if (mounted && _c.value == 1.0) setState(() { _cActive = false; }); });"]
+    );
+}
+
+#[test]
+fn test_emit_playback_start_no_wrappers() {
+    // Motions with no supported properties (e.g. skew-only) have no active
+    // flag — playback statements must not reference one.
+    let pb = PlaybackIR::default();
+    assert_eq!(emit_playback_start("_c", None, &pb), vec!["_c.forward();"]);
+    let pb = PlaybackIR {
+        fill: Some(FillValue::None),
+        ..Default::default()
+    };
+    assert_eq!(emit_playback_start("_c", None, &pb), vec!["_c.forward();"]);
+    let pb = PlaybackIR {
+        loop_count: Some(LoopValue::Infinite),
+        ..Default::default()
+    };
+    assert_eq!(emit_playback_start("_c", None, &pb), vec!["_c.repeat();"]);
+}
+
+#[test]
+fn test_emit_playback_start_delay() {
+    // delay → Future.delayed with a mounted guard; activation inside the
+    // callback (natural style during the delay)
+    let pb = PlaybackIR {
+        delay: Some(ExprIR::LiteralExpr {
+            value: serde_json::json!("500ms"),
+        }),
+        ..Default::default()
+    };
+    assert_eq!(
+        emit_playback_start("_c", Some("_cActive"), &pb),
+        vec!["Future.delayed(Duration(milliseconds: 500), () { if (mounted) { _cActive = true; _c.forward(); } });"]
+    );
+
+    // delay + fill backwards → active immediately (begin state during the
+    // delay), deactivated after completion
+    let pb = PlaybackIR {
+        fill: Some(FillValue::Backwards),
+        delay: Some(ExprIR::LiteralExpr {
+            value: serde_json::json!("500ms"),
+        }),
+        ..Default::default()
+    };
+    assert_eq!(
+        emit_playback_start("_c", Some("_cActive"), &pb),
+        vec![
+            "_cActive = true;",
+            "Future.delayed(Duration(milliseconds: 500), () { if (mounted) { _c.forward().whenComplete(() { if (mounted && _c.value == 1.0) setState(() { _cActive = false; }); }); } });"
+        ]
+    );
+
+    // delay + loop
+    let pb = PlaybackIR {
+        loop_count: Some(LoopValue::Infinite),
+        delay: Some(ExprIR::LiteralExpr {
+            value: serde_json::json!("1s"),
+        }),
+        ..Default::default()
+    };
+    assert_eq!(
+        emit_playback_start("_c", Some("_cActive"), &pb),
+        vec!["Future.delayed(Duration(milliseconds: 1000), () { if (mounted) { _cActive = true; _c.repeat(); } });"]
+    );
+}
+
+#[test]
+fn test_easing_flutter_diagnostic() {
+    assert!(easing_flutter_diagnostic("m", &Some(EasingIR::Named("easeOut".into()))).is_none());
+    assert!(easing_flutter_diagnostic(
+        "m",
+        &Some(EasingIR::CubicBezier {
+            x1: 0.0,
+            y1: 0.0,
+            x2: 1.0,
+            y2: 1.0
+        })
+    )
+    .is_none());
+    // steps(N,dir) strings lower from steps() easing — no Flutter equivalent
+    let diag = easing_flutter_diagnostic("m", &Some(EasingIR::Named("steps(6,end)".into())));
+    assert!(diag.is_some());
+    assert!(diag.unwrap().contains("steps()"));
+    // Named step aliases (stepStart/stepEnd lower to steps(1,...))
+    assert!(easing_flutter_diagnostic("m", &Some(EasingIR::Named("stepEnd".into()))).is_some());
+}
+
+#[test]
+fn test_prop_flutter_diagnostic() {
+    assert!(prop_flutter_diagnostic("m", "opacity").is_none());
+    assert!(prop_flutter_diagnostic("m", "translateX").is_none());
+
+    let diag = prop_flutter_diagnostic("m", "width").unwrap();
+    assert!(diag.contains("layout-dependent"), "width diag: {}", diag);
+
+    let diag = prop_flutter_diagnostic("m", "skewX").unwrap();
+    assert!(diag.contains("skew"), "skew diag: {}", diag);
+
+    let diag = prop_flutter_diagnostic("m", "blur").unwrap();
+    assert!(
+        diag.contains("unsupported property 'blur'"),
+        "unknown diag: {}",
+        diag
+    );
+}
+
+#[test]
+fn test_build_animated_builder_body_per_property() {
+    let motion = MotionIntent {
+        name: "popIn".into(),
+        body: test_keyframe(&[
+            (
+                0.0,
+                &[
+                    ("opacity", serde_json::json!(0.0)),
+                    ("translateX", serde_json::json!(-50)),
+                    ("rotate", serde_json::json!(0)),
+                ],
+            ),
+            (
+                1.0,
+                &[
+                    ("opacity", serde_json::json!(1.0)),
+                    ("translateX", serde_json::json!(0)),
+                    ("rotate", serde_json::json!(45)),
+                ],
+            ),
+        ]),
+        source_span: None,
+    };
+    let body = build_animated_builder_body(&motion, "popIn");
+    assert!(
+        body.contains("Opacity(opacity: _popInOpacity.value"),
+        "opacity wrapper: {}",
+        body
+    );
+    assert!(
+        body.contains("Transform.translate(offset: Offset(_popInTranslateX.value, 0.0)"),
+        "translate wrapper: {}",
+        body
+    );
+    assert!(
+        body.contains("Transform.rotate(angle: _popInRotate.value"),
+        "rotate wrapper: {}",
+        body
+    );
+}
+
+#[test]
+fn test_build_animated_builder_body_color_and_size() {
+    let motion = MotionIntent {
+        name: "tint".into(),
+        body: test_keyframe(&[
+            (
+                0.0,
+                &[
+                    ("backgroundColor", serde_json::json!("#ffffff")),
+                    ("width", serde_json::json!(100)),
+                    ("color", serde_json::json!("#000000")),
+                ],
+            ),
+            (
+                1.0,
+                &[
+                    ("backgroundColor", serde_json::json!("#ff0000")),
+                    ("width", serde_json::json!(200)),
+                    ("color", serde_json::json!("#ffffff")),
+                ],
+            ),
+        ]),
+        source_span: None,
+    };
+    let body = build_animated_builder_body(&motion, "tint");
+    assert!(
+        body.contains("Container(color: _tintBackgroundColor.value"),
+        "backgroundColor wrapper: {}",
+        body
+    );
+    assert!(
+        body.contains("DefaultTextStyle(style: TextStyle(color: _tintColor.value)"),
+        "color wrapper: {}",
+        body
+    );
+    assert!(
+        body.contains("SizedBox(width: _tintWidth.value"),
+        "width wrapper: {}",
+        body
+    );
+}
+
+#[test]
+fn test_build_animated_builder_body_no_wrappers() {
+    // Motion whose only property is unsupported (skew) must still produce a
+    // Widget-typed body — the builder closure's `child` is `Widget?`.
+    let motion = MotionIntent {
+        name: "skew".into(),
+        body: test_keyframe(&[
+            (0.0, &[("skewX", serde_json::json!(0))]),
+            (1.0, &[("skewX", serde_json::json!(45))]),
+        ]),
+        source_span: None,
+    };
+    assert_eq!(
+        build_animated_builder_body(&motion, "skew"),
+        "child ?? const SizedBox.shrink()"
+    );
+}
+
+#[test]
+fn test_motion_pipeline_warnings_and_playback() {
+    // Full pipeline: motion with steps() easing + width property + loop +
+    // delay must produce warnings and playback honoring loop/delay.
+    let codegen = FlutterCodegen;
+    let motion = MotionIntent {
+        name: "pulse".into(),
+        body: KeyframeIR {
+            stops: vec![
+                KeyframeStopIR {
+                    position: 0.0,
+                    properties: FxHashMap::from_iter([
+                        (
+                            "opacity".into(),
+                            ExprIR::LiteralExpr {
+                                value: serde_json::json!(0.0),
+                            },
+                        ),
+                        (
+                            "width".into(),
+                            ExprIR::LiteralExpr {
+                                value: serde_json::json!(100),
+                            },
+                        ),
+                    ]),
+                    ease: None,
+                    source_span: None,
+                },
+                KeyframeStopIR {
+                    position: 1.0,
+                    properties: FxHashMap::from_iter([
+                        (
+                            "opacity".into(),
+                            ExprIR::LiteralExpr {
+                                value: serde_json::json!(1.0),
+                            },
+                        ),
+                        (
+                            "width".into(),
+                            ExprIR::LiteralExpr {
+                                value: serde_json::json!(200),
+                            },
+                        ),
+                    ]),
+                    ease: None,
+                    source_span: None,
+                },
+            ],
+            over: ExprIR::LiteralExpr {
+                value: serde_json::json!("300ms"),
+            },
+            ease: Some(EasingIR::Named("steps(6,end)".into())),
+            playback: PlaybackIR {
+                loop_count: Some(LoopValue::Infinite),
+                delay: Some(ExprIR::LiteralExpr {
+                    value: serde_json::json!("1s"),
+                }),
+                ..Default::default()
+            },
+            source_span: None,
+        },
+        source_span: None,
+    };
+
+    let el = ElementIR {
+        tag: "div".into(),
+        props: FxHashMap::default(),
+        bindings: FxHashMap::default(),
+        events: FxHashMap::default(),
+        style_classes: None,
+        inline_style: None,
+        children: vec![ViewTree::Text("Hello".into())],
+        construction_kind: ConstructionKind::Component,
+        class_map_bindings: FxHashMap::default(),
+        source_span: None,
+        motion: Some(Box::new(MotionBehavior {
+            triggers: vec![TriggerIntent {
+                kind: TriggerKind::Enter,
+                motion_ref: Some("pulse".into()),
+                inline_motion: None,
+                source_span: None,
+            }],
+            ..Default::default()
+        })),
+        scroll: None,
+        drag: None,
+        ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
+    };
+
+    let view = ViewTree::Element(Box::new(el));
+    let mut components = FxHashMap::default();
+    components.insert(
+        "App".into(),
+        ComponentIR {
+            name: "App".into(),
+            view: Some(view),
+            ..Default::default()
+        },
+    );
+    let ir = IRProgram {
+        version: "1.0".into(),
+        modules: FxHashMap::from_iter([(
+            "main".into(),
+            ModuleIR {
+                name: "main".into(),
+                components,
+                motions: vec![motion],
+                ..Default::default()
+            },
+        )]),
+        stdlib_imports: Default::default(),
+        source_map: FxHashMap::default(),
+        motion_index: FxHashMap::default(),
+        source_span: None,
+    };
+    let comp_ref = ir
+        .modules
+        .get("main")
+        .unwrap()
+        .components
+        .get("App")
+        .unwrap();
+    let component_map = build_component_map(&ir);
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let (dart, warnings) =
+        codegen.gen_component_dart("App", comp_ref, &ir, &component_map, &component_slots);
+
+    // steps() easing → diagnostic warning
+    assert!(
+        warnings.iter().any(|w| w.contains("steps() easing")),
+        "steps() warning: {:?}",
+        warnings
+    );
+    // width → layout-dependent warning
+    assert!(
+        warnings
+            .iter()
+            .any(|w| w.contains("'width'") && w.contains("layout-dependent")),
+        "width warning: {:?}",
+        warnings
+    );
+
+    // Per-property animations: opacity Tween + width Tween
+    assert!(
+        dart.contains("_pulseOpacity = Tween<double>(begin: 0.0, end: 1.0)"),
+        "opacity tween: {}",
+        dart
+    );
+    assert!(
+        dart.contains("_pulseWidth = Tween<double>(begin: 100.0, end: 200.0)"),
+        "width tween: {}",
+        dart
+    );
+
+    // steps() falls back to Curves.linear
+    assert!(
+        dart.contains("CurveTween(curve: Curves.linear)"),
+        "steps fallback: {}",
+        dart
+    );
+
+    // Playback: loop + delay → delayed repeat (mounted-guarded)
+    assert!(
+        dart.contains(
+            "Future.delayed(Duration(milliseconds: 1000), () { if (mounted) { _pulseActive = true; _pulseController.repeat(); } });"
+        ),
+        "delayed repeat: {}",
+        dart
+    );
+
+    // Builder body wraps both properties
+    assert!(
+        dart.contains("SizedBox(width: _pulseWidth.value"),
+        "width wrapper: {}",
+        dart
     );
 }
 
@@ -1960,6 +2746,152 @@ fn compile_flutter(source: &str) -> Option<crate::InternalCompileResult> {
     } else {
         None
     }
+}
+
+/// Full-pipeline motion coverage (Task 5.4): real @motion syntax through
+/// parse → IR → Flutter codegen. Verifies per-property Tween/TweenSequence,
+/// playback properties, color mapping, and motion diagnostics.
+#[test]
+fn motion_full_pipeline_per_property_and_playback() {
+    let source = r##"
+import omniview;
+
+@motion enterFadeUp {
+    from { opacity: 0, translateY: 20 }
+    to   { opacity: 1, translateY: 0 }
+    over: 500, easing: power2Out
+}
+
+@motion multiStopDemo {
+    0%   { opacity: 0, scale: 0.5, backgroundColor: "#6366f1" }
+    50%  { opacity: 1, scale: 1.2, backgroundColor: "#10b981" }
+    100% { opacity: 1, scale: 1, backgroundColor: "#f59e0b" }
+    over: 1200, easing: easeInOut
+}
+
+@motion spinLoop {
+    to { rotate: 360 }
+    over: 2000, easing: linear
+    loop
+}
+
+@motion fillBackwards {
+    from { opacity: 0 }
+    to   { opacity: 1 }
+    over: 600, easing: power2Out
+    delay 500
+    fill backwards
+}
+
+@motion stepsMotion {
+    from { opacity: 0 }
+    to   { opacity: 1 }
+    over: 600, easing: steps(6, end)
+}
+
+component MotionCheck {
+    view {
+        <div>
+            <div @enter={enterFadeUp}>hello</div>
+            <div @enter={multiStopDemo}>multi</div>
+            <div @enter={spinLoop}>spin</div>
+            <div @enter={fillBackwards}>fill</div>
+            <div @enter={stepsMotion}>steps</div>
+        </div>
+    }
+}
+    "##;
+    let output = compile_flutter(source).expect("motion pipeline compile failed");
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    // Per-property Animation fields (lowerCamelCase, no underscores mid-name)
+    assert!(
+        content.contains("late final Animation<double> _enterFadeUpOpacity;"),
+        "opacity field: {}",
+        content
+    );
+    assert!(
+        content.contains("late final Animation<double> _enterFadeUpTranslateY;"),
+        "translate field: {}",
+        content
+    );
+    assert!(
+        content.contains("late final Animation<Color> _multiStopDemoBackgroundColor;"),
+        "color field: {}",
+        content
+    );
+
+    // 2 stops → Tween; 3 stops → weight-proportional TweenSequence
+    assert!(
+        content.contains("_enterFadeUpOpacity = Tween<double>(begin: 0.0, end: 1.0)"),
+        "2-stop tween: {}",
+        content
+    );
+    assert!(
+        content.contains("_multiStopDemoOpacity = TweenSequence<double>(["),
+        "3-stop sequence: {}",
+        content
+    );
+    assert!(
+        content.contains("weight: 50)"),
+        "weight-proportional items: {}",
+        content
+    );
+    assert!(
+        content.contains("TweenSequence<Color>(["),
+        "color sequence: {}",
+        content
+    );
+    // Color tweens use CurvedAnimation — CurveTween is Animatable<double>
+    // and cannot chain onto Tween<Color>
+    assert!(
+        content.contains("]).animate(CurvedAnimation(parent: _multiStopDemoController, curve: Curves.easeInOut));"),
+        "color CurvedAnimation: {}",
+        content
+    );
+    // rotate is declared in degrees → emitted as radians (360deg = 2π)
+    assert!(
+        content.contains("_spinLoopRotate = Tween<double>(begin: 0.0, end: 6.283185307179586)"),
+        "rotate radians: {}",
+        content
+    );
+
+    // Playback: loop → repeat(); delay+fill backwards → active immediately,
+    // delayed forward, deactivated (natural style) on completion
+    assert!(
+        content.contains("_spinLoopController.repeat();"),
+        "loop: {}",
+        content
+    );
+    assert!(
+        content.contains("_fillBackwardsActive = true;"),
+        "fill backwards activation: {}",
+        content
+    );
+    assert!(content.contains("Future.delayed(Duration(milliseconds: 500), () { if (mounted) { _fillBackwardsController.forward().whenComplete(() { if (mounted && _fillBackwardsController.value == 1.0) setState(() { _fillBackwardsActive = false; }); }); } });"), "delay+fill: {}", content);
+
+    // Builder body: per-property wrappers gated on the active flag
+    assert!(
+        content.contains("_enterFadeUpActive ? Transform.translate(offset: Offset(0.0, _enterFadeUpTranslateY.value), child: Opacity(opacity: _enterFadeUpOpacity.value, child: child)) : child ?? const SizedBox.shrink()"),
+        "enter body: {}",
+        content
+    );
+    assert!(content.contains("_multiStopDemoActive ? Container(color: _multiStopDemoBackgroundColor.value, child: Transform.scale(scale: _multiStopDemoScale.value, child: Opacity(opacity: _multiStopDemoOpacity.value, child: child))) : child ?? const SizedBox.shrink()"), "multi-property body: {}", content);
+
+    // Diagnostics: steps() easing warning
+    assert!(
+        output
+            .warnings
+            .iter()
+            .any(|w| w.message.contains("steps() easing")),
+        "steps warning: {:?}",
+        output.warnings
+    );
 }
 
 #[test]

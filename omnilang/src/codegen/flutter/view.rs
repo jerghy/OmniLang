@@ -578,7 +578,17 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
             .iter()
             .map(|c| format_view_tree(c, motions, ctx))
             .collect();
-        args.push(format!("children: [{}]", children.join(", ")));
+        let children_arg = format!("children: [{}]", children.join(", "));
+        if widget_allows_param(widget, "children") {
+            // Multi-child widgets (Row, Column, Stack, ListView, ...) take
+            // `children:` directly.
+            args.push(children_arg);
+        } else {
+            // Single-child widgets (Container, Center, ...) host multiple
+            // children via an inner Column — `Container(children: [...])`
+            // would be invalid Dart.
+            args.push(format!("child: Column({})", children_arg));
+        }
     }
 
     let inner = if args.is_empty() {
@@ -696,9 +706,10 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
 
             if let Some(motion_name) = motion_ref {
                 let ctrl_name = format!("_{}Controller", motion_name);
+                let active_name = format!("_{}Active", motion_name);
                 result = format!(
-                    "_OmniInViewWidget(\n  once: {},\n  threshold: {},\n  onInView: () {{ {}.forward(); }},\n  child: {},\n)",
-                    once, threshold, ctrl_name, result
+                    "_OmniInViewWidget(\n  once: {},\n  threshold: {},\n  onInView: () {{ {} = true; {}.forward(); }},\n  child: {},\n)",
+                    once, threshold, active_name, ctrl_name, result
                 );
             }
         }
@@ -728,9 +739,10 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
 
             if let Some(motion_name) = motion_ref {
                 let ctrl_name = format!("_{}Controller", motion_name);
+                let active_name = format!("_{}Active", motion_name);
                 result = format!(
-                    "_OmniScrollDrivenWidget(\n  start: '{}',\n  end: '{}',\n  scrub: {},\n  onProgress: (p) {{ {}.value = p; }},\n  child: {},\n)",
-                    scroll_start, scroll_end, scrub, ctrl_name, result
+                    "_OmniScrollDrivenWidget(\n  start: '{}',\n  end: '{}',\n  scrub: {},\n  onProgress: (p) {{ {} = true; {}.value = p; }},\n  child: {},\n)",
+                    scroll_start, scroll_end, scrub, active_name, ctrl_name, result
                 );
             }
         }
@@ -759,6 +771,7 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                                 "Axis.vertical"
                             };
                             let ctrl_name = format!("_{}Controller", motion_name);
+                            let active_name = format!("_{}Active", motion_name);
                             let constraints_str = el
                                 .drag_behavior()
                                 .and_then(|d| d.constraints.as_deref())
@@ -774,8 +787,8 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                                     None => "0.0".to_string(),
                                 };
                             result = format!(
-                                "_OmniDragWidget(\n  axis: {},\n  constraints: '{}',\n  elastic: {},\n  threshold: {},\n  onDragStart: () {{ }},\n  onDragProgress: (p) {{ {}.value = p; }},\n  onDragEnd: (completed) {{ if (completed) {{ {}.forward(); }} else {{ {}.reverse(); }} }},\n  child: {},\n)",
-                                axis_type, constraints_str, elastic_val, threshold_val, ctrl_name, ctrl_name, ctrl_name, result
+                                "_OmniDragWidget(\n  axis: {},\n  constraints: '{}',\n  elastic: {},\n  threshold: {},\n  onDragStart: () {{ {} = true; }},\n  onDragProgress: (p) {{ {} = true; {}.value = p; }},\n  onDragEnd: (completed) {{ if (completed) {{ {}.forward(); }} else {{ {}.reverse().whenComplete(() {{ if (mounted && {}.value == 0.0) setState(() {{ {} = false; }}); }}); }} }},\n  child: {},\n)",
+                                axis_type, constraints_str, elastic_val, threshold_val, active_name, active_name, ctrl_name, ctrl_name, ctrl_name, ctrl_name, active_name, result
                             );
                         }
                     }

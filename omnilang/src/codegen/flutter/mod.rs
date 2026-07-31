@@ -254,15 +254,27 @@ impl FlutterCodegen {
             w.emit("");
         }
 
-        // AnimationController/Animation field declarations for motion animations
+        // AnimationController/Animation field declarations for motion animations.
+        // One controller per motion (shared clock); one Animation<T> per
+        // animated property (per-property Tween/TweenSequence, Task 5.4).
+        // `_{motion}Active` gates the animated wrappers (only declared when
+        // the motion has wrappers): while false the element keeps its natural
+        // style — fill: none/backwards reset to natural on completion instead
+        // of holding the 0% keyframe.
         for motion in ir.modules.values().flat_map(|m| &m.motions) {
             let ctrl_name = format!("_{}Controller", motion.name);
-            let anim_name = format!("_{}Animation", motion.name);
             w.emit_fmt(format_args!(
                 "late final AnimationController {};",
                 ctrl_name
             ));
-            w.emit_fmt(format_args!("late final Animation<double> {};", anim_name));
+            for prop in flutter_motion_properties(&motion.body) {
+                let field = prop_anim_field(&motion.name, &prop);
+                let ann = prop_anim_type(&prop);
+                w.emit_fmt(format_args!("late final Animation<{}> {};", ann, field));
+            }
+            if !flutter_motion_properties(&motion.body).is_empty() {
+                w.emit_fmt(format_args!("bool _{}Active = false;", motion.name));
+            }
         }
         if !ir.modules.values().all(|m| m.motions.is_empty()) {
             w.emit("");
@@ -303,33 +315,66 @@ impl FlutterCodegen {
                 .map(find_enter_motions)
                 .unwrap_or_default();
 
-            // Create AnimationController and Animation for each motion
+            // Create AnimationController and per-property Animations for each motion
             for motion in ir.modules.values().flat_map(|m| &m.motions) {
                 let ctrl_name = format!("_{}Controller", motion.name);
-                let anim_name = format!("_{}Animation", motion.name);
                 let kf = &motion.body;
                 let duration_ms = extract_duration_ms(&kf.over);
                 let ease_str = format_easing_flutter(&kf.ease);
-                let properties = extract_keyframe_properties(kf);
-                let primary_prop = properties.first().map(|s| s.as_str()).unwrap_or("opacity");
-                let begin = extract_tween_begin(kf, primary_prop);
-                let end = extract_tween_end(kf, primary_prop);
                 let has_enter = enter_motions.contains(&motion.name);
+
+                // Motion-level diagnostics (Task 5.4): steps() easing has no
+                // Flutter Curves equivalent; width/height are layout-dependent;
+                // skew and unknown properties are skipped.
+                if let Some(diag) = easing_flutter_diagnostic(&motion.name, &kf.ease) {
+                    warnings.push(diag);
+                }
+                for prop in extract_keyframe_properties(kf) {
+                    if let Some(diag) = prop_flutter_diagnostic(&motion.name, &prop) {
+                        warnings.push(diag);
+                    }
+                }
 
                 // Create AnimationController
                 w.emit_fmt(format_args!(
                     "{0} = AnimationController(\n  duration: Duration(milliseconds: {1}),\n  vsync: this,\n);",
                     ctrl_name, duration_ms
                 ));
-                // Create Animation with Tween + Curve
-                w.emit_fmt(format_args!(
-                    "{0} = Tween<double>(begin: {1}, end: {2}).chain(CurveTween(curve: {3})).animate({4});",
-                    anim_name, begin, end, ease_str, ctrl_name
-                ));
+                // Per-property Animation<T>: Tween (2 stops) or TweenSequence
+                // (3+ stops), chained with the motion-level curve. Color
+                // tweens use CurvedAnimation — CurveTween is Animatable<double>
+                // and cannot chain onto Tween<Color>. `direction: reverse`
+                // with a loop swaps the tween direction (Flutter can only
+                // repeat forward passes).
+                let reverse_tweens = kf.playback.loop_count.is_some()
+                    && matches!(kf.playback.direction, Some(DirectionValue::Reverse));
+                for prop in flutter_motion_properties(kf) {
+                    let field = prop_anim_field(&motion.name, &prop);
+                    let tween = build_prop_tween_expr(kf, &prop, reverse_tweens);
+                    if motion_prop_kind(&prop) == MotionPropKind::Color {
+                        w.emit_fmt(format_args!(
+                            "{0} = {1}.animate(CurvedAnimation(parent: {2}, curve: {3}));",
+                            field, tween, ctrl_name, ease_str
+                        ));
+                    } else {
+                        w.emit_fmt(format_args!(
+                            "{0} = {1}.chain(CurveTween(curve: {2})).animate({3});",
+                            field, tween, ease_str, ctrl_name
+                        ));
+                    }
+                }
 
-                // @enter trigger: play animation on mount
+                // @enter trigger: start playback honoring
+                // loop_count/direction/fill/delay (and gate the animated
+                // wrappers on the active flag)
                 if has_enter {
-                    w.emit_fmt(format_args!("{}.forward();", ctrl_name));
+                    let active_name = (!flutter_motion_properties(kf).is_empty())
+                        .then(|| format!("_{}Active", motion.name));
+                    for stmt in
+                        emit_playback_start(&ctrl_name, active_name.as_deref(), &kf.playback)
+                    {
+                        w.emit(&stmt);
+                    }
                 }
             }
 
@@ -522,6 +567,11 @@ impl FlutterCodegen {
                 emit_drag_widget_class(&mut w);
             }
         }
+
+        // Motion diagnostics are module-global and emitted once per
+        // component — dedupe so multi-component modules report each once.
+        let mut seen: FxHashSet<String> = FxHashSet::default();
+        warnings.retain(|w| seen.insert(w.clone()));
 
         (w.into_string(), warnings)
     }
