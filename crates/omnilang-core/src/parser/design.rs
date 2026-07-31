@@ -370,6 +370,16 @@ fn parse_design_value_expression<'a>(
 
 /// Returns true if the identifier looks like a static CSS value
 /// rather than a variable/constant reference.
+///
+/// **Naming convention**: This heuristic classifies identifiers containing
+/// uppercase characters as variable references and all-lowercase identifiers
+/// as CSS literals. To reference a compile-time constant in a token value,
+/// use PascalCase or UPPER_SNAKE_CASE (e.g., `BRAND`, `SpacingUnit`).
+/// Lowercase names like `brand` or `primary` are treated as CSS keywords.
+///
+/// See ADR-047 (Phase 1 Dynamic Design Tokens) for the design rationale.
+/// If this convention proves confusing in practice, a future language version
+/// may add explicit reference syntax (e.g., `$BRAND` or `@brand`).
 fn is_css_value(s: &str) -> bool {
     if s.is_empty() {
         return true;
