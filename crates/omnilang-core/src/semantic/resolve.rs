@@ -296,6 +296,8 @@ impl SemanticAnalyzer {
                             ));
                         } else if let Some(sym) = self.symbols.resolve(name) {
                             if sym.kind != SymbolKind::Const
+                                // Allow Unknown — cross-file imported symbols may not have their
+                                // final kind resolved yet at design token validation time.
                                 && sym.kind != SymbolKind::Unknown
                             {
                                 self.diagnostics.push(Diagnostic::error(
