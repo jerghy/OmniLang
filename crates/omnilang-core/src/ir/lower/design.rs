@@ -40,11 +40,17 @@ pub fn lower_design_with_consts(
                 TokenType::Opacity => TokenTypeIR::Opacity,
                 TokenType::ZIndex => TokenTypeIR::ZIndex,
             };
-            let resolved_value = resolve_token_value_ir(&t.value, const_values, variant_map, semantics);
+            let resolved_value =
+                resolve_token_value_ir(&t.value, const_values, variant_map, semantics);
             let theme_values: FxHashMap<String, TokenValueIR> = t
                 .theme_values
                 .iter()
-                .map(|(theme, val)| (theme.clone(), resolve_token_value_ir(val, const_values, variant_map, semantics)))
+                .map(|(theme, val)| {
+                    (
+                        theme.clone(),
+                        resolve_token_value_ir(val, const_values, variant_map, semantics),
+                    )
+                })
                 .collect();
             (
                 t.name.clone(),
@@ -452,7 +458,12 @@ mod tests {
             variants: vec![],
         };
 
-        let design = lower_design_with_consts(&design_def, &FxHashMap::default(), &FxHashMap::default(), &mut SemanticResult::default());
+        let design = lower_design_with_consts(
+            &design_def,
+            &FxHashMap::default(),
+            &FxHashMap::default(),
+            &mut SemanticResult::default(),
+        );
         assert_eq!(design.name, "App");
         assert_eq!(design.themes, vec!["light", "dark"]);
         assert_eq!(design.default_theme, Some("light".to_string()));
@@ -601,7 +612,8 @@ mod tests {
 
         let variant_map = FxHashMap::default();
         let mut semantics = SemanticResult::default();
-        let design = lower_design_with_consts(&design_def, &const_values, &variant_map, &mut semantics);
+        let design =
+            lower_design_with_consts(&design_def, &const_values, &variant_map, &mut semantics);
         let primary = design.tokens.get("primary").expect("should have primary");
         assert!(matches!(primary.value, TokenValueIR::Static(ref s) if s == "#6366f1"));
         assert!(primary.theme_values.is_empty());
@@ -627,7 +639,8 @@ mod tests {
 
         let variant_map = FxHashMap::default();
         let mut semantics = SemanticResult::default();
-        let design = lower_design_with_consts(&design_def, &const_values, &variant_map, &mut semantics);
+        let design =
+            lower_design_with_consts(&design_def, &const_values, &variant_map, &mut semantics);
         let primary = design.tokens.get("primary").expect("should have primary");
         assert!(matches!(primary.value, TokenValueIR::Static(ref s) if s == "var(--UNKNOWN)"));
     }

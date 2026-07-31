@@ -29,7 +29,7 @@ use crate::parser::ast::*;
 ///
 /// Compatibility rules (Phase 2):
 /// - `String` / `Any` (unknown) → always compatible (all token types accept CSS string values)
-/// - `Int` / `Float` → compatible with Duration, Opacity, ZIndex, Size, LineHeight
+/// - `Int` / `Float` → compatible with Duration, Opacity, ZIndex, Size, LineHeight, FontWeight
 /// - Everything else → type mismatch diagnostic
 fn check_token_type_compatibility(
     expr: &Expr,
@@ -55,6 +55,7 @@ fn check_token_type_compatibility(
                 | TokenType::ZIndex
                 | TokenType::Size
                 | TokenType::LineHeight
+                | TokenType::FontWeight
         );
         if numeric_ok {
             return;

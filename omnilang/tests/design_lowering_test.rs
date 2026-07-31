@@ -23,7 +23,12 @@ fn lower_design_source(source: &str) -> DesignIR {
         .first()
         .expect("should have at least one design block");
     let mut semantics = omnilang::semantic::SemanticResult::default();
-    lower_design_with_consts(ast, &FxHashMap::default(), &FxHashMap::default(), &mut semantics)
+    lower_design_with_consts(
+        ast,
+        &FxHashMap::default(),
+        &FxHashMap::default(),
+        &mut semantics,
+    )
 }
 
 #[test]
