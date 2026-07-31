@@ -289,6 +289,7 @@ where
     let mut js = String::new();
     js.push_str("__omni_effect(() => {\n");
     js.push_str("  const root = document.documentElement;\n");
+    js.push_str("  if (!root) return;\n");
     for (name, expr) in tokens {
         let js_expr = expr_to_js(expr);
         let _ = writeln!(
