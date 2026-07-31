@@ -260,16 +260,17 @@ pub fn resolve_class_pseudo_states<'a>(
         .unwrap_or(&[])
 }
 
-/// Emit JS `__omni_effect` blocks for all dynamic design tokens.
+/// Emit a single JS `__omni_effect` block for all dynamic design tokens.
 ///
 /// Takes a pre-collected slice of `(token_name, ExprIR)` pairs and a
 /// function that converts each `ExprIR` into its JavaScript expression string.
 ///
-/// For each pair, generates:
+/// Generates a single effect containing all `setProperty` calls:
 /// ```javascript
 /// __omni_effect(() => {
 ///   const root = document.documentElement;
-///   root.style.setProperty("--name", __omni_sanitizeCss(expr));
+///   root.style.setProperty("--primary", __omni_sanitizeCss(expr1));
+///   root.style.setProperty("--accent", __omni_sanitizeCss(expr2));
 /// });
 /// ```
 ///
@@ -282,18 +283,21 @@ pub fn emit_dynamic_token_effects<F>(
 where
     F: FnMut(&ExprIR) -> String,
 {
+    if tokens.is_empty() {
+        return String::new();
+    }
     let mut js = String::new();
+    js.push_str("__omni_effect(() => {\n");
+    js.push_str("  const root = document.documentElement;\n");
     for (name, expr) in tokens {
         let js_expr = expr_to_js(expr);
         let _ = writeln!(
             js,
-            "__omni_effect(() => {{\n\
-             \x20 const root = document.documentElement;\n\
-             \x20 root.style.setProperty(\"--{}\", __omni_sanitizeCss({}));\n\
-             }});\n",
+            "  root.style.setProperty(\"--{}\", __omni_sanitizeCss({}));",
             name, js_expr
         );
     }
+    js.push_str("\n});\n");
     js
 }
 
