@@ -1219,7 +1219,7 @@ mod tests {
     }
     #[test]
     fn test_at_inview() {
-        assert_token("@inView", TokenKind::AtInView);
+        assert_token("@in-view", TokenKind::AtInView);
     }
     #[test]
     fn test_at_scroll() {
@@ -1227,39 +1227,41 @@ mod tests {
     }
     #[test]
     fn test_at_drag_horizontal() {
-        assert_token("@dragHorizontal", TokenKind::AtDragHorizontal);
+        assert_token("@drag-horizontal", TokenKind::AtDragHorizontal);
     }
     #[test]
     fn test_at_drag_vertical() {
-        assert_token("@dragVertical", TokenKind::AtDragVertical);
+        assert_token("@drag-vertical", TokenKind::AtDragVertical);
     }
     #[test]
-    fn test_at_paused() {
-        assert_token("@paused", TokenKind::AtPaused);
+    fn test_at_focus_lexes_as_ident() {
+        // @focus stays on the Ident/event-prop path for now — the AtFocus token
+        // is added together with TriggerKind::Focus in Phase 1.3.
+        assert_token("@focus", TokenKind::Ident("@focus".into()));
     }
     #[test]
-    fn test_at_inview_once() {
-        assert_token("@in-view-once", TokenKind::AtInViewOnce);
-    }
-    #[test]
-    fn test_at_inview_repeat() {
-        assert_token("@in-view-repeat", TokenKind::AtInViewRepeat);
-    }
-    #[test]
-    fn test_at_inview_threshold() {
-        assert_token("@in-view-threshold", TokenKind::AtInViewThreshold);
-    }
-    #[test]
-    fn test_at_scroll_start() {
-        assert_token("@scroll-start", TokenKind::AtScrollStart);
-    }
-    #[test]
-    fn test_at_scroll_end() {
-        assert_token("@scroll-end", TokenKind::AtScrollEnd);
-    }
-    #[test]
-    fn test_at_scroll_scrub() {
-        assert_token("@scroll-scrub", TokenKind::AtScrollScrub);
+    fn test_deleted_sub_attribute_tokens_lex_as_ident() {
+        // Sub-attribute tokens (@paused, @in-view-once, @drag-constraints,
+        // @scroll-start, etc.) were removed per semantic-level DSL spec §3.2 —
+        // they now lex as plain idents and will be re-parsed as regular
+        // ident-based attrs in later tasks.
+        for source in [
+            "@paused",
+            "@in-view-once",
+            "@in-view-repeat",
+            "@in-view-threshold",
+            "@scroll-start",
+            "@scroll-end",
+            "@scroll-scrub",
+            "@drag-constraints",
+            "@drag-elastic",
+            "@drag-scrub",
+            "@drag-momentum",
+            "@drag-threshold",
+            "@drag-velocity-max",
+        ] {
+            assert_token(source, TokenKind::Ident(source.into()));
+        }
     }
     #[test]
     fn test_at_hero() {

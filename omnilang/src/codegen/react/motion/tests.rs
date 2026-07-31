@@ -52,7 +52,9 @@ macro_rules! fixture {
 }
 
 #[test]
-fn dynamic_motion_params_emit_jsx_expressions() {
+fn inview_trigger_renamed_to_kebab_case() {
+    // @inView was renamed to @in-view per semantic-level DSL spec §3.2.
+    // The kebab-case form must emit the in-view motion trigger.
     let source = r#"
 @motion fadeIn {
     from { opacity: 0 }
@@ -60,24 +62,39 @@ fn dynamic_motion_params_emit_jsx_expressions() {
     over 300
 }
 component Test {
-    signal threshold: f64 = 0.5
     view {
-        <div @enter={fadeIn} @inViewThreshold={threshold}>hello</div>
+        <div @enter={fadeIn} @in-view={fadeIn}>hello</div>
     }
 }
 "#;
     let output = compile_fixture_to_react(source);
-    // The generated TSX must contain data-inview-threshold={threshold}, NOT data-inview-threshold="threshold"
-    // The generated TSX must contain {threshold} as a JSX expression, not a string attribute
     assert!(
-        output.contains("{threshold}"),
-        "Expected JSX expression {{threshold}} in output, got partial:\n{}",
+        output.contains("data-motion-inview-name=\"fadeIn\""),
+        "Expected @in-view trigger name in output, got partial:\n{}",
         &output[..output.len().min(500)]
     );
-    // Verify the motion engine receives the attrs correctly — threshold should NOT be in a quoted string
+}
+
+#[test]
+fn camelcase_inview_no_longer_emits_trigger() {
+    // The removed camelCase form @inView must no longer emit a motion trigger
+    // (it now lexes as a plain ident and is treated as an event binding).
+    let source = r#"
+@motion fadeIn {
+    from { opacity: 0 }
+    to { opacity: 1 }
+    over 300
+}
+component Test {
+    view {
+        <div @inView={fadeIn}>hello</div>
+    }
+}
+"#;
+    let output = compile_fixture_to_react(source);
     assert!(
-        !output.contains("\"{threshold}\"") && !output.contains("\"threshold\""),
-        "Must not emit threshold as string attribute"
+        !output.contains("data-motion-inview-name"),
+        "camelCase @inView must no longer emit a motion trigger"
     );
 }
 

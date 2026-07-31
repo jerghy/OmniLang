@@ -229,17 +229,22 @@ fn lower_element(
     let mut has_value_binding = false;
     let mut class_map_bindings_from_prop: Option<FxHashMap<String, ExprIR>> = None;
     let mut motion_triggers: Vec<TriggerIntent> = Vec::new();
-    let mut paused_override: Option<ExprIR> = None;
-    let mut in_view_once: Option<ExprIR> = None;
-    let mut in_view_repeat: Option<ExprIR> = None;
-    let mut in_view_threshold: Option<ExprIR> = None;
-    let mut scroll_start: Option<String> = None;
-    let mut scroll_end: Option<String> = None;
-    let mut scroll_scrub: Option<ExprIR> = None;
-    let mut drag_constraints: Option<String> = None;
-    let mut drag_elastic: Option<ExprIR> = None;
-    let mut drag_threshold: Option<ExprIR> = None;
-    let mut drag_velocity_max: Option<ExprIR> = None;
+    // Sub-attribute values (@paused, in-view once/repeat/threshold, scroll
+    // start/end/scrub, drag constraints/elastic/threshold/velocity-max) were
+    // removed as @-prefixed tokens per semantic-level DSL spec §3.2. The IR
+    // behavior structs keep their fields for now (always None) until Phase 1
+    // restructures them.
+    let paused_override: Option<ExprIR> = None;
+    let in_view_once: Option<ExprIR> = None;
+    let in_view_repeat: Option<ExprIR> = None;
+    let in_view_threshold: Option<ExprIR> = None;
+    let scroll_start: Option<String> = None;
+    let scroll_end: Option<String> = None;
+    let scroll_scrub: Option<ExprIR> = None;
+    let drag_constraints: Option<String> = None;
+    let drag_elastic: Option<ExprIR> = None;
+    let drag_threshold: Option<ExprIR> = None;
+    let drag_velocity_max: Option<ExprIR> = None;
     let mut ref_binding: Option<String> = None;
 
     for prop in &el.props {
@@ -466,47 +471,11 @@ fn lower_element(
                     source_span: None,
                 });
             }
-            // Paused override: @paused={expr}
-            ElementProp::PausedOverride(expr) => {
-                paused_override = Some(lower_expr(expr, variant_map, None, semantics));
-            }
-            // InView trigger: once
-            ElementProp::InViewOnce(expr) => {
-                in_view_once = Some(lower_expr(expr, variant_map, None, semantics));
-            }
-            // InView trigger: repeat
-            ElementProp::InViewRepeat(expr) => {
-                in_view_repeat = Some(lower_expr(expr, variant_map, None, semantics));
-            }
-            // InView trigger: threshold
-            ElementProp::InViewThreshold(expr) => {
-                in_view_threshold = Some(lower_expr(expr, variant_map, None, semantics));
-            }
-            // Scroll sub-attributes
-            ElementProp::ScrollStart(s) => {
-                scroll_start = Some(s.clone());
-            }
-            ElementProp::ScrollEnd(s) => {
-                scroll_end = Some(s.clone());
-            }
-            ElementProp::ScrollScrub(expr) => {
-                scroll_scrub = Some(lower_expr(expr, variant_map, None, semantics));
-            }
-            // Drag sub-attributes
-            ElementProp::DragConstraints(s) => {
-                drag_constraints = Some(s.clone());
-            }
-            ElementProp::DragElastic(expr) => {
-                drag_elastic = Some(lower_expr(expr, variant_map, None, semantics));
-            }
-            ElementProp::DragThreshold(expr) => {
-                drag_threshold = Some(lower_expr(expr, variant_map, None, semantics));
-            }
-            ElementProp::DragVelocityMax(expr) => {
-                drag_velocity_max = Some(lower_expr(expr, variant_map, None, semantics));
-            }
-            // DragScrub and DragMomentum are no longer supported — silently ignore
-            ElementProp::DragScrub(_) | ElementProp::DragMomentum(_) => {}
+            // Deleted sub-attribute ElementProps (@paused, in-view once/repeat/
+            // threshold, scroll start/end/scrub, drag constraints/elastic/scrub/
+            // momentum/threshold/velocity-max) no longer exist — they are parsed
+            // as regular ident-based attrs per semantic-level DSL spec §3.2 and
+            // will be lowered again once the new attr syntax lands (Tasks 0.3-0.4).
         }
     }
 

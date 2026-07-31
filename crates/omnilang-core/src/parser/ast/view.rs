@@ -142,31 +142,6 @@ pub enum ElementProp {
     TestId(String),
     Ref(String),
     MotionTrigger(MotionTrigger),
-    PausedOverride(Expr),
-    /// @in-view-once={bool}
-    InViewOnce(Expr),
-    /// @in-view-repeat={bool}
-    InViewRepeat(Expr),
-    /// @in-view-threshold={number}
-    InViewThreshold(Expr),
-    /// @scroll-start="top 80%"
-    ScrollStart(String),
-    /// @scroll-end="bottom 20%"
-    ScrollEnd(String),
-    /// @scroll-scrub={0.5}
-    ScrollScrub(Expr),
-    /// @drag-constraints="left:0 right:300"
-    DragConstraints(String),
-    /// @drag-elastic={0.2}
-    DragElastic(Expr),
-    /// @drag-scrub={true}
-    DragScrub(Expr),
-    /// @drag-momentum={friction:0.95}
-    DragMomentum(Expr),
-    /// @drag-threshold={30%}
-    DragThreshold(Expr),
-    /// @drag-velocity-max={2000px}
-    DragVelocityMax(Expr),
 }
 
 #[derive(Debug, Clone, Serialize)]

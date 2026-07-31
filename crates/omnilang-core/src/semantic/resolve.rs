@@ -938,19 +938,6 @@ impl SemanticAnalyzer {
                 | ElementProp::TestId(_)
                 | ElementProp::Ref(_)
                 | ElementProp::MotionTrigger(_)
-                | ElementProp::PausedOverride(_)
-                | ElementProp::InViewOnce(_)
-                | ElementProp::InViewRepeat(_)
-                | ElementProp::InViewThreshold(_)
-                | ElementProp::ScrollStart(_)
-                | ElementProp::ScrollEnd(_)
-                | ElementProp::ScrollScrub(_)
-                | ElementProp::DragConstraints(_)
-                | ElementProp::DragElastic(_)
-                | ElementProp::DragScrub(_)
-                | ElementProp::DragMomentum(_)
-                | ElementProp::DragThreshold(_)
-                | ElementProp::DragVelocityMax(_)
                 | ElementProp::Variant { .. } => {}
             }
         }

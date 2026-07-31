@@ -272,17 +272,7 @@ impl SemanticAnalyzer {
                 ViewNode::Element(el) => {
                     for prop in &el.props {
                         match prop {
-                            ElementProp::Static { value, .. }
-                            | ElementProp::PausedOverride(value)
-                            | ElementProp::InViewOnce(value)
-                            | ElementProp::InViewRepeat(value)
-                            | ElementProp::InViewThreshold(value)
-                            | ElementProp::ScrollScrub(value)
-                            | ElementProp::DragElastic(value)
-                            | ElementProp::DragScrub(value)
-                            | ElementProp::DragMomentum(value)
-                            | ElementProp::DragThreshold(value)
-                            | ElementProp::DragVelocityMax(value) => {
+                            ElementProp::Static { value, .. } => {
                                 check_expr_for_undeclared_store(value, store_refs, diagnostics);
                             }
                             ElementProp::Style { entries, .. } => {

@@ -8,7 +8,7 @@
 component MotionScroll {
   view {
     <div>
-      <div @scroll={fadeScroll} @scroll-start="top 80%" @scroll-end="bottom 20%">
+      <div @scroll={fadeScroll}>
         <p>Scroll-driven animation</p>
       </div>
     </div>

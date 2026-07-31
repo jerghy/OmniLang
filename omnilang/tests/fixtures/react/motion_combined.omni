@@ -23,7 +23,7 @@ component MotionCombined {
     <div>
       <h1 @enter={fadeIn}>Title</h1>
       <button @hover={pulse}>Hover Me</button>
-      <div @inView={slideIn}>
+      <div @in-view={slideIn}>
         <p>Content</p>
       </div>
     </div>
