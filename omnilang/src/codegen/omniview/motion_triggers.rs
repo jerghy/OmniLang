@@ -440,13 +440,32 @@ impl OmniViewGenerator {
                     &extra,
                 ));
             }
-            TriggerKind::Focus
-            | TriggerKind::InView
+            TriggerKind::Focus => {
+                let comment = if is_inline {
+                    "// @focus (inline)"
+                } else {
+                    "// @focus trigger"
+                };
+                let extra = format!(
+                    "\x20\x20 el.addEventListener(\"focusin\", function() {{ __omni_animations.get(\"{nid}\")?.get(\"{trigger}\")?.play(); }});\n\
+                     \x20\x20 el.addEventListener(\"focusout\", function() {{ __omni_animations.get(\"{nid}\")?.get(\"{trigger}\")?.reverse(); }});\n",
+                    nid = nid,
+                    trigger = trigger_str,
+                );
+                self.js.push_str(&format_simple_trigger_js(
+                    comment,
+                    nid,
+                    trigger_str,
+                    anim_call,
+                    &extra,
+                ));
+            }
+            TriggerKind::InView
             | TriggerKind::Scroll
             | TriggerKind::DragHorizontal
             | TriggerKind::DragVertical => {
                 unreachable!(
-                    "emit_trigger_with_anim_call only handles Enter/Hover/Press — \
+                    "emit_trigger_with_anim_call only handles Enter/Hover/Press/Focus — \
                      other variants are dispatched to their own dedicated methods"
                 )
             }
@@ -496,7 +515,10 @@ impl OmniViewGenerator {
                     ));
                 }
                 match trigger.kind {
-                    TriggerKind::Enter | TriggerKind::Hover | TriggerKind::Press => {
+                    TriggerKind::Enter
+                    | TriggerKind::Hover
+                    | TriggerKind::Press
+                    | TriggerKind::Focus => {
                         self.emit_trigger_with_anim_call(
                             nid,
                             trigger_str,
@@ -504,14 +526,6 @@ impl OmniViewGenerator {
                             trigger.kind,
                             false,
                         );
-                    }
-                    TriggerKind::Focus => {
-                        // @focus trigger JS (focusin + WAAPI) lands together
-                        // with the AtFocus parser token in Phase 2 — unreachable
-                        // until then since the parser cannot produce Focus yet.
-                        unreachable!(
-                            "@focus codegen not yet wired — AtFocus token lands in Phase 2"
-                        )
                     }
                     TriggerKind::InView => {
                         self.emit_trigger_inview_js(nid, trigger_str, &anim_call, el, false);
@@ -536,7 +550,10 @@ impl OmniViewGenerator {
                 let anim_call =
                     format!("Omni.animate(el, {}, {{ {} }})", kf_override, opts_override);
                 match trigger.kind {
-                    TriggerKind::Enter | TriggerKind::Hover | TriggerKind::Press => {
+                    TriggerKind::Enter
+                    | TriggerKind::Hover
+                    | TriggerKind::Press
+                    | TriggerKind::Focus => {
                         self.emit_trigger_with_anim_call(
                             nid,
                             trigger_str,
@@ -544,11 +561,6 @@ impl OmniViewGenerator {
                             trigger.kind,
                             true,
                         );
-                    }
-                    TriggerKind::Focus => {
-                        unreachable!(
-                            "@focus codegen not yet wired — AtFocus token lands in Phase 2"
-                        )
                     }
                     TriggerKind::InView => {
                         self.emit_trigger_inview_js(nid, trigger_str, &anim_call, el, true);

@@ -395,6 +395,44 @@ fn test_motion_trigger_hover_named() {
     insta::assert_snapshot!("motion_trigger_hover_named", &gen.js);
 }
 
+/// @focus auto-binds focusin/focusout events in the JS output.
+#[test]
+fn test_motion_trigger_focus_named() {
+    let mut gen = OmniViewGenerator::default();
+    let el = ElementIR {
+        tag: "input".into(),
+        props: FxHashMap::default(),
+        bindings: FxHashMap::default(),
+        events: FxHashMap::default(),
+        style_classes: None,
+        inline_style: None,
+        children: vec![],
+        construction_kind: ConstructionKind::Static,
+        class_map_bindings: FxHashMap::default(),
+        source_span: None,
+        motion: Some(Box::new(MotionBehavior {
+            triggers: vec![TriggerIntent {
+                kind: TriggerKind::Focus,
+                motion_ref: Some("pulse".into()),
+                inline_motion: None,
+
+                source_span: None,
+            }],
+            in_view_once: None,
+            in_view_repeat: None,
+            in_view_threshold: None,
+            source_span: None,
+        })),
+        scroll: None,
+        drag: None,
+        ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
+    };
+    gen.emit_motion_triggers_for_element("el-input-003", &el);
+
+    insta::assert_snapshot!("motion_trigger_focus_named", &gen.js);
+}
+
 // ═════════════════════════════════════════════════════════════════════════════
 // Phase 3b: Motion Trigger + Behavior Variations
 // ═════════════════════════════════════════════════════════════════════════════

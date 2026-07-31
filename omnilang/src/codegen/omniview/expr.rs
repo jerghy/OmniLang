@@ -281,13 +281,88 @@ impl OmniViewGenerator {
                     .collect();
                 format!("{{{}}}", items.join(", "))
             }
-            ExprIR::RefOpExpr { ref_name, op } => {
-                // Placeholder — real ref-op codegen lands in Phase 4.3.
-                format!("/* RefOp::{op:?} on {ref_name} */")
-            }
+            ExprIR::RefOpExpr { ref_name, op } => self.format_ref_op(ref_name, op),
             #[allow(unreachable_patterns)]
             _ => unreachable!("Unknown ExprIR variant — update codegen for new variant"),
         }
+    }
+
+    /// Format a semantic ref operation (`ref.focus()`, `ref.scrollTo(x, y)`, …)
+    /// to a native DOM API call on the ref wrapper object emitted by
+    /// `emit_ref_wrappers` (store.rs). Every wrapper method guards internally
+    /// via `__omni_el(nid)` — when the element is not yet mounted the op
+    /// degrades to a no-op instead of throwing. `Measure` chains
+    /// `getBoundingClientRect()` (the wrapper returns a zero-rect when
+    /// unmounted, so `.width` / `.height` never hit null).
+    fn format_ref_op(&mut self, ref_name: &str, op: &RefOpIR) -> String {
+        let base = ref_name.to_string();
+        match op {
+            RefOpIR::Focus => format!("{base}.focus()"),
+            RefOpIR::Blur => format!("{base}.blur()"),
+            RefOpIR::ScrollTo { x, y } => self.format_ref_scroll(&base, x.as_deref(), y.as_deref()),
+            RefOpIR::ScrollBy { dx, dy } => {
+                self.format_ref_scroll_by(&base, dx.as_deref(), dy.as_deref())
+            }
+            RefOpIR::Measure { what } => match what {
+                MeasureWhat::Position => format!("{base}.getBoundingClientRect()"),
+                MeasureWhat::Width => format!("{base}.getBoundingClientRect().width"),
+                MeasureWhat::Height => format!("{base}.getBoundingClientRect().height"),
+            },
+            RefOpIR::Select => format!("{base}.select()"),
+            RefOpIR::SetSelection { start, end } => format!(
+                "{base}.setSelectionRange({}, {})",
+                self.expr_to_js(start),
+                self.expr_to_js(end)
+            ),
+            RefOpIR::Value => format!("{base}.value"),
+            // Assignment needs an explicit guard — `?.` is illegal on an
+            // assignment LHS, and a setValue from @mount runs before the
+            // ref attaches (would otherwise throw TypeError).
+            RefOpIR::SetValue { value } => {
+                format!(
+                    "if ({base}) {{ {base}.value = {}; }}",
+                    self.expr_to_js(value)
+                )
+            }
+            RefOpIR::CapturePointer { id } => {
+                format!("{base}.capturePointer({})", self.expr_to_js(id))
+            }
+            RefOpIR::ReleasePointer { id } => {
+                format!("{base}.releasePointer({})", self.expr_to_js(id))
+            }
+            #[allow(unreachable_patterns)]
+            _ => format!("/* RefOp::{op:?} on {ref_name} */"),
+        }
+    }
+
+    /// Format `ref.scrollTo({ left: x, top: y })` — only axes provided in the
+    /// source call are included in the options object.
+    fn format_ref_scroll(&mut self, base: &str, x: Option<&ExprIR>, y: Option<&ExprIR>) -> String {
+        let mut parts: Vec<String> = Vec::new();
+        if let Some(x) = x {
+            parts.push(format!("left: {}", self.expr_to_js(x)));
+        }
+        if let Some(y) = y {
+            parts.push(format!("top: {}", self.expr_to_js(y)));
+        }
+        format!("{base}.scrollTo({{ {} }})", parts.join(", "))
+    }
+
+    /// Format `ref.scrollBy({ left: dx, top: dy })` — relative scroll delta.
+    fn format_ref_scroll_by(
+        &mut self,
+        base: &str,
+        dx: Option<&ExprIR>,
+        dy: Option<&ExprIR>,
+    ) -> String {
+        let mut parts: Vec<String> = Vec::new();
+        if let Some(dx) = dx {
+            parts.push(format!("left: {}", self.expr_to_js(dx)));
+        }
+        if let Some(dy) = dy {
+            parts.push(format!("top: {}", self.expr_to_js(dy)));
+        }
+        format!("{base}.scrollBy({{ {} }})", parts.join(", "))
     }
 
     pub(super) fn block_to_expr(&mut self, block: &BlockIR) -> String {

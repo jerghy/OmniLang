@@ -353,6 +353,69 @@ impl OmniViewGenerator {
         }
     }
 
+    /// Emit reactive effects for semantic ref bindings (`focus={sig}`,
+    /// `scroll-x={sig}`, `scroll-y={sig}`, `value={sig}`).
+    ///
+    /// The bindings are extracted into `ElementIR.semantic_bindings` during
+    /// lowering (semantic-level DSL spec §2.2) and validated by the semantic
+    /// pass to require a `@ref` on the element. Each binding drives a native
+    /// DOM side effect from the bound signal, following the same `__omni_effect`
+    /// + `__omni_el(nid)` pattern as `emit_element_bindings`:
+    ///
+    /// - `focus`    → `el.focus()` / `el.blur()` on the boolean signal
+    /// - `scroll-y` → `el.scrollTop = sig`
+    /// - `scroll-x` → `el.scrollLeft = sig`
+    /// - `value`    → guarded one-way value sync (compares first so the caret
+    ///   position is preserved and no write happens when unchanged)
+    fn emit_semantic_bindings(&mut self, el: &ElementIR, nid: &str) {
+        for (kind, binding) in &el.semantic_bindings {
+            let js_expr = self.expr_to_js(binding);
+            let js_access = if self.name_resolver.signal_names.contains(&js_expr) {
+                format!("{}.value", js_expr)
+            } else {
+                js_expr
+            };
+            match kind.as_str() {
+                // focus={sig}: boolean signal drives focus()/blur()
+                "focus" => {
+                    let _ = writeln!(self.js,
+                        "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) {{ if ({}) {{ el.focus(); }} else {{ el.blur(); }} }} }});",
+                        nid, js_access
+                    );
+                }
+                // scroll-y={sig}: vertical scroll position
+                "scroll-y" => {
+                    let _ = writeln!(self.js,
+                        "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) {{ el.scrollTop = {}; }} }});",
+                        nid, js_access
+                    );
+                }
+                // scroll-x={sig}: horizontal scroll position
+                "scroll-x" => {
+                    let _ = writeln!(self.js,
+                        "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) {{ el.scrollLeft = {}; }} }});",
+                        nid, js_access
+                    );
+                }
+                // value={sig}: one-way value sync (keeps caret position)
+                "value" => {
+                    let _ = writeln!(self.js,
+                        "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) {{ if (el.value !== {}) {{ el.value = {}; }} }} }});",
+                        nid, js_access, js_access
+                    );
+                }
+                _ => {
+                    // Unknown binding kind — the semantic validator rejects
+                    // these before codegen, but keep the generator total.
+                    self.warnings.push(format!(
+                        "OmniView: unknown semantic binding '{kind}' on <{}> (nid={nid})",
+                        el.tag
+                    ));
+                }
+            }
+        }
+    }
+
     /// Emit motion trigger data-* attributes and sub-attributes (in-view, scroll, drag).
     ///
     /// Writes HTML data attributes for @enter, @hover, @press, @in-view, @scroll, @drag-horizontal, @drag-vertical triggers
@@ -661,6 +724,8 @@ impl OmniViewGenerator {
         self.emit_element_events(el, &nid, &mut attrs);
 
         self.emit_element_bindings(el, &nid);
+
+        self.emit_semantic_bindings(el, &nid);
 
         // Pre-scan children for interpolations → add data-bind-text to attrs
         // This MUST happen BEFORE writing the opening tag.
