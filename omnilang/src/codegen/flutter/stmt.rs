@@ -205,9 +205,7 @@ impl<'a> FormatStmt for StoreActionStmtFormatter<'a> {
 
 pub(crate) fn generate_statement_flutter(w: &mut CodeWriter, stmt: &StatementIR) {
     let fmt = FlutterStmtFormatter {
-        expr: DartFormatExpr {
-            event_param_name: None,
-        },
+        expr: super::r#ref::FlutterFormatExpr::new(None),
     };
     fmt.format_stmt(w, stmt);
 }

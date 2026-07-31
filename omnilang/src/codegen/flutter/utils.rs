@@ -256,6 +256,7 @@ fn widget_param_whitelist(widget: &str) -> &'static [&'static str] {
             "itemBuilder",
             "padding",
             "scrollDirection",
+            "controller",
         ],
         "Expanded" => &["key", "flex", "child"],
         "Flexible" => &["key", "flex", "child", "fit"],
@@ -284,6 +285,7 @@ fn widget_param_whitelist(widget: &str) -> &'static [&'static str] {
             "onChanged",
             "onSubmitted",
             "controller",
+            "focusNode",
             "obscureText",
             "keyboardType",
             "enabled",
@@ -296,7 +298,7 @@ fn widget_param_whitelist(widget: &str) -> &'static [&'static str] {
         "Slider" => &["key", "value", "onChanged", "min", "max", "divisions"],
         "DropdownButton" => &["key", "value", "onChanged", "items", "hint"],
         "Form" => &["key", "child", "onWillPop"],
-        "SingleChildScrollView" => &["key", "child", "scrollDirection", "padding"],
+        "SingleChildScrollView" => &["key", "child", "scrollDirection", "padding", "controller"],
         _ => &["key"],
     }
 }

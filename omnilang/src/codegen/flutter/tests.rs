@@ -330,9 +330,11 @@ fn fmt_view(node: &ViewTree) -> (String, Vec<String>) {
     let component_map: FxHashMap<&str, &ComponentIR> = FxHashMap::default();
     let store_provider_map: FxHashMap<String, String> = FxHashMap::default();
     let mut warnings = Vec::new();
+    let ref_usage: FxHashMap<String, RefUsage> = FxHashMap::default();
     let mut ctx = ViewContext {
         component_map: &component_map,
         store_provider_map: &store_provider_map,
+        ref_usage: &ref_usage,
         ir: &ir,
         warnings: &mut warnings,
     };
@@ -2794,9 +2796,11 @@ fn test_store_action_in_inline_handler_body() {
     let component_map: FxHashMap<&str, &ComponentIR> = FxHashMap::default();
     let store_provider_map: FxHashMap<String, String> =
         FxHashMap::from_iter([("TodoStore".into(), "todoStoreProvider".into())]);
+    let ref_usage: FxHashMap<String, RefUsage> = FxHashMap::default();
     let mut ctx = ViewContext {
         component_map: &component_map,
         store_provider_map: &store_provider_map,
+        ref_usage: &ref_usage,
         ir: &ir,
         warnings: &mut warnings,
     };
@@ -2886,9 +2890,11 @@ fn test_store_action_method_call_form_in_handler() {
     let component_map: FxHashMap<&str, &ComponentIR> = FxHashMap::default();
     let store_provider_map: FxHashMap<String, String> =
         FxHashMap::from_iter([("TodoStore".into(), "todoStoreProvider".into())]);
+    let ref_usage: FxHashMap<String, RefUsage> = FxHashMap::default();
     let mut ctx = ViewContext {
         component_map: &component_map,
         store_provider_map: &store_provider_map,
+        ref_usage: &ref_usage,
         ir: &ir,
         warnings: &mut warnings,
     };
@@ -2898,4 +2904,600 @@ fn test_store_action_method_call_form_in_handler() {
         "MethodCallExpr store action must rewrite to ref.read: {}",
         expr
     );
+}
+
+// ── Ref codegen tests (Task 5.2) ──────────────────────────
+
+/// Build a minimal element with a tag, optional @ref binding, and semantic
+/// bindings (kind → expression).
+fn ref_el(tag: &str, ref_binding: Option<&str>, semantic: &[(&str, ExprIR)]) -> ElementIR {
+    ElementIR {
+        tag: tag.to_string(),
+        props: FxHashMap::default(),
+        bindings: FxHashMap::default(),
+        events: FxHashMap::default(),
+        style_classes: None,
+        inline_style: None,
+        children: vec![],
+        construction_kind: ConstructionKind::Normal,
+        class_map_bindings: FxHashMap::default(),
+        source_span: None,
+        motion: None,
+        scroll: None,
+        drag: None,
+        ref_binding: ref_binding.map(String::from),
+        semantic_bindings: semantic
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.clone()))
+            .collect(),
+    }
+}
+
+/// Build a component with the given refs, signals, fns, and view.
+fn ref_component(
+    name: &str,
+    refs: &[&str],
+    signals: Vec<SignalIntent>,
+    fns: Vec<FunctionIR>,
+    view: Option<ViewTree>,
+) -> ComponentIR {
+    ComponentIR {
+        name: name.into(),
+        refs: refs
+            .iter()
+            .map(|n| RefDeclIR {
+                name: n.to_string(),
+                element_tag: None,
+            })
+            .collect(),
+        signals,
+        fns,
+        view,
+        ..Default::default()
+    }
+}
+
+#[test]
+fn test_ref_global_key_and_on_demand_controllers() {
+    // One ref used with a focus op, one with a scroll op, one unused.
+    let codegen = FlutterCodegen;
+    let focus_fn = FunctionIR {
+        name: "focusIt".into(),
+        visibility: Visibility::Private,
+        params: vec![],
+        return_type: None,
+        body: BlockIR {
+            statements: vec![StatementIR::ExprStmtIR {
+                expr: ExprIR::RefOpExpr {
+                    ref_name: "inputBox".into(),
+                    op: RefOpIR::Focus,
+                },
+            }],
+        },
+        is_async: false,
+        source_span: None,
+    };
+    let scroll_fn = FunctionIR {
+        name: "scrollIt".into(),
+        visibility: Visibility::Private,
+        params: vec![],
+        return_type: None,
+        body: BlockIR {
+            statements: vec![StatementIR::ExprStmtIR {
+                expr: ExprIR::RefOpExpr {
+                    ref_name: "pane".into(),
+                    op: RefOpIR::ScrollTo {
+                        x: None,
+                        y: Some(Box::new(ExprIR::LiteralExpr {
+                            value: serde_json::json!(100),
+                        })),
+                    },
+                },
+            }],
+        },
+        is_async: false,
+        source_span: None,
+    };
+    let comp = ref_component(
+        "RefDemo",
+        &["inputBox", "pane", "unused"],
+        vec![],
+        vec![focus_fn, scroll_fn],
+        None,
+    );
+    let mut components = FxHashMap::default();
+    components.insert("RefDemo".into(), comp);
+    let ir = make_ir(components);
+    let comp_ref = ir
+        .modules
+        .get("main")
+        .unwrap()
+        .components
+        .get("RefDemo")
+        .unwrap();
+    let component_map = build_component_map(&ir);
+    let (dart, _warnings) = codegen.gen_component_dart("RefDemo", comp_ref, &ir, &component_map);
+
+    // GlobalKey for every declared ref
+    assert!(dart.contains("final GlobalKey _inputBoxKey = GlobalKey();"));
+    assert!(dart.contains("final GlobalKey _paneKey = GlobalKey();"));
+    assert!(dart.contains("final GlobalKey _unusedKey = GlobalKey();"));
+
+    // On-demand controllers: only for used capabilities
+    assert!(dart.contains("final FocusNode _inputBoxFocus = FocusNode();"));
+    assert!(dart.contains("final ScrollController _paneScroll = ScrollController();"));
+    assert!(
+        !dart.contains("_unusedFocus"),
+        "unused ref must not get a FocusNode: {dart}"
+    );
+    assert!(
+        !dart.contains("_inputBoxScroll"),
+        "focus-only ref must not get a ScrollController: {dart}"
+    );
+    assert!(
+        !dart.contains("_inputBoxText"),
+        "focus-only ref must not get a TextEditingController: {dart}"
+    );
+
+    // Ref ops format to Flutter idioms in fn bodies
+    assert!(dart.contains("_inputBoxFocus.requestFocus();"));
+    assert!(dart.contains("if (_paneScroll.hasClients) { _paneScroll.jumpTo(100); }"));
+
+    // dispose() disposes only declared controllers
+    assert!(dart.contains("void dispose() {"));
+    assert!(dart.contains("_inputBoxFocus.dispose();"));
+    assert!(dart.contains("_paneScroll.dispose();"));
+    assert!(!dart.contains("_unusedFocus.dispose();"));
+}
+
+#[test]
+fn test_ref_key_on_widget_and_controller_attachment() {
+    // input (needs_text + needs_focus) → key/controller/focusNode params
+    let el = ref_el("input", Some("inputBox"), &[]);
+    let mut usage: FxHashMap<String, RefUsage> = FxHashMap::default();
+    usage.insert(
+        "inputBox".into(),
+        RefUsage {
+            needs_focus: true,
+            needs_text: true,
+            ..Default::default()
+        },
+    );
+    let ref_usage: &FxHashMap<String, RefUsage> = &usage;
+    let mut warnings = Vec::new();
+    let ir = empty_program();
+    let component_map: FxHashMap<&str, &ComponentIR> = FxHashMap::default();
+    let store_provider_map: FxHashMap<String, String> = FxHashMap::default();
+    let mut ctx = ViewContext {
+        component_map: &component_map,
+        store_provider_map: &store_provider_map,
+        ref_usage,
+        ir: &ir,
+        warnings: &mut warnings,
+    };
+    let view = ViewTree::Element(Box::new(el));
+    let expr = format_view_tree(&view, &[], &mut ctx);
+    assert!(expr.contains("key: _inputBoxKey"), "missing key: {expr}");
+    assert!(
+        expr.contains("controller: _inputBoxText"),
+        "missing text controller: {expr}"
+    );
+    assert!(
+        expr.contains("focusNode: _inputBoxFocus"),
+        "missing focusNode: {expr}"
+    );
+
+    // non-TextField element with focus need → Focus wrapper
+    let el2 = ref_el("div", Some("box"), &[]);
+    let mut usage2: FxHashMap<String, RefUsage> = FxHashMap::default();
+    usage2.insert(
+        "box".into(),
+        RefUsage {
+            needs_focus: true,
+            ..Default::default()
+        },
+    );
+    let ref_usage2: &FxHashMap<String, RefUsage> = &usage2;
+    let mut warnings2 = Vec::new();
+    let mut ctx2 = ViewContext {
+        component_map: &component_map,
+        store_provider_map: &store_provider_map,
+        ref_usage: ref_usage2,
+        ir: &ir,
+        warnings: &mut warnings2,
+    };
+    let view2 = ViewTree::Element(Box::new(el2));
+    let expr2 = format_view_tree(&view2, &[], &mut ctx2);
+    assert!(
+        expr2.contains("Focus(focusNode: _boxFocus, child: Container("),
+        "non-TextField focus needs a Focus wrapper: {expr2}"
+    );
+
+    // scrollable element with scroll need → ScrollController attachment
+    let el3 = ref_el("listview", Some("list"), &[]);
+    let mut usage3: FxHashMap<String, RefUsage> = FxHashMap::default();
+    usage3.insert(
+        "list".into(),
+        RefUsage {
+            needs_scroll: true,
+            ..Default::default()
+        },
+    );
+    let ref_usage3: &FxHashMap<String, RefUsage> = &usage3;
+    let mut warnings3 = Vec::new();
+    let mut ctx3 = ViewContext {
+        component_map: &component_map,
+        store_provider_map: &store_provider_map,
+        ref_usage: ref_usage3,
+        ir: &ir,
+        warnings: &mut warnings3,
+    };
+    let view3 = ViewTree::Element(Box::new(el3));
+    let expr3 = format_view_tree(&view3, &[], &mut ctx3);
+    assert!(
+        expr3.contains("controller: _listScroll"),
+        "scrollable ref needs a ScrollController: {expr3}"
+    );
+}
+
+#[test]
+fn test_semantic_binding_post_frame_setup() {
+    // input with focus={active} + value={text}; div with scroll-y={pos}
+    let codegen = FlutterCodegen;
+    let el_input = ref_el(
+        "input",
+        Some("inputBox"),
+        &[
+            ("focus", ExprIR::ident("active")),
+            ("value", ExprIR::ident("text")),
+        ],
+    );
+    let el_pane = ref_el("div", Some("pane"), &[("scroll-y", ExprIR::ident("pos"))]);
+    let view = ViewTree::Fragment(vec![
+        ViewTree::Element(Box::new(el_input)),
+        ViewTree::Element(Box::new(el_pane)),
+    ]);
+    let signals = vec![
+        SignalIntent {
+            name: "active".into(),
+            r#type: TypeIR {
+                kind: "bool".into(),
+                type_args: vec![],
+                is_nullable: false,
+            },
+            initial_value: ExprIR::LiteralExpr {
+                value: serde_json::json!(false),
+            },
+        },
+        SignalIntent {
+            name: "text".into(),
+            r#type: TypeIR {
+                kind: "string".into(),
+                type_args: vec![],
+                is_nullable: false,
+            },
+            initial_value: ExprIR::LiteralExpr {
+                value: serde_json::json!(""),
+            },
+        },
+        SignalIntent {
+            name: "pos".into(),
+            r#type: TypeIR {
+                kind: "f64".into(),
+                type_args: vec![],
+                is_nullable: false,
+            },
+            initial_value: ExprIR::LiteralExpr {
+                value: serde_json::json!(0.0),
+            },
+        },
+    ];
+    let comp = ref_component(
+        "BindDemo",
+        &["inputBox", "pane"],
+        signals,
+        vec![],
+        Some(view),
+    );
+    let mut components = FxHashMap::default();
+    components.insert("BindDemo".into(), comp);
+    let ir = make_ir(components);
+    let comp_ref = ir
+        .modules
+        .get("main")
+        .unwrap()
+        .components
+        .get("BindDemo")
+        .unwrap();
+    let component_map = build_component_map(&ir);
+    let (dart, _warnings) = codegen.gen_component_dart("BindDemo", comp_ref, &ir, &component_map);
+
+    // Controllers + guard flag declared
+    assert!(dart.contains("final FocusNode _inputBoxFocus = FocusNode();"));
+    assert!(dart.contains("final TextEditingController _inputBoxText = TextEditingController();"));
+    assert!(dart.contains("final ScrollController _paneScroll = ScrollController();"));
+    assert!(dart.contains("bool _syncingInputBoxText = false;"));
+
+    // value listener with guard: user edits flow into the signal via
+    // setState (a bare field write would leave consumers of the signal stale)
+    assert!(dart.contains("_inputBoxText.addListener(() {"));
+    assert!(dart.contains("if (_syncingInputBoxText) {"));
+    assert!(dart.contains("setState(() {"));
+    assert!(dart.contains("text = _inputBoxText.text;"));
+
+    // Reactive sync method re-applying all binding kinds after every
+    // rebuild (parity with React's useEffect-on-deps)
+    assert!(dart.contains("void _syncSemanticBindings() {"));
+    assert!(dart.contains("if (active) {"));
+    assert!(dart.contains("_inputBoxFocus.requestFocus();"));
+    assert!(dart.contains("_inputBoxFocus.unfocus();"));
+    assert!(dart.contains(
+        "_paneScroll.animateTo(pos, duration: Duration(milliseconds: 300), curve: Curves.easeInOut);"
+    ));
+    assert!(dart.contains("_syncingInputBoxText = true;"));
+    assert!(dart.contains("_inputBoxText.text = text;"));
+    assert!(dart.contains("_syncingInputBoxText = false;"));
+
+    // build registers the sync post-frame with a mounted guard (prevents
+    // use-after-dispose on fast unmount)
+    assert!(dart.contains("WidgetsBinding.instance.addPostFrameCallback((_) {"));
+    assert!(dart.contains("if (!mounted) return;"));
+    assert!(dart.contains("_syncSemanticBindings();"));
+
+    // dispose() covers all controllers
+    assert!(dart.contains("_inputBoxFocus.dispose();"));
+    assert!(dart.contains("_inputBoxText.dispose();"));
+    assert!(dart.contains("_paneScroll.dispose();"));
+}
+
+#[test]
+fn test_format_ref_op_flutter_variants() {
+    let op = |ref_name: &str, op: RefOpIR| ExprIR::RefOpExpr {
+        ref_name: ref_name.into(),
+        op,
+    };
+
+    // Focus / Blur
+    assert_eq!(
+        format_expr_ir_flutter(&op("box", RefOpIR::Focus)),
+        "_boxFocus.requestFocus()"
+    );
+    assert_eq!(
+        format_expr_ir_flutter(&op("box", RefOpIR::Blur)),
+        "_boxFocus.unfocus()"
+    );
+
+    // ScrollTo — y wins; guarded by hasClients
+    assert_eq!(
+        format_expr_ir_flutter(&op(
+            "box",
+            RefOpIR::ScrollTo {
+                x: Some(Box::new(ExprIR::LiteralExpr {
+                    value: serde_json::json!(10),
+                })),
+                y: Some(Box::new(ExprIR::LiteralExpr {
+                    value: serde_json::json!(100),
+                })),
+            }
+        )),
+        "if (_boxScroll.hasClients) { _boxScroll.jumpTo(100); }"
+    );
+    // ScrollTo — x only
+    assert_eq!(
+        format_expr_ir_flutter(&op(
+            "box",
+            RefOpIR::ScrollTo {
+                x: Some(Box::new(ExprIR::LiteralExpr {
+                    value: serde_json::json!(10),
+                })),
+                y: None,
+            }
+        )),
+        "if (_boxScroll.hasClients) { _boxScroll.jumpTo(10); }"
+    );
+
+    // ScrollBy — relative delta via animateTo with duration/curve
+    assert_eq!(
+        format_expr_ir_flutter(&op(
+            "box",
+            RefOpIR::ScrollBy {
+                dx: None,
+                dy: Some(Box::new(ExprIR::LiteralExpr {
+                    value: serde_json::json!(50),
+                })),
+            }
+        )),
+        "if (_boxScroll.hasClients) { _boxScroll.animateTo(_boxScroll.position.pixels + 50, duration: Duration(milliseconds: 200), curve: Curves.easeInOut); }"
+    );
+
+    // Measure — width / height / position
+    assert_eq!(
+        format_expr_ir_flutter(&op(
+            "box",
+            RefOpIR::Measure {
+                what: MeasureWhat::Width
+            }
+        )),
+        "(_boxKey.currentContext?.findRenderObject() as RenderBox?)?.size.width"
+    );
+    assert_eq!(
+        format_expr_ir_flutter(&op(
+            "box",
+            RefOpIR::Measure {
+                what: MeasureWhat::Height
+            }
+        )),
+        "(_boxKey.currentContext?.findRenderObject() as RenderBox?)?.size.height"
+    );
+    assert_eq!(
+        format_expr_ir_flutter(&op(
+            "box",
+            RefOpIR::Measure {
+                what: MeasureWhat::Position
+            }
+        )),
+        "(_boxKey.currentContext?.findRenderObject() as RenderBox?)?.localToGlobal(Offset.zero)"
+    );
+
+    // Value read / write
+    assert_eq!(
+        format_expr_ir_flutter(&op("box", RefOpIR::Value)),
+        "_boxText.text"
+    );
+    assert_eq!(
+        format_expr_ir_flutter(&op(
+            "box",
+            RefOpIR::SetValue {
+                value: Box::new(ExprIR::LiteralExpr {
+                    value: serde_json::json!("hi"),
+                }),
+            }
+        )),
+        "_boxText.text = 'hi'"
+    );
+
+    // Select / SetSelection
+    assert_eq!(
+        format_expr_ir_flutter(&op("box", RefOpIR::Select)),
+        "_boxText.selection = TextSelection(baseOffset: 0, extentOffset: _boxText.text.length)"
+    );
+    assert_eq!(
+        format_expr_ir_flutter(&op(
+            "box",
+            RefOpIR::SetSelection {
+                start: Box::new(ExprIR::LiteralExpr {
+                    value: serde_json::json!(1),
+                }),
+                end: Box::new(ExprIR::LiteralExpr {
+                    value: serde_json::json!(5),
+                }),
+            }
+        )),
+        "_boxText.selection = TextSelection(baseOffset: 1, extentOffset: 5)"
+    );
+
+    // Pointer capture — placeholder TODO for now
+    assert!(format_expr_ir_flutter(&op(
+        "box",
+        RefOpIR::CapturePointer {
+            id: Box::new(ExprIR::LiteralExpr {
+                value: serde_json::json!(1),
+            }),
+        }
+    ))
+    .contains("TODO(flutter)"));
+    assert!(format_expr_ir_flutter(&op(
+        "box",
+        RefOpIR::ReleasePointer {
+            id: Box::new(ExprIR::LiteralExpr {
+                value: serde_json::json!(1),
+            }),
+        }
+    ))
+    .contains("TODO(flutter)"));
+}
+
+#[test]
+fn test_ref_ops_in_effect_and_inline_handler_are_detected() {
+    // @effect body calling ref.scrollTo → ScrollController declared even
+    // though no fn body references it.
+    let codegen = FlutterCodegen;
+    let el = ref_el("listview", Some("list"), &[]);
+    let view = ViewTree::Element(Box::new(el));
+    let mut comp = ref_component("EffectRef", &["list"], vec![], vec![], Some(view));
+    comp.effects = vec![EffectIntent {
+        deps: vec!["count".into()],
+        body: BlockIR {
+            statements: vec![StatementIR::ExprStmtIR {
+                expr: ExprIR::RefOpExpr {
+                    ref_name: "list".into(),
+                    op: RefOpIR::ScrollTo {
+                        x: None,
+                        y: Some(Box::new(ExprIR::LiteralExpr {
+                            value: serde_json::json!(42),
+                        })),
+                    },
+                },
+            }],
+        },
+    }];
+    let mut components = FxHashMap::default();
+    components.insert("EffectRef".into(), comp);
+    let ir = make_ir(components);
+    let comp_ref = ir
+        .modules
+        .get("main")
+        .unwrap()
+        .components
+        .get("EffectRef")
+        .unwrap();
+    let component_map = build_component_map(&ir);
+    let (dart, _warnings) = codegen.gen_component_dart("EffectRef", comp_ref, &ir, &component_map);
+    assert!(
+        dart.contains("final ScrollController _listScroll = ScrollController();"),
+        "effect-body ref op must trigger the controller declaration: {dart}"
+    );
+    assert!(
+        dart.contains("_listScroll.jumpTo(42)"),
+        "missing scroll op in effect body: {dart}"
+    );
+}
+
+#[test]
+fn test_end_to_end_ref_component_compiles() {
+    // Full pipeline: .omni source with a ref declaration, semantic bindings,
+    // and a ref op in a fn → valid Dart StatefulWidget with GlobalKey +
+    // on-demand controllers.
+    let source = r##"
+component SearchBox {
+  signal active: Bool = false
+  signal pos: Float = 0
+  signal text: String = ""
+  ref field: Element
+  fn focusField() {
+    field.focus()
+  }
+  view {
+    <input ref:field focus={active} scroll-y={pos} value={text} />
+  }
+}
+"##;
+    let mut sources = FxHashMap::default();
+    sources.insert("input.omni".to_string(), source.to_string());
+    let pm = crate::path_mapping::derive_path_mapping(&sources);
+    let result = crate::compile_multi_internal(
+        sources,
+        crate::codegen::Target::Flutter,
+        pm,
+        false,
+        false,
+        None,
+    );
+    assert!(
+        result.success,
+        "flutter compile failed: {:?}",
+        result.errors
+    );
+    let content: String = result
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(content.contains("final GlobalKey _fieldKey = GlobalKey();"));
+    assert!(content.contains("final FocusNode _fieldFocus = FocusNode();"));
+    assert!(content.contains("final ScrollController _fieldScroll = ScrollController();"));
+    assert!(content.contains("final TextEditingController _fieldText = TextEditingController();"));
+    assert!(content.contains("bool _syncingFieldText = false;"));
+    assert!(content.contains("key: _fieldKey"));
+    assert!(content.contains("focusNode: _fieldFocus"));
+    assert!(content.contains("controller: _fieldText"));
+    assert!(content.contains("_fieldFocus.requestFocus();"));
+    assert!(content.contains("WidgetsBinding.instance.addPostFrameCallback((_) {"));
+    assert!(content.contains("if (!mounted) return;"));
+    assert!(content.contains("_syncSemanticBindings();"));
+    assert!(content.contains("void _syncSemanticBindings() {"));
+    assert!(content.contains("_fieldText.addListener(() {"));
+    assert!(content.contains("_fieldFocus.dispose();"));
+    assert!(content.contains("_fieldText.dispose();"));
 }

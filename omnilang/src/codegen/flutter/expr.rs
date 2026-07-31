@@ -12,10 +12,7 @@ use rustc_hash::FxHashSet;
 // ═══════════════════════════════════════════════════════════════
 
 pub(crate) fn format_expr_ir_flutter(expr: &ExprIR) -> String {
-    DartFormatExpr {
-        event_param_name: None,
-    }
-    .format_expr(expr)
+    super::r#ref::FlutterFormatExpr::new(None).format_expr(expr)
 }
 
 // ═══════════════════════════════════════════════════════════════

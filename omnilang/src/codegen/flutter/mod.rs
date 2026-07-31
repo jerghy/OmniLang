@@ -8,6 +8,7 @@
 mod expr;
 mod motion;
 mod motion_widgets;
+mod r#ref;
 mod stmt;
 mod utils;
 mod view;
@@ -16,6 +17,7 @@ pub(crate) use super::capitalize_first;
 pub(crate) use expr::*;
 pub(crate) use motion::*;
 pub(crate) use motion_widgets::*;
+pub(crate) use r#ref::*;
 pub(crate) use stmt::*;
 #[allow(unused_imports)]
 pub(crate) use utils::*;
@@ -106,6 +108,14 @@ impl FlutterCodegen {
             .map(|s| (s.clone(), format!("{}Provider", lower_first(s))))
             .collect();
 
+        // Ref usage analysis (Task 5.2): which refs need which on-demand
+        // controllers, whether any semantic binding needs reactive sync /
+        // initState listeners, and whether any controller needs dispose().
+        let ref_usage = collect_ref_usage(comp);
+        let needs_ref_setup = has_semantic_bindings(comp);
+        let needs_text_listeners = has_text_listeners(comp);
+        let refs_to_dispose = has_ref_dispose(comp, &ref_usage);
+
         let state_name = format!("_{}State", name);
 
         // Determine widget/state base classes
@@ -173,6 +183,12 @@ impl FlutterCodegen {
             w.emit("");
         }
 
+        // Ref declarations: GlobalKey + on-demand controllers (Task 5.2)
+        emit_ref_declarations(&mut w, comp, &ref_usage);
+        if !comp.refs.is_empty() {
+            w.emit("");
+        }
+
         // Effect dependency snapshot fields (C2): previous values of non-prop
         // deps so didUpdateWidget can detect changes and re-run @effect bodies.
         let mut prev_fields: FxHashSet<String> = FxHashSet::default();
@@ -227,7 +243,7 @@ impl FlutterCodegen {
             .any(|lc| lc.kind == LifecycleKind::Mount);
         let has_effects = !comp.effects.is_empty();
         let has_motions = !ir.modules.values().all(|m| m.motions.is_empty());
-        if has_mount || has_effects || has_motions {
+        if has_mount || has_effects || has_motions || needs_text_listeners {
             w.emit("@override");
             w.emit("void initState() {");
             w.indent();
@@ -283,6 +299,12 @@ impl FlutterCodegen {
             for (i, _effect) in comp.effects.iter().enumerate() {
                 w.emit_fmt(format_args!("_runEffect_{}();", i));
             }
+            // Semantic ref bindings: guarded value listeners (user edits →
+            // signal via setState, Task 5.2)
+            if needs_text_listeners {
+                w.emit("");
+                emit_semantic_binding_listeners(&mut w, comp);
+            }
             w.dedent();
             w.emit("}");
             w.emit("");
@@ -331,7 +353,7 @@ impl FlutterCodegen {
             .lifecycles
             .iter()
             .any(|lc| lc.kind == LifecycleKind::Unmount);
-        if has_unmount || has_motions {
+        if has_unmount || has_motions || refs_to_dispose {
             w.emit("@override");
             w.emit("void dispose() {");
             w.indent();
@@ -347,9 +369,20 @@ impl FlutterCodegen {
                 let ctrl_name = format!("_{}Controller", motion.name);
                 w.emit_fmt(format_args!("{}.dispose();", ctrl_name));
             }
+            // Dispose on-demand ref controllers (Task 5.2)
+            emit_ref_dispose(&mut w, comp, &ref_usage);
             w.emit("super.dispose();");
             w.dedent();
             w.emit("}");
+            w.emit("");
+        }
+
+        // _syncSemanticBindings — re-applies focus/scroll/value bindings.
+        // Registered as a post-frame callback from build (below), so it runs
+        // after every rebuild (Task 5.2, reactive parity with React's
+        // useEffect-on-deps).
+        if needs_ref_setup {
+            emit_semantic_binding_sync(&mut w, comp, &store_provider_map, ir);
             w.emit("");
         }
 
@@ -382,6 +415,19 @@ impl FlutterCodegen {
         w.emit("Widget build(BuildContext context) {");
         w.indent();
 
+        // Semantic ref bindings are re-applied after every frame: any
+        // setState-driven signal change triggers a rebuild whose post-frame
+        // callback re-runs _syncSemanticBindings() (Task 5.2). The mounted
+        // guard prevents a use-after-dispose crash on fast unmount.
+        if needs_ref_setup {
+            w.emit("WidgetsBinding.instance.addPostFrameCallback((_) {");
+            w.indent();
+            w.emit("if (!mounted) return;");
+            w.emit("_syncSemanticBindings();");
+            w.dedent();
+            w.emit("});");
+        }
+
         if let Some(view) = &comp.view {
             let motions = ir
                 .modules
@@ -392,6 +438,7 @@ impl FlutterCodegen {
             let mut ctx = view::ViewContext {
                 component_map,
                 store_provider_map: &store_provider_map,
+                ref_usage: &ref_usage,
                 ir,
                 warnings: &mut warnings,
             };

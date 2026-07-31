@@ -1,6 +1,5 @@
 //! View tree formatting for Flutter codegen.
 
-use crate::codegen::shared::expr::DartFormatExpr;
 use crate::codegen::shared::inline_handler::{build_inline_handler, InlineHandlerConfig};
 use crate::codegen::shared::stmt::FormatStmt;
 use crate::codegen::CodeWriter;
@@ -11,6 +10,7 @@ use super::capitalize_first;
 use super::expr::{format_expr_ir_flutter, rewrite_stmt_store_accesses, rewrite_store_accesses};
 use super::motion::wrap_with_motion_widgets;
 use super::motion_widgets::{emit_event_object_flutter, field_extract_flutter};
+use super::r#ref::{ref_focus_name, ref_key_name, ref_scroll_name, ref_text_name, RefUsage};
 use super::stmt::{generate_statement_flutter, FlutterStmtFormatter};
 use super::utils::{
     binding_to_flutter_param, css_color_to_dart, event_to_flutter_callback, lower_first,
@@ -29,6 +29,9 @@ pub(crate) struct ViewContext<'a> {
     /// Store alias → Riverpod provider variable name
     /// (e.g. "TodoStore" → "todoStoreProvider").
     pub(crate) store_provider_map: &'a FxHashMap<String, String>,
+    /// Per-ref capability flags — drives on-demand controller attachment
+    /// (focusNode/controller params) on ref-bound elements (Task 5.2).
+    pub(crate) ref_usage: &'a FxHashMap<String, RefUsage>,
     pub(crate) ir: &'a IRProgram,
     /// Compiler warnings accumulated during view formatting (C6).
     pub(crate) warnings: &'a mut Vec<String>,
@@ -131,6 +134,11 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
     // Component composition: check if tag is a known component
     if let Some(_child_comp) = ctx.component_map.get(el.tag.as_str()) {
         let mut child_args: Vec<String> = Vec::new();
+        // Ref binding (Step 6): GlobalKey attaches to any widget, including
+        // custom component widgets.
+        if let Some(ref_name) = &el.ref_binding {
+            child_args.push(format!("key: {}", ref_key_name(ref_name)));
+        }
         // Props become constructor parameters
         for (prop_name, prop_value) in &el.props {
             child_args.push(format!("{}: {}", prop_name, ctx.format_expr(prop_value)));
@@ -311,9 +319,7 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                         // Use custom formatter with event_param_name set
                         // so FieldAccess on "e" emits bare field name (local final binding)
                         let fmt = FlutterStmtFormatter {
-                            expr: DartFormatExpr {
-                                event_param_name: Some("e".to_string()),
-                            },
+                            expr: super::r#ref::FlutterFormatExpr::new(Some("e".to_string())),
                         };
                         fmt.format_stmt(&mut hw, &stmt);
                     }
@@ -345,6 +351,28 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
         args.push(format!("{}: {}", param, signal_ref.name));
     }
 
+    // Ref binding (Step 6): attach the GlobalKey plus any on-demand
+    // controllers the component uses on this ref. Controllers attach only to
+    // widgets that support them (TextField/scrollables); focus on other
+    // widgets falls back to a Focus wrapper below.
+    let mut focus_wrap_ref: Option<&str> = None;
+    if let Some(ref_name) = &el.ref_binding {
+        let usage = ctx.ref_usage.get(ref_name).copied().unwrap_or_default();
+        args.push(format!("key: {}", ref_key_name(ref_name)));
+        if usage.needs_text && widget == "TextField" {
+            args.push(format!("controller: {}", ref_text_name(ref_name)));
+        }
+        if usage.needs_focus && widget == "TextField" {
+            args.push(format!("focusNode: {}", ref_focus_name(ref_name)));
+        }
+        if usage.needs_scroll && matches!(widget, "ListView" | "SingleChildScrollView") {
+            args.push(format!("controller: {}", ref_scroll_name(ref_name)));
+        }
+        if usage.needs_focus && widget != "TextField" {
+            focus_wrap_ref = Some(ref_name);
+        }
+    }
+
     // Children
     if el.children.is_empty() {
         // No children
@@ -364,6 +392,20 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
         format!("{}()", widget)
     } else {
         format!("{}({})", widget, args.join(", "))
+    };
+
+    // Ref-bound elements that need focus but map to a non-TextField widget:
+    // wrap in `Focus(focusNode: _nameFocus, ...)` so the FocusNode is
+    // attached and `requestFocus()`/`unfocus()` work (Task 5.2).
+    let inner = match focus_wrap_ref {
+        Some(ref_name) => {
+            format!(
+                "Focus(focusNode: {}, child: {})",
+                ref_focus_name(ref_name),
+                inner
+            )
+        }
+        None => inner,
     };
 
     // ── Dynamic class bindings (class_map_bindings) ──
