@@ -11,14 +11,6 @@ use crate::ir::lower::expr::lower_expr;
 use crate::parser::ast::design::*;
 use crate::semantic::SemanticResult;
 use rustc_hash::FxHashMap;
-/// Lower a parsed `design` block AST into a `DesignIR`,
-/// using an empty const_values map (backward-compatible wrapper).
-pub fn lower_design(ast: &DesignDef) -> DesignIR {
-    let const_values = FxHashMap::default();
-    let variant_map = FxHashMap::default();
-    let mut semantics = SemanticResult::default();
-    lower_design_with_consts(ast, &const_values, &variant_map, &mut semantics)
-}
 
 /// Lower a parsed `design` block AST into a `DesignIR`,
 /// resolving `TokenValue::Variable` references using the compile-time
@@ -460,7 +452,7 @@ mod tests {
             variants: vec![],
         };
 
-        let design = lower_design(&design_def);
+        let design = lower_design_with_consts(&design_def, &FxHashMap::default(), &FxHashMap::default(), &mut SemanticResult::default());
         assert_eq!(design.name, "App");
         assert_eq!(design.themes, vec!["light", "dark"]);
         assert_eq!(design.default_theme, Some("light".to_string()));
