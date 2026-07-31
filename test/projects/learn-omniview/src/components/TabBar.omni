@@ -17,6 +17,7 @@ component TabBar {
             <button class: { tab: true, tabActive: isActive("language") } @onPress={() => { onSwitch("language"); }}>🔤 Language</button>
             <button class: { tab: true, tabActive: isActive("ref") } @onPress={() => { onSwitch("ref"); }}>🔗 Ref</button>
             <button class: { tab: true, tabActive: isActive("compiler") } @onPress={() => { onSwitch("compiler"); }}>⚙️ Compiler</button>
+            <button class: { tab: true, tabActive: isActive("tokens") } @onPress={() => { onSwitch("tokens"); }}>🔮 Tokens</button>
         </div>
     }
     style {

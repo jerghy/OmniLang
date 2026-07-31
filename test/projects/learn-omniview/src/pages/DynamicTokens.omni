@@ -1,0 +1,222 @@
+// DynamicTokens.omni — Dynamic Design Tokens Demo Page
+// Phase 1 (const refs) + Phase 2 (signal refs) in action
+
+import omniview;
+import { LearnDesign } from "../design";
+import { DynamicTokenStore } from "../stores/DynamicTokenStore";
+
+component DynamicTokens {
+    @store DynamicTokenStore;
+
+    fn isPreset(name: String) -> bool {
+        if name == "indigo" && DynamicTokenStore.liveColor == "#6366f1" { return true; }
+        if name == "emerald" && DynamicTokenStore.liveColor == "#10b981" { return true; }
+        if name == "crimson" && DynamicTokenStore.liveColor == "#ef4444" { return true; }
+        if name == "amber" && DynamicTokenStore.liveColor == "#f59e0b" { return true; }
+        return false;
+    }
+
+    fn setIndigo() { DynamicTokenStore.setPreset("indigo"); }
+    fn setEmerald() { DynamicTokenStore.setPreset("emerald"); }
+    fn setCrimson() { DynamicTokenStore.setPreset("crimson"); }
+    fn setAmber() { DynamicTokenStore.setPreset("amber"); }
+
+    view {
+        <div class: page>
+
+            <div class: LearnDesign.Banner>
+                <h1 class: LearnDesign.BannerTitle>Dynamic Design Tokens</h1>
+                <p class: LearnDesign.BannerSubtitle>
+                    Phase 1 Compile-time Constants  ·  Phase 2 Runtime Signals  ·  ADR-047 and ADR-049
+                </p>
+            </div>
+
+            <div class: LearnDesign.Container>
+                <h3 class: LearnDesign.CardTitle>Phase 1: Compile-time Constant References</h3>
+                <p class: LearnDesign.Subtitle>
+                    Const values from other files can be used as token values.
+                    The compiler resolves them at build time with zero runtime cost.
+                </p>
+
+                <h4 class: LearnDesign.SectionTitle>Live Preview</h4>
+                <div class: preview-row>
+                    <div class: demo-box>
+                        <span class: demo-label>radius var</span>
+                    </div>
+                    <div class: demo-shadow>
+                        <span class: demo-label>shadow var</span>
+                    </div>
+                    <div class: demo-spacer style: { width: "var(--constSpacing)" }></div>
+                </div>
+                <p class: LearnDesign.Hint>
+                    These CSS vars are baked into :root at compile time. No JS needed.
+                </p>
+            </div>
+
+            <div class: LearnDesign.Container>
+                <h3 class: LearnDesign.CardTitle>Phase 2: Runtime Signal References</h3>
+                <p class: LearnDesign.Subtitle>
+                    Store signals can be referenced in token values.
+                    The compiler generates a bridge that updates CSS when signals change.
+                </p>
+
+                <h4 class: LearnDesign.SectionTitle>Interactive Demo</h4>
+                <p class: hint-text>
+                    Click a preset button to change the preview card in real-time.
+                </p>
+
+                <div class: preset-row>
+                    <button class: { presetBtn: true, active: isPreset("indigo") }
+                        @onPress={setIndigo}>Indigo</button>
+                    <button class: { presetBtn: true, active: isPreset("emerald") }
+                        @onPress={setEmerald}>Emerald</button>
+                    <button class: { presetBtn: true, active: isPreset("crimson") }
+                        @onPress={setCrimson}>Crimson</button>
+                    <button class: { presetBtn: true, active: isPreset("amber") }
+                        @onPress={setAmber}>Amber</button>
+                </div>
+
+                <div class: dyn-card
+                    style: {
+                        background: "var(--dynBg)",
+                        border: "2px solid var(--dynColor)",
+                        borderRadius: "var(--constRadius)"
+                    }
+                >
+                    <div class: dyn-swatch style: { background: "var(--dynColor)" }></div>
+                    <div class: dyn-info>
+                        <span class: dyn-label>Preset</span>
+                        <span class: dyn-value style: { color: "var(--dynColor)" }>{DynamicTokenStore.presetName}</span>
+                        <span class: dyn-label>Switches</span>
+                        <span class: dyn-count style: { color: "var(--dynAccent)" }>{DynamicTokenStore.switchCount}</span>
+                        <span class: dyn-sig style: { color: "var(--dynColor)" }>liveColor: {DynamicTokenStore.liveColor}</span>
+                    </div>
+                </div>
+
+                <p class: LearnDesign.Hint>
+                    Colors come from CSS variables set via documentElement.style.setProperty.
+                </p>
+            </div>
+
+            <div class: LearnDesign.Container>
+                <h3 class: LearnDesign.CardTitle>How It Works</h3>
+                <div class: pipeline-grid>
+                    <div class: pipe-step>
+                        <h4 class: pipe-title>Parser</h4>
+                        <p class: pipe-desc>
+                            Expression-first detection for token values.
+                        </p>
+                    </div>
+                    <div class: pipe-step>
+                        <h4 class: pipe-title>Semantic</h4>
+                        <p class: pipe-desc>
+                            Reference resolution and type validation.
+                        </p>
+                    </div>
+                    <div class: pipe-step>
+                        <h4 class: pipe-title>IR Lowering</h4>
+                        <p class: pipe-desc>
+                            Static tokens go to CSS, dynamic to JS bridge.
+                        </p>
+                    </div>
+                    <div class: pipe-step>
+                        <h4 class: pipe-title>Codegen</h4>
+                        <p class: pipe-desc>
+                            CSS for static tokens, JS effect for dynamic.
+                        </p>
+                    </div>
+                </div>
+
+                <div class: rules-box>
+                    <h4 class: rules-title>Key Rules</h4>
+                    <ul class: rules-list>
+                        <li>Dynamic tokens cannot have theme overrides.</li>
+                        <li>Priority: setProperty then data-theme then :root.</li>
+                        <li>Type must match: String for Color, int for Duration.</li>
+                    </ul>
+                </div>
+            </div>
+
+        </div>
+    }
+
+    style {
+        .page { }
+
+        .preview-row { display: flex; align-items: center; gap: 16px; margin: 0 0 8px 0; flex-wrap: wrap; }
+        .demo-box {
+            width: 120px; height: 80px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--constRadius);
+            display: flex; align-items: center; justify-content: center;
+        }
+        .demo-shadow {
+            width: 120px; height: 80px;
+            background: var(--surface);
+            border-radius: var(--radiusSm);
+            box-shadow: var(--constShadow);
+            display: flex; align-items: center; justify-content: center;
+        }
+        .demo-spacer { height: 24px; background: var(--primaryLight); border-radius: var(--radiusSm); min-width: 8px; }
+        .demo-label { font-size: var(--fontSizeXs); color: var(--textSecondary); font-family: monospace; }
+
+        .hint-text { font-size: var(--fontSizeSm); color: var(--textSecondary); margin: 0 0 12px 0; }
+
+        .preset-row { display: flex; gap: 10px; margin: 0 0 14px 0; flex-wrap: wrap; }
+        .presetBtn {
+            padding: 10px 18px;
+            border: 2px solid var(--border);
+            border-radius: var(--radiusMd);
+            background: var(--surface);
+            color: var(--textPrimary);
+            font-size: var(--fontSizeMd);
+            font-weight: var(--fontWeightSemibold);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .presetBtn:hover { border-color: var(--primary); background: var(--surfaceMuted); }
+        .active {
+            border-color: var(--primary);
+            background: var(--primaryLight);
+            color: var(--primary);
+        }
+
+        .dyn-card {
+            display: flex; align-items: center; gap: 20px;
+            padding: 24px;
+            margin: 0 0 8px 0;
+            transition: all 0.3s ease;
+        }
+        .dyn-swatch {
+            width: 80px; height: 80px;
+            border-radius: var(--radiusFull);
+            flex-shrink: 0;
+            box-shadow: var(--constShadow);
+        }
+        .dyn-info { display: flex; flex-direction: column; gap: 2px; }
+        .dyn-label { font-size: var(--fontSizeXs); color: var(--textMuted); text-transform: uppercase; letter-spacing: "0.5px"; }
+        .dyn-value { font-size: var(--fontSizeLg); font-weight: var(--fontWeightBold); }
+        .dyn-count { font-size: var(--fontSizeXl); font-weight: var(--fontWeightBold); font-family: monospace; }
+        .dyn-sig { font-size: var(--fontSizeSm); font-family: monospace; }
+
+        .pipeline-grid { display: grid; grid-template-columns: "1fr 1fr"; gap: 14px; margin: 0 0 16px 0; }
+        .pipe-step {
+            background: var(--surfaceMuted);
+            border: 1px solid var(--borderLight);
+            border-radius: var(--radiusMd);
+            padding: 16px;
+        }
+        .pipe-title { font-size: var(--fontSizeMd); font-weight: var(--fontWeightSemibold); color: var(--textPrimary); margin: "0 0 6px 0"; }
+        .pipe-desc { font-size: var(--fontSizeSm); color: var(--textSecondary); margin: 0; line-height: 1.5; }
+
+        .rules-box {
+            background: var(--surfaceMuted);
+            border-left: "3px solid var(--primary)";
+            padding: 14px 18px;
+        }
+        .rules-title { font-size: var(--fontSizeMd); font-weight: var(--fontWeightSemibold); color: var(--textPrimary); margin: "0 0 8px 0"; }
+        .rules-list { margin: 0; padding-left: 18px; }
+        .rules-list li { font-size: var(--fontSizeSm); color: var(--textSecondary); margin-bottom: 6px; line-height: 1.5; }
+    }
+}

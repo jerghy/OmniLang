@@ -1,0 +1,56 @@
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  DynamicTokenStore.omni — Phase 2 动态令牌信号存储              ║
+// ║                                                              ║
+// ║  本 store 的信号被 design block 的 token 引用：               ║
+// ║    token dynamicColor: color = DynamicTokenStore.liveColor;   ║
+// ║                                                              ║
+// ║  编译器生成 __omni_effect 桥接，在运行时将信号值注入 CSS：    ║
+// ║    __omni_effect(() => {                                      ║
+// ║      document.documentElement.style.setProperty(             ║
+// ║        "--dynamicColor", signal.value);                       ║
+// ║    });                                                        ║
+// ║                                                              ║
+// ║  ADR-047 (Phase 1) + ADR-049 (Phase 2)                       ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+import omniview;
+
+store DynamicTokenStore {
+    // 动态颜色信号 — 被设计令牌引用
+    signal liveColor: String = "#6366f1";
+    signal liveBg: String = "#eef2ff";
+    signal liveAccent: String = "#f97316";
+
+    // 切换计数
+    signal switchCount: i32 = 0;
+
+    // getter: 当前预设名称
+    getter presetName: String =
+        if liveColor == "#6366f1" { "Indigo (default)" }
+        else if liveColor == "#10b981" { "Emerald" }
+        else if liveColor == "#ef4444" { "Crimson" }
+        else if liveColor == "#f59e0b" { "Amber" }
+        else { "Custom" };
+
+    // action: 设置预设颜色方案
+    action setPreset(name: String) {
+        if name == "indigo" {
+            liveColor = "#6366f1";
+            liveBg = "#eef2ff";
+            liveAccent = "#f97316";
+        } else if name == "emerald" {
+            liveColor = "#10b981";
+            liveBg = "#ecfdf5";
+            liveAccent = "#059669";
+        } else if name == "crimson" {
+            liveColor = "#ef4444";
+            liveBg = "#fef2f2";
+            liveAccent = "#dc2626";
+        } else if name == "amber" {
+            liveColor = "#f59e0b";
+            liveBg = "#fffbeb";
+            liveAccent = "#d97706";
+        };
+        switchCount = switchCount + 1;
+    }
+}
