@@ -1564,8 +1564,10 @@ component NoRef {
     );
 }
 
+/// Test: unnamed slot without fallback renders `{children}` and the Props
+/// interface declares `children?: ReactNode`.
 #[test]
-fn warns_on_slot_in_react() {
+fn slot_unnamed_renders_children_prop() {
     let source = r#"
 component Card {
     view {
@@ -1581,10 +1583,328 @@ component Card {
         .collect::<Vec<_>>()
         .join("\n");
     assert!(
-        content.contains("WARNING:")
-            && content.contains("slot")
-            && content.contains("not supported"),
-        "Expected slot warning in React output, got: {}",
+        content.contains("children?: ReactNode"),
+        "Expected children slot prop in Props interface, got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("export function Card({ children }: CardProps)"),
+        "Expected destructured children prop, got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("{children}"),
+        "Expected {{children}} render, got:\n{}",
+        content
+    );
+}
+
+/// Test: named slot with fallback renders `{header ?? (fallback)}` and the
+/// Props interface declares `header?: ReactNode`.
+#[test]
+fn slot_named_renders_prop_with_fallback() {
+    let source = r#"
+component Card {
+    view {
+        <div class="card">
+            @slot header {
+                <h4>Default Header</h4>
+            }
+        </div>
+    }
+}
+"#;
+    let output = compile_react(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        content.contains("header?: ReactNode"),
+        "Expected header slot prop in Props interface, got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("export function Card({ header }: CardProps)"),
+        "Expected destructured header prop, got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("{header ?? ("),
+        "Expected fallback-wrapped header render, got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("Default Header"),
+        "Expected fallback content in output, got:\n{}",
+        content
+    );
+    assert!(
+        !content.contains("WARNING:"),
+        "Slot warning should be gone, got:\n{}",
+        content
+    );
+}
+
+/// Test: unnamed slot with fallback renders `{children ?? (fallback)}`.
+#[test]
+fn slot_unnamed_renders_children_with_fallback() {
+    let source = r#"
+component Panel {
+    view {
+        <div>
+            @slot {
+                <p>Default Body</p>
+            }
+        </div>
+    }
+}
+"#;
+    let output = compile_react(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        content.contains("{children ?? ("),
+        "Expected fallback-wrapped children render, got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("children?: ReactNode"),
+        "Expected children slot prop in Props interface, got:\n{}",
+        content
+    );
+}
+
+/// Test: `@slot header: String { ... }` type constraint types the prop as
+/// `string` (fallback braces required — bare `@slot name: Type` is ambiguous
+/// with the following `</tag>` at parse time, see parser view/mod.rs).
+#[test]
+fn slot_type_constraint_types_prop() {
+    let source = r#"
+component Badge {
+    view {
+        <div>
+            @slot header: String { <span>Fallback</span> }
+        </div>
+    }
+}
+"#;
+    let output = compile_react(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        content.contains("header?: string"),
+        "Expected string-typed header prop from type constraint, got:\n{}",
+        content
+    );
+}
+
+/// Test: a slot inside an `@if` body with sibling nodes is wrapped in a
+/// React fragment so the emitted TSX stays valid (`{cond && (<>...)}`).
+#[test]
+fn slot_inside_conditional_wraps_in_fragment() {
+    let source = r#"
+component Panel {
+    signal show: bool = true
+    view {
+        @if show {
+            @slot
+            <p>No data</p>
+        }
+    }
+}
+"#;
+    let output = compile_react(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        content.contains("&& (") && content.contains("<>") && content.contains("</>"),
+        "Expected fragment-wrapped conditional body, got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("{children}"),
+        "Expected {{children}} slot render, got:\n{}",
+        content
+    );
+}
+
+/// Test: a multi-node slot fallback is wrapped in a React fragment inside
+/// `{prop ?? ( ... )}` so the emitted TSX stays valid.
+#[test]
+fn slot_multi_node_fallback_wraps_in_fragment() {
+    let source = r#"
+component Card {
+    view {
+        <div class="card">
+            @slot header {
+                <h4>Title</h4>
+                <p>Subtitle</p>
+            }
+        </div>
+    }
+}
+"#;
+    let output = compile_react(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        content.contains("{header ?? (") && content.contains("<>") && content.contains("</>"),
+        "Expected fragment-wrapped multi-node fallback, got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("Title") && content.contains("Subtitle"),
+        "Expected both fallback nodes, got:\n{}",
+        content
+    );
+}
+
+/// Test: consumer-position `@slot name { ... }` inside a component's
+/// children projects into the child component's named prop — it is neither
+/// rendered as a bare identifier nor added to the consumer's Props interface.
+#[test]
+fn slot_projection_directive_at_call_site() {
+    let source = r#"
+component SlotBox {
+    view {
+        <div class: box>
+            <div>@slot header</div>
+            <div>@slot body</div>
+        </div>
+    }
+}
+
+component Consumer {
+    view {
+        <SlotBox>
+            @slot header {
+                <h4>Custom Header</h4>
+            }
+            @slot {
+                <p>Body content</p>
+            }
+            <span>Default child</span>
+        </SlotBox>
+    }
+}
+"#;
+    let output = compile_react(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    let consumer: String = output
+        .files
+        .iter()
+        .filter(|(path, _)| path.contains("Consumer.tsx"))
+        .map(|(_, c)| c.clone())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        content.contains("header={<h4>") || content.contains("header={<h4"),
+        "Expected @slot directive projected to header prop, got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("Custom Header"),
+        "Expected projected header content, got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("Body content"),
+        "Expected unnamed @slot directive content as children, got:\n{}",
+        content
+    );
+    assert!(
+        !consumer.contains("header?: ReactNode"),
+        "Consumer Props interface must not be polluted by projection slots, got:\n{}",
+        consumer
+    );
+    assert!(
+        !consumer.contains("interface ConsumerProps"),
+        "Consumer without own props/declarations should have no Props interface, got:\n{}",
+        consumer
+    );
+}
+
+/// Test: consumer-side `slot="name"` children project into named props at
+/// the call site (with the `slot` attribute stripped).
+#[test]
+fn slot_projection_at_call_site() {
+    let source = r#"
+component SlotBox {
+    view {
+        <div class: box>
+            <div>@slot header</div>
+            <div>@slot body</div>
+        </div>
+    }
+}
+
+component Consumer {
+    signal title: String = "T"
+    view {
+        <SlotBox>
+            <h4 slot="header">Custom Header</h4>
+            <div slot="body">
+                <p>Body content</p>
+            </div>
+            <span>Default child</span>
+        </SlotBox>
+    }
+}
+"#;
+    let output = compile_react(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        content.contains("header={"),
+        "Expected named slot projected to header prop, got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("body={"),
+        "Expected named slot projected to body prop, got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("Custom Header"),
+        "Expected projected header content, got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("Default child"),
+        "Expected un-slotted child to remain in children, got:\n{}",
+        content
+    );
+    assert!(
+        !content.contains("slot=\"header\""),
+        "slot attribute must be stripped after projection, got:\n{}",
         content
     );
 }

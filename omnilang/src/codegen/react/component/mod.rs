@@ -115,8 +115,14 @@ impl ReactCodegen {
                     .iter()
                     .any(|c| comp.styles.iter().any(|s| &s.class_name == c)));
 
-        // Props interface check
-        let has_props = !comp.props.is_empty() || !comp.events.is_empty();
+        // Props interface check — slot declarations also become props
+        // (`children` for the unnamed slot, same-named props for named slots).
+        let mut declared_slots: Vec<(Option<String>, Option<TypeIR>)> = Vec::new();
+        if let Some(ref view) = comp.view {
+            jsx::collect_view_slots(view, component_map, &mut declared_slots);
+        }
+        let has_props =
+            !comp.props.is_empty() || !comp.events.is_empty() || !declared_slots.is_empty();
 
         // ── Store-related computation ──
         let all_stores = ir.all_stores();
@@ -290,6 +296,14 @@ impl ReactCodegen {
             for event in &comp.events {
                 if read_signals.contains(event.name.as_str()) {
                     prop_list.push(event.name.clone());
+                }
+            }
+            // Slot props must be destructured so `{children}` / `{header}`
+            // render correctly in the JSX body.
+            for (slot_name, _) in &declared_slots {
+                let slot_prop = slot_name.as_deref().unwrap_or("children").to_string();
+                if !prop_list.iter().any(|p| p == &slot_prop) {
+                    prop_list.push(slot_prop);
                 }
             }
             if prop_list.is_empty() {

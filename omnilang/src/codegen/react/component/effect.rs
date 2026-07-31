@@ -351,7 +351,8 @@ pub(super) fn view_has_motion_or_effects(node: &ViewTree) -> bool {
                     .is_some_and(view_has_motion_or_effects)
         }
         ViewTree::Fragment(children) => children.iter().any(view_has_motion_or_effects),
-        ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot { .. } => false,
+        ViewTree::Slot { fallback, .. } => fallback.iter().any(view_has_motion_or_effects),
+        ViewTree::Text(_) | ViewTree::Interpolation(_) => false,
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
     }

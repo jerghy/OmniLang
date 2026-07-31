@@ -186,7 +186,12 @@ fn collect_called_fns_from_view_transitively(node: &ViewTree, acc: &mut FxHashSe
                 collect_called_fns_from_view_transitively(child, acc);
             }
         }
-        ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot { .. } => {}
+        ViewTree::Slot { fallback, .. } => {
+            for child in fallback {
+                collect_called_fns_from_view_transitively(child, acc);
+            }
+        }
+        ViewTree::Text(_) | ViewTree::Interpolation(_) => {}
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
     }
@@ -239,7 +244,12 @@ fn collect_called_fns_from_view(node: &ViewTree, acc: &mut FxHashSet<String>) {
                 collect_called_fns_from_view(child, acc);
             }
         }
-        ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot { .. } => {}
+        ViewTree::Slot { fallback, .. } => {
+            for child in fallback {
+                collect_called_fns_from_view(child, acc);
+            }
+        }
+        ViewTree::Text(_) | ViewTree::Interpolation(_) => {}
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
     }

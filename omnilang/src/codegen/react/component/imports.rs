@@ -24,6 +24,9 @@ pub(super) struct ComponentImports {
     pub store_hook_lines: Vec<String>,
     /// Pre-formatted import lines for each used child component.
     pub child_import_lines: Vec<String>,
+    /// Slot declarations (name + type constraint) that become typed props in
+    /// the Props interface. Consumer-side projections are excluded.
+    pub slot_infos: Vec<(Option<String>, Option<TypeIR>)>,
 }
 
 /// Collect all import data needed by the component.
@@ -62,6 +65,23 @@ pub(super) fn collect_component_imports(
         }
     }
 
+    // ── Slot props — typed as ReactNode in the Props interface, so the
+    // named type import must exist whenever the view declares any slot. ──
+    let mut hooks = hooks.to_vec();
+    if comp
+        .view
+        .as_ref()
+        .is_some_and(|v| jsx::view_has_slots(v, component_map))
+        && !hooks.iter().any(|h| h == "ReactNode")
+    {
+        hooks.push("ReactNode".to_string());
+    }
+    // Slot declarations (consumer-side projections are excluded).
+    let mut slot_infos: Vec<(Option<String>, Option<TypeIR>)> = Vec::new();
+    if let Some(ref view) = comp.view {
+        jsx::collect_view_slots(view, component_map, &mut slot_infos);
+    }
+
     // ── Child component imports ─────────────────────────────
     let child_comps: FxHashSet<String> = if let Some(ref view) = comp.view {
         jsx::collect_view_child_components(view, component_map)
@@ -86,11 +106,12 @@ pub(super) fn collect_component_imports(
         .collect();
 
     ComponentImports {
-        hooks: hooks.to_vec(),
+        hooks,
         has_styles,
         has_motion,
         store_hook_lines,
         child_import_lines,
+        slot_infos,
     }
 }
 
@@ -145,6 +166,33 @@ impl ComponentImports {
                     "  {}?: (value: {}) => void;",
                     event.name, ts_type
                 ));
+            }
+            // Slot props — unnamed slot → `children`, named slots → same-named
+            // prop. Typed as ReactNode unless the source declared a type
+            // constraint (`@slot header: String` → `header?: string`).
+            // Dedup guards against parser artifacts where the literal text
+            // "@slot …" inside view content is parsed as a directive.
+            let mut emitted_slot_props: FxHashSet<String> = FxHashSet::default();
+            for (slot_name, type_constraint) in &self.slot_infos {
+                let slot_prop = slot_name.as_deref().unwrap_or("children");
+                if comp.props.contains_key(slot_prop)
+                    || comp.events.iter().any(|e| e.name == slot_prop)
+                    || !emitted_slot_props.insert(slot_prop.to_string())
+                {
+                    continue;
+                }
+                let ts_type = match type_constraint {
+                    Some(ty) => {
+                        let t = JsTypeFormatter.format_type(ty.kind.as_str(), &ty.type_args);
+                        if t.is_empty() {
+                            "ReactNode".to_string()
+                        } else {
+                            t
+                        }
+                    }
+                    None => "ReactNode".to_string(),
+                };
+                w.emit_fmt(format_args!("  {}?: {};", slot_prop, ts_type));
             }
             w.emit("}");
             w.emit("");

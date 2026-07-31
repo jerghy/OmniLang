@@ -101,7 +101,118 @@ fn collect_view_child_components_inner(
                 collect_view_child_components_inner(child, component_map, acc);
             }
         }
-        ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot { .. } => {}
+        ViewTree::Slot { fallback, .. } => {
+            // Fallback content renders inside the component — its child
+            // components need imports too.
+            for child in fallback {
+                collect_view_child_components_inner(child, component_map, acc);
+            }
+        }
+        ViewTree::Text(_) | ViewTree::Interpolation(_) => {}
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
+    }
+}
+
+/// Returns true if the view tree declares any slot (`@slot`). Consumer-side
+/// projections (slots inside a child component's children) do not count —
+/// they are content passed to another component, not declarations.
+pub(crate) fn view_has_slots(
+    node: &ViewTree,
+    component_map: &FxHashMap<&str, &ComponentIR>,
+) -> bool {
+    match node {
+        ViewTree::Slot { .. } => true,
+        ViewTree::Element(el) => {
+            if component_map.contains_key(el.tag.as_str()) && el.tag != "fragment" {
+                // Children of a component instantiation are projections.
+                false
+            } else {
+                el.children.iter().any(|c| view_has_slots(c, component_map))
+            }
+        }
+        ViewTree::Conditional(cond) => {
+            cond.branches
+                .iter()
+                .any(|b| b.body.as_ref().is_some_and(|v| view_has_slots(v, component_map)))
+                || cond
+                    .fallback
+                    .as_ref()
+                    .is_some_and(|v| view_has_slots(v, component_map))
+        }
+        ViewTree::ListRendering(list) => {
+            list.body
+                .as_ref()
+                .is_some_and(|v| view_has_slots(v, component_map))
+                || list
+                    .empty_body
+                    .as_ref()
+                    .is_some_and(|v| view_has_slots(v, component_map))
+        }
+        ViewTree::Fragment(children) => children
+            .iter()
+            .any(|c| view_has_slots(c, component_map)),
+        ViewTree::Text(_) | ViewTree::Interpolation(_) => false,
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
+    }
+}
+
+/// Collect slot declarations (name + type constraint) from a view tree.
+/// Used to type slot props (`children` / named) in the component TS
+/// interface. Slots inside a child component's children are consumer-side
+/// projections, not declarations — they are skipped.
+pub(crate) fn collect_view_slots(
+    node: &ViewTree,
+    component_map: &FxHashMap<&str, &ComponentIR>,
+    acc: &mut Vec<(Option<String>, Option<TypeIR>)>,
+) {
+    match node {
+        ViewTree::Slot {
+            name,
+            type_constraint,
+            fallback,
+            ..
+        } => {
+            acc.push((name.clone(), type_constraint.clone()));
+            for child in fallback {
+                collect_view_slots(child, component_map, acc);
+            }
+        }
+        ViewTree::Element(el) => {
+            if component_map.contains_key(el.tag.as_str()) && el.tag != "fragment" {
+                // Children of a component instantiation are projections —
+                // the child component types them via its own declarations.
+                return;
+            }
+            for child in &el.children {
+                collect_view_slots(child, component_map, acc);
+            }
+        }
+        ViewTree::Conditional(cond) => {
+            for branch in &cond.branches {
+                if let Some(ref body) = branch.body {
+                    collect_view_slots(body, component_map, acc);
+                }
+            }
+            if let Some(ref fb) = cond.fallback {
+                collect_view_slots(fb, component_map, acc);
+            }
+        }
+        ViewTree::ListRendering(list) => {
+            if let Some(ref body) = list.body {
+                collect_view_slots(body, component_map, acc);
+            }
+            if let Some(ref empty_body) = list.empty_body {
+                collect_view_slots(empty_body, component_map, acc);
+            }
+        }
+        ViewTree::Fragment(children) => {
+            for child in children {
+                collect_view_slots(child, component_map, acc);
+            }
+        }
+        ViewTree::Text(_) | ViewTree::Interpolation(_) => {}
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
     }
@@ -158,7 +269,14 @@ pub(super) fn collect_view_identifiers(node: &ViewTree, acc: &mut FxHashSet<Stri
         ViewTree::Interpolation(expr) => {
             collect_expr_identifiers(expr, acc);
         }
-        ViewTree::Text(_) | ViewTree::Slot { .. } => {}
+        ViewTree::Slot { fallback, .. } => {
+            // Fallback content renders inside the component — its identifier
+            // references (signals, fns) must be collected too.
+            for child in fallback {
+                collect_view_identifiers(child, acc);
+            }
+        }
+        ViewTree::Text(_) => {}
         ViewTree::Fragment(children) => {
             for child in children {
                 collect_view_identifiers(child, acc);
@@ -205,7 +323,12 @@ pub(super) fn collect_motion_identifiers(node: &ViewTree, acc: &mut FxHashSet<St
                 collect_motion_identifiers(child, acc);
             }
         }
-        ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot { .. } => {}
+        ViewTree::Slot { fallback, .. } => {
+            for child in fallback {
+                collect_motion_identifiers(child, acc);
+            }
+        }
+        ViewTree::Text(_) | ViewTree::Interpolation(_) => {}
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
     }
@@ -271,7 +394,12 @@ fn collect_used_style_classes_inner(node: &ViewTree, acc: &mut FxHashSet<String>
                 collect_used_style_classes_inner(child, acc);
             }
         }
-        ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot { .. } => {}
+        ViewTree::Slot { fallback, .. } => {
+            for child in fallback {
+                collect_used_style_classes_inner(child, acc);
+            }
+        }
+        ViewTree::Text(_) | ViewTree::Interpolation(_) => {}
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
     }
