@@ -2,6 +2,15 @@
 //!
 //! Uses a declarative macro to generate individual `#[test]` functions with
 //! compile-time snapshot names, avoiding the need for `rstest` or runtime loops.
+//!
+//! Two families of tests live here:
+//! - IR-level fixtures (below): hand-built `IRProgram` factories compiled by
+//!   each backend codegen directly.
+//! - Semantic DSL source fixtures (end of file): `.omni` files in
+//!   `tests/fixtures/parameterized/` compiled through the FULL pipeline
+//!   (lexer → parser → semantic → IR → codegen). These exercise the new
+//!   semantic-level DSL syntax (design blocks, slots, refs, motion, stores)
+//!   end-to-end on every P0 backend (Task 8.1).
 
 use rustc_hash::FxHashMap;
 
@@ -124,3 +133,312 @@ mod expressions {
     //! Regression tests for the expressions fixture.
     gen_tests_for_fixture!(fixture_expressions);
 }
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Semantic DSL source fixtures — full pipeline (source → parse → IR → codegen)
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// Task 8.1: fixtures in `tests/fixtures/parameterized/` exercise the semantic
+// DSL syntax end-to-end across all P0 backends (design blocks, slots, refs,
+// motion, stores). Each fixture compiles with zero errors and the emitted
+// output files are asserted per backend, plus fixture-specific content
+// assertions (e.g. slots.omni → React emits `children ??`, refs.omni →
+// React emits `useRef`).
+
+/// Compile a fixture source through the full pipeline (lexer → parser →
+/// semantic → IR → codegen) to a backend, asserting that compilation
+/// succeeds. Returns the generated files keyed by output path.
+fn compile_source_fixture(
+    source: &str,
+    target: crate::codegen::Target,
+) -> FxHashMap<String, String> {
+    let sources = FxHashMap::from_iter([("main.omni".to_string(), source.to_string())]);
+    let path_mapping = crate::path_mapping::derive_path_mapping(&sources);
+    let result = crate::compile_multi_internal(sources, target, path_mapping, false, false, None);
+    assert!(
+        result.success,
+        "compilation to {:?} should succeed, errors: {:?}",
+        target, result.errors
+    );
+    result.files
+}
+
+/// Assert the standard OmniView output files are present.
+fn assert_omniview_files(files: &FxHashMap<String, String>) {
+    for expected in ["index.html", "index.css", "index.js", "body.html"] {
+        assert!(
+            files.contains_key(expected),
+            "missing OmniView output file {expected:?}; got: {:?}",
+            files.keys().collect::<Vec<_>>()
+        );
+    }
+}
+
+/// Assert at least one React `.tsx` component file is present.
+fn assert_react_files(files: &FxHashMap<String, String>) {
+    let tsx: Vec<&String> = files.keys().filter(|p| p.ends_with(".tsx")).collect();
+    assert!(
+        !tsx.is_empty(),
+        "expected React .tsx component output; got: {:?}",
+        files.keys().collect::<Vec<_>>()
+    );
+    for path in tsx {
+        assert!(!files[path].trim().is_empty(), "empty tsx output: {path}");
+    }
+}
+
+/// Assert at least one Flutter `.dart` component file is present.
+fn assert_flutter_files(files: &FxHashMap<String, String>) {
+    let dart: Vec<&String> = files.keys().filter(|p| p.ends_with(".dart")).collect();
+    assert!(
+        !dart.is_empty(),
+        "expected Flutter .dart output; got: {:?}",
+        files.keys().collect::<Vec<_>>()
+    );
+    for path in dart {
+        assert!(!files[path].trim().is_empty(), "empty dart output: {path}");
+    }
+}
+
+/// Helper: assert a substring appears in a specific output file.
+fn assert_contains(files: &FxHashMap<String, String>, path: &str, needle: &str) {
+    let content = files.get(path).unwrap_or_else(|| {
+        panic!(
+            "expected output file {path:?}; got: {:?}",
+            files.keys().collect::<Vec<_>>()
+        )
+    });
+    assert!(
+        content.contains(needle),
+        "expected {path:?} to contain {needle:?}; got:\n{}",
+        &content[..content.len().min(800)]
+    );
+}
+
+// ── design_tokens.omni ──
+
+fn assert_design_tokens_omniview(files: &FxHashMap<String, String>) {
+    // Tokens → :root CSS custom properties (default theme) + dark overrides.
+    assert_contains(files, "index.css", "--primary: #6366F1;");
+    assert_contains(files, "index.css", "--bg: #FFFFFF;");
+    assert_contains(files, "index.css", "[data-theme=\"dark\"]");
+    assert_contains(files, "index.css", "--primary: #A5B4FC;");
+    // Classes → scoped rules with token() → var(--name) references.
+    assert_contains(files, "index.css", "[data-design~=\"AppDesign\"] .Card {");
+    assert_contains(files, "index.css", "background: var(--bg);");
+    // Variants → base + dimension branch rules.
+    assert_contains(files, "index.css", "[data-design~=\"AppDesign\"] .Button {");
+    assert_contains(files, "index.css", "background: var(--primary);");
+    assert_contains(
+        files,
+        "index.css",
+        "[data-design~=\"AppDesign\"] .Button.secondary {",
+    );
+    assert_contains(files, "index.css", "background: #8B5CF6;");
+}
+
+fn assert_design_tokens_react(files: &FxHashMap<String, String>) {
+    // React emits unscaled selectors (module-scoped via CSS import) but keeps
+    // the same token/theme variable declarations as OmniView.
+    assert_contains(files, "design.css", "--primary: #6366F1;");
+    assert_contains(files, "design.css", ".Card {");
+    assert_contains(files, "design.css", "background: var(--bg);");
+    assert_contains(files, "useThemeStore.ts", "useThemeStore");
+    // Consuming component emits design class references.
+    assert_contains(files, "DesignTokensDemo.tsx", "Button primary");
+    assert_contains(files, "DesignTokensDemo.tsx", "Button secondary");
+}
+
+fn assert_design_tokens_flutter(files: &FxHashMap<String, String>) {
+    // design.dart carries the typed token constants + decoration factories
+    // namespaced by the design block name.
+    assert_contains(files, "design.dart", "AppDesignTokens");
+    // The consuming component still emits (widgets, no direct design refs —
+    // design classes are style-only on Flutter).
+    assert_contains(files, "DesignTokensDemo.dart", "class DesignTokensDemo");
+}
+
+// ── slots.omni ──
+
+fn assert_slots_omniview(files: &FxHashMap<String, String>) {
+    // Named slot with fallback renders <slot name="...">fallback</slot>.
+    assert_contains(files, "body.html", "<slot name=\"header\">");
+    assert_contains(files, "body.html", "Default header");
+    // Empty named slot stays an empty <slot> element.
+    assert_contains(files, "body.html", "<slot name=\"footer\"></slot>");
+    // Unnamed slot falls back to an attribute-less <slot>.
+    assert_contains(files, "body.html", "<slot>");
+    assert_contains(files, "body.html", "Default body");
+}
+
+fn assert_slots_react(files: &FxHashMap<String, String>) {
+    // Named slot → {header ?? (fallback)}; unnamed slot → {children ?? (...)}.
+    assert_contains(files, "Card.tsx", "header ??");
+    assert_contains(files, "Card.tsx", "children ??");
+    assert_contains(files, "Card.tsx", "Default header");
+    // Empty slot (no fallback) → bare {footer} projection.
+    assert_contains(files, "Card.tsx", "{footer}");
+}
+
+fn assert_slots_flutter(files: &FxHashMap<String, String>) {
+    // widget.header ?? fallback; widget.children ?? fallback; bare footer.
+    assert_contains(files, "Card.dart", "widget.header ??");
+    assert_contains(files, "Card.dart", "widget.children ??");
+    assert_contains(files, "Card.dart", "Default header");
+    assert_contains(files, "Card.dart", "widget.footer");
+}
+
+// ── refs.omni ──
+
+fn assert_refs_omniview(files: &FxHashMap<String, String>) {
+    // Ref ops lower to guarded DOM calls on the ref wrapper.
+    assert_contains(files, "index.js", "if (input) { input.value = \"\"; }");
+    assert_contains(files, "index.js", "input.focus()");
+    // Semantic binding effects drive focus()/blur() from the boolean signal.
+    assert_contains(files, "index.js", "el.focus(); } else { el.blur(); }");
+}
+
+fn assert_refs_react(files: &FxHashMap<String, String>) {
+    assert_contains(files, "SearchBox.tsx", "useRef");
+    // The value={query} semantic binding is emitted as a DOM-syncing effect
+    // on the ref-bound element (ref bindings are not JSX props).
+    assert_contains(files, "SearchBox.tsx", "inputRef.current.value = query");
+    // The focus={isFocused} semantic binding drives focus()/blur().
+    assert_contains(files, "SearchBox.tsx", "inputRef.current?.focus()");
+}
+
+fn assert_refs_flutter(files: &FxHashMap<String, String>) {
+    assert_contains(files, "SearchBox.dart", "FocusNode");
+}
+
+// ── animation.omni ──
+
+fn assert_animation_omniview(files: &FxHashMap<String, String>) {
+    // Named motion is emitted as a motion function; the inline tween is
+    // hoisted into a synthesized __anon_m_N motion.
+    assert_contains(files, "index.js", "__omni_motion_pulse");
+    assert_contains(files, "index.js", "__omni_motion___anon_m_0");
+    // Both triggers survive lowering: the inline enter tween and the named
+    // hover reference (regression: multi-root views previously dropped the
+    // second top-level element).
+    assert_contains(files, "body.html", "data-enter=\"__anon_m_0\"");
+    assert_contains(files, "body.html", "data-hover=\"pulse\"");
+    assert_contains(files, "body.html", "Hover me");
+}
+
+fn assert_animation_react(files: &FxHashMap<String, String>) {
+    assert_contains(files, "MotionCard.tsx", "_M[\"pulse\"]");
+    assert_contains(files, "MotionCard.tsx", "__anon_m_0");
+}
+
+fn assert_animation_flutter(files: &FxHashMap<String, String>) {
+    assert_contains(files, "MotionCard.dart", "AnimationController");
+    assert_contains(files, "MotionCard.dart", "pulse");
+}
+
+// ── store.omni ──
+
+fn assert_store_omniview(files: &FxHashMap<String, String>) {
+    // Store wiring: store signal, action fn, and the interpolation effect
+    // that binds the qualified read into the DOM.
+    assert_contains(
+        files,
+        "index.js",
+        "const CounterStore_count = __omni_signal",
+    );
+    assert_contains(files, "index.js", "function CounterStore_increment()");
+    assert_contains(files, "index.js", "String(CounterStore_count.value)");
+    // The action handler calls the store action, not a mutation of a
+    // non-existent "CounterStore" signal (regression).
+    assert_contains(files, "index.js", "CounterStore_increment()");
+}
+
+fn assert_store_react(files: &FxHashMap<String, String>) {
+    // Zustand v5 store hook + consumption inside the component.
+    assert_contains(files, "useCounterStore.ts", "create");
+    assert_contains(files, "Counter.tsx", "useCounterStore");
+}
+
+fn assert_store_flutter(files: &FxHashMap<String, String>) {
+    // Riverpod 3.0 store file + component import.
+    assert_contains(files, "CounterStore_store.dart", "Notifier");
+    assert_contains(files, "Counter.dart", "CounterStore");
+}
+
+// ── Test generation macro: one #[test] fn per (fixture, backend) pair ──
+
+macro_rules! gen_semantic_dsl_tests {
+    ($mod_name:ident, $fixture_file:literal, $omniview_assert:ident, $react_assert:ident, $flutter_assert:ident) => {
+        mod $mod_name {
+            #[test]
+            fn omniview() {
+                let source = include_str!(concat!(
+                    "../../../tests/fixtures/parameterized/",
+                    $fixture_file
+                ));
+                let files = super::compile_source_fixture(source, crate::codegen::Target::OmniView);
+                super::assert_omniview_files(&files);
+                super::$omniview_assert(&files);
+            }
+
+            #[test]
+            fn react() {
+                let source = include_str!(concat!(
+                    "../../../tests/fixtures/parameterized/",
+                    $fixture_file
+                ));
+                let files = super::compile_source_fixture(source, crate::codegen::Target::React);
+                super::assert_react_files(&files);
+                super::$react_assert(&files);
+            }
+
+            #[cfg(feature = "codegen-flutter")]
+            #[test]
+            fn flutter() {
+                let source = include_str!(concat!(
+                    "../../../tests/fixtures/parameterized/",
+                    $fixture_file
+                ));
+                let files = super::compile_source_fixture(source, crate::codegen::Target::Flutter);
+                super::assert_flutter_files(&files);
+                super::$flutter_assert(&files);
+            }
+        }
+    };
+}
+
+gen_semantic_dsl_tests!(
+    design_tokens,
+    "design_tokens.omni",
+    assert_design_tokens_omniview,
+    assert_design_tokens_react,
+    assert_design_tokens_flutter
+);
+gen_semantic_dsl_tests!(
+    slots,
+    "slots.omni",
+    assert_slots_omniview,
+    assert_slots_react,
+    assert_slots_flutter
+);
+gen_semantic_dsl_tests!(
+    refs,
+    "refs.omni",
+    assert_refs_omniview,
+    assert_refs_react,
+    assert_refs_flutter
+);
+gen_semantic_dsl_tests!(
+    animation,
+    "animation.omni",
+    assert_animation_omniview,
+    assert_animation_react,
+    assert_animation_flutter
+);
+gen_semantic_dsl_tests!(
+    store_consumer,
+    "store.omni",
+    assert_store_omniview,
+    assert_store_react,
+    assert_store_flutter
+);

@@ -1,0 +1,43 @@
+// design_tokens.omni — semantic-level DSL design block: tokens, classes,
+// variants, themes. A minimal mirror of learn-omniview's design.omni that
+// exercises the design system end-to-end across all P0 backends.
+
+import omniview;
+
+design AppDesign {
+    @themes light, dark;
+    @default-theme light;
+
+    token primary: color = "#6366F1" dark "#A5B4FC";
+    token bg: color = "#FFFFFF" dark "#111827";
+    token radius: radius = "12px";
+    token spacing: size = "8px";
+
+    class Card {
+        background: token(bg);
+        border-radius: token(radius);
+        padding: token(spacing);
+    }
+
+    variant Button {
+        @dim color: primary | secondary;
+        @default { color: primary; }
+        base {
+            background: token(primary);
+            border-radius: token(radius);
+        }
+        color.primary { }
+        color.secondary {
+            background: "#8B5CF6";
+        }
+    }
+}
+
+component DesignTokensDemo {
+    view {
+        <div class: AppDesign.Card>
+            <button variant: AppDesign.Button(color=primary)>Primary</button>
+            <button variant: AppDesign.Button(color=secondary)>Secondary</button>
+        </div>
+    }
+}

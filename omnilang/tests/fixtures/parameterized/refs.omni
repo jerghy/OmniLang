@@ -1,0 +1,30 @@
+// refs.omni — element refs, semantic bindings (value/focus), and ref ops
+// (.value write, .focus()). Exercises the Element Reference System across
+// all P0 backends.
+
+import omniview;
+
+component SearchBox {
+    ref input: HtmlElement;
+    signal query: string = "";
+    signal isFocused: bool = false;
+
+    action clearInput() {
+        input.value = "";
+    }
+
+    action focusInput() {
+        input.focus();
+    }
+
+    view {
+        <input
+            class: search-input
+            @ref={input}
+            value={query}
+            focus={isFocused}
+        />
+        <button @onPress={clearInput}>Clear</button>
+        <button @onPress={focusInput}>Focus</button>
+    }
+}

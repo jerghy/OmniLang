@@ -1,0 +1,15 @@
+// slots.omni — named + unnamed @slot directives with default fallback
+// content. Exercises the slot system (projection, fallback, empty slots)
+// across all P0 backends.
+
+import omniview;
+
+component Card {
+    view {
+        <div class: card>
+            @slot header { <h4>Default header</h4> }
+            @slot { <p>Default body</p> }
+            @slot footer
+        </div>
+    }
+}

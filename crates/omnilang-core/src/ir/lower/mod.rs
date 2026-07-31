@@ -930,6 +930,63 @@ component StoreActionDemo {
         }
     }
 
+    /// Regression: a store action whose name collides with the signal
+    /// mutation method map (`increment`/`set`/`push`/...) must stay a call —
+    /// previously `CounterStore.increment()` was mis-lowered to
+    /// `MutationIntent::Increment { target: "CounterStore" }`, mutating a
+    /// non-existent signal instead of invoking the store action.
+    #[test]
+    fn lower_store_action_with_mutation_method_name_stays_a_call() {
+        let source = r#"
+import omniview;
+store CounterStore {
+    signal count: i32 = 0;
+    action increment() {
+        count = count + 1;
+    }
+}
+component CounterDemo {
+    @store CounterStore;
+    view {
+        <button @onPress={CounterStore.increment()}>+</button>
+    }
+}
+"#;
+        let comp = lower_first_component(source);
+        let view = comp.view.expect("should have view");
+        match &view {
+            ViewTree::Element(el) => {
+                let handler = el.events.get("onPress").expect("should have onPress event");
+                match handler {
+                    EventHandlerIR::InlineFn { body, .. } => {
+                        let stmts = &body.statements;
+                        let has_call = stmts.iter().any(|s| {
+                            matches!(s, StatementIR::ExprStmtIR { expr: ExprIR::MethodCallExpr { method, object, .. } }
+                                if method == "increment"
+                                    && matches!(&**object, ExprIR::IdentifierExpr { name, .. } if name == "CounterStore"))
+                        });
+                        assert!(
+                            has_call,
+                            "handler must contain the CounterStore.increment() call, got: {:?}",
+                            stmts
+                        );
+                        assert!(
+                            !stmts.iter().any(|s| matches!(
+                                s,
+                                StatementIR::MutationStmt {
+                                    intent: Some(MutationIntent::Increment { .. })
+                                }
+                            )),
+                            "must NOT lower the store action to an Increment mutation"
+                        );
+                    }
+                    other => panic!("expected InlineFn handler, got {:?}", other),
+                }
+            }
+            other => panic!("expected Element, got {:?}", other),
+        }
+    }
+
     #[test]
     fn lower_component_with_event_used_fields() {
         let source = r#"

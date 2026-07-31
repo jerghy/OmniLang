@@ -27,18 +27,29 @@ pub(super) fn lower_view_block(
     semantics: &mut SemanticResult,
     fns: &[FunctionIR],
 ) -> ViewTree {
-    if let Some(first) = view.children.first() {
-        let sig_idx = Cell::new(0usize);
-        lower_view_node(
-            first,
+    if view.children.is_empty() {
+        return ViewTree::Text("".into());
+    }
+    let sig_idx = Cell::new(0usize);
+    let mut lowered: Vec<ViewTree> = Vec::with_capacity(view.children.len());
+    for child in &view.children {
+        lowered.push(lower_view_node(
+            child,
             string_signals,
             Some(&sig_idx),
             variant_map,
             semantics,
             fns,
-        )
+        ));
+    }
+    // A single child lowers to that child directly; multiple top-level view
+    // nodes lower to a fragment so no node is silently dropped (previously
+    // only `children.first()` was lowered — multi-root views lost everything
+    // after the first element).
+    if lowered.len() == 1 {
+        lowered.pop().expect("len == 1")
     } else {
-        ViewTree::Text("".into())
+        ViewTree::Fragment(lowered)
     }
 }
 
@@ -955,6 +966,55 @@ mod tests {
                 );
             }
             _ => panic!("Expected ViewTree::Element"),
+        }
+    }
+
+    /// Regression: a view block with multiple top-level nodes must lower ALL
+    /// of them (previously only `children.first()` was lowered, silently
+    /// dropping every node after the first element).
+    #[test]
+    fn test_multi_root_view_block_preserves_all_children() {
+        let source = r#"
+component MultiRoot {
+    view {
+        <div class: a>A</div>
+        <div class: b @hover={pulse}>B</div>
+    }
+}
+"#;
+        let tokens = crate::lexer::tokenize(source);
+        let (program, errors) = crate::parser::parse(tokens, source);
+        assert!(
+            errors.is_empty(),
+            "unexpected parse errors: {:?}",
+            errors.iter().map(|e| &e.message).collect::<Vec<_>>()
+        );
+        let mut semantics = SemanticResult {
+            symbols: SymbolTable::default(),
+            dependencies: FxHashMap::default(),
+            diagnostics: vec![],
+            event_param_name: None,
+        };
+        let ir = crate::ir::lower(&program, &mut semantics, None);
+        let module = ir.modules.get("input.omni").expect("module");
+        let comp = module.components.get("MultiRoot").expect("component");
+        let view = comp.view.as_ref().expect("view");
+        match view {
+            ViewTree::Fragment(children) => {
+                assert_eq!(children.len(), 2, "both top-level nodes must survive");
+                let texts: Vec<&str> = children
+                    .iter()
+                    .filter_map(|c| match c {
+                        ViewTree::Element(el) => el.children.iter().find_map(|g| match g {
+                            ViewTree::Text(t) => Some(t.as_str()),
+                            _ => None,
+                        }),
+                        _ => None,
+                    })
+                    .collect();
+                assert_eq!(texts, vec!["A", "B"], "both elements must be present");
+            }
+            _ => panic!("Expected ViewTree::Fragment for a multi-root view"),
         }
     }
 }

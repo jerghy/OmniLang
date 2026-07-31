@@ -5,9 +5,24 @@
 use super::expr::lower_expr;
 use crate::ir::types::*;
 use crate::parser::ast::*;
+use crate::semantic::symbols::SymbolKind;
 use crate::semantic::SemanticResult;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
+
+/// Whether a method-call receiver name resolves to a store symbol.
+///
+/// Store action calls like `CounterStore.increment()` must NOT be lowered to
+/// signal mutations — the mutation method map (`inc`/`increment`/`set`/
+/// `push`/`pop`/...) collides with store action names, and treating the store
+/// name as a signal target silently rewrites the call into a mutation of a
+/// non-existent `CounterStore` signal.
+fn is_store_symbol(semantics: &SemanticResult, name: &str) -> bool {
+    matches!(
+        semantics.symbols.resolve(name).map(|s| &s.kind),
+        Some(SymbolKind::Store)
+    )
+}
 
 // ═══════════════════════════════════════════════════════
 // Statement lowering
@@ -203,6 +218,11 @@ pub(super) fn try_lower_mutation(
     {
         if let Expr::VarRef(target_name, _) = object.as_ref() {
             if args.len() <= 1 {
+                // Store action calls (CounterStore.increment()) are calls, not
+                // signal mutations — never lower them through the mutation map.
+                if is_store_symbol(semantics, target_name) {
+                    return None;
+                }
                 return mutation_for_method(
                     target_name,
                     method,
@@ -221,6 +241,11 @@ pub(super) fn try_lower_mutation(
         if let Expr::FieldAccess { object, field, .. } = func.as_ref() {
             if let Expr::VarRef(target_name, _) = object.as_ref() {
                 if args.len() <= 1 {
+                    // Store action calls (CounterStore.increment()) are calls, not
+                    // signal mutations — never lower them through the mutation map.
+                    if is_store_symbol(semantics, target_name) {
+                        return None;
+                    }
                     return mutation_for_method(
                         target_name,
                         field,
