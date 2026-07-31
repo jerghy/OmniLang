@@ -4,6 +4,7 @@ use super::*;
 use crate::codegen::shared::build_component_map;
 use crate::codegen::{format_json_value, JSON_FLUTTER};
 use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use std::collections::HashMap;
 use std::fmt::Write;
 
@@ -331,10 +332,12 @@ fn fmt_view(node: &ViewTree) -> (String, Vec<String>) {
     let store_provider_map: FxHashMap<String, String> = FxHashMap::default();
     let mut warnings = Vec::new();
     let ref_usage: FxHashMap<String, RefUsage> = FxHashMap::default();
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
     let mut ctx = ViewContext {
         component_map: &component_map,
         store_provider_map: &store_provider_map,
         ref_usage: &ref_usage,
+        component_slots: &component_slots,
         ir: &ir,
         warnings: &mut warnings,
     };
@@ -764,7 +767,9 @@ fn test_empty_component() {
         .get("App")
         .unwrap();
     let component_map = build_component_map(&ir);
-    let (dart, _warnings) = codegen.gen_component_dart("App", comp_ref, &ir, &component_map);
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let (dart, _warnings) =
+        codegen.gen_component_dart("App", comp_ref, &ir, &component_map, &component_slots);
     assert!(dart.contains("import 'package:flutter/material.dart';"));
     assert!(dart.contains("class App extends StatefulWidget {"));
     assert!(dart.contains("const App({super.key});"));
@@ -841,7 +846,9 @@ fn test_component_with_state() {
         .get("Counter")
         .unwrap();
     let component_map = build_component_map(&ir);
-    let (dart, _warnings) = codegen.gen_component_dart("Counter", comp_ref, &ir, &component_map);
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let (dart, _warnings) =
+        codegen.gen_component_dart("Counter", comp_ref, &ir, &component_map, &component_slots);
     assert!(dart.contains("int count = 0;"));
     assert!(dart.contains("increment() {"));
     assert!(dart.contains("setState(() {"));
@@ -899,7 +906,9 @@ fn test_component_with_props() {
         .get("Greeting")
         .unwrap();
     let component_map = build_component_map(&ir);
-    let (dart, _warnings) = codegen.gen_component_dart("Greeting", comp_ref, &ir, &component_map);
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let (dart, _warnings) =
+        codegen.gen_component_dart("Greeting", comp_ref, &ir, &component_map, &component_slots);
     assert!(dart.contains("required this.name,"));
     assert!(dart.contains("required this.age,"));
     assert!(dart.contains("final String name;"));
@@ -949,7 +958,9 @@ fn test_component_with_mount_lifecycle() {
         .get("App")
         .unwrap();
     let component_map = build_component_map(&ir);
-    let (dart, _warnings) = codegen.gen_component_dart("App", comp_ref, &ir, &component_map);
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let (dart, _warnings) =
+        codegen.gen_component_dart("App", comp_ref, &ir, &component_map, &component_slots);
     assert!(dart.contains("@override"));
     assert!(dart.contains("void initState() {"));
     assert!(dart.contains("super.initState();"));
@@ -999,7 +1010,9 @@ fn test_component_with_unmount_lifecycle() {
         .get("App")
         .unwrap();
     let component_map = build_component_map(&ir);
-    let (dart, _warnings) = codegen.gen_component_dart("App", comp_ref, &ir, &component_map);
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let (dart, _warnings) =
+        codegen.gen_component_dart("App", comp_ref, &ir, &component_map, &component_slots);
     assert!(dart.contains("@override"));
     assert!(dart.contains("void dispose() {"));
     assert!(dart.contains("super.dispose();"));
@@ -1273,7 +1286,9 @@ fn test_motion_enter_controller_init() {
         .get("App")
         .unwrap();
     let component_map = build_component_map(&ir);
-    let (dart, _warnings) = codegen.gen_component_dart("App", comp_ref, &ir, &component_map);
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let (dart, _warnings) =
+        codegen.gen_component_dart("App", comp_ref, &ir, &component_map, &component_slots);
 
     // Field declarations
     assert!(
@@ -1540,7 +1555,9 @@ fn test_motion_inline_body_handling() {
         .get("App")
         .unwrap();
     let component_map = build_component_map(&ir);
-    let (dart, _warnings) = codegen.gen_component_dart("App", comp_ref, &ir, &component_map);
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let (dart, _warnings) =
+        codegen.gen_component_dart("App", comp_ref, &ir, &component_map, &component_slots);
 
     // Numeric duration init
     assert!(
@@ -1946,7 +1963,7 @@ fn compile_flutter(source: &str) -> Option<crate::InternalCompileResult> {
 }
 
 #[test]
-fn warns_on_slot_in_flutter() {
+fn slot_unnamed_emits_children_param() {
     let source = r#"
 component Card {
     view {
@@ -1955,13 +1972,329 @@ component Card {
 }
 "#;
     let output = compile_flutter(source).unwrap();
-    // Slot warnings now flow through the compile result diagnostics
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        content.contains("final Widget? children;"),
+        "Expected children slot field, got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("widget.children"),
+        "Expected widget.children render, got:\n{}",
+        content
+    );
+    assert!(
+        !content.contains("SizedBox.shrink()"),
+        "Slot must not degrade to SizedBox.shrink(), got:\n{}",
+        content
+    );
+    assert!(
+        !output.warnings.iter().any(|w| w.message.contains("slot")),
+        "Slot warning should be gone, got: {:?}",
+        output.warnings
+    );
+}
+
+/// Named slot with fallback: `final Widget? header;` + `widget.header ?? fallback`.
+#[test]
+fn slot_named_emits_param_with_fallback() {
+    let source = r#"
+component Card {
+    view {
+        <div class="card">
+            @slot header {
+                <h4>Default Header</h4>
+            }
+        </div>
+    }
+}
+"#;
+    let output = compile_flutter(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        content.contains("final Widget? header;"),
+        "Expected header slot field, got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("this.header,"),
+        "Expected header constructor param, got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("widget.header ?? Text(child: Text('Default Header'))"),
+        "Expected fallback-wrapped header render, got:\n{}",
+        content
+    );
+}
+
+/// `@slot header: String { ... }` types the param as `String?` instead of `Widget?`.
+#[test]
+fn slot_type_constraint_defers_to_widget_with_warning() {
+    let source = r#"
+component Badge {
+    view {
+        <div>
+            @slot header: String { <span>Fallback</span> }
+        </div>
+    }
+}
+"#;
+    let output = compile_flutter(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    // Typed slots are deferred: the param stays `Widget?` so the
+    // `widget.header ?? <fallback widget>` render stays statically valid.
+    assert!(
+        content.contains("final Widget? header;"),
+        "Expected Widget? header param (type constraint deferred), got:\n{}",
+        content
+    );
+    assert!(
+        !content.contains("final String? header;"),
+        "Must not emit a String-typed slot field, got:\n{}",
+        content
+    );
     assert!(
         output
             .warnings
             .iter()
-            .any(|w| w.message.contains("slot") && w.message.contains("not supported")),
-        "Expected slot warning in compile output, got: {:?}",
+            .any(|w| w.message.contains("type constraint")),
+        "Expected type-constraint deferral warning, got: {:?}",
+        output.warnings
+    );
+}
+
+/// A slot whose name collides with a prop is skipped — a duplicate
+/// constructor param/field would be invalid Dart (mirrors the React
+/// backend's collision guard).
+#[test]
+fn slot_colliding_with_prop_is_skipped() {
+    let source = r#"
+component Card {
+    prop title: String = "T"
+    view {
+        <div>
+            @slot title {
+                <span>Fallback</span>
+            }
+        </div>
+    }
+}
+"#;
+    let output = compile_flutter(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert_eq!(
+        content.matches("this.title,").count(),
+        1,
+        "Constructor must declare exactly one title param (the prop), got:\n{}",
+        content
+    );
+    assert!(
+        !content.contains("final Widget? title;"),
+        "Colliding slot must not emit a duplicate field, got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("final String title;"),
+        "Prop field must still be emitted, got:\n{}",
+        content
+    );
+}
+
+/// Multi-node fallbacks wrap in a Column so the `??` expression stays a
+/// single widget (Flutter's analogue of React's fragment).
+#[test]
+fn slot_multi_node_fallback_wraps_in_column() {
+    let source = r#"
+component Card {
+    view {
+        <div class="card">
+            @slot header {
+                <h4>Title</h4>
+                <p>Subtitle</p>
+            }
+        </div>
+    }
+}
+"#;
+    let output = compile_flutter(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        content.contains(
+            "widget.header ?? Column(mainAxisSize: MainAxisSize.min, children: [Text(child: Text('Title')), Text(child: Text('Subtitle'))])"
+        ),
+        "Expected Column-wrapped multi-node fallback, got:\n{}",
+        content
+    );
+}
+
+/// Consumer-side `slot="name"` children project into named constructor
+/// params at the call site (with the `slot` attribute stripped); plain
+/// children flow into the unnamed `children` param.
+#[test]
+fn slot_projection_at_call_site() {
+    let source = r#"
+component SlotBox {
+    view {
+        <div>
+            <div>@slot header</div>
+            <div>@slot body</div>
+            <div>@slot</div>
+        </div>
+    }
+}
+
+component Consumer {
+    view {
+        <SlotBox>
+            <h4 slot="header">Custom Header</h4>
+            <div slot="body">
+                <p>Body content</p>
+            </div>
+            <span>Default child</span>
+        </SlotBox>
+    }
+}
+"#;
+    let output = compile_flutter(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        content.contains("header: Text(child: Text('Custom Header'))"),
+        "Expected named slot projected to header param, got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("body: Container(child: Text(child: Text('Body content')))"),
+        "Expected named slot projected to body param, got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("children: [Text(child: Text('Default child'))]"),
+        "Expected default children param, got:\n{}",
+        content
+    );
+    assert!(
+        !content.contains("slot:"),
+        "slot prop must be stripped after projection, got:\n{}",
+        content
+    );
+}
+
+/// Consumer-position `@slot name { ... }` directives project into the named
+/// param (the fallback IS the projected content); the consumer component
+/// itself must not declare slot params for projections.
+#[test]
+fn slot_projection_directive_at_call_site() {
+    let source = r#"
+component SlotBox {
+    view {
+        <div>
+            <div>@slot header</div>
+            <div>@slot</div>
+        </div>
+    }
+}
+
+component Consumer {
+    view {
+        <SlotBox>
+            @slot header {
+                <h4>Custom Header</h4>
+            }
+            @slot {
+                <p>Body content</p>
+            }
+            <span>Default child</span>
+        </SlotBox>
+    }
+}
+"#;
+    let output = compile_flutter(source).unwrap();
+    let consumer: String = output
+        .files
+        .iter()
+        .filter(|(path, _)| path.contains("Consumer.dart"))
+        .map(|(_, c)| c.clone())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        consumer.contains("header: Text(child: Text('Custom Header'))"),
+        "Expected projected header param, got:\n{}",
+        consumer
+    );
+    assert!(
+        consumer.contains(
+            "children: [Text(child: Text('Body content')), Text(child: Text('Default child'))]"
+        ),
+        "Expected default children projection, got:\n{}",
+        consumer
+    );
+    assert!(
+        !consumer.contains("final Widget? header;"),
+        "Consumer must not declare params for projections, got:\n{}",
+        consumer
+    );
+}
+
+/// An unknown slot name at the call site warns and falls back to the
+/// default children instead of emitting invalid Dart.
+#[test]
+fn slot_projection_unknown_slot_warns_and_falls_back() {
+    let source = r#"
+component Box {
+    view {
+        <div>
+            <div>@slot header</div>
+            <div>@slot</div>
+        </div>
+    }
+}
+
+component Consumer {
+    view {
+        <Box>
+            <h4 slot="missing">Content</h4>
+        </Box>
+    }
+}
+"#;
+    let output = compile_flutter(source).unwrap();
+    assert!(
+        output
+            .warnings
+            .iter()
+            .any(|w| w.message.contains("no slot 'missing'")),
+        "Expected unknown-slot warning, got: {:?}",
         output.warnings
     );
     let content: String = output
@@ -1971,9 +2304,96 @@ component Card {
         .collect::<Vec<_>>()
         .join("\n");
     assert!(
-        content.contains("SizedBox.shrink()"),
-        "slot should degrade to SizedBox.shrink(): {}",
+        content.contains("children: [Text(child: Text('Content'))]"),
+        "Unknown slot content should fall back to default children, got:\n{}",
         content
+    );
+}
+
+/// A component without an unnamed slot drops default children with a
+/// warning instead of emitting invalid Dart.
+#[test]
+fn slot_default_children_dropped_when_no_default_slot() {
+    let source = r#"
+component Box {
+    view {
+        <div>
+            <div>@slot header</div>
+        </div>
+    }
+}
+
+component Consumer {
+    view {
+        <Box>
+            <span>Orphan child</span>
+        </Box>
+    }
+}
+"#;
+    let output = compile_flutter(source).unwrap();
+    assert!(
+        output
+            .warnings
+            .iter()
+            .any(|w| w.message.contains("declares no default slot")),
+        "Expected no-default-slot warning, got: {:?}",
+        output.warnings
+    );
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        !content.contains("children:"),
+        "Must not emit children param for slot-less default, got:\n{}",
+        content
+    );
+}
+
+/// Enter-triggered motions inside slot fallbacks must be found so their
+/// controllers are created in initState — otherwise the fallback's @enter
+/// animation never plays (Task 5.3 review fix).
+#[test]
+fn enter_motion_in_slot_fallback_is_found() {
+    let el = ElementIR {
+        tag: "div".into(),
+        props: FxHashMap::default(),
+        bindings: FxHashMap::default(),
+        events: FxHashMap::default(),
+        style_classes: None,
+        inline_style: None,
+        children: vec![],
+        construction_kind: ConstructionKind::Component,
+        class_map_bindings: FxHashMap::default(),
+        source_span: None,
+        motion: Some(Box::new(MotionBehavior {
+            triggers: vec![TriggerIntent {
+                kind: TriggerKind::Enter,
+                motion_ref: Some("fadeIn".into()),
+                inline_motion: None,
+                source_span: None,
+            }],
+            ..Default::default()
+        })),
+        scroll: None,
+        drag: None,
+        ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
+    };
+    let view = ViewTree::Slot {
+        name: None,
+        fallback: vec![ViewTree::Element(Box::new(el))],
+        type_constraint: None,
+        data_param: None,
+    };
+    let motions = find_enter_motions(&view);
+    assert_eq!(
+        motions,
+        vec!["fadeIn".to_string()],
+        "enter motion inside a slot fallback must be found"
     );
 }
 
@@ -2075,7 +2495,9 @@ fn test_effect_emits_real_method_and_lifecycle_wiring() {
         .get("App")
         .unwrap();
     let component_map = build_component_map(&ir);
-    let (dart, _warnings) = codegen.gen_component_dart("App", comp_ref, &ir, &component_map);
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let (dart, _warnings) =
+        codegen.gen_component_dart("App", comp_ref, &ir, &component_map, &component_slots);
 
     // Real method body (was: undefined stub call + inline body + false comment)
     assert!(
@@ -2172,7 +2594,9 @@ fn test_component_constructor_includes_class_name() {
         .get("Greeting")
         .unwrap();
     let component_map = build_component_map(&ir);
-    let (dart, _warnings) = codegen.gen_component_dart("Greeting", comp_ref, &ir, &component_map);
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let (dart, _warnings) =
+        codegen.gen_component_dart("Greeting", comp_ref, &ir, &component_map, &component_slots);
     assert!(
         dart.contains("const Greeting({"),
         "constructor must include class name, got: {}",
@@ -2266,7 +2690,9 @@ fn test_view_store_field_read_uses_ref_watch() {
         .get("FilterBar")
         .unwrap();
     let component_map = build_component_map(&ir);
-    let (dart, _warnings) = codegen.gen_component_dart("FilterBar", comp_ref, &ir, &component_map);
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let (dart, _warnings) =
+        codegen.gen_component_dart("FilterBar", comp_ref, &ir, &component_map, &component_slots);
     assert!(
         dart.contains("ref.watch(todoStoreProvider.select(((s) => s.totalCount)))"),
         "getter read must become ref.watch select: {}",
@@ -2797,10 +3223,12 @@ fn test_store_action_in_inline_handler_body() {
     let store_provider_map: FxHashMap<String, String> =
         FxHashMap::from_iter([("TodoStore".into(), "todoStoreProvider".into())]);
     let ref_usage: FxHashMap<String, RefUsage> = FxHashMap::default();
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
     let mut ctx = ViewContext {
         component_map: &component_map,
         store_provider_map: &store_provider_map,
         ref_usage: &ref_usage,
+        component_slots: &component_slots,
         ir: &ir,
         warnings: &mut warnings,
     };
@@ -2891,10 +3319,12 @@ fn test_store_action_method_call_form_in_handler() {
     let store_provider_map: FxHashMap<String, String> =
         FxHashMap::from_iter([("TodoStore".into(), "todoStoreProvider".into())]);
     let ref_usage: FxHashMap<String, RefUsage> = FxHashMap::default();
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
     let mut ctx = ViewContext {
         component_map: &component_map,
         store_provider_map: &store_provider_map,
         ref_usage: &ref_usage,
+        component_slots: &component_slots,
         ir: &ir,
         warnings: &mut warnings,
     };
@@ -3016,7 +3446,9 @@ fn test_ref_global_key_and_on_demand_controllers() {
         .get("RefDemo")
         .unwrap();
     let component_map = build_component_map(&ir);
-    let (dart, _warnings) = codegen.gen_component_dart("RefDemo", comp_ref, &ir, &component_map);
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let (dart, _warnings) =
+        codegen.gen_component_dart("RefDemo", comp_ref, &ir, &component_map, &component_slots);
 
     // GlobalKey for every declared ref
     assert!(dart.contains("final GlobalKey _inputBoxKey = GlobalKey();"));
@@ -3068,10 +3500,12 @@ fn test_ref_key_on_widget_and_controller_attachment() {
     let ir = empty_program();
     let component_map: FxHashMap<&str, &ComponentIR> = FxHashMap::default();
     let store_provider_map: FxHashMap<String, String> = FxHashMap::default();
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
     let mut ctx = ViewContext {
         component_map: &component_map,
         store_provider_map: &store_provider_map,
         ref_usage,
+        component_slots: &component_slots,
         ir: &ir,
         warnings: &mut warnings,
     };
@@ -3099,10 +3533,12 @@ fn test_ref_key_on_widget_and_controller_attachment() {
     );
     let ref_usage2: &FxHashMap<String, RefUsage> = &usage2;
     let mut warnings2 = Vec::new();
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
     let mut ctx2 = ViewContext {
         component_map: &component_map,
         store_provider_map: &store_provider_map,
         ref_usage: ref_usage2,
+        component_slots: &component_slots,
         ir: &ir,
         warnings: &mut warnings2,
     };
@@ -3125,10 +3561,12 @@ fn test_ref_key_on_widget_and_controller_attachment() {
     );
     let ref_usage3: &FxHashMap<String, RefUsage> = &usage3;
     let mut warnings3 = Vec::new();
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
     let mut ctx3 = ViewContext {
         component_map: &component_map,
         store_provider_map: &store_provider_map,
         ref_usage: ref_usage3,
+        component_slots: &component_slots,
         ir: &ir,
         warnings: &mut warnings3,
     };
@@ -3210,7 +3648,9 @@ fn test_semantic_binding_post_frame_setup() {
         .get("BindDemo")
         .unwrap();
     let component_map = build_component_map(&ir);
-    let (dart, _warnings) = codegen.gen_component_dart("BindDemo", comp_ref, &ir, &component_map);
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let (dart, _warnings) =
+        codegen.gen_component_dart("BindDemo", comp_ref, &ir, &component_map, &component_slots);
 
     // Controllers + guard flag declared
     assert!(dart.contains("final FocusNode _inputBoxFocus = FocusNode();"));
@@ -3432,7 +3872,9 @@ fn test_ref_ops_in_effect_and_inline_handler_are_detected() {
         .get("EffectRef")
         .unwrap();
     let component_map = build_component_map(&ir);
-    let (dart, _warnings) = codegen.gen_component_dart("EffectRef", comp_ref, &ir, &component_map);
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let (dart, _warnings) =
+        codegen.gen_component_dart("EffectRef", comp_ref, &ir, &component_map, &component_slots);
     assert!(
         dart.contains("final ScrollController _listScroll = ScrollController();"),
         "effect-body ref op must trigger the controller declaration: {dart}"

@@ -40,8 +40,12 @@ impl Codegen for FlutterCodegen {
         let mut files = Vec::new();
         let mut warnings = Vec::new();
         let component_map = build_component_map(ir);
+        // Slot declarations per component (Task 5.3) — named slot names plus
+        // "children" for the unnamed slot; drives consumer-side projection.
+        let component_slots = view::build_component_slot_map(&component_map);
         for (name, comp) in ir.all_components() {
-            let (content, w) = self.gen_component_dart(name, comp, ir, &component_map);
+            let (content, w) =
+                self.gen_component_dart(name, comp, ir, &component_map, &component_slots);
             warnings.extend(w);
             files.push(CompiledFile {
                 path: format!("{}.dart", name),
@@ -78,6 +82,7 @@ impl FlutterCodegen {
         comp: &ComponentIR,
         ir: &IRProgram,
         component_map: &FxHashMap<&str, &ComponentIR>,
+        component_slots: &FxHashMap<String, FxHashSet<String>>,
     ) -> (String, Vec<String>) {
         let mut w = CodeWriter::new();
         let mut warnings = Vec::new();
@@ -129,15 +134,40 @@ impl FlutterCodegen {
         w.emit_fmt(format_args!("class {} extends {} {{", name, widget_base));
         w.indent();
 
-        if comp.props.is_empty() {
+        // Slot declarations (Task 5.3): `@slot` placeholders in the view
+        // become `Widget?` constructor params — same-named for named slots,
+        // `children` for the unnamed slot. Consumer-side projections inside
+        // child components are skipped (they are content, not declarations).
+        let mut declared_slots: Vec<(Option<String>, Option<TypeIR>)> = Vec::new();
+        if let Some(ref view) = comp.view {
+            view::collect_view_slots(view, component_map, &mut declared_slots);
+        }
+        // Collision guard + de-duplicate (mirrors the React backend): a slot
+        // whose param name collides with a prop or event would emit duplicate
+        // constructor params/fields — invalid Dart — so it is skipped. The
+        // same slot name used twice emits a single param.
+        let mut seen_slots: FxHashSet<String> = FxHashSet::default();
+        declared_slots.retain(|(n, _)| {
+            let slot_prop = n.clone().unwrap_or_else(|| "children".to_string());
+            !comp.props.contains_key(&slot_prop)
+                && !comp.events.iter().any(|e| e.name == slot_prop)
+                && seen_slots.insert(slot_prop)
+        });
+
+        if comp.props.is_empty() && declared_slots.is_empty() {
             w.emit_fmt(format_args!("const {}({{super.key}});", name));
         } else {
-            // Constructor with named parameters for props (C3: `const CompName({`)
+            // Constructor with named parameters for props + slots
+            // (C3: `const CompName({`)
             w.emit_fmt(format_args!("const {}({{", name));
             w.indent();
             w.emit("super.key,");
             for prop_name in comp.props.keys() {
                 w.emit_fmt(format_args!("required this.{},", prop_name));
+            }
+            for (slot_name, _) in &declared_slots {
+                let param_name = slot_name.as_deref().unwrap_or("children");
+                w.emit_fmt(format_args!("this.{},", param_name));
             }
             w.dedent();
             w.emit("});");
@@ -147,6 +177,23 @@ impl FlutterCodegen {
             for (prop_name, prop_type) in &comp.props {
                 let ann = super::dart::dart_type(prop_type.kind.as_str(), &prop_type.type_args);
                 w.emit_fmt(format_args!("final {} {};", ann, prop_name));
+            }
+            // Field declarations for slots
+            for (slot_name, type_constraint) in &declared_slots {
+                let param_name = slot_name.as_deref().unwrap_or("children");
+                // Typed slots (`@slot name: Type`) are deferred for Flutter:
+                // slot content renders as widgets (`widget.name ?? fallback`),
+                // so a non-Widget field type would be a static error. The
+                // constraint is surfaced as a warning until the semantic-level
+                // DSL formalizes data slots (data_param).
+                if let Some(tc) = type_constraint {
+                    warnings.push(format!(
+                        "[flutter] slot '{param_name}' declares a type constraint \
+                         ('{}') which is not yet supported; emitting Widget? instead",
+                        super::dart::dart_type(tc.kind.as_str(), &tc.type_args)
+                    ));
+                }
+                w.emit_fmt(format_args!("final Widget? {};", param_name));
             }
         }
 
@@ -439,6 +486,7 @@ impl FlutterCodegen {
                 component_map,
                 store_provider_map: &store_provider_map,
                 ref_usage: &ref_usage,
+                component_slots,
                 ir,
                 warnings: &mut warnings,
             };

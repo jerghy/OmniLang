@@ -290,7 +290,15 @@ fn find_enter_inner(node: &ViewTree, result: &mut Vec<String>) {
                 find_enter_inner(child, result);
             }
         }
-        ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot { .. } => {}
+        ViewTree::Slot { fallback, .. } => {
+            // Enter-triggered motions inside slot fallbacks play when the
+            // fallback renders — their controllers must be created in
+            // initState too.
+            for child in fallback {
+                find_enter_inner(child, result);
+            }
+        }
+        ViewTree::Text(_) | ViewTree::Interpolation(_) => {}
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
     }

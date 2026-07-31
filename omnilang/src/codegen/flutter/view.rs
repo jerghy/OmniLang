@@ -5,6 +5,7 @@ use crate::codegen::shared::stmt::FormatStmt;
 use crate::codegen::CodeWriter;
 use crate::ir::*;
 use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 
 use super::capitalize_first;
 use super::expr::{format_expr_ir_flutter, rewrite_stmt_store_accesses, rewrite_store_accesses};
@@ -32,6 +33,9 @@ pub(crate) struct ViewContext<'a> {
     /// Per-ref capability flags — drives on-demand controller attachment
     /// (focusNode/controller params) on ref-bound elements (Task 5.2).
     pub(crate) ref_usage: &'a FxHashMap<String, RefUsage>,
+    /// Component name → declared slot names (`"children"` for the unnamed
+    /// slot) — drives consumer-side slot projection (Task 5.3).
+    pub(crate) component_slots: &'a FxHashMap<String, FxHashSet<String>>,
     pub(crate) ir: &'a IRProgram,
     /// Compiler warnings accumulated during view formatting (C6).
     pub(crate) warnings: &'a mut Vec<String>,
@@ -81,19 +85,169 @@ pub(crate) fn format_view_tree(
             .map(|c| format_view_tree(c, motions, ctx))
             .collect::<Vec<_>>()
             .join(", "),
-        ViewTree::Slot { name, .. } => {
-            // TODO(1.2): render the preserved `fallback` children when the parent
-            // provides no content for this slot.
-            let slot_desc = name.as_deref().unwrap_or("default");
-            ctx.warnings.push(format!(
-                "[flutter] <slot name=\"{}\"> is not supported in Flutter; emitted SizedBox.shrink()",
-                slot_desc
-            ));
-            "SizedBox.shrink()".to_string()
+        ViewTree::Slot { name, fallback, .. } => {
+            // Slots render as `widget.{name} ?? fallback` — parent-projected
+            // content takes precedence; the preserved fallback (Task 1.2)
+            // renders otherwise. Unnamed slots map to the `children` param
+            // (Flutter analogue of React's `{props[name] ?? (fallback)}`).
+            let param = format!("widget.{}", name.as_deref().unwrap_or("children"));
+            match format_slot_content(fallback, motions, ctx) {
+                Some(fb) => format!("{} ?? {}", param, fb),
+                None => param,
+            }
         }
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
     }
+}
+
+/// Format slot content (fallback or consumer-projected) as a single widget
+/// expression. Multi-node content is wrapped in a Column — the Flutter
+/// analogue of React's fragment — so `??`/param expressions stay single
+/// widgets. Fragments are flattened transparently. Returns `None` when the
+/// content is empty (a bare consumer `@slot name` directive projects
+/// nothing).
+fn format_slot_content(
+    content: &[ViewTree],
+    motions: &[MotionIntent],
+    ctx: &mut ViewContext,
+) -> Option<String> {
+    let nodes: Vec<&ViewTree> = content
+        .iter()
+        .flat_map(|c| match c {
+            ViewTree::Fragment(children) => children.iter().collect(),
+            other => vec![other],
+        })
+        .collect();
+    match nodes.len() {
+        0 => None,
+        1 => Some(format_view_tree(nodes[0], motions, ctx)),
+        _ => {
+            let children: Vec<String> = nodes
+                .iter()
+                .map(|c| format_view_tree(c, motions, ctx))
+                .collect();
+            Some(format!(
+                "Column(mainAxisSize: MainAxisSize.min, children: [{}])",
+                children.join(", ")
+            ))
+        }
+    }
+}
+
+/// Consumer-side slot projection name for a child of a component
+/// instantiation. Two forms are recognized:
+/// - an element with a literal `slot="name"` prop (mirrors the OmniView
+///   backend's `has_slot_attr`);
+/// - a consumer-position `@slot name { ... }` directive, whose fallback
+///   content is the projected content.
+fn child_slot_name(node: &ViewTree) -> Option<String> {
+    match node {
+        ViewTree::Element(el) => el.props.get("slot").and_then(|v| match v {
+            ExprIR::LiteralExpr { value } => value.as_str().map(str::to_string),
+            _ => None,
+        }),
+        ViewTree::Slot { name, .. } => name.clone(),
+        _ => None,
+    }
+}
+
+/// Remove the `slot` prop from an element subtree root so it never reaches
+/// the generated widget after projection into a named slot param.
+fn strip_slot_prop(node: &ViewTree) -> ViewTree {
+    match node {
+        ViewTree::Element(el) if el.props.contains_key("slot") => {
+            let mut props = el.props.clone();
+            props.remove("slot");
+            ViewTree::Element(Box::new(ElementIR {
+                props,
+                ..*el.clone()
+            }))
+        }
+        other => other.clone(),
+    }
+}
+
+/// Collect slot declarations (name + type constraint) from a view tree.
+/// Used to emit `Widget?` constructor params for declared slots. Slots
+/// inside a child component's children are consumer-side projections, not
+/// declarations — they are skipped (the child component types them via its
+/// own declarations; mirrors the React backend).
+pub(crate) fn collect_view_slots(
+    node: &ViewTree,
+    component_map: &FxHashMap<&str, &ComponentIR>,
+    acc: &mut Vec<(Option<String>, Option<TypeIR>)>,
+) {
+    match node {
+        ViewTree::Slot {
+            name,
+            type_constraint,
+            fallback,
+            ..
+        } => {
+            acc.push((name.clone(), type_constraint.clone()));
+            for child in fallback {
+                collect_view_slots(child, component_map, acc);
+            }
+        }
+        ViewTree::Element(el) => {
+            if component_map.contains_key(el.tag.as_str()) {
+                // Children of a component instantiation are projections —
+                // the child component types them via its own declarations.
+                return;
+            }
+            for child in &el.children {
+                collect_view_slots(child, component_map, acc);
+            }
+        }
+        ViewTree::Conditional(cond) => {
+            for branch in &cond.branches {
+                if let Some(ref body) = branch.body {
+                    collect_view_slots(body, component_map, acc);
+                }
+            }
+            if let Some(ref fb) = cond.fallback {
+                collect_view_slots(fb, component_map, acc);
+            }
+        }
+        ViewTree::ListRendering(list) => {
+            if let Some(ref body) = list.body {
+                collect_view_slots(body, component_map, acc);
+            }
+            if let Some(ref empty_body) = list.empty_body {
+                collect_view_slots(empty_body, component_map, acc);
+            }
+        }
+        ViewTree::Fragment(children) => {
+            for child in children {
+                collect_view_slots(child, component_map, acc);
+            }
+        }
+        ViewTree::Text(_) | ViewTree::Interpolation(_) => {}
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
+    }
+}
+
+/// Precompute each component's declared slot names for consumer-side
+/// projection. The unnamed slot is keyed as `"children"` — the Dart
+/// constructor param it maps to.
+pub(crate) fn build_component_slot_map(
+    component_map: &FxHashMap<&str, &ComponentIR>,
+) -> FxHashMap<String, FxHashSet<String>> {
+    let mut map: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    for (name, comp) in component_map {
+        let mut slots: FxHashSet<String> = FxHashSet::default();
+        if let Some(ref view) = comp.view {
+            let mut acc: Vec<(Option<String>, Option<TypeIR>)> = Vec::new();
+            collect_view_slots(view, component_map, &mut acc);
+            for (n, _) in acc {
+                slots.insert(n.unwrap_or_else(|| "children".to_string()));
+            }
+        }
+        map.insert(name.to_string(), slots);
+    }
+    map
 }
 
 /// Strip CSS units from a value string and return a Dart-compatible numeric literal.
@@ -155,23 +309,62 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
             let stem = event_name.strip_prefix("on").unwrap_or(event_name);
             child_args.push(format!("on{}: {}", capitalize_first(stem), cb));
         }
-        // Return component constructor with children
+        // Slot projection (Task 5.3): children carrying a literal
+        // `slot="name"` prop, or a consumer-position `@slot name { ... }`
+        // directive, matching a slot the component declares, project into
+        // the named constructor param; everything else flows into the
+        // unnamed `children` param. `slot` props are stripped so they never
+        // reach the generated widget (mirrors the React backend).
+        let target_slots = ctx
+            .component_slots
+            .get(el.tag.as_str())
+            .cloned()
+            .unwrap_or_default();
+        let mut default_children: Vec<String> = Vec::new();
+        for child in &el.children {
+            let slot_name = child_slot_name(child);
+            let content = match child {
+                // Consumer-position `@slot { ... }` — the fallback IS the
+                // projected content; a bare `@slot name` projects nothing.
+                ViewTree::Slot { fallback, .. } => format_slot_content(fallback, motions, ctx),
+                _ => Some(format_view_tree(&strip_slot_prop(child), motions, ctx)),
+            };
+            let Some(content) = content else { continue };
+            match slot_name.as_deref() {
+                Some(name) if target_slots.contains(name) => {
+                    child_args.push(format!("{}: {}", name, content));
+                }
+                Some(name) => {
+                    ctx.warnings.push(format!(
+                        "[flutter] component '{}' has no slot '{}'; content emitted as default child",
+                        el.tag, name
+                    ));
+                    default_children.push(content);
+                }
+                None => default_children.push(content),
+            }
+        }
+        // Unnamed content projects into the `children` param — only when
+        // the component declares the unnamed slot; otherwise the generated
+        // Dart would be invalid, so warn and drop.
         let args_str = child_args.join(", ");
-        if el.children.is_empty() {
+        if default_children.is_empty() {
             return format!("{}({})", el.tag, args_str);
-        } else {
-            let children_str: Vec<String> = el
-                .children
-                .iter()
-                .map(|c| format_view_tree(c, motions, ctx))
-                .collect();
+        }
+        if target_slots.contains("children") {
             return format!(
                 "{}({}, children: [{}])",
                 el.tag,
                 args_str,
-                children_str.join(", ")
+                default_children.join(", ")
             );
         }
+        ctx.warnings.push(format!(
+            "[flutter] component '{}' declares no default slot; {} child node(s) dropped",
+            el.tag,
+            default_children.len()
+        ));
+        return format!("{}({})", el.tag, args_str);
     }
     // Otherwise, fall through to HTML tag mapping
     let widget = tag_to_flutter_widget(&el.tag);
