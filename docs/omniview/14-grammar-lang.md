@@ -657,7 +657,20 @@ pub type NameMap = Map<String, User>;
 const_decl ::= 'const' ('$'? <ident> | '$' <ident>) '=' (expr | array_literal) ';'?
 ```
 
-Module-level constants. Parsed but discarded at the AST level (values consumed via imports).
+Module-level constants. Values are stored in the AST (`Module.consts`)
+and resolved at compile time for use in design token values and imports.
+Constants are implicitly public within the module and can be imported
+across files via the standard `import { NAME } from "./file.omni"` syntax.
+
+Example:
+```omni
+const BRAND = "#6366f1";
+const SPACING = "16px";
+
+design App {
+    token primary: color = BRAND;    // compile-time resolution
+}
+```
 ```
 const MAX_SIZE = 100;
 const $COLORS = ["red", "green", "blue"];
