@@ -314,6 +314,14 @@ fn parse_design_value_expression<'a>(
     while end_idx < design_tokens.len() {
         match &design_tokens[end_idx].kind {
             TokenKind::Semicolon if depth == 0 => break,
+            TokenKind::LBrace => {
+                depth += 1;
+                end_idx += 1;
+            }
+            TokenKind::RBrace if depth > 0 => {
+                depth -= 1;
+                end_idx += 1;
+            }
             TokenKind::RBrace => break,
             TokenKind::LParen | TokenKind::LBracket => {
                 depth += 1;
@@ -1135,6 +1143,19 @@ mod tests {
         assert!(
             matches!(result.tokens[0].value, TokenValue::Expression(_)),
             "expected Expression variant for method call with arg, got {:?}",
+            result.tokens[0].value
+        );
+    }
+
+    #[test]
+    fn parse_expression_with_brace_object_argument() {
+        let src = r#"token config: color = store.getConfig({theme: "dark"});"#;
+        let tokens = crate::lexer::tokenize(src);
+        let result = parse_design_body(src, &tokens).unwrap();
+        assert_eq!(result.tokens.len(), 1);
+        assert!(
+            matches!(result.tokens[0].value, TokenValue::Expression(_)),
+            "expression with object literal arg should parse as Expression, got {:?}",
             result.tokens[0].value
         );
     }
