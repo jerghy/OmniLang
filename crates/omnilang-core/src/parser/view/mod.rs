@@ -465,6 +465,10 @@ impl<'a> Parser<'a> {
                     let trigger = self.parse_motion_trigger(TriggerKind::Press)?;
                     props.push(ElementProp::MotionTrigger(trigger));
                 }
+                TokenKind::AtFocus => {
+                    let trigger = self.parse_motion_trigger(TriggerKind::Focus)?;
+                    props.push(ElementProp::MotionTrigger(trigger));
+                }
                 TokenKind::AtInView => {
                     let trigger = self.parse_motion_trigger(TriggerKind::InView)?;
                     props.push(ElementProp::MotionTrigger(trigger));

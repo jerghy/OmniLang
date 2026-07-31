@@ -80,6 +80,7 @@ pub enum TokenKind {
     AtEnter,
     AtHover,
     AtPress,
+    AtFocus,
     AtInView,
     AtScroll,
     AtDragHorizontal,

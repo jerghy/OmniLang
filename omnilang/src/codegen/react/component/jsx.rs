@@ -13,6 +13,9 @@ use super::collect_expr_identifiers;
 
 impl ReactCodegen {
     /// Generate the return (JSX) section of the component function.
+    /// `motion_counter` is the shared ordinal counter for motion elements
+    /// (see `motion::classify_motion_el`) — it must run in the same DFS
+    /// order as the motion effect emitter so ref/handler names match.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn gen_jsx_return(
         &self,
@@ -24,6 +27,7 @@ impl ReactCodegen {
         motion_names: &FxHashSet<String>,
         name: &str,
         ref_names: &FxHashSet<String>,
+        motion_counter: &mut usize,
     ) {
         w.emit("return (");
         w.indent();
@@ -36,6 +40,7 @@ impl ReactCodegen {
                 store_signal_owners,
                 motion_names,
                 ref_names,
+                motion_counter,
             );
         } else {
             w.emit("<div className={styles.container}>");
@@ -132,13 +137,14 @@ pub(crate) fn view_has_slots(
             }
         }
         ViewTree::Conditional(cond) => {
-            cond.branches
-                .iter()
-                .any(|b| b.body.as_ref().is_some_and(|v| view_has_slots(v, component_map)))
-                || cond
-                    .fallback
+            cond.branches.iter().any(|b| {
+                b.body
                     .as_ref()
                     .is_some_and(|v| view_has_slots(v, component_map))
+            }) || cond
+                .fallback
+                .as_ref()
+                .is_some_and(|v| view_has_slots(v, component_map))
         }
         ViewTree::ListRendering(list) => {
             list.body
@@ -149,9 +155,7 @@ pub(crate) fn view_has_slots(
                     .as_ref()
                     .is_some_and(|v| view_has_slots(v, component_map))
         }
-        ViewTree::Fragment(children) => children
-            .iter()
-            .any(|c| view_has_slots(c, component_map)),
+        ViewTree::Fragment(children) => children.iter().any(|c| view_has_slots(c, component_map)),
         ViewTree::Text(_) | ViewTree::Interpolation(_) => false,
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),

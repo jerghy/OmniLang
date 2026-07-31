@@ -1,242 +1,254 @@
 // ═══════════════════════════════════════════════════════════
-// Trigger effects: @in-view, @scroll, @drag
+// Trigger effects: @in-view, @scroll, @drag (per-ref, no DOM scanning)
 // ═══════════════════════════════════════════════════════════
+//
+// Each effect targets one element ref, created at compile time from the
+// element's trigger + behavior IR. No data-* attributes, no
+// document.querySelectorAll, no MutationObserver.
 
+use crate::codegen::react::expr;
+use crate::codegen::react::motion::resolve_def;
 use crate::codegen::CodeWriter;
 use crate::ir::*;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
+
+/// Find the first trigger of the given kind on an element.
+/// (TriggerKind has no PartialEq derive — compare by discriminant.)
+fn find_trigger(el: &ElementIR, kind: TriggerKind) -> Option<&TriggerIntent> {
+    el.motion_behavior()?
+        .triggers
+        .iter()
+        .find(|t| std::mem::discriminant(&t.kind) == std::mem::discriminant(&kind))
+}
+
+/// `_M["name"]` JS reference for a trigger's named motion (inline bodies are
+/// hoisted to named motions by lowering).
+fn def_ref_js(trigger: &TriggerIntent) -> Option<String> {
+    trigger
+        .motion_ref
+        .as_deref()
+        .map(|name| format!("_M[\"{}\"]", name))
+}
 
 // ══════════════════════════════════════════════════════════════════════════
-// @in-view — IntersectionObserver
+// @in-view — IntersectionObserver per ref
 // ══════════════════════════════════════════════════════════════════════════
 
-/// Emit React useEffect hooks for @in-view triggers using IntersectionObserver.
-pub(crate) fn emit_inview_effects_tsx(w: &mut CodeWriter, node: &ViewTree) {
-    if !has_inview_trigger(node) {
+/// Emit a per-ref useEffect for @in-view triggers using IntersectionObserver.
+/// On first intersection the motion plays and the observer disconnects
+/// (repeat behavior can be re-enabled when the in_view_repeat attr lands).
+pub(super) fn emit_inview_effect_tsx(
+    w: &mut CodeWriter,
+    el: &ElementIR,
+    idx: usize,
+    ref_ident: &str,
+    motion_bodies: &FxHashMap<String, MotionBodyIR>,
+) {
+    let Some(trigger) = find_trigger(el, TriggerKind::InView) else {
+        return;
+    };
+    if resolve_def(trigger, motion_bodies).is_none() {
         return;
     }
+    let Some(def_ref) = def_ref_js(trigger) else {
+        return;
+    };
+    let threshold = el
+        .motion_behavior()
+        .and_then(|m| m.in_view_threshold.as_ref())
+        .map_or_else(
+            || "0".to_string(),
+            |e| expr::format_expr_ir_tsx(e, &FxHashSet::default()),
+        );
 
-    w.emit("// @in-view: IntersectionObserver for entrance animations + MutationObserver");
+    w.emit_fmt(format_args!(
+        "// @in-view: element {} — IntersectionObserver",
+        idx
+    ));
     w.emit("useEffect(() => {");
     w.indent();
-    w.emit("const observers = [];");
-    w.emit("const setupInview = (el) => {");
-    w.indent();
-    w.emit("const threshold = parseFloat(el.getAttribute('data-inview-threshold') || '0');");
+    w.emit_fmt(format_args!("const el = {};", ref_ident));
+    w.emit("if (!el) return;");
+    w.emit_fmt(format_args!("const threshold = {};", threshold));
     w.emit("const observer = new IntersectionObserver((entries) => {");
     w.indent();
-    w.emit("entries.forEach(entry => {");
+    w.emit("if (entries[0].isIntersecting) {");
     w.indent();
-    w.emit("if (entry.isIntersecting) {");
-    w.indent();
-    w.emit("const n = el.getAttribute('data-motion-inview-name');");
-    w.emit("if (n && _M[n]) {");
-    w.indent();
-    w.emit("const {kf, opts} = _M[n];");
-    w.emit("animate(el, kf, opts);");
-    w.dedent();
-    w.emit("} else {");
-    w.indent();
-    w.emit("animate(el, [{offset:0,properties:{opacity:0}}, {offset:1,properties:{opacity:1}}], {duration:300, easing:'ease-out', fill:'both'});");
-    w.dedent();
-    w.emit("}");
+    w.emit_fmt(format_args!(
+        "el.animate({}.kf, {}.opts);",
+        def_ref, def_ref
+    ));
     w.emit("observer.disconnect();");
     w.dedent();
     w.emit("}");
     w.dedent();
-    w.emit("});");
-    w.dedent();
     w.emit("}, { threshold });");
     w.emit("observer.observe(el);");
-    w.emit("observers.push(observer);");
-    w.dedent();
-    w.emit("};");
-    w.emit("document.querySelectorAll('[data-motion-inview]').forEach(setupInview);");
-    w.emit("const obs = new MutationObserver(muts => {");
-    w.indent();
-    w.emit("muts.forEach(mut => {");
-    w.indent();
-    w.emit("mut.addedNodes.forEach(node => {");
-    w.indent();
-    w.emit("if (node.nodeType === 1) {");
-    w.indent();
-    w.emit("if (node.matches && node.matches('[data-motion-inview]')) setupInview(node);");
-    w.emit("if (node.querySelectorAll) node.querySelectorAll('[data-motion-inview]').forEach(setupInview);");
-    w.dedent();
-    w.emit("}");
-    w.dedent();
-    w.emit("});");
-    w.dedent();
-    w.emit("});");
-    w.dedent();
-    w.emit("});");
-    w.emit("obs.observe(document.body, { childList: true, subtree: true });");
-    w.emit("return () => { observers.forEach(o => o.disconnect()); obs.disconnect(); };");
+    w.emit("return () => observer.disconnect();");
     w.dedent();
     w.emit("}, []);");
-}
-
-/// Recursively check if view tree has any @in-view triggers.
-fn has_inview_trigger(node: &ViewTree) -> bool {
-    omnilang_core::codegen::shared::view_tree::view_tree_any(node, |el| {
-        el.motion_behavior().is_some_and(|m| {
-            m.triggers
-                .iter()
-                .any(|t| matches!(t.kind, TriggerKind::InView))
-        })
-    })
+    w.emit("");
 }
 
 // ══════════════════════════════════════════════════════════════════════════
 // @scroll — scroll-driven animation progress
 // ══════════════════════════════════════════════════════════════════════════
 
-/// Emit React useEffect hooks for @scroll triggers using scroll-driven animation progress.
-pub(crate) fn emit_scroll_effects_tsx(w: &mut CodeWriter, node: &ViewTree) {
-    if !has_scroll_trigger(node) {
+/// Emit a per-ref useEffect for @scroll triggers: the motion is created
+/// paused and scrubbed by a window scroll listener using the element's
+/// viewport-relative position (start/end configs from the scroll behavior,
+/// defaults "top 80%" → "bottom 20%").
+pub(super) fn emit_scroll_effect_tsx(
+    w: &mut CodeWriter,
+    el: &ElementIR,
+    idx: usize,
+    ref_ident: &str,
+    motion_bodies: &FxHashMap<String, MotionBodyIR>,
+) {
+    let Some(trigger) = find_trigger(el, TriggerKind::Scroll) else {
+        return;
+    };
+    if resolve_def(trigger, motion_bodies).is_none() {
         return;
     }
+    let Some(def_ref) = def_ref_js(trigger) else {
+        return;
+    };
+    let scroll = el.scroll_behavior();
+    let start_str = scroll.and_then(|s| s.start.as_deref()).unwrap_or("top 80%");
+    let end_str = scroll
+        .and_then(|s| s.end.as_deref())
+        .unwrap_or("bottom 20%");
+    let scrub_js = scroll.and_then(|s| s.scrub.as_ref()).map_or_else(
+        || "0".to_string(),
+        |e| expr::format_expr_ir_tsx(e, &FxHashSet::default()),
+    );
 
-    w.emit("// @scroll: scroll-driven animation progress + MutationObserver");
+    w.emit_fmt(format_args!(
+        "// @scroll: element {} — scroll-driven progress",
+        idx
+    ));
     w.emit("useEffect(() => {");
     w.indent();
-    w.emit("var els = document.querySelectorAll('[data-motion-scroll]');");
-    w.emit("function parseScrollTrigger(cfg, el, vh) {");
+    w.emit_fmt(format_args!("const el = {};", ref_ident));
+    w.emit("if (!el) return;");
+    w.emit_fmt(format_args!(
+        "const anim = el.animate({}.kf, {}.opts);",
+        def_ref, def_ref
+    ));
+    w.emit("anim.pause();");
+    w.emit("const parseScrollTrigger = (cfg) => {");
     w.indent();
     w.emit("if (!cfg || typeof cfg !== 'string') return 0;");
     w.emit("const parts = cfg.split(' ');");
     w.emit("if (parts.length < 2) return 0;");
     w.emit("const edge = parts[0];");
     w.emit("const offset = parts[1];");
+    w.emit("const vh = window.innerHeight;");
     w.emit("const elRect = el.getBoundingClientRect();");
     w.emit("let elPos;");
     w.emit("if (edge === 'top') elPos = elRect.top;");
     w.emit("else if (edge === 'center') elPos = elRect.top + elRect.height / 2;");
     w.emit("else if (edge === 'bottom') elPos = elRect.bottom;");
     w.emit("else elPos = elRect.top;");
-    w.emit("if (offset.endsWith('%')) {");
-    w.indent();
-    w.emit("return window.scrollY + elPos - vh * (parseFloat(offset) / 100);");
-    w.dedent();
-    w.emit("} else if (offset === 'bottom') {");
-    w.indent();
-    w.emit("return window.scrollY + elPos - vh;");
-    w.dedent();
-    w.emit("} else if (offset === 'top') {");
-    w.indent();
-    w.emit("return window.scrollY + elPos;");
-    w.dedent();
-    w.emit("}");
+    w.emit("if (offset.endsWith('%')) return window.scrollY + elPos - vh * (parseFloat(offset) / 100);");
+    w.emit("else if (offset === 'bottom') return window.scrollY + elPos - vh;");
+    w.emit("else if (offset === 'top') return window.scrollY + elPos;");
     w.emit("return window.scrollY + elPos - vh * 0.5;");
     w.dedent();
-    w.emit("}");
-    w.emit("function computeProgress(el) {");
-    w.indent();
-    w.emit("const vh = window.innerHeight;");
-    w.emit("const startCfg = el.getAttribute('data-scroll-start') || 'top 80%';");
-    w.emit("const endCfg = el.getAttribute('data-scroll-end') || 'bottom 20%';");
-    w.emit("const startPos = parseScrollTrigger(startCfg, el, vh);");
-    w.emit("const endPos = parseScrollTrigger(endCfg, el, vh);");
-    w.emit("const raw = (window.scrollY - startPos) / (endPos - startPos);");
-    w.emit("return Math.max(0, Math.min(1, raw));");
-    w.dedent();
-    w.emit("}");
-    w.emit("function scrubValue(el, target) {");
-    w.indent();
-    w.emit("const delay = parseFloat(el.getAttribute('data-scroll-scrub') || '0');");
-    w.emit("if (delay > 0) {");
-    w.indent();
-    w.emit("return (scrubCache.get(el) || 0) + (target - (scrubCache.get(el) || 0)) * Math.min(1, 16.67 / (delay * 1000));");
-    w.dedent();
-    w.emit("}");
-    w.emit("return target;");
-    w.dedent();
-    w.emit("}");
-    w.emit("var scrubCache = new Map();");
+    w.emit("};");
+    w.emit_fmt(format_args!(
+        "const startPos = parseScrollTrigger(\"{}\");",
+        start_str
+    ));
+    w.emit_fmt(format_args!(
+        "const endPos = parseScrollTrigger(\"{}\");",
+        end_str
+    ));
+    w.emit("let scrubCache = 0;");
     w.emit("const handleScroll = () => {");
     w.indent();
-    w.emit("els.forEach(el => {");
-    w.indent();
-    w.emit("const target = computeProgress(el);");
-    w.emit("const scrubbed = scrubValue(el, target);");
-    w.emit("scrubCache.set(el, scrubbed);");
-    w.emit("const anims = el.getAnimations();");
-    w.emit("anims.forEach(a => {");
-    w.indent();
-    w.emit("const duration = a.effect?.getTiming()?.duration || 300;");
-    w.emit("a.currentTime = scrubbed * duration;");
-    w.dedent();
-    w.emit("});");
-    w.dedent();
-    w.emit("});");
+    w.emit("const raw = (window.scrollY - startPos) / (endPos - startPos);");
+    w.emit("const target = Math.max(0, Math.min(1, raw));");
+    w.emit_fmt(format_args!("const scrub = {};", scrub_js));
+    w.emit("const scrubbed = scrub > 0 ? scrubCache + (target - scrubCache) * Math.min(1, 16.67 / (scrub * 1000)) : target;");
+    w.emit("scrubCache = scrubbed;");
+    w.emit("const duration = Number(anim.effect?.getTiming()?.duration) || 300;");
+    w.emit("anim.currentTime = scrubbed * duration;");
     w.dedent();
     w.emit("};");
     w.emit("window.addEventListener('scroll', handleScroll, { passive: true });");
     w.emit("handleScroll();");
-    w.emit("const obs = new MutationObserver(muts => {");
+    w.emit("return () => {");
     w.indent();
-    w.emit("muts.forEach(mut => {");
-    w.indent();
-    w.emit("mut.addedNodes.forEach(node => {");
-    w.indent();
-    w.emit("if (node.nodeType === 1) {");
-    w.indent();
-    w.emit("if (node.matches && node.matches('[data-motion-scroll]')) els = document.querySelectorAll('[data-motion-scroll]');");
-    w.emit("if (node.querySelectorAll && node.querySelectorAll('[data-motion-scroll]').length) els = document.querySelectorAll('[data-motion-scroll]');");
+    w.emit("window.removeEventListener('scroll', handleScroll);");
+    w.emit("anim.cancel();");
     w.dedent();
-    w.emit("}");
-    w.dedent();
-    w.emit("});");
-    w.dedent();
-    w.emit("});");
-    w.dedent();
-    w.emit("});");
-    w.emit("obs.observe(document.body, { childList: true, subtree: true });");
-    w.emit("return () => { window.removeEventListener('scroll', handleScroll); obs.disconnect(); };");
+    w.emit("};");
     w.dedent();
     w.emit("}, []);");
-}
-
-/// Recursively check if view tree has any @scroll triggers.
-fn has_scroll_trigger(node: &ViewTree) -> bool {
-    omnilang_core::codegen::shared::view_tree::view_tree_any(node, |el| {
-        el.motion_behavior().is_some_and(|m| {
-            m.triggers
-                .iter()
-                .any(|t| matches!(t.kind, TriggerKind::Scroll))
-        })
-    })
+    w.emit("");
 }
 
 // ══════════════════════════════════════════════════════════════════════════
 // @drag — gesture-driven animation progress
 // ══════════════════════════════════════════════════════════════════════════
 
-/// Recursively check if view tree has any @drag-horizontal or @drag-vertical triggers.
-fn has_drag_trigger(node: &ViewTree) -> bool {
-    omnilang_core::codegen::shared::view_tree::view_tree_any(node, |el| {
-        el.motion_behavior().is_some_and(|m| {
-            m.triggers.iter().any(|t| {
-                matches!(
-                    t.kind,
-                    TriggerKind::DragHorizontal | TriggerKind::DragVertical
-                )
-            })
-        })
-    })
-}
-
-/// Emit React useEffect hooks for @drag-horizontal / @drag-vertical triggers using pointer events.
-pub(crate) fn emit_drag_effects_tsx(w: &mut CodeWriter, node: &ViewTree) {
-    if !has_drag_trigger(node) {
+/// Emit a per-ref useEffect for @drag-horizontal / @drag-vertical triggers:
+/// the motion is created paused and scrubbed by pointer events on the ref'd
+/// element (distance-to-progress mapping with elastic constraints).
+pub(super) fn emit_drag_effect_tsx(
+    w: &mut CodeWriter,
+    el: &ElementIR,
+    idx: usize,
+    ref_ident: &str,
+    motion_bodies: &FxHashMap<String, MotionBodyIR>,
+) {
+    let Some(trigger) = find_drag_trigger(el) else {
+        return;
+    };
+    if resolve_def(trigger, motion_bodies).is_none() {
         return;
     }
+    let Some(def_ref) = def_ref_js(trigger) else {
+        return;
+    };
+    let axis = if matches!(trigger.kind, TriggerKind::DragHorizontal) {
+        "x"
+    } else {
+        "y"
+    };
+    let drag = el.drag_behavior();
+    let constraints = drag.and_then(|d| d.constraints.as_deref()).unwrap_or("");
+    let elastic_js = drag.and_then(|d| d.elastic.as_ref()).map_or_else(
+        || "0".to_string(),
+        |e| expr::format_expr_ir_tsx(e, &FxHashSet::default()),
+    );
+    let threshold_js = drag.and_then(|d| d.threshold.as_ref()).map_or_else(
+        || "0".to_string(),
+        |e| expr::format_expr_ir_tsx(e, &FxHashSet::default()),
+    );
 
-    w.emit("// @drag-horizontal / @drag-vertical: gesture-driven animation progress + MutationObserver");
+    w.emit_fmt(format_args!(
+        "// @drag-{}: element {} — gesture-driven progress",
+        axis, idx
+    ));
     w.emit("useEffect(() => {");
     w.indent();
-    w.emit("var els = document.querySelectorAll('[data-motion-drag]');");
-    w.emit("");
-    w.emit("function parseConstraint(cfg) {");
+    w.emit_fmt(format_args!("const el = {};", ref_ident));
+    w.emit("if (!el) return;");
+    w.emit_fmt(format_args!(
+        "const anim = el.animate({}.kf, {}.opts);",
+        def_ref, def_ref
+    ));
+    w.emit("anim.pause();");
+    // `: string` prevents literal-type narrowing (TS2367 on `axis === 'x'`)
+    w.emit_fmt(format_args!("const axis: string = \"{}\";", axis));
+    w.emit_fmt(format_args!("const constraints = \"{}\";", constraints));
+    w.emit_fmt(format_args!("const elastic = {};", elastic_js));
+    w.emit_fmt(format_args!("const threshold = {};", threshold_js));
+    w.emit("const parseConstraint = (cfg) => {");
     w.indent();
     w.emit("if (!cfg) return { min: -Infinity, max: Infinity };");
     w.emit("if (cfg === 'parent') {");
@@ -259,20 +271,10 @@ pub(crate) fn emit_drag_effects_tsx(w: &mut CodeWriter, node: &ViewTree) {
     w.emit("});");
     w.emit("return { min, max };");
     w.dedent();
-    w.emit("}");
-    w.emit("");
-    w.emit("function setupDrag(el) {");
-    w.indent();
-    w.emit("const axis = el.getAttribute('data-motion-drag') || 'x';");
-    w.emit("const constraints = el.getAttribute('data-drag-constraints') || '';");
-    w.emit("const elastic = parseFloat(el.getAttribute('data-drag-elastic') || '0');");
-    w.emit("const threshold = parseFloat(el.getAttribute('data-drag-threshold') || '0');");
-    w.emit("const velocityMax = parseFloat(el.getAttribute('data-drag-velocity-max') || '2000');");
+    w.emit("};");
     w.emit("const constraint = parseConstraint(constraints);");
     w.emit("const maxExtent = Math.abs(constraint.max - constraint.min) || 1;");
     w.emit("let startPos = 0, currentDelta = 0, isDragging = false;");
-    w.emit("let lastMoveTime = 0, lastMovePos = 0;");
-    w.emit("");
     w.emit("const onPointerDown = (e) => {");
     w.indent();
     w.emit("isDragging = true;");
@@ -281,21 +283,10 @@ pub(crate) fn emit_drag_effects_tsx(w: &mut CodeWriter, node: &ViewTree) {
     w.emit("el.setPointerCapture(e.pointerId);");
     w.dedent();
     w.emit("};");
-    w.emit("");
     w.emit("const onPointerMove = (e) => {");
     w.indent();
     w.emit("if (!isDragging) return;");
-    w.emit("const now = performance.now();");
     w.emit("const raw = (axis === 'x' ? e.clientX : e.clientY) - startPos;");
-    w.emit("if (lastMoveTime > 0) {");
-    w.indent();
-    w.emit("const dt = now - lastMoveTime;");
-    w.emit("const dp = Math.abs(raw - lastMovePos);");
-    w.emit("if (dt > 0) { const _v = Math.min(velocityMax, dp / dt * 1000); }");
-    w.dedent();
-    w.emit("}");
-    w.emit("lastMoveTime = now;");
-    w.emit("lastMovePos = raw;");
     w.emit("let constrained = raw;");
     w.emit("if (raw < constraint.min) {");
     w.indent();
@@ -308,16 +299,10 @@ pub(crate) fn emit_drag_effects_tsx(w: &mut CodeWriter, node: &ViewTree) {
     w.emit("}");
     w.emit("currentDelta = raw;");
     w.emit("const progress = Math.min(1, Math.abs(constrained) / maxExtent);");
-    w.emit("const anims = el.getAnimations();");
-    w.emit("anims.forEach(a => {");
-    w.indent();
-    w.emit("const duration = a.effect?.getTiming()?.duration || 300;");
-    w.emit("a.currentTime = progress * duration;");
-    w.dedent();
-    w.emit("});");
+    w.emit("const duration = Number(anim.effect?.getTiming()?.duration) || 300;");
+    w.emit("anim.currentTime = progress * duration;");
     w.dedent();
     w.emit("};");
-    w.emit("");
     w.emit("const onPointerUp = (e) => {");
     w.indent();
     w.emit("isDragging = false;");
@@ -325,67 +310,39 @@ pub(crate) fn emit_drag_effects_tsx(w: &mut CodeWriter, node: &ViewTree) {
     w.emit("const progress = Math.abs(currentDelta) / maxExtent;");
     w.emit("if (progress >= threshold && maxExtent > 0) {");
     w.indent();
-    w.emit("const anims = el.getAnimations();");
-    w.emit("anims.forEach(a => a.play());");
+    w.emit("anim.play();");
     w.dedent();
     w.emit("} else {");
     w.indent();
-    w.emit("const anims = el.getAnimations();");
-    w.emit("anims.forEach(a => a.reverse());");
+    w.emit("anim.reverse();");
     w.dedent();
     w.emit("}");
     w.dedent();
     w.emit("};");
-    w.emit("");
     w.emit("el.addEventListener('pointerdown', onPointerDown);");
     w.emit("el.addEventListener('pointermove', onPointerMove);");
     w.emit("el.addEventListener('pointerup', onPointerUp);");
     w.emit("el.addEventListener('pointercancel', onPointerUp);");
-    w.emit("");
-    w.emit("// Cleanup");
-    w.emit("el._dragCleanup = () => {");
+    w.emit("return () => {");
     w.indent();
     w.emit("el.removeEventListener('pointerdown', onPointerDown);");
     w.emit("el.removeEventListener('pointermove', onPointerMove);");
     w.emit("el.removeEventListener('pointerup', onPointerUp);");
     w.emit("el.removeEventListener('pointercancel', onPointerUp);");
-    w.dedent();
-    w.emit("};");
-    w.dedent();
-    w.emit("}");
-    w.emit("");
-    w.emit("els.forEach(setupDrag);");
-    w.emit("const obs = new MutationObserver(muts => {");
-    w.indent();
-    w.emit("muts.forEach(mut => {");
-    w.indent();
-    w.emit("mut.addedNodes.forEach(node => {");
-    w.indent();
-    w.emit("if (node.nodeType === 1) {");
-    w.indent();
-    w.emit("if (node.matches && node.matches('[data-motion-drag]')) { setupDrag(node); els = document.querySelectorAll('[data-motion-drag]'); }");
-    w.emit("if (node.querySelectorAll) node.querySelectorAll('[data-motion-drag]').forEach(n => { setupDrag(n); });");
-    w.emit("if (node.querySelectorAll && node.querySelectorAll('[data-motion-drag]').length) els = document.querySelectorAll('[data-motion-drag]');");
-    w.dedent();
-    w.emit("}");
-    w.dedent();
-    w.emit("});");
-    w.dedent();
-    w.emit("});");
-    w.dedent();
-    w.emit("});");
-    w.emit("obs.observe(document.body, { childList: true, subtree: true });");
-    w.emit("");
-    w.emit("return () => {");
-    w.indent();
-    w.emit("els.forEach(el => {");
-    w.indent();
-    w.emit("if (el._dragCleanup) el._dragCleanup();");
-    w.dedent();
-    w.emit("});");
-    w.emit("obs.disconnect();");
+    w.emit("anim.cancel();");
     w.dedent();
     w.emit("};");
     w.dedent();
     w.emit("}, []);");
+    w.emit("");
+}
+
+/// Find the first drag trigger on an element (horizontal or vertical).
+fn find_drag_trigger(el: &ElementIR) -> Option<&TriggerIntent> {
+    el.motion_behavior()?.triggers.iter().find(|t| {
+        matches!(
+            t.kind,
+            TriggerKind::DragHorizontal | TriggerKind::DragVertical
+        )
+    })
 }

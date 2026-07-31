@@ -1,49 +1,70 @@
 // ═══════════════════════════════════════════════════════════
-// Keyframe formatting helpers for @omni/animation
+// Keyframe formatting helpers — native WAAPI el.animate()
 // ═══════════════════════════════════════════════════════════
 
 use crate::codegen::react::expr;
+use crate::codegen::{format_json_value, JSON_REACT};
 use crate::ir::*;
 use rustc_hash::FxHashSet;
 
-/// Format a MotionBodyIR into JS: `{kf:{...},opts:{...}}` for use with animate().
+/// Format a MotionBodyIR into JS: `{kf:[...],opts:{...}}` for use with the
+/// native WAAPI `el.animate(kf, opts)`. Keyframe stops are converted from
+/// semantic properties to WAAPI property names:
+///
+/// - `opacity` → `opacity`
+/// - `scale`/`scaleX`/`scaleY`/`translateX`/`translateY`/`translateZ`/
+///   `rotate`/`rotateX`/`rotateY`/`rotateZ`/`skewX`/`skewY` → `transform`
+///   (composed into a single transform string)
+/// - `backgroundColor`/`color`/`width`/`height` → passed through as-is
 pub(super) fn format_motion_to_animate(motion: &MotionBodyIR) -> String {
-    match motion {
-        kf => {
-            let kf_items = format_keyframe_stops(kf);
-            let opts = format_animate_options(&kf.over, &kf.ease, &kf.playback);
-            format!("{{kf:{kf},opts:{opts}}}", kf = kf_items, opts = opts)
-        }
-    }
+    let kf_items = format_waapi_keyframes(motion);
+    let opts = format_animate_options(&motion.over, &motion.ease, &motion.playback);
+    // `as KeyframeAnimationOptions` — the DOM type for el.animate() options;
+    // without it TS widens `fill:"forwards"` to `string` and rejects the call
+    // (KeyframeAnimationOptions.fill is a narrow union).
+    format!(
+        "{{kf:{kf},opts:{opts} as KeyframeAnimationOptions}}",
+        kf = kf_items,
+        opts = opts
+    )
 }
 
-/// Format keyframe stops into the KeyframeStop[] format (not WAAPI Keyframe[]).
-fn format_keyframe_stops(kf: &KeyframeIR) -> String {
+/// Transform-family semantic properties, in canonical composition order.
+/// FxHashMap iteration order is nondeterministic, so transform parts are
+/// always emitted in this fixed order for deterministic output.
+const TRANSFORM_PROPS: [&str; 12] = [
+    "translateX",
+    "translateY",
+    "translateZ",
+    "scale",
+    "scaleX",
+    "scaleY",
+    "rotate",
+    "rotateX",
+    "rotateY",
+    "rotateZ",
+    "skewX",
+    "skewY",
+];
+
+/// Format keyframe stops into WAAPI `Keyframe[]` format.
+///
+/// Each stop becomes a flat keyframe object: `{offset, opacity, transform}`
+/// (one `transform` entry per stop, composed from all transform-family
+/// properties present in the stop).
+fn format_waapi_keyframes(kf: &KeyframeIR) -> String {
     let mut items: Vec<String> = Vec::new();
 
     if kf.stops.len() == 1 {
         let stop = &kf.stops[0];
-        let mut prop_pairs: Vec<String> = Vec::new();
-        for (prop, value) in &stop.properties {
-            let val_str = expr::format_expr_ir_tsx(value, &FxHashSet::default());
-            prop_pairs.push(format!("\"{}\":{}", prop, val_str));
-        }
         if stop.position >= 0.5 {
             // to-only: synthetic 0% keyframe (start from current state)
-            items.push("{offset:0,properties:{}}".to_string());
-            items.push(format!(
-                "{{offset:{},properties:{{{}}}}}",
-                stop.position,
-                prop_pairs.join(",")
-            ));
+            items.push("{offset:0}".to_string());
+            items.push(format_waapi_stop(stop));
         } else {
             // from-only: synthetic 100% keyframe (return to current state)
-            items.push(format!(
-                "{{offset:{},properties:{{{}}}}}",
-                stop.position,
-                prop_pairs.join(",")
-            ));
-            items.push("{offset:1,properties:{}}".to_string());
+            items.push(format_waapi_stop(stop));
+            items.push("{offset:1}".to_string());
         }
         return format!("[{}]", items.join(","));
     }
@@ -57,22 +78,121 @@ fn format_keyframe_stops(kf: &KeyframeIR) -> String {
     });
 
     for stop in &sorted_stops {
-        let mut prop_pairs: Vec<String> = Vec::new();
-        for (prop, value) in &stop.properties {
-            let val_str = expr::format_expr_ir_tsx(value, &FxHashSet::default());
-            prop_pairs.push(format!("\"{}\":{}", prop, val_str));
-        }
-        items.push(format!(
-            "{{offset:{},properties:{{{}}}}}",
-            stop.position,
-            prop_pairs.join(",")
-        ));
+        items.push(format_waapi_stop(stop));
     }
 
     format!("[{}]", items.join(","))
 }
 
-/// Format motion options for animate() call.
+/// Format one keyframe stop as a flat WAAPI keyframe object.
+fn format_waapi_stop(stop: &KeyframeStopIR) -> String {
+    let mut entries: Vec<String> = vec![format!("offset:{}", stop.position)];
+
+    // Transform-family props → one composed `transform` string.
+    // Plain props are emitted sorted for deterministic output.
+    let mut transform_parts: Vec<String> = Vec::new();
+    let mut plain_pairs: Vec<(&String, &ExprIR)> = Vec::new();
+    for (prop, value) in &stop.properties {
+        if TRANSFORM_PROPS.contains(&prop.as_str()) {
+            transform_parts.push(format_transform_part(prop, value));
+        } else {
+            plain_pairs.push((prop, value));
+        }
+    }
+    if !transform_parts.is_empty() {
+        entries.push(format_transform_entry(&transform_parts));
+    }
+    plain_pairs.sort_by(|a, b| a.0.cmp(b.0));
+    for (prop, value) in plain_pairs {
+        let val_str = expr::format_expr_ir_tsx(value, &FxHashSet::default());
+        entries.push(format!("{}:{}", prop, val_str));
+    }
+
+    // Per-keyframe easing (WAAPI-native)
+    if let Some(ref ease) = stop.ease {
+        entries.push(format!("easing:{}", format_easing_to_js(ease)));
+    }
+
+    format!("{{{}}}", entries.join(","))
+}
+
+/// Extract a literal number from an ExprIR — including unary negation
+/// (`-5` lowers to `UnaryOpExpr(Neg, 5)`). Returns the JSON-formatted number.
+fn literal_number_string(value: &ExprIR) -> Option<String> {
+    match value {
+        ExprIR::LiteralExpr { value: v } if v.is_number() => {
+            Some(format_json_value(v, &JSON_REACT))
+        }
+        ExprIR::UnaryOpExpr {
+            op: UnaryOpIR::Neg,
+            operand,
+        } => {
+            if let ExprIR::LiteralExpr { value: v } = operand.as_ref() {
+                if v.is_number() {
+                    return Some(format!("-{}", format_json_value(v, &JSON_REACT)));
+                }
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
+/// Format one transform component, e.g. `translateY(20px)`, `scale(1.05)`,
+/// `rotate(45deg)`. Literal values are inlined; expressions are embedded
+/// with template-literal `${...}` escapes.
+fn format_transform_part(prop: &str, value: &ExprIR) -> String {
+    // `translate*` values are lengths (px unless the source said otherwise);
+    // `rotate*`/`skew*` are angles (deg); `scale*` are unitless factors.
+    let unit = match prop {
+        "translateX" | "translateY" | "translateZ" => "px",
+        "rotate" | "rotateX" | "rotateY" | "rotateZ" | "skewX" | "skewY" => "deg",
+        _ => "",
+    };
+    if let Some(num) = literal_number_string(value) {
+        return format!("{}({}{})", prop, num, unit);
+    }
+    match value {
+        ExprIR::LiteralExpr { value: v } => {
+            if let Some(s) = v.as_str() {
+                // Literal string: already carries its own unit, if any
+                return format!("{}({})", prop, s);
+            }
+            // Non-numeric non-string literal (bool/null) — emit as-is
+            let js = expr::format_expr_ir_tsx(value, &FxHashSet::default());
+            format!("{}({})", prop, js)
+        }
+        _ => {
+            // Expression — embed as a template-literal escape so units
+            // compose: `translateX(${dx}px)`. The entry wrapper adds the
+            // backticks. Built with push_str to avoid format! brace escapes.
+            let js = expr::format_expr_ir_tsx(value, &FxHashSet::default());
+            let mut s = String::new();
+            s.push_str(prop);
+            s.push('(');
+            s.push_str("${");
+            s.push_str(&js);
+            s.push('}');
+            s.push_str(unit);
+            s.push(')');
+            s
+        }
+    }
+}
+
+/// Join transform parts into a single `transform` entry. If every part is a
+/// plain literal, emit a plain quoted string; otherwise emit a template
+/// literal so `${expr}` escapes compose with literal parts.
+fn format_transform_entry(parts: &[String]) -> String {
+    let is_template = parts.iter().any(|p| p.contains("${"));
+    if is_template {
+        format!("transform:`{}`", parts.join(" "))
+    } else {
+        format!("transform:\"{}\"", parts.join(" "))
+    }
+}
+
+/// Format motion options for the native WAAPI animate() call.
 fn format_animate_options(over: &ExprIR, ease: &Option<EasingIR>, playback: &PlaybackIR) -> String {
     let mut opts: Vec<String> = Vec::new();
     let dur = expr::format_expr_ir_tsx(over, &FxHashSet::default());

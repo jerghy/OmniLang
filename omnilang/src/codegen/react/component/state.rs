@@ -667,12 +667,16 @@ fn collect_ref_tags_inner(node: &ViewTree, acc: &mut FxHashMap<String, String>) 
 /// Maps known HTML element tags to their TypeScript types (e.g., input→HTMLInputElement).
 /// Falls back to HTMLElement for unknown or missing tags.
 /// Called after gen_state_hooks and before gen_effects in gen_component_tsx.
+///
+/// `motion_internal_refs` are synthesized `__el_N` refs for motion elements
+/// without a user `@ref` — (ref_name, tag) pairs in DFS pre-order.
 pub(super) fn gen_ref_hooks(
     w: &mut CodeWriter,
     comp: &ComponentIR,
     ref_tags: &FxHashMap<String, String>,
+    motion_internal_refs: &[(String, String)],
 ) {
-    if comp.refs.is_empty() {
+    if comp.refs.is_empty() && motion_internal_refs.is_empty() {
         return;
     }
     for ref_decl in &comp.refs {
@@ -688,29 +692,74 @@ pub(super) fn gen_ref_hooks(
             ref_decl.name, ts_type
         ));
     }
+    for (ref_name, tag) in motion_internal_refs {
+        let ts_type = ref_element_type(Some(tag));
+        w.emit_fmt(format_args!(
+            "const {}Ref = useRef<{}>(null);",
+            ref_name, ts_type
+        ));
+    }
     w.emit("");
 }
 
 /// Map an OmniView HTML element tag to its TypeScript element type.
+///
+/// The mapping must be accurate enough that `useRef<T>` is assignable to the
+/// JSX `ref` prop — React refs are invariant in `current`, so a generic
+/// `HTMLElement` fallback is NOT assignable to e.g. `Ref<HTMLHeadingElement>`.
 fn ref_element_type(tag: Option<&str>) -> &str {
     match tag {
         Some("input") => "HTMLInputElement",
         Some("textarea") => "HTMLTextAreaElement",
         Some("select") => "HTMLSelectElement",
         Some("option") => "HTMLOptionElement",
+        Some("optgroup") => "HTMLOptGroupElement",
         Some("button") => "HTMLButtonElement",
         Some("form") => "HTMLFormElement",
+        Some("fieldset") => "HTMLFieldSetElement",
+        Some("legend") => "HTMLLegendElement",
+        Some("label") => "HTMLLabelElement",
+        Some("output") => "HTMLOutputElement",
         Some("img") | Some("image") => "HTMLImageElement",
         Some("video") => "HTMLVideoElement",
         Some("audio") => "HTMLAudioElement",
         Some("canvas") => "HTMLCanvasElement",
         Some("a") | Some("link") => "HTMLAnchorElement",
         Some("table") => "HTMLTableElement",
+        Some("thead") | Some("tbody") | Some("tfoot") => "HTMLTableSectionElement",
+        Some("tr") => "HTMLTableRowElement",
+        Some("td") | Some("th") => "HTMLTableCellElement",
+        Some("caption") => "HTMLTableCaptionElement",
         Some("progress") => "HTMLProgressElement",
         Some("meter") => "HTMLMeterElement",
         Some("svg") => "SVGSVGElement",
         Some("div") | Some("section") | Some("article") | Some("nav") | Some("header")
         | Some("footer") | Some("main") | Some("aside") => "HTMLDivElement",
+        Some("h1") | Some("h2") | Some("h3") | Some("h4") | Some("h5") | Some("h6") => {
+            "HTMLHeadingElement"
+        }
+        Some("p") => "HTMLParagraphElement",
+        Some("span") => "HTMLSpanElement",
+        Some("ul") => "HTMLUListElement",
+        Some("ol") => "HTMLOListElement",
+        Some("li") => "HTMLLIElement",
+        Some("dl") => "HTMLDListElement",
+        Some("blockquote") | Some("q") => "HTMLQuoteElement",
+        Some("pre") => "HTMLPreElement",
+        Some("br") => "HTMLBRElement",
+        Some("hr") => "HTMLHRElement",
+        Some("time") => "HTMLTimeElement",
+        Some("iframe") => "HTMLIFrameElement",
+        Some("details") => "HTMLDetailsElement",
+        Some("dialog") => "HTMLDialogElement",
+        Some("menu") => "HTMLMenuElement",
+        Some("map") => "HTMLMapElement",
+        Some("area") => "HTMLAreaElement",
+        Some("picture") => "HTMLPictureElement",
+        Some("source") => "HTMLSourceElement",
+        Some("track") => "HTMLTrackElement",
+        Some("object") => "HTMLObjectElement",
+        Some("embed") => "HTMLEmbedElement",
         // For unknown tags, use HTMLElement (generic) — better than HTMLDivElement
         _ => "HTMLElement",
     }

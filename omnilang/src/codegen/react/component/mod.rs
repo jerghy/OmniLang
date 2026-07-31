@@ -45,6 +45,24 @@ impl ReactCodegen {
             .as_ref()
             .is_some_and(state::view_has_semantic_bindings);
 
+        // Motion elements without a user @ref get synthesized `__el_N` refs.
+        // Collected here (DFS pre-order over motion elements) so useRef
+        // imports and declarations exist for them; the JSX emitter and the
+        // motion effect emitter derive the same names from the same order.
+        let mut motion_internal_refs: Vec<(String, String)> = Vec::new(); // (ref_name, tag)
+        if let Some(ref view) = comp.view {
+            super::motion::walk_motion_elements(view, component_map, |el, idx| {
+                if el.ref_binding.is_none() {
+                    motion_internal_refs.push((format!("__el_{}", idx), el.tag.clone()));
+                }
+            });
+        }
+        // @hover/@press emit useCallback handlers wired into the JSX
+        let has_interactive_motion = comp
+            .view
+            .as_ref()
+            .is_some_and(|v| super::motion::view_has_interactive_triggers(v, component_map));
+
         // Scan all code paths for signal mutations and function calls
         let called_fns = function::collect_called_local_fns(comp);
         let mutated_signals = state::collect_signal_mutations(comp, &called_fns);
@@ -92,15 +110,15 @@ impl ReactCodegen {
         if has_computeds {
             hooks.push("useMemo".to_string());
         }
-        if has_fn_form_computed {
+        if has_fn_form_computed || has_interactive_motion {
             hooks.push("useCallback".to_string());
         }
         if has_effects_or_lifecycles || has_motion || has_semantic_bindings {
             hooks.push("useEffect".to_string());
         }
 
-        // Ref declarations → useRef
-        let has_refs = !comp.refs.is_empty();
+        // Ref declarations → useRef (user @refs + synthesized motion refs)
+        let has_refs = !comp.refs.is_empty() || !motion_internal_refs.is_empty();
         if has_refs {
             hooks.push("useRef".to_string());
         }
@@ -202,7 +220,6 @@ impl ReactCodegen {
             &used_store_refs,
             &hooks,
             has_styles,
-            has_motion,
         );
         comp_imports.emit(&mut w, name, comp, has_props);
 
@@ -345,7 +362,7 @@ impl ReactCodegen {
         // State hooks + effects
         let fn_names: FxHashSet<String> = comp.fns.iter().map(|f| f.name.clone()).collect();
         self.gen_state_hooks(&mut w, comp, &read_signals, &mutated_signals, &fn_names);
-        state::gen_ref_hooks(&mut w, comp, &ref_tags);
+        state::gen_ref_hooks(&mut w, comp, &ref_tags, &motion_internal_refs);
         self.gen_effects(
             &mut w,
             comp,
@@ -386,14 +403,15 @@ impl ReactCodegen {
             &ref_names,
         );
 
-        // Motion animation effects
+        // Motion animation effects — per-ref native effects (all triggers)
         if let Some(ref view) = comp.view {
-            motion_effects::gen_motion_effects(&mut w, view, ir);
+            motion_effects::gen_motion_effects(&mut w, view, ir, component_map);
         }
 
         w.emit("");
 
         // Render return (JSX view tree)
+        let mut motion_counter = 0usize;
         self.gen_jsx_return(
             &mut w,
             comp,
@@ -403,6 +421,7 @@ impl ReactCodegen {
             &motion_names,
             name,
             &ref_names,
+            &mut motion_counter,
         );
         w.dedent();
         w.emit("}");

@@ -18,8 +18,6 @@ pub(super) struct ComponentImports {
     pub hooks: Vec<String>,
     /// Whether the component has styles that need `./name.module.css`.
     pub has_styles: bool,
-    /// Whether the component needs `import { animate } from "@omni/animation"`.
-    pub has_motion: bool,
     /// Pre-formatted import lines for each used store hook.
     pub store_hook_lines: Vec<String>,
     /// Pre-formatted import lines for each used child component.
@@ -41,7 +39,6 @@ pub(super) fn collect_component_imports(
     used_store_refs: &FxHashSet<String>,
     hooks: &[String],
     has_styles: bool,
-    has_motion: bool,
 ) -> ComponentImports {
     // ── Store hook imports ──────────────────────────────────
     let all_stores = ir.all_stores();
@@ -108,7 +105,6 @@ pub(super) fn collect_component_imports(
     ComponentImports {
         hooks,
         has_styles,
-        has_motion,
         store_hook_lines,
         child_import_lines,
         slot_infos,
@@ -121,12 +117,11 @@ impl ComponentImports {
     /// Order of emission:
     /// 1. React hooks
     /// 2. `./name.module.css` (styles)
-    /// 3. `@omni/animation`
-    /// 4. Props interface (`{name}Props`)
-    /// 5. Store hook imports
-    /// 6. Child component imports
+    /// 3. Props interface (`{name}Props`)
+    /// 4. Store hook imports
+    /// 5. Child component imports
     pub(super) fn emit(&self, w: &mut CodeWriter, name: &str, comp: &ComponentIR, has_props: bool) {
-        // ── 1-3: React / styles / animate imports ───────────
+        // ── 1-2: React / styles imports ─────────────────────
         if !self.hooks.is_empty() {
             w.emit_fmt(format_args!(
                 "import React, {{ {} }} from 'react';",
@@ -136,10 +131,7 @@ impl ComponentImports {
         if self.has_styles {
             w.emit_fmt(format_args!("import styles from './{}.module.css';", name));
         }
-        if self.has_motion {
-            w.emit("import { animate } from \"@omni/animation\";");
-        }
-        if !self.hooks.is_empty() || self.has_styles || self.has_motion {
+        if !self.hooks.is_empty() || self.has_styles {
             w.emit("");
         }
 

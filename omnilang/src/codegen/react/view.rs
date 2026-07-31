@@ -13,10 +13,10 @@ use super::component::jsx::collect_view_slots;
 use super::expr::{format_expr_ir_tsx, generate_statement_tsx};
 use super::utils::{emit_event_object_react, to_jsx_attr, to_react_event, to_react_tag};
 use crate::codegen::omniview::is_dangerous_url;
-use crate::codegen::{format_json_value, JSON_REACT};
 use omnilang_core::codegen::sanitize::sanitize_css_value;
 use std::fmt::Write;
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn gen_view_node_tsx(
     w: &mut CodeWriter,
     node: &ViewTree,
@@ -25,6 +25,7 @@ pub(super) fn gen_view_node_tsx(
     store_signal_owners: &FxHashMap<String, String>,
     motion_names: &FxHashSet<String>,
     ref_names: &FxHashSet<String>,
+    motion_counter: &mut usize,
 ) {
     match node {
         ViewTree::Element(el) => {
@@ -42,6 +43,7 @@ pub(super) fn gen_view_node_tsx(
                         store_signal_owners,
                         motion_names,
                         ref_names,
+                        motion_counter,
                     );
                 }
                 return;
@@ -124,6 +126,7 @@ pub(super) fn gen_view_node_tsx(
                         store_signal_owners,
                         motion_names,
                         ref_names,
+                        motion_counter,
                     );
                     let child_jsx = child_w.into_string();
                     let trimmed = child_jsx.trim();
@@ -146,6 +149,7 @@ pub(super) fn gen_view_node_tsx(
                             store_signal_owners,
                             motion_names,
                             ref_names,
+                            motion_counter,
                         );
                     }
                     w.dedent();
@@ -249,133 +253,31 @@ pub(super) fn gen_view_node_tsx(
                 }
             }
 
-            // Motion triggers — add data-motion-enter for @enter effects, inline handlers for interactive
-
-            /// Emit a motion data attribute value. Literal numbers become quoted strings
-            /// (parseFloat-compatible); expression values become JSX `{expr}` interpolation.
-            fn emit_motion_data_attr(
-                attrs: &mut Vec<String>,
-                attr_name: &str,
-                expr: &ExprIR,
-                ref_names: &FxHashSet<String>,
-            ) {
-                match expr {
-                    ExprIR::LiteralExpr { value } if value.is_number() => {
-                        let s = format_json_value(value, &JSON_REACT);
-                        attrs.push(format!("{}=\"{}\"", attr_name, s));
-                    }
-                    _ => {
-                        let js = format_expr_ir_tsx(expr, ref_names);
-                        attrs.push(format!("{}={{{}}}", attr_name, js));
-                    }
+            // Motion triggers — per-element ref + JSX handler wiring. The
+            // effects themselves live in motion_effects.rs; this site only:
+            // 1. assigns the element's motion ref (user @ref, or synthesized
+            //    `__el_N` — see motion::classify_motion_el), and
+            // 2. wires @hover/@press to useCallback handlers emitted there.
+            let motion_info = super::motion::classify_motion_el(el, component_map, motion_counter);
+            if let Some((ref motion_ref_name, motion_idx)) = &motion_info {
+                if el.ref_binding.is_none() {
+                    // Synthesized refs are declared as `const __el_NRef = useRef(...)`
+                    attrs.push(format!("ref={{{}Ref}}", motion_ref_name));
                 }
-            }
-
-            for trigger in el
-                .motion_behavior()
-                .map_or(&[] as &[TriggerIntent], |m| &m.triggers)
-            {
-                match trigger.kind {
-                    TriggerKind::Enter => {
-                        attrs.push("data-motion-enter=\"true\"".into());
-                        if let Some(ref motion_name) = trigger.motion_ref {
-                            attrs.push(format!("data-motion-name=\"{}\"", motion_name));
+                for trigger in el
+                    .motion_behavior()
+                    .map_or(&[] as &[TriggerIntent], |m| &m.triggers)
+                {
+                    match trigger.kind {
+                        TriggerKind::Hover => {
+                            attrs.push(format!("onMouseEnter={{handleEnter_{}}}", motion_idx));
+                            attrs.push(format!("onMouseLeave={{handleLeave_{}}}", motion_idx));
                         }
-                    }
-                    TriggerKind::Hover => {
-                        attrs.push("data-motion-hover=\"true\"".into());
-                        if let Some(ref motion_name) = trigger.motion_ref {
-                            attrs.push(format!("data-motion-hover-name=\"{}\"", motion_name));
+                        TriggerKind::Press => {
+                            attrs.push(format!("onPointerDown={{handleDown_{}}}", motion_idx));
+                            attrs.push(format!("onPointerUp={{handleUp_{}}}", motion_idx));
                         }
-                    }
-                    TriggerKind::Press => {
-                        attrs.push("data-motion-press=\"true\"".into());
-                        if let Some(ref motion_name) = trigger.motion_ref {
-                            attrs.push(format!("data-motion-press-name=\"{}\"", motion_name));
-                        }
-                    }
-                    TriggerKind::Focus => {
-                        attrs.push("data-motion-focus=\"true\"".into());
-                        if let Some(ref motion_name) = trigger.motion_ref {
-                            attrs.push(format!("data-motion-focus-name=\"{}\"", motion_name));
-                        }
-                    }
-                    TriggerKind::InView => {
-                        match el
-                            .motion_behavior()
-                            .and_then(|m| m.in_view_threshold.as_ref())
-                        {
-                            Some(expr) => emit_motion_data_attr(
-                                &mut attrs,
-                                "data-inview-threshold",
-                                expr,
-                                ref_names,
-                            ),
-                            None => attrs.push("data-inview-threshold=\"0\"".into()),
-                        };
-                        attrs.push("data-motion-inview=\"true\"".into());
-                        if let Some(ref motion_name) = trigger.motion_ref {
-                            attrs.push(format!("data-motion-inview-name=\"{}\"", motion_name));
-                        }
-                    }
-                    TriggerKind::Scroll => {
-                        let scroll_start_str = el
-                            .scroll_behavior()
-                            .and_then(|s| s.start.as_deref())
-                            .unwrap_or("top 80%");
-                        let scroll_end_str = el
-                            .scroll_behavior()
-                            .and_then(|s| s.end.as_deref())
-                            .unwrap_or("bottom 20%");
-                        attrs.push("data-motion-scroll=\"true\"".into());
-                        attrs.push(format!("data-scroll-start=\"{}\"", scroll_start_str));
-                        attrs.push(format!("data-scroll-end=\"{}\"", scroll_end_str));
-                        match el.scroll_behavior().and_then(|s| s.scrub.as_ref()) {
-                            Some(expr) => emit_motion_data_attr(
-                                &mut attrs,
-                                "data-scroll-scrub",
-                                expr,
-                                ref_names,
-                            ),
-                            None => attrs.push("data-scroll-scrub=\"0\"".into()),
-                        };
-                    }
-                    TriggerKind::DragHorizontal | TriggerKind::DragVertical => {
-                        let is_horizontal = matches!(trigger.kind, TriggerKind::DragHorizontal);
-                        let axis_str = if is_horizontal { "x" } else { "y" };
-                        let constraints_str = el
-                            .drag_behavior()
-                            .and_then(|d| d.constraints.as_deref())
-                            .unwrap_or("");
-                        attrs.push(format!("data-motion-drag=\"{}\"", axis_str));
-                        attrs.push(format!("data-drag-constraints=\"{}\"", constraints_str));
-                        match el.drag_behavior().and_then(|d| d.elastic.as_ref()) {
-                            Some(expr) => emit_motion_data_attr(
-                                &mut attrs,
-                                "data-drag-elastic",
-                                expr,
-                                ref_names,
-                            ),
-                            None => attrs.push("data-drag-elastic=\"0\"".into()),
-                        };
-                        match el.drag_behavior().and_then(|d| d.threshold.as_ref()) {
-                            Some(expr) => emit_motion_data_attr(
-                                &mut attrs,
-                                "data-drag-threshold",
-                                expr,
-                                ref_names,
-                            ),
-                            None => attrs.push("data-drag-threshold=\"0\"".into()),
-                        };
-                        match el.drag_behavior().and_then(|d| d.velocity_max.as_ref()) {
-                            Some(expr) => emit_motion_data_attr(
-                                &mut attrs,
-                                "data-drag-velocity-max",
-                                expr,
-                                ref_names,
-                            ),
-                            None => attrs.push("data-drag-velocity-max=\"2000\"".into()),
-                        };
+                        _ => {}
                     }
                 }
             }
@@ -683,6 +585,7 @@ pub(super) fn gen_view_node_tsx(
                     store_signal_owners,
                     motion_names,
                     ref_names,
+                    motion_counter,
                 );
             }
             w.dedent();
@@ -704,6 +607,7 @@ pub(super) fn gen_view_node_tsx(
                         store_signal_owners,
                         motion_names,
                         ref_names,
+                        motion_counter,
                     );
                 }
                 return;
@@ -725,6 +629,7 @@ pub(super) fn gen_view_node_tsx(
                         store_signal_owners,
                         motion_names,
                         ref_names,
+                        motion_counter,
                     );
                 }
                 w.dedent();
@@ -754,6 +659,7 @@ pub(super) fn gen_view_node_tsx(
                         store_signal_owners,
                         motion_names,
                         ref_names,
+                        motion_counter,
                     );
                 }
                 w.dedent();
@@ -774,6 +680,7 @@ pub(super) fn gen_view_node_tsx(
                             store_signal_owners,
                             motion_names,
                             ref_names,
+                            motion_counter,
                         );
                     }
                     w.dedent();
@@ -791,6 +698,7 @@ pub(super) fn gen_view_node_tsx(
                         store_signal_owners,
                         motion_names,
                         ref_names,
+                        motion_counter,
                     );
                     w.dedent();
                     w.emit(")");
@@ -811,6 +719,7 @@ pub(super) fn gen_view_node_tsx(
                     store_signal_owners,
                     motion_names,
                     ref_names,
+                    motion_counter,
                 );
             }
 
@@ -845,6 +754,7 @@ pub(super) fn gen_view_node_tsx(
                         store_signal_owners,
                         motion_names,
                         ref_names,
+                        motion_counter,
                     );
                 }
                 w.dedent();
@@ -872,6 +782,7 @@ pub(super) fn gen_view_node_tsx(
                     store_signal_owners,
                     motion_names,
                     ref_names,
+                    motion_counter,
                 );
             }
             w.dedent();
@@ -924,6 +835,7 @@ pub(super) fn gen_view_node_tsx(
                     store_signal_owners,
                     motion_names,
                     ref_names,
+                    motion_counter,
                 );
             }
         }
@@ -948,6 +860,7 @@ pub(super) fn gen_view_node_tsx(
                     store_signal_owners,
                     motion_names,
                     ref_names,
+                    motion_counter,
                 );
                 w.dedent();
                 w.emit(")}");
@@ -972,6 +885,7 @@ fn gen_branch_body_tsx(
     store_signal_owners: &FxHashMap<String, String>,
     motion_names: &FxHashSet<String>,
     ref_names: &FxHashSet<String>,
+    motion_counter: &mut usize,
 ) {
     let is_multi = match body {
         // Lowering wraps multi-node bodies in an element with tag "fragment";
@@ -992,6 +906,7 @@ fn gen_branch_body_tsx(
         store_signal_owners,
         motion_names,
         ref_names,
+        motion_counter,
     );
     if is_multi {
         w.dedent();
@@ -1020,6 +935,7 @@ fn child_slot_name(node: &ViewTree) -> Option<String> {
 /// content). Consumer-position `@slot name { ... }` directives render their
 /// fallback — that IS the projected content — instead of the slot placeholder.
 /// Elements get the `slot` attribute stripped so it never reaches the DOM.
+#[allow(clippy::too_many_arguments)]
 fn gen_consumer_child_tsx(
     w: &mut CodeWriter,
     child: &ViewTree,
@@ -1028,6 +944,7 @@ fn gen_consumer_child_tsx(
     store_signal_owners: &FxHashMap<String, String>,
     motion_names: &FxHashSet<String>,
     ref_names: &FxHashSet<String>,
+    motion_counter: &mut usize,
 ) {
     match child {
         ViewTree::Slot { fallback, .. } => {
@@ -1039,6 +956,7 @@ fn gen_consumer_child_tsx(
                 store_signal_owners,
                 motion_names,
                 ref_names,
+                motion_counter,
             );
         }
         _ => {
@@ -1050,6 +968,7 @@ fn gen_consumer_child_tsx(
                 store_signal_owners,
                 motion_names,
                 ref_names,
+                motion_counter,
             );
         }
     }

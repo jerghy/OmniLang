@@ -89,6 +89,7 @@ pub(super) fn at_keyword_to_token(kw: &str) -> Option<TokenKind> {
         "@enter" => Some(TokenKind::AtEnter),
         "@hover" => Some(TokenKind::AtHover),
         "@press" => Some(TokenKind::AtPress),
+        "@focus" => Some(TokenKind::AtFocus),
         "@in-view" => Some(TokenKind::AtInView),
         "@scroll" => Some(TokenKind::AtScroll),
         "@drag-horizontal" => Some(TokenKind::AtDragHorizontal),

@@ -1234,10 +1234,10 @@ mod tests {
         assert_token("@drag-vertical", TokenKind::AtDragVertical);
     }
     #[test]
-    fn test_at_focus_lexes_as_ident() {
-        // @focus stays on the Ident/event-prop path for now — the AtFocus token
-        // is added together with TriggerKind::Focus in Phase 1.3.
-        assert_token("@focus", TokenKind::Ident("@focus".into()));
+    fn test_at_focus_lexes_as_trigger_token() {
+        // @focus is a motion trigger keyword (TriggerKind::Focus), wired to
+        // the parser's motion-trigger dispatch alongside @enter/@hover/@press.
+        assert_token("@focus", TokenKind::AtFocus);
     }
     #[test]
     fn test_deleted_sub_attribute_tokens_lex_as_ident() {
