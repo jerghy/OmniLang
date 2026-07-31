@@ -1,0 +1,971 @@
+# OmniLang 语义级 DSL 语法规范
+
+**状态**: Draft
+**日期**: 2026-07-31
+**依赖**: ADR-052 (Semantic-Level DSL Cross-Target Codegen)
+**关联设计文档**: `docs/superpowers/plans/2026-07-31-semantic-level-dsl-design.md`
+
+---
+
+## 1. 设计哲学
+
+### 1.1 语义级语言原则
+
+```
+.omni 源码 = 平台无关的意图声明
+编译器     = 理解意图 → 为目标平台生成该平台开发者会手写的代码
+生成代码   ≠ OmniView 模式的翻译
+生成代码   = 该平台上最地道的写法
+```
+
+### 1.2 语义域分层
+
+| 层 | 内容 | 编译器行为 |
+|----|------|-----------|
+| **语义原语层** | ref 绑定、动画触发器、design token、slot、store signal、@if/@for、生命周期 | 理解意图 → 按平台映射生成地道代码 |
+| **通用计算层** | 表达式、运算、函数、闭包、match、async/await、类型 | 语法糖展开（`?.`、`??=`、block IIFE），其余直接翻译为目标语言 |
+| **平台特有层** | `@native("dart") { ... }` | escape hatch，编译时直接透传 |
+
+### 1.3 语法惯例
+
+| 惯例 | 适用场景 | 示例 |
+|------|---------|------|
+| **声明式绑定** | 高频双向操作（聚焦、滚动、值）| `focus={sig}`, `scroll-y={sig}`, `value={sig}` |
+| **语义方法** | 低频一次性操作（选区、测量、指针捕获）| `ref.select()`, `ref.measure()` |
+| **属性式触发器** | 元素上的动画/行为声明 | `@enter={motion}`, `@hover={motion}` |
+| **关键字声明** | 顶层/组件成员定义 | `signal`, `token`, `@slot`, `@mount` |
+| **模板指令** | 控制流 | `@if`, `@for`, `@empty` |
+
+### 1.4 代码生成原则
+
+- 不生成包装函数（`setTheme()`、`__omni_*`）
+- 直接用目标平台的惯用 API（React: `useRef`+`useEffect`、Flutter: `FocusNode`+`AnimationController`）
+- Feature floor 之外的特性：出 hard diagnostic，不静默降级
+- 第三方库一步到位：Zustand v5、Riverpod 3.0
+- 非 P0 目标（Python/JS/Dart/Rust/Dioxus/Vue）遇到 design block → error，不静默降级为 warning+零文件
+
+---
+
+## 2. Element Reference System（Ref 系统）
+
+### 2.1 语义定义
+
+Ref 系统提供对元素的**平台无关的语义级访问**。两种形式：
+
+| 形式 | 适用场景 | 语法 |
+|------|---------|------|
+| **语义绑定** | 高频：聚焦、滚动、表单值 | 元素属性，signal 驱动 |
+| **语义方法** | 低频：选区、测量、指针捕获 | ref 变量上的编译器识别方法 |
+
+### 2.2 BNF 语法
+
+```
+ref_decl ::= 'ref' <ident> ':' <type_annotation> ';'?
+
+// ── 语义绑定（元素属性，需要元素同时有 @ref={name}）──
+
+semantic_binding ::= 'focus' '=' <expr>
+                   | 'scroll-x' '=' <expr>
+                   | 'scroll-y' '=' <expr>
+                   | 'value' '=' <expr>
+
+// 这些属性出现在元素上时，编译器理解它们的语义（不只是普通 prop）
+// 元素必须已有对应的 @ref 绑定
+
+// ── 语义方法（在 action/expression 中对 ref 变量调用）──
+
+ref_semantic_call ::= <ref_name> '.' ( ref_op_select
+                                     | ref_op_set_selection
+                                     | ref_op_measure
+                                     | ref_op_capture_pointer
+                                     | ref_op_release_pointer )
+
+ref_op_select          ::= 'select' '(' ')'
+ref_op_set_selection   ::= 'setSelection' '(' expr ',' expr ')'
+ref_op_measure         ::= 'measure' '(' ')'     // → { width: Float, height: Float, x: Float, y: Float }
+ref_op_capture_pointer ::= 'capturePointer' '(' expr ')'
+ref_op_release_pointer ::= 'releasePointer' '(' expr ')'
+```
+
+### 2.3 完整示例
+
+```omni
+component SearchPage {
+  ref searchBox: Element
+  ref scrollPane: Element
+
+  signal isSearchActive: Bool = false
+  signal scrollPosition: Float = 0
+  signal searchText: String = ""
+
+  // ── 高频：语义绑定 ──
+  <div>
+    <input 
+      @ref={searchBox} 
+      focus={isSearchActive}     // 聚焦控制
+      value={searchText}         // 双向值绑定
+      placeholder="搜索..."
+    />
+    
+    <ScrollView @ref={scrollPane} scroll-y={scrollPosition}>
+      <ResultList />
+    </ScrollView>
+  </div>
+
+  // ── 低频：语义方法 ──
+  fn handleScrollToTop() {
+    scrollPosition = 0           // signal 驱动 → 编译器映射到 scrollTo
+  }
+
+  fn handleSelectAll() {
+    searchBox.select()           // 编译器识别为 Select 语义原语
+  }
+
+  fn handleMeasure() {
+    let rect = searchBox.measure()
+    // rect: { width: Float, height: Float, x: Float, y: Float }
+  }
+}
+```
+
+### 2.4 平台映射
+
+| 语义 API | React | Flutter | OmniView |
+|----------|-------|---------|----------|
+| `focus={sig}` | `useEffect(() => sig ? ref.focus() : ref.blur(), [sig])` | `FocusNode` + listener → `requestFocus()/unfocus()` | `el.focus()/blur()` |
+| `scroll-y={sig}` | `useEffect(() => ref.scrollTo({top: sig}), [sig])` | `ScrollController.animateTo(sig)` | `el.scrollTo(0, sig)` |
+| `scroll-x={sig}` | `useEffect(() => ref.scrollTo({left: sig}), [sig])` | `ScrollController.animateTo(sig)` (horizontal) | `el.scrollTo(sig, 0)` |
+| `value={sig}` | `value={sig}` + `onChange={e => set(sig, e.target.value)}` | `TextEditingController` + listener | `el.value = sig` + input event |
+| `ref.select()` | `ref.current.select()` | `TextEditingController.selection = TextSelection(...)` | `el.select()` |
+| `ref.setSelection(s,e)` | `ref.current.setSelectionRange(s, e)` | `TextEditingController.selection = TextSelection(...)` | `el.setSelectionRange(s, e)` |
+| `ref.measure()` | `ref.current.getBoundingClientRect()` | `RenderBox.localToGlobal()` + `size` | `el.getBoundingClientRect()` |
+| `ref.capturePointer(id)` | `ref.current.setPointerCapture(id)` | diagnostic: 不支持 | `el.setPointerCapture(id)` |
+| `ref.releasePointer(id)` | `ref.current.releasePointerCapture(id)` | diagnostic: 不支持 | `el.releasePointerCapture(id)` |
+
+### 2.5 已删除的 DOM API
+
+以下不能通过 ref 访问——编译器在语义层拒绝（compile error）：
+
+| 删除的 API | 替代方案 |
+|-----------|---------|
+| `ref.style.*` | `style:{...}` 绑定 signal |
+| `ref.innerHTML` | 文本插值 |
+| `ref.addEventListener` | `@on*` 事件绑定 |
+| `ref.querySelector` | 违反组件封装 |
+| `ref.classList` | `class:` 绑定 |
+| `ref.parentElement` | 违反组件封装 |
+
+---
+
+## 3. Animation System（动画系统）
+
+### 3.1 语义定义
+
+动画的语义是三方分解：**触发器（何时）+ 关键帧（怎么变）+ 播放控制（变多久/几次）**。所有三个维度都是平台无关的。
+
+### 3.2 BNF 语法
+
+#### Motion 定义
+
+```
+motion_def ::= '@motion' <ident> motion_body
+
+motion_body ::= '{' motion_param* keyframe_stops playback_props '}'
+
+motion_param ::= 'over' ':' expr            // duration: 300ms, 1.5s
+               | 'easing' ':' easing_expr   // ease-out, cubic-bezier(0.16,1,0.3,1)
+
+keyframe_stops ::= keyframe_stop (','? keyframe_stop)*
+
+keyframe_stop ::= stop_position '{' stop_property (','? stop_property)* '}' ('easing' ':' easing_expr)?
+
+stop_position ::= 'from'                      // 0%
+                | 'to'                        // 100%
+                | expr '%'?                   // 数字后可选 %，如 50% 或 50
+
+stop_property ::= semantic_anim_prop ':' expr
+
+semantic_anim_prop ::= 'opacity' | 'scale' | 'scaleX' | 'scaleY'
+                     | 'translateX' | 'translateY' | 'translateZ'
+                     | 'rotate' | 'rotateX' | 'rotateY' | 'rotateZ'
+                     | 'skewX' | 'skewY'
+                     | 'backgroundColor' | 'color'
+                     | 'width' | 'height'        // diagnostic in Flutter
+
+easing_expr ::= <ident>                             // ease-in, ease-out, linear, etc.
+              | 'cubic-bezier' '(' num ',' num ',' num ',' num ')'
+              | 'steps' '(' int ',' 'start' '|' 'end' ')'  // diagnostic in Flutter
+
+playback_props ::= (playback_prop)*
+
+playback_prop ::= 'loop' ('infinite' | int)?
+                | 'direction' ('normal' | 'reverse' | 'alternate')
+                | 'fill' ('none' | 'forwards' | 'backwards' | 'both')
+                | 'delay' ':' expr
+                | 'paused'
+```
+
+#### 触发器（元素属性）
+
+```
+motion_trigger_attr ::= '@enter' '=' '{' motion_expr '}'
+                      | '@hover' '=' '{' motion_expr '}'
+                      | '@press' '=' '{' motion_expr '}'
+                      | '@focus' '=' '{' motion_expr '}'
+                      | '@in-view' '=' '{' motion_expr '}' in_view_opts?
+                      | '@scroll' '=' '{' motion_expr '}' scroll_opts
+                      | '@drag-horizontal' '=' '{' motion_expr '}' drag_opts
+                      | '@drag-vertical' '=' '{' motion_expr '}' drag_opts
+
+motion_expr ::= <ident>                             // 命名 motion 引用
+              | '{' motion_body '}'                 // 内联动画体（语法糖）
+
+in_view_opts ::= 'once' '=' expr
+               | 'repeat' '=' expr
+               | 'threshold' '=' expr
+
+scroll_opts ::= 'start' '=' expr
+              | 'end' '=' expr
+              | 'scrub' '=' expr
+
+drag_opts ::= 'constraints' '=' expr
+            | 'elastic' '=' expr
+            | 'threshold' '=' expr
+            | 'velocity-max' '=' expr
+```
+
+### 3.3 完整示例
+
+```omni
+@motion fadeIn {
+  over: 300ms
+  easing: ease-out
+
+  from {
+    opacity: 0
+    scale: 0.95
+  }
+  50% {
+    opacity: 0.5
+  }
+  to {
+    opacity: 1
+    scale: 1
+  }
+}
+
+@motion parallaxScroll {
+  over: 1s
+  from { translateY: -100 }
+  to   { translateY: 0 }
+}
+
+component AnimatedCard {
+  <Card @enter={fadeIn} @hover={scaleUp} />
+
+  <HeroImage @scroll={parallaxScroll} start={0} end={1} scrub={true} />
+
+  // ── 内联动画体（语法糖，lowering 展开为命名 motion）──
+  <div @enter = {
+    over: 200ms
+    easing: ease-out
+    from { opacity: 0; translateY: -10 }
+    to   { opacity: 1; translateY: 0 }
+  } />
+}
+```
+
+### 3.4 触发器语义 → 平台映射
+
+| 触发器 | 语义 | React 实现 | Flutter 实现 |
+|--------|------|-----------|-------------|
+| `@enter` | 元素首次挂载时正向播放 | `useEffect([], [])` + `element.animate()` | `initState` + `AnimationController.forward()` |
+| `@hover` | 指针进入正向，离开反向 | `onMouseEnter/Leave` + `element.animate()` play/reverse | `MouseRegion(onEnter/onExit)` + controller.forward/reverse |
+| `@press` | 按下正向，释放反向 | `onPointerDown/Up` + `element.animate()` | `GestureDetector(onTapDown/Up)` + controller |
+| `@focus` | 获得焦点时正向播放 | `onFocus` + `element.animate()` | `FocusNode.addListener` + controller |
+| `@in-view` | 滚入视口时播放 | `IntersectionObserver` + `element.animate()` | `_OmniInViewWidget` |
+| `@scroll` | 滚动位置驱动动画进度 | scroll event + progress scrubbing | `ScrollController` 驱动 |
+| `@drag-*` | 拖拽距离驱动动画进度 | pointer events + 距离→进度映射 | `GestureDetector.onPanUpdate` |
+
+### 3.5 Keyframe 属性 → 平台映射
+
+| 语义属性 | React (WAAPI) | Flutter |
+|---------|--------------|---------|
+| `opacity` | `opacity: [from, to]` | `Tween<double>` + `Opacity` widget |
+| `scale` | `transform: scale(...)` | `Tween<double>` + `Transform.scale` |
+| `translateX/Y` | `transform: translate(...)` | `Tween<double>` + `Transform.translate` |
+| `rotate` | `transform: rotate(...deg)` | `Tween<double>` + `Transform.rotate` |
+| `backgroundColor` | `backgroundColor: [...]` | `Tween<Color?>` + `Container` |
+| `color` | `color: [...]` | `Tween<Color?>` + `TextStyle` |
+| `width` / `height` | WAAPI 原生支持 | ⚠️ **warning**: 动画布局属性性能差，推荐用 scale |
+
+每个属性在 Flutter 生成**独立的 `Animatable<T>`**，多 stop keyframe 用 `TweenSequence`。
+
+### 3.6 Diagnostic
+
+| 场景 | 目标 | 级别 | 说明 |
+|------|------|------|------|
+| keyframe 中 `width`/`height` | Flutter | warning | 动画布局属性触发重 layout |
+| `steps()` easing | Flutter | error | Flutter 无原生 steps easing |
+| `rotateX/Y/Z`, `skewX/Y`, `translateZ` | Flutter | warning | 需 `Transform` widget 组合，3D 变换受限于 Flutter 渲染模型 |
+
+### 3.7 内联动画体 Lowering
+
+```
+源码:
+  <div @enter = { over: 200ms; from { opacity: 0 } to { opacity: 1 } } />
+
+IR lowering:
+  → MotionIntent { name: "__anon_m_N", body: KeyframeIR { over:200ms, stops:[...] } }
+  → TriggerIntent { kind: Enter, motion_ref: "__anon_m_N", inline_motion: None }
+  → 追加到 ModuleIR.motions
+
+好处: 所有三个 codegen 只处理命名 motion，无重复逻辑
+```
+
+---
+
+## 4. Design Tokens（设计系统）
+
+### 4.1 语义定义
+
+Design block 的语义：**定义一组有名字的设计值，可以有主题变体，可以被组件引用**。所有设计值都是平台无关的——编译器知道每个 token 类型的语义，按目标映射。
+
+### 4.2 BNF 语法
+
+```
+design_def ::= 'design' <ident> '{' design_body '}'
+
+design_body ::= ( themes_directive | default_theme_directive
+                | token_decl | class_def | variant_def )*
+
+themes_directive      ::= '@themes' <ident> (',' <ident>)* ';'?
+default_theme_directive ::= '@default-theme' <ident> ';'?
+
+// ── Token ──
+
+token_decl ::= 'token' <ident> ':' token_type '=' token_value
+               (theme_override)* ';'?
+
+token_type ::= 'Color' | 'Size' | 'Radius' | 'FontFamily' | 'FontSize'
+             | 'FontWeight' | 'LineHeight' | 'LetterSpacing' 
+             | 'Shadow' | 'Duration' | 'Easing' | 'Opacity' | 'ZIndex'
+
+token_value ::= <literal>                          // 静态值
+              | <const_ref>                        // 常量引用: BRAND_COLOR
+              | <expr>                             // 动态: ThemeStore.primaryColor
+
+theme_override ::= <ident> token_value             // dark "#818cf8"
+
+// ── Class ──
+
+class_def ::= 'class' <ident> '{' class_body '}'
+
+class_body ::= ( css_property ':' (css_value | token_ref) ';'?
+               | pseudo_state )*
+
+pseudo_state ::= '&:hover' '{' class_body '}'
+               | '&:focus' '{' class_body '}'
+               | '&:active' '{' class_body '}'
+               | '&:disabled' '{' class_body '}'
+
+token_ref ::= 'token' '(' <ident> ')'
+
+// ── Variant ──
+
+variant_def ::= 'variant' <ident> '{' variant_body '}'
+
+variant_body ::= variant_dim* variant_default variant_branch+
+
+variant_dim ::= '@dim' <ident> ':' <ident> ('|' <ident>)+ ';'?
+
+variant_default ::= '@default' '{' css_property ':' css_value (','? css_property ':' css_value)* '}' ';'?
+
+variant_branch ::= <ident> '.' <ident> '{' css_property ':' css_value (','? css_property ':' css_value)* '}' ';'?
+```
+
+### 4.3 完整示例
+
+```omni
+design AppTheme {
+  @themes light, dark
+  @default-theme light
+
+  // ── 静态 token ──
+  token primaryColor: Color = #6366f1
+    dark #818cf8
+
+  token spacingSm: Size = 8px
+  token spacingMd: Size = 16px
+  token radiusMd: Radius = 8px
+  token fontMain: FontFamily = 'Inter'
+  token fontSizeBase: FontSize = 14px
+  token shadowCard: Shadow = 0 2px 8px rgba(0,0,0,0.1)
+  token durationNormal: Duration = 300ms
+  token easeOut: Easing = cubic-bezier(0.16, 1, 0.3, 1)
+
+  // ── 动态 token（来自运行时 store）──
+  token accentColor: Color = ThemeStore.accentColor
+
+  // ── Class ──
+  class Card {
+    background-color: token(primaryColor)
+    border-radius: token(radiusMd)
+    padding: token(spacingMd)
+    box-shadow: token(shadowCard)
+    &:hover { opacity: 0.9 }
+  }
+
+  class Button {
+    background-color: token(primaryColor)
+    padding: token(spacingSm) token(spacingMd)
+    border-radius: token(radiusMd)
+    transition: all token(durationNormal) token(easeOut)
+    &:hover { opacity: 0.85 }
+    &:active { scale: 0.97 }
+    &:disabled { opacity: 0.5 }
+  }
+
+  // ── Variant ──
+  variant Size {
+    @dim size: sm | md | lg
+    @default { padding: token(spacingMd); font-size: token(fontSizeBase) }
+    size.sm { padding: token(spacingSm); font-size: 12px }
+    size.md { padding: token(spacingMd); font-size: token(fontSizeBase) }
+    size.lg { padding: 24px; font-size: 18px }
+  }
+}
+```
+
+### 4.4 使用语法
+
+```omni
+component MyPage {
+  <div class: AppTheme.Card>
+    <h2>标题</h2>
+  </div>
+  
+  <button class: AppTheme.Button variant: AppTheme.Size.lg>
+    大按钮
+  </button>
+
+  <div style: { color: token(AppTheme.primaryColor) } />
+}
+```
+
+### 4.5 主题切换
+
+```omni
+// action 中:
+theme = "dark"
+
+// 编译器生成:
+// React:   document.documentElement.setAttribute('data-theme', 'dark')
+// Flutter: ref.read(themeModeProvider.notifier).state = ThemeMode.dark
+// OmniView: document.documentElement.dataset.theme = "dark"
+```
+
+### 4.6 平台映射
+
+| Token 类型 | React 输出 | Flutter 输出 |
+|-----------|-----------|-------------|
+| `Color` | CSS Custom Property `--primaryColor` | `static const Color primaryColor = Color(0xFF6366F1)` |
+| `Size` / `Radius` | CSS Custom Property | `static const double spacingMd = 16.0` |
+| `FontFamily` / `FontSize` / `FontWeight` | CSS Custom Property | 对应 `TextStyle` 字段 |
+| `Shadow` | CSS Custom Property | `static const BoxShadow shadowCard = ...` |
+| `Duration` | CSS Custom Property | `static const Duration durationNormal = Duration(milliseconds: 300)` |
+| `Easing` | CSS Custom Property | `static const Cubic easeOut = Cubic(0.16, 1, 0.3, 1)` |
+| `ZIndex` | CSS Custom Property | ⚠️ **warning**: z-index 在 Flutter 中用 widget 顺序/Stack 控制 |
+
+| 构造 | React 输出 | Flutter 输出 |
+|------|-----------|-------------|
+| Class | 全局 CSS class（`design.css`）| `BoxDecoration` 工厂方法 |
+| Variant | CSS 组合 class（`Size-sm`）| `ThemeExtension<T>` |
+| 动态 token | `useEffect` + `setProperty` | `Provider` + `ThemeData.copyWith` |
+| `theme = "dark"` | `setAttribute('data-theme', 'dark')` | `ThemeMode.dark` + `MaterialApp` 重建 |
+
+### 4.7 非 P0 目标 behavior
+
+- P0 目标（React/Flutter）：必须完整实现
+- 非 P0 目标（Python/JS/Dart/Rust/Dioxus/Vue）：**hard error**，不静默降级
+- 错误信息说明"该目标不支持 design block，请使用 --target react|flutter|omniview"
+
+---
+
+## 5. Component Composition（Slots）
+
+### 5.1 语义定义
+
+Slot 的语义：**组件声明"这里可以由父组件填充内容"**，可以带默认内容（fallback），可以有名字，可以带类型约束。
+
+### 5.2 BNF 语法
+
+```
+// ── Slot 声明（在 component body 中）──
+
+slot_decl ::= '@slot' slot_name slot_type_constraint? slot_default?
+
+slot_name ::= <ident>                             // 命名 slot
+            | 'default'                           // 默认 slot
+
+slot_type_constraint ::= ':' <type_annotation>    // 类型约束
+
+slot_default ::= '{' view_nodes '}'               // fallback 内容
+
+// ── Slot 渲染（在 view 模板中）──
+
+slot_render ::= '{' <ident> '}'                   // 渲染命名 slot: {header}
+              | '{' 'children' '}'                // 渲染默认 slot: {children}
+```
+
+### 5.3 完整示例
+
+```omni
+component Modal {
+  @slot header: HeaderData { <DefaultHeader /> }
+  @slot default
+  @slot footer { <DefaultFooter /> }
+
+  <div class="modal">
+    <div class="modal-header">{header}</div>
+    <div class="modal-body">{children}</div>
+    <div class="modal-footer">{footer}</div>
+  </div>
+}
+
+// ── 消费侧 ──
+
+// 仅填默认 slot：
+<Modal>
+  <p>这是内容</p>
+</Modal>
+
+// 填所有 slot：
+<Modal 
+  header={<CustomHeader title="编辑" />}
+  footer={<Button>保存</Button>}
+>
+  <Form />
+</Modal>
+```
+
+### 5.4 平台映射
+
+| 概念 | React | Flutter | OmniView |
+|------|-------|---------|----------|
+| 默认 slot | `{children}` (props.children) | `Widget? child` | 直接 children |
+| 命名 slot | `{header}` (命名 prop) | `Widget? header` | named slot |
+| Fallback | `{header ?? <DefaultHeader />}` | `header ?? DefaultHeader()` | fallback |
+| 类型约束 + data | `header?: (data: T) => ReactNode` render prop | `Widget Function(T)? header` builder | — |
+| 消费侧 children | JSX children 自动透传 | 声明 `child:` / `children:` param | 自动透传 |
+
+### 5.5 IR 修复要求
+
+**当前 bug**：`ViewTree::Slot(Option<String>)` 是叶子节点，`default_content` 在 lowering 时丢弃。
+
+**修复后**：
+```rust
+// crates/omnilang-core/src/ir/types.rs
+ViewTree::Slot {
+    name: Option<String>,              // None = 默认 slot
+    fallback: Vec<ViewTree>,            // fallback 内容
+    type_constraint: Option<TypeIR>,     // 类型约束
+    data_param: Option<String>,         // data 注入参数名
+}
+```
+
+---
+
+## 6. Stores & State（状态管理）
+
+### 6.1 语义定义
+
+Store 的语义：**定义一个响应式状态容器**。`signal` = 状态字段，`getter` = 派生状态，`action` = 状态变更。组件内 `signal` 是本地状态。编译器知道每个构造的语义，为每个目标生成该平台的状态管理惯用代码。
+
+### 6.2 BNF 语法
+
+```
+// ── Store（顶层定义）──
+
+store_def ::= 'store' <ident> '{' store_member* '}'
+
+store_member ::= signal_decl
+               | getter_decl
+               | action_decl
+               | function_def
+
+signal_decl  ::= 'signal' <ident> ':' type_annotation '=' expr ';'?
+getter_decl  ::= 'getter' <ident> ':' type_annotation '=' expr ';'?
+action_decl  ::= 'action' <ident> '(' params? ')' block
+
+// ── 组件内状态 ──
+
+component_signal ::= 'signal' <ident> ':' type_annotation '=' expr ';'?
+
+// ── 组件引用 store ──
+
+store_ref ::= '@store' <ident> ';'?
+
+// ── 消费 store ──
+
+store_access ::= <store_name> '.' <signal_name>        // 读 signal
+               | <store_name> '.' <action_name> '(' args? ')'  // 调 action
+               | <store_name> '.' <getter_name>         // 读 getter
+```
+
+### 6.3 完整示例
+
+```omni
+store TodoStore {
+  signal items: Todo[] = []
+  signal filter: String = "all"
+
+  getter filteredItems: Todo[] = items.filter(item =>
+    filter == "all" || item.status == filter
+  )
+
+  getter activeCount: Int = items.count(item => item.status == "active")
+
+  action add(text: String) {
+    items = [...items, Todo { id: nextId(), text, status: "active" }]
+  }
+
+  action toggle(id: Int) {
+    items = items.map(item =>
+      item.id == id 
+        ? { ...item, status: item.status == "active" ? "completed" : "active" } 
+        : item
+    )
+  }
+
+  action clearCompleted() {
+    items = items.filter(item => item.status != "completed")
+  }
+}
+
+// ── 组件中使用 ──
+
+component TodoPage {
+  @store TodoStore
+  signal localDraft: String = ""
+
+  fn handleAdd() {
+    TodoStore.add(localDraft)
+    localDraft = ""
+  }
+
+  <div>
+    <input value={localDraft} placeholder="输入待办事项..." />
+    <button @onClick={handleAdd}>添加</button>
+
+    <p>剩余 {TodoStore.activeCount} 项</p>
+
+    @for item in TodoStore.filteredItems key={item.id} {
+      <TodoItem 
+        data={item} 
+        @onToggle={fn() => TodoStore.toggle(item.id)} 
+      />
+    }
+  </div>
+}
+```
+
+### 6.4 平台映射
+
+| 构造 | React (Zustand v5) | Flutter (Riverpod 3.0) | OmniView |
+|------|-------------------|------------------------|----------|
+| `store` | `create<T>()()(...)` | `Notifier<T>` + `NotifierProvider` | `__omni_createStore` |
+| `signal` | state 字段 | Notifier state 字段 + `copyWith` | inline signal |
+| `getter` | 独立 selector hook：`useFilteredItems()` | Notifier getter：`get filteredItems => ...` | computed signal |
+| `action` | 导出函数：`useAddTodo()` | Notifier 方法：`void add(...)` | action function |
+| 读 signal | `useXxx(s => s.field)` | `ref.watch(provider.select(s => s.field))` | signal read |
+| 调 action | `useXxx().add(text)` | `ref.read(provider.notifier).add(text)` | action call |
+| 组件内 `signal` | `useState(init)` | `_field = init` + `setState` | inline signal |
+
+### 6.5 Store access 规则
+
+编译器区分以下场景，生成不同的代码：
+
+| 表达式 | 语义 | React 生成 | Flutter 生成 |
+|--------|------|-----------|-------------|
+| `TodoStore.items` | 读 signal（订阅） | `useTodoStore(s => s.items)` | `ref.watch(todoStoreProvider.select(s => s.items))` |
+| `TodoStore.items = ...` | 写 signal（action 内） | `set({ items: ... })` | `state = state.copyWith(items: ...)` |
+| `TodoStore.add(x)` | 调 action | `const add = useTodoStore(s => s.add); add(x)` | `ref.read(todoStoreProvider.notifier).add(x)` |
+| `TodoStore.filteredItems` | 读 getter（派生） | `useFilteredItems()` hook | `ref.watch(todoStoreProvider).filteredItems` |
+
+**关键**：`items = [...]` 在 action 内编译器知道这是 signal 赋值（不是普通变量赋值）→ 生成对应的 setState/copyWith 代码。
+
+### 6.6 删除的特性
+
+| 删除 | 原因 |
+|------|------|
+| React Hooks 模式 | Zustand v5 唯一方案 |
+| 组件内 inline store 定义 | 统一用顶层 store + `@store` 引用或组件内 `signal` |
+| `computed`（组件内）| 用 `getter` 或 `fn` 替代 |
+
+---
+
+## 7. Control Flow（控制流）
+
+### 7.1 语义定义
+
+控制流的语义：**在视图中根据条件/列表动态决定渲染什么**。`@if` = 条件渲染，`@for` = 列表渲染。
+
+### 7.2 BNF 语法
+
+```
+// ── 条件渲染 ──
+
+if_directive ::= '@if' expr transition_mode? '{' view_nodes '}'
+                 ( '@else' 'if' expr '{' view_nodes '}' )*
+                 ( '@else' '{' view_nodes '}' )?
+
+transition_mode ::= 'mode' ':' <string_literal>   // "fade" | "wait" | "none"
+
+// ── 列表渲染 ──
+
+for_directive ::= '@for' <ident> 'in' expr key_expr? scroll_hint? '{' view_nodes '}'
+                  ( '@empty' '{' view_nodes '}' )?
+
+key_expr ::= 'key' '=' expr                      // key={item.id}
+
+scroll_hint ::= '[' 'scroll' ']'                  // Flutter: 用 ListView.builder
+```
+
+### 7.3 完整示例
+
+```omni
+// ── @if / @else ──
+@if isLoading mode: "fade" {
+  <Spinner />
+} @else if error != null {
+  <ErrorView message={error} />
+} @else {
+  <ContentView data={data} />
+}
+
+// ── @for ──
+@for item in items key={item.id} {
+  <TodoItem data={item} />
+} @empty {
+  <EmptyState message="还没有待办事项" />
+}
+
+// ── @for 长列表（Flutter 用 ListView.builder）──
+@for item in allItems [scroll] key={item.id} {
+  <ListItem data={item} />
+}
+```
+
+### 7.4 平台映射
+
+| 构造 | React | Flutter | OmniView |
+|------|-------|---------|----------|
+| `@if cond { ... }` | `{cond && (...)}` | `cond ? ... : SizedBox.shrink()` | JS conditional |
+| `@if cond { A } @else { B }` | `{cond ? (A) : (B)}` | `cond ? A() : B()` | JS ternary |
+| `@if cond mode:"fade" { ... }` | CSS transition | `AnimatedSwitcher(duration: ...)` | CSS transition |
+| `@for item in list { ... }` | `{list.map(item => (...))}` | `Column(children: [...])` | DOM repeat |
+| `@for item in list key={expr} { ... }` | `key={expr}` | `ValueKey(expr)` | data-key attr |
+| `@for item in list [scroll] { ... }` | —（React 用 CSS overflow） | `ListView.builder(itemCount, itemBuilder)` | — |
+| `@empty { ... }` | `{list.length === 0 ? (...) : (map)}` | `list.isEmpty ? Empty() : Column(...)` | JS conditional |
+
+### 7.5 规则
+
+- `@for` 在 Flutter 默认用 `Column`（安全，无限高问题由用户显式 `[scroll]` 控制）
+- `@for` 嵌套在可滚动父元素内 → 编译器自动用 `Column`（不嵌套 ListView）
+- 无 `key_expr` 且 item 是对象 → compiler warning，建议加 `key=`
+- `[scroll]` 是位置固定的 hint，放在 `key={...}` 之后
+
+---
+
+## 8. Lifecycle（生命周期）
+
+### 8.1 语义定义
+
+生命周期的语义：**在组件生命周期的特定时刻执行代码**。
+
+### 8.2 BNF 语法
+
+```
+lifecycle_hook ::= mount_hook
+                 | unmount_hook
+                 | effect_hook
+
+mount_hook   ::= '@mount' '{' block_body '}'
+unmount_hook ::= '@unmount' '{' block_body '}'
+effect_hook  ::= '@effect' ('(' deps ')')? '{' block_body '}'
+
+deps ::= <ident> (',' <ident>)*
+```
+
+### 8.3 完整示例
+
+```omni
+component Timer {
+  signal elapsed: Float = 0
+  signal isRunning: Bool = false
+
+  @mount {
+    isRunning = true
+  }
+
+  @unmount {
+    isRunning = false
+  }
+
+  @effect(elapsed) {
+    saveToLocal(elapsed)
+  }
+
+  <div>
+    <Text>已运行 {elapsed}s</Text>
+  </div>
+}
+```
+
+### 8.4 平台映射
+
+| 生命周期 | React | Flutter | OmniView |
+|---------|-------|---------|----------|
+| `@mount { ... }` | `useEffect(() => { ... }, [])` | `initState() { ... }` | `__omni_mount(() => { ... })` |
+| `@unmount { ... }` | `useEffect(() => { return () => { ... } }, [])` | `dispose() { ... }` | `__omni_unmount(() => { ... })` |
+| `@effect(deps) { ... }` | `useEffect(() => { ... }, [deps])` | 生成 `_runEffect_N()` + `initState` 调用 + `didUpdateWidget` deps 比较重调 | `__omni_effect(() => { ... })` |
+
+### 8.5 规则
+
+- `@mount`/`@unmount` 每个组件最多各一个
+- `@effect` 可以有多个，每个独立追踪 deps
+- async 代码在 effect 内直接写 `await`，编译器包裹 async IIFE
+- `@mount` 和 `@unmount` 可以共享闭包变量（如 timer handle）
+
+---
+
+## 9. Expression & Statement（通用计算层）
+
+### 9.1 设计原则
+
+通用计算层**不是语义原语**——这是普通代码逻辑。编译器不注入平台假设，只做必要的语法糖展开。当前语法基本完整（见 `14-grammar-lang.md`），本节记录需要修复的跨目标缺口。
+
+### 9.2 需要修复的跨目标表达式
+
+#### Optional Chain `?.`
+
+```
+React:   obj?.field              （原生 JS）
+Flutter: obj?.field              （原生 Dart）
+
+修复: ReactFormatExpr 和 DartFormatExpr override format_optional_chain，
+      不使用 shared 的 {obj}.{field} 默认实现
+```
+
+#### Block Expression（IIFE）
+
+```
+React:   (() => { stmts; return tail; })()
+Flutter: (() { stmts; return tail; })()
+
+修复: override format_block_expr，emit IIFE 包裹
+```
+
+#### Match Expression
+
+```
+React:   (() => { switch(x) { case A: return a; default: return b; } })()
+Flutter: (() { switch(x) { case A: return a; default: return b; } })()
+
+修复: DartFormatExpr 需完整实现 match（当前 shared 实现被砍掉）
+```
+
+#### Spread, Compound Assignment, Await
+
+```
+React:   [...list], count += 1, await fn()
+Flutter: [...list], count += 1, await fn()
+
+三个目标均可直接翻译，语法糖展开即可
+```
+
+### 9.3 恢复的表达式支持
+
+| 表达式 | 说明 |
+|--------|------|
+| `items.count(item => cond)` | 展开为 `items.filter(item => cond).length` |
+| `Array<T>` 类型 | `T[]` 语法糖 → `Array<T>` |
+| 模板字符串 | `` `Hello ${name}` `` 保持不变 |
+
+---
+
+## 10. 附录：完整语义属性映射表
+
+### 10.1 Ref 语义绑定 → 平台输出
+
+| .omni 语义属性 | React 输出 | Flutter 输出 | OmniView 输出 |
+|---------------|-----------|-------------|--------------|
+| `focus={sig}` | `useEffect(() => sig ? ref.focus() : ref.blur(), [sig])` | `FocusNode.requestFocus/unfocus` | `el.focus/blur` |
+| `scroll-x={sig}` | `ref.scrollTo({left: sig})` | `ScrollController.animateTo(sig)` (horizontal) | `el.scrollTo(sig, 0)` |
+| `scroll-y={sig}` | `ref.scrollTo({top: sig})` | `ScrollController.animateTo(sig)` | `el.scrollTo(0, sig)` |
+| `value={sig}` | `value={sig}` + `onChange` setter | `TextEditingController` + listener | `el.value` + event |
+
+### 10.2 Ref 语义方法 → 平台输出
+
+| .omni 语义方法 | React | Flutter | OmniView |
+|---------------|-------|---------|----------|
+| `ref.select()` | `ref.current.select()` | `controller.selection = TextSelection(...)` | `el.select()` |
+| `ref.setSelection(s,e)` | `ref.current.setSelectionRange(s,e)` | `controller.selection = TextSelection(...)` | `el.setSelectionRange(s,e)` |
+| `ref.measure()` | `ref.current.getBoundingClientRect()` | `RenderBox.localToGlobal()` + `size` | `el.getBoundingClientRect()` |
+| `ref.capturePointer(id)` | `ref.current.setPointerCapture(id)` | diagnostic: 不支持 | `el.setPointerCapture(id)` |
+| `ref.releasePointer(id)` | `ref.current.releasePointerCapture(id)` | diagnostic: 不支持 | `el.releasePointerCapture(id)` |
+
+### 10.3 Diagnostic 完整表
+
+| 特性 | 目标 | 级别 | 说明 |
+|------|------|------|------|
+| `capturePointer` / `releasePointer` | Flutter | error | Flutter 不支持指针捕获，请用 GestureDetector |
+| `steps()` easing | Flutter | error | Flutter 无原生 steps easing |
+| ZIndex token | Flutter | warning | z-index 在 Flutter 中用 widget 顺序/Stack 控制 |
+| CSS `display: grid` | Flutter | error | Flutter 不支持 CSS grid |
+| CSS `float` | Flutter | error | Flutter widget 布局无 float 概念 |
+| CSS `cursor` | Flutter | warning | cursor 在 Flutter 中无效果 |
+| keyframe `width`/`height` | Flutter | warning | 动画布局属性触发重 layout，推荐用 scale |
+| @for 无 key_expr（对象 item）| React | warning | 建议加 key= 避免重复 key |
+| 非 P0 目标 + design block | 全部非 P0 | error | 该目标不支持 design block |
+
+---
+
+## 11. PRD 对比：本规范 vs 设计文档
+
+| 对比维度 | 设计文档 (`semantic-level-dsl-design.md`) | 本语法规范 |
+|---------|------------------------------------------|-----------|
+| **焦点** | 语义意图 → 平台代码的映射关系和实现策略 | .omni 源码的精确语法规则（BNF 产生式） |
+| **受众** | 编译器实现者（codegen 开发者） | Parser 实现者 + 语言使用者 |
+| **内容** | "ref.focus() 在 React 应该生成 ref.current.focus()" | "ref_semantic_call 的 BNF 是 `ref_name '.' select '(' ')'`" |
+| **互补关系** | 本规范引用设计文档的平台映射作为附录 | 设计文档引用本规范的 BNF 作为语法权威 |
+
+---
+
+## 12. 实现影响
+
+本语法规范要求以下编译器变更：
+
+| 变更 | 层 | 说明 |
+|------|-----|------|
+| `semantic/validate_ref_ops.rs` | 新增 | 扫描 ref 上的 method call → 识别合法语义方法 → 改写 RefOpExpr；非法操作 → compile error |
+| `ir/types.rs` — `RefOpIR` 枚举 | 新增 | Focus, Blur, ScrollTo, ScrollBy, Measure, Select, SetSelection, Value, SetValue, CapturePointer, ReleasePointer |
+| `ir/types.rs` — `ViewTree::Slot` | 修改 | 从 `Slot(Option<String>)` → `Slot { name, fallback, type_constraint, data_param }` |
+| `ir/lower/view.rs` — slot lowering | 修复 | 保留 `default_content`，填入 `fallback` 字段 |
+| `ir/lower/lower_inline_motions.rs` | 新增 | 内联动画体 → 合成命名 motion |
+| `ir/types_motion.rs` | 修改 | 删除 `PlaybackIR.paused`、`MotionBehavior.paused_override`；新增 `TriggerKind::Focus` |
+| `codegen/mod.rs` | 修改 | P0 目标移除 design block gate；非 P0 目标 warning → error |
+| `codegen/react/` — 全部模块 | 重写 | Zustand v5、React 19 ref prop、slot children、design CSS、动画 → 平台原生 ref+WAAPI |
+| `codegen/flutter/` — 全部模块 | 重写 | Riverpod 3.0、Ref handle、TweenSequence、design tokens、slot |
+| `codegen/shared/expr.rs` | 修改 | OptionalChain/BlockExpr/Match override |
+
+---
+
+## 13. References
+
+- [ADR-052 — Semantic-Level DSL Cross-Target Codegen](.architecture/decisions/adrs/ADR-052-semantic-level-dsl-cross-target-codegen.md)
+- [Semantic-Level DSL Design Document](docs/superpowers/plans/2026-07-31-semantic-level-dsl-design.md)
+- [Cross-Target Feature Gap Review](.architecture/reviews/cross-target-feature-gap-review-2026-07-31.md)
+- [OmniLang Grammar — Core Language](docs/omniview/14-grammar-lang.md)
+- [OmniLang Grammar — OmniView UI](docs/omniview/15-grammar-view.md)
