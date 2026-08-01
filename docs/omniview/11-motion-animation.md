@@ -104,6 +104,8 @@ easing: steps(6, start)                                  // 阶梯（Flutter 目
 - **Named-only**（Back、Elastic）不接收参数——参数形式（`backOut(intensity: 1.7)`、`elasticOut(amplitude: 1.0)`、`spring(tension: 200)`）已随 ADR-032 移除
 - `steps()` 以位置参数形式保留（`steps(count, start|end)`，语义级 DSL 新形式）
 
+> 注：`cubic(...)` 与 `delay <expr>`（空格形式）为 **parser 实际接受**的形式；BNF 规范（`docs/superpowers/specs/2026-07-31-semantic-level-dsl-syntax-spec.md`）中的 `cubic-bezier(...)`、`delay ':' expr` 形式，以及 `direction` 规则缺少的 `alternateReverse`（parser 已支持），均待以 parser 为准同步（见 `.architecture/deferrals.md` #25）。
+
 ## 动画触发器（8 个）
 
 | 触发器 | 触发时机 |
@@ -131,7 +133,7 @@ easing: steps(6, start)                                  // 阶梯（Flutter 目
 <!-- @focus — 聚焦 -->
 <button @focus={focusGlow}>Focus me</button>
 
-<!-- @if 过渡 -->
+<!-- @if 过渡（mode: 各目标支持情况见 06-模板语法 → 过渡模式） -->
 @if isOpen mode: "fade" {
     <div @enter={fadeIn}>Modal</div>
 }
@@ -157,9 +159,9 @@ easing: steps(6, start)                                  // 阶梯（Flutter 目
 </div>
 ```
 
-## 与 Element Reference 配合实现高频拖拽
+## 与拖拽触发器配合实现高频拖拽（@drag-*）
 
-`ref.style.*` 已按 ADR-052 删除（DOM 专属 API，用信号 + style 绑定替代）。拖拽驱动的 60fps 位移由 `@drag-*` 触发器 + `@motion` 关键帧实现，最终值用 signal 保存：
+`ref.style.*` 已按 ADR-052 删除（DOM 专属 API，用信号 + style 绑定替代）。拖拽驱动的 60fps 位移由 `@drag-*` 触发器 + `@motion` 关键帧实现，最终值用 signal 保存。注意：当前无约束时拖拽进度为 0（范围约束待重新实现，见 `.architecture/deferrals.md` #19）：
 
 ```omni
 @motion dragSlideX {

@@ -97,14 +97,14 @@
 | 8 | TypeKind recursive validation for `Named` types | Language adds generic structs with custom type params | Unvalidated type names pass through IR silently |
 | 9 | Source map pipeline completion (non-OmniView backends) | React/Flutter debugging needs | target_spans empty for React/Flutter |
 | 10 | Codegen trait full adoption (OmniView) | Next major IR refactoring | OmniView bypasses standard compile() path; see also ADR-013 |
-| 11 | ~~IR `#[non_exhaustive]` migration~~ | ~~Next ExprIR/StatementIR variant addition~~ | ✅ 已关闭（2026-07-30 会话迁移，ADR-040）：`ir/types.rs` ×5、`ir/design.rs`、`ir/signals.rs` 均带 `#[non_exhaustive]` |
+| 11 | ~~IR `#[non_exhaustive]` migration~~ | ~~Next ExprIR/StatementIR variant addition~~ | ✅ 已关闭（2026-07-30 会话迁移，ADR-040）：`ir/types.rs` ×4、`ir/design.rs`、`ir/signals.rs` 均带 `#[non_exhaustive]` |
 
 ### 来自 ADR-032 (Animation Scoping) — Parked
 
 | # | 项目 | 触发条件 | 影响 |
 |---|------|---------|------|
 | 12 | ~~Dead @focus JS codegen in React backend~~ | ~~React focus animation feature~~ | ✅ 2026-08-01 已关闭（ADR-053 D4：@focus 成为受支持触发器，React codegen 用 `onFocus` + `element.animate()` 原生实现于 `react/motion/mod.rs`；原 mod.rs 死代码区域现为 import 路径辅助函数） |
-| 13 | Removed trigger tokens still in lexer | Lexer cleanup pass | ⚠️ 2026-08-01 确认仍开放：`lexer/mod.rs:1249` 仍含 `@paused` token（`@drag-constraints` 仅残留注释）；parser 保留 `paused` 播放关键字仅作兼容解析（`PlaybackIR.paused` 已删，运行时不生效） |
+| 13 | ~~Removed trigger tokens still in lexer~~ | ~~Lexer cleanup pass~~ | ✅ 2026-08-01 已关闭：删除测试 `test_deleted_sub_attribute_tokens_lex_as_ident`（`lexer/mod.rs:1243-1260`）验证 `@paused`/`@in-view-once`/`@drag-constraints` 等子属性 token 已移除、按普通 ident 词法化；`keywords.rs` 无残留映射（仅 `@drag-horizontal`/`@drag-vertical` 触发器 token）。parser 保留 `paused` 播放关键字仅作兼容解析（`PlaybackIR.paused` 已删，运行时不生效）。其余文档陈旧见 #24 |
 | 14 | Stale doc comments referencing removed features | Doc audit | ⚠️ 2026-08-01 部分修复：`docs/omniview/06-templates.md` + `11-motion-animation.md` 已同步 ADR-052/053 语法（Task 10.1）；代码注释与其余文档待审计（见 #24） |
 
 ### 来自 ADR-034/035 (v4 Review Structural Fixes)
@@ -126,16 +126,18 @@
 | 22 | **[MEDIUM]** `--all-features` 测试编译失败（历史遗留） | `cargo test --all-features` | javascript/rust/vue/dioxus 测试文件使用旧 IR 字段（`SignalRefIR.owner`、`MutationIntent.field_object`）；`vue/tests.rs` 缺括号；dioxus feature 接线缺失 |
 | 23 | **[MEDIUM]** omni-animation TS 运行时缺口 | 使用 kebab 缓动名或 translateX/Y/Z 关键帧 | `easing.ts` 无 kebab 别名（`power1-in` 降级为 linear）；`keyframes.ts` `TRANSFORM_MAP` 缺 translateX/Y/Z |
 | 24 | **[MEDIUM]** 文档陈旧（docs/omniview） | 全面文档审计 | `06-templates.md` / `11-motion-animation.md` 已修复（Task 10.1，2026-08-01）；其余文档（`14-grammar-lang.md`、`15-grammar-view.md`、`05-components.md`、`07-events-and-bindings.md` 等）仍教授 ADR-052/053 前语法 |
+| 25 | **[MEDIUM]** BNF 规范与 parser 语法分歧未同步 | 规范文档更新 | `2026-07-31-semantic-level-dsl-syntax-spec.md` 写 `cubic-bezier(num,...)`、`delay ':' expr`，且 `direction` 规则缺 `alternateReverse`；parser 实际接受 `cubic(x1:...,y1:...,x2:...,y2:...)`（`parser/expr/motion.rs:93`）、`delay <expr>` 空格形式（`parser/top_level/motion.rs:366`）、`alternateReverse`（demo 已用）——两份权威文档教授不同语法，需以 parser 为准同步规范 |
+| 26 | **[MEDIUM]** `@if mode:` 过渡效果跨后端缺失 | mode 过渡效果落地前 | `transition_mode`（ADR-052 feature floor）仅 Flutter 的 `"wait"` 生成 `AnimatedSwitcher`（`codegen/flutter/view.rs:848`，`"fade"`/`"none"` 无效果）；React codegen 完全不读取（静默 no-op）；OmniView wait 路径查找 `__omni_animations.get(oldNid + "_leave")`（`codegen/omniview/editor.rs:127`）但无任何 `_leave` 注册（@leave 不存在）——静默行为差异违反 ADR-021 floor 原则，需实现或出诊断 |
 
 ---
 
 ## 2026-08-01 状态更新（语义级 DSL 实施完成）
 
-**已关闭**：#2（Flutter GlobalKey）、#4（ref_names 线程化）、#5（element_tag 被语义 ref 系统取代）、#11（IR `#[non_exhaustive]` 迁移）、#12（@focus 死代码）。原因见上表各条目备注。
+**已关闭**：#2（Flutter GlobalKey）、#4（ref_names 线程化）、#5（element_tag 被语义 ref 系统取代）、#11（IR `#[non_exhaustive]` 迁移）、#12（@focus 死代码）、#13（lexer 子属性 token 删除——由删除测试 `test_deleted_sub_attribute_tokens_lex_as_ident` 验证）。原因见上表各条目备注。
 
-**部分实施**：#7（CI codegen-validate 门禁落地：tsc + dart analyze）、#13（确认仍开放，lexer token 残留）、#14（2 个文档已修复）。
+**部分实施**：#7（CI codegen-validate 门禁落地：tsc + dart analyze）、#14（2 个文档已修复）。
 
-**新增**：#17-#24（本会话 8 项发现，见上表）。其中 #17 为 HIGH（P0 目标生成不可编译代码，门禁尚未覆盖）。
+**新增**：#17-#24（本会话 8 项发现）+ #25/#26（10.1 代码质量评审发现：BNF 规范分歧、`@if mode:` 跨后端缺失）。其中 #17 为 HIGH（P0 目标生成不可编译代码，门禁尚未覆盖）；#26 涉及 ADR-021 floor 原则的静默行为差异。
 
 **ADR-053 D7 完成项**（无对应条目、已随实施落地）：`paused_override`/`PlaybackIR.paused`/`@paused` 属性删除、React Hooks store 模式删除、demo 迁移（9.1-9.4）与 golden mirror 重同步（9.5）。
 

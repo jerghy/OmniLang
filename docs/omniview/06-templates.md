@@ -222,19 +222,19 @@ PascalCase 标签引用其他组件——编译时视图会被内联展开：
 }
 ```
 
-**过渡模式**：`mode: "fade"` 使新旧内容同时淡入淡出：
+**过渡模式**：`mode:` 值（`"fade"` | `"wait"` | `"none"`）在解析期校验，非法值报错。各目标当前支持情况：Flutter 的 `"wait"` 触发 `AnimatedSwitcher` 过渡；React 与 OmniView 尚不产生过渡效果（跨后端差异见 `.architecture/deferrals.md` #26）：
 
 ```omni
 @if isOpen mode: "fade" {
-    <div @enter={fadeIn}>Content</div>
+    <div>Content</div>
 }
 ```
 
-`mode: "wait"` 等待旧内容的离场动画完成后再插入新内容：
+`mode: "wait"`（Flutter 目标下）等待旧内容过渡完成后再插入新内容：
 ```omni
 @if showPanel mode: "wait" {
     <div class: panel>
-        <p>旧内容的离开动画完成后新内容才插入</p>
+        <p>旧内容过渡完成后新内容才插入</p>
     </div>
 }
 ```
