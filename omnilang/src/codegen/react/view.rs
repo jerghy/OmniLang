@@ -920,8 +920,12 @@ pub(super) fn gen_view_node_tsx(
 /// fragment (`<>...</>`) so the adjacent JSX children stay valid inside the
 /// parenthesized `(body)` expression — e.g. an `@if` body containing a slot
 /// plus a sibling element.
+///
+/// Also used for the component root view (`gen_jsx_return`) so that
+/// multi-element roots (e.g. a view with an input + buttons as siblings)
+/// emit valid JSX instead of adjacent root expressions.
 #[allow(clippy::too_many_arguments)]
-fn gen_branch_body_tsx(
+pub(super) fn gen_branch_body_tsx(
     w: &mut CodeWriter,
     body: &ViewTree,
     component_map: &FxHashMap<&str, &ComponentIR>,

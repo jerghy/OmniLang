@@ -33,7 +33,10 @@ impl ReactCodegen {
         w.emit("return (");
         w.indent();
         if let Some(view) = &comp.view {
-            view::gen_view_node_tsx(
+            // gen_branch_body_tsx wraps multi-element roots in a React
+            // fragment (`<>...</>`) so the emitted JSX has one parent
+            // element — sibling roots would not compile (TS2657).
+            view::gen_branch_body_tsx(
                 w,
                 view,
                 component_map,
