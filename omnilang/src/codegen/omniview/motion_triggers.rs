@@ -287,12 +287,12 @@ impl OmniViewGenerator {
             )
         } else {
             self.warnings.push(format!(
-                "@drag-{} on element \"{}\": no constraints and the motion has no translateX/Y keyframes — drag progress is unbounded (no movement); add a translate keyframe range to the motion",
+                "@drag-{} on element \"{}\": no constraints and the motion has no literal translateX/Y keyframe values — drag progress is unbounded (no movement); add a literal translate keyframe range to the motion",
                 axis_label, nid
             ));
             (
                 "Number.POSITIVE_INFINITY".to_string(),
-                " — WARNING: no constraints and no translateX/Y keyframes, drag is unbounded (no movement)".to_string(),
+                " — WARNING: no constraints and no literal translateX/Y keyframe values, drag is unbounded (no movement)".to_string(),
             )
         };
         let comment = format!(

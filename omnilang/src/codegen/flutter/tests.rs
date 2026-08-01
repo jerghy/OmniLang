@@ -592,8 +592,8 @@ fn test_drag_widget_without_translate_falls_back_unbounded() {
         expr
     );
     assert!(
-        warnings.is_empty(),
-        "unexpected codegen warnings: {:?}",
+        warnings.iter().any(|w| w.contains("fadeOnly") && w.contains("literal translateX/Y")),
+        "fallback must push a compiler warning through the warnings channel, got: {:?}",
         warnings
     );
 }

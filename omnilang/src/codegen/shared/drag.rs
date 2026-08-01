@@ -8,7 +8,9 @@
 //! The fix: when no constraints are given, map the gesture progress onto the
 //! motion's OWN keyframe range in the drag axis — dragging right by the
 //! distance the animation travels advances it 0 → 1, so the element follows
-//! its animation.
+//! its animation. Note that for reversed ranges (e.g. `300 → 0`) the extent
+//! is still positive, so the element moves OPPOSITE to the drag direction
+//! (dragging right plays the animation backward through its keyframes).
 
 use crate::ir::*;
 
@@ -77,11 +79,19 @@ pub fn drag_extent(body: &KeyframeIR, is_horizontal: bool) -> Option<f64> {
             if !matches!(prop.as_str(), "translateX" | "translateY" | "translateZ") {
                 continue;
             }
-            if let Some(n) = literal_number(expr) {
-                any_vals.push(n);
-                if prop == axis_prop {
-                    axis_vals.push(n);
+            match literal_number(expr) {
+                Some(n) => {
+                    any_vals.push(n);
+                    if prop == axis_prop {
+                        axis_vals.push(n);
+                    }
                 }
+                // A non-literal axis value (e.g. `tokens.dist`) has an unknown
+                // travel distance at compile time — deriving from the remaining
+                // literals would silently produce a wrong extent, so the axis
+                // is treated as unavailable instead.
+                None if prop == axis_prop => return None,
+                None => {}
             }
         }
     }
@@ -214,6 +224,88 @@ mod tests {
             stop(1.0, &[("translateX", 0.0)]),
         ]);
         assert_eq!(drag_extent(&b, true), None);
+    }
+
+    #[test]
+    fn non_literal_from_value_yields_none() {
+        // from { translateX: tokens.dist } to { translateX: 300 } — the real
+        // travel is |300 − tokens.dist|, unknown at compile time. Deriving
+        // from the remaining literal (300) would be a wrong extent.
+        let b = body(vec![
+            KeyframeStopIR {
+                position: 0.0,
+                properties: FxHashMap::from_iter([(
+                    "translateX".into(),
+                    ExprIR::IdentifierExpr {
+                        name: "tokens.dist".into(),
+                        type_ann: None,
+                    },
+                )]),
+                ease: None,
+                source_span: None,
+            },
+            stop(1.0, &[("translateX", 300.0)]),
+        ]);
+        assert_eq!(drag_extent(&b, true), None);
+    }
+
+    #[test]
+    fn non_literal_to_value_yields_none() {
+        // from { translateX: 0 } to { translateX: tokens.dist } — must be None
+        // (not a bogus 0-extent), and the other literal must not leak in via
+        // the cross-axis fallback either.
+        let b = body(vec![
+            stop(0.0, &[("translateX", 0.0)]),
+            KeyframeStopIR {
+                position: 1.0,
+                properties: FxHashMap::from_iter([(
+                    "translateX".into(),
+                    ExprIR::IdentifierExpr {
+                        name: "tokens.dist".into(),
+                        type_ann: None,
+                    },
+                )]),
+                ease: None,
+                source_span: None,
+            },
+        ]);
+        assert_eq!(drag_extent(&b, true), None);
+        // A non-literal axis value does not poison the OTHER axis: the same
+        // motion dragged vertically falls back to the literal translateY range.
+        let b2 = body(vec![
+            KeyframeStopIR {
+                position: 0.0,
+                properties: FxHashMap::from_iter([
+                    (
+                        "translateX".into(),
+                        ExprIR::IdentifierExpr {
+                            name: "tokens.dist".into(),
+                            type_ann: None,
+                        },
+                    ),
+                    ("translateY".into(), ExprIR::LiteralExpr { value: 0.into() }),
+                ]),
+                ease: None,
+                source_span: None,
+            },
+            KeyframeStopIR {
+                position: 1.0,
+                properties: FxHashMap::from_iter([
+                    (
+                        "translateX".into(),
+                        ExprIR::IdentifierExpr {
+                            name: "tokens.dist".into(),
+                            type_ann: None,
+                        },
+                    ),
+                    ("translateY".into(), ExprIR::LiteralExpr { value: 100.into() }),
+                ]),
+                ease: None,
+                source_span: None,
+            },
+        ]);
+        assert_eq!(drag_extent(&b2, true), None);
+        assert_eq!(drag_extent(&b2, false), Some(100.0));
     }
 
     #[test]

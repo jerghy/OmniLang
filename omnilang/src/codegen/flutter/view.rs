@@ -982,14 +982,21 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                                         crate::codegen::shared::drag::format_extent_dart(e),
                                         String::new(),
                                     ),
-                                    None => (
-                                        "0.0".to_string(),
-                                        format!(
-                                            "// WARNING: @drag-{} without constraints and no translateX/Y keyframes in motion '{}' — drag is unbounded (no movement)\n",
+                                    None => {
+                                        ctx.warnings.push(format!(
+                                            "@drag-{} without constraints and motion '{}' has no literal translateX/Y keyframe values — drag is unbounded (no movement); add a literal translate keyframe range to the motion",
                                             if is_horizontal { "horizontal" } else { "vertical" },
                                             motion_name
-                                        ),
-                                    ),
+                                        ));
+                                        (
+                                            "0.0".to_string(),
+                                            format!(
+                                                "// WARNING: @drag-{} without constraints and no literal translateX/Y keyframe values in motion '{}' — drag is unbounded (no movement)\n",
+                                                if is_horizontal { "horizontal" } else { "vertical" },
+                                                motion_name
+                                            ),
+                                        )
+                                    }
                                 }
                             } else {
                                 ("0.0".to_string(), String::new())

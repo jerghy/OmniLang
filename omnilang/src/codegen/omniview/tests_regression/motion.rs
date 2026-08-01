@@ -731,6 +731,99 @@ fn test_drag_trigger_no_translate_falls_back_unbounded() {
     );
 }
 
+/// Tests the INLINE motion branch of @drag (no motion_ref — the body lives on
+/// the trigger itself): the derived extent must flow through the same
+/// emit_trigger_drag_js path as the named-ref branch.
+#[test]
+fn test_drag_trigger_inline_motion_derived_extent() {
+    let mut gen = OmniViewGenerator::default();
+    let el = ElementIR {
+        tag: "div".into(),
+        props: FxHashMap::default(),
+        bindings: FxHashMap::default(),
+        events: FxHashMap::default(),
+        style_classes: None,
+        inline_style: None,
+        children: vec![],
+        construction_kind: ConstructionKind::Static,
+        class_map_bindings: FxHashMap::default(),
+        source_span: None,
+        motion: Some(Box::new(MotionBehavior {
+            triggers: vec![TriggerIntent {
+                kind: TriggerKind::DragHorizontal,
+                motion_ref: None,
+                inline_motion: Some(KeyframeIR {
+                    stops: vec![
+                        KeyframeStopIR {
+                            position: 0.0,
+                            properties: FxHashMap::from_iter([(
+                                "translateX".into(),
+                                ExprIR::LiteralExpr {
+                                    value: serde_json::json!(0),
+                                },
+                            )]),
+                            ease: None,
+                            source_span: None,
+                        },
+                        KeyframeStopIR {
+                            position: 1.0,
+                            properties: FxHashMap::from_iter([(
+                                "translateX".into(),
+                                ExprIR::LiteralExpr {
+                                    value: serde_json::json!(250),
+                                },
+                            )]),
+                            ease: None,
+                            source_span: None,
+                        },
+                    ],
+                    over: ExprIR::LiteralExpr {
+                        value: serde_json::json!(300),
+                    },
+                    ease: None,
+                    playback: PlaybackIR::default(),
+                    source_span: None,
+                }),
+                source_span: None,
+            }],
+            in_view_once: None,
+            in_view_repeat: None,
+            in_view_threshold: None,
+            source_span: None,
+        })),
+        scroll: None,
+        drag: Some(Box::new(DragBehavior {
+            constraints: None,
+            elastic: None,
+            threshold: None,
+            velocity_max: None,
+            source_span: None,
+        })),
+        ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
+    };
+    gen.emit_motion_triggers_for_element("el-drag-004", &el);
+    let output = format!(
+        "// === mount_js ===\n{}\n// === js ===\n{}",
+        gen.mount_js, gen.js
+    );
+    assert!(
+        output.contains("(inline)"),
+        "inline drag trigger should be marked inline:\n{}",
+        output
+    );
+    assert!(
+        output.contains("const maxExtent = 250;"),
+        "inline drag should derive maxExtent from the inline motion keyframes:\n{}",
+        output
+    );
+    assert!(
+        gen.warnings.is_empty(),
+        "inline derived extent must not warn, got: {:?}",
+        gen.warnings
+    );
+}
+
 /// Tests emit_motion_triggers_for_element with an @in-view trigger and
 /// in_view_once / in_view_threshold configurations.
 #[test]

@@ -301,7 +301,7 @@ pub(super) fn emit_drag_effect_tsx(
         // The motion has no translateX/Y range to map onto — fall back to the
         // previous unbounded behavior (progress stays 0, drag is inert) and
         // surface a compiler warning comment in the generated code.
-        w.emit("// WARNING: @drag-* without constraints and no translateX/Y keyframes in the motion — drag is unbounded (no movement); add a translate keyframe range to the motion");
+        w.emit("// WARNING: @drag-* without constraints and no literal translateX/Y keyframe values in the motion — drag is unbounded (no movement); add a literal translate keyframe range to the motion");
         w.emit("const maxExtent = Number.POSITIVE_INFINITY;");
     }
     w.emit("let startPos = 0, currentDelta = 0, isDragging = false;");
