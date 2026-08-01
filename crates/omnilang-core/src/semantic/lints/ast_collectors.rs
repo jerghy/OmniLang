@@ -240,12 +240,23 @@ pub(super) fn collect_used_names_in_view_node<'a>(
                             collect_used_names_in_view_node(node, used);
                         }
                     }
+                    // Motion triggers have two forms: a named-motion reference
+                    // (@enter={fadeIn} — motions are canonical in ModuleIR, not
+                    // subject to the per-component dead-code check) and an
+                    // inline tween body (@enter={{ translateX: offsetX }} —
+                    // parsed as a MapLiteral) whose property values may
+                    // reference signals. Keys are property names (no signal
+                    // references), so only values are collected.
+                    ElementProp::MotionTrigger(mt) => {
+                        if let Expr::MapLiteral { entries, .. } = &mt.motion_expr {
+                            for (_, value) in entries {
+                                collect_used_names_in_expr(value, used);
+                            }
+                        }
+                    }
                     // Remaining variants carry no signal-referencing expressions:
                     // ClassValue::StyleRef/StringLiteral/DesignClass, Variant
-                    // (design names/dimensions), TestId, Ref (element refs), and
-                    // MotionTrigger — its motion_expr is a named-motion reference
-                    // (motions are canonical in ModuleIR, not subject to the
-                    // per-component dead-code check).
+                    // (design names/dimensions), TestId, and Ref (element refs).
                     _ => {}
                 }
             }

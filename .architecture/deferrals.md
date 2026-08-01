@@ -128,16 +128,17 @@
 | 24 | **[MEDIUM]** 文档陈旧（docs/omniview） | 全面文档审计 | `06-templates.md` / `11-motion-animation.md` 已修复（Task 10.1，2026-08-01）；其余文档（`14-grammar-lang.md`、`15-grammar-view.md`、`05-components.md`、`07-events-and-bindings.md` 等）仍教授 ADR-052/053 前语法 |
 | 25 | **[MEDIUM]** BNF 规范与 parser 语法分歧未同步 | 规范文档更新 | `2026-07-31-semantic-level-dsl-syntax-spec.md` 写 `cubic-bezier(num,...)`、`delay ':' expr`，且 `direction` 规则缺 `alternateReverse`；parser 实际接受 `cubic(x1:...,y1:...,x2:...,y2:...)`（`parser/expr/motion.rs:93`）、`delay <expr>` 空格形式（`parser/top_level/motion.rs:366`）、`alternateReverse`（demo 已用）——两份权威文档教授不同语法，需以 parser 为准同步规范 |
 | 26 | **[MEDIUM]** `@if mode:` 过渡效果跨后端缺失 | mode 过渡效果落地前 | `transition_mode`（ADR-052 feature floor）仅 Flutter 的 `"wait"` 生成 `AnimatedSwitcher`（`codegen/flutter/view.rs:848`，`"fade"`/`"none"` 无效果）；React codegen 完全不读取（静默 no-op）；OmniView wait 路径查找 `__omni_animations.get(oldNid + "_leave")`（`codegen/omniview/editor.rs:127`）但无任何 `_leave` 注册（@leave 不存在）——静默行为差异违反 ADR-021 floor 原则，需实现或出诊断 |
+| 27 | **[MEDIUM]** 组件级 `@motion` 关键帧体未计入 lint 信号读取 | 用户仅在 `@motion` keyframe 属性中使用信号 | 死代码 lint collector 从未访问 `comp.motions` → `KeyframeStop.properties: Vec<(String, Expr)>`（`parser/top_level/motion.rs:172`）——keyframe-only 信号被误报 "never used"（与 #20 同类缺口，修复模式见 `semantic/lints/ast_collectors.rs` 的 Style/ClassMap/MotionTrigger 臂） |
 
 ---
 
 ## 2026-08-01 状态更新（语义级 DSL 实施完成）
 
-**已关闭**：#2（Flutter GlobalKey）、#4（ref_names 线程化）、#5（element_tag 被语义 ref 系统取代）、#11（IR `#[non_exhaustive]` 迁移）、#12（@focus 死代码）、#13（lexer 子属性 token 删除——由删除测试 `test_deleted_sub_attribute_tokens_lex_as_ident` 验证）。原因见上表各条目备注。
+**已关闭**：#2（Flutter GlobalKey）、#4（ref_names 线程化）、#5（element_tag 被语义 ref 系统取代）、#11（IR `#[non_exhaustive]` 迁移）、#12（@focus 死代码）、#13（lexer 子属性 token 删除——由删除测试 `test_deleted_sub_attribute_tokens_lex_as_ident` 验证）、#20（Style 读取已计入 lint 信号读取——`ast_collectors.rs` 新增 Style 臂 + 测试，并顺带修复同类 ClassMap/内联 motion tween 缺口）。原因见上表各条目备注。
 
 **部分实施**：#7（CI codegen-validate 门禁落地：tsc + dart analyze）、#14（2 个文档已修复）。
 
-**新增**：#17-#24（本会话 8 项发现）+ #25/#26（10.1 代码质量评审发现：BNF 规范分歧、`@if mode:` 跨后端缺失）。其中 #17 为 HIGH（P0 目标生成不可编译代码，门禁尚未覆盖）；#26 涉及 ADR-021 floor 原则的静默行为差异。
+**新增**：#17-#24（本会话 8 项发现）+ #25/#26（10.1 代码质量评审发现：BNF 规范分歧、`@if mode:` 跨后端缺失）+ #27（#20 代码质量评审发现的 keyframe 体同类缺口，留待后续修复）。其中 #17 为 HIGH（P0 目标生成不可编译代码，门禁尚未覆盖）；#26 涉及 ADR-021 floor 原则的静默行为差异。
 
 **ADR-053 D7 完成项**（无对应条目、已随实施落地）：`paused_override`/`PlaybackIR.paused`/`@paused` 属性删除、React Hooks store 模式删除、demo 迁移（9.1-9.4）与 golden mirror 重同步（9.5）。
 

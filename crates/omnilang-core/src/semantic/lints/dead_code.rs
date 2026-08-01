@@ -525,4 +525,43 @@ mod tests {
             diags
         );
     }
+
+    // ── Inline motion tween reference sites (same-kind gap) ─────────
+
+    #[test]
+    fn test_signal_used_only_in_inline_motion_tween_not_reported() {
+        // Inline tween bodies parse as MapLiterals (`@enter={{ x: offsetX }}`)
+        // and may reference signals from their property values.
+        let diags = lint_source(
+            "component App { signal offsetX: i32 = 0;              view { <div @enter={{ translateX: offsetX }}/> } }",
+        );
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.message.contains("'offsetX'") && d.message.contains("never used")),
+            "signal referenced from an inline motion tween must not be reported unused, got: {:?}",
+            diags
+        );
+    }
+
+    #[test]
+    fn test_unused_signal_still_reported_alongside_inline_motion_references() {
+        let diags = lint_source(
+            "component App { signal usedOffset: i32 = 0; signal unusedOffset: i32 = 5;              view { <div @enter={{ translateX: usedOffset }}/> } }",
+        );
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.message.contains("'usedOffset'") && d.message.contains("never used")),
+            "inline-motion-referenced signal must not be reported unused, got: {:?}",
+            diags
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.message.contains("'unusedOffset'") && d.message.contains("never used")),
+            "genuinely unused signal must still be reported, got: {:?}",
+            diags
+        );
+    }
 }
