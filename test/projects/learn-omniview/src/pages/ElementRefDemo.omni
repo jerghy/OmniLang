@@ -6,9 +6,12 @@
 // ║    · @ref={name}         — 绑定到元素                        ║
 // ║    · style: { width: sig } — 信号驱动样式绑定（替代 .style） ║
 // ║    · .focus() / .blur()  — 焦点管理（命令式）                ║
+// ║    · focus={sig}         — 语义化焦点绑定（信号驱动 focus/blur）║
+// ║    · .select() / .setSelection(s, e) — 文本全选 / 选区控制    ║
 // ║    · scroll-y={sig}      — 响应式滚动绑定                    ║
 // ║    · .scrollTo() / .scrollBy() — 命令式滚动控制              ║
 // ║    · .measure()          — 位置/尺寸查询（替代 getBoundingClientRect / offsetWidth）║
+// ║    · .capturePointer() / .releasePointer() — 指针捕获         ║
 // ║    · @drag-horizontal / @drag-vertical — 拖拽触发器 + motion 接线 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
@@ -42,6 +45,10 @@ component ElementRefDemo {
     ref rectBox: Element;
     ref sizeBox: Element;
     ref mirrorInput: Element;
+    ref selectInput: Element;
+    ref rangeInput: Element;
+    ref focusSigInput: Element;
+    ref pointerBox: Element;
 
     // ── 本地信号 ──
     signal focusStatus: String = "not focused";
@@ -52,6 +59,20 @@ component ElementRefDemo {
     signal boxWidthPx: String = "200px";    // style 绑定值（含单位）
     signal boxHeightPx: String = "80px";
     signal mirrorText: String = "";
+    signal selectText: String = "0123456789 全选演示文本";
+    signal selectStatus: String = "—";
+    signal rangeText: String = "0123456789";
+    signal rangeStatus: String = "—";
+    signal shouldFocus: Bool = false;       // 驱动 focus={shouldFocus} 绑定
+    signal sigFocusStatus: String = "focus=false";
+    signal pointerActive: Bool = false;     // 指针捕获中的视觉状态
+    signal pointerStatus: String = "free";
+
+    // ── @mount：挂载后置 shouldFocus = true → focus={shouldFocus} 绑定自动聚焦 ──
+    @mount {
+        shouldFocus = true;
+        sigFocusStatus = "focus=true（挂载自动聚焦）";
+    }
 
     // ── 焦点操作（命令式 RefOp：.focus() / .blur()） ──
     fn focusInput() {
@@ -63,9 +84,10 @@ component ElementRefDemo {
         focusStatus = "blurred";
     }
 
-    // ── 滚动控制：响应式 scroll-y 绑定 + 命令式 .scrollBy ──
+    // ── 滚动控制：响应式 scroll-y 绑定 + 命令式 .scrollBy / .scrollTo ──
     // scroll-y={scrollTarget} 是 scrollTo 的响应式形态：按钮只更新信号，
-    // 绑定自动驱动元素滚动；scrollBy 保持命令式（增量滚动无法用绑定表达）。
+    // 绑定自动驱动元素滚动；.scrollBy(0, 100) 增量滚动与 .scrollTo(0, y)
+    // 定点跳转保持命令式（与绑定互补）。
     fn scrollToTop() {
         scrollTarget = 0;
         scrollPos = "top";
@@ -77,6 +99,14 @@ component ElementRefDemo {
     fn scrollByDown() {
         scrollArea.scrollBy(0, 100);
         scrollPos = "scrolled +100px";
+    }
+    fn scrollToDirect() {
+        scrollArea.scrollTo(0, 0);
+        scrollPos = "scrollTo(0, 0)";
+    }
+    fn scrollTo200() {
+        scrollArea.scrollTo(0, 200);
+        scrollPos = "scrollTo(0, 200)";
     }
 
     // ── 位置查询（ref.measure()） ──
@@ -111,6 +141,50 @@ component ElementRefDemo {
         mirrorText = val;
     }
 
+    // ── 文本全选（.select()） ──
+    fn selectAllText() {
+        selectInput.select();
+        selectStatus = "已全选 " + selectText.len().to_string() + " 字符";
+    }
+
+    // ── 选区控制（.setSelection(start, end) → setSelectionRange） ──
+    fn selectFirst3() {
+        rangeInput.setSelection(0, 3);
+        rangeStatus = "已调用 setSelection(0, 3)";
+    }
+    fn selectMiddle5() {
+        rangeInput.setSelection(2, 7);
+        rangeStatus = "已调用 setSelection(2, 7)";
+    }
+    // @onSelect 事件数据（SelectEvent: start/end/text）实时回显选区
+    fn onRangeSelect(e) {
+        rangeStatus = "选区 [" + e.start.to_string() + ", " + e.end.to_string() + ") 文本: " + e.text;
+    }
+
+    // ── 语义绑定 focus={sig}（信号驱动 focus/blur） ──
+    fn toggleFocusSig() {
+        shouldFocus = !shouldFocus;
+        if shouldFocus {
+            sigFocusStatus = "focus=true（已聚焦）";
+        } else {
+            sigFocusStatus = "focus=false（已失焦）";
+        }
+    }
+
+    // ── 指针捕获（.capturePointer / .releasePointer） ──
+    // PointerEvent 事件数据 schema 暂不暴露 pointerId（提供 x/y/button 等），
+    // 演示采用固定 id=1（等价 setPointerCapture(1)）。
+    fn onPtrDown() {
+        pointerBox.capturePointer(1);
+        pointerActive = true;
+        pointerStatus = "captured (id=1)";
+    }
+    fn onPtrUp() {
+        pointerBox.releasePointer(1);
+        pointerActive = false;
+        pointerStatus = "released";
+    }
+
     // ── 高频拖拽 ──
     // 旧版通过 ref.style 直接写 DOM 实现 60fps 拖拽；ref.style 已按
     // semantic-level DSL 移除（见 validate_ref_ops），拖拽改由
@@ -119,7 +193,7 @@ component ElementRefDemo {
     view {
         <div class: LearnDesign.Container>
             <h3 class: LearnDesign.CardTitle>Element Reference System</h3>
-            <p class: LearnDesign.Subtitle>ref · @ref · style · .focus() · .scrollTo() · .measure()</p>
+            <p class: LearnDesign.Subtitle>ref · @ref · .focus() · .select() · .setSelection() · focus={sig} · .scrollTo() · .capturePointer()</p>
 
             <!-- ═══ 焦点管理 ═══ -->
             <h4 class: LearnDesign.SectionTitle>焦点管理 (.focus / .blur)</h4>
@@ -139,8 +213,63 @@ component ElementRefDemo {
                 <span class: status-text>Status: {focusStatus}</span>
             </div>
 
+            <!-- ═══ 文本全选 ═══ -->
+            <h4 class: LearnDesign.SectionTitle>文本全选 (.select)</h4>
+            <div class: demo-row>
+                <input
+                    class: ref-input
+                    @ref={selectInput}
+                    bind:value={selectText}
+                />
+                <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={selectAllText}>
+                    全选
+                </button>
+                <span class: status-text>{selectStatus}</span>
+            </div>
+
+            <!-- ═══ 选区控制 ═══ -->
+            <h4 class: LearnDesign.SectionTitle>选区控制 (.setSelection(start, end))</h4>
+            <p class: LearnDesign.Hint>
+                点击按钮调用 setSelection(start, end)（→ setSelectionRange）；手动拖动文本时
+                @onSelect 事件（SelectEvent: start/end/text）也会实时回显选区
+            </p>
+            <div class: demo-row>
+                <input
+                    class: ref-input
+                    @ref={rangeInput}
+                    bind:value={rangeText}
+                    @onSelect={onRangeSelect}
+                />
+                <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={selectFirst3}>
+                    前 3 字符 (0, 3)
+                </button>
+                <button variant: LearnDesign.Button(color=accent, size=sm) @onPress={selectMiddle5}>
+                    中间 5 字符 (2, 7)
+                </button>
+                <span class: status-text>{rangeStatus}</span>
+            </div>
+
+            <!-- ═══ 语义绑定 focus={sig} ═══ -->
+            <h4 class: LearnDesign.SectionTitle>语义绑定 (focus={sig})</h4>
+            <p class: LearnDesign.Hint>
+                focus={shouldFocus} 把布尔信号绑定到元素焦点：true → .focus()，false → .blur()。
+                @mount 中置 true，进入本页即自动聚焦。
+            </p>
+            <div class: demo-row>
+                <input
+                    class: ref-input
+                    @ref={focusSigInput}
+                    focus={shouldFocus}
+                    placeholder="focus={shouldFocus} 驱动"
+                />
+                <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={toggleFocusSig}>
+                    切换 focus={shouldFocus}
+                </button>
+                <span class: status-text>{sigFocusStatus}</span>
+            </div>
+
             <!-- ═══ 滚动控制 ═══ -->
-            <h4 class: LearnDesign.SectionTitle>滚动控制 (scroll-y 绑定 + .scrollBy)</h4>
+            <h4 class: LearnDesign.SectionTitle>滚动控制 (scroll-y 绑定 + .scrollBy + .scrollTo)</h4>
             <div scroll-y={scrollTarget} @ref={scrollArea} class: scroll-box>
                 <p class: scroll-item>Item 1 — 滚动演示区域</p>
                 <p class: scroll-item>Item 2 — 使用 scroll-y 绑定跳转</p>
@@ -158,6 +287,12 @@ component ElementRefDemo {
                 </button>
                 <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={scrollByDown}>
                     ScrollBy +100px
+                </button>
+                <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={scrollToDirect}>
+                    scrollTo(0, 0)
+                </button>
+                <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={scrollTo200}>
+                    scrollTo(0, 200)
                 </button>
                 <span class: status-text>Pos: {scrollPos}</span>
             </div>
@@ -207,6 +342,24 @@ component ElementRefDemo {
                 </span>
             </div>
 
+            <!-- ═══ 指针捕获 ═══ -->
+            <h4 class: LearnDesign.SectionTitle>指针捕获 (.capturePointer / .releasePointer)</h4>
+            <p class: LearnDesign.Hint>
+                pointerdown 捕获、pointerup 释放；捕获后即使指针移出元素，后续事件仍定向到该元素。
+                PointerEvent 事件数据暂不暴露 pointerId，演示使用固定 id=1（等价 setPointerCapture(1)）。
+            </p>
+            <div class: demo-row>
+                <div
+                    @ref={pointerBox}
+                    @onPointerDown={onPtrDown}
+                    @onPointerUp={onPtrUp}
+                    class: { pointerbox: true, pointerCaptured: pointerActive }
+                >
+                    <p>Press & hold me</p>
+                </div>
+                <span class: status-text>Pointer: {pointerStatus}</span>
+            </div>
+
             <!-- ═══ 高频拖拽（@drag-horizontal 触发器） ═══ -->
             <h4 class: LearnDesign.SectionTitle>高频拖拽 (@drag-horizontal)</h4>
             <p class: LearnDesign.Hint>
@@ -249,6 +402,10 @@ component ElementRefDemo {
         .size-box { width: 200px; height: 80px; background: var(--primaryLight); border-radius: var(--radiusMd); display: flex; align-items: center; justify-content: center; transition: "all 300ms"; }
         .size-box p { font-size: var(--fontSizeXs); color: white; margin: 0; }
         .mirror-text { font-size: var(--fontSizeSm); color: var(--textSecondary); padding: 8px 14px; background: var(--surfaceMuted); border-radius: var(--radiusMd); min-width: 150px; }
+        .pointerbox { width: 150px; padding: 16px; background: var(--surfaceMuted); border: 2px dashed var(--border); border-radius: var(--radiusMd); text-align: center; cursor: grab; user-select: none; touch-action: none; transition: "border-color 200ms, background-color 200ms"; }
+        .pointerbox p { font-size: var(--fontSizeXs); color: var(--textSecondary); margin: 0; }
+        .pointerCaptured { border-color: var(--primary); border-style: solid; background: var(--primaryLight); }
+        .pointerCaptured p { color: white; }
         .constraints-row { display: flex; gap: 16px; margin-bottom: 12px; flex-wrap: wrap; }
         .drag-demo-box { width: 100px; height: 80px; padding: 12px; background: var(--primary); color: white; border-radius: var(--radiusMd); text-align: center; cursor: grab; user-select: none; }
         .drag-demo-box p { font-size: var(--fontSizeXs); margin: 0; }
