@@ -1,6 +1,5 @@
 ---
 source: omnilang/src/codegen/tests_regression/parameterized.rs
-assertion_line: 110
 expression: "& super :: super :: format_output(& output)"
 ---
 === Counter.dart ===
@@ -50,6 +49,6 @@ class _CounterState extends State<Counter> {
 
     @override
     Widget build(BuildContext context) {
-        return Container(child: Column(children: [Text('Hello'), Text(count)]));
+        return Container(child: Column(children: [Text('Hello'), Text('${count}')]));
     }
 }

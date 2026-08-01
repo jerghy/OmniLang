@@ -28,12 +28,13 @@
 //! reports "Backend for 'Flutter' is not enabled" — detected at runtime and
 //! reported as a SKIP.
 //!
-//! Flutter note: all parameterized fixtures are COMPILED (compile-level
-//! regression coverage), but only the files listed in
-//! `FLUTTER_ANALYZE_TARGETS` are expected to pass `dart analyze` today —
-//! the generated widget code of the other fixtures has known analyzer
-//! errors (real codegen bugs surfaced by this validation; see the target
-//! docs). Extend that list as the codegen is fixed.
+//! Flutter note: every generated `.dart` file of every parameterized
+//! fixture is expected to pass `dart analyze` — the 6 known codegen bugs
+//! that previously made widget output non-compiling (multi-node roots,
+//! missing required `onPressed`, `Text(child: ...)` slot fallbacks,
+//! unguarded nulls in `List<Widget>`, `(e)` closures on VoidCallback
+//! params, non-String exprs in `Text()`) are fixed (deferral #17). New
+//! fixtures are picked up automatically by the per-file enumeration.
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
@@ -354,37 +355,42 @@ dependencies:
   flutter_riverpod: ^3.0.0
 "#;
 
-/// Generated files that are expected to pass `dart analyze` today:
-/// `(fixture dir, file, note)`.
-///
-/// ALL parameterized fixtures are compiled (compile-level regression
-/// coverage), but only the files listed here are analyzed. The other
-/// fixtures currently emit Dart that fails the analyzer — known codegen
-/// bugs (each is a real finding of this validation, see the task report;
-/// the design doc's acceptance criterion is "dart analyze clean"):
-///
-/// - `animation/MotionCard.dart`: multi-element root emitted as
-///   comma-joined expressions (invalid Dart; the view codegen Fragment case
-///   needs a Column wrapper).
-/// - `design_tokens/DesignTokensDemo.dart`: buttons emit `ElevatedButton(
-///   child: ...)` without the required `onPressed` argument.
-/// - `refs/SearchBox.dart`: multi-element root (same Fragment bug) and
-///   `onPressed: (event) { ... }` which does not match `VoidCallback`.
-/// - `slots/Card.dart`: slot fallbacks wrap content as `Text(child: ...)`
-///   (invalid named parameter) and leave an unguarded `null` in
-///   `List<Widget>`.
-/// - `store/Counter.dart`: `ref.watch(...select(...))` is emitted into
-///   `Text(...)` without string interpolation (int vs String) and
-///   `onPressed: (e)` does not match `VoidCallback`.
-///
-/// As each codegen bug is fixed, move the corresponding file(s) from the
-/// exclusion note above into this list so they are validated again.
-const FLUTTER_ANALYZE_TARGETS: &[(&str, &str, &str)] = &[(
-    "store",
-    "CounterStore_store.dart",
-    "pure-Dart Riverpod store file; analyzes clean today and exercises the \
-     pub get + analyze machinery",
-)];
+/// Collect every generated `.dart` file under `out_dir/<fixture>/` as
+/// `"<fixture>/<file>"` paths, sorted. This is the full analyze target
+/// list — ALL generated output is expected to pass `dart analyze`
+/// (deferral #17 fixed the 6 known widget-codegen bugs; new fixtures are
+/// covered automatically).
+fn flutter_analyze_targets(out_dir: &Path) -> Vec<String> {
+    let mut targets: Vec<String> = Vec::new();
+    let mut entries: Vec<_> = std::fs::read_dir(out_dir)
+        .expect("out dir")
+        .map(|e| e.expect("read out dir entry").path())
+        .filter(|p| p.is_dir())
+        .collect();
+    entries.sort();
+    for dir in entries {
+        let fixture = dir
+            .file_name()
+            .expect("fixture dir name")
+            .to_string_lossy()
+            .into_owned();
+        let mut files: Vec<_> = std::fs::read_dir(&dir)
+            .expect("fixture out dir")
+            .map(|e| e.expect("read fixture out dir entry").path())
+            .filter(|p| p.extension().is_some_and(|ext| ext == "dart"))
+            .collect();
+        files.sort();
+        for file in files {
+            let name = file
+                .file_name()
+                .expect("output file name")
+                .to_string_lossy()
+                .into_owned();
+            targets.push(format!("{fixture}/{name}"));
+        }
+    }
+    targets
+}
 
 /// Analyze `path` (relative to `out_dir`) with `dart analyze`.
 /// Returns `Ok(())` when no analyzer errors are reported; warnings-only
@@ -447,16 +453,6 @@ fn flutter_output_compiles_with_dart_analyze() {
     // the file's existence for determinism.
     std::fs::write(out_dir.join("analysis_options.yaml"), "# minimal\n").expect("write options");
 
-    if FLUTTER_ANALYZE_TARGETS.is_empty() {
-        eprintln!(
-            "SKIP: no Flutter output files pass `dart analyze` yet — the \
-             generated widget code has known analyzer errors (see \
-             FLUTTER_ANALYZE_TARGETS docs); compile-level validation of all \
-             fixtures above still ran"
-        );
-        return;
-    }
-
     // `dart pub get` needs the Flutter SDK (sdk: flutter dep) and pub.dev
     // access to resolve flutter_riverpod. If either is missing the test
     // degrades to SKIP rather than failing on toolchain setup.
@@ -471,13 +467,21 @@ fn flutter_output_compiles_with_dart_analyze() {
         return;
     }
 
+    // EVERY generated .dart file must analyze clean (warnings tolerated —
+    // unmapped semantic-DSL features degrade to warnings per ADR-052/053).
+    let targets = flutter_analyze_targets(&out_dir);
+    assert!(
+        !targets.is_empty(),
+        "no generated .dart files found under {} — the compile-level \
+         validation above should have produced some",
+        out_dir.display()
+    );
     let mut failures = Vec::new();
-    for (fixture, file, note) in FLUTTER_ANALYZE_TARGETS {
-        let path = format!("{fixture}/{file}");
+    for path in targets {
         if let Err(e) = analyze_dart(&out_dir, &path) {
             failures.push(e);
         } else {
-            eprintln!("dart analyze: OK ({path} — {note})");
+            eprintln!("dart analyze: OK ({path})");
         }
     }
     assert!(

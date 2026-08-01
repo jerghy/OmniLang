@@ -2916,13 +2916,10 @@ component Card {
         content
     );
     assert!(
-        content.contains("widget.children"),
-        "Expected widget.children render, got:\n{}",
-        content
-    );
-    assert!(
-        !content.contains("SizedBox.shrink()"),
-        "Slot must not degrade to SizedBox.shrink(), got:\n{}",
+        content.contains("widget.children ?? SizedBox.shrink()"),
+        "Expected widget.children render with a nullable-guarding fallback \
+         (widget.children is Widget?; a bare entry would be invalid in \
+         List<Widget> contexts), got:\n{}",
         content
     );
     assert!(
@@ -2964,7 +2961,7 @@ component Card {
         content
     );
     assert!(
-        content.contains("widget.header ?? Text(child: Text('Default Header'))"),
+        content.contains("widget.header ?? Text('Default Header')"),
         "Expected fallback-wrapped header render, got:\n{}",
         content
     );
@@ -3078,7 +3075,7 @@ component Card {
         .join("\n");
     assert!(
         content.contains(
-            "widget.header ?? Column(mainAxisSize: MainAxisSize.min, children: [Text(child: Text('Title')), Text(child: Text('Subtitle'))])"
+            "widget.header ?? Column(mainAxisSize: MainAxisSize.min, children: [Text('Title'), Text('Subtitle')])"
         ),
         "Expected Column-wrapped multi-node fallback, got:\n{}",
         content
@@ -3121,17 +3118,17 @@ component Consumer {
         .collect::<Vec<_>>()
         .join("\n");
     assert!(
-        content.contains("header: Text(child: Text('Custom Header'))"),
+        content.contains("header: Text('Custom Header')"),
         "Expected named slot projected to header param, got:\n{}",
         content
     );
     assert!(
-        content.contains("body: Container(child: Text(child: Text('Body content')))"),
+        content.contains("body: Container(child: Text('Body content'))"),
         "Expected named slot projected to body param, got:\n{}",
         content
     );
     assert!(
-        content.contains("children: [Text(child: Text('Default child'))]"),
+        content.contains("children: Text('Default child')"),
         "Expected default children param, got:\n{}",
         content
     );
@@ -3180,15 +3177,15 @@ component Consumer {
         .collect::<Vec<_>>()
         .join("\n");
     assert!(
-        consumer.contains("header: Text(child: Text('Custom Header'))"),
+        consumer.contains("header: Text('Custom Header')"),
         "Expected projected header param, got:\n{}",
         consumer
     );
     assert!(
         consumer.contains(
-            "children: [Text(child: Text('Body content')), Text(child: Text('Default child'))]"
+            "children: Column(mainAxisSize: MainAxisSize.min, children: [Text('Body content'), Text('Default child')])"
         ),
-        "Expected default children projection, got:\n{}",
+        "Expected Column-wrapped default children projection, got:\n{}",
         consumer
     );
     assert!(
@@ -3236,7 +3233,7 @@ component Consumer {
         .collect::<Vec<_>>()
         .join("\n");
     assert!(
-        content.contains("children: [Text(child: Text('Content'))]"),
+        content.contains("children: Text('Content')"),
         "Unknown slot content should fall back to default children, got:\n{}",
         content
     );
@@ -4979,8 +4976,10 @@ component App {
     );
 }
 
-/// ADR-053 D5: a typed body slot without fallback renders the bare
-/// `widget.<name>` param (no `??` fallback expression).
+/// ADR-053 D5: a typed body slot without fallback renders
+/// `widget.<name> ?? SizedBox.shrink()` — the param is `Widget?`, so a
+/// bare `widget.<name>` would be a static error in `List<Widget>`
+/// contexts; the shrink box renders nothing when no content is projected.
 #[test]
 fn body_typed_slot_without_fallback_renders_bare() {
     let source = r#"
@@ -4999,13 +4998,8 @@ component Badge {
         .collect::<Vec<_>>()
         .join("\n");
     assert!(
-        content.contains("widget.footer"),
-        "expected bare typed-slot render, got:\n{}",
-        content
-    );
-    assert!(
-        !content.contains("widget.footer ??"),
-        "typed slot without fallback must not emit a ?? fallback, got:\n{}",
+        content.contains("widget.footer ?? SizedBox.shrink()"),
+        "expected nullable-guarded typed-slot render, got:\n{}",
         content
     );
     assert!(

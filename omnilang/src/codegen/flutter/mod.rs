@@ -102,11 +102,25 @@ impl FlutterCodegen {
                 w.emit_fmt(format_args!("import './{}_store.dart';", store_ref));
             }
         }
+        // Component imports (cross-file composition): each child component
+        // instantiated in this component's view lives in its own generated
+        // .dart file — import it so the widget expression resolves. The
+        // component itself is skipped (self-import would be invalid).
+        let mut child_tags: Vec<&str> = Vec::new();
+        if let Some(view) = comp.view.as_ref() {
+            view::collect_component_tags(view, component_map, &mut child_tags);
+        }
+        child_tags.sort();
+        child_tags.dedup();
+        let child_imports: Vec<&str> = child_tags.into_iter().filter(|t| *t != name).collect();
+        for tag in &child_imports {
+            w.emit_fmt(format_args!("import './{}.dart';", tag));
+        }
         if !comp.store_refs.is_empty() {
             w.emit("import 'package:flutter_riverpod/flutter_riverpod.dart';");
             w.emit("");
         }
-        if !comp.store_refs.is_empty() {
+        if !comp.store_refs.is_empty() || !child_imports.is_empty() {
             w.emit("");
         }
 
@@ -567,7 +581,11 @@ impl FlutterCodegen {
                 ir,
                 warnings: &mut warnings,
             };
-            let tree_expr = format_view_tree(view, &motions, &mut ctx);
+            // Multi-node root fragments are wrapped in a Column —
+            // `return Text('a'), Text('b');` would be invalid Dart
+            // (format_single_view is the Flutter analogue of React's
+            // fragment wrapper).
+            let tree_expr = format_single_view(view, &motions, &mut ctx);
             w.emit_fmt(format_args!("return {};", tree_expr));
         } else {
             // Default widget tree

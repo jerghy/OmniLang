@@ -362,3 +362,15 @@ pub(crate) fn widget_param_wrapper(
 pub(crate) fn widget_allows_event(widget: &str, callback: &str) -> bool {
     widget_event_whitelist(widget).contains(&callback)
 }
+
+/// Whether a widget callback parameter receives NO event argument in
+/// Flutter (the `VoidCallback` family). Handlers bound to these params
+/// must emit parameterless closures — `(e) { ... }` would not match the
+/// signature. All other mapped callbacks (onChanged, onSubmitted,
+/// onSelected, onHover, onScroll, ...) receive a value argument.
+pub(crate) fn callback_is_void(callback: &str) -> bool {
+    matches!(
+        callback,
+        "onPressed" | "onLongPress" | "onTap" | "onDoubleTap"
+    )
+}

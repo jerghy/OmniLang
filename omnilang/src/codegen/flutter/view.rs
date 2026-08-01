@@ -14,9 +14,9 @@ use super::motion_widgets::{emit_event_object_flutter, field_extract_flutter};
 use super::r#ref::{ref_focus_name, ref_key_name, ref_scroll_name, ref_text_name, RefUsage};
 use super::stmt::{generate_statement_flutter, FlutterStmtFormatter};
 use super::utils::{
-    binding_to_flutter_param, css_color_to_dart, event_to_flutter_callback, lower_first,
-    prop_to_flutter_param_name, tag_to_flutter_widget, widget_allows_event, widget_allows_param,
-    widget_param_rename, widget_param_wrapper,
+    binding_to_flutter_param, callback_is_void, css_color_to_dart, event_to_flutter_callback,
+    lower_first, prop_to_flutter_param_name, tag_to_flutter_widget, widget_allows_event,
+    widget_allows_param, widget_param_rename, widget_param_wrapper,
 };
 use std::fmt::Write;
 
@@ -76,7 +76,12 @@ pub(crate) fn format_view_tree(
         }
         ViewTree::Interpolation(expr) => {
             let dart_expr = ctx.format_expr(expr);
-            format!("Text({})", dart_expr)
+            // `Text()` takes a String — non-String expressions (store
+            // signal reads, arithmetic, ...) would be a static type
+            // error. `'${...}'` string interpolation accepts any value
+            // (Dart stringifies), so interpolated view expressions are
+            // always emitted in that form.
+            format!("Text('${{{}}}')", dart_expr)
         }
         ViewTree::Conditional(cond) => format_conditional(cond, motions, ctx),
         ViewTree::ListRendering(list) => format_list_rendering(list, motions, ctx),
@@ -93,7 +98,10 @@ pub(crate) fn format_view_tree(
             let param = format!("widget.{}", name.as_deref().unwrap_or("children"));
             match format_slot_content(fallback, motions, ctx) {
                 Some(fb) => format!("{} ?? {}", param, fb),
-                None => param,
+                // No fallback: `widget.x` is `Widget?` — a bare entry would
+                // be a static error in `List<Widget>` contexts. The shrink
+                // box renders nothing when the parent projects no content.
+                None => format!("{} ?? SizedBox.shrink()", param),
             }
         }
         #[allow(unreachable_patterns)]
@@ -127,11 +135,42 @@ fn format_slot_content(
                 .iter()
                 .map(|c| format_view_tree(c, motions, ctx))
                 .collect();
-            Some(format!(
-                "Column(mainAxisSize: MainAxisSize.min, children: [{}])",
-                children.join(", ")
-            ))
+            Some(wrap_multi_widget(&children))
         }
+    }
+}
+
+/// Wrap a list of widget expressions in a single-widget `Column` — the
+/// Flutter analogue of the React backend's fragment wrapper
+/// (`gen_branch_body_tsx` emits `<>...</>`). Used wherever a view fragment
+/// must produce ONE widget expression: build() returns, ternary branches,
+/// and list item bodies.
+pub(crate) fn wrap_multi_widget(children: &[String]) -> String {
+    format!(
+        "Column(mainAxisSize: MainAxisSize.min, children: [{}])",
+        children.join(", ")
+    )
+}
+
+/// Format a view tree as a single widget expression — valid anywhere a
+/// Widget expression is required (`return` statements, ternary branches,
+/// `itemBuilder` bodies). Multi-node root fragments are wrapped in a
+/// Column (`format_view_tree` itself comma-joins fragments, which is only
+/// legal inside `children: [...]` lists).
+pub(crate) fn format_single_view(
+    node: &ViewTree,
+    motions: &[MotionIntent],
+    ctx: &mut ViewContext,
+) -> String {
+    match node {
+        ViewTree::Fragment(children) if children.len() > 1 => {
+            let parts: Vec<String> = children
+                .iter()
+                .map(|c| format_view_tree(c, motions, ctx))
+                .collect();
+            wrap_multi_widget(&parts)
+        }
+        _ => format_view_tree(node, motions, ctx),
     }
 }
 
@@ -221,6 +260,60 @@ pub(crate) fn collect_view_slots(
         ViewTree::Fragment(children) => {
             for child in children {
                 collect_view_slots(child, component_map, acc);
+            }
+        }
+        ViewTree::Text(_) | ViewTree::Interpolation(_) => {}
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
+    }
+}
+
+/// Collect the tags of all component instantiations in a view tree — the
+/// child components whose generated `.dart` files the generated component
+/// file must import (cross-file composition). Children of a component
+/// instantiation are skipped: they are projections into the child's slots,
+/// which the child component renders itself.
+pub(crate) fn collect_component_tags<'a>(
+    node: &'a ViewTree,
+    component_map: &FxHashMap<&str, &ComponentIR>,
+    acc: &mut Vec<&'a str>,
+) {
+    match node {
+        ViewTree::Element(el) => {
+            if component_map.contains_key(el.tag.as_str()) {
+                acc.push(&el.tag);
+                return;
+            }
+            for child in &el.children {
+                collect_component_tags(child, component_map, acc);
+            }
+        }
+        ViewTree::Conditional(cond) => {
+            for branch in &cond.branches {
+                if let Some(ref body) = branch.body {
+                    collect_component_tags(body, component_map, acc);
+                }
+            }
+            if let Some(ref fb) = cond.fallback {
+                collect_component_tags(fb, component_map, acc);
+            }
+        }
+        ViewTree::ListRendering(list) => {
+            if let Some(ref body) = list.body {
+                collect_component_tags(body, component_map, acc);
+            }
+            if let Some(ref empty_body) = list.empty_body {
+                collect_component_tags(empty_body, component_map, acc);
+            }
+        }
+        ViewTree::Fragment(children) => {
+            for child in children {
+                collect_component_tags(child, component_map, acc);
+            }
+        }
+        ViewTree::Slot { fallback, .. } => {
+            for child in fallback {
+                collect_component_tags(child, component_map, acc);
             }
         }
         ViewTree::Text(_) | ViewTree::Interpolation(_) => {}
@@ -350,18 +443,20 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
         }
         // Unnamed content projects into the `children` param — only when
         // the component declares the unnamed slot; otherwise the generated
-        // Dart would be invalid, so warn and drop.
+        // Dart would be invalid, so warn and drop. The slot param is a
+        // single `Widget?` — multi-node content is Column-wrapped (a bare
+        // list literal would not match the parameter type).
         let args_str = child_args.join(", ");
         if default_children.is_empty() {
             return format!("{}({})", el.tag, args_str);
         }
         if target_slots.contains("children") {
-            return format!(
-                "{}({}, children: [{}])",
-                el.tag,
-                args_str,
-                default_children.join(", ")
-            );
+            let children_arg = if default_children.len() == 1 {
+                default_children[0].clone()
+            } else {
+                wrap_multi_widget(&default_children)
+            };
+            return format!("{}({}, children: {})", el.tag, args_str, children_arg);
         }
         ctx.warnings.push(format!(
             "[flutter] component '{}' declares no default slot; {} child node(s) dropped",
@@ -470,11 +565,15 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
             ));
             continue;
         }
+        // VoidCallback-family params (onPressed/onLongPress/...) receive NO
+        // event argument in Flutter — the closure must be parameterless or
+        // the generated Dart fails to compile (argument_type_not_assignable).
+        let is_void = callback_is_void(callback_name);
         let body = match handler {
             EventHandlerIR::FnRef {
                 r#ref, event_data, ..
             } => {
-                if event_data.is_some() {
+                if event_data.is_some() && !is_void {
                     let event_obj = emit_event_object_flutter(
                         handler.event_data(),
                         handler.used_fields(),
@@ -488,7 +587,7 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
             EventHandlerIR::InlineFn {
                 body, event_data, ..
             } => {
-                if event_data.is_some() {
+                if event_data.is_some() && !is_void {
                     let _event_obj =
                         emit_event_object_flutter(handler.event_data(), handler.used_fields(), "e");
                     let fields: Vec<String> = match handler.used_fields() {
@@ -525,12 +624,42 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                     let result = hw.into_string().trim().to_string();
                     result
                 } else {
+                    if is_void
+                        && handler
+                            .used_fields()
+                            .as_ref()
+                            .is_some_and(|f| !f.is_empty())
+                    {
+                        ctx.warnings.push(format!(
+                            "[flutter] event '{name}' → callback '{callback_name}' is a \
+                             VoidCallback in Flutter (no event argument); event field \
+                             accesses in the handler were dropped"
+                        ));
+                    }
                     format_inline_handler_flutter(body, ctx)
                 }
             }
             EventHandlerIR::StoreAction { r#ref, .. } => format_store_action_handler(r#ref),
         };
         args.push(format!("{}: {}", callback_name, body));
+    }
+
+    // Required-parameter defaults: Flutter widgets with REQUIRED named
+    // params emit a default when the .omni source provides none —
+    // `ElevatedButton(child: ...)` without `onPressed:` is invalid Dart
+    // (onPressed is required). `onPressed: null` renders the button
+    // disabled; `value: false` / `value: 0.0` render toggles/sliders off.
+    let required_defaults: &[(&str, &str)] = match widget {
+        "ElevatedButton" | "TextButton" | "IconButton" => &[("onPressed", "null")],
+        "Checkbox" | "Switch" => &[("value", "false")],
+        "Slider" => &[("value", "0.0")],
+        _ => &[],
+    };
+    for (param, default) in required_defaults {
+        let present = args.iter().any(|a| a.starts_with(&format!("{}:", param)));
+        if !present {
+            args.push(format!("{}: {}", param, default));
+        }
     }
 
     // Bindings (C6: per-widget whitelist)
@@ -571,8 +700,45 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
     }
 
     // Children
+    let mut text_column_fallback: Option<Vec<String>> = None;
     if el.children.is_empty() {
         // No children
+    } else if widget == "Text" {
+        // Text widgets take their content as the positional `data`
+        // argument — `Text(child: ...)` is invalid Dart (Text has no
+        // `child` parameter). Text-ish children (plain text nodes /
+        // interpolations) concatenate into the data string; non-text
+        // children degrade to a Column-wrapped expression so the output
+        // still compiles.
+        let mut parts: Vec<String> = Vec::new();
+        let mut all_text = true;
+        for child in &el.children {
+            match child {
+                ViewTree::Text(t) => parts.push(t.replace('\'', "\\'")),
+                ViewTree::Interpolation(e) => {
+                    parts.push(format!("${{{}}}", ctx.format_expr(e)));
+                }
+                _ => {
+                    all_text = false;
+                    break;
+                }
+            }
+        }
+        if all_text {
+            args.insert(0, format!("'{}'", parts.join("")));
+        } else {
+            ctx.warnings.push(format!(
+                "[flutter] element '{}' maps to Text but has non-text children; \
+                 rendering a Column instead (Text cannot host child widgets)",
+                el.tag
+            ));
+            text_column_fallback = Some(
+                el.children
+                    .iter()
+                    .map(|c| format_view_tree(c, motions, ctx))
+                    .collect(),
+            );
+        }
     } else if el.children.len() == 1 {
         let child_str = format_view_tree(&el.children[0], motions, ctx);
         args.push(format!("child: {}", child_str));
@@ -595,7 +761,9 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
         }
     }
 
-    let inner = if args.is_empty() {
+    let inner = if let Some(children) = text_column_fallback {
+        wrap_multi_widget(&children)
+    } else if args.is_empty() {
         format!("{}()", widget)
     } else {
         format!("{}({})", widget, args.join(", "))
@@ -818,7 +986,7 @@ fn format_conditional(
 ) -> String {
     if cond.branches.is_empty() {
         if let Some(ref fb) = cond.fallback {
-            return format_view_tree(fb, motions, ctx);
+            return format_single_view(fb, motions, ctx);
         }
         return "SizedBox()".to_string();
     }
@@ -826,10 +994,13 @@ fn format_conditional(
     let mut result = String::new();
     for (i, branch) in cond.branches.iter().enumerate() {
         let cond_str = ctx.format_expr(&branch.condition);
+        // Branch bodies must be single widget expressions — multi-node
+        // fragments are Column-wrapped (format_view_tree comma-joins,
+        // which is only valid inside `children: [...]` lists).
         let body_str = branch
             .body
             .as_ref()
-            .map(|b| format_view_tree(b, motions, ctx))
+            .map(|b| format_single_view(b, motions, ctx))
             .unwrap_or_else(|| "SizedBox()".to_string());
         if i == 0 {
             let _ = write!(result, "{} ? {}", cond_str, body_str);
@@ -840,7 +1011,7 @@ fn format_conditional(
 
     // Fallback
     if let Some(ref fb) = cond.fallback {
-        let _ = write!(result, " : {}", format_view_tree(fb, motions, ctx));
+        let _ = write!(result, " : {}", format_single_view(fb, motions, ctx));
     } else {
         result.push_str(" : SizedBox()");
     }
@@ -867,10 +1038,12 @@ fn format_list_rendering(
 ) -> String {
     let iterable_str = ctx.format_expr(&list.iterable);
     let item_name = &list.item_binding.name;
+    // The item body must be a single widget expression — multi-node
+    // fragments are Column-wrapped so `return <body>` stays valid.
     let body_str = list
         .body
         .as_ref()
-        .map(|b| format_view_tree(b, motions, ctx))
+        .map(|b| format_single_view(b, motions, ctx))
         .unwrap_or_else(|| "SizedBox()".to_string());
     let list_builder = format!(
         "ListView.builder(\n  itemCount: {iter}.length,\n  itemBuilder: (context, index) {{\n    var {item} = {iter}[index];\n    return {body};\n  }},\n)",
@@ -880,7 +1053,7 @@ fn format_list_rendering(
         let empty_str = list
             .empty_body
             .as_ref()
-            .map(|b| format_view_tree(b, motions, ctx))
+            .map(|b| format_single_view(b, motions, ctx))
             .unwrap_or_else(|| "SizedBox()".to_string());
         format!(
             "Builder(\n  builder: (context) => {}.isEmpty ? {} : {},\n)",
