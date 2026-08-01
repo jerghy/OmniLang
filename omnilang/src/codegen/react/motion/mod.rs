@@ -114,6 +114,40 @@ fn walk_motion_elements_inner(
     }
 }
 
+/// Whether the view declares any `@if mode: "fade"` conditional — gates the
+/// CSS-module import: the fade rules (`.omni-if-fade` class + keyframes)
+/// live in the component's `.module.css`.
+pub(super) fn view_has_fade_conditional(node: &ViewTree) -> bool {
+    match node {
+        ViewTree::Element(el) => el.children.iter().any(view_has_fade_conditional),
+        ViewTree::Conditional(cond) => {
+            cond.transition_mode.as_deref() == Some("fade")
+                || cond
+                    .branches
+                    .iter()
+                    .any(|b| b.body.as_ref().is_some_and(view_has_fade_conditional))
+                || cond
+                    .fallback
+                    .as_ref()
+                    .is_some_and(view_has_fade_conditional)
+        }
+        ViewTree::ListRendering(list) => {
+            list.body
+                .as_ref()
+                .is_some_and(view_has_fade_conditional)
+                || list
+                    .empty_body
+                    .as_ref()
+                    .is_some_and(view_has_fade_conditional)
+        }
+        ViewTree::Slot { fallback, .. } => fallback.iter().any(view_has_fade_conditional),
+        ViewTree::Fragment(children) => children.iter().any(view_has_fade_conditional),
+        ViewTree::Text(_) | ViewTree::Interpolation(_) => false,
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
+    }
+}
+
 /// Whether any motion element carries an interactive trigger (@hover or
 /// @press) that emits useCallback handlers wired into the JSX — decides the
 /// `useCallback` import.

@@ -222,7 +222,13 @@ PascalCase 标签引用其他组件——编译时视图会被内联展开：
 }
 ```
 
-**过渡模式**：`mode:` 值（`"fade"` | `"wait"` | `"none"`）在解析期校验，非法值报错。各目标当前支持情况：Flutter 的 `"wait"` 触发 `AnimatedSwitcher` 过渡；React 与 OmniView 尚不产生过渡效果（跨后端差异见 `.architecture/deferrals.md` #26）：
+**过渡模式**：`mode:` 值（`"fade"` | `"wait"` | `"none"`）在解析期校验，非法值报错。各目标当前支持情况：
+
+| 目标 | `"fade"` | `"wait"` | `"none"` |
+|------|----------|----------|----------|
+| React | 进入的分支淡入（CSS 淡入，300ms，`.omni-if-fade` 类 + keyframes 生成在组件 `.module.css`） | 无离开动画机制可等待，降级为立即切换（生成代码中注明降级） | 立即切换 |
+| Flutter | 无过渡效果 | `AnimatedSwitcher` + `FadeTransition`（等待旧内容过渡完成后插入新内容） | 立即切换 |
+| OmniView | 无过渡效果 | 无离开动画机制可等待，降级为立即切换（生成 JS 中注明降级；旧版 `_leave` 查找无任何注册，为死代码，已移除） | 立即切换 |
 
 ```omni
 @if isOpen mode: "fade" {

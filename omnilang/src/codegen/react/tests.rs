@@ -2551,6 +2551,171 @@ component Panel {
     );
 }
 
+/// Test: `@if mode: "fade"` is a real transition on React (ADR-052 floor —
+/// transition_mode must produce behavior, never a silent no-op). The branch
+/// renders inside a wrapper div carrying the CSS-module fade class, and the
+/// component's `.module.css` defines the opacity keyframes. The wrapper
+/// mounts with the branch, so the fade replays exactly when the shown
+/// branch changes.
+#[test]
+fn conditional_fade_mode_emits_css_fade_transition() {
+    let source = r#"
+component FadePanel {
+    signal open: bool = false
+    view {
+        <div>
+            @if open mode: "fade" {
+                <p>Panel</p>
+            }
+        </div>
+    }
+}
+"#;
+    let output = compile_react(source).unwrap();
+    let tsx: String = output
+        .files
+        .iter()
+        .filter(|(path, _)| path.ends_with(".tsx"))
+        .map(|(_, content)| content.clone())
+        .collect::<Vec<_>>()
+        .join("\n");
+    let css: String = output
+        .files
+        .iter()
+        .filter(|(path, _)| path.ends_with(".module.css"))
+        .map(|(_, content)| content.clone())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        tsx.contains("className={styles['omni-if-fade']}"),
+        "Expected fade wrapper class in TSX, got:\n{}",
+        tsx
+    );
+    assert!(
+        tsx.contains("import styles from './FadePanel.module.css';"),
+        "Fade forces the CSS-module import so the rules exist, got:\n{}",
+        tsx
+    );
+    assert!(
+        css.contains("@keyframes omni-if-fade")
+            && css.contains("animation: omni-if-fade 300ms ease-out forwards;"),
+        "Expected fade keyframes + animation in CSS module, got:\n{}",
+        css
+    );
+}
+
+/// Test: `mode: "fade"` wraps EVERY branch of a multi-branch conditional
+/// (ternary), so each entering branch fades in when it becomes the shown one.
+#[test]
+fn conditional_fade_mode_wraps_every_ternary_branch() {
+    let source = r#"
+component FadeStatus {
+    signal status: String = "loading"
+    view {
+        <div>
+            @if status == "loading" mode: "fade" {
+                <p>Loading</p>
+            } @else if status == "error" {
+                <p>Error</p>
+            } @else {
+                <p>Ready</p>
+            }
+        </div>
+    }
+}
+"#;
+    let output = compile_react(source).unwrap();
+    let tsx: String = output
+        .files
+        .iter()
+        .filter(|(path, _)| path.ends_with(".tsx"))
+        .map(|(_, content)| content.clone())
+        .collect::<Vec<_>>()
+        .join("\n");
+    let wrappers = tsx
+        .matches("<div className={styles['omni-if-fade']}>")
+        .count();
+    assert_eq!(
+        wrappers, 3,
+        "Expected all 3 ternary branches wrapped in the fade div, got {}:\n{}",
+        wrappers, tsx
+    );
+}
+
+/// Test: `mode: "wait"` — OmniLang has no leave-animation mechanism to wait
+/// for, so React degrades to an instant swap (same timing as mode: "none").
+/// The degradation is stated in the generated TSX so it is never a silent
+/// no-op.
+#[test]
+fn conditional_wait_mode_degrades_with_stated_comment() {
+    let source = r#"
+component WaitPanel {
+    signal open: bool = false
+    view {
+        <div>
+            @if open mode: "wait" {
+                <p>Panel</p>
+            }
+        </div>
+    }
+}
+"#;
+    let output = compile_react(source).unwrap();
+    let tsx: String = output
+        .files
+        .iter()
+        .filter(|(path, _)| path.ends_with(".tsx"))
+        .map(|(_, content)| content.clone())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        tsx.contains("no leave animation; degrades to an instant swap"),
+        "Expected the degradation comment in TSX, got:\n{}",
+        tsx
+    );
+    assert!(
+        !tsx.contains("omni-if-fade"),
+        "Wait mode must not emit fade wrappers, got:\n{}",
+        tsx
+    );
+}
+
+/// Test: an `@if` without `mode:` (or with explicit `mode: "none"`) keeps
+/// the previous output exactly — no fade wrapper, no degradation comment.
+#[test]
+fn conditional_without_mode_output_unchanged() {
+    let source = r#"
+component PlainPanel {
+    signal open: bool = false
+    view {
+        <div>
+            @if open {
+                <p>Panel</p>
+            }
+        </div>
+    }
+}
+"#;
+    let output = compile_react(source).unwrap();
+    let tsx: String = output
+        .files
+        .iter()
+        .filter(|(path, _)| path.ends_with(".tsx"))
+        .map(|(_, content)| content.clone())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        tsx.contains("&& ("),
+        "Expected the plain &&-conditional, got:\n{}",
+        tsx
+    );
+    assert!(
+        !tsx.contains("omni-if-fade") && !tsx.contains("degrades to an instant swap"),
+        "No mode → unchanged output, got:\n{}",
+        tsx
+    );
+}
+
 /// Test: a multi-node slot fallback is wrapped in a React fragment inside
 /// `{prop ?? ( ... )}` so the emitted TSX stays valid.
 #[test]

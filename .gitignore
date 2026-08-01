@@ -37,6 +37,9 @@ docs/screenshots/
 build/
 .claude/worktrees/
 
+# Demo project build artifacts (untracked — accidental-commit risk)
+test/projects/learn-omniview/dist/
+
 # ts-rs auto-generated bindings (default export directory)
 bindings/
 

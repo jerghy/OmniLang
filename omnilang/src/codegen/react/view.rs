@@ -630,8 +630,22 @@ pub(super) fn gen_view_node_tsx(
             let branches = &cond.branches;
             let fallback = &cond.fallback;
 
+            // mode: "wait" — OmniLang has no leave-animation mechanism to
+            // wait for, so the transition degrades to an instant swap (same
+            // timing as mode: "none"). The degradation is stated in the
+            // output so it is never a silent no-op.
+            if cond.transition_mode.as_deref() == Some("wait") {
+                w.emit("{/* @if mode: \"wait\" — OmniLang has no leave animation; degrades to an instant swap (same as mode: \"none\"). */}");
+            }
+
+            // mode: "fade" — each branch renders inside a wrapper div
+            // carrying the CSS-module fade class (opacity 0 → 1, defined in
+            // the component's .module.css).
+            let is_fade = cond.transition_mode.as_deref() == Some("fade");
+
             if branches.is_empty() {
                 if let Some(ref fb) = fallback {
+                    emit_fade_branch_open(w, is_fade);
                     gen_branch_body_tsx(
                         w,
                         fb,
@@ -643,6 +657,7 @@ pub(super) fn gen_view_node_tsx(
                         ref_names,
                         motion_counter,
                     );
+                    emit_fade_branch_close(w, is_fade);
                 }
                 return;
             }
@@ -654,6 +669,7 @@ pub(super) fn gen_view_node_tsx(
                 let cond_str = format_expr_ir_tsx(&branches[0].condition, ref_names);
                 w.emit_fmt(format_args!("{} && (", cond_str));
                 w.indent();
+                emit_fade_branch_open(w, is_fade);
                 if let Some(ref body) = branches[0].body {
                     gen_branch_body_tsx(
                         w,
@@ -667,6 +683,7 @@ pub(super) fn gen_view_node_tsx(
                         motion_counter,
                     );
                 }
+                emit_fade_branch_close(w, is_fade);
                 w.dedent();
                 w.emit(")");
                 w.dedent();
@@ -685,6 +702,7 @@ pub(super) fn gen_view_node_tsx(
                 let cond_str = format_expr_ir_tsx(&first_branch.condition, ref_names);
                 w.emit_fmt(format_args!("{} ? (", cond_str));
                 w.indent();
+                emit_fade_branch_open(w, is_fade);
                 if let Some(ref body) = first_branch.body {
                     gen_branch_body_tsx(
                         w,
@@ -698,6 +716,7 @@ pub(super) fn gen_view_node_tsx(
                         motion_counter,
                     );
                 }
+                emit_fade_branch_close(w, is_fade);
                 w.dedent();
 
                 // Remaining branches: `) : ( cond ? ( body )`
@@ -707,6 +726,7 @@ pub(super) fn gen_view_node_tsx(
                     let cond_str = format_expr_ir_tsx(&branch.condition, ref_names);
                     w.emit_fmt(format_args!("{} ? (", cond_str));
                     w.indent();
+                    emit_fade_branch_open(w, is_fade);
                     if let Some(ref body) = branch.body {
                         gen_branch_body_tsx(
                             w,
@@ -720,6 +740,7 @@ pub(super) fn gen_view_node_tsx(
                             motion_counter,
                         );
                     }
+                    emit_fade_branch_close(w, is_fade);
                     w.dedent();
                 }
 
@@ -727,6 +748,7 @@ pub(super) fn gen_view_node_tsx(
                 if let Some(ref fb) = fallback {
                     w.emit(") : (");
                     w.indent();
+                    emit_fade_branch_open(w, is_fade);
                     gen_branch_body_tsx(
                         w,
                         fb,
@@ -738,6 +760,7 @@ pub(super) fn gen_view_node_tsx(
                         ref_names,
                         motion_counter,
                     );
+                    emit_fade_branch_close(w, is_fade);
                     w.dedent();
                     w.emit(")");
                 } else {
@@ -749,6 +772,7 @@ pub(super) fn gen_view_node_tsx(
                 }
             } else if let Some(ref fb) = fallback {
                 // No branches, just fallback
+                emit_fade_branch_open(w, is_fade);
                 gen_branch_body_tsx(
                     w,
                     fb,
@@ -760,6 +784,7 @@ pub(super) fn gen_view_node_tsx(
                     ref_names,
                     motion_counter,
                 );
+                emit_fade_branch_close(w, is_fade);
             }
 
             w.dedent();
@@ -960,6 +985,27 @@ pub(super) fn gen_branch_body_tsx(
     if is_multi {
         w.dedent();
         w.emit("</>");
+    }
+}
+
+/// Open/close the `mode: "fade"` wrapper div around a conditional branch.
+///
+/// The wrapper mounts together with the branch, so the CSS animation
+/// replays exactly when the shown branch changes. The class and its
+/// keyframes are defined in the component's `.module.css` (see
+/// `component::gen_component_css`) — same-module definition + reference so
+/// the bundler scopes both consistently.
+fn emit_fade_branch_open(w: &mut CodeWriter, is_fade: bool) {
+    if is_fade {
+        w.emit("<div className={styles['omni-if-fade']}>");
+        w.indent();
+    }
+}
+
+fn emit_fade_branch_close(w: &mut CodeWriter, is_fade: bool) {
+    if is_fade {
+        w.dedent();
+        w.emit("</div>");
     }
 }
 

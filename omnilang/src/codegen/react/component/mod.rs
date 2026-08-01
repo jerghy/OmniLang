@@ -140,11 +140,16 @@ impl ReactCodegen {
             .difference(&design_ctx.global_class_names)
             .cloned()
             .collect();
+        // `@if mode: "fade"` renders branches inside a wrapper div carrying
+        // the CSS-module `.omni-if-fade` class — forces the stylesheet
+        // import so the fade rules (emitted by gen_component_css) exist.
+        let has_if_fade = view.is_some_and(super::motion::view_has_fade_conditional);
         let has_styles = !local_style_classes.is_empty()
             || (!comp.styles.is_empty()
                 && local_style_classes
                     .iter()
-                    .any(|c| comp.styles.iter().any(|s| &s.class_name == c)));
+                    .any(|c| comp.styles.iter().any(|s| &s.class_name == c)))
+            || has_if_fade;
 
         // Props interface check — slot declarations also become props
         // (`children` for the unnamed slot, same-named props for named
@@ -481,8 +486,40 @@ impl ReactCodegen {
         let mut w = CodeWriter::new();
         w.emit_fmt(format_args!("/* Styles for {} */", name));
         crate::codegen::generate_css_style_block(&mut w, &comp.styles);
+        // `@if mode: "fade"` — wrapper class + keyframes. Defined and
+        // referenced within the same CSS module so the bundler scopes the
+        // class name and the keyframe name consistently.
+        if comp_has_if_fade(comp) {
+            w.emit("");
+            w.emit(".omni-if-fade {");
+            w.indent();
+            w.emit("opacity: 0;");
+            w.emit("animation: omni-if-fade 300ms ease-out forwards;");
+            w.dedent();
+            w.emit("}");
+            w.emit("@keyframes omni-if-fade {");
+            w.indent();
+            w.emit("from { opacity: 0; }");
+            w.emit("to { opacity: 1; }");
+            w.dedent();
+            w.emit("}");
+        }
         w.into_string()
     }
+}
+
+/// Whether the component declares any `@if mode: "fade"` conditional — in
+/// the view itself or inside a body-slot fallback (which the JSX emitter
+/// sees after slot materialization). Gates the fade rules in the CSS module.
+fn comp_has_if_fade(comp: &ComponentIR) -> bool {
+    comp.view
+        .as_ref()
+        .is_some_and(super::motion::view_has_fade_conditional)
+        || comp.slots.iter().any(|s| {
+            s.fallback
+                .iter()
+                .any(super::motion::view_has_fade_conditional)
+        })
 }
 
 // ═══════════════════════════════════════════════════════════

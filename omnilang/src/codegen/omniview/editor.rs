@@ -96,13 +96,20 @@ function __omni_buildNidMap() {\n\
             conditions_js.push((cond_js, branch_nids[i].clone()));
         }
 
-        let is_wait_mode = cond.transition_mode.as_deref() == Some("wait");
-
-        // nid contains hyphens (e.g. "el-if-2908") which are invalid in JS identifiers.
-        // Create a safe version for JS variable names.
-        let nid_js = nid.replace('-', "_");
-
         let _ = writeln!(self.js, "\n/// ── @if conditional {} ──", nid);
+
+        // `mode: "wait"` would wait for a leave animation before swapping
+        // branches, but OmniLang has no @leave mechanism — nothing registers
+        // `_leave` entries (the old `__omni_animations.get(nid + "_leave")`
+        // lookup could never match). Degrade honestly: instant swap (same
+        // timing as mode: "none"), stated in the generated JS so it is never
+        // a silent no-op.
+        if cond.transition_mode.as_deref() == Some("wait") {
+            let _ = writeln!(
+                self.js,
+                "// @if mode: \"wait\" — no leave animation exists in OmniLang; degrades to an instant swap (same as mode: \"none\")"
+            );
+        }
 
         // Emit all NIDs as a JS array for efficient bulk toggling
         let nid_list: Vec<String> = branch_nids
@@ -112,100 +119,27 @@ function __omni_buildNidMap() {\n\
             .collect();
         let nid_array = format!("[{}]", nid_list.join(", "));
 
-        if is_wait_mode {
-            // Wait mode: play @leave on old branch, wait for completion, then show new branch
-            let _ = writeln!(self.js, "var _current_{nid_js} = null;\n\
-                 __omni_effect(() => {{\n\
-                 \x20 const _nids = {nids};\n\
-                 \x20 const _hideAll = (except) => {{ _nids.forEach(id => {{ const e = __omni_el(id); if (e && id !== except) e.style.display = \"none\"; }}); }};\n\
-                 \x20 const _showNow = (nid) => {{ const e = __omni_el(nid); if (e) e.style.display = \"block\"; _hideAll(nid); _current_{nid_js} = nid; }};\n\
-                 \x20 const _transition = (newNid) => {{\n\
-                 \x20\x20 const oldNid = _current_{nid_js};\n\
-                 \x20\x20 if (oldNid === newNid) return;\n\
-                 \x20\x20 if (!oldNid) {{ _showNow(newNid); return; }}\n\
-                 \x20\x20 // Play @leave on old branch, then show new\n\
-                 \x20\x20 const leaveAnim = __omni_animations.get(oldNid + \"_leave\");\n\
-                 \x20\x20 if (leaveAnim) {{\n\
-                 \x20\x20\x20 leaveAnim.play();\n\
-                 \x20\x20\x20 // Wait for leave animation to complete\n\
-                 \x20\x20\x20 function _onLeaveDone() {{\n\
-                 \x20\x20\x20\x20 // Cleanup old branch animations\n\
-                 \x20\x20\x20\x20 const oldEl = __omni_el(oldNid);\n\
-                 \x20\x20\x20\x20 if (oldEl) {{\n\
-                 \x20\x20\x20\x20\x20 oldEl.querySelectorAll('[data-nid]').forEach(function(c) {{\n\
-                 \x20\x20\x20\x20\x20\x20 __omni_cleanupElement(c.getAttribute('data-nid'));\n\
-                 \x20\x20\x20\x20\x20 }});\n\
-                 \x20\x20\x20\x20 }}\n\
-                 \x20\x20\x20\x20 _showNow(newNid);\n\
-                 \x20\x20\x20\x20 // Trigger @enter on new branch\n\
-                 \x20\x20\x20\x20 const enterAnim = __omni_animations.get(newNid + \"_enter\");\n\
-                 \x20\x20\x20\x20 if (enterAnim && enterAnim.playState !== \"paused\") enterAnim.play();\n\
-                 \x20\x20\x20 }}\n\
-                 \x20\x20\x20 if (leaveAnim.finished) {{\n\
-                 \x20\x20\x20\x20 leaveAnim.finished.then(_onLeaveDone);\n\
-                 \x20\x20\x20 }} else {{\n\
-                 \x20\x20\x20\x20 const checkComplete = setInterval(() => {{\n\
-                 \x20\x20\x20\x20\x20 if (leaveAnim.playState === \"finished\" || leaveAnim.playState === \"idle\") {{\n\
-                 \x20\x20\x20\x20\x20\x20 clearInterval(checkComplete);\n\
-                 \x20\x20\x20\x20\x20\x20 _onLeaveDone();\n\
-                 \x20\x20\x20\x20\x20 }}\n\
-                 \x20\x20\x20\x20 }}, 16);\n\
-                 \x20\x20\x20 }}\n\
-                 \x20\x20 }} else {{\n\
-                 \x20\x20\x20 // Cleanup old branch animations\n\
-                 \x20\x20\x20 const oldEl = __omni_el(oldNid);\n\
-                 \x20\x20\x20 if (oldEl) {{\n\
-                 \x20\x20\x20\x20 oldEl.querySelectorAll('[data-nid]').forEach(function(c) {{\n\
-                 \x20\x20\x20\x20\x20 __omni_cleanupElement(c.getAttribute('data-nid'));\n\
-                 \x20\x20\x20\x20 }});\n\
-                 \x20\x20\x20 }}\n\
-                 \x20\x20\x20 _showNow(newNid);\n\
-                 \x20\x20 }}\n\
-                 \x20 }};",
-                nids = nid_array, nid_js = nid_js);
-        } else {
-            // Sync mode (default): instant branch switching, @enter/@leave coexist in DOM
-            self.js.push_str("__omni_effect(() => {\n");
-            let _ = writeln!(self.js, "  const _nids = {};", nid_array);
-            self.js.push_str("  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? \"block\" : \"none\"; if (id === nid) { e.querySelectorAll('[data-nid]').forEach(function(c) { var a = __omni_animations.get(c.getAttribute('data-nid') + '_enter'); if (a) { a.cancel(); a.play(); } }); } else { e.querySelectorAll('[data-nid]').forEach(function(c) { __omni_cleanupElement(c.getAttribute('data-nid')); }); } } }); };\n");
-        }
+        // Sync mode (default): instant branch switching, @enter/@leave coexist in DOM
+        self.js.push_str("__omni_effect(() => {\n");
+        let _ = writeln!(self.js, "  const _nids = {};", nid_array);
+        self.js.push_str("  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? \"block\" : \"none\"; if (id === nid) { e.querySelectorAll('[data-nid]').forEach(function(c) { var a = __omni_animations.get(c.getAttribute('data-nid') + '_enter'); if (a) { a.cancel(); a.play(); } }); } else { e.querySelectorAll('[data-nid]').forEach(function(c) { __omni_cleanupElement(c.getAttribute('data-nid')); }); } } }); };\n");
 
         // For each branch, build the if/else if chain
         for (i, (cond_js, branch_nid)) in conditions_js.iter().enumerate() {
             let if_word = if i == 0 { "if" } else { "else if" };
-            if is_wait_mode {
-                let _ = writeln!(
-                    self.js,
-                    "  {} ({}) {{ _transition(\"{}\"); }}",
-                    if_word, cond_js, branch_nid
-                );
-            } else {
-                let _ = writeln!(
-                    self.js,
-                    "  {} ({}) {{ _show(\"{}\"); }}",
-                    if_word, cond_js, branch_nid
-                );
-            }
+            let _ = writeln!(
+                self.js,
+                "  {} ({}) {{ _show(\"{}\"); }}",
+                if_word, cond_js, branch_nid
+            );
         }
 
         // Else clause (fallback or hide-all)
         if let Some(ref fb_nid) = fallback_nid {
-            if is_wait_mode {
-                let _ = writeln!(self.js, "  else {{ _transition(\"{}\"); }}", fb_nid);
-            } else {
-                let _ = writeln!(self.js, "  else {{ _show(\"{}\"); }}", fb_nid);
-            }
+            let _ = writeln!(self.js, "  else {{ _show(\"{}\"); }}", fb_nid);
         } else {
             // No @else — hide all branches when no condition matches
-            if is_wait_mode {
-                let _ = writeln!(
-                    self.js,
-                    "  else {{ _hideAll(null); _current_{var} = null; }}",
-                    var = nid_js
-                );
-            } else {
-                self.js.push_str("  else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = \"none\"; }); }\n");
-            }
+            self.js.push_str("  else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = \"none\"; }); }\n");
         }
 
         self.js.push_str("});\n");

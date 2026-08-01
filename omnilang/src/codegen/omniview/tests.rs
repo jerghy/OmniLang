@@ -1151,6 +1151,93 @@ fn test_html_conditional() {
     assert!(output.html.contains("Hidden"));
 }
 
+/// Build a single-branch + fallback conditional module for transition-mode
+/// tests (mirrors test_html_conditional's shape).
+fn make_conditional_module(transition_mode: Option<String>) -> IRProgram {
+    let mut module = make_module("main");
+    let mut visible_el = make_element("div");
+    visible_el.children = vec![ViewTree::Text("Visible".into())];
+    let mut hidden_el = make_element("div");
+    hidden_el.children = vec![ViewTree::Text("Hidden".into())];
+    module.components.insert(
+        "App".to_string(),
+        ComponentIR {
+            view: Some(ViewTree::Conditional(Box::new(ConditionalIntent {
+                branches: vec![ConditionalBranch {
+                    condition: ExprIR::IdentifierExpr {
+                        name: "show".into(),
+                        type_ann: None,
+                    },
+                    body: Some(ViewTree::Element(Box::new(visible_el))),
+                }],
+                fallback: Some(ViewTree::Element(Box::new(hidden_el))),
+                transition_mode,
+            }))),
+            ..make_component("App")
+        },
+    );
+    make_program(FxHashMap::from_iter([("main".into(), module)]))
+}
+
+/// `mode: "wait"` — nothing registers `_leave` animation entries (there is
+/// no @leave mechanism in OmniLang), so the old "play leave then swap" path
+/// could never fire. It degrades to an instant swap (same timing as
+/// mode: "none") with the degradation stated in the generated JS — never a
+/// silent no-op.
+#[test]
+fn test_html_conditional_wait_mode_is_honest_instant_swap() {
+    let output = generate(
+        &make_conditional_module(Some("wait".into())),
+        true,
+        false,
+        false,
+    );
+    assert!(
+        output
+            .js
+            .contains("no leave animation exists in OmniLang; degrades to an instant swap"),
+        "Expected the degradation comment in generated JS, got:\n{}",
+        output.js
+    );
+    assert!(
+        !output.js.contains("_leave"),
+        "Dead _leave lookup must be gone, got:\n{}",
+        output.js
+    );
+    assert!(
+        output.js.contains("_show("),
+        "Wait mode must still swap branches (via the sync _show path), got:\n{}",
+        output.js
+    );
+}
+
+/// `mode: "fade"` and `mode: "none"` keep the plain sync output — no
+/// degradation comment, no dead _leave code.
+#[test]
+fn test_html_conditional_fade_and_none_modes_unchanged() {
+    for mode in [Some("fade".to_string()), Some("none".to_string()), None] {
+        let output = generate(&make_conditional_module(mode.clone()), true, false, false);
+        assert!(
+            !output.js.contains("no leave animation exists"),
+            "Unexpected degradation comment for mode {:?}:\n{}",
+            mode,
+            output.js
+        );
+        assert!(
+            !output.js.contains("_leave"),
+            "Dead _leave lookup must be gone for mode {:?}:\n{}",
+            mode,
+            output.js
+        );
+        assert!(
+            output.js.contains("_show("),
+            "Expected sync _show path for mode {:?}, got:\n{}",
+            mode,
+            output.js
+        );
+    }
+}
+
 // ── Full Pipeline ───────────────────────────────────
 
 #[test]
