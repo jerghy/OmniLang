@@ -13,6 +13,7 @@
 //! in the save/restore cycle.
 
 use super::AttrPart;
+use crate::ir::EventDataKind;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 /// All state scoped to a single component during codegen.
@@ -30,6 +31,25 @@ pub(super) struct ComponentScope {
     pub for_rebind_fn: Option<String>,
     pub in_for_template: bool,
     pub emitting_root_view: bool,
+    /// Event types (JS names) collected while generating the current @for
+    /// template's data-event-* attributes — the delegated listener set for
+    /// that @for. Populated by emit_element_events (which sees inlined child
+    /// component events too, unlike AST-based collection), consumed by
+    /// emit_list_dom. Only the outermost @for clears them (see list.rs).
+    pub for_event_types: Vec<String>,
+    /// (js_event, EventDataKind) pairs for the event-data lookup map.
+    pub for_event_kinds: Vec<(String, EventDataKind)>,
+    /// Label → union of used fields across handlers of that kind.
+    pub used_fields_by_kind: FxHashMap<String, Option<Vec<String>>>,
+    /// The current @for loop variable name (e.g. "item") while generating
+    /// the loop template. When set, expression emission that is destined for
+    /// top-level JS (event handler bodies, rebind fns) rewrites the variable
+    /// to __omni_forItemVar, which the delegated listener populates at event
+    /// time from the clicked clone's data-for-item index.
+    pub for_item_var: Option<String>,
+    /// Whether expressions emitted right now are destined for top-level JS
+    /// (event handler bodies) where the @for loop variable is out of scope.
+    pub rewrite_for_item: bool,
 }
 
 impl ComponentScope {
@@ -46,6 +66,11 @@ impl ComponentScope {
             for_rebind_fn: gen.scope.for_rebind_fn.take(),
             in_for_template: gen.scope.in_for_template,
             emitting_root_view: gen.scope.emitting_root_view,
+            for_event_types: std::mem::take(&mut gen.scope.for_event_types),
+            for_event_kinds: std::mem::take(&mut gen.scope.for_event_kinds),
+            used_fields_by_kind: std::mem::take(&mut gen.scope.used_fields_by_kind),
+            for_item_var: gen.scope.for_item_var.take(),
+            rewrite_for_item: gen.scope.rewrite_for_item,
         }
     }
 
@@ -60,6 +85,11 @@ impl ComponentScope {
         gen.scope.for_rebind_fn = self.for_rebind_fn;
         gen.scope.in_for_template = self.in_for_template;
         gen.scope.emitting_root_view = self.emitting_root_view;
+        gen.scope.for_event_types = self.for_event_types;
+        gen.scope.for_event_kinds = self.for_event_kinds;
+        gen.scope.used_fields_by_kind = self.used_fields_by_kind;
+        gen.scope.for_item_var = self.for_item_var;
+        gen.scope.rewrite_for_item = self.rewrite_for_item;
     }
 
     /// Default scope — all fields in their zero/empty state.
@@ -74,6 +104,11 @@ impl ComponentScope {
             for_rebind_fn: None,
             in_for_template: false,
             emitting_root_view: false,
+            for_event_types: Vec::new(),
+            for_event_kinds: Vec::new(),
+            used_fields_by_kind: FxHashMap::default(),
+            for_item_var: None,
+            rewrite_for_item: false,
         }
     }
 }

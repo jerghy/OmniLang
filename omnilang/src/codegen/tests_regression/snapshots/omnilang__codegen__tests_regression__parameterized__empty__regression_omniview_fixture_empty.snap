@@ -1,6 +1,5 @@
 ---
 source: omnilang/src/codegen/tests_regression/parameterized.rs
-assertion_line: 105
 expression: "& super :: super :: format_output(& output)"
 ---
 === index.html ===
@@ -19,6 +18,15 @@ let __omni_activeEffect = null;
 const __omni_subs = new Map();
 const __omni_forHandlers = {};
 const __omni_animations = new Map();
+// Current @for item, set by the delegated @for event listener from the
+// clicked clone's data-for-item index before invoking a handler. Handler
+// bodies that reference the loop variable compile to this (the variable is
+// out of scope at top level where the handlers are declared).
+let __omni_forItemVar;
+// Current @for clone's component root, set alongside __omni_forItemVar so
+// onXxx emit functions dispatch on the clicked instance rather than the
+// first matching [data-component] element in the document.
+let __omni_currentForEl;
 
 function __omni_signal(name, init) {
   let val = init, setting = false;

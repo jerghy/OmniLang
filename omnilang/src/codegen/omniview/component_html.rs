@@ -1,3 +1,4 @@
+use super::expr::is_fn_type;
 use super::scope::ComponentScope;
 use super::utils::map_event;
 use super::OmniViewGenerator;
@@ -26,10 +27,23 @@ impl OmniViewGenerator {
                 // to false, but child components inside @for need it true so that
                 // interpolations (e.g. {text}) generate data-bind-text markers
                 // and the @for prop→expression mapping (below) works correctly.
+                // for_item_var/rewrite_for_item must follow the same rule: the
+                // inlined child's event handler bodies still compile to top-level
+                // JS where the outer loop variable is out of scope.
                 self.scope.in_for_template = saved_scope.in_for_template;
+                self.scope.for_item_var = saved_scope.for_item_var.clone();
+                self.scope.rewrite_for_item = saved_scope.rewrite_for_item;
                 self.scope.current_component = child_comp.name.clone();
 
                 if self.scope.in_for_template {
+                    // fn-typed props of the child must be callable in the
+                    // inlined view ({transform("hello")}) — mark them so
+                    // CallExpr emission derefs .value before invoking.
+                    for (prop_name, ty) in &child_comp.props {
+                        if is_fn_type(ty) {
+                            self.name_resolver.fn_prop_names.insert(prop_name.clone());
+                        }
+                    }
                     // Inside @for template: map component prop names to their
                     // value expressions so data-bind-text markers resolve to
                     // the @for loop variable (e.g. text={item} → "text" → "item").
@@ -77,6 +91,11 @@ impl OmniViewGenerator {
                     }
                 } else {
                     // Normal (non-@for) mode: use prefixed signal names.
+                    for (prop_name, ty) in &child_comp.props {
+                        if is_fn_type(ty) {
+                            self.name_resolver.fn_prop_names.insert(prop_name.clone());
+                        }
+                    }
                     for state in &child_comp.signals {
                         let prefixed = format!("{}_{}", child_comp.name, state.name);
                         self.name_resolver.name_renames
@@ -207,6 +226,13 @@ impl OmniViewGenerator {
                 let child_text_bindings = std::mem::take(&mut self.scope.for_text_bindings);
                 let child_class_bindings = std::mem::take(&mut self.scope.for_class_bindings);
                 let child_attr_bindings = std::mem::take(&mut self.scope.for_attr_bindings);
+                // Same for the delegated-event collection: events inside the
+                // inlined child (e.g. the TodoItem ✕ button's click) must be
+                // merged into the outer @for's listener set, otherwise the
+                // click is never delegated and the button is dead.
+                let child_event_types = std::mem::take(&mut self.scope.for_event_types);
+                let child_event_kinds = std::mem::take(&mut self.scope.for_event_kinds);
+                let child_used_fields = std::mem::take(&mut self.scope.used_fields_by_kind);
 
                 // Restore all saved state (for-loop state + parent context)
                 saved_scope.restore(self);
@@ -216,16 +242,83 @@ impl OmniViewGenerator {
                     self.scope.for_text_bindings.extend(child_text_bindings);
                     self.scope.for_class_bindings.extend(child_class_bindings);
                     self.scope.for_attr_bindings.extend(child_attr_bindings);
+                    for evt in child_event_types {
+                        if !self.scope.for_event_types.contains(&evt) {
+                            self.scope.for_event_types.push(evt);
+                        }
+                    }
+                    self.scope.for_event_kinds.extend(child_event_kinds);
+                    for (label, fields) in child_used_fields {
+                        match fields {
+                            Some(fields) => {
+                                let entry = self
+                                    .scope
+                                    .used_fields_by_kind
+                                    .entry(label)
+                                    .or_insert_with(|| Some(Vec::new()));
+                                if let Some(accumulated) = entry.as_mut() {
+                                    for field in fields {
+                                        if !accumulated.contains(&field) {
+                                            accumulated.push(field);
+                                        }
+                                    }
+                                }
+                            }
+                            None => {
+                                self.scope.used_fields_by_kind.insert(label, None);
+                            }
+                        }
+                    }
+                }
+
+                // Inside @for, emit events dispatched by the child (its
+                // onXxx → CustomEvent on this root div) need to reach the
+                // loop's delegated listener on the parent. Encode each event
+                // binding as data-emit-{js_event}="fn:{parent}_{handler}" so
+                // _forHandle can route the bubbling CustomEvent back to the
+                // parent's handler (e.g. TodoItem's 'delete' → TodoList_handleDelete).
+                // Note: runs after saved_scope.restore(self), so
+                // current_component is the PARENT component's name here.
+                let mut emit_attrs = String::new();
+                if self.scope.in_for_template && !el.events.is_empty() {
+                    let parent_comp = self.scope.current_component.clone();
+                    for (event_name, handler) in &el.events {
+                        let js_event = map_event(event_name);
+                        if let EventHandlerIR::FnRef { r#ref, .. } = handler {
+                            let fn_key = format!("{}_{}", parent_comp, r#ref);
+                            let _ = write!(
+                                emit_attrs,
+                                " data-emit-{}=\"fn:{}\"",
+                                js_event, fn_key
+                            );
+                            // The component-instance event binding is consumed
+                            // here (try_inline_component never reaches
+                            // emit_element_events), so the handler must be
+                            // registered in the delegated lookup explicitly —
+                            // and the event type added to the delegated
+                            // listener set (a bubbling CustomEvent from the
+                            // child root must be caught by the parent loop).
+                            if !self.scope.for_event_types.contains(&js_event) {
+                                self.scope.for_event_types.push(js_event.clone());
+                            }
+                            let _ = writeln!(
+                                self.js,
+                                "__omni_forHandlers[\"{}\"] = {};",
+                                fn_key, fn_key
+                            );
+                        }
+                    }
                 }
 
                 let mut out = String::new();
                 let _ = writeln!(
                     out,
-                    "{}<div data-nid=\"{}\" data-component=\"{}\"{for_states}>",
+                    "{}<div data-nid=\"{}\" data-component=\"{}\"{for_states}{emit_attrs}>",
                     pad,
                     nid,
                     el.tag,
-                    for_states = for_states_attr
+                    for_states = for_states_attr,
+                    emit_attrs = emit_attrs
                 );
                 out.push_str(&child_html);
                 let _ = writeln!(out, "{}</div>", pad);

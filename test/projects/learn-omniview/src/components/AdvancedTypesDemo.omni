@@ -32,6 +32,7 @@
 // ╚══════════════════════════════════════════════════════════════════════╝
 
 import omniview;
+import { string_to_upper } from "std/string";
 
 // ═══ ① 函数类型：fn(String) -> String ═══
 // 接收函数型 prop 的组件：transform 是 fn 类型 prop，onSelect 是事件回调。
@@ -124,7 +125,7 @@ component AdvancedTypesDemo {
         log = "selected: " + item;
     }
     fn shout(s: String) -> String {
-        return s.to_uppercase();
+        return string_to_upper(s);
     }
 
     view {

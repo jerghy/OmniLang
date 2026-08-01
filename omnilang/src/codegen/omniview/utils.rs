@@ -39,6 +39,9 @@ pub(super) fn map_event(name: &str) -> String {
         "onMouseEnter" => "mouseenter".into(),
         "onMouseLeave" => "mouseleave".into(),
         "onMouseMove" => "mousemove".into(),
+        // The DOM event is `dblclick` — naive on-prefix lowering gives
+        // `doubleclick`, which never fires.
+        "onDoubleClick" | "onDblClick" => "dblclick".into(),
         n if n.starts_with("on") => n[2..].to_lowercase(),
         n => n.to_string(),
     }

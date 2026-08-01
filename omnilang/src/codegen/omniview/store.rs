@@ -1,4 +1,5 @@
 //! Store emission: signals, getters, actions, and component generation.
+use super::expr::is_fn_type;
 use super::utils::serde_value_to_js;
 use super::OmniViewGenerator;
 use crate::ir::*;
@@ -182,6 +183,12 @@ impl OmniViewGenerator {
                 .insert(c.name.clone(), prefixed.clone());
             self.name_resolver.signal_names.insert(prefixed);
         }
+        // fn-typed props: call syntax on them must invoke the stored function.
+        for (prop_name, ty) in &comp.props {
+            if is_fn_type(ty) {
+                self.name_resolver.fn_prop_names.insert(prop_name.clone());
+            }
+        }
         // Add store signal/getter names so store field access uses .value
         for store_name in &comp.store_refs {
             if let Some(store) = ir.all_stores().get(store_name.as_str()) {
@@ -262,13 +269,20 @@ impl OmniViewGenerator {
                 event.name.to_lowercase()
             };
             let _ = writeln!(self.js, "function {}(...args) {{", prefixed_name);
+            // Prefer the current instance element: inside @for, the delegated
+            // listener sets __omni_currentForEl to the clicked clone's
+            // component root before invoking the handler — without it, all
+            // instances would dispatch on the first match (module-level cache).
             let _ = writeln!(
                 self.js,
-                "  var el = {0}._el || ({0}._el = document.querySelector('[data-component=\"{1}\"]'));",
+                "  var el = (typeof __omni_currentForEl !== 'undefined' && __omni_currentForEl && __omni_currentForEl.matches && __omni_currentForEl.matches('[data-component=\"{1}\"]')) ? __omni_currentForEl : {0}._el || ({0}._el = document.querySelector('[data-component=\"{1}\"]'));",
                 prefixed_name, name
             );
+            // bubbles: true — the delegated @for listener lives on the loop's
+            // parent element, so the event must propagate out of the component
+            // root to reach it (bubbles: false silently killed @for emits).
             let _ = writeln!(self.js,
-                "  if (el) el.dispatchEvent(new CustomEvent('{}', {{ detail: args.length <= 1 ? args[0] : args, bubbles: false }}));",
+                "  if (el) el.dispatchEvent(new CustomEvent('{}', {{ detail: args.length <= 1 ? args[0] : args, bubbles: true }}));",
                 dom_event
             );
             self.js.push_str("}\n");

@@ -34,6 +34,36 @@ impl OmniViewGenerator {
             if self.scope.in_for_template {
                 // Inside @for template: emit data-event-* attributes for delegation.
                 // The @for container gets a single delegated listener that reads these.
+                // Collect the JS event name here (not via AST walk in list.rs):
+                // this code path also sees events inside inlined child components,
+                // which the AST-based collector misses (the TodoItem ✕ button bug).
+                if !self.scope.for_event_types.contains(&js_event) {
+                    self.scope.for_event_types.push(js_event.clone());
+                    if let Some(kind) = handler.event_data() {
+                        self.scope.for_event_kinds.push((js_event.clone(), kind.clone()));
+                    }
+                }
+                // Union used_fields across handlers of the same EventDataKind label.
+                if let Some(kind) = handler.event_data() {
+                    let label = event_data_kind_label(kind);
+                    let entry = self
+                        .scope
+                        .used_fields_by_kind
+                        .entry(label.to_string())
+                        .or_insert_with(|| Some(Vec::new()));
+                    match handler.used_fields() {
+                        Some(used) => {
+                            if let Some(accumulated) = entry.as_mut() {
+                                for field in used {
+                                    if !accumulated.contains(field) {
+                                        accumulated.push(field.clone());
+                                    }
+                                }
+                            }
+                        }
+                        None => *entry = None,
+                    }
+                }
                 let val = match handler {
                     EventHandlerIR::FnRef {
                         r#ref,
@@ -60,9 +90,16 @@ impl OmniViewGenerator {
                         let wrapper_name = format!("__on{}_{}", event_name, nid.replace('-', "_"));
                         let params_str = params.join(", ");
                         let _ = writeln!(self.js, "function {}({}) {{", wrapper_name, params_str);
+                        // Inside @for templates this function is declared at top
+                        // level where the loop variable is out of scope; rewrite
+                        // references to it (__omni_forItemVar) so the delegated
+                        // listener can inject the clicked item at event time.
+                        let saved_rewrite = self.scope.rewrite_for_item;
+                        self.scope.rewrite_for_item = self.scope.in_for_template;
                         for stmt in &body.statements {
                             self.emit_statement(stmt);
                         }
+                        self.scope.rewrite_for_item = saved_rewrite;
                         self.js.push_str("}\n");
                         let flags =
                             Self::flag_suffix(*needs_prevent_default, *needs_stop_propagation);
@@ -105,9 +142,13 @@ impl OmniViewGenerator {
                             let params_str = params.join(", ");
                             let _ =
                                 writeln!(self.js, "function {}({}) {{", wrapper_name, params_str);
+                            // Same @for loop-variable rewrite as the template branch.
+                            let saved_rewrite = self.scope.rewrite_for_item;
+                            self.scope.rewrite_for_item = self.scope.in_for_template;
                             for stmt in &body.statements {
                                 self.emit_statement(stmt);
                             }
+                            self.scope.rewrite_for_item = saved_rewrite;
                             self.js.push_str("}\n");
                             format!("{}({})", wrapper_name, event_obj)
                         }

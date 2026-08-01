@@ -60,7 +60,7 @@ component App {
             </div>
 
             <footer class: LearnDesign.Footer>
-                <p class: LearnDesign.FooterText>OmniView 能力展示 · 9 domains · 4 themes · omnic run</p>
+                <p class: LearnDesign.FooterText>OmniView 能力展示 · 7 domains · 9 pages · 4 themes · omnic run</p>
             </footer>
         </div>
     }

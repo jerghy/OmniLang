@@ -193,7 +193,7 @@ component ElementRefDemo {
     view {
         <div class: LearnDesign.Container>
             <h3 class: LearnDesign.CardTitle>Element Reference System</h3>
-            <p class: LearnDesign.Subtitle>ref · @ref · .focus() · .select() · .setSelection() · focus={sig} · .scrollTo() · .capturePointer()</p>
+            <p class: LearnDesign.Subtitle>ref · @ref · .focus() · .select() · .setSelection() · focus={"{}"}sig{"{}"} · .scrollTo() · .capturePointer()</p>
 
             <!-- ═══ 焦点管理 ═══ -->
             <h4 class: LearnDesign.SectionTitle>焦点管理 (.focus / .blur)</h4>
@@ -250,7 +250,7 @@ component ElementRefDemo {
             </div>
 
             <!-- ═══ 语义绑定 focus={sig} ═══ -->
-            <h4 class: LearnDesign.SectionTitle>语义绑定 (focus={sig})</h4>
+            <h4 class: LearnDesign.SectionTitle>语义绑定 (focus={"{}"}sig{"{}"})</h4>
             <p class: LearnDesign.Hint>
                 focus={shouldFocus} 把布尔信号绑定到元素焦点：true → .focus()，false → .blur()。
                 @mount 中置 true，进入本页即自动聚焦。

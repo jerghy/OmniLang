@@ -180,6 +180,67 @@ impl OmniViewGenerator {
                     .collect();
                 parts.join("; ")
             }
+            StatementIR::IfStmtIR {
+                condition,
+                then_body,
+                else_ifs,
+                else_body,
+            } => {
+                // Function-form computed bodies can be if-return chains
+                // (`computed fullName() -> T { if ... { return ... } }`).
+                // Inline as statements inside the emitted IIFE.
+                let cond = self.expr_to_js(condition);
+                let mut out = format!("if ({}) {{ ", cond);
+                for s in &then_body.statements {
+                    out.push_str(&self.stmt_to_js_inline(s));
+                    out.push(';');
+                }
+                out.push_str(" }");
+                for (elif_cond, elif_body) in else_ifs {
+                    let elif = self.expr_to_js(elif_cond);
+                    out.push_str(&format!(" else if ({}) {{ ", elif));
+                    for s in &elif_body.statements {
+                        out.push_str(&self.stmt_to_js_inline(s));
+                        out.push(';');
+                    }
+                    out.push_str(" }");
+                }
+                if let Some(ref else_b) = else_body {
+                    out.push_str(" else { ");
+                    for s in &else_b.statements {
+                        out.push_str(&self.stmt_to_js_inline(s));
+                        out.push(';');
+                    }
+                    out.push_str(" }");
+                }
+                out
+            }
+            StatementIR::WhileStmtIR { condition, body } => {
+                let cond = self.expr_to_js(condition);
+                let mut out = format!("while ({}) {{ ", cond);
+                for s in &body.statements {
+                    out.push_str(&self.stmt_to_js_inline(s));
+                    out.push(';');
+                }
+                out.push_str(" }");
+                out
+            }
+            StatementIR::ForInStmtIR {
+                var_name,
+                iterable,
+                body,
+            } => {
+                let iter = self.expr_to_js(iterable);
+                let mut out = format!("for (const {} of {}) {{ ", var_name, iter);
+                for s in &body.statements {
+                    out.push_str(&self.stmt_to_js_inline(s));
+                    out.push(';');
+                }
+                out.push_str(" }");
+                out
+            }
+            StatementIR::BreakStmtIR => "break".to_string(),
+            StatementIR::ContinueStmtIR => "continue".to_string(),
             _ => {
                 self.warnings
                     .push("OmniView: unhandled StatementIR variant in inline expression".into());

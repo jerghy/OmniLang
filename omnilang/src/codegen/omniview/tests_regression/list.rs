@@ -326,9 +326,10 @@ fn test_list_with_event_delegation() {
         "should emit event handler"
     );
     assert!(
-        gen.js
-            .contains("e.target.closest('[data-event-' + e.type + ']')"),
-        "should use event delegation via closest"
+        gen.js.contains(
+            "e.target.closest('[data-event-' + e.type + '], [data-emit-' + e.type + ']')"
+        ),
+        "should use event delegation via closest (incl. child emit events)"
     );
 
     // One-time attachment guard on container

@@ -36,6 +36,11 @@ pub(super) struct NameResolver {
     pub motion_names: FxHashSet<String>,
     /// `@for` template: maps child component state names → `(original_name, default_js)`
     pub for_state_names: FxHashMap<String, (String, String)>,
+    /// Prop names whose declared type is a function (`fn(String) -> String`).
+    /// Call syntax on them (`{transform("hello")}`) must emit `X.value(args)`
+    /// — the stored value IS the function, unlike computeds where the value is
+    /// the computed result.
+    pub fn_prop_names: FxHashSet<String>,
 }
 
 /// Snapshot of all `NameResolver` fields, returned by `NameResolver::take()`.
@@ -50,6 +55,7 @@ pub(super) struct NameResolverSnapshot {
     store_names: FxHashSet<String>,
     motion_names: FxHashSet<String>,
     for_state_names: FxHashMap<String, (String, String)>,
+    fn_prop_names: FxHashSet<String>,
 }
 
 impl NameResolver {
@@ -65,6 +71,7 @@ impl NameResolver {
             store_names: std::mem::take(&mut self.store_names),
             motion_names: std::mem::take(&mut self.motion_names),
             for_state_names: std::mem::take(&mut self.for_state_names),
+            fn_prop_names: std::mem::take(&mut self.fn_prop_names),
         }
     }
 
@@ -79,5 +86,6 @@ impl NameResolver {
         self.store_names = snapshot.store_names;
         self.motion_names = snapshot.motion_names;
         self.for_state_names = snapshot.for_state_names;
+        self.fn_prop_names = snapshot.fn_prop_names;
     }
 }

@@ -39,6 +39,12 @@ fn collect_idents(expr: &ExprIR, used: &mut FxHashSet<String>) {
     walk::walk_expr(expr, &mut |e| {
         if let ExprIR::IdentifierExpr { name, .. } = e {
             used.insert(name.clone());
+        } else if let ExprIR::CallExpr { name, .. } = e {
+            // Function-form computeds are referenced via call syntax
+            // (`computed fullName() -> T` used as `{fullName()}`), and the
+            // callee name is not an ExprIR child — without collecting it here
+            // the dead-computed pass eliminates them as unused.
+            used.insert(name.clone());
         }
     });
 }

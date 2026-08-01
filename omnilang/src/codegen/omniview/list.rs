@@ -3,11 +3,9 @@
 //! The `emit_list_rendering_html` method orchestrates two phases:
 //! 1. State initialization (template HTML, JS _effect header, key/empty-state setup)
 //! 2. DOM generation (iteration/cloning/binding JS, event delegation)
-use super::utils::collect_for_events;
 use super::OmniViewGenerator;
 use crate::codegen::emit_event_object;
 use crate::ir::*;
-use rustc_hash::FxHashMap;
 use std::fmt::Write;
 
 impl OmniViewGenerator {
@@ -53,6 +51,17 @@ impl OmniViewGenerator {
             self.scope.for_class_bindings.clear();
             self.scope.for_attr_bindings.clear();
             self.name_resolver.for_state_names.clear();
+            // Event-type collection: cleared only for the outermost @for loop
+            // so that a nested loop's item HTML (generated while the outer
+            // template is being produced) appends to the outer collection
+            // instead of discarding it. Each loop consumes the whole
+            // collection when emitting its delegated listener; extra event
+            // types in the list are harmless.
+            if !self.scope.in_for_template {
+                self.scope.for_event_types.clear();
+                self.scope.for_event_kinds.clear();
+                self.scope.used_fields_by_kind.clear();
+            }
             // Set rebind function name for this @for loop
             let rebind_name = format!(
                 "__omni_rebind_{}_{}",
@@ -66,7 +75,12 @@ impl OmniViewGenerator {
             // ensures the outer loop continues in the correct mode.
             let outer_in_for = self.scope.in_for_template;
             self.scope.in_for_template = true;
+            // Loop variable for __omni_forItemVar rewriting (event handler
+            // bodies and rebind fns live at top level, outside the forEach).
+            let outer_item_var = self.scope.for_item_var.take();
+            self.scope.for_item_var = Some(item_var.to_string());
             let html = self.view_to_html(body, indent + 1);
+            self.scope.for_item_var = outer_item_var;
             self.scope.in_for_template = outer_in_for;
             html
         } else {
@@ -175,18 +189,15 @@ impl OmniViewGenerator {
     pub(super) fn emit_list_dom(&mut self, list: &ListRenderingIntent) {
         let has_key = list.key_expr.is_some();
 
-        // Collect event types from the @for body for delegated event listener setup
-        let mut for_event_types: Vec<String> = Vec::new();
-        let mut for_event_kinds: Vec<(String, EventDataKind)> = Vec::new();
-        let mut used_fields_by_kind: FxHashMap<String, Option<Vec<String>>> = FxHashMap::default();
-        if let Some(ref body) = list.body {
-            collect_for_events(
-                body,
-                &mut for_event_types,
-                &mut for_event_kinds,
-                &mut used_fields_by_kind,
-            );
-        }
+        // Event types for the delegated listener were collected during item
+        // template generation (emit_element_events), which sees events inside
+        // inlined child components too — an AST walk of the @for body misses
+        // those (e.g. the delete button inside TodoItem). Clone rather than
+        // take so nested @for loops (which share the collection) still see
+        // everything they need.
+        let for_event_types = self.scope.for_event_types.clone();
+        let for_event_kinds = self.scope.for_event_kinds.clone();
+        let used_fields_by_kind = self.scope.used_fields_by_kind.clone();
 
         // Batch insert via DocumentFragment to reduce DOM reflow
         self.js.push_str("  var frag = document.createDocumentFragment();\n");
@@ -431,12 +442,21 @@ impl OmniViewGenerator {
             self.js.push_str("    }\n");
 
             self.js.push_str("    const _forHandle = (e) => {\n");
-            self.js
-                .push_str("      const t = e.target.closest('[data-event-' + e.type + ']');\n");
+            // data-event-*: element event bindings; data-emit-*: CustomEvents
+            // dispatched by an inlined child component's onXxx emit function
+            // (e.g. TodoItem's 'delete'), encoded on the component root div.
+            self.js.push_str(
+                "      const t = e.target.closest('[data-event-' + e.type + '], [data-emit-' + e.type + ']');\n",
+            );
             self.js.push_str("      if (!t) return;\n");
-            self.js
-                .push_str("      const attr = t.getAttribute('data-event-' + e.type);\n");
+            self.js.push_str(
+                "      const attr = t.getAttribute('data-event-' + e.type) || t.getAttribute('data-emit-' + e.type);\n",
+            );
             self.js.push_str("      if (!attr) return;\n");
+            // Expose the current clone's component root to emit functions so
+            // onXxx dispatches land on THIS instance, not the first match.
+            self.js
+                .push_str("      __omni_currentForEl = t.closest('[data-component]');\n");
             self.js.push_str(
                 "      const _flags = attr.includes('|') ? attr.split('|').slice(1) : [];\n",
             );
@@ -450,6 +470,13 @@ impl OmniViewGenerator {
             );
             self.js
                 .push_str("        const fn = __omni_forHandlers[fnKey];\n");
+            // Inject the clicked clone's item before invoking the handler:
+            // top-level handler bodies reference the loop variable via
+            // __omni_forItemVar (the variable is out of scope there).
+            self.js
+                .push_str("        const _itEl = t.closest('[data-for-item]');\n");
+            self.js
+                .push_str("        __omni_forItemVar = _itEl ? data[Number(_itEl.getAttribute('data-for-item'))] : undefined;\n");
             self.js.push_str(
                 "        // Before calling fn, restore per-instance state to global signal\n",
             );
@@ -550,7 +577,12 @@ impl OmniViewGenerator {
                         self.js,
                         "    var _el = comp.querySelector('[data-nid^=\"{nid}_\"]') || comp.querySelector('[data-nid=\"{nid}\"]');",
                     );
-                    let _ = writeln!(self.js, "    if (_el) try {{ _el.textContent = String({}); }} catch(e) {{ __omni_reportError(\"warn:for:rebind\", e); }}", js_expr);
+                    // The rebind fn is emitted at top level (outside the
+                    // forEach), so loop-variable references in the stored
+                    // binding expressions must go through __omni_forItemVar,
+                    // which the delegated listener sets from the clone.
+                    let rewritten = rewrite_for_item_var(js_expr, &list.item_binding.name);
+                    let _ = writeln!(self.js, "    if (_el) try {{ _el.textContent = String({}); }} catch(e) {{ __omni_reportError(\"warn:for:rebind\", e); }}", rewritten);
                 }
                 self.js.push_str("  }\n");
             }
@@ -558,4 +590,36 @@ impl OmniViewGenerator {
 
         self.js.push_str("});\n");
     }
+}
+
+/// Replace whole-word occurrences of the @for loop variable in a stored
+/// binding expression with `__omni_forItemVar` (top-level JS context).
+/// Uses identifier boundaries so e.g. `itemCount` is left untouched.
+fn rewrite_for_item_var(js_expr: &str, item_var: &str) -> String {
+    if item_var.is_empty() {
+        return js_expr.to_string();
+    }
+    let mut out = String::with_capacity(js_expr.len());
+    let bytes = js_expr.as_bytes();
+    let mut i = 0;
+    let item = item_var.as_bytes();
+    while i < bytes.len() {
+        if bytes[i..].starts_with(item) {
+            let before_ok = i == 0 || !(is_ident_char(bytes[i - 1]));
+            let after = i + item.len();
+            let after_ok = after >= bytes.len() || !(is_ident_char(bytes[after]));
+            if before_ok && after_ok {
+                out.push_str("__omni_forItemVar");
+                i = after;
+                continue;
+            }
+        }
+        out.push(bytes[i] as char);
+        i += 1;
+    }
+    out
+}
+
+fn is_ident_char(b: u8) -> bool {
+    b.is_ascii_alphanumeric() || b == b'_' || b == b'$'
 }

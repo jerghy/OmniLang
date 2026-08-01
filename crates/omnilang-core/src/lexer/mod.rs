@@ -411,6 +411,11 @@ impl<'a> Lexer<'a> {
                     } else if self.peek_byte() == Some(b'\\') {
                         s.push('\\');
                         self.advance();
+                    } else if self.peek_byte() == Some(b'u') {
+                        // \u{XXXX} / \uXXXX — same escape handling as
+                        // double-quoted strings; without it `'\u{1F680}'`
+                        // keeps a literal backslash in the string value.
+                        s.push(self.read_unicode_escape());
                     } else {
                         s.push('\\');
                     }
@@ -438,6 +443,36 @@ impl<'a> Lexer<'a> {
             }
         }
         self.mk_token(TokenKind::StringLiteral(s), start, self.pos, line, col)
+    }
+
+    /// Read a `\u` escape sequence (positioned on the `u`) and return the
+    /// decoded character. Supports both `\u{XXXX}` (any codepoint) and
+    /// `\uXXXX` (exactly 4 hex digits) forms. Malformed or out-of-range
+    /// escapes decode to U+FFFD (matching the previous double-quote behavior).
+    fn read_unicode_escape(&mut self) -> char {
+        self.advance(); // 'u'
+        let mut hex = String::new();
+        if self.peek_byte() == Some(b'{') {
+            self.advance();
+            while self.peek_byte().is_some_and(|b| b.is_ascii_hexdigit()) {
+                hex.push(self.advance_unchecked() as char);
+            }
+            if self.peek_byte() == Some(b'}') {
+                self.advance();
+            }
+        } else {
+            for _ in 0..4 {
+                if self.peek_byte().is_some_and(|b| b.is_ascii_hexdigit()) {
+                    hex.push(self.advance_unchecked() as char);
+                } else {
+                    break;
+                }
+            }
+        }
+        u32::from_str_radix(&hex, 16)
+            .ok()
+            .and_then(char::from_u32)
+            .unwrap_or('\u{FFFD}')
     }
 
     fn read_string(&mut self) -> Token {
@@ -493,26 +528,7 @@ impl<'a> Lexer<'a> {
                             self.advance();
                         }
                         Some(b'u') => {
-                            self.advance();
-                            if self.peek_byte() == Some(b'{') {
-                                self.advance();
-                                let mut hex = String::new();
-                                while self.peek_byte().is_some_and(|b| b.is_ascii_hexdigit()) {
-                                    hex.push(self.advance_unchecked() as char);
-                                }
-                                if self.peek_byte() == Some(b'}') {
-                                    self.advance();
-                                }
-                                match u32::from_str_radix(&hex, 16) {
-                                    Ok(code) => match char::from_u32(code) {
-                                        Some(c) => s.push(c),
-                                        None => s.push('\u{FFFD}'),
-                                    },
-                                    Err(_) => {
-                                        let _ = write!(s, "\\u{{{}}}", hex);
-                                    }
-                                }
-                            }
+                            s.push(self.read_unicode_escape());
                         }
                         _ => {
                             s.push('\\');

@@ -13,7 +13,7 @@ component Header {
     view {
         <header class: LearnDesign.Banner>
             <h1 class: LearnDesign.BannerTitle>OmniView Capability Showcase</h1>
-            <p class: LearnDesign.BannerSubtitle>7 domains · 4 themes · 60+ source files · {ThemeStore.modeLabel}</p>
+            <p class: LearnDesign.BannerSubtitle>7 domains · 9 pages · 4 themes · 60+ source files · {ThemeStore.modeLabel}</p>
         </header>
     }
 }

@@ -3,6 +3,12 @@ use super::OmniViewGenerator;
 use crate::codegen::{sanitize_css_value, try_format_stdlib_call, Target};
 use crate::ir::*;
 
+/// True when the prop type is a function (`fn(String) -> String`), lowered
+/// by `lower_type` to `TypeKind::Named { name: "function" }`.
+pub(super) fn is_fn_type(ty: &TypeIR) -> bool {
+    matches!(&ty.kind, TypeKind::Named { name } if name == "function")
+}
+
 impl OmniViewGenerator {
     // ══════════════════════════════════════════════════════
     // Expression → JavaScript
@@ -36,6 +42,29 @@ impl OmniViewGenerator {
                 {
                     let (orig_name, default_js) = &self.name_resolver.for_state_names[resolved.as_str()];
                     format!("__omni_forGetState(el, '{}', {})", orig_name, default_js)
+                } else if self.scope.rewrite_for_item {
+                    // Event handler / rebind fn emitted to top-level JS: the
+                    // @for loop variable is out of scope there. The delegated
+                    // listener sets __omni_forItemVar from the clicked clone
+                    // before invoking the handler. Check the RESOLVED name:
+                    // prop references inside an inlined child component map to
+                    // "item" or "item.field" (e.g. id → "item.id"), not the
+                    // bare loop variable.
+                    if let Some(item) = self.scope.for_item_var.as_deref() {
+                        if resolved == item {
+                            "__omni_forItemVar".to_string()
+                        } else if let Some(rest) = resolved.strip_prefix(item) {
+                            if rest.starts_with('.') {
+                                format!("__omni_forItemVar{}", rest)
+                            } else {
+                                resolved
+                            }
+                        } else {
+                            resolved
+                        }
+                    } else {
+                        resolved
+                    }
                 } else {
                     resolved
                 }
@@ -72,7 +101,27 @@ impl OmniViewGenerator {
                     .or_else(|| self.name_resolver.global_renames.get(name.as_str()))
                     .cloned()
                     .unwrap_or_else(|| name.clone());
-                format!("{}({})", resolved, arg_strs.join(", "))
+                if self.name_resolver.signal_names.contains(resolved.as_str()) {
+                    if self.name_resolver.fn_prop_names.contains(name.as_str()) {
+                        // fn-typed prop invoked with call syntax:
+                        // `{transform("hello")}` → the stored value IS the
+                        // function, so call it: X.value("hello"). Optional
+                        // props default to null — degrade to an empty string
+                        // instead of throwing until the parent wires the prop.
+                        format!(
+                            "({}.value || (function () {{ return ''; }}))({})",
+                            resolved,
+                            arg_strs.join(", ")
+                        )
+                    } else {
+                        // Function-form computed invoked with call syntax:
+                        // `{fullName()}` → the stored __omni_computed object's
+                        // .value getter, not a function call.
+                        format!("{}.value", resolved)
+                    }
+                } else {
+                    format!("{}({})", resolved, arg_strs.join(", "))
+                }
             }
             ExprIR::StoreFieldAccessExpr {
                 store_alias,
@@ -171,15 +220,22 @@ impl OmniViewGenerator {
                         "((_a) => {{ _a.pop(); return _a.slice(); }})({} || [])",
                         obj
                     ),
-                    _ => format!(
-                        "{}.{}({})",
-                        obj,
-                        method,
-                        args.iter()
-                            .map(|a| self.expr_to_js(a))
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    ),
+                    _ => {
+                        // Method-call form of std functions: `s.to_uppercase()`
+                        // maps through the shared stdlib table with the receiver
+                        // as the first argument ((s).toUpperCase() etc.).
+                        let arg_strs: Vec<String> =
+                            args.iter().map(|a| self.expr_to_js(a)).collect();
+                        let mut std_args = vec![obj.clone()];
+                        std_args.extend(arg_strs.iter().cloned());
+                        if let Some(native) =
+                            try_format_stdlib_call(method, &std_args, Target::OmniView)
+                        {
+                            native
+                        } else {
+                            format!("{}.{}({})", obj, method, arg_strs.join(", "))
+                        }
+                    }
                 }
             }
             ExprIR::ArrayExpr { elements } => {
