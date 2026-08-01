@@ -4978,3 +4978,39 @@ component App {
         app
     );
 }
+
+/// ADR-053 D5: a typed body slot without fallback renders the bare
+/// `widget.<name>` param (no `??` fallback expression).
+#[test]
+fn body_typed_slot_without_fallback_renders_bare() {
+    let source = r#"
+component Badge {
+    @slot footer: String
+    view {
+        <div>{footer}</div>
+    }
+}
+"#;
+    let output = compile_flutter(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        content.contains("widget.footer"),
+        "expected bare typed-slot render, got:\n{}",
+        content
+    );
+    assert!(
+        !content.contains("widget.footer ??"),
+        "typed slot without fallback must not emit a ?? fallback, got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("final Widget? footer;"),
+        "typed slot param stays Widget? (constraint deferred), got:\n{}",
+        content
+    );
+}

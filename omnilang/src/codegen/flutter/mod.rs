@@ -543,13 +543,16 @@ impl FlutterCodegen {
         // `{name}` interpolations — materialize them into `ViewTree::Slot`
         // nodes ONCE so both the widget rendering and the trigger-helper
         // detection below see the declared fallbacks, exactly like
-        // view-level `@slot` directives.
-        let materialized_view = comp
+        // view-level `@slot` directives. Fast path: components without body
+        // slots keep the original view (no tree clone).
+        let materialized_view: Option<ViewTree> = comp
             .view
             .as_ref()
-            .map(|v| view::materialize_slot_fallbacks(v, comp));
+            .filter(|_| !comp.slots.is_empty())
+            .map(|v| materialize_view_slots(v, comp, &slot_collision_names(comp)));
+        let view = materialized_view.as_ref().or(comp.view.as_ref());
 
-        if let Some(view) = materialized_view.as_ref() {
+        if let Some(view) = view {
             let motions = ir
                 .modules
                 .values()
@@ -582,7 +585,7 @@ impl FlutterCodegen {
         w.emit("}");
 
         // ── Emit helper widget classes for InView and Scroll triggers if needed ──
-        if let Some(ref view) = materialized_view {
+        if let Some(view) = view {
             if has_trigger_kind_in_view(view) {
                 w.emit("");
                 emit_inview_widget_class(&mut w);

@@ -34,11 +34,16 @@ impl ReactCodegen {
         // nodes (carrying the declared fallbacks) ONCE so every view
         // consumer below (motion / ref / signal collection and JSX
         // rendering) sees the fallback content, exactly like view-level
-        // `@slot` directives.
-        let materialized_view = comp
+        // `@slot` directives. Fast path: components without body slots keep
+        // the original view (no tree clone).
+        let materialized_view: Option<ViewTree> = comp
             .view
             .as_ref()
-            .map(|v| jsx::materialize_slot_fallbacks(v, comp));
+            .filter(|_| !comp.slots.is_empty())
+            .map(|v| materialize_view_slots(v, comp, &slot_collision_names(comp)));
+        // All view consumers borrow the materialized tree when body slots
+        // exist, otherwise the original view.
+        let view = materialized_view.as_ref().or(comp.view.as_ref());
 
         // Determine which React hooks are actually needed
         let has_computeds = !comp.computeds.is_empty();
@@ -47,19 +52,15 @@ impl ReactCodegen {
                 if statements.iter().any(|s| matches!(s, StatementIR::ReturnStmtIR { .. })))
         });
         let has_effects_or_lifecycles = !comp.effects.is_empty() || !comp.lifecycles.is_empty();
-        let has_motion = materialized_view
-            .as_ref()
-            .is_some_and(effect::view_has_motion_or_effects);
-        let has_semantic_bindings = materialized_view
-            .as_ref()
-            .is_some_and(state::view_has_semantic_bindings);
+        let has_motion = view.is_some_and(effect::view_has_motion_or_effects);
+        let has_semantic_bindings = view.is_some_and(state::view_has_semantic_bindings);
 
         // Motion elements without a user @ref get synthesized `__el_N` refs.
         // Collected here (DFS pre-order over motion elements) so useRef
         // imports and declarations exist for them; the JSX emitter and the
         // motion effect emitter derive the same names from the same order.
         let mut motion_internal_refs: Vec<(String, String)> = Vec::new(); // (ref_name, tag)
-        if let Some(ref view) = materialized_view {
+        if let Some(view) = view {
             super::motion::walk_motion_elements(view, component_map, |el, idx| {
                 if el.ref_binding.is_none() {
                     motion_internal_refs.push((format!("__el_{}", idx), el.tag.clone()));
@@ -67,8 +68,7 @@ impl ReactCodegen {
             });
         }
         // @hover/@press emit useCallback handlers wired into the JSX
-        let has_interactive_motion = materialized_view
-            .as_ref()
+        let has_interactive_motion = view
             .is_some_and(|v| super::motion::view_has_interactive_triggers(v, component_map));
 
         // Scan all code paths for signal mutations and function calls
@@ -77,8 +77,7 @@ impl ReactCodegen {
 
         // Build comprehensive read-signals set: signals referenced in view, computeds,
         // effects, lifecycles, and called local functions.
-        let mut read_signals = materialized_view
-            .as_ref()
+        let mut read_signals = view
             .map(state::collect_view_read_signals)
             .unwrap_or_default();
         for computed in &comp.computeds {
@@ -101,7 +100,7 @@ impl ReactCodegen {
                 }
             }
         }
-        if let Some(ref view) = materialized_view {
+        if let Some(view) = view {
             state::collect_view_inline_handler_reads(view, &mut read_signals);
         }
 
@@ -134,8 +133,7 @@ impl ReactCodegen {
         // design.css and are emitted as literal class names (HIGH #1); the
         // CSS module import is only needed for component-local classes.
         let design_ctx = super::design::DesignCtx::new(ir);
-        let used_style_classes = materialized_view
-            .as_ref()
+        let used_style_classes = view
             .map(jsx::collect_used_style_classes)
             .unwrap_or_default();
         let local_style_classes: FxHashSet<String> = used_style_classes
@@ -212,7 +210,7 @@ impl ReactCodegen {
         // Ref name → element tag map (typing useRef declarations) — scanned
         // from the view because RefDeclIR.element_tag is not populated by
         // lowering yet.
-        let ref_tags = state::collect_ref_tags(materialized_view.as_ref());
+        let ref_tags = state::collect_ref_tags(view);
 
         // Motion animation names — used to filter motion refs from event handlers
         let motion_names: FxHashSet<String> = ir
@@ -269,10 +267,10 @@ impl ReactCodegen {
                 collect_stmt_identifiers(stmt, &mut used_fn_names);
             }
         }
-        if let Some(ref view) = materialized_view {
+        if let Some(view) = view {
             jsx::collect_view_identifiers(view, &mut used_fn_names);
         }
-        if let Some(ref view) = materialized_view {
+        if let Some(view) = view {
             jsx::collect_motion_identifiers(view, &mut used_fn_names);
         }
 
@@ -419,7 +417,7 @@ impl ReactCodegen {
         );
         state::gen_semantic_binding_effects(
             &mut w,
-            materialized_view.as_ref(),
+            view,
             &store_signal_map,
             &ref_names,
         );
@@ -450,7 +448,7 @@ impl ReactCodegen {
         );
 
         // Motion animation effects — per-ref native effects (all triggers)
-        if let Some(ref view) = materialized_view {
+        if let Some(view) = view {
             motion_effects::gen_motion_effects(&mut w, view, ir, component_map);
         }
 
@@ -461,7 +459,7 @@ impl ReactCodegen {
         let mut motion_counter = 0usize;
         self.gen_jsx_return(
             &mut w,
-            materialized_view.as_ref(),
+            view,
             component_map,
             &design_ctx,
             &signal_names,

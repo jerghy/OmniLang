@@ -167,23 +167,37 @@ impl OmniViewGenerator {
                 // view as `{name}` interpolations — materialize them into
                 // `ViewTree::Slot` nodes (carrying the declared fallback) so
                 // slot projection and fallback rendering below work
-                // uniformly with view-level slots.
-                let child_view = materialize_slot_fallbacks(child_view, &child_comp);
-                // Fast path: no slot children → borrow the view tree directly, avoid
-                // O(n) deep clone. inject_slot_children with empty input is a semantic
-                // no-op (slots stay as-is, no slot replacement happens) but still
-                // performs recursive ElementIR cloning. Only clone children vector when
-                // slots are present.
+                // uniformly with view-level slots. Fast path: children with
+                // no body slots keep the original view (no tree clone).
                 let child_html = if el.children.is_empty() {
-                    self.view_to_html(&child_view, indent + 1)
+                    // Fast path: no slot children — render the view directly.
+                    let view: &ViewTree = if child_comp.slots.is_empty() {
+                        child_view
+                    } else {
+                        &materialize_view_slots(
+                            child_view,
+                            &child_comp,
+                            &slot_collision_names(&child_comp),
+                        )
+                    };
+                    self.view_to_html(view, indent + 1)
                 } else {
                     let slot_children: Vec<ViewTree> = el.children.clone();
-                    let child_view_owned = inject_slot_children(
-                        child_view.clone(),
+                    let child_view_owned = if child_comp.slots.is_empty() {
+                        child_view.clone()
+                    } else {
+                        materialize_view_slots(
+                            child_view,
+                            &child_comp,
+                            &slot_collision_names(&child_comp),
+                        )
+                    };
+                    let child_view_injected = inject_slot_children(
+                        child_view_owned,
                         &slot_children,
                         &self.name_resolver.component_map,
                     );
-                    self.view_to_html(&child_view_owned, indent + 1)
+                    self.view_to_html(&child_view_injected, indent + 1)
                 };
 
                 // Save child's for-loop bindings before restoring parent scope,
@@ -257,85 +271,6 @@ impl OmniViewGenerator {
         }
         None
     }
-}
-
-/// ADR-053 D5: body-level `@slot name { fallback }` declarations surface in
-/// the view as `{name}` interpolations. Convert those interpolations into
-/// `ViewTree::Slot` nodes (carrying the declaration's fallback) so slot
-/// injection and `<slot>` fallback rendering apply uniformly with
-/// view-level slots. Back-compat: view-level `@slot` directives are already
-/// `ViewTree::Slot` nodes and pass through untouched.
-///
-/// An interpolation whose name collides with a prop, signal, computed, or
-/// fn is left alone — the semantic layer warns on the collision and the
-/// existing declaration wins.
-pub(super) fn materialize_slot_fallbacks(view: &ViewTree, comp: &ComponentIR) -> ViewTree {
-    let excluded: FxHashSet<&str> = comp
-        .props
-        .keys()
-        .map(String::as_str)
-        .chain(comp.signals.iter().map(|s| s.name.as_str()))
-        .chain(comp.computeds.iter().map(|c| c.name.as_str()))
-        .chain(comp.fns.iter().map(|f| f.name.as_str()))
-        .collect();
-    let mut slots: FxHashMap<&str, &SlotDeclIR> = FxHashMap::default();
-    for decl in &comp.slots {
-        slots
-            .entry(decl.name.as_deref().unwrap_or("children"))
-            .or_insert(decl);
-    }
-    fn go(
-        node: &ViewTree,
-        excluded: &FxHashSet<&str>,
-        slots: &FxHashMap<&str, &SlotDeclIR>,
-    ) -> ViewTree {
-        match node {
-            ViewTree::Interpolation(expr) => {
-                if let ExprIR::IdentifierExpr { name, .. } = expr.as_ref() {
-                    if let Some(decl) = slots.get(name.as_str()) {
-                        if !excluded.contains(name.as_str()) {
-                            return (*decl).clone().into_view_tree();
-                        }
-                    }
-                }
-                ViewTree::Interpolation(expr.clone())
-            }
-            ViewTree::Element(el) => {
-                let children = el.children.iter().map(|c| go(c, excluded, slots)).collect();
-                ViewTree::Element(Box::new(ElementIR {
-                    children,
-                    ..*el.clone()
-                }))
-            }
-            ViewTree::Conditional(cond) => {
-                let branches = cond
-                    .branches
-                    .iter()
-                    .map(|b| ConditionalBranch {
-                        body: b.body.as_ref().map(|v| go(v, excluded, slots)),
-                        ..b.clone()
-                    })
-                    .collect();
-                ViewTree::Conditional(Box::new(ConditionalIntent {
-                    branches,
-                    fallback: cond.fallback.as_ref().map(|v| go(v, excluded, slots)),
-                    transition_mode: cond.transition_mode.clone(),
-                }))
-            }
-            ViewTree::ListRendering(list) => {
-                ViewTree::ListRendering(Box::new(ListRenderingIntent {
-                    body: list.body.as_ref().map(|v| go(v, excluded, slots)),
-                    empty_body: list.empty_body.as_ref().map(|v| go(v, excluded, slots)),
-                    ..*list.clone()
-                }))
-            }
-            ViewTree::Fragment(children) => {
-                ViewTree::Fragment(children.iter().map(|c| go(c, excluded, slots)).collect())
-            }
-            other => other.clone(),
-        }
-    }
-    go(view, &excluded, &slots)
 }
 
 /// Recursively maps parent children into <slot> elements in the view tree.

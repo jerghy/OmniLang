@@ -2857,3 +2857,104 @@ component App {
         app
     );
 }
+
+/// Test: a slot whose name collides with a signal is NOT materialized —
+/// `{header}` stays a signal read (no `header ?? (fallback)`), and the slot
+/// prop is skipped. The semantic layer warns on the collision.
+#[test]
+fn body_slot_colliding_with_signal_skips_materialization() {
+    let source = r#"
+component Badge {
+    signal header: String = "live"
+    @slot header { <h4>Fallback</h4> }
+    view {
+        <div>{header}</div>
+    }
+}
+"#;
+    let output = compile_react(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        !content.contains("header ??"),
+        "colliding slot must not materialize into a fallback render, got:\n{}",
+        content
+    );
+    assert!(
+        !content.contains("header?: ReactNode"),
+        "colliding slot prop must be skipped, got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("const header ="),
+        "the signal read must still be emitted, got:\n{}",
+        content
+    );
+}
+
+/// Test: body-slot interpolations inside `@if`/`@for` bodies materialize too
+/// (the materializer recurses into Conditional/ListRendering arms).
+#[test]
+fn body_slot_materializes_inside_conditionals_and_lists() {
+    let source = r#"
+component Panel {
+    signal show: bool = true
+    signal items: List<String> = []
+    @slot header { <h4>Default header</h4> }
+    view {
+        @if show { {header} }
+        @for item in items { {header} }
+    }
+}
+"#;
+    let output = compile_react(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert_eq!(
+        content.matches("header ?? (").count(),
+        2,
+        "both @if and @for positions should render the materialized slot, got:\n{}",
+        content
+    );
+}
+
+/// Test: when the same slot name is declared at the body level AND as a
+/// view-level `@slot`, the body declaration wins for `{name}` interpolation
+/// materialization (its fallback is used).
+#[test]
+fn body_slot_declaration_wins_over_view_level_duplicate() {
+    let source = r#"
+component Modal {
+    @slot header { <h4>Body fallback</h4> }
+    view {
+        @slot header { <h4>View fallback</h4> }
+        <div>{header}</div>
+    }
+}
+"#;
+    let output = compile_react(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        content.contains("Body fallback"),
+        "the interpolation must materialize with the body declaration's fallback, got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("View fallback"),
+        "the view-level slot keeps its own fallback, got:\n{}",
+        content
+    );
+}

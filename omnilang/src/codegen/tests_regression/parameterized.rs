@@ -325,7 +325,7 @@ fn assert_slots_body_react(files: &FxHashMap<String, String>) {
     assert_contains(files, "App.tsx", "header={<div>");
     assert_contains(files, "App.tsx", "Custom title");
     assert_contains(files, "App.tsx", "Custom body");
-    assert_contains(files, "App.tsx", "<Modal");
+    assert_contains(files, "App.tsx", "<Modal />");
 }
 
 fn assert_slots_body_flutter(files: &FxHashMap<String, String>) {

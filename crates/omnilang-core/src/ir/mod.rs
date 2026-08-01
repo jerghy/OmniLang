@@ -9,6 +9,7 @@ mod lower;
 pub mod lower_logic;
 pub mod optimize;
 mod signals;
+mod slot_materialize;
 mod types;
 mod types_motion;
 pub mod visibility;
@@ -16,6 +17,9 @@ pub mod walk;
 
 pub use lower::lower;
 pub use lower::lower_design_with_consts;
+
+// ── Explicit re-exports from slot_materialize.rs ──
+pub use slot_materialize::{materialize_view_slots, slot_collision_names};
 
 // ── Explicit re-exports from types.rs ──
 pub use types::{
