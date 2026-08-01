@@ -167,7 +167,7 @@ component MyComponent {
 
 两种绑定语法等价，推荐 `@ref={name}`。
 
-### Ref API 表面（跨后端安全子集）
+### Ref API 表面（跨后端安全子集，语义级 DSL，ADR-052/053）
 
 | API | 用途 | 示例 |
 |-----|------|------|
@@ -175,36 +175,47 @@ component MyComponent {
 | `.blur()` | 失焦 | `myInput.blur()` |
 | `.scrollTo(x, y)` | 滚动到指定位置 | `scrollArea.scrollTo(0, 0)` |
 | `.scrollBy(dx, dy)` | 增量滚动 | `scrollArea.scrollBy(0, 100)` |
-| `.getBoundingClientRect()` | 位置/尺寸查询 | `let rect = el.getBoundingClientRect()` |
-| `.style` | 直接 CSS 操作（60fps 高频） | `dragBox.style.transform = "translate(100px, 0)"` |
+| `.select()` | 全选文本 | `searchBox.select()` |
+| `.setSelection(start, end)` | 选区 | `searchBox.setSelection(0, 3)` |
+| `.measure()` | 位置/尺寸查询 | `let rect = searchBox.measure()` |
+| `.capturePointer(id)` | 指针捕获 | `el.capturePointer(1)` |
+| `.releasePointer(id)` | 释放指针 | `el.releasePointer(1)` |
 
 **不暴露**：`innerHTML`、`addEventListener`、`querySelector`、`parentElement`——这些会破坏跨后端抽象。
 
-### 高频场景：ref + @drag 配合
+> 已删除（ADR-052/053）：`.style`（改用 `style: {...}` 绑定 signal）与
+> `.getBoundingClientRect()` / `.offsetWidth` / `.offsetHeight`（改用
+> `.measure()`，编译器报错并提示替代方案）。高频语义操作优先使用语义绑定
+> 属性：`focus={sig}`、`scroll-x={sig}`、`scroll-y={sig}`、`value={sig}`
+> （需配合 `@ref={name}`）。
+
+### 高频场景：ref + @drag-* 触发器配合
+
+`ref.style.*` 已按 ADR-052 删除（DOM 专属 API，用信号 + style 绑定替代）。拖拽驱动的 60fps 位移由 `@drag-*` 触发器 + `@motion` 关键帧实现，最终值用 signal 保存（注意：当前无约束时拖拽进度为 0，范围约束待重新实现，见 `.architecture/deferrals.md` #19）：
 
 ```omni
+@motion dragSlideX {
+    from { translateX: 0 }
+    to   { translateX: 100 }
+    over: 300ms
+}
+
 component Draggable {
-    ref dragBox: Element;
     signal x: f64 = 0;
-    signal y: f64 = 0;
 
     fn onDragUpdate(e) {
-        // .style 直接写 DOM，避免 signal→reconciliation 的开销
-        dragBox.style.transform = `translate({e.x}px, {e.y}px)`;
-        x = e.x;
-        y = e.y;
+        x = e.x;   // 最终值用 signal 保存
     }
 
     view {
-        <div @ref={dragBox}
-             @dragHorizontal={fadeSlideUp}>
-            <p>Drag me — x:{x.to_string()} y:{y.to_string()}</p>
+        <div @ref={dragBox} @drag-horizontal={dragSlideX} @onPress={onDragUpdate}>
+            <p>Drag me — x:{x.to_string()}</p>
         </div>
     }
 }
 ```
 
-在 `@dragHorizontal` / `@dragVertical` 触发器中更新 ref.style（高帧率）和 signal（最终值）。
+`@drag-horizontal` / `@drag-vertical` 触发器（kebab-case）驱动 motion 关键帧进度。
 
 ### 边界情况
 

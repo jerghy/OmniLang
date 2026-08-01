@@ -173,17 +173,18 @@ motion_def ::= '@motion' <ident> motion_body
 motion_body ::= '{' motion_param* keyframe_stops playback_props '}'
 
 motion_param ::= 'over' ':' expr            // duration: 300ms, 1.5s
-               | 'easing' ':' easing_expr   // ease-out, cubic-bezier(0.16,1,0.3,1)
+               | 'easing' ':' easing_expr   // ease-out, cubic(x1:..., y1:..., x2:..., y2:...)
 
 keyframe_stops ::= keyframe_stop (','? keyframe_stop)*
 
-keyframe_stop ::= stop_position '{' stop_property (','? stop_property)* '}' ('easing' ':' easing_expr)?
+keyframe_stop ::= stop_position '{' stop_property (','? stop_property)* '}' stop_ease?
 
 stop_position ::= 'from'                      // 0%
                 | 'to'                        // 100%
                 | expr '%'?                   // 数字后可选 %，如 50% 或 50
 
 stop_property ::= semantic_anim_prop ':' expr
+                | '--' <ident>                // CSS custom property passthrough（仅 CSS 目标，ADR-053 D3）
 
 semantic_anim_prop ::= 'opacity' | 'scale' | 'scaleX' | 'scaleY'
                      | 'translateX' | 'translateY' | 'translateZ'
@@ -191,19 +192,28 @@ semantic_anim_prop ::= 'opacity' | 'scale' | 'scaleX' | 'scaleY'
                      | 'skewX' | 'skewY'
                      | 'backgroundColor' | 'color'
                      | 'width' | 'height'        // diagnostic in Flutter
+// 17 属性白名单（ADR-053 D3）；白名单外属性在解析期报错
 
-easing_expr ::= <ident>                             // ease-in, ease-out, linear, etc.
-              | 'cubic-bezier' '(' num ',' num ',' num ',' num ')'
-              | 'steps' '(' int ',' 'start' '|' 'end' ')'  // diagnostic in Flutter
+stop_ease ::= 'ease' (':' easing_expr)?       // per-stop easing（关键字为 ease，冒号可选）
+
+easing_expr ::= <ident>                             // kebab-case: ease-in, ease-out, power2-out, back-in-out, ...
+              | 'cubic' '(' 'x1' ':' num ',' 'y1' ':' num ',' 'x2' ':' num ',' 'y2' ':' num ')'
+              | 'steps' '(' int ',' ('start' | 'end') ')'  // 仅位置参数（无 count: 前缀）；Flutter diagnostic
 
 playback_props ::= (playback_prop)*
 
-playback_prop ::= 'loop' ('infinite' | int)?
-                | 'direction' ('normal' | 'reverse' | 'alternate')
+playback_prop ::= 'loop' int?                       // 裸 `loop` = 无限循环（无 `infinite` 关键字）
+                | 'direction' ('normal' | 'reverse' | 'alternate' | 'alternateReverse')
                 | 'fill' ('none' | 'forwards' | 'backwards' | 'both')
-                | 'delay' ':' expr
-                | 'paused'
+                | 'delay' expr                      // 空格形式（无冒号），首次播放延迟 ms
+                | 'paused'                          // 语法兼容解析，运行时不生效（PlaybackIR.paused 已删除，ADR-053）
 ```
+
+> **parser 对齐说明**（2026-08-01）：以上为 parser 实际接受的形式——
+> 命名缓动为 kebab-case（camelCase 旧名在过渡期被规范化，如 `power2Out`
+> → `power2-out`）；自定义贝塞尔为 `cubic(x1:, y1:, x2:, y2:)` 命名参数
+> 形式；`steps()` 仅位置参数；`delay` 为空格形式；`direction` 含
+> `alternateReverse`。
 
 #### 触发器（元素属性）
 
@@ -212,27 +222,22 @@ motion_trigger_attr ::= '@enter' '=' '{' motion_expr '}'
                       | '@hover' '=' '{' motion_expr '}'
                       | '@press' '=' '{' motion_expr '}'
                       | '@focus' '=' '{' motion_expr '}'
-                      | '@in-view' '=' '{' motion_expr '}' in_view_opts?
-                      | '@scroll' '=' '{' motion_expr '}' scroll_opts
-                      | '@drag-horizontal' '=' '{' motion_expr '}' drag_opts
-                      | '@drag-vertical' '=' '{' motion_expr '}' drag_opts
+                      | '@in-view' '=' '{' motion_expr '}'
+                      | '@scroll' '=' '{' motion_expr '}'
+                      | '@drag-horizontal' '=' '{' motion_expr '}'
+                      | '@drag-vertical' '=' '{' motion_expr '}'
 
 motion_expr ::= <ident>                             // 命名 motion 引用
-              | '{' motion_body '}'                 // 内联动画体（语法糖）
-
-in_view_opts ::= 'once' '=' expr
-               | 'repeat' '=' expr
-               | 'threshold' '=' expr
-
-scroll_opts ::= 'start' '=' expr
-              | 'end' '=' expr
-              | 'scrub' '=' expr
-
-drag_opts ::= 'constraints' '=' expr
-            | 'elastic' '=' expr
-            | 'threshold' '=' expr
-            | 'velocity-max' '=' expr
 ```
+
+> **已实现范围**（2026-08-01，与 parser 对齐）：8 个触发器，kebab-case，
+> 值必须是命名 motion 引用。以下**尚未实现**（ADR-053 移除，待重新实现，
+> 见 `.architecture/deferrals.md` #19）：
+>
+> - 触发器子属性（旧 `@in-view-once`/`@scroll-start`/`@drag-constraints`
+>   等）——parser 不解析任何 opts
+> - 内联动画体语法糖 `'{' motion_body '}'`（§3.3 / §3.7 示例中的
+>   `@enter = { over: 200ms ... }` 形式当前不解析）
 
 ### 3.3 完整示例
 
@@ -263,15 +268,11 @@ drag_opts ::= 'constraints' '=' expr
 component AnimatedCard {
   <Card @enter={fadeIn} @hover={scaleUp} />
 
-  <HeroImage @scroll={parallaxScroll} start={0} end={1} scrub={true} />
+  <HeroImage @scroll={parallaxScroll} />
 
-  // ── 内联动画体（语法糖，lowering 展开为命名 motion）──
-  <div @enter = {
-    over: 200ms
-    easing: ease-out
-    from { opacity: 0; translateY: -10 }
-    to   { opacity: 1; translateY: 0 }
-  } />
+  // ⚠️ 触发器子属性（start={0} end={1} scrub={true}）与内联动画体语法糖
+  //    （@enter = { ... }）当前均未实现（ADR-053，见 §3.2 说明）——
+  //    请使用命名 motion + 单独定义：@motion parallaxScroll { ... }
 }
 ```
 
@@ -309,7 +310,11 @@ component AnimatedCard {
 | `steps()` easing | Flutter | error | Flutter 无原生 steps easing |
 | `rotateX/Y/Z`, `skewX/Y`, `translateZ` | Flutter | warning | 需 `Transform` widget 组合，3D 变换受限于 Flutter 渲染模型 |
 
-### 3.7 内联动画体 Lowering
+### 3.7 内联动画体 Lowering（设计记录 — 语法未实现）
+
+> ⚠️ **2026-08-01 状态**：内联动画体语法（`@enter = { ... }`）当前
+> **不解析**（parser 的 trigger 值必须是命名 motion 引用）。以下 lowering
+> 设计保留为待实现方案（ADR-053）：
 
 ```
 源码:
@@ -347,9 +352,10 @@ default_theme_directive ::= '@default-theme' <ident> ';'?
 token_decl ::= 'token' <ident> ':' token_type '=' token_value
                (theme_override)* ';'?
 
-token_type ::= 'Color' | 'Size' | 'Radius' | 'FontFamily' | 'FontSize'
-             | 'FontWeight' | 'LineHeight' | 'LetterSpacing' 
-             | 'Shadow' | 'Duration' | 'Easing' | 'Opacity' | 'ZIndex'
+token_type ::= 'color' | 'size' | 'radius' | 'fontFamily' | 'fontSize'
+             | 'fontWeight' | 'lineHeight' | 'letterSpacing' | 'shadow'
+             | 'duration' | 'easing' | 'opacity' | 'zIndex'
+// 小写（parser 实际接受形式；旧文档中的大写形式不解析）
 
 token_value ::= <literal>                          // 静态值
               | <const_ref>                        // 常量引用: BRAND_COLOR
@@ -420,7 +426,7 @@ design AppTheme {
   token fontSizeBase: FontSize = 14px
   token shadowCard: Shadow = 0 2px 8px rgba(0,0,0,0.1)
   token durationNormal: Duration = 300ms
-  token easeOut: Easing = cubic-bezier(0.16, 1, 0.3, 1)
+  token easeOut: Easing = "cubic-bezier(0.16, 1, 0.3, 1)"  // design token 值 = CSS easing 字符串（引号字面量）；motion easing 的 cubic() 命名参数形式见 §3.2
 
   // ── 动态 token（来自运行时 store）──
   token accentColor: Color = ThemeStore.accentColor
@@ -604,20 +610,25 @@ component Modal {
 | 类型约束 + data | `header?: (data: T) => ReactNode` render prop | `Widget Function(T)? header` builder | — |
 | 消费侧 children | JSX children 自动透传 | 声明 `child:` / `children:` param | 自动透传 |
 
-### 5.5 IR 修复要求
+### 5.5 IR 形态（2026-08-01：已实现）
 
-**当前 bug**：`ViewTree::Slot(Option<String>)` 是叶子节点，`default_content` 在 lowering 时丢弃。
+**历史 bug**：`ViewTree::Slot(Option<String>)` 是叶子节点，`default_content`
+在 lowering 时丢弃——已修复（ADR-053 D5 实现时完成）。
 
-**修复后**：
+当前形态：
 ```rust
 // crates/omnilang-core/src/ir/types.rs
 ViewTree::Slot {
     name: Option<String>,              // None = 默认 slot
-    fallback: Vec<ViewTree>,            // fallback 内容
+    fallback: Vec<ViewTree>,            // fallback 内容（原 default_content，lowering 保留）
     type_constraint: Option<TypeIR>,     // 类型约束
     data_param: Option<String>,         // data 注入参数名
 }
 ```
+
+消费者命名属性投影（`header={<div/>}`）在 lowering 时转为
+`ViewTree::Slot { name: Some("header"), fallback: content }` 插入元素
+children，与 view 内 `@slot name { ... }` 同等处理。
 
 ---
 
@@ -647,7 +658,8 @@ action_decl  ::= 'action' <ident> '(' params? ')' block
 
 component_signal  ::= 'signal' <ident> ':' type_annotation '=' expr ';'?
 component_computed ::= 'computed' <ident> ':' type_annotation '=' expr ';'?
-                    | 'computed' <ident> '(' params? ')' '->' type_annotation block
+                    | 'computed' <ident> '(' ')' ('->' type_annotation)? block
+                    // 块形式仅空括号；返回类型可省略
 
 // ── 组件引用 store ──
 
@@ -767,7 +779,7 @@ if_directive ::= '@if' expr transition_mode? '{' view_nodes '}'
                  ( '@else' 'if' expr '{' view_nodes '}' )*
                  ( '@else' '{' view_nodes '}' )?
 
-transition_mode ::= 'mode' ':' <string_literal>   // "fade" | "wait" | "none"
+transition_mode ::= 'mode' ':' (<string_literal> | <ident>)   // "fade" | "wait" | "none"（解析期校验，非法值报错）
 
 // ── 列表渲染 ──
 
@@ -996,11 +1008,11 @@ Flutter: [...list], count += 1, await fn()
 
 | 变更 | 层 | 说明 |
 |------|-----|------|
-| `semantic/validate_ref_ops.rs` | 新增 | 扫描 ref 上的 method call → 识别合法语义方法 → 改写 RefOpExpr；非法操作 → compile error |
-| `ir/types.rs` — `RefOpIR` 枚举 | 新增 | Focus, Blur, ScrollTo, ScrollBy, Measure, Select, SetSelection, Value, SetValue, CapturePointer, ReleasePointer |
-| `ir/types.rs` — `ViewTree::Slot` | 修改 | 从 `Slot(Option<String>)` → `Slot { name, fallback, type_constraint, data_param }` |
-| `ir/lower/view.rs` — slot lowering | 修复 | 保留 `default_content`，填入 `fallback` 字段 |
-| `ir/lower/lower_inline_motions.rs` | 新增 | 内联动画体 → 合成命名 motion |
+| `semantic/validate_ref_ops.rs` | 新增 | ✅ 已实现：ref 上的合法语义方法（focus/blur/scrollTo/scrollBy/select/setSelection/measure/capturePointer/releasePointer）→ RefOpIR；非法操作（getBoundingClientRect、offsetWidth 等）→ compile error + 替代建议 |
+| `ir/types.rs` — `RefOpIR` 枚举 | 新增 | ✅ 已实现：Focus, Blur, ScrollTo, ScrollBy, Measure, Select, SetSelection, Value, SetValue, CapturePointer, ReleasePointer |
+| `ir/types.rs` — `ViewTree::Slot` | 修改 | ✅ 已实现：`Slot { name, fallback, type_constraint, data_param }`（见 §5.5） |
+| `ir/lower/view.rs` — slot lowering | 修复 | ✅ 已实现：`default_content` 保留并填入 `fallback`；消费者命名属性投影同样转 `ViewTree::Slot` |
+| `ir/lower/lower_inline_motions.rs` | 新增 | ⚠️ **未实现**：内联动画体语法不解析（见 §3.7），此模块待实现 |
 | `ir/types_motion.rs` | 修改 | 删除 `PlaybackIR.paused`、`MotionBehavior.paused_override`；新增 `TriggerKind::Focus` |
 | `codegen/mod.rs` | 修改 | P0 目标移除 design block gate；非 P0 目标 warning → error |
 | `codegen/react/` — 全部模块 | 重写 | Zustand v5、React 19 ref prop、slot children、design CSS、动画 → 平台原生 ref+WAAPI |

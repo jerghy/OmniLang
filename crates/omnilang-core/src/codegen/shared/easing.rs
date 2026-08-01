@@ -1,10 +1,9 @@
 /// Canonical named easing to WAAPI-compatible easing string and Flutter Curves constant.
 ///
-/// Source of truth: packages/omni-animation/src/easing.ts
-///
-/// This table is the single shared source for all Rust codegen backends
-/// and semantic validation passes. Any new easing must be added here
-/// AND in the JS runtime.
+/// Mirrors packages/omni-animation/src/easing.ts — that file is the source
+/// of truth for the easing table. This table is the shared source for all
+/// Rust codegen backends and semantic validation passes, so any new easing
+/// must be added in the TS runtime FIRST and then mirrored here.
 ///
 /// Tuple: (omni_name, css_cubic_bezier, flutter_curves_constant)
 pub const NAMED_EASINGS: &[(&str, &str, &str)] = &[

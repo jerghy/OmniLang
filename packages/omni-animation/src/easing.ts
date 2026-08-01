@@ -3,11 +3,13 @@ import type { EasingConfig } from './types'
 /**
  * Named easing → WAAPI cubic-bezier / steps string.
  *
+ * SOURCE OF TRUTH for the easing table — the compiler's Rust table
+ * (crates/omnilang-core/src/codegen/shared/easing.rs) mirrors this file.
+ * Any new easing must be added here FIRST and mirrored there.
+ *
  * Each camelCase entry has a kebab-case alias — the semantic DSL compiler
  * emits canonical kebab names ("power2-out", "ease-in-out") into the
  * OmniView runtime via Omni.resolveEasing(), so both forms must resolve.
- * Mirrors the compiler's NAMED_EASINGS table (crates/omnilang-core/src/
- * codegen/shared/easing.rs).
  */
 const NAMED_EASINGS: Record<string, string> = {
   linear: 'linear',

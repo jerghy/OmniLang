@@ -17,7 +17,7 @@
 <!-- 带参数调用函数 -->
 <button @onPress={switchTab("home")}>Home</button>
 
-<!-- 事件简写：直接传参数 -->
+<!-- 内联闭包 -->
 <button @onPress={(e) => { handleEvent(e); }}>Log</button>
 ```
 
@@ -195,8 +195,11 @@ view {
 
 | 风格 | 示例 | 说明 |
 |------|------|------|
-| 标准 | `@onClick={handler}` | 显式命名事件 |
-| 简写 | `({ fnName })` 或 `{handler}` | 自动包装（部分场景） |
+| 标准 | `@onClick={handler}` | 显式命名事件（`@onEventName`，推荐） |
+| 无 @ 前缀 | `onPress={handler}` | `onEventName` 形式同样被解析 |
 | 内联闭包 | `@onPress={() => { ... }}` | 直接写逻辑 |
 | Store action | `@onPress={TodoStore.add("x")}` | 调用 store 方法 |
 | 函数调用 | `@onPress={switchTab("home")}` | 带参数调用组件函数 |
+
+> 注：`@press`、`@focus` 等（不带 `on`）是**动画触发器**，不是事件——
+> 事件绑定一律使用 `@on*` 形式（详见 [11-运动与动画](11-motion-animation.md)）。

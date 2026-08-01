@@ -22,25 +22,28 @@ component_member ::= prop_decl
                    | ref_decl
                    | store_ref
                    | store_inline
-                   | if_mode_decl
+                   | slot_decl
                    | motion_def
-                   | timeline_def
-                   | hero_def
                    | lifecycle_hook
                    | function_def          // 'fn' — from grammar-lang
                    | action_def
                    | getter_decl
+                   | const_decl
                    | view_block
                    | style_block
 ```
 
+> Removed per semantic-level DSL (ADR-053): `if_mode_decl` (component member),
+> `hero_def`, `timeline_def`. `@timeline` is no longer a lexer token at all.
+
 ### 1.2 Prop Declaration
 
 ```
-prop_decl ::= 'prop' <ident> (':' type_annotation)? ('=' expr)? ';'?
+prop_decl ::= 'prop' <ident> ':' type_annotation ('=' expr)? ';'?
 ```
 
-Component properties — inputs passed from parent:
+Component properties — inputs passed from parent. The type annotation is
+**required**; the default value is optional:
 ```
 prop title: String
 prop count: i32 = 0
@@ -51,51 +54,65 @@ prop onClick: fn(Event) -> void
 ### 1.3 Signal Declaration
 
 ```
-signal_decl ::= 'signal' <ident> (':' type_annotation)? ('=' expr)? ';'?
+signal_decl ::= 'signal' <ident> ':' type_annotation '=' expr ';'?
 ```
 
-Reactive state values — trigger re-render on change:
+Reactive state values — trigger re-render on change. Both the type annotation
+and the initializer are **required**:
 ```
 signal counter: i32 = 0
-signal isOpen = false
-signal name: String
+signal isOpen: bool = false
+signal name: String = ""
 ```
 
 ### 1.4 Computed Declaration
 
 ```
 computed_decl ::= 'computed' <ident> ':' type_annotation '=' expr ';'?
+                | 'computed' <ident> '(' ')' ('->' type_annotation)? block
 ```
 
-Derived reactive values — recomputed when dependencies change:
+Derived reactive values — recomputed when dependencies change. Two forms:
+single-expression (colon form) or block form with empty parens (`()` only —
+no parameters):
 ```
 computed fullName: String = firstName + " " + lastName
 computed total: i32 = price * quantity
+computed label() -> String {
+    if count > 100 { return "Overflow" }
+    return "Normal"
+}
 ```
 
 ### 1.5 Event Declaration
 
 ```
-event_decl ::= 'event' <ident> ('(' (param (',' param)*)? ')')? ';'?
+event_decl ::= 'event' <ident> ':' type_annotation '?'? ';'?
 ```
 
-Component events — emitted to parent components:
+Component events — emitted to parent components. The `?` suffix marks an
+optional event (parent may ignore it). Event payloads are typed values, not
+parameter lists — handlers receive the payload as a function argument:
 ```
-event onSubmit(value: String)
+event onSubmit: String
 event onClose
+event onOptional: bool?
 ```
 
 ### 1.6 Ref Declaration
 
 ```
-ref_decl ::= 'ref' <ident> ';'?
+ref_decl ::= 'ref' <ident> ':' type_annotation ';'?
 ```
 
-DOM element reference:
+DOM element reference — the type annotation is **required**:
 ```
-ref inputEl
-ref container
+ref inputEl: Element
+ref container: Element
 ```
+
+The ref is bound to an element with `@ref={name}` or `ref: name` in the view
+(ADR-042 / ADR-053 D2).
 
 ### 1.7 Store Reference
 
@@ -108,17 +125,31 @@ Two forms:
 - **Reference**: `@store AppStore;` — links to a separately defined store
 - **Inline**: `store LocalState { signal count = 0; action reset() { count = 0 } }` — defines store inline
 
-### 1.8 If-Mode Declaration
+### 1.8 Slot Declaration
 
 ```
-if_mode_decl ::= 'if_mode' <ident> ':' <string_literal> ';'?
+slot_decl ::= '@slot' slot_name slot_type_constraint? slot_default?
+
+slot_name           ::= <ident>          // named slot (default slot: bare `@slot` or name `default`)
+slot_type_constraint ::= ':' type_annotation
+slot_default        ::= '{' (view_node)* '}'   // fallback content
 ```
 
-Conditional rendering mode for CSS class variants:
+Declares a content slot filled by the parent (ADR-053 D5). The literal name
+`default` (or a bare `@slot`) declares the default/unnamed slot; `view`/`style`
+are excluded as slot names in body context (a bare `@slot` may precede the
+`view { ... }` block):
+
 ```
-if_mode default: "light"
-if_mode layout: "compact"
+@slot                     // default slot
+@slot header              // named slot
+@slot header: HeaderData  // type constraint
+@slot footer { <span>Default footer</span> }   // fallback content
 ```
+
+Slots render in the view via interpolation (`{header}`, `{children}`) and are
+filled by the parent via named props (`header={<div>...</div>}`) or child
+nodes (default slot). See §3.3.
 
 ### 1.9 Action Definition
 
@@ -153,24 +184,19 @@ getter doubleCount: i32 = count * 2
 ```
 lifecycle_hook ::= '@mount' block
                  | '@unmount' block
-                 | '@effect' block
+                 | '@effect' ('(' deps ')')? block
+
+deps ::= <ident> (',' <ident>)*
 ```
 
 ```
 @mount { print "Component mounted" }
 @unmount { print "Component will unmount" }
 @effect { print "Signal changed:", counter }
+@effect(searchQuery) { results = performSearch(searchQuery) }   // track deps
 ```
 
-### 1.12 Hero Definition
-
-```
-hero_def ::= '@hero' <ident> block
-```
-
-Hero transition element definition (for shared element transitions between pages).
-
-### 1.13 Component AST
+### 1.12 Component AST
 
 ```
 ComponentDef ::= {
@@ -181,11 +207,9 @@ ComponentDef ::= {
     events: Vec<EventDecl>,
     refs: Vec<RefDecl>,
     store_refs: Vec<String>,
-    if_mode_default: Option<String>,
+    slots: Vec<SlotDecl>,
     motions: Vec<MotionDef>,
-    timelines: Vec<TimelineDef>,
-    hero_defs: Vec<HeroDef>,
-    lifecycles: Vec<LifecycleHook>,
+    lifecycles: Vec<LifecycleHook>,   // deps: Vec<String> on @effect
     fns: Vec<FunctionDef>,
     actions: Vec<ActionDef>,
     getters: Vec<GetterDecl>,
@@ -193,6 +217,9 @@ ComponentDef ::= {
     styles: Vec<StyleRule>,
 }
 ```
+
+> Removed per semantic-level DSL (ADR-053): `if_mode_default`, `timelines`,
+> `hero_defs` — no longer parsed as component members.
 
 ---
 
@@ -226,15 +253,20 @@ html_element ::= '<' <ident> (element_prop)* ('>' (view_node)* '</' <ident> '>'
 element_prop ::= static_prop
                | event_prop
                | bind_prop
+               | semantic_binding
                | motion_trigger
-               | driven_by
-               | paused_override
-               | hover_reverse
-               | in_view_modifier
-               | scroll_modifier
-               | drag_modifier
-               | hero_attribute
+               | class_prop          // class: name / class: Design.Class / class: {k: v}
+               | variant_prop        // variant: Design.Variant(dim=val, ...)
+               | style_prop          // style: { css-key: expr, ... }
+               | slot_content        // name={ <view nodes> }  (ADR-053 D5)
+               | ref_binding         // ref: name  or  @ref={name}
 ```
+
+> Removed per semantic-level DSL (ADR-053): `driven_by` (`@drivenBy`),
+> `paused_override` (`@paused`), `hover_reverse` (`@hoverReverse`), the
+> in-view/scroll/drag modifier attributes (`@inViewOnce`, `@scrollStart`,
+> `@dragConstraints`, etc.), and the hero attributes (`@hero`,
+> `@heroTransition` — `@hero` is rejected with a diagnostic).
 
 **Void elements** (self-closing): `area`, `base`, `br`, `col`, `embed`, `hr`, `img`, `input`, `link`, `meta`, `param`, `source`, `track`, `wbr`. These auto-close — a `</input>` closing tag is silently consumed if present.
 
@@ -261,27 +293,49 @@ Supports hyphenated names (`margin-left`, `background-color`) and keyword-as-nam
 ### 2.5 Event Props
 
 ```
-event_prop ::= '@' <ident> '=' '{' expr '}'
+event_prop ::= ('@' <ident> | <ident>) '=' '{' expr '}'
 ```
 
-Event handlers bound to DOM events, using `@` prefix:
+Event handlers bound to DOM events. `@onEventName` is the canonical spelling
+(`@onPress`); the bare `onEventName` form (without `@`) is also accepted.
+`@ref={name}` is a ref binding, not an event:
 ```
-<button @press={handleClick}>click</button>
-<input @input={handleInput} @focus={handleFocus} />
+<button @onPress={handleClick}>click</button>
+<input @onInput={handleInput} @onFocus={handleFocus} />
 ```
+
+> Note: `@press`, `@focus` etc. (without `on`) are **motion triggers**, not
+> events — see §7.4.
 
 ### 2.6 Bind Props
 
 ```
-bind_prop ::= 'bind' <ident> '=' '{' expr '}'
+bind_prop ::= 'bind' ':' <ident> '=' ('{' signal_path '}' | <ident>)
 ```
 
 Two-way data binding:
 ```
 <input bind:value={email} />
+<input type="checkbox" bind:checked={agreed} />
 ```
 
-### 2.7 Component Call
+### 2.7 Semantic Bindings (Ref System)
+
+```
+semantic_binding ::= ('focus' | 'scroll-x' | 'scroll-y' | 'value')
+                     '=' '{' expr '}'
+```
+
+Compiler-recognized ref bindings (ADR-053 D2) — the value must be a bare
+signal reference (`{sig}`) or qualified store signal (`{Store.sig}`); the
+element must also carry `@ref={name}`. Other `{expr}` values on these names
+stay generic static props:
+```
+<input @ref={searchBox} focus={isSearchActive} value={searchText} />
+<ScrollView @ref={scrollPane} scroll-y={scrollPosition} />
+```
+
+### 2.8 Component Call
 
 ```
 component_call ::= <ident> ('(' (prop_name ':' expr (',' prop_name ':' expr)*)? ')')? ('{' (view_node)* '}')?
@@ -297,7 +351,7 @@ Button(label: "Click me")
 Flex { Text { "item 1" } Text { "item 2" } }
 ```
 
-### 2.8 Text Content
+### 2.9 Text Content
 
 Text in views is collected from consecutive non-special tokens. The parser reconstructs whitespace by checking span byte gaps — if token N+1 starts after token N ends, a space is inserted.
 
@@ -308,7 +362,7 @@ Text tokens include: identifiers (camelCase), punctuation, operators outside of 
 <Text>Score: {count}</Text>
 ```
 
-### 2.9 Interpolation
+### 2.10 Interpolation
 
 ```
 interpolation ::= '{' expr '}'          // inside view context
@@ -321,7 +375,7 @@ Text { "Hello, " + name }
 
 **Disambiguation**: `{expr}` inside views first tries parse-as-expression. If the expression parse succeeds AND the next token is `}`, it's an interpolation. Otherwise it falls back to literal text (collecting tokens until `}`).
 
-### 2.10 HTML Comments
+### 2.11 HTML Comments
 
 ```
 html_comment ::= '<!--' (any_char)* '-->'
@@ -329,7 +383,7 @@ html_comment ::= '<!--' (any_char)* '-->'
 
 HTML comments are parsed and discarded (produce `ViewNode::Text("")`). Note: `-->` is tokenized as `Minus + Arrow` since the lexer merges `->` into a single `Arrow` token.
 
-### 2.11 View AST Types
+### 2.12 View AST Types
 
 ```
 ViewBlock ::= { children: Vec<ViewNode> }
@@ -340,7 +394,8 @@ ViewNode ::=
   | Interpolation(Expr)
   | IfDirective(IfDirective)
   | ForDirective(ForDirective)
-  | SlotDirective { name: Option<String>, default_content: Option<Vec<ViewNode>> }
+  | SlotDirective { name: Option<String>, default_content: Option<Vec<ViewNode>>,
+                    type_constraint: Option<TypeAnnotation> }
 
 Element ::= {
     tag: String,
@@ -351,19 +406,22 @@ Element ::= {
 
 ElementProp ::=
   | Static { name: String, value: Expr }
-  | Dynamic { name: String, expr: Expr }
-  | Event { name: String, handler: Expr }
-  | Bind { name: String, expr: Expr }
+  | Bind { name: String, signal_path: String }
+  | RefBinding { binding: String, signal: Expr }     // focus/scroll-x/scroll-y/value
+  | Event { name: String, handler: EventHandler }
+  | Class { value: ClassValue }                       // StyleRef | ClassMap | DesignClass
+  | Variant { design_name: String, variant_name: String, dimension_values: Vec<(String, String)> }
+  | Style { entries: Vec<(String, Expr)> }
+  | TestId(String)
+  | Ref(String)                                       // ref: name  or  @ref={name}
+  | SlotContent { name: String, content: Vec<ViewNode> }   // name={ <nodes> }
   | MotionTrigger(MotionTrigger)
-  | DrivenBy(Expr)
-  | PausedOverride(Expr)
-  | HoverReverse(String)
-  | InViewOnce(Expr) | InViewRepeat(Expr) | InViewThreshold(Expr)
-  | ScrollStart(String) | ScrollEnd(String) | ScrollScrub(Expr)
-  | DragConstraints(String) | DragElastic(Expr) | DragScrub(Expr)
-  | DragMomentum(Expr) | DragThreshold(Expr) | DragVelocityMax(Expr)
-  | HeroTag(String) | HeroTransition(Expr)
 ```
+
+> Removed per semantic-level DSL (ADR-053): `DrivenBy`, `PausedOverride`,
+> `HoverReverse`, `InViewOnce/Repeat/Threshold`, `ScrollStart/End/Scrub`,
+> `DragConstraints/Elastic/Scrub/Momentum/Threshold/VelocityMax`,
+> `HeroTag`, `HeroTransition`.
 
 ---
 
@@ -372,22 +430,26 @@ ElementProp ::=
 ### 3.1 @if / @else if / @else
 
 ```
-if_directive ::= '@if' expr ('mode' '=' <string_literal>)? '{' (view_node)* '}'
+if_directive ::= '@if' expr transition_mode? '{' (view_node)* '}'
                  ('@else' ('@if' | 'if') expr '{' (view_node)* '}' )*
                  ('@else' '{' (view_node)* '}')?
+
+transition_mode ::= 'mode' ':' (<string_literal> | <ident>)   // "fade" | "wait" | "none"
 ```
 
-Conditional rendering with optional transition mode:
+Conditional rendering with optional transition mode — the mode value is
+validated at parse time (`fade`, `wait`, `none` only; anything else is a
+parse error):
 ```
-@if (isVisible) {
+@if isVisible {
     <div>visible content</div>
-} @else if (isLoading) {
+} @else if isLoading {
     <div>loading...</div>
 } @else {
     <div>fallback</div>
 }
 
-@if (show) mode= "wait" {
+@if show mode: "wait" {
     Panel { Text { "animated" } }
 }
 ```
@@ -415,28 +477,51 @@ List rendering:
 
 ### 3.3 @slot
 
+The canonical form is the **body-level declaration** (§1.8, ADR-053 D5).
+Slots render in the view as interpolations:
+
 ```
-slot_directive ::= '@slot' ('(' <ident> ')')? ('{' (view_node)* '}')?
+slot_render ::= '{' <ident> '}'          // render named slot: {header}
+              | '{' 'children' '}'       // render default slot: {children}
 ```
 
-Named slot with optional default content:
 ```
-@slot(header) {
-    <div>Default header</div>
+component Modal {
+    @slot header
+    @slot default
+
+    view {
+        <div class="modal-header">{header}</div>
+        <div class="modal-body">{children}</div>
+    }
 }
-@slot(body)
 ```
+
+The parent fills slots via **named props** (anonymous content fills the
+default slot):
+```
+<Modal header={<h2>Title</h2>}>
+    <p>Body content</p>
+</Modal>
+```
+
+> The legacy view-level `@slot(name)` / `@slot(name) { default }` directive
+> is still parsed (`ViewNode::SlotDirective`) for compatibility, including
+> the paren form `@slot(header)`; new code should use body-level
+> declarations.
 
 ### 3.4 @empty / @native / @fallback / @error
 
-Reserved directive tokens. Parser infrastructure exists but full implementation is deferred.
-
 ```
-@empty   // fallback for empty lists
+@empty   // fallback for empty lists — implemented (@for ... @empty { ... })
 @native  // native platform fallback
 @fallback
 @error   // error boundary fallback
 ```
+
+`@empty` is fully implemented as the `@for` empty-state suffix. `@native`,
+`@fallback`, and `@error` remain reserved directive tokens — parser
+infrastructure exists but implementation is deferred.
 
 ---
 
@@ -704,14 +789,15 @@ ThemeDef ::= { name: String, entries: Vec<ThemeEntry> }
 
 ## 7. Animation System
 
+> Semantic-level DSL (ADR-052/053) notes: timeline bodies (`set`/`stagger`/
+> `label`), callback bodies (`onStart`/`onComplete`), `@timeline` definitions,
+> and hero transitions were removed (ADR-032 scoping). `@motion` bodies are
+> **keyframe-only**. See `11-motion-animation.md` for the full guide.
+
 ### 7.1 Motion Definition
 
 ```
-motion_def ::= '@motion' <ident> '{' motion_body '}'
-
-motion_body ::= keyframe_body callbacks?
-              | timeline_body
-              | callback_body
+motion_def ::= '@motion' <ident> '{' keyframe_body '}'
 ```
 
 **Disambiguation** — the first token of the body determines the mode:
@@ -719,23 +805,31 @@ motion_body ::= keyframe_body callbacks?
 |-------------|------|
 | `0%` — `100%` or `IntLiteral` / `FloatLiteral` | Keyframe (percentage-based) |
 | `from` / `to` | Keyframe (from-to syntax) |
-| `set` / `stagger` / `label` | Timeline body |
-| `onStart` / `onUpdate` / `onComplete` / `onRepeat` / `onInterrupt` | Callback body |
-| Any other `<ident>` | Timeline body (motion reference) |
+| Anything else | Parse error |
 
 ### 7.2 Keyframe Body
 
 ```
-keyframe_body ::= (keyframe_stop | keyframe_config)+ callbacks?
+keyframe_body ::= keyframe_stop+ shared_timing? playback_props?
 
-keyframe_stop ::= percentage '{' style_property+ '}'
-                | ('from' | 'to') '{' style_property+ '}'
+keyframe_stop ::= percentage '{' anim_prop (','? anim_prop)* '}' stop_ease?
+                | ('from' | 'to') '{' anim_prop (','? anim_prop)* '}' stop_ease?
 
 percentage ::= <int_literal> '%' | <float_literal> '%'
+             | <int_literal> | <float_literal>      // bare number = percent
 
-keyframe_config ::= <ident> '=' value
-// Examples: duration=500, ease="easeOut", delay=200
+anim_prop ::= semantic_anim_prop ':' expr
+            | '--' ...                              // CSS custom property passthrough (CSS targets only, ADR-053 D3)
+
+stop_ease ::= 'ease' (':' easing_expr)?             // per-stop easing (colon optional)
 ```
+
+Animation properties are validated against a **17-property semantic
+whitelist** (`opacity`, `scale`, `scaleX`, `scaleY`, `translateX`,
+`translateY`, `translateZ`, `rotate`, `rotateX`, `rotateY`, `rotateZ`,
+`skewX`, `skewY`, `backgroundColor`, `color`, `width`, `height`); unknown
+properties are parse errors. `--custom-property` names pass through for
+CSS-based targets (ADR-053 D3).
 
 ```
 @motion fadeIn {
@@ -747,167 +841,105 @@ keyframe_config ::= <ident> '=' value
         opacity: 1
         scale: 1
     }
-    duration=300
-    ease="easeOut"
+    over: 300ms
+    easing: ease-out
 }
 ```
 
-### 7.3 Timeline Body
+### 7.3 Shared Timing & Playback Props
 
 ```
-timeline_body ::= (timeline_step)+
+shared_timing ::= ('over' ':' duration_expr | 'easing' ':' easing_expr)
+                  (','? ...)*                      // both optional, comma optional
 
-timeline_step ::= 'set' '{' (style_property)+ '}'
-                | 'stagger' '{' stagger_config? (timeline_step)+ '}'
-                | 'label' <string_literal>
-                | <ident>                                // motion reference
-                | 'if_mode' <ident> ':' <ident> timeline_step  // conditional
+duration_expr ::= <int_literal> ('ms' | 's')? | <float_literal> ('ms' | 's')?
+                // bare number = seconds
 
-stagger_config ::= 'each' '=' number ';'
-```
+playback_props ::= (playback_prop)*
 
-```
-@motion cardEntrance {
-    stagger {
-        each=60;
-        fadeIn
-        slideUp
-    }
-}
-```
-
-### 7.4 Callback Body
-
-```
-callback_body ::= (callback_spec)+
-
-callback_spec ::= ('onStart' | 'onUpdate' | 'onComplete' | 'onRepeat' | 'onInterrupt') block
+playback_prop ::= 'loop' (int)?                    // bare `loop` = infinite
+                | 'direction' ('normal' | 'reverse' | 'alternate' | 'alternateReverse')
+                | 'fill' ('none' | 'forwards' | 'backwards' | 'both')
+                | 'delay' expr                     // space form — first-play delay in ms
 ```
 
 ```
 @motion pulse {
-    0% { scale: 1 }
-    50% { scale: 1.2 }
-    100% { scale: 1 }
-    duration=600
+    from { scale: 1 }
+    to { scale: 1.05 }
+    over: 800ms
+    easing: ease-in-out
 
-    onStart { print "Animation started" }
-    onComplete { print "Animation done" }
+    loop                    // infinite loop
+    direction alternateReverse
+    delay 500               // NOTE: space form, not `delay:`
+    fill forwards
 }
 ```
 
-### 7.5 Timeline Definition
+> `paused` is still parsed for syntax compatibility but has **no runtime
+> effect** (`PlaybackIR.paused` was deleted per ADR-053) — accepted and
+> ignored. The element-level `@paused={...}` attribute was removed entirely.
 
-```
-timeline_def ::= '@timeline' <ident> '{' timeline_body '}'
-```
+### 7.4 Motion Triggers (Element Props)
 
-Standalone timeline — can be reused across components:
-```
-@timeline staggeredCards {
-    stagger {
-        each=80;
-        fadeIn
-        cardEntrance
-    }
-}
-```
+Applied as element attributes. The trigger value is a motion reference.
+Spellings are **kebab-case** (8 triggers):
 
-### 7.6 Motion Triggers (Element Props)
-
-Applied as element attributes. The trigger value is a motion reference:
 ```
 motion_trigger ::= '@enter' '=' '{' expr '}'
-                 | '@leave' '=' '{' expr '}'
                  | '@hover' '=' '{' expr '}'
-                 | '@unhover' '=' '{' expr '}'
                  | '@press' '=' '{' expr '}'
                  | '@focus' '=' '{' expr '}'
-                 | '@animate' '=' '{' expr '}'
-                 | '@inView' '=' '{' expr '}'
+                 | '@in-view' '=' '{' expr '}'
                  | '@scroll' '=' '{' expr '}'
-                 | '@dragHorizontal' '=' '{' expr '}'
-                 | '@dragVertical' '=' '{' expr '}'
-                 | '@timeline' '=' '{' expr '}'     // trigger by timeline
+                 | '@drag-horizontal' '=' '{' expr '}'
+                 | '@drag-vertical' '=' '{' expr '}'
 ```
 
 ```
-<div @enter={fadeIn} @leave={fadeOut} />
+<div @enter={fadeIn} />
 <button @hover={scaleUp} @press={bounce} />
-<section @inView={slideIn} @inViewOnce={true} @inViewThreshold={0.2} />
+<input @focus={focusGlow} />
+<section @in-view={slideIn} />
+<div @scroll={scrollProgress} />
+<div @drag-horizontal={dragSlide} @drag-vertical={dragSlideY} />
 ```
 
-### 7.7 Motion Modifier Attributes
+> Removed per ADR-053: `@leave`, `@unhover`, `@animate`, `@timeline` triggers
+> and all trigger sub-attributes (`@in-view-once`, `@scroll-start`,
+> `@drag-constraints` etc. — drag range constraints are pending
+> reimplementation, see `.architecture/deferrals.md` #19). `@hero` is rejected
+> with a diagnostic.
+
+### 7.5 Motion AST Types
 
 ```
-driven_by       ::= '@drivenBy' '=' '{' expr '}'            // external progress signal
-paused_override ::= '@paused' '=' '{' expr '}'               // pause state
-hover_reverse   ::= '@hoverReverse' '=' (<string_literal> | '{' <ident> '}')
+MotionDef ::= { name: String, body: MotionBody, span: Span }
 
-// InView modifiers
-in_view_once    ::= '@inViewOnce' '=' '{' expr '}'
-in_view_repeat  ::= '@inViewRepeat' '=' '{' expr '}'
-in_view_threshold ::= '@inViewThreshold' '=' '{' expr '}'
-
-// Scroll modifiers
-scroll_start ::= '@scrollStart' '=' <string_literal>
-scroll_end   ::= '@scrollEnd' '=' <string_literal>
-scroll_scrub ::= '@scrollScrub' '=' '{' expr '}'
-
-// Drag modifiers
-drag_constraints ::= 'dragConstraints' '=' <string_literal>
-drag_elastic     ::= 'dragElastic' '=' '{' expr '}'
-drag_scrub       ::= 'dragScrub' '=' '{' expr '}'
-drag_momentum    ::= 'dragMomentum' '=' '{' expr '}'
-drag_threshold   ::= 'dragThreshold' '=' '{' expr '}'
-drag_velocity    ::= 'dragVelocityMax' '=' '{' expr '}'
-```
-
-### 7.8 Hero Transition Attributes
-
-```
-@hero           ::= '@hero' '=' <string_literal>          // shared element tag
-@heroTransition ::= '@heroTransition' '=' '{' expr '}'    // transition motion
-```
-
-```
-<img @hero="avatar" @heroTransition={heroMove} />
-```
-
-### 7.9 Motion AST Types
-
-```
-MotionDef ::= {
-    name: String,
-    body: MotionBody,
-}
-
-MotionBody ::=
-  | Keyframe(KeyframeBody)
-  | Timeline(Vec<TimelineStep>)
-  | Callbacks(Vec<CallbackSpec>)
+MotionBody ::= Keyframe(KeyframeBody)
 
 KeyframeBody ::= {
-    stops: Vec<KeyframeStop>,        // 0% { ... }, 100% { ... }
-    config: FxHashMap<String, Value>, // duration, ease, delay, etc.
-    callbacks: Vec<CallbackSpec>,
+    stops: Vec<KeyframeStop>,      // from/to/percentage stops
+    over: Expr,                    // duration (default 0.3)
+    easing: Option<EasingExpr>,
+    playback: Vec<PlaybackProp>,   // Loop | Direction | Fill | Delay | Paused
 }
 
-TimelineDef ::= { name: String, body: Vec<TimelineStep> }
+KeyframeStop ::= { position: StopPosition,   // From | To | Percent(f64)
+                   properties: Vec<(String, Expr)>,
+                   ease: Option<EasingExpr> }
 
-TimelineStep ::=
-  | Set { props: Vec<(String, StyleValue)> }
-  | Stagger { config: StaggerConfig, children: Vec<TimelineStep> }
-  | Label(String)
-  | MotionRef(String)
-  | IfMode { mode: String, value: String, body: Box<TimelineStep> }
+EasingExpr ::= Named(String) | CubicBezier { x1, y1, x2, y2 } | Steps { count, direction }
+             | Back { direction } | Elastic { direction }
 
-CallbackSpec ::= { kind: CallbackKind, body: Vec<Stmt> }
+PlaybackProp ::= Loop(LoopValue) | Direction(DirectionValue)
+               | Fill(FillValue) | Delay(Expr) | Paused(bool)
 
-TriggerKind ::= Enter | Leave | Hover | Unhover | Press | Focus | Animate
-              | InView | Scroll | DragHorizontal | DragVertical | Timeline
+TriggerKind ::= Enter | Hover | Press | Focus | InView | Scroll
+              | DragHorizontal | DragVertical
 
-MotionTrigger ::= { kind: TriggerKind, motion: Expr }
+MotionTrigger ::= { kind: TriggerKind, motion_expr: Expr }
 ```
 
 ---
@@ -932,39 +964,38 @@ When `{expr}` parsing fails inside views, the parser collects all tokens up to t
 
 | Directive | Context | Syntax |
 |-----------|---------|--------|
-| `@if` | View, Top-level | `@if (expr) { ... }` |
-| `@else` | View | `@else { ... }` or `@else @if (...) { ... }` |
-| `@for` | View | `@for item in expr { ... }` |
-| `@slot` | View | `@slot(name) { default }` |
-| `@empty` | View | `@empty { ... }` |
-| `@native` | View | `@native { ... }` |
-| `@fallback` | View | `@fallback { ... }` |
-| `@error` | View | `@error { ... }` |
+| `@if` | View | `@if expr { ... }` or `@if expr mode: "wait" { ... }` |
+| `@else` | View | `@else { ... }` or `@else @if (...) { ... }` / `@else if (...) { ... }` |
+| `@for` | View | `@for item in expr key={expr} [scroll]? { ... }` |
+| `@empty` | View | `@empty { ... }` (suffix after `@for` block) |
+| `@slot` | Component body | `@slot name: Type? { fallback }?` (render: `{name}` / `{children}`) |
+| `@native` | View | `@native { ... }` (reserved — deferred) |
+| `@fallback` | View | `@fallback { ... }` (reserved — deferred) |
+| `@error` | View | `@error { ... }` (reserved — deferred) |
 | `@store` | Component | `@store Name;` |
 | `@mount` | Component | `@mount { ... }` |
 | `@unmount` | Component | `@unmount { ... }` |
-| `@effect` | Component | `@effect { ... }` |
-| `@motion` | Top-level, Component | `@motion name { ... }` |
-| `@timeline` | Top-level, Component | `@timeline name { ... }` |
-| `@hero` | Top-level, Element attr | `@hero="tag"` |
-| `@heroTransition` | Element attr | `@heroTransition={expr}` |
+| `@effect` | Component | `@effect (deps)? { ... }` |
+| `@motion` | Top-level, Component | `@motion name { from ... to ... }` |
+
+> Removed per ADR-053: `@timeline`, `@hero`, `@heroTransition`.
 
 ## Appendix B: Motion Trigger Attributes Quick Reference
 
 | Attribute | Value | Description |
 |-----------|-------|-------------|
 | `@enter={motion}` | Expression | Play on mount |
-| `@leave={motion}` | Expression | Play on unmount |
 | `@hover={motion}` | Expression | Play on hover start |
-| `@unhover={motion}` | Expression | Reverse on hover end |
 | `@press={motion}` | Expression | Play on click/tap |
 | `@focus={motion}` | Expression | Play on focus |
-| `@animate={motion}` | Expression | Continuous animation |
-| `@inView={motion}` | Expression | Play when scrolled into view |
+| `@in-view={motion}` | Expression | Play when scrolled into view |
 | `@scroll={motion}` | Expression | Linked to scroll position |
-| `@dragHorizontal={motion}` | Expression | Linked to horizontal drag |
-| `@dragVertical={motion}` | Expression | Linked to vertical drag |
-| `@timeline={motion}` | Expression | Drive a timeline animation |
+| `@drag-horizontal={motion}` | Expression | Linked to horizontal drag |
+| `@drag-vertical={motion}` | Expression | Linked to vertical drag |
+
+> Removed per ADR-053: `@leave`, `@unhover`, `@animate`, `@timeline`
+> triggers, and all trigger sub-attributes (`@inViewOnce`, `@scrollStart`,
+> `@dragConstraints`, ...).
 
 ## Appendix C: Full Component Example
 
@@ -974,8 +1005,6 @@ import "omniview";
 component TodoApp {
     signal todos: Array<Todo> = []
     signal input: String = ""
-
-    if_mode default: "light"
 
     @store ThemeStore
 
@@ -1008,15 +1037,14 @@ component TodoApp {
                     bind:value={input}
                     placeholder="What needs to be done?"
                 />
-                <button @press={addTodo}>Add</button>
+                <button @onPress={addTodo}>Add</button>
             </div>
             @for todo in todos {
                 <div class="todo-item">
                     <input type="checkbox" checked={todo.done} />
                     <span>{todo.text}</span>
                 </div>
-            }
-            @if (todos.length == 0) {
+            } @empty {
                 <p>No todos yet!</p>
             }
         </div>

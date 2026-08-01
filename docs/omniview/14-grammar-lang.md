@@ -60,12 +60,17 @@ store  view  style  action  getter  theme  design  bind
 ```
 @store  @if  @else  @for  @empty  @slot  @native  @fallback
 @error  @mount  @unmount  @effect
-@motion  @timeline  @enter  @leave  @hover  @unhover  @press
-@focus  @animate  @inView  @scroll  @dragHorizontal  @dragVertical
-@drivenBy  @paused  @hoverReverse  @inViewOnce  @inViewRepeat
-@inViewThreshold  @scrollStart  @scrollEnd  @scrollScrub
-@hero  @heroTransition
+@motion  @enter  @hover  @press  @focus
+@in-view  @scroll  @drag-horizontal  @drag-vertical
 ```
+
+Trigger spellings are **kebab-case** (semantic-level DSL, ADR-053): `@in-view`,
+`@drag-horizontal`, `@drag-vertical`. The pre-DSL camelCase spellings
+(`@inView`, `@dragHorizontal`), the removed triggers (`@leave`, `@unhover`,
+`@animate`), and the removed modifier tokens (`@drivenBy`, `@paused`,
+`@hoverReverse`, `@inViewOnce`, `@scrollStart`, `@dragConstraints` etc.) are
+**not** produced by the lexer. `@hero` still lexes to `AtHero` but the parser
+rejects it with a clear diagnostic (hero transitions removed per ADR-032/053).
 
 #### Special
 
@@ -779,7 +784,7 @@ pub fn foo() { return 1; } quux pub fn bar() { return 2; }
 
 ### 7.2 Top-Level Recovery
 
-`skip_to_top_level()` advances to the next top-level keyword (`fn`, `pub`, `component`, `store`, `theme`, `design`, `struct`, `type`, `const`, `import`, `export`, `@motion`, `@timeline`, `async`).
+`skip_to_top_level()` advances to the next top-level keyword (`fn`, `pub`, `component`, `store`, `theme`, `design`, `struct`, `type`, `const`, `import`, `export`, `@motion`, `async`).
 
 ---
 
@@ -811,18 +816,23 @@ signal  computed  prop  event  ref  view  style  action  getter
 ```
 
 ### Contextual (usable as identifiers in expression/name context)
-All reserved keywords above PLUS these additional at-directive tokens:
+All reserved keywords above PLUS `if_mode` (also lexed from the `@if-mode`
+spelling) — `keyword_as_ident_name()` is the single mapping.
+
+### At-directive tokens (lexed keywords, NOT identifiers)
+These lexer tokens are directives or element attributes; unlike the reserved
+keywords above they are **not** mapped to identifiers:
 ```
 @store  @if  @else  @for  @empty  @slot  @native  @fallback
 @error  @mount  @unmount  @effect
-@motion  @timeline  @enter  @leave  @hover  @unhover  @press
-@focus  @animate  @inView  @scroll  @dragHorizontal  @dragVertical
-@drivenBy  @paused  @hoverReverse  @inViewOnce  @inViewRepeat
-@inViewThreshold  @scrollStart  @scrollEnd  @scrollScrub
-@hero  @heroTransition
-if_mode  dragConstraints  dragElastic  dragScrub  dragMomentum
-dragThreshold  dragVelocityMax
+@motion  @enter  @hover  @press  @focus
+@in-view  @scroll  @drag-horizontal  @drag-vertical
+@hero
 ```
+
+Notes:
+- `@hero` is lexed but rejected at parse time with a diagnostic (hero transitions removed per ADR-032/053).
+- The pre-DSL modifier tokens (`@drivenBy`, `@paused`, `@hoverReverse`, `@inViewOnce`/`@inViewRepeat`/`@inViewThreshold`, `@scrollStart`/`@scrollEnd`/`@scrollScrub`, `@dragConstraints`/`@dragElastic`/`@dragScrub`/`@dragMomentum`/`@dragThreshold`/`@dragVelocityMax`) were removed with the semantic-level DSL (ADR-053).
 
 ## Appendix C: Semicolon Rules
 
