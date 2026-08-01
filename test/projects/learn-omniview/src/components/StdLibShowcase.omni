@@ -1,0 +1,167 @@
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  StdLibShowcase.omni —— 标准库演示聚合组件                      ║
+// ║                                                              ║
+// ║  将 components/ 下的纯逻辑标准库演示文件接线到展示页：           ║
+// ║    array_ext   — std/array 扩展（remove/map/find/contains）   ║
+// ║    strings     — 字符串转义序列（\n \t \" \\ \u{XXXX}）       ║
+// ║    string_ext  — std/string 扩展（split/join/case 等）        ║
+// ║    print_demo  — print vs println（lib/print_demo.omni）      ║
+// ║                                                              ║
+// ║  注：async/datetime/encode/regex/math 扩展文件暂未接线，        ║
+// ║  因对应 std 模块在 omniview 目标缺少运行时实现（见接线报告）。   ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+import omniview;
+import { LearnDesign } from "../design";
+
+// ── std/array 扩展演示（components/array_ext.omni）──
+import { demo_remove, demo_map, demo_find, demo_contains } from "./array_ext";
+// ── 字符串转义序列演示（components/strings.omni）──
+import {
+    multiline_greeting, numbered_list, tabular_data, quoted_value,
+    json_fragment, windows_path, emoji_smile, japanese_hello,
+    format_card, status_message,
+} from "./strings";
+// ── std/string 扩展演示（components/string_ext.omni）──
+import {
+    demo_split_join, demo_replace, demo_substring, demo_case,
+    demo_ends_with, demo_concat,
+} from "./string_ext";
+// ── print / println 演示（lib/print_demo.omni）──
+import { demo_print_concat, demo_println_vs_print } from "../lib/print_demo";
+
+component StdLibShowcase {
+    view {
+        <div class: LearnDesign.Container>
+            <h3 class: LearnDesign.CardTitle>标准库（Std Lib）演示</h3>
+            <p class: LearnDesign.Subtitle>
+                聚合展示 components/ 与 lib/ 下的纯逻辑标准库演示文件 —— 每个模块一组输出
+            </p>
+
+            <!-- ═══ std/array 扩展（array_ext.omni）═══ -->
+            <div class: module-card>
+                <h4 class: module-title>① std/array 扩展 — array_ext.omni</h4>
+                <p class: module-desc>
+                    <code>array_remove</code> · <code>array_map</code> ·
+                    <code>array_find</code> · <code>array_contains</code>
+                </p>
+                <ul class: output-list>
+                    <li class: output-item>
+                        <code>demo_remove([1,2,3], 0)</code> = {demo_remove([1, 2, 3], 0).len().to_string()} 项（移除索引 0）
+                    </li>
+                    <li class: output-item>
+                        <code>demo_map([1,2,3])</code> = {demo_map([1, 2, 3]).len().to_string()} 项（每项 ×2）
+                    </li>
+                    <li class: output-item>
+                        <code>demo_find(["a","b"], "b")</code> = 索引 {demo_find(["a", "b"], "b")}
+                    </li>
+                    <li class: output-item>
+                        <code>demo_contains(["a","b"], "a")</code> = {demo_contains(["a", "b"], "a")}
+                    </li>
+                </ul>
+            </div>
+
+            <!-- ═══ 字符串转义序列（strings.omni）═══ -->
+            <div class: module-card>
+                <h4 class: module-title>② 字符串转义序列 — strings.omni</h4>
+                <p class: module-desc>
+                    <code>{"\\n"}</code> 换行 · <code>{"\\t"}</code> 制表 · <code>{"\\\""}</code> 引号 ·
+                    <code>{"\\\\"}</code> 反斜杠 · <code>{"\\u{XXXX}"}</code> Unicode
+                </p>
+                <ul class: output-list>
+                    <li class: output-item>
+                        <code>multiline_greeting()</code> = <pre class: output-pre>{multiline_greeting()}</pre>
+                    </li>
+                    <li class: output-item>
+                        <code>tabular_data()</code> = <pre class: output-pre>{tabular_data()}</pre>
+                    </li>
+                    <li class: output-item>
+                        <code>quoted_value()</code> = {quoted_value()}
+                    </li>
+                    <li class: output-item>
+                        <code>windows_path()</code> = {windows_path()}
+                    </li>
+                    <li class: output-item>
+                        <code>emoji_smile()</code> = {emoji_smile()} · <code>status_message(true)</code> = {status_message(true)}
+                    </li>
+                    <li class: output-item>
+                        <code>japanese_hello()</code> = {japanese_hello()}（{"\\u{XXXX}"} 编码）
+                    </li>
+                    <li class: output-item>
+                        <code>format_card("Alice", "Engineer")</code> =<pre class: output-pre>{format_card("Alice", "Engineer")}</pre>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- ═══ std/string 扩展（string_ext.omni）═══ -->
+            <div class: module-card>
+                <h4 class: module-title>③ std/string 扩展 — string_ext.omni</h4>
+                <p class: module-desc>
+                    <code>string_split</code> · <code>string_join</code> ·
+                    <code>string_replace</code> · <code>string_substring</code> ·
+                    <code>string_to_upper/lower</code> · <code>string_ends_with</code>
+                </p>
+                <ul class: output-list>
+                    <li class: output-item>
+                        <code>demo_split_join("a,b,c", ",")</code> = {demo_split_join("a,b,c", ",")}
+                    </li>
+                    <li class: output-item>
+                        <code>demo_replace("Hello World", "World", "Omni")</code> = {demo_replace("Hello World", "World", "Omni")}
+                    </li>
+                    <li class: output-item>
+                        <code>demo_substring("OmniLang", 0, 4)</code> = {demo_substring("OmniLang", 0, 4)}
+                    </li>
+                    <li class: output-item>
+                        <code>demo_case("AbC")</code> 上/下 = {demo_case("AbC").get("upper")} / {demo_case("AbC").get("lower")}
+                    </li>
+                    <li class: output-item>
+                        <code>demo_ends_with("hello.omni", ".omni")</code> = {demo_ends_with("hello.omni", ".omni")}
+                    </li>
+                    <li class: output-item>
+                        <code>demo_concat("foo", "bar")</code> = {demo_concat("foo", "bar")}
+                    </li>
+                </ul>
+            </div>
+
+            <!-- ═══ print / println（print_demo.omni）═══ -->
+            <div class: module-card>
+                <h4 class: module-title>④ print vs println — lib/print_demo.omni</h4>
+                <p class: module-desc>
+                    <code>print</code> 不自动换行，<code>println</code> 自动换行；输出到浏览器控制台
+                </p>
+                <ul class: output-list>
+                    <li class: output-item>
+                        <code>demo_print_concat()</code> 返回 = {demo_print_concat()}（"Hello World" 打印在控制台）
+                    </li>
+                    <li class: output-item>
+                        <code>demo_println_vs_print()</code> 返回 = {demo_println_vs_print()}（混用 println / print）
+                    </li>
+                </ul>
+            </div>
+        </div>
+    }
+
+    style {
+        .module-card {
+            background: var(--surfaceMuted);
+            border: 1px solid var(--borderLight);
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 12px;
+        }
+        .module-title { font-size: 14px; font-weight: 600; color: var(--textPrimary); margin: 0 0 4px 0; }
+        .module-desc { font-size: 12px; color: var(--textSecondary); margin: 0 0 8px 0; }
+        .output-list { margin: 0; padding-left: 16px; }
+        .output-item { font-size: 13px; color: var(--textPrimary); margin: 4px 0; line-height: 1.5; }
+        .output-item code { background: var(--surfaceSubtle); padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+        .output-pre {
+            background: var(--surfaceSubtle);
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin: 4px 0;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+    }
+}

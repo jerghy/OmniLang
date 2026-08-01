@@ -7,6 +7,9 @@ import { ThemeSourceDemo } from "../components/ThemeSourceDemo";
 import { DesignTokenPanel } from "../components/DesignTokenPanel";
 import { VariantShowcase } from "../components/VariantShowcase";
 import { ThemeCssVarsDemo } from "../components/ThemeCssVarsDemo";
+// CSS 变量与单位（接线孤儿文件）
+import { CssVarsDemo } from "../components/CssVarsDemo";
+import { CssUnitsDemo } from "../components/CssUnitsDemo";
 
 component DesignTheme {
     view {
@@ -16,6 +19,11 @@ component DesignTheme {
             <DesignTokenPanel />
             <VariantShowcase />
             <ThemeCssVarsDemo />
+
+            <!-- CSS 自定义属性与单位（CssVarsDemo / CssUnitsDemo）-->
+            <h3 class: LearnDesign.SectionTitle>CSS 变量与单位</h3>
+            <CssVarsDemo />
+            <CssUnitsDemo />
         </section>
     }
 }

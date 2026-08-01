@@ -4,6 +4,8 @@ import { LearnDesign } from "../design";
 import { DataFetching } from "./DataFetching";
 import { DataSubmit } from "./DataSubmit";
 import { UserSettings } from "./UserSettings";
+// 标准库演示（接线孤儿文件：array_ext / strings / string_ext / print_demo）
+import { StdLibShowcase } from "../components/StdLibShowcase";
 
 component CompilerPage {
     view {
@@ -11,6 +13,10 @@ component CompilerPage {
             <div class: LearnDesign.DemoFull><DataFetching /></div>
             <div class: LearnDesign.DemoFull><DataSubmit /></div>
             <div class: LearnDesign.DemoFull><UserSettings /></div>
+
+            <!-- 标准库（Std Lib）演示 -->
+            <h3 class: LearnDesign.SectionTitle>标准库（Std Lib）演示</h3>
+            <div class: LearnDesign.DemoFull><StdLibShowcase /></div>
         </section>
     }
 }
