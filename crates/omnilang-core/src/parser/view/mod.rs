@@ -532,6 +532,18 @@ impl<'a> Parser<'a> {
                     let trigger = self.parse_motion_trigger(TriggerKind::DragVertical)?;
                     props.push(ElementProp::MotionTrigger(trigger));
                 }
+                // @hero is dead syntax: hero transitions were removed from the
+                // feature set in the semantic DSL (ADR-032 scoping / ADR-053
+                // syntax). Report a clear diagnostic instead of the generic
+                // "Unexpected token in element props" error.
+                TokenKind::AtHero => {
+                    let t = self.advance();
+                    return Err(ParseError {
+                        message: "hero transitions are not supported — '@hero' was removed in the semantic DSL (ADR-032/053); use @enter/@hover/@press/@focus/@in-view/@scroll/@drag-* triggers instead"
+                            .into(),
+                        span: t.span,
+                    });
+                }
                 // Sub-attribute tokens (@paused, @in-view-once, @scroll-start,
                 // @drag-constraints, etc.) were removed per semantic-level DSL
                 // spec §3.2 — they are re-parsed as regular ident-based attrs in

@@ -584,13 +584,17 @@ pub(super) fn is_text_token(kind: &TokenKind) -> bool {
             | TokenKind::StringLiteral(_)
             // @-keyword tokens that may appear in text content
             | TokenKind::AtEnter | TokenKind::AtHover
-            | TokenKind::AtPress | TokenKind::AtInView
+            | TokenKind::AtPress | TokenKind::AtFocus | TokenKind::AtInView
             | TokenKind::AtHero
             | TokenKind::AtScroll
             | TokenKind::AtDragHorizontal | TokenKind::AtDragVertical
             | TokenKind::AtStore | TokenKind::AtMotion | TokenKind::AtNative
             | TokenKind::AtFallback | TokenKind::AtError | TokenKind::AtMount
             | TokenKind::AtUnmount | TokenKind::AtEffect
+            // Directive continuation keywords are safe as literal text too:
+            // "@else"/"@empty" inside element content must not truncate children
+            // (directive parsing consumes them internally, before text paths).
+            | TokenKind::AtElse | TokenKind::AtEmpty
             | TokenKind::IfMode
             | TokenKind::Percent
             // Assignment and comparison operators
@@ -661,8 +665,28 @@ pub(super) fn token_text(kind: &TokenKind) -> String {
         TokenKind::QuestionDot => "?.".into(),
         TokenKind::QuestionQuestion => "??".into(),
         TokenKind::At => "@".into(),
+        // Literal spellings of @-keyword tokens accepted by is_text_token —
+        // without these arms the fallback below would silently drop the word
+        // from text content (e.g. "on @hover over" → "on  over").
+        TokenKind::AtEnter => "@enter".into(),
+        TokenKind::AtHover => "@hover".into(),
+        TokenKind::AtPress => "@press".into(),
+        TokenKind::AtFocus => "@focus".into(),
+        TokenKind::AtInView => "@in-view".into(),
+        TokenKind::AtScroll => "@scroll".into(),
+        TokenKind::AtHero => "@hero".into(),
         TokenKind::AtDragHorizontal => "@drag-horizontal".into(),
         TokenKind::AtDragVertical => "@drag-vertical".into(),
+        TokenKind::AtStore => "@store".into(),
+        TokenKind::AtMotion => "@motion".into(),
+        TokenKind::AtNative => "@native".into(),
+        TokenKind::AtFallback => "@fallback".into(),
+        TokenKind::AtError => "@error".into(),
+        TokenKind::AtMount => "@mount".into(),
+        TokenKind::AtUnmount => "@unmount".into(),
+        TokenKind::AtEffect => "@effect".into(),
+        TokenKind::AtElse => "@else".into(),
+        TokenKind::AtEmpty => "@empty".into(),
         TokenKind::LBracket => "[".into(),
         TokenKind::RBracket => "]".into(),
         TokenKind::TemplateString(s) => format!("`{}`", s),

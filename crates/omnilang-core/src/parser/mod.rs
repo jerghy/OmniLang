@@ -1905,4 +1905,101 @@ mod roundtrip_tests {
             _ => panic!("expected string literal"),
         }
     }
+
+    // ════════════════════════════════════════════════════════
+    // @-keyword text safety & dead-syntax diagnostics (deferral #18)
+    // ════════════════════════════════════════════════════════
+
+    #[test]
+    fn view_text_at_focus_mid_text() {
+        // @focus inside text content must parse as text — not silently truncate
+        // the element's children (deferral #18, Gap 1).
+        let children = view_children("component App { view { <p>关于 @focus 触发器</p> } }");
+        assert_eq!(children.len(), 1);
+        match &children[0] {
+            ViewNode::Element(el) => {
+                assert_eq!(el.tag, "p");
+                assert_eq!(el.children.len(), 1, "children must not be truncated");
+                assert!(matches!(&el.children[0], ViewNode::Text(s) if s.contains("@focus")));
+            }
+            _ => panic!("expected Element"),
+        }
+    }
+
+    #[test]
+    fn view_text_at_focus_at_start() {
+        // @focus at the start of text content parses as text too.
+        let children = view_children("component App { view { <p>@focus me</p> } }");
+        assert_eq!(children.len(), 1);
+        match &children[0] {
+            ViewNode::Element(el) => {
+                assert_eq!(el.children.len(), 1);
+                assert!(matches!(&el.children[0], ViewNode::Text(s) if s.contains("@focus")));
+            }
+            _ => panic!("expected Element"),
+        }
+    }
+
+    #[test]
+    fn view_focus_trigger_attr_parses() {
+        // @focus={motion} as an element attribute must remain a motion trigger.
+        let children = view_children("component App { view { <div @focus={fadeIn}/> } }");
+        assert_eq!(children.len(), 1);
+        match &children[0] {
+            ViewNode::Element(el) => {
+                assert_eq!(el.props.len(), 1);
+                assert!(matches!(&el.props[0], ElementProp::MotionTrigger(_)));
+            }
+            _ => panic!("expected Element"),
+        }
+    }
+
+    #[test]
+    fn view_hero_attr_clear_error() {
+        // @hero is dead syntax (removed per ADR-032/053) — the parser must
+        // report a clear diagnostic instead of the generic "Unexpected token".
+        let src = "component App { view { <div @hero=\"card-1\"/> } }";
+        let tokens = tokenize(src);
+        let (_, errs) = parse(tokens, src);
+        assert!(
+            errs.iter().any(|e| e.message.contains("hero")),
+            "expected a hero-specific error, got: {:?}",
+            errs.iter().map(|e| &e.message).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn view_text_else_and_empty_not_truncated() {
+        // @else / @empty are directive continuation keywords; as literal text
+        // inside an element they must not silently truncate the children.
+        for (src, kw) in [
+            ("component App { view { <p>a @else b</p> } }", "@else"),
+            ("component App { view { <p>a @empty b</p> } }", "@empty"),
+        ] {
+            let children = view_children(src);
+            assert_eq!(children.len(), 1, "top-level children truncated at {kw}");
+            match &children[0] {
+                ViewNode::Element(el) => {
+                    assert_eq!(el.children.len(), 1, "element children truncated at {kw}");
+                    assert!(matches!(&el.children[0], ViewNode::Text(s) if s.contains(kw)));
+                }
+                _ => panic!("expected Element"),
+            }
+        }
+    }
+
+    #[test]
+    fn view_text_trigger_words_not_dropped() {
+        // Other trigger keywords in text must keep their literal @-spelling
+        // (token_text fallback must not collapse them to empty strings).
+        let children = view_children("component App { view { <p>on @hover over</p> } }");
+        assert_eq!(children.len(), 1);
+        match &children[0] {
+            ViewNode::Element(el) => {
+                assert_eq!(el.children.len(), 1);
+                assert!(matches!(&el.children[0], ViewNode::Text(s) if s.contains("@hover")));
+            }
+            _ => panic!("expected Element"),
+        }
+    }
 }
