@@ -5,4 +5,3 @@ export { resolveEasing } from './easing';
 export { staggerDelays } from './stagger';
 export { scrollProgress } from './scroll';
 export { flipBefore, flipAfter } from './flip';
-export { heroBefore, heroAfter } from './hero';

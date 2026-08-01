@@ -3,7 +3,8 @@
 // The library maps them to CSS properties.
 
 /** Properties that become CSS transform functions. */
-export type TransformProp = 'x' | 'y' | 'scale' | 'scaleX' | 'scaleY'
+export type TransformProp = 'x' | 'y' | 'translateX' | 'translateY' | 'translateZ'
+  | 'scale' | 'scaleX' | 'scaleY'
   | 'rotate' | 'rotateX' | 'rotateY' | 'rotateZ' | 'skewX' | 'skewY'
 
 /** Properties that become CSS filter functions. */

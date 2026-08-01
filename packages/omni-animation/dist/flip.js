@@ -36,10 +36,15 @@ export function flipAfter(container, duration = 400, easing = 'ease-out') {
         ;
         el.style.transition = `transform ${duration}ms ${easing}`;
         el.style.transform = 'translate(0,0)';
-        el.addEventListener('transitionend', function handler() {
+        const cleanupStyles = () => {
             ;
             el.style.transition = '';
             el.style.transform = '';
+        };
+        const fallbackTimer = setTimeout(cleanupStyles, duration + 50);
+        el.addEventListener('transitionend', function handler() {
+            clearTimeout(fallbackTimer);
+            cleanupStyles();
             el.removeEventListener('transitionend', handler);
         });
     });

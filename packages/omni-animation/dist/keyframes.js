@@ -1,6 +1,7 @@
 /** Properties that must be mapped to CSS transform functions. */
 const TRANSFORM_MAP = {
     x: 'translateX', y: 'translateY',
+    translateX: 'translateX', translateY: 'translateY', translateZ: 'translateZ',
     scale: 'scale', scaleX: 'scaleX', scaleY: 'scaleY',
     rotate: 'rotate', rotateX: 'rotateX', rotateY: 'rotateY', rotateZ: 'rotateZ',
     skewX: 'skewX', skewY: 'skewY',
@@ -40,13 +41,17 @@ export function buildProperties(props) {
         if (TRANSFORM_PROPS.has(key)) {
             const cssName = TRANSFORM_MAP[key];
             const num = typeof value === 'number' ? value : parseFloat(value);
-            if (key === 'x' || key === 'y') {
+            if (key === 'x' || key === 'y' || key === 'translateX' || key === 'translateY') {
                 if (typeof value === 'string' && value.endsWith('%')) {
                     transforms.push(`${cssName}(${value})`);
                 }
                 else {
                     transforms.push(`${cssName}(${num}px)`);
                 }
+            }
+            else if (key === 'translateZ') {
+                // translateZ accepts lengths only (no %), always in px.
+                transforms.push(`${cssName}(${num}px)`);
             }
             else if (key.startsWith('rotate') || key.startsWith('skew')) {
                 transforms.push(`${cssName}(${num}deg)`);

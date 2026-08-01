@@ -26,8 +26,6 @@ var Omni = (() => {
     buildProperties: () => buildProperties,
     flipAfter: () => flipAfter,
     flipBefore: () => flipBefore,
-    heroAfter: () => heroAfter,
-    heroBefore: () => heroBefore,
     resolveEasing: () => resolveEasing,
     scrollProgress: () => scrollProgress,
     staggerDelays: () => staggerDelays,
@@ -38,6 +36,9 @@ var Omni = (() => {
   var TRANSFORM_MAP = {
     x: "translateX",
     y: "translateY",
+    translateX: "translateX",
+    translateY: "translateY",
+    translateZ: "translateZ",
     scale: "scale",
     scaleX: "scaleX",
     scaleY: "scaleY",
@@ -101,12 +102,14 @@ var Omni = (() => {
       if (TRANSFORM_PROPS.has(key)) {
         const cssName = TRANSFORM_MAP[key];
         const num = typeof value === "number" ? value : parseFloat(value);
-        if (key === "x" || key === "y") {
+        if (key === "x" || key === "y" || key === "translateX" || key === "translateY") {
           if (typeof value === "string" && value.endsWith("%")) {
             transforms.push(`${cssName}(${value})`);
           } else {
             transforms.push(`${cssName}(${num}px)`);
           }
+        } else if (key === "translateZ") {
+          transforms.push(`${cssName}(${num}px)`);
         } else if (key.startsWith("rotate") || key.startsWith("skew")) {
           transforms.push(`${cssName}(${num}deg)`);
         } else {
@@ -149,62 +152,79 @@ var Omni = (() => {
     easeIn: "ease-in",
     easeOut: "ease-out",
     easeInOut: "ease-in-out",
+    "ease-in": "ease-in",
+    "ease-out": "ease-out",
+    "ease-in-out": "ease-in-out",
     // power1 (quadratic)
     power1In: "cubic-bezier(0.550,0.085,0.680,0.530)",
     power1Out: "cubic-bezier(0.250,0.460,0.450,0.940)",
     power1InOut: "cubic-bezier(0.455,0.030,0.515,0.955)",
+    "power1-in": "cubic-bezier(0.550,0.085,0.680,0.530)",
+    "power1-out": "cubic-bezier(0.250,0.460,0.450,0.940)",
+    "power1-in-out": "cubic-bezier(0.455,0.030,0.515,0.955)",
     // power2 (cubic)
     power2In: "cubic-bezier(0.550,0.055,0.675,0.190)",
     power2Out: "cubic-bezier(0.215,0.610,0.355,1.000)",
     power2InOut: "cubic-bezier(0.645,0.045,0.355,1.000)",
+    "power2-in": "cubic-bezier(0.550,0.055,0.675,0.190)",
+    "power2-out": "cubic-bezier(0.215,0.610,0.355,1.000)",
+    "power2-in-out": "cubic-bezier(0.645,0.045,0.355,1.000)",
     // power3 (quartic)
     power3In: "cubic-bezier(0.895,0.030,0.685,0.220)",
     power3Out: "cubic-bezier(0.165,0.840,0.440,1.000)",
     power3InOut: "cubic-bezier(0.770,0.000,0.175,1.000)",
+    "power3-in": "cubic-bezier(0.895,0.030,0.685,0.220)",
+    "power3-out": "cubic-bezier(0.165,0.840,0.440,1.000)",
+    "power3-in-out": "cubic-bezier(0.770,0.000,0.175,1.000)",
     // power4 (quintic)
     power4In: "cubic-bezier(0.755,0.050,0.855,0.060)",
     power4Out: "cubic-bezier(0.230,1.000,0.320,1.000)",
     power4InOut: "cubic-bezier(0.860,0.000,0.070,1.000)",
+    "power4-in": "cubic-bezier(0.755,0.050,0.855,0.060)",
+    "power4-out": "cubic-bezier(0.230,1.000,0.320,1.000)",
+    "power4-in-out": "cubic-bezier(0.860,0.000,0.070,1.000)",
     // back
     backIn: "cubic-bezier(0.600,-0.280,0.735,0.045)",
     backOut: "cubic-bezier(0.175,0.885,0.320,1.275)",
     backInOut: "cubic-bezier(0.680,-0.550,0.265,1.550)",
-    // bounce (approximations)
+    "back-in": "cubic-bezier(0.600,-0.280,0.735,0.045)",
+    "back-out": "cubic-bezier(0.175,0.885,0.320,1.275)",
+    "back-in-out": "cubic-bezier(0.680,-0.550,0.265,1.550)",
+    // Bounce approximations (WAAPI cannot natively represent bounce curves.
+    // These cubic-bezier values approximate the directional asymmetry: bounceIn
+    // has overshoot at the start, bounceOut has overshoot at the end.)
     bounceIn: "cubic-bezier(0.215,0.610,0.355,1.000)",
-    bounceOut: "cubic-bezier(0.215,0.610,0.355,1.000)",
+    bounceOut: "cubic-bezier(0.175,0.885,0.320,1.275)",
     bounceInOut: "cubic-bezier(0.645,0.045,0.355,1.000)",
+    "bounce-in": "cubic-bezier(0.215,0.610,0.355,1.000)",
+    "bounce-out": "cubic-bezier(0.175,0.885,0.320,1.275)",
+    "bounce-in-out": "cubic-bezier(0.645,0.045,0.355,1.000)",
     // elastic (approximations)
     elasticIn: "cubic-bezier(0.600,0.040,0.980,0.335)",
     elasticOut: "cubic-bezier(0.250,0.460,0.450,0.940)",
     elasticInOut: "cubic-bezier(0.680,-0.550,0.265,1.550)",
+    "elastic-in": "cubic-bezier(0.600,0.040,0.980,0.335)",
+    "elastic-out": "cubic-bezier(0.250,0.460,0.450,0.940)",
+    "elastic-in-out": "cubic-bezier(0.680,-0.550,0.265,1.550)",
     // spring → generic bouncy
     spring: "cubic-bezier(0.250,0.460,0.450,0.940)",
     stepStart: "steps(1,start)",
-    stepEnd: "steps(1,end)"
+    stepEnd: "steps(1,end)",
+    "step-start": "steps(1,start)",
+    "step-end": "steps(1,end)"
   };
   function resolveEasing(easing) {
     if (typeof easing === "string") {
-      return NAMED_EASINGS[easing] ?? resolveParameterized(easing) ?? easing;
+      return NAMED_EASINGS[easing] ?? easing;
     }
     switch (easing.type) {
       case "cubicBezier":
         return `cubic-bezier(${easing.x1},${easing.y1},${easing.x2},${easing.y2})`;
-      case "spring": {
-        const t = easing.tension ?? 180;
-        const f = easing.friction ?? 12;
-        const ratio = t > 0 ? f / t : 1;
-        if (ratio < 0.3) {
-          const overshoot = Math.min(0.3, 1 - ratio * 2);
-          return `cubic-bezier(0.250,${(0.46 + overshoot).toFixed(3)},0.450,${(0.94 + overshoot).toFixed(3)})`;
-        }
-        return "cubic-bezier(0.250,0.460,0.450,0.940)";
-      }
       case "back": {
-        const i = Math.min(1.5, Math.max(0.5, easing.intensity ?? 1.7));
         const d = easing.direction ?? "out";
-        if (d === "in") return `cubic-bezier(0.600,${(-0.28 * i / 1.7).toFixed(3)},0.735,0.045)`;
-        if (d === "inOut") return `cubic-bezier(0.680,${(-0.55 * i / 1.7).toFixed(3)},0.265,${Math.min(1.8, 1.55 * i / 1.7).toFixed(3)})`;
-        return `cubic-bezier(0.175,${(0.885 * i / 1.7).toFixed(3)},0.320,${Math.min(2, 1.275 * i / 1.7).toFixed(3)})`;
+        if (d === "in") return "cubic-bezier(0.600,-0.280,0.735,0.045)";
+        if (d === "inOut") return "cubic-bezier(0.680,-0.550,0.265,1.550)";
+        return "cubic-bezier(0.175,0.885,0.320,1.275)";
       }
       case "elastic": {
         const d = easing.direction ?? "out";
@@ -212,26 +232,9 @@ var Omni = (() => {
         if (d === "inOut") return "cubic-bezier(0.680,-0.550,0.265,1.550)";
         return "cubic-bezier(0.250,0.460,0.450,0.940)";
       }
-      case "steps":
-        return `steps(${easing.count},${easing.direction})`;
       default:
         return "ease-out";
     }
-  }
-  function resolveParameterized(easing) {
-    const match = easing.match(/^(backIn|backOut|backInOut)\(([\d.]+)\)$/);
-    if (match) {
-      return resolveEasing({ type: "back", intensity: parseFloat(match[2]), direction: match[1].replace("back", "").toLowerCase() });
-    }
-    const elasticMatch = easing.match(/^(elasticIn|elasticOut|elasticInOut)\(([\d.]+),([\d.]+)\)$/);
-    if (elasticMatch) {
-      return resolveEasing({ type: "elastic", amplitude: parseFloat(elasticMatch[2]), period: parseFloat(elasticMatch[3]), direction: elasticMatch[1].replace("elastic", "").toLowerCase() });
-    }
-    const springMatch = easing.match(/^spring\(([\d.]+),([\d.]+)(?:,([\d.]+))?\)$/);
-    if (springMatch) {
-      return resolveEasing({ type: "spring", tension: parseFloat(springMatch[1]), friction: parseFloat(springMatch[2]), velocity: springMatch[3] ? parseFloat(springMatch[3]) : void 0 });
-    }
-    return null;
   }
 
   // src/animate.ts
@@ -347,66 +350,19 @@ var Omni = (() => {
       void el.offsetHeight;
       el.style.transition = `transform ${duration}ms ${easing}`;
       el.style.transform = "translate(0,0)";
-      el.addEventListener("transitionend", function handler() {
+      const cleanupStyles = () => {
         ;
         el.style.transition = "";
         el.style.transform = "";
+      };
+      const fallbackTimer = setTimeout(cleanupStyles, duration + 50);
+      el.addEventListener("transitionend", function handler() {
+        clearTimeout(fallbackTimer);
+        cleanupStyles();
         el.removeEventListener("transitionend", handler);
       });
     });
     flipState.clear();
-  }
-
-  // src/hero.ts
-  var heroState = /* @__PURE__ */ new Map();
-  function heroBefore() {
-    document.querySelectorAll("[data-hero]").forEach((el) => {
-      const tag = el.getAttribute("data-hero");
-      if (!tag) return;
-      const isVisible = el.offsetParent !== null || el.getBoundingClientRect().width > 0;
-      if (!isVisible) return;
-      if (!heroState.has(tag)) {
-        heroState.set(tag, { rect: el.getBoundingClientRect(), element: el });
-      }
-    });
-  }
-  function heroAfter() {
-    heroState.forEach((prev, tag) => {
-      const visible = Array.from(
-        document.querySelectorAll(`[data-hero="${tag}"]`)
-      ).find(
-        (el) => el.offsetParent !== null || el.getBoundingClientRect().width > 0
-      ) ?? null;
-      if (!visible || visible === prev.element) return;
-      const newRect = visible.getBoundingClientRect();
-      const dx = prev.rect.left - newRect.left;
-      const dy = prev.rect.top - newRect.top;
-      const dw = prev.rect.width / (newRect.width || 1);
-      const dh = prev.rect.height / (newRect.height || 1);
-      if (dx === 0 && dy === 0 && dw === 1 && dh === 1) return;
-      const dur = 400;
-      const ease = "ease-out";
-      visible.style.transformOrigin = "0 0";
-      visible.style.transition = "none";
-      visible.style.transform = `translate(${dx}px,${dy}px) scale(${dw},${dh})`;
-      void visible.offsetHeight;
-      const kfs = [
-        { transform: `translate(${dx}px,${dy}px) scale(${dw},${dh})`, offset: 0 },
-        { transform: "translate(0,0) scale(1,1)", offset: 1 }
-      ];
-      const anim = visible.animate(kfs, {
-        duration: dur,
-        easing: ease,
-        fill: "both"
-      });
-      anim.onfinish = () => {
-        ;
-        visible.style.transition = "";
-        visible.style.transform = "";
-        visible.style.transformOrigin = "";
-      };
-    });
-    heroState.clear();
   }
   return __toCommonJS(index_exports);
 })();

@@ -1,5 +1,5 @@
 /** Properties that become CSS transform functions. */
-export type TransformProp = 'x' | 'y' | 'scale' | 'scaleX' | 'scaleY' | 'rotate' | 'rotateX' | 'rotateY' | 'rotateZ' | 'skewX' | 'skewY';
+export type TransformProp = 'x' | 'y' | 'translateX' | 'translateY' | 'translateZ' | 'scale' | 'scaleX' | 'scaleY' | 'rotate' | 'rotateX' | 'rotateY' | 'rotateZ' | 'skewX' | 'skewY';
 /** Properties that become CSS filter functions. */
 export type FilterProp = 'blur' | 'brightness' | 'contrast' | 'saturate' | 'hueRotate';
 /** All valid Omni animation property names. */
@@ -12,23 +12,11 @@ export type EasingConfig = string | {
     x2: number;
     y2: number;
 } | {
-    type: 'spring';
-    tension: number;
-    friction: number;
-    velocity?: number;
-} | {
     type: 'back';
-    intensity: number;
     direction?: 'in' | 'out' | 'inOut';
 } | {
     type: 'elastic';
-    amplitude: number;
-    period: number;
     direction?: 'in' | 'out' | 'inOut';
-} | {
-    type: 'steps';
-    count: number;
-    direction: 'start' | 'end';
 };
 /** A single keyframe stop in Omni terms. */
 export interface KeyframeStop {

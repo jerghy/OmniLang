@@ -17,6 +17,21 @@ describe('buildProperties', () => {
     const result = buildProperties({ scale: 1.5 });
     expect(result.transform).toContain('scale(1.5)');
   });
+
+  it('maps translateX/Y/Z to CSS transform functions with px units', () => {
+    const result = buildProperties({ translateX: 100, translateY: 50, translateZ: 10 });
+    expect(result.transform).toBe('translateX(100px) translateY(50px) translateZ(10px)');
+  });
+
+  it('handles percentage strings for translateX/Y', () => {
+    const result = buildProperties({ translateX: '50%', translateY: '-25%' });
+    expect(result.transform).toBe('translateX(50%) translateY(-25%)');
+  });
+
+  it('mixes semantic translate names with legacy x/y aliases', () => {
+    const result = buildProperties({ translateX: 10, y: 20 });
+    expect(result.transform).toBe('translateX(10px) translateY(20px)');
+  });
 });
 
 describe('buildKeyframes', () => {
