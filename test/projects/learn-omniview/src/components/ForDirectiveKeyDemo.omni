@@ -5,8 +5,8 @@ component ForDirectiveKeyDemo {
 
     view {
         <div>
-            <h3>@for key=expr Demo</h3>
-            <p>演示 @for item in iterable key=expr 用法</p>
+            <h3>For key=expr Demo</h3>
+            <p>演示 for item in iterable key=expr 身份追踪用法</p>
             <ul>
                 @for item in items key={item} {
                     <li>{item}</li>
