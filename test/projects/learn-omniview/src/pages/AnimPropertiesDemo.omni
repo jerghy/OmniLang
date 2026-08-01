@@ -231,7 +231,7 @@ component AnimPropertiesDemo {
             <!-- ═══ 位移组 ═══ -->
             <h4 class: group-title>位移组（translateX · translateY · translateZ）</h4>
             <div class: grid>
-                <div class: card-pos @enter={translateDemo}>
+                <div class: card-translate @enter={translateDemo}>
                     <strong>translateX + translateY</strong>
                     <p>位移 120px, -20px</p>
                 </div>
@@ -252,7 +252,7 @@ component AnimPropertiesDemo {
                     <strong>backgroundColor</strong>
                     <p>背景色渐变</p>
                 </div>
-                <div class: card-border @enter={textColorDemo}>
+                <div class: card-color @enter={textColorDemo}>
                     <strong>color</strong>
                     <p>文字颜色渐变</p>
                 </div>
@@ -278,14 +278,14 @@ component AnimPropertiesDemo {
         .card { flex: 0 0 auto; padding: 14px 16px; background: var(--surfaceMuted); border-radius: 10px; border: 1px solid var(--borderLight); text-align: center; min-width: 120px; }
         .card strong { font-size: 13px; color: var(--textPrimary); display: block; margin-bottom: 4px; }
         .card p { font-size: 11px; color: var(--textSecondary); margin: 0; }
-        .card-border { flex: 0 0 auto; padding: 14px 16px; background: var(--surfaceMuted); border-radius: 10px; border: 2px solid var(--border); text-align: center; min-width: 140px; }
-        .card-border strong { font-size: 13px; color: var(--textPrimary); display: block; margin-bottom: 4px; }
-        .card-border p { font-size: 11px; color: var(--textSecondary); margin: 0; }
+        .card-color { flex: 0 0 auto; padding: 14px 16px; background: var(--surfaceMuted); border-radius: 10px; border: 2px solid var(--border); text-align: center; min-width: 140px; }
+        .card-color strong { font-size: 13px; color: var(--textPrimary); display: block; margin-bottom: 4px; }
+        .card-color p { font-size: 11px; color: var(--textSecondary); margin: 0; }
         .box { flex: 0 0 auto; padding: 12px; background: #eef2ff; border-radius: 8px; border: 1px solid #6366f1; text-align: center; overflow: hidden; }
         .box strong { font-size: 12px; color: #4338ca; display: block; margin-bottom: 4px; }
         .box p { font-size: 11px; color: #6366f1; margin: 0; white-space: nowrap; }
-        .card-pos { flex: 0 0 auto; padding: 14px 16px; background: #fef9c3; border-radius: 10px; border: 1px solid #eab308; text-align: center; min-width: 120px; position: relative; }
-        .card-pos strong { font-size: 13px; color: var(--textPrimary); display: block; margin-bottom: 4px; }
-        .card-pos p { font-size: 11px; color: var(--textSecondary); margin: 0; }
+        .card-translate { flex: 0 0 auto; padding: 14px 16px; background: #fef9c3; border-radius: 10px; border: 1px solid #eab308; text-align: center; min-width: 120px; position: relative; }
+        .card-translate strong { font-size: 13px; color: var(--textPrimary); display: block; margin-bottom: 4px; }
+        .card-translate p { font-size: 11px; color: var(--textSecondary); margin: 0; }
     }
 }

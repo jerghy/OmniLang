@@ -1,5 +1,5 @@
 // ╔══════════════════════════════════════════════════════════════════════╗
-// ║  EasingFunctionsDemo — 缓动全家桶覆盖（20 种缓动）                  ║
+// ║  EasingFunctionsDemo — 缓动全家桶覆盖（22 种缓动）                  ║
 // ║                                                                    ║
 // ║  Power 组：   ease-in, power1-in/out/in-out, power2-in/in-out,    ║
 // ║               power3-in/in-out, power4-in/out/in-out              ║
@@ -17,17 +17,18 @@ import omniview;
 // ║                                                            ║
 // ║  **Steps:**                                                ║
 // ║  1. Navigate to EasingFunctionsDemo component page.        ║
-// ║  2. Verify all 20 easing function cards render.            ║
-// ║  3. Check Power group: easeIn, power1/2/3/4 variants.      ║
-// ║  4. Check Back group: backIn/Out/InOut.                    ║
-// ║  5. Check Bounce group: bounceIn/Out/InOut.               ║
-// ║  6. Check Elastic group: elasticIn/Out/InOut.              ║
-// ║  7. Check Custom group: cubic-bezier.                       ║
-// ║  8. Click "Play All Animations" button to trigger @enter   ║
+// ║  2. Verify all 22 easing function cards render.            ║
+// ║  3. Check Power group: ease-in, power1/2/3/4 variants.     ║
+// ║  4. Check Back group: back-in/out/in-out.                  ║
+// ║  5. Check Bounce group: bounce-in/out/in-out.              ║
+// ║  6. Check Elastic group: elastic-in/out/in-out.            ║
+// ║  7. Check Steps group: steps(6, end) / steps(6, start).    ║
+// ║  8. Check Custom group: cubic-bezier.                       ║
+// ║  9. Click "Play All Animations" button to trigger @enter   ║
 // ║     on all cards.                                          ║
 // ║                                                            ║
 // ║  **Expected:**                                             ║
-// ║  - 20 cards rendered, each with @enter motion data attr.   ║
+// ║  - 22 cards rendered, each with @enter motion data attr.   ║
 // ║  - easeIn card has @enter={easeInMove} (easing: ease-in).  ║
 // ║  - power4InOut card has @enter={power4InOutMove} (easing:  ║
 // ║    power4-in-out).                                         ║
@@ -61,7 +62,7 @@ import omniview;
 }
 
 // ══════════════════════════════════════════════════════════════════════
-//  POWER 系列 — power2 (cubic) · In 和 InOut 未使用（Out 已用）
+//  POWER 系列 — power2 (cubic) · In 和 InOut 已用
 // ══════════════════════════════════════════════════════════════════════
 
 @motion power2InMove {
@@ -79,7 +80,7 @@ import omniview;
 }
 
 // ══════════════════════════════════════════════════════════════════════
-//  POWER 系列 — power3 (quartic) · In 和 InOut 未使用（Out 已用）
+//  POWER 系列 — power3 (quartic) · In 和 InOut 已用
 // ══════════════════════════════════════════════════════════════════════
 
 @motion power3InMove {
@@ -97,7 +98,7 @@ import omniview;
 }
 
 // ══════════════════════════════════════════════════════════════════════
-//  POWER 系列 — power4 (quintic) 全部未使用
+//  POWER 系列 — power4 (quintic) 全部已用
 // ══════════════════════════════════════════════════════════════════════
 
 @motion power4InMove {
@@ -216,6 +217,24 @@ import omniview;
 }
 
 // ══════════════════════════════════════════════════════════════════════
+//  STEPS — 阶跃（仅位置参数：steps(count, direction)）
+// ══════════════════════════════════════════════════════════════════════
+
+@motion stepsEndMove {
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 800ms
+    easing: steps(6, end)
+}
+
+@motion stepsStartMove {
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 800ms
+    easing: steps(6, start)
+}
+
+// ══════════════════════════════════════════════════════════════════════
 //  组件
 // ══════════════════════════════════════════════════════════════════════
 component EasingFunctionsDemo {
@@ -226,7 +245,7 @@ component EasingFunctionsDemo {
     view {
         <div class: container>
             <h3 class: title>缓动函数全家桶</h3>
-            <p class: subtitle>20 种缓动 · 点击按钮播放当前屏幕所有 @enter 动画</p>
+            <p class: subtitle>22 种缓动 · 点击按钮播放当前屏幕所有 @enter 动画</p>
             <button @press={backOutMove} @click={toggleAll} class: trigger-btn>
                 {if playAll { "Reset" } else { "Play All Animations" }}
             </button>
@@ -269,6 +288,13 @@ component EasingFunctionsDemo {
                 <div class: card @enter={elasticInMove}><strong>elastic-in</strong><p>弹性入</p></div>
                 <div class: card @enter={elasticOutMove}><strong>elastic-out</strong><p>弹性出</p></div>
                 <div class: card @enter={elasticInOutMove}><strong>elastic-in-out</strong><p>弹性出入</p></div>
+            </div>
+
+            <!-- ═══ Steps 组 ═══ -->
+            <h4 class: group-title>Steps 阶跃（仅位置参数）</h4>
+            <div class: grid>
+                <div class: card @enter={stepsEndMove}><strong>steps(6, end)</strong><p>6 步阶跃，保持终点值</p></div>
+                <div class: card @enter={stepsStartMove}><strong>steps(6, start)</strong><p>6 步阶跃，保持起点值</p></div>
             </div>
 
             <!-- ═══ Custom 组 ═══ -->

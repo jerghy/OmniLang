@@ -1,10 +1,10 @@
 // ╔══════════════════════════════════════════════════════════════╗
 // ║  KeyframeAnimationDemo.omni — 全触发器 + 播放属性 + 缓动     ║
 // ║                                                              ║
-// ║  覆盖 ADR-032 保留的全部 14 项动画功能：                     ║
-// ║    7 触发器: @enter @hover @press @in-view @scroll           ║
+// ║  覆盖 ADR-032 保留的全部 16 项动画功能：                     ║
+// ║    8 触发器: @enter @hover @press @focus @in-view @scroll    ║
 // ║              @drag-horizontal @drag-vertical                 ║
-// ║    5 播放属性: Loop Direction Fill Delay Paused             ║
+// ║    4 播放属性: Loop Direction Fill Delay                    ║
 // ║    4 缓动变体: Named CubicBezier Back Elastic               ║
 // ║    多停靠关键帧（百分比）                                     ║
 // ║                                                              ║
@@ -12,7 +12,8 @@
 // ║  @scroll-start/@scroll-end/@scroll-scrub/@drag-constraints/ ║
 // ║  @drag-elastic/@drag-scrub/@drag-momentum）与元素级          ║
 // ║  @paused 属性已按 semantic-level DSL 规范移除，              ║
-// ║  待独立属性重新实现后恢复。                                   ║
+// ║  待独立属性重新实现后恢复。paused 播放关键字仅作语法兼容     ║
+// ║  解析、运行时不生效（PlaybackIR.paused 已按 ADR-053 删除）。║
 // ╚══════════════════════════════════════════════════════════════╝
 
 import omniview;
@@ -41,6 +42,13 @@ import { LearnDesign } from "../design";
 @motion pressShrink {
     to { scale: 0.95 }
     over: 100ms
+    easing: ease-out
+}
+
+// ── @focus 聚焦动画 ──
+@motion focusGlow {
+    to { scale: 1.05 }
+    over: 200ms
     easing: ease-out
 }
 
@@ -137,15 +145,6 @@ import { LearnDesign } from "../design";
     delay 500
 }
 
-// ── Paused（暂停，播放属性） ──
-@motion pausedAnim {
-    from { translateX: 0 }
-    to   { translateX: 180 }
-    over: 800ms
-    easing: power2-out
-    paused
-}
-
 // ── CubicBezier 缓动 ──
 @motion cubicDemo {
     from { translateX: 0 }
@@ -194,10 +193,10 @@ component KeyframeAnimationDemo {
     view {
         <div class: LearnDesign.Container>
             <h3 class: LearnDesign.CardTitle>Keyframe Animation Demo</h3>
-            <p class: LearnDesign.Subtitle>7 触发器 · 5 播放属性 · 4 缓动变体 · 多停靠关键帧 (ADR-032)</p>
+            <p class: LearnDesign.Subtitle>8 触发器 · 4 播放属性 · 4 缓动变体 · 多停靠关键帧 (ADR-032)</p>
 
             <!-- ═══ 触发器组 ═══ -->
-            <h4 class: LearnDesign.SectionTitle>全部 7 触发器</h4>
+            <h4 class: LearnDesign.SectionTitle>全部 8 触发器</h4>
             <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={toggleTriggers}>
                 {if playTriggers { "Reset Triggers" } else { "Play All Triggers" }}
             </button>
@@ -219,6 +218,13 @@ component KeyframeAnimationDemo {
                 <div class: card @press={pressShrink}>
                     <strong>@press</strong>
                     <p>按压缩小 0.95x</p>
+                </div>
+
+                <!-- @focus -->
+                <div class: card>
+                    <strong>focus</strong>
+                    <p>聚焦按钮触发</p>
+                    <button class: focus-btn @focus={focusGlow}>Focus me</button>
                 </div>
 
                 <!-- @in-view（子属性 @in-view-once/@in-view-threshold 已移除，待重新实现） -->
@@ -247,7 +253,7 @@ component KeyframeAnimationDemo {
             </div>
 
             <!-- ═══ 播放属性组 ═══ -->
-            <h4 class: LearnDesign.SectionTitle>5 个播放属性：Loop · Direction · Fill · Delay · Paused</h4>
+            <h4 class: LearnDesign.SectionTitle>4 个播放属性：Loop · Direction · Fill · Delay</h4>
             <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={togglePlayback}>
                 {if playPlayback { "Reset" } else { "Play Playback Props" }}
             </button>
@@ -281,17 +287,13 @@ component KeyframeAnimationDemo {
                     <strong>Delay 500ms</strong>
                     <p>延迟 0.5 秒开始</p>
                 </div>
-                <div class: card @enter={pausedAnim}>
-                    <strong>Paused</strong>
-                    <p>初始暂停（需手动播放）</p>
-                </div>
             </div>
 
             <!-- ═══ 缓动变体组 ═══ -->
             <h4 class: LearnDesign.SectionTitle>4 种缓动变体：Named · CubicBezier · Back · Elastic</h4>
             <div class: trigger-grid>
                 <div class: card @enter={enterFadeUp}>
-                    <strong>Named (power2Out)</strong>
+                    <strong>Named (power2-out)</strong>
                     <p>29 种命名曲线之一</p>
                 </div>
                 <div class: card @enter={cubicDemo}>
@@ -300,11 +302,11 @@ component KeyframeAnimationDemo {
                 </div>
                 <div class: card @enter={backEaseDemo}>
                     <strong>Back (named-only)</strong>
-                    <p>backOut 回弹曲线</p>
+                    <p>back-out 回弹曲线</p>
                 </div>
                 <div class: card @enter={elasticEaseDemo}>
                     <strong>Elastic (named-only)</strong>
-                    <p>elasticOut 弹性曲线</p>
+                    <p>elastic-out 弹性曲线</p>
                 </div>
             </div>
 
@@ -317,7 +319,8 @@ component KeyframeAnimationDemo {
 
             <!-- ═══ 元素级 @paused 属性已移除 ═══
                  按 semantic-level DSL 规范，@paused={expr} 元素属性已被移除
-                 （条件渲染可替代该语义）；播放属性 paused 保留在 @motion 体内。 -->
+                 （条件渲染可替代该语义）；paused 播放关键字仅作语法兼容解析、
+                 运行时不生效（PlaybackIR.paused 已按 ADR-053 删除）。 -->
         </div>
     }
 
@@ -328,5 +331,6 @@ component KeyframeAnimationDemo {
         .card p { font-size: 11px; color: var(--textSecondary); margin: 0; }
         .scroll-area { height: 100px; overflow-y: auto; }
         .multi-stop { padding: 24px; text-align: center; background: var(--surfaceMuted); }
+        .focus-btn { margin-top: 6px; padding: 4px 10px; font-size: 11px; background: var(--primary); color: #fff; border: none; border-radius: 6px; cursor: pointer; }
     }
 }

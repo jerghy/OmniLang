@@ -51,10 +51,6 @@ import { LearnDesign } from "../design";
 }
 
 component MotionTriggersDemo {
-    signal isHovered: bool = false;
-    signal isFocused: bool = false;
-    signal dragX: f64 = 0;
-
     view {
         <div class: LearnDesign.Container>
             <h3 class: LearnDesign.CardTitle>Motion Triggers Demo</h3>
@@ -63,9 +59,6 @@ component MotionTriggersDemo {
             <!-- @in-view 触发器（子属性 @in-view-once/@in-view-repeat/@in-view-threshold 已移除，待重新实现） -->
             <div class: card>
                 <h4 class: label>@in-view 触发器</h4>
-                <div @in-view={slideInView}>
-                    <p>Slide in (entering viewport)</p>
-                </div>
                 <div @in-view={slideInView}>
                     <p>Slide in (entering viewport)</p>
                 </div>
