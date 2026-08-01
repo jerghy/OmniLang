@@ -1432,6 +1432,40 @@ component TestRef {
     );
 }
 
+// ── Component-level @motion ─────────────────────────
+
+#[test]
+fn test_component_level_motion_emits_motion_factory() {
+    // Component-level `@motion` defs lower into ModuleIR.motions (module-
+    // scoped); OmniView codegen must emit the WAAPI motion factory and wire
+    // the element trigger to it.
+    let source = r#"
+component App {
+    @motion slide {
+        from { translateX: 0 }
+        to   { translateX: 100 }
+        over: 300ms
+    }
+    view {
+        <div @enter={slide}/>
+    }
+}
+"#;
+    let result = crate::compile_omniview(source, false, false);
+    assert!(result.success, "compilation failed: {:?}", result.errors);
+    let js = result
+        .files
+        .as_ref()
+        .expect("Expected JS output")
+        .js
+        .clone();
+    assert!(
+        js.contains("function __omni_motion_slide"),
+        "component motion factory must be emitted. JS:\n{}",
+        js
+    );
+}
+
 // ── Styles ──────────────────────────────────────────
 
 #[test]

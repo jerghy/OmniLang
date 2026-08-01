@@ -1442,6 +1442,43 @@ fn compile_react(source: &str) -> Option<crate::InternalCompileResult> {
     }
 }
 
+// ── Component-level @motion codegen integration tests ───
+
+#[test]
+fn react_component_level_motion_emits_motion_factory() {
+    // Component-level `@motion` defs lower into ModuleIR.motions (module-
+    // scoped); codegen must emit the motion factory and wire the trigger.
+    let source = r##"
+component App {
+    @motion slide {
+        from { translateX: 0 }
+        to   { translateX: 100 }
+        over: 300ms
+    }
+    view {
+        <div @enter={slide}/>
+    }
+}
+"##;
+    let output = compile_react(source).unwrap();
+    let tsx = output
+        .files
+        .get("App.tsx")
+        .expect("App.tsx should be emitted");
+    assert!(
+        tsx.contains("slide:"),
+        "motion factory must contain the component motion. Got:
+{}",
+        tsx
+    );
+    assert!(
+        tsx.contains("_M[\"slide\"]"),
+        "enter trigger must resolve the component motion by name. Got:
+{}",
+        tsx
+    );
+}
+
 // ── Design codegen integration tests ─────────────────────
 
 /// Test: a design block compiles to design.css (unscoped, plain HTML) plus

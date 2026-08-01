@@ -163,22 +163,33 @@ pub fn lower(
             exports.push(super::lower_logic::lower_export(exp));
         }
 
-        let motions: Vec<MotionIntent> = module
+        // Module motion table: module-level @motion definitions plus
+        // component-level ones — both are module-scoped in the IR because
+        // motion_index is name-keyed. Name collisions are diagnosed by the
+        // semantic pass (validate_motion.rs); the first definition wins
+        // defensively so codegen never sees duplicate names even when
+        // diagnostics are ignored.
+        let mut motions: Vec<MotionIntent> = Vec::new();
+        let mut motion_names: FxHashSet<&str> = FxHashSet::default();
+        for motion in module
             .motions
             .iter()
-            .map(|m| {
-                let node_id = format!("{}:motion:{}", module_name, m.name);
-                source_map.insert(
-                    node_id.clone(),
-                    SourceMapEntry {
-                        node_id,
-                        omni_span: span_to_source_span(&m.span),
-                        target_spans: Vec::new(),
-                    },
-                );
-                lower_motion_def(m, &variant_map, semantics)
-            })
-            .collect();
+            .chain(module.components.iter().flat_map(|c| c.motions.iter()))
+        {
+            if !motion_names.insert(motion.name.as_str()) {
+                continue;
+            }
+            let node_id = format!("{}:motion:{}", module_name, motion.name);
+            source_map.insert(
+                node_id.clone(),
+                SourceMapEntry {
+                    node_id,
+                    omni_span: span_to_source_span(&motion.span),
+                    target_spans: Vec::new(),
+                },
+            );
+            motions.push(lower_motion_def(motion, &variant_map, semantics));
+        }
 
         // Validate design blocks before lowering
         for design in &module.designs {
@@ -397,6 +408,56 @@ mod tests {
             ir.stdlib_imports.contains(&"math".to_string()),
             "should contain 'math' stdlib import"
         );
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // Component-level @motion lowering tests
+    // ═══════════════════════════════════════════════════════
+
+    #[test]
+    fn lowers_component_level_motions_into_module_table() {
+        // Component-level `@motion` defs are module-scoped in the IR: they
+        // land in ModuleIR.motions and resolve via the name-keyed
+        // motion_index, so `@enter={m}` triggers can codegen against them.
+        let source = "component App { @motion slide { from { translateX: 0 } to { translateX: 100 } over: 300ms } view { <div @enter={slide}/> } }";
+        let ir = lower_source(source);
+        let module = ir.modules.get("input.omni").expect("module");
+        assert_eq!(module.motions.len(), 1, "component motion must be lowered");
+        assert_eq!(module.motions[0].name, "slide");
+        assert_eq!(module.motions[0].body.stops.len(), 2);
+
+        let found = ir
+            .find_motion("slide")
+            .expect("motion_index must resolve the component motion");
+        assert_eq!(found.name, "slide");
+    }
+
+    #[test]
+    fn component_motion_collision_is_diagnosed_and_first_definition_wins() {
+        // A component motion whose name collides with a module-level motion
+        // is a hard E0006 diagnostic (motion names are module-scoped); the
+        // lowering keeps the first definition so codegen stays unambiguous.
+        let source = "@motion fade { from { opacity: 0 } to { opacity: 1 } over: 100ms } component App { @motion fade { from { opacity: 0 } to { opacity: 1 } over: 200ms } view { <div/> } }";
+        let tokens = tokenize(source);
+        let (program, _) = parse(tokens, source);
+        let mut semantics = analyze(&program);
+        let ir = lower(&program, &mut semantics, None);
+
+        assert!(
+            semantics
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains("collides with an existing motion name")),
+            "expected collision diagnostic, got: {:?}",
+            semantics
+                .diagnostics
+                .iter()
+                .map(|d| &d.message)
+                .collect::<Vec<_>>()
+        );
+        let module = ir.modules.get("input.omni").expect("module");
+        assert_eq!(module.motions.len(), 1, "first definition must win");
+        assert_eq!(module.motions[0].name, "fade");
     }
 
     // ═══════════════════════════════════════════════════════

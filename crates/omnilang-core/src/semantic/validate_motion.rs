@@ -24,7 +24,11 @@ impl SemanticAnalyzer {
             self.validate_motion_def(motion, &module_motion_names);
         }
 
-        // Validate component-level motions
+        // Validate component-level motions. Motion names are module-scoped in
+        // the IR (ModuleIR.motions / motion_index are name-keyed), so a
+        // component motion colliding with a module-level motion or another
+        // component's motion is a hard error — never silent shadowing.
+        let mut seen_motion_names: FxHashSet<&str> = module_motion_names.iter().copied().collect();
         for comp in &module.components {
             let comp_motion_names: FxHashSet<&str> = module_motion_names
                 .iter()
@@ -33,6 +37,16 @@ impl SemanticAnalyzer {
                 .collect();
 
             for motion in &comp.motions {
+                if !seen_motion_names.insert(motion.name.as_str()) {
+                    self.diagnostics.push(Diagnostic::error(
+                        DiagnosticKind::E0006,
+                        &format!(
+                            "@motion '{}' in component '{}' collides with an existing motion name — motion names are module-scoped; rename it or move the definition to module level",
+                            motion.name, comp.name
+                        ),
+                        &motion.span,
+                    ));
+                }
                 self.validate_motion_def(motion, &comp_motion_names);
             }
 
