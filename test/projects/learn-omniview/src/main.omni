@@ -15,7 +15,7 @@ import { Header } from "./components/Header";
 import { TabBar } from "./components/TabBar";
 import { LearnDesign } from "./design";
 
-// ── 7 标签页页面 ──
+// ── 9 标签页页面 ──
 import { Overview } from "./pages/Overview";
 import { UiComponents } from "./pages/UiComponents";
 import { MotionPage } from "./pages/MotionPage";

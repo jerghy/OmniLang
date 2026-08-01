@@ -3,7 +3,6 @@ import { LearnDesign } from "../design";
 import { math_abs, math_random, math_ceil, math_floor, math_sqrt } from "std/math";
 
 component StatsDashboard {
-    ref container: HtmlElement;
     const MAX_ITEMS = 10;
     const $iconUrl = "/assets/icon.png";
     const $apiBase = "https://api.example.com";
@@ -41,7 +40,7 @@ component StatsDashboard {
     }
 
     view {
-        <div class: LearnDesign.Card ref: container>
+        <div class: LearnDesign.Card>
             <h3 class: LearnDesign.CardTitle>StatsDashboard Demo</h3>
 
             <div class: const-area>

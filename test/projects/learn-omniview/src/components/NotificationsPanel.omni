@@ -18,6 +18,8 @@ component NotificationsPanel {
     @effect(notifications) {
         if NotificationStore.unreadCount > 0 {
             badgeVisible = true;
+            // 新通知到达时滚动到列表底部，展示最新一条（RefOp: .scrollTo）
+            scrollContainer.scrollTo(0, 9999);
         }
     }
 

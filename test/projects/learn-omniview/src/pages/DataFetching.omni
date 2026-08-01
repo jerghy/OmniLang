@@ -15,19 +15,26 @@ component DataFetching {
     signal apiDemoText: String = "";
 
     // async action: 使用 await http_get + json_parse 加载数据
+    // try/catch 兜底：网络失败或响应不是合法 JSON 时进入诚实错误态，而不是卡在 loading
     action loadData() async {
         status = "loading";
-        let raw = await http_get(url);
-        if raw == "" {
+        try {
+            let raw = await http_get(url);
+            if raw == "" {
+                status = "error";
+                errorMsg = "Empty response from server";
+                console_error(errorMsg);
+                return;
+            }
+            let parsed = json_parse(raw);
+            resultText = json_stringify(parsed);
+            status = "success";
+            console_log("Fetch completed");
+        } catch err {
             status = "error";
-            errorMsg = "Empty response from server";
+            errorMsg = "加载失败: " + err;
             console_error(errorMsg);
-            return;
         }
-        let parsed = json_parse(raw);
-        resultText = json_stringify(parsed);
-        status = "success";
-        console_log("Fetch completed");
     }
 
     // async action: 调用 api.omni 的 fetch_demo（演示跨文件 pub async fn 导入）

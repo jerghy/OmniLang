@@ -70,7 +70,7 @@ component Overview {
                     <span class: stat-label>Source Files</span>
                 </div>
                 <div class: stat-item>
-                    <span class: stat-value>8</span>
+                    <span class: stat-value>7</span>
                     <span class: stat-label>Domains</span>
                 </div>
                 <div class: stat-item>

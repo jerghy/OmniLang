@@ -38,7 +38,7 @@ component EventsDemo {
                 <p class: LearnDesign.Hint>双击 · 右键 · 拖拽 · 触摸 · 滚轮 · 媒体 · 动画 · 切换</p>
             </nav>
 
-            <!-- 输入与键盘事件 :: @onInput @onKeyUp @onKeyPress @onCopy @onCut @onPaste -->
+            <!-- 输入与键盘事件 :: @onInput @onKeyUp @onCopy @onCut @onPaste -->
             <article class: card>
                 <h3 class: LearnDesign.CardTitle>输入与键盘事件</h3>
                 <input class: input
@@ -103,15 +103,19 @@ component EventsDemo {
             <!-- 媒体与资源事件 :: @onLoad @onError @onPlay @onPause @onEnded -->
             <article class: card>
                 <h3 class: card-title>媒体与资源事件</h3>
-                <img src="" class: hidden-img
+                <!-- @onLoad/@onError 挂到真实 src 的 img 上（/dot.png 与 DataTable 一致；
+                     data: URI 会被编译期安全层拦截，见 codegen is_dangerous_url） -->
+                <img src="/dot.png" class: hidden-img
                     @onLoad={addLog("img-loaded")}
                     @onError={addLog("img-error")} alt="test" />
-                <div class: media-box
+                <!-- @onPlay/@onPause/@onEnded 必须挂到真实媒体元素上（div 永远不会触发） -->
+                <video class: media-box width="240" controls
                     @onPlay={mediaStatus = "playing"}
                     @onPause={mediaStatus = "paused"}
                     @onEnded={mediaStatus = "ended"}>
-                    <p class: hint>媒体状态: {mediaStatus}</p>
-                </div>
+                    <source src="sample.mp4" type="video/mp4" />
+                </video>
+                <p class: hint>媒体状态: {mediaStatus}（播放/暂停/播完 sample.mp4 时触发）</p>
             </article>
 
             <!-- 动画与过渡事件 :: @onAnimationStart @onAnimationEnd @onAnimationIteration @onTransitionEnd -->
