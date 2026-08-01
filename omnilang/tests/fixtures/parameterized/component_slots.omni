@@ -1,0 +1,36 @@
+// component_slots.omni — regression fixture for cross-file component
+// imports (deferral #17 review HIGH-1): a component (`Avatar`)
+// instantiated inside a consumer-side slot projection — the projected
+// widget expression is emitted in the CONSUMER's file, so its class must
+// resolve there (import).
+//
+// NOTE: `bind:value` on Checkbox/Switch/Slider (review HIGH-2) is covered
+// by the Flutter unit tests (`bind_value_satisfies_required_value_param`)
+// rather than a fixture: the React backend has no `checkbox`/`switch`/
+// `slider` intrinsic elements, so a fixture exercising them cannot pass
+// the React tsc gate.
+
+import omniview;
+
+component Avatar {
+    view {
+        <div class: avatar>AV</div>
+    }
+}
+
+component ProfileCard {
+    @slot header { <h3>Default header</h3> }
+    view {
+        <div class: card>
+            {header}
+        </div>
+    }
+}
+
+component ProfilePage {
+    view {
+        <ProfileCard>
+            @slot header { <Avatar /> }
+        </ProfileCard>
+    }
+}

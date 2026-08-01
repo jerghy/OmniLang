@@ -498,6 +498,158 @@ fn test_format_element_with_event() {
     assert!(expr.contains("onPressed: () { handleClick(); }"));
 }
 
+/// Handlers on VoidCallback params (onPressed/onLongPress/...) receive no
+/// event argument in Flutter — a FnRef handler whose referenced function
+/// uses event fields must warn about the dropped data (symmetric with the
+/// InlineFn path) and still emit a parameterless closure.
+#[test]
+fn test_format_element_void_callback_fn_ref_warns_on_dropped_event_fields() {
+    let mut events = FxHashMap::default();
+    events.insert(
+        "click".into(),
+        EventHandlerIR::FnRef {
+            r#ref: "handleClick".into(),
+            params: vec![],
+            event_data: Some(EventDataKind::PointerEvent),
+            used_fields: Some(vec!["value".into()]),
+            needs_prevent_default: false,
+            needs_stop_propagation: false,
+        },
+    );
+    let el = ElementIR {
+        class_map_bindings: FxHashMap::default(),
+        tag: "button".into(),
+        props: FxHashMap::default(),
+        bindings: FxHashMap::default(),
+        events,
+        style_classes: None,
+        inline_style: None,
+        children: vec![],
+        construction_kind: ConstructionKind::Component,
+        source_span: None,
+        motion: None,
+        scroll: None,
+        drag: None,
+        ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
+    };
+    let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
+    assert!(
+        expr.contains("onPressed: () { handleClick(); }"),
+        "VoidCallback handler must be parameterless: {}",
+        expr
+    );
+    assert!(
+        warnings
+            .iter()
+            .any(|w| w.contains("VoidCallback") && w.contains("event field accesses")),
+        "expected dropped-event-fields warning, got: {:?}",
+        warnings
+    );
+}
+
+/// A component instantiated inside a consumer-side slot projection must be
+/// imported in the CONSUMER's file — the projected widget expression is
+/// emitted there (regression: only the slot-holding component was
+/// imported, leaving the projected component undefined in the consumer).
+#[test]
+fn slot_projected_component_is_imported() {
+    let source = r#"
+component Avatar {
+    view {
+        <div>AV</div>
+    }
+}
+
+component Card {
+    view {
+        <div>
+            @slot header { <h3>Default</h3> }
+        </div>
+    }
+}
+
+component Consumer {
+    view {
+        <Card>
+            @slot header { <Avatar /> }
+        </Card>
+    }
+}
+"#;
+    let output = compile_flutter(source).unwrap();
+    let consumer: String = output
+        .files
+        .iter()
+        .filter(|(path, _)| path.contains("Consumer.dart"))
+        .map(|(_, c)| c.clone())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        consumer.contains("import './Avatar.dart';"),
+        "projected component must be imported in the consumer file, got:\n{}",
+        consumer
+    );
+    assert!(
+        consumer.contains("import './Card.dart';"),
+        "slot-holding component must be imported, got:\n{}",
+        consumer
+    );
+    assert!(
+        consumer.contains("header: Avatar()"),
+        "projected content must render in the consumer file, got:\n{}",
+        consumer
+    );
+}
+
+/// `bind:value` must satisfy the required `value:` param instead of
+/// duplicating it — the required-parameter pass runs after bindings so a
+/// bound param wins (regression: `Checkbox(value: false, value: active)`
+/// was emitted — a duplicate named argument). The other required params
+/// (Checkbox/Switch/Slider `onChanged`, Slider `value`) still get their
+/// disabled defaults.
+#[test]
+fn bind_value_satisfies_required_value_param() {
+    let source = r#"
+component ToggleDemo {
+    signal active: bool = false;
+    signal volume: f64 = 0.5;
+    view {
+        <checkbox bind:value={active} />
+        <switch bind:value={active} />
+        <slider bind:value={volume} />
+    }
+}
+"#;
+    let output = compile_flutter(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        content.contains("Checkbox(value: active, onChanged: null)"),
+        "bound value must satisfy the required value param (no duplicate), got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("Switch(value: active, onChanged: null)"),
+        "bound value must satisfy the required value param (no duplicate), got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("Slider(value: volume, onChanged: null)"),
+        "bound value must satisfy the required value param (no duplicate), got:\n{}",
+        content
+    );
+    assert!(
+        !content.contains("value: false, value:") && !content.contains("value: 0.0, value:"),
+        "must not emit a duplicate value argument, got:\n{}",
+        content
+    );
+}
+
 #[test]
 fn test_format_element_with_class_map_bindings() {
     let mut bindings = FxHashMap::default();

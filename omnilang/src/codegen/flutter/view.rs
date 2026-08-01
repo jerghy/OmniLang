@@ -271,8 +271,10 @@ pub(crate) fn collect_view_slots(
 /// Collect the tags of all component instantiations in a view tree — the
 /// child components whose generated `.dart` files the generated component
 /// file must import (cross-file composition). Children of a component
-/// instantiation are skipped: they are projections into the child's slots,
-/// which the child component renders itself.
+/// instantiation ARE descended into: consumer-side slot projections
+/// (`@slot header { <Avatar /> }` inside a `<Card>`) are emitted as widget
+/// expressions in THIS component's file, so the projected component's
+/// class must resolve here too.
 pub(crate) fn collect_component_tags<'a>(
     node: &'a ViewTree,
     component_map: &FxHashMap<&str, &ComponentIR>,
@@ -282,7 +284,6 @@ pub(crate) fn collect_component_tags<'a>(
         ViewTree::Element(el) => {
             if component_map.contains_key(el.tag.as_str()) {
                 acc.push(&el.tag);
-                return;
             }
             for child in &el.children {
                 collect_component_tags(child, component_map, acc);
@@ -581,6 +582,22 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                     );
                     format!("(event) {{ {}({}); }}", r#ref, event_obj)
                 } else {
+                    // Symmetric with the InlineFn path: warn when event
+                    // field accesses were dropped (VoidCallback receives
+                    // no event argument in Flutter).
+                    if is_void
+                        && handler
+                            .used_fields()
+                            .as_ref()
+                            .is_some_and(|f| !f.is_empty())
+                    {
+                        warn_dropped_event_fields(
+                            ctx.warnings,
+                            name,
+                            callback_name,
+                            &format!("'{ref}'"),
+                        );
+                    }
                     format!("() {{ {}(); }}", r#ref)
                 }
             }
@@ -630,11 +647,7 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                             .as_ref()
                             .is_some_and(|f| !f.is_empty())
                     {
-                        ctx.warnings.push(format!(
-                            "[flutter] event '{name}' → callback '{callback_name}' is a \
-                             VoidCallback in Flutter (no event argument); event field \
-                             accesses in the handler were dropped"
-                        ));
+                        warn_dropped_event_fields(ctx.warnings, name, callback_name, "the handler");
                     }
                     format_inline_handler_flutter(body, ctx)
                 }
@@ -642,24 +655,6 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
             EventHandlerIR::StoreAction { r#ref, .. } => format_store_action_handler(r#ref),
         };
         args.push(format!("{}: {}", callback_name, body));
-    }
-
-    // Required-parameter defaults: Flutter widgets with REQUIRED named
-    // params emit a default when the .omni source provides none —
-    // `ElevatedButton(child: ...)` without `onPressed:` is invalid Dart
-    // (onPressed is required). `onPressed: null` renders the button
-    // disabled; `value: false` / `value: 0.0` render toggles/sliders off.
-    let required_defaults: &[(&str, &str)] = match widget {
-        "ElevatedButton" | "TextButton" | "IconButton" => &[("onPressed", "null")],
-        "Checkbox" | "Switch" => &[("value", "false")],
-        "Slider" => &[("value", "0.0")],
-        _ => &[],
-    };
-    for (param, default) in required_defaults {
-        let present = args.iter().any(|a| a.starts_with(&format!("{}:", param)));
-        if !present {
-            args.push(format!("{}: {}", param, default));
-        }
     }
 
     // Bindings (C6: per-widget whitelist)
@@ -675,6 +670,26 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
             continue;
         }
         args.push(format!("{}: {}", param, signal_ref.name));
+    }
+
+    // Required-parameter defaults: Flutter widgets with REQUIRED named
+    // params emit a default when the .omni source provides none —
+    // `ElevatedButton(child: ...)` without `onPressed:` is invalid Dart
+    // (onPressed is required). `onPressed: null`/`onChanged: null` render
+    // the control disabled; `value: false` / `value: 0.0` render
+    // toggles/sliders off. Runs AFTER props/events/bindings so a bound
+    // `value:` (bind:value) or emitted callback is not duplicated.
+    let required_defaults: &[(&str, &str)] = match widget {
+        "ElevatedButton" | "TextButton" | "IconButton" => &[("onPressed", "null")],
+        "Checkbox" | "Switch" => &[("value", "false"), ("onChanged", "null")],
+        "Slider" => &[("value", "0.0"), ("onChanged", "null")],
+        _ => &[],
+    };
+    for (param, default) in required_defaults {
+        let present = args.iter().any(|a| a.starts_with(&format!("{}:", param)));
+        if !present {
+            args.push(format!("{}: {}", param, default));
+        }
     }
 
     // Ref binding (Step 6): attach the GlobalKey plus any on-demand
@@ -1086,6 +1101,23 @@ fn format_inline_handler_flutter(body: &BlockIR, ctx: &ViewContext) -> String {
             .collect(),
     };
     build_inline_handler(&rewritten, &config, generate_statement_flutter)
+}
+
+/// Warn that event field accesses in an event handler were dropped because
+/// the target callback is a Flutter `VoidCallback` (onPressed/onLongPress/
+/// onTap/... receive no event argument — the generated closure is
+/// parameterless, so field extractions cannot be preserved).
+fn warn_dropped_event_fields(
+    warnings: &mut Vec<String>,
+    event_name: &str,
+    callback_name: &str,
+    handler_label: &str,
+) {
+    warnings.push(format!(
+        "[flutter] event '{event_name}' → callback '{callback_name}' is a \
+         VoidCallback in Flutter (no event argument); event field accesses \
+         in {handler_label} were dropped"
+    ));
 }
 
 /// Format a StoreAction event handler that calls a store action through its
