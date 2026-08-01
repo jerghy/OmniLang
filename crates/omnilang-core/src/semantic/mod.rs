@@ -26,6 +26,7 @@ pub use motion::parse_duration_ms;
 use crate::error::Diagnostic;
 use crate::parser::ast::Program;
 use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use symbols::*;
 
 /// Result of semantic analysis — always returned (diagnostics may contain errors/warnings).
@@ -53,6 +54,14 @@ pub struct SemanticAnalyzer {
     dependencies: FxHashMap<String, Vec<String>>,
     /// True when resolving a view template interpolation {expr}
     resolving_interpolation: bool,
+    /// Component names declared in the current module — element tags
+    /// matching one of these are component instantiations (their children
+    /// are consumer-side projections, not this component's own content).
+    module_component_names: FxHashSet<String>,
+    /// Set to `Some(component_tag)` while resolving the children of a
+    /// component instantiation — used to detect unsupported slot
+    /// forwarding (`{slot}` inside another component's children).
+    inside_component_children: Option<String>,
 }
 
 impl Default for SemanticAnalyzer {
@@ -68,6 +77,8 @@ impl SemanticAnalyzer {
             diagnostics: Vec::new(),
             dependencies: FxHashMap::default(),
             resolving_interpolation: false,
+            module_component_names: FxHashSet::default(),
+            inside_component_children: None,
         }
     }
 
@@ -245,6 +256,56 @@ mod tests {
             errors.is_empty(),
             "interpolation suppression must remain, got: {:?}",
             errors
+        );
+    }
+
+    #[test]
+    fn analyze_slot_forwarding_in_component_children_warns() {
+        // Slot forwarding: Modal's `{header}` appears inside the children of
+        // `<Card>...</Card>` — codegen materializes it into a ViewTree::Slot
+        // and treats it as Card's own projection, so the forwarded content
+        // silently never reaches Card. Must warn (not error — forwarding may
+        // become supported later).
+        let result = analyze_source(
+            "component Card { @slot header { <h5>Card default</h5> } view { <div>{header}</div> } }
+             component Modal { @slot header { <h4>Modal default</h4> } view { <Card>{header}</Card> } }",
+        );
+        let forwarding: Vec<_> = result
+            .diagnostics
+            .iter()
+            .filter(|d| d.message.contains("slot forwarding"))
+            .collect();
+        assert_eq!(
+            forwarding.len(),
+            1,
+            "expected exactly one slot-forwarding warning, got: {:?}",
+            result.diagnostics
+        );
+        assert!(
+            forwarding
+                .iter()
+                .all(|d| d.severity == crate::error::Severity::Warning),
+            "slot forwarding must be a warning, got: {:?}",
+            result.diagnostics
+        );
+    }
+
+    #[test]
+    fn analyze_slot_forwarding_no_warning_for_normal_usage() {
+        // Own-view interpolation (plain element), consumer named-prop
+        // projection, fallback content, and slot references nested inside
+        // plain elements must not warn.
+        let result = analyze_source(
+            "component Modal { @slot header { <p>{header}</p> } view { <div>{header}</div> } }
+             component App { view { <Modal header={<div>Title</div>} /> } }",
+        );
+        assert!(
+            !result
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains("slot forwarding")),
+            "normal slot usage must not warn, got: {:?}",
+            result.diagnostics
         );
     }
 

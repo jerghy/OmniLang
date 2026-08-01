@@ -154,6 +154,14 @@ impl SemanticAnalyzer {
     /// View-tree validations (bind targets, store action refs, prop assignments)
     /// are called after the component's resolve walk finishes.
     pub(super) fn resolve_and_validate_module(&mut self, module: &Module) {
+        // Component tags known in this module — element tags matching one of
+        // these are component instantiations (slot-forwarding detection).
+        self.module_component_names = module
+            .components
+            .iter()
+            .map(|c| c.name.clone())
+            .collect();
+        self.inside_component_children = None;
         for comp in &module.components {
             // Find the component scope by name
             let comp_scope_name = format!("component:{}", comp.name);
@@ -671,6 +679,31 @@ impl SemanticAnalyzer {
                     }
                     self.diagnostics.push(diag);
                 }
+                // Slot forwarding (ADR-053 D5): a `{slot}` interpolation
+                // inside the children of a component instantiation would be
+                // materialized into a ViewTree::Slot and treated by codegen
+                // as a projection INTO that component — the forwarded
+                // content never reaches the child. Warn (not error —
+                // forwarding may become supported later).
+                if self.resolving_interpolation {
+                    if let Some(ref comp_tag) = self.inside_component_children {
+                        if let Some(sym) = self.symbols.resolve(name) {
+                            if sym.kind == SymbolKind::Slot {
+                                self.diagnostics.push(Diagnostic::warning(
+                                    DiagnosticKind::E0006,
+                                    &format!(
+                                        "slot '{}' is referenced inside the children of \
+                                         component '{}' — slot forwarding to a child \
+                                         component is not supported yet; the content will \
+                                         not be passed to '{}'",
+                                        name, comp_tag, comp_tag
+                                    ),
+                                    span,
+                                ));
+                            }
+                        }
+                    }
+                }
             }
             Expr::BinaryOp {
                 left,
@@ -953,9 +986,23 @@ impl SemanticAnalyzer {
                 | ElementProp::Variant { .. } => {}
             }
         }
+        // Children of a component instantiation are consumer-side
+        // projections — a `{slot}` interpolation among them is an attempt
+        // to forward this component's slot into the child component, which
+        // codegen cannot do today (the materialized slot would be treated
+        // as the child's own projection). Track the position so
+        // resolve_expr_refs can warn.
+        let is_component = self
+            .module_component_names
+            .contains(element.tag.as_str());
+        let saved = self.inside_component_children.take();
+        if is_component {
+            self.inside_component_children = Some(element.tag.clone());
+        }
         for child in &element.children {
             self.resolve_view_node_refs(child, vctx);
         }
+        self.inside_component_children = saved;
     }
 
     fn resolve_event_handler_refs(&mut self, handler: &EventHandler, vctx: &mut ValidationContext) {
