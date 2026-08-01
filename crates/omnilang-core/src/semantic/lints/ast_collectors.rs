@@ -217,6 +217,13 @@ pub(super) fn collect_used_names_in_view_node<'a>(
                             used.insert(action.as_str());
                         }
                     },
+                    // Consumer slot projection (ADR-053 D5): the content is a
+                    // view subtree holding real references.
+                    ElementProp::SlotContent { content, .. } => {
+                        for node in content {
+                            collect_used_names_in_view_node(node, used);
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -256,6 +263,15 @@ pub(super) fn collect_used_names_in_view_node<'a>(
                 }
             }
         }
-        ViewNode::SlotDirective { .. } => {}
+        ViewNode::SlotDirective {
+            default_content, ..
+        } => {
+            // View-level @slot fallback content is real view content.
+            if let Some(ref content) = default_content {
+                for node in content {
+                    collect_used_names_in_view_node(node, used);
+                }
+            }
+        }
     }
 }

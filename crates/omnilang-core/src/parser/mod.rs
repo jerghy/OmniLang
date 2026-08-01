@@ -1221,6 +1221,41 @@ mod roundtrip_tests {
         }
     }
 
+    #[test]
+    fn view_slot_directive_view_keyword_is_name() {
+        // At view level there is no view-block ambiguity — the `view`
+        // keyword remains a valid slot name (pre-D5 behavior preserved).
+        let children = view_children("component App { view { @slot view { <div/> } } }");
+        match &children[0] {
+            ViewNode::SlotDirective {
+                name,
+                default_content,
+                ..
+            } => {
+                assert_eq!(name.as_deref(), Some("view"));
+                assert_eq!(default_content.as_ref().map(|c| c.len()), Some(1));
+            }
+            _ => panic!("expected SlotDirective"),
+        }
+    }
+
+    #[test]
+    fn view_slot_directive_style_keyword_is_name() {
+        // Same as `view` — `style` stays a valid view-level slot name.
+        let children = view_children("component App { view { @slot style { <span/> } } }");
+        match &children[0] {
+            ViewNode::SlotDirective {
+                name,
+                default_content,
+                ..
+            } => {
+                assert_eq!(name.as_deref(), Some("style"));
+                assert_eq!(default_content.as_ref().map(|c| c.len()), Some(1));
+            }
+            _ => panic!("expected SlotDirective"),
+        }
+    }
+
     // ── Body-level @slot declarations (ADR-053 D5) ──────────
 
     /// Parse a component definition and return it.

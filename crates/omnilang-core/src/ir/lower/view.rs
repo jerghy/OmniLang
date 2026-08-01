@@ -23,6 +23,7 @@ use std::cell::Cell;
 pub(super) fn lower_view_block(
     view: &ViewBlock,
     string_signals: &[String],
+    sig_idx: &Cell<usize>,
     variant_map: &FxHashMap<String, String>,
     semantics: &mut SemanticResult,
     fns: &[FunctionIR],
@@ -30,13 +31,12 @@ pub(super) fn lower_view_block(
     if view.children.is_empty() {
         return ViewTree::Text("".into());
     }
-    let sig_idx = Cell::new(0usize);
     let mut lowered: Vec<ViewTree> = Vec::with_capacity(view.children.len());
     for child in &view.children {
         lowered.push(lower_view_node(
             child,
             string_signals,
-            Some(&sig_idx),
+            Some(sig_idx),
             variant_map,
             semantics,
             fns,

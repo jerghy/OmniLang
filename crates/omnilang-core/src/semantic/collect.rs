@@ -122,7 +122,7 @@ impl SemanticAnalyzer {
                         kind: SymbolKind::Slot,
                         type_ann: slot.type_constraint.as_ref().map(type_to_string),
                         mutable: false,
-                        declared_at: 0,
+                        declared_at: slot.span.start,
                     });
                 }
             }

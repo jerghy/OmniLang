@@ -28,11 +28,19 @@ fn validate_component_refs(comp: &ComponentIR) -> Vec<Diagnostic> {
     // Collect declared ref names
     let declared: FxHashSet<&str> = comp.refs.iter().map(|r| r.name.as_str()).collect();
 
-    // Collect ref bindings from the view tree
+    // Collect ref bindings from the view tree (including slot fallbacks —
+    // view-level @slot directives, consumer slot projections, and body-level
+    // slot declarations, ADR-053 D5)
     let mut bindings: Vec<&str> = Vec::new();
     if let Some(ref view) = comp.view {
         collect_ref_bindings(view, &mut bindings);
         warn_refs_in_for_bodies(view, comp, false, &mut warnings);
+    }
+    for slot in &comp.slots {
+        for child in &slot.fallback {
+            collect_ref_bindings(child, &mut bindings);
+            warn_refs_in_for_bodies(child, comp, false, &mut warnings);
+        }
     }
 
     let (line, col) = comp.source_span.map(|s| (s.line, s.col)).unwrap_or((0, 0));
@@ -138,7 +146,14 @@ fn collect_ref_bindings<'a>(view: &'a ViewTree, out: &mut Vec<&'a str>) {
                 collect_ref_bindings(child, out);
             }
         }
-        ViewTree::Interpolation(_) | ViewTree::Text(_) | ViewTree::Slot { .. } => {}
+        // Slot fallbacks (view-level @slot directives, consumer slot
+        // projections, body-level slot declarations) are real view content.
+        ViewTree::Slot { fallback, .. } => {
+            for child in fallback {
+                collect_ref_bindings(child, out);
+            }
+        }
+        ViewTree::Interpolation(_) | ViewTree::Text(_) => {}
     }
 }
 
@@ -206,7 +221,14 @@ fn warn_refs_in_for_bodies(
                 warn_refs_in_for_bodies(child, comp, in_for_template, warnings);
             }
         }
-        ViewTree::Interpolation(_) | ViewTree::Text(_) | ViewTree::Slot { .. } => {}
+        // Slot fallbacks (view-level @slot directives, consumer slot
+        // projections, body-level slot declarations) are real view content.
+        ViewTree::Slot { fallback, .. } => {
+            for child in fallback {
+                warn_refs_in_for_bodies(child, comp, in_for_template, warnings);
+            }
+        }
+        ViewTree::Interpolation(_) | ViewTree::Text(_) => {}
     }
 }
 
@@ -214,7 +236,7 @@ fn warn_refs_in_for_bodies(
 mod tests {
     use super::*;
     use crate::ir::{
-        BindingIR, ConstructionKind, ElementIR, ExprIR, ListRenderingIntent, RefDeclIR,
+        BindingIR, ConstructionKind, ElementIR, ExprIR, ListRenderingIntent, RefDeclIR, SlotDeclIR,
     };
     use rustc_hash::FxHashMap;
 
@@ -470,6 +492,52 @@ mod tests {
         assert!(
             for_warning.suggestion.is_some(),
             "warning should include a suggestion"
+        );
+    }
+
+    #[test]
+    fn test_ref_binding_in_slot_fallback_collected() {
+        // ADR-053 D5: refs inside slot fallbacks (consumer projections,
+        // view-level @slot, body-level slots) are real bindings — they must
+        // be collected so the declared ref is not reported
+        // "declared but never bound".
+        let mut comp = make_component("Test", &["box"], &[]);
+        comp.view = Some(ViewTree::Slot {
+            name: Some("header".to_string()),
+            fallback: vec![ViewTree::Element(Box::new(make_el("div", Some("box"))))],
+            type_constraint: None,
+            data_param: None,
+        });
+
+        let warnings = validate_component_refs(&comp);
+        assert!(
+            warnings
+                .iter()
+                .all(|w| !w.message.contains("declared but never bound")),
+            "ref bound inside a slot fallback must be collected, got: {:?}",
+            warnings
+        );
+    }
+
+    #[test]
+    fn test_ref_binding_in_body_slot_fallback_collected() {
+        // Same as above but the binding lives in ComponentIR.slots
+        // (component body declaration fallback).
+        let mut comp = make_component("Test", &["box"], &[]);
+        comp.slots = vec![SlotDeclIR {
+            name: Some("header".to_string()),
+            fallback: vec![ViewTree::Element(Box::new(make_el("div", Some("box"))))],
+            type_constraint: None,
+            data_param: None,
+        }];
+
+        let warnings = validate_component_refs(&comp);
+        assert!(
+            warnings
+                .iter()
+                .all(|w| !w.message.contains("declared but never bound")),
+            "ref bound inside a body-slot fallback must be collected, got: {:?}",
+            warnings
         );
     }
 }

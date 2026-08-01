@@ -42,6 +42,9 @@ pub struct SlotDecl {
     pub default_content: Option<Vec<ViewNode>>,
     /// Optional type constraint: `@slot name: Type`.
     pub type_constraint: Option<TypeAnnotation>,
+    /// Source span of the whole declaration — used for diagnostics
+    /// (e.g. duplicate-slot warnings point at the second declaration).
+    pub span: Span,
 }
 
 #[derive(Debug, Clone, Serialize)]

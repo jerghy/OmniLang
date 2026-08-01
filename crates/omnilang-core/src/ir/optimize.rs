@@ -891,6 +891,35 @@ mod tests {
     }
 
     #[test]
+    fn computed_referenced_from_body_slot_fallback_survives() {
+        // Body-level slot fallbacks (ComponentIR.slots, ADR-053 D5) are a
+        // separate DCE path from comp.view — a computed referenced only
+        // there must survive elimination.
+        let mut comp = ComponentIR {
+            name: "TestComp".to_string(),
+            computeds: vec![int_computed("body_val")],
+            slots: vec![SlotDeclIR {
+                name: Some("body".to_string()),
+                fallback: vec![el(
+                    "p",
+                    vec![ViewTree::Interpolation(Box::new(ident("body_val")))],
+                )],
+                type_constraint: None,
+                data_param: None,
+            }],
+            ..ComponentIR::default()
+        };
+
+        eliminate_dead_computeds(&mut comp);
+        assert_eq!(
+            comp.computeds.len(),
+            1,
+            "computed referenced from a body-slot fallback must survive DCE"
+        );
+        assert_eq!(comp.computeds[0].name, "body_val");
+    }
+
+    #[test]
     fn optimize_iterates_all_modules_and_components() {
         // The top-level `optimize()` function should walk every component
         // in every module and eliminate dead computeds from each.

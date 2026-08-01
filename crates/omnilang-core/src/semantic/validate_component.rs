@@ -3,7 +3,7 @@
 //! Extracted from `validate_types.rs` to separate type inference (new)
 //! from structural component validation.
 
-use super::walk_view::walk_view_nodes;
+use super::walk_view::walk_component_view_nodes;
 use super::SemanticAnalyzer;
 use crate::error::{Diagnostic, DiagnosticKind};
 use crate::lexer::Span;
@@ -18,36 +18,34 @@ impl SemanticAnalyzer {
     pub(super) fn validate_bind_targets(&mut self, comp: &ComponentDef) {
         let signal_names: FxHashSet<&str> = comp.signals.iter().map(|s| s.name.as_str()).collect();
 
-        if let Some(ref view) = comp.view {
-            walk_view_nodes(&view.children, &mut |el| {
-                for prop in &el.props {
-                    if let ElementProp::Bind {
-                        name: _,
-                        signal_path,
-                    } = prop
-                    {
-                        // signal_path is e.g. "name" or "store.field"
-                        let root = signal_path.split('.').next().unwrap_or(signal_path);
-                        if !signal_names.contains(root) && !signal_path.contains('.') {
-                            // Only flag if it doesn't look like a store reference
-                            self.diagnostics.push(Diagnostic::warning(
-                                DiagnosticKind::E0005,
-                                &format!(
-                                    "bind target '{}' is not a signal in this component",
-                                    signal_path
-                                ),
-                                &Span {
-                                    start: 0,
-                                    end: 0,
-                                    line: 0,
-                                    col: 0,
-                                },
-                            ));
-                        }
+        walk_component_view_nodes(comp, &mut |el| {
+            for prop in &el.props {
+                if let ElementProp::Bind {
+                    name: _,
+                    signal_path,
+                } = prop
+                {
+                    // signal_path is e.g. "name" or "store.field"
+                    let root = signal_path.split('.').next().unwrap_or(signal_path);
+                    if !signal_names.contains(root) && !signal_path.contains('.') {
+                        // Only flag if it doesn't look like a store reference
+                        self.diagnostics.push(Diagnostic::warning(
+                            DiagnosticKind::E0005,
+                            &format!(
+                                "bind target '{}' is not a signal in this component",
+                                signal_path
+                            ),
+                            &Span {
+                                start: 0,
+                                end: 0,
+                                line: 0,
+                                col: 0,
+                            },
+                        ));
                     }
                 }
-            });
-        }
+            }
+        });
     }
 }
 
@@ -66,47 +64,45 @@ impl SemanticAnalyzer {
 
         let store_refs: FxHashSet<&str> = comp.store_refs.iter().map(|s| s.as_str()).collect();
 
-        if let Some(ref view) = comp.view {
-            walk_view_nodes(&view.children, &mut |el| {
-                for prop in &el.props {
-                    if let ElementProp::Event {
-                        handler: EventHandler::StoreAction { store, action },
-                        ..
-                    } = prop
-                    {
-                        // Check @store declaration
-                        if !store_refs.contains(store.as_str()) {
-                            self.diagnostics.push(Diagnostic::error(
-                                DiagnosticKind::E0007,
-                                &format!(
-                                    "Store '{}' is not declared with @store in this \
+        walk_component_view_nodes(comp, &mut |el| {
+            for prop in &el.props {
+                if let ElementProp::Event {
+                    handler: EventHandler::StoreAction { store, action },
+                    ..
+                } = prop
+                {
+                    // Check @store declaration
+                    if !store_refs.contains(store.as_str()) {
+                        self.diagnostics.push(Diagnostic::error(
+                            DiagnosticKind::E0007,
+                            &format!(
+                                "Store '{}' is not declared with @store in this \
                                          component — add '@store {};' to the component body",
-                                    store, store
-                                ),
-                                &el.span,
-                            ));
-                        }
-                        // Check action exists
-                        if let Some(actions) = store_actions.get(store.as_str()) {
-                            if !actions.contains(action.as_str()) {
-                                self.diagnostics.push(Diagnostic::error(
-                                    DiagnosticKind::E0007,
-                                    &format!("Store '{}' has no action '{}'", store, action),
-                                    &el.span,
-                                ));
-                            }
-                        } else {
-                            // Store not found at all
+                                store, store
+                            ),
+                            &el.span,
+                        ));
+                    }
+                    // Check action exists
+                    if let Some(actions) = store_actions.get(store.as_str()) {
+                        if !actions.contains(action.as_str()) {
                             self.diagnostics.push(Diagnostic::error(
                                 DiagnosticKind::E0007,
-                                &format!("Store '{}' not found", store),
+                                &format!("Store '{}' has no action '{}'", store, action),
                                 &el.span,
                             ));
                         }
+                    } else {
+                        // Store not found at all
+                        self.diagnostics.push(Diagnostic::error(
+                            DiagnosticKind::E0007,
+                            &format!("Store '{}' not found", store),
+                            &el.span,
+                        ));
                     }
                 }
-            });
-        }
+            }
+        });
     }
 }
 
@@ -193,18 +189,16 @@ impl SemanticAnalyzer {
             check_block(&lc.body, &prop_names, &mut self.diagnostics);
         }
         // Also check view inline event handlers
-        if let Some(ref view) = comp.view {
-            walk_view_nodes(&view.children, &mut |el| {
-                for prop in &el.props {
-                    if let ElementProp::Event {
-                        handler: EventHandler::InlineFn { body, .. },
-                        ..
-                    } = prop
-                    {
-                        check_block(body, &prop_names, &mut self.diagnostics);
-                    }
+        walk_component_view_nodes(comp, &mut |el| {
+            for prop in &el.props {
+                if let ElementProp::Event {
+                    handler: EventHandler::InlineFn { body, .. },
+                    ..
+                } = prop
+                {
+                    check_block(body, &prop_names, &mut self.diagnostics);
                 }
-            });
-        }
+            }
+        });
     }
 }

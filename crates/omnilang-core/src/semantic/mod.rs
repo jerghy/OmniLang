@@ -196,6 +196,41 @@ mod tests {
     }
 
     #[test]
+    fn analyze_duplicate_body_slots_warn_at_declaration_span() {
+        // The duplicate warning should point at the second declaration,
+        // not (0, 0) — SlotDecl carries its source span.
+        let result =
+            analyze_source("component Modal { @slot header @slot header view { <div/> } }");
+        let dup = result
+            .diagnostics
+            .iter()
+            .find(|d| d.message.contains("Duplicate declaration"))
+            .expect("expected duplicate-slot warning");
+        assert!(
+            dup.col > 0,
+            "duplicate-slot warning should point at the second declaration, col was {}",
+            dup.col
+        );
+    }
+
+    #[test]
+    fn analyze_slot_name_colliding_with_signal_warns() {
+        // A slot named like a signal/prop is ambiguous for `{name}`
+        // interpolations — declare_or_warn flags the collision.
+        let result = analyze_source(
+            "component Modal { signal count: i32 = 0; @slot count view { <div>{count}</div> } }",
+        );
+        assert!(
+            result.diagnostics.iter().any(|d| {
+                d.severity == crate::error::Severity::Warning
+                    && d.message.contains("Duplicate declaration")
+            }),
+            "slot name colliding with a signal must warn, got: {:?}",
+            result.diagnostics
+        );
+    }
+
+    #[test]
     fn analyze_slot_interpolation_undeclared_still_suppressed() {
         // Back-compat: an interpolation referencing a name that is NOT a
         // declared slot stays suppressed (view-level @slot / interpolation

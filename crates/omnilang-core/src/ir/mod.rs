@@ -24,8 +24,8 @@ pub use types::{
     EffectIntent, ElementIR, EventDataKind, EventDeclIR, EventFieldDef, EventHandlerIR, ExprIR,
     IRProgram, LifecycleIntent, LifecycleKind, ListRenderingIntent, MatchArmIR, MatchPatternIR,
     MatchPatternKindIR, MeasureWhat, MutationIntent, MutationOp, ParamIR, RefDeclIR, RefOpIR,
-    SignalIntent, SignalRefIR, StatementIR, StoreIR, StyleRuleIR, TypeIR, TypeKind, UnaryOpIR,
-    ViewTree,
+    SignalIntent, SignalRefIR, SlotDeclIR, StatementIR, StoreIR, StyleRuleIR, TypeIR, TypeKind,
+    UnaryOpIR, ViewTree,
 };
 
 // ── Explicit re-exports from logic.rs ──

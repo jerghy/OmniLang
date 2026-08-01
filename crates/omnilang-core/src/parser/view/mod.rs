@@ -63,7 +63,7 @@ impl<'a> Parser<'a> {
                 }
             }
             TokenKind::AtSlot => {
-                let slot = self.parse_slot_directive_common()?;
+                let slot = self.parse_slot_directive_common(false)?;
                 Ok(ViewNode::SlotDirective {
                     name: slot.name,
                     default_content: slot.default_content,
@@ -271,9 +271,20 @@ impl<'a> Parser<'a> {
     /// (`ViewNode::SlotDirective`) and component body declarations
     /// (`SlotDecl`), ADR-053 D5.
     ///
+    /// `in_body` selects the component-body parsing context: there, the
+    /// `view`/`style` keywords after a bare `@slot` start the component's
+    /// view/style blocks (`@slot default` declarations precede
+    /// `view { ... }`), so they are never consumed as slot names. Inside a
+    /// view there is no such ambiguity — any keyword remains a valid slot
+    /// name, matching the pre-D5 behavior.
+    ///
     /// The literal name `default` is the default/unnamed slot (per the
-    /// syntax spec §5.2), so it maps to `None`.
-    pub(super) fn parse_slot_directive_common(&mut self) -> Result<SlotDecl, ParseError> {
+    /// syntax spec §5.2), so it maps to `None` in both contexts.
+    pub(super) fn parse_slot_directive_common(
+        &mut self,
+        in_body: bool,
+    ) -> Result<SlotDecl, ParseError> {
+        let start = self.peek_span();
         self.advance(); // '@slot'
         let name = if self.at(&TokenKind::LParen) {
             self.advance();
@@ -288,12 +299,8 @@ impl<'a> Parser<'a> {
             }
         } else if matches!(self.peek_kind(), TokenKind::Ident(_))
             || keyword_as_ident_name(self.peek_kind())
-                .is_some_and(|kw| kw != "view" && kw != "style")
+                .is_some_and(|kw| !(in_body && (kw == "view" || kw == "style")))
         {
-            // The `view` and `style` keywords after a bare `@slot` start the
-            // component's view/style blocks (body declarations precede
-            // `view { ... }`) — a slot named after either keyword would be
-            // ambiguous, so they are never consumed as slot names.
             let n = self.expect_ident("expected slot name")?;
             if n == "default" {
                 None
@@ -322,10 +329,17 @@ impl<'a> Parser<'a> {
         } else {
             None
         };
+        let end = self.peek_span();
         Ok(SlotDecl {
             name,
             default_content,
             type_constraint,
+            span: Span {
+                start: start.start,
+                end: end.end,
+                line: start.line,
+                col: start.col,
+            },
         })
     }
 

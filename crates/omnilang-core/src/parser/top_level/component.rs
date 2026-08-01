@@ -168,8 +168,10 @@ impl<'a> Parser<'a> {
                 TokenKind::AtSlot => {
                     // Body-level slot declaration (ADR-053 D5):
                     // `@slot name: Type { fallback }` — same syntax as the
-                    // view-level directive, shared parsing helper.
-                    slots.push(self.parse_slot_directive_common()?);
+                    // view-level directive, shared parsing helper. The
+                    // `view`/`style` keywords are excluded as slot names
+                    // here (bare `@slot` precedes `view { ... }` blocks).
+                    slots.push(self.parse_slot_directive_common(true)?);
                 }
                 _ => {
                     let t = self.advance();

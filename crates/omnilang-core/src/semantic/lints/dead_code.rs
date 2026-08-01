@@ -67,6 +67,16 @@ impl LintRule for DeadCode {
                     }
                 }
 
+                // Body-level slot fallbacks (ADR-053 D5) may reference
+                // signals/computeds — collect their names too.
+                for slot in &comp.slots {
+                    if let Some(ref content) = slot.default_content {
+                        for node in content {
+                            collect_used_names_in_view_node(node, &mut used);
+                        }
+                    }
+                }
+
                 for name in &signal_names {
                     if !used.contains(name) {
                         diags.push(LintDiagnostic {
@@ -380,6 +390,45 @@ mod tests {
             fn_diags[0].message.contains("unusedFn"),
             "Message should mention unused function: {}",
             fn_diags[0].message
+        );
+    }
+
+    // ── Slot content reference sites (ADR-053 D5) ──────────
+
+    /// Parse source and run the dead-code lint against it.
+    fn lint_source(source: &str) -> Vec<LintDiagnostic> {
+        let tokens = crate::lexer::tokenize(source);
+        let (program, _) = crate::parser::parse(tokens, source);
+        DeadCode.check_ast(&program, "test.omni")
+    }
+
+    #[test]
+    fn test_signal_used_only_in_consumer_slot_projection_not_reported() {
+        // ADR-053 D5: <Modal header={<div>{count}</div>} /> — the projected
+        // content is a real reference site for the dead-code lint.
+        let diags = lint_source(
+            "component App { signal count: i32 = 0;              view { <Modal header={<div>{count}</div>} /> } }",
+        );
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.message.contains("'count'") && d.message.contains("never used")),
+            "signal referenced from a consumer slot projection must not be reported unused, got: {:?}",
+            diags
+        );
+    }
+
+    #[test]
+    fn test_signal_used_only_in_body_slot_fallback_not_reported() {
+        let diags = lint_source(
+            "component Card { signal title: String = \"x\";              @slot body { <p>{title}</p> } view { <div/> } }",
+        );
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.message.contains("'title'") && d.message.contains("never used")),
+            "signal referenced from a body-slot fallback must not be reported unused, got: {:?}",
+            diags
         );
     }
 }

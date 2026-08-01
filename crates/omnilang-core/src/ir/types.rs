@@ -831,9 +831,11 @@ pub struct SlotDeclIR {
 }
 
 impl SlotDeclIR {
-    /// Convert this declaration into a `ViewTree::Slot` placeholder — used
-    /// when the declaration needs to participate in view-tree lowering
-    /// (e.g. inline-motion hoisting walks slot fallbacks).
+    /// Convert this declaration into a `ViewTree::Slot` placeholder. Used
+    /// by view-level `@slot` directives, which lower to a Slot node in
+    /// view-tree position from the shared lowering result. Component body
+    /// declarations stay in `ComponentIR.slots` (consumed by codegen
+    /// directly); inline-motion hoisting walks `ComponentIR.slots` itself.
     #[must_use]
     pub fn into_view_tree(self) -> ViewTree {
         ViewTree::Slot {
