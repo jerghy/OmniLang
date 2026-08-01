@@ -5,6 +5,7 @@
 // ║    array_ext   — std/array 扩展（remove/map/find/contains）   ║
 // ║    strings     — 字符串转义序列（\n \t \" \\ \u{XXXX}）       ║
 // ║    string_ext  — std/string 扩展（split/join/case 等）        ║
+// ║    numerics    — 进制字面量 + 科学计数法 + 一元取反            ║
 // ║    print_demo  — print vs println（lib/print_demo.omni）      ║
 // ║                                                              ║
 // ║  注：async/datetime/encode/regex/math 扩展文件暂未接线，        ║
@@ -29,6 +30,12 @@ import {
 } from "./string_ext";
 // ── print / println 演示（lib/print_demo.omni）──
 import { demo_print_concat, demo_println_vs_print } from "../lib/print_demo";
+// ── 进制字面量 / 科学计数法 / 一元取反演示（components/numerics.omni）──
+import {
+    hex_max, hex_color_code, octal_perms, octal_small,
+    binary_mask, binary_flags, avogadro_approx, electron_charge,
+    million, negate, abs_diff, color_from_hex, physics_summary,
+} from "./numerics";
 
 component StdLibShowcase {
     view {
@@ -123,9 +130,38 @@ component StdLibShowcase {
                 </ul>
             </div>
 
+            <!-- ═══ 进制字面量 / 科学计数法（numerics.omni）═══ -->
+            <div class: module-card>
+                <h4 class: module-title>④ 进制字面量 / 科学计数法 / 一元取反 — numerics.omni</h4>
+                <p class: module-desc>
+                    <code>{"0xFF"}</code> 十六进制 · <code>{"0o755"}</code> 八进制 ·
+                    <code>{"0b11110000"}</code> 二进制 · 科学计数法 · <code>-x</code> 一元取反
+                </p>
+                <ul class: output-list>
+                    <li class: output-item>
+                        <code>hex_max()</code> = {hex_max()}（{"0xFF"}）· <code>hex_color_code()</code> = {hex_color_code()}（{"0x1A2B"}）
+                    </li>
+                    <li class: output-item>
+                        <code>octal_perms()</code> = {octal_perms()}（{"0o755"}）· <code>octal_small()</code> = {octal_small()}（{"0o10"}）
+                    </li>
+                    <li class: output-item>
+                        <code>binary_mask()</code> = {binary_mask()}（{"0b11110000"}）· <code>binary_flags()</code> = {binary_flags()}（{"0b10101010"}）
+                    </li>
+                    <li class: output-item>
+                        <code>avogadro_approx()</code> = {avogadro_approx()}（{"6.022e23"}）· <code>electron_charge()</code> = {electron_charge()}（{"1.6e-19"}）· <code>million()</code> = {million()}（{"1E+6"}）
+                    </li>
+                    <li class: output-item>
+                        <code>negate(5)</code> = {negate(5)} · <code>abs_diff(3, 8)</code> = {abs_diff(3, 8)}
+                    </li>
+                    <li class: output-item>
+                        <code>color_from_hex()</code> = {color_from_hex()} · <code>physics_summary()</code> = {physics_summary()}
+                    </li>
+                </ul>
+            </div>
+
             <!-- ═══ print / println（print_demo.omni）═══ -->
             <div class: module-card>
-                <h4 class: module-title>④ print vs println — lib/print_demo.omni</h4>
+                <h4 class: module-title>⑤ print vs println — lib/print_demo.omni</h4>
                 <p class: module-desc>
                     <code>print</code> 不自动换行，<code>println</code> 自动换行；输出到浏览器控制台
                 </p>

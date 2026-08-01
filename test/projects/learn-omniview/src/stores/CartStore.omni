@@ -1,4 +1,5 @@
 import omniview;
+// ⚠️ 仅用于掩盖 inline-store lint 缺口（UndefinedRef 不识别组件内联 store，InlineStoreDemo 需要顶层 store 通过校验）；编译器修复后应删除。
 store CartStore {
   signal items: Array<String> = [];
   action add(item: String) { items = [...items, item]; }
