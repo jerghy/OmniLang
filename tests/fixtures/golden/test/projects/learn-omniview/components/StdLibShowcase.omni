@@ -1,0 +1,380 @@
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  StdLibShowcase.omni —— 标准库演示聚合组件                      ║
+// ║                                                              ║
+// ║  将 components/ 下的纯逻辑标准库演示文件接线到展示页：           ║
+// ║    array_ext    — std/array 扩展（remove/map/find/contains）  ║
+// ║    strings      — 字符串转义序列（\n \t \" \\ \u{XXXX}）      ║
+// ║    string_ext   — std/string 扩展（split/join/case 等）       ║
+// ║    numerics     — 进制字面量 + 科学计数法 + 一元取反           ║
+// ║    print_demo   — print vs println（lib/print_demo.omni）     ║
+// ║    datetime_demo— std/datetime（now/format/提取器）           ║
+// ║    encode_demo  — std/encode（base64/hex/url）                ║
+// ║    regex_demo   — std/regex（match/search/replace）           ║
+// ║    math_ext     — std/math 扩展（trig/log/常量/clamp/随机）   ║
+// ║    async_demo   — std/async（sleep/spawn/all/race/timeout）   ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+import omniview;
+import { LearnDesign } from "../design";
+
+// ── std/array 扩展演示（components/array_ext.omni）──
+import { demo_remove, demo_map, demo_find, demo_contains } from "./array_ext";
+// ── 字符串转义序列演示（components/strings.omni）──
+import {
+    multiline_greeting, numbered_list, tabular_data, quoted_value,
+    json_fragment, windows_path, emoji_smile, japanese_hello,
+    format_card, status_message,
+} from "./strings";
+// ── std/string 扩展演示（components/string_ext.omni）──
+import {
+    demo_split_join, demo_replace, demo_substring, demo_case,
+    demo_ends_with, demo_concat,
+} from "./string_ext";
+// ── print / println 演示（lib/print_demo.omni）──
+import { demo_print_concat, demo_println_vs_print } from "../lib/print_demo";
+// ── 进制字面量 / 科学计数法 / 一元取反演示（components/numerics.omni）──
+import {
+    hex_max, hex_color_code, octal_perms, octal_small,
+    binary_mask, binary_flags, avogadro_approx, electron_charge,
+    million, negate, abs_diff, color_from_hex, physics_summary,
+} from "./numerics";
+// ── std/datetime 演示（components/datetime_demo.omni）──
+import {
+    now_formatted, get_date_parts, get_time_parts, timestamp_to_string, all_extractors,
+} from "./datetime_demo";
+// ── std/encode 演示（components/encode_demo.omni）──
+import {
+    base64_roundtrip, hex_demo, hex_roundtrip, url_encode_demo,
+    url_decode_demo, encode_summary,
+} from "./encode_demo";
+// ── std/regex 演示（components/regex_demo.omni）──
+import {
+    test_regex_match, test_regex_search, test_regex_replace,
+    validate_email, extract_numbers, regex_demo_summary,
+} from "./regex_demo";
+// ── std/math 扩展演示（components/math_ext.omni）──
+import {
+    demo_trig, demo_logs, demo_constants, demo_clamp,
+    demo_random_in_range, math_summary,
+} from "./math_ext";
+// ── std/async 演示（components/async_demo.omni）──
+import {
+    demo_sleep_and_return, demo_parallel, demo_race, demo_timeout,
+} from "./async_demo";
+
+component StdLibShowcase {
+    // ── std/async 演示结果：@mount 时运行异步动作并写入信号 ──
+    signal sleepResult: String = "pending...";
+    signal parallelResult: String = "pending...";
+    signal raceResult: String = "pending...";
+    signal timeoutResult: String = "pending...";
+
+    action runAsyncDemos() async {
+        sleepResult = await demo_sleep_and_return();
+        let p = await demo_parallel();
+        parallelResult = p.len().to_string() + " 项（async_all 等待全部完成）";
+        raceResult = await demo_race();
+        try {
+            // slow_task 睡 200ms > 50ms 超时 → async_timeout 触发拒绝
+            timeoutResult = await demo_timeout();
+        } catch err {
+            timeoutResult = "timeout fired: " + err;
+        }
+    }
+
+    @mount { runAsyncDemos(); }
+    view {
+        <div class: LearnDesign.Container>
+            <h3 class: LearnDesign.CardTitle>标准库（Std Lib）演示</h3>
+            <p class: LearnDesign.Subtitle>
+                聚合展示 components/ 与 lib/ 下的纯逻辑标准库演示文件 —— 每个模块一组输出
+            </p>
+
+            <!-- ═══ std/array 扩展（array_ext.omni）═══ -->
+            <div class: module-card>
+                <h4 class: module-title>① std/array 扩展 — array_ext.omni</h4>
+                <p class: module-desc>
+                    <code>array_remove</code> · <code>array_map</code> ·
+                    <code>array_find</code> · <code>array_contains</code>
+                </p>
+                <ul class: output-list>
+                    <li class: output-item>
+                        <code>demo_remove([1,2,3], 0)</code> = {demo_remove([1, 2, 3], 0).len().to_string()} 项（移除索引 0）
+                    </li>
+                    <li class: output-item>
+                        <code>demo_map([1,2,3])</code> = {demo_map([1, 2, 3]).len().to_string()} 项（每项 ×2）
+                    </li>
+                    <li class: output-item>
+                        <code>demo_find(["a","b"], "b")</code> = 索引 {demo_find(["a", "b"], "b")}
+                    </li>
+                    <li class: output-item>
+                        <code>demo_contains(["a","b"], "a")</code> = {demo_contains(["a", "b"], "a")}
+                    </li>
+                </ul>
+            </div>
+
+            <!-- ═══ 字符串转义序列（strings.omni）═══ -->
+            <div class: module-card>
+                <h4 class: module-title>② 字符串转义序列 — strings.omni</h4>
+                <p class: module-desc>
+                    <code>{"\\n"}</code> 换行 · <code>{"\\t"}</code> 制表 · <code>{"\\\""}</code> 引号 ·
+                    <code>{"\\\\"}</code> 反斜杠 · <code>{"\\u{XXXX}"}</code> Unicode
+                </p>
+                <ul class: output-list>
+                    <li class: output-item>
+                        <code>multiline_greeting()</code> = <pre class: output-pre>{multiline_greeting()}</pre>
+                    </li>
+                    <li class: output-item>
+                        <code>tabular_data()</code> = <pre class: output-pre>{tabular_data()}</pre>
+                    </li>
+                    <li class: output-item>
+                        <code>quoted_value()</code> = {quoted_value()}
+                    </li>
+                    <li class: output-item>
+                        <code>windows_path()</code> = {windows_path()}
+                    </li>
+                    <li class: output-item>
+                        <code>emoji_smile()</code> = {emoji_smile()} · <code>status_message(true)</code> = {status_message(true)}
+                    </li>
+                    <li class: output-item>
+                        <code>japanese_hello()</code> = {japanese_hello()}（{"\\u{XXXX}"} 编码）
+                    </li>
+                    <li class: output-item>
+                        <code>format_card("Alice", "Engineer")</code> =<pre class: output-pre>{format_card("Alice", "Engineer")}</pre>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- ═══ std/string 扩展（string_ext.omni）═══ -->
+            <div class: module-card>
+                <h4 class: module-title>③ std/string 扩展 — string_ext.omni</h4>
+                <p class: module-desc>
+                    <code>string_split</code> · <code>string_join</code> ·
+                    <code>string_replace</code> · <code>string_substring</code> ·
+                    <code>string_to_upper/lower</code> · <code>string_ends_with</code>
+                </p>
+                <ul class: output-list>
+                    <li class: output-item>
+                        <code>demo_split_join("a,b,c", ",")</code> = {demo_split_join("a,b,c", ",")}
+                    </li>
+                    <li class: output-item>
+                        <code>demo_replace("Hello World", "World", "Omni")</code> = {demo_replace("Hello World", "World", "Omni")}
+                    </li>
+                    <li class: output-item>
+                        <code>demo_substring("OmniLang", 0, 4)</code> = {demo_substring("OmniLang", 0, 4)}
+                    </li>
+                    <li class: output-item>
+                        <code>demo_case("AbC")</code> 上/下 = {demo_case("AbC").get("upper")} / {demo_case("AbC").get("lower")}
+                    </li>
+                    <li class: output-item>
+                        <code>demo_ends_with("hello.omni", ".omni")</code> = {demo_ends_with("hello.omni", ".omni")}
+                    </li>
+                    <li class: output-item>
+                        <code>demo_concat("foo", "bar")</code> = {demo_concat("foo", "bar")}
+                    </li>
+                </ul>
+            </div>
+
+            <!-- ═══ 进制字面量 / 科学计数法（numerics.omni）═══ -->
+            <div class: module-card>
+                <h4 class: module-title>④ 进制字面量 / 科学计数法 / 一元取反 — numerics.omni</h4>
+                <p class: module-desc>
+                    <code>{"0xFF"}</code> 十六进制 · <code>{"0o755"}</code> 八进制 ·
+                    <code>{"0b11110000"}</code> 二进制 · 科学计数法 · <code>-x</code> 一元取反
+                </p>
+                <ul class: output-list>
+                    <li class: output-item>
+                        <code>hex_max()</code> = {hex_max()}（{"0xFF"}）· <code>hex_color_code()</code> = {hex_color_code()}（{"0x1A2B"}）
+                    </li>
+                    <li class: output-item>
+                        <code>octal_perms()</code> = {octal_perms()}（{"0o755"}）· <code>octal_small()</code> = {octal_small()}（{"0o10"}）
+                    </li>
+                    <li class: output-item>
+                        <code>binary_mask()</code> = {binary_mask()}（{"0b11110000"}）· <code>binary_flags()</code> = {binary_flags()}（{"0b10101010"}）
+                    </li>
+                    <li class: output-item>
+                        <code>avogadro_approx()</code> = {avogadro_approx()}（{"6.022e23"}）· <code>electron_charge()</code> = {electron_charge()}（{"1.6e-19"}）· <code>million()</code> = {million()}（{"1E+6"}）
+                    </li>
+                    <li class: output-item>
+                        <code>negate(5)</code> = {negate(5)} · <code>abs_diff(3, 8)</code> = {abs_diff(3, 8)}
+                    </li>
+                    <li class: output-item>
+                        <code>color_from_hex()</code> = {color_from_hex()} · <code>physics_summary()</code> = {physics_summary()}
+                    </li>
+                </ul>
+            </div>
+
+            <!-- ═══ print / println（print_demo.omni）═══ -->
+            <div class: module-card>
+                <h4 class: module-title>⑤ print vs println — lib/print_demo.omni</h4>
+                <p class: module-desc>
+                    <code>print</code> 不自动换行，<code>println</code> 自动换行；输出到浏览器控制台
+                </p>
+                <ul class: output-list>
+                    <li class: output-item>
+                        <code>demo_print_concat()</code> 返回 = {demo_print_concat()}（"Hello World" 打印在控制台）
+                    </li>
+                    <li class: output-item>
+                        <code>demo_println_vs_print()</code> 返回 = {demo_println_vs_print()}（混用 println / print）
+                    </li>
+                </ul>
+            </div>
+
+            <!-- ═══ std/datetime（datetime_demo.omni）═══ -->
+            <div class: module-card>
+                <h4 class: module-title>⑥ std/datetime — datetime_demo.omni</h4>
+                <p class: module-desc>
+                    <code>datetime_now</code> · <code>datetime_format</code> ·
+                    <code>datetime_from_timestamp</code> · <code>datetime_year/month/day/hour/minute/second</code>
+                </p>
+                <ul class: output-list>
+                    <li class: output-item>
+                        <code>now_formatted()</code> = {now_formatted()}（"%Y-%m-%d %H:%M:%S"）
+                    </li>
+                    <li class: output-item>
+                        <code>get_date_parts()</code> 年/月/日 = {get_date_parts().get("year")}/{get_date_parts().get("month")}/{get_date_parts().get("day")}
+                    </li>
+                    <li class: output-item>
+                        <code>get_time_parts()</code> 时/分/秒 = {get_time_parts().get("hour")}:{get_time_parts().get("minute")}:{get_time_parts().get("second")}
+                    </li>
+                    <li class: output-item>
+                        <code>timestamp_to_string(0)</code> = {timestamp_to_string(0)}（epoch → "%Y-%m-%d"）
+                    </li>
+                    <li class: output-item>
+                        <code>all_extractors()</code> = 年 {all_extractors().get("year")} · 月 {all_extractors().get("month")} · 日 {all_extractors().get("day")} · {all_extractors().get("hour")}:{all_extractors().get("minute")}:{all_extractors().get("second")}
+                    </li>
+                </ul>
+            </div>
+
+            <!-- ═══ std/encode（encode_demo.omni）═══ -->
+            <div class: module-card>
+                <h4 class: module-title>⑦ std/encode — encode_demo.omni</h4>
+                <p class: module-desc>
+                    <code>encode_base64_encode/decode</code> · <code>encode_hex_encode/decode</code> ·
+                    <code>encode_url_encode/decode</code>
+                </p>
+                <ul class: output-list>
+                    <li class: output-item>
+                        <code>base64_roundtrip("test")</code> = {base64_roundtrip("test")}（base64 往返一致）
+                    </li>
+                    <li class: output-item>
+                        <code>hex_demo()</code> = {hex_demo()}（"Hello OmniLang" 的十六进制）
+                    </li>
+                    <li class: output-item>
+                        <code>hex_roundtrip("OmniLang")</code> = {hex_roundtrip("OmniLang")}（hex 往返一致）
+                    </li>
+                    <li class: output-item>
+                        <code>url_encode_demo("hello world")</code> = {url_encode_demo("hello world")} · 解码 = {url_decode_demo("hello%20world")}
+                    </li>
+                    <li class: output-item>
+                        <code>encode_summary()</code> = {encode_summary()}
+                    </li>
+                </ul>
+            </div>
+
+            <!-- ═══ std/regex（regex_demo.omni）═══ -->
+            <div class: module-card>
+                <h4 class: module-title>⑧ std/regex — regex_demo.omni</h4>
+                <p class: module-desc>
+                    <code>regex_match</code> · <code>regex_search</code> · <code>regex_replace</code>
+                </p>
+                <ul class: output-list>
+                    <li class: output-item>
+                        <code>test_regex_match()</code> = {test_regex_match()}（邮箱格式匹配）
+                    </li>
+                    <li class: output-item>
+                        <code>test_regex_search()</code> = {test_regex_search().len()} 项（"apple banana cherry apple" 中找 "apple"）
+                    </li>
+                    <li class: output-item>
+                        <code>test_regex_replace()</code> = {test_regex_replace()}（"Hello 2024 World 2024" → 2025）
+                    </li>
+                    <li class: output-item>
+                        <code>validate_email("user@example.com")</code> = {validate_email("user@example.com")}
+                    </li>
+                    <li class: output-item>
+                        <code>extract_numbers("abc 123 def 456")</code> = {extract_numbers("abc 123 def 456").len()} 个数字
+                    </li>
+                    <li class: output-item>
+                        <code>regex_demo_summary()</code> = {regex_demo_summary()}
+                    </li>
+                </ul>
+            </div>
+
+            <!-- ═══ std/math 扩展（math_ext.omni）═══ -->
+            <div class: module-card>
+                <h4 class: module-title>⑨ std/math 扩展 — math_ext.omni</h4>
+                <p class: module-desc>
+                    <code>math_sin/cos/tan</code> · <code>math_log/log2/log10</code> ·
+                    <code>math_pi/e</code> · <code>math_clamp</code> · <code>math_random_int</code>
+                </p>
+                <ul class: output-list>
+                    <li class: output-item>
+                        <code>demo_trig(0.5)</code> = sin {demo_trig(0.5).get("sin")} · cos {demo_trig(0.5).get("cos")} · tan {demo_trig(0.5).get("tan")}
+                    </li>
+                    <li class: output-item>
+                        <code>demo_logs(8.0)</code> = log {demo_logs(8.0).get("log")} · log2 {demo_logs(8.0).get("log2")} · log10 {demo_logs(8.0).get("log10")}
+                    </li>
+                    <li class: output-item>
+                        <code>demo_constants()</code> = pi {demo_constants().get("pi")} · e {demo_constants().get("e")}
+                    </li>
+                    <li class: output-item>
+                        <code>demo_clamp(5.0, 1.0, 10.0)</code> = {demo_clamp(5.0, 1.0, 10.0)} · clamp(15, 1, 10) = {demo_clamp(15.0, 1.0, 10.0)}
+                    </li>
+                    <li class: output-item>
+                        <code>demo_random_in_range(1, 6)</code> = {demo_random_in_range(1, 6)}（每次刷新不同）
+                    </li>
+                    <li class: output-item>
+                        <code>math_summary()</code> = {math_summary()}
+                    </li>
+                </ul>
+            </div>
+
+            <!-- ═══ std/async（async_demo.omni）═══ -->
+            <div class: module-card>
+                <h4 class: module-title>⑩ std/async — async_demo.omni</h4>
+                <p class: module-desc>
+                    <code>async_sleep</code> · <code>async_spawn</code> · <code>async_all</code> ·
+                    <code>async_race</code> · <code>async_timeout</code>（挂载时自动运行）
+                </p>
+                <ul class: output-list>
+                    <li class: output-item>
+                        <code>demo_sleep_and_return()</code> = {sleepResult}（sleep 10ms 后返回）
+                    </li>
+                    <li class: output-item>
+                        <code>demo_parallel()</code> = {parallelResult}（async_all 并行两个任务）
+                    </li>
+                    <li class: output-item>
+                        <code>demo_race()</code> = {raceResult}（async_race 最快者胜出）
+                    </li>
+                    <li class: output-item>
+                        <code>demo_timeout(task, 50)</code> = {timeoutResult}（200ms 任务 + 50ms 超时）
+                    </li>
+                </ul>
+            </div>
+        </div>
+    }
+
+    style {
+        .module-card {
+            background: var(--surfaceMuted);
+            border: 1px solid var(--borderLight);
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 12px;
+        }
+        .module-title { font-size: 14px; font-weight: 600; color: var(--textPrimary); margin: 0 0 4px 0; }
+        .module-desc { font-size: 12px; color: var(--textSecondary); margin: 0 0 8px 0; }
+        .output-list { margin: 0; padding-left: 16px; }
+        .output-item { font-size: 13px; color: var(--textPrimary); margin: 4px 0; line-height: 1.5; }
+        .output-item code { background: var(--surfaceSubtle); padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+        .output-pre {
+            background: var(--surfaceSubtle);
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin: 4px 0;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+    }
+}

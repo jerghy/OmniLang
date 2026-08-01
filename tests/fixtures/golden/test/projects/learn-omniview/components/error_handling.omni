@@ -36,14 +36,14 @@ pub fn try_catch_finally_divide(a: f64, b: f64) -> String {
 }
 
 // ── 4. parse_config —— Map<K,V> 类型注解演示 ───────────────────
+// 注：Map 用字面量构建——`map.set()` 在 JS 目标无后端实现，且
+// `Map<String, T>` 返回类型注解尚未被类型检查器解析（deferrals #28）
 
-pub fn parse_config(raw: String) -> Map<String, String> {
-    let mut map: Map<String, String> = {};
+pub fn parse_config(raw: String) {
     if raw != "" {
-        map.set("parsed", "true");
-        map.set("length", raw.len().to_string());
+        return { "parsed": "true", "length": raw.len().to_string() };
     }
-    return map;
+    return {};
 }
 
 // ── 5. get_or_throw —— Map<K,V> + try/catch 组合 ──────────────

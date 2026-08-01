@@ -3,6 +3,9 @@
 // ║  演示：string_concat, split, join, replace, substring,       ║
 // ║        to_upper, to_lower, ends_with                         ║
 // ║  纯逻辑文件，不写 import omniview;                              ║
+// ║  注：Map 用字面量构建（{ "key": value }）——`map.set()` 方法   ║
+// ║  调用在 JS 目标无后端实现，且 `Map<String, T>` 返回类型注解   ║
+// ║  尚未被类型检查器解析（见 .architecture/deferrals.md #28）    ║
 // ╚══════════════════════════════════════════════════════════════╝
 
 import { string_concat, string_split, string_join, string_replace,
@@ -22,11 +25,8 @@ pub fn demo_substring(text: String, start: i32, end: i32) -> String {
     return string_substring(text, start, end);
 }
 
-pub fn demo_case(text: String) -> Map<String, String> {
-    let mut result: Map<String, String> = {};
-    result.set("upper", string_to_upper(text));
-    result.set("lower", string_to_lower(text));
-    return result;
+pub fn demo_case(text: String) {
+    return { "upper": string_to_upper(text), "lower": string_to_lower(text) };
 }
 
 pub fn demo_ends_with(text: String, suffix: String) -> bool {

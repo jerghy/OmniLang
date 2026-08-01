@@ -27,12 +27,31 @@ mod tests;
 pub struct StdlibFn {
     pub module: &'static str,
     pub name: &'static str,
+    /// Minimum number of arguments the codegen function requires.
+    /// Wrong-arity calls are caught here instead of panicking in codegen.
+    pub min_args: usize,
+    /// Maximum number of arguments (`None` = variadic, e.g. console_log).
+    pub max_args: Option<usize>,
     pub available_targets: &'static [Target],
     /// Emit target-native code for this function call.
     /// Receives the formatted argument strings and target.
     pub codegen: fn(args: &[String], target: Target) -> String,
     /// Whether the call must be wrapped in `await`.
     pub is_async: bool,
+}
+
+/// Emit a compile-time diagnostic string for a wrong-arity stdlib call so
+/// backends surface a clear error instead of panicking on arg indexing.
+pub(crate) fn wrong_arity_error(f: &StdlibFn, got: usize) -> String {
+    let expected = match f.max_args {
+        Some(max) if max == f.min_args => format!("{}", f.min_args),
+        Some(max) => format!("{} to {}", f.min_args, max),
+        None => format!("at least {}", f.min_args),
+    };
+    format!(
+        "compile_error!(\"std/{}: {} expects {expected} argument(s), got {got}\")",
+        f.module, f.name
+    )
 }
 
 pub fn registry() -> &'static [StdlibFn] {

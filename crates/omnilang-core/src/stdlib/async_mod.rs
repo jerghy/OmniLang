@@ -6,6 +6,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "async",
             name: "async_sleep",
+            min_args: 1,
+            max_args: Some(1),
             available_targets: &ALL_TARGETS,
             codegen: codegen_async_sleep,
             is_async: true,
@@ -13,6 +15,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "async",
             name: "async_spawn",
+            min_args: 1,
+            max_args: Some(1),
             available_targets: &ALL_TARGETS,
             codegen: codegen_async_spawn,
             is_async: true,
@@ -20,6 +24,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "async",
             name: "async_all",
+            min_args: 1,
+            max_args: Some(1),
             available_targets: &ALL_TARGETS,
             codegen: codegen_async_all,
             is_async: true,
@@ -27,6 +33,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "async",
             name: "async_race",
+            min_args: 1,
+            max_args: Some(1),
             available_targets: &ALL_TARGETS,
             codegen: codegen_async_race,
             is_async: true,
@@ -34,6 +42,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "async",
             name: "async_timeout",
+            min_args: 2,
+            max_args: Some(2),
             available_targets: &ALL_TARGETS,
             codegen: codegen_async_timeout,
             is_async: true,
@@ -103,10 +113,12 @@ pub(super) fn codegen_async_race(args: &[String], target: Target) -> String {
         | Target::OmniView => {
             format!("Promise.race({tasks})")
         }
-        Target::Python => format!(
-            "(await asyncio.wait({tasks}, return_when=asyncio.FIRST_COMPLETED))[0].pop().result()"
-        ),
-        Target::Rust | Target::Dioxus => format!("futures::future::select_all({tasks}).await.0"),
+        // The caller's AwaitExpr owns the `await` — emit an expression that is
+        // itself awaitable and yields the first-completed task's result.
+        Target::Python => format!("next(iter(asyncio.as_completed({tasks})))"),
+        Target::Rust | Target::Dioxus => {
+            format!("async {{ futures::future::select_all({tasks}).await.0 }}")
+        }
         Target::Dart | Target::Flutter => format!("Future.any({tasks})"),
     }
 }

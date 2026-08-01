@@ -3,6 +3,9 @@
 // ║  演示：datetime_now, datetime_format, datetime_from_timestamp, ║
 // ║        datetime_year/month/day/hour/minute/second             ║
 // ║  纯逻辑文件，不写 import omniview;                              ║
+// ║  注：Map 用字面量构建（{ "key": value }）——`map.set()` 方法   ║
+// ║  调用在 JS 目标无后端实现，且 `Map<String, T>` 返回类型注解   ║
+// ║  尚未被类型检查器解析（见 .architecture/deferrals.md #28）    ║
 // ╚══════════════════════════════════════════════════════════════╝
 
 import { datetime_now, datetime_from_timestamp, datetime_format,
@@ -14,36 +17,30 @@ pub fn now_formatted() -> String {
     return datetime_format(now, "%Y-%m-%d %H:%M:%S");
 }
 
-pub fn get_date_parts() -> Map<String, i32> {
+pub fn get_date_parts() {
     let now = datetime_now();
-    let mut parts: Map<String, i32> = {};
-    parts.set("year", datetime_year(now));
-    parts.set("month", datetime_month(now));
-    parts.set("day", datetime_day(now));
-    return parts;
+    return { "year": datetime_year(now),
+             "month": datetime_month(now),
+             "day": datetime_day(now) };
 }
 
-pub fn get_time_parts() -> Map<String, i32> {
+pub fn get_time_parts() {
     let now = datetime_now();
-    let mut parts: Map<String, i32> = {};
-    parts.set("hour", datetime_hour(now));
-    parts.set("minute", datetime_minute(now));
-    parts.set("second", datetime_second(now));
-    return parts;
+    return { "hour": datetime_hour(now),
+             "minute": datetime_minute(now),
+             "second": datetime_second(now) };
 }
 
 pub fn timestamp_to_string(ts: i64) -> String {
     return datetime_format(datetime_from_timestamp(ts), "%Y-%m-%d");
 }
 
-pub fn all_extractors() -> Map<String, i32> {
+pub fn all_extractors() {
     let now = datetime_now();
-    let mut result: Map<String, i32> = {};
-    result.set("year", datetime_year(now));
-    result.set("month", datetime_month(now));
-    result.set("day", datetime_day(now));
-    result.set("hour", datetime_hour(now));
-    result.set("minute", datetime_minute(now));
-    result.set("second", datetime_second(now));
-    return result;
+    return { "year": datetime_year(now),
+             "month": datetime_month(now),
+             "day": datetime_day(now),
+             "hour": datetime_hour(now),
+             "minute": datetime_minute(now),
+             "second": datetime_second(now) };
 }

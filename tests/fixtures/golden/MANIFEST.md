@@ -90,6 +90,8 @@ Files are grouped by primary feature. Many files demonstrate multiple features.
 - `test/projects/learn-omniview/src/components/regex_demo.omni` — `std/regex`: `regex_match`, `regex_search`, `regex_replace`
 - `test/projects/learn-omniview/src/components/math_ext.omni` — `std/math`: min, max, pow, trig (sin/cos/tan), clamp, random_int, log, pi, e
 - `test/projects/learn-omniview/src/components/error_handling.omni` — `throw` statement, `try`/`catch` error handling
+- `test/projects/learn-omniview/src/components/encode_demo.omni` — `std/encode`: base64/hex/url encode+decode roundtrips
+- `test/projects/learn-omniview/src/components/async_demo.omni` — `std/async`: `async_sleep`/`async_spawn`/`async_all`/`async_race`/`async_timeout` with `async fn` + `await`
 - `test/projects/learn-omniview/src/lib/transform.omni` — `for..in` with `break`/`continue` semantics, return-as-break pattern
 - `test/projects/learn-omniview/src/lib/stats.omni` — `let`, `let mut`, `while` loop, comparison operators (`&&`, `||`, `!=`, `<`, `>`)
 - `test/projects/learn-omniview/src/lib.omni` — Minimal pure-logic utility function (zero-dependency)

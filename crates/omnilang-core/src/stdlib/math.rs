@@ -6,6 +6,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "math",
             name: "math_abs",
+            min_args: 1,
+            max_args: Some(1),
             available_targets: &ALL_TARGETS,
             codegen: codegen_math_abs,
             is_async: false,
@@ -13,6 +15,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "math",
             name: "math_min",
+            min_args: 2,
+            max_args: Some(2),
             available_targets: &ALL_TARGETS,
             codegen: codegen_math_min,
             is_async: false,
@@ -20,6 +24,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "math",
             name: "math_max",
+            min_args: 2,
+            max_args: Some(2),
             available_targets: &ALL_TARGETS,
             codegen: codegen_math_max,
             is_async: false,
@@ -27,6 +33,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "math",
             name: "math_ceil",
+            min_args: 1,
+            max_args: Some(1),
             available_targets: &ALL_TARGETS,
             codegen: codegen_math_ceil,
             is_async: false,
@@ -34,6 +42,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "math",
             name: "math_floor",
+            min_args: 1,
+            max_args: Some(1),
             available_targets: &ALL_TARGETS,
             codegen: codegen_math_floor,
             is_async: false,
@@ -41,6 +51,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "math",
             name: "math_round",
+            min_args: 1,
+            max_args: Some(1),
             available_targets: &ALL_TARGETS,
             codegen: codegen_math_round,
             is_async: false,
@@ -48,6 +60,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "math",
             name: "math_random",
+            min_args: 0,
+            max_args: Some(0),
             available_targets: &ALL_TARGETS,
             codegen: codegen_math_random,
             is_async: false,
@@ -55,6 +69,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "math",
             name: "math_sqrt",
+            min_args: 1,
+            max_args: Some(1),
             available_targets: &ALL_TARGETS,
             codegen: codegen_math_sqrt,
             is_async: false,
@@ -62,6 +78,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "math",
             name: "math_pow",
+            min_args: 2,
+            max_args: Some(2),
             available_targets: &ALL_TARGETS,
             codegen: codegen_math_pow,
             is_async: false,
@@ -69,6 +87,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "math",
             name: "math_sin",
+            min_args: 1,
+            max_args: Some(1),
             available_targets: &ALL_TARGETS,
             codegen: codegen_math_sin,
             is_async: false,
@@ -76,6 +96,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "math",
             name: "math_cos",
+            min_args: 1,
+            max_args: Some(1),
             available_targets: &ALL_TARGETS,
             codegen: codegen_math_cos,
             is_async: false,
@@ -83,6 +105,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "math",
             name: "math_tan",
+            min_args: 1,
+            max_args: Some(1),
             available_targets: &ALL_TARGETS,
             codegen: codegen_math_tan,
             is_async: false,
@@ -90,6 +114,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "math",
             name: "math_log",
+            min_args: 1,
+            max_args: Some(1),
             available_targets: &ALL_TARGETS,
             codegen: codegen_math_log,
             is_async: false,
@@ -97,6 +123,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "math",
             name: "math_log2",
+            min_args: 1,
+            max_args: Some(1),
             available_targets: &ALL_TARGETS,
             codegen: codegen_math_log2,
             is_async: false,
@@ -104,6 +132,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "math",
             name: "math_log10",
+            min_args: 1,
+            max_args: Some(1),
             available_targets: &ALL_TARGETS,
             codegen: codegen_math_log10,
             is_async: false,
@@ -111,6 +141,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "math",
             name: "math_pi",
+            min_args: 0,
+            max_args: Some(0),
             available_targets: &ALL_TARGETS,
             codegen: codegen_math_pi,
             is_async: false,
@@ -118,6 +150,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "math",
             name: "math_e",
+            min_args: 0,
+            max_args: Some(0),
             available_targets: &ALL_TARGETS,
             codegen: codegen_math_e,
             is_async: false,
@@ -125,6 +159,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "math",
             name: "math_clamp",
+            min_args: 3,
+            max_args: Some(3),
             available_targets: &ALL_TARGETS,
             codegen: codegen_math_clamp,
             is_async: false,
@@ -132,6 +168,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "math",
             name: "math_random_int",
+            min_args: 2,
+            max_args: Some(2),
             available_targets: &ALL_TARGETS,
             codegen: codegen_math_random_int,
             is_async: false,

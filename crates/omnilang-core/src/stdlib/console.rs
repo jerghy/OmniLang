@@ -6,6 +6,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "console",
             name: "console_log",
+            min_args: 1,
+            max_args: None,
             available_targets: &ALL_TARGETS,
             codegen: codegen_console_log,
             is_async: false,
@@ -13,6 +15,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "console",
             name: "console_warn",
+            min_args: 1,
+            max_args: None,
             available_targets: &ALL_TARGETS,
             codegen: codegen_console_warn,
             is_async: false,
@@ -20,6 +24,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "console",
             name: "console_error",
+            min_args: 1,
+            max_args: None,
             available_targets: &ALL_TARGETS,
             codegen: codegen_console_error,
             is_async: false,

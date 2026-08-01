@@ -144,6 +144,18 @@
 
 ---
 
+### 来自 stdlib 接线代码质量评审（2026-08-01 会话）
+
+| # | 项目 | 触发条件 | 影响 |
+|---|------|---------|------|
+| 28 | **[MEDIUM]** `Map.set` 方法调用无后端实现 + `Map<String, T>` 返回注解未被类型检查器解析 | 用户代码需要 Map 就地变更 / 泛型 Map 返回注解 | ① `map.set(k, v)`：MethodCallExpr 无 `set` 翻译臂，OmniView/React 发射原生 `.set` → 运行时 `TypeError: map.set is not a function`。demo 已改写为字面量构建 `{ "key": value }`（datetime_demo/math_ext/string_ext/error_handling），Map 读取 `.get()` 正常。② `-> Map<String, i32>` 返回注解：`parse_type_string`（semantic/types.rs:73）不解析泛型、回退 `Named`，与字面量推断的 `Map<String, Any>` 不兼容 → E0010；demo 已去掉此类返回注解。修复方向：codegen 增加 `set` 方法臂（Object.assign/spread）+ `parse_type_string` 泛型解析 |
+| 29 | **[LOW]** encode hex/base64 仅覆盖 Latin1 | 非 ASCII 输入 | JS 臂 `charCodeAt`/`btoa` 对非 Latin1 字符失真（demo 仅用 ASCII——encode_demo 注释已注明）；修复需 TextEncoder/码点分片 |
+| 30 | **[LOW]** `regex_match` 语义跨目标不一致 | 无锚点模式 | JS `RegExp.test` 部分匹配 vs Python `re.fullmatch` 全匹配——无 `^...$` 锚点结果不同（demo 模式均带锚点） |
+| 31 | **[LOW]** `math_random_int` 区间退化未防御 | `hi - lo + 1 == 0` | JS `Math.random()*(0)` 恒返回 lo；Rust `rem_euclid(0)` 与 Dart `nextInt(0)` 会 panic/抛错。修复：codegen 夹取最小区间 |
+| 32 | **[MEDIUM]** 非 pub 模块函数不被任何后端发射 | pub 函数调用同模块私有辅助函数 | `ir::all_functions()`（ir/types.rs）过滤 `Visibility::Public`，OmniView/React 等后端只发射 pub 函数——被 pub 函数调用的私有辅助函数编译产物中缺失 → 运行时 ReferenceError（async_demo.omni 的 task_a/task_b/slow_task/fast_task 已改 pub 规避）。修复：按调用图保留被引用函数，或后端发射全部模块函数 |
+
+---
+
 ## 跟踪约定
 
 - 每个推迟项在重新评估触发条件满足时重新打开

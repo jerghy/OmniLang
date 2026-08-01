@@ -6,6 +6,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "regex",
             name: "regex_match",
+            min_args: 2,
+            max_args: Some(2),
             available_targets: &ALL_TARGETS,
             codegen: codegen_regex_match,
             is_async: false,
@@ -13,6 +15,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "regex",
             name: "regex_search",
+            min_args: 2,
+            max_args: Some(2),
             available_targets: &ALL_TARGETS,
             codegen: codegen_regex_search,
             is_async: false,
@@ -20,6 +24,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "regex",
             name: "regex_replace",
+            min_args: 3,
+            max_args: Some(3),
             available_targets: &ALL_TARGETS,
             codegen: codegen_regex_replace,
             is_async: false,

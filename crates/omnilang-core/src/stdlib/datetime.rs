@@ -6,6 +6,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "datetime",
             name: "datetime_now",
+            min_args: 0,
+            max_args: Some(0),
             available_targets: &ALL_TARGETS,
             codegen: codegen_datetime_now,
             is_async: false,
@@ -13,6 +15,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "datetime",
             name: "datetime_format",
+            min_args: 2,
+            max_args: Some(2),
             available_targets: &ALL_TARGETS,
             codegen: codegen_datetime_format,
             is_async: false,
@@ -20,6 +24,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "datetime",
             name: "datetime_from_timestamp",
+            min_args: 1,
+            max_args: Some(1),
             available_targets: &ALL_TARGETS,
             codegen: codegen_datetime_from_timestamp,
             is_async: false,
@@ -27,6 +33,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "datetime",
             name: "datetime_year",
+            min_args: 1,
+            max_args: Some(1),
             available_targets: &ALL_TARGETS,
             codegen: codegen_datetime_year,
             is_async: false,
@@ -34,6 +42,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "datetime",
             name: "datetime_month",
+            min_args: 1,
+            max_args: Some(1),
             available_targets: &ALL_TARGETS,
             codegen: codegen_datetime_month,
             is_async: false,
@@ -41,6 +51,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "datetime",
             name: "datetime_day",
+            min_args: 1,
+            max_args: Some(1),
             available_targets: &ALL_TARGETS,
             codegen: codegen_datetime_day,
             is_async: false,
@@ -48,6 +60,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "datetime",
             name: "datetime_hour",
+            min_args: 1,
+            max_args: Some(1),
             available_targets: &ALL_TARGETS,
             codegen: codegen_datetime_hour,
             is_async: false,
@@ -55,6 +69,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "datetime",
             name: "datetime_minute",
+            min_args: 1,
+            max_args: Some(1),
             available_targets: &ALL_TARGETS,
             codegen: codegen_datetime_minute,
             is_async: false,
@@ -62,6 +78,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "datetime",
             name: "datetime_second",
+            min_args: 1,
+            max_args: Some(1),
             available_targets: &ALL_TARGETS,
             codegen: codegen_datetime_second,
             is_async: false,
@@ -86,15 +104,17 @@ pub(super) fn codegen_datetime_format(args: &[String], target: Target) -> String
     let dt = &args[0];
     let fmt = &args[1];
     match target {
-        // Inline formatter supporting %Y %m %d %H %M %S — self-contained so it
-        // works in the OmniView inline JS runtime with no shared helpers.
+        // Inline formatter supporting %Y %m %d %H %M %S (+ %% literal escape) —
+        // self-contained so it works in the OmniView inline JS runtime with no
+        // shared helpers. `%%` is stashed in a placeholder first so `%%Y` keeps
+        // its literal `%` and is not consumed by the %Y replacement.
         Target::JavaScript
         | Target::TypeScript
         | Target::React
         | Target::Vue
         | Target::OmniView => {
             format!(
-                "((_dt, _fmt) => {{ const _pad = (n) => String(n).padStart(2, '0'); const _d = new Date(_dt); return _fmt.replace(/%Y/g, String(_d.getFullYear()).padStart(4, '0')).replace(/%m/g, _pad(_d.getMonth() + 1)).replace(/%d/g, _pad(_d.getDate())).replace(/%H/g, _pad(_d.getHours())).replace(/%M/g, _pad(_d.getMinutes())).replace(/%S/g, _pad(_d.getSeconds())); }})({dt}, {fmt})"
+                "((_dt, _fmt) => {{ const _pad = (n) => String(n).padStart(2, '0'); const _d = new Date(_dt); return _fmt.replace(/%%/g, '\\u0000').replace(/%Y/g, String(_d.getFullYear()).padStart(4, '0')).replace(/%m/g, _pad(_d.getMonth() + 1)).replace(/%d/g, _pad(_d.getDate())).replace(/%H/g, _pad(_d.getHours())).replace(/%M/g, _pad(_d.getMinutes())).replace(/%S/g, _pad(_d.getSeconds())).replace(/\\u0000/g, '%'); }})({dt}, {fmt})"
             )
         }
         Target::Python => format!("{dt}.strftime({fmt})"),

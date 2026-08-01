@@ -6,6 +6,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "array",
             name: "array_length",
+            min_args: 1,
+            max_args: Some(1),
             available_targets: &ALL_TARGETS,
             codegen: codegen_array_length,
             is_async: false,
@@ -13,6 +15,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "array",
             name: "array_get",
+            min_args: 2,
+            max_args: Some(2),
             available_targets: &ALL_TARGETS,
             codegen: codegen_array_get,
             is_async: false,
@@ -20,6 +24,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "array",
             name: "array_push",
+            min_args: 2,
+            max_args: Some(2),
             available_targets: &ALL_TARGETS,
             codegen: codegen_array_push,
             is_async: false,
@@ -27,6 +33,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "array",
             name: "array_pop",
+            min_args: 1,
+            max_args: Some(1),
             available_targets: &ALL_TARGETS,
             codegen: codegen_array_pop,
             is_async: false,
@@ -34,6 +42,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "array",
             name: "array_remove",
+            min_args: 2,
+            max_args: Some(2),
             available_targets: &ALL_TARGETS,
             codegen: codegen_array_remove,
             is_async: false,
@@ -41,6 +51,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "array",
             name: "array_map",
+            min_args: 2,
+            max_args: Some(2),
             available_targets: &ALL_TARGETS,
             codegen: codegen_array_map,
             is_async: false,
@@ -48,6 +60,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "array",
             name: "array_filter",
+            min_args: 2,
+            max_args: Some(2),
             available_targets: &ALL_TARGETS,
             codegen: codegen_array_filter,
             is_async: false,
@@ -55,6 +69,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "array",
             name: "array_find",
+            min_args: 2,
+            max_args: Some(2),
             available_targets: &ALL_TARGETS,
             codegen: codegen_array_find,
             is_async: false,
@@ -62,6 +78,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "array",
             name: "array_sort",
+            min_args: 1,
+            max_args: Some(2),
             available_targets: &ALL_TARGETS,
             codegen: codegen_array_sort,
             is_async: false,
@@ -69,6 +87,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "array",
             name: "array_contains",
+            min_args: 2,
+            max_args: Some(2),
             available_targets: &ALL_TARGETS,
             codegen: codegen_array_contains,
             is_async: false,
@@ -76,6 +96,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "array",
             name: "array_is_empty",
+            min_args: 1,
+            max_args: Some(1),
             available_targets: &ALL_TARGETS,
             codegen: codegen_array_is_empty,
             is_async: false,

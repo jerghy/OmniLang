@@ -23,13 +23,21 @@ static STDLIB_FN_MAP: LazyLock<FxHashMap<&'static str, (&'static str, &'static s
 /// Try to format a stdlib function call. Returns `Some(code)` if the call
 /// matches a registered stdlib function, `None` otherwise (so backends fall
 /// through to their normal CallExpr handling).
+///
+/// Wrong-arity calls return a `compile_error!` diagnostic string instead of
+/// panicking on argument indexing inside the codegen functions.
 #[must_use]
 pub fn try_format_stdlib_call(name: &str, args: &[String], target: Target) -> Option<String> {
     // O(1) lookup via pre-built map
     if let Some(&(module, fn_name)) = STDLIB_FN_MAP.get(name) {
         if let Some(entry) = crate::stdlib::lookup(module, fn_name) {
             if entry.available_targets.contains(&target) {
-                return Some((entry.codegen)(args, target));
+                let arity_ok = args.len() >= entry.min_args
+                    && entry.max_args.is_none_or(|max| args.len() <= max);
+                if arity_ok {
+                    return Some((entry.codegen)(args, target));
+                }
+                return Some(crate::stdlib::wrong_arity_error(entry, args.len()));
             }
         }
     }

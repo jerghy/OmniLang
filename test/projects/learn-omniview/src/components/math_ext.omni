@@ -3,40 +3,29 @@
 // ║  演示：math_min, max, pow, sin, cos, tan, log, log2, log10,  ║
 // ║        pi, e, clamp, random_int, round                       ║
 // ║  纯逻辑文件，不写 import omniview;                              ║
+// ║  注：Map 用字面量构建（{ "key": value }）——`map.set()` 方法   ║
+// ║  调用在 JS 目标无后端实现，且 `Map<String, T>` 返回类型注解   ║
+// ║  尚未被类型检查器解析（见 .architecture/deferrals.md #28）    ║
 // ╚══════════════════════════════════════════════════════════════╝
 
 import { math_min, math_max, math_pow, math_sin, math_cos, math_tan,
          math_log, math_log2, math_log10, math_pi, math_e,
          math_clamp, math_random_int, math_round } from "std/math";
 
-pub fn demo_math_min_max(a: f64, b: f64) -> Map<String, f64> {
-    let mut result: Map<String, f64> = {};
-    result.set("min", math_min(a, b));
-    result.set("max", math_max(a, b));
-    return result;
+pub fn demo_math_min_max(a: f64, b: f64) {
+    return { "min": math_min(a, b), "max": math_max(a, b) };
 }
 
-pub fn demo_trig(angle: f64) -> Map<String, f64> {
-    let mut result: Map<String, f64> = {};
-    result.set("sin", math_sin(angle));
-    result.set("cos", math_cos(angle));
-    result.set("tan", math_tan(angle));
-    return result;
+pub fn demo_trig(angle: f64) {
+    return { "sin": math_sin(angle), "cos": math_cos(angle), "tan": math_tan(angle) };
 }
 
-pub fn demo_logs(x: f64) -> Map<String, f64> {
-    let mut result: Map<String, f64> = {};
-    result.set("log", math_log(x));
-    result.set("log2", math_log2(x));
-    result.set("log10", math_log10(x));
-    return result;
+pub fn demo_logs(x: f64) {
+    return { "log": math_log(x), "log2": math_log2(x), "log10": math_log10(x) };
 }
 
-pub fn demo_constants() -> Map<String, f64> {
-    let mut result: Map<String, f64> = {};
-    result.set("pi", math_pi());
-    result.set("e", math_e());
-    return result;
+pub fn demo_constants() {
+    return { "pi": math_pi(), "e": math_e() };
 }
 
 pub fn demo_clamp(val: f64, min: f64, max: f64) -> f64 {

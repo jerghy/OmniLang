@@ -181,7 +181,7 @@ import { encode_base64_encode, encode_base64_decode,
          encode_url_encode, encode_url_decode } from "std/encode";
 import { regex_match, regex_search, regex_replace } from "std/regex";
 import { array_length } from "std/array";
-import { string_length } from "std/string";
+import { string_length, string_ends_with } from "std/string";
 import { math_sin, math_pi, math_e, math_clamp, math_random_int,
          math_log2, math_log10 } from "std/math";
 
@@ -190,11 +190,18 @@ pub fn b64_ok() -> bool {
 }
 
 pub fn hex_ok() -> bool {
-    return encode_hex_decode(encode_hex_encode("OmniLang")) == "OmniLang";
+    return encode_hex_decode(encode_hex_encode("OmniLang")) == "OmniLang"
+        && encode_hex_decode("") == "";
 }
 
 pub fn url_ok() -> bool {
     return encode_url_decode(encode_url_encode("hello world")) == "hello world";
+}
+
+pub fn datetime_pct_ok() -> bool {
+    // `%%` must survive as a literal `%` (escape before %X replacements).
+    return datetime_format(datetime_now(), "%%Y") == "%Y"
+        && string_ends_with(datetime_format(datetime_now(), "%Y%%"), "%");
 }
 
 pub fn regex_ok() -> bool {
@@ -276,6 +283,7 @@ pub async fn async_ok() -> String {
          console.log('url=' + url_ok());\n\
          console.log('regex=' + regex_ok());\n\
          console.log('datetime=' + datetime_ok());\n\
+         console.log('pct=' + datetime_pct_ok());\n\
          console.log('math=' + math_ok());\n\
          async_ok().then(r => console.log('async=' + r));\n",
     );
@@ -308,6 +316,7 @@ pub async fn async_ok() -> String {
         ("url", "url=true"),
         ("regex", "regex=true"),
         ("datetime", "datetime=true"),
+        ("pct", "pct=true"),
         ("math", "math=true"),
         ("async", "async=quick"),
     ] {

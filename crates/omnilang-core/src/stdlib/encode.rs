@@ -6,6 +6,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "encode",
             name: "encode_base64_encode",
+            min_args: 1,
+            max_args: Some(1),
             available_targets: &ALL_TARGETS,
             codegen: codegen_encode_base64_encode,
             is_async: false,
@@ -13,6 +15,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "encode",
             name: "encode_base64_decode",
+            min_args: 1,
+            max_args: Some(1),
             available_targets: &ALL_TARGETS,
             codegen: codegen_encode_base64_decode,
             is_async: false,
@@ -20,6 +24,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "encode",
             name: "encode_hex_encode",
+            min_args: 1,
+            max_args: Some(1),
             available_targets: &ALL_TARGETS,
             codegen: codegen_encode_hex_encode,
             is_async: false,
@@ -27,6 +33,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "encode",
             name: "encode_hex_decode",
+            min_args: 1,
+            max_args: Some(1),
             available_targets: &ALL_TARGETS,
             codegen: codegen_encode_hex_decode,
             is_async: false,
@@ -34,6 +42,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "encode",
             name: "encode_url_encode",
+            min_args: 1,
+            max_args: Some(1),
             available_targets: &ALL_TARGETS,
             codegen: codegen_encode_url_encode,
             is_async: false,
@@ -41,6 +51,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "encode",
             name: "encode_url_decode",
+            min_args: 1,
+            max_args: Some(1),
             available_targets: &ALL_TARGETS,
             codegen: codegen_encode_url_decode,
             is_async: false,
@@ -112,8 +124,9 @@ pub(super) fn codegen_encode_hex_decode(args: &[String], target: Target) -> Stri
         | Target::React
         | Target::Vue
         | Target::OmniView => {
+            // Guard empty input: `"".match(...)` is null → `|| []` avoids a crash.
             format!(
-                "({s}).match(/.{{1,2}}/g).map((b) => String.fromCharCode(parseInt(b, 16))).join('')"
+                "(({s}).match(/.{{1,2}}/g) || []).map((b) => String.fromCharCode(parseInt(b, 16))).join('')"
             )
         }
         Target::Python => format!("bytes.fromhex({s}).decode()"),

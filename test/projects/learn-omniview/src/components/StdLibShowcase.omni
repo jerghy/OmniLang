@@ -72,7 +72,7 @@ component StdLibShowcase {
     action runAsyncDemos() async {
         sleepResult = await demo_sleep_and_return();
         let p = await demo_parallel();
-        parallelResult = p.len().to_string() + " 项（最快任务先返回）";
+        parallelResult = p.len().to_string() + " 项（async_all 等待全部完成）";
         raceResult = await demo_race();
         try {
             // slow_task 睡 200ms > 50ms 超时 → async_timeout 触发拒绝
@@ -241,7 +241,7 @@ component StdLibShowcase {
                         <code>timestamp_to_string(0)</code> = {timestamp_to_string(0)}（epoch → "%Y-%m-%d"）
                     </li>
                     <li class: output-item>
-                        <code>all_extractors()</code> 共 {all_extractors().len()} 个字段
+                        <code>all_extractors()</code> = 年 {all_extractors().get("year")} · 月 {all_extractors().get("month")} · 日 {all_extractors().get("day")} · {all_extractors().get("hour")}:{all_extractors().get("minute")}:{all_extractors().get("second")}
                     </li>
                 </ul>
             </div>

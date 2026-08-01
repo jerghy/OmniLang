@@ -42,6 +42,7 @@ use super::string::{
     codegen_string_to_upper, codegen_string_trim,
 };
 use super::*;
+use crate::codegen::stdlib::try_format_stdlib_call;
 
 // ── Registry tests ─────────────────────────────────
 
@@ -448,6 +449,32 @@ fn test_codegen_async_race_js() {
 }
 
 #[test]
+fn test_codegen_async_race_python() {
+    // The caller's AwaitExpr owns the `await` — the arm itself must be an
+    // awaitable expression without an embedded await (double-await bug).
+    let result = codegen_async_race(&["tasks".into()], Target::Python);
+    assert_eq!(result, "next(iter(asyncio.as_completed(tasks)))");
+    assert!(
+        !result.starts_with("(await "),
+        "Python race arm must not embed await: {result}"
+    );
+}
+
+#[test]
+fn test_codegen_async_race_rust() {
+    // Caller's `.await` wraps the whole arm — the arm must not end in `.await`.
+    let result = codegen_async_race(&["tasks".into()], Target::Rust);
+    assert_eq!(
+        result,
+        "async { futures::future::select_all(tasks).await.0 }"
+    );
+    assert!(
+        !result.ends_with(".await"),
+        "Rust race arm must not end in .await: {result}"
+    );
+}
+
+#[test]
 fn test_codegen_async_timeout_js() {
     let result = codegen_async_timeout(&["task".into(), "50".into()], Target::JavaScript);
     assert!(result.contains("Promise.race"), "Got: {}", result);
@@ -523,6 +550,22 @@ fn test_codegen_datetime_format_js() {
     assert!(result.contains("getMonth"), "Got: {}", result);
     assert!(result.contains("getSeconds"), "Got: {}", result);
     assert!(result.contains("now"), "Got: {}", result);
+}
+
+#[test]
+fn test_codegen_datetime_format_js_escapes_percent() {
+    // `%%` must survive as a literal `%` and must not be consumed by %Y.
+    let result = codegen_datetime_format(&["now".into(), "\"%Y%%\"".into()], Target::JavaScript);
+    assert!(
+        result.contains("replace(/%%/g, '\\u0000')"),
+        "%% must be stashed in a placeholder before %Y: {}",
+        result
+    );
+    assert!(
+        result.contains("replace(/\\u0000/g, '%')"),
+        "placeholder must be restored to % at the end: {}",
+        result
+    );
 }
 
 #[test]
@@ -624,6 +667,17 @@ fn test_codegen_encode_hex_js() {
     assert!(enc.contains("charCodeAt"), "Got: {}", enc);
     let dec = codegen_encode_hex_decode(&["s".into()], Target::JavaScript);
     assert!(dec.contains("fromCharCode"), "Got: {}", dec);
+}
+
+#[test]
+fn test_codegen_encode_hex_decode_js_guards_empty_input() {
+    // `"".match(...)` is null → `|| []` must prevent a null.map crash.
+    let result = codegen_encode_hex_decode(&["s".into()], Target::JavaScript);
+    assert!(
+        result.contains("|| []"),
+        "empty-input guard missing: {}",
+        result
+    );
 }
 
 #[test]
@@ -825,5 +879,111 @@ fn test_codegen_math_log2_dart() {
     assert_eq!(
         codegen_math_log2(&["x".into()], Target::Dart),
         "log(x) / ln2"
+    );
+}
+
+// ── Arity validation tests ──────────────────────────
+
+/// Every registered stdlib function must declare min_args/max_args so
+/// wrong-arity calls surface a diagnostic instead of panicking in codegen.
+#[test]
+fn test_all_registered_functions_declare_arity() {
+    for f in registry() {
+        assert!(
+            f.min_args <= f.max_args.unwrap_or(usize::MAX),
+            "{}: min_args {} > max_args {:?}",
+            f.name,
+            f.min_args,
+            f.max_args
+        );
+    }
+}
+
+#[test]
+fn test_wrong_arity_datetime_format_no_panic() {
+    // datetime_format requires 2 args — a 1-arg call must not panic.
+    let result = try_format_stdlib_call("datetime_format", &["now".into()], Target::JavaScript);
+    let code = result.expect("wrong-arity call should still produce a diagnostic");
+    assert!(
+        code.contains("compile_error!"),
+        "expected compile_error! diagnostic, got: {}",
+        code
+    );
+    assert!(
+        code.contains("expects 2 argument(s), got 1"),
+        "expected clear arity message, got: {}",
+        code
+    );
+}
+
+#[test]
+fn test_wrong_arity_math_clamp_no_panic() {
+    let result =
+        try_format_stdlib_call("math_clamp", &["v".into(), "lo".into()], Target::JavaScript);
+    let code = result.expect("wrong-arity call should still produce a diagnostic");
+    assert!(code.contains("compile_error!"), "got: {}", code);
+    assert!(
+        code.contains("expects 3 argument(s), got 2"),
+        "got: {}",
+        code
+    );
+}
+
+#[test]
+fn test_wrong_arity_async_timeout_no_panic() {
+    // timeout(task) with a single arg would index args[1] → panic before the fix.
+    let result = try_format_stdlib_call("async_timeout", &["task".into()], Target::JavaScript);
+    let code = result.expect("wrong-arity call should still produce a diagnostic");
+    assert!(code.contains("compile_error!"), "got: {}", code);
+}
+
+#[test]
+fn test_wrong_arity_too_many_args_no_panic() {
+    // math_abs takes exactly 1 arg.
+    let result = try_format_stdlib_call("math_abs", &["a".into(), "b".into()], Target::JavaScript);
+    let code = result.expect("wrong-arity call should still produce a diagnostic");
+    assert!(code.contains("compile_error!"), "got: {}", code);
+    assert!(
+        code.contains("expects 1 argument(s), got 2"),
+        "got: {}",
+        code
+    );
+}
+
+#[test]
+fn test_optional_max_args_accepts_range() {
+    // string_substring takes 2 or 3 args.
+    let two = try_format_stdlib_call(
+        "string_substring",
+        &["s".into(), "1".into()],
+        Target::JavaScript,
+    );
+    assert!(
+        two.is_some() && !two.unwrap().contains("compile_error"),
+        "2-arg substring should be valid"
+    );
+    let three = try_format_stdlib_call(
+        "string_substring",
+        &["s".into(), "1".into(), "3".into()],
+        Target::JavaScript,
+    );
+    assert!(
+        three.is_some() && !three.unwrap().contains("compile_error"),
+        "3-arg substring should be valid"
+    );
+    // Variadic console_log accepts any number ≥ 1 of args.
+    let zero = try_format_stdlib_call("console_log", &[], Target::JavaScript);
+    assert!(
+        zero.is_some() && zero.unwrap().contains("compile_error"),
+        "0-arg console_log should be rejected"
+    );
+    let many = try_format_stdlib_call(
+        "console_log",
+        &["a".into(), "b".into(), "c".into()],
+        Target::JavaScript,
+    );
+    assert!(
+        many.is_some() && !many.unwrap().contains("compile_error"),
+        "multi-arg console_log should be valid"
     );
 }

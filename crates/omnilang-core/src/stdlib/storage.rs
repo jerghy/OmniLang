@@ -6,6 +6,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "storage",
             name: "storage_get",
+            min_args: 1,
+            max_args: Some(1),
             available_targets: &STORAGE_TARGETS,
             codegen: codegen_storage_get,
             is_async: false,
@@ -13,6 +15,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "storage",
             name: "storage_set",
+            min_args: 1,
+            max_args: Some(2),
             available_targets: &STORAGE_TARGETS,
             codegen: codegen_storage_set,
             is_async: false,

@@ -6,6 +6,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "string",
             name: "string_length",
+            min_args: 1,
+            max_args: Some(1),
             available_targets: &ALL_TARGETS,
             codegen: codegen_string_length,
             is_async: false,
@@ -13,6 +15,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "string",
             name: "string_concat",
+            min_args: 2,
+            max_args: Some(2),
             available_targets: &ALL_TARGETS,
             codegen: codegen_string_concat,
             is_async: false,
@@ -20,6 +24,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "string",
             name: "string_split",
+            min_args: 2,
+            max_args: Some(2),
             available_targets: &ALL_TARGETS,
             codegen: codegen_string_split,
             is_async: false,
@@ -27,6 +33,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "string",
             name: "string_join",
+            min_args: 2,
+            max_args: Some(2),
             available_targets: &ALL_TARGETS,
             codegen: codegen_string_join,
             is_async: false,
@@ -34,6 +42,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "string",
             name: "string_replace",
+            min_args: 3,
+            max_args: Some(3),
             available_targets: &ALL_TARGETS,
             codegen: codegen_string_replace,
             is_async: false,
@@ -41,6 +51,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "string",
             name: "string_substring",
+            min_args: 2,
+            max_args: Some(3),
             available_targets: &ALL_TARGETS,
             codegen: codegen_string_substring,
             is_async: false,
@@ -48,6 +60,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "string",
             name: "string_contains",
+            min_args: 2,
+            max_args: Some(2),
             available_targets: &ALL_TARGETS,
             codegen: codegen_string_contains,
             is_async: false,
@@ -55,6 +69,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "string",
             name: "string_to_upper",
+            min_args: 1,
+            max_args: Some(1),
             available_targets: &ALL_TARGETS,
             codegen: codegen_string_to_upper,
             is_async: false,
@@ -62,6 +78,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "string",
             name: "string_to_lower",
+            min_args: 1,
+            max_args: Some(1),
             available_targets: &ALL_TARGETS,
             codegen: codegen_string_to_lower,
             is_async: false,
@@ -69,6 +87,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "string",
             name: "string_trim",
+            min_args: 1,
+            max_args: Some(1),
             available_targets: &ALL_TARGETS,
             codegen: codegen_string_trim,
             is_async: false,
@@ -76,6 +96,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "string",
             name: "string_starts_with",
+            min_args: 2,
+            max_args: Some(2),
             available_targets: &ALL_TARGETS,
             codegen: codegen_string_starts_with,
             is_async: false,
@@ -83,6 +105,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "string",
             name: "string_ends_with",
+            min_args: 2,
+            max_args: Some(2),
             available_targets: &ALL_TARGETS,
             codegen: codegen_string_ends_with,
             is_async: false,

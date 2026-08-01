@@ -6,6 +6,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "http",
             name: "http_send",
+            min_args: 1,
+            max_args: Some(1),
             available_targets: &ALL_TARGETS,
             codegen: codegen_http_send,
             is_async: true,
@@ -13,6 +15,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "http",
             name: "http_get",
+            min_args: 1,
+            max_args: Some(1),
             available_targets: &ALL_TARGETS,
             codegen: codegen_http_get,
             is_async: true,
@@ -20,6 +24,8 @@ pub(super) fn register() -> Vec<StdlibFn> {
         StdlibFn {
             module: "http",
             name: "http_post",
+            min_args: 1,
+            max_args: Some(2),
             available_targets: &ALL_TARGETS,
             codegen: codegen_http_post,
             is_async: true,
