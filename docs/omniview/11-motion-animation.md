@@ -104,7 +104,7 @@ easing: steps(6, start)                                  // 阶梯（Flutter 目
 - **Named-only**（Back、Elastic）不接收参数——参数形式（`backOut(intensity: 1.7)`、`elasticOut(amplitude: 1.0)`、`spring(tension: 200)`）已随 ADR-032 移除
 - `steps()` 以位置参数形式保留（`steps(count, start|end)`，语义级 DSL 新形式）
 
-> 注：`cubic(...)` 与 `delay <expr>`（空格形式）为 **parser 实际接受**的形式；BNF 规范（`docs/superpowers/specs/2026-07-31-semantic-level-dsl-syntax-spec.md`）中的 `cubic-bezier(...)`、`delay ':' expr` 形式，以及 `direction` 规则缺少的 `alternateReverse`（parser 已支持），均待以 parser 为准同步（见 `.architecture/deferrals.md` #25）。
+> 注：`cubic(...)` 与 `delay <expr>`（空格形式）为 **parser 实际接受**的形式。BNF 规范（`docs/superpowers/specs/2026-07-31-semantic-level-dsl-syntax-spec.md`）已按 parser 同步（commit 10f2af9c）：`cubic(x1:, y1:, x2:, y2:)` 命名参数形式、`delay <expr>` 空格形式、`direction` 规则含 `alternateReverse`（见 `.architecture/deferrals.md` #25，已关闭）。
 
 ## 动画触发器（8 个）
 

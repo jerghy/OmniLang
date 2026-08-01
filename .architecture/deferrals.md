@@ -105,7 +105,7 @@
 |---|------|---------|------|
 | 12 | ~~Dead @focus JS codegen in React backend~~ | ~~React focus animation feature~~ | ✅ 2026-08-01 已关闭（ADR-053 D4：@focus 成为受支持触发器，React codegen 用 `onFocus` + `element.animate()` 原生实现于 `react/motion/mod.rs`；原 mod.rs 死代码区域现为 import 路径辅助函数） |
 | 13 | ~~Removed trigger tokens still in lexer~~ | ~~Lexer cleanup pass~~ | ✅ 2026-08-01 已关闭：删除测试 `test_deleted_sub_attribute_tokens_lex_as_ident`（`lexer/mod.rs:1243-1260`）验证 `@paused`/`@in-view-once`/`@drag-constraints` 等子属性 token 已移除、按普通 ident 词法化；`keywords.rs` 无残留映射（仅 `@drag-horizontal`/`@drag-vertical` 触发器 token）。parser 保留 `paused` 播放关键字仅作兼容解析（`PlaybackIR.paused` 已删，运行时不生效）。其余文档陈旧见 #24 |
-| 14 | Stale doc comments referencing removed features | Doc audit | ⚠️ 2026-08-01 部分修复：`docs/omniview/06-templates.md` + `11-motion-animation.md` 已同步 ADR-052/053 语法（Task 10.1）；代码注释与其余文档待审计（见 #24） |
+| 14 | Stale doc comments referencing removed features | Doc audit | ⚠️ 2026-08-01 部分修复：文档侧已全部完成——`06-templates.md` + `11-motion-animation.md`（Task 10.1）+ 其余 4 个文档（commit 10f2af9c，见 #24）；`easing.rs`/`easing.ts` 所有权注释已调和（10f2af9c）。其余代码注释待审计 |
 
 ### 来自 ADR-034/035 (v4 Review Structural Fixes)
 
@@ -125,8 +125,8 @@
 | 21 | **[MEDIUM]** 跨文件 slot 转发检测缺失 | 组件跨文件导入时转发 slot | E0006 slot 转发警告是模块局部的（`module_component_names` 只含当前文件组件）——导入的组件绕过该警告 |
 | 22 | **[MEDIUM]** `--all-features` 测试编译失败（历史遗留） | `cargo test --all-features` | javascript/rust/vue/dioxus 测试文件使用旧 IR 字段（`SignalRefIR.owner`、`MutationIntent.field_object`）；`vue/tests.rs` 缺括号；dioxus feature 接线缺失 |
 | 23 | **[MEDIUM]** omni-animation TS 运行时缺口 | 使用 kebab 缓动名或 translateX/Y/Z 关键帧 | `easing.ts` 无 kebab 别名（`power1-in` 降级为 linear）；`keyframes.ts` `TRANSFORM_MAP` 缺 translateX/Y/Z |
-| 24 | **[MEDIUM]** 文档陈旧（docs/omniview） | 全面文档审计 | `06-templates.md` / `11-motion-animation.md` 已修复（Task 10.1，2026-08-01）；其余文档（`14-grammar-lang.md`、`15-grammar-view.md`、`05-components.md`、`07-events-and-bindings.md` 等）仍教授 ADR-052/053 前语法 |
-| 25 | **[MEDIUM]** BNF 规范与 parser 语法分歧未同步 | 规范文档更新 | `2026-07-31-semantic-level-dsl-syntax-spec.md` 写 `cubic-bezier(num,...)`、`delay ':' expr`，且 `direction` 规则缺 `alternateReverse`；parser 实际接受 `cubic(x1:...,y1:...,x2:...,y2:...)`（`parser/expr/motion.rs:93`）、`delay <expr>` 空格形式（`parser/top_level/motion.rs:366`）、`alternateReverse`（demo 已用）——两份权威文档教授不同语法，需以 parser 为准同步规范 |
+| 24 | ~~**[MEDIUM]** 文档陈旧（docs/omniview）~~ | ~~全面文档审计~~ | ✅ 2026-08-01 已关闭（commit 10f2af9c）：`14-grammar-lang.md`、`15-grammar-view.md`、`05-components.md`、`07-events-and-bindings.md` 全部审计并同步 ADR-052/053 语法（kebab 触发器、17 属性白名单、`over:`/`easing:` 冒号 timing、slot D5 体级声明 + 命名属性消费、ref 语义方法表、@if `mode:` 冒号形式等；删除内容均加 "removed per ADR-053" 注记）。`06-templates.md` / `11-motion-animation.md` 已于 Task 10.1 修复 |
+| 25 | ~~**[MEDIUM]** BNF 规范与 parser 语法分歧未同步~~ | ~~规范文档更新~~ | ✅ 2026-08-01 已关闭（commit 10f2af9c）：`2026-07-31-semantic-level-dsl-syntax-spec.md` 已按 parser 同步——`cubic(x1:...,y1:...,x2:...,y2:...)` 命名参数形式（替代 `cubic-bezier(num,...)`）、`delay <expr>` 空格形式（替代 `delay ':' expr`）、`direction` 规则补 `alternateReverse`；另修正 `loop`（无 `infinite` 关键字）、`steps()` 位置参数、per-stop `ease`、token_type 小写、computed 空括号等 9 处分歧；触发器子属性与内联动画体标注为未实现（见 #19） |
 | 26 | **[MEDIUM]** `@if mode:` 过渡效果跨后端缺失 | mode 过渡效果落地前 | `transition_mode`（ADR-052 feature floor）仅 Flutter 的 `"wait"` 生成 `AnimatedSwitcher`（`codegen/flutter/view.rs:848`，`"fade"`/`"none"` 无效果）；React codegen 完全不读取（静默 no-op）；OmniView wait 路径查找 `__omni_animations.get(oldNid + "_leave")`（`codegen/omniview/editor.rs:127`）但无任何 `_leave` 注册（@leave 不存在）——静默行为差异违反 ADR-021 floor 原则，需实现或出诊断 |
 | 27 | **[MEDIUM]** 组件级 `@motion` 关键帧体未计入 lint 信号读取 | 用户仅在 `@motion` keyframe 属性中使用信号 | 死代码 lint collector 从未访问 `comp.motions` → `KeyframeStop.properties: Vec<(String, Expr)>`（`parser/top_level/motion.rs:172`）——keyframe-only 信号被误报 "never used"（与 #20 同类缺口，修复模式见 `semantic/lints/ast_collectors.rs` 的 Style/ClassMap/MotionTrigger 臂） |
 
@@ -134,9 +134,9 @@
 
 ## 2026-08-01 状态更新（语义级 DSL 实施完成）
 
-**已关闭**：#2（Flutter GlobalKey）、#4（ref_names 线程化）、#5（element_tag 被语义 ref 系统取代）、#11（IR `#[non_exhaustive]` 迁移）、#12（@focus 死代码）、#13（lexer 子属性 token 删除——由删除测试 `test_deleted_sub_attribute_tokens_lex_as_ident` 验证）、#20（Style 读取已计入 lint 信号读取——`ast_collectors.rs` 新增 Style 臂 + 测试，并顺带修复同类 ClassMap/内联 motion tween 缺口）。原因见上表各条目备注。
+**已关闭**：#2（Flutter GlobalKey）、#4（ref_names 线程化）、#5（element_tag 被语义 ref 系统取代）、#11（IR `#[non_exhaustive]` 迁移）、#12（@focus 死代码）、#13（lexer 子属性 token 删除——由删除测试 `test_deleted_sub_attribute_tokens_lex_as_ident` 验证）、#20（Style 读取已计入 lint 信号读取——`ast_collectors.rs` 新增 Style 臂 + 测试，并顺带修复同类 ClassMap/内联 motion tween 缺口）、#24（docs/omniview 全部 6 个文档审计完成——Task 10.1 + commit 10f2af9c）、#25（BNF 规范已按 parser 同步——commit 10f2af9c）。原因见上表各条目备注。
 
-**部分实施**：#7（CI codegen-validate 门禁落地：tsc + dart analyze）、#14（2 个文档已修复）。
+**部分实施**：#7（CI codegen-validate 门禁落地：tsc + dart analyze）、#14（文档审计完成，代码注释待审计）。
 
 **新增**：#17-#24（本会话 8 项发现）+ #25/#26（10.1 代码质量评审发现：BNF 规范分歧、`@if mode:` 跨后端缺失）+ #27（#20 代码质量评审发现的 keyframe 体同类缺口，留待后续修复）。其中 #17 为 HIGH（P0 目标生成不可编译代码，门禁尚未覆盖）；#26 涉及 ADR-021 floor 原则的静默行为差异。
 
