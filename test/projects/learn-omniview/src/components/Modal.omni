@@ -1,10 +1,17 @@
-// Modal.omni - @slot (header/body/footer), @onKeyDown (Escape), @onMouseEnter/@onMouseLeave
+// Modal.omni - @slot header/body/footer (body-level declarations + {name} interpolation),
+// @onKeyDown (Escape), @onMouseEnter/@onMouseLeave
 // Demonstrates slot projection, keyboard events, and mouse hover tracking
 
 import omniview;
 import { LearnDesign } from "../design";
 
 component Modal {
+    // Body-level slot declarations (ADR-053 D5): consumers project via
+    // named props (header={<.../>}) or slot="name" children (back-compat).
+    @slot header
+    @slot body
+    @slot footer
+
     signal isOpen: bool = false;
     signal isHovering: bool = false;
     signal lastAction: String = "";
@@ -43,23 +50,23 @@ component Modal {
                         @onMouseEnter={handleMouseEnter}
                         @onMouseLeave={handleMouseLeave}
                     >
-                        <!-- Named slot: header with close button -->
+                        <!-- Named slot: header interpolation (title + close stay as static chrome) -->
                         <div class: modal-header>
-                            @slot header
+                            {header}
                             <h3 class: modal-title>Modal Title</h3>
                             <button class: close-btn @onPress={close}>X</button>
                         </div>
 
                         <!-- Named slot: body -->
                         <div class: modal-body>
-                            @slot body
+                            {body}
                             <p class: modal-text>Modal content goes here.</p>
                             <p class: hint-text>Press Escape or click overlay to close</p>
                         </div>
 
                         <!-- Named slot: footer -->
                         <div class: modal-footer>
-                            @slot footer
+                            {footer}
                             <button variant: LearnDesign.Button(color=ghost, size=md) @onPress={close}>Cancel</button>
                             <button variant: LearnDesign.Button(color=primary, size=md) @onPress={close}>Confirm</button>
                         </div>

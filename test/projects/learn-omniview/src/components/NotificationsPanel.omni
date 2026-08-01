@@ -5,6 +5,12 @@ import { LearnDesign } from "../design";
 import { NotificationStore } from "../stores/NotificationStore";
 
 component NotificationsPanel {
+    // Body-level slot declarations (ADR-053 D5): `{header}` / `{children}` /
+    // `{footer}` interpolations mark the projection positions in the view.
+    @slot header
+    @slot default
+    @slot footer
+
     @store NotificationStore;
     ref scrollContainer: HtmlElement;
     signal badgeVisible: bool = false;
@@ -33,13 +39,14 @@ component NotificationsPanel {
 
             <!-- Named slot for custom header content -->
             <div class: slot-header-area>
-                @slot header
+                {header}
             </div>
 
             <!-- Scroll container with ref -->
-            <div class: scroll-area ref: scrollContainer>
+            <div class: scroll-area @ref={scrollContainer}>
                 @if NotificationStore.unreadCount == 0 {
-                    @slot
+                    <!-- Unnamed slot: projected children render only in the empty state -->
+                    {children}
                     <p class: LearnDesign.Hint>No notifications</p>
                 }
                 @for item in NotificationStore.notifications {
@@ -54,7 +61,7 @@ component NotificationsPanel {
             <div class: footer>
                 <p class: count-text>Total: {NotificationStore.unreadCount}</p>
                 <div class: slot-footer-area>
-                    @slot footer
+                    {footer}
                 </div>
             </div>
         </div>
