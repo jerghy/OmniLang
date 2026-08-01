@@ -987,6 +987,122 @@ component CounterDemo {
         }
     }
 
+    /// Regression: a store action named `set` (which collides with the signal
+    /// mutation rewrite `obj.set(v)` → `ident("set")` in expression position)
+    /// must stay a call — previously `CounterStore.set(5)` in an event handler
+    /// was silently mangled to the bare identifier `set`.
+    #[test]
+    fn lower_store_action_named_set_stays_a_call() {
+        let source = r#"
+import omniview;
+store CounterStore {
+    signal count: i32 = 0;
+    action set(v: i32) {
+        count = v;
+    }
+}
+component CounterDemo {
+    @store CounterStore;
+    view {
+        <button @onPress={CounterStore.set(5)}>Set</button>
+    }
+}
+"#;
+        let comp = lower_first_component(source);
+        let view = comp.view.expect("should have view");
+        match &view {
+            ViewTree::Element(el) => {
+                let handler = el.events.get("onPress").expect("should have onPress event");
+                match handler {
+                    EventHandlerIR::InlineFn { body, .. } => {
+                        let stmts = &body.statements;
+                        let has_call = stmts.iter().any(|s| {
+                            matches!(s, StatementIR::ExprStmtIR { expr: ExprIR::MethodCallExpr { method, object, .. } }
+                                if method == "set"
+                                    && matches!(&**object, ExprIR::IdentifierExpr { name, .. } if name == "CounterStore"))
+                        });
+                        assert!(
+                            has_call,
+                            "handler must contain the CounterStore.set(5) call, got: {:?}",
+                            stmts
+                        );
+                        assert!(
+                            !stmts.iter().any(|s| {
+                                matches!(
+                                    s,
+                                    StatementIR::ExprStmtIR {
+                                        expr: ExprIR::IdentifierExpr { name, .. }
+                                    } if name == "set"
+                                )
+                            }),
+                            "must NOT lower the store action to bare ident('set')"
+                        );
+                    }
+                    other => panic!("expected InlineFn handler, got {:?}", other),
+                }
+            }
+            other => panic!("expected Element, got {:?}", other),
+        }
+    }
+
+    /// Regression: a store action named `get` (which collides with the signal
+    /// access rewrite `obj.get()` → `obj.value` in expression position) must
+    /// stay a call — previously `CounterStore.get()` in an event handler was
+    /// silently lowered to `CounterStore.value`.
+    #[test]
+    fn lower_store_action_named_get_stays_a_call() {
+        let source = r#"
+import omniview;
+store CounterStore {
+    signal count: i32 = 0;
+    action get(): i32 {
+        return count;
+    }
+}
+component CounterDemo {
+    @store CounterStore;
+    view {
+        <button @onPress={CounterStore.get()}>Get</button>
+    }
+}
+"#;
+        let comp = lower_first_component(source);
+        let view = comp.view.expect("should have view");
+        match &view {
+            ViewTree::Element(el) => {
+                let handler = el.events.get("onPress").expect("should have onPress event");
+                match handler {
+                    EventHandlerIR::InlineFn { body, .. } => {
+                        let stmts = &body.statements;
+                        let has_call = stmts.iter().any(|s| {
+                            matches!(s, StatementIR::ExprStmtIR { expr: ExprIR::MethodCallExpr { method, object, .. } }
+                                if method == "get"
+                                    && matches!(&**object, ExprIR::IdentifierExpr { name, .. } if name == "CounterStore"))
+                        });
+                        assert!(
+                            has_call,
+                            "handler must contain the CounterStore.get() call, got: {:?}",
+                            stmts
+                        );
+                        assert!(
+                            !stmts.iter().any(|s| {
+                                matches!(
+                                    s,
+                                    StatementIR::ExprStmtIR {
+                                        expr: ExprIR::FieldAccessExpr { field, .. }
+                                    } if field == "value"
+                                )
+                            }),
+                            "must NOT lower the store action to a .value field access"
+                        );
+                    }
+                    other => panic!("expected InlineFn handler, got {:?}", other),
+                }
+            }
+            other => panic!("expected Element, got {:?}", other),
+        }
+    }
+
     #[test]
     fn lower_component_with_event_used_fields() {
         let source = r#"

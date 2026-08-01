@@ -17,7 +17,7 @@ use rustc_hash::FxHashSet;
 /// `push`/`pop`/...) collides with store action names, and treating the store
 /// name as a signal target silently rewrites the call into a mutation of a
 /// non-existent `CounterStore` signal.
-fn is_store_symbol(semantics: &SemanticResult, name: &str) -> bool {
+pub(super) fn is_store_symbol(semantics: &SemanticResult, name: &str) -> bool {
     matches!(
         semantics.symbols.resolve(name).map(|s| &s.kind),
         Some(SymbolKind::Store)

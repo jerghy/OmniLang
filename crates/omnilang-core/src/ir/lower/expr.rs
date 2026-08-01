@@ -2,7 +2,7 @@
 //!
 //! Includes: `lower_expr`, `lower_expr_to_json_from_ir`.
 
-use super::stmt::lower_block;
+use super::stmt::{is_store_symbol, lower_block};
 use crate::ir::types::*;
 use crate::parser::ast::*;
 use crate::semantic::SemanticResult;
@@ -110,14 +110,17 @@ pub(crate) fn lower_expr(
             // Pattern: signal.get() → signal.value
             if let Expr::FieldAccess { object, field, .. } = func.as_ref() {
                 if let Expr::VarRef(obj_name, _) = object.as_ref() {
+                    // Store actions named get/set/inc/dec are store field
+                    // accesses, not signal accesses — skip the rewrites below.
+                    let is_store_receiver = is_store_symbol(semantics, obj_name);
                     // Signal method calls
-                    if field == "get" {
+                    if !is_store_receiver && field == "get" {
                         return ExprIR::FieldAccessExpr {
                             object: Box::new(ExprIR::ident(obj_name)),
                             field: "value".into(),
                         };
                     }
-                    if field == "set" || field == "inc" || field == "dec" {
+                    if !is_store_receiver && (field == "set" || field == "inc" || field == "dec") {
                         // Multi-arg calls like map.set(key, val) are regular method calls,
                         // not signal mutations (which always have 0-1 args).
                         if field == "set" && args.len() > 1 {
@@ -216,9 +219,15 @@ pub(crate) fn lower_expr(
             args,
             ..
         } => {
+            // Store action calls (CounterStore.get()/set()) are method calls,
+            // not signal accesses — skip the signal-specific rewrites below.
+            let is_store_receiver = matches!(
+                object.as_ref(),
+                Expr::VarRef(name, _) if is_store_symbol(semantics, name)
+            );
             // get() with no args → signal access (.value)
             // get(i) with args → array/map index access
-            if method == "get" && args.is_empty() {
+            if !is_store_receiver && method == "get" && args.is_empty() {
                 ExprIR::FieldAccessExpr {
                     object: Box::new(lower_expr(
                         object,
@@ -228,7 +237,7 @@ pub(crate) fn lower_expr(
                     )),
                     field: "value".into(),
                 }
-            } else if method == "set" && args.len() <= 1 {
+            } else if !is_store_receiver && method == "set" && args.len() <= 1 {
                 // signal.set(value) with 0-1 args → handled at statement level by try_lower_mutation
                 ExprIR::ident("set")
             } else {
