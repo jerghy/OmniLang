@@ -328,7 +328,9 @@ impl OmniViewGenerator {
                 format!("{base}.capturePointer({})", self.expr_to_js(id))
             }
             RefOpIR::ReleasePointer { id } => {
-                format!("{base}.releasePointer({})", self.expr_to_js(id))
+                // Native DOM API is `releasePointerCapture` — the wrapper method
+                // is named accordingly (matches the React backend convention).
+                format!("{base}.releasePointerCapture({})", self.expr_to_js(id))
             }
             #[allow(unreachable_patterns)]
             _ => format!("/* RefOp::{op:?} on {ref_name} */"),

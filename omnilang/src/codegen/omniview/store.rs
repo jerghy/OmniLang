@@ -615,7 +615,9 @@ impl OmniViewGenerator {
                  \x20\x20 get textContent() {{ const e = _el(); return e ? e.textContent : null; }},\n\
                  \x20\x20 set textContent(v) {{ const e = _el(); if (e) e.textContent = v; }},\n\
                  \x20\x20 capturePointer(id) {{ const e = _el(); if (e) e.setPointerCapture(id); }},\n\
-                 \x20\x20 releasePointer(id) {{ const e = _el(); if (e) e.releasePointer(id); }},\n\
+                 \x20\x20 // DSL releasePointer maps to the native releasePointerCapture API
+                 \x20\x20 // (releasePointer does not exist on DOM).
+                 \x20\x20 releasePointerCapture(id) {{ const e = _el(); if (e) e.releasePointerCapture(id); }},\n\
                  \x20\x20 // Zero-rect when unmounted so ref.measure() / ref.width / ref.height\n\
                  \x20\x20 // chains (getBoundingClientRect().width) never hit null.\n\
                  \x20\x20 getBoundingClientRect() {{ const e = _el(); return e ? e.getBoundingClientRect() : {{ left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0, x: 0, y: 0 }}; }},\n\
@@ -625,8 +627,11 @@ impl OmniViewGenerator {
                  \x20\x20 setSelectionRange(start, end) {{ const e = _el(); if (e) e.setSelectionRange(start, end); }},\n\
                  \x20\x20 get offsetWidth() {{ const e = _el(); return e ? e.offsetWidth : 0; }},\n\
                  \x20\x20 get offsetHeight() {{ const e = _el(); return e ? e.offsetHeight : 0; }},\n\
-                 \x20\x20 scrollTo(x, y) {{ const e = _el(); if (e) e.scrollTo(x, y); }},\n\
-                 \x20\x20 scrollBy(dx, dy) {{ const e = _el(); if (e) e.scrollBy(dx, dy); }},\n\
+                 \x20\x20 // Lowering always emits the options-object form
+                 \x20\x20 // (left/top keys) — forward as ONE argument, or Chrome
+                 \x20\x20 // resolves the 2-arg call to the x, y overload → NaN → no scroll.
+                 \x20\x20 scrollTo(opts) {{ const e = _el(); if (e) e.scrollTo(opts); }},\n\
+                 \x20\x20 scrollBy(opts) {{ const e = _el(); if (e) e.scrollBy(opts); }},\n\
                  \x20 }};\n\
                  }})();",
                 ref_name = ref_name,

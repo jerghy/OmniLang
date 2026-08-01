@@ -283,13 +283,42 @@ component RefOps {
         "box.value;",
         "if (box) { box.value = RefOps_text.value; };",
         "box.capturePointer(RefOps_ptr.value);",
-        "box.releasePointer(RefOps_ptr.value);",
+        "box.releasePointerCapture(RefOps_ptr.value);",
     ];
     for expected in expectations {
         assert!(
             js.contains(expected),
             "expected RefOp output to contain {:?}. Got:\n{}",
             expected,
+            js
+        );
+    }
+    // Ref wrapper shape: releasePointer maps to the native releasePointerCapture
+    // API (releasePointer does not exist on DOM), and scrollTo/scrollBy forward
+    // the options object as ONE argument (the 2-arg (x, y) forwarding breaks the
+    // options-object call → NaN → no scroll).
+    let wrapper_assertions = [
+        "releasePointerCapture(id) { const e = _el(); if (e) e.releasePointerCapture(id); },",
+        "scrollTo(opts) { const e = _el(); if (e) e.scrollTo(opts); },",
+        "scrollBy(opts) { const e = _el(); if (e) e.scrollBy(opts); },",
+    ];
+    for expected in wrapper_assertions {
+        assert!(
+            js.contains(expected),
+            "expected ref wrapper to contain {:?}. Got:\n{}",
+            expected,
+            js
+        );
+    }
+    for broken in [
+        "e.releasePointer(id)",
+        "e.scrollTo(x, y)",
+        "e.scrollBy(dx, dy)",
+    ] {
+        assert!(
+            !js.contains(broken),
+            "ref wrapper must not contain broken form {:?}. Got:\n{}",
+            broken,
             js
         );
     }
