@@ -24,7 +24,7 @@ import omniview;
 // ║  6. Check Elastic group: elastic-in/out/in-out.            ║
 // ║  7. Check Steps group: steps(6, end) / steps(6, start).    ║
 // ║  8. Check Custom group: cubic-bezier.                       ║
-// ║  9. Click "Play All Animations" button to trigger @enter   ║
+// ║  9. Click "Replay All Animations" button to replay @enter  ║
 // ║     on all cards.                                          ║
 // ║                                                            ║
 // ║  **Expected:**                                             ║
@@ -33,7 +33,7 @@ import omniview;
 // ║  - power4InOut card has @enter={power4InOutMove} (easing:  ║
 // ║    power4-in-out).                                         ║
 // ║  - cubicCustom card uses cubic(x1,y1,x2,y2).              ║
-// ║  - "Play All Animations" button rendered and clickable.    ║
+// ║  - "Replay All Animations" button rendered and clickable.  ║
 // ╚══════════════════════════════════════════════════════════════╝
 
 // ══════════════════════════════════════════════════════════════════════
@@ -238,6 +238,10 @@ import omniview;
 //  组件
 // ══════════════════════════════════════════════════════════════════════
 component EasingFunctionsDemo {
+    // 重放机制（omniview 运行时）：组件内任意信号变化都会触发
+    // __omni_enter_replay_{comp} 效果——取消并重放本组件全部命名
+    // @enter 动画。按钮每次点击切换 playAll（必须产生值变化才能
+    // 触发重放），故标签固定为 "Replay"，不再显示无意义的 Reset 态。
     signal playAll: bool = false;
 
     fn toggleAll() { playAll = !playAll; }
@@ -247,7 +251,7 @@ component EasingFunctionsDemo {
             <h3 class: title>缓动函数全家桶</h3>
             <p class: subtitle>22 种缓动 · 点击按钮播放当前屏幕所有 @enter 动画</p>
             <button @press={backOutMove} @click={toggleAll} class: trigger-btn>
-                {if playAll { "Reset" } else { "Play All Animations" }}
+                Replay All Animations
             </button>
 
             <!-- ═══ Power 组 ═══ -->

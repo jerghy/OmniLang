@@ -184,22 +184,27 @@ import { LearnDesign } from "../design";
 // 组件
 // ═══════════════════════════════════════════════════════════════
 component KeyframeAnimationDemo {
-    signal playTriggers: bool = false;
-    signal playPlayback: bool = false;
+    // 重放机制（omniview 运行时）：组件内任意信号变化都会触发
+    // __omni_enter_replay_{comp} 效果——取消并重放本组件全部命名
+    // @enter 动画（组件级，无法按组隔离）。因此 触发器/播放属性
+    // 两组不再各设按钮，合并为单个“重放全部”按钮，每次点击切换
+    // playAll 即重放。paused 等"暂停/复位"类状态控件不受支持。
+    signal playAll: bool = false;
 
-    fn toggleTriggers() { playTriggers = !playTriggers; }
-    fn togglePlayback() { playPlayback = !playPlayback; }
+    fn toggleAll() { playAll = !playAll; }
 
     view {
         <div class: LearnDesign.Container>
             <h3 class: LearnDesign.CardTitle>Keyframe Animation Demo</h3>
             <p class: LearnDesign.Subtitle>8 触发器 · 4 播放属性 · 4 缓动变体 · 多停靠关键帧 (ADR-032)</p>
 
+            <!-- 重放全部：点击切换 playAll → 运行时重放本组件所有 @enter 动画 -->
+            <button variant: LearnDesign.Button(color=primary, size=sm) @click={toggleAll}>
+                Replay All @enter Animations
+            </button>
+
             <!-- ═══ 触发器组 ═══ -->
             <h4 class: LearnDesign.SectionTitle>全部 8 触发器</h4>
-            <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={toggleTriggers}>
-                {if playTriggers { "Reset Triggers" } else { "Play All Triggers" }}
-            </button>
 
             <div class: trigger-grid>
                 <!-- @enter -->
@@ -254,9 +259,6 @@ component KeyframeAnimationDemo {
 
             <!-- ═══ 播放属性组 ═══ -->
             <h4 class: LearnDesign.SectionTitle>4 个播放属性：Loop · Direction · Fill · Delay</h4>
-            <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={togglePlayback}>
-                {if playPlayback { "Reset" } else { "Play Playback Props" }}
-            </button>
 
             <div class: trigger-grid>
                 <div class: card @enter={spinLoop}>

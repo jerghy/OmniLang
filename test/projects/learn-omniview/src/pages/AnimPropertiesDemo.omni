@@ -32,14 +32,14 @@ import omniview;
 // ║     rotateZ/skewX/skewY cards.                             ║
 // ║  4. Check translate/translateZ cards.                      ║
 // ║  5. Check opacity/backgroundColor/color/width/height cards.║
-// ║  6. Click "Play All Animations" button to trigger @enter.  ║
+// ║  6. Click "Replay All Animations" button to replay @enter. ║
 // ║                                                            ║
 // ║  **Expected:**                                             ║
 // ║  - 16 animation cards rendered across 3 property groups.   ║
 // ║  - Each card has @enter pointing to its @motion definition.║
 // ║  - scaleX card: @enter={scaleXDemo}, from scaleX:1→1.8.   ║
 // ║  - skewX card: @enter={skewXDemo}, skewX 0→15deg.         ║
-// ║  - "Play All Animations" button exists and clickable.      ║
+// ║  - "Replay All Animations" button exists and clickable.    ║
 // ╚══════════════════════════════════════════════════════════════╝
 
 // ── 变换：scaleX（X 轴缩放） ──────────────────────────
@@ -174,6 +174,10 @@ import omniview;
 //  组件
 // ══════════════════════════════════════════════════════════════════════
 component AnimPropertiesDemo {
+    // 重放机制（omniview 运行时）：组件内任意信号变化都会触发
+    // __omni_enter_replay_{comp} 效果——取消并重放本组件全部命名
+    // @enter 动画。按钮每次点击切换 playAll（必须产生值变化才能
+    // 触发重放），故标签固定为 "Replay"，不再显示无意义的 Reset 态。
     signal playAll: bool = false;
 
     fn toggleAll() { playAll = !playAll; }
@@ -184,7 +188,7 @@ component AnimPropertiesDemo {
             <p class: subtitle>17 个语义 keyframe 属性（ADR-053 白名单）· scale/scaleX/scaleY · rotate/rotateX/rotateY/rotateZ · skewX/skewY · translateX/translateY/translateZ · opacity · backgroundColor · color · width · height · 点击按钮播放所有 @enter 动画</p>
 
             <button @click={toggleAll} class: trigger-btn>
-                {if playAll { "Reset" } else { "Play All Animations" }}
+                Replay All Animations
             </button>
 
             <!-- ═══ 变换组 ═══ -->
