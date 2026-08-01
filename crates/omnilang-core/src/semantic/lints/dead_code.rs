@@ -431,4 +431,59 @@ mod tests {
             diags
         );
     }
+
+    // ── Inline style binding reference sites (deferral #20) ─────────
+
+    #[test]
+    fn test_signal_used_only_in_inline_style_not_reported() {
+        // style: { ... } entries are real reference sites — a bare signal
+        // reference as a style value must count as a read.
+        let diags = lint_source(
+            "component App { signal accentColor: String = \"red\";              view { <div style: { color: accentColor }/> } }",
+        );
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.message.contains("'accentColor'") && d.message.contains("never used")),
+            "signal referenced from an inline style binding must not be reported unused, got: {:?}",
+            diags
+        );
+    }
+
+    #[test]
+    fn test_signal_used_only_in_composite_inline_style_not_reported() {
+        // Style values can be arbitrary expressions (e.g. string concat),
+        // mirroring CssVarsDemo's `border: "2px solid " + accentColor`.
+        let diags = lint_source(
+            "component App { signal accentColor: String = \"red\";              view { <div style: { border: \"2px solid \" + accentColor }/> } }",
+        );
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.message.contains("'accentColor'") && d.message.contains("never used")),
+            "signal referenced from a composite inline style binding must not be reported unused, got: {:?}",
+            diags
+        );
+    }
+
+    #[test]
+    fn test_unused_signal_still_reported_alongside_style_references() {
+        let diags = lint_source(
+            "component App { signal usedColor: String = \"red\"; signal unusedColor: String = \"blue\";              view { <div style: { color: usedColor }/> } }",
+        );
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.message.contains("'usedColor'") && d.message.contains("never used")),
+            "style-referenced signal must not be reported unused, got: {:?}",
+            diags
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.message.contains("'unusedColor'") && d.message.contains("never used")),
+            "genuinely unused signal must still be reported, got: {:?}",
+            diags
+        );
+    }
 }

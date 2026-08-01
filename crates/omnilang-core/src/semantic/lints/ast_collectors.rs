@@ -195,6 +195,13 @@ pub(super) fn collect_used_names_in_view_node<'a>(
                     ElementProp::Static { value, .. } => {
                         collect_used_names_in_expr(value, used);
                     }
+                    // Inline style entries (`style: { color: accentColor }`) are
+                    // real reference sites — their values are plain expressions.
+                    ElementProp::Style { entries } => {
+                        for (_, value) in entries {
+                            collect_used_names_in_expr(value, used);
+                        }
+                    }
                     ElementProp::Bind { signal_path, .. } => {
                         if let Some(dot) = signal_path.find('.') {
                             used.insert(&signal_path[..dot]);
