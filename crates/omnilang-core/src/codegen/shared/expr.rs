@@ -177,8 +177,10 @@ pub trait FormatExpr {
                         format!("return {body};")
                     }
                     MatchPatternKindIR::Literal { value } => {
+                        // Literal patterns compare the subject value itself —
+                        // primitives carry no `_variant` field.
                         let v = format_json_value(value, self.json_config());
-                        format!("if (_v._variant === {v}) {{ return {body}; }}")
+                        format!("if (_v === {v}) {{ return {body}; }}")
                     }
                 }
             })
@@ -391,8 +393,20 @@ impl FormatExpr for DartFormatExpr {
         format!("{}.{}({})", union_type, variant, entries.join(", "))
     }
 
-    // Dart uses `switch/case` on `_variant` inside an IIFE.
+    // Dart uses `switch/case` inside an IIFE. Variant patterns dispatch on
+    // `._variant`; literal patterns (match on primitives) switch on the
+    // subject value itself — `n._variant` on a raw int is null and never
+    // matches, so a switch on the value is required when any literal arm
+    // exists (variant dispatch stays when all arms are variants).
     fn format_match(&self, matched: &str, arms: &[MatchArmIR]) -> String {
+        let has_variant = arms
+            .iter()
+            .any(|arm| matches!(arm.pattern.kind, MatchPatternKindIR::Variant { .. }));
+        let subject = if has_variant {
+            format!("{matched}._variant")
+        } else {
+            matched.to_string()
+        };
         let cases: Vec<String> = arms
             .iter()
             .map(|arm| {
@@ -412,7 +426,7 @@ impl FormatExpr for DartFormatExpr {
             })
             .collect();
         format!(
-            "(() {{\nswitch ({matched}._variant) {{\n{}\n}}\n}})()",
+            "(() {{\nswitch ({subject}) {{\n{}\n}}\n}})()",
             cases.join("\n")
         )
     }

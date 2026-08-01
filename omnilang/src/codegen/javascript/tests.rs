@@ -1242,6 +1242,82 @@ fn test_match_expr_multiple_variants() {
 }
 
 #[test]
+fn test_match_expr_literal_arms_compare_subject_value() {
+    let expr = ExprIR::MatchExpr {
+        matched: Box::new(ExprIR::IdentifierExpr {
+            name: "n".into(),
+            type_ann: None,
+        }),
+        arms: vec![
+            MatchArmIR {
+                pattern: MatchPatternIR {
+                    kind: MatchPatternKindIR::Literal {
+                        value: serde_json::json!(0),
+                    },
+                },
+                body: BlockIR {
+                    statements: vec![StatementIR::ReturnStmtIR {
+                        value: Some(ExprIR::LiteralExpr {
+                            value: serde_json::json!("zero"),
+                        }),
+                    }],
+                },
+                union_type: None,
+            },
+            MatchArmIR {
+                pattern: MatchPatternIR {
+                    kind: MatchPatternKindIR::Literal {
+                        value: serde_json::json!(true),
+                    },
+                },
+                body: BlockIR {
+                    statements: vec![StatementIR::ReturnStmtIR {
+                        value: Some(ExprIR::LiteralExpr {
+                            value: serde_json::json!("yes"),
+                        }),
+                    }],
+                },
+                union_type: None,
+            },
+            MatchArmIR {
+                pattern: MatchPatternIR {
+                    kind: MatchPatternKindIR::Wildcard,
+                },
+                body: BlockIR {
+                    statements: vec![StatementIR::ReturnStmtIR {
+                        value: Some(ExprIR::LiteralExpr {
+                            value: serde_json::json!("many"),
+                        }),
+                    }],
+                },
+                union_type: None,
+            },
+        ],
+    };
+    let out = format_expr_ir(&expr, false);
+    assert!(
+        out.contains("_v === 0"),
+        "int literal arm should compare the subject value. Output: {}",
+        out
+    );
+    assert!(
+        out.contains("_v === true"),
+        "bool literal arm should compare the subject value. Output: {}",
+        out
+    );
+    assert!(
+        !out.contains("_v._variant === 0"),
+        "literal arm must not dispatch on _variant. Output: {}",
+        out
+    );
+    assert!(
+        out.contains("return \"many\""),
+        "wildcard arm should still return the fallback. Output: {}",
+        out
+    );
+}
+
+#[test]
 fn test_format_block_as_js_expr_with_return() {
     let block = BlockIR {
         statements: vec![

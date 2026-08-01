@@ -956,6 +956,143 @@ fn test_format_await_expr_dart() {
     );
 }
 
+/// Literal match arms switch on the subject value itself (`switch (n)`
+/// with `case 0:`) — `switch (n._variant)` on a raw int is null and never
+/// matches. Variant-only matches keep the `_variant` dispatch.
+#[test]
+fn test_format_match_literal_arms_switch_on_subject() {
+    let expr = ExprIR::MatchExpr {
+        matched: Box::new(ExprIR::IdentifierExpr {
+            name: "n".into(),
+            type_ann: None,
+        }),
+        arms: vec![
+            MatchArmIR {
+                pattern: MatchPatternIR {
+                    kind: MatchPatternKindIR::Literal {
+                        value: serde_json::json!(0),
+                    },
+                },
+                body: BlockIR {
+                    statements: vec![StatementIR::ReturnStmtIR {
+                        value: Some(ExprIR::LiteralExpr {
+                            value: serde_json::json!("zero"),
+                        }),
+                    }],
+                },
+                union_type: None,
+            },
+            MatchArmIR {
+                pattern: MatchPatternIR {
+                    kind: MatchPatternKindIR::Literal {
+                        value: serde_json::json!("seven"),
+                    },
+                },
+                body: BlockIR {
+                    statements: vec![StatementIR::ReturnStmtIR {
+                        value: Some(ExprIR::LiteralExpr {
+                            value: serde_json::json!("seven"),
+                        }),
+                    }],
+                },
+                union_type: None,
+            },
+            MatchArmIR {
+                pattern: MatchPatternIR {
+                    kind: MatchPatternKindIR::Wildcard,
+                },
+                body: BlockIR {
+                    statements: vec![StatementIR::ReturnStmtIR {
+                        value: Some(ExprIR::LiteralExpr {
+                            value: serde_json::json!("many"),
+                        }),
+                    }],
+                },
+                union_type: None,
+            },
+        ],
+    };
+    let out = format_expr_ir(&expr);
+    assert!(
+        out.contains("switch (n)"),
+        "literal match should switch on the subject value. Output: {}",
+        out
+    );
+    assert!(
+        out.contains("case 0: return 'zero';"),
+        "int literal arm should be a case on the value. Output: {}",
+        out
+    );
+    assert!(
+        out.contains("case 'seven': return 'seven';"),
+        "string literal arm should be a case on the value. Output: {}",
+        out
+    );
+    assert!(
+        out.contains("default: return 'many';"),
+        "wildcard arm should be the default. Output: {}",
+        out
+    );
+    assert!(
+        !out.contains("switch (n._variant)"),
+        "literal match must not switch on _variant. Output: {}",
+        out
+    );
+}
+
+/// Variant-only matches keep switching on `._variant`.
+#[test]
+fn test_format_match_variant_arms_switch_on_variant() {
+    let expr = ExprIR::MatchExpr {
+        matched: Box::new(ExprIR::IdentifierExpr {
+            name: "r".into(),
+            type_ann: None,
+        }),
+        arms: vec![
+            MatchArmIR {
+                pattern: MatchPatternIR {
+                    kind: MatchPatternKindIR::Variant {
+                        name: "Star".into(),
+                        bindings: vec!["level".into()],
+                    },
+                },
+                body: BlockIR {
+                    statements: vec![StatementIR::ReturnStmtIR {
+                        value: Some(ExprIR::LiteralExpr {
+                            value: serde_json::json!("star"),
+                        }),
+                    }],
+                },
+                union_type: None,
+            },
+            MatchArmIR {
+                pattern: MatchPatternIR {
+                    kind: MatchPatternKindIR::Wildcard,
+                },
+                body: BlockIR {
+                    statements: vec![StatementIR::ReturnStmtIR {
+                        value: Some(ExprIR::LiteralExpr {
+                            value: serde_json::json!("other"),
+                        }),
+                    }],
+                },
+                union_type: None,
+            },
+        ],
+    };
+    let out = format_expr_ir(&expr);
+    assert!(
+        out.contains("switch (r._variant)"),
+        "variant match should keep _variant dispatch. Output: {}",
+        out
+    );
+    assert!(
+        out.contains("case \"Star\": return 'star';"),
+        "variant arm should be a case on the variant name. Output: {}",
+        out
+    );
+}
+
 #[test]
 fn test_format_variant_literal_dart() {
     let expr = ExprIR::VariantLiteral {

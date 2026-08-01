@@ -108,8 +108,10 @@ impl FormatExpr for JavaScriptFormatExpr {
                         format!("  return {};", body_expr)
                     }
                     MatchPatternKindIR::Literal { value } => {
+                        // Literal patterns compare the subject value itself —
+                        // primitives carry no `_variant` field.
                         let v = format_json_value(value, &JSON_JS);
-                        format!("  if (_v._variant === {}) {{ return {}; }}", v, body_expr)
+                        format!("  if (_v === {}) {{ return {}; }}", v, body_expr)
                     }
                 }
             })

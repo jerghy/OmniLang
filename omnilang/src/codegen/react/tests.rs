@@ -195,6 +195,110 @@ fn test_format_expr_store_field() {
     );
 }
 
+// ── format_match tests ─────────────────────────────────
+
+/// Literal arms must compare the subject value itself (`_v === 0`), not
+/// `_v._variant === 0` — a raw primitive (const `_v = n`) has no `_variant`
+/// field, so the old shape never matched at runtime. Variant arms keep the
+/// `_variant` dispatch and bindings still destructure from the subject.
+#[test]
+fn test_format_match_literal_arms_compare_subject_value() {
+    let expr = ExprIR::MatchExpr {
+        matched: Box::new(ExprIR::IdentifierExpr {
+            name: "n".into(),
+            type_ann: None,
+        }),
+        arms: vec![
+            MatchArmIR {
+                pattern: MatchPatternIR {
+                    kind: MatchPatternKindIR::Literal {
+                        value: serde_json::json!(0),
+                    },
+                },
+                body: BlockIR {
+                    statements: vec![StatementIR::ReturnStmtIR {
+                        value: Some(ExprIR::LiteralExpr {
+                            value: serde_json::json!("zero"),
+                        }),
+                    }],
+                },
+                union_type: None,
+            },
+            MatchArmIR {
+                pattern: MatchPatternIR {
+                    kind: MatchPatternKindIR::Literal {
+                        value: serde_json::json!("seven"),
+                    },
+                },
+                body: BlockIR {
+                    statements: vec![StatementIR::ReturnStmtIR {
+                        value: Some(ExprIR::LiteralExpr {
+                            value: serde_json::json!("seven"),
+                        }),
+                    }],
+                },
+                union_type: None,
+            },
+            MatchArmIR {
+                pattern: MatchPatternIR {
+                    kind: MatchPatternKindIR::Variant {
+                        name: "Star".into(),
+                        bindings: vec!["level".into()],
+                    },
+                },
+                body: BlockIR {
+                    statements: vec![StatementIR::ReturnStmtIR {
+                        value: Some(ExprIR::IdentifierExpr {
+                            name: "level".into(),
+                            type_ann: None,
+                        }),
+                    }],
+                },
+                union_type: None,
+            },
+            MatchArmIR {
+                pattern: MatchPatternIR {
+                    kind: MatchPatternKindIR::Wildcard,
+                },
+                body: BlockIR {
+                    statements: vec![StatementIR::ReturnStmtIR {
+                        value: Some(ExprIR::LiteralExpr {
+                            value: serde_json::json!("many"),
+                        }),
+                    }],
+                },
+                union_type: None,
+            },
+        ],
+    };
+    let out = format_expr_ir_tsx(&expr, &FxHashSet::default());
+    assert!(
+        out.contains("_v === 0"),
+        "int literal arm should compare the subject value. Output: {}",
+        out
+    );
+    assert!(
+        out.contains("_v === \"seven\""),
+        "string literal arm should compare the subject value. Output: {}",
+        out
+    );
+    assert!(
+        out.contains("_v._variant === \"Star\""),
+        "variant arm should keep _variant dispatch. Output: {}",
+        out
+    );
+    assert!(
+        !out.contains("_v._variant === 0"),
+        "literal arm must not dispatch on _variant. Output: {}",
+        out
+    );
+    assert!(
+        out.contains("const { level } = _v;"),
+        "variant bindings should still destructure the subject. Output: {}",
+        out
+    );
+}
+
 // ── generate_statement_tsx tests ─────────────────────────
 
 #[test]

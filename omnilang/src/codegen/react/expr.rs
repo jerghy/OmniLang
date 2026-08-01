@@ -201,8 +201,11 @@ impl FormatExpr for ReactFormatExpr {
                         format!("return {};", body)
                     }
                     MatchPatternKindIR::Literal { value } => {
+                        // Literal patterns match the subject value itself —
+                        // primitives carry no `_variant` field (unlike tagged
+                        // union values), so `_v._variant === 0` never fires.
                         let v = crate::codegen::format_json_value(value, &JSON_REACT);
-                        format!("if (_v._variant === {}) {{ return {}; }}", v, body)
+                        format!("if (_v === {}) {{ return {}; }}", v, body)
                     }
                 }
             })

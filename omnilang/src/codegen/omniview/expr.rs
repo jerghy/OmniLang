@@ -257,8 +257,11 @@ impl OmniViewGenerator {
                                 format!("return {};", body_js)
                             }
                             MatchPatternKindIR::Literal { value } => {
+                                // Literal patterns compare the subject value
+                                // itself — primitives carry no `_variant` field,
+                                // so `_v._variant === 0` never matched.
                                 let v = self.js_value(value);
-                                format!("if (_v._variant === {}) {{ return {}; }}", v, body_js)
+                                format!("if (_v === {}) {{ return {}; }}", v, body_js)
                             }
                         }
                     })
