@@ -239,6 +239,77 @@ fn test_keyframe_animate_call_edge_cases() {
 
 // [Removed] test_keyframe_animate_call_with_path — path/path_rotate fields removed from KeyframeIR
 
+/// P0 regression: durations must emit as numeric milliseconds, never strings —
+/// Chrome's `el.animate()` throws a TypeError on `duration: "500ms"` and the
+/// whole app fails at bootstrap. Covers unit strings ("300ms", "1.5s"),
+/// bare numbers (>= 1.0 are ms, < 1.0 are seconds per CSS convention), and
+/// delay (WAAPI delay is also a number).
+#[test]
+fn test_duration_and_delay_emit_numeric_ms() {
+    let mut gen = OmniViewGenerator::default();
+
+    for (over, expected) in [
+        (serde_json::json!("300ms"), "300"),
+        (serde_json::json!("1.5s"), "1500"),
+        (serde_json::json!("0.5s"), "500"),
+        (serde_json::json!("0.5"), "500"),
+        (serde_json::json!(400), "400"),
+        (serde_json::json!(1), "1"),
+        (serde_json::json!(0.5), "500"),
+    ] {
+        let kf = KeyframeIR {
+            stops: vec![],
+            over: ExprIR::LiteralExpr {
+                value: over.clone(),
+            },
+            ease: None,
+            playback: PlaybackIR::default(),
+            source_span: None,
+        };
+        let (_, opts_js) = gen.keyframe_to_animate_call(&kf);
+        assert!(
+            opts_js.contains(&format!("duration:{},", expected)),
+            "over {:?} should emit duration:{} — got: {}",
+            over,
+            expected,
+            opts_js
+        );
+        assert!(
+            !opts_js.contains("duration:\""),
+            "duration must never emit as a string — got: {}",
+            opts_js
+        );
+    }
+
+    // delay: "500ms" string IR (defensive — the parser only accepts plain
+    // numbers for delay, but constructed IR may carry a unit string).
+    let kf = KeyframeIR {
+        stops: vec![],
+        over: ExprIR::LiteralExpr {
+            value: serde_json::json!(300),
+        },
+        ease: None,
+        playback: PlaybackIR {
+            delay: Some(ExprIR::LiteralExpr {
+                value: serde_json::json!("500ms"),
+            }),
+            ..PlaybackIR::default()
+        },
+        source_span: None,
+    };
+    let (_, opts_js) = gen.keyframe_to_animate_call(&kf);
+    assert!(
+        opts_js.contains("delay:500"),
+        "delay should emit delay:500 — got: {}",
+        opts_js
+    );
+    assert!(
+        !opts_js.contains("delay:\""),
+        "delay must never emit as a string — got: {}",
+        opts_js
+    );
+}
+
 // ═════════════════════════════════════════════════════════════════════════════
 // Phase 3: State-Mutating Function Tests (need &mut OmniViewGenerator)
 // ═════════════════════════════════════════════════════════════════════════════

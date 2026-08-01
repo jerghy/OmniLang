@@ -19,9 +19,9 @@ export function MotionCombined() {
 
     // -- Motion definitions --
     const _M={
-        fadeIn:{kf:[{offset:0,transform:"translateY(20px)",opacity:0},{offset:1,transform:"translateY(0px)",opacity:1}],opts:{duration:"400ms",easing:"ease-out",fill:"forwards"} as KeyframeAnimationOptions},
-        pulse:{kf:[{offset:0},{offset:1,transform:"scale(1.05)"}],opts:{duration:"200ms",easing:"ease-out",fill:"forwards"} as KeyframeAnimationOptions},
-        slideIn:{kf:[{offset:0,transform:"translateX(-30px)",opacity:0},{offset:1,transform:"translateX(0px)",opacity:1}],opts:{duration:"500ms",easing:"ease-out",fill:"forwards"} as KeyframeAnimationOptions},
+        fadeIn:{kf:[{offset:0,transform:"translateY(20px)",opacity:0},{offset:1,transform:"translateY(0px)",opacity:1}],opts:{duration:400,easing:"ease-out",fill:"forwards"} as KeyframeAnimationOptions},
+        pulse:{kf:[{offset:0},{offset:1,transform:"scale(1.05)"}],opts:{duration:200,easing:"ease-out",fill:"forwards"} as KeyframeAnimationOptions},
+        slideIn:{kf:[{offset:0,transform:"translateX(-30px)",opacity:0},{offset:1,transform:"translateX(0px)",opacity:1}],opts:{duration:500,easing:"ease-out",fill:"forwards"} as KeyframeAnimationOptions},
     };
 
     // @enter: element 0 — mount animation

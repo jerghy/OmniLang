@@ -195,7 +195,7 @@ fn format_transform_entry(parts: &[String]) -> String {
 /// Format motion options for the native WAAPI animate() call.
 fn format_animate_options(over: &ExprIR, ease: &Option<EasingIR>, playback: &PlaybackIR) -> String {
     let mut opts: Vec<String> = Vec::new();
-    let dur = expr::format_expr_ir_tsx(over, &FxHashSet::default());
+    let dur = duration_expr_to_js(over, expr::format_expr_ir_tsx(over, &FxHashSet::default()));
     opts.push(format!("duration:{}", dur));
     if let Some(e) = ease {
         opts.push(format!("easing:{}", format_easing_to_js(e)));
@@ -229,10 +229,48 @@ fn format_animate_options(over: &ExprIR, ease: &Option<EasingIR>, playback: &Pla
     if let Some(delay) = &playback.delay {
         opts.push(format!(
             "delay:{}",
-            expr::format_expr_ir_tsx(delay, &FxHashSet::default())
+            duration_expr_to_js(
+                delay,
+                expr::format_expr_ir_tsx(delay, &FxHashSet::default())
+            )
         ));
     }
     format!("{{{}}}", opts.join(","))
+}
+
+/// Convert a motion `over`/`delay` ExprIR to a numeric milliseconds JS
+/// literal. WAAPI's `el.animate()` rejects string durations (`"500ms"`)
+/// with a TypeError, so durations must always emit as numbers.
+///
+/// Semantics mirror the Flutter backend's `extract_duration_ms` and the
+/// shared `parse_duration_ms`:
+/// - `"300ms"` → `300`, `"1.5s"` → `1500`
+/// - bare numeric strings and numeric literals `< 1.0` are seconds
+///   (`"0.5"` → `500`)
+/// - numeric literals `>= 1.0` are milliseconds (`over: 400` → `400`)
+/// - non-literal expressions (signal-driven delays) emit `raw` unchanged
+fn duration_expr_to_js(expr: &ExprIR, raw: String) -> String {
+    match expr {
+        ExprIR::LiteralExpr { value } => match value {
+            serde_json::Value::Number(n) => match n.as_f64() {
+                Some(ms) if ms < 1.0 => format!("{:.0}", (ms * 1000.0).round()),
+                Some(ms) => format!("{:.0}", ms.round()),
+                None => raw,
+            },
+            serde_json::Value::String(s) => {
+                if let Ok(ms) = omnilang_core::semantic::parse_duration_ms(s) {
+                    format!("{:.0}", ms.round())
+                } else {
+                    match s.trim().parse::<f64>() {
+                        Ok(secs) => format!("{:.0}", (secs * 1000.0).round()),
+                        Err(_) => raw,
+                    }
+                }
+            }
+            _ => raw,
+        },
+        _ => raw,
+    }
 }
 
 /// Format easing value as a JS string literal.

@@ -67,7 +67,7 @@ impl OmniViewGenerator {
 
         // Build options object
         let mut opts: Vec<String> = Vec::new();
-        let dur_js = self.expr_to_js(&kf.over);
+        let dur_js = duration_expr_to_js(&kf.over, self.expr_to_js(&kf.over));
         opts.push(format!("duration:{}", dur_js));
         if let Some(ref ease) = kf.ease {
             let ease_js = self.easing_to_js(ease);
@@ -99,12 +99,47 @@ impl OmniViewGenerator {
             }
         }
         if let Some(ref delay) = kf.playback.delay {
-            let d = self.expr_to_js(delay);
+            let d = duration_expr_to_js(delay, self.expr_to_js(delay));
             opts.push(format!("delay:{}", d));
         }
         // No braces around opts — the factory's Object.assign({{{opts}}}) adds them
         let opts_js = opts.join(",");
 
         (kf_js, opts_js)
+    }
+}
+
+/// Convert a motion `over`/`delay` ExprIR to a numeric milliseconds JS
+/// literal. WAAPI's `el.animate()` rejects string durations (`"500ms"`)
+/// with a TypeError, so durations must always emit as numbers.
+///
+/// Semantics mirror the Flutter backend's `extract_duration_ms` and the
+/// shared `parse_duration_ms`:
+/// - `"300ms"` → `300`, `"1.5s"` → `1500`
+/// - bare numeric strings and numeric literals `< 1.0` are seconds
+///   (`"0.5"` → `500`)
+/// - numeric literals `>= 1.0` are milliseconds (`over: 400` → `400`)
+/// - non-literal expressions (signal-driven delays) emit `raw` unchanged
+fn duration_expr_to_js(expr: &ExprIR, raw: String) -> String {
+    match expr {
+        ExprIR::LiteralExpr { value } => match value {
+            serde_json::Value::Number(n) => match n.as_f64() {
+                Some(ms) if ms < 1.0 => format!("{:.0}", (ms * 1000.0).round()),
+                Some(ms) => format!("{:.0}", ms.round()),
+                None => raw,
+            },
+            serde_json::Value::String(s) => {
+                if let Ok(ms) = omnilang_core::semantic::parse_duration_ms(s) {
+                    format!("{:.0}", ms.round())
+                } else {
+                    match s.trim().parse::<f64>() {
+                        Ok(secs) => format!("{:.0}", (secs * 1000.0).round()),
+                        Err(_) => raw,
+                    }
+                }
+            }
+            _ => raw,
+        },
+        _ => raw,
     }
 }

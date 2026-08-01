@@ -161,6 +161,60 @@ component Test {
 }
 
 #[test]
+fn motion_durations_emit_numeric_ms() {
+    // P0 regression: WAAPI el.animate() rejects string durations — the
+    // semantic DSL parses `over: 300ms` to a string literal, which must be
+    // converted back to numeric ms at codegen (`duration:300`, not
+    // `duration:"300ms"`). Also covers seconds ("1.5s" → 1500) and bare
+    // numbers (>= 1.0 are ms, < 1.0 are seconds per CSS convention).
+    let source = r#"
+@motion fadeMs {
+    from { opacity: 0 }
+    to { opacity: 1 }
+    over: 300ms
+}
+@motion fadeS {
+    from { opacity: 0 }
+    to { opacity: 1 }
+    over: 1.5s
+}
+@motion fadeBare {
+    from { opacity: 0 }
+    to { opacity: 1 }
+    over: 1
+}
+@motion fadeHalf {
+    from { opacity: 0 }
+    to { opacity: 1 }
+    over: 0.5
+}
+component Test {
+    view {
+        <div @enter={fadeMs} @hover={fadeS} @focus={fadeBare} @in-view={fadeHalf}>hello</div>
+    }
+}
+"#;
+    let output = compile_fixture_to_react(source);
+    for expected in [
+        "duration:300,",
+        "duration:1500,",
+        "duration:1,",
+        "duration:500,",
+    ] {
+        assert!(
+            output.contains(expected),
+            "expected {} in output, got partial:\n{}",
+            expected,
+            &output[..output.len().min(1200)]
+        );
+    }
+    assert!(
+        !output.contains("duration:\""),
+        "duration must never emit as a string"
+    );
+}
+
+#[test]
 fn no_dom_scanning_in_emitted_code() {
     // The whole point of Task 4.4: no querySelectorAll, no MutationObserver,
     // no data-motion-* attributes in generated React code.

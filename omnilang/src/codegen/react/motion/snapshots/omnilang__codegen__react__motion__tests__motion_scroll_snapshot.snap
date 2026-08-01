@@ -17,7 +17,7 @@ export function MotionScroll() {
 
     // -- Motion definitions --
     const _M={
-        fadeScroll:{kf:[{offset:0,opacity:0.3},{offset:1,opacity:1}],opts:{duration:"500ms",easing:"ease-out",fill:"forwards"} as KeyframeAnimationOptions},
+        fadeScroll:{kf:[{offset:0,opacity:0.3},{offset:1,opacity:1}],opts:{duration:500,easing:"ease-out",fill:"forwards"} as KeyframeAnimationOptions},
     };
 
     // @scroll: element 0 — scroll-driven progress
