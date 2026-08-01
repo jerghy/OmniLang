@@ -8,6 +8,10 @@ component SearchBox {
     ref input: HtmlElement;
     signal query: string = "";
     signal isFocused: bool = false;
+    // Read ONLY inside style: { ... } — must still receive a state hook
+    // (regression: inline-style reads were not collected for the React
+    // useState decision, emitting the signal undeclared).
+    signal boxColor: string = "red";
 
     action clearInput() {
         input.value = "";
@@ -17,6 +21,10 @@ component SearchBox {
         input.focus();
     }
 
+    action recolorBox() {
+        boxColor = "blue";
+    }
+
     view {
         <input
             class: search-input
@@ -24,7 +32,9 @@ component SearchBox {
             value={query}
             focus={isFocused}
         />
+        <div class: color-box style: { color: boxColor }></div>
         <button @onPress={clearInput}>Clear</button>
         <button @onPress={focusInput}>Focus</button>
+        <button @onPress={recolorBox}>Recolor</button>
     }
 }

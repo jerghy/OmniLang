@@ -20,7 +20,7 @@ impl ReactCodegen {
     pub(super) fn gen_jsx_return(
         &self,
         w: &mut CodeWriter,
-        comp: &ComponentIR,
+        view: Option<&ViewTree>,
         component_map: &FxHashMap<&str, &ComponentIR>,
         design_ctx: &crate::codegen::react::design::DesignCtx,
         signal_names: &FxHashSet<String>,
@@ -32,8 +32,16 @@ impl ReactCodegen {
     ) {
         w.emit("return (");
         w.indent();
-        if let Some(view) = &comp.view {
-            view::gen_view_node_tsx(
+        // `view` is the caller's materialized view: body-level `@slot`
+        // declarations (ADR-053 D5) have already been converted into
+        // `ViewTree::Slot` nodes carrying their fallbacks, so the slot
+        // rendering below emits `{name ?? (fallback)}` like view-level
+        // slots.
+        if let Some(view) = view {
+            // gen_branch_body_tsx wraps multi-element roots in a React
+            // fragment (`<>...</>`) so the emitted JSX has one parent
+            // element — sibling roots would not compile (TS2657).
+            view::gen_branch_body_tsx(
                 w,
                 view,
                 component_map,
@@ -222,6 +230,24 @@ pub(crate) fn collect_view_slots(
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
     }
+}
+
+/// All slot declarations of a component: body-level `@slot` declarations
+/// (ADR-053 D5) first, then view-level `@slot` directives (back-compat).
+/// Consumer-side projections are not declarations and stay excluded.
+pub(crate) fn component_declared_slots(
+    comp: &ComponentIR,
+    component_map: &FxHashMap<&str, &ComponentIR>,
+) -> Vec<(Option<String>, Option<TypeIR>)> {
+    let mut acc: Vec<(Option<String>, Option<TypeIR>)> = comp
+        .slots
+        .iter()
+        .map(|s| (s.name.clone(), s.type_constraint.clone()))
+        .collect();
+    if let Some(ref view) = comp.view {
+        collect_view_slots(view, component_map, &mut acc);
+    }
+    acc
 }
 
 /// Collect all identifier references from a ViewTree.

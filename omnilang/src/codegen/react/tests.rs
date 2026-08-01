@@ -2716,3 +2716,245 @@ component Consumer {
         content
     );
 }
+
+/// Test: ADR-053 D5 body-level `@slot` declarations become destructured
+/// props (`children` for the unnamed slot, same-named props for named
+/// slots) and their `{name}` interpolations render with the declared
+/// fallback — `{header ?? (fallback)}`, mirroring view-level slots.
+#[test]
+fn body_slot_declarations_destructure_and_render_with_fallback() {
+    let source = r#"
+component Modal {
+    @slot header { <h4>Default header</h4> }
+    @slot { <p>Default body</p> }
+    view {
+        <div>
+            {header}
+            {children}
+        </div>
+    }
+}
+"#;
+    let output = compile_react(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        content.contains("export function Modal({ header, children }: ModalProps)"),
+        "Expected body slots destructured as props, got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("header?: ReactNode;") && content.contains("children?: ReactNode;"),
+        "Expected slot props in the Props interface, got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("{header ?? (") && content.contains("{children ?? ("),
+        "Expected fallback-wrapped slot renders, got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("Default header") && content.contains("Default body"),
+        "Expected declared fallbacks in output, got:\n{}",
+        content
+    );
+}
+
+/// Test: a body-level `@slot name: Type` declaration types the prop with the
+/// constraint (`footer?: string`); the interpolation renders the bare prop.
+#[test]
+fn body_slot_type_constraint_types_prop() {
+    let source = r#"
+component Badge {
+    @slot footer: String
+    view {
+        <div>{footer}</div>
+    }
+}
+"#;
+    let output = compile_react(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        content.contains("footer?: string"),
+        "Expected string-typed slot prop from body type constraint, got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("{footer}"),
+        "Expected bare slot interpolation render, got:\n{}",
+        content
+    );
+}
+
+/// Test: consumer named-prop projection (`header={<div/>}`, ADR-053 D5)
+/// projects into the body-declared slot prop of the child component, and a
+/// bare instantiation keeps the declared fallbacks.
+#[test]
+fn consumer_named_prop_projects_into_body_declared_slot() {
+    let source = r#"
+component Modal {
+    @slot header { <h4>Default header</h4> }
+    @slot { <p>Default body</p> }
+    view {
+        <div>
+            {header}
+            {children}
+        </div>
+    }
+}
+
+component App {
+    view {
+        <Modal header={<div>Custom title</div>}>
+            <p>Custom body</p>
+        </Modal>
+        <Modal />
+    }
+}
+"#;
+    let output = compile_react(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    let app: String = output
+        .files
+        .iter()
+        .filter(|(path, _)| path.contains("App.tsx"))
+        .map(|(_, c)| c.clone())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        app.contains("header={<div>"),
+        "Expected named-prop projection in consumer JSX, got:\n{}",
+        app
+    );
+    assert!(
+        app.contains("Custom title") && app.contains("Custom body"),
+        "Expected projected content, got:\n{}",
+        app
+    );
+    assert!(
+        app.contains("<Modal />"),
+        "Expected bare instantiation to keep declared fallbacks, got:\n{}",
+        app
+    );
+    // The consumer must not declare slots itself.
+    assert!(
+        !app.contains("interface AppProps"),
+        "Consumer must not gain a Props interface from projections, got:\n{}",
+        app
+    );
+}
+
+/// Test: a slot whose name collides with a signal is NOT materialized —
+/// `{header}` stays a signal read (no `header ?? (fallback)`), and the slot
+/// prop is skipped. The semantic layer warns on the collision.
+#[test]
+fn body_slot_colliding_with_signal_skips_materialization() {
+    let source = r#"
+component Badge {
+    signal header: String = "live"
+    @slot header { <h4>Fallback</h4> }
+    view {
+        <div>{header}</div>
+    }
+}
+"#;
+    let output = compile_react(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        !content.contains("header ??"),
+        "colliding slot must not materialize into a fallback render, got:\n{}",
+        content
+    );
+    assert!(
+        !content.contains("header?: ReactNode"),
+        "colliding slot prop must be skipped, got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("const header ="),
+        "the signal read must still be emitted, got:\n{}",
+        content
+    );
+}
+
+/// Test: body-slot interpolations inside `@if`/`@for` bodies materialize too
+/// (the materializer recurses into Conditional/ListRendering arms).
+#[test]
+fn body_slot_materializes_inside_conditionals_and_lists() {
+    let source = r#"
+component Panel {
+    signal show: bool = true
+    signal items: List<String> = []
+    @slot header { <h4>Default header</h4> }
+    view {
+        @if show { {header} }
+        @for item in items { {header} }
+    }
+}
+"#;
+    let output = compile_react(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert_eq!(
+        content.matches("header ?? (").count(),
+        2,
+        "both @if and @for positions should render the materialized slot, got:\n{}",
+        content
+    );
+}
+
+/// Test: when the same slot name is declared at the body level AND as a
+/// view-level `@slot`, the body declaration wins for `{name}` interpolation
+/// materialization (its fallback is used).
+#[test]
+fn body_slot_declaration_wins_over_view_level_duplicate() {
+    let source = r#"
+component Modal {
+    @slot header { <h4>Body fallback</h4> }
+    view {
+        @slot header { <h4>View fallback</h4> }
+        <div>{header}</div>
+    }
+}
+"#;
+    let output = compile_react(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        content.contains("Body fallback"),
+        "the interpolation must materialize with the body declaration's fallback, got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("View fallback"),
+        "the view-level slot keeps its own fallback, got:\n{}",
+        content
+    );
+}

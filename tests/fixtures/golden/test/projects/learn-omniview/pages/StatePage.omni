@@ -1,0 +1,19 @@
+// StatePage.omni — signal & store patterns page
+
+import omniview;
+import { LearnDesign } from "../design";
+import { SignalPatternsDemo } from "./SignalPatternsDemo";
+import { InlineStoreDemo } from "../components/InlineStoreDemo";
+import { ComputedFnFormDemo } from "../components/ComputedFnFormDemo";
+
+component StatePage {
+    view {
+        <section class: LearnDesign.DemoSection>
+            <div class: LearnDesign.DemoFull><SignalPatternsDemo /></div>
+            <div class: LearnDesign.Row>
+                <div class: LearnDesign.Col><InlineStoreDemo /></div>
+                <div class: LearnDesign.Col><ComputedFnFormDemo /></div>
+            </div>
+        </section>
+    }
+}

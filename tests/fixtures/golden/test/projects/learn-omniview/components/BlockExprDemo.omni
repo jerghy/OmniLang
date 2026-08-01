@@ -1,0 +1,85 @@
+import omniview;
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  🧪 Playwright Test                                         ║
+// ║                                                            ║
+// ║  **Steps:**                                                ║
+// ║  1. Navigate to BlockExprDemo component.                    ║
+// ║  2. Verify computed results display.                        ║
+// ║  3. Click buttons to change numbers.                        ║
+// ║                                                            ║
+// ║  **Expected:**                                             ║
+// ║  - Block expressions compile: { stmts; expr } returns expr  ║
+// ║  - Computed values from block expressions display correctly. ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+component BlockExprDemo {
+    signal a: i32 = 10;
+    signal b: i32 = 5;
+
+    // ★ 块表达式 computed: 在代码块中声明临时变量，最后一行作为块的值
+    computed calculation: String = {
+        let a2 = a * 2;
+        let b2 = b * 3;
+        "a×2=" + a2.to_string() + ", b×3=" + b2.to_string()
+    };
+
+    // ★ 块表达式用于数值计算
+    computed total: i32 = {
+        let tmp = a + b;
+        let doubled = tmp * 2;
+        doubled
+    };
+
+    // 作为对比：普通 computed 不用块
+    computed simpleSum: i32 = a + b;
+
+    fn incA() { a = a + 5; }
+    fn incB() { b = b + 5; }
+    fn reset() { a = 10; b = 5; }
+
+    view {
+        <div class: container>
+            <h3 class: title>Block Expression Demo</h3>
+            <p class: subtitle>演示 { stmts; trailing_expr } 块表达式</p>
+
+            <div class: card>
+                <h4 class: label>输入值: a={a}, b={b}</h4>
+                <div class: btn-row>
+                    <button class: btn @onPress={incA}>a + 5</button>
+                    <button class: btn @onPress={incB}>b + 5</button>
+                    <button class: btn-outline @onPress={reset}>Reset</button>
+                </div>
+            </div>
+
+            <div class: card>
+                <h4 class: label>块表达式 computed: calculation</h4>
+                <p class: value-text>{calculation}</p>
+            </div>
+
+            <div class: card>
+                <h4 class: label>块表达式 computed: total = { a + b, then doubled }</h4>
+                <p class: value-text>total = {total}</p>
+            </div>
+
+            <div class: card>
+                <h4 class: label>对比：普通 computed: simpleSum</h4>
+                <p class: value-text>simpleSum = a + b = {simpleSum}</p>
+            </div>
+
+            <p class: note>块表达式允许在值上下文中声明临时变量，最后一行表达式即为块的值</p>
+        </div>
+    }
+    style {
+        .container { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 16px; margin: 16px 0; }
+        .title { font-size: 18px; color: var(--textPrimary); margin: 0 0 4px 0; }
+        .subtitle { font-size: 13px; color: var(--textSecondary); margin: 0 0 16px 0; }
+        .card { margin-bottom: 14px; padding: 12px; background: var(--surfaceMuted); border-radius: 8px; }
+        .label { font-size: 14px; font-weight: 600; color: var(--textPrimary); margin: 0 0 8px 0; }
+        .value-text { font-size: 15px; color: var(--textPrimary); margin: 5px 0; font-family: monospace; }
+        .btn-row { display: flex; gap: 8px; margin-bottom: 8px; }
+        .btn { padding: 8px 16px; background: #6366f1; color: white; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; }
+        .btn-outline { padding: 8px 16px; background: var(--surface); color: #6366f1; border: 1px solid #6366f1; border-radius: 8px; font-size: 14px; cursor: pointer; }
+        .note { font-size: 12px; color: var(--textSecondary); margin: 4px 0 0 0; }
+    }
+}

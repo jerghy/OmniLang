@@ -1,0 +1,43 @@
+// LanguagePage — merged Language + Supplement pages (deep language features)
+
+import omniview;
+import { LearnDesign } from "../design";
+import { InlineStoreDemo } from "../components/InlineStoreDemo";
+import { NullishDemo } from "../components/NullishDemo";
+import { StringLiteralsDemo } from "../components/StringLiteralsDemo";
+import { TypeSystemDemo } from "../components/TypeSystemDemo";
+import { ViewAttributesDemo } from "../components/ViewAttributesDemo";
+import { ComputedFnFormDemo } from "../components/ComputedFnFormDemo";
+import { OptionalChainDemo } from "../components/OptionalChainDemo";
+import { StylePseudoDemo } from "../components/StylePseudoDemo";
+import { TernaryExprDemo } from "../components/TernaryExprDemo";
+import { BlockExprDemo } from "../components/BlockExprDemo";
+import { ForDirectiveKeyDemo } from "../components/ForDirectiveKeyDemo";
+import { AdvancedPseudoDemo } from "../components/AdvancedPseudoDemo";
+
+component LanguagePage {
+    view {
+        <section class: LearnDesign.DemoSection>
+            <div class: LearnDesign.Row>
+                <div class: LearnDesign.Col><InlineStoreDemo /></div>
+                <div class: LearnDesign.Col><NullishDemo /></div>
+            </div>
+            <div class: LearnDesign.DemoFull><StringLiteralsDemo /></div>
+            <div class: LearnDesign.Row>
+                <div class: LearnDesign.Col><TypeSystemDemo /></div>
+                <div class: LearnDesign.Col><ViewAttributesDemo /></div>
+            </div>
+            <div class: LearnDesign.Row>
+                <div class: LearnDesign.Col><ComputedFnFormDemo /></div>
+                <div class: LearnDesign.Col><OptionalChainDemo /></div>
+                <div class: LearnDesign.Col><TernaryExprDemo /></div>
+                <div class: LearnDesign.Col><BlockExprDemo /></div>
+            </div>
+            <div class: LearnDesign.DemoFull><ForDirectiveKeyDemo /></div>
+            <div class: LearnDesign.Row>
+                <div class: LearnDesign.Col><StylePseudoDemo /></div>
+                <div class: LearnDesign.Col><AdvancedPseudoDemo /></div>
+            </div>
+        </section>
+    }
+}

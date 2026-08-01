@@ -89,6 +89,13 @@ impl<'a> Parser<'a> {
         {
             self.advance(); // '='
             self.advance(); // '{'
+                            // A slot named like a semantic binding (e.g. <Modal value={...}/>)
+                            // with view content is a slot projection, not a binding — the `<`
+                            // discriminator applies here too.
+            if self.at(&TokenKind::Lt) {
+                let content = self.parse_slot_content_braces()?;
+                return Ok(ElementProp::SlotContent { name, content });
+            }
             let signal = self.parse_expr()?;
             self.expect_token(TokenKind::RBrace, "expected '}'")?;
             // Only a bare signal reference ({sig}) or a qualified store signal
@@ -137,9 +144,18 @@ impl<'a> Parser<'a> {
                     }
                     TokenKind::LBrace => {
                         self.advance();
-                        let expr = self.parse_expr()?;
-                        self.expect_token(TokenKind::RBrace, "expected '}'")?;
-                        Ok(ElementProp::Static { name, value: expr })
+                        // Slot content projection (ADR-053 D5): name={<div/>}.
+                        // The `<` after `{` discriminates slot content from a
+                        // regular {expr} prop value — `<` is not a valid
+                        // expression prefix, so there is no ambiguity.
+                        if self.at(&TokenKind::Lt) {
+                            let content = self.parse_slot_content_braces()?;
+                            Ok(ElementProp::SlotContent { name, content })
+                        } else {
+                            let expr = self.parse_expr()?;
+                            self.expect_token(TokenKind::RBrace, "expected '}'")?;
+                            Ok(ElementProp::Static { name, value: expr })
+                        }
                     }
                     _ => {
                         let t = self.advance();
@@ -446,6 +462,30 @@ impl<'a> Parser<'a> {
                 })
             }
         }
+    }
+
+    /// Parse slot projection content inside `{ ... }` (ADR-053 D5 consumer
+    /// named props): one or more view nodes (elements, directives,
+    /// interpolations) until the matching `}`. The caller has already
+    /// consumed the opening `{`; `<` at the call site discriminates slot
+    /// content from a regular `{expr}` prop value.
+    pub(super) fn parse_slot_content_braces(&mut self) -> Result<Vec<ViewNode>, ParseError> {
+        let mut content = Vec::new();
+        while !self.at(&TokenKind::RBrace) && !self.at(&TokenKind::Eof) {
+            content.push(self.parse_view_node()?);
+        }
+        if content.is_empty() {
+            let t = self.peek();
+            return Err(ParseError {
+                message: format!(
+                    "expected slot content (e.g. '<div>...</div>') after '{{', got {:?}",
+                    t.kind
+                ),
+                span: t.span,
+            });
+        }
+        self.expect_token(TokenKind::RBrace, "expected '}'")?;
+        Ok(content)
     }
 
     /// Parse bind:property={signal} for two-way binding.

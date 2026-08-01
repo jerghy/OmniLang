@@ -23,6 +23,7 @@ impl<'a> Parser<'a> {
         let mut fns = Vec::new();
         let mut actions = Vec::new();
         let mut getters = Vec::new();
+        let mut slots: Vec<SlotDecl> = Vec::new();
         let mut view: Option<ViewBlock> = None;
         let mut styles = Vec::new();
 
@@ -164,6 +165,14 @@ impl<'a> Parser<'a> {
                     let motion = self.parse_motion_def()?;
                     motions.push(motion);
                 }
+                TokenKind::AtSlot => {
+                    // Body-level slot declaration (ADR-053 D5):
+                    // `@slot name: Type { fallback }` — same syntax as the
+                    // view-level directive, shared parsing helper. The
+                    // `view`/`style` keywords are excluded as slot names
+                    // here (bare `@slot` precedes `view { ... }` blocks).
+                    slots.push(self.parse_slot_directive_common(true)?);
+                }
                 _ => {
                     let t = self.advance();
                     return Err(ParseError {
@@ -190,6 +199,7 @@ impl<'a> Parser<'a> {
             actions,
             getters,
             motions,
+            slots,
             view,
             styles,
             span: Span {

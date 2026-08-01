@@ -4,12 +4,13 @@
 
 use super::expr::lower_expr;
 use super::stmt::lower_block;
-use super::view::lower_view_block;
+use super::view::{lower_slot_common, lower_view_block, SlotDeclShape};
 use crate::ir::logic::*;
 use crate::ir::types::*;
 use crate::parser::ast::*;
 use crate::semantic::SemanticResult;
 use rustc_hash::FxHashMap;
+use std::cell::Cell;
 
 // Disambiguate conflicting names between parser AST and IR
 use crate::ir::types::LifecycleKind as IRLifecycleKind;
@@ -165,10 +166,37 @@ pub(super) fn lower_component(
         }
     };
 
+    // The input auto-binding counter is shared between body-slot fallbacks
+    // and the view block, so `<input>` elements receive string-signal
+    // auto-binding in declaration order across both (ADR-053 D5).
+    let sig_idx = Cell::new(0usize);
+
+    // Body-level slot declarations (ADR-053 D5) lower through the same
+    // shared logic as view-level `@slot` directives.
+    let slots: Vec<SlotDeclIR> = comp
+        .slots
+        .iter()
+        .map(|s| {
+            let shape = SlotDeclShape {
+                name: &s.name,
+                default_content: &s.default_content,
+                type_constraint: &s.type_constraint,
+            };
+            lower_slot_common(
+                &shape,
+                &input_signals,
+                Some(&sig_idx),
+                variant_map,
+                semantics,
+                &fns,
+            )
+        })
+        .collect();
+
     let view = comp
         .view
         .as_ref()
-        .map(|v| lower_view_block(v, &input_signals, variant_map, semantics, &fns));
+        .map(|v| lower_view_block(v, &input_signals, &sig_idx, variant_map, semantics, &fns));
 
     let styles: Vec<StyleRuleIR> = comp
         .styles
@@ -261,6 +289,7 @@ pub(super) fn lower_component(
                 param_type: type_ann_to_ts(&e.type_ann),
             })
             .collect(),
+        slots,
         view,
         styles,
         source_span: Some(comp.span),

@@ -2,9 +2,15 @@
 
 ## Status
 
-Accepted — **redefined by ADR-052 (2026-07-31)**
+Implemented — **redefined by ADR-052 (2026-07-31), implementation completed 2026-08-01**
 
 > **2026-07-31 更新**（[[ADR-052]]）：本 ADR 的原始表述（"All codegen backends must produce semantically equivalent output"）已被重新定义为：**"All P0 backends must produce semantically equivalent behavior for the documented feature floor, with hard diagnostics outside it."** 原始发现（4 个 silent-drop bug）的修复仍然有效，但 parity 策略已从"相同输出"演进为"语义等价行为 + documented floor + diagnostic enforcement"。详见 [[ADR-052]] § "ADR-021 重新定义"。
+>
+> **2026-08-01 更新**（35 任务计划 Phase 0-8.2 完成）：重新定义后的 parity 策略已实施——
+> - 语义级 DSL 三层架构落地（原语 → IR → codegen），**24 项 feature floor**（ADR-052）由语义 pass（`validate_ref_ops`、`validate_semantic_bindings` 等）在编译期强制
+> - floor 之外的构造产生 **hard diagnostic**（编译错误），绝不静默降级；非 P0 目标遇到 design block 从 warning+零文件升级为 error
+> - CI 验证门落地（Task 8.2）：`tsc --noEmit`（11 个 React fixture）+ `dart analyze`（Flutter store 文件），工具链缺失时优雅 SKIP
+> - 剩余缺口见 `.architecture/deferrals.md`：#7（全后端跨目标矩阵未完成）、#17（Flutter widget codegen 仍不可编译）
 
 ## Context
 
@@ -26,7 +32,9 @@ The same `.omni` source file produced different user-visible behavior depending 
 
 ## Decision
 
-**All codegen backends must produce semantically equivalent output for the same `.omni` source.** When a backend cannot implement a feature (due to target limitations), it must emit a compiler warning or diagnostic — never silently drop the feature.
+**（2026-08-01 修订）所有 P0 后端（React、Flutter、OmniView）必须为同一 `.omni` 源码在 documented feature floor（24 项语义原语，ADR-052）内产生语义等价的**行为**。floor 之外的构造必须产生 hard diagnostic——绝不静默丢弃。非 P0 后端可对 floor 特性返回 diagnostic（design block → error），但同样禁止静默降级。**
+
+（原决策，历史保留）**All codegen backends must produce semantically equivalent output for the same `.omni` source.** When a backend cannot implement a feature (due to target limitations), it must emit a compiler warning or diagnostic — never silently drop the feature.
 
 **Architectural Components Affected:**
 - `omnilang/src/codegen/flutter/` — class_map_bindings added
@@ -161,8 +169,8 @@ Emitting a warning when a feature is unsupported, rather than silently dropping 
 - [x] `<slot>` implemented in Vue
 - [x] `key_expr` implemented in Vue/Dioxus
 - [x] All 423 backend tests pass
-- [ ] Cross-target regression test matrix for parity features
-- [ ] Compiler warning mechanism for future unimplemented features
+- [ ] Cross-target regression test matrix for parity features — ⚠️ 部分实施（2026-08-01：CI codegen-validate 覆盖 React fixture + Flutter store 文件）；全后端矩阵未完成（见 deferrals #7）
+- [x] 编译期 hard diagnostic 机制 — 已由语义 pass 实现（`validate_ref_ops` 等，ADR-052/053），强于原 warning 方案
 
 **Testing Approach:**
 - Backend-specific unit tests for each new feature (added with implementation)

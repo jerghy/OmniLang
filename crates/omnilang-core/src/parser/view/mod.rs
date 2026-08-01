@@ -63,43 +63,11 @@ impl<'a> Parser<'a> {
                 }
             }
             TokenKind::AtSlot => {
-                self.advance();
-                let name = if self.at(&TokenKind::LParen) {
-                    self.advance();
-                    let n = self.expect_ident("expected slot name")?;
-                    self.expect_token(TokenKind::RParen, "expected ')'")?;
-                    Some(n)
-                } else if matches!(self.peek_kind(), TokenKind::Ident(_))
-                    || keyword_as_ident_name(self.peek_kind()).is_some()
-                {
-                    let n = self.expect_ident("expected slot name")?;
-                    Some(n)
-                } else {
-                    None
-                };
-                // Parse optional type constraint: @slot name: Type { ... }
-                let type_constraint = if self.at(&TokenKind::Colon) {
-                    self.advance(); // ':'
-                    Some(self.parse_type_annotation()?)
-                } else {
-                    None
-                };
-                // Parse optional default content body: @slot name { ... }
-                let default_content = if self.at(&TokenKind::LBrace) {
-                    self.advance(); // consume '{'
-                    let mut children = Vec::new();
-                    while !self.at(&TokenKind::RBrace) && !self.at(&TokenKind::Eof) {
-                        children.push(self.parse_view_node()?);
-                    }
-                    self.expect_token(TokenKind::RBrace, "expected '}'")?;
-                    Some(children)
-                } else {
-                    None
-                };
+                let slot = self.parse_slot_directive_common(false)?;
                 Ok(ViewNode::SlotDirective {
-                    name,
-                    default_content,
-                    type_constraint,
+                    name: slot.name,
+                    default_content: slot.default_content,
+                    type_constraint: slot.type_constraint,
                 })
             }
             TokenKind::StringLiteral(s) => {
@@ -294,6 +262,85 @@ impl<'a> Parser<'a> {
             return Ok(ViewNode::Text(String::new()));
         }
         Ok(ViewNode::Text(text))
+    }
+
+    /// Parse the shared body of a `@slot` directive: the optional name
+    /// (`@slot name`, `@slot(name)`, or `@slot default` / bare for the
+    /// default slot), optional `: Type` constraint, and optional
+    /// `{ fallback }` view content. Used by both view-level directives
+    /// (`ViewNode::SlotDirective`) and component body declarations
+    /// (`SlotDecl`), ADR-053 D5.
+    ///
+    /// `in_body` selects the component-body parsing context: there, the
+    /// `view`/`style` keywords after a bare `@slot` start the component's
+    /// view/style blocks (`@slot default` declarations precede
+    /// `view { ... }`), so they are never consumed as slot names. Inside a
+    /// view there is no such ambiguity — any keyword remains a valid slot
+    /// name, matching the pre-D5 behavior.
+    ///
+    /// The literal name `default` is the default/unnamed slot (per the
+    /// syntax spec §5.2), so it maps to `None` in both contexts.
+    pub(super) fn parse_slot_directive_common(
+        &mut self,
+        in_body: bool,
+    ) -> Result<SlotDecl, ParseError> {
+        let start = self.peek_span();
+        self.advance(); // '@slot'
+        let name = if self.at(&TokenKind::LParen) {
+            self.advance();
+            let n = self.expect_ident("expected slot name")?;
+            self.expect_token(TokenKind::RParen, "expected ')'")?;
+            // `@slot(default)` is the default/unnamed slot — same mapping
+            // as the bare `@slot default` form.
+            if n == "default" {
+                None
+            } else {
+                Some(n)
+            }
+        } else if matches!(self.peek_kind(), TokenKind::Ident(_))
+            || keyword_as_ident_name(self.peek_kind())
+                .is_some_and(|kw| !(in_body && (kw == "view" || kw == "style")))
+        {
+            let n = self.expect_ident("expected slot name")?;
+            if n == "default" {
+                None
+            } else {
+                Some(n)
+            }
+        } else {
+            None
+        };
+        // Parse optional type constraint: @slot name: Type { ... }
+        let type_constraint = if self.at(&TokenKind::Colon) {
+            self.advance(); // ':'
+            Some(self.parse_type_annotation()?)
+        } else {
+            None
+        };
+        // Parse optional default content body: @slot name { ... }
+        let default_content = if self.at(&TokenKind::LBrace) {
+            self.advance(); // consume '{'
+            let mut children = Vec::new();
+            while !self.at(&TokenKind::RBrace) && !self.at(&TokenKind::Eof) {
+                children.push(self.parse_view_node()?);
+            }
+            self.expect_token(TokenKind::RBrace, "expected '}'")?;
+            Some(children)
+        } else {
+            None
+        };
+        let end = self.peek_span();
+        Ok(SlotDecl {
+            name,
+            default_content,
+            type_constraint,
+            span: Span {
+                start: start.start,
+                end: end.end,
+                line: start.line,
+                col: start.col,
+            },
+        })
     }
 
     /// Check if current position starts a component call: Name(...

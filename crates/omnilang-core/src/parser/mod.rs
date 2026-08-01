@@ -1215,6 +1215,243 @@ mod roundtrip_tests {
     }
 
     #[test]
+    fn view_slot_directive_named_default_is_unnamed() {
+        // Per ADR-053 D5 / syntax spec §5.2, the literal name `default`
+        // declares the default (unnamed) slot — `@slot default` → name None.
+        let children = view_children("component App { view { @slot default } }");
+        match &children[0] {
+            ViewNode::SlotDirective { name, .. } => {
+                assert!(name.is_none(), "`@slot default` must be the unnamed slot");
+            }
+            _ => panic!("expected SlotDirective"),
+        }
+    }
+
+    #[test]
+    fn view_slot_directive_view_keyword_is_name() {
+        // At view level there is no view-block ambiguity — the `view`
+        // keyword remains a valid slot name (pre-D5 behavior preserved).
+        let children = view_children("component App { view { @slot view { <div/> } } }");
+        match &children[0] {
+            ViewNode::SlotDirective {
+                name,
+                default_content,
+                ..
+            } => {
+                assert_eq!(name.as_deref(), Some("view"));
+                assert_eq!(default_content.as_ref().map(|c| c.len()), Some(1));
+            }
+            _ => panic!("expected SlotDirective"),
+        }
+    }
+
+    #[test]
+    fn view_slot_directive_style_keyword_is_name() {
+        // Same as `view` — `style` stays a valid view-level slot name.
+        let children = view_children("component App { view { @slot style { <span/> } } }");
+        match &children[0] {
+            ViewNode::SlotDirective {
+                name,
+                default_content,
+                ..
+            } => {
+                assert_eq!(name.as_deref(), Some("style"));
+                assert_eq!(default_content.as_ref().map(|c| c.len()), Some(1));
+            }
+            _ => panic!("expected SlotDirective"),
+        }
+    }
+
+    // ── Body-level @slot declarations (ADR-053 D5) ──────────
+
+    /// Parse a component definition and return it.
+    fn component_def(source: &str) -> ComponentDef {
+        let tokens = tokenize(source);
+        let (program, errors) = parse(tokens, source);
+        assert!(
+            errors.is_empty(),
+            "unexpected parse errors: {:?}",
+            errors.iter().map(|e| &e.message).collect::<Vec<_>>()
+        );
+        let module = program.modules.get("input.omni").unwrap();
+        assert_eq!(module.components.len(), 1, "expected exactly one component");
+        module.components[0].clone()
+    }
+
+    #[test]
+    fn body_slot_declaration_with_fallback() {
+        let comp = component_def(
+            "component Modal { @slot header { <h4>x</h4> } view { <div>{header}</div> } }",
+        );
+        assert_eq!(comp.slots.len(), 1, "one body-level slot expected");
+        let slot = &comp.slots[0];
+        assert_eq!(slot.name.as_deref(), Some("header"));
+        assert!(
+            matches!(slot.default_content, Some(ref c) if c.len() == 1),
+            "fallback content must be parsed"
+        );
+        assert!(slot.type_constraint.is_none());
+    }
+
+    #[test]
+    fn body_slot_declaration_default_unnamed() {
+        // D5: `@slot default` declares the default/unnamed slot
+        let comp = component_def("component Modal { @slot default view { <div/> } }");
+        assert_eq!(comp.slots.len(), 1);
+        assert!(
+            comp.slots[0].name.is_none(),
+            "`@slot default` is the unnamed slot"
+        );
+        assert!(comp.slots[0].default_content.is_none());
+    }
+
+    #[test]
+    fn body_slot_declaration_bare_unnamed() {
+        let comp = component_def("component Modal { @slot view { <div/> } }");
+        assert_eq!(comp.slots.len(), 1);
+        assert!(comp.slots[0].name.is_none());
+    }
+
+    #[test]
+    fn body_slot_declaration_unnamed_with_content() {
+        let comp = component_def("component Modal { @slot { <p>hi</p> } view { <div/> } }");
+        assert_eq!(comp.slots.len(), 1);
+        assert!(comp.slots[0].name.is_none());
+        assert!(
+            matches!(comp.slots[0].default_content, Some(ref c) if c.len() == 1),
+            "unnamed slot fallback content must be parsed"
+        );
+    }
+
+    #[test]
+    fn body_slot_declaration_with_type_constraint() {
+        let comp = component_def("component Modal { @slot footer: String view { <div/> } }");
+        assert_eq!(comp.slots.len(), 1);
+        assert_eq!(comp.slots[0].name.as_deref(), Some("footer"));
+        assert!(matches!(
+            comp.slots[0].type_constraint,
+            Some(TypeAnnotation::Named { ref name, .. }) if name == "String"
+        ));
+    }
+
+    #[test]
+    fn body_slot_declaration_paren_form() {
+        // Back-compat: @slot(name) paren form still accepted in the body
+        let comp = component_def("component Modal { @slot(header) view { <div/> } }");
+        assert_eq!(comp.slots.len(), 1);
+        assert_eq!(comp.slots[0].name.as_deref(), Some("header"));
+    }
+
+    #[test]
+    fn body_slot_declaration_paren_default_is_unnamed() {
+        // `@slot(default)` maps to the default/unnamed slot — consistent
+        // with the bare `@slot default` form.
+        let comp = component_def("component Modal { @slot(default) view { <div/> } }");
+        assert_eq!(comp.slots.len(), 1);
+        assert!(
+            comp.slots[0].name.is_none(),
+            "`@slot(default)` is the unnamed slot"
+        );
+    }
+
+    #[test]
+    fn body_slot_multiple_declarations() {
+        let comp = component_def(
+            "component Modal { @slot header { <DefaultHeader /> } @slot default view { <div/> } }",
+        );
+        assert_eq!(comp.slots.len(), 2);
+        assert_eq!(comp.slots[0].name.as_deref(), Some("header"));
+        assert!(comp.slots[1].name.is_none());
+    }
+
+    // ── Consumer named-prop slot projection (ADR-053 D5) ────
+
+    #[test]
+    fn consumer_named_prop_slot_content() {
+        // <Modal header={<div>Title</div>}>content</Modal>
+        let children = view_children(
+            "component App { view { <Modal header={<div>Title</div>}>content</Modal> } }",
+        );
+        assert_eq!(children.len(), 1);
+        match &children[0] {
+            ViewNode::Element(el) => {
+                assert_eq!(el.tag, "Modal");
+                assert_eq!(el.props.len(), 1, "one named-prop expected");
+                match &el.props[0] {
+                    ElementProp::SlotContent { name, content } => {
+                        assert_eq!(name, "header");
+                        assert_eq!(content.len(), 1);
+                        assert!(matches!(&content[0], ViewNode::Element(e) if e.tag == "div"));
+                    }
+                    other => panic!("expected SlotContent prop, got {:?}", other),
+                }
+                assert_eq!(el.children.len(), 1, "default children preserved");
+                assert!(matches!(&el.children[0], ViewNode::Text(t) if t == "content"));
+            }
+            _ => panic!("expected Element"),
+        }
+    }
+
+    #[test]
+    fn consumer_named_prop_slot_content_multiple_nodes() {
+        let children =
+            view_children("component App { view { <Modal header={<div>a</div><div>b</div>} /> } }");
+        match &children[0] {
+            ViewNode::Element(el) => match &el.props[0] {
+                ElementProp::SlotContent { name, content } => {
+                    assert_eq!(name, "header");
+                    assert_eq!(content.len(), 2, "sibling elements must all be captured");
+                }
+                other => panic!("expected SlotContent prop, got {:?}", other),
+            },
+            _ => panic!("expected Element"),
+        }
+    }
+
+    #[test]
+    fn consumer_named_prop_slot_content_self_closing_element() {
+        let children = view_children("component App { view { <Modal header={<br/>} /> } }");
+        match &children[0] {
+            ViewNode::Element(el) => match &el.props[0] {
+                ElementProp::SlotContent { name, content } => {
+                    assert_eq!(name, "header");
+                    assert_eq!(content.len(), 1);
+                }
+                other => panic!("expected SlotContent prop, got {:?}", other),
+            },
+            _ => panic!("expected Element"),
+        }
+    }
+
+    #[test]
+    fn consumer_named_prop_empty_braces_errors() {
+        // header={} — empty braces are not a valid slot projection
+        let src = "component App { view { <Modal header={} /> } }";
+        let tokens = tokenize(src);
+        let (_, errors) = parse(tokens, src);
+        assert!(!errors.is_empty(), "expected parse error for empty braces");
+    }
+
+    #[test]
+    fn consumer_regular_expr_prop_unchanged() {
+        // {count} interpolation props still parse as Static — the `<`
+        // discriminator must not affect expression props.
+        let children = view_children(
+            "component App { signal count: i32 = 0; view { <Modal count={count} /> } }",
+        );
+        match &children[0] {
+            ViewNode::Element(el) => match &el.props[0] {
+                ElementProp::Static { name, value } => {
+                    assert_eq!(name, "count");
+                    assert!(matches!(value, Expr::VarRef(v, _) if v == "count"));
+                }
+                other => panic!("expected Static prop, got {:?}", other),
+            },
+            _ => panic!("expected Element"),
+        }
+    }
+
+    #[test]
     fn view_if_mode_colon_string() {
         // New syntax: mode: "wait" — colon separator
         let children =

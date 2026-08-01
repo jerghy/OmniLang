@@ -60,6 +60,7 @@ fn make_component(name: &str) -> ComponentIR {
         store_refs: vec![],
         refs: vec![],
         events: vec![],
+        slots: vec![],
         view: None,
         styles: vec![],
         source_span: None,
@@ -264,6 +265,7 @@ fn props_are_emitted_as_readonly_wrappers() {
         store_refs: vec![],
         refs: vec![],
         events: vec![],
+        slots: vec![],
         view: None,
         styles: vec![],
         source_span: None,
@@ -1864,5 +1866,218 @@ fn typescript_declarations_empty_when_no_components() {
     assert!(
         output.types.is_empty(),
         "ADR-031 D6: TypeScript gen gated, types should be empty"
+    );
+}
+
+// ── Body-level Slot Declarations (ADR-053 D5) ───────────
+
+/// Body-level `@slot` declarations surface in the view as `{name}`
+/// interpolations. Standalone (no consumer projection), the interpolation
+/// position renders the declared fallback inside a `<slot name="...">`
+/// element — exactly like view-level `@slot` directives.
+#[test]
+fn body_slot_declaration_renders_fallback_at_interpolation() {
+    let mut module = make_module("main");
+
+    // Panel: `@slot header { <h4>Default header</h4> }` + view `<div>{header}</div>`
+    let mut h4 = make_element("h4");
+    h4.children = vec![ViewTree::Text("Default header".into())];
+    let mut panel_div = make_element("div");
+    panel_div.children = vec![ViewTree::Interpolation(Box::new(ExprIR::ident("header")))];
+    module.components.insert(
+        "Panel".to_string(),
+        ComponentIR {
+            slots: vec![SlotDeclIR {
+                name: Some("header".into()),
+                fallback: vec![ViewTree::Element(Box::new(h4))],
+                type_constraint: None,
+                data_param: None,
+            }],
+            view: Some(ViewTree::Element(Box::new(panel_div))),
+            ..make_component("Panel")
+        },
+    );
+
+    let ir = make_program(FxHashMap::from_iter([("main".into(), module)]));
+    let output = generate(&ir, false, false, false);
+
+    assert!(
+        output.html.contains("<slot name=\"header\">"),
+        "interpolation position should render a named slot element.\nHTML:\n{}",
+        output.html
+    );
+    assert!(
+        output.html.contains("Default header"),
+        "declared fallback should render at the interpolation position.\nHTML:\n{}",
+        output.html
+    );
+}
+
+/// Consumer named-prop projection (`header={<div/>}`, ADR-053 D5) injects
+/// into the child's body-declared slot position; un-slotted children flow
+/// into the unnamed slot. No projection → declared fallback renders.
+#[test]
+fn consumer_named_prop_projects_into_body_declared_slot() {
+    let mut module = make_module("main");
+
+    // Panel: `@slot header { ... }` + `@slot { ... }` + view
+    // `<div>{header}{children}</div>`
+    let mut h4 = make_element("h4");
+    h4.children = vec![ViewTree::Text("Default header".into())];
+    let mut p_default = make_element("p");
+    p_default.children = vec![ViewTree::Text("Default body".into())];
+    let mut panel_div = make_element("div");
+    panel_div.children = vec![
+        ViewTree::Interpolation(Box::new(ExprIR::ident("header"))),
+        ViewTree::Interpolation(Box::new(ExprIR::ident("children"))),
+    ];
+    module.components.insert(
+        "Panel".to_string(),
+        ComponentIR {
+            slots: vec![
+                SlotDeclIR {
+                    name: Some("header".into()),
+                    fallback: vec![ViewTree::Element(Box::new(h4))],
+                    type_constraint: None,
+                    data_param: None,
+                },
+                SlotDeclIR {
+                    name: None,
+                    fallback: vec![ViewTree::Element(Box::new(p_default))],
+                    type_constraint: None,
+                    data_param: None,
+                },
+            ],
+            view: Some(ViewTree::Element(Box::new(panel_div))),
+            ..make_component("Panel")
+        },
+    );
+
+    // App: `<Panel header={<div>H</div>}><p>body</p></Panel>` — the named
+    // projection lowers to a ViewTree::Slot child (ADR-053 D5).
+    let mut proj_div = make_element("div");
+    proj_div.children = vec![ViewTree::Text("H".into())];
+    let mut body_p = make_element("p");
+    body_p.children = vec![ViewTree::Text("body".into())];
+
+    let mut app_el = make_element("Panel");
+    app_el.children = vec![
+        ViewTree::Element(Box::new(body_p)),
+        ViewTree::Slot {
+            name: Some("header".into()),
+            fallback: vec![ViewTree::Element(Box::new(proj_div))],
+            type_constraint: None,
+            data_param: None,
+        },
+    ];
+    module.components.insert(
+        "App".to_string(),
+        ComponentIR {
+            view: Some(ViewTree::Element(Box::new(app_el))),
+            ..make_component("App")
+        },
+    );
+
+    let ir = make_program(FxHashMap::from_iter([("main".into(), module)]));
+    let output = generate(&ir, false, false, false);
+
+    assert!(
+        output.html.contains("H"),
+        "named-prop projection should inject into the named slot.\nHTML:\n{}",
+        output.html
+    );
+    assert!(
+        output.html.contains("body"),
+        "un-slotted children should inject into the unnamed slot.\nHTML:\n{}",
+        output.html
+    );
+    assert!(
+        !output.html.contains("Default header") && !output.html.contains("Default body"),
+        "projected content must replace the declared fallbacks.\nHTML:\n{}",
+        output.html
+    );
+}
+
+/// Children of a nested component instantiation are THAT component's
+/// projections, not slot positions of the current view — injection must
+/// not descend into them (regression: the new consumer named-prop syntax
+/// lowers to ViewTree::Slot children, which the old recursion would
+/// wrongly match).
+#[test]
+fn slot_injection_skips_nested_component_children() {
+    let mut module = make_module("main");
+
+    // Outer: `@slot header { ... }` + view
+    // `<div><Inner>@slot header { <p>Inner content</p> }</Inner><slot name="header"/></div>`
+    let mut inner_proj_p = make_element("p");
+    inner_proj_p.children = vec![ViewTree::Text("Inner content".into())];
+    let mut inner_el = make_element("Inner");
+    inner_el.children = vec![ViewTree::Slot {
+        name: Some("header".into()),
+        fallback: vec![ViewTree::Element(Box::new(inner_proj_p))],
+        type_constraint: None,
+        data_param: None,
+    }];
+    let mut outer_div = make_element("div");
+    outer_div.children = vec![
+        ViewTree::Element(Box::new(inner_el)),
+        ViewTree::Slot {
+            name: Some("header".into()),
+            fallback: Vec::new(),
+            type_constraint: None,
+            data_param: None,
+        },
+    ];
+    module.components.insert(
+        "Outer".to_string(),
+        ComponentIR {
+            slots: vec![SlotDeclIR {
+                name: Some("header".into()),
+                fallback: Vec::new(),
+                type_constraint: None,
+                data_param: None,
+            }],
+            view: Some(ViewTree::Element(Box::new(outer_div))),
+            ..make_component("Outer")
+        },
+    );
+    // Inner registers as a component (no own view — renders as an element).
+    module.components.insert(
+        "Inner".to_string(),
+        ComponentIR {
+            ..make_component("Inner")
+        },
+    );
+
+    // App: `<Outer header={<div>Outer header</div>} />`
+    let mut outer_hdr_div = make_element("div");
+    outer_hdr_div.children = vec![ViewTree::Text("Outer header".into())];
+    let mut app_el = make_element("Outer");
+    app_el.children = vec![ViewTree::Slot {
+        name: Some("header".into()),
+        fallback: vec![ViewTree::Element(Box::new(outer_hdr_div))],
+        type_constraint: None,
+        data_param: None,
+    }];
+    module.components.insert(
+        "App".to_string(),
+        ComponentIR {
+            view: Some(ViewTree::Element(Box::new(app_el))),
+            ..make_component("App")
+        },
+    );
+
+    let ir = make_program(FxHashMap::from_iter([("main".into(), module)]));
+    let output = generate(&ir, false, false, false);
+
+    assert!(
+        output.html.contains("Outer header"),
+        "outer projection should inject into Outer's own slot.\nHTML:\n{}",
+        output.html
+    );
+    assert!(
+        output.html.contains("Inner content"),
+        "nested component's projection must stay untouched by the outer injection.\nHTML:\n{}",
+        output.html
     );
 }

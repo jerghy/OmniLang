@@ -1,0 +1,33 @@
+// slots_body.omni — ADR-053 D5: body-level `@slot` declarations with the
+// consumer named-prop projection syntax (`header={<div/>}`).
+//
+// The slots.omni fixture covers the view-level `@slot` back-compat form;
+// this fixture covers body-level declarations: named + unnamed slots with
+// fallbacks referenced from the view via `{header}` / `{children}`
+// interpolations, a typed data slot (`@slot footer: String`), a consumer
+// projecting named content via the new syntax, and a consumer providing no
+// named content (exercises the declared fallback path).
+
+import omniview;
+
+component Modal {
+    @slot header { <h4>Default header</h4> }
+    @slot { <p>Default body</p> }
+    @slot footer: String
+    view {
+        <div class: modal>
+            {header}
+            {children}
+            {footer}
+        </div>
+    }
+}
+
+component App {
+    view {
+        <Modal header={<div>Custom title</div>}>
+            <p>Custom body</p>
+        </Modal>
+        <Modal />
+    }
+}

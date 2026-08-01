@@ -237,7 +237,11 @@ pub(crate) fn build_component_slot_map(
 ) -> FxHashMap<String, FxHashSet<String>> {
     let mut map: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
     for (name, comp) in component_map {
-        let mut slots: FxHashSet<String> = FxHashSet::default();
+        let mut slots: FxHashSet<String> = comp
+            .slots
+            .iter()
+            .map(|s| s.name.clone().unwrap_or_else(|| "children".to_string()))
+            .collect();
         if let Some(ref view) = comp.view {
             let mut acc: Vec<(Option<String>, Option<TypeIR>)> = Vec::new();
             collect_view_slots(view, component_map, &mut acc);

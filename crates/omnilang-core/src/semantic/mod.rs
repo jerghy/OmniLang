@@ -26,6 +26,7 @@ pub use motion::parse_duration_ms;
 use crate::error::Diagnostic;
 use crate::parser::ast::Program;
 use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use symbols::*;
 
 /// Result of semantic analysis — always returned (diagnostics may contain errors/warnings).
@@ -53,6 +54,14 @@ pub struct SemanticAnalyzer {
     dependencies: FxHashMap<String, Vec<String>>,
     /// True when resolving a view template interpolation {expr}
     resolving_interpolation: bool,
+    /// Component names declared in the current module — element tags
+    /// matching one of these are component instantiations (their children
+    /// are consumer-side projections, not this component's own content).
+    module_component_names: FxHashSet<String>,
+    /// Set to `Some(component_tag)` while resolving the children of a
+    /// component instantiation — used to detect unsupported slot
+    /// forwarding (`{slot}` inside another component's children).
+    inside_component_children: Option<String>,
 }
 
 impl Default for SemanticAnalyzer {
@@ -68,6 +77,8 @@ impl SemanticAnalyzer {
             diagnostics: Vec::new(),
             dependencies: FxHashMap::default(),
             resolving_interpolation: false,
+            module_component_names: FxHashSet::default(),
+            inside_component_children: None,
         }
     }
 
@@ -137,6 +148,165 @@ mod tests {
         assert!(errors.is_empty(), "expected no errors, got: {:?}", errors);
         // Should have collected at least: global scope, function:main
         assert!(!result.symbols.scopes().is_empty(), "should have scopes");
+    }
+
+    #[test]
+    fn analyze_body_slot_symbols_registered() {
+        // {header} in the view resolves to the body-level slot symbol
+        // (SymbolKind::Slot) — no E0001 "Undeclared variable".
+        let result = analyze_source(
+            "component Modal { @slot header { <h4>x</h4> } view { <div>{header}</div> } }",
+        );
+        let errors: Vec<_> = result
+            .diagnostics
+            .iter()
+            .filter(|d| d.severity == crate::error::Severity::Error)
+            .collect();
+        assert!(errors.is_empty(), "expected no errors, got: {:?}", errors);
+        // The slot symbol must exist in the component scope with kind Slot
+        let scope_idx = result
+            .symbols
+            .find_scope_by_name("component:Modal")
+            .expect("component scope should exist");
+        let slot_sym = result
+            .symbols
+            .get_scope(scope_idx)
+            .and_then(|s| s.symbols.get("header"))
+            .expect("slot symbol 'header' should be registered");
+        assert_eq!(slot_sym.kind, SymbolKind::Slot);
+    }
+
+    #[test]
+    fn analyze_body_slot_type_constraint_becomes_symbol_type() {
+        let result =
+            analyze_source("component Modal { @slot footer: String view { <div>{footer}</div> } }");
+        let scope_idx = result
+            .symbols
+            .find_scope_by_name("component:Modal")
+            .expect("component scope should exist");
+        let slot_sym = result
+            .symbols
+            .get_scope(scope_idx)
+            .and_then(|s| s.symbols.get("footer"))
+            .expect("slot symbol 'footer' should be registered");
+        assert_eq!(slot_sym.type_ann.as_deref(), Some("String"));
+    }
+
+    #[test]
+    fn analyze_duplicate_body_slots_warn() {
+        let result =
+            analyze_source("component Modal { @slot header @slot header view { <div/> } }");
+        assert!(
+            result.diagnostics.iter().any(|d| {
+                d.severity == crate::error::Severity::Warning
+                    && d.message.contains("Duplicate declaration")
+            }),
+            "expected duplicate-slot warning, got: {:?}",
+            result.diagnostics
+        );
+    }
+
+    #[test]
+    fn analyze_duplicate_body_slots_warn_at_declaration_span() {
+        // The duplicate warning should point at the second declaration,
+        // not (0, 0) — SlotDecl carries its source span.
+        let result =
+            analyze_source("component Modal { @slot header @slot header view { <div/> } }");
+        let dup = result
+            .diagnostics
+            .iter()
+            .find(|d| d.message.contains("Duplicate declaration"))
+            .expect("expected duplicate-slot warning");
+        assert!(
+            dup.col > 0,
+            "duplicate-slot warning should point at the second declaration, col was {}",
+            dup.col
+        );
+    }
+
+    #[test]
+    fn analyze_slot_name_colliding_with_signal_warns() {
+        // A slot named like a signal/prop is ambiguous for `{name}`
+        // interpolations — declare_or_warn flags the collision.
+        let result = analyze_source(
+            "component Modal { signal count: i32 = 0; @slot count view { <div>{count}</div> } }",
+        );
+        assert!(
+            result.diagnostics.iter().any(|d| {
+                d.severity == crate::error::Severity::Warning
+                    && d.message.contains("Duplicate declaration")
+            }),
+            "slot name colliding with a signal must warn, got: {:?}",
+            result.diagnostics
+        );
+    }
+
+    #[test]
+    fn analyze_slot_interpolation_undeclared_still_suppressed() {
+        // Back-compat: an interpolation referencing a name that is NOT a
+        // declared slot stays suppressed (view-level @slot / interpolation
+        // behavior unchanged).
+        let result = analyze_source("component Modal { view { <div>{children}</div> } }");
+        let errors: Vec<_> = result
+            .diagnostics
+            .iter()
+            .filter(|d| d.severity == crate::error::Severity::Error)
+            .collect();
+        assert!(
+            errors.is_empty(),
+            "interpolation suppression must remain, got: {:?}",
+            errors
+        );
+    }
+
+    #[test]
+    fn analyze_slot_forwarding_in_component_children_warns() {
+        // Slot forwarding: Modal's `{header}` appears inside the children of
+        // `<Card>...</Card>` — codegen materializes it into a ViewTree::Slot
+        // and treats it as Card's own projection, so the forwarded content
+        // silently never reaches Card. Must warn (not error — forwarding may
+        // become supported later).
+        let result = analyze_source(
+            "component Card { @slot header { <h5>Card default</h5> } view { <div>{header}</div> } }
+             component Modal { @slot header { <h4>Modal default</h4> } view { <Card>{header}</Card> } }",
+        );
+        let forwarding: Vec<_> = result
+            .diagnostics
+            .iter()
+            .filter(|d| d.message.contains("slot forwarding"))
+            .collect();
+        assert_eq!(
+            forwarding.len(),
+            1,
+            "expected exactly one slot-forwarding warning, got: {:?}",
+            result.diagnostics
+        );
+        assert!(
+            forwarding
+                .iter()
+                .all(|d| d.severity == crate::error::Severity::Warning),
+            "slot forwarding must be a warning, got: {:?}",
+            result.diagnostics
+        );
+    }
+
+    #[test]
+    fn analyze_slot_forwarding_no_warning_for_normal_usage() {
+        // Own-view interpolation (plain element), consumer named-prop
+        // projection, fallback content, and slot references nested inside
+        // plain elements must not warn.
+        let result = analyze_source(
+            "component Modal { @slot header { <p>{header}</p> } view { <div>{header}</div> } }
+             component App { view { <Modal header={<div>Title</div>} /> } }",
+        );
+        assert!(
+            !result
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains("slot forwarding")),
+            "normal slot usage must not warn, got: {:?}",
+            result.diagnostics
+        );
     }
 
     #[test]

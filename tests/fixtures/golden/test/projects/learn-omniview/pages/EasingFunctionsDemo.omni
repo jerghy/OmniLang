@@ -1,0 +1,319 @@
+// ╔══════════════════════════════════════════════════════════════════════╗
+// ║  EasingFunctionsDemo — 缓动全家桶覆盖（23 种缓动）                  ║
+// ║                                                                    ║
+// ║  Power 组：   ease-in, power1-in/out/in-out, power2-in/in-out,    ║
+// ║               power3-in/in-out, power4-in/out/in-out              ║
+// ║  Back 组：    back-in/out/in-out (named-only)                      ║
+// ║  Bounce 组：  bounce-in/out/in-out                                 ║
+// ║  Elastic 组： elastic-in/out/in-out (named-only)                   ║
+// ║  Custom 组：  cubic(x1,y1,x2,y2)                                   ║
+// ║  Steps 组：   steps(count, direction) — 仅位置参数                 ║
+// ║               steps(6, end) / steps(6, start)                     ║
+// ╚══════════════════════════════════════════════════════════════════════╝
+import omniview;
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  🧪 Playwright Test                                         ║
+// ║                                                            ║
+// ║  **Steps:**                                                ║
+// ║  1. Navigate to EasingFunctionsDemo component page.        ║
+// ║  2. Verify all 23 easing function cards render.            ║
+// ║  3. Check Power group: ease-in, power1/2/3/4 variants.     ║
+// ║  4. Check Back group: back-in/out/in-out.                  ║
+// ║  5. Check Bounce group: bounce-in/out/in-out.              ║
+// ║  6. Check Elastic group: elastic-in/out/in-out.            ║
+// ║  7. Check Steps group: steps(6, end) / steps(6, start).    ║
+// ║  8. Check Custom group: cubic-bezier.                       ║
+// ║  9. Click "Play All Animations" button to trigger @enter   ║
+// ║     on all cards.                                          ║
+// ║                                                            ║
+// ║  **Expected:**                                             ║
+// ║  - 22 cards rendered, each with @enter motion data attr.   ║
+// ║  - easeIn card has @enter={easeInMove} (easing: ease-in).  ║
+// ║  - power4InOut card has @enter={power4InOutMove} (easing:  ║
+// ║    power4-in-out).                                         ║
+// ║  - cubicCustom card uses cubic(x1,y1,x2,y2).              ║
+// ║  - "Play All Animations" button rendered and clickable.    ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+// ══════════════════════════════════════════════════════════════════════
+//  POWER 系列 — power1 (quadratic)
+// ══════════════════════════════════════════════════════════════════════
+
+@motion power1InMove {
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 800ms
+    easing: power1-in
+}
+
+@motion power1OutMove {
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 800ms
+    easing: power1-out
+}
+
+@motion power1InOutMove {
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 800ms
+    easing: power1-in-out
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  POWER 系列 — power2 (cubic) · In 和 InOut 已用
+// ══════════════════════════════════════════════════════════════════════
+
+@motion power2InMove {
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 800ms
+    easing: power2-in
+}
+
+@motion power2InOutMove {
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 800ms
+    easing: power2-in-out
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  POWER 系列 — power3 (quartic) · In 和 InOut 已用
+// ══════════════════════════════════════════════════════════════════════
+
+@motion power3InMove {
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 800ms
+    easing: power3-in
+}
+
+@motion power3InOutMove {
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 800ms
+    easing: power3-in-out
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  POWER 系列 — power4 (quintic) 全部已用
+// ══════════════════════════════════════════════════════════════════════
+
+@motion power4InMove {
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 800ms
+    easing: power4-in
+}
+
+@motion power4OutMove {
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 800ms
+    easing: power4-out
+}
+
+@motion power4InOutMove {
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 800ms
+    easing: power4-in-out
+}
+
+// ── base easeIn（最简单） ───────────────────────────────────
+@motion easeInMove {
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 800ms
+    easing: ease-in
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  BACK 系列 — overshoot 弹回
+// ══════════════════════════════════════════════════════════════════════
+
+@motion backInMove {
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 800ms
+    easing: back-in
+}
+
+@motion backOutMove {
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 800ms
+    easing: back-out
+}
+
+@motion backInOutMove {
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 800ms
+    easing: back-in-out
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  BOUNCE 系列
+// ══════════════════════════════════════════════════════════════════════
+
+@motion bounceInMove {
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 1000ms
+    easing: bounce-in
+}
+
+@motion bounceOutMove {
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 1000ms
+    easing: bounce-out
+}
+
+@motion bounceInOutMove {
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 1000ms
+    easing: bounce-in-out
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  ELASTIC 系列
+// ══════════════════════════════════════════════════════════════════════
+
+@motion elasticInMove {
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 1200ms
+    easing: elastic-in
+}
+
+@motion elasticOutMove {
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 1200ms
+    easing: elastic-out
+}
+
+@motion elasticInOutMove {
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 1200ms
+    easing: elastic-in-out
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  CUBIC BEZIER — 4 参数自定义三次贝塞尔
+// ══════════════════════════════════════════════════════════════════════
+
+@motion cubicCustom {
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 800ms
+    easing: cubic(x1: 0.68, y1: -0.55, x2: 0.27, y2: 1.55)
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  STEPS — 阶跃（仅位置参数：steps(count, direction)）
+// ══════════════════════════════════════════════════════════════════════
+
+@motion stepsEndMove {
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 800ms
+    easing: steps(6, end)
+}
+
+@motion stepsStartMove {
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 800ms
+    easing: steps(6, start)
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  组件
+// ══════════════════════════════════════════════════════════════════════
+component EasingFunctionsDemo {
+    signal playAll: bool = false;
+
+    fn toggleAll() { playAll = !playAll; }
+
+    view {
+        <div class: container>
+            <h3 class: title>缓动函数全家桶</h3>
+            <p class: subtitle>22 种缓动 · 点击按钮播放当前屏幕所有 @enter 动画</p>
+            <button @press={backOutMove} @click={toggleAll} class: trigger-btn>
+                {if playAll { "Reset" } else { "Play All Animations" }}
+            </button>
+
+            <!-- ═══ Power 组 ═══ -->
+            <h4 class: group-title>Power 曲线（ease-in · power1 · power2 · power3 · power4）</h4>
+            <div class: grid>
+                <div class: card @enter={easeInMove}><strong>ease-in</strong><p>三次方加速</p></div>
+                <div class: card @enter={power1InMove}><strong>power1-in</strong><p>二次方入</p></div>
+                <div class: card @enter={power1OutMove}><strong>power1-out</strong><p>二次方出</p></div>
+                <div class: card @enter={power1InOutMove}><strong>power1-in-out</strong><p>二次方出入</p></div>
+                <div class: card @enter={power2InMove}><strong>power2-in</strong><p>三次方入</p></div>
+                <div class: card @enter={power2InOutMove}><strong>power2-in-out</strong><p>三次方出入</p></div>
+                <div class: card @enter={power3InMove}><strong>power3-in</strong><p>四次方入</p></div>
+                <div class: card @enter={power3InOutMove}><strong>power3-in-out</strong><p>四次方出入</p></div>
+                <div class: card @enter={power4InMove}><strong>power4-in</strong><p>五次方入</p></div>
+                <div class: card @enter={power4OutMove}><strong>power4-out</strong><p>五次方出</p></div>
+                <div class: card @enter={power4InOutMove}><strong>power4-in-out</strong><p>五次方出入</p></div>
+            </div>
+
+            <!-- ═══ Back 组 ═══ -->
+            <h4 class: group-title>Back 弹回（named-only）</h4>
+            <div class: grid>
+                <div class: card @enter={backInMove}><strong>back-in</strong><p>回弹入</p></div>
+                <div class: card @enter={backOutMove}><strong>back-out</strong><p>回弹出</p></div>
+                <div class: card @enter={backInOutMove}><strong>back-in-out</strong><p>回弹出入</p></div>
+            </div>
+
+            <!-- ═══ Bounce 组 ═══ -->
+            <h4 class: group-title>Bounce 弹跳</h4>
+            <div class: grid>
+                <div class: card @enter={bounceInMove}><strong>bounce-in</strong><p>弹跳入</p></div>
+                <div class: card @enter={bounceOutMove}><strong>bounce-out</strong><p>弹跳出</p></div>
+                <div class: card @enter={bounceInOutMove}><strong>bounce-in-out</strong><p>弹跳出入</p></div>
+            </div>
+
+            <!-- ═══ Elastic 组 ═══ -->
+            <h4 class: group-title>Elastic 弹性（named-only）</h4>
+            <div class: grid>
+                <div class: card @enter={elasticInMove}><strong>elastic-in</strong><p>弹性入</p></div>
+                <div class: card @enter={elasticOutMove}><strong>elastic-out</strong><p>弹性出</p></div>
+                <div class: card @enter={elasticInOutMove}><strong>elastic-in-out</strong><p>弹性出入</p></div>
+            </div>
+
+            <!-- ═══ Steps 组 ═══ -->
+            <h4 class: group-title>Steps 阶跃（仅位置参数）</h4>
+            <div class: grid>
+                <div class: card @enter={stepsEndMove}><strong>steps(6, end)</strong><p>6 步阶跃，保持终点值</p></div>
+                <div class: card @enter={stepsStartMove}><strong>steps(6, start)</strong><p>6 步阶跃，保持起点值</p></div>
+            </div>
+
+            <!-- ═══ Custom 组 ═══ -->
+            <h4 class: group-title>自定义缓动（cubic-bezier）</h4>
+            <div class: grid>
+                <div class: card @enter={cubicCustom}><strong>cubic(x1,y1,x2,y2)</strong><p>自定义贝塞尔 overshoot</p></div>
+            </div>
+        </div>
+    }
+
+    style {
+        .container { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 16px; margin: 16px 0; }
+        .title { font-size: 18px; color: var(--textPrimary); margin: 0 0 4px 0; }
+        .subtitle { font-size: 12px; color: var(--textSecondary); margin: 0 0 12px 0; }
+        .trigger-btn { padding: 8px 16px; background: var(--primary); color: #fff; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; margin-bottom: 8px; }
+        .group-title { font-size: 14px; font-weight: 600; color: var(--textPrimary); margin: 20px 0 10px 0; padding-bottom: 4px; border-bottom: 1px solid var(--borderLight); }
+        .grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
+        .card { flex: 0 0 auto; padding: 12px 14px; background: var(--surfaceMuted); border-radius: 10px; border: 1px solid var(--borderLight); text-align: center; min-width: 110px; }
+        .card strong { font-size: 11px; color: var(--textPrimary); display: block; margin-bottom: 2px; }
+        .card p { font-size: 10px; color: var(--textSecondary); margin: 0; }
+    }
+}

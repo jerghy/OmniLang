@@ -1,0 +1,256 @@
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  ElementRefDemo.omni — Element Reference System (ADR-036)    ║
+// ║                                                              ║
+// ║  演示 ref 声明 + @ref 绑定 + 语义化 ref 操作 API:            ║
+// ║    · ref name: Element   — 元素引用声明                      ║
+// ║    · @ref={name}         — 绑定到元素                        ║
+// ║    · style: { width: sig } — 信号驱动样式绑定（替代 .style） ║
+// ║    · .focus() / .blur()  — 焦点管理（命令式）                ║
+// ║    · scroll-y={sig}      — 响应式滚动绑定                    ║
+// ║    · .scrollTo() / .scrollBy() — 命令式滚动控制              ║
+// ║    · .measure()          — 位置/尺寸查询（替代 getBoundingClientRect / offsetWidth）║
+// ║    · @drag-horizontal / @drag-vertical — 拖拽触发器 + motion 接线 ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+import omniview;
+import { LearnDesign } from "../design";
+
+// ── 拖拽动画：translateX/Y 映射到拖拽范围，元素跟随拖拽进度 ──
+@motion dragX300 {
+    from { translateX: 0 }
+    to   { translateX: 300 }
+    over: 300ms
+    easing: power2-out
+}
+@motion dragX150 {
+    from { translateX: 0 }
+    to   { translateX: 150 }
+    over: 300ms
+    easing: power2-out
+}
+@motion dragY100 {
+    from { translateY: 0 }
+    to   { translateY: 100 }
+    over: 300ms
+    easing: power2-out
+}
+
+component ElementRefDemo {
+    // ── ref 声明（ADR-036：Element Reference System） ──
+    ref inputBox: Element;
+    ref scrollArea: Element;
+    ref rectBox: Element;
+    ref sizeBox: Element;
+    ref mirrorInput: Element;
+
+    // ── 本地信号 ──
+    signal focusStatus: String = "not focused";
+    signal scrollPos: String = "top";
+    signal scrollTarget: f64 = 0;           // 驱动 scroll-y={scrollTarget} 绑定
+    signal rectInfo: String = "—";
+    signal boxWidth: f64 = 200;             // measure() 查询结果（仅查询写入）
+    signal boxWidthPx: String = "200px";    // style 绑定值（含单位）
+    signal boxHeightPx: String = "80px";
+    signal mirrorText: String = "";
+
+    // ── 焦点操作（命令式 RefOp：.focus() / .blur()） ──
+    fn focusInput() {
+        inputBox.focus();
+        focusStatus = "focused";
+    }
+    fn blurInput() {
+        inputBox.blur();
+        focusStatus = "blurred";
+    }
+
+    // ── 滚动控制：响应式 scroll-y 绑定 + 命令式 .scrollBy ──
+    // scroll-y={scrollTarget} 是 scrollTo 的响应式形态：按钮只更新信号，
+    // 绑定自动驱动元素滚动；scrollBy 保持命令式（增量滚动无法用绑定表达）。
+    fn scrollToTop() {
+        scrollTarget = 0;
+        scrollPos = "top";
+    }
+    fn scrollToBottom() {
+        scrollTarget = 9999;
+        scrollPos = "bottom";
+    }
+    fn scrollByDown() {
+        scrollArea.scrollBy(0, 100);
+        scrollPos = "scrolled +100px";
+    }
+
+    // ── 位置查询（ref.measure()） ──
+    fn queryRect() {
+        let rect = rectBox.measure();
+        rectInfo = "x:" + rect.x.to_string() + " y:" + rect.y.to_string()
+                 + " w:" + rect.width.to_string() + " h:" + rect.height.to_string();
+    }
+
+    // ── 尺寸查询（ref.measure().width / .height） ──
+    fn querySize() {
+        let w = sizeBox.measure().width;
+        let h = sizeBox.measure().height;
+        boxWidth = w;
+    }
+
+    // ── 信号驱动样式（style: { width: sig } 绑定，替代 ref.style 直接操作） ──
+    fn expandBox() {
+        boxWidthPx = "300px";
+        boxHeightPx = "120px";
+    }
+    fn resetBox() {
+        boxWidthPx = "200px";
+        boxHeightPx = "80px";
+    }
+
+    // ── 多 ref 联动（输入 → 镜像） ──
+    fn syncMirror() {
+        let val = mirrorInput.value;
+        // borderColor 高亮已由 .ref-input:focus CSS 规则实现
+        // （ref.style 直接样式操作已移除 — validate_ref_ops 拒绝）
+        mirrorText = val;
+    }
+
+    // ── 高频拖拽 ──
+    // 旧版通过 ref.style 直接写 DOM 实现 60fps 拖拽；ref.style 已按
+    // semantic-level DSL 移除（见 validate_ref_ops），拖拽改由
+    // @drag-horizontal / @drag-vertical 触发器 + @motion 驱动。
+
+    view {
+        <div class: LearnDesign.Container>
+            <h3 class: LearnDesign.CardTitle>Element Reference System</h3>
+            <p class: LearnDesign.Subtitle>ref · @ref · style · .focus() · .scrollTo() · .measure()</p>
+
+            <!-- ═══ 焦点管理 ═══ -->
+            <h4 class: LearnDesign.SectionTitle>焦点管理 (.focus / .blur)</h4>
+            <div class: demo-row>
+                <input
+                    class: ref-input
+                    @ref={inputBox}
+                    @onInput={() => {}}
+                    placeholder="ref-bound input"
+                />
+                <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={focusInput}>
+                    Focus
+                </button>
+                <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={blurInput}>
+                    Blur
+                </button>
+                <span class: status-text>Status: {focusStatus}</span>
+            </div>
+
+            <!-- ═══ 滚动控制 ═══ -->
+            <h4 class: LearnDesign.SectionTitle>滚动控制 (scroll-y 绑定 + .scrollBy)</h4>
+            <div scroll-y={scrollTarget} @ref={scrollArea} class: scroll-box>
+                <p class: scroll-item>Item 1 — 滚动演示区域</p>
+                <p class: scroll-item>Item 2 — 使用 scroll-y 绑定跳转</p>
+                <p class: scroll-item>Item 3 — 使用 .scrollBy() 增量</p>
+                <p class: scroll-item>Item 4 — Element Ref API</p>
+                <p class: scroll-item>Item 5 — ADR-036 / ADR-038</p>
+                <p class: scroll-item>Item 6 — 底部</p>
+            </div>
+            <div class: LearnDesign.Row>
+                <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={scrollToTop}>
+                    Scroll To Top
+                </button>
+                <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={scrollToBottom}>
+                    Scroll To Bottom
+                </button>
+                <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={scrollByDown}>
+                    ScrollBy +100px
+                </button>
+                <span class: status-text>Pos: {scrollPos}</span>
+            </div>
+
+            <!-- ═══ 位置查询 ═══ -->
+            <h4 class: LearnDesign.SectionTitle>位置查询 (.measure)</h4>
+            <div @ref={rectBox} class: rect-box>
+                <p>Query Box — click "Query Rect" to read position</p>
+            </div>
+            <div class: LearnDesign.Row>
+                <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={queryRect}>
+                    Query Rect
+                </button>
+                <span class: status-text>{rectInfo}</span>
+            </div>
+
+            <!-- ═══ 尺寸查询 + 样式绑定 ═══ -->
+            <h4 class: LearnDesign.SectionTitle>尺寸查询 + 样式绑定 (.measure / style 绑定)</h4>
+            <div class: demo-row>
+                <div @ref={sizeBox} class: size-box
+                    style: { width: boxWidthPx, height: boxHeightPx }>
+                    <p>resize via style binding</p>
+                </div>
+                <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={querySize}>
+                    Query Size
+                </button>
+                <button variant: LearnDesign.Button(color=accent, size=sm) @onPress={expandBox}>
+                    Expand
+                </button>
+                <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={resetBox}>
+                    Reset
+                </button>
+                <span class: status-text>Width: {boxWidthPx} · 实测: {boxWidth}px</span>
+            </div>
+
+            <!-- ═══ 多 ref 联动 ═══ -->
+            <h4 class: LearnDesign.SectionTitle>多 ref 联动 (.value)</h4>
+            <div class: demo-row>
+                <input
+                    class: ref-input
+                    @ref={mirrorInput}
+                    placeholder="Type here..."
+                    @onInput={syncMirror}
+                />
+                <span class: mirror-text>
+                    Mirror: {mirrorText}
+                </span>
+            </div>
+
+            <!-- ═══ 高频拖拽（@drag-horizontal 触发器） ═══ -->
+            <h4 class: LearnDesign.SectionTitle>高频拖拽 (@drag-horizontal)</h4>
+            <p class: LearnDesign.Hint>
+                范围约束待重新实现（当前拖动无位移），仅演示触发器与 motion 的接线
+            </p>
+            <div class: LearnDesign.Row>
+                <div
+                    @drag-horizontal={dragX300}
+                    class: drag-box>
+                    <p>↔ Drag me</p>
+                </div>
+            </div>
+
+            <h4 class: LearnDesign.SectionTitle>拖拽方向与范围变体</h4>
+            <p class: LearnDesign.Hint>
+                约束/弹性等子属性已按 semantic-level DSL 移除（解析器无对应 token，
+                待重新实现）；下方演示水平/垂直方向的触发器与 motion 接线。
+            </p>
+            <div class: constraints-row>
+                <!-- 原两个 elastic 变体盒子（elastic 0.5 / 0）均已移除 -->
+                <div @drag-horizontal={dragX150} class: drag-demo-box>
+                    <p>↔ 水平 150px</p>
+                </div>
+                <div @drag-vertical={dragY100} class: drag-demo-box>
+                    <p>↕ 垂直 100px</p>
+                </div>
+            </div>
+        </div>
+    }
+
+    style {
+        .demo-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+        .status-text { font-size: 13px; color: var(--textSecondary); }
+        .ref-input { padding: 10px 12px; border: 2px solid var(--border); border-radius: var(--radiusMd); font-size: 14px; outline: none; flex: 1; min-width: 180px; }
+        .ref-input:focus { border-color: var(--primary); }
+        .scroll-box { height: 120px; overflow-y: auto; background: var(--surfaceMuted); border: 1px solid var(--border); border-radius: var(--radiusMd); padding: 8px 12px; margin-bottom: 8px; }
+        .scroll-item { padding: 8px 0; font-size: 13px; color: var(--textSecondary); border-bottom: 1px solid var(--borderLighter); }
+        .rect-box { padding: 16px; background: var(--surfaceMuted); border: 1px solid var(--border); border-radius: var(--radiusMd); text-align: center; margin-bottom: 8px; }
+        .drag-box { width: 120px; padding: 16px; background: var(--accent); color: white; border-radius: var(--radiusMd); text-align: center; cursor: grab; user-select: none; }
+        .size-box { width: 200px; height: 80px; background: var(--primaryLight); border-radius: var(--radiusMd); display: flex; align-items: center; justify-content: center; transition: "all 300ms"; }
+        .size-box p { font-size: var(--fontSizeXs); color: white; margin: 0; }
+        .mirror-text { font-size: var(--fontSizeSm); color: var(--textSecondary); padding: 8px 14px; background: var(--surfaceMuted); border-radius: var(--radiusMd); min-width: 150px; }
+        .constraints-row { display: flex; gap: 16px; margin-bottom: 12px; flex-wrap: wrap; }
+        .drag-demo-box { width: 100px; height: 80px; padding: 12px; background: var(--primary); color: white; border-radius: var(--radiusMd); text-align: center; cursor: grab; user-select: none; }
+        .drag-demo-box p { font-size: var(--fontSizeXs); margin: 0; }
+    }
+}

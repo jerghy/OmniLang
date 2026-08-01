@@ -246,3 +246,36 @@ jobs:
         if: always()
         run: rm -f package.json package-lock.json
         working-directory: omnilang/tests
+
+  codegen-validate:
+    runs-on: ubuntu-latest
+    needs: rust
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      # Version-pinned to match test/projects/learn-omniview/build/react-test-app
+      # (the e2e-validated generated app). The generated_code_validation test
+      # resolves tsc + react/zustand/@types/react from this directory.
+      - name: Install TypeScript validation dependencies
+        working-directory: omnilang/tests
+        run: |
+          npm init -y
+          npm install react@18.3.1 zustand@4.5.0 typescript@5.5.4 @types/react@18.3.0
+      # Runs tsc --noEmit over generated React TSX and dart analyze over
+      # generated Flutter Dart (graceful SKIPs when a toolchain is missing).
+      - name: Validate generated code compiles
+        run: cargo test -p omnilang --features codegen-flutter --test generated_code_validation -- --nocapture
+      - name: Clean up npm scaffolding
+        if: always()
+        run: rm -f package.json package-lock.json
+        working-directory: omnilang/tests

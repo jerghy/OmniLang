@@ -6,96 +6,86 @@ import { LearnDesign } from "../design";
 // ║                                                            ║
 // ║  **Steps:**                                                ║
 // ║  1. Navigate to MotionTriggersDemo component page.         ║
-// ║  2. Verify all trigger sections render: @inView divs,    ║
-// ║     @scroll area, @dragHorizontal/@dragVertical boxes.   ║
-// ║  3. Scroll page to trigger @inView elements (slideInView). ║
-// ║  5. Scroll within the scroll area to trigger @scroll.      ║
+// ║  2. Verify all trigger sections render: @in-view divs,     ║
+// ║     @scroll area, @focus input, @drag-horizontal/          ║
+// ║     @drag-vertical boxes.                                  ║
+// ║  3. Scroll page to trigger @in-view elements (slideInView).║
+// ║  4. Scroll within the scroll area to trigger @scroll.      ║
+// ║  5. Focus the "Focus me" input to trigger @focus.          ║
 // ║  6. Attempt drag on the horizontal and vertical drag boxes.║
 // ║                                                            ║
 // ║  **Expected:**                                             ║
-// ║  - @inView divs have @in-view-once/@in-view-repeat and     ║
-// ║    @in-view-threshold attributes.                          ║
-// ║  - @scroll div has @scroll-start, @scroll-end,             ║
-// ║    @scroll-scrub attributes.                               ║
-// ║  - Drag boxes have @dragHorizontal/@dragVertical,           ║
-// ║    @drag-constraints, @drag-elastic, @drag-scrub,           ║
-// ║    @drag-momentum, @drag-threshold, @drag-velocity-max.    ║
+// ║  - @in-view divs animate when entering the viewport.       ║
+// ║  - @scroll div animates while scrolling.                   ║
+// ║  - Focusing the input triggers the slideInView motion.     ║
+// ║  - Drag boxes respond to @drag-horizontal/@drag-vertical.  ║
+// ║                                                            ║
+// ║  注：触发器子属性（@in-view-once/@in-view-repeat/          ║
+// ║  @in-view-threshold/@scroll-start/@scroll-end/             ║
+// ║  @scroll-scrub/@drag-constraints/@drag-elastic/            ║
+// ║  @drag-scrub/@drag-momentum/@drag-threshold/               ║
+// ║  @drag-velocity-max）已按 semantic-level DSL 规范移除，     ║
+// ║  待独立属性（once/threshold/constraints 等）重新实现后恢复。║
 // ╚══════════════════════════════════════════════════════════════╝
 
 // ═══ 动效定义 ═══
 @motion slideInView {
-    from { opacity: 0 y: 30 }
-    to   { opacity: 1 y: 0 }
-    over 400 ease power2Out
+    from { opacity: 0, translateY: 30 }
+    to   { opacity: 1, translateY: 0 }
+    over: 400ms
+    easing: power2-out
 }
 
 @motion scrollFade {
-    from { opacity: 0.3 scale: 0.95 }
-    to   { opacity: 1 scale: 1 }
-    over 500 ease easeOut
+    from { opacity: 0.3, scale: 0.95 }
+    to   { opacity: 1, scale: 1 }
+    over: 500ms
+    easing: ease-out
 }
 
 @motion dragSlide {
-    from { x: 0 }
-    to   { x: 100 }
-    over 300 ease power2Out
+    from { translateX: 0 }
+    to   { translateX: 100 }
+    over: 300ms
+    easing: power2-out
 }
 
 component MotionTriggersDemo {
-    signal isHovered: bool = false;
-    signal isFocused: bool = false;
-    signal dragX: f64 = 0;
-
     view {
         <div class: LearnDesign.Container>
             <h3 class: LearnDesign.CardTitle>Motion Triggers Demo</h3>
-            <p class: LearnDesign.Subtitle>@inView · @scroll · @dragHorizontal · @dragVertical</p>
+            <p class: LearnDesign.Subtitle>@in-view · @scroll · @drag-horizontal · @drag-vertical · focus</p>
 
-            <!-- @inView + @in-view-once/重复/阈值 -->
+            <!-- @in-view 触发器（子属性 @in-view-once/@in-view-repeat/@in-view-threshold 已移除，待重新实现） -->
             <div class: card>
-                <h4 class: label>@inView 触发器 + 子属性</h4>
-                <div @inView={slideInView}
-                     @in-view-once={true}>
-                    <p>Slide in once</p>
-                </div>
-                <div @inView={slideInView}
-                     @in-view-repeat={true}
-                     @in-view-threshold={0.5}>
-                    <p>Slide in repeat (threshold 0.5)</p>
+                <h4 class: label>@in-view 触发器</h4>
+                <div @in-view={slideInView}>
+                    <p>Slide in (entering viewport)</p>
                 </div>
             </div>
 
-            <!-- @scroll + 子属性 -->
+            <!-- @scroll 触发器（子属性 @scroll-start/@scroll-end/@scroll-scrub 已移除，待重新实现） -->
             <div class: card>
-                <h4 class: label>@scroll 触发器 + scroll-start/end/scrub</h4>
-                <div @scroll={scrollFade}
-                     @scroll-start="top 80%"
-                     @scroll-end="bottom 20%"
-                     @scroll-scrub={0.5}
-                     class: scroll-area>
+                <h4 class: label>@scroll 触发器</h4>
+                <div @scroll={scrollFade} class: scroll-area>
                     <p>Scroll to animate</p>
                 </div>
             </div>
 
-            <!-- @dragHorizontal + @dragVertical + 拖拽子属性 -->
+            <!-- @focus 触发器 -->
             <div class: card>
-                <h4 class: label>@dragHorizontal / @dragVertical 拖拽</h4>
-                <div @dragHorizontal={dragSlide}
-                     @drag-constraints="left:0 right:300"
-                     @drag-elastic={0.2}
-                     @drag-scrub={true}
-                     @drag-momentum={0.95}
-                     @drag-threshold={30}
-                     @drag-velocity-max={2000}
-                     class: drag-box>
+                <h4 class: label>focus 触发器</h4>
+                <input placeholder="Focus me" @focus={slideInView} class: focus-input />
+                <p>Focus the input to trigger slideInView</p>
+            </div>
+
+            <!-- @drag-horizontal + @drag-vertical 拖拽（子属性 @drag-constraints/@drag-elastic/@drag-scrub/@drag-momentum/@drag-threshold/@drag-velocity-max 已移除，待重新实现） -->
+            <div class: card>
+                <h4 class: label>@drag-horizontal / @drag-vertical 拖拽</h4>
+                <div @drag-horizontal={dragSlide} class: drag-box>
                     <p>Drag me →</p>
                 </div>
-                <div @dragVertical={dragSlide}
-                     @drag-constraints="top:0 bottom:200"
-                     @drag-elastic={0.3}
-                     @drag-scrub={true}
-                     @drag-momentum={0.9}
-                     class: drag-box-vertical>
+                <div @drag-vertical={dragSlide} class: drag-box-vertical>
                     <p>Drag me ↓</p>
                 </div>
             </div>
@@ -106,5 +96,6 @@ component MotionTriggersDemo {
         .scroll-area { height: 120px; overflow-y: auto; background: var(--surfaceSubtle); padding: 16px; border-radius: var(--radiusMd); }
         .drag-box { width: 120px; padding: 16px; background: var(--accent); color: white; border-radius: var(--radiusMd); text-align: center; cursor: grab; user-select: none; }
         .drag-box-vertical { width: 100px; padding: 16px; background: var(--primary); color: white; border-radius: var(--radiusMd); text-align: center; cursor: grab; user-select: none; margin-top: 8px; }
+        .focus-input { padding: 8px 12px; border: 2px solid var(--borderLight); border-radius: var(--radiusMd); font-size: 13px; }
     }
 }

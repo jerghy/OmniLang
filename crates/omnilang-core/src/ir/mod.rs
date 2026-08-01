@@ -9,6 +9,7 @@ mod lower;
 pub mod lower_logic;
 pub mod optimize;
 mod signals;
+mod slot_materialize;
 mod types;
 mod types_motion;
 pub mod visibility;
@@ -17,6 +18,9 @@ pub mod walk;
 pub use lower::lower;
 pub use lower::lower_design_with_consts;
 
+// ── Explicit re-exports from slot_materialize.rs ──
+pub use slot_materialize::{materialize_view_slots, slot_collision_names};
+
 // ── Explicit re-exports from types.rs ──
 pub use types::{
     event_data_kind_label, event_data_schema, map_event_data_kind, BinaryOpIR, BindingIR, BlockIR,
@@ -24,8 +28,8 @@ pub use types::{
     EffectIntent, ElementIR, EventDataKind, EventDeclIR, EventFieldDef, EventHandlerIR, ExprIR,
     IRProgram, LifecycleIntent, LifecycleKind, ListRenderingIntent, MatchArmIR, MatchPatternIR,
     MatchPatternKindIR, MeasureWhat, MutationIntent, MutationOp, ParamIR, RefDeclIR, RefOpIR,
-    SignalIntent, SignalRefIR, StatementIR, StoreIR, StyleRuleIR, TypeIR, TypeKind, UnaryOpIR,
-    ViewTree,
+    SignalIntent, SignalRefIR, SlotDeclIR, StatementIR, StoreIR, StyleRuleIR, TypeIR, TypeKind,
+    UnaryOpIR, ViewTree,
 };
 
 // ── Explicit re-exports from logic.rs ──

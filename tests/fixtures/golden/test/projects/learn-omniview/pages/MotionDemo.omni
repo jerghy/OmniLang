@@ -1,0 +1,72 @@
+import omniview;
+import { LearnDesign } from "../design";
+
+@motion fadeInUp {
+  from { opacity: 0, translateY: 20 }
+  to   { opacity: 1, translateY: 0 }
+  over: 400ms
+  easing: ease-out
+}
+
+@motion scalePress {
+  to { scale: 0.95 }
+  over: 100ms
+  easing: ease-out
+}
+
+@motion listItem {
+  from { opacity: 0, translateX: -20 }
+  to   { opacity: 1, translateX: 0 }
+  over: 300ms
+  easing: power2-out
+}
+
+@motion pulse {
+  to { scale: 1.05 }
+  over: 800ms
+  easing: ease-in-out
+  direction alternate
+  loop
+}
+
+component MotionDemo {
+  signal count: i32 = 0
+  signal isOpen: bool = false
+
+  fn toggleModal() {
+    isOpen = !isOpen
+  }
+
+  fn addItem() {
+    count = count + 1
+  }
+
+  fn removeItem() {
+    count = count - 1
+  }
+
+  view {
+    <div>
+      <h1 @enter={fadeInUp}>Motion Demo</h1>
+
+      <p>Count: {count}</p>
+
+      <button @press={scalePress} @hover={pulse} @click={toggleModal}>
+        Toggle Modal
+      </button>
+
+      @if isOpen mode: "fade" {
+        <div @enter={fadeInUp}>
+          <h2>Modal Content</h2>
+        </div>
+      }
+
+      <button @press={scalePress} @click={addItem}>Add Item</button>
+      <button @press={scalePress} @click={removeItem}>Remove Item</button>
+
+      <div @hover={pulse} @press={scalePress}>
+        Interactive Panel
+      </div>
+    </div>
+  }
+}

@@ -1,0 +1,105 @@
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║  ThemeSourceDemo.omni —— @themes 语法展示                        ║
+// ║                                                                  ║
+// ║  演示 design.omni 中 @themes 声明的源代码结构：                   ║
+// ║  - @themes 指令（N 主题声明）                                     ║
+// ║  - token 多主题值语法                                             ║
+// ║  - @default-theme 回退主题                                        ║
+// ║                                                                  ║
+// ║  同时展示生成的 CSS 三层结构：                                    ║
+// ║  :root → [data-theme="X"] → @media prefers-color-scheme          ║
+// ╚══════════════════════════════════════════════════════════════════╝
+
+import omniview;
+import { LearnDesign } from "../design";
+
+component ThemeSourceDemo {
+    view {
+        <div class: LearnDesign.Container>
+            <h3 class: LearnDesign.CardTitle>How It Works: <code>@themes</code> Syntax</h3>
+            <p class: LearnDesign.Subtitle>
+                Design blocks declare themes via <code>@themes</code> directive.
+                Per-token per-theme values compile to layer CSS.
+            </p>
+
+            <div class: code-layout>
+                <div class: source-panel>
+                    <h4 class: panel-title>Source</h4>
+                    <pre class: code-block>
+                        @themes light, dark, sepia, highContrast;
+                        @default-theme light;
+                        token primary: color = "#6366f1"
+                            dark "#a5b4fc"
+                            sepia "#8B4513"
+                            highContrast "#ffff00";
+                        token surface: color = "#ffffff"
+                            dark "#111827"
+                            sepia "#F5E6C8"
+                            highContrast "#000000";
+                        token textPrimary: color = "#111827"
+                            dark "#f9fafb"
+                            sepia "#3E2723"
+                            highContrast "#ffffff";
+                    </pre>
+                </div>
+                <div class: generated-panel>
+                    <h4 class: panel-title>CSS</h4>
+                    <pre class: code-block css>
+                        :root &#123;
+                          --primary: #6366f1;
+                          --surface: #ffffff;
+                          --textPrimary: #111827;
+                        &#125;
+                        [data-theme="dark"] &#123;
+                          --primary: #a5b4fc;
+                          --surface: #111827;
+                        &#125;
+                        [data-theme="sepia"] &#123;
+                          --primary: #8B4513;
+                          --surface: #F5E6C8;
+                        &#125;
+                        [data-theme="highContrast"] &#123;
+                          --primary: #ffff00;
+                          --surface: #000000;
+                        &#125;
+                        @media (prefers-color-scheme: dark) &#123;
+                          :root:not([data-theme]) &#123;
+                            --primary: #a5b4fc;
+                          &#125;
+                        &#125;
+                    </pre>
+                </div>
+            </div>
+
+            <div class: key-points>
+                <span class: key-point>CSS Cascade — one data-theme toggle updates ALL tokens at once</span>
+                <span class: key-point>Zero runtime — per-theme CSS is generated at compile time</span>
+                <span class: key-point>N themes — add "forest", "ocean", or any named theme</span>
+            </div>
+        </div>
+    }
+
+    style {
+        .code-layout { display: flex; gap: 14px; margin: 0 0 14px 0; }
+        .source-panel { flex: 1; min-width: 0; }
+        .generated-panel { flex: 1; min-width: 0; }
+        .panel-title { font-size: var(--fontSizeSm); color: var(--textPrimary); margin: 0 0 8px 0; }
+        .code-block {
+            background: var(--surfaceSubtle);
+            border: 1px solid var(--border);
+            border-radius: var(--radiusMd);
+            padding: 14px;
+            overflow-x: auto;
+            margin: 0;
+            font-family: "ui-monospace, SFMono-Regular, monospace";
+            font-size: var(--fontSizeXs);
+            line-height: 1.6;
+            color: var(--textPrimary);
+            white-space: pre;
+        }
+
+        .key-points { display: flex; flex-direction: column; gap: 6px; padding: 12px; background: var(--surfaceMuted); border-radius: var(--radiusMd); }
+        .key-point { font-size: var(--fontSizeXs); color: var(--textSecondary); }
+        .key-point code { font-size: var(--fontSizeXs); background: var(--surfaceSubtle); padding: "1px 4px"; border-radius: "3px"; }
+    }
+}

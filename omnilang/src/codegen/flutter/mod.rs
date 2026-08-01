@@ -139,23 +139,37 @@ impl FlutterCodegen {
         w.emit_fmt(format_args!("class {} extends {} {{", name, widget_base));
         w.indent();
 
-        // Slot declarations (Task 5.3): `@slot` placeholders in the view
-        // become `Widget?` constructor params — same-named for named slots,
-        // `children` for the unnamed slot. Consumer-side projections inside
-        // child components are skipped (they are content, not declarations).
-        let mut declared_slots: Vec<(Option<String>, Option<TypeIR>)> = Vec::new();
+        // Slot declarations (Task 5.3): `@slot` placeholders in the view —
+        // and body-level `@slot` declarations (ADR-053 D5) — become `Widget?`
+        // constructor params — same-named for named slots, `children` for
+        // the unnamed slot. Consumer-side projections inside child
+        // components are skipped (they are content, not declarations).
+        let mut declared_slots: Vec<(Option<String>, Option<TypeIR>)> = comp
+            .slots
+            .iter()
+            .map(|s| (s.name.clone(), s.type_constraint.clone()))
+            .collect();
         if let Some(ref view) = comp.view {
             view::collect_view_slots(view, component_map, &mut declared_slots);
         }
         // Collision guard + de-duplicate (mirrors the React backend): a slot
-        // whose param name collides with a prop or event would emit duplicate
-        // constructor params/fields — invalid Dart — so it is skipped. The
-        // same slot name used twice emits a single param.
+        // whose param name collides with a prop, event, signal, computed, or
+        // fn would emit duplicate constructor params/fields — invalid
+        // Dart — so it is skipped (the semantic layer warns on the
+        // collision). The same slot name used twice emits a single param.
+        let slot_collides: FxHashSet<&str> = comp
+            .signals
+            .iter()
+            .map(|s| s.name.as_str())
+            .chain(comp.computeds.iter().map(|c| c.name.as_str()))
+            .chain(comp.fns.iter().map(|f| f.name.as_str()))
+            .collect();
         let mut seen_slots: FxHashSet<String> = FxHashSet::default();
         declared_slots.retain(|(n, _)| {
             let slot_prop = n.clone().unwrap_or_else(|| "children".to_string());
             !comp.props.contains_key(&slot_prop)
                 && !comp.events.iter().any(|e| e.name == slot_prop)
+                && !slot_collides.contains(slot_prop.as_str())
                 && seen_slots.insert(slot_prop)
         });
 
@@ -525,7 +539,20 @@ impl FlutterCodegen {
             w.emit("});");
         }
 
-        if let Some(view) = &comp.view {
+        // ADR-053 D5: body-level `@slot` declarations surface in the view as
+        // `{name}` interpolations — materialize them into `ViewTree::Slot`
+        // nodes ONCE so both the widget rendering and the trigger-helper
+        // detection below see the declared fallbacks, exactly like
+        // view-level `@slot` directives. Fast path: components without body
+        // slots keep the original view (no tree clone).
+        let materialized_view: Option<ViewTree> = comp
+            .view
+            .as_ref()
+            .filter(|_| !comp.slots.is_empty())
+            .map(|v| materialize_view_slots(v, comp, &slot_collision_names(comp)));
+        let view = materialized_view.as_ref().or(comp.view.as_ref());
+
+        if let Some(view) = view {
             let motions = ir
                 .modules
                 .values()
@@ -558,7 +585,7 @@ impl FlutterCodegen {
         w.emit("}");
 
         // ── Emit helper widget classes for InView and Scroll triggers if needed ──
-        if let Some(ref view) = comp.view {
+        if let Some(view) = view {
             if has_trigger_kind_in_view(view) {
                 w.emit("");
                 emit_inview_widget_class(&mut w);

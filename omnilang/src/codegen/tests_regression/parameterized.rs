@@ -288,6 +288,64 @@ fn assert_slots_flutter(files: &FxHashMap<String, String>) {
     assert_contains(files, "Card.dart", "widget.footer");
 }
 
+// ── slots_body.omni (ADR-053 D5 body-level declarations) ──
+
+fn assert_slots_body_omniview(files: &FxHashMap<String, String>) {
+    // Body-declared named slot with fallback renders as a <slot name="...">
+    // element at the {header} interpolation position when the consumer
+    // projects nothing (second <Modal>); the unnamed slot becomes <slot>.
+    assert_contains(files, "body.html", "<slot name=\"header\">");
+    assert_contains(files, "body.html", "Default header");
+    assert_contains(files, "body.html", "Default body");
+    // Typed data slot renders as an empty <slot name="footer">.
+    assert_contains(files, "body.html", "<slot name=\"footer\"></slot>");
+    // Consumer named-prop projection: <Modal header={<div>Custom title</div>}>
+    // injects the projected div into the child's slot position.
+    assert_contains(files, "body.html", "Custom title");
+    assert_contains(files, "body.html", "Custom body");
+    // A bare <Modal /> keeps both declared fallbacks (header + unnamed).
+}
+
+fn assert_slots_body_react(files: &FxHashMap<String, String>) {
+    // Body-declared slots become props: same-named for named slots,
+    // `children` for the unnamed slot, and the typed slot carries its
+    // type constraint.
+    assert_contains(files, "Modal.tsx", "header?: ReactNode;");
+    assert_contains(files, "Modal.tsx", "children?: ReactNode;");
+    assert_contains(files, "Modal.tsx", "footer?: string;");
+    // Interpolations render the declared slot with its fallback
+    // ({header ?? (fallback)} / {children ?? (...)} / bare {footer}).
+    assert_contains(files, "Modal.tsx", "{header ?? (");
+    assert_contains(files, "Modal.tsx", "{children ?? (");
+    assert_contains(files, "Modal.tsx", "Default header");
+    assert_contains(files, "Modal.tsx", "Default body");
+    assert_contains(files, "Modal.tsx", "{footer}");
+    // Consumer named-prop projection; a bare <Modal /> keeps the declared
+    // fallbacks.
+    assert_contains(files, "App.tsx", "header={<div>");
+    assert_contains(files, "App.tsx", "Custom title");
+    assert_contains(files, "App.tsx", "Custom body");
+    assert_contains(files, "App.tsx", "<Modal />");
+}
+
+fn assert_slots_body_flutter(files: &FxHashMap<String, String>) {
+    // Body-declared slots become Widget? constructor params.
+    assert_contains(files, "Modal.dart", "this.header,");
+    assert_contains(files, "Modal.dart", "this.children,");
+    assert_contains(files, "Modal.dart", "this.footer,");
+    // Interpolations render widget.<name> ?? fallback.
+    assert_contains(files, "Modal.dart", "widget.header ??");
+    assert_contains(files, "Modal.dart", "widget.children ??");
+    assert_contains(files, "Modal.dart", "Default header");
+    assert_contains(files, "Modal.dart", "Default body");
+    // Consumer named-prop projection; a bare <Modal /> keeps the declared
+    // fallbacks.
+    assert_contains(files, "App.dart", "header: ");
+    assert_contains(files, "App.dart", "Custom title");
+    assert_contains(files, "App.dart", "Custom body");
+    assert_contains(files, "App.dart", "Modal()");
+}
+
 // ── refs.omni ──
 
 fn assert_refs_omniview(files: &FxHashMap<String, String>) {
@@ -305,6 +363,16 @@ fn assert_refs_react(files: &FxHashMap<String, String>) {
     assert_contains(files, "SearchBox.tsx", "inputRef.current.value = query");
     // The focus={isFocused} semantic binding drives focus()/blur().
     assert_contains(files, "SearchBox.tsx", "inputRef.current?.focus()");
+    // A signal read ONLY inside style: { ... } must still get a state hook —
+    // inline-style reads are collected for the useState decision (regression:
+    // boxColor used to be emitted without a declaration, throwing a
+    // ReferenceError on first render).
+    assert_contains(
+        files,
+        "SearchBox.tsx",
+        "const [boxColor, setBoxColor] = useState(\"red\");",
+    );
+    assert_contains(files, "SearchBox.tsx", "color: boxColor");
 }
 
 fn assert_refs_flutter(files: &FxHashMap<String, String>) {
@@ -420,6 +488,13 @@ gen_semantic_dsl_tests!(
     assert_slots_omniview,
     assert_slots_react,
     assert_slots_flutter
+);
+gen_semantic_dsl_tests!(
+    slots_body,
+    "slots_body.omni",
+    assert_slots_body_omniview,
+    assert_slots_body_react,
+    assert_slots_body_flutter
 );
 gen_semantic_dsl_tests!(
     refs,

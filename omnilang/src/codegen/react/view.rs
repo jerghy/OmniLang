@@ -9,7 +9,7 @@ use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 
 use super::super::capitalize_first;
-use super::component::jsx::collect_view_slots;
+use super::component::jsx::component_declared_slots;
 use super::design::DesignCtx;
 use super::expr::{format_expr_ir_tsx, generate_statement_tsx};
 use super::utils::{emit_event_object_react, to_jsx_attr, to_react_event, to_react_tag};
@@ -59,18 +59,17 @@ pub(super) fn gen_view_node_tsx(
                     // Only native HTML elements support @ref in the current phase
                 }
                 // Slots the child component actually declares — children
-                // carrying a `slot="name"` attribute project into the matching
-                // named prop; anything else flows into the `children` prop.
-                // Unknown slot names fall back into `children` (content stays
-                // visible and the generated TS never breaks).
+                // carrying a `slot="name"` attribute, or a consumer-position
+                // `@slot name { ... }` / `name={<.../>}` projection (both
+                // lower to `ViewTree::Slot` children), project into the
+                // matching named prop; anything else flows into the
+                // `children` prop. Unknown slot names fall back into
+                // `children` (content stays visible and the generated TS
+                // never breaks).
                 let mut declared_slot_names: FxHashSet<String> = FxHashSet::default();
-                if let Some(ref child_view) = child_comp.view {
-                    let mut slot_infos: Vec<(Option<String>, Option<TypeIR>)> = Vec::new();
-                    collect_view_slots(child_view, component_map, &mut slot_infos);
-                    for (slot_name, _) in slot_infos {
-                        if let Some(n) = slot_name {
-                            declared_slot_names.insert(n);
-                        }
+                for (slot_name, _) in component_declared_slots(child_comp, component_map) {
+                    if let Some(n) = slot_name {
+                        declared_slot_names.insert(n);
                     }
                 }
                 let mut comp_attrs: Vec<String> = Vec::new();
@@ -920,8 +919,12 @@ pub(super) fn gen_view_node_tsx(
 /// fragment (`<>...</>`) so the adjacent JSX children stay valid inside the
 /// parenthesized `(body)` expression — e.g. an `@if` body containing a slot
 /// plus a sibling element.
+///
+/// Also used for the component root view (`gen_jsx_return`) so that
+/// multi-element roots (e.g. a view with an input + buttons as siblings)
+/// emit valid JSX instead of adjacent root expressions.
 #[allow(clippy::too_many_arguments)]
-fn gen_branch_body_tsx(
+pub(super) fn gen_branch_body_tsx(
     w: &mut CodeWriter,
     body: &ViewTree,
     component_map: &FxHashMap<&str, &ComponentIR>,

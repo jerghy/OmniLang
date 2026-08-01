@@ -1,0 +1,291 @@
+// ╔══════════════════════════════════════════════════════════════════════╗
+// ║  AnimPropertiesDemo — 全动画属性覆盖（17 个语义属性）                 ║
+// ║                                                                    ║
+// ║  变换组：   scale · scaleX · scaleY · rotate · rotateX ·           ║
+// ║             rotateY · rotateZ · skewX · skewY                      ║
+// ║  位移组：   translateX · translateY · translateZ                   ║
+// ║  视觉组：   opacity · backgroundColor · color · width · height     ║
+// ║                                                                    ║
+// ║  按 semantic-level DSL（ADR-053）白名单迁移：                      ║
+// ║    - x/y → translateX/translateY，background → backgroundColor     ║
+// ║    - 滤镜（blur/brightness/contrast/saturate/hueRotate）、         ║
+// ║      margin/padding、fontSize、letterSpacing、borderWidth、        ║
+// ║      borderColor、borderRadius、top/left 不在白名单内：            ║
+// ║      · top/left → translateX/translateY（等价语义）               ║
+// ║      · blur/brightness/contrast/hueRotate → opacity/scale/        ║
+// ║        rotate/translateZ（保脉冲语义的替代属性）                  ║
+// ║      · 其余（saturate/margin/padding/fontSize/letterSpacing/      ║
+// ║        borderWidth/borderColor/borderRadius）删除——仍可作为       ║
+// ║        元素静态样式使用                                           ║
+// ╚══════════════════════════════════════════════════════════════════════╝
+
+import omniview;
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  🧪 Playwright Test                                         ║
+// ║                                                            ║
+// ║  **Steps:**                                                ║
+// ║  1. Navigate to AnimPropertiesDemo component page.         ║
+// ║  2. Verify all 3 property groups render: transforms,       ║
+// ║     translations, visuals.                                 ║
+// ║  3. Check scale/scaleX/scaleY/rotate/rotateX/rotateY/      ║
+// ║     rotateZ/skewX/skewY cards.                             ║
+// ║  4. Check translate/translateZ cards.                      ║
+// ║  5. Check opacity/backgroundColor/color/width/height cards.║
+// ║  6. Click "Play All Animations" button to trigger @enter.  ║
+// ║                                                            ║
+// ║  **Expected:**                                             ║
+// ║  - 16 animation cards rendered across 3 property groups.   ║
+// ║  - Each card has @enter pointing to its @motion definition.║
+// ║  - scaleX card: @enter={scaleXDemo}, from scaleX:1→1.8.   ║
+// ║  - skewX card: @enter={skewXDemo}, skewX 0→15deg.         ║
+// ║  - "Play All Animations" button exists and clickable.      ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+// ── 变换：scaleX（X 轴缩放） ──────────────────────────
+@motion scaleXDemo {
+    from { scaleX: 1 }
+    to   { scaleX: 1.8 }
+    over: 600ms
+    easing: power2-out
+}
+
+// ── 变换：scaleY（Y 轴缩放） ──────────────────────────
+@motion scaleYDemo {
+    from { scaleY: 1 }
+    to   { scaleY: 1.5 }
+    over: 500ms
+    easing: power2-out
+}
+
+// ── 变换：scale（等比缩放；原 brightness 滤镜动画） ──
+@motion scalePulseDemo {
+    from { scale: 1 }
+    to   { scale: 1.25 }
+    over: 700ms
+    easing: ease-out
+}
+
+// ── 变换：rotateX（X 轴旋转） ─────────────────────────
+@motion rotateXDemo {
+    from { rotateX: 0 }
+    to   { rotateX: 360 }
+    over: 2000ms
+    easing: ease-in-out
+}
+
+// ── 变换：rotateY（Y 轴旋转） ─────────────────────────
+@motion rotateYDemo {
+    from { rotateY: 0 }
+    to   { rotateY: 360 }
+    over: 2000ms
+    easing: ease-in-out
+}
+
+// ── 变换：rotateZ（Z 轴旋转，等价于普通 rotate） ────
+@motion rotateZDemo {
+    from { rotateZ: 0 }
+    to   { rotateZ: 360 }
+    over: 1500ms
+    easing: power2-out
+}
+
+// ── 变换：rotate（平面旋转；原 contrast 滤镜动画） ──
+@motion rotateDemo {
+    from { rotate: 0 }
+    to   { rotate: 180 }
+    over: 700ms
+    easing: ease-out
+}
+
+// ── 变换：skewX（X 轴倾斜） ────────────────────────────
+@motion skewXDemo {
+    from { skewX: 0 }
+    to   { skewX: 15 }
+    over: 600ms
+    easing: power2-out
+}
+
+// ── 变换：skewY（Y 轴倾斜） ────────────────────────────
+@motion skewYDemo {
+    from { skewY: 0 }
+    to   { skewY: 10 }
+    over: 600ms
+    easing: power2-out
+}
+
+// ── 位移：translateX + translateY（原 top/left 定位动画） ──
+@motion translateDemo {
+    from { translateX: 0, translateY: 0 }
+    to   { translateX: 120, translateY: -20 }
+    over: 600ms
+    easing: power2-out
+}
+
+// ── 位移：translateZ（原 hueRotate 滤镜动画） ─────────
+@motion translateZDemo {
+    from { translateZ: 0 }
+    to   { translateZ: 60 }
+    over: 800ms
+    easing: ease-in-out
+}
+
+// ── 视觉：opacity（原 blur 滤镜动画） ─────────────────
+@motion opacityPulseDemo {
+    from { opacity: 0.3 }
+    to   { opacity: 1 }
+    over: 800ms
+    easing: ease-out
+}
+
+// ── 视觉：backgroundColor（原 borderRadius 已移除） ──
+@motion bgColorDemo {
+    from { backgroundColor: "#6366f1" }
+    to   { backgroundColor: "#f97316" }
+    over: 1200ms
+    easing: ease-in-out
+}
+
+// ── 视觉：color（原 borderColor 已移除） ──────────────
+@motion textColorDemo {
+    from { color: "var(--textPrimary)" }
+    to   { color: "#dc2626" }
+    over: 800ms
+    easing: power2-out
+}
+
+// ── 视觉：width 动画 ─────────────────────────────────────
+@motion widthDemo {
+    from { width: 60 }
+    to   { width: 200 }
+    over: 900ms
+    easing: ease-out
+}
+
+// ── 视觉：height 动画 ────────────────────────────────────
+@motion heightDemo {
+    from { height: 40 }
+    to   { height: 120 }
+    over: 700ms
+    easing: power3-out
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  组件
+// ══════════════════════════════════════════════════════════════════════
+component AnimPropertiesDemo {
+    signal playAll: bool = false;
+
+    fn toggleAll() { playAll = !playAll; }
+
+    view {
+        <div class: container>
+            <h3 class: title>全动画属性覆盖</h3>
+            <p class: subtitle>17 个语义 keyframe 属性（ADR-053 白名单）· scale/scaleX/scaleY · rotate/rotateX/rotateY/rotateZ · skewX/skewY · translateX/translateY/translateZ · opacity · backgroundColor · color · width · height · 点击按钮播放所有 @enter 动画</p>
+
+            <button @click={toggleAll} class: trigger-btn>
+                {if playAll { "Reset" } else { "Play All Animations" }}
+            </button>
+
+            <!-- ═══ 变换组 ═══ -->
+            <h4 class: group-title>变换组（scale · scaleX · scaleY · rotate · rotateX · rotateY · rotateZ · skewX · skewY）</h4>
+            <div class: grid>
+                <div class: card @enter={scaleXDemo}>
+                    <strong>scaleX</strong>
+                    <p>X 轴 1→1.8 缩放</p>
+                </div>
+                <div class: card @enter={scaleYDemo}>
+                    <strong>scaleY</strong>
+                    <p>Y 轴 1→1.5 缩放</p>
+                </div>
+                <div class: card @enter={scalePulseDemo}>
+                    <strong>scale</strong>
+                    <p>等比 1→1.25 脉冲</p>
+                </div>
+                <div class: card @enter={rotateXDemo}>
+                    <strong>rotateX</strong>
+                    <p>X 轴 360° 旋转</p>
+                </div>
+                <div class: card @enter={rotateYDemo}>
+                    <strong>rotateY</strong>
+                    <p>Y 轴 360° 旋转</p>
+                </div>
+                <div class: card @enter={rotateZDemo}>
+                    <strong>rotateZ</strong>
+                    <p>Z 轴 360° 摆动</p>
+                </div>
+                <div class: card @enter={rotateDemo}>
+                    <strong>rotate</strong>
+                    <p>平面 0→180° 旋转</p>
+                </div>
+                <div class: card @enter={skewXDemo}>
+                    <strong>skewX</strong>
+                    <p>X 轴 0→15° 倾斜</p>
+                </div>
+                <div class: card @enter={skewYDemo}>
+                    <strong>skewY</strong>
+                    <p>Y 轴 0→10° 倾斜</p>
+                </div>
+            </div>
+
+            <!-- ═══ 位移组 ═══ -->
+            <h4 class: group-title>位移组（translateX · translateY · translateZ）</h4>
+            <div class: grid>
+                <div class: card-translate @enter={translateDemo}>
+                    <strong>translateX + translateY</strong>
+                    <p>位移 120px, -20px</p>
+                </div>
+                <div class: card @enter={translateZDemo}>
+                    <strong>translateZ</strong>
+                    <p>Z 轴 0→60px</p>
+                </div>
+            </div>
+
+            <!-- ═══ 视觉组 ═══ -->
+            <h4 class: group-title>视觉组（opacity · backgroundColor · color · width · height）</h4>
+            <div class: grid>
+                <div class: card @enter={opacityPulseDemo}>
+                    <strong>opacity</strong>
+                    <p>透明度 0.3→1 脉冲</p>
+                </div>
+                <div class: card @enter={bgColorDemo}>
+                    <strong>backgroundColor</strong>
+                    <p>背景色渐变</p>
+                </div>
+                <div class: card-color @enter={textColorDemo}>
+                    <strong>color</strong>
+                    <p>文字颜色渐变</p>
+                </div>
+                <div class: box @enter={widthDemo}>
+                    <strong>width</strong>
+                    <p>宽度 60→200px</p>
+                </div>
+                <div class: box @enter={heightDemo}>
+                    <strong>height</strong>
+                    <p>高度 40→120px</p>
+                </div>
+            </div>
+        </div>
+    }
+
+    style {
+        .container { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 16px; margin: 16px 0; }
+        .title { font-size: 18px; color: var(--textPrimary); margin: 0 0 4px 0; }
+        .subtitle { font-size: 12px; color: var(--textSecondary); margin: 0 0 8px 0; line-height: 1.5; }
+        .trigger-btn { padding: 8px 16px; background: #6366f1; color: #fff; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; margin-bottom: 8px; }
+        .group-title { font-size: 14px; font-weight: 600; color: var(--textPrimary); margin: 20px 0 10px 0; padding-bottom: 4px; border-bottom: 1px solid var(--borderLight); }
+        .grid { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 4px; }
+        .card { flex: 0 0 auto; padding: 14px 16px; background: var(--surfaceMuted); border-radius: 10px; border: 1px solid var(--borderLight); text-align: center; min-width: 120px; }
+        .card strong { font-size: 13px; color: var(--textPrimary); display: block; margin-bottom: 4px; }
+        .card p { font-size: 11px; color: var(--textSecondary); margin: 0; }
+        .card-color { flex: 0 0 auto; padding: 14px 16px; background: var(--surfaceMuted); border-radius: 10px; border: 2px solid var(--border); text-align: center; min-width: 140px; }
+        .card-color strong { font-size: 13px; color: var(--textPrimary); display: block; margin-bottom: 4px; }
+        .card-color p { font-size: 11px; color: var(--textSecondary); margin: 0; }
+        .box { flex: 0 0 auto; padding: 12px; background: #eef2ff; border-radius: 8px; border: 1px solid #6366f1; text-align: center; overflow: hidden; }
+        .box strong { font-size: 12px; color: #4338ca; display: block; margin-bottom: 4px; }
+        .box p { font-size: 11px; color: #6366f1; margin: 0; white-space: nowrap; }
+        .card-translate { flex: 0 0 auto; padding: 14px 16px; background: #fef9c3; border-radius: 10px; border: 1px solid #eab308; text-align: center; min-width: 120px; position: relative; }
+        .card-translate strong { font-size: 13px; color: var(--textPrimary); display: block; margin-bottom: 4px; }
+        .card-translate p { font-size: 11px; color: var(--textSecondary); margin: 0; }
+    }
+}
