@@ -117,7 +117,7 @@ component SignalPatternsDemo {
     view {
         <div class: LearnDesign.Container>
             <h3 class: LearnDesign.CardTitle>Signal & Store Patterns</h3>
-            <p class: LearnDesign.Subtitle>@store · computed · @effect · bind:value · @for key · @if mode · @slot</p>
+            <p class: LearnDesign.Subtitle>store · computed · effect · bind:value · for key · if mode · slot</p>
 
             <!-- ═══ Inline Store + Computed ═══ -->
             <h4 class: LearnDesign.SectionTitle>Inline Store + Computed 派生</h4>
@@ -155,7 +155,7 @@ component SignalPatternsDemo {
             </div>
 
             <!-- ═══ @for key={expr} 身份追踪 ═══ -->
-            <h4 class: LearnDesign.SectionTitle>@for key={expr} 身份追踪列表</h4>
+            <h4 class: LearnDesign.SectionTitle>For key 身份追踪列表</h4>
             <div class: pattern-card>
                 <p class: info>Total: {totalItems} items</p>
                 <div class: LearnDesign.Row>
@@ -177,7 +177,7 @@ component SignalPatternsDemo {
             </div>
 
             <!-- ═══ @if mode: "wait" 过渡模式 ═══ -->
-            <h4 class: LearnDesign.SectionTitle>@if mode: "wait" 过渡模式</h4>
+            <h4 class: LearnDesign.SectionTitle>If mode: "wait" 过渡模式</h4>
             <div class: pattern-card>
                 <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={togglePanel}>
                     {if showPanel { "Hide Panel" } else { "Show Panel" }}

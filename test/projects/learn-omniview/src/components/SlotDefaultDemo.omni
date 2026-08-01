@@ -24,10 +24,10 @@ component SlotPanel {
     // Body-level slot declarations (ADR-053 D5) with fallback content;
     // the view references them via {header} / {children} / {footer}.
     @slot header {
-        <span class: default-text>Default Header (来自 @slot header 的回退)</span>
+        <span class: default-text>Default Header (来自 header 插槽声明的回退)</span>
     }
     @slot {
-        <p class: default-text>Default Body — 这是 @slot 匿名插槽的默认回退内容</p>
+        <p class: default-text>Default Body — 这是匿名插槽的默认回退内容</p>
     }
     @slot footer
 
@@ -66,9 +66,9 @@ component SlotDefaultDemo {
 
     view {
         <div class: wrapper>
-            <h3 class: section-title>@slot Default Content (回退内容)</h3>
+            <h3 class: section-title>Slot Default Content (回退内容)</h3>
             <p class: subtitle>
-                演示 <code>@slot name &#123; 回退内容 &#125;</code> 语法 + 对比有/无自定义内容
+                演示插槽默认回退内容语法 + 对比有/无自定义内容
             </p>
 
             <!-- 演示区 1: 使用默认回退（无自定义插槽内容） -->
@@ -76,7 +76,7 @@ component SlotDefaultDemo {
                 <h4 class: demo-label>① Using Default Slot Content</h4>
                 <p class: demo-desc>
                     消费者<strong>没有</strong>提供插槽内容 →
-                    组件显示 <code>@slot header &#123; ... &#125;</code> 中定义的默认回退。
+                    组件显示 <code>header</code> 插槽声明中定义的默认回退。
                 </p>
                 <div class: demo-box>
                     <!-- 没有传入插槽内容，使用默认回退 -->
@@ -98,7 +98,7 @@ component SlotDefaultDemo {
                     >
                         <div class: custom-body>
                             <p>Custom Body Content</p>
-                            <p class: custom-note>@slot 默认回退已被消费者替代</p>
+                            <p class: custom-note>默认回退已被消费者替代</p>
                         </div>
                         <!-- 不提供 footer → footer 为空（无默认值） -->
                     </SlotPanel>
@@ -131,12 +131,12 @@ component SlotDefaultDemo {
 
             <!-- 技术说明 -->
             <div class: tech-note>
-                <h4 class: note-title>💡 @slot 默认内容语义</h4>
+                <h4 class: note-title>💡 插槽默认内容语义</h4>
                 <ul class: note-list>
-                    <li>如果消费者<strong>没有</strong>为命名的 <code>@slot</code> 提供内容，显示 <code>&#123; 回退内容 &#125;</code></li>
+                    <li>如果消费者<strong>没有</strong>为命名的 <code>插槽</code> 提供内容，显示其默认回退</li>
                     <li>如果消费者<strong>有</strong>提供内容，默认回退被完全替换</li>
-                    <li>不带默认值的 <code>@slot name</code>（无 <code>{}</code> 体）在无内容时渲染空白</li>
-                    <li>匿名插槽 <code>@slot { 回退 }</code> 同样支持默认回退</li>
+                    <li>不带默认值的 <code>插槽声明</code>（无回退体）在无内容时渲染空白</li>
+                    <li>匿名插槽（不写名字的声明）同样支持默认回退</li>
                     <li>回退内容可以是任意 OmniLang view 模板（元素、文本、插值、条件等）</li>
                 </ul>
             </div>
