@@ -11,10 +11,15 @@
 // ║  子元素隐式投影：                                                  ║
 // ║    <SlotPanel header={<div>...</div>}>...</SlotPanel>             ║
 // ║                                                                  ║
-// ║  本组件演示插槽的 3 种形态：                                       ║
+// ║  本组件演示插槽的 4 种形态：                                       ║
 // ║    1. 无默认值的空插槽 @slot name                                 ║
 // ║    2. 带默认回退内容的插槽 @slot name { 回退内容 }                  ║
 // ║    3. 匿名插槽带默认回退 @slot { 回退内容 }                        ║
+// ║    4. 类型化插槽 @slot name: Type（见下方 TypedSlotPanel）         ║
+// ║       · React 生成 TS 类型（header?: string）                      ║
+// ║       · Flutter 警告并退化为 Widget?（data_param 尚未定型）        ║
+// ║       · OmniView 不消费类型——约束目前是声明侧文档，                ║
+// ║         三目标运行时行为与无类型插槽一致                            ║
 // ╚══════════════════════════════════════════════════════════════════╝
 
 import omniview;
@@ -51,6 +56,38 @@ component SlotPanel {
     }
     style {
         .slot-panel { background: white; border: 1px solid #d4d4d8; border-radius: 10px; padding: 14px; }
+        .slot-section { margin-bottom: 10px; padding: 10px; background: #f8fafc; border-radius: 6px; border: 1px dashed #cbd5e1; }
+        .slot-section.main { background: #f0f9ff; border-color: #bae6fd; }
+        .section-label { display: block; font-size: 11px; color: #64748b; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .default-text { font-size: 13px; color: #64748b; font-style: italic; margin: 0; }
+    }
+}
+
+// ── TypedSlotPanel: 类型化插槽（@slot name: Type） ──────────
+// 类型约束随插槽声明进入 AST/IR（SlotIR.type_constraint），
+// 消费端投影语法与无类型插槽完全一致。
+component TypedSlotPanel {
+    @slot header: String {
+        <span class: default-text>Default Typed Header（@slot header: String 的回退）</span>
+    }
+    @slot badge: Int {
+        <span class: default-text>0</span>
+    }
+
+    view {
+        <div class: slot-panel typed>
+            <div class: slot-section>
+                <span class: section-label>header slot (String):</span>
+                {header}
+            </div>
+            <div class: slot-section main>
+                <span class: section-label>badge slot (Int):</span>
+                {badge}
+            </div>
+        </div>
+    }
+    style {
+        .slot-panel.typed { background: #fffbeb; border-color: #fde68a; }
         .slot-section { margin-bottom: 10px; padding: 10px; background: #f8fafc; border-radius: 6px; border: 1px dashed #cbd5e1; }
         .slot-section.main { background: #f0f9ff; border-color: #bae6fd; }
         .section-label { display: block; font-size: 11px; color: #64748b; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
@@ -129,6 +166,24 @@ component SlotDefaultDemo {
                 </div>
             </div>
 
+            <!-- 演示区 4: 类型化插槽 @slot name: Type -->
+            <div class: demo-card>
+                <h4 class: demo-label>④ Typed Slots — {"@slot name: Type"}</h4>
+                <p class: demo-desc>
+                    类型化插槽声明 <code>{"@slot header: String"}</code> / <code>{"@slot badge: Int"}</code>。
+                    消费端投影语法不变。类型约束目前是<strong>声明侧文档</strong>：
+                    React 生成 TS 类型（<code>header?: string</code>），Flutter 警告并退化为
+                    <code>Widget?</code>，OmniView 不消费类型——运行时行为与无类型插槽一致。
+                </p>
+                <div class: demo-box>
+                    <TypedSlotPanel
+                        header={<span class: custom-header>Custom Typed Header — 覆盖回退</span>}
+                    >
+                        <span class: custom-body>42 — 覆盖 badge 回退</span>
+                    </TypedSlotPanel>
+                </div>
+            </div>
+
             <!-- 技术说明 -->
             <div class: tech-note>
                 <h4 class: note-title>💡 插槽默认内容语义</h4>
@@ -138,6 +193,7 @@ component SlotDefaultDemo {
                     <li>不带默认值的 <code>插槽声明</code>（无回退体）在无内容时渲染空白</li>
                     <li>匿名插槽（不写名字的声明）同样支持默认回退</li>
                     <li>回退内容可以是任意 OmniLang view 模板（元素、文本、插值、条件等）</li>
+                    <li>类型化插槽 <code>{"@slot name: Type"}</code>：三目标均可编译；React 生成 TS 类型，Flutter 警告并退化为 <code>Widget?</code>，OmniView 不消费类型（声明侧文档，不强制）</li>
                 </ul>
             </div>
         </div>
