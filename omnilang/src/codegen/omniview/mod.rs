@@ -209,6 +209,7 @@ pub fn generate(
         comp_mount_js: String::new(),
         component_js: FxHashMap::default(),
         enter_trigger_nids: Vec::new(),
+        motion_bodies: FxHashMap::default(),
         design_names: Vec::new(),
         design_class_names: FxHashSet::default(),
         design_map: FxHashMap::default(),
@@ -267,6 +268,8 @@ pub fn generate(
                 );
                 for motion in &module.motions {
                     gen.name_resolver.motion_names.insert(motion.name.clone());
+                    gen.motion_bodies
+                        .insert(motion.name.clone(), motion.body.clone());
                     gen.emit_motion_js(motion);
                 }
             }
@@ -590,6 +593,11 @@ struct OmniViewGenerator {
     /// When true, emit debug bridge code for the standalone debug window.
     /// Uses Tauri events instead of parent.postMessage.
     debug_mode: bool,
+    /// Motion name → body, populated while emitting module-level @motion
+    /// definitions. Used by @drag-* triggers to derive the drag extent from
+    /// the motion's own keyframe range when no constraints are given
+    /// (ADR-053 removed @drag-constraints; deferral #19).
+    pub(super) motion_bodies: FxHashMap<String, KeyframeIR>,
     /// Whether the shared scroll handler has been emitted.
     /// Used to emit __omni_scrollElements / __omni_scrollHandler / __omni_ensureScrollHandler
     /// exactly once before any per-element scroll trigger.

@@ -221,6 +221,16 @@ pub(super) fn emit_drag_effect_tsx(
     };
     let drag = el.drag_behavior();
     let constraints = drag.and_then(|d| d.constraints.as_deref()).unwrap_or("");
+    // ADR-053 removed @drag-constraints — without them the gesture progress
+    // maps onto the motion's own keyframe range (the distance the animation
+    // travels in the drag axis), so the element follows its animation instead
+    // of dividing by Infinity (deferral #19).
+    let derived_extent = if constraints.is_empty() {
+        resolve_def(trigger, motion_bodies)
+            .and_then(|body| crate::codegen::shared::drag::drag_extent(body, axis == "x"))
+    } else {
+        None
+    };
     let elastic_js = drag.and_then(|d| d.elastic.as_ref()).map_or_else(
         || "0".to_string(),
         |e| expr::format_expr_ir_tsx(e, &FxHashSet::default()),
@@ -273,7 +283,27 @@ pub(super) fn emit_drag_effect_tsx(
     w.dedent();
     w.emit("};");
     w.emit("const constraint = parseConstraint(constraints);");
-    w.emit("const maxExtent = Math.abs(constraint.max - constraint.min) || 1;");
+    if !constraints.is_empty() {
+        w.emit("const maxExtent = Math.abs(constraint.max - constraint.min) || 1;");
+    } else if let Some(extent) = derived_extent {
+        // No constraints: derive the extent from the motion's own keyframe
+        // range in the drag axis, so dragging moves the element along its
+        // animation (translateX 0→300 ⇒ maxExtent 300).
+        w.emit_fmt(format_args!(
+            "// no constraints — maxExtent {}px derived from the motion's keyframe range",
+            extent
+        ));
+        w.emit_fmt(format_args!(
+            "const maxExtent = {};",
+            crate::codegen::shared::drag::format_extent_js(extent)
+        ));
+    } else {
+        // The motion has no translateX/Y range to map onto — fall back to the
+        // previous unbounded behavior (progress stays 0, drag is inert) and
+        // surface a compiler warning comment in the generated code.
+        w.emit("// WARNING: @drag-* without constraints and no translateX/Y keyframes in the motion — drag is unbounded (no movement); add a translate keyframe range to the motion");
+        w.emit("const maxExtent = Number.POSITIVE_INFINITY;");
+    }
     w.emit("let startPos = 0, currentDelta = 0, isDragging = false;");
     w.emit("const onPointerDown = (e) => {");
     w.indent();

@@ -210,7 +210,7 @@ component ElementRefDemo {
             <!-- ═══ 高频拖拽（@drag-horizontal 触发器） ═══ -->
             <h4 class: LearnDesign.SectionTitle>高频拖拽 (@drag-horizontal)</h4>
             <p class: LearnDesign.Hint>
-                范围约束待重新实现（当前拖动无位移），仅演示触发器与 motion 的接线
+                无约束时拖拽范围由 motion 自身 keyframe 范围决定（dragX300 → 拖动 300px 走完动画）
             </p>
             <div class: LearnDesign.Row>
                 <div
@@ -222,8 +222,8 @@ component ElementRefDemo {
 
             <h4 class: LearnDesign.SectionTitle>拖拽方向与范围变体</h4>
             <p class: LearnDesign.Hint>
-                约束/弹性等子属性已按 semantic-level DSL 移除（解析器无对应 token，
-                待重新实现）；下方演示水平/垂直方向的触发器与 motion 接线。
+                约束/弹性等子属性已按 semantic-level DSL 移除；无约束时拖拽进度映射到
+                motion 自身的 keyframe 范围（水平用 translateX、垂直用 translateY）。
             </p>
             <div class: constraints-row>
                 <!-- 原两个 elastic 变体盒子（elastic 0.5 / 0）均已移除 -->

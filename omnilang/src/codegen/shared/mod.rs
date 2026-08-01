@@ -4,6 +4,7 @@
 //! language-family implementations.
 
 pub mod design;
+pub mod drag;
 
 use rustc_hash::FxHashMap;
 

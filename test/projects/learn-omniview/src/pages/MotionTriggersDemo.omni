@@ -79,7 +79,7 @@ component MotionTriggersDemo {
                 <p>Focus the input to trigger slideInView</p>
             </div>
 
-            <!-- @drag-horizontal + @drag-vertical 拖拽（子属性 @drag-constraints/@drag-elastic/@drag-scrub/@drag-momentum/@drag-threshold/@drag-velocity-max 已移除，待重新实现） -->
+            <!-- @drag-horizontal + @drag-vertical 拖拽（约束/弹性等子属性已移除；无约束时拖拽进度由 motion 自身 keyframe 范围决定，如 dragSlide → 100px） -->
             <div class: card>
                 <h4 class: label>@drag-horizontal / @drag-vertical 拖拽</h4>
                 <div @drag-horizontal={dragSlide} class: drag-box>

@@ -542,6 +542,195 @@ fn test_drag_trigger() {
     insta::assert_snapshot!("drag_trigger", &output);
 }
 
+/// Tests the no-constraints drag path (deferral #19): maxExtent must be
+/// derived from the motion's own keyframe range (translateX 0→300 ⇒ 300)
+/// instead of Infinity, so the element follows its animation while dragging.
+#[test]
+fn test_drag_trigger_no_constraints_derived_extent() {
+    let mut gen = OmniViewGenerator::default();
+    gen.motion_bodies.insert(
+        "slideX".to_string(),
+        KeyframeIR {
+            stops: vec![
+                KeyframeStopIR {
+                    position: 0.0,
+                    properties: FxHashMap::from_iter([(
+                        "translateX".into(),
+                        ExprIR::LiteralExpr {
+                            value: serde_json::json!(0),
+                        },
+                    )]),
+                    ease: None,
+                    source_span: None,
+                },
+                KeyframeStopIR {
+                    position: 1.0,
+                    properties: FxHashMap::from_iter([(
+                        "translateX".into(),
+                        ExprIR::LiteralExpr {
+                            value: serde_json::json!(300),
+                        },
+                    )]),
+                    ease: None,
+                    source_span: None,
+                },
+            ],
+            over: ExprIR::LiteralExpr {
+                value: serde_json::json!(300),
+            },
+            ease: None,
+            playback: PlaybackIR::default(),
+            source_span: None,
+        },
+    );
+    let el = ElementIR {
+        tag: "div".into(),
+        props: FxHashMap::default(),
+        bindings: FxHashMap::default(),
+        events: FxHashMap::default(),
+        style_classes: None,
+        inline_style: None,
+        children: vec![],
+        construction_kind: ConstructionKind::Static,
+        class_map_bindings: FxHashMap::default(),
+        source_span: None,
+        motion: Some(Box::new(MotionBehavior {
+            triggers: vec![TriggerIntent {
+                kind: TriggerKind::DragHorizontal,
+                motion_ref: Some("slideX".into()),
+                inline_motion: None,
+                source_span: None,
+            }],
+            in_view_once: None,
+            in_view_repeat: None,
+            in_view_threshold: None,
+            source_span: None,
+        })),
+        scroll: None,
+        drag: Some(Box::new(DragBehavior {
+            constraints: None,
+            elastic: None,
+            threshold: None,
+            velocity_max: None,
+            source_span: None,
+        })),
+        ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
+    };
+    gen.emit_motion_triggers_for_element("el-drag-002", &el);
+    let output = format!(
+        "// === mount_js ===\n{}\n// === js ===\n{}",
+        gen.mount_js, gen.js
+    );
+    assert!(
+        output.contains("const maxExtent = 300;"),
+        "no-constraints drag should derive maxExtent from keyframes:\n{}",
+        output
+    );
+    assert!(
+        !output.contains("Number.POSITIVE_INFINITY"),
+        "derived extent must not fall back to the unbounded constant:\n{}",
+        output
+    );
+}
+
+/// Tests the no-constraints drag path when the motion has NO translate
+/// keyframes: must fall back to the previous unbounded (inert) behavior and
+/// surface a compiler warning — never NaN or a bogus extent.
+#[test]
+fn test_drag_trigger_no_translate_falls_back_unbounded() {
+    let mut gen = OmniViewGenerator::default();
+    gen.motion_bodies.insert(
+        "fadeOnly".to_string(),
+        KeyframeIR {
+            stops: vec![
+                KeyframeStopIR {
+                    position: 0.0,
+                    properties: FxHashMap::from_iter([(
+                        "opacity".into(),
+                        ExprIR::LiteralExpr {
+                            value: serde_json::json!(0),
+                        },
+                    )]),
+                    ease: None,
+                    source_span: None,
+                },
+                KeyframeStopIR {
+                    position: 1.0,
+                    properties: FxHashMap::from_iter([(
+                        "opacity".into(),
+                        ExprIR::LiteralExpr {
+                            value: serde_json::json!(1),
+                        },
+                    )]),
+                    ease: None,
+                    source_span: None,
+                },
+            ],
+            over: ExprIR::LiteralExpr {
+                value: serde_json::json!(300),
+            },
+            ease: None,
+            playback: PlaybackIR::default(),
+            source_span: None,
+        },
+    );
+    let el = ElementIR {
+        tag: "div".into(),
+        props: FxHashMap::default(),
+        bindings: FxHashMap::default(),
+        events: FxHashMap::default(),
+        style_classes: None,
+        inline_style: None,
+        children: vec![],
+        construction_kind: ConstructionKind::Static,
+        class_map_bindings: FxHashMap::default(),
+        source_span: None,
+        motion: Some(Box::new(MotionBehavior {
+            triggers: vec![TriggerIntent {
+                kind: TriggerKind::DragVertical,
+                motion_ref: Some("fadeOnly".into()),
+                inline_motion: None,
+                source_span: None,
+            }],
+            in_view_once: None,
+            in_view_repeat: None,
+            in_view_threshold: None,
+            source_span: None,
+        })),
+        scroll: None,
+        drag: Some(Box::new(DragBehavior {
+            constraints: None,
+            elastic: None,
+            threshold: None,
+            velocity_max: None,
+            source_span: None,
+        })),
+        ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
+    };
+    gen.emit_motion_triggers_for_element("el-drag-003", &el);
+    let output = format!(
+        "// === mount_js ===\n{}\n// === js ===\n{}",
+        gen.mount_js, gen.js
+    );
+    assert!(
+        output.contains("const maxExtent = Number.POSITIVE_INFINITY;"),
+        "no-translate motion should fall back to the unbounded extent:\n{}",
+        output
+    );
+    assert!(
+        output.contains("WARNING"),
+        "fallback must carry a compiler warning:\n{}",
+        output
+    );
+    assert!(
+        gen.warnings.iter().any(|w| w.contains("el-drag-003")),
+        "fallback must push a generator warning, got: {:?}",
+        gen.warnings
+    );
+}
+
 /// Tests emit_motion_triggers_for_element with an @in-view trigger and
 /// in_view_once / in_view_threshold configurations.
 #[test]

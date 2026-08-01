@@ -963,6 +963,37 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                                 .drag_behavior()
                                 .and_then(|d| d.constraints.as_deref())
                                 .unwrap_or("");
+                            // ADR-053 removed @drag-constraints — when none are
+                            // given, drag the extent from the motion's own
+                            // keyframe range in the drag axis so the element
+                            // follows its animation (deferral #19). 0.0 = no
+                            // usable range → unbounded (inert, previous behavior).
+                            let (extent_dart, extent_warning) = if constraints_str.is_empty() {
+                                match motions
+                                    .iter()
+                                    .find(|m| m.name == *motion_name)
+                                    .and_then(|m| {
+                                        crate::codegen::shared::drag::drag_extent(
+                                            &m.body,
+                                            is_horizontal,
+                                        )
+                                    }) {
+                                    Some(e) => (
+                                        crate::codegen::shared::drag::format_extent_dart(e),
+                                        String::new(),
+                                    ),
+                                    None => (
+                                        "0.0".to_string(),
+                                        format!(
+                                            "// WARNING: @drag-{} without constraints and no translateX/Y keyframes in motion '{}' — drag is unbounded (no movement)\n",
+                                            if is_horizontal { "horizontal" } else { "vertical" },
+                                            motion_name
+                                        ),
+                                    ),
+                                }
+                            } else {
+                                ("0.0".to_string(), String::new())
+                            };
                             let elastic_val =
                                 match el.drag_behavior().and_then(|d| d.elastic.as_ref()) {
                                     Some(expr) => ctx.format_expr(expr),
@@ -974,8 +1005,9 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                                     None => "0.0".to_string(),
                                 };
                             result = format!(
-                                "_OmniDragWidget(\n  axis: {},\n  constraints: '{}',\n  elastic: {},\n  threshold: {},\n  onDragStart: () {{ {} = true; }},\n  onDragProgress: (p) {{ {} = true; {}.value = p; }},\n  onDragEnd: (completed) {{ if (completed) {{ {}.forward(); }} else {{ {}.reverse().whenComplete(() {{ if (mounted && {}.value == 0.0) setState(() {{ {} = false; }}); }}); }} }},\n  child: {},\n)",
-                                axis_type, constraints_str, elastic_val, threshold_val, active_name, active_name, ctrl_name, ctrl_name, ctrl_name, ctrl_name, active_name, result
+                                "{extent_warning}_OmniDragWidget(\n  axis: {},\n  constraints: '{}',\n  elastic: {},\n  threshold: {},\n  dragExtent: {},\n  onDragStart: () {{ {} = true; }},\n  onDragProgress: (p) {{ {} = true; {}.value = p; }},\n  onDragEnd: (completed) {{ if (completed) {{ {}.forward(); }} else {{ {}.reverse().whenComplete(() {{ if (mounted && {}.value == 0.0) setState(() {{ {} = false; }}); }}); }} }},\n  child: {},\n)",
+                                axis_type, constraints_str, elastic_val, threshold_val, extent_dart, active_name, active_name, ctrl_name, ctrl_name, ctrl_name, ctrl_name, active_name, result,
+                                extent_warning = extent_warning
                             );
                         }
                     }

@@ -227,6 +227,12 @@ impl OmniViewGenerator {
     }
 
     /// Generate @drag trigger JS. Shared by both named motion ref and inline paths.
+    ///
+    /// `derived_extent` is the drag axis extent (px) derived from the motion's
+    /// own keyframe range, used when no constraints are given (ADR-053 removed
+    /// @drag-constraints; deferral #19). `None` with no constraints falls back
+    /// to the previous unbounded (inert) behavior with a warning.
+    #[allow(clippy::too_many_arguments)]
     fn emit_trigger_drag_js(
         &mut self,
         nid: &str,
@@ -235,6 +241,7 @@ impl OmniViewGenerator {
         el: &ElementIR,
         is_horizontal: bool,
         is_inline: bool,
+        derived_extent: Option<f64>,
     ) {
         let axis_label = if is_horizontal { "x" } else { "y" };
         let pointer_axis = if is_horizontal { "clientX" } else { "clientY" };
@@ -247,6 +254,9 @@ impl OmniViewGenerator {
                 .unwrap_or(""),
             '"',
         );
+        let has_constraints = el
+            .drag_behavior()
+            .is_some_and(|d| d.constraints.as_deref().is_some_and(|c| !c.is_empty()));
         let elastic_val = match el.drag_behavior().and_then(|d| d.elastic.as_ref()) {
             Some(expr) => self.expr_to_js(expr),
             None => "0".to_string(),
@@ -259,10 +269,37 @@ impl OmniViewGenerator {
             Some(expr) => self.expr_to_js(expr),
             None => "2000".to_string(),
         };
+        // maxExtent emission: constraints win; otherwise derive from the
+        // motion's keyframe range; otherwise fall back to the previous
+        // unbounded behavior (progress stays 0) with a warning.
+        let (max_extent_expr, extent_note) = if has_constraints {
+            (
+                "Math.abs(constraint.max - constraint.min) || 1".to_string(),
+                String::new(),
+            )
+        } else if let Some(extent) = derived_extent {
+            (
+                crate::codegen::shared::drag::format_extent_js(extent),
+                format!(
+                    " — no constraints, maxExtent {}px derived from motion keyframes",
+                    extent
+                ),
+            )
+        } else {
+            self.warnings.push(format!(
+                "@drag-{} on element \"{}\": no constraints and the motion has no translateX/Y keyframes — drag progress is unbounded (no movement); add a translate keyframe range to the motion",
+                axis_label, nid
+            ));
+            (
+                "Number.POSITIVE_INFINITY".to_string(),
+                " — WARNING: no constraints and no translateX/Y keyframes, drag is unbounded (no movement)".to_string(),
+            )
+        };
         let comment = format!(
-            "// @drag-{} {}",
+            "// @drag-{} {}{}",
             axis_label,
             if is_inline { "(inline)" } else { "trigger" },
+            extent_note,
         );
         let _ = writeln!(
             self.js,
@@ -310,7 +347,7 @@ impl OmniViewGenerator {
              \x20\x20 return {{ min, max }};\n\
              \x20 }}\n\
              \x20 const constraint = parseConstraint(constraints);\n\
-             \x20 const maxExtent = Math.abs(constraint.max - constraint.min) || 1;\n\
+             \x20 const maxExtent = {max_extent};\n\
              \x20 el.addEventListener('pointerdown', (e) => {{\n\
              \x20\x20 isDragging = true;\n\
              \x20\x20 startPos = e.{ptr_axis};\n\
@@ -363,6 +400,7 @@ impl OmniViewGenerator {
             edge_max = edge_max,
             size = rect_size,
             velocity_max = velocity_max_val,
+            max_extent = max_extent_expr,
         );
     }
 
@@ -535,6 +573,13 @@ impl OmniViewGenerator {
                     }
                     TriggerKind::DragHorizontal | TriggerKind::DragVertical => {
                         let is_horizontal = matches!(trigger.kind, TriggerKind::DragHorizontal);
+                        let extent = trigger
+                            .motion_ref
+                            .as_deref()
+                            .and_then(|name| self.motion_bodies.get(name))
+                            .and_then(|body| {
+                                crate::codegen::shared::drag::drag_extent(body, is_horizontal)
+                            });
                         self.emit_trigger_drag_js(
                             nid,
                             trigger_str,
@@ -542,6 +587,7 @@ impl OmniViewGenerator {
                             el,
                             is_horizontal,
                             false,
+                            extent,
                         );
                     }
                 }
@@ -570,6 +616,9 @@ impl OmniViewGenerator {
                     }
                     TriggerKind::DragHorizontal | TriggerKind::DragVertical => {
                         let is_horizontal = matches!(trigger.kind, TriggerKind::DragHorizontal);
+                        let extent = trigger.inline_motion.as_ref().and_then(|body| {
+                            crate::codegen::shared::drag::drag_extent(body, is_horizontal)
+                        });
                         self.emit_trigger_drag_js(
                             nid,
                             trigger_str,
@@ -577,6 +626,7 @@ impl OmniViewGenerator {
                             el,
                             is_horizontal,
                             true,
+                            extent,
                         );
                     }
                 }

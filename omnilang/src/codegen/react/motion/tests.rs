@@ -271,6 +271,87 @@ fn test_react_motion_scroll() {
 }
 
 #[test]
+fn drag_without_constraints_derives_extent_from_keyframes() {
+    // ADR-053 removed @drag-constraints — the drag progress must map onto the
+    // motion's own keyframe range (translateX 0→300 ⇒ maxExtent 300) so the
+    // element follows its animation instead of dividing by Infinity.
+    let source = r#"
+@motion dragX300 {
+    from { translateX: 0 }
+    to   { translateX: 300 }
+    over: 300ms
+}
+component Test {
+    view {
+        <div @drag-horizontal={dragX300}>drag me</div>
+    }
+}
+"#;
+    let output = compile_fixture_to_react(source);
+    assert!(
+        output.contains("const maxExtent = 300;"),
+        "expected keyframe-derived maxExtent, got partial:\n{}",
+        &output[..output.len().min(600)]
+    );
+    assert!(
+        !output.contains("Number.POSITIVE_INFINITY"),
+        "derived extent must not fall back to the unbounded constant"
+    );
+}
+
+#[test]
+fn drag_vertical_uses_translate_y_range() {
+    let source = r#"
+@motion dragY100 {
+    from { translateY: 0 }
+    to   { translateY: 100 }
+    over: 300ms
+}
+component Test {
+    view {
+        <div @drag-vertical={dragY100}>drag me</div>
+    }
+}
+"#;
+    let output = compile_fixture_to_react(source);
+    assert!(
+        output.contains("const maxExtent = 100;"),
+        "expected translateY-derived maxExtent, got partial:\n{}",
+        &output[..output.len().min(600)]
+    );
+}
+
+#[test]
+fn drag_without_translate_keyframes_falls_back_to_unbounded() {
+    // A motion with no translate range in the drag axis must not emit NaN or
+    // a bogus extent — it falls back to the previous unbounded (inert)
+    // behavior and carries a compiler warning comment.
+    let source = r#"
+@motion fadeOnly {
+    from { opacity: 0 }
+    to { opacity: 1 }
+    over: 300ms
+}
+component Test {
+    view {
+        <div @drag-vertical={fadeOnly}>drag me</div>
+    }
+}
+"#;
+    let output = compile_fixture_to_react(source);
+    assert!(
+        output.contains("const maxExtent = Number.POSITIVE_INFINITY;"),
+        "no-translate motion must fall back to the unbounded extent, got partial:\n{}",
+        &output[..output.len().min(600)]
+    );
+    assert!(
+        output.contains("WARNING"),
+        "fallback must carry a compiler warning comment"
+    );
+    assert!(!output.contains("NaN"), "fallback must not emit NaN");
+}
+
+#[test]
 fn test_react_motion_combined() {
     let output = compile_fixture_to_react(fixture!("motion_combined"));
     insta::with_settings!({snapshot_path => "snapshots"}, {

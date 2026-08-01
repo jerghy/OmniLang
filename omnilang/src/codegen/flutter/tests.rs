@@ -327,6 +327,13 @@ fn test_stmt_if() {
 /// Format a view tree with an empty component/store context, returning
 /// (formatted_string, warnings).
 fn fmt_view(node: &ViewTree) -> (String, Vec<String>) {
+    fmt_view_with_motions(node, &[])
+}
+
+/// Like [`fmt_view`] but with module-level motions available — needed by the
+/// @drag-* extent derivation (deferral #19), which resolves the motion body
+/// to compute the gesture extent from its keyframe range.
+fn fmt_view_with_motions(node: &ViewTree, motions: &[MotionIntent]) -> (String, Vec<String>) {
     let ir = empty_program();
     let component_map: FxHashMap<&str, &ComponentIR> = FxHashMap::default();
     let store_provider_map: FxHashMap<String, String> = FxHashMap::default();
@@ -341,7 +348,7 @@ fn fmt_view(node: &ViewTree) -> (String, Vec<String>) {
         ir: &ir,
         warnings: &mut warnings,
     };
-    let result = format_view_tree(node, &[], &mut ctx);
+    let result = format_view_tree(node, motions, &mut ctx);
     (result, warnings)
 }
 
@@ -403,6 +410,192 @@ fn test_format_element_with_text_child() {
     };
     let (expr, _) = fmt_view(&ViewTree::Element(Box::new(el)));
     assert_eq!(expr, "Container(child: Text('Hello'))");
+}
+
+#[test]
+fn test_drag_widget_derives_extent_from_keyframes() {
+    // ADR-053 removed @drag-constraints — without constraints the drag extent
+    // must be derived from the motion's own keyframe range (translateX
+    // 0→300 ⇒ dragExtent 300.0) so the element follows its animation
+    // (deferral #19) instead of dividing by Infinity.
+    let motions = vec![MotionIntent {
+        name: "slideX".into(),
+        body: KeyframeIR {
+            stops: vec![
+                KeyframeStopIR {
+                    position: 0.0,
+                    properties: FxHashMap::from_iter([(
+                        "translateX".into(),
+                        ExprIR::LiteralExpr {
+                            value: serde_json::json!(0),
+                        },
+                    )]),
+                    ease: None,
+                    source_span: None,
+                },
+                KeyframeStopIR {
+                    position: 1.0,
+                    properties: FxHashMap::from_iter([(
+                        "translateX".into(),
+                        ExprIR::LiteralExpr {
+                            value: serde_json::json!(300),
+                        },
+                    )]),
+                    ease: None,
+                    source_span: None,
+                },
+            ],
+            over: ExprIR::LiteralExpr {
+                value: serde_json::json!("300ms"),
+            },
+            ease: None,
+            playback: PlaybackIR::default(),
+            source_span: None,
+        },
+        source_span: None,
+    }];
+    let el = ElementIR {
+        class_map_bindings: FxHashMap::default(),
+        tag: "div".into(),
+        props: FxHashMap::default(),
+        bindings: FxHashMap::default(),
+        events: FxHashMap::default(),
+        style_classes: None,
+        inline_style: None,
+        children: vec![ViewTree::Text("drag me".into())],
+        construction_kind: ConstructionKind::Component,
+        source_span: None,
+        motion: Some(Box::new(MotionBehavior {
+            triggers: vec![TriggerIntent {
+                kind: TriggerKind::DragHorizontal,
+                motion_ref: Some("slideX".into()),
+                inline_motion: None,
+                source_span: None,
+            }],
+            in_view_once: None,
+            in_view_repeat: None,
+            in_view_threshold: None,
+            source_span: None,
+        })),
+        scroll: None,
+        drag: Some(Box::new(DragBehavior {
+            constraints: None,
+            elastic: None,
+            threshold: None,
+            velocity_max: None,
+            source_span: None,
+        })),
+        ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
+    };
+    let (expr, _) = fmt_view_with_motions(&ViewTree::Element(Box::new(el)), &motions);
+    assert!(
+        expr.contains("dragExtent: 300.0"),
+        "expected keyframe-derived dragExtent, got: {}",
+        expr
+    );
+    assert!(
+        !expr.contains("WARNING"),
+        "derived extent must not carry a fallback warning, got: {}",
+        expr
+    );
+}
+
+#[test]
+fn test_drag_widget_without_translate_falls_back_unbounded() {
+    // A motion with no translate range must not emit a bogus extent — it
+    // falls back to the previous unbounded (inert) behavior with a warning.
+    let motions = vec![MotionIntent {
+        name: "fadeOnly".into(),
+        body: KeyframeIR {
+            stops: vec![
+                KeyframeStopIR {
+                    position: 0.0,
+                    properties: FxHashMap::from_iter([(
+                        "opacity".into(),
+                        ExprIR::LiteralExpr {
+                            value: serde_json::json!(0),
+                        },
+                    )]),
+                    ease: None,
+                    source_span: None,
+                },
+                KeyframeStopIR {
+                    position: 1.0,
+                    properties: FxHashMap::from_iter([(
+                        "opacity".into(),
+                        ExprIR::LiteralExpr {
+                            value: serde_json::json!(1),
+                        },
+                    )]),
+                    ease: None,
+                    source_span: None,
+                },
+            ],
+            over: ExprIR::LiteralExpr {
+                value: serde_json::json!("300ms"),
+            },
+            ease: None,
+            playback: PlaybackIR::default(),
+            source_span: None,
+        },
+        source_span: None,
+    }];
+    let el = ElementIR {
+        class_map_bindings: FxHashMap::default(),
+        tag: "div".into(),
+        props: FxHashMap::default(),
+        bindings: FxHashMap::default(),
+        events: FxHashMap::default(),
+        style_classes: None,
+        inline_style: None,
+        children: vec![ViewTree::Text("drag me".into())],
+        construction_kind: ConstructionKind::Component,
+        source_span: None,
+        motion: Some(Box::new(MotionBehavior {
+            triggers: vec![TriggerIntent {
+                kind: TriggerKind::DragVertical,
+                motion_ref: Some("fadeOnly".into()),
+                inline_motion: None,
+                source_span: None,
+            }],
+            in_view_once: None,
+            in_view_repeat: None,
+            in_view_threshold: None,
+            source_span: None,
+        })),
+        scroll: None,
+        drag: Some(Box::new(DragBehavior {
+            constraints: None,
+            elastic: None,
+            threshold: None,
+            velocity_max: None,
+            source_span: None,
+        })),
+        ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
+    };
+    let (expr, warnings) = fmt_view_with_motions(&ViewTree::Element(Box::new(el)), &motions);
+    assert!(
+        expr.contains("dragExtent: 0.0"),
+        "no-translate motion must fall back to the unbounded extent, got: {}",
+        expr
+    );
+    assert!(
+        expr.contains("WARNING"),
+        "fallback must carry a warning comment, got: {}",
+        expr
+    );
+    assert!(
+        !expr.contains("NaN"),
+        "fallback must not emit NaN, got: {}",
+        expr
+    );
+    assert!(
+        warnings.is_empty(),
+        "unexpected codegen warnings: {:?}",
+        warnings
+    );
 }
 
 #[test]

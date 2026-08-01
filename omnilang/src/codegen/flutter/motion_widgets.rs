@@ -292,6 +292,10 @@ pub(crate) fn emit_drag_widget_class(w: &mut CodeWriter) {
     w.emit("final String constraints;");
     w.emit("final double elastic;");
     w.emit("final double threshold;");
+    // Max drag distance (px) derived at compile time from the motion's own
+    // keyframe range in the drag axis — used when no constraints are given
+    // (ADR-053 removed @drag-constraints; deferral #19). 0.0 means unbounded.
+    w.emit("final double dragExtent;");
     w.emit("final VoidCallback onDragStart;");
     w.emit("final ValueChanged<double> onDragProgress;");
     w.emit("final ValueChanged<bool> onDragEnd;");
@@ -303,6 +307,7 @@ pub(crate) fn emit_drag_widget_class(w: &mut CodeWriter) {
     w.emit("this.constraints = '',");
     w.emit("this.elastic = 0.0,");
     w.emit("this.threshold = 0.0,");
+    w.emit("this.dragExtent = 0.0,");
     w.emit("required this.onDragStart,");
     w.emit("required this.onDragProgress,");
     w.emit("required this.onDragEnd,");
@@ -318,7 +323,6 @@ pub(crate) fn emit_drag_widget_class(w: &mut CodeWriter) {
     w.indent();
     w.emit("double _startPos = 0;");
     w.emit("double _currentDelta = 0;");
-    w.emit("double _dragExtent = 300.0; // default max drag distance");
     w.emit("");
     w.emit("double _computeProgress(double delta) {");
     w.indent();
@@ -341,7 +345,11 @@ pub(crate) fn emit_drag_widget_class(w: &mut CodeWriter) {
     w.dedent();
     w.emit("}");
     w.emit("");
-    w.emit("final maxExtent = (maxVal - minVal).abs().clamp(1.0, double.infinity);");
+    w.emit("final maxExtent = widget.constraints.isNotEmpty");
+    w.indent();
+    w.emit("? (maxVal - minVal).abs().clamp(1.0, double.infinity)");
+    w.emit(": (widget.dragExtent > 0 ? widget.dragExtent : double.infinity);");
+    w.dedent();
     w.emit("double constrained = delta;");
     w.emit("if (delta < minVal) {");
     w.indent();
