@@ -185,8 +185,15 @@ fn collect_idents_from_view_exprs(view: &ViewTree, used: &mut FxHashSet<String>)
 }
 
 /// Eliminate computed properties never referenced by any function, effect,
-/// lifecycle, computed, or view tree within the component.
-pub fn eliminate_dead_computeds(comp: &mut ComponentIR) {
+/// lifecycle, computed, view tree, or motion keyframe body within the
+/// component.
+///
+/// `module_motions` are the module-level motion table (named `@motion` defs
+/// plus inline trigger bodies hoisted by `lower_inline_motions`, which empties
+/// `TriggerIntent::inline_motion` before this pass runs) — a computed
+/// referenced only from a keyframe property value, duration, or delay would
+/// otherwise be eliminated.
+pub fn eliminate_dead_computeds(comp: &mut ComponentIR, module_motions: &[MotionIntent]) {
     let mut used: FxHashSet<String> = FxHashSet::default();
 
     // Walk all known reference sites within the component
@@ -222,7 +229,12 @@ pub fn eliminate_dead_computeds(comp: &mut ComponentIR) {
             collect_idents(expr, &mut used);
         }
     }
-    // motions and timelines are now canonical in ModuleIR, not ComponentIR
+    // Motion keyframe bodies (module-level named motions + hoisted inline
+    // triggers) hold ExprIR fields — keyframe property values, duration,
+    // and playback delay — that may reference computed properties.
+    for motion in module_motions {
+        collect_idents_from_motion_body(&motion.body, &mut used);
+    }
 
     let before = comp.computeds.len();
     comp.computeds.retain(|c| used.contains(&c.name));
@@ -368,7 +380,7 @@ fn eliminate_unreachable_in_view(view: &mut ViewTree) -> bool {
 pub fn optimize(ir: &mut IRProgram) {
     for module in ir.modules.values_mut() {
         for comp in module.components.values_mut() {
-            eliminate_dead_computeds(comp);
+            eliminate_dead_computeds(comp, &module.motions);
 
             // Pass 2: Eliminate unreachable code in all code bodies
             for f in &mut comp.fns {
@@ -426,7 +438,7 @@ mod tests {
             ..ComponentIR::default()
         };
 
-        eliminate_dead_computeds(&mut comp);
+        eliminate_dead_computeds(&mut comp, &[]);
 
         assert_eq!(comp.computeds.len(), 1);
         assert_eq!(comp.computeds[0].name, "used");
@@ -440,7 +452,7 @@ mod tests {
             ..ComponentIR::default()
         };
 
-        eliminate_dead_computeds(&mut comp);
+        eliminate_dead_computeds(&mut comp, &[]);
 
         assert_eq!(comp.computeds.len(), 0);
     }
@@ -470,7 +482,7 @@ mod tests {
             ..ComponentIR::default()
         };
 
-        eliminate_dead_computeds(&mut comp);
+        eliminate_dead_computeds(&mut comp, &[]);
         assert_eq!(comp.computeds.len(), 1);
     }
 
@@ -491,7 +503,7 @@ mod tests {
             ..ComponentIR::default()
         };
 
-        eliminate_dead_computeds(&mut comp);
+        eliminate_dead_computeds(&mut comp, &[]);
         assert_eq!(comp.computeds.len(), 1);
     }
 
@@ -512,7 +524,7 @@ mod tests {
             ..ComponentIR::default()
         };
 
-        eliminate_dead_computeds(&mut comp);
+        eliminate_dead_computeds(&mut comp, &[]);
         assert_eq!(comp.computeds.len(), 1);
     }
 
@@ -550,7 +562,7 @@ mod tests {
             ..ComponentIR::default()
         };
 
-        eliminate_dead_computeds(&mut comp);
+        eliminate_dead_computeds(&mut comp, &[]);
         assert_eq!(comp.computeds.len(), 2);
     }
 
@@ -598,7 +610,7 @@ mod tests {
             ..ComponentIR::default()
         };
 
-        eliminate_dead_computeds(&mut comp);
+        eliminate_dead_computeds(&mut comp, &[]);
         assert_eq!(comp.computeds.len(), 1);
     }
 
@@ -632,7 +644,7 @@ mod tests {
             ..ComponentIR::default()
         };
 
-        eliminate_dead_computeds(&mut comp);
+        eliminate_dead_computeds(&mut comp, &[]);
         assert_eq!(comp.computeds.len(), 1);
     }
 
@@ -666,7 +678,7 @@ mod tests {
             ..ComponentIR::default()
         };
 
-        eliminate_dead_computeds(&mut comp);
+        eliminate_dead_computeds(&mut comp, &[]);
         assert_eq!(comp.computeds.len(), 1);
     }
 
@@ -687,7 +699,7 @@ mod tests {
             ..ComponentIR::default()
         };
 
-        eliminate_dead_computeds(&mut comp);
+        eliminate_dead_computeds(&mut comp, &[]);
         assert_eq!(comp.computeds.len(), 1);
     }
 
@@ -712,7 +724,7 @@ mod tests {
             ..ComponentIR::default()
         };
 
-        eliminate_dead_computeds(&mut comp);
+        eliminate_dead_computeds(&mut comp, &[]);
         assert_eq!(comp.computeds.len(), 1);
     }
 
@@ -730,7 +742,7 @@ mod tests {
             ..ComponentIR::default()
         };
 
-        eliminate_dead_computeds(&mut comp);
+        eliminate_dead_computeds(&mut comp, &[]);
         assert_eq!(comp.computeds.len(), 1);
     }
 
@@ -753,8 +765,83 @@ mod tests {
             ..ComponentIR::default()
         };
 
-        eliminate_dead_computeds(&mut comp);
+        eliminate_dead_computeds(&mut comp, &[]);
         assert_eq!(comp.computeds.len(), 1);
+    }
+
+    #[test]
+    fn computed_referenced_from_motion_keyframe_survives() {
+        // A computed referenced only from a motion keyframe property value
+        // (module-level named motions and hoisted inline triggers live in
+        // ModuleIR.motions) must survive DCE — deferral #27 IR-side gap.
+        let motion = MotionIntent {
+            name: "slide".to_string(),
+            body: KeyframeIR {
+                stops: vec![KeyframeStopIR {
+                    position: 0.0,
+                    properties: {
+                        let mut props = FxHashMap::default();
+                        props.insert("translateX".to_string(), ident("motion_val"));
+                        props
+                    },
+                    ease: None,
+                    source_span: None,
+                }],
+                over: ExprIR::LiteralExpr {
+                    value: serde_json::Value::Number(
+                        serde_json::Number::from_f64(0.3).expect("finite f64"),
+                    ),
+                },
+                ease: None,
+                playback: PlaybackIR::default(),
+                source_span: None,
+            },
+            source_span: None,
+        };
+        let mut comp = ComponentIR {
+            name: "TestComp".to_string(),
+            computeds: vec![int_computed("motion_val")],
+            ..ComponentIR::default()
+        };
+
+        eliminate_dead_computeds(&mut comp, &[motion]);
+
+        assert_eq!(
+            comp.computeds.len(),
+            1,
+            "computed referenced from a motion keyframe must survive DCE"
+        );
+        assert_eq!(comp.computeds[0].name, "motion_val");
+    }
+
+    #[test]
+    fn computed_referenced_only_from_inline_trigger_motion_survives_pipeline() {
+        // End-to-end: an inline trigger body (`@enter={{ translateX: double }}`)
+        // is hoisted into ModuleIR.motions by lower_inline_motions (which
+        // empties TriggerIntent::inline_motion) before optimize() runs; the
+        // keyframe body must still count as a reference site.
+        let source = "component App { computed double: i32 = 42;              view { <div @enter={{ translateX: double }}/> } }";
+        let tokens = crate::lexer::tokenize(source);
+        let (program, _) = crate::parser::parse(tokens, source);
+        let mut semantics = crate::semantic::analyze(&program);
+        let mut ir = crate::ir::lower(&program, &mut semantics, None);
+        crate::ir::optimize::optimize(&mut ir);
+
+        let comp = ir
+            .modules
+            .values()
+            .next()
+            .expect("one module")
+            .components
+            .values()
+            .next()
+            .expect("one component");
+        assert_eq!(
+            comp.computeds.len(),
+            1,
+            "computed referenced from an inline motion trigger must survive DCE"
+        );
+        assert_eq!(comp.computeds[0].name, "double");
     }
 
     #[test]
@@ -767,7 +854,7 @@ mod tests {
             ..ComponentIR::default()
         };
 
-        eliminate_dead_computeds(&mut comp);
+        eliminate_dead_computeds(&mut comp, &[]);
         assert_eq!(comp.computeds.len(), 0);
     }
 
@@ -803,7 +890,7 @@ mod tests {
             ..ComponentIR::default()
         };
 
-        eliminate_dead_computeds(&mut comp);
+        eliminate_dead_computeds(&mut comp, &[]);
         assert_eq!(comp.computeds.len(), 2);
     }
 
@@ -852,7 +939,7 @@ mod tests {
             ..ComponentIR::default()
         };
 
-        eliminate_dead_computeds(&mut comp);
+        eliminate_dead_computeds(&mut comp, &[]);
         assert_eq!(
             comp.computeds.len(),
             1,
@@ -881,7 +968,7 @@ mod tests {
             ..ComponentIR::default()
         };
 
-        eliminate_dead_computeds(&mut comp);
+        eliminate_dead_computeds(&mut comp, &[]);
         assert_eq!(
             comp.computeds.len(),
             1,
@@ -910,7 +997,7 @@ mod tests {
             ..ComponentIR::default()
         };
 
-        eliminate_dead_computeds(&mut comp);
+        eliminate_dead_computeds(&mut comp, &[]);
         assert_eq!(
             comp.computeds.len(),
             1,
@@ -973,7 +1060,7 @@ mod tests {
             ..ComponentIR::default()
         };
 
-        eliminate_dead_computeds(&mut comp);
+        eliminate_dead_computeds(&mut comp, &[]);
         assert_eq!(comp.computeds.len(), 0);
     }
 

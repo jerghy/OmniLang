@@ -178,6 +178,32 @@ pub(super) fn collect_used_names_in_expr<'a>(expr: &'a Expr, used: &mut FxHashSe
     }
 }
 
+/// Collect name references from a motion definition body. Keyframe
+/// property values (`from { translateX: offsetX }`) are parsed as plain
+/// expressions (parser/top_level/motion.rs), as are the duration
+/// (`over: <expr>`) and playback delay (`delay <expr>`) — all are real
+/// reference sites. Easing exprs and stop positions carry no Expr fields.
+pub(super) fn collect_used_names_in_motion_def<'a>(
+    motion: &'a MotionDef,
+    used: &mut FxHashSet<&'a str>,
+) {
+    match &motion.body {
+        MotionBody::Keyframe(kf) => {
+            for stop in &kf.stops {
+                for (_, value) in &stop.properties {
+                    collect_used_names_in_expr(value, used);
+                }
+            }
+            collect_used_names_in_expr(&kf.over, used);
+            for prop in &kf.playback {
+                if let PlaybackProp::Delay(e) = prop {
+                    collect_used_names_in_expr(e, used);
+                }
+            }
+        }
+    }
+}
+
 pub(super) fn collect_used_names_in_view<'a>(view: &'a ViewBlock, used: &mut FxHashSet<&'a str>) {
     for node in &view.children {
         collect_used_names_in_view_node(node, used);

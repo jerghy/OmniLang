@@ -4,7 +4,8 @@
 //! Severity: warning
 
 use super::ast_collectors::{
-    collect_used_names_in_block, collect_used_names_in_expr, collect_used_names_in_view_node,
+    collect_used_names_in_block, collect_used_names_in_expr, collect_used_names_in_motion_def,
+    collect_used_names_in_view_node,
 };
 use super::{LintDiagnostic, LintRule, LintSeverity};
 use crate::ir::IRProgram;
@@ -59,6 +60,13 @@ impl LintRule for DeadCode {
 
                 for sig in &comp.signals {
                     collect_used_names_in_expr(&sig.init, &mut used);
+                }
+
+                // Component-level @motion keyframe bodies hold real reference
+                // sites: keyframe property values, the duration expr, and
+                // playback delays may all reference signals/computeds.
+                for motion in &comp.motions {
+                    collect_used_names_in_motion_def(motion, &mut used);
                 }
 
                 if let Some(ref view) = comp.view {
@@ -554,6 +562,46 @@ mod tests {
                 .iter()
                 .any(|d| d.message.contains("'usedOffset'") && d.message.contains("never used")),
             "inline-motion-referenced signal must not be reported unused, got: {:?}",
+            diags
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.message.contains("'unusedOffset'") && d.message.contains("never used")),
+            "genuinely unused signal must still be reported, got: {:?}",
+            diags
+        );
+    }
+
+    // ── Component @motion keyframe reference sites (deferral #27) ──────
+
+    #[test]
+    fn test_signal_used_only_in_motion_keyframe_not_reported() {
+        // Component-level `@motion m { from { translateX: offsetX } ... }` —
+        // keyframe property values are parsed as plain expressions and are
+        // real reference sites for the dead-code lint.
+        let diags = lint_source(
+            "component App { signal offsetX: i32 = 0;              @motion slide { from { translateX: offsetX } to { translateX: 0 } } view { <div/> } }",
+        );
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.message.contains("'offsetX'") && d.message.contains("never used")),
+            "signal referenced from a @motion keyframe must not be reported unused, got: {:?}",
+            diags
+        );
+    }
+
+    #[test]
+    fn test_unused_signal_still_reported_alongside_motion_keyframe_references() {
+        let diags = lint_source(
+            "component App { signal usedOffset: i32 = 0; signal unusedOffset: i32 = 5;              @motion slide { from { translateX: usedOffset } to { translateX: 0 } } view { <div/> } }",
+        );
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.message.contains("'usedOffset'") && d.message.contains("never used")),
+            "motion-keyframe-referenced signal must not be reported unused, got: {:?}",
             diags
         );
         assert!(
