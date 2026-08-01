@@ -1,5 +1,5 @@
 // ╔══════════════════════════════════════════════════════════════════════╗
-// ║  EasingFunctionsDemo — 缓动全家桶覆盖（22 种缓动）                  ║
+// ║  EasingFunctionsDemo — 缓动全家桶覆盖（23 种缓动）                  ║
 // ║                                                                    ║
 // ║  Power 组：   ease-in, power1-in/out/in-out, power2-in/in-out,    ║
 // ║               power3-in/in-out, power4-in/out/in-out              ║
@@ -17,7 +17,7 @@ import omniview;
 // ║                                                            ║
 // ║  **Steps:**                                                ║
 // ║  1. Navigate to EasingFunctionsDemo component page.        ║
-// ║  2. Verify all 22 easing function cards render.            ║
+// ║  2. Verify all 23 easing function cards render.            ║
 // ║  3. Check Power group: ease-in, power1/2/3/4 variants.     ║
 // ║  4. Check Back group: back-in/out/in-out.                  ║
 // ║  5. Check Bounce group: bounce-in/out/in-out.              ║

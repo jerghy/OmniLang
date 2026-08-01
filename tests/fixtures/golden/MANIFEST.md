@@ -5,6 +5,11 @@ These files serve as the reference corpus for dual-parser consistency testing.
 
 Files are grouped by primary feature. Many files demonstrate multiple features.
 
+> **Path resolution:** manifest paths are repo-root-relative and resolve to the LIVE
+> `test/projects/learn-omniview/src/` tree — test runners do NOT read the mirror below.
+> The `test/` subtree next to this manifest is a byte-identical documentary snapshot;
+> resync with `diff -rq test/projects/learn-omniview/src tests/fixtures/golden/test/projects/learn-omniview`.
+
 ---
 
 ## Views
@@ -39,9 +44,9 @@ Files are grouped by primary feature. Many files demonstrate multiple features.
 ## Motion / Animation
 
 - `test/projects/learn-omniview/src/pages/MotionDemo.omni` — `@motion` definitions (fadeInUp, scalePress, listItem, pulse) + `@enter`/`@hover`/`@press` triggers + `@if` with `mode: "fade"`
-- `test/projects/learn-omniview/src/pages/MotionTriggersDemo.omni` — All 8 motion triggers: `@enter`, `@hover`, `@press`, `@focus`, `@in-view`, `@scroll`, `@drag-horizontal`, `@drag-vertical`
+- `test/projects/learn-omniview/src/pages/MotionTriggersDemo.omni` — Motion trigger demo: `@in-view`, `@scroll`, `@focus`, `@drag-horizontal`, `@drag-vertical` (5 of 8 triggers)
 - `test/projects/learn-omniview/src/pages/KeyframeAnimationDemo.omni` — Full animation surface: 8 triggers, 4 playback props (loop/direction/fill/delay), 4 easing variants, multi-stop keyframes
-- `test/projects/learn-omniview/src/pages/EasingFunctionsDemo.omni` — 22 easing functions: power group, back/bounce/elastic (named-only), `cubic(x1,y1,x2,y2)`, `steps(count, direction)`
+- `test/projects/learn-omniview/src/pages/EasingFunctionsDemo.omni` — 23 easing functions: power group, back/bounce/elastic (named-only), `cubic(x1,y1,x2,y2)`, `steps(count, direction)`
 - `test/projects/learn-omniview/src/pages/AnimPropertiesDemo.omni` — 17 animatable properties: scale/rotate/skew transforms, translateX/Y/Z, opacity/backgroundColor/color/width/height
 
 ## Events
