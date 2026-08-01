@@ -247,6 +247,7 @@ mod tests {
             lifecycles: vec![],
             fns: vec![],
             store_refs: vec![],
+            inline_stores: vec![],
             events: vec![],
             slots: vec![],
             styles: vec![],

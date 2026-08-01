@@ -1364,6 +1364,33 @@ mod roundtrip_tests {
         assert!(comp.slots[1].name.is_none());
     }
 
+    #[test]
+    fn inline_store_recorded_in_component_ast() {
+        // `store Name { ... }` in the component body must be recorded in
+        // inline_stores (in addition to store_refs) so validators can tell
+        // locally-defined stores from module-level store references.
+        let comp = component_def(
+            "component X { store Local { signal n: i32 = 0 } @store External; view { <div>{Local.n}</div> } }",
+        );
+        assert_eq!(comp.inline_stores, vec!["Local"], "inline store name recorded");
+        assert_eq!(
+            comp.store_refs,
+            vec!["Local", "External"],
+            "inline stores and references both stay in store_refs"
+        );
+        assert_eq!(comp.signals.len(), 1, "inline store signal flattened into component");
+        assert_eq!(comp.signals[0].name, "n");
+    }
+
+    #[test]
+    fn bare_store_reference_not_recorded_as_inline() {
+        // `store Name;` without a body is a module-level store reference,
+        // not an inline definition.
+        let comp = component_def("component X { store External; view { <div/> } }");
+        assert!(comp.inline_stores.is_empty());
+        assert_eq!(comp.store_refs, vec!["External"]);
+    }
+
     // ── Consumer named-prop slot projection (ADR-053 D5) ────
 
     #[test]
@@ -2025,6 +2052,45 @@ mod roundtrip_tests {
                 }
                 _ => panic!("expected Element for {kw}"),
             }
+        }
+    }
+
+    #[test]
+    fn view_text_throw_try_catch_finally_keywords() {
+        // Throw/Try/Catch/Finally lex as dedicated keyword tokens; they must
+        // be accepted as view text and keep their literal spellings
+        // (is_text_token via keyword_as_ident_name + token_text fallback).
+        for kw in ["throw", "try", "catch", "finally"] {
+            let src = format!("component App {{ view {{ <p>a {kw} b</p> }} }}");
+            let children = view_children(&src);
+            assert_eq!(children.len(), 1, "top-level children truncated at {kw}");
+            match &children[0] {
+                ViewNode::Element(el) => {
+                    assert_eq!(el.children.len(), 1, "element children truncated at {kw}");
+                    assert!(
+                        matches!(&el.children[0], ViewNode::Text(s) if s == &format!("a {kw} b")),
+                        "text rendering mismatch for {kw}"
+                    );
+                }
+                _ => panic!("expected Element for {kw}"),
+            }
+        }
+    }
+
+    #[test]
+    fn view_text_throw_keywords_combined() {
+        // All four keywords in a single text run must survive as one node.
+        let children = view_children("component App { view { <p>try throw catch finally</p> } }");
+        assert_eq!(children.len(), 1);
+        match &children[0] {
+            ViewNode::Element(el) => {
+                assert_eq!(el.children.len(), 1);
+                assert!(
+                    matches!(&el.children[0], ViewNode::Text(s) if s == "try throw catch finally"),
+                    "combined throw-keyword text must render exactly"
+                );
+            }
+            _ => panic!("expected Element"),
         }
     }
 }

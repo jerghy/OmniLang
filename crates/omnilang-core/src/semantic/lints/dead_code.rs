@@ -300,6 +300,7 @@ mod tests {
                     events: vec![],
                     refs: vec![],
                     store_refs: vec![],
+                    inline_stores: vec![],
                     motions: vec![],
                     lifecycles: vec![],
                     fns: vec![],
@@ -360,6 +361,7 @@ mod tests {
                     events: vec![],
                     refs: vec![],
                     store_refs: vec![],
+                    inline_stores: vec![],
                     motions: vec![],
                     lifecycles: vec![],
                     fns: vec![FunctionDef {

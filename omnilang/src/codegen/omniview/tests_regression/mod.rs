@@ -57,6 +57,7 @@ fn computed_references_prop_with_default() {
         lifecycles: vec![],
         fns: vec![],
         store_refs: vec![],
+        inline_stores: vec![],
         refs: vec![],
         events: vec![],
         slots: vec![],

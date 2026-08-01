@@ -596,6 +596,10 @@ pub(crate) fn keyword_as_ident_name(kind: &TokenKind) -> Option<&'static str> {
         // Control flow keywords that may appear in text context
         TokenKind::Break => Some("break"),
         TokenKind::Continue => Some("continue"),
+        TokenKind::Throw => Some("throw"),
+        TokenKind::Try => Some("try"),
+        TokenKind::Catch => Some("catch"),
+        TokenKind::Finally => Some("finally"),
         TokenKind::As => Some("as"),
         TokenKind::Pub => Some("pub"),
         TokenKind::IfMode => Some("if_mode"),

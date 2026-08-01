@@ -865,6 +865,12 @@ pub struct ComponentIR {
     pub lifecycles: Vec<LifecycleIntent>,
     pub fns: Vec<FunctionIR>,
     pub store_refs: Vec<String>,
+    /// Names of stores defined inline in the component body
+    /// (`store Name { ... }`), carried over from the AST. Inline stores are
+    /// flattened into the component and never enter `ModuleIR.stores`;
+    /// validators use this list to treat them as locally-defined.
+    #[serde(default)]
+    pub inline_stores: Vec<String>,
     pub refs: Vec<RefDeclIR>,
     /// Component event declarations with their TypeScript parameter types.
     #[serde(default)]

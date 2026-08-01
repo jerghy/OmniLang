@@ -131,6 +131,7 @@ fn design_block_css_values_are_sanitized() {
         lifecycles: vec![],
         fns: vec![],
         store_refs: vec![],
+        inline_stores: vec![],
         refs: vec![],
         events: vec![],
         slots: vec![],

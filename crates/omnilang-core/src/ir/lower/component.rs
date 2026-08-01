@@ -273,6 +273,7 @@ pub(super) fn lower_component(
         lifecycles,
         fns,
         store_refs: comp.store_refs.clone(),
+        inline_stores: comp.inline_stores.clone(),
         refs: comp
             .refs
             .iter()

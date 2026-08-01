@@ -34,7 +34,11 @@ impl LintRule for UndefinedRef {
                 .or_else(|| file_map.keys().next().map(|s| s.as_str()))
                 .unwrap_or(name);
             for store_ref in &comp.store_refs {
-                if !ir.has_store(store_ref.as_str()) {
+                // Inline stores (`store Name { ... }` in the component body)
+                // are flattened into the component and never registered in
+                // IRProgram.stores — treat them as locally-defined.
+                let is_inline = comp.inline_stores.iter().any(|s| s == store_ref);
+                if !ir.has_store(store_ref.as_str()) && !is_inline {
                     diags.push(LintDiagnostic {
                         rule: self.name().into(),
                         severity: self.severity(),
@@ -132,5 +136,66 @@ mod tests {
 
         let diags = UndefinedRef.check_ir(&ir, &FxHashMap::default());
         assert_eq!(diags.len(), 0, "no diagnostics expected when store exists");
+    }
+
+    #[test]
+    fn test_inline_store_not_reported_as_undefined() {
+        // `store Local { ... }` inside a component body is flattened into the
+        // component (its name is in store_refs but it never enters
+        // IRProgram.stores) — the lint must treat it as locally-defined.
+        let mut components = FxHashMap::default();
+        components.insert(
+            "X".into(),
+            ComponentIR {
+                name: "X".into(),
+                store_refs: vec!["Local".into()],
+                inline_stores: vec!["Local".into()],
+                ..Default::default()
+            },
+        );
+        let ir = make_test_ir(components, FxHashMap::default());
+
+        let diags = UndefinedRef.check_ir(&ir, &FxHashMap::default());
+        assert_eq!(
+            diags.len(),
+            0,
+            "inline store must not be reported as undefined: {:?}",
+            diags
+        );
+    }
+
+    #[test]
+    fn test_inline_store_does_not_mask_missing_store_in_other_component() {
+        // The inline-store exemption is per-component: another component
+        // referencing the same name without declaring it inline is still
+        // flagged as undefined.
+        let mut components = FxHashMap::default();
+        components.insert(
+            "Owner".into(),
+            ComponentIR {
+                name: "Owner".into(),
+                store_refs: vec!["Local".into()],
+                inline_stores: vec!["Local".into()],
+                ..Default::default()
+            },
+        );
+        components.insert(
+            "Other".into(),
+            ComponentIR {
+                name: "Other".into(),
+                store_refs: vec!["Local".into()],
+                inline_stores: vec![],
+                ..Default::default()
+            },
+        );
+        let ir = make_test_ir(components, FxHashMap::default());
+
+        let diags = UndefinedRef.check_ir(&ir, &FxHashMap::default());
+        assert_eq!(diags.len(), 1, "expected exactly 1 diagnostic");
+        assert!(
+            diags[0].message.contains("'Other'"),
+            "only the component without the inline store should be flagged: {}",
+            diags[0].message
+        );
     }
 }

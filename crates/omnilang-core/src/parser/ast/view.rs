@@ -18,6 +18,13 @@ pub struct ComponentDef {
     pub events: Vec<EventDecl>,
     pub refs: Vec<RefDecl>,
     pub store_refs: Vec<String>,
+    /// Names of stores defined inline in the component body
+    /// (`store Name { ... }`). Inline stores are flattened into the
+    /// component (their signals/getters/actions become component-level
+    /// declarations) and their names are also present in `store_refs`;
+    /// this list records the parse-time distinction so validators can
+    /// treat them as locally-defined rather than module-level stores.
+    pub inline_stores: Vec<String>,
     pub lifecycles: Vec<LifecycleHook>,
     pub fns: Vec<FunctionDef>,
     pub actions: Vec<ActionDef>,

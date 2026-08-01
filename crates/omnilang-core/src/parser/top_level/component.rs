@@ -18,6 +18,7 @@ impl<'a> Parser<'a> {
         let mut events = Vec::new();
         let mut refs = Vec::new();
         let mut store_refs = Vec::new();
+        let mut inline_stores = Vec::new();
         let mut motions: Vec<MotionDef> = Vec::new();
         let mut lifecycles = Vec::new();
         let mut fns = Vec::new();
@@ -49,6 +50,7 @@ impl<'a> Parser<'a> {
                     let store_name = self.expect_ident("expected store name")?;
                     if *self.peek_kind() == TokenKind::LBrace {
                         // Inline store definition — parse and extract signals/actions
+                        inline_stores.push(store_name.clone());
                         self.advance(); // '{'
                         while *self.peek_kind() != TokenKind::RBrace
                             && *self.peek_kind() != TokenKind::Eof
@@ -194,6 +196,7 @@ impl<'a> Parser<'a> {
             events,
             refs,
             store_refs,
+            inline_stores,
             lifecycles,
             fns,
             actions,
