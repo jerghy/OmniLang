@@ -66,6 +66,76 @@ pub(super) fn register() -> Vec<StdlibFn> {
             codegen: codegen_math_pow,
             is_async: false,
         },
+        StdlibFn {
+            module: "math",
+            name: "math_sin",
+            available_targets: &ALL_TARGETS,
+            codegen: codegen_math_sin,
+            is_async: false,
+        },
+        StdlibFn {
+            module: "math",
+            name: "math_cos",
+            available_targets: &ALL_TARGETS,
+            codegen: codegen_math_cos,
+            is_async: false,
+        },
+        StdlibFn {
+            module: "math",
+            name: "math_tan",
+            available_targets: &ALL_TARGETS,
+            codegen: codegen_math_tan,
+            is_async: false,
+        },
+        StdlibFn {
+            module: "math",
+            name: "math_log",
+            available_targets: &ALL_TARGETS,
+            codegen: codegen_math_log,
+            is_async: false,
+        },
+        StdlibFn {
+            module: "math",
+            name: "math_log2",
+            available_targets: &ALL_TARGETS,
+            codegen: codegen_math_log2,
+            is_async: false,
+        },
+        StdlibFn {
+            module: "math",
+            name: "math_log10",
+            available_targets: &ALL_TARGETS,
+            codegen: codegen_math_log10,
+            is_async: false,
+        },
+        StdlibFn {
+            module: "math",
+            name: "math_pi",
+            available_targets: &ALL_TARGETS,
+            codegen: codegen_math_pi,
+            is_async: false,
+        },
+        StdlibFn {
+            module: "math",
+            name: "math_e",
+            available_targets: &ALL_TARGETS,
+            codegen: codegen_math_e,
+            is_async: false,
+        },
+        StdlibFn {
+            module: "math",
+            name: "math_clamp",
+            available_targets: &ALL_TARGETS,
+            codegen: codegen_math_clamp,
+            is_async: false,
+        },
+        StdlibFn {
+            module: "math",
+            name: "math_random_int",
+            available_targets: &ALL_TARGETS,
+            codegen: codegen_math_random_int,
+            is_async: false,
+        },
     ]
 }
 
@@ -210,5 +280,139 @@ pub(super) fn codegen_math_pow(args: &[String], target: Target) -> String {
         Target::Python => format!("math.pow({base}, {exp})"),
         Target::Rust | Target::Dioxus => format!("({base}).powf({exp})"),
         Target::Dart | Target::Flutter => format!("pow({base}, {exp})"),
+    }
+}
+
+macro_rules! define_unary {
+    ($name:ident, $codegen:ident, $js:expr, $python:expr, $rust:expr, $dart:expr) => {
+        pub(super) fn $codegen(args: &[String], target: Target) -> String {
+            let n = &args[0];
+            match target {
+                Target::JavaScript
+                | Target::TypeScript
+                | Target::React
+                | Target::Vue
+                | Target::OmniView => {
+                    format!($js, n = n)
+                }
+                Target::Python => format!($python, n = n),
+                Target::Rust | Target::Dioxus => format!($rust, n = n),
+                Target::Dart | Target::Flutter => format!($dart, n = n),
+            }
+        }
+    };
+}
+
+define_unary!(
+    sin,
+    codegen_math_sin,
+    "Math.sin({n})",
+    "math.sin({n})",
+    "({n}).sin()",
+    "sin({n})"
+);
+define_unary!(
+    cos,
+    codegen_math_cos,
+    "Math.cos({n})",
+    "math.cos({n})",
+    "({n}).cos()",
+    "cos({n})"
+);
+define_unary!(
+    tan,
+    codegen_math_tan,
+    "Math.tan({n})",
+    "math.tan({n})",
+    "({n}).tan()",
+    "tan({n})"
+);
+define_unary!(
+    log,
+    codegen_math_log,
+    "Math.log({n})",
+    "math.log({n})",
+    "({n}).ln()",
+    "log({n})"
+);
+define_unary!(
+    log2,
+    codegen_math_log2,
+    "Math.log2({n})",
+    "math.log2({n})",
+    "({n}).log2()",
+    "log({n}) / ln2"
+);
+define_unary!(
+    log10,
+    codegen_math_log10,
+    "Math.log10({n})",
+    "math.log10({n})",
+    "({n}).log10()",
+    "log({n}) / ln10"
+);
+
+pub(super) fn codegen_math_pi(_args: &[String], target: Target) -> String {
+    match target {
+        Target::JavaScript
+        | Target::TypeScript
+        | Target::React
+        | Target::Vue
+        | Target::OmniView => "Math.PI".to_string(),
+        Target::Python => "math.pi".to_string(),
+        Target::Rust | Target::Dioxus => "std::f64::consts::PI".to_string(),
+        Target::Dart | Target::Flutter => "pi".to_string(),
+    }
+}
+
+pub(super) fn codegen_math_e(_args: &[String], target: Target) -> String {
+    match target {
+        Target::JavaScript
+        | Target::TypeScript
+        | Target::React
+        | Target::Vue
+        | Target::OmniView => "Math.E".to_string(),
+        Target::Python => "math.e".to_string(),
+        Target::Rust | Target::Dioxus => "std::f64::consts::E".to_string(),
+        Target::Dart | Target::Flutter => "e".to_string(),
+    }
+}
+
+pub(super) fn codegen_math_clamp(args: &[String], target: Target) -> String {
+    let val = &args[0];
+    let lo = &args[1];
+    let hi = &args[2];
+    match target {
+        Target::JavaScript
+        | Target::TypeScript
+        | Target::React
+        | Target::Vue
+        | Target::OmniView => {
+            format!("Math.min(Math.max({val}, {lo}), {hi})")
+        }
+        Target::Python => format!("max({lo}, min({hi}, {val}))"),
+        Target::Rust | Target::Dioxus => format!("({val}).clamp({lo}, {hi})"),
+        Target::Dart | Target::Flutter => format!("({val}).clamp({lo}, {hi})"),
+    }
+}
+
+pub(super) fn codegen_math_random_int(args: &[String], target: Target) -> String {
+    let lo = &args[0];
+    let hi = &args[1];
+    match target {
+        Target::JavaScript
+        | Target::TypeScript
+        | Target::React
+        | Target::Vue
+        | Target::OmniView => {
+            format!("Math.floor(Math.random() * ({hi} - {lo} + 1)) + {lo}")
+        }
+        Target::Python => format!("random.randint({lo}, {hi})"),
+        Target::Rust | Target::Dioxus => {
+            format!("rand::random::<i32>().rem_euclid({hi} - {lo} + 1) + {lo}")
+        }
+        Target::Dart | Target::Flutter => {
+            format!("Random().nextInt({hi} - {lo} + 1) + {lo}")
+        }
     }
 }

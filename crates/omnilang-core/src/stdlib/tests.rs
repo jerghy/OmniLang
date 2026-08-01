@@ -1,16 +1,37 @@
 #[allow(unused_imports)]
 use super::array::{codegen_array_length, codegen_array_map, codegen_array_push};
 #[allow(unused_imports)]
+use super::async_mod::{
+    codegen_async_all, codegen_async_race, codegen_async_sleep, codegen_async_spawn,
+    codegen_async_timeout,
+};
+#[allow(unused_imports)]
 use super::console::{codegen_console_error, codegen_console_log};
+#[allow(unused_imports)]
+use super::datetime::{
+    codegen_datetime_day, codegen_datetime_format, codegen_datetime_from_timestamp,
+    codegen_datetime_hour, codegen_datetime_minute, codegen_datetime_month, codegen_datetime_now,
+    codegen_datetime_second, codegen_datetime_year,
+};
+#[allow(unused_imports)]
+use super::encode::{
+    codegen_encode_base64_decode, codegen_encode_base64_encode, codegen_encode_hex_decode,
+    codegen_encode_hex_encode, codegen_encode_url_decode, codegen_encode_url_encode,
+};
 #[allow(unused_imports)]
 use super::http::{codegen_http_get, codegen_http_post, codegen_http_send};
 #[allow(unused_imports)]
 use super::json::{codegen_json_parse, codegen_json_stringify};
 #[allow(unused_imports)]
 use super::math::{
-    codegen_math_abs, codegen_math_ceil, codegen_math_floor, codegen_math_max, codegen_math_min,
-    codegen_math_pow, codegen_math_random, codegen_math_round, codegen_math_sqrt,
+    codegen_math_abs, codegen_math_ceil, codegen_math_clamp, codegen_math_cos, codegen_math_e,
+    codegen_math_floor, codegen_math_log, codegen_math_log10, codegen_math_log2, codegen_math_max,
+    codegen_math_min, codegen_math_pi, codegen_math_pow, codegen_math_random,
+    codegen_math_random_int, codegen_math_round, codegen_math_sin, codegen_math_sqrt,
+    codegen_math_tan,
 };
+#[allow(unused_imports)]
+use super::regex::{codegen_regex_match, codegen_regex_replace, codegen_regex_search};
 #[allow(unused_imports)]
 use super::storage::{codegen_storage_get, codegen_storage_set};
 #[allow(unused_imports)]
@@ -375,4 +396,434 @@ fn test_array_and_console_available_on_all_targets() {
         assert!(module_available("array", *target));
         assert!(module_available("console", *target));
     }
+}
+
+// ── Async module tests ─────────────────────────────
+
+#[test]
+fn test_lookup_async_sleep() {
+    let f = lookup("async", "async_sleep").expect("async_sleep should exist");
+    assert_eq!(f.module, "async");
+    assert!(f.is_async, "async_sleep should be async");
+    assert!(f.available_targets.contains(&Target::OmniView));
+}
+
+#[test]
+fn test_lookup_async_all_functions() {
+    for name in [
+        "async_sleep",
+        "async_spawn",
+        "async_all",
+        "async_race",
+        "async_timeout",
+    ] {
+        let f = lookup("async", name).unwrap_or_else(|| panic!("{name} should exist"));
+        assert!(f.is_async, "{name} should be async");
+    }
+}
+
+#[test]
+fn test_codegen_async_sleep_js() {
+    let result = codegen_async_sleep(&["20".into()], Target::JavaScript);
+    assert!(result.contains("setTimeout"), "Got: {}", result);
+    assert!(result.contains("20"), "Got: {}", result);
+}
+
+#[test]
+fn test_codegen_async_spawn_js() {
+    let result = codegen_async_spawn(&["task_a()".into()], Target::OmniView);
+    assert_eq!(result, "Promise.resolve(task_a())");
+}
+
+#[test]
+fn test_codegen_async_all_js() {
+    let result = codegen_async_all(&["[a, b]".into()], Target::JavaScript);
+    assert_eq!(result, "Promise.all([a, b])");
+}
+
+#[test]
+fn test_codegen_async_race_js() {
+    let result = codegen_async_race(&["[a, b]".into()], Target::JavaScript);
+    assert_eq!(result, "Promise.race([a, b])");
+}
+
+#[test]
+fn test_codegen_async_timeout_js() {
+    let result = codegen_async_timeout(&["task".into(), "50".into()], Target::JavaScript);
+    assert!(result.contains("Promise.race"), "Got: {}", result);
+    assert!(result.contains("new Error('timeout')"), "Got: {}", result);
+    assert!(result.contains("50"), "Got: {}", result);
+}
+
+#[test]
+fn test_codegen_async_sleep_python() {
+    let result = codegen_async_sleep(&["20".into()], Target::Python);
+    assert_eq!(result, "asyncio.sleep(20 / 1000)");
+}
+
+#[test]
+fn test_codegen_async_timeout_dart() {
+    let result = codegen_async_timeout(&["task".into(), "50".into()], Target::Dart);
+    assert_eq!(result, "task.timeout(Duration(milliseconds: 50))");
+}
+
+#[test]
+fn test_async_available_on_all_targets() {
+    for target in &ALL_TARGETS {
+        assert!(
+            module_available("async", *target),
+            "async should be available on {:?}",
+            target
+        );
+    }
+}
+
+// ── Datetime module tests ──────────────────────────
+
+#[test]
+fn test_lookup_datetime_now() {
+    let f = lookup("datetime", "datetime_now").expect("datetime_now should exist");
+    assert_eq!(f.module, "datetime");
+    assert!(!f.is_async);
+}
+
+#[test]
+fn test_lookup_datetime_all_functions() {
+    for name in [
+        "datetime_now",
+        "datetime_format",
+        "datetime_from_timestamp",
+        "datetime_year",
+        "datetime_month",
+        "datetime_day",
+        "datetime_hour",
+        "datetime_minute",
+        "datetime_second",
+    ] {
+        assert!(
+            lookup("datetime", name).is_some(),
+            "{name} should exist in std/datetime"
+        );
+    }
+}
+
+#[test]
+fn test_codegen_datetime_now_js() {
+    let result = codegen_datetime_now(&[], Target::OmniView);
+    assert_eq!(result, "new Date()");
+}
+
+#[test]
+fn test_codegen_datetime_format_js() {
+    let result = codegen_datetime_format(
+        &["now".into(), "\"%Y-%m-%d %H:%M:%S\"".into()],
+        Target::OmniView,
+    );
+    assert!(result.contains("getFullYear"), "Got: {}", result);
+    assert!(result.contains("getMonth"), "Got: {}", result);
+    assert!(result.contains("getSeconds"), "Got: {}", result);
+    assert!(result.contains("now"), "Got: {}", result);
+}
+
+#[test]
+fn test_codegen_datetime_format_python() {
+    let result = codegen_datetime_format(&["now".into(), "\"%Y-%m-%d\"".into()], Target::Python);
+    assert_eq!(result, "now.strftime(\"%Y-%m-%d\")");
+}
+
+#[test]
+fn test_codegen_datetime_from_timestamp_js() {
+    let result = codegen_datetime_from_timestamp(&["0".into()], Target::JavaScript);
+    assert_eq!(result, "new Date(0)");
+}
+
+#[test]
+fn test_codegen_datetime_extractors_js() {
+    assert_eq!(
+        codegen_datetime_year(&["now".into()], Target::JavaScript),
+        "new Date(now).getFullYear()"
+    );
+    assert_eq!(
+        codegen_datetime_month(&["now".into()], Target::JavaScript),
+        "new Date(now).getMonth() + 1"
+    );
+    assert_eq!(
+        codegen_datetime_day(&["now".into()], Target::JavaScript),
+        "new Date(now).getDate()"
+    );
+    assert_eq!(
+        codegen_datetime_hour(&["now".into()], Target::JavaScript),
+        "new Date(now).getHours()"
+    );
+    assert_eq!(
+        codegen_datetime_minute(&["now".into()], Target::JavaScript),
+        "new Date(now).getMinutes()"
+    );
+    assert_eq!(
+        codegen_datetime_second(&["now".into()], Target::JavaScript),
+        "new Date(now).getSeconds()"
+    );
+}
+
+#[test]
+fn test_codegen_datetime_year_python() {
+    assert_eq!(
+        codegen_datetime_year(&["now".into()], Target::Python),
+        "now.year"
+    );
+}
+
+#[test]
+fn test_codegen_datetime_now_dart() {
+    assert_eq!(codegen_datetime_now(&[], Target::Flutter), "DateTime.now()");
+}
+
+#[test]
+fn test_datetime_available_on_all_targets() {
+    for target in &ALL_TARGETS {
+        assert!(
+            module_available("datetime", *target),
+            "datetime should be available on {:?}",
+            target
+        );
+    }
+}
+
+// ── Encode module tests ────────────────────────────
+
+#[test]
+fn test_lookup_encode_all_functions() {
+    for name in [
+        "encode_base64_encode",
+        "encode_base64_decode",
+        "encode_hex_encode",
+        "encode_hex_decode",
+        "encode_url_encode",
+        "encode_url_decode",
+    ] {
+        let f = lookup("encode", name).unwrap_or_else(|| panic!("{name} should exist"));
+        assert!(!f.is_async, "{name} should be sync");
+    }
+}
+
+#[test]
+fn test_codegen_encode_base64_js() {
+    assert_eq!(
+        codegen_encode_base64_encode(&["s".into()], Target::OmniView),
+        "btoa(s)"
+    );
+    assert_eq!(
+        codegen_encode_base64_decode(&["s".into()], Target::OmniView),
+        "atob(s)"
+    );
+}
+
+#[test]
+fn test_codegen_encode_hex_js() {
+    let enc = codegen_encode_hex_encode(&["s".into()], Target::JavaScript);
+    assert!(enc.contains("charCodeAt"), "Got: {}", enc);
+    let dec = codegen_encode_hex_decode(&["s".into()], Target::JavaScript);
+    assert!(dec.contains("fromCharCode"), "Got: {}", dec);
+}
+
+#[test]
+fn test_codegen_encode_url_js() {
+    assert_eq!(
+        codegen_encode_url_encode(&["s".into()], Target::JavaScript),
+        "encodeURIComponent(s)"
+    );
+    assert_eq!(
+        codegen_encode_url_decode(&["s".into()], Target::JavaScript),
+        "decodeURIComponent(s)"
+    );
+}
+
+#[test]
+fn test_codegen_encode_base64_python() {
+    let enc = codegen_encode_base64_encode(&["s".into()], Target::Python);
+    assert!(enc.contains("base64.b64encode"), "Got: {}", enc);
+    let dec = codegen_encode_base64_decode(&["s".into()], Target::Python);
+    assert!(dec.contains("base64.b64decode"), "Got: {}", dec);
+}
+
+#[test]
+fn test_codegen_encode_hex_rust() {
+    let enc = codegen_encode_hex_encode(&["s".into()], Target::Rust);
+    assert_eq!(enc, "hex::encode(s)");
+}
+
+#[test]
+fn test_encode_available_on_all_targets() {
+    for target in &ALL_TARGETS {
+        assert!(
+            module_available("encode", *target),
+            "encode should be available on {:?}",
+            target
+        );
+    }
+}
+
+// ── Regex module tests ─────────────────────────────
+
+#[test]
+fn test_lookup_regex_all_functions() {
+    for name in ["regex_match", "regex_search", "regex_replace"] {
+        let f = lookup("regex", name).unwrap_or_else(|| panic!("{name} should exist"));
+        assert!(!f.is_async, "{name} should be sync");
+    }
+}
+
+#[test]
+fn test_codegen_regex_match_js() {
+    let result = codegen_regex_match(&["s".into(), "\"^[a-z]+$\"".into()], Target::OmniView);
+    assert!(result.contains(".test("), "Got: {}", result);
+    assert!(result.contains("new RegExp"), "Got: {}", result);
+}
+
+#[test]
+fn test_codegen_regex_search_js() {
+    let result = codegen_regex_search(&["s".into(), "\"\\\\d+\"".into()], Target::JavaScript);
+    assert!(result.contains("matchAll"), "Got: {}", result);
+    assert!(result.contains("'g'"), "Got: {}", result);
+}
+
+#[test]
+fn test_codegen_regex_replace_js() {
+    let result = codegen_regex_replace(
+        &["s".into(), "\"\\\\d+\"".into(), "\"X\"".into()],
+        Target::JavaScript,
+    );
+    assert!(result.contains(".replace("), "Got: {}", result);
+    assert!(result.contains("'g'"), "Got: {}", result);
+}
+
+#[test]
+fn test_codegen_regex_match_python() {
+    let result = codegen_regex_match(&["s".into(), "p".into()], Target::Python);
+    assert!(result.contains("re.fullmatch"), "Got: {}", result);
+}
+
+#[test]
+fn test_codegen_regex_search_rust() {
+    let result = codegen_regex_search(&["s".into(), "p".into()], Target::Rust);
+    assert!(result.contains("find_iter"), "Got: {}", result);
+}
+
+#[test]
+fn test_regex_available_on_all_targets() {
+    for target in &ALL_TARGETS {
+        assert!(
+            module_available("regex", *target),
+            "regex should be available on {:?}",
+            target
+        );
+    }
+}
+
+// ── Math extension tests ───────────────────────────
+
+#[test]
+fn test_lookup_math_extensions() {
+    for name in [
+        "math_sin",
+        "math_cos",
+        "math_tan",
+        "math_log",
+        "math_log2",
+        "math_log10",
+        "math_pi",
+        "math_e",
+        "math_clamp",
+        "math_random_int",
+    ] {
+        let f = lookup("math", name).unwrap_or_else(|| panic!("{name} should exist"));
+        assert!(!f.is_async, "{name} should be sync");
+    }
+}
+
+#[test]
+fn test_codegen_math_trig_js() {
+    assert_eq!(
+        codegen_math_sin(&["x".into()], Target::JavaScript),
+        "Math.sin(x)"
+    );
+    assert_eq!(
+        codegen_math_cos(&["x".into()], Target::JavaScript),
+        "Math.cos(x)"
+    );
+    assert_eq!(
+        codegen_math_tan(&["x".into()], Target::JavaScript),
+        "Math.tan(x)"
+    );
+}
+
+#[test]
+fn test_codegen_math_logs_js() {
+    assert_eq!(
+        codegen_math_log(&["x".into()], Target::JavaScript),
+        "Math.log(x)"
+    );
+    assert_eq!(
+        codegen_math_log2(&["x".into()], Target::JavaScript),
+        "Math.log2(x)"
+    );
+    assert_eq!(
+        codegen_math_log10(&["x".into()], Target::JavaScript),
+        "Math.log10(x)"
+    );
+}
+
+#[test]
+fn test_codegen_math_constants_js() {
+    assert_eq!(codegen_math_pi(&[], Target::JavaScript), "Math.PI");
+    assert_eq!(codegen_math_e(&[], Target::JavaScript), "Math.E");
+}
+
+#[test]
+fn test_codegen_math_constants_python() {
+    assert_eq!(codegen_math_pi(&[], Target::Python), "math.pi");
+    assert_eq!(codegen_math_e(&[], Target::Python), "math.e");
+}
+
+#[test]
+fn test_codegen_math_clamp_js() {
+    assert_eq!(
+        codegen_math_clamp(&["v".into(), "lo".into(), "hi".into()], Target::JavaScript),
+        "Math.min(Math.max(v, lo), hi)"
+    );
+}
+
+#[test]
+fn test_codegen_math_clamp_rust() {
+    assert_eq!(
+        codegen_math_clamp(&["v".into(), "lo".into(), "hi".into()], Target::Rust),
+        "(v).clamp(lo, hi)"
+    );
+}
+
+#[test]
+fn test_codegen_math_random_int_js() {
+    let result = codegen_math_random_int(&["lo".into(), "hi".into()], Target::JavaScript);
+    assert!(
+        result.contains("Math.floor(Math.random()"),
+        "Got: {}",
+        result
+    );
+    assert!(result.contains("hi - lo + 1"), "Got: {}", result);
+}
+
+#[test]
+fn test_codegen_math_random_int_python() {
+    assert_eq!(
+        codegen_math_random_int(&["lo".into(), "hi".into()], Target::Python),
+        "random.randint(lo, hi)"
+    );
+}
+
+#[test]
+fn test_codegen_math_log2_dart() {
+    assert_eq!(
+        codegen_math_log2(&["x".into()], Target::Dart),
+        "log(x) / ln2"
+    );
 }

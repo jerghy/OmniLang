@@ -8,10 +8,14 @@ use std::sync::OnceLock;
 use crate::codegen::Target;
 
 mod array;
+mod async_mod;
 mod console;
+mod datetime;
+mod encode;
 mod http;
 mod json;
 mod math;
+mod regex;
 mod storage;
 mod string;
 
@@ -42,6 +46,10 @@ pub fn registry() -> &'static [StdlibFn] {
         r.extend(string::register());
         r.extend(array::register());
         r.extend(console::register());
+        r.extend(async_mod::register());
+        r.extend(datetime::register());
+        r.extend(encode::register());
+        r.extend(regex::register());
         r
     })
 }
