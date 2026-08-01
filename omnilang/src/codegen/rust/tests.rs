@@ -517,7 +517,6 @@ mod tests {
         let stmt = StatementIR::MutationStmt {
             intent: Some(MutationIntent::Increment {
                 target: SignalRefIR {
-                    owner: None,
                     name: "count".into(),
                 },
 
@@ -536,13 +535,13 @@ mod tests {
         let stmt = StatementIR::MutationStmt {
             intent: Some(MutationIntent::DirectAssign {
                 target: SignalRefIR {
-                    owner: None,
                     name: "name".into(),
                 },
 
                 value: Some(Box::new(ExprIR::LiteralExpr {
                     value: serde_json::json!("hello"),
                 })),
+                field_object: None,
             }),
         };
         generate_statement(&mut w, &stmt);
@@ -555,7 +554,6 @@ mod tests {
         let stmt = StatementIR::MutationStmt {
             intent: Some(MutationIntent::Decrement {
                 target: SignalRefIR {
-                    owner: None,
                     name: "count".into(),
                 },
 
