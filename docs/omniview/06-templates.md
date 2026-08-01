@@ -226,9 +226,11 @@ PascalCase 标签引用其他组件——编译时视图会被内联展开：
 
 | 目标 | `"fade"` | `"wait"` | `"none"` |
 |------|----------|----------|----------|
-| React | 进入的分支淡入（CSS 淡入，300ms，`.omni-if-fade` 类 + keyframes 生成在组件 `.module.css`） | 无离开动画机制可等待，降级为立即切换（生成代码中注明降级） | 立即切换 |
+| React | 进入的分支淡入（CSS 淡入，300ms，`.omni-if-fade` 类 + keyframes 生成在组件 `.module.css`；分支包裹在带 `key` 的块级 `div` 中，切换时重新挂载以重放动画） | 无离开动画机制可等待，降级为立即切换（生成代码中注明降级） | 立即切换 |
 | Flutter | 无过渡效果 | `AnimatedSwitcher` + `FadeTransition`（等待旧内容过渡完成后插入新内容） | 立即切换 |
 | OmniView | 无过渡效果 | 无离开动画机制可等待，降级为立即切换（生成 JS 中注明降级；旧版 `_leave` 查找无任何注册，为死代码，已移除） | 立即切换 |
+
+> **React `"fade"` 布局说明**：分支内容包裹在块级 `<div>` 中（与 Flutter 的 `AnimatedSwitcher` 包装一致）——用于行内上下文时可能改变布局；支持 `prefers-reduced-motion`（生成的 CSS 中禁用动画并直接显示内容）。
 
 ```omni
 @if isOpen mode: "fade" {

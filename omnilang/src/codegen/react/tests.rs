@@ -2592,6 +2592,11 @@ component FadePanel {
         tsx
     );
     assert!(
+        tsx.contains("<div key=\"0\" className={styles['omni-if-fade']}>"),
+        "Expected a keyed fade wrapper (key forces remount so the fade replays on branch changes), got:\n{}",
+        tsx
+    );
+    assert!(
         tsx.contains("import styles from './FadePanel.module.css';"),
         "Fade forces the CSS-module import so the rules exist, got:\n{}",
         tsx
@@ -2602,10 +2607,21 @@ component FadePanel {
         "Expected fade keyframes + animation in CSS module, got:\n{}",
         css
     );
+    assert!(
+        css.contains("@media (prefers-reduced-motion: reduce)")
+            && css.contains("animation: none;")
+            && css.contains("opacity: 1;"),
+        "Expected prefers-reduced-motion override in CSS module, got:\n{}",
+        css
+    );
 }
 
 /// Test: `mode: "fade"` wraps EVERY branch of a multi-branch conditional
-/// (ternary), so each entering branch fades in when it becomes the shown one.
+/// (ternary), so each entering branch fades in when it becomes the shown
+/// one. Each wrapper carries a per-branch `key` (`"0"`, `"1"`, ..., `"fb"`
+/// for the fallback) — React reconciliation would otherwise reuse the
+/// same-position wrapper node on branch swaps (animation already finished,
+/// opacity stuck at 1) and the fade would not replay.
 #[test]
 fn conditional_fade_mode_wraps_every_ternary_branch() {
     let source = r#"
@@ -2633,12 +2649,74 @@ component FadeStatus {
         .collect::<Vec<_>>()
         .join("\n");
     let wrappers = tsx
-        .matches("<div className={styles['omni-if-fade']}>")
+        .matches("className={styles['omni-if-fade']}")
         .count();
     assert_eq!(
         wrappers, 3,
         "Expected all 3 ternary branches wrapped in the fade div, got {}:\n{}",
         wrappers, tsx
+    );
+    assert!(
+        tsx.contains("<div key=\"0\" className={styles['omni-if-fade']}>")
+            && tsx.contains("<div key=\"1\" className={styles['omni-if-fade']}>")
+            && tsx.contains("<div key=\"fb\" className={styles['omni-if-fade']}>"),
+        "Expected per-branch keys (\"0\", \"1\", \"fb\") so React remounts the wrapper on branch swaps, got:\n{}",
+        tsx
+    );
+}
+
+/// Test: `mode: "fade"` inside a body-declared `@slot` fallback still forces
+/// the CSS-module import. The import and the CSS rules are gated by the same
+/// predicate (`component_has_fade_conditional` covers the view AND body-slot
+/// fallbacks), so the generated TSX can never reference `styles` without
+/// importing it.
+#[test]
+fn conditional_fade_in_slot_fallback_forces_styles_import() {
+    let source = r#"
+component FadeCard {
+    @slot header { @if show mode: "fade" { <h4>Title</h4> } }
+    signal show: bool = true
+    view {
+        <div>
+            {header}
+        </div>
+    }
+}
+"#;
+    let output = compile_react(source).unwrap();
+    let tsx: String = output
+        .files
+        .iter()
+        .filter(|(path, _)| path.ends_with(".tsx"))
+        .map(|(_, content)| content.clone())
+        .collect::<Vec<_>>()
+        .join("\n");
+    let css: String = output
+        .files
+        .iter()
+        .filter(|(path, _)| path.ends_with(".module.css"))
+        .map(|(_, content)| content.clone())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        tsx.contains("{header ?? ("),
+        "Expected the slot fallback render, got:\n{}",
+        tsx
+    );
+    assert!(
+        tsx.contains("styles['omni-if-fade']"),
+        "Expected the fade class in the slot fallback, got:\n{}",
+        tsx
+    );
+    assert!(
+        tsx.contains("import styles from './FadeCard.module.css';"),
+        "A fade in a body-slot fallback must still force the styles import (HIGH-2), got:\n{}",
+        tsx
+    );
+    assert!(
+        css.contains("@keyframes omni-if-fade"),
+        "Expected the fade keyframes in the CSS module, got:\n{}",
+        css
     );
 }
 

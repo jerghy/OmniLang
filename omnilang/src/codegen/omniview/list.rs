@@ -366,8 +366,11 @@ impl OmniViewGenerator {
 
         // Key-based cleanup: remove items whose keys disappeared
         if has_key {
+            // No @leave mechanism exists in OmniLang (nothing registers
+            // `_leave` animation entries) — removed items are cleaned up and
+            // removed directly.
             self.js
-                .push_str("  // Remove items whose keys disappeared (play @leave then remove)\n");
+                .push_str("  // Remove items whose keys disappeared\n");
             self.js.push_str("  oldKeys.forEach(key => {\n");
             self.js.push_str("    if (!newKeys.has(key)) {\n");
             self.js.push_str("      const el = _forKeys.get(key);\n");
@@ -375,17 +378,8 @@ impl OmniViewGenerator {
             self.js
                 .push_str("        const leavingNid = el.getAttribute('data-nid');\n");
             self.js.push_str("        if (leavingNid) {\n");
-            self.js.push_str(
-                "          const player = __omni_animations.get(leavingNid + '_leave');\n",
-            );
-            self.js.push_str("          if (player) {\n");
-            self.js.push_str(
-                "            player.play().then(() => { __omni_cleanupElement(leavingNid); el.remove(); _forKeys.delete(key); });\n",
-            );
-            self.js.push_str("          } else {\n");
             self.js
-                .push_str("            __omni_cleanupElement(leavingNid); el.remove(); _forKeys.delete(key);\n");
-            self.js.push_str("          }\n");
+                .push_str("          __omni_cleanupElement(leavingNid); el.remove(); _forKeys.delete(key);\n");
             self.js.push_str("        } else {\n");
             self.js
                 .push_str("          el.remove(); _forKeys.delete(key);\n");

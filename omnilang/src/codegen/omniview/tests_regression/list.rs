@@ -231,15 +231,16 @@ fn test_list_with_key_and_empty_state() {
         "should track new keys"
     );
 
-    // Leave animation integration in key-based cleanup
+    // Key-based cleanup: no @leave mechanism exists in OmniLang (nothing
+    // registers `_leave` entries) — removed items are cleaned up and
+    // removed directly, with no dead `_leave` lookup in the generated JS.
     assert!(
-        gen.js
-            .contains("__omni_animations.get(leavingNid + '_leave')"),
-        "should check for leave animation"
+        gen.js.contains("__omni_cleanupElement(leavingNid); el.remove(); _forKeys.delete(key);"),
+        "should clean up and remove vanished items directly"
     );
     assert!(
-        gen.js.contains("player.play().then(() =>"),
-        "should play leave animation then remove"
+        !gen.js.contains("_leave"),
+        "no dead _leave lookup may remain in generated JS"
     );
 
     // No warnings

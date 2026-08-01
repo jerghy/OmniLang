@@ -645,7 +645,7 @@ pub(super) fn gen_view_node_tsx(
 
             if branches.is_empty() {
                 if let Some(ref fb) = fallback {
-                    emit_fade_branch_open(w, is_fade);
+                    emit_fade_branch_open(w, is_fade, "fb");
                     gen_branch_body_tsx(
                         w,
                         fb,
@@ -669,7 +669,7 @@ pub(super) fn gen_view_node_tsx(
                 let cond_str = format_expr_ir_tsx(&branches[0].condition, ref_names);
                 w.emit_fmt(format_args!("{} && (", cond_str));
                 w.indent();
-                emit_fade_branch_open(w, is_fade);
+                emit_fade_branch_open(w, is_fade, "0");
                 if let Some(ref body) = branches[0].body {
                     gen_branch_body_tsx(
                         w,
@@ -697,13 +697,42 @@ pub(super) fn gen_view_node_tsx(
             w.emit("{");
             w.indent();
 
-            if let Some((first_branch, rest)) = branches.split_first() {
-                // First branch: `cond ? ( body )`
-                let cond_str = format_expr_ir_tsx(&first_branch.condition, ref_names);
+            // branches.is_empty() returned above, so split_first() cannot
+            // fail here — the nested-ternary path always has a first branch.
+            let (first_branch, rest) = branches
+                .split_first()
+                .unwrap_or_else(|| unreachable!("branches is non-empty — the empty case returned above"));
+
+            // First branch: `cond ? ( body )`
+            let cond_str = format_expr_ir_tsx(&first_branch.condition, ref_names);
+            w.emit_fmt(format_args!("{} ? (", cond_str));
+            w.indent();
+            emit_fade_branch_open(w, is_fade, "0");
+            if let Some(ref body) = first_branch.body {
+                gen_branch_body_tsx(
+                    w,
+                    body,
+                    component_map,
+                    design_ctx,
+                    signal_names,
+                    store_signal_owners,
+                    motion_names,
+                    ref_names,
+                    motion_counter,
+                );
+            }
+            emit_fade_branch_close(w, is_fade);
+            w.dedent();
+
+            // Remaining branches: `) : ( cond ? ( body )`
+            for (i, branch) in rest.iter().enumerate() {
+                w.emit(") : (");
+                w.indent();
+                let cond_str = format_expr_ir_tsx(&branch.condition, ref_names);
                 w.emit_fmt(format_args!("{} ? (", cond_str));
                 w.indent();
-                emit_fade_branch_open(w, is_fade);
-                if let Some(ref body) = first_branch.body {
+                emit_fade_branch_open(w, is_fade, &(i + 1).to_string());
+                if let Some(ref body) = branch.body {
                     gen_branch_body_tsx(
                         w,
                         body,
@@ -718,61 +747,13 @@ pub(super) fn gen_view_node_tsx(
                 }
                 emit_fade_branch_close(w, is_fade);
                 w.dedent();
+            }
 
-                // Remaining branches: `) : ( cond ? ( body )`
-                for branch in rest {
-                    w.emit(") : (");
-                    w.indent();
-                    let cond_str = format_expr_ir_tsx(&branch.condition, ref_names);
-                    w.emit_fmt(format_args!("{} ? (", cond_str));
-                    w.indent();
-                    emit_fade_branch_open(w, is_fade);
-                    if let Some(ref body) = branch.body {
-                        gen_branch_body_tsx(
-                            w,
-                            body,
-                            component_map,
-                            design_ctx,
-                            signal_names,
-                            store_signal_owners,
-                            motion_names,
-                            ref_names,
-                            motion_counter,
-                        );
-                    }
-                    emit_fade_branch_close(w, is_fade);
-                    w.dedent();
-                }
-
-                // Fallback or null
-                if let Some(ref fb) = fallback {
-                    w.emit(") : (");
-                    w.indent();
-                    emit_fade_branch_open(w, is_fade);
-                    gen_branch_body_tsx(
-                        w,
-                        fb,
-                        component_map,
-                        design_ctx,
-                        signal_names,
-                        store_signal_owners,
-                        motion_names,
-                        ref_names,
-                        motion_counter,
-                    );
-                    emit_fade_branch_close(w, is_fade);
-                    w.dedent();
-                    w.emit(")");
-                } else {
-                    w.emit(") : null");
-                }
-                // Close each `: (` from rest branches
-                for _ in 0..rest.len() {
-                    w.emit(")");
-                }
-            } else if let Some(ref fb) = fallback {
-                // No branches, just fallback
-                emit_fade_branch_open(w, is_fade);
+            // Fallback or null
+            if let Some(ref fb) = fallback {
+                w.emit(") : (");
+                w.indent();
+                emit_fade_branch_open(w, is_fade, "fb");
                 gen_branch_body_tsx(
                     w,
                     fb,
@@ -785,6 +766,14 @@ pub(super) fn gen_view_node_tsx(
                     motion_counter,
                 );
                 emit_fade_branch_close(w, is_fade);
+                w.dedent();
+                w.emit(")");
+            } else {
+                w.emit(") : null");
+            }
+            // Close each `: (` from rest branches
+            for _ in 0..rest.len() {
+                w.emit(")");
             }
 
             w.dedent();
@@ -990,14 +979,22 @@ pub(super) fn gen_branch_body_tsx(
 
 /// Open/close the `mode: "fade"` wrapper div around a conditional branch.
 ///
-/// The wrapper mounts together with the branch, so the CSS animation
-/// replays exactly when the shown branch changes. The class and its
-/// keyframes are defined in the component's `.module.css` (see
-/// `component::gen_component_css`) — same-module definition + reference so
-/// the bundler scopes both consistently.
-fn emit_fade_branch_open(w: &mut CodeWriter, is_fade: bool) {
+/// `key` identifies the branch inside the conditional (`"0"`, `"1"`, ...;
+/// `"fb"` for the fallback). The key is REQUIRED for replay: React
+/// reconciliation reuses same-position DOM nodes, so a ternary swap
+/// (`@if/@else`) would otherwise keep the old wrapper node — animation
+/// already finished, opacity stuck at 1 — and the fade would never replay.
+/// The key forces a remount, so the CSS animation replays exactly when the
+/// shown branch changes. The class and its keyframes are defined in the
+/// component's `.module.css` (see `component::gen_component_css`) —
+/// same-module definition + reference so the bundler scopes both
+/// consistently.
+fn emit_fade_branch_open(w: &mut CodeWriter, is_fade: bool, key: &str) {
     if is_fade {
-        w.emit("<div className={styles['omni-if-fade']}>");
+        w.emit_fmt(format_args!(
+            "<div key=\"{}\" className={{styles['omni-if-fade']}}>",
+            key
+        ));
         w.indent();
     }
 }

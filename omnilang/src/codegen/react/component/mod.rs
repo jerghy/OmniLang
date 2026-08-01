@@ -143,7 +143,9 @@ impl ReactCodegen {
         // `@if mode: "fade"` renders branches inside a wrapper div carrying
         // the CSS-module `.omni-if-fade` class — forces the stylesheet
         // import so the fade rules (emitted by gen_component_css) exist.
-        let has_if_fade = view.is_some_and(super::motion::view_has_fade_conditional);
+        // The same predicate gates the CSS rules (gen_component_css), so the
+        // import and the rules can never diverge.
+        let has_if_fade = component_has_fade_conditional(comp);
         let has_styles = !local_style_classes.is_empty()
             || (!comp.styles.is_empty()
                 && local_style_classes
@@ -489,7 +491,7 @@ impl ReactCodegen {
         // `@if mode: "fade"` — wrapper class + keyframes. Defined and
         // referenced within the same CSS module so the bundler scopes the
         // class name and the keyframe name consistently.
-        if comp_has_if_fade(comp) {
+        if component_has_fade_conditional(comp) {
             w.emit("");
             w.emit(".omni-if-fade {");
             w.indent();
@@ -503,15 +505,35 @@ impl ReactCodegen {
             w.emit("to { opacity: 1; }");
             w.dedent();
             w.emit("}");
+            // prefers-reduced-motion: skip the animation, show content
+            // immediately (never hide it).
+            w.emit("@media (prefers-reduced-motion: reduce) {");
+            w.indent();
+            w.emit(".omni-if-fade {");
+            w.indent();
+            w.emit("animation: none;");
+            w.emit("opacity: 1;");
+            w.dedent();
+            w.emit("}");
+            w.dedent();
+            w.emit("}");
         }
         w.into_string()
     }
 }
 
 /// Whether the component declares any `@if mode: "fade"` conditional — in
-/// the view itself or inside a body-slot fallback (which the JSX emitter
-/// sees after slot materialization). Gates the fade rules in the CSS module.
-fn comp_has_if_fade(comp: &ComponentIR) -> bool {
+/// the view itself (including view-level `@slot` fallbacks, which are
+/// already `ViewTree::Slot` nodes) or inside a body-declared slot fallback
+/// (which the JSX emitter sees after slot materialization).
+///
+/// This single predicate gates BOTH the CSS-module import (`has_styles` →
+/// `import styles`, component/imports.rs) and the fade rules in the CSS
+/// module (`gen_component_css`) — the two must never diverge: a component
+/// whose only fade sits in a body-slot fallback would otherwise reference
+/// `styles['omni-if-fade']` with no import, producing `styles` undefined in
+/// the generated TSX.
+fn component_has_fade_conditional(comp: &ComponentIR) -> bool {
     comp.view
         .as_ref()
         .is_some_and(super::motion::view_has_fade_conditional)

@@ -127,14 +127,14 @@
 | 23 | **[MEDIUM]** omni-animation TS 运行时缺口 | 使用 kebab 缓动名或 translateX/Y/Z 关键帧 | `easing.ts` 无 kebab 别名（`power1-in` 降级为 linear）；`keyframes.ts` `TRANSFORM_MAP` 缺 translateX/Y/Z |
 | 24 | ~~**[MEDIUM]** 文档陈旧（docs/omniview）~~ | ~~全面文档审计~~ | ✅ 2026-08-01 已关闭（commit 10f2af9c）：`14-grammar-lang.md`、`15-grammar-view.md`、`05-components.md`、`07-events-and-bindings.md` 全部审计并同步 ADR-052/053 语法（kebab 触发器、17 属性白名单、`over:`/`easing:` 冒号 timing、slot D5 体级声明 + 命名属性消费、ref 语义方法表、@if `mode:` 冒号形式等；删除内容均加 "removed per ADR-053" 注记）。`06-templates.md` / `11-motion-animation.md` 已于 Task 10.1 修复 |
 | 25 | ~~**[MEDIUM]** BNF 规范与 parser 语法分歧未同步~~ | ~~规范文档更新~~ | ✅ 2026-08-01 已关闭（commit 10f2af9c）：`2026-07-31-semantic-level-dsl-syntax-spec.md` 已按 parser 同步——`cubic(x1:...,y1:...,x2:...,y2:...)` 命名参数形式（替代 `cubic-bezier(num,...)`）、`delay <expr>` 空格形式（替代 `delay ':' expr`）、`direction` 规则补 `alternateReverse`；另修正 `loop`（无 `infinite` 关键字）、`steps()` 位置参数、per-stop `ease`、token_type 小写、computed 空括号等 9 处分歧；触发器子属性与内联动画体标注为未实现（见 #19） |
-| 26 | **[MEDIUM]** `@if mode:` 过渡效果跨后端缺失 | mode 过渡效果落地前 | `transition_mode`（ADR-052 feature floor）仅 Flutter 的 `"wait"` 生成 `AnimatedSwitcher`（`codegen/flutter/view.rs:848`，`"fade"`/`"none"` 无效果）；React codegen 完全不读取（静默 no-op）；OmniView wait 路径查找 `__omni_animations.get(oldNid + "_leave")`（`codegen/omniview/editor.rs:127`）但无任何 `_leave` 注册（@leave 不存在）——静默行为差异违反 ADR-021 floor 原则，需实现或出诊断 |
+| 26 | ~~**[MEDIUM]** `@if mode:` 过渡效果跨后端缺失~~ | ~~mode 过渡效果落地前~~ | ✅ 2026-08-01 已关闭（commit 96480059 + 评审修复）：React `"fade"` 实现真实淡入——`.omni-if-fade` CSS 类 + keyframes 生成在组件 `.module.css`（`codegen/react/component/mod.rs`），分支包裹在带按分支 `key` 的 div 中以重放动画（`codegen/react/view.rs`），含 `prefers-reduced-motion` 覆盖；`"wait"` 在 React 与 OmniView 降级为立即切换并在生成代码中注明降级（无 @leave 机制可等待）；OmniView `@if` wait 与 `@for` keyed cleanup 的 `_leave` 死查找全部移除（`editor.rs`、`list.rs`，代码库零 `_leave` 引用）；Flutter `"wait"` 保持 `AnimatedSwitcher`（`codegen/flutter/view.rs`） |
 | 27 | **[MEDIUM]** 组件级 `@motion` 关键帧体未计入 lint 信号读取 | 用户仅在 `@motion` keyframe 属性中使用信号 | 死代码 lint collector 从未访问 `comp.motions` → `KeyframeStop.properties: Vec<(String, Expr)>`（`parser/top_level/motion.rs:172`）——keyframe-only 信号被误报 "never used"（与 #20 同类缺口，修复模式见 `semantic/lints/ast_collectors.rs` 的 Style/ClassMap/MotionTrigger 臂） |
 
 ---
 
 ## 2026-08-01 状态更新（语义级 DSL 实施完成）
 
-**已关闭**：#2（Flutter GlobalKey）、#4（ref_names 线程化）、#5（element_tag 被语义 ref 系统取代）、#11（IR `#[non_exhaustive]` 迁移）、#12（@focus 死代码）、#13（lexer 子属性 token 删除——由删除测试 `test_deleted_sub_attribute_tokens_lex_as_ident` 验证）、#20（Style 读取已计入 lint 信号读取——`ast_collectors.rs` 新增 Style 臂 + 测试，并顺带修复同类 ClassMap/内联 motion tween 缺口）、#24（docs/omniview 全部 6 个文档审计完成——Task 10.1 + commit 10f2af9c）、#25（BNF 规范已按 parser 同步——commit 10f2af9c）。原因见上表各条目备注。
+**已关闭**：#2（Flutter GlobalKey）、#4（ref_names 线程化）、#5（element_tag 被语义 ref 系统取代）、#11（IR `#[non_exhaustive]` 迁移）、#12（@focus 死代码）、#13（lexer 子属性 token 删除——由删除测试 `test_deleted_sub_attribute_tokens_lex_as_ident` 验证）、#20（Style 读取已计入 lint 信号读取——`ast_collectors.rs` 新增 Style 臂 + 测试，并顺带修复同类 ClassMap/内联 motion tween 缺口）、#24（docs/omniview 全部 6 个文档审计完成——Task 10.1 + commit 10f2af9c）、#25（BNF 规范已按 parser 同步——commit 10f2af9c）、#26（`@if mode:` 过渡跨后端——React fade 落地 + wait 诚实降级 + `_leave` 死代码移除，commit 96480059 + 评审修复）。原因见上表各条目备注。
 
 **部分实施**：#7（CI codegen-validate 门禁落地：tsc + dart analyze）、#14（文档审计完成，代码注释待审计）。
 
