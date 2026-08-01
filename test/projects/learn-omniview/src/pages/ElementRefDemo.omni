@@ -9,7 +9,7 @@
 // ║    · scroll-y={sig}      — 响应式滚动绑定                    ║
 // ║    · .scrollTo() / .scrollBy() — 命令式滚动控制              ║
 // ║    · .measure()          — 位置/尺寸查询（替代 getBoundingClientRect / offsetWidth）║
-// ║    · @drag-horizontal 配合 ref 实现高频拖拽                   ║
+// ║    · @drag-horizontal / @drag-vertical — 拖拽触发器 + motion 接线 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
 import omniview;
@@ -39,7 +39,7 @@ component ElementRefDemo {
     // ── ref 声明（ADR-036：Element Reference System） ──
     ref inputBox: Element;
     ref scrollArea: Element;
-    ref dragTarget: Element;
+    ref rectBox: Element;
     ref sizeBox: Element;
     ref mirrorInput: Element;
 
@@ -48,7 +48,7 @@ component ElementRefDemo {
     signal scrollPos: String = "top";
     signal scrollTarget: f64 = 0;           // 驱动 scroll-y={scrollTarget} 绑定
     signal rectInfo: String = "—";
-    signal boxWidth: f64 = 200;             // 查询结果显示
+    signal boxWidth: f64 = 200;             // measure() 查询结果（仅查询写入）
     signal boxWidthPx: String = "200px";    // style 绑定值（含单位）
     signal boxHeightPx: String = "80px";
     signal mirrorText: String = "";
@@ -81,7 +81,7 @@ component ElementRefDemo {
 
     // ── 位置查询（ref.measure()） ──
     fn queryRect() {
-        let rect = dragTarget.measure();
+        let rect = rectBox.measure();
         rectInfo = "x:" + rect.x.to_string() + " y:" + rect.y.to_string()
                  + " w:" + rect.width.to_string() + " h:" + rect.height.to_string();
     }
@@ -95,12 +95,10 @@ component ElementRefDemo {
 
     // ── 信号驱动样式（style: { width: sig } 绑定，替代 ref.style 直接操作） ──
     fn expandBox() {
-        boxWidth = 300;
         boxWidthPx = "300px";
         boxHeightPx = "120px";
     }
     fn resetBox() {
-        boxWidth = 200;
         boxWidthPx = "200px";
         boxHeightPx = "80px";
     }
@@ -129,6 +127,7 @@ component ElementRefDemo {
                 <input
                     class: ref-input
                     @ref={inputBox}
+                    @onInput={() => {}}
                     placeholder="ref-bound input"
                 />
                 <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={focusInput}>
@@ -165,8 +164,8 @@ component ElementRefDemo {
 
             <!-- ═══ 位置查询 ═══ -->
             <h4 class: LearnDesign.SectionTitle>位置查询 (.measure)</h4>
-            <div @ref={dragTarget} class: rect-box>
-                <p>Drag Target — click "Query Rect" to read position</p>
+            <div @ref={rectBox} class: rect-box>
+                <p>Query Box — click "Query Rect" to read position</p>
             </div>
             <div class: LearnDesign.Row>
                 <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={queryRect}>
@@ -191,7 +190,7 @@ component ElementRefDemo {
                 <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={resetBox}>
                     Reset
                 </button>
-                <span class: status-text>Width: {boxWidth}px</span>
+                <span class: status-text>Width: {boxWidthPx} · 实测: {boxWidth}px</span>
             </div>
 
             <!-- ═══ 多 ref 联动 ═══ -->
@@ -208,9 +207,11 @@ component ElementRefDemo {
                 </span>
             </div>
 
-            <!-- ═══ 高频拖拽（@drag-horizontal + ref） ═══ -->
+            <!-- ═══ 高频拖拽（@drag-horizontal 触发器） ═══ -->
             <h4 class: LearnDesign.SectionTitle>高频拖拽 (@drag-horizontal)</h4>
-            <p class: LearnDesign.Hint>拖拽触发器 + motion 驱动，无需手动 DOM 操作</p>
+            <p class: LearnDesign.Hint>
+                范围约束待重新实现（当前拖动无位移），仅演示触发器与 motion 的接线
+            </p>
             <div class: LearnDesign.Row>
                 <div
                     @drag-horizontal={dragX300}
@@ -222,15 +223,15 @@ component ElementRefDemo {
             <h4 class: LearnDesign.SectionTitle>拖拽方向与范围变体</h4>
             <p class: LearnDesign.Hint>
                 约束/弹性等子属性已按 semantic-level DSL 移除（解析器无对应 token，
-                待重新实现）；下方演示不同范围/方向的拖拽。
+                待重新实现）；下方演示水平/垂直方向的触发器与 motion 接线。
             </p>
             <div class: constraints-row>
-                <!-- 原第二个盒子（dragX150 + @drag-elastic={0.5} 变体）已移除 -->
+                <!-- 原两个 elastic 变体盒子（elastic 0.5 / 0）均已移除 -->
                 <div @drag-horizontal={dragX150} class: drag-demo-box>
-                    <p>↔ drag 150px</p>
+                    <p>↔ 水平 150px</p>
                 </div>
                 <div @drag-vertical={dragY100} class: drag-demo-box>
-                    <p>↕ drag 100px</p>
+                    <p>↕ 垂直 100px</p>
                 </div>
             </div>
         </div>
