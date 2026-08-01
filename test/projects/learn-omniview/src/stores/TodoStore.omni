@@ -5,10 +5,12 @@ store TodoStore {
   signal items: Todo[] = [];
   signal filterStatus: String = "all";
   signal lastAction: String = "none";
+  // 自增 id——删除后 id 不复用，保证 @for key={item.id} 唯一
+  signal nextId: i32 = 0;
 
   getter totalCount: i32 = items.len();
 
-  action add(text: String) { items = [...items, { id: items.length, text, done: false }]; lastAction = "added"; }
+  action add(text: String) { items = [...items, { id: nextId, text, done: false }]; nextId = nextId + 1; lastAction = "added"; }
   action remove(id: i32) { items = array_filter(items, |item| item.id != id); lastAction = "removed"; }
   action clear() { items = []; filterStatus = "all"; lastAction = "cleared"; }
   action setFilter(status: String) { filterStatus = status; lastAction = "filter: " + status; }

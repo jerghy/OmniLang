@@ -16,7 +16,6 @@ import { EventShorthand } from "../components/EventShorthand";
 import { TodoList } from "../components/TodoList";
 import { FilterBar } from "../components/FilterBar";
 import { StatsDashboard } from "../components/StatsDashboard";
-import { AddTodo } from "../components/AddTodo";
 
 component UiComponents {
     view {
@@ -41,9 +40,9 @@ component UiComponents {
             <div class: LearnDesign.DemoFull><EventShorthand /></div>
 
             <h3 class: LearnDesign.SectionTitle>Todo App Demo</h3>
+            <!-- TodoList 内部组合了自己的 AddTodo（@onAdd → TodoStore.add）-->
             <div class: todo-section>
                 <div class: todo-sidebar>
-                    <AddTodo />
                     <FilterBar />
                 </div>
                 <div class: todo-main>
