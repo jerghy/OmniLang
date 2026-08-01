@@ -279,7 +279,13 @@ impl<'a> Parser<'a> {
             self.advance();
             let n = self.expect_ident("expected slot name")?;
             self.expect_token(TokenKind::RParen, "expected ')'")?;
-            Some(n)
+            // `@slot(default)` is the default/unnamed slot — same mapping
+            // as the bare `@slot default` form.
+            if n == "default" {
+                None
+            } else {
+                Some(n)
+            }
         } else if matches!(self.peek_kind(), TokenKind::Ident(_))
             || keyword_as_ident_name(self.peek_kind())
                 .is_some_and(|kw| kw != "view" && kw != "style")

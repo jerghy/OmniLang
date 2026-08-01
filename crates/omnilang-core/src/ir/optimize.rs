@@ -172,7 +172,15 @@ fn collect_idents_from_view_exprs(view: &ViewTree, used: &mut FxHashSet<String>)
                 collect_idents_from_view_exprs(child, used);
             }
         }
-        ViewTree::Text(_) | ViewTree::Slot { .. } => {}
+        // Slot fallbacks (view-level `@slot name {...}`, component body
+        // slots, consumer slot projections) may reference computeds via
+        // interpolations — collect their idents so DCE keeps them alive.
+        ViewTree::Slot { fallback, .. } => {
+            for child in fallback {
+                collect_idents_from_view_exprs(child, used);
+            }
+        }
+        ViewTree::Text(_) => {}
     }
 }
 
@@ -797,6 +805,89 @@ mod tests {
 
         eliminate_dead_computeds(&mut comp);
         assert_eq!(comp.computeds.len(), 2);
+    }
+
+    /// Build a minimal ElementIR wrapping the given children.
+    fn el(tag: &str, children: Vec<ViewTree>) -> ViewTree {
+        ViewTree::Element(Box::new(ElementIR {
+            tag: tag.to_string(),
+            props: FxHashMap::default(),
+            bindings: FxHashMap::default(),
+            events: FxHashMap::default(),
+            style_classes: None,
+            inline_style: None,
+            children,
+            construction_kind: ConstructionKind::Normal,
+            class_map_bindings: FxHashMap::default(),
+            source_span: None,
+            motion: None,
+            scroll: None,
+            drag: None,
+            ref_binding: None,
+            semantic_bindings: FxHashMap::default(),
+        }))
+    }
+
+    #[test]
+    fn computed_referenced_from_consumer_slot_projection_survives() {
+        // ADR-053 D5: <Modal header={<div>{c}</div>} /> lowers to a
+        // ViewTree::Slot child of the Modal element. A computed referenced
+        // ONLY from that consumer projection must survive DCE — regression:
+        // walkers treated ViewTree::Slot as a leaf and eliminated it.
+        let mut comp = ComponentIR {
+            name: "TestComp".to_string(),
+            computeds: vec![int_computed("header_val")],
+            view: Some(el(
+                "Modal",
+                vec![ViewTree::Slot {
+                    name: Some("header".to_string()),
+                    fallback: vec![el(
+                        "div",
+                        vec![ViewTree::Interpolation(Box::new(ident("header_val")))],
+                    )],
+                    type_constraint: None,
+                    data_param: None,
+                }],
+            )),
+            ..ComponentIR::default()
+        };
+
+        eliminate_dead_computeds(&mut comp);
+        assert_eq!(
+            comp.computeds.len(),
+            1,
+            "computed referenced from a consumer slot projection must survive DCE"
+        );
+        assert_eq!(comp.computeds[0].name, "header_val");
+    }
+
+    #[test]
+    fn computed_referenced_from_view_slot_fallback_survives() {
+        // View-level `@slot body { <p>{c}</p> }` — a computed referenced only
+        // from the slot fallback must survive DCE (pre-existing gap, same
+        // root cause: walkers treated ViewTree::Slot as a leaf).
+        let mut comp = ComponentIR {
+            name: "TestComp".to_string(),
+            computeds: vec![int_computed("slot_val")],
+            view: Some(ViewTree::Slot {
+                name: Some("body".to_string()),
+                fallback: vec![el(
+                    "p",
+                    vec![ViewTree::Interpolation(Box::new(ident("slot_val")))],
+                )],
+                type_constraint: None,
+                data_param: None,
+            }),
+            ..ComponentIR::default()
+        };
+
+        eliminate_dead_computeds(&mut comp);
+        assert_eq!(
+            comp.computeds.len(),
+            1,
+            "computed referenced from a view-level @slot fallback must survive DCE"
+        );
+        assert_eq!(comp.computeds[0].name, "slot_val");
     }
 
     #[test]

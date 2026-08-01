@@ -273,6 +273,14 @@ pub fn walk_view(tree: &ViewTree, f: &mut impl FnMut(&ElementIR)) {
                 walk_view(child, f);
             }
         }
-        ViewTree::Interpolation(_) | ViewTree::Text(_) | ViewTree::Slot { .. } => {}
+        // Slot fallbacks are real view content — descend so elements inside
+        // them (view-level `@slot name {...}`, component body slots, and
+        // consumer slot projections) are visited like any other children.
+        ViewTree::Slot { fallback, .. } => {
+            for child in fallback {
+                walk_view(child, f);
+            }
+        }
+        ViewTree::Interpolation(_) | ViewTree::Text(_) => {}
     }
 }

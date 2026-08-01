@@ -1302,6 +1302,18 @@ mod roundtrip_tests {
     }
 
     #[test]
+    fn body_slot_declaration_paren_default_is_unnamed() {
+        // `@slot(default)` maps to the default/unnamed slot — consistent
+        // with the bare `@slot default` form.
+        let comp = component_def("component Modal { @slot(default) view { <div/> } }");
+        assert_eq!(comp.slots.len(), 1);
+        assert!(
+            comp.slots[0].name.is_none(),
+            "`@slot(default)` is the unnamed slot"
+        );
+    }
+
+    #[test]
     fn body_slot_multiple_declarations() {
         let comp = component_def(
             "component Modal { @slot header { <DefaultHeader /> } @slot default view { <div/> } }",
