@@ -486,4 +486,43 @@ mod tests {
             diags
         );
     }
+
+    // ── Dynamic class map reference sites (same-kind gap as style) ──
+
+    #[test]
+    fn test_signal_used_only_in_class_map_not_reported() {
+        // `class: { key: expr }` — ClassValue::ClassMap entry values are real
+        // reference sites, mirroring Modal.omni's `class: { visible: isOpen }`.
+        let diags = lint_source(
+            "component App { signal isOpen: bool = false;              view { <div class: { active: isOpen }/> } }",
+        );
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.message.contains("'isOpen'") && d.message.contains("never used")),
+            "signal referenced from a dynamic class map must not be reported unused, got: {:?}",
+            diags
+        );
+    }
+
+    #[test]
+    fn test_unused_signal_still_reported_alongside_class_map_references() {
+        let diags = lint_source(
+            "component App { signal usedFlag: bool = false; signal unusedFlag: bool = true;              view { <div class: { active: usedFlag }/> } }",
+        );
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.message.contains("'usedFlag'") && d.message.contains("never used")),
+            "class-map-referenced signal must not be reported unused, got: {:?}",
+            diags
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.message.contains("'unusedFlag'") && d.message.contains("never used")),
+            "genuinely unused signal must still be reported, got: {:?}",
+            diags
+        );
+    }
 }

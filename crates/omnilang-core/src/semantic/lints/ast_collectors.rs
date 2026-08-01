@@ -202,6 +202,15 @@ pub(super) fn collect_used_names_in_view_node<'a>(
                             collect_used_names_in_expr(value, used);
                         }
                     }
+                    // Dynamic class maps (`class: { visible: isOpen }`) hold
+                    // expression values that may reference signals.
+                    ElementProp::Class {
+                        value: ClassValue::ClassMap(entries),
+                    } => {
+                        for (_, value) in entries {
+                            collect_used_names_in_expr(value, used);
+                        }
+                    }
                     ElementProp::Bind { signal_path, .. } => {
                         if let Some(dot) = signal_path.find('.') {
                             used.insert(&signal_path[..dot]);
@@ -231,6 +240,12 @@ pub(super) fn collect_used_names_in_view_node<'a>(
                             collect_used_names_in_view_node(node, used);
                         }
                     }
+                    // Remaining variants carry no signal-referencing expressions:
+                    // ClassValue::StyleRef/StringLiteral/DesignClass, Variant
+                    // (design names/dimensions), TestId, Ref (element refs), and
+                    // MotionTrigger — its motion_expr is a named-motion reference
+                    // (motions are canonical in ModuleIR, not subject to the
+                    // per-component dead-code check).
                     _ => {}
                 }
             }
