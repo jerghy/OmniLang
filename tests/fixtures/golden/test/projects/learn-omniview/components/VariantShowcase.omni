@@ -1,0 +1,50 @@
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║  VariantShowcase.omni -- component variant cross-theme demo     ║
+// ║                                                                  ║
+// ║  Shows LearnDesign.Button variants (color x size) across 4 themes:
+// ║  - color: primary / danger / ghost / accent                     ║
+// ║  - size: sm / md / lg                                           ║
+// ║                                                                  ║
+// ║  Button variant colors auto-update on theme switch via var(--*). ║
+// ╚══════════════════════════════════════════════════════════════════╝
+
+import omniview;
+import { LearnDesign } from "../design";
+
+component VariantShowcase {
+    view {
+        <div class: LearnDesign.Container>
+            <h3 class: LearnDesign.CardTitle>Component Variants</h3>
+            <p class: LearnDesign.Subtitle>
+                <code>variant: LearnDesign.Button(color=X, size=Y)</code> -- multi-dimension theming
+            </p>
+
+            <h4 class: LearnDesign.SectionTitle>Color Variants (size=md)</h4>
+            <div class: variant-row>
+                <button variant: LearnDesign.Button(color=primary, size=md)>Primary</button>
+                <button variant: LearnDesign.Button(color=danger, size=md)>Danger</button>
+                <button variant: LearnDesign.Button(color=ghost, size=md)>Ghost</button>
+                <button variant: LearnDesign.Button(color=accent, size=md)>Accent</button>
+            </div>
+
+            <h4 class: LearnDesign.SectionTitle>Size Variants (color=primary)</h4>
+            <div class: variant-row>
+                <button variant: LearnDesign.Button(color=primary, size=sm)>Small</button>
+                <button variant: LearnDesign.Button(color=primary, size=md)>Medium</button>
+                <button variant: LearnDesign.Button(color=primary, size=lg)>Large</button>
+            </div>
+
+            <h4 class: LearnDesign.SectionTitle>Theme Responsiveness</h4>
+            <p class: hint-text>
+                Switch themes above -- button colors change automatically via <code>var(--primary)</code>, <code>var(--danger)</code>, etc.
+                No component code changes needed.
+            </p>
+        </div>
+    }
+
+    style {
+        .variant-row { display: flex; gap: 10px; margin: 0 0 16px 0; flex-wrap: wrap; }
+        .hint-text { font-size: var(--fontSizeXs); color: var(--textMuted); margin: 0; }
+        .hint-text code { font-size: var(--fontSizeXs); background: var(--surfaceSubtle); padding: "1px 4px"; border-radius: "3px"; }
+    }
+}

@@ -1,0 +1,50 @@
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  lib/async_demo.omni —— std/async 模块演示                   ║
+// ║  演示：async_sleep, async_spawn, async_all, async_race,      ║
+// ║        async_timeout                                         ║
+// ║  纯逻辑文件，不写 import omniview;                              ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+import { async_sleep, async_spawn, async_all, async_race, async_timeout } from "std/async";
+
+async fn task_a() -> String {
+    await async_sleep(20);
+    return "task_a done";
+}
+
+async fn task_b() -> String {
+    await async_sleep(10);
+    return "task_b done";
+}
+
+async fn slow_task() -> String {
+    await async_sleep(200);
+    return "slow task done";
+}
+
+async fn fast_task() -> String {
+    await async_sleep(5);
+    return "fast task done";
+}
+
+pub async fn demo_sleep_and_return() -> String {
+    await async_sleep(10);
+    return "slept 10ms";
+}
+
+pub async fn demo_parallel() -> Array<String> {
+    let a = async_spawn(task_a());
+    let b = async_spawn(task_b());
+    return await async_all([a, b]);
+}
+
+pub async fn demo_race() -> String {
+    let a = async_spawn(slow_task());
+    let b = async_spawn(fast_task());
+    return await async_race([a, b]);
+}
+
+pub async fn demo_timeout() -> String {
+    let task = async_spawn(slow_task());
+    return await async_timeout(task, 50);
+}

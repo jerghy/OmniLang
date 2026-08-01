@@ -1,0 +1,125 @@
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║  DesignTokenPanel.omni —— 设计令牌实时可视化                      ║
+// ║                                                                  ║
+// ║  展示所有 18 种设计令牌类型在当前主题下的值。                      ║
+// ║  令牌值通过 var(--name) CSS 变量引用，主题切换时自动更新。        ║
+// ║                                                                  ║
+// ║  Token 类型：                                                    ║
+// ║  Color（11）、Size（6）、Radius（4）、Shadow（3）                  ║
+// ║  FontFamily（1）、FontSize（11）、FontWeight（3）、更多...         ║
+// ╚══════════════════════════════════════════════════════════════════╝
+
+import omniview;
+import { LearnDesign } from "../design";
+
+component DesignTokenPanel {
+    // 令牌元数据：name → 类型 → 展示方式
+    const colorTokens = ["primary", "primaryLight", "success", "warning", "danger", "accent", "surface", "surfaceMuted", "textPrimary", "textSecondary", "border"];
+    const sizeTokens = ["spaceXs", "spaceSm", "spaceMd", "spaceLg", "spaceXl", "spaceXxl"];
+    const radiusTokens = ["radiusSm", "radiusMd", "radiusLg", "radiusFull"];
+
+    view {
+        <div class: LearnDesign.Container>
+            <h3 class: LearnDesign.CardTitle>Design Tokens Visualizer</h3>
+            <p class: LearnDesign.Subtitle>
+                18 token types · values change instantly on theme switch via <code>var(--name)</code>
+            </p>
+
+            <h4 class: LearnDesign.SectionTitle>Color Tokens (11)</h4>
+            <div class: color-grid>
+                <div class: color-item>
+                    <div class: color-swatch style: { background: "var(--primary)" }></div>
+                    <span class: color-name>--primary</span>
+                </div>
+                <div class: color-item>
+                    <div class: color-swatch style: { background: "var(--primaryLight)" }></div>
+                    <span class: color-name>--primaryLight</span>
+                </div>
+                <div class: color-item>
+                    <div class: color-swatch style: { background: "var(--success)" }></div>
+                    <span class: color-name>--success</span>
+                </div>
+                <div class: color-item>
+                    <div class: color-swatch style: { background: "var(--warning)" }></div>
+                    <span class: color-name>--warning</span>
+                </div>
+                <div class: color-item>
+                    <div class: color-swatch style: { background: "var(--danger)" }></div>
+                    <span class: color-name>--danger</span>
+                </div>
+                <div class: color-item>
+                    <div class: color-swatch style: { background: "var(--accent)" }></div>
+                    <span class: color-name>--accent</span>
+                </div>
+                <div class: color-item>
+                    <div class: color-swatch style: { background: "var(--surface)", border: "1px solid var(--border)" }></div>
+                    <span class: color-name>--surface</span>
+                </div>
+                <div class: color-item>
+                    <div class: color-swatch style: { background: "var(--surfaceMuted)" }></div>
+                    <span class: color-name>--surfaceMuted</span>
+                </div>
+                <div class: color-item>
+                    <div class: color-swatch style: { background: "var(--textPrimary)" }></div>
+                    <span class: color-name>--textPrimary</span>
+                </div>
+                <div class: color-item>
+                    <div class: color-swatch style: { background: "var(--textSecondary)" }></div>
+                    <span class: color-name>--textSecondary</span>
+                </div>
+                <div class: color-item>
+                    <div class: color-swatch style: { background: "var(--border)" }></div>
+                    <span class: color-name>--border</span>
+                </div>
+            </div>
+
+            <h4 class: LearnDesign.SectionTitle>Size Tokens</h4>
+            <div class: size-demo>
+                <div class: size-bar style: { width: "var(--spaceXs)" }>xs</div>
+                <div class: size-bar style: { width: "var(--spaceSm)" }>sm</div>
+                <div class: size-bar style: { width: "var(--spaceMd)" }>md</div>
+                <div class: size-bar style: { width: "var(--spaceLg)" }>lg</div>
+                <div class: size-bar style: { width: "var(--spaceXl)" }>xl</div>
+                <div class: size-bar style: { width: "var(--spaceXxl)" }>xxl</div>
+            </div>
+
+            <h4 class: LearnDesign.SectionTitle>Radius Tokens</h4>
+            <div class: radius-demo>
+                <div class: radius-box style: { border-radius: "var(--radiusSm)" }>sm</div>
+                <div class: radius-box style: { border-radius: "var(--radiusMd)" }>md</div>
+                <div class: radius-box style: { border-radius: "var(--radiusLg)" }>lg</div>
+                <div class: radius-box style: { border-radius: "var(--radiusFull)" }>full</div>
+            </div>
+
+            <h4 class: LearnDesign.SectionTitle>Shadow Tokens</h4>
+            <div class: shadow-demo>
+                <div class: shadow-box style: { box-shadow: "var(--shadowSm)" }>sm</div>
+                <div class: shadow-box style: { box-shadow: "var(--shadowMd)" }>md</div>
+                <div class: shadow-box style: { box-shadow: "var(--shadowLg)" }>lg</div>
+            </div>
+
+            <div class: hint-bar>
+                <span class: hint-text>Switch themes above — all tokens update automatically via CSS cascade</span>
+            </div>
+        </div>
+    }
+
+    style {
+        .color-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+        .color-item { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+        .color-swatch { width: 36px; height: 36px; border-radius: var(--radiusMd); }
+        .color-name { font-size: var(--fontSizeXs); color: var(--textSecondary); font-family: monospace; }
+
+        .size-demo { display: flex; align-items: center; gap: 8px; margin-bottom: 18px; }
+        .size-bar { height: 24px; background: var(--primary); border-radius: var(--radiusSm); color: white; font-size: var(--fontSizeXs); display: flex; align-items: center; padding: "0 6px"; }
+
+        .radius-demo { display: flex; gap: 12px; margin-bottom: 18px; }
+        .radius-box { width: 60px; height: 60px; background: var(--primary); color: white; display: flex; align-items: center; justify-content: center; font-size: var(--fontSizeXs); }
+
+        .shadow-demo { display: flex; gap: 16px; margin-bottom: 18px; }
+        .shadow-box { width: 80px; height: 60px; background: var(--surface); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: var(--fontSizeXs); color: var(--textSecondary); }
+
+        .hint-bar { padding: "8px 0"; }
+        .hint-text { font-size: var(--fontSizeXs); color: var(--textMuted); }
+    }
+}

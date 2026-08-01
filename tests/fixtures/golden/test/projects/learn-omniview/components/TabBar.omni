@@ -1,0 +1,29 @@
+// TabBar — 浏览器风格标签页导航组件
+import omniview;
+
+component TabBar {
+    prop activeTab: String = "overview";
+    event onSwitch: String;
+
+    fn isActive(tab: String) -> bool { return activeTab == tab; }
+
+    view {
+        <div class: tab-strip>
+            <button class: { tab: true, tabActive: isActive("overview") } @onPress={() => { onSwitch("overview"); }}>📋 Overview</button>
+            <button class: { tab: true, tabActive: isActive("ui") } @onPress={() => { onSwitch("ui"); }}>🎨 UI</button>
+            <button class: { tab: true, tabActive: isActive("motion") } @onPress={() => { onSwitch("motion"); }}>🎬 Motion</button>
+            <button class: { tab: true, tabActive: isActive("design") } @onPress={() => { onSwitch("design"); }}>💅 Design</button>
+            <button class: { tab: true, tabActive: isActive("state") } @onPress={() => { onSwitch("state"); }}>⚡ State</button>
+            <button class: { tab: true, tabActive: isActive("language") } @onPress={() => { onSwitch("language"); }}>🔤 Language</button>
+            <button class: { tab: true, tabActive: isActive("ref") } @onPress={() => { onSwitch("ref"); }}>🔗 Ref</button>
+            <button class: { tab: true, tabActive: isActive("compiler") } @onPress={() => { onSwitch("compiler"); }}>⚙️ Compiler</button>
+            <button class: { tab: true, tabActive: isActive("tokens") } @onPress={() => { onSwitch("tokens"); }}>🔮 Tokens</button>
+        </div>
+    }
+    style {
+        .tab-strip { display: flex; gap: 0; padding: 0 8px; border-bottom: 1px solid var(--border); }
+        .tab { padding: 10px 18px; border: 1px solid transparent; border-bottom: none; border-radius: 8px 8px 0 0; background: transparent; color: var(--textSecondary); font-size: 13px; font-weight: 500; cursor: pointer; position: relative; transition: all 150ms; white-space: nowrap; }
+        .tab:hover { background: var(--surfaceSubtle); border-color: var(--borderLight); color: var(--textPrimary); }
+        .tabActive { background: var(--surface); border-color: var(--border); color: var(--primary); font-weight: 600; padding-bottom: 11px; }
+    }
+}

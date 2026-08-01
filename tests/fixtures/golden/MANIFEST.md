@@ -38,6 +38,12 @@ Files are grouped by primary feature. Many files demonstrate multiple features.
 
 ## Motion / Animation
 
+- `test/projects/learn-omniview/src/pages/MotionDemo.omni` — `@motion` definitions (fadeInUp, scalePress, listItem, pulse) + `@enter`/`@hover`/`@press` triggers + `@if` with `mode: "fade"`
+- `test/projects/learn-omniview/src/pages/MotionTriggersDemo.omni` — All 8 motion triggers: `@enter`, `@hover`, `@press`, `@focus`, `@in-view`, `@scroll`, `@drag-horizontal`, `@drag-vertical`
+- `test/projects/learn-omniview/src/pages/KeyframeAnimationDemo.omni` — Full animation surface: 8 triggers, 4 playback props (loop/direction/fill/delay), 4 easing variants, multi-stop keyframes
+- `test/projects/learn-omniview/src/pages/EasingFunctionsDemo.omni` — 22 easing functions: power group, back/bounce/elastic (named-only), `cubic(x1,y1,x2,y2)`, `steps(count, direction)`
+- `test/projects/learn-omniview/src/pages/AnimPropertiesDemo.omni` — 17 animatable properties: scale/rotate/skew transforms, translateX/Y/Z, opacity/backgroundColor/color/width/height
+
 ## Events
 
 - `test/projects/learn-omniview/src/components/EmitEventDemo.omni` — `event` declaration (with return type), `event?` optional event, parent `@onEvent` binding

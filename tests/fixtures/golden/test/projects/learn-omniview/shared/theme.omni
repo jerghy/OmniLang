@@ -1,0 +1,13 @@
+// ═══════════════════════════════════════════════════════════════
+// theme.omni — 已迁移至 design.omni
+//
+// 原先的 `theme AppTheme` 块已被 `design LearnDesign` 取代。
+// 设计令牌（颜色、间距、排版等）现在定义在 ../design.omni 中。
+//
+// 组件引用方式：
+//   import { LearnDesign } from "../design";
+//   class: LearnDesign.Card
+//   variant: LearnDesign.Button(color=primary, size=md)
+//
+// 如需运行时主题切换，参见 stores/ThemeStore.omni。
+// ═══════════════════════════════════════════════════════════════

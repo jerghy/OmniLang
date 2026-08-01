@@ -8,9 +8,10 @@
 let __omni_activeEffect = null;
 const __omni_subs = new Map();
 const __omni_forHandlers = {};
+const __omni_animations = new Map();
 
 function __omni_signal(name, init) {
-  let val = init;
+  let val = init, setting = false;
   const subs = new Set();
   const signal = {
     _default: init,
@@ -22,15 +23,18 @@ function __omni_signal(name, init) {
       return val;
     },
     set value(v) {
-      if (val !== v) {
+      if (val !== v && !setting) {
+        setting = true;
         val = v;
         const s = new Set(subs);
         s.forEach(e => {
           const prev = __omni_activeEffect;
           __omni_activeEffect = e;
-          e.run();
-          __omni_activeEffect = prev;
+          try { e.run(); }
+          catch(err) { __omni_reportError("error", "effect:run", String(err) + (err.stack ? ' at ' + err.stack.split('\n')[1]?.trim() : ''), ""); }
+          finally { __omni_activeEffect = prev; }
         });
+        setting = false;
       }
     },
     get() { return signal.value; },
@@ -41,24 +45,40 @@ function __omni_signal(name, init) {
   return signal;
 }
 
+function __omni_readonlySignal(name, init) {
+  const inner = __omni_signal(name, init);
+  return {
+    _default: init,
+    get value() { return inner.value; },
+    get() { return inner.value; },
+    peek() { return inner.peek(); },
+    // No set value, no set() — child components cannot write
+  };
+}
+
 function __omni_computed(name, fn) {
-  let val, dirty = true;
+  let val, dirty = true, running = false;
   const signal = __omni_signal(name, undefined);
+  const effect = { _deps: new Set(), run: () => { dirty = true; signal.set(fn()); } };
   const run = () => {
+    if (running) return val;
+    running = true;
     dirty = false;
+    // Clean up old dependency subscriptions
+    effect._deps.forEach(fn => fn());
+    effect._deps.clear();
     const prev = __omni_activeEffect;
-    const deps = new Set();
-    __omni_activeEffect = { _deps: deps, run: () => { dirty = true; signal.set(fn()); } };
-    const newVal = fn();
-    __omni_activeEffect = prev;
-    val = newVal;
-    signal.peek(); // ensure dependency is tracked
+    __omni_activeEffect = effect;
+    try { val = fn(); }
+    catch(e) { __omni_reportError("error", "computed:run", String(e), name); }
+    finally { __omni_activeEffect = prev; running = false; }
+    signal.peek();
     return val;
   };
   run();
   return {
     get value() {
-      signal.value; // trigger dependency tracking on every read
+      signal.value;
       return dirty ? run() : val;
     },
     get() { return signal.value; },
@@ -67,41 +87,165 @@ function __omni_computed(name, fn) {
 }
 
 function __omni_effect(fn) {
-  const e = { _deps: new Set(), run: fn };
+  const e = { _deps: new Set() };
+  e.run = () => {
+    e._deps.forEach(d => d());
+    e._deps.clear();
+    try { fn(); } catch (err) {
+      __omni_reportError("effect:run", err);
+    }
+  };
   const prev = __omni_activeEffect;
   __omni_activeEffect = e;
-  try { fn(); } finally { __omni_activeEffect = prev; }
+  try { e.run(); } finally { __omni_activeEffect = prev; }
   return () => e._deps.forEach(d => d());
 }
 
 function __omni_reportError(context, error) {
-  var msg = "[OmniView] " + context + ": " + String(error);
-  console.error(msg);
+  var severity = "error";
+  var code = context;
+  if (context.indexOf(":") >= 0) {
+    var parts = context.split(":");
+    var prefix = parts[0];
+    if (prefix === "warn" || prefix === "error" || prefix === "fatal") {
+      severity = prefix;
+      code = parts.slice(1).join(":");
+    }
+  }
+  var msg = "[OmniView] " + severity.toUpperCase() + " " + code + ": " + String(error);
+  if (severity === "fatal") { console.error(msg); }
+  else if (severity === "warn") { console.warn(msg); }
+  else { console.error(msg); }
   if (!window.__omni_runtimeErrors) window.__omni_runtimeErrors = [];
-  window.__omni_runtimeErrors.push({ context: context, error: String(error), time: Date.now() });
+  if (window.__omni_runtimeErrors.length >= 100) window.__omni_runtimeErrors.shift();
+  window.__omni_runtimeErrors.push({
+    severity: severity,
+    code: code,
+    message: String(error).substring(0, 200),
+    time: Date.now()
+  });
   try {
     if (typeof parent !== 'undefined' && parent.postMessage) {
       parent.postMessage({
         type: 'omni-runtime-error',
-        context: context,
-        message: String(error),
+        severity: severity,
+        code: code,
+        message: String(error).substring(0, 200),
         timestamp: Date.now()
       }, window.location.origin);
     }
   } catch(_) {}
 }
 
-function __omni_el(nid) {
-  return document.querySelector('[data-nid="' + nid + '"]');
+function __omni_sanitizeUrl(url) {
+  var str = String(url);
+  var trimmed = str.trim().toLowerCase();
+  // Strip CR, LF, TAB before scheme matching — browsers (Chromium, WebKit,
+  // Gecko) strip these characters from URLs before navigation, so
+  // "java\nscript:alert(1)" would execute as "javascript:alert(1)".
+  var normalized = trimmed.replace(/[\r\n\t]/g, '');
+  // Block all javascript:/vbscript: pseudo-protocols and all data: URIs.
+  // data: URIs can carry executable content (text/html, text/javascript,
+  // application/javascript, base64 payloads, etc.) so we block the entire
+  // scheme rather than maintaining a subtype allowlist.
+  if (normalized.indexOf('javascript:') === 0 ||
+      normalized.indexOf('data:') === 0 ||
+      normalized.indexOf('vbscript:') === 0) {
+    return '#blocked';
+  }
+  return str;
 }
 
-function __omni_bindText(nid) {
-	  const el = __omni_el(nid);
-	  return {
-	    set text(v) { if (el) el.textContent = String(v); },
-	  };
-	}
+function __omni_normalizeCssEscapes(value) {
+  // Normalize CSS hex escape sequences like \6a (→j) before pattern matching
+  // to prevent attackers from bypassing keyword-based sanitizers.
+  var result = '';
+  var i = 0;
+  var len = value.length;
+  while (i < len) {
+    var ch = value.charAt(i);
+    if (ch === '\\') {
+      i++;
+      var hex = '';
+      while (i < len && hex.length < 6 && /^[0-9a-fA-F]$/.test(value.charAt(i))) {
+        hex += value.charAt(i);
+        i++;
+      }
+      if (hex.length > 0) {
+        // Consume optional trailing space (CSS spec)
+        if (i < len && value.charAt(i) === ' ') {
+          i++;
+        }
+        var code = parseInt(hex, 16);
+        // String.fromCodePoint throws RangeError for code points > 0x10FFFF
+        // and surrogates (0xD800-0xDFFF). Skip these — they cannot represent
+        // valid characters and preserving the raw escape is safer than crashing.
+        // Matches Rust behavior: char::from_u32(code) returns None for these.
+        if (!isNaN(code) && code <= 0x10FFFF && !(code >= 0xD800 && code <= 0xDFFF)) {
+          result += String.fromCodePoint(code);
+          continue;
+        }
+      }
+      // Not a valid hex escape, preserve backslash and next char
+      result += '\\';
+      if (i < len) {
+        result += value.charAt(i);
+        i++;
+      }
+    } else {
+      result += ch;
+      i++;
+    }
+  }
+  return result;
+}
 
+function __omni_sanitizeCss(value) {
+  var str = String(value);
+  // Strip CR, LF, TAB before any pattern matching — browsers strip these
+  // characters during CSS tokenization (CSS Syntax §4.3.7), so
+  // "jav\r\nascript:" would be normalized by the browser to "javascript:".
+  // This mirrors the same normalization in __omni_sanitizeUrl.
+  str = str.replace(/[\r\n\t]/g, '');
+  // Normalize CSS hex escapes before checking for dangerous patterns
+  str = __omni_normalizeCssEscapes(str);
+  var lower = str.toLowerCase();
+  // Block protocol-level injection patterns
+  if (lower.indexOf('javascript:') >= 0 || lower.indexOf('expression(') >= 0 ||
+      lower.indexOf('-moz-binding') >= 0 ||
+      lower.indexOf('data:text/html') >= 0 || lower.indexOf('@import') >= 0 ||
+      lower.indexOf('vbscript:') >= 0 || lower.indexOf('document.') >= 0 ||
+      lower.indexOf('window.') >= 0) {
+    return '';
+  }
+  // Allow url() only with safe schemes. url() is needed for
+  // background-image and other standard CSS resource loading.
+  // Block url() containing javascript: or vbscript: schemes.
+  // The outer block already catches standalone javascript:/vbscript:,
+  // but they could appear inside a url() value after stripping.
+  var urlIdx = lower.indexOf('url(');
+  if (urlIdx >= 0) {
+    var afterUrl = lower.substring(urlIdx);
+    if (afterUrl.indexOf('javascript:') >= 0 || afterUrl.indexOf('vbscript:') >= 0) {
+      return '';
+    }
+  }
+  return str;
+}
+
+function __omni_el(nid) {
+  var cache = __omni_el._cache || (__omni_el._cache = {});
+  var el = cache[nid];
+  if (!el || !el.isConnected) {
+    el = document.querySelector('[data-nid="' + nid + '"]');
+    if (el) {
+      cache[nid] = el;
+    } else {
+      delete cache[nid];
+    }
+  }
+  return el || null;
+}
 	/// ─── @for instance-state helpers ───
 	function __omni_forGetState(el, name, defaultVal) {
 	  var comp = el && el.closest ? el.closest('[data-component]') : null;
@@ -118,44 +262,87 @@ function __omni_bindText(nid) {
 	function __omni_forToggleState(comp, name, rebindFn) {
 	  __omni_forSetState(comp, name, !__omni_forGetState(comp, name, false), rebindFn);
 	}
+	function __omni_cleanupElement(nid) {
+	  if (!nid) return;
+	  var anims = __omni_animations.get(nid);
+	  if (anims) {
+	    anims.forEach(function(anim) {
+	      try { anim.cancel(); } catch(_) {}
+	    });
+	    __omni_animations.delete(nid);
+	  }
+	  if (typeof __omni_scrollRemoveEntry === 'function') {
+	    __omni_scrollRemoveEntry(nid);
+	  }
+	  // Clean up InView observers for this element
+	  if (window.__omni_inview_observers) {
+	    window.__omni_inview_observers = window.__omni_inview_observers.filter(function(entry) {
+	      if (entry.nid === nid) {
+	        try { entry.observer.disconnect(); } catch(_) {}
+	        return false;
+	      }
+	      return true;
+	    });
+	  }
+	}
 /// ─── End Signal Runtime ────────────────────────────
 
-/// ─── OmniView Motion Runtime ───
-// OmniView Animation Runtime (placeholder)
+/// ─── Omni Animation Runtime (WAAPI-based) ───
+// @omni/animation v0.1.0 — load from external script
+// <script src="./omni-animation.js"> should be included in the HTML wrapper
+if (typeof Omni === 'undefined') console.warn('[OmniView] @omni/animation not loaded');
 
 const ThemeStore_mode = __omni_signal("ThemeStore_mode", "light");
 const ThemeStore_toggleCount = __omni_signal("ThemeStore_toggleCount", 0);
-const ThemeStore_currentText = __omni_computed("ThemeStore_currentText", () => (ThemeStore_mode.value === "dark" ? "#f9fafb" : "#111827"));
-const ThemeStore_currentBorder = __omni_computed("ThemeStore_currentBorder", () => (ThemeStore_mode.value === "dark" ? "#4b5563" : "#d4d4d8"));
-const ThemeStore_currentMuted = __omni_computed("ThemeStore_currentMuted", () => (ThemeStore_mode.value === "dark" ? "#1f2937" : "#f9fafb"));
-const ThemeStore_currentBg = __omni_computed("ThemeStore_currentBg", () => (ThemeStore_mode.value === "dark" ? "#111827" : "#ffffff"));
-const ThemeStore_currentPrimary = __omni_computed("ThemeStore_currentPrimary", () => (ThemeStore_mode.value === "dark" ? "#a5b4fc" : "#6366f1"));
-const ThemeStore_nextLabel = __omni_computed("ThemeStore_nextLabel", () => (ThemeStore_mode.value === "dark" ? "Light" : "Dark"));
-const ThemeStore_modeLabel = __omni_computed("ThemeStore_modeLabel", () => (ThemeStore_mode.value === "dark" ? "Dark" : "Light"));
-function ThemeStore_load() {
-  let raw = localStorage.getItem("theme-mode");
-  if (raw !== null) {
-  __omni_subs.get("ThemeStore_mode").set(raw);
-  }
-}
-
+const ThemeStore_modeLabel = __omni_computed("ThemeStore_modeLabel", () => (ThemeStore_mode.value === "light" ? "☀️ Light" : ThemeStore_mode.value === "dark" ? "🌙 Dark" : ThemeStore_mode.value === "sepia" ? "📜 Sepia" : "🔲 High Contrast"));
 function ThemeStore_toggle() {
-  if (ThemeStore_mode.value === "dark") {
-  __omni_subs.get("ThemeStore_mode").set("light");
-  } else {
+  if (ThemeStore_mode.value === "light") {
   __omni_subs.get("ThemeStore_mode").set("dark");
+  } else if (ThemeStore_mode.value === "dark") {
+  __omni_subs.get("ThemeStore_mode").set("sepia");
+  } else if (ThemeStore_mode.value === "sepia") {
+  __omni_subs.get("ThemeStore_mode").set("highContrast");
+  } else {
+  __omni_subs.get("ThemeStore_mode").set("light");
   }
   __omni_subs.get("ThemeStore_toggleCount").set(ThemeStore_toggleCount.value + 1);
-  localStorage.setItem("theme-mode", ThemeStore_mode.value);
 }
 
 function ThemeStore_setMode(newMode) {
-  if (newMode === "dark") {
-  __omni_subs.get("ThemeStore_mode").set("dark");
-  } else {
-  __omni_subs.get("ThemeStore_mode").set("light");
+  if (newMode === "light" || newMode === "dark" || newMode === "sepia" || newMode === "highContrast") {
+  __omni_subs.get("ThemeStore_mode").set(newMode);
   }
-  localStorage.setItem("theme-mode", ThemeStore_mode.value);
+}
+
+function ThemeStore_load() {
+}
+
+
+const DynamicTokenStore_liveAccent = __omni_signal("DynamicTokenStore_liveAccent", "#f97316");
+const DynamicTokenStore_liveColor = __omni_signal("DynamicTokenStore_liveColor", "#6366f1");
+const DynamicTokenStore_switchCount = __omni_signal("DynamicTokenStore_switchCount", 0);
+const DynamicTokenStore_liveBg = __omni_signal("DynamicTokenStore_liveBg", "#eef2ff");
+const DynamicTokenStore_presetName = __omni_computed("DynamicTokenStore_presetName", () => (DynamicTokenStore_liveColor.value === "#6366f1" ? "Indigo (default)" : DynamicTokenStore_liveColor.value === "#10b981" ? "Emerald" : DynamicTokenStore_liveColor.value === "#ef4444" ? "Crimson" : DynamicTokenStore_liveColor.value === "#f59e0b" ? "Amber" : "Custom"));
+function DynamicTokenStore_setPreset(name) {
+  if (name === "indigo") {
+  __omni_subs.get("DynamicTokenStore_liveColor").set("#6366f1");
+  __omni_subs.get("DynamicTokenStore_liveBg").set("#eef2ff");
+  __omni_subs.get("DynamicTokenStore_liveAccent").set("#f97316");
+  } else if (name === "emerald") {
+  __omni_subs.get("DynamicTokenStore_liveColor").set("#10b981");
+  __omni_subs.get("DynamicTokenStore_liveBg").set("#ecfdf5");
+  __omni_subs.get("DynamicTokenStore_liveAccent").set("#059669");
+  } else if (name === "crimson") {
+  __omni_subs.get("DynamicTokenStore_liveColor").set("#ef4444");
+  __omni_subs.get("DynamicTokenStore_liveBg").set("#fef2f2");
+  __omni_subs.get("DynamicTokenStore_liveAccent").set("#dc2626");
+  } else if (name === "amber") {
+  __omni_subs.get("DynamicTokenStore_liveColor").set("#f59e0b");
+  __omni_subs.get("DynamicTokenStore_liveBg").set("#fffbeb");
+  __omni_subs.get("DynamicTokenStore_liveAccent").set("#d97706");
+  }
+  null;
+  __omni_subs.get("DynamicTokenStore_switchCount").set(DynamicTokenStore_switchCount.value + 1);
 }
 
 
@@ -1186,925 +1373,350 @@ function hex_demo() {
 
 /// ── Module Motion Definitions:  ──
 
-const __omni_motion_unbounce = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"to": {"scale": 1.05}, "over": 150, "easing": "easeOut"}, overrides || {}));
-};
-const __omni_motion_focusGlow = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"to": {"boxShadow": "0 0 0 3px rgba(99,102,241,0.4)"}, "over": 200, "easing": "easeOut"}, overrides || {}));
-};
-const __omni_motion_autoSpin = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"to": {"rotate": 360}, "over": 2000, "easing": "linear", "iterations": Infinity}, overrides || {}));
-};
-const __omni_motion_slideInView = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "y": 30}, "to": {"opacity": 1, "y": 0}, "over": 400, "easing": "power2Out"}, overrides || {}));
-};
-const __omni_motion_scrollFade = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0.3, "scale": 0.95}, "to": {"opacity": 1, "scale": 1}, "over": 500, "easing": "easeOut"}, overrides || {}));
-};
-const __omni_motion_dragSlide = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 100}, "over": 300, "easing": "power2Out"}, overrides || {}));
-};
-const __omni_motion_refMotion = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0.5, "scale": 1}, "to": {"opacity": 1, "scale": 1.0}, "over": 400, "easing": "power2Out"}, overrides || {}));
-};
-const __omni_motion_staggerStart = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "y": 15}, "to": {"opacity": 1, "y": 0}, "over": 300, "easing": "power2Out", "delayChildren": 30, "staggerChildren": 25, "staggerFrom": "start"}, overrides || {}));
-};
-const __omni_motion_staggerEnd = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "y": 15}, "to": {"opacity": 1, "y": 0}, "over": 300, "easing": "power2Out", "delayChildren": 30, "staggerChildren": 25, "staggerFrom": "end"}, overrides || {}));
-};
-const __omni_motion_staggerEdges = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "y": 15}, "to": {"opacity": 1, "y": 0}, "over": 300, "easing": "power2Out", "delayChildren": 30, "staggerChildren": 25, "staggerFrom": "edges"}, overrides || {}));
-};
-const __omni_motion_pulseAccent = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"--accent-h": 221}, "to": {"--accent-h": 350}, "over": 600, "easing": "easeInOut", "iterations": Infinity, "direction": "alternate"}, overrides || {}));
-};
-const __omni_motion_heroMove = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "x": -100, "scale": 0.8}, "to": {"opacity": 1, "x": 0, "scale": 1}, "over": 500, "easing": "power3Out"}, overrides || {}));
-};
-const __omni_motion_power1InMove = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 800, "easing": "power1In"}, overrides || {}));
-};
-const __omni_motion_power1OutMove = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 800, "easing": "power1Out"}, overrides || {}));
-};
-const __omni_motion_power1InOutMove = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 800, "easing": "power1InOut"}, overrides || {}));
-};
-const __omni_motion_power2InMove = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 800, "easing": "power2In"}, overrides || {}));
-};
-const __omni_motion_power2InOutMove = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 800, "easing": "power2InOut"}, overrides || {}));
-};
-const __omni_motion_power3InMove = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 800, "easing": "power3In"}, overrides || {}));
-};
-const __omni_motion_power3InOutMove = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 800, "easing": "power3InOut"}, overrides || {}));
-};
-const __omni_motion_power4InMove = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 800, "easing": "power4In"}, overrides || {}));
-};
-const __omni_motion_power4OutMove = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 800, "easing": "power4Out"}, overrides || {}));
-};
-const __omni_motion_power4InOutMove = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 800, "easing": "power4InOut"}, overrides || {}));
-};
-const __omni_motion_easeInMove = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 800, "easing": "easeIn"}, overrides || {}));
-};
-const __omni_motion_backInMove = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 800, "easing": "backIn"}, overrides || {}));
-};
-const __omni_motion_backOutMove = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 800, "easing": "backOut"}, overrides || {}));
-};
-const __omni_motion_backInOutMove = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 800, "easing": "backInOut"}, overrides || {}));
-};
-const __omni_motion_backOutIntensity = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 200}, "over": 800, "easing": "backOut(3.5)"}, overrides || {}));
-};
-const __omni_motion_bounceInMove = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 1000, "easing": "bounceIn"}, overrides || {}));
-};
-const __omni_motion_bounceOutMove = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 1000, "easing": "bounceOut"}, overrides || {}));
-};
-const __omni_motion_bounceInOutMove = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 1000, "easing": "bounceInOut"}, overrides || {}));
-};
-const __omni_motion_elasticInMove = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 1200, "easing": "elasticIn"}, overrides || {}));
-};
-const __omni_motion_elasticOutMove = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 1200, "easing": "elasticOut"}, overrides || {}));
-};
-const __omni_motion_elasticInOutMove = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 1200, "easing": "elasticInOut"}, overrides || {}));
-};
-const __omni_motion_elasticCustomMove = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 200}, "over": 1500, "easing": "elasticOut(2,0.8)"}, overrides || {}));
-};
-const __omni_motion_springDefault = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0.3, "x": 0}, "to": {"opacity": 1, "x": 180}, "over": 1000, "easing": new SpringSolver(180, 12, 1, 0)}, overrides || {}));
-};
-const __omni_motion_springBouncy = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 200}, "over": 1000, "easing": new SpringSolver(120, 8, 1, 2)}, overrides || {}));
-};
-const __omni_motion_springStiff = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"scale": 1}, "to": {"scale": 1.3}, "over": 600, "easing": new SpringSolver(400, 30, 1, 0)}, overrides || {}));
-};
-const __omni_motion_cubicCustom = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 800, "easing": "cubic-bezier(0.68,-0.55,0.27,1.55)"}, overrides || {}));
-};
-const __omni_motion_stepsDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 1000, "easing": "steps(6,end)"}, overrides || {}));
-};
-const __omni_motion_fadeSlideOut = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 1, "x": 0}, "to": {"opacity": 0, "x": 30}, "over": 300, "easing": "easeOut"}, overrides || {}));
-};
-const __omni_motion_fadeEnter = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "y": 10}, "to": {"opacity": 1, "y": 0}, "over": 400, "easing": "power2Out"}, overrides || {}));
-};
-const __omni_motion_scaleGlow = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"to": {"boxShadow": "0 0 0 4px rgba(99,102,241,0.4)", "scale": 1.08}, "over": 200, "easing": "easeOut"}, overrides || {}));
-};
-const __omni_motion_fadeInUp = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "y": 20}, "to": {"opacity": 1, "y": 0}, "over": 400, "easing": "easeOut"}, overrides || {}));
-};
-const __omni_motion_scalePress = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"to": {"scale": 0.95}, "over": 100, "easing": "easeOut"}, overrides || {}));
-};
-const __omni_motion_listItem = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "x": -20}, "to": {"opacity": 1, "x": 0}, "over": 300, "easing": "power2Out"}, overrides || {}));
-};
-const __omni_motion_pulse = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"to": {"scale": 1.05}, "over": 800, "easing": "easeInOut", "iterations": Infinity, "direction": "alternate"}, overrides || {}));
-};
-const __omni_motion_trackedEnter = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "scale": 0.8, "y": -20}, "to": {"opacity": 1, "scale": 1, "y": 0}, "over": 600, "easing": "power2Out", "callbacks": {"onStart": function() { null }, "onComplete": function() { null }}}, overrides || {}));
-};
-const __omni_motion_pulseWithCallback = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0.7, "scale": 1}, "to": {"opacity": 1, "scale": 1.1}, "over": 400, "easing": "easeInOut", "iterations": Infinity, "direction": "alternate", "repeatDelay": 200, "callbacks": {"onStart": function() { null }, "onUpdate": function() { null }, "onRepeat": function() { null }}}, overrides || {}));
-};
-const __omni_motion_interruptWithCallback = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0, "rotate": 0}, "to": {"x": 40, "rotate": 15}, "over": 300, "easing": "power1Out", "interrupt": "replace", "callbacks": {"onStart": function() { null }, "onInterrupt": function() { null }, "onComplete": function() { null }}}, overrides || {}));
-};
-const __omni_motion_scaleXDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"scaleX": 1}, "to": {"scaleX": 1.8}, "over": 600, "easing": "power2Out"}, overrides || {}));
-};
-const __omni_motion_scaleYDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"scaleY": 1}, "to": {"scaleY": 1.5}, "over": 500, "easing": "power2Out"}, overrides || {}));
-};
-const __omni_motion_rotateXDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"rotateX": 0}, "to": {"rotateX": 360}, "over": 2000, "easing": "easeInOut"}, overrides || {}));
-};
-const __omni_motion_rotateYDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"rotateY": 0}, "to": {"rotateY": 360}, "over": 2000, "easing": "easeInOut"}, overrides || {}));
-};
-const __omni_motion_rotateZDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"rotateZ": 0}, "to": {"rotateZ": 360}, "over": 1500, "easing": "power2Out"}, overrides || {}));
-};
-const __omni_motion_blurDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"blur": 0}, "to": {"blur": 6}, "over": 800, "easing": "easeOut"}, overrides || {}));
-};
-const __omni_motion_brightnessDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"brightness": 1}, "to": {"brightness": 2.5}, "over": 700, "easing": "easeOut"}, overrides || {}));
-};
-const __omni_motion_bgColorDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"backgroundColor": "#6366f1", "borderRadius": 4}, "to": {"backgroundColor": "#f97316", "borderRadius": 24}, "over": 1200, "easing": "easeInOut"}, overrides || {}));
-};
-const __omni_motion_textColorDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"borderColor": "#d4d4d8", "color": "#1f2937"}, "to": {"borderColor": "#dc2626", "color": "#dc2626"}, "over": 800, "easing": "power2Out"}, overrides || {}));
-};
-const __omni_motion_widthDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"width": 60}, "to": {"width": 200}, "over": 900, "easing": "easeOut"}, overrides || {}));
-};
-const __omni_motion_heightDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"height": 40}, "to": {"height": 120}, "over": 700, "easing": "power3Out"}, overrides || {}));
-};
-const __omni_motion_spacingDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"padding": 8, "margin": 4}, "to": {"padding": 24, "margin": 16}, "over": 1000, "easing": "easeInOut"}, overrides || {}));
-};
-const __omni_motion_skewXDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"skewX": 0}, "to": {"skewX": 15}, "over": 600, "easing": "power2Out"}, overrides || {}));
-};
-const __omni_motion_skewYDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"skewY": 0}, "to": {"skewY": 10}, "over": 600, "easing": "power2Out"}, overrides || {}));
-};
-const __omni_motion_contrastDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"contrast": 1}, "to": {"contrast": 2.5}, "over": 700, "easing": "easeOut"}, overrides || {}));
-};
-const __omni_motion_saturateDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"saturate": 1}, "to": {"saturate": 3}, "over": 700, "easing": "easeOut"}, overrides || {}));
-};
-const __omni_motion_hueRotateDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"hueRotate": 0}, "to": {"hueRotate": 180}, "over": 800, "easing": "easeInOut"}, overrides || {}));
-};
-const __omni_motion_fontSizeDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"fontSize": 14}, "to": {"fontSize": 28}, "over": 700, "easing": "power2Out"}, overrides || {}));
-};
-const __omni_motion_letterSpacingDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"letterSpacing": 0}, "to": {"letterSpacing": 8}, "over": 700, "easing": "easeOut"}, overrides || {}));
-};
-const __omni_motion_borderWidthDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"borderWidth": 1}, "to": {"borderWidth": 6}, "over": 600, "easing": "easeOut"}, overrides || {}));
-};
-const __omni_motion_topLeftDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"top": 0, "left": 0}, "to": {"top": -20, "left": 30}, "over": 600, "easing": "power2Out"}, overrides || {}));
-};
-const __omni_motion_fillDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "x": -20}, "to": {"opacity": 1, "x": 0}, "over": 400, "easing": "easeOut", "fill": "forwards"}, overrides || {}));
-};
-const __omni_motion_delayedEntrance = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "y": 20}, "to": {"opacity": 1, "y": 0}, "over": 300, "easing": "power2Out", "delay": 200, "repeatDelay": 100, "repeatRefresh": true}, overrides || {}));
-};
-const __omni_motion_slowSpin = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"to": {"rotate": 360}, "over": 5000, "easing": "linear", "iterations": Infinity, "timeScale": 0.5}, overrides || {}));
-};
-const __omni_motion_interruptDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"scale": 1}, "to": {"scale": 1.2}, "over": 300, "easing": "easeOut", "interrupt": "compose"}, overrides || {}));
-};
-const __omni_motion_accessibleAnim = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0}, "to": {"opacity": 1}, "over": 400, "easing": "easeOut", "respectReducedMotion": true}, overrides || {}));
-};
-const __omni_motion_staggeredList = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "y": 10}, "to": {"opacity": 1, "y": 0}, "over": 300, "easing": "easeOut", "delayChildren": 50, "staggerChildren": 30, "staggerFrom": "center"}, overrides || {}));
-};
-const __omni_motion_pathAnim = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"offsetDistance": 0}, "to": {"offsetDistance": 1}, "over": 1000, "easing": "easeInOut", "path": "M0,0 C50,-50 100,50 150,0", "pathRotate": true, "paused": true, "path": "M0,0 C50,-50 100,50 150,0", "pathRotate": true}, overrides || {}));
-};
-const __omni_motion_multiStopColor = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "scale": 0.5, "background": "#ff0000"}, "to": {"opacity": 1, "scale": 1, "background": "#0000ff"}, "over": 1000, "easing": "easeInOut"}, overrides || {}));
-};
-const __omni_motion_callbackOnly = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"over": 0.3, "callbacks": {"onStart": function() { null }, "onUpdate": function() { null }, "onComplete": function() { null }, "onRepeat": function() { null }, "onInterrupt": function() { null }}}, overrides || {}));
-};
-const __omni_motion_dirReverse = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0.3, "x": 0}, "to": {"opacity": 1, "x": 160}, "over": 600, "easing": "power2Out", "direction": "reverse"}, overrides || {}));
-};
-const __omni_motion_dirAltReverse = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"scale": 1}, "to": {"scale": 1.4}, "over": 800, "easing": "power2Out", "direction": "alternate-reverse"}, overrides || {}));
-};
-const __omni_motion_fillBackwards = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "x": -20}, "to": {"opacity": 1, "x": 0}, "over": 1000, "easing": "power2Out", "fill": "backwards", "delay": 500}, overrides || {}));
-};
-const __omni_motion_fillBoth = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "scale": 0.8}, "to": {"opacity": 1, "scale": 1.2}, "over": 600, "easing": "power2Out", "fill": "forwards", "delay": 300}, overrides || {}));
-};
-const __omni_motion_intStop = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 400, "easing": "easeOut", "iterations": Infinity, "direction": "alternate", "interrupt": "cancel"}, overrides || {}));
-};
-const __omni_motion_intComplete = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"scale": 1}, "to": {"scale": 1.3}, "over": 400, "easing": "easeOut", "iterations": Infinity, "direction": "alternate", "interrupt": "finish"}, overrides || {}));
-};
-const __omni_motion_intReplace = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 400, "easing": "easeOut", "iterations": Infinity, "direction": "alternate", "interrupt": "replace"}, overrides || {}));
-};
-const __omni_motion_stepCount2 = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0}, "to": {"opacity": 1}, "over": 800, "easing": "steps(2,start)"}, overrides || {}));
-};
-const __omni_motion_stepCount4Start = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "x": -30}, "to": {"opacity": 1, "x": 0}, "over": 1200, "easing": "steps(4,start)"}, overrides || {}));
-};
-const __omni_motion_stepCount4End = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "x": 30}, "to": {"opacity": 1, "x": 0}, "over": 1200, "easing": "steps(4,end)"}, overrides || {}));
-};
-const __omni_motion_stepCount8 = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "y": 20}, "to": {"opacity": 1, "y": 0}, "over": 1600, "easing": "steps(8,start)", "iterations": Infinity}, overrides || {}));
-};
-
-/// ── Module Timeline Definitions:  ──
-
-function __omni_motion_connectorDemo(el, config) {
-  var __children = el ? Array.from(el.querySelectorAll('[data-nid]')) : [];
-  var __childIdx = 0;
-  var __timeouts = [];
-/// ── @timeline connectorDemo ──
-__timeouts.push(setTimeout(function() {
-  const el = __children[0];
-  if (el) {
-   const config = {
-    "from": {"opacity": 0},
-    "to": {"x": -20},
-    "over": 0.3,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_connectorDemo_item_1", player);
-   player.play();
-  }
-}, 0));
-__timeouts.push(setTimeout(function() {
-  const el = __children[1];
-  if (el) {
-   const config = {
-        "to": {"opacity": 1, "x": 0},
-    "over": 300,
-    "easing": "power2Out"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_connectorDemo_item_2", player);
-   player.play();
-  }
-}, 0.3));
-__timeouts.push(setTimeout(function() {
-  const el = __children[2];
-  if (el) {
-   const config = {
-    "from": {"opacity": 0},
-    "to": {"x": 40},
-    "over": 0.3,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_connectorDemo_item_3", player);
-   player.play();
-  }
-}, 300.3));
-__timeouts.push(setTimeout(function() {
-  const el = __children[3];
-  if (el) {
-   const config = {
-        "to": {"opacity": 1, "x": 0},
-    "over": 300,
-    "easing": "power2Out"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_connectorDemo_item_4", player);
-   player.play();
-  }
-}, 300.6));
-__timeouts.push(setTimeout(function() {
-  if (!el) return;
-  el.querySelectorAll("[data-nid]").forEach(function(child) {
-   const player = __omni_motion_refMotion(child, {});
-   __omni_animations.set(child.getAttribute('data-nid') + '_refMotion', player);
-   player.play();
-  });
-}, 600.6));
-__timeouts.push(setTimeout(function() {
-  const el = __children[4];
-  if (el) {
-   const config = {
-    "from": {"opacity": 0},
-    "to": {"y": 20},
-    "over": 0.3,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_connectorDemo_item_6", player);
-   player.play();
-  }
-}, 600.6));
-__timeouts.push(setTimeout(function() {
-  const el = __children[5];
-  if (el) {
-   const config = {
-        "to": {"opacity": 1, "y": 0},
-    "over": 300,
-    "easing": "power2Out"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_connectorDemo_item_7", player);
-   player.play();
-  }
-}, 600.9));
-__timeouts.push(setTimeout(function() {
-  const el = __children[6];
-  if (el) {
-   const config = {
-    "from": {"opacity": 0},
-    "to": {"y": -10},
-    "over": 0.3,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_connectorDemo_item_9", player);
-   player.play();
-  }
-}, 900.9));
-__timeouts.push(setTimeout(function() {
-  const el = __children[7];
-  if (el) {
-   const config = {
-        "to": {"opacity": 1, "y": 0},
-    "over": 200,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_connectorDemo_item_10", player);
-   player.play();
-  }
-}, 901.1999999999999));
-__omni_timeline_labels.set("connectorDemo", {"phase1": 0, "outro": 900.9});
-  return {
-   name: "connectorDemo",
-   type: "timeline",
-   kill: function() {
-    __timeouts.forEach(function(t) { clearTimeout(t); });
-    // Also cancel any running WAAPI animations on children
-    if (el) el.querySelectorAll('[data-nid]').forEach(function(c) {
-     c.getAnimations().forEach(function(a) { a.cancel(); });
-    });
-   }
-  };
-};
-function __omni_motion_pageEnter(el, config) {
-  var __children = el ? Array.from(el.querySelectorAll('[data-nid]')) : [];
-  var __childIdx = 0;
-  var __timeouts = [];
-/// ── @timeline pageEnter ──
-__timeouts.push(setTimeout(function() {
-  const el = __children[0];
-  if (el) {
-   const config = {
-    "from": {"opacity": 0},
-    "to": {"y": -20},
-    "over": 0.3,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_pageEnter_item_2", player);
-   player.play();
-  }
-}, 0));
-__timeouts.push(setTimeout(function() {
-  const el = __children[1];
-  if (el) {
-   const config = {
-        "to": {"opacity": 1, "y": 0},
-    "over": 300,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_pageEnter_item_3", player);
-   player.play();
-  }
-}, 0.3));
-__timeouts.push(setTimeout(function() {
-  const el = __children[2];
-  if (el) {
-   const config = {
-    "from": {"opacity": 0},
-        "over": 0.3,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_pageEnter_item_4", player);
-   player.play();
-  }
-}, 300.3));
-__timeouts.push(setTimeout(function() {
-  const el = __children[3];
-  if (el) {
-   const config = {
-        "to": {"opacity": 1},
-    "over": 400,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_pageEnter_item_5", player);
-   player.play();
-  }
-}, 200));
-__timeouts.push(setTimeout(function() {
-  const el = __children[4];
-  if (el) {
-   const config = {
-    "from": {"opacity": 0},
-    "to": {"y": 20},
-    "over": 0.3,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_pageEnter_item_7", player);
-   player.play();
-  }
-}, 600));
-__timeouts.push(setTimeout(function() {
-  const el = __children[5];
-  if (el) {
-   const config = {
-        "to": {"opacity": 1, "y": 0},
-    "over": 300,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_pageEnter_item_8", player);
-   player.play();
-  }
-}, 600.3));
-__omni_timeline_labels.set("pageEnter", {"intro": 0, "outro": 600});
-  return {
-   name: "pageEnter",
-   type: "timeline",
-   kill: function() {
-    __timeouts.forEach(function(t) { clearTimeout(t); });
-    // Also cancel any running WAAPI animations on children
-    if (el) el.querySelectorAll('[data-nid]').forEach(function(c) {
-     c.getAnimations().forEach(function(a) { a.cancel(); });
-    });
-   }
-  };
-};
-function __omni_motion_positionDemo(el, config) {
-  var __children = el ? Array.from(el.querySelectorAll('[data-nid]')) : [];
-  var __childIdx = 0;
-  var __timeouts = [];
-/// ── @timeline positionDemo ──
-__timeouts.push(setTimeout(function() {
-  const el = __children[0];
-  if (el) el.style.cssText = Object.entries({"x": 0, "opacity": 1}).map(([k,v]) => k + ':' + v).join(';');
-}, 0));
-__timeouts.push(setTimeout(function() {
-  const el = __children[1];
-  if (el) {
-   const config = {
-    "from": {"opacity": 0},
-    "to": {"scale": 0.5},
-    "over": 0.3,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_positionDemo_item_2", player);
-   player.play();
-  }
-}, 0));
-__timeouts.push(setTimeout(function() {
-  const el = __children[2];
-  if (el) {
-   const config = {
-        "to": {"opacity": 1, "scale": 1},
-    "over": 300,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_positionDemo_item_3", player);
-   player.play();
-  }
-}, 0.3));
-__timeouts.push(setTimeout(function() {
-  const el = __children[3];
-  if (el) {
-   const config = {
-    "from": {"opacity": 0},
-    "to": {"x": -20},
-    "over": 0.3,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_positionDemo_item_5", player);
-   player.play();
-  }
-}, 300.3));
-__timeouts.push(setTimeout(function() {
-  const el = __children[4];
-  if (el) {
-   const config = {
-        "to": {"opacity": 1, "x": 0},
-    "over": 300,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_positionDemo_item_6", player);
-   player.play();
-  }
-}, 300.6));
-__timeouts.push(setTimeout(function() {
-  const el = __children[5];
-  if (el) {
-   const config = {
-    "from": {"opacity": 0},
-    "to": {"y": 10},
-    "over": 0.3,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_positionDemo_item_8", player);
-   player.play();
-  }
-}, 450.6));
-__timeouts.push(setTimeout(function() {
-  const el = __children[6];
-  if (el) {
-   const config = {
-        "to": {"opacity": 1, "y": 0},
-    "over": 300,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_positionDemo_item_9", player);
-   player.play();
-  }
-}, 450.90000000000003));
-__timeouts.push(setTimeout(function() {
-  const el = __children[7];
-  if (el) {
-   const config = {
-    "from": {"opacity": 0},
-    "to": {"rotate": -10},
-    "over": 0.3,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_positionDemo_item_11", player);
-   player.play();
-  }
-}, 950.9000000000001));
-__timeouts.push(setTimeout(function() {
-  const el = __children[8];
-  if (el) {
-   const config = {
-        "to": {"opacity": 1, "rotate": 0},
-    "over": 200,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_positionDemo_item_12", player);
-   player.play();
-  }
-}, 951.2));
-__timeouts.push(setTimeout(function() {
-  const el = __children[9];
-  if (el) {
-   const config = {
-    "from": {"opacity": 0},
-    "to": {"scale": 0.8},
-    "over": 0.3,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_positionDemo_item_14", player);
-   player.play();
-  }
-}, 1051.2));
-__timeouts.push(setTimeout(function() {
-  const el = __children[10];
-  if (el) {
-   const config = {
-        "to": {"opacity": 1, "scale": 1},
-    "over": 250,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_positionDemo_item_15", player);
-   player.play();
-  }
-}, 1051.5));
-__timeouts.push(setTimeout(function() {
-  const el = __children[11];
-  if (el) {
-   const config = {
-    "from": {"opacity": 0, "y": -10},
-    "to": {"x": 20},
-    "over": 0.3,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_positionDemo_item_17", player);
-   player.play();
-  }
-}, 1200));
-__timeouts.push(setTimeout(function() {
-  const el = __children[12];
-  if (el) {
-   const config = {
-        "to": {"opacity": 1, "x": 0, "y": 0},
-    "over": 400,
-    "easing": "power2Out"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_positionDemo_item_18", player);
-   player.play();
-  }
-}, 1200.3));
-__omni_timeline_labels.set("positionDemo", {"A-start": 0, "B-withPrev": 300.3, "C-after": 600.6, "D-overlap": 750.9000000000001, "E-afterPrev": 1151.2, "F-withOffset": 1301.5, "G-absolute": 1600.3});
-  return {
-   name: "positionDemo",
-   type: "timeline",
-   kill: function() {
-    __timeouts.forEach(function(t) { clearTimeout(t); });
-    // Also cancel any running WAAPI animations on children
-    if (el) el.querySelectorAll('[data-nid]').forEach(function(c) {
-     c.getAnimations().forEach(function(a) { a.cancel(); });
-    });
-   }
-  };
-};
-function __omni_motion_simpleThenWith(el, config) {
-  var __children = el ? Array.from(el.querySelectorAll('[data-nid]')) : [];
-  var __childIdx = 0;
-  var __timeouts = [];
-/// ── @timeline simpleThenWith ──
-__timeouts.push(setTimeout(function() {
-  const el = __children[0];
-  if (el) el.style.cssText = Object.entries({"opacity": 1}).map(([k,v]) => k + ':' + v).join(';');
-}, 0));
-__timeouts.push(setTimeout(function() {
-  const el = __children[1];
-  if (el) {
-   const config = {
-    "from": {"opacity": 0},
-    "to": {"x": -20},
-    "over": 0.3,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_simpleThenWith_item_2", player);
-   player.play();
-  }
-}, 0));
-__timeouts.push(setTimeout(function() {
-  const el = __children[2];
-  if (el) {
-   const config = {
-        "to": {"opacity": 1, "x": 0},
-    "over": 200,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_simpleThenWith_item_3", player);
-   player.play();
-  }
-}, 0.3));
-__timeouts.push(setTimeout(function() {
-  const el = __children[3];
-  if (el) {
-   const config = {
-    "from": {"opacity": 0},
-    "to": {"x": 20},
-    "over": 0.3,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_simpleThenWith_item_5", player);
-   player.play();
-  }
-}, 200.3));
-__timeouts.push(setTimeout(function() {
-  const el = __children[4];
-  if (el) {
-   const config = {
-        "to": {"opacity": 1, "x": 0},
-    "over": 200,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_simpleThenWith_item_6", player);
-   player.play();
-  }
-}, 200.60000000000002));
-__omni_timeline_labels.set("simpleThenWith", {"start": 0, "then-item": 200.3, "with-item": 400.6});
-  return {
-   name: "simpleThenWith",
-   type: "timeline",
-   kill: function() {
-    __timeouts.forEach(function(t) { clearTimeout(t); });
-    // Also cancel any running WAAPI animations on children
-    if (el) el.querySelectorAll('[data-nid]').forEach(function(c) {
-     c.getAnimations().forEach(function(a) { a.cancel(); });
-    });
-   }
-  };
-};
-function __omni_motion_flyPath(el, config) {
-  var __children = el ? Array.from(el.querySelectorAll('[data-nid]')) : [];
-  var __childIdx = 0;
-  var __timeouts = [];
-/// ── @timeline flyPath ──
-__timeouts.push(setTimeout(function() {
-  const el = __children[0];
-  if (el) el.style.cssText = Object.entries({"opacity": 1}).map(([k,v]) => k + ':' + v).join(';');
-}, 0));
-__timeouts.push(setTimeout(function() {
-  const el = __children[1];
-  if (el) {
-   const config = {
-    "from": {"opacity": 0, "y": 0},
-    "to": {"x": 0},
-    "over": 0.3,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_flyPath_item_2", player);
-   player.play();
-  }
-}, 0));
-__timeouts.push(setTimeout(function() {
-  const el = __children[2];
-  if (el) {
-   const config = {
-        "to": {"opacity": 1, "x": 200, "y": 0},
-    "over": 1200,
-    "easing": "easeOut",
-    "path": "M0,0 C50,-60 150,-60 200,0",
-    "pathRotate": true
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_flyPath_item_3", player);
-   player.play();
-  }
-}, 0.3));
-__timeouts.push(setTimeout(function() {
-  const el = __children[3];
-  if (el) {
-   const config = {
-    "from": {"opacity": 0, "y": 0},
-    "to": {"x": 0},
-    "over": 0.3,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_flyPath_item_4", player);
-   player.play();
-  }
-}, 1200.3));
-__timeouts.push(setTimeout(function() {
-  const el = __children[4];
-  if (el) {
-   const config = {
-        "to": {"opacity": 1, "x": 200, "y": 0},
-    "over": 1200,
-    "easing": "easeInOut",
-    "path": "M0,0 Q100,-80 200,0",
-    "pathRotate": true
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_flyPath_item_5", player);
-   player.play();
-  }
-}, 1200.6));
-__omni_timeline_labels.set("flyPath", {"start": 0, "end": 2400.6});
-  return {
-   name: "flyPath",
-   type: "timeline",
-   kill: function() {
-    __timeouts.forEach(function(t) { clearTimeout(t); });
-    // Also cancel any running WAAPI animations on children
-    if (el) el.querySelectorAll('[data-nid]').forEach(function(c) {
-     c.getAnimations().forEach(function(a) { a.cancel(); });
-    });
-   }
-  };
-};
-function __omni_motion_bouncePath(el, config) {
-  var __children = el ? Array.from(el.querySelectorAll('[data-nid]')) : [];
-  var __childIdx = 0;
-  var __timeouts = [];
-/// ── @timeline bouncePath ──
-__timeouts.push(setTimeout(function() {
-  const el = __children[0];
-  if (el) {
-   const config = {
-    "from": {"opacity": 0},
-    "to": {"y": -40},
-    "over": 0.3,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_bouncePath_item_0", player);
-   player.play();
-  }
-}, 0));
-__timeouts.push(setTimeout(function() {
-  const el = __children[1];
-  if (el) {
-   const config = {
-        "to": {"opacity": 1, "y": 0},
-    "over": 800,
-    "easing": "easeOut",
-    "path": "M0,0 Q25,-20 50,0 Q75,-10 100,0",
-    "pathRotate": false
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_bouncePath_item_1", player);
-   player.play();
-  }
-}, 0.3));
-__timeouts.push(setTimeout(function() {
-  const el = __children[2];
-  if (el) {
-   const config = {
-    "from": {"opacity": 1},
-    "to": {"y": 0},
-    "over": 0.3,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_bouncePath_item_2", player);
-   player.play();
-  }
-}, 800.3));
-__timeouts.push(setTimeout(function() {
-  const el = __children[3];
-  if (el) {
-   const config = {
-        "to": {"opacity": 0, "y": -40},
-    "over": 600,
-    "easing": "easeIn",
-    "path": "M100,0 Q75,-10 50,0 Q25,-20 0,0",
-    "pathRotate": true
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_bouncePath_item_3", player);
-   player.play();
-  }
-}, 800.5999999999999));
-  return {
-   name: "bouncePath",
-   type: "timeline",
-   kill: function() {
-    __timeouts.forEach(function(t) { clearTimeout(t); });
-    // Also cancel any running WAAPI animations on children
-    if (el) el.querySelectorAll('[data-nid]').forEach(function(c) {
-     c.getAnimations().forEach(function(a) { a.cancel(); });
-    });
-   }
-  };
+function __omni_motion_slideInView(el, overrides) {
+  const opts = Object.assign({duration:"400ms",easing:Omni.resolveEasing("power2-out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"opacity":0,"translateY":30}},{offset:1,properties:{"opacity":1,"translateY":0}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_scrollFade(el, overrides) {
+  const opts = Object.assign({duration:"500ms",easing:Omni.resolveEasing("ease-out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"opacity":0.3,"scale":0.95}},{offset:1,properties:{"opacity":1,"scale":1}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_dragSlide(el, overrides) {
+  const opts = Object.assign({duration:"300ms",easing:Omni.resolveEasing("power2-out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"translateX":0}},{offset:1,properties:{"translateX":100}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_pulseAccent(el, overrides) {
+  const opts = Object.assign({duration:"600ms",easing:Omni.resolveEasing("ease-in-out"),fill:"both",direction:"alternate",iterations:Infinity}, overrides || {});
+  const kf = [{offset:0,properties:{"--accent-h":221}},{offset:1,properties:{"--accent-h":350}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_power1InMove(el, overrides) {
+  const opts = Object.assign({duration:"800ms",easing:Omni.resolveEasing("power1-in"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"translateX":0}},{offset:1,properties:{"translateX":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_power1OutMove(el, overrides) {
+  const opts = Object.assign({duration:"800ms",easing:Omni.resolveEasing("power1-out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"translateX":0}},{offset:1,properties:{"translateX":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_power1InOutMove(el, overrides) {
+  const opts = Object.assign({duration:"800ms",easing:Omni.resolveEasing("power1-in-out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"translateX":0}},{offset:1,properties:{"translateX":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_power2InMove(el, overrides) {
+  const opts = Object.assign({duration:"800ms",easing:Omni.resolveEasing("power2-in"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"translateX":0}},{offset:1,properties:{"translateX":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_power2InOutMove(el, overrides) {
+  const opts = Object.assign({duration:"800ms",easing:Omni.resolveEasing("power2-in-out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"translateX":0}},{offset:1,properties:{"translateX":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_power3InMove(el, overrides) {
+  const opts = Object.assign({duration:"800ms",easing:Omni.resolveEasing("power3-in"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"translateX":0}},{offset:1,properties:{"translateX":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_power3InOutMove(el, overrides) {
+  const opts = Object.assign({duration:"800ms",easing:Omni.resolveEasing("power3-in-out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"translateX":0}},{offset:1,properties:{"translateX":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_power4InMove(el, overrides) {
+  const opts = Object.assign({duration:"800ms",easing:Omni.resolveEasing("power4-in"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"translateX":0}},{offset:1,properties:{"translateX":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_power4OutMove(el, overrides) {
+  const opts = Object.assign({duration:"800ms",easing:Omni.resolveEasing("power4-out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"translateX":0}},{offset:1,properties:{"translateX":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_power4InOutMove(el, overrides) {
+  const opts = Object.assign({duration:"800ms",easing:Omni.resolveEasing("power4-in-out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"translateX":0}},{offset:1,properties:{"translateX":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_easeInMove(el, overrides) {
+  const opts = Object.assign({duration:"800ms",easing:Omni.resolveEasing("ease-in"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"translateX":0}},{offset:1,properties:{"translateX":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_backInMove(el, overrides) {
+  const opts = Object.assign({duration:"800ms",easing:Omni.resolveEasing({type:"back",direction:"in"}),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"translateX":0}},{offset:1,properties:{"translateX":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_backOutMove(el, overrides) {
+  const opts = Object.assign({duration:"800ms",easing:Omni.resolveEasing({type:"back",direction:"out"}),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"translateX":0}},{offset:1,properties:{"translateX":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_backInOutMove(el, overrides) {
+  const opts = Object.assign({duration:"800ms",easing:Omni.resolveEasing({type:"back",direction:"inout"}),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"translateX":0}},{offset:1,properties:{"translateX":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_bounceInMove(el, overrides) {
+  const opts = Object.assign({duration:"1000ms",easing:Omni.resolveEasing("bounce-in"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"translateX":0}},{offset:1,properties:{"translateX":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_bounceOutMove(el, overrides) {
+  const opts = Object.assign({duration:"1000ms",easing:Omni.resolveEasing("bounce-out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"translateX":0}},{offset:1,properties:{"translateX":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_bounceInOutMove(el, overrides) {
+  const opts = Object.assign({duration:"1000ms",easing:Omni.resolveEasing("bounce-in-out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"translateX":0}},{offset:1,properties:{"translateX":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_elasticInMove(el, overrides) {
+  const opts = Object.assign({duration:"1200ms",easing:Omni.resolveEasing({type:"elastic",direction:"in"}),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"translateX":0}},{offset:1,properties:{"translateX":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_elasticOutMove(el, overrides) {
+  const opts = Object.assign({duration:"1200ms",easing:Omni.resolveEasing({type:"elastic",direction:"out"}),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"translateX":0}},{offset:1,properties:{"translateX":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_elasticInOutMove(el, overrides) {
+  const opts = Object.assign({duration:"1200ms",easing:Omni.resolveEasing({type:"elastic",direction:"inout"}),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"translateX":0}},{offset:1,properties:{"translateX":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_cubicCustom(el, overrides) {
+  const opts = Object.assign({duration:"800ms",easing:Omni.resolveEasing({type:"cubicBezier",x1:0.68,y1:-0.55,x2:0.27,y2:1.55}),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"translateX":0}},{offset:1,properties:{"translateX":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_stepsEndMove(el, overrides) {
+  const opts = Object.assign({duration:"800ms",easing:Omni.resolveEasing("steps(6,end)"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"translateX":0}},{offset:1,properties:{"translateX":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_stepsStartMove(el, overrides) {
+  const opts = Object.assign({duration:"800ms",easing:Omni.resolveEasing("steps(6,start)"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"translateX":0}},{offset:1,properties:{"translateX":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_fadeInUp(el, overrides) {
+  const opts = Object.assign({duration:"400ms",easing:Omni.resolveEasing("ease-out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"opacity":0,"translateY":20}},{offset:1,properties:{"opacity":1,"translateY":0}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_scalePress(el, overrides) {
+  const opts = Object.assign({duration:"100ms",easing:Omni.resolveEasing("ease-out"),fill:"both"}, overrides || {});
+  const kf = [{offset:1,properties:{"scale":0.95}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_listItem(el, overrides) {
+  const opts = Object.assign({duration:"300ms",easing:Omni.resolveEasing("power2-out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"opacity":0,"translateX":-20}},{offset:1,properties:{"opacity":1,"translateX":0}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_pulse(el, overrides) {
+  const opts = Object.assign({duration:"800ms",easing:Omni.resolveEasing("ease-in-out"),fill:"both",direction:"alternate",iterations:Infinity}, overrides || {});
+  const kf = [{offset:1,properties:{"scale":1.05}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_scaleXDemo(el, overrides) {
+  const opts = Object.assign({duration:"600ms",easing:Omni.resolveEasing("power2-out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"scaleX":1}},{offset:1,properties:{"scaleX":1.8}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_scaleYDemo(el, overrides) {
+  const opts = Object.assign({duration:"500ms",easing:Omni.resolveEasing("power2-out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"scaleY":1}},{offset:1,properties:{"scaleY":1.5}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_scalePulseDemo(el, overrides) {
+  const opts = Object.assign({duration:"700ms",easing:Omni.resolveEasing("ease-out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"scale":1}},{offset:1,properties:{"scale":1.25}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_rotateXDemo(el, overrides) {
+  const opts = Object.assign({duration:"2000ms",easing:Omni.resolveEasing("ease-in-out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"rotateX":0}},{offset:1,properties:{"rotateX":360}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_rotateYDemo(el, overrides) {
+  const opts = Object.assign({duration:"2000ms",easing:Omni.resolveEasing("ease-in-out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"rotateY":0}},{offset:1,properties:{"rotateY":360}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_rotateZDemo(el, overrides) {
+  const opts = Object.assign({duration:"1500ms",easing:Omni.resolveEasing("power2-out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"rotateZ":0}},{offset:1,properties:{"rotateZ":360}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_rotateDemo(el, overrides) {
+  const opts = Object.assign({duration:"700ms",easing:Omni.resolveEasing("ease-out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"rotate":0}},{offset:1,properties:{"rotate":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_skewXDemo(el, overrides) {
+  const opts = Object.assign({duration:"600ms",easing:Omni.resolveEasing("power2-out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"skewX":0}},{offset:1,properties:{"skewX":15}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_skewYDemo(el, overrides) {
+  const opts = Object.assign({duration:"600ms",easing:Omni.resolveEasing("power2-out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"skewY":0}},{offset:1,properties:{"skewY":10}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_translateDemo(el, overrides) {
+  const opts = Object.assign({duration:"600ms",easing:Omni.resolveEasing("power2-out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"translateX":0,"translateY":0}},{offset:1,properties:{"translateX":120,"translateY":-20}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_translateZDemo(el, overrides) {
+  const opts = Object.assign({duration:"800ms",easing:Omni.resolveEasing("ease-in-out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"translateZ":0}},{offset:1,properties:{"translateZ":60}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_opacityPulseDemo(el, overrides) {
+  const opts = Object.assign({duration:"800ms",easing:Omni.resolveEasing("ease-out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"opacity":0.3}},{offset:1,properties:{"opacity":1}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_bgColorDemo(el, overrides) {
+  const opts = Object.assign({duration:"1200ms",easing:Omni.resolveEasing("ease-in-out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"backgroundColor":"#6366f1"}},{offset:1,properties:{"backgroundColor":"#f97316"}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_textColorDemo(el, overrides) {
+  const opts = Object.assign({duration:"800ms",easing:Omni.resolveEasing("power2-out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"color":"var(--textPrimary)"}},{offset:1,properties:{"color":"#dc2626"}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_widthDemo(el, overrides) {
+  const opts = Object.assign({duration:"900ms",easing:Omni.resolveEasing("ease-out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"width":60}},{offset:1,properties:{"width":200}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_heightDemo(el, overrides) {
+  const opts = Object.assign({duration:"700ms",easing:Omni.resolveEasing("power3-out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"height":40}},{offset:1,properties:{"height":120}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_enterFadeUp(el, overrides) {
+  const opts = Object.assign({duration:"500ms",easing:Omni.resolveEasing("power2-out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"opacity":0,"translateY":20}},{offset:1,properties:{"opacity":1,"translateY":0}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_hoverScale(el, overrides) {
+  const opts = Object.assign({duration:"200ms",easing:Omni.resolveEasing("ease-out"),fill:"both"}, overrides || {});
+  const kf = [{offset:1,properties:{"scale":1.05}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_pressShrink(el, overrides) {
+  const opts = Object.assign({duration:"100ms",easing:Omni.resolveEasing("ease-out"),fill:"both"}, overrides || {});
+  const kf = [{offset:1,properties:{"scale":0.95}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_focusGlow(el, overrides) {
+  const opts = Object.assign({duration:"200ms",easing:Omni.resolveEasing("ease-out"),fill:"both"}, overrides || {});
+  const kf = [{offset:1,properties:{"scale":1.05}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_inViewSlide(el, overrides) {
+  const opts = Object.assign({duration:"600ms",easing:Omni.resolveEasing("power2-out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"opacity":0,"translateY":30}},{offset:1,properties:{"opacity":1,"translateY":0}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_scrollProgress(el, overrides) {
+  const opts = Object.assign({duration:"500ms",easing:Omni.resolveEasing("ease-out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"opacity":0.3,"scale":0.95}},{offset:1,properties:{"opacity":1,"scale":1}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_dragSlideX(el, overrides) {
+  const opts = Object.assign({duration:"300ms",easing:Omni.resolveEasing("power2-out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"translateX":0}},{offset:1,properties:{"translateX":100}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_dragSlideY(el, overrides) {
+  const opts = Object.assign({duration:"300ms",easing:Omni.resolveEasing("power2-out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"translateY":0}},{offset:1,properties:{"translateY":60}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_spinLoop(el, overrides) {
+  const opts = Object.assign({duration:"2000ms",easing:Omni.resolveEasing("linear"),fill:"both",iterations:Infinity}, overrides || {});
+  const kf = [{offset:1,properties:{"rotate":360}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_dirAlternate(el, overrides) {
+  const opts = Object.assign({duration:"800ms",easing:Omni.resolveEasing("power2-out"),fill:"both",direction:"alternate"}, overrides || {});
+  const kf = [{offset:0,properties:{"scale":1}},{offset:1,properties:{"scale":1.3}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_dirAltReverse(el, overrides) {
+  const opts = Object.assign({duration:"800ms",easing:Omni.resolveEasing("power2-out"),fill:"both",direction:"alternate-reverse"}, overrides || {});
+  const kf = [{offset:0,properties:{"scale":1}},{offset:1,properties:{"scale":1.4}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_fillForwards(el, overrides) {
+  const opts = Object.assign({duration:"1000ms",easing:Omni.resolveEasing("power2-out"),fill:"forwards"}, overrides || {});
+  const kf = [{offset:0,properties:{"translateX":-20,"opacity":0}},{offset:1,properties:{"translateX":0,"opacity":1}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_fillBackwards(el, overrides) {
+  const opts = Object.assign({duration:"600ms",easing:Omni.resolveEasing("power2-out"),fill:"backwards",delay:500}, overrides || {});
+  const kf = [{offset:0,properties:{"opacity":0}},{offset:1,properties:{"opacity":1}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_fillBoth(el, overrides) {
+  const opts = Object.assign({duration:"600ms",easing:Omni.resolveEasing("power2-out"),fill:"both",delay:300}, overrides || {});
+  const kf = [{offset:0,properties:{"opacity":0,"scale":0.8}},{offset:1,properties:{"opacity":1,"scale":1.2}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_delayedEntrance(el, overrides) {
+  const opts = Object.assign({duration:"400ms",easing:Omni.resolveEasing("power2-out"),fill:"both",delay:500}, overrides || {});
+  const kf = [{offset:0,properties:{"opacity":0,"translateY":20}},{offset:1,properties:{"opacity":1,"translateY":0}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_cubicDemo(el, overrides) {
+  const opts = Object.assign({duration:"800ms",easing:Omni.resolveEasing({type:"cubicBezier",x1:0.68,y1:-0.55,x2:0.27,y2:1.55}),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"translateX":0}},{offset:1,properties:{"translateX":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_backEaseDemo(el, overrides) {
+  const opts = Object.assign({duration:"800ms",easing:Omni.resolveEasing({type:"back",direction:"out"}),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"translateX":0}},{offset:1,properties:{"translateX":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_elasticEaseDemo(el, overrides) {
+  const opts = Object.assign({duration:"1200ms",easing:Omni.resolveEasing({type:"elastic",direction:"out"}),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"translateX":0}},{offset:1,properties:{"translateX":180}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_multiStopDemo(el, overrides) {
+  const opts = Object.assign({duration:"1200ms",easing:Omni.resolveEasing("ease-in-out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"opacity":0,"scale":0.5,"backgroundColor":"#6366f1"}},{offset:0.25,properties:{"opacity":0.5,"scale":0.8}},{offset:0.5,properties:{"opacity":1,"scale":1.2,"backgroundColor":"#10b981"}},{offset:0.75,properties:{"opacity":1,"scale":1.05}},{offset:1,properties:{"opacity":1,"scale":1,"backgroundColor":"#f59e0b"}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_dragX300(el, overrides) {
+  const opts = Object.assign({duration:"300ms",easing:Omni.resolveEasing("power2-out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"translateX":0}},{offset:1,properties:{"translateX":300}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_dragX150(el, overrides) {
+  const opts = Object.assign({duration:"300ms",easing:Omni.resolveEasing("power2-out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"translateX":0}},{offset:1,properties:{"translateX":150}}];
+  return Omni.animate(el, kf, opts);
+};
+function __omni_motion_dragY100(el, overrides) {
+  const opts = Object.assign({duration:"300ms",easing:Omni.resolveEasing("power2-out"),fill:"both"}, overrides || {});
+  const kf = [{offset:0,properties:{"translateY":0}},{offset:1,properties:{"translateY":100}}];
+  return Omni.animate(el, kf, opts);
 };
 
 /// ── Component: AnimPropertiesDemo ──
@@ -2112,37 +1724,6 @@ __timeouts.push(setTimeout(function() {
 const AnimPropertiesDemo_playAll = __omni_signal("AnimPropertiesDemo_playAll", false);
 function AnimPropertiesDemo_toggleAll() {
   __omni_subs.get("AnimPropertiesDemo_playAll").set(!AnimPropertiesDemo_playAll.value);
-}
-
-
-
-/// ── Component: ComponentSpecialsDemo ──
-
-const ComponentSpecialsDemo_showPanel = __omni_signal("ComponentSpecialsDemo_showPanel", false);
-const ComponentSpecialsDemo_slotVisible = __omni_signal("ComponentSpecialsDemo_slotVisible", false);
-const ComponentSpecialsDemo_progressPct = __omni_signal("ComponentSpecialsDemo_progressPct", 0);
-const ComponentSpecialsDemo_counter = __omni_signal("ComponentSpecialsDemo_counter", 0);
-function ComponentSpecialsDemo_toggle() {
-  __omni_subs.get("ComponentSpecialsDemo_showPanel").set(!ComponentSpecialsDemo_showPanel.value);
-}
-
-function ComponentSpecialsDemo_openSlot() {
-  __omni_subs.get("ComponentSpecialsDemo_slotVisible").set(true);
-}
-
-function ComponentSpecialsDemo_closeSlot() {
-  __omni_subs.get("ComponentSpecialsDemo_slotVisible").set(false);
-}
-
-function ComponentSpecialsDemo_advancePct() {
-  __omni_subs.get("ComponentSpecialsDemo_progressPct").set(ComponentSpecialsDemo_progressPct.value + 10);
-  if (ComponentSpecialsDemo_progressPct.value > 100) {
-  __omni_subs.get("ComponentSpecialsDemo_progressPct").set(0);
-  }
-}
-
-function ComponentSpecialsDemo_increment() {
-  __omni_subs.get("ComponentSpecialsDemo_counter").set(ComponentSpecialsDemo_counter.value + 1);
 }
 
 
@@ -2178,6 +1759,20 @@ function TypeSystemDemo_loadSummary() {
 
 
 
+/// ── Component: KeyframeAnimationDemo ──
+
+const KeyframeAnimationDemo_playTriggers = __omni_signal("KeyframeAnimationDemo_playTriggers", false);
+const KeyframeAnimationDemo_playPlayback = __omni_signal("KeyframeAnimationDemo_playPlayback", false);
+function KeyframeAnimationDemo_toggleTriggers() {
+  __omni_subs.get("KeyframeAnimationDemo_playTriggers").set(!KeyframeAnimationDemo_playTriggers.value);
+}
+
+function KeyframeAnimationDemo_togglePlayback() {
+  __omni_subs.get("KeyframeAnimationDemo_playPlayback").set(!KeyframeAnimationDemo_playPlayback.value);
+}
+
+
+
 /// ── Component: MotionDemo ──
 
 const MotionDemo_count = __omni_signal("MotionDemo_count", 0);
@@ -2198,12 +1793,41 @@ function MotionDemo_removeItem() {
 
 /// ── Component: MotionTriggersDemo ──
 
-const MotionTriggersDemo_isHovered = __omni_signal("MotionTriggersDemo_isHovered", false);
-const MotionTriggersDemo_isFocused = __omni_signal("MotionTriggersDemo_isFocused", false);
-const MotionTriggersDemo_dragX = __omni_signal("MotionTriggersDemo_dragX", 0);
 
 
-/// ── Component: PathTimelineDemo ──
+/// ── Component: DynamicTokens ──
+
+function DynamicTokens_isPreset(name) {
+  if (name === "indigo" && DynamicTokenStore_liveColor.value === "#6366f1") {
+  return true;
+  }
+  if (name === "emerald" && DynamicTokenStore_liveColor.value === "#10b981") {
+  return true;
+  }
+  if (name === "crimson" && DynamicTokenStore_liveColor.value === "#ef4444") {
+  return true;
+  }
+  if (name === "amber" && DynamicTokenStore_liveColor.value === "#f59e0b") {
+  return true;
+  }
+  return false;
+}
+
+function DynamicTokens_setIndigo() {
+  DynamicTokenStore_setPreset("indigo");
+}
+
+function DynamicTokens_setEmerald() {
+  DynamicTokenStore_setPreset("emerald");
+}
+
+function DynamicTokens_setCrimson() {
+  DynamicTokenStore_setPreset("crimson");
+}
+
+function DynamicTokens_setAmber() {
+  DynamicTokenStore_setPreset("amber");
+}
 
 
 
@@ -2232,47 +1856,75 @@ function CssVarsDemo_toggleMode() {
 
 
 
-/// ── Component: TimelinePositionDemo ──
+/// ── Component: SlotBox ──
 
-const TimelinePositionDemo_activeDemo = __omni_signal("TimelinePositionDemo_activeDemo", "position");
-const TimelinePositionDemo_playCount = __omni_signal("TimelinePositionDemo_playCount", 0);
-function TimelinePositionDemo_switchDemo(name) {
-  __omni_subs.get("TimelinePositionDemo_activeDemo").set(name);
-}
-
-function TimelinePositionDemo_replayCount() {
-  __omni_subs.get("TimelinePositionDemo_playCount").set(TimelinePositionDemo_playCount.value + 1);
+function SlotBox_onClose(...args) {
+  var el = SlotBox_onClose._el || (SlotBox_onClose._el = document.querySelector('[data-component="SlotBox"]'));
+  if (el) el.dispatchEvent(new CustomEvent('close', { detail: args.length <= 1 ? args[0] : args, bubbles: false }));
 }
 
 
+/// ── Component: SignalPatternsDemo ──
 
-/// ── Component: EventDataDemo ──
-
-const EventDataDemo_scrollY = __omni_signal("EventDataDemo_scrollY", 0);
-const EventDataDemo_keyPressed = __omni_signal("EventDataDemo_keyPressed", "");
-const EventDataDemo_mouseX = __omni_signal("EventDataDemo_mouseX", 0);
-const EventDataDemo_mouseY = __omni_signal("EventDataDemo_mouseY", 0);
-const EventDataDemo_wheelDelta = __omni_signal("EventDataDemo_wheelDelta", 0.0);
-const EventDataDemo_ctrlHeld = __omni_signal("EventDataDemo_ctrlHeld", false);
-function EventDataDemo_handleScroll(e) {
-  __omni_subs.get("EventDataDemo_scrollY").set(e.y);
+const SignalPatternsDemo_count = __omni_signal("SignalPatternsDemo_count", 0);
+const SignalPatternsDemo_name = __omni_signal("SignalPatternsDemo_name", "");
+const SignalPatternsDemo_email = __omni_signal("SignalPatternsDemo_email", "");
+const SignalPatternsDemo_showSlot = __omni_signal("SignalPatternsDemo_showSlot", false);
+const SignalPatternsDemo_items = __omni_signal("SignalPatternsDemo_items", ["apple", "banana", "cherry"]);
+const SignalPatternsDemo_nextId = __omni_signal("SignalPatternsDemo_nextId", 3);
+const SignalPatternsDemo_mountTime = __omni_signal("SignalPatternsDemo_mountTime", "—");
+const SignalPatternsDemo_effectCount = __omni_signal("SignalPatternsDemo_effectCount", 0);
+const SignalPatternsDemo_showPanel = __omni_signal("SignalPatternsDemo_showPanel", false);
+const SignalPatternsDemo_doubleCount = __omni_computed("SignalPatternsDemo_doubleCount", () => (SignalPatternsDemo_count.value * 2));
+const SignalPatternsDemo_isEven = __omni_computed("SignalPatternsDemo_isEven", () => (SignalPatternsDemo_count.value % 2 === 0));
+const SignalPatternsDemo_isValid = __omni_computed("SignalPatternsDemo_isValid", () => ((SignalPatternsDemo_name.value || []).length > 0 && (SignalPatternsDemo_email.value || []).length > 0));
+const SignalPatternsDemo_totalItems = __omni_computed("SignalPatternsDemo_totalItems", () => ((SignalPatternsDemo_items.value || []).length));
+function SignalPatternsDemo_onItemAdded(...args) {
+  var el = SignalPatternsDemo_onItemAdded._el || (SignalPatternsDemo_onItemAdded._el = document.querySelector('[data-component="SignalPatternsDemo"]'));
+  if (el) el.dispatchEvent(new CustomEvent('itemadded', { detail: args.length <= 1 ? args[0] : args, bubbles: false }));
+}
+function SignalPatternsDemo_onItemRemoved(...args) {
+  var el = SignalPatternsDemo_onItemRemoved._el || (SignalPatternsDemo_onItemRemoved._el = document.querySelector('[data-component="SignalPatternsDemo"]'));
+  if (el) el.dispatchEvent(new CustomEvent('itemremoved', { detail: args.length <= 1 ? args[0] : args, bubbles: false }));
+}
+function SignalPatternsDemo_inc() {
+  __omni_subs.get("SignalPatternsDemo_count").set(SignalPatternsDemo_count.value + 1);
 }
 
-function EventDataDemo_handleKeyDown(e) {
-  __omni_subs.get("EventDataDemo_keyPressed").set(e.key);
-  __omni_subs.get("EventDataDemo_ctrlHeld").set(e.ctrl);
+function SignalPatternsDemo_dec() {
+  __omni_subs.get("SignalPatternsDemo_count").set(SignalPatternsDemo_count.value - 1);
 }
 
-function EventDataDemo_handleMouseMove(e) {
-  __omni_subs.get("EventDataDemo_mouseX").set(e.x);
-  __omni_subs.get("EventDataDemo_mouseY").set(e.y);
+function SignalPatternsDemo_resetCounter() {
+  __omni_subs.get("SignalPatternsDemo_count").set(0);
 }
 
-function EventDataDemo_handleWheel(e) {
-  __omni_subs.get("EventDataDemo_wheelDelta").set(e.deltaY);
-  __omni_subs.get("EventDataDemo_ctrlHeld").set(e.ctrl);
+function SignalPatternsDemo_addItem() {
+  let id = SignalPatternsDemo_nextId.value;
+  __omni_subs.get("SignalPatternsDemo_nextId").set(SignalPatternsDemo_nextId.value + 1);
+  __omni_subs.get("SignalPatternsDemo_items").set([...SignalPatternsDemo_items.value, "item-" + String(id)]);
+  SignalPatternsDemo_onItemAdded("item-" + String(id));
 }
 
+function SignalPatternsDemo_removeLast() {
+  if ((SignalPatternsDemo_items.value || []).length > 0) {
+  __omni_subs.get("SignalPatternsDemo_items").set(SignalPatternsDemo_items.value.slice(0, (SignalPatternsDemo_items.value || []).length - 1));
+  SignalPatternsDemo_onItemRemoved((SignalPatternsDemo_items.value || []).length);
+  }
+}
+
+function SignalPatternsDemo_toggleSlot() {
+  __omni_subs.get("SignalPatternsDemo_showSlot").set(!SignalPatternsDemo_showSlot.value);
+}
+
+function SignalPatternsDemo_togglePanel() {
+  __omni_subs.get("SignalPatternsDemo_showPanel").set(!SignalPatternsDemo_showPanel.value);
+}
+
+// @unmount SignalPatternsDemo
+window.__omni_unmount_SignalPatternsDemo = () => {
+  __omni_subs.get("SignalPatternsDemo_mountTime").set("unmounting...");
+};
 
 
 /// ── Component: DataSubmit ──
@@ -2308,17 +1960,46 @@ async function DataSubmit_submitForm() {
 
 
 
-/// ── Component: HeroTransitionDemo ──
+/// ── Component: DataFetching ──
 
-const HeroTransitionDemo_isExpanded = __omni_signal("HeroTransitionDemo_isExpanded", false);
-const HeroTransitionDemo_progress = __omni_signal("HeroTransitionDemo_progress", 0.0);
-function HeroTransitionDemo_toggle() {
-  __omni_subs.get("HeroTransitionDemo_isExpanded").set(!HeroTransitionDemo_isExpanded.value);
+const DataFetching_status = __omni_signal("DataFetching_status", "idle");
+const DataFetching_resultText = __omni_signal("DataFetching_resultText", "");
+const DataFetching_errorMsg = __omni_signal("DataFetching_errorMsg", "");
+const DataFetching_url = __omni_signal("DataFetching_url", "https://jsonplaceholder.typicode.com/todos/1");
+const DataFetching_apiDemoText = __omni_signal("DataFetching_apiDemoText", "");
+function DataFetching_reset() {
+  __omni_subs.get("DataFetching_status").set("idle");
+  __omni_subs.get("DataFetching_resultText").set("");
+  __omni_subs.get("DataFetching_errorMsg").set("");
 }
 
-function HeroTransitionDemo_advance() {
-  if (HeroTransitionDemo_progress.value < 1.0) {
-  __omni_subs.get("HeroTransitionDemo_progress").set(HeroTransitionDemo_progress.value + 0.1);
+async function DataFetching_loadData() {
+  __omni_subs.get("DataFetching_status").set("loading");
+  let raw = await fetch(DataFetching_url.value).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.text(); });
+  if (raw === "") {
+  __omni_subs.get("DataFetching_status").set("error");
+  __omni_subs.get("DataFetching_errorMsg").set("Empty response from server");
+  console.error(DataFetching_errorMsg.value);
+  return undefined;
+  }
+  let parsed = JSON.parse(raw);
+  __omni_subs.get("DataFetching_resultText").set(JSON.stringify(parsed));
+  __omni_subs.get("DataFetching_status").set("success");
+  console.log("Fetch completed");
+}
+
+async function DataFetching_loadViaApi() {
+  __omni_subs.get("DataFetching_status").set("loading");
+  let result = await fetch_demo(DataFetching_url.value);
+  let msg = error_message(result);
+  if (msg === "") {
+  __omni_subs.get("DataFetching_status").set("success");
+  __omni_subs.get("DataFetching_resultText").set("api.omni fetch_demo OK");
+  console.log("Fetch completed");
+  } else {
+  __omni_subs.get("DataFetching_status").set("error");
+  __omni_subs.get("DataFetching_errorMsg").set(msg);
+  console.error(msg);
   }
 }
 
@@ -2335,14 +2016,14 @@ function StylePseudoDemo_increment() {
 
 /// ── Component: TodoList ──
 
-const TodoList_items = __omni_signal("TodoList_items", []);
+const TodoList_items = __omni_readonlySignal("TodoList_items", []);
 function TodoList_onDelete(...args) {
-  const el = document.querySelector('[data-component="TodoList"]');
-  if (el) el.dispatchEvent(new CustomEvent('delete', { detail: args[0], bubbles: false }));
+  var el = TodoList_onDelete._el || (TodoList_onDelete._el = document.querySelector('[data-component="TodoList"]'));
+  if (el) el.dispatchEvent(new CustomEvent('delete', { detail: args.length <= 1 ? args[0] : args, bubbles: false }));
 }
 function TodoList_onAdd(...args) {
-  const el = document.querySelector('[data-component="TodoList"]');
-  if (el) el.dispatchEvent(new CustomEvent('add', { detail: args[0], bubbles: false }));
+  var el = TodoList_onAdd._el || (TodoList_onAdd._el = document.querySelector('[data-component="TodoList"]'));
+  if (el) el.dispatchEvent(new CustomEvent('add', { detail: args.length <= 1 ? args[0] : args, bubbles: false }));
 }
 function TodoList_handleDelete(index) {
   TodoList_onDelete(index);
@@ -2410,51 +2091,6 @@ function TabPanel_getBtnColor(tab) {
 
 
 
-/// ── Component: DataFetching ──
-
-const DataFetching_status = __omni_signal("DataFetching_status", "idle");
-const DataFetching_resultText = __omni_signal("DataFetching_resultText", "");
-const DataFetching_errorMsg = __omni_signal("DataFetching_errorMsg", "");
-const DataFetching_url = __omni_signal("DataFetching_url", "https://jsonplaceholder.typicode.com/todos/1");
-const DataFetching_apiDemoText = __omni_signal("DataFetching_apiDemoText", "");
-function DataFetching_reset() {
-  __omni_subs.get("DataFetching_status").set("idle");
-  __omni_subs.get("DataFetching_resultText").set("");
-  __omni_subs.get("DataFetching_errorMsg").set("");
-}
-
-async function DataFetching_loadData() {
-  __omni_subs.get("DataFetching_status").set("loading");
-  let raw = await fetch(DataFetching_url.value).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.text(); });
-  if (raw === "") {
-  __omni_subs.get("DataFetching_status").set("error");
-  __omni_subs.get("DataFetching_errorMsg").set("Empty response from server");
-  console.error(DataFetching_errorMsg.value);
-  return undefined;
-  }
-  let parsed = JSON.parse(raw);
-  __omni_subs.get("DataFetching_resultText").set(JSON.stringify(parsed));
-  __omni_subs.get("DataFetching_status").set("success");
-  console.log("Fetch completed");
-}
-
-async function DataFetching_loadViaApi() {
-  __omni_subs.get("DataFetching_status").set("loading");
-  let result = await fetch_demo(DataFetching_url.value);
-  let msg = error_message(result);
-  if (msg === "") {
-  __omni_subs.get("DataFetching_status").set("success");
-  __omni_subs.get("DataFetching_resultText").set("api.omni fetch_demo OK");
-  console.log("Fetch completed");
-  } else {
-  __omni_subs.get("DataFetching_status").set("error");
-  __omni_subs.get("DataFetching_errorMsg").set(msg);
-  console.error(msg);
-  }
-}
-
-
-
 /// ── Component: EventShorthand ──
 
 const EventShorthand_msg = __omni_signal("EventShorthand_msg", "Click a button");
@@ -2476,29 +2112,29 @@ function EventShorthand_reset() {
 
 
 
-/// ── Component: SettingsPage ──
-
-const SettingsPage_themeColors = __omni_signal("SettingsPage_themeColors", ["primary", "primaryLight", "success", "warning", "danger", "bgLight", "textLight", "bgDark", "textDark"]);
-const SettingsPage_aboutExpanded = __omni_signal("SettingsPage_aboutExpanded", false);
-function SettingsPage_toggleAbout() {
-  __omni_subs.get("SettingsPage_aboutExpanded").set(!SettingsPage_aboutExpanded.value);
-}
-
-
-
-/// ── Component: TimelineMotionDemo ──
+/// ── Component: ThemeSourceDemo ──
 
 
 
 /// ── Component: TodoItem ──
 
-const TodoItem_text = __omni_signal("TodoItem_text", "");
+const TodoItem_text = __omni_readonlySignal("TodoItem_text", "");
+
+
+/// ── Component: MotionPage ──
+
 
 
 /// ── Component: ThemeSwitcher ──
 
-const ThemeSwitcher_isHovered = __omni_signal("ThemeSwitcher_isHovered", false);
-const ThemeSwitcher_buttonLabel = __omni_computed("ThemeSwitcher_buttonLabel", () => (ThemeSwitcher_isHovered.value ? "Switch to " + ThemeStore_nextLabel.value : ThemeStore_modeLabel.value + " Mode"));
+function ThemeSwitcher_isActive(theme) {
+  return ThemeStore_mode.value === theme;
+}
+
+function ThemeSwitcher_selectTheme(theme) {
+  ThemeStore_setMode(theme);
+}
+
 
 
 /// ── Component: AdvancedPseudoDemo ──
@@ -2551,11 +2187,6 @@ function FormControlsDemo_handleLinkClick() {
 
 
 
-/// ── Component: TodoPage ──
-
-const TodoPage_pageLoadCount = __omni_signal("TodoPage_pageLoadCount", 0);
-
-
 /// ── Component: Modal ──
 
 const Modal_isOpen = __omni_signal("Modal_isOpen", false);
@@ -2605,13 +2236,76 @@ function Modal_getModalClass() {
 
 
 
+/// ── Component: ElementRefDemo ──
+
+const ElementRefDemo_focusStatus = __omni_signal("ElementRefDemo_focusStatus", "not focused");
+const ElementRefDemo_scrollPos = __omni_signal("ElementRefDemo_scrollPos", "top");
+const ElementRefDemo_scrollTarget = __omni_signal("ElementRefDemo_scrollTarget", 0);
+const ElementRefDemo_rectInfo = __omni_signal("ElementRefDemo_rectInfo", "—");
+const ElementRefDemo_boxWidth = __omni_signal("ElementRefDemo_boxWidth", 200);
+const ElementRefDemo_boxWidthPx = __omni_signal("ElementRefDemo_boxWidthPx", "200px");
+const ElementRefDemo_boxHeightPx = __omni_signal("ElementRefDemo_boxHeightPx", "80px");
+const ElementRefDemo_mirrorText = __omni_signal("ElementRefDemo_mirrorText", "");
+function ElementRefDemo_focusInput() {
+  inputBox.focus();
+  __omni_subs.get("ElementRefDemo_focusStatus").set("focused");
+}
+
+function ElementRefDemo_blurInput() {
+  inputBox.blur();
+  __omni_subs.get("ElementRefDemo_focusStatus").set("blurred");
+}
+
+function ElementRefDemo_scrollToTop() {
+  __omni_subs.get("ElementRefDemo_scrollTarget").set(0);
+  __omni_subs.get("ElementRefDemo_scrollPos").set("top");
+}
+
+function ElementRefDemo_scrollToBottom() {
+  __omni_subs.get("ElementRefDemo_scrollTarget").set(9999);
+  __omni_subs.get("ElementRefDemo_scrollPos").set("bottom");
+}
+
+function ElementRefDemo_scrollByDown() {
+  scrollArea.scrollBy({ left: 0, top: 100 });
+  __omni_subs.get("ElementRefDemo_scrollPos").set("scrolled +100px");
+}
+
+function ElementRefDemo_queryRect() {
+  let rect = rectBox.getBoundingClientRect();
+  __omni_subs.get("ElementRefDemo_rectInfo").set("x:" + String(rect.x) + " y:" + String(rect.y) + " w:" + String(rect.width) + " h:" + String(rect.height));
+}
+
+function ElementRefDemo_querySize() {
+  let w = sizeBox.getBoundingClientRect().width;
+  let h = sizeBox.getBoundingClientRect().height;
+  __omni_subs.get("ElementRefDemo_boxWidth").set(w);
+}
+
+function ElementRefDemo_expandBox() {
+  __omni_subs.get("ElementRefDemo_boxWidthPx").set("300px");
+  __omni_subs.get("ElementRefDemo_boxHeightPx").set("120px");
+}
+
+function ElementRefDemo_resetBox() {
+  __omni_subs.get("ElementRefDemo_boxWidthPx").set("200px");
+  __omni_subs.get("ElementRefDemo_boxHeightPx").set("80px");
+}
+
+function ElementRefDemo_syncMirror() {
+  let val = mirrorInput.value;
+  __omni_subs.get("ElementRefDemo_mirrorText").set(val);
+}
+
+
+
 /// ── Component: AddTodo ──
 
 const AddTodo_input = __omni_signal("AddTodo_input", "");
 const AddTodo_hint = __omni_computed("AddTodo_hint", () => (AddTodo_input.value === "" ? "输入待办事项" : "已输入 " + String((AddTodo_input.value || []).length) + " 字符"));
 function AddTodo_onAdd(...args) {
-  const el = document.querySelector('[data-component="AddTodo"]');
-  if (el) el.dispatchEvent(new CustomEvent('add', { detail: args[0], bubbles: false }));
+  var el = AddTodo_onAdd._el || (AddTodo_onAdd._el = document.querySelector('[data-component="AddTodo"]'));
+  if (el) el.dispatchEvent(new CustomEvent('add', { detail: args.length <= 1 ? args[0] : args, bubbles: false }));
 }
 function AddTodo_handleAdd() {
   if (AddTodo_input.value !== "") {
@@ -2620,24 +2314,6 @@ function AddTodo_handleAdd() {
   } else {
   console.warn("Input is empty");
   }
-}
-
-
-
-/// ── Component: ComputedFnFormDemo ──
-
-const ComputedFnFormDemo_firstName = __omni_signal("ComputedFnFormDemo_firstName", "Zhang");
-const ComputedFnFormDemo_lastName = __omni_signal("ComputedFnFormDemo_lastName", "");
-const ComputedFnFormDemo_counter = __omni_signal("ComputedFnFormDemo_counter", 0);
-const ComputedFnFormDemo_simple = __omni_computed("ComputedFnFormDemo_simple", () => (ComputedFnFormDemo_firstName.value + " " + ComputedFnFormDemo_lastName.value));
-const ComputedFnFormDemo_fullName = __omni_computed("ComputedFnFormDemo_fullName", () => ((function(){ /* unhandled stmt in block expr */;/* unhandled stmt in block expr */;return ComputedFnFormDemo_firstName.value + " " + ComputedFnFormDemo_lastName.value;return null; })()));
-function ComputedFnFormDemo_clearLast() {
-  __omni_subs.get("ComputedFnFormDemo_lastName").set("");
-}
-
-function ComputedFnFormDemo_setLast() {
-  __omni_subs.get("ComputedFnFormDemo_lastName").set("San");
-  __omni_subs.get("ComputedFnFormDemo_counter").set(ComputedFnFormDemo_counter.value + 1);
 }
 
 
@@ -2658,6 +2334,23 @@ function UserSettings_clearSettings() {
   localStorage.setItem("user-settings", "");
   __omni_subs.get("UserSettings_username").set("");
   __omni_subs.get("UserSettings_savedText").set("Settings cleared");
+}
+
+
+
+/// ── Component: ComputedFnFormDemo ──
+
+const ComputedFnFormDemo_firstName = __omni_signal("ComputedFnFormDemo_firstName", "Zhang");
+const ComputedFnFormDemo_lastName = __omni_signal("ComputedFnFormDemo_lastName", "");
+const ComputedFnFormDemo_counter = __omni_signal("ComputedFnFormDemo_counter", 0);
+const ComputedFnFormDemo_simple = __omni_computed("ComputedFnFormDemo_simple", () => (ComputedFnFormDemo_firstName.value + " " + ComputedFnFormDemo_lastName.value));
+function ComputedFnFormDemo_clearLast() {
+  __omni_subs.get("ComputedFnFormDemo_lastName").set("");
+}
+
+function ComputedFnFormDemo_setLast() {
+  __omni_subs.get("ComputedFnFormDemo_lastName").set("San");
+  __omni_subs.get("ComputedFnFormDemo_counter").set(ComputedFnFormDemo_counter.value + 1);
 }
 
 
@@ -2731,14 +2424,6 @@ function TernaryExprDemo_setScore(s) {
   __omni_subs.get("TernaryExprDemo_score").set(s);
 }
 
-
-
-/// ── Component: SlotContainer ──
-
-function SlotContainer_onClose(...args) {
-  const el = document.querySelector('[data-component="SlotContainer"]');
-  if (el) el.dispatchEvent(new CustomEvent('close', { detail: args[0], bubbles: false }));
-}
 
 
 /// ── Component: FeatureList ──
@@ -2816,48 +2501,6 @@ window.__omni_unmount_StatsDashboard = () => {
 };
 
 
-/// ── Component: Header ──
-
-
-
-/// ── Component: PlaybackAdvancedDemo ──
-
-const PlaybackAdvancedDemo_playDirFill = __omni_signal("PlaybackAdvancedDemo_playDirFill", false);
-function PlaybackAdvancedDemo_toggleDirFill() {
-  __omni_subs.get("PlaybackAdvancedDemo_playDirFill").set(!PlaybackAdvancedDemo_playDirFill.value);
-}
-
-
-
-/// ── Component: CssUnitsDemo ──
-
-
-
-/// ── Component: EmitEventDemo ──
-
-const EmitEventDemo_messages = __omni_signal("EmitEventDemo_messages", []);
-const EmitEventDemo_totalCount = __omni_signal("EmitEventDemo_totalCount", 0);
-function EmitEventDemo_onChildAction(msg) {
-  __omni_subs.get("EmitEventDemo_totalCount").set(EmitEventDemo_totalCount.value + 1);
-  [...(EmitEventDemo_messages.value), String(EmitEventDemo_totalCount.value) + ": " + msg];
-}
-
-function EmitEventDemo_onOptionalAck(msg) {
-  [...(EmitEventDemo_messages.value), "[ACK] " + msg];
-}
-
-function EmitEventDemo_onChildCount(n) {
-  __omni_subs.get("EmitEventDemo_totalCount").set(EmitEventDemo_totalCount.value + n);
-  [...(EmitEventDemo_messages.value), "[COUNT] += " + String(n) + ", total=" + String(EmitEventDemo_totalCount.value)];
-}
-
-function EmitEventDemo_clearLog() {
-  __omni_subs.get("EmitEventDemo_messages").set([]);
-  __omni_subs.get("EmitEventDemo_totalCount").set(0);
-}
-
-
-
 /// ── Component: ValidationInput ──
 
 const ValidationInput_input = __omni_signal("ValidationInput_input", "");
@@ -2915,18 +2558,64 @@ function ValidationInput_validate(text) {
 
 
 
+/// ── Component: Header ──
+
+
+
+/// ── Component: CssUnitsDemo ──
+
+
+
+/// ── Component: EmitEventDemo ──
+
+const EmitEventDemo_messages = __omni_signal("EmitEventDemo_messages", []);
+const EmitEventDemo_totalCount = __omni_signal("EmitEventDemo_totalCount", 0);
+function EmitEventDemo_onChildAction(msg) {
+  __omni_subs.get("EmitEventDemo_totalCount").set(EmitEventDemo_totalCount.value + 1);
+  [...(EmitEventDemo_messages.value), String(EmitEventDemo_totalCount.value) + ": " + msg];
+}
+
+function EmitEventDemo_onOptionalAck(msg) {
+  [...(EmitEventDemo_messages.value), "[ACK] " + msg];
+}
+
+function EmitEventDemo_onChildCount(n) {
+  __omni_subs.get("EmitEventDemo_totalCount").set(EmitEventDemo_totalCount.value + n);
+  [...(EmitEventDemo_messages.value), "[COUNT] += " + String(n) + ", total=" + String(EmitEventDemo_totalCount.value)];
+}
+
+function EmitEventDemo_clearLog() {
+  __omni_subs.get("EmitEventDemo_messages").set([]);
+  __omni_subs.get("EmitEventDemo_totalCount").set(0);
+}
+
+
+
+/// ── Component: TabBar ──
+
+const TabBar_activeTab = __omni_readonlySignal("TabBar_activeTab", "overview");
+function TabBar_onSwitch(...args) {
+  var el = TabBar_onSwitch._el || (TabBar_onSwitch._el = document.querySelector('[data-component="TabBar"]'));
+  if (el) el.dispatchEvent(new CustomEvent('switch', { detail: args.length <= 1 ? args[0] : args, bubbles: false }));
+}
+function TabBar_isActive(tab) {
+  return TabBar_activeTab.value === tab;
+}
+
+
+
 /// ── Component: Timer ──
 
 const Timer_count = __omni_signal("Timer_count", 0);
 const Timer_running = __omni_signal("Timer_running", false);
 const Timer_interval = __omni_signal("Timer_interval", 1000);
 function Timer_onTick(...args) {
-  const el = document.querySelector('[data-component="Timer"]');
-  if (el) el.dispatchEvent(new CustomEvent('tick', { detail: args[0], bubbles: false }));
+  var el = Timer_onTick._el || (Timer_onTick._el = document.querySelector('[data-component="Timer"]'));
+  if (el) el.dispatchEvent(new CustomEvent('tick', { detail: args.length <= 1 ? args[0] : args, bubbles: false }));
 }
 function Timer_onComplete(...args) {
-  const el = document.querySelector('[data-component="Timer"]');
-  if (el) el.dispatchEvent(new CustomEvent('complete', { detail: args[0], bubbles: false }));
+  var el = Timer_onComplete._el || (Timer_onComplete._el = document.querySelector('[data-component="Timer"]'));
+  if (el) el.dispatchEvent(new CustomEvent('complete', { detail: args.length <= 1 ? args[0] : args, bubbles: false }));
 }
 function Timer_start() {
   __omni_subs.get("Timer_running").set(true);
@@ -2972,26 +2661,7 @@ window.__omni_unmount_Timer = () => {
 };
 
 
-/// ── Component: EmitChild ──
-
-const EmitChild_count = __omni_signal("EmitChild_count", 0);
-function EmitChild_onEmitClick(...args) {
-  const el = document.querySelector('[data-component="EmitChild"]');
-  if (el) el.dispatchEvent(new CustomEvent('emitclick', { detail: args[0], bubbles: false }));
-}
-function EmitChild_onFuncClick(...args) {
-  const el = document.querySelector('[data-component="EmitChild"]');
-  if (el) el.dispatchEvent(new CustomEvent('funcclick', { detail: args[0], bubbles: false }));
-}
-function EmitChild_handleEmit() {
-  __omni_subs.get("EmitChild_count").set(EmitChild_count.value + 1);
-  null;
-}
-
-function EmitChild_handleFunc() {
-  __omni_subs.get("EmitChild_count").set(EmitChild_count.value + 1);
-  EmitChild_onFuncClick("function #" + String(EmitChild_count.value));
-}
+/// ── Component: DesignTheme ──
 
 
 
@@ -3214,11 +2884,37 @@ function FormPage_isFormValid() {
 
 
 
-/// ── Component: MotionPlaybackDemo ──
+/// ── Component: CapabilityCard ──
 
-const MotionPlaybackDemo_play = __omni_signal("MotionPlaybackDemo_play", false);
-function MotionPlaybackDemo_trigger() {
-  __omni_subs.get("MotionPlaybackDemo_play").set(!MotionPlaybackDemo_play.value);
+const CapabilityCard_title = __omni_readonlySignal("CapabilityCard_title", "");
+const CapabilityCard_tabName = __omni_readonlySignal("CapabilityCard_tabName", "");
+const CapabilityCard_icon = __omni_readonlySignal("CapabilityCard_icon", "🔧");
+const CapabilityCard_description = __omni_readonlySignal("CapabilityCard_description", "");
+function CapabilityCard_onNavigate(...args) {
+  var el = CapabilityCard_onNavigate._el || (CapabilityCard_onNavigate._el = document.querySelector('[data-component="CapabilityCard"]'));
+  if (el) el.dispatchEvent(new CustomEvent('navigate', { detail: args.length <= 1 ? args[0] : args, bubbles: false }));
+}
+
+
+/// ── Component: EmitChild ──
+
+const EmitChild_count = __omni_signal("EmitChild_count", 0);
+function EmitChild_onEmitClick(...args) {
+  var el = EmitChild_onEmitClick._el || (EmitChild_onEmitClick._el = document.querySelector('[data-component="EmitChild"]'));
+  if (el) el.dispatchEvent(new CustomEvent('emitclick', { detail: args.length <= 1 ? args[0] : args, bubbles: false }));
+}
+function EmitChild_onFuncClick(...args) {
+  var el = EmitChild_onFuncClick._el || (EmitChild_onFuncClick._el = document.querySelector('[data-component="EmitChild"]'));
+  if (el) el.dispatchEvent(new CustomEvent('funcclick', { detail: args.length <= 1 ? args[0] : args, bubbles: false }));
+}
+function EmitChild_handleEmit() {
+  __omni_subs.get("EmitChild_count").set(EmitChild_count.value + 1);
+  EmitChild_onEmitClick("emit #" + String(EmitChild_count.value));
+}
+
+function EmitChild_handleFunc() {
+  __omni_subs.get("EmitChild_count").set(EmitChild_count.value + 1);
+  EmitChild_onFuncClick("function #" + String(EmitChild_count.value));
 }
 
 
@@ -3252,6 +2948,13 @@ function FeatureCard_reset() {
 
 
 
+/// ── Component: DesignTokenPanel ──
+
+const DesignTokenPanel_colorTokens = __omni_signal("DesignTokenPanel_colorTokens", ["primary", "primaryLight", "success", "warning", "danger", "accent", "surface", "surfaceMuted", "textPrimary", "textSecondary", "border"]);
+const DesignTokenPanel_sizeTokens = __omni_signal("DesignTokenPanel_sizeTokens", ["spaceXs", "spaceSm", "spaceMd", "spaceLg", "spaceXl", "spaceXxl"]);
+const DesignTokenPanel_radiusTokens = __omni_signal("DesignTokenPanel_radiusTokens", ["radiusSm", "radiusMd", "radiusLg", "radiusFull"]);
+
+
 /// ── Component: NotificationsPanel ──
 
 const NotificationsPanel_badgeVisible = __omni_signal("NotificationsPanel_badgeVisible", false);
@@ -3260,6 +2963,10 @@ const NotificationsPanel_badgeVisible = __omni_signal("NotificationsPanel_badgeV
 /// ── Component: ForDirectiveKeyDemo ──
 
 const ForDirectiveKeyDemo_items = __omni_signal("ForDirectiveKeyDemo_items", ["Apple", "Banana", "Cherry", "Date", "Elderberry"]);
+
+
+/// ── Component: LanguagePage ──
+
 
 
 /// ── Component: FilterBar ──
@@ -3283,18 +2990,18 @@ function FilterBar_handleSortToggle() {
 /// ── Component: EmitEventChild ──
 
 const EmitEventChild_clickCount = __omni_signal("EmitEventChild_clickCount", 0);
-const EmitEventChild_label = __omni_signal("EmitEventChild_label", "Child");
+const EmitEventChild_label = __omni_readonlySignal("EmitEventChild_label", "Child");
 function EmitEventChild_onAction(...args) {
-  const el = document.querySelector('[data-component="EmitEventChild"]');
-  if (el) el.dispatchEvent(new CustomEvent('action', { detail: args[0], bubbles: false }));
+  var el = EmitEventChild_onAction._el || (EmitEventChild_onAction._el = document.querySelector('[data-component="EmitEventChild"]'));
+  if (el) el.dispatchEvent(new CustomEvent('action', { detail: args.length <= 1 ? args[0] : args, bubbles: false }));
 }
 function EmitEventChild_onOptionalAck(...args) {
-  const el = document.querySelector('[data-component="EmitEventChild"]');
-  if (el) el.dispatchEvent(new CustomEvent('optionalack', { detail: args[0], bubbles: false }));
+  var el = EmitEventChild_onOptionalAck._el || (EmitEventChild_onOptionalAck._el = document.querySelector('[data-component="EmitEventChild"]'));
+  if (el) el.dispatchEvent(new CustomEvent('optionalack', { detail: args.length <= 1 ? args[0] : args, bubbles: false }));
 }
 function EmitEventChild_onCount(...args) {
-  const el = document.querySelector('[data-component="EmitEventChild"]');
-  if (el) el.dispatchEvent(new CustomEvent('count', { detail: args[0], bubbles: false }));
+  var el = EmitEventChild_onCount._el || (EmitEventChild_onCount._el = document.querySelector('[data-component="EmitEventChild"]'));
+  if (el) el.dispatchEvent(new CustomEvent('count', { detail: args.length <= 1 ? args[0] : args, bubbles: false }));
 }
 function EmitEventChild_doAction() {
   __omni_subs.get("EmitEventChild_clickCount").set(EmitEventChild_clickCount.value + 1);
@@ -3327,14 +3034,6 @@ function Dashboard_refresh() {
 
 
 
-/// ── Component: StepsStartDemo ──
-
-
-
-/// ── Component: StaggerAndTimelineDemo ──
-
-
-
 /// ── Component: Constants ──
 
 const Constants_APP_NAME = __omni_signal("Constants_APP_NAME", "OmniView Learn");
@@ -3345,7 +3044,7 @@ const Constants_apiBase = __omni_signal("Constants_apiBase", "https://api.omnila
 
 /// ── Component: StatsPanel ──
 
-const StatsPanel_total = __omni_signal("StatsPanel_total", 0);
+const StatsPanel_total = __omni_readonlySignal("StatsPanel_total", 0);
 
 
 /// ── Component: NullishDemo ──
@@ -3354,25 +3053,7 @@ const NullishDemo_inputName = __omni_signal("NullishDemo_inputName", "test");
 const NullishDemo_displayName = __omni_computed("NullishDemo_displayName", () => (NullishDemo_inputName.value ?? "Anonymous"));
 
 
-/// ── Component: ThemeCssVarsDemo ──
-
-const ThemeCssVarsDemo_boxScale = __omni_signal("ThemeCssVarsDemo_boxScale", 1.0);
-const ThemeCssVarsDemo_borderWidth = __omni_signal("ThemeCssVarsDemo_borderWidth", 2);
-function ThemeCssVarsDemo_toggleScale() {
-  if (ThemeCssVarsDemo_boxScale.value === 1.0) {
-  __omni_subs.get("ThemeCssVarsDemo_boxScale").set(1.05);
-  } else {
-  __omni_subs.get("ThemeCssVarsDemo_boxScale").set(1.0);
-  }
-}
-
-function ThemeCssVarsDemo_toggleBorder() {
-  if (ThemeCssVarsDemo_borderWidth.value === 2) {
-  __omni_subs.get("ThemeCssVarsDemo_borderWidth").set(4);
-  } else {
-  __omni_subs.get("ThemeCssVarsDemo_borderWidth").set(2);
-  }
-}
+/// ── Component: UiComponents ──
 
 
 
@@ -3427,39 +3108,24 @@ function EventsDemo_handleWheel(e) {
 
 
 
-/// ── Component: MotionCallbackDemo ──
+/// ── Component: ThemeCssVarsDemo ──
 
-const MotionCallbackDemo_enterCount = __omni_signal("MotionCallbackDemo_enterCount", 0);
-const MotionCallbackDemo_completeCount = __omni_signal("MotionCallbackDemo_completeCount", 0);
-const MotionCallbackDemo_repeatCount = __omni_signal("MotionCallbackDemo_repeatCount", 0);
-const MotionCallbackDemo_lastEvent = __omni_signal("MotionCallbackDemo_lastEvent", "—");
-const MotionCallbackDemo_isPlaying = __omni_signal("MotionCallbackDemo_isPlaying", false);
-const MotionCallbackDemo_isPulsing = __omni_signal("MotionCallbackDemo_isPulsing", false);
-const MotionCallbackDemo_pulseRepeatCount = __omni_signal("MotionCallbackDemo_pulseRepeatCount", 0);
-function MotionCallbackDemo_handleEnterStart() {
-  __omni_subs.get("MotionCallbackDemo_enterCount").set(MotionCallbackDemo_enterCount.value + 1);
-  __omni_subs.get("MotionCallbackDemo_lastEvent").set("onStart @ " + String(MotionCallbackDemo_enterCount.value));
-  __omni_subs.get("MotionCallbackDemo_isPlaying").set(true);
+const ThemeCssVarsDemo_boxScale = __omni_signal("ThemeCssVarsDemo_boxScale", 1.0);
+const ThemeCssVarsDemo_borderWidth = __omni_signal("ThemeCssVarsDemo_borderWidth", 2);
+function ThemeCssVarsDemo_toggleScale() {
+  if (ThemeCssVarsDemo_boxScale.value === 1.0) {
+  __omni_subs.get("ThemeCssVarsDemo_boxScale").set(1.05);
+  } else {
+  __omni_subs.get("ThemeCssVarsDemo_boxScale").set(1.0);
+  }
 }
 
-function MotionCallbackDemo_handleEnterComplete() {
-  __omni_subs.get("MotionCallbackDemo_completeCount").set(MotionCallbackDemo_completeCount.value + 1);
-  __omni_subs.get("MotionCallbackDemo_lastEvent").set("onComplete #" + String(MotionCallbackDemo_completeCount.value));
-  __omni_subs.get("MotionCallbackDemo_isPlaying").set(false);
-}
-
-function MotionCallbackDemo_handlePulseStart() {
-  __omni_subs.get("MotionCallbackDemo_isPulsing").set(true);
-}
-
-function MotionCallbackDemo_handlePulseRepeat() {
-  __omni_subs.get("MotionCallbackDemo_pulseRepeatCount").set(MotionCallbackDemo_pulseRepeatCount.value + 1);
-  __omni_subs.get("MotionCallbackDemo_lastEvent").set("onRepeat x" + String(MotionCallbackDemo_pulseRepeatCount.value));
-}
-
-function MotionCallbackDemo_handleInterrupt() {
-  __omni_subs.get("MotionCallbackDemo_lastEvent").set("onInterrupt — motion was interrupted");
-  __omni_subs.get("MotionCallbackDemo_isPlaying").set(false);
+function ThemeCssVarsDemo_toggleBorder() {
+  if (ThemeCssVarsDemo_borderWidth.value === 2) {
+  __omni_subs.get("ThemeCssVarsDemo_borderWidth").set(4);
+  } else {
+  __omni_subs.get("ThemeCssVarsDemo_borderWidth").set(2);
+  }
 }
 
 
@@ -3468,17 +3134,205 @@ function MotionCallbackDemo_handleInterrupt() {
 
 
 
+/// ── Component: StatePage ──
+
+
+
+/// ── Component: Overview ──
+
+function Overview_onNavigate(...args) {
+  var el = Overview_onNavigate._el || (Overview_onNavigate._el = document.querySelector('[data-component="Overview"]'));
+  if (el) el.dispatchEvent(new CustomEvent('navigate', { detail: args.length <= 1 ? args[0] : args, bubbles: false }));
+}
+
+
 /// ── Component: App ──
 
-const App_completionRate = __omni_signal("App_completionRate", 42.0);
-const App_activeTab = __omni_signal("App_activeTab", "home");
+const App_activeTab = __omni_signal("App_activeTab", "overview");
 function App_switchTab(tab) {
   __omni_subs.get("App_activeTab").set(tab);
 }
 
-function App_isActive(tab) {
-  return App_activeTab.value === tab;
-}
+
+  // ── Element Refs ──
+// ── ref: scrollContainer → nid="el-div-846" ──
+const scrollContainer = (function() {
+  const _nid = "el-div-846";
+  const _el = function() { return __omni_el(_nid); };
+  return {
+   get style() { const e = _el(); return e ? e.style : null; },
+   get value() { const e = _el(); return e ? e.value : null; },
+   set value(v) { const e = _el(); if (e) e.value = v; },
+   get textContent() { const e = _el(); return e ? e.textContent : null; },
+   set textContent(v) { const e = _el(); if (e) e.textContent = v; },
+   capturePointer(id) { const e = _el(); if (e) e.setPointerCapture(id); },
+   releasePointer(id) { const e = _el(); if (e) e.releasePointer(id); },
+   // Zero-rect when unmounted so ref.measure() / ref.width / ref.height
+   // chains (getBoundingClientRect().width) never hit null.
+   getBoundingClientRect() { const e = _el(); return e ? e.getBoundingClientRect() : { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0, x: 0, y: 0 }; },
+   focus() { const e = _el(); if (e) e.focus(); },
+   blur() { const e = _el(); if (e) e.blur(); },
+   select() { const e = _el(); if (e) e.select(); },
+   setSelectionRange(start, end) { const e = _el(); if (e) e.setSelectionRange(start, end); },
+   get offsetWidth() { const e = _el(); return e ? e.offsetWidth : 0; },
+   get offsetHeight() { const e = _el(); return e ? e.offsetHeight : 0; },
+   scrollTo(x, y) { const e = _el(); if (e) e.scrollTo(x, y); },
+   scrollBy(dx, dy) { const e = _el(); if (e) e.scrollBy(dx, dy); },
+  };
+})();
+// ── ref: container → nid="el-div-1001" ──
+const container = (function() {
+  const _nid = "el-div-1001";
+  const _el = function() { return __omni_el(_nid); };
+  return {
+   get style() { const e = _el(); return e ? e.style : null; },
+   get value() { const e = _el(); return e ? e.value : null; },
+   set value(v) { const e = _el(); if (e) e.value = v; },
+   get textContent() { const e = _el(); return e ? e.textContent : null; },
+   set textContent(v) { const e = _el(); if (e) e.textContent = v; },
+   capturePointer(id) { const e = _el(); if (e) e.setPointerCapture(id); },
+   releasePointer(id) { const e = _el(); if (e) e.releasePointer(id); },
+   // Zero-rect when unmounted so ref.measure() / ref.width / ref.height
+   // chains (getBoundingClientRect().width) never hit null.
+   getBoundingClientRect() { const e = _el(); return e ? e.getBoundingClientRect() : { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0, x: 0, y: 0 }; },
+   focus() { const e = _el(); if (e) e.focus(); },
+   blur() { const e = _el(); if (e) e.blur(); },
+   select() { const e = _el(); if (e) e.select(); },
+   setSelectionRange(start, end) { const e = _el(); if (e) e.setSelectionRange(start, end); },
+   get offsetWidth() { const e = _el(); return e ? e.offsetWidth : 0; },
+   get offsetHeight() { const e = _el(); return e ? e.offsetHeight : 0; },
+   scrollTo(x, y) { const e = _el(); if (e) e.scrollTo(x, y); },
+   scrollBy(dx, dy) { const e = _el(); if (e) e.scrollBy(dx, dy); },
+  };
+})();
+// ── ref: inputBox → nid="el-input-2479" ──
+const inputBox = (function() {
+  const _nid = "el-input-2479";
+  const _el = function() { return __omni_el(_nid); };
+  return {
+   get style() { const e = _el(); return e ? e.style : null; },
+   get value() { const e = _el(); return e ? e.value : null; },
+   set value(v) { const e = _el(); if (e) e.value = v; },
+   get textContent() { const e = _el(); return e ? e.textContent : null; },
+   set textContent(v) { const e = _el(); if (e) e.textContent = v; },
+   capturePointer(id) { const e = _el(); if (e) e.setPointerCapture(id); },
+   releasePointer(id) { const e = _el(); if (e) e.releasePointer(id); },
+   // Zero-rect when unmounted so ref.measure() / ref.width / ref.height
+   // chains (getBoundingClientRect().width) never hit null.
+   getBoundingClientRect() { const e = _el(); return e ? e.getBoundingClientRect() : { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0, x: 0, y: 0 }; },
+   focus() { const e = _el(); if (e) e.focus(); },
+   blur() { const e = _el(); if (e) e.blur(); },
+   select() { const e = _el(); if (e) e.select(); },
+   setSelectionRange(start, end) { const e = _el(); if (e) e.setSelectionRange(start, end); },
+   get offsetWidth() { const e = _el(); return e ? e.offsetWidth : 0; },
+   get offsetHeight() { const e = _el(); return e ? e.offsetHeight : 0; },
+   scrollTo(x, y) { const e = _el(); if (e) e.scrollTo(x, y); },
+   scrollBy(dx, dy) { const e = _el(); if (e) e.scrollBy(dx, dy); },
+  };
+})();
+// ── ref: scrollArea → nid="el-div-2490" ──
+const scrollArea = (function() {
+  const _nid = "el-div-2490";
+  const _el = function() { return __omni_el(_nid); };
+  return {
+   get style() { const e = _el(); return e ? e.style : null; },
+   get value() { const e = _el(); return e ? e.value : null; },
+   set value(v) { const e = _el(); if (e) e.value = v; },
+   get textContent() { const e = _el(); return e ? e.textContent : null; },
+   set textContent(v) { const e = _el(); if (e) e.textContent = v; },
+   capturePointer(id) { const e = _el(); if (e) e.setPointerCapture(id); },
+   releasePointer(id) { const e = _el(); if (e) e.releasePointer(id); },
+   // Zero-rect when unmounted so ref.measure() / ref.width / ref.height
+   // chains (getBoundingClientRect().width) never hit null.
+   getBoundingClientRect() { const e = _el(); return e ? e.getBoundingClientRect() : { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0, x: 0, y: 0 }; },
+   focus() { const e = _el(); if (e) e.focus(); },
+   blur() { const e = _el(); if (e) e.blur(); },
+   select() { const e = _el(); if (e) e.select(); },
+   setSelectionRange(start, end) { const e = _el(); if (e) e.setSelectionRange(start, end); },
+   get offsetWidth() { const e = _el(); return e ? e.offsetWidth : 0; },
+   get offsetHeight() { const e = _el(); return e ? e.offsetHeight : 0; },
+   scrollTo(x, y) { const e = _el(); if (e) e.scrollTo(x, y); },
+   scrollBy(dx, dy) { const e = _el(); if (e) e.scrollBy(dx, dy); },
+  };
+})();
+// ── ref: rectBox → nid="el-div-2516" ──
+const rectBox = (function() {
+  const _nid = "el-div-2516";
+  const _el = function() { return __omni_el(_nid); };
+  return {
+   get style() { const e = _el(); return e ? e.style : null; },
+   get value() { const e = _el(); return e ? e.value : null; },
+   set value(v) { const e = _el(); if (e) e.value = v; },
+   get textContent() { const e = _el(); return e ? e.textContent : null; },
+   set textContent(v) { const e = _el(); if (e) e.textContent = v; },
+   capturePointer(id) { const e = _el(); if (e) e.setPointerCapture(id); },
+   releasePointer(id) { const e = _el(); if (e) e.releasePointer(id); },
+   // Zero-rect when unmounted so ref.measure() / ref.width / ref.height
+   // chains (getBoundingClientRect().width) never hit null.
+   getBoundingClientRect() { const e = _el(); return e ? e.getBoundingClientRect() : { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0, x: 0, y: 0 }; },
+   focus() { const e = _el(); if (e) e.focus(); },
+   blur() { const e = _el(); if (e) e.blur(); },
+   select() { const e = _el(); if (e) e.select(); },
+   setSelectionRange(start, end) { const e = _el(); if (e) e.setSelectionRange(start, end); },
+   get offsetWidth() { const e = _el(); return e ? e.offsetWidth : 0; },
+   get offsetHeight() { const e = _el(); return e ? e.offsetHeight : 0; },
+   scrollTo(x, y) { const e = _el(); if (e) e.scrollTo(x, y); },
+   scrollBy(dx, dy) { const e = _el(); if (e) e.scrollBy(dx, dy); },
+  };
+})();
+// ── ref: sizeBox → nid="el-div-2528" ──
+const sizeBox = (function() {
+  const _nid = "el-div-2528";
+  const _el = function() { return __omni_el(_nid); };
+  return {
+   get style() { const e = _el(); return e ? e.style : null; },
+   get value() { const e = _el(); return e ? e.value : null; },
+   set value(v) { const e = _el(); if (e) e.value = v; },
+   get textContent() { const e = _el(); return e ? e.textContent : null; },
+   set textContent(v) { const e = _el(); if (e) e.textContent = v; },
+   capturePointer(id) { const e = _el(); if (e) e.setPointerCapture(id); },
+   releasePointer(id) { const e = _el(); if (e) e.releasePointer(id); },
+   // Zero-rect when unmounted so ref.measure() / ref.width / ref.height
+   // chains (getBoundingClientRect().width) never hit null.
+   getBoundingClientRect() { const e = _el(); return e ? e.getBoundingClientRect() : { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0, x: 0, y: 0 }; },
+   focus() { const e = _el(); if (e) e.focus(); },
+   blur() { const e = _el(); if (e) e.blur(); },
+   select() { const e = _el(); if (e) e.select(); },
+   setSelectionRange(start, end) { const e = _el(); if (e) e.setSelectionRange(start, end); },
+   get offsetWidth() { const e = _el(); return e ? e.offsetWidth : 0; },
+   get offsetHeight() { const e = _el(); return e ? e.offsetHeight : 0; },
+   scrollTo(x, y) { const e = _el(); if (e) e.scrollTo(x, y); },
+   scrollBy(dx, dy) { const e = _el(); if (e) e.scrollBy(dx, dy); },
+  };
+})();
+// ── ref: mirrorInput → nid="el-input-2548" ──
+const mirrorInput = (function() {
+  const _nid = "el-input-2548";
+  const _el = function() { return __omni_el(_nid); };
+  return {
+   get style() { const e = _el(); return e ? e.style : null; },
+   get value() { const e = _el(); return e ? e.value : null; },
+   set value(v) { const e = _el(); if (e) e.value = v; },
+   get textContent() { const e = _el(); return e ? e.textContent : null; },
+   set textContent(v) { const e = _el(); if (e) e.textContent = v; },
+   capturePointer(id) { const e = _el(); if (e) e.setPointerCapture(id); },
+   releasePointer(id) { const e = _el(); if (e) e.releasePointer(id); },
+   // Zero-rect when unmounted so ref.measure() / ref.width / ref.height
+   // chains (getBoundingClientRect().width) never hit null.
+   getBoundingClientRect() { const e = _el(); return e ? e.getBoundingClientRect() : { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0, x: 0, y: 0 }; },
+   focus() { const e = _el(); if (e) e.focus(); },
+   blur() { const e = _el(); if (e) e.blur(); },
+   select() { const e = _el(); if (e) e.select(); },
+   setSelectionRange(start, end) { const e = _el(); if (e) e.setSelectionRange(start, end); },
+   get offsetWidth() { const e = _el(); return e ? e.offsetWidth : 0; },
+   get offsetHeight() { const e = _el(); return e ? e.offsetHeight : 0; },
+   scrollTo(x, y) { const e = _el(); if (e) e.scrollTo(x, y); },
+   scrollBy(dx, dy) { const e = _el(); if (e) e.scrollBy(dx, dy); },
+  };
+})();
+
+
+/// ── Component: VariantShowcase ──
 
 
 
@@ -3501,707 +3355,355 @@ function OptionalChainDemo_toggle() {
 }
 
 
-function __mergeTouches(e) {
-  const seen = new Map();
-  for (const t of e.touches)
-    seen.set(t.identifier, { x: t.clientX, y: t.clientY, id: t.identifier });
-  for (const t of e.changedTouches)
-    if (!seen.has(t.identifier))
-      seen.set(t.identifier, { x: t.clientX, y: t.clientY, id: t.identifier });
-  return [...seen.values()];
-}
+
+/// ── Component: CompilerPage ──
+
+
+// ═══ Theme Runtime (generated from design @themes) ═══
+const __omni_theme = {
+  _themes: ["light", "dark", "sepia", "highContrast"],
+  _current: null,
+  _storageKey: "omni-theme",
+
+  get current() { return this._current; },
+
+  set(name) {
+    if (!this._themes.includes(name)) return;
+    document.documentElement.dataset.theme = name;
+    this._current = name;
+    try { localStorage.setItem(this._storageKey, name); } catch (_) {}
+  },
+
+  toggle() {
+    const i = this._themes.indexOf(this._current);
+    const next = this._themes[(i + 1) % this._themes.length];
+    this.set(next);
+  },
+
+  init() {
+    const saved = (() => { try { return localStorage.getItem(this._storageKey); } catch (_) { return null; } })();
+    if (saved && this._themes.includes(saved)) {
+      this.set(saved);
+      return;
+    }
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    if (prefersDark && this._themes.includes("dark")) {
+      this.set("dark");
+      return;
+    }
+
+    // Default: first theme
+    if (!this._current) {
+      this.set(this._themes[0]);
+    }
+  }
+};
+__omni_theme.init();
+__omni_effect(() => {
+  const root = document.documentElement;
+  if (!root) return;
+  root.style.setProperty("--dynAccent", __omni_sanitizeCss(DynamicTokenStore_liveAccent));
+  root.style.setProperty("--dynColor", __omni_sanitizeCss(DynamicTokenStore_liveColor));
+  root.style.setProperty("--dynBg", __omni_sanitizeCss(DynamicTokenStore_liveBg));
+
+});
 
 /// ── Initial DOM ──
 document.getElementById("root").innerHTML = `<div id="root" data-component="App" data-design="LearnDesign">
-  <div data-nid="el-div-001" class="app">
+  <div data-nid="el-div-001" class="Page">
     <div data-nid="el-Header-002" data-component="Header">
       <header data-nid="el-header-003" class="Banner">
         <h1 data-nid="el-h1-004" class="BannerTitle">
-          OmniView 教学项目
+          OmniView Capability Showcase
         </h1>
         <p data-nid="el-p-006" class="BannerSubtitle">
-          涵盖 Store、Signal、Computed、Prop、Event、bind:value 等核心特性
+          7 domains · 4 themes · 60+ source files ·
+          <span data-nid="el-interp-008"></span>
         </p>
       </header>
     </div>
-    <div data-nid="el-div-008" class="browser-tabs">
-      <div data-nid="el-div-009" class="tab-strip">
-        <button data-nid="el-button-010" class="browserTab tabActive">
-          首页
+    <div data-nid="el-TabBar-010" data-component="TabBar">
+      <div data-nid="el-div-011" class="tab-strip">
+        <button data-nid="el-button-012" class="tab">
+          📋 Overview
         </button>
-        <button data-nid="el-button-012" class="browserTab tabActive">
-          待办
+        <button data-nid="el-button-014" class="tab">
+          🎨 UI
         </button>
-        <button data-nid="el-button-014" class="browserTab tabActive">
-          基础交互
+        <button data-nid="el-button-016" class="tab">
+          🎬 Motion
         </button>
-        <button data-nid="el-button-016" class="browserTab tabActive">
-          编译器特性
+        <button data-nid="el-button-018" class="tab">
+          💅 Design
         </button>
-        <button data-nid="el-button-018" class="browserTab tabActive">
-          运动动画
+        <button data-nid="el-button-020" class="tab">
+          ⚡ State
         </button>
-        <button data-nid="el-button-020" class="browserTab tabActive">
-          CSS 特性
+        <button data-nid="el-button-022" class="tab">
+          🔤 Language
         </button>
-        <button data-nid="el-button-022" class="browserTab tabActive">
-          事件/表单
+        <button data-nid="el-button-024" class="tab">
+          🔗 Ref
         </button>
-        <button data-nid="el-button-024" class="browserTab tabActive">
-          语言特性
+        <button data-nid="el-button-026" class="tab">
+          ⚙️ Compiler
         </button>
-        <button data-nid="el-button-026" class="browserTab tabActive">
-          设置
-        </button>
-        <button data-nid="el-button-028" class="browserTab tabActive">
-          补充
+        <button data-nid="el-button-028" class="tab">
+          🔮 Tokens
         </button>
       </div>
-      <div data-nid="el-div-030" class="tab-content">
-        <div data-nid="el-if-031-b0" style="display:none">
-          <fragment data-nid="el-fragment-032">
-            <section data-nid="el-section-033" class="demo-section">
-              <div data-nid="el-div-034" class="demo-full">
-                <div data-nid="el-Dashboard-035" data-component="Dashboard">
-                  <div data-nid="el-div-036" class="dashboard-page">
-                    <header data-nid="el-header-037" class="page-header">
-                      <h2 data-nid="el-h2-038" class="page-title">
-                        Dashboard
-                      </h2>
-                      <p data-nid="el-p-040" class="page-subtitle">
-                        Overview of
-                        <span data-nid="el-interp-042"></span>
-                        items · Updated
-                        <span data-nid="el-interp-045"></span>
-                      </p>
-                      <button data-nid="el-button-047" class="Button primary sm">
-                        Refresh
-                      </button>
-                    </header>
-                    <section data-nid="el-section-049" class="Section">
-                      <h3 data-nid="el-h3-050" class="SectionTitle">
-                        Statistics
-                      </h3>
-                      <div data-nid="el-StatsPanel-052" data-component="StatsPanel">
-                        <div data-nid="el-div-053" class="Card">
-                          <h3 data-nid="el-h3-054" class="CardTitle">
-                            统计面板
-                          </h3>
-                          <div data-nid="el-div-056" class="grid">
-                            <div data-nid="el-div-057" class="stat-card">
-                              <span data-nid="el-span-058" class="value">
-                                <span data-nid="el-interp-059"></span>
-                              </span>
-                              <span data-nid="el-span-061" class="label">
-                                总事项
-                              </span>
-                            </div>
-                            <div data-nid="el-div-063" class="stat-card">
-                              <span data-nid="el-span-064" class="value">
-                                <span data-nid="el-interp-065"></span>
-                              </span>
-                              <span data-nid="el-span-067" class="label">
-                                状态
-                              </span>
-                            </div>
-                          </div>
-                          <span data-nid="el-span-069" class="msg">
-                            <span data-nid="el-interp-070"></span>
-                          </span>
-                        </div>
-                      </div>
-                      <div data-nid="el-StatsDashboard-072" data-component="StatsDashboard">
-                        <div data-nid="el-div-073" data-ref="container" class="Card">
-                          <h3 data-nid="el-h3-074" class="CardTitle">
-                            StatsDashboard Demo
-                          </h3>
-                          <div data-nid="el-div-076" class="const-area">
-                            <p data-nid="el-p-077" class="small">
-                              MAX_ITEMS:
-                              <span data-nid="el-interp-079"></span>
-                            </p>
-                            <p data-nid="el-p-081" class="small">
-                              prefixed consts declared
-                            </p>
-                          </div>
-                          <div data-nid="el-div-083" class="counter-area">
-                            <p data-nid="el-p-084" class="counter-text">
-                              Counter:
-                              <span data-nid="el-interp-086"></span>
-                              (
-                              <span data-nid="el-interp-089"></span>
-                              )
-                            </p>
-                            <div data-nid="el-div-092" class="btn-row">
-                              <button data-nid="el-button-093" class="Button ghost sm">
-                                +5
-                              </button>
-                              <button data-nid="el-button-095" class="Button ghost sm">
-                                -3
-                              </button>
-                              <button data-nid="el-button-097" class="Button ghost sm">
-                                x2
-                              </button>
-                              <button data-nid="el-button-099" class="Button ghost sm">
-                                /2
-                              </button>
-                              <button data-nid="el-button-101" class="Button ghost sm">
-                                mod3
-                              </button>
-                            </div>
-                          </div>
-                          <div data-nid="el-div-103" class="math-area">
-                            <p data-nid="el-p-104" class="small">
-                              math_abs(counter) =
-                              <span data-nid="el-interp-106"></span>
-                              | math_sqrt(counter) =
-                              <span data-nid="el-interp-109"></span>
-                            </p>
-                          </div>
-                          <div data-nid="el-div-111" class="dice-area">
-                            <p data-nid="el-p-112" class="small">
-                              Random:
-                              <span data-nid="el-interp-114"></span>
-                              | Ceil*100 =
-                              <span data-nid="el-interp-117"></span>
-                              | Floor*100 =
-                              <span data-nid="el-interp-120"></span>
-                            </p>
-                            <button data-nid="el-button-122" class="Button ghost sm">
-                              Roll Dice
-                            </button>
-                          </div>
-                          <div data-nid="el-div-124" class="array-area">
-                            <p data-nid="el-p-125" class="small">
-                              First value:
-                              <span data-nid="el-interp-127"></span>
-                            </p>
-                          </div>
-                          <div data-nid="el-if-129-b0" style="display:none">
-                            <fragment data-nid="el-fragment-130">
-                              <button data-nid="el-button-131" class="Button danger sm">
-                                Trigger unmount
-                              </button>
-                            </fragment>
-                          </div>
-                        </div>
-                      </div>
-                    </section>
-                    <section data-nid="el-section-133" class="Section">
-                      <h3 data-nid="el-h3-134" class="SectionTitle">
-                        Interactions
-                      </h3>
-                      <div data-nid="el-div-136" class="demo-grid">
-                        <div data-nid="el-Counter-137" data-component="Counter">
-                          <div data-nid="el-div-138" class="box">
-                            <h3 data-nid="el-h3-139" class="title">
-                              计数器演示
-                            </h3>
-                            <p data-nid="el-p-141" class="big-number">
-                              <span data-nid="el-interp-142"></span>
-                            </p>
-                            <p data-nid="el-p-144" class="info">
-                              翻倍：
-                              <span data-nid="el-interp-146"></span>
-                              |
-                              <span data-nid="el-interp-149"></span>
-                            </p>
-                            <div data-nid="el-div-151" class="row">
-                              <button data-nid="el-button-152" class="Button primary sm">
-                                -
-                              </button>
-                              <span data-nid="el-span-154" class="step-text">
-                                步长
-                                <span data-nid="el-interp-156"></span>
-                              </span>
-                              <button data-nid="el-button-158" class="Button primary sm">
-                                +
-                              </button>
-                            </div>
-                            <div data-nid="el-div-160" class="row">
-                              <button data-nid="el-button-161" class="Button ghost sm">
-                                步长1
-                              </button>
-                              <button data-nid="el-button-163" class="Button ghost sm">
-                                步长5
-                              </button>
-                              <button data-nid="el-button-165" class="Button ghost sm">
-                                步长10
-                              </button>
-                              <button data-nid="el-button-167" class="Button danger sm">
-                                重置
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                        <div data-nid="el-FeatureCard-169" data-component="FeatureCard">
-                          <div data-nid="el-div-170" class="Card">
-                            <h3 data-nid="el-h3-171" class="CardTitle">
-                              FeatureCard Demo
-                            </h3>
-                            <input data-nid="el-input-173" placeholder="Click" class="input" />
-                            <div data-nid="el-if-174-b0" style="display:none">
-                              <fragment data-nid="el-fragment-175">
-                                <span data-nid="el-span-176" class="badge-focused">
-                                  Focused
-                                </span>
-                              </fragment>
-                            </div>
-                            <div data-nid="el-if-174-b1" style="display:none">
-                              <fragment data-nid="el-fragment-178">
-                                <span data-nid="el-span-179" class="badge-blurred">
-                                  Blurred
-                                </span>
-                              </fragment>
-                            </div>
-                            <div data-nid="el-if-174-b2" style="display:none">
-                              <fragment data-nid="el-fragment-181">
-                                <span data-nid="el-span-182" class="badge-idle">
-                                  Idle
-                                </span>
-                              </fragment>
-                            </div>
-                            <div data-nid="el-if-174-else" style="display:none">
-                              <fragment data-nid="el-fragment-184">
-                                <span data-nid="el-span-185" class="badge-unknown">
-                                  Unknown
-                                </span>
-                              </fragment>
-                            </div>
-                            <p data-nid="el-p-187" class="text">
-                              X:
-                              <span data-nid="el-interp-189"></span>
-                              | Focus:
-                              <span data-nid="el-interp-192"></span>
-                            </p>
-                            <button data-nid="el-button-194" class="Button ghost md">
-                              Reset
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </section>
+    </div>
+    <div data-nid="el-div-030" class="TabContent">
+      <div data-nid="el-if-031-b0" style="display:none">
+        <fragment data-nid="el-fragment-032">
+          <div data-nid="el-Overview-033" data-component="Overview">
+            <section data-nid="el-section-034" class="overview-section">
+              <div data-nid="el-div-035" class="Banner">
+                <h1 data-nid="el-h1-036" class="BannerTitle">
+                  <span data-nid="el-interp-037"></span>
+                  OmniLang Capability Showcase
+                </h1>
+                <p data-nid="el-p-040" class="BannerSubtitle">
+                  v1.0.0 · 60+ source files · 4 themes · 7 capability domains
+                </p>
+              </div>
+              <div data-nid="el-div-042" class="capability-grid">
+                <div data-nid="el-CapabilityCard-043" data-component="CapabilityCard">
+                  <div data-nid="el-div-044" class="capability-card">
+                    <span data-nid="el-span-045" class="card-icon">
+                      <span data-nid="el-interp-046"></span>
+                    </span>
+                    <h3 data-nid="el-h3-048" class="card-title">
+                      <span data-nid="el-interp-049"></span>
+                    </h3>
+                    <p data-nid="el-p-051" class="card-desc">
+                      <span data-nid="el-interp-052"></span>
+                    </p>
+                    <span data-nid="el-span-054" class="card-link">
+                      Explore →
+                    </span>
+                  </div>
+                </div>
+                <div data-nid="el-CapabilityCard-056" data-component="CapabilityCard">
+                  <div data-nid="el-div-057" class="capability-card">
+                    <span data-nid="el-span-058" class="card-icon">
+                      <span data-nid="el-interp-059"></span>
+                    </span>
+                    <h3 data-nid="el-h3-061" class="card-title">
+                      <span data-nid="el-interp-062"></span>
+                    </h3>
+                    <p data-nid="el-p-064" class="card-desc">
+                      <span data-nid="el-interp-065"></span>
+                    </p>
+                    <span data-nid="el-span-067" class="card-link">
+                      Explore →
+                    </span>
+                  </div>
+                </div>
+                <div data-nid="el-CapabilityCard-069" data-component="CapabilityCard">
+                  <div data-nid="el-div-070" class="capability-card">
+                    <span data-nid="el-span-071" class="card-icon">
+                      <span data-nid="el-interp-072"></span>
+                    </span>
+                    <h3 data-nid="el-h3-074" class="card-title">
+                      <span data-nid="el-interp-075"></span>
+                    </h3>
+                    <p data-nid="el-p-077" class="card-desc">
+                      <span data-nid="el-interp-078"></span>
+                    </p>
+                    <span data-nid="el-span-080" class="card-link">
+                      Explore →
+                    </span>
+                  </div>
+                </div>
+                <div data-nid="el-CapabilityCard-082" data-component="CapabilityCard">
+                  <div data-nid="el-div-083" class="capability-card">
+                    <span data-nid="el-span-084" class="card-icon">
+                      <span data-nid="el-interp-085"></span>
+                    </span>
+                    <h3 data-nid="el-h3-087" class="card-title">
+                      <span data-nid="el-interp-088"></span>
+                    </h3>
+                    <p data-nid="el-p-090" class="card-desc">
+                      <span data-nid="el-interp-091"></span>
+                    </p>
+                    <span data-nid="el-span-093" class="card-link">
+                      Explore →
+                    </span>
+                  </div>
+                </div>
+                <div data-nid="el-CapabilityCard-095" data-component="CapabilityCard">
+                  <div data-nid="el-div-096" class="capability-card">
+                    <span data-nid="el-span-097" class="card-icon">
+                      <span data-nid="el-interp-098"></span>
+                    </span>
+                    <h3 data-nid="el-h3-100" class="card-title">
+                      <span data-nid="el-interp-101"></span>
+                    </h3>
+                    <p data-nid="el-p-103" class="card-desc">
+                      <span data-nid="el-interp-104"></span>
+                    </p>
+                    <span data-nid="el-span-106" class="card-link">
+                      Explore →
+                    </span>
+                  </div>
+                </div>
+                <div data-nid="el-CapabilityCard-108" data-component="CapabilityCard">
+                  <div data-nid="el-div-109" class="capability-card">
+                    <span data-nid="el-span-110" class="card-icon">
+                      <span data-nid="el-interp-111"></span>
+                    </span>
+                    <h3 data-nid="el-h3-113" class="card-title">
+                      <span data-nid="el-interp-114"></span>
+                    </h3>
+                    <p data-nid="el-p-116" class="card-desc">
+                      <span data-nid="el-interp-117"></span>
+                    </p>
+                    <span data-nid="el-span-119" class="card-link">
+                      Explore →
+                    </span>
+                  </div>
+                </div>
+                <div data-nid="el-CapabilityCard-121" data-component="CapabilityCard">
+                  <div data-nid="el-div-122" class="capability-card">
+                    <span data-nid="el-span-123" class="card-icon">
+                      <span data-nid="el-interp-124"></span>
+                    </span>
+                    <h3 data-nid="el-h3-126" class="card-title">
+                      <span data-nid="el-interp-127"></span>
+                    </h3>
+                    <p data-nid="el-p-129" class="card-desc">
+                      <span data-nid="el-interp-130"></span>
+                    </p>
+                    <span data-nid="el-span-132" class="card-link">
+                      Explore →
+                    </span>
                   </div>
                 </div>
               </div>
-              <div data-nid="el-div-196" class="demo-full">
-                <div data-nid="el-FeatureList-197" data-component="FeatureList">
-                  <div data-nid="el-div-198" class="Card" style="background: #fffbeb">
-                    <div data-nid="el-div-199" class="header">
-                      <h3 data-nid="el-h3-200" class="title">
-                        Features (
-                        <span data-nid="el-interp-202"></span>
-                        items)
-                      </h3>
-                      <span data-nid="el-span-205" class="arrow">
-                        <span data-nid="el-interp-206"></span>
-                      </span>
-                    </div>
-                    <div data-nid="el-if-208-b0" style="display:none">
-                      <fragment data-nid="el-fragment-209">
-                        <div data-nid="el-div-210" class="list">
-                          <template data-nid="el-for-211-tpl">
-                              <span data-nid="el-span-213" class="Tag">
-                                <span data-nid="el-interp-214"></span>
-                              </span>
-</template>
-                          <template data-nid="el-for-211-ctr" data-for-container></template>
-                          <template data-nid="el-for-211-empty">
-                              <span data-nid="el-span-217">
-                                No features
-                              </span>
-</template>
-                        </div>
-                      </fragment>
-                    </div>
-                  </div>
+              <div data-nid="el-div-134" class="stats-bar">
+                <div data-nid="el-div-135" class="stat-item">
+                  <span data-nid="el-span-136" class="stat-value">
+                    60+
+                  </span>
+                  <span data-nid="el-span-138" class="stat-label">
+                    Source Files
+                  </span>
+                </div>
+                <div data-nid="el-div-140" class="stat-item">
+                  <span data-nid="el-span-141" class="stat-value">
+                    8
+                  </span>
+                  <span data-nid="el-span-143" class="stat-label">
+                    Domains
+                  </span>
+                </div>
+                <div data-nid="el-div-145" class="stat-item">
+                  <span data-nid="el-span-146" class="stat-value">
+                    4
+                  </span>
+                  <span data-nid="el-span-148" class="stat-label">
+                    Themes
+                  </span>
+                </div>
+                <div data-nid="el-div-150" class="stat-item">
+                  <span data-nid="el-span-151" class="stat-value">
+                    <span data-nid="el-interp-152"></span>
+                  </span>
+                  <span data-nid="el-span-154" class="stat-label">
+                    Theme Toggles
+                  </span>
                 </div>
               </div>
             </section>
-          </fragment>
-        </div>
-        <div data-nid="el-if-219-b0" style="display:none">
-          <fragment data-nid="el-fragment-220">
-            <section data-nid="el-section-221" class="demo-section">
-              <div data-nid="el-div-222" class="demo-full">
-                <div data-nid="el-TodoPage-223" data-component="TodoPage">
-                  <div data-nid="el-div-224" class="todo-page">
-                    <header data-nid="el-header-225" class="page-header">
-                      <h2 data-nid="el-h2-226" class="page-title">
-                        Todo List
-                      </h2>
-                      <p data-nid="el-p-228" class="page-subtitle">
-                        <span data-nid="el-interp-229"></span>
-                        tasks · Filter:
-                        <span data-nid="el-interp-232"></span>
-                      </p>
-                      <span data-nid="el-span-234" class="load-badge">
-                        Loaded ×
-                        <span data-nid="el-interp-236"></span>
-                      </span>
-                    </header>
-                    <section data-nid="el-section-238" class="Section">
-                      <div data-nid="el-FilterBar-239" data-component="FilterBar">
-                        <div data-nid="el-div-240" class="Card">
-                          <div data-nid="el-div-241" class="search-row">
-                            <input data-nid="el-input-242" placeholder="Filter todos..." class="search-input" />
-                            <button data-nid="el-button-243" class="Button ghost sm">
-                              X
-                            </button>
-                          </div>
-                          <div data-nid="el-div-245" class="sort-row">
-                            <p data-nid="el-p-246" class="filter-label">
-                              <span data-nid="el-interp-247"></span>
-                            </p>
-                            <button data-nid="el-button-249" class="Button primary sm">
-                              Sort
-                              <span data-nid="el-interp-251"></span>
-                            </button>
-                            <button data-nid="el-button-253" class="Button primary sm">
-                              Sync
-                            </button>
-                          </div>
-                          <div data-nid="el-div-255" class="store-info">
-                            <p data-nid="el-p-256" class="Hint">
-                              Store:
-                              <span data-nid="el-interp-258"></span>
-                              items | Filter:
-                              <span data-nid="el-interp-261"></span>
-                              | Changes:
-                              <span data-nid="el-interp-264"></span>
-                            </p>
-                            <p data-nid="el-p-266" class="Hint">
-                              Last:
-                              <span data-nid="el-interp-268"></span>
-                            </p>
-                            <p data-nid="el-p-270" class="Hint">
-                              Filtered frameworks:
-                              <span data-nid="el-interp-272"></span>
-                              /
-                              <span data-nid="el-interp-275"></span>
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </section>
-                    <section data-nid="el-section-277" class="Section">
-                      <div data-nid="el-TodoList-278" data-component="TodoList">
-                        <div data-nid="el-div-279">
-                          <h2 data-nid="el-h2-280" class="title">
-                            待办列表
-                            <span data-nid="el-span-282" class="Badge" style="background: #6366f1; color: #fff">
-                              <span data-nid="el-interp-283"></span>
-                            </span>
-                          </h2>
-                          <div data-nid="el-AddTodo-285" data-component="AddTodo">
-                            <div data-nid="el-div-286" class="container">
-                              <div data-nid="el-div-287" class="row">
-                                <input data-nid="el-input-288" class="input" />
-                                <button data-nid="el-button-289" class="Button primary md">
-                                  添加
-                                </button>
-                                <button data-nid="el-button-291" class="Button danger md">
-                                  清空
-                                </button>
-                              </div>
-                              <p data-nid="el-p-293" class="Hint">
-                                已输入
-                                <span data-nid="el-interp-295"></span>
-                                字符
-                              </p>
-                            </div>
-                          </div>
-                          <div data-nid="el-div-298" class="items">
-                            <template data-nid="el-for-299-tpl">
-                                <div data-nid="el-TodoItem-301" data-component="TodoItem" data-for-state-names="">
-                                  <div data-nid="el-div-302" class="todo-item">
-                                    <span data-nid="el-span-303" class="todo-text">
-                                      <span data-nid="el-interp-304"></span>
-                                    </span>
-                                  </div>
-                                </div>
-</template>
-                            <template data-nid="el-for-299-ctr" data-for-container></template>
-                            <template data-nid="el-for-299-empty">
-                                <div data-nid="el-div-307" class="empty-state">
-                                  <p data-nid="el-p-308" class="Hint" style="font-size: 16px">
-                                    还没有待办事项，在上方添加吧
-                                  </p>
-                                </div>
-</template>
-                          </div>
-                        </div>
-                      </div>
-                    </section>
-                    <footer data-nid="el-footer-310" class="page-footer">
-                      <button data-nid="el-button-311" class="Button danger sm">
-                        Clear All
-                      </button>
-                      <button data-nid="el-button-313" class="Button primary sm">
-                        Sync Reminders
-                      </button>
-                      <span data-nid="el-span-315" class="Hint" style="margin-left: auto">
-                        Last:
-                        <span data-nid="el-interp-317"></span>
-                      </span>
-                    </footer>
-                  </div>
-                </div>
-              </div>
-            </section>
-          </fragment>
-        </div>
-        <div data-nid="el-if-319-b0" style="display:none">
-          <fragment data-nid="el-fragment-320">
-            <section data-nid="el-section-321" class="demo-section">
-              <div data-nid="el-div-322" class="demo-full">
-                <div data-nid="el-DataFetching-323" data-component="DataFetching">
-                  <div data-nid="el-div-324" class="data-fetching">
-                    <h3 data-nid="el-h3-325" class="title">
-                      HTTP GET Demo
-                    </h3>
-                    <p data-nid="el-p-327" class="desc">
-                      async action + await http_get + json_parse + match
-                    </p>
-                    <div data-nid="el-div-329" class="controls">
-                      <input data-nid="el-input-330" class="url-input" />
-                      <button data-nid="el-button-331" class="btn-load">
-                        Load
-                      </button>
-                      <button data-nid="el-button-333" class="btn-api">
-                        API
-                      </button>
-                      <button data-nid="el-button-335" class="btn-reset">
-                        Reset
-                      </button>
-                    </div>
-                    <div data-nid="el-if-337-b0" style="display:none">
-                      <fragment data-nid="el-fragment-338">
-                        <div data-nid="el-div-339" class="status-box loading-box">
-                          <p data-nid="el-p-340" class="loading-text">
-                            Loading data...
-                          </p>
-                        </div>
-                      </fragment>
-                    </div>
-                    <div data-nid="el-if-337-b1" style="display:none">
-                      <fragment data-nid="el-fragment-342">
-                        <div data-nid="el-div-343" class="status-box success-box">
-                          <p data-nid="el-p-344" class="label">
-                            Response:
-                          </p>
-                          <pre data-nid="el-pre-346" class="result">
-                            <span data-nid="el-interp-347"></span>
-                          </pre>
-                        </div>
-                      </fragment>
-                    </div>
-                    <div data-nid="el-if-337-b2" style="display:none">
-                      <fragment data-nid="el-fragment-349">
-                        <div data-nid="el-div-350" class="status-box error-box">
-                          <p data-nid="el-p-351" class="label">
-                            Error:
-                          </p>
-                          <p data-nid="el-p-353" class="error-text">
-                            <span data-nid="el-interp-354"></span>
-                          </p>
-                        </div>
-                      </fragment>
-                    </div>
-                    <div data-nid="el-if-337-else" style="display:none">
-                      <fragment data-nid="el-fragment-356">
-                        <div data-nid="el-div-357" class="status-box idle-box">
-                          <p data-nid="el-p-358" class="idle-text">
-                            Click Load for direct fetch, API to use api.omni
-                          </p>
-                        </div>
-                      </fragment>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div data-nid="el-div-360" class="demo-full">
-                <div data-nid="el-DataSubmit-361" data-component="DataSubmit">
-                  <div data-nid="el-div-362" class="data-submit">
-                    <h3 data-nid="el-h3-363" class="title">
-                      HTTP POST Demo
-                    </h3>
-                    <p data-nid="el-p-365" class="desc">
-                      json_stringify + http_post + await + match status
-                    </p>
-                    <div data-nid="el-div-367" class="form">
-                      <label data-nid="el-label-368" class="field-label">
-                        Title
-                      </label>
-                      <input data-nid="el-input-370" placeholder="Enter title..." class="field-input" />
-                      <label data-nid="el-label-371" class="field-label">
-                        Body
-                      </label>
-                      <textarea data-nid="el-textarea-373" placeholder="Enter body..." rows="3" class="field-textarea">
-                      </textarea>
-                      <div data-nid="el-div-374" class="btn-row">
-                        <button data-nid="el-button-375" class="btn-submit">
-                          Submit
-                        </button>
-                        <button data-nid="el-button-377" class="btn-reset">
-                          Reset
-                        </button>
-                      </div>
-                    </div>
-                    <div data-nid="el-if-379-b0" style="display:none">
-                      <fragment data-nid="el-fragment-380">
-                        <div data-nid="el-div-381" class="status-box loading-box">
-                          <p data-nid="el-p-382" class="loading-text">
-                            Submitting...
-                          </p>
-                        </div>
-                      </fragment>
-                    </div>
-                    <div data-nid="el-if-379-b1" style="display:none">
-                      <fragment data-nid="el-fragment-384">
-                        <div data-nid="el-div-385" class="status-box success-box">
-                          <p data-nid="el-p-386" class="label">
-                            Server Response:
-                          </p>
-                          <pre data-nid="el-pre-388" class="result">
-                            <span data-nid="el-interp-389"></span>
-                          </pre>
-                        </div>
-                      </fragment>
-                    </div>
-                    <div data-nid="el-if-379-b2" style="display:none">
-                      <fragment data-nid="el-fragment-391">
-                        <div data-nid="el-div-392" class="status-box error-box">
-                          <p data-nid="el-p-393" class="label">
-                            Error:
-                          </p>
-                          <p data-nid="el-p-395" class="error-text">
-                            <span data-nid="el-interp-396"></span>
-                          </p>
-                        </div>
-                      </fragment>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div data-nid="el-div-398" class="demo-full">
-                <div data-nid="el-UserSettings-399" data-component="UserSettings">
-                  <div data-nid="el-div-400" class="user-settings">
-                    <h3 data-nid="el-h3-401" class="title">
-                      Storage Demo
-                    </h3>
-                    <p data-nid="el-p-403" class="desc">
-                      storage get/set + json parse/stringify + mount
-                    </p>
-                    <div data-nid="el-div-405" class="form">
-                      <label data-nid="el-label-406" class="field-label">
-                        Username
-                      </label>
-                      <input data-nid="el-input-408" placeholder="Your name..." class="field-input" />
-                      <div data-nid="el-div-409" class="btn-row">
-                        <button data-nid="el-button-410" class="btn-save">
-                          Save
-                        </button>
-                        <button data-nid="el-button-412" class="btn-clear">
-                          Clear
-                        </button>
-                      </div>
-                    </div>
-                    <div data-nid="el-div-414" class="info-bar">
-                      <p data-nid="el-p-415" class="info-text">
-                        <span data-nid="el-interp-416"></span>
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </section>
-          </fragment>
-        </div>
-        <div data-nid="el-if-418-b0" style="display:none">
-          <fragment data-nid="el-fragment-419">
-            <section data-nid="el-section-420" class="demo-section">
-              <div data-nid="el-div-421" class="demo-row">
-                <div data-nid="el-div-422" class="demo-col">
-                  <div data-nid="el-ValidationInput-423" data-component="ValidationInput">
-                    <div data-nid="el-div-424" class="Card">
-                      <h3 data-nid="el-h3-425" class="CardTitle">
+          </div>
+        </fragment>
+      </div>
+      <div data-nid="el-if-156-b0" style="display:none">
+        <fragment data-nid="el-fragment-157">
+          <div data-nid="el-UiComponents-158" data-component="UiComponents">
+            <section data-nid="el-section-159" class="DemoSection">
+              <div data-nid="el-div-160" class="Row">
+                <div data-nid="el-div-161" class="Col">
+                  <div data-nid="el-ValidationInput-162" data-component="ValidationInput">
+                    <div data-nid="el-div-163" class="Card">
+                      <h3 data-nid="el-h3-164" class="CardTitle">
                         ValidationInput Demo
                       </h3>
-                      <p data-nid="el-p-427" class="Hint">
-                        <span data-nid="el-interp-428"></span>
+                      <p data-nid="el-p-166" class="Hint">
+                        <span data-nid="el-interp-167"></span>
                       </p>
-                      <div data-nid="el-div-430" class="row">
-                        <input data-nid="el-input-431" placeholder="Enter text to validate..." class="input" />
-                        <button data-nid="el-button-432" class="Button primary md">
-                          <span data-nid="el-interp-433"></span>
+                      <div data-nid="el-div-169" class="row">
+                        <input data-nid="el-input-170" placeholder="Enter text to validate..." class="input" />
+                        <button data-nid="el-button-171" class="Button primary md">
+                          <span data-nid="el-interp-172"></span>
                         </button>
-                        <button data-nid="el-button-435" class="Button danger md">
+                        <button data-nid="el-button-174" class="Button danger md">
                           Clear
                         </button>
                       </div>
-                      <div data-nid="el-div-437" class="result-area">
-                        <p data-nid="el-p-438" class="result-text">
+                      <div data-nid="el-div-176" class="result-area">
+                        <p data-nid="el-p-177" class="result-text">
                           Status:
-                          <span data-nid="el-interp-440"></span>
+                          <span data-nid="el-interp-179"></span>
                         </p>
-                        <p data-nid="el-p-442" class="result-value">
-                          <span data-nid="el-interp-443"></span>
+                        <p data-nid="el-p-181" class="result-value">
+                          <span data-nid="el-interp-182"></span>
                         </p>
-                        <p data-nid="el-p-445" class="stats">
+                        <p data-nid="el-p-184" class="stats">
                           Chars:
-                          <span data-nid="el-interp-447"></span>
+                          <span data-nid="el-interp-186"></span>
                           | EvenPos:
-                          <span data-nid="el-interp-450"></span>
+                          <span data-nid="el-interp-189"></span>
                         </p>
                       </div>
-                      <div data-nid="el-div-452" class="phase4-area">
-                        <h4 data-nid="el-h4-453" class="phase4-title">
+                      <div data-nid="el-div-191" class="phase4-area">
+                        <h4 data-nid="el-h4-192" class="phase4-title">
                           Phase 4: 表达式与控制流
                         </h4>
-                        <p data-nid="el-p-455" class="phase4-hint">
+                        <p data-nid="el-p-194" class="phase4-hint">
                           See lib/transform.omni and StatsDashboard.omni for Phase 4 features
                         </p>
                       </div>
                     </div>
                   </div>
                 </div>
-                <div data-nid="el-div-457" class="demo-col">
-                  <div data-nid="el-Timer-458" data-component="Timer">
-                    <div data-nid="el-div-459" class="Card">
-                      <h3 data-nid="el-h3-460" class="title">
+                <div data-nid="el-div-196" class="Col">
+                  <div data-nid="el-Timer-197" data-component="Timer">
+                    <div data-nid="el-div-198" class="Card">
+                      <h3 data-nid="el-h3-199" class="title">
                         Timer Demo
                       </h3>
-                      <p data-nid="el-p-462" class="count-text">
+                      <p data-nid="el-p-201" class="count-text">
                         Count:
-                        <span data-nid="el-interp-464"></span>
+                        <span data-nid="el-interp-203"></span>
                         / 10
                       </p>
-                      <p data-nid="el-p-467" class="info">
+                      <p data-nid="el-p-206" class="info">
                         Interval:
-                        <span data-nid="el-interp-469"></span>
+                        <span data-nid="el-interp-208"></span>
                         ms | Status:
-                        <span data-nid="el-interp-472"></span>
+                        <span data-nid="el-interp-211"></span>
                       </p>
-                      <div data-nid="el-div-474" class="btn-row">
-                        <button data-nid="el-button-475" class="Button primary sm">
+                      <div data-nid="el-div-213" class="btn-row">
+                        <button data-nid="el-button-214" class="Button primary sm">
                           Start
                         </button>
-                        <button data-nid="el-button-477" class="Button accent sm">
+                        <button data-nid="el-button-216" class="Button accent sm">
                           Stop
                         </button>
-                        <button data-nid="el-button-479" class="Button primary sm">
+                        <button data-nid="el-button-218" class="Button primary sm">
                           Tick
                         </button>
-                        <button data-nid="el-button-481" class="Button ghost sm">
+                        <button data-nid="el-button-220" class="Button ghost sm">
                           Reset
                         </button>
                       </div>
-                      <div data-nid="el-div-483" class="btn-row">
-                        <button data-nid="el-button-484" class="Button ghost sm">
+                      <div data-nid="el-div-222" class="btn-row">
+                        <button data-nid="el-button-223" class="Button ghost sm">
                           Faster
                         </button>
-                        <button data-nid="el-button-486" class="Button ghost sm">
+                        <button data-nid="el-button-225" class="Button ghost sm">
                           Slower
                         </button>
                       </div>
@@ -4209,47 +3711,47 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                   </div>
                 </div>
               </div>
-              <div data-nid="el-div-488" class="demo-row">
-                <div data-nid="el-div-489" class="demo-col">
-                  <div data-nid="el-Modal-490" data-component="Modal">
-                    <div data-nid="el-div-491" class="container">
-                      <button data-nid="el-button-492" class="Button primary lg">
+              <div data-nid="el-div-227" class="Row">
+                <div data-nid="el-div-228" class="Col">
+                  <div data-nid="el-Modal-229" data-component="Modal">
+                    <div data-nid="el-div-230" class="container">
+                      <button data-nid="el-button-231" class="Button primary lg">
                         Open Modal
                       </button>
-                      <p data-nid="el-p-494" class="status-text">
+                      <p data-nid="el-p-233" class="status-text">
                         Status:
-                        <span data-nid="el-interp-496"></span>
+                        <span data-nid="el-interp-235"></span>
                         | Hover:
-                        <span data-nid="el-interp-499"></span>
+                        <span data-nid="el-interp-238"></span>
                       </p>
-                      <div data-nid="el-if-501-b0" style="display:none">
-                        <fragment data-nid="el-fragment-502">
-                          <div data-nid="el-div-503" class="overlay visible hidden">
-                            <div data-nid="el-div-504" class="modalcontent hover">
-                              <div data-nid="el-div-505" class="modal-header">
+                      <div data-nid="el-if-240-b0" style="display:none">
+                        <fragment data-nid="el-fragment-241">
+                          <div data-nid="el-div-242" class="overlay">
+                            <div data-nid="el-div-243" class="modalcontent">
+                              <div data-nid="el-div-244" class="modal-header">
                                 <slot name="header"></slot>
-                                <h3 data-nid="el-h3-506" class="modal-title">
+                                <h3 data-nid="el-h3-245" class="modal-title">
                                   Modal Title
                                 </h3>
-                                <button data-nid="el-button-508" class="close-btn">
+                                <button data-nid="el-button-247" class="close-btn">
                                   X
                                 </button>
                               </div>
-                              <div data-nid="el-div-510" class="modal-body">
+                              <div data-nid="el-div-249" class="modal-body">
                                 <slot name="body"></slot>
-                                <p data-nid="el-p-511" class="modal-text">
+                                <p data-nid="el-p-250" class="modal-text">
                                   Modal content goes here.
                                 </p>
-                                <p data-nid="el-p-513" class="hint-text">
+                                <p data-nid="el-p-252" class="hint-text">
                                   Press Escape or click overlay to close
                                 </p>
                               </div>
-                              <div data-nid="el-div-515" class="modal-footer">
+                              <div data-nid="el-div-254" class="modal-footer">
                                 <slot name="footer"></slot>
-                                <button data-nid="el-button-516" class="Button ghost md">
+                                <button data-nid="el-button-255" class="Button ghost md">
                                   Cancel
                                 </button>
-                                <button data-nid="el-button-518" class="Button primary md">
+                                <button data-nid="el-button-257" class="Button primary md">
                                   Confirm
                                 </button>
                               </div>
@@ -4260,69 +3762,69 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                     </div>
                   </div>
                 </div>
-                <div data-nid="el-div-520" class="demo-col">
-                  <div data-nid="el-TabPanel-521" data-component="TabPanel">
-                    <div data-nid="el-div-522" class="Card">
-                      <div data-nid="el-div-523" class="tab-bar">
-                        <button data-nid="el-button-524" class="active Button primary sm">
+                <div data-nid="el-div-259" class="Col">
+                  <div data-nid="el-TabPanel-260" data-component="TabPanel">
+                    <div data-nid="el-div-261" class="Card">
+                      <div data-nid="el-div-262" class="tab-bar">
+                        <button data-nid="el-button-263" class="Button primary sm">
                           Home
                         </button>
-                        <button data-nid="el-button-526" class="active Button primary sm">
+                        <button data-nid="el-button-265" class="Button primary sm">
                           About
                         </button>
-                        <button data-nid="el-button-528" class="active Button primary sm">
+                        <button data-nid="el-button-267" class="Button primary sm">
                           Settings
                         </button>
                       </div>
-                      <div data-nid="el-if-530-b0" style="display:none">
-                        <fragment data-nid="el-fragment-531">
-                          <div data-nid="el-div-532" class="Card">
-                            <h3 data-nid="el-h3-533" class="card-title">
+                      <div data-nid="el-if-269-b0" style="display:none">
+                        <fragment data-nid="el-fragment-270">
+                          <div data-nid="el-div-271" class="Card">
+                            <h3 data-nid="el-h3-272" class="card-title">
                               Home Tab
                             </h3>
-                            <div data-nid="el-div-535" class="row">
-                              <span data-nid="el-span-536">
+                            <div data-nid="el-div-274" class="row">
+                              <span data-nid="el-span-275">
                                 Custom tags: Card, Button, Flex, Text
                               </span>
                             </div>
-                            <p data-nid="el-p-538" class="text">
+                            <p data-nid="el-p-277" class="text">
                               class: map syntax demo on buttons above
                             </p>
                           </div>
                         </fragment>
                       </div>
-                      <div data-nid="el-if-530-b1" style="display:none">
-                        <fragment data-nid="el-fragment-540">
-                          <div data-nid="el-div-541" class="Card">
-                            <h3 data-nid="el-h3-542" class="card-title">
+                      <div data-nid="el-if-269-b1" style="display:none">
+                        <fragment data-nid="el-fragment-279">
+                          <div data-nid="el-div-280" class="Card">
+                            <h3 data-nid="el-h3-281" class="card-title">
                               About Tab
                             </h3>
-                            <p data-nid="el-p-544" class="text">
+                            <p data-nid="el-p-283" class="text">
                               Custom tag mapping: Card to div, Button to button
                             </p>
-                            <p data-nid="el-p-546" class="text">
+                            <p data-nid="el-p-285" class="text">
                               Inline style: syntax on Button elements
                             </p>
                           </div>
                         </fragment>
                       </div>
-                      <div data-nid="el-if-530-b2" style="display:none">
-                        <fragment data-nid="el-fragment-548">
-                          <div data-nid="el-div-549" class="Card">
-                            <h3 data-nid="el-h3-550" class="card-title">
+                      <div data-nid="el-if-269-b2" style="display:none">
+                        <fragment data-nid="el-fragment-287">
+                          <div data-nid="el-div-288" class="Card">
+                            <h3 data-nid="el-h3-289" class="card-title">
                               Settings Tab
                             </h3>
-                            <p data-nid="el-p-552" class="text">
+                            <p data-nid="el-p-291" class="text">
                               Active tab:
-                              <span data-nid="el-interp-554"></span>
+                              <span data-nid="el-interp-293"></span>
                             </p>
                           </div>
                         </fragment>
                       </div>
-                      <div data-nid="el-if-530-else" style="display:none">
-                        <fragment data-nid="el-fragment-556">
-                          <div data-nid="el-div-557" class="Card">
-                            <p data-nid="el-p-558" class="text">
+                      <div data-nid="el-if-269-else" style="display:none">
+                        <fragment data-nid="el-fragment-295">
+                          <div data-nid="el-div-296" class="Card">
+                            <p data-nid="el-p-297" class="text">
                               Unknown tab
                             </p>
                           </div>
@@ -4332,74 +3834,74 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                   </div>
                 </div>
               </div>
-              <div data-nid="el-div-560" class="demo-full">
-                <div data-nid="el-DataTable-561" data-component="DataTable">
-                  <div data-nid="el-div-562" class="Card">
-                    <div data-nid="el-div-563" class="header-row">
-                      <img data-nid="el-img-564" src="/dot.png" alt="dot" />
-                      <h2 data-nid="el-h2-565" class="CardTitle">
+              <div data-nid="el-div-299" class="DemoFull">
+                <div data-nid="el-DataTable-300" data-component="DataTable">
+                  <div data-nid="el-div-301" class="Card">
+                    <div data-nid="el-div-302" class="header-row">
+                      <img data-nid="el-img-303" src="/dot.png" alt="dot" />
+                      <h2 data-nid="el-h2-304" class="CardTitle">
                         DataTable Demo
                       </h2>
-                      <hr data-nid="el-hr-567" />
+                      <hr data-nid="el-hr-306" />
                     </div>
-                    <div data-nid="el-div-568" class="controls">
-                      <p data-nid="el-p-569" class="info-text">
+                    <div data-nid="el-div-307" class="controls">
+                      <p data-nid="el-p-308" class="info-text">
                         Scroll count:
-                        <span data-nid="el-interp-571"></span>
-                        <br data-nid="el-br-573" />
+                        <span data-nid="el-interp-310"></span>
+                        <br data-nid="el-br-312" />
                         Sort:
-                        <span data-nid="el-interp-575"></span>
+                        <span data-nid="el-interp-314"></span>
                       </p>
-                      <button data-nid="el-button-577" class="Button ghost sm">
+                      <button data-nid="el-button-316" class="Button ghost sm">
                         Toggle Sort
                       </button>
-                      <button data-nid="el-button-579" class="Button ghost sm">
+                      <button data-nid="el-button-318" class="Button ghost sm">
                         Scroll +1
                       </button>
                     </div>
-                    <div data-nid="el-div-581" class="table-wrapper">
-                      <table data-nid="el-Table-582" class="data-table">
-                        <thead data-nid="el-thead-583">
-                          <tr data-nid="el-tr-584">
-                            <th data-nid="el-th-585" class="th">
+                    <div data-nid="el-div-320" class="table-wrapper">
+                      <table data-nid="el-Table-321" class="data-table">
+                        <thead data-nid="el-thead-322">
+                          <tr data-nid="el-tr-323">
+                            <th data-nid="el-th-324" class="th">
                               ID
                             </th>
-                            <th data-nid="el-th-587" class="th">
+                            <th data-nid="el-th-326" class="th">
                               Name
                             </th>
-                            <th data-nid="el-th-589" class="th">
+                            <th data-nid="el-th-328" class="th">
                               Status
                             </th>
-                            <th data-nid="el-th-591" class="th">
+                            <th data-nid="el-th-330" class="th">
                               Score
                             </th>
                           </tr>
                         </thead>
-                        <tbody data-nid="el-tbody-593">
-                          <template data-nid="el-for-594-tpl">
-                              <tr data-nid="el-tr-596" class="tr">
-                                <td data-nid="el-td-597" class="td">
-                                  <span data-nid="el-interp-598"></span>
+                        <tbody data-nid="el-tbody-332">
+                          <template data-nid="el-for-333-tpl">
+                              <tr data-nid="el-tr-335" class="tr">
+                                <td data-nid="el-td-336" class="td">
+                                  <span data-nid="el-interp-337"></span>
                                 </td>
-                                <td data-nid="el-td-600" class="td">
-                                  <span data-nid="el-interp-601"></span>
+                                <td data-nid="el-td-339" class="td">
+                                  <span data-nid="el-interp-340"></span>
                                 </td>
-                                <td data-nid="el-td-603" class="td">
-                                  <span data-nid="el-span-604" class="badge active inactive">
-                                    <span data-nid="el-interp-605"></span>
+                                <td data-nid="el-td-342" class="td">
+                                  <span data-nid="el-span-343" class="badge">
+                                    <span data-nid="el-interp-344"></span>
                                   </span>
                                 </td>
-                                <td data-nid="el-td-607" class="td">
-                                  <span data-nid="el-span-608" class="score-text">
-                                    <span data-nid="el-interp-609"></span>
+                                <td data-nid="el-td-346" class="td">
+                                  <span data-nid="el-span-347" class="score-text">
+                                    <span data-nid="el-interp-348"></span>
                                   </span>
                                 </td>
                               </tr>
 </template>
-                          <template data-nid="el-for-594-ctr" data-for-container></template>
-                          <template data-nid="el-for-594-empty">
-                              <tr data-nid="el-tr-612">
-                                <td data-nid="el-td-613" class="td-empty">
+                          <template data-nid="el-for-333-ctr" data-for-container></template>
+                          <template data-nid="el-for-333-empty">
+                              <tr data-nid="el-tr-351">
+                                <td data-nid="el-td-352" class="td-empty">
                                   No data
                                 </td>
                               </tr>
@@ -4407,176 +3909,720 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                         </tbody>
                       </table>
                     </div>
-                    <div data-nid="el-div-615" class="summary-section">
-                      <h3 data-nid="el-h3-616" class="section-title">
+                    <div data-nid="el-div-354" class="summary-section">
+                      <h3 data-nid="el-h3-355" class="section-title">
                         Summary
                       </h3>
-                      <ul data-nid="el-List-618" class="summary-list">
-                        <li data-nid="el-ListItem-619" class="summary-item">
-                          <img data-nid="el-img-620" src="/dot.png" alt="dot" />
+                      <ul data-nid="el-List-357" class="summary-list">
+                        <li data-nid="el-ListItem-358" class="summary-item">
+                          <img data-nid="el-img-359" src="/dot.png" alt="dot" />
                           Total items:
-                          <span data-nid="el-interp-622"></span>
+                          <span data-nid="el-interp-361"></span>
                         </li>
-                        <li data-nid="el-ListItem-624" class="summary-item">
-                          <img data-nid="el-img-625" src="/dot.png" alt="dot" />
+                        <li data-nid="el-ListItem-363" class="summary-item">
+                          <img data-nid="el-img-364" src="/dot.png" alt="dot" />
                           Active items:
-                          <span data-nid="el-interp-627"></span>
+                          <span data-nid="el-interp-366"></span>
                         </li>
-                        <li data-nid="el-ListItem-629" class="summary-item">
-                          <img data-nid="el-img-630" src="/dot.png" alt="dot" />
+                        <li data-nid="el-ListItem-368" class="summary-item">
+                          <img data-nid="el-img-369" src="/dot.png" alt="dot" />
                           Scroll events:
-                          <span data-nid="el-interp-632"></span>
+                          <span data-nid="el-interp-371"></span>
                         </li>
                       </ul>
                     </div>
-                    <div data-nid="el-div-634" class="features-section">
-                      <h3 data-nid="el-h3-635" class="section-title">
+                    <div data-nid="el-div-373" class="features-section">
+                      <h3 data-nid="el-h3-374" class="section-title">
                         Map and Closure Demo
                       </h3>
-                      <ul data-nid="el-List-637" class="features-list">
-                        <li data-nid="el-ListItem-638" class="features-item">
-                          <img data-nid="el-img-639" src="/dot.png" alt="dot" />
+                      <ul data-nid="el-List-376" class="features-list">
+                        <li data-nid="el-ListItem-377" class="features-item">
+                          <img data-nid="el-img-378" src="/dot.png" alt="dot" />
                           Grade for 95:
-                          <span data-nid="el-interp-641"></span>
+                          <span data-nid="el-interp-380"></span>
                         </li>
-                        <li data-nid="el-ListItem-643" class="features-item">
-                          <img data-nid="el-img-644" src="/dot.png" alt="dot" />
+                        <li data-nid="el-ListItem-382" class="features-item">
+                          <img data-nid="el-img-383" src="/dot.png" alt="dot" />
                           Grade for 72:
-                          <span data-nid="el-interp-646"></span>
+                          <span data-nid="el-interp-385"></span>
                         </li>
-                        <li data-nid="el-ListItem-648" class="features-item">
-                          <img data-nid="el-img-649" src="/dot.png" alt="dot" />
+                        <li data-nid="el-ListItem-387" class="features-item">
+                          <img data-nid="el-img-388" src="/dot.png" alt="dot" />
                           Grade for 59:
-                          <span data-nid="el-interp-651"></span>
+                          <span data-nid="el-interp-390"></span>
                         </li>
-                        <li data-nid="el-ListItem-653" class="features-item">
-                          <img data-nid="el-img-654" src="/dot.png" alt="dot" />
+                        <li data-nid="el-ListItem-392" class="features-item">
+                          <img data-nid="el-img-393" src="/dot.png" alt="dot" />
                           Adj total (s+5):
-                          <span data-nid="el-interp-656"></span>
+                          <span data-nid="el-interp-395"></span>
                         </li>
                       </ul>
                     </div>
-                    <hr data-nid="el-hr-658" />
-                    <div data-nid="el-div-659" class="footer-row">
-                      <img data-nid="el-img-660" src="/dot.png" alt="dot" />
-                      <p data-nid="el-p-661" class="footer-text">
+                    <hr data-nid="el-hr-397" />
+                    <div data-nid="el-div-398" class="footer-row">
+                      <img data-nid="el-img-399" src="/dot.png" alt="dot" />
+                      <p data-nid="el-p-400" class="footer-text">
                         DataTable Phase 4 Demo
                       </p>
                     </div>
                   </div>
                 </div>
               </div>
-              <div data-nid="el-div-663" class="demo-full">
-                <div data-nid="el-FormPage-664" data-component="FormPage">
-                  <div data-nid="el-div-665" class="Card">
-                    <h2 data-nid="el-h2-666" class="CardTitle">
+              <div data-nid="el-div-402" class="Row">
+                <div data-nid="el-div-403" class="Col">
+                  <div data-nid="el-SlotDefaultDemo-404" data-component="SlotDefaultDemo">
+                    <div data-nid="el-div-405" class="wrapper">
+                      <h3 data-nid="el-h3-406" class="section-title">
+                        Slot Default Content (回退内容)
+                      </h3>
+                      <p data-nid="el-p-408" class="subtitle">
+                        演示插槽默认回退内容语法 + 对比有/无自定义内容
+                      </p>
+                      <div data-nid="el-div-410" class="demo-card">
+                        <h4 data-nid="el-h4-411" class="demo-label">
+                          ① Using Default Slot Content
+                        </h4>
+                        <p data-nid="el-p-413" class="demo-desc">
+                          消费者
+                          <strong data-nid="el-strong-415">
+                            没有
+                          </strong>
+                          提供插槽内容 → 组件显示
+                          <code data-nid="el-code-418">
+                            header
+                          </code>
+                          插槽声明中定义的默认回退。
+                        </p>
+                        <div data-nid="el-div-421" class="demo-box">
+                          <div data-nid="el-SlotPanel-422" data-component="SlotPanel">
+                            <div data-nid="el-div-423" class="slot-panel">
+                              <div data-nid="el-div-424" class="slot-section">
+                                <span data-nid="el-span-425" class="section-label">
+                                  header slot:
+                                </span>
+                                <slot name="header">
+                                  <span data-nid="el-span-427" class="default-text">
+                                    Default Header (来自 header 插槽声明的回退)
+                                  </span>
+                                </slot>
+                              </div>
+                              <div data-nid="el-div-429" class="slot-section main">
+                                <span data-nid="el-span-430" class="section-label">
+                                  main slot:
+                                </span>
+                                <slot>
+                                  <p data-nid="el-p-432" class="default-text">
+                                    Default Body — 这是匿名插槽的默认回退内容
+                                  </p>
+                                </slot>
+                              </div>
+                              <div data-nid="el-div-434" class="slot-section">
+                                <span data-nid="el-span-435" class="section-label">
+                                  footer slot:
+                                </span>
+                                <slot name="footer"></slot>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div data-nid="el-div-437" class="demo-card">
+                        <h4 data-nid="el-h4-438" class="demo-label">
+                          ② Overriding Default with Custom Content
+                        </h4>
+                        <p data-nid="el-p-440" class="demo-desc">
+                          消费者
+                          <strong data-nid="el-strong-442">
+                            提供
+                          </strong>
+                          插槽内容 → 默认回退被覆盖。
+                          <code data-nid="el-code-445">
+                            footer
+                          </code>
+                          插槽没有默认值，若未提供则保持空白。
+                        </p>
+                        <div data-nid="el-div-448" class="demo-box">
+                          <div data-nid="el-SlotPanel-449" data-component="SlotPanel">
+                            <div data-nid="el-div-450" class="slot-panel">
+                              <div data-nid="el-div-451" class="slot-section">
+                                <span data-nid="el-span-452" class="section-label">
+                                  header slot:
+                                </span>
+                                <div data-nid="el-div-454" class="custom-header">
+                                  <span data-nid="el-span-455" class="custom-icon">
+                                    ★
+                                  </span>
+                                  <span data-nid="el-span-457">
+                                    Custom Header — 覆盖了默认回退
+                                  </span>
+                                </div>
+                              </div>
+                              <div data-nid="el-div-459" class="slot-section main">
+                                <span data-nid="el-span-460" class="section-label">
+                                  main slot:
+                                </span>
+                                <div data-nid="el-div-462" class="custom-body">
+                                  <p data-nid="el-p-463">
+                                    Custom Body Content
+                                  </p>
+                                  <p data-nid="el-p-465" class="custom-note">
+                                    默认回退已被消费者替代
+                                  </p>
+                                </div>
+                              </div>
+                              <div data-nid="el-div-467" class="slot-section">
+                                <span data-nid="el-span-468" class="section-label">
+                                  footer slot:
+                                </span>
+                                <slot name="footer"></slot>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div data-nid="el-div-470" class="demo-card">
+                        <h4 data-nid="el-h4-471" class="demo-label">
+                          ③ Toggle: With / Without Custom Content
+                        </h4>
+                        <p data-nid="el-p-473" class="demo-desc">
+                          点击按钮在有/无自定义插槽内容之间切换， 观察默认回退的出现和消失。
+                        </p>
+                        <button data-nid="el-button-475" class="toggle-btn">
+                          <span data-nid="el-interp-476"></span>
+                        </button>
+                        <div data-nid="el-div-478" class="demo-box toggle-area">
+                          <div data-nid="el-if-479-b0" style="display:none">
+                            <fragment data-nid="el-fragment-480">
+                              <div data-nid="el-SlotPanel-481" data-component="SlotPanel">
+                                <div data-nid="el-div-482" class="slot-panel">
+                                  <div data-nid="el-div-483" class="slot-section">
+                                    <span data-nid="el-span-484" class="section-label">
+                                      header slot:
+                                    </span>
+                                    <div data-nid="el-div-486" class="custom-header alt">
+                                      <span data-nid="el-span-487" class="custom-icon">
+                                        ✦
+                                      </span>
+                                      <span data-nid="el-span-489">
+                                        Custom Header (alt)
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div data-nid="el-div-491" class="slot-section main">
+                                    <span data-nid="el-span-492" class="section-label">
+                                      main slot:
+                                    </span>
+                                    <p data-nid="el-p-494" class="custom-body alt">
+                                      Custom body — 回退已被覆盖
+                                    </p>
+                                  </div>
+                                  <div data-nid="el-div-496" class="slot-section">
+                                    <span data-nid="el-span-497" class="section-label">
+                                      footer slot:
+                                    </span>
+                                    <div data-nid="el-div-499" class="custom-footer">
+                                      <span data-nid="el-span-500">
+                                        提供了 footer 插槽
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </fragment>
+                          </div>
+                          <div data-nid="el-if-479-else" style="display:none">
+                            <fragment data-nid="el-fragment-502">
+                              <div data-nid="el-SlotPanel-503" data-component="SlotPanel">
+                                <div data-nid="el-div-504" class="slot-panel">
+                                  <div data-nid="el-div-505" class="slot-section">
+                                    <span data-nid="el-span-506" class="section-label">
+                                      header slot:
+                                    </span>
+                                    <slot name="header">
+                                      <span data-nid="el-span-508" class="default-text">
+                                        Default Header (来自 header 插槽声明的回退)
+                                      </span>
+                                    </slot>
+                                  </div>
+                                  <div data-nid="el-div-510" class="slot-section main">
+                                    <span data-nid="el-span-511" class="section-label">
+                                      main slot:
+                                    </span>
+                                    <slot>
+                                      <p data-nid="el-p-513" class="default-text">
+                                        Default Body — 这是匿名插槽的默认回退内容
+                                      </p>
+                                    </slot>
+                                  </div>
+                                  <div data-nid="el-div-515" class="slot-section">
+                                    <span data-nid="el-span-516" class="section-label">
+                                      footer slot:
+                                    </span>
+                                    <slot name="footer"></slot>
+                                  </div>
+                                </div>
+                              </div>
+                            </fragment>
+                          </div>
+                        </div>
+                      </div>
+                      <div data-nid="el-div-518" class="tech-note">
+                        <h4 data-nid="el-h4-519" class="note-title">
+                          💡 插槽默认内容语义
+                        </h4>
+                        <ul data-nid="el-ul-521" class="note-list">
+                          <li data-nid="el-li-522">
+                            如果消费者
+                            <strong data-nid="el-strong-524">
+                              没有
+                            </strong>
+                            为命名的
+                            <code data-nid="el-code-527">
+                              插槽
+                            </code>
+                            提供内容，显示其默认回退
+                          </li>
+                          <li data-nid="el-li-530">
+                            如果消费者
+                            <strong data-nid="el-strong-532">
+                              有
+                            </strong>
+                            提供内容，默认回退被完全替换
+                          </li>
+                          <li data-nid="el-li-535">
+                            不带默认值的
+                            <code data-nid="el-code-537">
+                              插槽声明
+                            </code>
+                            （无回退体）在无内容时渲染空白
+                          </li>
+                          <li data-nid="el-li-540">
+                            匿名插槽（不写名字的声明）同样支持默认回退
+                          </li>
+                          <li data-nid="el-li-542">
+                            回退内容可以是任意 OmniLang view 模板（元素、文本、插值、条件等）
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div data-nid="el-div-544" class="Col">
+                  <div data-nid="el-EventsDemo-545" data-component="EventsDemo">
+                    <main data-nid="el-main-546" class="Card">
+                      <nav data-nid="el-nav-547" aria-label="Event Demo">
+                        <h2 data-nid="el-h2-548" class="title">
+                          事件处理器全覆盖
+                        </h2>
+                        <p data-nid="el-p-550" class="Hint">
+                          双击 · 右键 · 拖拽 · 触摸 · 滚轮 · 媒体 · 动画 · 切换
+                        </p>
+                      </nav>
+                      <article data-nid="el-article-552" class="card">
+                        <h3 data-nid="el-h3-553" class="CardTitle">
+                          输入与键盘事件
+                        </h3>
+                        <input data-nid="el-input-555" placeholder="在此输入..." class="input" />
+                      </article>
+                      <article data-nid="el-article-556" class="card">
+                        <h3 data-nid="el-h3-557" class="card-title">
+                          双击与右键
+                        </h3>
+                        <div data-nid="el-div-559" class="interactive-box">
+                          <p data-nid="el-p-560" class="hint">
+                            双击或右键点击此区域
+                          </p>
+                        </div>
+                      </article>
+                      <article data-nid="el-article-562" class="card">
+                        <h3 data-nid="el-h3-563" class="card-title">
+                          拖拽事件
+                        </h3>
+                        <div data-nid="el-div-565" draggable="true" class="drag-box">
+                          <p data-nid="el-p-566" class="hint">
+                            拖拽状态:
+                            <span data-nid="el-interp-568"></span>
+                          </p>
+                        </div>
+                      </article>
+                      <article data-nid="el-article-570" class="card">
+                        <h3 data-nid="el-h3-571" class="card-title">
+                          触摸事件
+                        </h3>
+                        <div data-nid="el-div-573" class="touch-box">
+                          <p data-nid="el-p-574" class="hint">
+                            在移动设备上触摸此处
+                          </p>
+                        </div>
+                      </article>
+                      <article data-nid="el-article-576" class="card">
+                        <h3 data-nid="el-h3-577" class="card-title">
+                          滚轮事件
+                        </h3>
+                        <div data-nid="el-div-579" class="wheel-box">
+                          <p data-nid="el-p-580" class="hint">
+                            滚轮计数:
+                            <span data-nid="el-interp-582"></span>
+                            | deltaY:
+                            <span data-nid="el-interp-585"></span>
+                          </p>
+                        </div>
+                      </article>
+                      <article data-nid="el-article-587" class="card">
+                        <h3 data-nid="el-h3-588" class="card-title">
+                          滚动事件
+                        </h3>
+                        <div data-nid="el-div-590" class="scroll-box">
+                          <p data-nid="el-p-591" class="hint">
+                            Scroll Y:
+                            <span data-nid="el-interp-593"></span>
+                            (
+                            <span data-nid="el-interp-596"></span>
+                            次)
+                          </p>
+                        </div>
+                      </article>
+                      <article data-nid="el-article-599" class="card">
+                        <h3 data-nid="el-h3-600" class="card-title">
+                          媒体与资源事件
+                        </h3>
+                        <img data-nid="el-img-602" src alt="test" class="hidden-img" />
+                        <div data-nid="el-div-603" class="media-box">
+                          <p data-nid="el-p-604" class="hint">
+                            媒体状态:
+                            <span data-nid="el-interp-606"></span>
+                          </p>
+                        </div>
+                      </article>
+                      <article data-nid="el-article-608" class="card">
+                        <h3 data-nid="el-h3-609" class="card-title">
+                          动画与过渡事件
+                        </h3>
+                        <div data-nid="el-div-611" class="anim-box">
+                          <p data-nid="el-p-612" class="hint">
+                            动画状态:
+                            <span data-nid="el-interp-614"></span>
+                          </p>
+                        </div>
+                      </article>
+                      <article data-nid="el-article-616" class="card">
+                        <h3 data-nid="el-h3-617" class="card-title">
+                          Toggle 事件
+                        </h3>
+                        <details data-nid="el-details-619" class="details-box">
+                          <summary data-nid="el-summary-620" class="summary">
+                            点击展开 (toggle count:
+                            <span data-nid="el-interp-622"></span>
+                            )
+                          </summary>
+                          <p data-nid="el-p-625" class="details-text">
+                            这是详情内容。每次展开/折叠触发 @onToggle。
+                          </p>
+                        </details>
+                      </article>
+                      <article data-nid="el-article-627" class="card">
+                        <h3 data-nid="el-h3-628" class="card-title">
+                          事件日志
+                        </h3>
+                        <p data-nid="el-p-630" class="log-text">
+                          日志:
+                          <span data-nid="el-interp-632"></span>
+                          条事件
+                        </p>
+                      </article>
+                      <article data-nid="el-article-635" class="card">
+                        <h3 data-nid="el-h3-636" class="card-title">
+                          HTML 语义标签
+                        </h3>
+                        <section data-nid="el-section-638" class="tag-section">
+                          <h4 data-nid="el-h4-639" class="tag-group">
+                            文本语义
+                          </h4>
+                          <p data-nid="el-p-641">
+                            <b data-nid="el-b-642">
+                              粗体 (b)
+                            </b>
+                            <strong data-nid="el-strong-644">
+                              重要 (strong)
+                            </strong>
+                            <i data-nid="el-i-646">
+                              斜体 (i)
+                            </i>
+                            <em data-nid="el-em-648">
+                              强调 (em)
+                            </em>
+                            <mark data-nid="el-mark-650">
+                              高亮 (mark)
+                            </mark>
+                            <small data-nid="el-small-652">
+                              小字 (small)
+                            </small>
+                            <del data-nid="el-del-654">
+                              删除 (del)
+                            </del>
+                            <ins data-nid="el-ins-656">
+                              插入 (ins)
+                            </ins>
+                          </p>
+                          <p data-nid="el-p-658">
+                            <code data-nid="el-code-659">
+                              代码 (code)
+                            </code>
+                            <kbd data-nid="el-kbd-661">
+                              按键 (kbd)
+                            </kbd>
+                            <samp data-nid="el-samp-663">
+                              输出 (samp)
+                            </samp>
+                            <var data-nid="el-var-665">
+                              变量 (var)
+                            </var>
+                          </p>
+                          <p data-nid="el-p-667">
+                            <sup data-nid="el-sup-668">
+                              上标 (sup)
+                            </sup>
+                            /
+                            <sub data-nid="el-sub-671">
+                              下标 (sub)
+                            </sub>
+                          </p>
+                          <p data-nid="el-p-673">
+                            <abbr data-nid="el-abbr-674" title="HyperText Markup Language">
+                              HTML (abbr)
+                            </abbr>
+                            <dfn data-nid="el-dfn-676">
+                              定义 (dfn)
+                            </dfn>
+                          </p>
+                          <p data-nid="el-p-678">
+                            <q data-nid="el-q-679">
+                              短引用 (q)
+                            </q>
+                          </p>
+                          <blockquote data-nid="el-blockquote-681" class="blockquote">
+                            块引用 (blockquote)
+                            <cite data-nid="el-cite-683">
+                              — 来源 (cite)
+                            </cite>
+                          </blockquote>
+                          <p data-nid="el-p-685">
+                            <time data-nid="el-time-686" datetime="2025-06-20">
+                              时间 (time)
+                            </time>
+                          </p>
+                          <div data-nid="el-div-688">
+                            <address data-nid="el-address-689">
+                              地址: contact@example.com (address)
+                            </address>
+                          </div>
+                          <p data-nid="el-p-691">
+                            <bdi data-nid="el-bdi-692">
+                              双向文本 (bdi)
+                            </bdi>
+                            <bdo data-nid="el-bdo-694" dir="rtl">
+                              双向覆盖 (bdo)
+                            </bdo>
+                          </p>
+                          <p data-nid="el-p-696">
+                            换行
+                            <wbr data-nid="el-wbr-698" />
+                            机会 (wbr)
+                          </p>
+                        </section>
+                        <section data-nid="el-section-700" class="tag-section">
+                          <h4 data-nid="el-h4-701" class="tag-group">
+                            表单标签
+                          </h4>
+                          <fieldset data-nid="el-fieldset-703" class="fieldset">
+                            <legend data-nid="el-legend-704">
+                              分组字段 (fieldset + legend)
+                            </legend>
+                            <label data-nid="el-label-706">
+                              搜索:
+                              <input data-nid="el-input-708" list="options" />
+                            </label>
+                            <datalist data-nid="el-datalist-709" id="options">
+                              <option data-nid="el-option-710" value="Apple">
+                              </option>
+                              <option data-nid="el-option-711" value="Banana">
+                              </option>
+                            </datalist>
+                            <select data-nid="el-select-712" class="select">
+                              <optgroup data-nid="el-optgroup-713" data-label="水果">
+                                <option data-nid="el-option-714">
+                                  苹果
+                                </option>
+                                <option data-nid="el-option-716">
+                                  香蕉
+                                </option>
+                              </optgroup>
+                            </select>
+                          </fieldset>
+                        </section>
+                        <section data-nid="el-section-718" class="tag-section">
+                          <h4 data-nid="el-h4-719" class="tag-group">
+                            媒体与嵌入
+                          </h4>
+                          <figure data-nid="el-figure-721" class="figure">
+                            <figcaption data-nid="el-figcaption-722">
+                              插图标题 (figure + figcaption)
+                            </figcaption>
+                            <video data-nid="el-video-724" width="200" controls class="media">
+                              <source data-nid="el-source-725" src="sample.mp4" type="video/mp4" />
+                            </video>
+                            <audio data-nid="el-audio-726" controls class="media">
+                              <source data-nid="el-source-727" src="sample.mp3" type="audio/mpeg" />
+                            </audio>
+                          </figure>
+                          <canvas data-nid="el-canvas-728" class="canvas">
+                          </canvas>
+                          <picture data-nid="el-picture-729">
+                            <source data-nid="el-source-730" srcset="large.jpg" media="(min-width: 800px)" />
+                            <img data-nid="el-img-731" src="fallback.jpg" alt="responsive" />
+                          </picture>
+                          <map data-nid="el-map-732" name="demo-map">
+                            <area data-nid="el-area-733" coords="0,0,50,50" shape="rect" alt="Area 1" href="#area1" />
+                          </map>
+                        </section>
+                        <section data-nid="el-section-734" class="tag-section">
+                          <h4 data-nid="el-h4-735" class="tag-group">
+                            度量与进度
+                          </h4>
+                          <progress data-nid="el-progress-737" value="70" max="100" class="progress">
+                            70%
+                          </progress>
+                          <meter data-nid="el-meter-739" value="0.6" min="0" max="1" class="meter">
+                            60%
+                          </meter>
+                        </section>
+                        <section data-nid="el-section-741" class="tag-section">
+                          <h4 data-nid="el-h4-742" class="tag-group">
+                            注音
+                          </h4>
+                          <ruby data-nid="el-ruby-744">
+                            漢字
+                            <rt data-nid="el-rt-746">
+                              かんじ
+                            </rt>
+                          </ruby>
+                        </section>
+                      </article>
+                    </main>
+                  </div>
+                </div>
+              </div>
+              <div data-nid="el-div-748" class="DemoFull">
+                <div data-nid="el-FormPage-749" data-component="FormPage">
+                  <div data-nid="el-div-750" class="Card">
+                    <h2 data-nid="el-h2-751" class="CardTitle">
                       FormPage Demo
                     </h2>
-                    <form data-nid="el-form-668" class="form">
-                      <div data-nid="el-div-669" class="field">
-                        <label data-nid="el-label-670" for="name" class="label">
+                    <form data-nid="el-form-753" class="form">
+                      <div data-nid="el-div-754" class="field">
+                        <label data-nid="el-label-755" for="name" class="label">
                           Name
                         </label>
-                        <input data-nid="el-input-672" required aria-label="Full name input" data-type="text" placeholder="Your name" data-testid="name-field" id="name" class="input" />
-                        <div data-nid="el-if-673-b0" style="display:none">
-                          <fragment data-nid="el-fragment-674">
-                            <span data-nid="el-span-675" class="error-text">
-                              <span data-nid="el-interp-676"></span>
+                        <input data-nid="el-input-757" required aria-label="Full name input" data-type="text" placeholder="Your name" data-testid="name-field" id="name" class="input" />
+                        <div data-nid="el-if-758-b0" style="display:none">
+                          <fragment data-nid="el-fragment-759">
+                            <span data-nid="el-span-760" class="error-text">
+                              <span data-nid="el-interp-761"></span>
                             </span>
                           </fragment>
                         </div>
                       </div>
-                      <div data-nid="el-div-678" class="field">
-                        <label data-nid="el-label-679" for="email" class="label">
+                      <div data-nid="el-div-763" class="field">
+                        <label data-nid="el-label-764" for="email" class="label">
                           Email
                         </label>
-                        <input data-nid="el-input-681" required aria-label="Email address input" data-type="email" placeholder="your@email.com" data-testid="email-field" id="email" class="input" />
-                        <div data-nid="el-if-682-b0" style="display:none">
-                          <fragment data-nid="el-fragment-683">
-                            <span data-nid="el-span-684" class="error-text">
-                              <span data-nid="el-interp-685"></span>
+                        <input data-nid="el-input-766" required aria-label="Email address input" data-type="email" placeholder="your@email.com" data-testid="email-field" id="email" class="input" />
+                        <div data-nid="el-if-767-b0" style="display:none">
+                          <fragment data-nid="el-fragment-768">
+                            <span data-nid="el-span-769" class="error-text">
+                              <span data-nid="el-interp-770"></span>
                             </span>
                           </fragment>
                         </div>
                       </div>
-                      <div data-nid="el-div-687" class="field">
-                        <label data-nid="el-label-688" for="msg" class="label">
+                      <div data-nid="el-div-772" class="field">
+                        <label data-nid="el-label-773" for="msg" class="label">
                           Message
                         </label>
-                        <textarea data-nid="el-textarea-690" aria-label="Message input" placeholder="Your message (optional)" data-testid="msg-field" id="msg" class="textarea">
+                        <textarea data-nid="el-textarea-775" aria-label="Message input" placeholder="Your message (optional)" data-testid="msg-field" id="msg" class="textarea">
                         </textarea>
                       </div>
-                      <div data-nid="el-div-691" class="field">
-                        <label data-nid="el-label-692" for="disabled-field" class="label">
+                      <div data-nid="el-div-776" class="field">
+                        <label data-nid="el-label-777" for="disabled-field" class="label">
                           Disabled field
                         </label>
-                        <input data-nid="el-input-694" disabled aria-label="Disabled input" placeholder="This field is disabled" data-testid="disabled-field" id="disabled-field" class="input" />
+                        <input data-nid="el-input-779" disabled aria-label="Disabled input" placeholder="This field is disabled" data-testid="disabled-field" id="disabled-field" class="input" />
                       </div>
-                      <div data-nid="el-div-695" class="field">
-                        <label data-nid="el-label-696" for="readonly-field" class="label">
+                      <div data-nid="el-div-780" class="field">
+                        <label data-nid="el-label-781" for="readonly-field" class="label">
                           Readonly field
                         </label>
-                        <input data-nid="el-input-698" value="Read-only value" readonly aria-label="Read-only input" data-testid="readonly-field" id="readonly-field" class="input" />
+                        <input data-nid="el-input-783" value="Read-only value" readonly aria-label="Read-only input" data-testid="readonly-field" id="readonly-field" class="input" />
                       </div>
-                      <div data-nid="el-div-699" class="scroll-box">
-                        <p data-nid="el-p-700" class="scroll-title">
+                      <div data-nid="el-div-784" class="scroll-box">
+                        <p data-nid="el-p-785" class="scroll-title">
                           Scrollable area (scroll count:
-                          <span data-nid="el-interp-702"></span>
+                          <span data-nid="el-interp-787"></span>
                           )
                         </p>
-                        <p data-nid="el-p-705" class="scroll-line">
+                        <p data-nid="el-p-790" class="scroll-line">
                           Line 1: Scroll to trigger @onScroll
                         </p>
-                        <p data-nid="el-p-707" class="scroll-line">
+                        <p data-nid="el-p-792" class="scroll-line">
                           Line 2: More content below
                         </p>
-                        <p data-nid="el-p-709" class="scroll-line">
+                        <p data-nid="el-p-794" class="scroll-line">
                           Line 3: Keep scrolling
                         </p>
-                        <p data-nid="el-p-711" class="scroll-line">
+                        <p data-nid="el-p-796" class="scroll-line">
                           Line 4: Almost there
                         </p>
-                        <p data-nid="el-p-713" class="scroll-line">
+                        <p data-nid="el-p-798" class="scroll-line">
                           Line 5: Bottom reached
                         </p>
                       </div>
-                      <div data-nid="el-div-715" class="status-area">
-                        <p data-nid="el-p-716" class="status success">
-                          <span data-nid="el-interp-717"></span>
+                      <div data-nid="el-div-800" class="status-area">
+                        <p data-nid="el-p-801" class="status">
+                          <span data-nid="el-interp-802"></span>
                         </p>
                       </div>
-                      <div data-nid="el-if-719-b0" style="display:none">
-                        <fragment data-nid="el-fragment-720">
-                          <div data-nid="el-div-721" class="trimmed-area">
-                            <p data-nid="el-p-722" class="trimmed-label">
+                      <div data-nid="el-if-804-b0" style="display:none">
+                        <fragment data-nid="el-fragment-805">
+                          <div data-nid="el-div-806" class="trimmed-area">
+                            <p data-nid="el-p-807" class="trimmed-label">
                               Trimmed message:
                             </p>
-                            <p data-nid="el-p-724" class="trimmed-value">
-                              <span data-nid="el-interp-725"></span>
+                            <p data-nid="el-p-809" class="trimmed-value">
+                              <span data-nid="el-interp-810"></span>
                             </p>
                           </div>
                         </fragment>
                       </div>
-                      <div data-nid="el-div-727" class="actions">
-                        <button data-nid="el-button-728" type="submit" aria-label="Submit form" data-testid="submit-btn" class="Button primary lg">
+                      <div data-nid="el-div-812" class="actions">
+                        <button data-nid="el-button-813" type="submit" aria-label="Submit form" data-testid="submit-btn" class="Button primary lg">
                           Submit
                         </button>
-                        <button data-nid="el-button-730" aria-label="Reset form" type="button" data-testid="reset-btn" class="Button ghost lg">
+                        <button data-nid="el-button-815" aria-label="Reset form" type="button" data-testid="reset-btn" class="Button ghost lg">
                           Reset
                         </button>
                       </div>
-                      <div data-nid="el-div-732" class="conditional-area">
-                        <button data-nid="el-button-733" aria-label="Conditional submit button" data-testid="conditional-btn" class="Button ghost md">
-                          <span data-nid="el-interp-734"></span>
+                      <div data-nid="el-div-817" class="conditional-area">
+                        <button data-nid="el-button-818" aria-label="Conditional submit button" data-testid="conditional-btn" class="Button ghost md">
+                          <span data-nid="el-interp-819"></span>
                         </button>
                       </div>
                     </form>
-                    <div data-nid="el-if-736-b0" style="display:none">
-                      <fragment data-nid="el-fragment-737">
-                        <div data-nid="el-div-738" class="focus-indicator">
-                          <p data-nid="el-p-739" class="focus-text">
+                    <div data-nid="el-if-821-b0" style="display:none">
+                      <fragment data-nid="el-fragment-822">
+                        <div data-nid="el-div-823" class="focus-indicator">
+                          <p data-nid="el-p-824" class="focus-text">
                             Focused field:
-                            <span data-nid="el-interp-741"></span>
+                            <span data-nid="el-interp-826"></span>
                           </p>
                         </div>
                       </fragment>
@@ -4584,704 +4630,997 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                   </div>
                 </div>
               </div>
-              <div data-nid="el-div-743" class="demo-full">
-                <div data-nid="el-NotificationsPanel-744" data-component="NotificationsPanel">
-                  <div data-nid="el-div-745" class="Card">
-                    <div data-nid="el-div-746" class="header">
-                      <h3 data-nid="el-h3-747" class="title">
+              <div data-nid="el-div-828" class="DemoFull">
+                <div data-nid="el-NotificationsPanel-829" data-component="NotificationsPanel">
+                  <div data-nid="el-div-830" class="Card">
+                    <div data-nid="el-div-831" class="header">
+                      <h3 data-nid="el-h3-832" class="title">
                         Notifications
-                        <div data-nid="el-if-749-b0" style="display:none">
-                          <fragment data-nid="el-fragment-750">
-                            <span data-nid="el-span-751" class="badge-new">
+                        <div data-nid="el-if-834-b0" style="display:none">
+                          <fragment data-nid="el-fragment-835">
+                            <span data-nid="el-span-836" class="badge-new">
                               New
                             </span>
                           </fragment>
                         </div>
                       </h3>
-                      <div data-nid="el-div-753" class="header-actions">
-                        <button data-nid="el-button-754" class="Button ghost sm">
+                      <div data-nid="el-div-838" class="header-actions">
+                        <button data-nid="el-button-839" class="Button ghost sm">
                           Add
                         </button>
-                        <button data-nid="el-button-756" class="Button ghost sm">
+                        <button data-nid="el-button-841" class="Button ghost sm">
                           Remove
                         </button>
-                        <button data-nid="el-button-758" class="Button danger sm">
+                        <button data-nid="el-button-843" class="Button danger sm">
                           Clear
                         </button>
                       </div>
                     </div>
-                    <div data-nid="el-div-760" class="slot-header-area">
+                    <div data-nid="el-div-845" class="slot-header-area">
                       <slot name="header"></slot>
                     </div>
-                    <div data-nid="el-div-761" data-ref="scrollContainer" class="scroll-area">
-                      <div data-nid="el-if-762-b0" style="display:none">
-                        <fragment data-nid="el-fragment-763">
+                    <div data-nid="el-div-846" class="scroll-area">
+                      <div data-nid="el-if-847-b0" style="display:none">
+                        <fragment data-nid="el-fragment-848">
                           <slot></slot>
-                          <p data-nid="el-p-764" class="Hint">
+                          <p data-nid="el-p-849" class="Hint">
                             No notifications
                           </p>
                         </fragment>
                       </div>
-                      <template data-nid="el-for-766-tpl">
-                          <div data-nid="el-div-768" class="notification-item" data-event-click="fn:__ononPress_el_div_768">
-                            <span data-nid="el-span-769" class="dot">
+                      <template data-nid="el-for-851-tpl">
+                          <div data-nid="el-div-853" class="notification-item" data-event-click="fn:__ononPress_el_div_853">
+                            <span data-nid="el-span-854" class="dot">
                             </span>
-                            <span data-nid="el-span-770" class="item-text">
-                              <span data-nid="el-interp-771"></span>
+                            <span data-nid="el-span-855" class="item-text">
+                              <span data-nid="el-interp-856"></span>
                             </span>
                           </div>
 </template>
-                      <template data-nid="el-for-766-ctr" data-for-container></template>
+                      <template data-nid="el-for-851-ctr" data-for-container></template>
                     </div>
-                    <div data-nid="el-div-773" class="footer">
-                      <p data-nid="el-p-774" class="count-text">
+                    <div data-nid="el-div-858" class="footer">
+                      <p data-nid="el-p-859" class="count-text">
                         Total:
-                        <span data-nid="el-interp-776"></span>
+                        <span data-nid="el-interp-861"></span>
                       </p>
-                      <div data-nid="el-div-778" class="slot-footer-area">
+                      <div data-nid="el-div-863" class="slot-footer-area">
                         <slot name="footer"></slot>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
+              <div data-nid="el-div-864" class="DemoFull">
+                <div data-nid="el-EventShorthand-865" data-component="EventShorthand">
+                  <div data-nid="el-div-866" class="Card">
+                    <h3 data-nid="el-h3-867" class="CardTitle">
+                      Event Shorthand Demo
+                    </h3>
+                    <div data-nid="el-div-869" class="section">
+                      <p data-nid="el-p-870" class="section-title">
+                        Form 1:
+                        <span data-nid="el-interp-872"></span>
+                        — auto-wraps inline
+                      </p>
+                      <button data-nid="el-button-875" class="Button primary sm">
+                        greet(&quot;World&quot;)
+                      </button>
+                      <button data-nid="el-button-877" class="Button primary sm">
+                        farewell(&quot;World&quot;)
+                      </button>
+                    </div>
+                    <div data-nid="el-div-879" class="section">
+                      <p data-nid="el-p-880" class="section-title">
+                        Form 2:
+                        <span data-nid="el-interp-882"></span>
+                        — StoreAction ref
+                      </p>
+                      <button data-nid="el-button-885" class="Button accent sm">
+                        NotificationStore.add(...)
+                      </button>
+                      <button data-nid="el-button-887" class="Button accent sm">
+                        NotificationStore.clear
+                      </button>
+                    </div>
+                    <div data-nid="el-div-889" class="section">
+                      <p data-nid="el-p-890" class="section-title">
+                        @eventName syntax (same as onEventName):
+                      </p>
+                      <div data-nid="el-div-892" class="demo-row">
+                        <button data-nid="el-button-893" class="Button primary sm">
+                          onPress
+                        </button>
+                        <button data-nid="el-button-895" class="Button primary sm">
+                          @onPress
+                        </button>
+                      </div>
+                    </div>
+                    <div data-nid="el-div-897" class="result-area">
+                      <p data-nid="el-p-898" class="result-text">
+                        <span data-nid="el-interp-899"></span>
+                      </p>
+                      <p data-nid="el-p-901" class="result-count">
+                        Clicks:
+                        <span data-nid="el-interp-903"></span>
+                      </p>
+                      <p data-nid="el-p-905" class="Hint" style="color: #f59e0b">
+                        Notifications:
+                        <span data-nid="el-interp-907"></span>
+                      </p>
+                    </div>
+                    <button data-nid="el-button-909" class="Button ghost md">
+                      Reset
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <h3 data-nid="el-h3-911" class="SectionTitle">
+                Todo App Demo
+              </h3>
+              <div data-nid="el-div-913" class="todo-section">
+                <div data-nid="el-div-914" class="todo-sidebar">
+                  <div data-nid="el-AddTodo-915" data-component="AddTodo">
+                    <div data-nid="el-div-916" class="add-todo-container">
+                      <div data-nid="el-div-917" class="Row">
+                        <input data-nid="el-input-918" class="Input" />
+                        <button data-nid="el-button-919" class="Button primary md">
+                          添加
+                        </button>
+                        <button data-nid="el-button-921" class="Button danger md">
+                          清空
+                        </button>
+                      </div>
+                      <p data-nid="el-p-923" class="Hint">
+                        已输入
+                        <span data-nid="el-interp-925"></span>
+                        字符
+                      </p>
+                    </div>
+                  </div>
+                  <div data-nid="el-FilterBar-928" data-component="FilterBar">
+                    <div data-nid="el-div-929" class="Card">
+                      <div data-nid="el-div-930" class="search-row">
+                        <input data-nid="el-input-931" placeholder="Filter todos..." class="search-input" />
+                        <button data-nid="el-button-932" class="Button ghost sm">
+                          X
+                        </button>
+                      </div>
+                      <div data-nid="el-div-934" class="sort-row">
+                        <p data-nid="el-p-935" class="filter-label">
+                          <span data-nid="el-interp-936"></span>
+                        </p>
+                        <button data-nid="el-button-938" class="Button primary sm">
+                          Sort
+                          <span data-nid="el-interp-940"></span>
+                        </button>
+                        <button data-nid="el-button-942" class="Button primary sm">
+                          Sync
+                        </button>
+                      </div>
+                      <div data-nid="el-div-944" class="store-info">
+                        <p data-nid="el-p-945" class="Hint">
+                          Store:
+                          <span data-nid="el-interp-947"></span>
+                          items | Filter:
+                          <span data-nid="el-interp-950"></span>
+                          | Changes:
+                          <span data-nid="el-interp-953"></span>
+                        </p>
+                        <p data-nid="el-p-955" class="Hint">
+                          Last:
+                          <span data-nid="el-interp-957"></span>
+                        </p>
+                        <p data-nid="el-p-959" class="Hint">
+                          Filtered frameworks:
+                          <span data-nid="el-interp-961"></span>
+                          /
+                          <span data-nid="el-interp-964"></span>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div data-nid="el-div-966" class="todo-main">
+                  <div data-nid="el-TodoList-967" data-component="TodoList">
+                    <div data-nid="el-div-968">
+                      <h2 data-nid="el-h2-969" class="title">
+                        待办列表
+                        <span data-nid="el-span-971" class="Badge" style="background: #6366f1; color: #fff">
+                          <span data-nid="el-interp-972"></span>
+                        </span>
+                      </h2>
+                      <div data-nid="el-AddTodo-974" data-component="AddTodo">
+                        <div data-nid="el-div-975" class="add-todo-container">
+                          <div data-nid="el-div-976" class="Row">
+                            <input data-nid="el-input-977" class="Input" />
+                            <button data-nid="el-button-978" class="Button primary md">
+                              添加
+                            </button>
+                            <button data-nid="el-button-980" class="Button danger md">
+                              清空
+                            </button>
+                          </div>
+                          <p data-nid="el-p-982" class="Hint">
+                            已输入
+                            <span data-nid="el-interp-984"></span>
+                            字符
+                          </p>
+                        </div>
+                      </div>
+                      <div data-nid="el-div-987" class="items">
+                        <template data-nid="el-for-988-tpl">
+                            <div data-nid="el-TodoItem-990" data-component="TodoItem" data-for-state-names="">
+                              <div data-nid="el-div-991" class="todo-item">
+                                <span data-nid="el-span-992" class="todo-text">
+                                  <span data-nid="el-interp-993"></span>
+                                </span>
+                              </div>
+                            </div>
+</template>
+                        <template data-nid="el-for-988-ctr" data-for-container></template>
+                        <template data-nid="el-for-988-empty">
+                            <div data-nid="el-div-996" class="empty-state">
+                              <p data-nid="el-p-997" class="Hint" style="font-size: 16px">
+                                还没有待办事项，在上方添加吧
+                              </p>
+                            </div>
+</template>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div data-nid="el-div-999" class="todo-stats">
+                  <div data-nid="el-StatsDashboard-1000" data-component="StatsDashboard">
+                    <div data-nid="el-div-1001" class="Card">
+                      <h3 data-nid="el-h3-1002" class="CardTitle">
+                        StatsDashboard Demo
+                      </h3>
+                      <div data-nid="el-div-1004" class="const-area">
+                        <p data-nid="el-p-1005" class="small">
+                          MAX_ITEMS:
+                          <span data-nid="el-interp-1007"></span>
+                        </p>
+                        <p data-nid="el-p-1009" class="small">
+                          prefixed consts declared
+                        </p>
+                      </div>
+                      <div data-nid="el-div-1011" class="counter-area">
+                        <p data-nid="el-p-1012" class="counter-text">
+                          Counter:
+                          <span data-nid="el-interp-1014"></span>
+                          (
+                          <span data-nid="el-interp-1017"></span>
+                          )
+                        </p>
+                        <div data-nid="el-div-1020" class="btn-row">
+                          <button data-nid="el-button-1021" class="Button ghost sm">
+                            +5
+                          </button>
+                          <button data-nid="el-button-1023" class="Button ghost sm">
+                            -3
+                          </button>
+                          <button data-nid="el-button-1025" class="Button ghost sm">
+                            x2
+                          </button>
+                          <button data-nid="el-button-1027" class="Button ghost sm">
+                            /2
+                          </button>
+                          <button data-nid="el-button-1029" class="Button ghost sm">
+                            mod3
+                          </button>
+                        </div>
+                      </div>
+                      <div data-nid="el-div-1031" class="math-area">
+                        <p data-nid="el-p-1032" class="small">
+                          math_abs(counter) =
+                          <span data-nid="el-interp-1034"></span>
+                          | math_sqrt(counter) =
+                          <span data-nid="el-interp-1037"></span>
+                        </p>
+                      </div>
+                      <div data-nid="el-div-1039" class="dice-area">
+                        <p data-nid="el-p-1040" class="small">
+                          Random:
+                          <span data-nid="el-interp-1042"></span>
+                          | Ceil*100 =
+                          <span data-nid="el-interp-1045"></span>
+                          | Floor*100 =
+                          <span data-nid="el-interp-1048"></span>
+                        </p>
+                        <button data-nid="el-button-1050" class="Button ghost sm">
+                          Roll Dice
+                        </button>
+                      </div>
+                      <div data-nid="el-div-1052" class="array-area">
+                        <p data-nid="el-p-1053" class="small">
+                          First value:
+                          <span data-nid="el-interp-1055"></span>
+                        </p>
+                      </div>
+                      <div data-nid="el-if-1057-b0" style="display:none">
+                        <fragment data-nid="el-fragment-1058">
+                          <button data-nid="el-button-1059" class="Button danger sm">
+                            Trigger unmount
+                          </button>
+                        </fragment>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </section>
-          </fragment>
-        </div>
-        <div data-nid="el-if-779-b0" style="display:none">
-          <fragment data-nid="el-fragment-780">
-            <section data-nid="el-section-781" class="demo-section">
-              <div data-nid="el-div-782" class="demo-full">
-                <div data-nid="el-MotionDemo-783" data-component="MotionDemo">
-                  <div data-nid="el-div-784">
-                    <h1 data-nid="el-h1-785" data-enter="fadeInUp">
+          </div>
+        </fragment>
+      </div>
+      <div data-nid="el-if-1061-b0" style="display:none">
+        <fragment data-nid="el-fragment-1062">
+          <div data-nid="el-MotionPage-1063" data-component="MotionPage">
+            <section data-nid="el-section-1064" class="DemoSection">
+              <div data-nid="el-div-1065" class="DemoFull">
+                <div data-nid="el-MotionDemo-1066" data-component="MotionDemo">
+                  <div data-nid="el-div-1067">
+                    <h1 data-nid="el-h1-1068" data-enter="fadeInUp">
                       Motion Demo
                     </h1>
-                    <p data-nid="el-p-787">
+                    <p data-nid="el-p-1070">
                       Count:
-                      <span data-nid="el-interp-789"></span>
+                      <span data-nid="el-interp-1072"></span>
                     </p>
-                    <button data-nid="el-button-791" data-press="scalePress" data-hover="pulse">
+                    <button data-nid="el-button-1074" data-press="scalePress" data-hover="pulse">
                       Toggle Modal
                     </button>
-                    <div data-nid="el-if-793-b0" style="display:none">
-                      <fragment data-nid="el-fragment-794">
-                        <div data-nid="el-div-795" data-enter="fadeInUp" data-leave="fadeInUp">
-                          <h2 data-nid="el-h2-796">
+                    <div data-nid="el-if-1076-b0" style="display:none">
+                      <fragment data-nid="el-fragment-1077">
+                        <div data-nid="el-div-1078" data-enter="fadeInUp">
+                          <h2 data-nid="el-h2-1079">
                             Modal Content
                           </h2>
                         </div>
                       </fragment>
                     </div>
-                    <button data-nid="el-button-798" data-press="scalePress">
+                    <button data-nid="el-button-1081" data-press="scalePress">
                       Add Item
                     </button>
-                    <button data-nid="el-button-800" data-press="scalePress">
+                    <button data-nid="el-button-1083" data-press="scalePress">
                       Remove Item
                     </button>
-                    <div data-nid="el-div-802">
+                    <div data-nid="el-div-1085" data-hover="pulse" data-press="scalePress">
                       Interactive Panel
                     </div>
                   </div>
                 </div>
               </div>
-              <div data-nid="el-div-804" class="demo-full">
-                <div data-nid="el-MotionPlaybackDemo-805" data-component="MotionPlaybackDemo">
-                  <div data-nid="el-div-806" class="container">
-                    <h3 data-nid="el-h3-807" class="title">
-                      Motion Playback Properties Demo
+              <div data-nid="el-div-1087" class="DemoFull">
+                <div data-nid="el-KeyframeAnimationDemo-1088" data-component="KeyframeAnimationDemo">
+                  <div data-nid="el-div-1089" class="Container">
+                    <h3 data-nid="el-h3-1090" class="CardTitle">
+                      Keyframe Animation Demo
                     </h3>
-                    <p data-nid="el-p-809" class="subtitle">
-                      fill · delay · timeScale · interrupt · stagger · path · colorSpace · callback 全覆盖
+                    <p data-nid="el-p-1092" class="Subtitle">
+                      8 触发器 · 4 播放属性 · 4 缓动变体 · 多停靠关键帧 (ADR-32)
                     </p>
-                    <div data-nid="el-div-811" class="grid">
-                      <div data-nid="el-div-812" class="card" data-enter="fillDemo">
-                        <h4 data-nid="el-h4-813" class="label">
-                          fill forwards
-                        </h4>
+                    <h4 data-nid="el-h4-1094" class="SectionTitle">
+                      全部 8 触发器
+                    </h4>
+                    <button data-nid="el-button-1096" class="Button primary sm">
+                      <span data-nid="el-interp-1097"></span>
+                    </button>
+                    <div data-nid="el-div-1099" class="trigger-grid">
+                      <div data-nid="el-div-1100" class="card" data-enter="enterFadeUp">
+                        <strong data-nid="el-strong-1101">
+                        </strong>
+                        <p data-nid="el-p-1102">
+                          入场动画 fadeUp 500ms
+                        </p>
                       </div>
-                      <div data-nid="el-div-815" class="card" data-enter="delayedEntrance">
-                        <h4 data-nid="el-h4-816" class="label">
-                          delay + repeatDelay + repeatRefresh
-                        </h4>
+                      <div data-nid="el-div-1104" class="card" data-hover="hoverScale">
+                        <strong data-nid="el-strong-1105">
+                        </strong>
+                        <p data-nid="el-p-1106">
+                          悬停缩放 1.05x
+                        </p>
                       </div>
-                      <div data-nid="el-div-818" class="card" data-enter="slowSpin">
-                        <h4 data-nid="el-h4-819" class="label">
-                          timeScale 0.5
-                        </h4>
+                      <div data-nid="el-div-1108" class="card" data-press="pressShrink">
+                        <strong data-nid="el-strong-1109">
+                        </strong>
+                        <p data-nid="el-p-1110">
+                          按压缩小 0.95x
+                        </p>
                       </div>
-                      <div data-nid="el-div-821" class="card" data-enter="interruptDemo">
-                        <h4 data-nid="el-h4-822" class="label">
-                          interrupt queue
-                        </h4>
+                      <div data-nid="el-div-1112" class="card">
+                        <strong data-nid="el-strong-1113">
+                          focus
+                        </strong>
+                        <p data-nid="el-p-1115">
+                          聚焦按钮触发
+                        </p>
+                        <button data-nid="el-button-1117" class="focus-btn" data-focus="focusGlow">
+                          Focus me
+                        </button>
                       </div>
-                      <div data-nid="el-div-824" class="card" data-enter="accessibleAnim">
-                        <h4 data-nid="el-h4-825" class="label">
-                          respectReducedMotion
-                        </h4>
+                      <div data-nid="el-div-1119" class="card" data-in-view="inViewSlide">
+                        <strong data-nid="el-strong-1120">
+                        </strong>
+                        <p data-nid="el-p-1121">
+                          进入视口触发
+                        </p>
                       </div>
-                      <div data-nid="el-div-827" class="card" data-enter="staggeredList">
-                        <h4 data-nid="el-h4-828" class="label">
-                          staggerChildren · staggerFrom
-                        </h4>
+                      <div data-nid="el-div-1123" class="card scroll-area" data-scroll="scrollProgress">
+                        <strong data-nid="el-strong-1124">
+                        </strong>
+                        <p data-nid="el-p-1125">
+                          滚动驱动
+                        </p>
                       </div>
-                      <div data-nid="el-div-830" class="card" data-enter="pathAnim">
-                        <h4 data-nid="el-h4-831" class="label">
-                          paused · path · pathRotate
-                        </h4>
+                      <div data-nid="el-div-1127" class="card" data-drag-horizontal="dragSlideX">
+                        <strong data-nid="el-strong-1128">
+                          @drag-horizontal
+                        </strong>
+                        <p data-nid="el-p-1130">
+                          水平拖拽 →
+                        </p>
                       </div>
-                      <div data-nid="el-div-833" class="card" data-enter="multiStopColor">
-                        <h4 data-nid="el-h4-834" class="label">
-                          multi-stop · colorSpace lab
-                        </h4>
+                      <div data-nid="el-div-1132" class="card" data-drag-vertical="dragSlideY">
+                        <strong data-nid="el-strong-1133">
+                          @drag-vertical
+                        </strong>
+                        <p data-nid="el-p-1135">
+                          垂直拖拽 ↓
+                        </p>
                       </div>
+                    </div>
+                    <h4 data-nid="el-h4-1137" class="SectionTitle">
+                      4 个播放属性：Loop · Direction · Fill · Delay
+                    </h4>
+                    <button data-nid="el-button-1139" class="Button primary sm">
+                      <span data-nid="el-interp-1140"></span>
+                    </button>
+                    <div data-nid="el-div-1142" class="trigger-grid">
+                      <div data-nid="el-div-1143" class="card" data-enter="spinLoop">
+                        <strong data-nid="el-strong-1144">
+                          Loop
+                        </strong>
+                        <p data-nid="el-p-1146">
+                          无限旋转 360°
+                        </p>
+                      </div>
+                      <div data-nid="el-div-1148" class="card" data-enter="dirAlternate">
+                        <strong data-nid="el-strong-1149">
+                          Direction alternate
+                        </strong>
+                        <p data-nid="el-p-1151">
+                          交替往返
+                        </p>
+                      </div>
+                      <div data-nid="el-div-1153" class="card" data-enter="dirAltReverse">
+                        <strong data-nid="el-strong-1154">
+                          Direction alternateReverse
+                        </strong>
+                        <p data-nid="el-p-1156">
+                          交替反向
+                        </p>
+                      </div>
+                      <div data-nid="el-div-1158" class="card" data-enter="fillForwards">
+                        <strong data-nid="el-strong-1159">
+                          Fill forwards
+                        </strong>
+                        <p data-nid="el-p-1161">
+                          保持终点状态
+                        </p>
+                      </div>
+                      <div data-nid="el-div-1163" class="card" data-enter="fillBackwards">
+                        <strong data-nid="el-strong-1164">
+                          Fill backwards + Delay
+                        </strong>
+                        <p data-nid="el-p-1166">
+                          delay 500ms 前即跳到 from 态
+                        </p>
+                      </div>
+                      <div data-nid="el-div-1168" class="card" data-enter="fillBoth">
+                        <strong data-nid="el-strong-1169">
+                          Fill both + Delay
+                        </strong>
+                        <p data-nid="el-p-1171">
+                          前后都填充 · delay 300ms
+                        </p>
+                      </div>
+                      <div data-nid="el-div-1173" class="card" data-enter="delayedEntrance">
+                        <strong data-nid="el-strong-1174">
+                          Delay 500ms
+                        </strong>
+                        <p data-nid="el-p-1176">
+                          延迟 0.5 秒开始
+                        </p>
+                      </div>
+                    </div>
+                    <h4 data-nid="el-h4-1178" class="SectionTitle">
+                      4 种缓动变体：Named · CubicBezier · Back · Elastic
+                    </h4>
+                    <div data-nid="el-div-1180" class="trigger-grid">
+                      <div data-nid="el-div-1181" class="card" data-enter="enterFadeUp">
+                        <strong data-nid="el-strong-1182">
+                          Named (power2-out)
+                        </strong>
+                        <p data-nid="el-p-1184">
+                          29 种命名曲线之一
+                        </p>
+                      </div>
+                      <div data-nid="el-div-1186" class="card" data-enter="cubicDemo">
+                        <strong data-nid="el-strong-1187">
+                          CubicBezier
+                        </strong>
+                        <p data-nid="el-p-1189">
+                          cubic(0.68, -0.55, 0.27, 1.55)
+                        </p>
+                      </div>
+                      <div data-nid="el-div-1191" class="card" data-enter="backEaseDemo">
+                        <strong data-nid="el-strong-1192">
+                          Back (named-only)
+                        </strong>
+                        <p data-nid="el-p-1194">
+                          back-out 回弹曲线
+                        </p>
+                      </div>
+                      <div data-nid="el-div-1196" class="card" data-enter="elasticEaseDemo">
+                        <strong data-nid="el-strong-1197">
+                          Elastic (named-only)
+                        </strong>
+                        <p data-nid="el-p-1199">
+                          elastic-out 弹性曲线
+                        </p>
+                      </div>
+                    </div>
+                    <h4 data-nid="el-h4-1201" class="SectionTitle">
+                      多停靠关键帧（百分比：0% 25% 50% 75% 100%）
+                    </h4>
+                    <div data-nid="el-div-1203" class="card multi-stop" data-enter="multiStopDemo">
+                      <strong data-nid="el-strong-1204">
+                        Multi-stop Keyframe
+                      </strong>
+                      <p data-nid="el-p-1206">
+                        5 个停靠点 · 颜色渐变 · 缩放循环
+                      </p>
                     </div>
                   </div>
                 </div>
               </div>
-              <div data-nid="el-div-836" class="demo-full">
-                <div data-nid="el-EasingFunctionsDemo-837" data-component="EasingFunctionsDemo">
-                  <div data-nid="el-div-838" class="container">
-                    <h3 data-nid="el-h3-839" class="title">
+              <div data-nid="el-div-1208" class="DemoFull">
+                <div data-nid="el-EasingFunctionsDemo-1209" data-component="EasingFunctionsDemo">
+                  <div data-nid="el-div-1210" class="container">
+                    <h3 data-nid="el-h3-1211" class="title">
                       缓动函数全家桶
                     </h3>
-                    <p data-nid="el-p-841" class="subtitle">
-                      24 种未测试缓动 · 点击按钮播放当前屏幕所有  动画
+                    <p data-nid="el-p-1213" class="subtitle">
+                      22 种缓动 · 点击按钮播放当前屏幕所有  动画
                     </p>
-                    <button data-nid="el-button-843" class="trigger-btn" data-press="springStiff">
-                      <span data-nid="el-interp-844"></span>
+                    <button data-nid="el-button-1215" class="trigger-btn" data-press="backOutMove">
+                      <span data-nid="el-interp-1216"></span>
                     </button>
-                    <h4 data-nid="el-h4-846" class="group-title">
-                      Power 曲线（easeIn · power1 · power2 · power3 · power4）
+                    <h4 data-nid="el-h4-1218" class="group-title">
+                      Power 曲线（ease-in · power1 · power2 · power3 · power4）
                     </h4>
-                    <div data-nid="el-div-848" class="grid">
-                      <div data-nid="el-div-849" class="card" data-enter="easeInMove">
-                        <strong data-nid="el-strong-850">
-                          easeIn
+                    <div data-nid="el-div-1220" class="grid">
+                      <div data-nid="el-div-1221" class="card" data-enter="easeInMove">
+                        <strong data-nid="el-strong-1222">
+                          ease-in
                         </strong>
-                        <p data-nid="el-p-852">
+                        <p data-nid="el-p-1224">
                           三次方加速
                         </p>
                       </div>
-                      <div data-nid="el-div-854" class="card" data-enter="power1InMove">
-                        <strong data-nid="el-strong-855">
-                          power1In
+                      <div data-nid="el-div-1226" class="card" data-enter="power1InMove">
+                        <strong data-nid="el-strong-1227">
+                          power1-in
                         </strong>
-                        <p data-nid="el-p-857">
+                        <p data-nid="el-p-1229">
                           二次方入
                         </p>
                       </div>
-                      <div data-nid="el-div-859" class="card" data-enter="power1OutMove">
-                        <strong data-nid="el-strong-860">
-                          power1Out
+                      <div data-nid="el-div-1231" class="card" data-enter="power1OutMove">
+                        <strong data-nid="el-strong-1232">
+                          power1-out
                         </strong>
-                        <p data-nid="el-p-862">
+                        <p data-nid="el-p-1234">
                           二次方出
                         </p>
                       </div>
-                      <div data-nid="el-div-864" class="card" data-enter="power1InOutMove">
-                        <strong data-nid="el-strong-865">
-                          power1InOut
+                      <div data-nid="el-div-1236" class="card" data-enter="power1InOutMove">
+                        <strong data-nid="el-strong-1237">
+                          power1-in-out
                         </strong>
-                        <p data-nid="el-p-867">
+                        <p data-nid="el-p-1239">
                           二次方出入
                         </p>
                       </div>
-                      <div data-nid="el-div-869" class="card" data-enter="power2InMove">
-                        <strong data-nid="el-strong-870">
-                          power2In
+                      <div data-nid="el-div-1241" class="card" data-enter="power2InMove">
+                        <strong data-nid="el-strong-1242">
+                          power2-in
                         </strong>
-                        <p data-nid="el-p-872">
+                        <p data-nid="el-p-1244">
                           三次方入
                         </p>
                       </div>
-                      <div data-nid="el-div-874" class="card" data-enter="power2InOutMove">
-                        <strong data-nid="el-strong-875">
-                          power2InOut
+                      <div data-nid="el-div-1246" class="card" data-enter="power2InOutMove">
+                        <strong data-nid="el-strong-1247">
+                          power2-in-out
                         </strong>
-                        <p data-nid="el-p-877">
+                        <p data-nid="el-p-1249">
                           三次方出入
                         </p>
                       </div>
-                      <div data-nid="el-div-879" class="card" data-enter="power3InMove">
-                        <strong data-nid="el-strong-880">
-                          power3In
+                      <div data-nid="el-div-1251" class="card" data-enter="power3InMove">
+                        <strong data-nid="el-strong-1252">
+                          power3-in
                         </strong>
-                        <p data-nid="el-p-882">
+                        <p data-nid="el-p-1254">
                           四次方入
                         </p>
                       </div>
-                      <div data-nid="el-div-884" class="card" data-enter="power3InOutMove">
-                        <strong data-nid="el-strong-885">
-                          power3InOut
+                      <div data-nid="el-div-1256" class="card" data-enter="power3InOutMove">
+                        <strong data-nid="el-strong-1257">
+                          power3-in-out
                         </strong>
-                        <p data-nid="el-p-887">
+                        <p data-nid="el-p-1259">
                           四次方出入
                         </p>
                       </div>
-                      <div data-nid="el-div-889" class="card" data-enter="power4InMove">
-                        <strong data-nid="el-strong-890">
-                          power4In
+                      <div data-nid="el-div-1261" class="card" data-enter="power4InMove">
+                        <strong data-nid="el-strong-1262">
+                          power4-in
                         </strong>
-                        <p data-nid="el-p-892">
+                        <p data-nid="el-p-1264">
                           五次方入
                         </p>
                       </div>
-                      <div data-nid="el-div-894" class="card" data-enter="power4OutMove">
-                        <strong data-nid="el-strong-895">
-                          power4Out
+                      <div data-nid="el-div-1266" class="card" data-enter="power4OutMove">
+                        <strong data-nid="el-strong-1267">
+                          power4-out
                         </strong>
-                        <p data-nid="el-p-897">
+                        <p data-nid="el-p-1269">
                           五次方出
                         </p>
                       </div>
-                      <div data-nid="el-div-899" class="card" data-enter="power4InOutMove">
-                        <strong data-nid="el-strong-900">
-                          power4InOut
+                      <div data-nid="el-div-1271" class="card" data-enter="power4InOutMove">
+                        <strong data-nid="el-strong-1272">
+                          power4-in-out
                         </strong>
-                        <p data-nid="el-p-902">
+                        <p data-nid="el-p-1274">
                           五次方出入
                         </p>
                       </div>
                     </div>
-                    <h4 data-nid="el-h4-904" class="group-title">
-                      Back 弹回（带可选 intensity 参数）
+                    <h4 data-nid="el-h4-1276" class="group-title">
+                      Back 弹回（named-only）
                     </h4>
-                    <div data-nid="el-div-906" class="grid">
-                      <div data-nid="el-div-907" class="card" data-enter="backInMove">
-                        <strong data-nid="el-strong-908">
-                          backIn
+                    <div data-nid="el-div-1278" class="grid">
+                      <div data-nid="el-div-1279" class="card" data-enter="backInMove">
+                        <strong data-nid="el-strong-1280">
+                          back-in
                         </strong>
-                        <p data-nid="el-p-910">
-                          默认 intensity 1.7
+                        <p data-nid="el-p-1282">
+                          回弹入
                         </p>
                       </div>
-                      <div data-nid="el-div-912" class="card" data-enter="backOutMove">
-                        <strong data-nid="el-strong-913">
-                          backOut
+                      <div data-nid="el-div-1284" class="card" data-enter="backOutMove">
+                        <strong data-nid="el-strong-1285">
+                          back-out
                         </strong>
-                        <p data-nid="el-p-915">
-                          默认 intensity 1.7
+                        <p data-nid="el-p-1287">
+                          回弹出
                         </p>
                       </div>
-                      <div data-nid="el-div-917" class="card" data-enter="backInOutMove">
-                        <strong data-nid="el-strong-918">
-                          backInOut
+                      <div data-nid="el-div-1289" class="card" data-enter="backInOutMove">
+                        <strong data-nid="el-strong-1290">
+                          back-in-out
                         </strong>
-                        <p data-nid="el-p-920">
-                          默认 intensity 1.7
-                        </p>
-                      </div>
-                      <div data-nid="el-div-922" class="card" data-enter="backOutIntensity">
-                        <strong data-nid="el-strong-923">
-                          backOut(3.5)
-                        </strong>
-                        <p data-nid="el-p-925">
-                          自定义弹回强度
+                        <p data-nid="el-p-1292">
+                          回弹出入
                         </p>
                       </div>
                     </div>
-                    <h4 data-nid="el-h4-927" class="group-title">
+                    <h4 data-nid="el-h4-1294" class="group-title">
                       Bounce 弹跳
                     </h4>
-                    <div data-nid="el-div-929" class="grid">
-                      <div data-nid="el-div-930" class="card" data-enter="bounceInMove">
-                        <strong data-nid="el-strong-931">
-                          bounceIn
+                    <div data-nid="el-div-1296" class="grid">
+                      <div data-nid="el-div-1297" class="card" data-enter="bounceInMove">
+                        <strong data-nid="el-strong-1298">
+                          bounce-in
                         </strong>
-                        <p data-nid="el-p-933">
+                        <p data-nid="el-p-1300">
                           弹跳入
                         </p>
                       </div>
-                      <div data-nid="el-div-935" class="card" data-enter="bounceOutMove">
-                        <strong data-nid="el-strong-936">
-                          bounceOut
+                      <div data-nid="el-div-1302" class="card" data-enter="bounceOutMove">
+                        <strong data-nid="el-strong-1303">
+                          bounce-out
                         </strong>
-                        <p data-nid="el-p-938">
+                        <p data-nid="el-p-1305">
                           弹跳出
                         </p>
                       </div>
-                      <div data-nid="el-div-940" class="card" data-enter="bounceInOutMove">
-                        <strong data-nid="el-strong-941">
-                          bounceInOut
+                      <div data-nid="el-div-1307" class="card" data-enter="bounceInOutMove">
+                        <strong data-nid="el-strong-1308">
+                          bounce-in-out
                         </strong>
-                        <p data-nid="el-p-943">
+                        <p data-nid="el-p-1310">
                           弹跳出入
                         </p>
                       </div>
                     </div>
-                    <h4 data-nid="el-h4-945" class="group-title">
-                      Elastic 弹性（带可选 amplitude/period 参数）
+                    <h4 data-nid="el-h4-1312" class="group-title">
+                      Elastic 弹性（named-only）
                     </h4>
-                    <div data-nid="el-div-947" class="grid">
-                      <div data-nid="el-div-948" class="card" data-enter="elasticInMove">
-                        <strong data-nid="el-strong-949">
-                          elasticIn
+                    <div data-nid="el-div-1314" class="grid">
+                      <div data-nid="el-div-1315" class="card" data-enter="elasticInMove">
+                        <strong data-nid="el-strong-1316">
+                          elastic-in
                         </strong>
-                        <p data-nid="el-p-951">
-                          默认振幅 1.0/周期 0.5
+                        <p data-nid="el-p-1318">
+                          弹性入
                         </p>
                       </div>
-                      <div data-nid="el-div-953" class="card" data-enter="elasticOutMove">
-                        <strong data-nid="el-strong-954">
-                          elasticOut
+                      <div data-nid="el-div-1320" class="card" data-enter="elasticOutMove">
+                        <strong data-nid="el-strong-1321">
+                          elastic-out
                         </strong>
-                        <p data-nid="el-p-956">
-                          默认振幅 1.0/周期 0.5
+                        <p data-nid="el-p-1323">
+                          弹性出
                         </p>
                       </div>
-                      <div data-nid="el-div-958" class="card" data-enter="elasticInOutMove">
-                        <strong data-nid="el-strong-959">
-                          elasticInOut
+                      <div data-nid="el-div-1325" class="card" data-enter="elasticInOutMove">
+                        <strong data-nid="el-strong-1326">
+                          elastic-in-out
                         </strong>
-                        <p data-nid="el-p-961">
-                          默认振幅 1.0/周期 0.5
-                        </p>
-                      </div>
-                      <div data-nid="el-div-963" class="card" data-enter="elasticCustomMove">
-                        <strong data-nid="el-strong-964">
-                          elasticOut(2,0.8)
-                        </strong>
-                        <p data-nid="el-p-966">
-                          自定义振幅/周期
+                        <p data-nid="el-p-1328">
+                          弹性出入
                         </p>
                       </div>
                     </div>
-                    <h4 data-nid="el-h4-968" class="group-title">
-                      Spring 物理缓动（tension · friction · velocity）
+                    <h4 data-nid="el-h4-1330" class="group-title">
+                      Steps 阶跃（仅位置参数）
                     </h4>
-                    <div data-nid="el-div-970" class="grid">
-                      <div data-nid="el-div-971" class="card" data-enter="springDefault">
-                        <strong data-nid="el-strong-972">
-                          spring(180,12)
+                    <div data-nid="el-div-1332" class="grid">
+                      <div data-nid="el-div-1333" class="card" data-enter="stepsEndMove">
+                        <strong data-nid="el-strong-1334">
+                          steps(6, end)
                         </strong>
-                        <p data-nid="el-p-974">
-                          默认弹簧参数
+                        <p data-nid="el-p-1336">
+                          6 步阶跃，保持终点值
                         </p>
                       </div>
-                      <div data-nid="el-div-976" class="card" data-enter="springBouncy">
-                        <strong data-nid="el-strong-977">
-                          spring(120,8,2)
+                      <div data-nid="el-div-1338" class="card" data-enter="stepsStartMove">
+                        <strong data-nid="el-strong-1339">
+                          steps(6, start)
                         </strong>
-                        <p data-nid="el-p-979">
-                          弹性大·阻尼小
-                        </p>
-                      </div>
-                      <div data-nid="el-div-981" class="card" data-enter="springStiff">
-                        <strong data-nid="el-strong-982">
-                          spring(400,30)
-                        </strong>
-                        <p data-nid="el-p-984">
-                          刚硬弹簧·scale
+                        <p data-nid="el-p-1341">
+                          6 步阶跃，保持起点值
                         </p>
                       </div>
                     </div>
-                    <h4 data-nid="el-h4-986" class="group-title">
-                      自定义缓动（cubic-bezier · steps）
+                    <h4 data-nid="el-h4-1343" class="group-title">
+                      自定义缓动（cubic-bezier）
                     </h4>
-                    <div data-nid="el-div-988" class="grid">
-                      <div data-nid="el-div-989" class="card" data-enter="cubicCustom">
-                        <strong data-nid="el-strong-990">
+                    <div data-nid="el-div-1345" class="grid">
+                      <div data-nid="el-div-1346" class="card" data-enter="cubicCustom">
+                        <strong data-nid="el-strong-1347">
                           cubic(x1,y1,x2,y2)
                         </strong>
-                        <p data-nid="el-p-992">
+                        <p data-nid="el-p-1349">
                           自定义贝塞尔 overshoot
-                        </p>
-                      </div>
-                      <div data-nid="el-div-994" class="card" data-enter="stepsDemo">
-                        <strong data-nid="el-strong-995">
-                          steps(6,end)
-                        </strong>
-                        <p data-nid="el-p-997">
-                          6 帧逐帧动画
                         </p>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
-              <div data-nid="el-div-999" class="demo-full">
-                <div data-nid="el-AnimPropertiesDemo-1000" data-component="AnimPropertiesDemo">
-                  <div data-nid="el-div-1001" class="container">
-                    <h3 data-nid="el-h3-1002" class="title">
+              <div data-nid="el-div-1351" class="DemoFull">
+                <div data-nid="el-AnimPropertiesDemo-1352" data-component="AnimPropertiesDemo">
+                  <div data-nid="el-div-1353" class="container">
+                    <h3 data-nid="el-h3-1354" class="title">
                       全动画属性覆盖
                     </h3>
-                    <p data-nid="el-p-1004" class="subtitle">
-                      26 个 keyframe 属性 · scaleX/Y · rotateX/Y/Z · skewX/Y · blur · brightness · contrast · saturate · hueRotate · backgroundColor · color · borderColor · borderRadius · width · height · margin · padding · fontSize · letterSpacing · borderWidth · top · left · 点击按钮播放所有  动画
+                    <p data-nid="el-p-1356" class="subtitle">
+                      17 个语义 keyframe 属性（ADR-53 白名单）· scale/scaleX/scaleY · rotate/rotateX/rotateY/rotateZ · skewX/skewY · translateX/translateY/translateZ · opacity · backgroundColor · color · width · height · 点击按钮播放所有  动画
                     </p>
-                    <button data-nid="el-button-1006" class="trigger-btn">
-                      <span data-nid="el-interp-1007"></span>
+                    <button data-nid="el-button-1358" class="trigger-btn">
+                      <span data-nid="el-interp-1359"></span>
                     </button>
-                    <h4 data-nid="el-h4-1009" class="group-title">
-                      变换组（scaleX · scaleY · rotateX · rotateY · rotateZ · skewX · skewY）
+                    <h4 data-nid="el-h4-1361" class="group-title">
+                      变换组（scale · scaleX · scaleY · rotate · rotateX · rotateY · rotateZ · skewX · skewY）
                     </h4>
-                    <div data-nid="el-div-1011" class="grid">
-                      <div data-nid="el-div-1012" class="card" data-enter="scaleXDemo">
-                        <strong data-nid="el-strong-1013">
+                    <div data-nid="el-div-1363" class="grid">
+                      <div data-nid="el-div-1364" class="card" data-enter="scaleXDemo">
+                        <strong data-nid="el-strong-1365">
                           scaleX
                         </strong>
-                        <p data-nid="el-p-1015">
+                        <p data-nid="el-p-1367">
                           X 轴 1→1.8 缩放
                         </p>
                       </div>
-                      <div data-nid="el-div-1017" class="card" data-enter="scaleYDemo">
-                        <strong data-nid="el-strong-1018">
+                      <div data-nid="el-div-1369" class="card" data-enter="scaleYDemo">
+                        <strong data-nid="el-strong-1370">
                           scaleY
                         </strong>
-                        <p data-nid="el-p-1020">
+                        <p data-nid="el-p-1372">
                           Y 轴 1→1.5 缩放
                         </p>
                       </div>
-                      <div data-nid="el-div-1022" class="card" data-enter="rotateXDemo">
-                        <strong data-nid="el-strong-1023">
+                      <div data-nid="el-div-1374" class="card" data-enter="scalePulseDemo">
+                        <strong data-nid="el-strong-1375">
+                          scale
+                        </strong>
+                        <p data-nid="el-p-1377">
+                          等比 1→1.25 脉冲
+                        </p>
+                      </div>
+                      <div data-nid="el-div-1379" class="card" data-enter="rotateXDemo">
+                        <strong data-nid="el-strong-1380">
                           rotateX
                         </strong>
-                        <p data-nid="el-p-1025">
+                        <p data-nid="el-p-1382">
                           X 轴 360° 旋转
                         </p>
                       </div>
-                      <div data-nid="el-div-1027" class="card" data-enter="rotateYDemo">
-                        <strong data-nid="el-strong-1028">
+                      <div data-nid="el-div-1384" class="card" data-enter="rotateYDemo">
+                        <strong data-nid="el-strong-1385">
                           rotateY
                         </strong>
-                        <p data-nid="el-p-1030">
+                        <p data-nid="el-p-1387">
                           Y 轴 360° 旋转
                         </p>
                       </div>
-                      <div data-nid="el-div-1032" class="card" data-enter="rotateZDemo">
-                        <strong data-nid="el-strong-1033">
+                      <div data-nid="el-div-1389" class="card" data-enter="rotateZDemo">
+                        <strong data-nid="el-strong-1390">
                           rotateZ
                         </strong>
-                        <p data-nid="el-p-1035">
+                        <p data-nid="el-p-1392">
                           Z 轴 360° 摆动
                         </p>
                       </div>
-                      <div data-nid="el-div-1037" class="card" data-enter="skewXDemo">
-                        <strong data-nid="el-strong-1038">
+                      <div data-nid="el-div-1394" class="card" data-enter="rotateDemo">
+                        <strong data-nid="el-strong-1395">
+                          rotate
+                        </strong>
+                        <p data-nid="el-p-1397">
+                          平面 0→180° 旋转
+                        </p>
+                      </div>
+                      <div data-nid="el-div-1399" class="card" data-enter="skewXDemo">
+                        <strong data-nid="el-strong-1400">
                           skewX
                         </strong>
-                        <p data-nid="el-p-1040">
+                        <p data-nid="el-p-1402">
                           X 轴 0→15° 倾斜
                         </p>
                       </div>
-                      <div data-nid="el-div-1042" class="card" data-enter="skewYDemo">
-                        <strong data-nid="el-strong-1043">
+                      <div data-nid="el-div-1404" class="card" data-enter="skewYDemo">
+                        <strong data-nid="el-strong-1405">
                           skewY
                         </strong>
-                        <p data-nid="el-p-1045">
+                        <p data-nid="el-p-1407">
                           Y 轴 0→10° 倾斜
                         </p>
                       </div>
                     </div>
-                    <h4 data-nid="el-h4-1047" class="group-title">
-                      滤镜组（blur · brightness · contrast · saturate · hueRotate）
+                    <h4 data-nid="el-h4-1409" class="group-title">
+                      位移组（translateX · translateY · translateZ）
                     </h4>
-                    <div data-nid="el-div-1049" class="grid">
-                      <div data-nid="el-div-1050" class="card" data-enter="blurDemo">
-                        <strong data-nid="el-strong-1051">
-                          blur
+                    <div data-nid="el-div-1411" class="grid">
+                      <div data-nid="el-div-1412" class="card-translate" data-enter="translateDemo">
+                        <strong data-nid="el-strong-1413">
+                          translateX + translateY
                         </strong>
-                        <p data-nid="el-p-1053">
-                          模糊 0→6px 脉冲
+                        <p data-nid="el-p-1415">
+                          位移 120px, -20px
                         </p>
                       </div>
-                      <div data-nid="el-div-1055" class="card" data-enter="brightnessDemo">
-                        <strong data-nid="el-strong-1056">
-                          brightness
+                      <div data-nid="el-div-1417" class="card" data-enter="translateZDemo">
+                        <strong data-nid="el-strong-1418">
+                          translateZ
                         </strong>
-                        <p data-nid="el-p-1058">
-                          亮度 1→2.5 脉冲
-                        </p>
-                      </div>
-                      <div data-nid="el-div-1060" class="card" data-enter="contrastDemo">
-                        <strong data-nid="el-strong-1061">
-                          contrast
-                        </strong>
-                        <p data-nid="el-p-1063">
-                          对比度 1→2.5
-                        </p>
-                      </div>
-                      <div data-nid="el-div-1065" class="card" data-enter="saturateDemo">
-                        <strong data-nid="el-strong-1066">
-                          saturate
-                        </strong>
-                        <p data-nid="el-p-1068">
-                          饱和度 1→3 脉冲
-                        </p>
-                      </div>
-                      <div data-nid="el-div-1070" class="card" data-enter="hueRotateDemo">
-                        <strong data-nid="el-strong-1071">
-                          hueRotate
-                        </strong>
-                        <p data-nid="el-p-1073">
-                          色相旋转 0→180°
+                        <p data-nid="el-p-1420">
+                          Z 轴 0→60px
                         </p>
                       </div>
                     </div>
-                    <h4 data-nid="el-h4-1075" class="group-title">
-                      颜色组（backgroundColor · color · borderColor · borderRadius）
+                    <h4 data-nid="el-h4-1422" class="group-title">
+                      视觉组（opacity · backgroundColor · color · width · height）
                     </h4>
-                    <div data-nid="el-div-1077" class="grid">
-                      <div data-nid="el-div-1078" class="card" data-enter="bgColorDemo">
-                        <strong data-nid="el-strong-1079">
-                          backgroundColor + borderRadius
+                    <div data-nid="el-div-1424" class="grid">
+                      <div data-nid="el-div-1425" class="card" data-enter="opacityPulseDemo">
+                        <strong data-nid="el-strong-1426">
+                          opacity
                         </strong>
-                        <p data-nid="el-p-1081">
-                          背景色与圆角联动
+                        <p data-nid="el-p-1428">
+                          透明度 0.3→1 脉冲
                         </p>
                       </div>
-                      <div data-nid="el-div-1083" class="card-border" data-enter="textColorDemo">
-                        <strong data-nid="el-strong-1084">
-                          color + borderColor
+                      <div data-nid="el-div-1430" class="card" data-enter="bgColorDemo">
+                        <strong data-nid="el-strong-1431">
+                          backgroundColor
                         </strong>
-                        <p data-nid="el-p-1086">
-                          文字色与边框色联动
+                        <p data-nid="el-p-1433">
+                          背景色渐变
                         </p>
                       </div>
-                    </div>
-                    <h4 data-nid="el-h4-1088" class="group-title">
-                      尺寸组（width · height · margin · padding）
-                    </h4>
-                    <div data-nid="el-div-1090" class="grid">
-                      <div data-nid="el-div-1091" class="box" data-enter="widthDemo">
-                        <strong data-nid="el-strong-1092">
+                      <div data-nid="el-div-1435" class="card-color" data-enter="textColorDemo">
+                        <strong data-nid="el-strong-1436">
+                          color
+                        </strong>
+                        <p data-nid="el-p-1438">
+                          文字颜色渐变
+                        </p>
+                      </div>
+                      <div data-nid="el-div-1440" class="box" data-enter="widthDemo">
+                        <strong data-nid="el-strong-1441">
                           width
                         </strong>
-                        <p data-nid="el-p-1094">
+                        <p data-nid="el-p-1443">
                           宽度 60→200px
                         </p>
                       </div>
-                      <div data-nid="el-div-1096" class="box" data-enter="heightDemo">
-                        <strong data-nid="el-strong-1097">
+                      <div data-nid="el-div-1445" class="box" data-enter="heightDemo">
+                        <strong data-nid="el-strong-1446">
                           height
                         </strong>
-                        <p data-nid="el-p-1099">
+                        <p data-nid="el-p-1448">
                           高度 40→120px
-                        </p>
-                      </div>
-                      <div data-nid="el-div-1101" class="card" data-enter="spacingDemo">
-                        <strong data-nid="el-strong-1102">
-                          margin + padding
-                        </strong>
-                        <p data-nid="el-p-1104">
-                          内外边距联动
-                        </p>
-                      </div>
-                    </div>
-                    <h4 data-nid="el-h4-1106" class="group-title">
-                      排版组（fontSize · letterSpacing）
-                    </h4>
-                    <div data-nid="el-div-1108" class="grid">
-                      <div data-nid="el-div-1109" class="card" data-enter="fontSizeDemo">
-                        <strong data-nid="el-strong-1110">
-                          fontSize
-                        </strong>
-                        <p data-nid="el-p-1112">
-                          字号 14→28px
-                        </p>
-                      </div>
-                      <div data-nid="el-div-1114" class="card" data-enter="letterSpacingDemo">
-                        <strong data-nid="el-strong-1115">
-                          letterSpacing
-                        </strong>
-                        <p data-nid="el-p-1117">
-                          字间距 0→8px
-                        </p>
-                      </div>
-                    </div>
-                    <h4 data-nid="el-h4-1119" class="group-title">
-                      盒模型 + 定位（borderWidth · top · left）
-                    </h4>
-                    <div data-nid="el-div-1121" class="grid">
-                      <div data-nid="el-div-1122" class="card-border-demo" data-enter="borderWidthDemo">
-                        <strong data-nid="el-strong-1123">
-                          borderWidth
-                        </strong>
-                        <p data-nid="el-p-1125">
-                          边框宽度 1→6px
-                        </p>
-                      </div>
-                      <div data-nid="el-div-1127" class="card-pos" data-enter="topLeftDemo">
-                        <strong data-nid="el-strong-1128">
-                          top + left
-                        </strong>
-                        <p data-nid="el-p-1130">
-                          相对位移 top -20px, left 30px
                         </p>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
-              <div data-nid="el-div-1132" class="demo-full">
-                <div data-nid="el-MotionTriggersDemo-1133" data-component="MotionTriggersDemo">
-                  <div data-nid="el-div-1134" class="container">
-                    <h3 data-nid="el-h3-1135" class="title">
+              <div data-nid="el-div-1450" class="DemoFull">
+                <div data-nid="el-MotionTriggersDemo-1451" data-component="MotionTriggersDemo">
+                  <div data-nid="el-div-1452" class="Container">
+                    <h3 data-nid="el-h3-1453" class="CardTitle">
                       Motion Triggers Demo
                     </h3>
-                    <p data-nid="el-p-1137" class="subtitle">
-                       ·  ·  ·  ·  · @drag
+                    <p data-nid="el-p-1455" class="Subtitle">
+                       ·  · @drag-horizontal · @drag-vertical · focus
                     </p>
-                    <div data-nid="el-div-1139" class="card">
-                      <h4 data-nid="el-h4-1140" class="label">
+                    <div data-nid="el-div-1457" class="card">
+                      <h4 data-nid="el-h4-1458" class="label">
                          触发器
                       </h4>
-                      <button data-nid="el-button-1142" class="btn-hover" data-hover="unbounce" data-unhover="unbounce">
-                        Hover then leave
-                      </button>
+                      <div data-nid="el-div-1460" data-in-view="slideInView">
+                        <p data-nid="el-p-1461">
+                          Slide in (entering viewport)
+                        </p>
+                      </div>
                     </div>
-                    <div data-nid="el-div-1144" class="card">
-                      <h4 data-nid="el-h4-1145" class="label">
+                    <div data-nid="el-div-1463" class="card">
+                      <h4 data-nid="el-h4-1464" class="label">
                          触发器
                       </h4>
-                      <input data-nid="el-input-1147" placeholder="Focus me" class="input-focus" data-focus="focusGlow" />
-                    </div>
-                    <div data-nid="el-div-1148" class="card">
-                      <h4 data-nid="el-h4-1149" class="label">
-                         触发器（持续循环）
-                      </h4>
-                      <div data-nid="el-div-1151" class="spin-box" data-animate="autoSpin">
-                        <p data-nid="el-p-1152">
-                          ↻
-                        </p>
-                      </div>
-                    </div>
-                    <div data-nid="el-div-1154" class="card">
-                      <h4 data-nid="el-h4-1155" class="label">
-                         触发器 + 子属性
-                      </h4>
-                      <div data-nid="el-div-1157" data-in-view="slideInView" data-in-view-once="true">
-                        <p data-nid="el-p-1158">
-                          Slide in once
-                        </p>
-                      </div>
-                      <div data-nid="el-div-1160" data-in-view="slideInView" data-in-view-repeat="true" data-in-view-threshold="0.5">
-                        <p data-nid="el-p-1161">
-                          Slide in repeat (threshold 0.5)
-                        </p>
-                      </div>
-                    </div>
-                    <div data-nid="el-div-1163" class="card">
-                      <h4 data-nid="el-h4-1164" class="label">
-                         触发器 + scroll-start/end/scrub
-                      </h4>
-                      <div data-nid="el-div-1166" class="scroll-area" data-scroll="scrollFade" data-scroll-start="top 80%" data-scroll-end="bottom 20%" data-scroll-scrub="0.5">
-                        <p data-nid="el-p-1167">
+                      <div data-nid="el-div-1466" class="scroll-area" data-scroll="scrollFade">
+                        <p data-nid="el-p-1467">
                           Scroll to animate
                         </p>
                       </div>
                     </div>
-                    <div data-nid="el-div-1169" class="card">
-                      <h4 data-nid="el-h4-1170" class="label">
-                        @dragHorizontal / @dragVertical 拖拽
+                    <div data-nid="el-div-1469" class="card">
+                      <h4 data-nid="el-h4-1470" class="label">
+                        focus 触发器
                       </h4>
-                      <div data-nid="el-div-1172" class="drag-box" data-drag-horizontal="dragSlide" data-drag-constraints="left:0 right:300" data-drag-elastic="0.2" data-drag-scrub="true" data-drag-momentum="0.95" data-drag-threshold="30" data-drag-velocity-max="2000">
-                        <p data-nid="el-p-1173">
+                      <input data-nid="el-input-1472" placeholder="Focus me" class="focus-input" data-focus="slideInView" />
+                      <p data-nid="el-p-1473">
+                        Focus the input to trigger slideInView
+                      </p>
+                    </div>
+                    <div data-nid="el-div-1475" class="card">
+                      <h4 data-nid="el-h4-1476" class="label">
+                        @drag-horizontal / @drag-vertical 拖拽
+                      </h4>
+                      <div data-nid="el-div-1478" class="drag-box" data-drag-horizontal="dragSlide">
+                        <p data-nid="el-p-1479">
                           Drag me →
                         </p>
                       </div>
-                      <div data-nid="el-div-1175" class="drag-box-vertical" data-drag-vertical="dragSlide" data-drag-constraints="top:0 bottom:200" data-drag-elastic="0.3" data-drag-scrub="true" data-drag-momentum="0.9">
-                        <p data-nid="el-p-1176">
+                      <div data-nid="el-div-1481" class="drag-box-vertical" data-drag-vertical="dragSlide">
+                        <p data-nid="el-p-1482">
                           Drag me ↓
                         </p>
                       </div>
@@ -5289,812 +5628,706 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                   </div>
                 </div>
               </div>
-              <div data-nid="el-div-1178" class="demo-full">
-                <div data-nid="el-MotionCallbackDemo-1179" data-component="MotionCallbackDemo">
-                  <div data-nid="el-div-1180" class="wrapper">
-                    <h3 data-nid="el-h3-1181" class="section-title">
-                       Callback Mode
-                    </h3>
-                    <p data-nid="el-p-1183" class="subtitle">
-                      演示
-                      <code data-nid="el-code-1185">
-                        onStart
+            </section>
+          </div>
+        </fragment>
+      </div>
+      <div data-nid="el-if-1484-b0" style="display:none">
+        <fragment data-nid="el-fragment-1485">
+          <div data-nid="el-DesignTheme-1486" data-component="DesignTheme">
+            <section data-nid="el-section-1487" class="DemoSection">
+              <div data-nid="el-ThemeSwitcher-1488" data-component="ThemeSwitcher">
+                <div data-nid="el-div-1489" class="Container">
+                  <h3 data-nid="el-h3-1490" class="CardTitle">
+                    Theme Selector
+                  </h3>
+                  <p data-nid="el-p-1492" class="Subtitle">
+                    OmniLang supports N themes — not just light/dark
+                  </p>
+                  <div data-nid="el-div-1494" class="theme-grid">
+                    <div data-nid="el-div-1495" class="themeCard">
+                      <span data-nid="el-span-1496" class="card-icon">
+                        ☀️
+                      </span>
+                      <span data-nid="el-span-1498" class="card-name">
+                        Light
+                      </span>
+                      <div data-nid="el-div-1500" class="card-swatches">
+                        <span data-nid="el-span-1501" class="swatch" style="background: #6366f1">
+                        </span>
+                        <span data-nid="el-span-1502" class="swatch" style="background: #ffffff">
+                        </span>
+                        <span data-nid="el-span-1503" class="swatch" style="background: #111827">
+                        </span>
+                      </div>
+                    </div>
+                    <div data-nid="el-div-1504" class="themeCard">
+                      <span data-nid="el-span-1505" class="card-icon">
+                        🌙
+                      </span>
+                      <span data-nid="el-span-1507" class="card-name">
+                        Dark
+                      </span>
+                      <div data-nid="el-div-1509" class="card-swatches">
+                        <span data-nid="el-span-1510" class="swatch" style="background: #a5b4fc">
+                        </span>
+                        <span data-nid="el-span-1511" class="swatch" style="background: #111827">
+                        </span>
+                        <span data-nid="el-span-1512" class="swatch" style="background: #f9fafb">
+                        </span>
+                      </div>
+                    </div>
+                    <div data-nid="el-div-1513" class="themeCard">
+                      <span data-nid="el-span-1514" class="card-icon">
+                        📜
+                      </span>
+                      <span data-nid="el-span-1516" class="card-name">
+                        Sepia
+                      </span>
+                      <div data-nid="el-div-1518" class="card-swatches">
+                        <span data-nid="el-span-1519" class="swatch" style="background: #8B4513">
+                        </span>
+                        <span data-nid="el-span-1520" class="swatch" style="background: #F5E6C8">
+                        </span>
+                        <span data-nid="el-span-1521" class="swatch" style="background: #3E2723">
+                        </span>
+                      </div>
+                    </div>
+                    <div data-nid="el-div-1522" class="themeCard">
+                      <span data-nid="el-span-1523" class="card-icon">
+                        🔲
+                      </span>
+                      <span data-nid="el-span-1525" class="card-name">
+                        High Contrast
+                      </span>
+                      <div data-nid="el-div-1527" class="card-swatches">
+                        <span data-nid="el-span-1528" class="swatch" style="background: #ffff00">
+                        </span>
+                        <span data-nid="el-span-1529" class="swatch" style="background: #000000">
+                        </span>
+                        <span data-nid="el-span-1530" class="swatch" style="background: #ffffff">
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div data-nid="el-div-1531" class="status-bar">
+                    <span data-nid="el-span-1532" class="status-text">
+                      Current:
+                      <span data-nid="el-interp-1534"></span>
+                    </span>
+                    <span data-nid="el-span-1536" class="status-count">
+                      Toggled
+                      <span data-nid="el-interp-1538"></span>
+                      times
+                    </span>
+                  </div>
+                  <div data-nid="el-div-1541" class="palette-preview">
+                    <p data-nid="el-p-1542" class="palette-title">
+                      Token Palette —
+                      <code data-nid="el-code-1544">
+                        var(--name)
                       </code>
-                      、
-                      <code data-nid="el-code-1188">
-                        onComplete
-                      </code>
-                      、
-                      <code data-nid="el-code-1191">
-                        onRepeat
-                      </code>
-                      、
-                      <code data-nid="el-code-1194">
-                        onInterrupt
-                      </code>
-                      回调与信号的联动
+                      live
                     </p>
-                    <div data-nid="el-div-1197" class="status-bar">
-                      <div data-nid="el-div-1198" class="stat-item">
-                        <span data-nid="el-span-1199" class="stat-value">
-                          <span data-nid="el-interp-1200"></span>
-                        </span>
-                        <span data-nid="el-span-1202" class="stat-label">
-                          onStart 触发
+                    <div data-nid="el-div-1547" class="palette-grid">
+                      <div data-nid="el-div-1548" class="palette-chip" style="background: var(--surface); border: 1px solid var(--border)">
+                        <span data-nid="el-span-1549" class="chip-label">
+                          --surface
                         </span>
                       </div>
-                      <div data-nid="el-div-1204" class="stat-item">
-                        <span data-nid="el-span-1205" class="stat-value">
-                          <span data-nid="el-interp-1206"></span>
-                        </span>
-                        <span data-nid="el-span-1208" class="stat-label">
-                          onComplete 触发
+                      <div data-nid="el-div-1551" class="palette-chip" style="background: var(--primary)">
+                        <span data-nid="el-span-1552" class="chip-label" style="color: white">
+                          --primary
                         </span>
                       </div>
-                      <div data-nid="el-div-1210" class="stat-item">
-                        <span data-nid="el-span-1211" class="stat-value">
-                          <span data-nid="el-interp-1212"></span>
-                        </span>
-                        <span data-nid="el-span-1214" class="stat-label">
-                          onRepeat 触发
+                      <div data-nid="el-div-1554" class="palette-chip" style="background: var(--textPrimary)">
+                        <span data-nid="el-span-1555" class="chip-label" style="color: var(--surface)">
+                          --textPrimary
                         </span>
                       </div>
-                      <div data-nid="el-div-1216" class="stat-item">
-                        <span data-nid="el-span-1217" class="stat-value-last">
-                          <span data-nid="el-interp-1218"></span>
+                      <div data-nid="el-div-1557" class="palette-chip" style="background: var(--success)">
+                        <span data-nid="el-span-1558" class="chip-label" style="color: white">
+                          --success
                         </span>
-                        <span data-nid="el-span-1220" class="stat-label">
-                          最近事件
+                      </div>
+                      <div data-nid="el-div-1560" class="palette-chip" style="background: var(--warning)">
+                        <span data-nid="el-span-1561" class="chip-label" style="color: white">
+                          --warning
+                        </span>
+                      </div>
+                      <div data-nid="el-div-1563" class="palette-chip" style="background: var(--danger)">
+                        <span data-nid="el-span-1564" class="chip-label" style="color: white">
+                          --danger
                         </span>
                       </div>
                     </div>
-                    <div data-nid="el-div-1222" class="demo-card">
-                      <h4 data-nid="el-h4-1223" class="demo-label">
-                        ① trackedEnter: onStart + onComplete
-                      </h4>
-                      <p data-nid="el-p-1225" class="demo-desc">
-                        每次点击按钮重新触发运动，
-                        <code data-nid="el-code-1227">
-                          onStart
-                        </code>
-                        和
-                        <code data-nid="el-code-1230">
-                          onComplete
-                        </code>
-                        回调分别更新信号值。
-                      </p>
-                      <div data-nid="el-div-1233" class="demo-content">
-                        <div data-nid="el-div-1234" class="callback-box-area">
-                          <div data-nid="el-div-1235" class="anim-box">
-                            <span data-nid="el-span-1236" class="anim-icon">
-                              ▶
-                            </span>
-                            <span data-nid="el-span-1238" class="anim-text">
-                              <span data-nid="el-interp-1239"></span>
-                            </span>
-                          </div>
-                        </div>
-                        <div data-nid="el-div-1241" class="event-log">
-                          <p data-nid="el-p-1242" class="log-entry">
-                            <code data-nid="el-code-1243">
-                              onStart
-                            </code>
-                            → enterCount:
-                            <strong data-nid="el-strong-1246">
-                              <span data-nid="el-interp-1247"></span>
-                            </strong>
-                          </p>
-                          <p data-nid="el-p-1249" class="log-entry">
-                            <code data-nid="el-code-1250">
-                              onComplete
-                            </code>
-                            → completeCount:
-                            <strong data-nid="el-strong-1253">
-                              <span data-nid="el-interp-1254"></span>
-                            </strong>
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                    <div data-nid="el-div-1256" class="demo-card">
-                      <h4 data-nid="el-h4-1257" class="demo-label">
-                        ② pulseWithCallback: onRepeat
-                      </h4>
-                      <p data-nid="el-p-1259" class="demo-desc">
-                        循环运动每次重复触发
-                        <code data-nid="el-code-1261">
-                          onRepeat
-                        </code>
-                        回调， 可用于追踪循环动画的执行次数。
-                      </p>
-                      <div data-nid="el-div-1264" class="demo-content">
-                        <div data-nid="el-div-1265" class="callback-box-area">
-                          <div data-nid="el-div-1266" class="anim-box pulse" data-enter="pulseWithCallback">
-                            <span data-nid="el-span-1267" class="anim-icon">
-                              <span data-nid="el-interp-1268"></span>
-                            </span>
-                            <span data-nid="el-span-1270" class="anim-text">
-                              Pulse (循环中:
-                              <span data-nid="el-interp-1272"></span>
-                              )
-                            </span>
-                          </div>
-                        </div>
-                        <div data-nid="el-div-1275" class="event-log">
-                          <p data-nid="el-p-1276" class="log-entry">
-                            <code data-nid="el-code-1277">
-                              onRepeat
-                            </code>
-                            → pulseRepeatCount:
-                            <strong data-nid="el-strong-1280">
-                              <span data-nid="el-interp-1281"></span>
-                            </strong>
-                          </p>
-                          <p data-nid="el-p-1283" class="log-entry">
-                            <code data-nid="el-code-1284">
-                              onUpdate
-                            </code>
-                            → 每帧触发（不追踪计数）
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                    <div data-nid="el-div-1287" class="demo-card">
-                      <h4 data-nid="el-h4-1288" class="demo-label">
-                        ③ interruptWithCallback: onInterrupt
-                      </h4>
-                      <p data-nid="el-p-1290" class="demo-desc">
-                        快速连续点击触发
-                        <code data-nid="el-code-1292">
-                          interrupt replace
-                        </code>
-                        ， 每次中断调用
-                        <code data-nid="el-code-1295">
-                          onInterrupt
-                        </code>
-                        回调。
-                      </p>
-                      <div data-nid="el-div-1298" class="demo-content">
-                        <div data-nid="el-div-1299" class="callback-box-area">
-                          <div data-nid="el-div-1300" class="anim-box interrupt">
-                            <span data-nid="el-span-1301" class="anim-icon">
-                              ↺
-                            </span>
-                            <span data-nid="el-span-1303" class="anim-text">
-                              快速点击我
-                            </span>
-                          </div>
-                        </div>
-                        <div data-nid="el-div-1305" class="event-log">
-                          <p data-nid="el-p-1306" class="log-entry">
-                            <code data-nid="el-code-1307">
-                              onInterrupt
-                            </code>
-                            → lastEvent:
-                            <strong data-nid="el-strong-1310">
-                              <span data-nid="el-interp-1311"></span>
-                            </strong>
-                          </p>
-                          <p data-nid="el-p-1313" class="log-entry">
-                            <code data-nid="el-code-1314">
-                              onComplete
-                            </code>
-                            → 未被中断时触发
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                    <div data-nid="el-div-1317" class="tech-note">
-                      <h4 data-nid="el-h4-1318" class="note-title">
-                        💡 回调模式 vs 函数式监听
-                      </h4>
-                      <ul data-nid="el-ul-1320" class="note-list">
-                        <li data-nid="el-li-1321">
-                          回调模式定义在
-                          <code data-nid="el-code-1323">
-                          </code>
-                          块内部，与运动声明共处一处
-                        </li>
-                        <li data-nid="el-li-1325">
-                          每个回调接收一个 block 体，可执行任意 OmniLang 语句
-                        </li>
-                        <li data-nid="el-li-1327">
-                          5 种回调：
-                          <code data-nid="el-code-1329">
-                            onStart
-                          </code>
-                          <code data-nid="el-code-1331">
-                            onUpdate
-                          </code>
-                          <code data-nid="el-code-1333">
-                            onComplete
-                          </code>
-                          <code data-nid="el-code-1335">
-                            onRepeat
-                          </code>
-                          <code data-nid="el-code-1337">
-                            onInterrupt
-                          </code>
-                        </li>
-                        <li data-nid="el-li-1339">
-                          注意：MotionPlaybackDemo.omni 中声明的
-                          <code data-nid="el-code-1341">
-                            callbackOnly
-                          </code>
-                          运动在视图中从未被引用 —— 那是**鬼影代码**（dead code），本组件是回调模式的**正确使用示范**
-                        </li>
-                      </ul>
-                    </div>
+                  </div>
+                  <div data-nid="el-div-1566" class="hint-bar">
+                    <span data-nid="el-span-1567" class="hint-text">
+                      💡 4 themes · CSS cascade via
+                      <code data-nid="el-code-1569">
+                        [data-theme]
+                      </code>
+                      · zero JS per toggle
+                    </span>
                   </div>
                 </div>
               </div>
-              <div data-nid="el-div-1344" class="demo-full">
-                <div data-nid="el-TimelinePositionDemo-1345" data-component="TimelinePositionDemo">
-                  <div data-nid="el-div-1346" class="wrapper">
-                    <h3 data-nid="el-h3-1347" class="section-title">
-                      Timeline start: Position Modes
-                    </h3>
-                    <p data-nid="el-p-1349" class="subtitle">
-                      演示
-                      <code data-nid="el-code-1351">
-                        start: &quot;withPrev&quot;
-                      </code>
-                      /
-                      <code data-nid="el-code-1354">
-                        overlap(N)
-                      </code>
-                      /
-                      <code data-nid="el-code-1357">
-                        afterPrev(N)
-                      </code>
-                      /
-                      <code data-nid="el-code-1360">
-                        withOffset(N)
-                      </code>
-                      /
-                      <code data-nid="el-code-1363">
-                        absolute(N)
-                      </code>
-                      定位修饰符
-                    </p>
-                    <div data-nid="el-div-1366" class="tab-row">
-                      <button data-nid="el-button-1367">
-                        start: 定位模式
-                      </button>
-                      <button data-nid="el-button-1369">
-                        then/with 对比
+              <div data-nid="el-ThemeSourceDemo-1572" data-component="ThemeSourceDemo">
+                <div data-nid="el-div-1573" class="Container">
+                  <h3 data-nid="el-h3-1574" class="CardTitle">
+                    How It Works:
+                    <code data-nid="el-code-1576">
+                      @themes
+                    </code>
+                    Syntax
+                  </h3>
+                  <p data-nid="el-p-1579" class="Subtitle">
+                    Design blocks declare themes via
+                    <code data-nid="el-code-1581">
+                      @themes
+                    </code>
+                    directive. Per-token per-theme values compile to layer CSS.
+                  </p>
+                  <div data-nid="el-div-1584" class="code-layout">
+                    <div data-nid="el-div-1585" class="source-panel">
+                      <h4 data-nid="el-h4-1586" class="panel-title">
+                        Source
+                      </h4>
+                      <pre data-nid="el-pre-1588" class="code-block">
+                        @themes light, dark, sepia, highContrast; @default-theme light; token primary: color = &quot;#6366f1&quot; dark &quot;#a5b4fc&quot; sepia &quot;#8B4513&quot; highContrast &quot;#ffff00&quot;; token surface: color = &quot;#ffffff&quot; dark &quot;#111827&quot; sepia &quot;#F5E6C8&quot; highContrast &quot;#000000&quot;; token textPrimary: color = &quot;#111827&quot; dark &quot;#f9fafb&quot; sepia &quot;#3E2723&quot; highContrast &quot;#ffffff&quot;;
+                      </pre>
+                    </div>
+                    <div data-nid="el-div-1590" class="generated-panel">
+                      <h4 data-nid="el-h4-1591" class="panel-title">
+                        CSS
+                      </h4>
+                      <pre data-nid="el-pre-1593" class="code-block css">
+                        :root &amp;#123; --primary: #6366f1; --surface: #ffffff; --textPrimary: #111827; &amp;#125; [data-theme=&quot;dark&quot;] &amp;#123; --primary: #a5b4fc; --surface: #111827; &amp;#125; [data-theme=&quot;sepia&quot;] &amp;#123; --primary: #8B4513; --surface: #F5E6C8; &amp;#125; [data-theme=&quot;highContrast&quot;] &amp;#123; --primary: #ffff00; --surface: #0; &amp;#125; @media (prefers-color-scheme: dark) &amp;#123; :root:not([data-theme]) &amp;#123; --primary: #a5b4fc; &amp;#125; &amp;#125;
+                      </pre>
+                    </div>
+                  </div>
+                  <div data-nid="el-div-1595" class="key-points">
+                    <span data-nid="el-span-1596" class="key-point">
+                      CSS Cascade — one data-theme toggle updates ALL tokens at once
+                    </span>
+                    <span data-nid="el-span-1598" class="key-point">
+                      Zero runtime — per-theme CSS is generated at compile time
+                    </span>
+                    <span data-nid="el-span-1600" class="key-point">
+                      N themes — add &quot;forest&quot;, &quot;ocean&quot;, or any named theme
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div data-nid="el-DesignTokenPanel-1602" data-component="DesignTokenPanel">
+                <div data-nid="el-div-1603" class="Container">
+                  <h3 data-nid="el-h3-1604" class="CardTitle">
+                    Design Tokens Visualizer
+                  </h3>
+                  <p data-nid="el-p-1606" class="Subtitle">
+                    18 token types · values change instantly on theme switch via
+                    <code data-nid="el-code-1608">
+                      var(--name)
+                    </code>
+                  </p>
+                  <h4 data-nid="el-h4-1610" class="SectionTitle">
+                    Color Tokens (11)
+                  </h4>
+                  <div data-nid="el-div-1612" class="color-grid">
+                    <div data-nid="el-div-1613" class="color-item">
+                      <div data-nid="el-div-1614" class="color-swatch" style="background: var(--primary)">
+                      </div>
+                      <span data-nid="el-span-1615" class="color-name">
+                        --primary
+                      </span>
+                    </div>
+                    <div data-nid="el-div-1617" class="color-item">
+                      <div data-nid="el-div-1618" class="color-swatch" style="background: var(--primaryLight)">
+                      </div>
+                      <span data-nid="el-span-1619" class="color-name">
+                        --primaryLight
+                      </span>
+                    </div>
+                    <div data-nid="el-div-1621" class="color-item">
+                      <div data-nid="el-div-1622" class="color-swatch" style="background: var(--success)">
+                      </div>
+                      <span data-nid="el-span-1623" class="color-name">
+                        --success
+                      </span>
+                    </div>
+                    <div data-nid="el-div-1625" class="color-item">
+                      <div data-nid="el-div-1626" class="color-swatch" style="background: var(--warning)">
+                      </div>
+                      <span data-nid="el-span-1627" class="color-name">
+                        --warning
+                      </span>
+                    </div>
+                    <div data-nid="el-div-1629" class="color-item">
+                      <div data-nid="el-div-1630" class="color-swatch" style="background: var(--danger)">
+                      </div>
+                      <span data-nid="el-span-1631" class="color-name">
+                        --danger
+                      </span>
+                    </div>
+                    <div data-nid="el-div-1633" class="color-item">
+                      <div data-nid="el-div-1634" class="color-swatch" style="background: var(--accent)">
+                      </div>
+                      <span data-nid="el-span-1635" class="color-name">
+                        --accent
+                      </span>
+                    </div>
+                    <div data-nid="el-div-1637" class="color-item">
+                      <div data-nid="el-div-1638" class="color-swatch" style="background: var(--surface); border: 1px solid var(--border)">
+                      </div>
+                      <span data-nid="el-span-1639" class="color-name">
+                        --surface
+                      </span>
+                    </div>
+                    <div data-nid="el-div-1641" class="color-item">
+                      <div data-nid="el-div-1642" class="color-swatch" style="background: var(--surfaceMuted)">
+                      </div>
+                      <span data-nid="el-span-1643" class="color-name">
+                        --surfaceMuted
+                      </span>
+                    </div>
+                    <div data-nid="el-div-1645" class="color-item">
+                      <div data-nid="el-div-1646" class="color-swatch" style="background: var(--textPrimary)">
+                      </div>
+                      <span data-nid="el-span-1647" class="color-name">
+                        --textPrimary
+                      </span>
+                    </div>
+                    <div data-nid="el-div-1649" class="color-item">
+                      <div data-nid="el-div-1650" class="color-swatch" style="background: var(--textSecondary)">
+                      </div>
+                      <span data-nid="el-span-1651" class="color-name">
+                        --textSecondary
+                      </span>
+                    </div>
+                    <div data-nid="el-div-1653" class="color-item">
+                      <div data-nid="el-div-1654" class="color-swatch" style="background: var(--border)">
+                      </div>
+                      <span data-nid="el-span-1655" class="color-name">
+                        --border
+                      </span>
+                    </div>
+                  </div>
+                  <h4 data-nid="el-h4-1657" class="SectionTitle">
+                    Size Tokens
+                  </h4>
+                  <div data-nid="el-div-1659" class="size-demo">
+                    <div data-nid="el-div-1660" class="size-bar" style="width: var(--spaceXs)">
+                      xs
+                    </div>
+                    <div data-nid="el-div-1662" class="size-bar" style="width: var(--spaceSm)">
+                      sm
+                    </div>
+                    <div data-nid="el-div-1664" class="size-bar" style="width: var(--spaceMd)">
+                      md
+                    </div>
+                    <div data-nid="el-div-1666" class="size-bar" style="width: var(--spaceLg)">
+                      lg
+                    </div>
+                    <div data-nid="el-div-1668" class="size-bar" style="width: var(--spaceXl)">
+                      xl
+                    </div>
+                    <div data-nid="el-div-1670" class="size-bar" style="width: var(--spaceXxl)">
+                      xxl
+                    </div>
+                  </div>
+                  <h4 data-nid="el-h4-1672" class="SectionTitle">
+                    Radius Tokens
+                  </h4>
+                  <div data-nid="el-div-1674" class="radius-demo">
+                    <div data-nid="el-div-1675" class="radius-box" style="border-radius: var(--radiusSm)">
+                      sm
+                    </div>
+                    <div data-nid="el-div-1677" class="radius-box" style="border-radius: var(--radiusMd)">
+                      md
+                    </div>
+                    <div data-nid="el-div-1679" class="radius-box" style="border-radius: var(--radiusLg)">
+                      lg
+                    </div>
+                    <div data-nid="el-div-1681" class="radius-box" style="border-radius: var(--radiusFull)">
+                      full
+                    </div>
+                  </div>
+                  <h4 data-nid="el-h4-1683" class="SectionTitle">
+                    Shadow Tokens
+                  </h4>
+                  <div data-nid="el-div-1685" class="shadow-demo">
+                    <div data-nid="el-div-1686" class="shadow-box" style="box-shadow: var(--shadowSm)">
+                      sm
+                    </div>
+                    <div data-nid="el-div-1688" class="shadow-box" style="box-shadow: var(--shadowMd)">
+                      md
+                    </div>
+                    <div data-nid="el-div-1690" class="shadow-box" style="box-shadow: var(--shadowLg)">
+                      lg
+                    </div>
+                  </div>
+                  <div data-nid="el-div-1692" class="hint-bar">
+                    <span data-nid="el-span-1693" class="hint-text">
+                      Switch themes above — all tokens update automatically via CSS cascade
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div data-nid="el-VariantShowcase-1695" data-component="VariantShowcase">
+                <div data-nid="el-div-1696" class="Container">
+                  <h3 data-nid="el-h3-1697" class="CardTitle">
+                    Component Variants
+                  </h3>
+                  <p data-nid="el-p-1699" class="Subtitle">
+                    <code data-nid="el-code-1700">
+                      variant: LearnDesign.Button(color=X, size=Y)
+                    </code>
+                    -- multi-dimension theming
+                  </p>
+                  <h4 data-nid="el-h4-1703" class="SectionTitle">
+                    Color Variants (size=md)
+                  </h4>
+                  <div data-nid="el-div-1705" class="variant-row">
+                    <button data-nid="el-button-1706" class="Button primary md">
+                      Primary
+                    </button>
+                    <button data-nid="el-button-1708" class="Button danger md">
+                      Danger
+                    </button>
+                    <button data-nid="el-button-1710" class="Button ghost md">
+                      Ghost
+                    </button>
+                    <button data-nid="el-button-1712" class="Button accent md">
+                      Accent
+                    </button>
+                  </div>
+                  <h4 data-nid="el-h4-1714" class="SectionTitle">
+                    Size Variants (color=primary)
+                  </h4>
+                  <div data-nid="el-div-1716" class="variant-row">
+                    <button data-nid="el-button-1717" class="Button primary sm">
+                      Small
+                    </button>
+                    <button data-nid="el-button-1719" class="Button primary md">
+                      Medium
+                    </button>
+                    <button data-nid="el-button-1721" class="Button primary lg">
+                      Large
+                    </button>
+                  </div>
+                  <h4 data-nid="el-h4-1723" class="SectionTitle">
+                    Theme Responsiveness
+                  </h4>
+                  <p data-nid="el-p-1725" class="hint-text">
+                    Switch themes above -- button colors change automatically via
+                    <code data-nid="el-code-1727">
+                      var(--primary)
+                    </code>
+                    ,
+                    <code data-nid="el-code-1730">
+                      var(--danger)
+                    </code>
+                    , etc. No component code changes needed.
+                  </p>
+                </div>
+              </div>
+              <div data-nid="el-ThemeCssVarsDemo-1733" data-component="ThemeCssVarsDemo">
+                <div data-nid="el-div-1734" class="wrapper">
+                  <h3 data-nid="el-h3-1735" class="section-title">
+                    Theme with CSS Variables
+                  </h3>
+                  <p data-nid="el-p-1737" class="subtitle">
+                    设计块主题系统自动生成
+                    <code data-nid="el-code-1739">
+                      --surface
+                    </code>
+                    、
+                    <code data-nid="el-code-1742">
+                      --textPrimary
+                    </code>
+                    等 CSS 变量，子元素用
+                    <code data-nid="el-code-1745">
+                      var()
+                    </code>
+                    继承。
+                    <code data-nid="el-code-1748">
+                      [data-theme]
+                    </code>
+                    切换时自动更新，无需手动
+                    <code data-nid="el-code-1751">
+                      setProperty()
+                    </code>
+                    。
+                  </p>
+                  <div data-nid="el-div-1754" class="theme-root">
+                    <div data-nid="el-div-1755" class="themed-card">
+                      <h4 data-nid="el-h4-1756" class="card-title">
+                        CSS Variable Cascading
+                      </h4>
+                      <p data-nid="el-p-1758" class="card-desc">
+                        background、color、border-color 均通过
+                        <code data-nid="el-code-1760">
+                          var(--*)
+                        </code>
+                        从设计系统继承。主题切换时所有卡片同步变化。
+                      </p>
+                      <div data-nid="el-div-1763" class="stat-row">
+                        <span data-nid="el-span-1764" class="stat-badge">
+                          BG: var(--surface)
+                        </span>
+                        <span data-nid="el-span-1766" class="stat-badge">
+                          TX: var(--textPrimary)
+                        </span>
+                        <span data-nid="el-span-1768" class="stat-badge">
+                          PR: var(--primary)
+                        </span>
+                      </div>
+                    </div>
+                    <div data-nid="el-div-1770" class="themed-card accent">
+                      <h4 data-nid="el-h4-1771" class="card-title">
+                        Composition with calc()
+                      </h4>
+                      <p data-nid="el-p-1773" class="card-desc">
+                        <code data-nid="el-code-1774">
+                          calc(var(--theme-border-w) * 2px)
+                        </code>
+                        动态计算边框宽度。 点击按钮切换
+                        <code data-nid="el-code-1777">
+                          --theme-border-w
+                        </code>
+                        值。
+                      </p>
+                      <button data-nid="el-button-1780" class="var-action-btn">
+                        Toggle Border Width (
+                        <span data-nid="el-interp-1782"></span>
+                        px →
+                        <span data-nid="el-interp-1785"></span>
+                        px)
                       </button>
                     </div>
-                    <p data-nid="el-p-1371" class="replay-hint">
-                      每次切换 demo 或点此按钮重新触发时间线：
-                      <button data-nid="el-button-1373" class="replay-btn">
-                        重新触发 (x
-                        <span data-nid="el-interp-1375"></span>
+                    <div data-nid="el-div-1788" class="themed-card interactive">
+                      <h4 data-nid="el-h4-1789" class="card-title">
+                        Transform via CSS Variable
+                      </h4>
+                      <p data-nid="el-p-1791" class="card-desc">
+                        <code data-nid="el-code-1792">
+                          transform: scale(var(--theme-scale))
+                        </code>
+                        。 信号值通过
+                        <code data-nid="el-code-1795">
+                          setProperty(&quot;--theme-scale&quot;, boxScale.value)
+                        </code>
+                        驱动。
+                      </p>
+                      <button data-nid="el-button-1798" class="var-action-btn">
+                        Toggle Scale (
+                        <span data-nid="el-interp-1800"></span>
                         )
                       </button>
-                    </p>
-                    <div data-nid="el-if-1378-b0" style="display:none">
-                      <fragment data-nid="el-fragment-1379">
-                        <div data-nid="el-div-1380" class="timeline-area" data-timeline="positionDemo">
-                          <h4 data-nid="el-h4-1381" class="area-title">
-                             with start: Position Modes
-                          </h4>
-                          <div data-nid="el-div-1383" class="timeline-grid">
-                            <div data-nid="el-div-1384" class="tl-item label">
-                              A-start
-                            </div>
-                            <div data-nid="el-div-1386" class="tl-item label">
-                              B-withPrev
-                            </div>
-                            <div data-nid="el-div-1388" class="tl-item label">
-                              C-after
-                            </div>
-                            <div data-nid="el-div-1390" class="tl-item label">
-                              D-overlap
-                            </div>
-                            <div data-nid="el-div-1392" class="tl-item label">
-                              E-afterPrev
-                            </div>
-                            <div data-nid="el-div-1394" class="tl-item label">
-                              F-withOffset
-                            </div>
-                            <div data-nid="el-div-1396" class="tl-item label">
-                              G-absolute
-                            </div>
-                          </div>
-                          <p data-nid="el-p-1398" class="area-note">
-                            A (set) → B (withPrev, 同时) → C (after, 默认) → D (overlap 150ms) → E (afterPrev 200ms) → F (withOffset 100ms) → G (absolute 1200ms)
-                          </p>
-                        </div>
-                      </fragment>
                     </div>
-                    <div data-nid="el-if-1400-b0" style="display:none">
-                      <fragment data-nid="el-fragment-1401">
-                        <div data-nid="el-div-1402" class="timeline-area" data-timeline="simpleThenWith">
-                          <h4 data-nid="el-h4-1403" class="area-title">
-                             with then / with (无定位修饰符)
-                          </h4>
-                          <div data-nid="el-div-1405" class="timeline-grid small">
-                            <div data-nid="el-div-1406" class="tl-item label">
-                              set
-                            </div>
-                            <div data-nid="el-div-1408" class="tl-item label">
-                              then-item
-                            </div>
-                            <div data-nid="el-div-1410" class="tl-item label">
-                              with-item
-                            </div>
-                          </div>
-                          <p data-nid="el-p-1412" class="area-note">
-                            使用 then/with 连接器（无 start: 修饰符）作为对比基准
-                          </p>
-                        </div>
-                      </fragment>
-                    </div>
-                    <div data-nid="el-div-1414" class="legend">
-                      <h4 data-nid="el-h4-1415" class="legend-title">
-                        start: 定位修饰符一览
+                    <div data-nid="el-div-1803" class="palette-section">
+                      <h4 data-nid="el-h4-1804" class="card-title">
+                        Theme Palette via var()
                       </h4>
-                      <div data-nid="el-div-1417" class="legend-grid">
-                        <div data-nid="el-div-1418" class="legend-item">
-                          <code data-nid="el-code-1419">
-                            start: &quot;withPrev&quot;
-                          </code>
-                          <span data-nid="el-span-1421" class="legend-desc">
-                            与上一项同时开始
-                          </span>
-                          <span data-nid="el-span-1423" class="legend-example">
-                            → B 与 A 同时执行
+                      <div data-nid="el-div-1806" class="palette-grid">
+                        <div data-nid="el-div-1807" class="palette-chip" style="background: var(--surface); border: 2px solid var(--border)">
+                          <span data-nid="el-span-1808" class="chip-label" style="color: var(--textPrimary)">
+                            --surface
                           </span>
                         </div>
-                        <div data-nid="el-div-1425" class="legend-item">
-                          <code data-nid="el-code-1426">
-                            start: &quot;after&quot;
-                          </code>
-                          <span data-nid="el-span-1428" class="legend-desc">
-                            在上一项结束后开始（默认行为）
-                          </span>
-                          <span data-nid="el-span-1430" class="legend-example">
-                            → C 在 B 之后执行
+                        <div data-nid="el-div-1810" class="palette-chip" style="background: var(--primary)">
+                          <span data-nid="el-span-1811" class="chip-label" style="color: white">
+                            --primary
                           </span>
                         </div>
-                        <div data-nid="el-div-1432" class="legend-item">
-                          <code data-nid="el-code-1433">
-                            start: &quot;overlap(N)&quot;
-                          </code>
-                          <span data-nid="el-span-1435" class="legend-desc">
-                            与上一项重叠 N 毫秒
-                          </span>
-                          <span data-nid="el-span-1437" class="legend-example">
-                            → D 在 C 结束前 150ms 开始
+                        <div data-nid="el-div-1813" class="palette-chip" style="background: var(--textPrimary)">
+                          <span data-nid="el-span-1814" class="chip-label" style="color: var(--surface)">
+                            --textPrimary
                           </span>
                         </div>
-                        <div data-nid="el-div-1439" class="legend-item">
-                          <code data-nid="el-code-1440">
-                            start: &quot;afterPrev(N)&quot;
-                          </code>
-                          <span data-nid="el-span-1442" class="legend-desc">
-                            上一项结束后 N 毫秒开始
-                          </span>
-                          <span data-nid="el-span-1444" class="legend-example">
-                            → E 在 D 结束后 200ms 开始
-                          </span>
-                        </div>
-                        <div data-nid="el-div-1446" class="legend-item">
-                          <code data-nid="el-code-1447">
-                            start: &quot;withOffset(N)&quot;
-                          </code>
-                          <span data-nid="el-span-1449" class="legend-desc">
-                            与上一项同时开始，但偏移 N 毫秒
-                          </span>
-                          <span data-nid="el-span-1451" class="legend-example">
-                            → F 与 D 同时但晚 100ms 触发
-                          </span>
-                        </div>
-                        <div data-nid="el-div-1453" class="legend-item">
-                          <code data-nid="el-code-1454">
-                            start: &quot;absolute(N)&quot;
-                          </code>
-                          <span data-nid="el-span-1456" class="legend-desc">
-                            在时间线绝对时间 N 毫秒处开始
-                          </span>
-                          <span data-nid="el-span-1458" class="legend-example">
-                            → G 在 1200ms 处执行
+                        <div data-nid="el-div-1816" class="palette-chip" style="background: var(--surfaceMuted); border: 1px solid var(--border)">
+                          <span data-nid="el-span-1817" class="chip-label" style="color: var(--textPrimary)">
+                            --surfaceMuted
                           </span>
                         </div>
                       </div>
                     </div>
-                    <div data-nid="el-div-1460" class="tech-note">
-                      <h4 data-nid="el-h4-1461" class="note-title">
-                        💡 时间线定位语义
-                      </h4>
-                      <ul data-nid="el-ul-1463" class="note-list">
-                        <li data-nid="el-li-1464">
-                          <code data-nid="el-code-1465">
-                            start:
-                          </code>
-                          修饰符控制时间线项目的
-                          <strong data-nid="el-strong-1468">
-                            相对/绝对定时
-                          </strong>
-                        </li>
-                        <li data-nid="el-li-1470">
-                          未指定时默认行为是
-                          <code data-nid="el-code-1472">
-                            start: &quot;after&quot;
-                          </code>
-                          （在上一个项目完成后开始）
-                        </li>
-                        <li data-nid="el-li-1475">
-                          <code data-nid="el-code-1476">
-                            then
-                          </code>
-                          连接器等价于
-                          <code data-nid="el-code-1479">
-                            start: &quot;after&quot;
-                          </code>
-                          顺序执行
-                        </li>
-                        <li data-nid="el-li-1482">
-                          <code data-nid="el-code-1483">
-                            with
-                          </code>
-                          连接器等价于
-                          <code data-nid="el-code-1486">
-                            start: &quot;withPrev&quot;
-                          </code>
-                          同时执行
-                        </li>
-                        <li data-nid="el-li-1489">
-                          <code data-nid="el-code-1490">
-                            start:
-                          </code>
-                          提供
-                          <code data-nid="el-code-1493">
-                            then
-                          </code>
-                          /
-                          <code data-nid="el-code-1496">
-                            with
-                          </code>
-                          之外的细粒度控制
-                        </li>
+                  </div>
+                  <div data-nid="el-div-1819" class="action-row">
+                    <button data-nid="el-button-1820" class="toggle-btn">
+                      Toggle Theme (light → dark → sepia → highContrast)
+                    </button>
+                    <p data-nid="el-p-1822" class="hint">
+                      Current:
+                      <span data-nid="el-interp-1824"></span>
+                      · Toggles:
+                      <span data-nid="el-interp-1827"></span>
+                      ·
+                      <code data-nid="el-code-1830">
+                        @themes light, dark, sepia, highContrast
+                      </code>
+                    </p>
+                  </div>
+                  <div data-nid="el-div-1832" class="tech-note">
+                    <h4 data-nid="el-h4-1833" class="note-title">
+                      Key Design Patterns
+                    </h4>
+                    <p data-nid="el-p-1835">
+                      Design block theme system: @themes + per-token theme values. CSS generated automatically.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </fragment>
+      </div>
+      <div data-nid="el-if-1837-b0" style="display:none">
+        <fragment data-nid="el-fragment-1838">
+          <div data-nid="el-StatePage-1839" data-component="StatePage">
+            <section data-nid="el-section-1840" class="DemoSection">
+              <div data-nid="el-div-1841" class="DemoFull">
+                <div data-nid="el-SignalPatternsDemo-1842" data-component="SignalPatternsDemo">
+                  <div data-nid="el-div-1843" class="Container">
+                    <h3 data-nid="el-h3-1844" class="CardTitle">
+                      Signal &amp; Store Patterns
+                    </h3>
+                    <p data-nid="el-p-1846" class="Subtitle">
+                      store · computed · effect · bind:value · for key · if mode · slot
+                    </p>
+                    <h4 data-nid="el-h4-1848" class="SectionTitle">
+                      Inline Store + Computed 派生
+                    </h4>
+                    <div data-nid="el-div-1850" class="pattern-card">
+                      <p data-nid="el-p-1851" class="big-number">
+                        <span data-nid="el-interp-1852"></span>
+                      </p>
+                      <p data-nid="el-p-1854" class="info">
+                        Double:
+                        <span data-nid="el-interp-1856"></span>
+                        |
+                        <span data-nid="el-interp-1859"></span>
+                      </p>
+                      <div data-nid="el-div-1861" class="Row">
+                        <button data-nid="el-button-1862" class="Button primary sm">
+                          +1
+                        </button>
+                        <button data-nid="el-button-1864" class="Button ghost sm">
+                          -1
+                        </button>
+                        <button data-nid="el-button-1866" class="Button danger sm">
+                          Reset
+                        </button>
+                      </div>
+                    </div>
+                    <h4 data-nid="el-h4-1868" class="SectionTitle">
+                      bind:value 双向绑定 + 验证
+                    </h4>
+                    <div data-nid="el-div-1870" class="pattern-card">
+                      <div data-nid="el-div-1871" class="form-row">
+                        <label data-nid="el-label-1872" class="form-label">
+                          Name:
+                        </label>
+                        <input data-nid="el-input-1874" placeholder="Enter name" class="form-input" />
+                      </div>
+                      <div data-nid="el-div-1875" class="form-row">
+                        <label data-nid="el-label-1876" class="form-label">
+                          Email:
+                        </label>
+                        <input data-nid="el-input-1878" placeholder="Enter email" class="form-input" />
+                      </div>
+                      <p data-nid="el-p-1879" class="info">
+                        Name: &quot;{name}&quot; | Email: &quot;{email}&quot; |
+                        <span data-nid="el-interp-1881"></span>
+                      </p>
+                    </div>
+                    <h4 data-nid="el-h4-1883" class="SectionTitle">
+                      For key 身份追踪列表
+                    </h4>
+                    <div data-nid="el-div-1885" class="pattern-card">
+                      <p data-nid="el-p-1886" class="info">
+                        Total:
+                        <span data-nid="el-interp-1888"></span>
+                        items
+                      </p>
+                      <div data-nid="el-div-1891" class="Row">
+                        <button data-nid="el-button-1892" class="Button primary sm">
+                          Add Item
+                        </button>
+                        <button data-nid="el-button-1894" class="Button ghost sm">
+                          Remove Last
+                        </button>
+                      </div>
+                      <ul data-nid="el-ul-1896" class="item-list">
+                        <template data-nid="el-for-1897-tpl">
+                            <li data-nid="el-li-1899" class="list-item">
+                              <span data-nid="el-interp-1900"></span>
+                            </li>
+</template>
+                        <template data-nid="el-for-1897-ctr" data-for-container></template>
+                        <template data-nid="el-for-1897-empty">
+                            <li data-nid="el-li-1903" class="list-item empty">
+                              No items yet
+                            </li>
+</template>
                       </ul>
                     </div>
-                  </div>
-                </div>
-              </div>
-              <div data-nid="el-div-1499" class="demo-full">
-                <div data-nid="el-StaggerAndTimelineDemo-1500" data-component="StaggerAndTimelineDemo">
-                  <div data-nid="el-div-1501" class="container">
-                    <h3 data-nid="el-h3-1502" class="title">
-                      Stagger 方向 + 时间线连接器
-                    </h3>
-                    <p data-nid="el-p-1504" class="subtitle">
-                      staggerFrom start/end/edges · then · with · MotionRef
-                    </p>
-                    <h4 data-nid="el-h4-1506" class="group-title">
-                      Stagger 方向（start / end / edges — center 已测）
+                    <h4 data-nid="el-h4-1905" class="SectionTitle">
+                      If mode: &quot;wait&quot; 过渡模式
                     </h4>
-                    <div data-nid="el-div-1508" class="stagger-section">
-                      <strong data-nid="el-strong-1509">
-                        staggerFrom start
-                      </strong>
-                      <div data-nid="el-div-1511" class="stagger-row" data-enter="staggerStart">
-                        <div data-nid="el-div-1512" class="dot">
-                          1
-                        </div>
-                        <div data-nid="el-div-1514" class="dot">
-                          2
-                        </div>
-                        <div data-nid="el-div-1516" class="dot">
-                          3
-                        </div>
-                        <div data-nid="el-div-1518" class="dot">
-                          4
-                        </div>
-                        <div data-nid="el-div-1520" class="dot">
-                          5
-                        </div>
-                      </div>
-                    </div>
-                    <div data-nid="el-div-1522" class="stagger-section">
-                      <strong data-nid="el-strong-1523">
-                        staggerFrom end
-                      </strong>
-                      <div data-nid="el-div-1525" class="stagger-row" data-enter="staggerEnd">
-                        <div data-nid="el-div-1526" class="dot">
-                          1
-                        </div>
-                        <div data-nid="el-div-1528" class="dot">
-                          2
-                        </div>
-                        <div data-nid="el-div-1530" class="dot">
-                          3
-                        </div>
-                        <div data-nid="el-div-1532" class="dot">
-                          4
-                        </div>
-                        <div data-nid="el-div-1534" class="dot">
-                          5
-                        </div>
-                      </div>
-                    </div>
-                    <div data-nid="el-div-1536" class="stagger-section">
-                      <strong data-nid="el-strong-1537">
-                        staggerFrom edges
-                      </strong>
-                      <div data-nid="el-div-1539" class="stagger-row" data-enter="staggerEdges">
-                        <div data-nid="el-div-1540" class="dot">
-                          1
-                        </div>
-                        <div data-nid="el-div-1542" class="dot">
-                          2
-                        </div>
-                        <div data-nid="el-div-1544" class="dot">
-                          3
-                        </div>
-                        <div data-nid="el-div-1546" class="dot">
-                          4
-                        </div>
-                        <div data-nid="el-div-1548" class="dot">
-                          5
-                        </div>
-                      </div>
-                    </div>
-                    <h4 data-nid="el-h4-1550" class="group-title">
-                      时间线连接器: then（顺序） + with（并行）+ MotionRef
-                    </h4>
-                    <div data-nid="el-div-1552" class="timeline-area" data-timeline="connectorDemo">
-                      <div data-nid="el-div-1553" class="tl-label">
-                        phase1（set 后）
-                      </div>
-                      <div data-nid="el-div-1555" data-box="box1" class="tl-box">
-                        box1 · then →
-                      </div>
-                      <div data-nid="el-div-1557" data-box="box2" class="tl-box">
-                        box2 · with（与 refMotion 并行）
-                      </div>
-                      <div data-nid="el-div-1559" data-box="box3" class="tl-box">
-                        box3 · then after above
-                      </div>
-                      <div data-nid="el-div-1561" class="tl-label">
-                        outro
-                      </div>
-                      <div data-nid="el-div-1563" data-box="box4" class="tl-box">
-                        box4 · with outro
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div data-nid="el-div-1565" class="demo-full">
-                <div data-nid="el-TimelineMotionDemo-1566" data-component="TimelineMotionDemo">
-                  <div data-nid="el-div-1567" class="container" data-timeline="pageEnter">
-                    <h3 data-nid="el-h3-1568" class="title">
-                      Timeline Motion Demo
-                    </h3>
-                    <p data-nid="el-p-1570" class="subtitle">
-                       · set · stagger · label
-                    </p>
-                    <div data-nid="el-div-1572" class="card" data-timeline="pageEnter">
-                      <h4 data-nid="el-h4-1573" class="label">
-                        header
-                      </h4>
-                      <p data-nid="el-p-1575">
-                        包含在 pageEnter timeline 中
-                      </p>
-                    </div>
-                    <div data-nid="el-div-1577" class="card" data-timeline="pageEnter">
-                      <h4 data-nid="el-h4-1578" class="label">
-                        body
-                      </h4>
-                      <p data-nid="el-p-1580">
-                        stagger 0.05s 逐个入场
-                      </p>
-                    </div>
-                    <div data-nid="el-div-1582" class="card" data-timeline="pageEnter">
-                      <h4 data-nid="el-h4-1583" class="label">
-                        footer
-                      </h4>
-                      <p data-nid="el-p-1585">
-                        最后入场（label outro 之后）
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div data-nid="el-div-1587" class="demo-full">
-                <div data-nid="el-PlaybackAdvancedDemo-1588" data-component="PlaybackAdvancedDemo">
-                  <div data-nid="el-div-1589" class="container">
-                    <h3 data-nid="el-h3-1590" class="title">
-                      播放属性进阶
-                    </h3>
-                    <p data-nid="el-p-1592" class="subtitle">
-                      direction reverse/alternateReverse · fill backwards/both · interrupt stop/complete/replace
-                    </p>
-                    <button data-nid="el-button-1594" class="trigger-btn">
-                      <span data-nid="el-interp-1595"></span>
-                    </button>
-                    <h4 data-nid="el-h4-1597" class="group-title">
-                      Direction 方向（reverse · alternateReverse）
-                    </h4>
-                    <div data-nid="el-div-1599" class="grid">
-                      <div data-nid="el-div-1600" class="card" data-enter="dirReverse">
-                        <strong data-nid="el-strong-1601">
-                          direction reverse
-                        </strong>
-                        <p data-nid="el-p-1603">
-                          反向播放（终点→起点）
-                        </p>
-                      </div>
-                      <div data-nid="el-div-1605" class="card" data-enter="dirAltReverse">
-                        <strong data-nid="el-strong-1606">
-                          direction alternateReverse
-                        </strong>
-                        <p data-nid="el-p-1608">
-                          交替反向
-                        </p>
-                      </div>
-                    </div>
-                    <h4 data-nid="el-h4-1610" class="group-title">
-                      Fill 填充（backwards · both）
-                    </h4>
-                    <div data-nid="el-div-1612" class="grid">
-                      <div data-nid="el-div-1613" class="card" data-enter="fillBackwards">
-                        <strong data-nid="el-strong-1614">
-                          fill backwards
-                        </strong>
-                        <p data-nid="el-p-1616">
-                          delay 500ms 前即跳到 from 态
-                        </p>
-                      </div>
-                      <div data-nid="el-div-1618" class="card" data-enter="fillBoth">
-                        <strong data-nid="el-strong-1619">
-                          fill both
-                        </strong>
-                        <p data-nid="el-p-1621">
-                          前后都填充·delay 300ms
-                        </p>
-                      </div>
-                    </div>
-                    <h4 data-nid="el-h4-1623" class="group-title">
-                      Interrupt 中断行为（stop · complete · replace）
-                    </h4>
-                    <div data-nid="el-div-1625" class="grid">
-                      <div data-nid="el-div-1626" class="card" data-animate="intStop">
-                        <strong data-nid="el-strong-1627">
-                          interrupt stop
-                        </strong>
-                        <p data-nid="el-p-1629">
-                          中断即停在当前值
-                        </p>
-                      </div>
-                      <div data-nid="el-div-1631" class="card" data-animate="intComplete">
-                        <strong data-nid="el-strong-1632">
-                          interrupt complete
-                        </strong>
-                        <p data-nid="el-p-1634">
-                          中断时快速跳到终点
-                        </p>
-                      </div>
-                      <div data-nid="el-div-1636" class="card" data-animate="intReplace">
-                        <strong data-nid="el-strong-1637">
-                          interrupt replace
-                        </strong>
-                        <p data-nid="el-p-1639">
-                          中断即替换为新动画
-                        </p>
-                      </div>
-                    </div>
-                    <p data-nid="el-p-1641" class="note">
-                      interrupt demo 使用 direction alternate + loop 来触发多次中断（保持自动重播以测试中断行为）
-                    </p>
-                    <p data-nid="el-p-1643" class="note">
-                      direction 与 fill demo 点击上方按钮播放（不需要自动重播即可测试）
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <div data-nid="el-div-1645" class="demo-full">
-                <div data-nid="el-HeroTransitionDemo-1646" data-component="HeroTransitionDemo">
-                  <div data-nid="el-div-1647" class="container">
-                    <h3 data-nid="el-h3-1648" class="title">
-                      Hero Test
-                    </h3>
-                    <button data-nid="el-button-1650" class="btn">
-                      Toggle
-                    </button>
-                    <div data-nid="el-if-1652-b0" style="display:none">
-                      <fragment data-nid="el-fragment-1653">
-                        <div data-nid="el-div-1654" class="hero-card" data-hero="card-1" data-hero-transition="{heroMove}">
-                          <h4 data-nid="el-h4-1655">
-                            Card 1
-                          </h4>
-                        </div>
-                      </fragment>
-                    </div>
-                    <div data-nid="el-if-1652-else" style="display:none">
-                      <fragment data-nid="el-fragment-1657">
-                        <div data-nid="el-div-1658" class="hero-card-small" data-hero="card-1" data-hero-transition="{heroMove}">
-                          <p data-nid="el-p-1659">
-                            Card 1 (collapsed)
-                          </p>
-                        </div>
-                      </fragment>
-                    </div>
-                    <div data-nid="el-div-1661" class="hero-card" data-hero="card-2" data-hero-transition="{heroMove}">
-                      <h4 data-nid="el-h4-1662">
-                        Card 2 ()
-                      </h4>
-                    </div>
-                    <div data-nid="el-div-1664" class="driven-bar">
-                      <p data-nid="el-p-1665">
-                         progress bar
-                      </p>
-                    </div>
-                    <div data-nid="el-div-1667" class="signal-box">
-                      <p data-nid="el-p-1668">
-                        on: signal binding
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div data-nid="el-div-1670" class="demo-full">
-                <div data-nid="el-ComponentSpecialsDemo-1671" data-component="ComponentSpecialsDemo">
-                  <div data-nid="el-div-1672" class="container">
-                    <h3 data-nid="el-h3-1673" class="title">
-                      组件级特殊语法
-                    </h3>
-                    <p data-nid="el-p-1675" class="subtitle">
-                      if_mode: wait · slot(name) 括号形式 · hero 组件级 · on: 信号绑定
-                    </p>
-                    <h4 data-nid="el-h4-1677" class="group-title">
-                      if_mode: &quot;wait&quot;（组件级 if 过渡默认值）
-                    </h4>
-                    <div data-nid="el-div-1679" class="demo-card">
-                      <p data-nid="el-p-1680" class="hint">
-                        当 showPanel 切换时，leave 动画（fadeSlideOut 300ms）会在新内容渲染前完成
-                      </p>
-                      <button data-nid="el-button-1682" class="btn">
-                        <span data-nid="el-interp-1683"></span>
+                    <div data-nid="el-div-1907" class="pattern-card">
+                      <button data-nid="el-button-1908" class="Button primary sm">
+                        <span data-nid="el-interp-1909"></span>
                       </button>
-                      <div data-nid="el-if-1685-b0" style="display:none">
-                        <fragment data-nid="el-fragment-1686">
-                          <div data-nid="el-div-1687" class="panel" data-enter="fadeEnter" data-leave="fadeSlideOut">
-                            <p data-nid="el-p-1688">
-                              这个面板会在旧面板离开动画完成后才渲染
+                      <div data-nid="el-if-1911-b0" style="display:none">
+                        <fragment data-nid="el-fragment-1912">
+                          <div data-nid="el-div-1913" class="panel">
+                            <p data-nid="el-p-1914">
+                              这个面板在 mode: &quot;wait&quot; 下渲染——旧内容离开动画完成后才插入新内容
                             </p>
                           </div>
                         </fragment>
                       </div>
                     </div>
-                    <h4 data-nid="el-h4-1690" class="group-title">
-                      slot(name) 带括号形式
+                    <h4 data-nid="el-h4-1916" class="SectionTitle">
+                      命名插槽（命名属性投影）
                     </h4>
-                    <div data-nid="el-div-1692" class="demo-card">
-                      <p data-nid="el-p-1693" class="hint">
-                        slot(header) · slot(body) · slot(footer) — 代替
-                        <slot name="header"></slot>
-                        的无括号形式
-                      </p>
-                      <button data-nid="el-button-1696" class="btn">
-                        Open Slot Demo
+                    <div data-nid="el-div-1918" class="pattern-card">
+                      <button data-nid="el-button-1919" class="Button primary sm">
+                        <span data-nid="el-interp-1920"></span>
                       </button>
-                      <div data-nid="el-if-1698-b0" style="display:none">
-                        <fragment data-nid="el-fragment-1699">
-                          <div data-nid="el-SlotContainer-1700" data-component="SlotContainer">
-                            <div data-nid="el-div-1701" class="slot-box">
-                              <div data-nid="el-div-1702" class="slot-header">
-                                <slot name="header"></slot>
+                      <div data-nid="el-if-1922-b0" style="display:none">
+                        <fragment data-nid="el-fragment-1923">
+                          <div data-nid="el-SlotBox-1924" data-component="SlotBox">
+                            <div data-nid="el-div-1925" class="slot-container">
+                              <div data-nid="el-div-1926" class="slot-header-area">
+                                <h4 data-nid="el-h4-1927">
+                                  Custom Header via Slot
+                                </h4>
+                                <strong data-nid="el-strong-1929" class="slot-default-header">
+                                  Default Header
+                                </strong>
                               </div>
-                              <div data-nid="el-div-1703" class="slot-body">
-                                <slot name="body"></slot>
+                              <div data-nid="el-div-1931" class="slot-body-area">
+                                <div data-nid="el-div-1932">
+                                  <p data-nid="el-p-1933" class="slot-content">
+                                    This body content is projected into the body slot
+                                  </p>
+                                  <p data-nid="el-p-1935" class="slot-content">
+                                    Counter:
+                                    <span data-nid="el-interp-1937"></span>
+                                  </p>
+                                </div>
+                                <p data-nid="el-p-1939" class="slot-default-body">
+                                  Default body content goes here.
+                                </p>
                               </div>
-                              <div data-nid="el-div-1704" class="slot-footer">
-                                <slot name="footer"></slot>
-                                <button data-nid="el-button-1705" class="close-btn">
+                              <div data-nid="el-div-1941" class="slot-footer-area">
+                                <button data-nid="el-button-1942" class="Button primary sm">
+                                  Confirm
+                                </button>
+                                <button data-nid="el-button-1944" class="Button ghost sm">
                                   Close
                                 </button>
                               </div>
@@ -6103,1812 +6336,376 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                         </fragment>
                       </div>
                     </div>
-                    <h4 data-nid="el-h4-1707" class="group-title">
-                      组件级 
+                    <h4 data-nid="el-h4-1946" class="SectionTitle">
+                      生命周期： ·  · 
                     </h4>
-                    <div data-nid="el-div-1709" class="demo-card">
-                      <p data-nid="el-p-1710" class="hint">
-                        在组件级定义  cardHero (over: 400, ease: power2Out)
+                    <div data-nid="el-div-1948" class="pattern-card">
+                      <p data-nid="el-p-1949" class="info">
+                        Mount:
+                        <span data-nid="el-interp-1951"></span>
                       </p>
-                      <div data-nid="el-div-1712" class="hero-box" data-hero="hero-demo-1" data-hero-transition="{scaleGlow}">
-                        <p data-nid="el-p-1713">
-                          =&quot;hero-demo-1&quot; 引用组件级 cardHero
-                        </p>
-                      </div>
-                    </div>
-                    <h4 data-nid="el-h4-1715" class="group-title">
-                      on: (signal) 信号绑定
-                    </h4>
-                    <div data-nid="el-div-1717" class="demo-card">
-                      <p data-nid="el-p-1718" class="hint">
-                        点击按钮增加 progressPct（0→100 循环），驱动下方元素动画进度
+                      <p data-nid="el-p-1953" class="info">
+                         触发次数:
+                        <span data-nid="el-interp-1955"></span>
                       </p>
-                      <button data-nid="el-button-1720" class="btn">
-                        Advance
-                        <span data-nid="el-interp-1722"></span>
-                        %
-                      </button>
-                      <div data-nid="el-div-1725" class="signal-bar">
-                        <p data-nid="el-p-1726">
-                          progressPct:
-                          <span data-nid="el-interp-1728"></span>
-                          %
-                        </p>
-                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </section>
-          </fragment>
-        </div>
-        <div data-nid="el-if-1731-b0" style="display:none">
-          <fragment data-nid="el-fragment-1732">
-            <section data-nid="el-section-1733" class="demo-section">
-              <div data-nid="el-div-1734" class="demo-full">
-                <div data-nid="el-CssUnitsDemo-1735" data-component="CssUnitsDemo">
-                  <div data-nid="el-div-1736" class="container">
-                    <h3 data-nid="el-h3-1737" class="title">
-                      CSS 单位全覆盖
-                    </h3>
-                    <p data-nid="el-p-1739" class="subtitle">
-                      30 个 CSS 单位全覆盖（含 10 个新增：s, vmax, svw, lvw, dvw, cqh, cqb, cqmin, cqmax, rlh）
-                    </p>
-                    <div data-nid="el-div-1741" class="grid">
-                      <div data-nid="el-div-1742" class="box-vh">
-                        10vh
-                      </div>
-                      <div data-nid="el-div-1744" class="box-fr">
-                        1fr
-                      </div>
-                      <div data-nid="el-div-1746" class="box-pt">
-                        12pt
-                      </div>
-                      <div data-nid="el-div-1748" class="box-cm">
-                        1cm
-                      </div>
-                      <div data-nid="el-div-1750" class="box-mm">
-                        10mm
-                      </div>
-                      <div data-nid="el-div-1752" class="box-ms">
-                        150ms
-                      </div>
-                      <div data-nid="el-div-1754" class="box-deg">
-                        15deg
-                      </div>
-                      <div data-nid="el-div-1756" class="box-rad">
-                        0.5rad
-                      </div>
-                      <div data-nid="el-div-1758" class="box-grad">
-                        50grad
-                      </div>
-                      <div data-nid="el-div-1760" class="box-turn">
-                        0.25turn
-                      </div>
-                      <div data-nid="el-div-1762" class="box-vmin">
-                        5vmin
-                      </div>
-                      <div data-nid="el-div-1764" class="box-svh">
-                        5svh
-                      </div>
-                      <div data-nid="el-div-1766" class="box-lvh">
-                        5lvh
-                      </div>
-                      <div data-nid="el-div-1768" class="box-dvh">
-                        5dvh
-                      </div>
-                      <div data-nid="el-div-1770" class="box-ch">
-                        20ch
-                      </div>
-                      <div data-nid="el-div-1772" class="box-ex">
-                        10ex
-                      </div>
-                      <div data-nid="el-div-1774" class="box-ic">
-                        15ic
-                      </div>
-                      <div data-nid="el-div-1776" class="box-lh">
-                        2lh
-                      </div>
-                      <div data-nid="el-div-1778" class="box-cq">
-                        10cqw
-                      </div>
-                      <div data-nid="el-div-1780" class="box-cqi">
-                        5cqi
-                      </div>
-                      <div data-nid="el-div-1782" class="box-s">
-                        1s
-                      </div>
-                      <div data-nid="el-div-1784" class="box-vmax">
-                        5vmax
-                      </div>
-                      <div data-nid="el-div-1786" class="box-svw">
-                        5svw
-                      </div>
-                      <div data-nid="el-div-1788" class="box-lvw">
-                        5lvw
-                      </div>
-                      <div data-nid="el-div-1790" class="box-dvw">
-                        5dvw
-                      </div>
-                      <div data-nid="el-div-1792" class="box-cqh">
-                        5cqh
-                      </div>
-                      <div data-nid="el-div-1794" class="box-cqb">
-                        5cqb
-                      </div>
-                      <div data-nid="el-div-1796" class="box-cqmin">
-                        5cqmin
-                      </div>
-                      <div data-nid="el-div-1798" class="box-cqmax">
-                        5cqmax
-                      </div>
-                      <div data-nid="el-div-1800" class="box-rlh">
-                        2rlh
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div data-nid="el-div-1802" class="demo-full">
-                <div data-nid="el-CssVarsDemo-1803" data-component="CssVarsDemo">
-                  <div data-nid="el-div-1804" class="wrapper">
-                    <h3 data-nid="el-h3-1805" class="section-title">
-                      CSS Custom Properties (CSS Variables)
-                    </h3>
-                    <p data-nid="el-p-1807" class="subtitle">
-                      演示编译器对
-                      <code data-nid="el-code-1809">
-                        --*
-                      </code>
-                      声明、
-                      <code data-nid="el-code-1812">
-                        var()
-                      </code>
-                      引用、内联静态/动态 CSS 变量的完整支持
-                    </p>
-                    <div data-nid="el-div-1815" class="demo-card">
-                      <h4 data-nid="el-h4-1816" class="demo-label">
-                        ① Style 块声明 --* + var() 引用
-                      </h4>
-                      <p data-nid="el-p-1818" class="demo-desc">
-                        Style 块内部声明
-                        <code data-nid="el-code-1820">
-                          --primary
-                        </code>
-                        、
-                        <code data-nid="el-code-1823">
-                          --bg
-                        </code>
-                        等自定义属性， 然后用
-                        <code data-nid="el-code-1826">
-                          var()
-                        </code>
-                        引用。这是编译器中
-                        <code data-nid="el-code-1829">
-                          parse_css_property_name()
-                        </code>
-                        解析
-                        <code data-nid="el-code-1832">
-                          --
-                        </code>
-                        前缀的常规路径。
-                      </p>
-                      <div data-nid="el-div-1835" class="var-demo-area">
-                        <div data-nid="el-div-1836" class="var-card">
-                          var(--primary)
-                        </div>
-                        <div data-nid="el-div-1838" class="var-card alt">
-                          var(--primary-alt)
-                        </div>
-                        <div data-nid="el-div-1840" class="var-card surface">
-                          background: var(--surface)
-                        </div>
-                        <div data-nid="el-div-1842" class="var-card border">
-                          border: var(--border-color)
-                        </div>
-                      </div>
-                    </div>
-                    <div data-nid="el-div-1844" class="demo-card">
-                      <h4 data-nid="el-h4-1845" class="demo-label">
-                        ② 内联样式静态 CSS 变量
-                      </h4>
-                      <p data-nid="el-p-1847" class="demo-desc">
-                        在
-                        <code data-nid="el-code-1849">
-                          style: &amp;#123; --name: &quot;value&quot; &amp;#125;
-                        </code>
-                        中直接写
-                        <code data-nid="el-code-1852">
-                          --
-                        </code>
-                        属性。 编译器代码生成将
-                        <code data-nid="el-code-1855">
-                          --
-                        </code>
-                        属性用
-                        <code data-nid="el-code-1858">
-                          el.style.setProperty(&quot;--name&quot;, value)
-                        </code>
-                        输出，而非普通的
-                        <code data-nid="el-code-1861">
-                          el.style.prop = value
-                        </code>
-                        。
-                      </p>
-                      <div data-nid="el-div-1864" class="inline-static-row">
-                        <div data-nid="el-div-1865" class="inline-static-box" style="--box-bg: #e0e7ff; --box-radius: 8px; --box-text: #3730a3">
-                          <code data-nid="el-code-1866">
-                            --box-bg: &quot;#e0e7ff&quot;
-                          </code>
-                        </div>
-                        <div data-nid="el-div-1868" class="inline-static-box" style="--box-bg: #fce7f3; --box-radius: 16px; --box-text: #9d174d">
-                          <code data-nid="el-code-1869">
-                            --box-radius: &quot;16px&quot;
-                          </code>
-                        </div>
-                        <div data-nid="el-div-1871" class="inline-static-box" style="--box-bg: #d1fae5; --box-radius: 50%; --box-text: #065f46">
-                          <code data-nid="el-code-1872">
-                            --box-radius: &quot;50%&quot;
-                          </code>
-                        </div>
-                      </div>
-                    </div>
-                    <div data-nid="el-div-1874" class="demo-card">
-                      <h4 data-nid="el-h4-1875" class="demo-label">
-                        ③ 内联样式动态 CSS 变量（信号 → setProperty）
-                      </h4>
-                      <p data-nid="el-p-1877" class="demo-desc">
-                        传递
-                        <strong data-nid="el-strong-1879">
-                          信号引用
-                        </strong>
-                        给
-                        <code data-nid="el-code-1882">
-                          --*
-                        </code>
-                        属性。编译器自动生成
-                        <code data-nid="el-code-1885">
-                          __omni_effect(() =&gt; el.style.setProperty(&quot;--name&quot;, signal.value))
-                        </code>
-                        。 这是新增的
-                        <code data-nid="el-code-1888">
-                          \$signal
-                        </code>
-                        JSON 标记代码路径。
-                      </p>
-                      <div data-nid="el-div-1891" class="dynamic-area" style="padding: 16px">
-                        <p data-nid="el-p-1892" class="dynamic-text">
-                          当前 accent:
-                          <strong data-nid="el-strong-1894">
-                            <span data-nid="el-interp-1895"></span>
-                          </strong>
-                        </p>
-                        <div data-nid="el-div-1897" class="dynamic-swatches">
-                          <div data-nid="el-div-1898" class="swatch-preview">
-                          </div>
-                          <div data-nid="el-div-1899" class="swatch-label">
-                            <span data-nid="el-interp-1900"></span>
-                          </div>
-                        </div>
-                        <button data-nid="el-button-1902" class="cycle-btn">
-                          Cycle Accent Color
-                        </button>
-                        <p data-nid="el-p-1904" class="code-hint">
-                          生成的 JS:
-                          <code data-nid="el-code-1906">
-                            setProperty(&quot;--accent&quot;, accentColor.value)
-                          </code>
-                        </p>
-                      </div>
-                    </div>
-                    <div data-nid="el-div-1908" class="demo-card">
-                      <h4 data-nid="el-h4-1909" class="demo-label">
-                        ④ CSS 变量级联 + Motion 驱动
-                      </h4>
-                      <p data-nid="el-p-1911" class="demo-desc">
-                        外层设
-                        <code data-nid="el-code-1913">
-                          --accent-h
-                        </code>
-                        ，内层用
-                        <code data-nid="el-code-1916">
-                          var(--accent-h)
-                        </code>
-                        计算衍生色。 配合
-                        <code data-nid="el-code-1919">
-                        </code>
-                        交替动画驱动 hue 值变化。
-                      </p>
-                      <div data-nid="el-div-1921" class="cascade-area" style="padding: 16px">
-                        <div data-nid="el-div-1922" class="cascade-box">
-                          <p data-nid="el-p-1923" class="cascade-title">
-                            hue =
-                            <strong data-nid="el-strong-1925">
-                              <span data-nid="el-interp-1926"></span>
-                              °
-                            </strong>
-                          </p>
-                          <p data-nid="el-p-1929" class="cascade-desc">
-                            内层用
-                            <code data-nid="el-code-1931">
-                              var(--accent-h)
-                            </code>
-                            通过 CSS
-                            <code data-nid="el-code-1934">
-                              hsl()
-                            </code>
-                            计算色值
-                          </p>
-                          <div data-nid="el-div-1937" class="hue-bar">
-                            <span data-nid="el-span-1938" class="hue-step" style="background: hsl(221, 80%, 60%)">
-                              221°
-                            </span>
-                            <span data-nid="el-span-1940" class="hue-step" style="background: hsl(260, 80%, 60%)">
-                              260°
-                            </span>
-                            <span data-nid="el-span-1942" class="hue-step" style="background: hsl(300, 80%, 60%)">
-                              300°
-                            </span>
-                            <span data-nid="el-span-1944" class="hue-step" style="background: hsl(340, 80%, 60%)">
-                              340°
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    <div data-nid="el-div-1946" class="tech-note">
-                      <h4 data-nid="el-h4-1947" class="note-title">
-                        编译器技术要点
-                      </h4>
-                      <ul data-nid="el-ul-1949" class="note-list">
-                        <li data-nid="el-li-1950">
-                          <code data-nid="el-code-1951">
-                            parse_css_property_name()
-                          </code>
-                          在
-                          <code data-nid="el-code-1954">
-                            view.rs:1134
-                          </code>
-                          检测
-                          <code data-nid="el-code-1957">
-                            --
-                          </code>
-                          双短横前缀
-                        </li>
-                        <li data-nid="el-li-1960">
-                          <code data-nid="el-code-1961">
-                            emit_style_assignment()
-                          </code>
-                          在
-                          <code data-nid="el-code-1964">
-                            omniview.rs:692
-                          </code>
-                          对
-                          <code data-nid="el-code-1967">
-                            --
-                          </code>
-                          属性用
-                          <code data-nid="el-code-1970">
-                            setProperty()
-                          </code>
-                          而非直接赋值
-                        </li>
-                        <li data-nid="el-li-1973">
-                          Style 块中
-                          <code data-nid="el-code-1975">
-                            --name: value
-                          </code>
-                          以
-                          <code data-nid="el-code-1978">
-                            StyleValue::Ident
-                          </code>
-                          /
-                          <code data-nid="el-code-1981">
-                            HexColor
-                          </code>
-                          /
-                          <code data-nid="el-code-1984">
-                            Dimension
-                          </code>
-                          存储在 AST
-                        </li>
-                        <li data-nid="el-li-1987">
-                          内联
-                          <code data-nid="el-code-1989">
-                            style: &amp;#123; --name: signal &amp;#125;
-                          </code>
-                          通过
-                          <code data-nid="el-code-1992">
-                            \$signal
-                          </code>
-                          JSON 标记生成响应式代码
-                        </li>
-                        <li data-nid="el-li-1995">
-                          测试覆盖：
-                          <code data-nid="el-code-1997">
-                            css_custom_property_test.rs
-                          </code>
-                          （解析 + 静态内联 + 动态内联）
-                        </li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div data-nid="el-div-2000" class="demo-full">
-                <div data-nid="el-ThemeCssVarsDemo-2001" data-component="ThemeCssVarsDemo">
-                  <div data-nid="el-div-2002" class="wrapper">
-                    <h3 data-nid="el-h3-2003" class="section-title">
-                      Theme with CSS Variables
-                    </h3>
-                    <p data-nid="el-p-2005" class="subtitle">
-                      父元素注入
-                      <code data-nid="el-code-2007">
-                        --theme-*
-                      </code>
-                      CSS 变量（来自 ThemeStore 信号）， 子元素用
-                      <code data-nid="el-code-2010">
-                        var()
-                      </code>
-                      继承。切换主题时触发
-                      <code data-nid="el-code-2013">
-                        setProperty()
-                      </code>
-                      响应式更新。
-                    </p>
-                    <div data-nid="el-div-2016" class="theme-root">
-                      <div data-nid="el-div-2017" class="themed-card">
-                        <h4 data-nid="el-h4-2018" class="card-title">
-                          CSS Variable Cascading
-                        </h4>
-                        <p data-nid="el-p-2020" class="card-desc">
-                          background、color、border-color 均通过
-                          <code data-nid="el-code-2022">
-                            var(--theme-*)
-                          </code>
-                          从父级继承。主题切换时所有卡片同步变化。
-                        </p>
-                        <div data-nid="el-div-2025" class="stat-row">
-                          <span data-nid="el-span-2026" class="stat-badge">
-                            BG: var(--theme-bg)
-                          </span>
-                          <span data-nid="el-span-2028" class="stat-badge">
-                            TX: var(--theme-text)
-                          </span>
-                          <span data-nid="el-span-2030" class="stat-badge">
-                            PR: var(--theme-primary)
-                          </span>
-                        </div>
-                      </div>
-                      <div data-nid="el-div-2032" class="themed-card accent">
-                        <h4 data-nid="el-h4-2033" class="card-title">
-                          Composition with calc()
-                        </h4>
-                        <p data-nid="el-p-2035" class="card-desc">
-                          <code data-nid="el-code-2036">
-                            calc(var(--theme-border-w) * 2px)
-                          </code>
-                          动态计算边框宽度。 点击按钮切换
-                          <code data-nid="el-code-2039">
-                            --theme-border-w
-                          </code>
-                          值。
-                        </p>
-                        <button data-nid="el-button-2042" class="var-action-btn">
-                          Toggle Border Width (
-                          <span data-nid="el-interp-2044"></span>
-                          px →
-                          <span data-nid="el-interp-2047"></span>
-                          px)
-                        </button>
-                      </div>
-                      <div data-nid="el-div-2050" class="themed-card interactive">
-                        <h4 data-nid="el-h4-2051" class="card-title">
-                          Transform via CSS Variable
-                        </h4>
-                        <p data-nid="el-p-2053" class="card-desc">
-                          <code data-nid="el-code-2054">
-                            transform: scale(var(--theme-scale))
-                          </code>
-                          。 信号值通过
-                          <code data-nid="el-code-2057">
-                            setProperty(&quot;--theme-scale&quot;, boxScale.value)
-                          </code>
-                          驱动。
-                        </p>
-                        <button data-nid="el-button-2060" class="var-action-btn">
-                          Toggle Scale (
-                          <span data-nid="el-interp-2062"></span>
-                          )
-                        </button>
-                      </div>
-                      <div data-nid="el-div-2065" class="palette-section">
-                        <h4 data-nid="el-h4-2066" class="card-title">
-                          Theme Palette via var()
-                        </h4>
-                        <div data-nid="el-div-2068" class="palette-grid">
-                          <div data-nid="el-div-2069" class="palette-chip" style="background: var(--theme-bg); border: 2px solid var(--theme-border)">
-                            <span data-nid="el-span-2070" class="chip-label" style="color: var(--theme-text)">
-                              --theme-bg
-                            </span>
-                          </div>
-                          <div data-nid="el-div-2072" class="palette-chip" style="background: var(--theme-primary)">
-                            <span data-nid="el-span-2073" class="chip-label" style="color: white">
-                              --theme-primary
-                            </span>
-                          </div>
-                          <div data-nid="el-div-2075" class="palette-chip" style="background: var(--theme-text)">
-                            <span data-nid="el-span-2076" class="chip-label" style="color: var(--theme-bg)">
-                              --theme-text
-                            </span>
-                          </div>
-                          <div data-nid="el-div-2078" class="palette-chip" style="background: var(--theme-muted); border: 1px solid var(--theme-border)">
-                            <span data-nid="el-span-2079" class="chip-label" style="color: var(--theme-text)">
-                              --theme-muted
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    <div data-nid="el-div-2081" class="action-row">
-                      <button data-nid="el-button-2082" class="toggle-btn">
-                        Switch to
-                        <span data-nid="el-interp-2084"></span>
-                        Mode
-                      </button>
-                      <p data-nid="el-p-2087" class="hint">
-                        当前主题:
-                        <strong data-nid="el-strong-2089">
-                          <span data-nid="el-interp-2090"></span>
-                        </strong>
-                        · 切换次数:
-                        <span data-nid="el-interp-2093"></span>
-                        · 代码路径:
-                        <code data-nid="el-code-2096">
-                          setProperty()
-                        </code>
-                      </p>
-                    </div>
-                    <div data-nid="el-div-2098" class="tech-note">
-                      <h4 data-nid="el-h4-2099" class="note-title">
-                        💡 关键设计模式
-                      </h4>
-                      <ul data-nid="el-ul-2101" class="note-list">
-                        <li data-nid="el-li-2102">
-                          CSS 变量级联：在组件根元素一次性注入
-                          <code data-nid="el-code-2104">
-                            --theme-*
-                          </code>
-                          ，所有子元素用
-                          <code data-nid="el-code-2107">
-                            var()
-                          </code>
-                          自动继承
-                        </li>
-                        <li data-nid="el-li-2110">
-                          信号 → setProperty：编译器为
-                          <code data-nid="el-code-2112">
-                            style: &amp;#123; --var: signal &amp;#125;
-                          </code>
-                          生成
-                          <code data-nid="el-code-2115">
-                            __omni_effect(() =&gt; el.style.setProperty(&quot;--var&quot;, signal.value))
-                          </code>
-                        </li>
-                        <li data-nid="el-li-2117">
-                          主题切换只需更新
-                          <code data-nid="el-code-2119">
-                            ThemeStore
-                          </code>
-                          的 getter，CSS 变量自动响应
-                        </li>
-                        <li data-nid="el-li-2122">
-                          对比 ThemeSwitcher：后者每个元素单独绑定
-                          <code data-nid="el-code-2124">
-                            style: &amp;#123; color: ThemeStore.currentText &amp;#125;
-                          </code>
-                          ，CSS 变量版只需在根元素设一次
-                        </li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </section>
-          </fragment>
-        </div>
-        <div data-nid="el-if-2127-b0" style="display:none">
-          <fragment data-nid="el-fragment-2128">
-            <section data-nid="el-section-2129" class="demo-section">
-              <div data-nid="el-div-2130" class="demo-row">
-                <div data-nid="el-div-2131" class="demo-col">
-                  <div data-nid="el-EventShorthand-2132" data-component="EventShorthand">
-                    <div data-nid="el-div-2133" class="Card">
-                      <h3 data-nid="el-h3-2134" class="CardTitle">
-                        Event Shorthand Demo
-                      </h3>
-                      <div data-nid="el-div-2136" class="section">
-                        <p data-nid="el-p-2137" class="section-title">
-                          Form 1:
-                          <span data-nid="el-interp-2139"></span>
-                          — auto-wraps inline
-                        </p>
-                        <button data-nid="el-button-2142" class="Button primary sm">
-                          greet(&quot;World&quot;)
-                        </button>
-                        <button data-nid="el-button-2144" class="Button primary sm">
-                          farewell(&quot;World&quot;)
-                        </button>
-                      </div>
-                      <div data-nid="el-div-2146" class="section">
-                        <p data-nid="el-p-2147" class="section-title">
-                          Form 2:
-                          <span data-nid="el-interp-2149"></span>
-                          — StoreAction ref
-                        </p>
-                        <button data-nid="el-button-2152" class="Button accent sm">
-                          NotificationStore.add(...)
-                        </button>
-                        <button data-nid="el-button-2154" class="Button accent sm">
-                          NotificationStore.clear
-                        </button>
-                      </div>
-                      <div data-nid="el-div-2156" class="section">
-                        <p data-nid="el-p-2157" class="section-title">
-                          @eventName syntax (same as onEventName):
-                        </p>
-                        <div data-nid="el-div-2159" class="demo-row">
-                          <button data-nid="el-button-2160" class="Button primary sm">
-                            onPress
-                          </button>
-                          <button data-nid="el-button-2162" class="Button primary sm">
-                            @onPress
-                          </button>
-                        </div>
-                      </div>
-                      <div data-nid="el-div-2164" class="result-area">
-                        <p data-nid="el-p-2165" class="result-text">
-                          <span data-nid="el-interp-2166"></span>
-                        </p>
-                        <p data-nid="el-p-2168" class="result-count">
-                          Clicks:
-                          <span data-nid="el-interp-2170"></span>
-                        </p>
-                        <p data-nid="el-p-2172" class="Hint" style="color: #f59e0b">
-                          Notifications:
-                          <span data-nid="el-interp-2174"></span>
-                        </p>
-                      </div>
-                      <button data-nid="el-button-2176" class="Button ghost md">
-                        Reset
-                      </button>
-                    </div>
-                  </div>
-                </div>
-                <div data-nid="el-div-2178" class="demo-col">
-                  <div data-nid="el-FormControlsDemo-2179" data-component="FormControlsDemo">
-                    <div data-nid="el-div-2180" class="Card">
-                      <h3 data-nid="el-h3-2181" class="title">
-                        Form Controls Demo
-                      </h3>
-                      <p data-nid="el-p-2183" class="Hint">
-                        a-tag · select · checkbox · range · number
-                      </p>
-                      <div data-nid="el-div-2185" class="section">
-                        <p data-nid="el-p-2186" class="section-title">
-                          a-tag link with href / title / target:
-                        </p>
-                        <a data-nid="el-a-2188" title="Demo link — click to count" href="#" class="demo-link">
-                          Click me (
-                          <span data-nid="el-interp-2190"></span>
-                          )
-                        </a>
-                      </div>
-                      <div data-nid="el-div-2193" class="section">
-                        <p data-nid="el-p-2194" class="section-title">
-                          select with option:
-                        </p>
-                        <select data-nid="el-select-2196" class="demo-select">
-                          <option data-nid="el-option-2197" value="option1">
-                            Option 1 — First
-                          </option>
-                          <option data-nid="el-option-2199" value="option2">
-                            Option 2 — Second
-                          </option>
-                          <option data-nid="el-option-2201" value="option3">
-                            Option 3 — Third
-                          </option>
-                        </select>
-                        <p data-nid="el-p-2203" class="select-value">
-                          Value:
-                          <span data-nid="el-interp-2205"></span>
-                        </p>
-                      </div>
-                      <div data-nid="el-div-2207" class="section">
-                        <p data-nid="el-p-2208" class="section-title">
-                          Checkbox with checked attribute:
-                        </p>
-                        <label data-nid="el-label-2210" class="check-label">
-                          <input data-nid="el-input-2211" type="checkbox" class="demo-checkbox" />
-                          <span data-nid="el-span-2212" class="check-text">
-                            I agree to the terms
-                          </span>
-                        </label>
-                        <p data-nid="el-p-2214" class="check-status">
-                          Status:
-                          <span data-nid="el-interp-2216"></span>
-                        </p>
-                      </div>
-                      <div data-nid="el-div-2218" class="section">
-                        <p data-nid="el-p-2219" class="section-title">
-                          Number input with min/max/step:
-                        </p>
-                        <input data-nid="el-input-2221" value step="1" title="Enter your age (0-120)" type="number" min="0" max="120" class="demo-input" />
-                        <p data-nid="el-p-2222" class="select-value">
-                          Age:
-                          <span data-nid="el-interp-2224"></span>
-                        </p>
-                      </div>
-                      <div data-nid="el-div-2226" class="section">
-                        <p data-nid="el-p-2227" class="section-title">
-                          Range slider with min/max/step:
-                        </p>
-                        <input data-nid="el-input-2229" value step="5" title="Select a value (0-100, step 5)" type="range" min="0" max="100" class="demo-range" />
-                        <p data-nid="el-p-2230" class="select-value">
-                          Range:
-                          <span data-nid="el-interp-2232"></span>
-                          / 100
-                        </p>
-                      </div>
-                      <div data-nid="el-div-2235" class="status-area">
-                        <p data-nid="el-p-2236" class="status-text">
-                          <span data-nid="el-interp-2237"></span>
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div data-nid="el-div-2239" class="demo-full">
-                <div data-nid="el-EventsDemo-2240" data-component="EventsDemo">
-                  <main data-nid="el-main-2241" class="Card">
-                    <nav data-nid="el-nav-2242" aria-label="Event Demo">
-                      <h2 data-nid="el-h2-2243" class="title">
-                        事件处理器全覆盖
-                      </h2>
-                      <p data-nid="el-p-2245" class="Hint">
-                        双击 · 右键 · 拖拽 · 触摸 · 滚轮 · 媒体 · 动画 · 切换
-                      </p>
-                    </nav>
-                    <article data-nid="el-article-2247" class="card">
-                      <h3 data-nid="el-h3-2248" class="CardTitle">
-                        输入与键盘事件
-                      </h3>
-                      <input data-nid="el-input-2250" placeholder="在此输入..." class="input" />
-                    </article>
-                    <article data-nid="el-article-2251" class="card">
-                      <h3 data-nid="el-h3-2252" class="card-title">
-                        双击与右键
-                      </h3>
-                      <div data-nid="el-div-2254" class="interactive-box">
-                        <p data-nid="el-p-2255" class="hint">
-                          双击或右键点击此区域
-                        </p>
-                      </div>
-                    </article>
-                    <article data-nid="el-article-2257" class="card">
-                      <h3 data-nid="el-h3-2258" class="card-title">
-                        拖拽事件
-                      </h3>
-                      <div data-nid="el-div-2260" draggable="true" class="drag-box">
-                        <p data-nid="el-p-2261" class="hint">
-                          拖拽状态:
-                          <span data-nid="el-interp-2263"></span>
-                        </p>
-                      </div>
-                    </article>
-                    <article data-nid="el-article-2265" class="card">
-                      <h3 data-nid="el-h3-2266" class="card-title">
-                        触摸事件
-                      </h3>
-                      <div data-nid="el-div-2268" class="touch-box">
-                        <p data-nid="el-p-2269" class="hint">
-                          在移动设备上触摸此处
-                        </p>
-                      </div>
-                    </article>
-                    <article data-nid="el-article-2271" class="card">
-                      <h3 data-nid="el-h3-2272" class="card-title">
-                        滚轮事件
-                      </h3>
-                      <div data-nid="el-div-2274" class="wheel-box">
-                        <p data-nid="el-p-2275" class="hint">
-                          滚轮计数:
-                          <span data-nid="el-interp-2277"></span>
-                          | deltaY:
-                          <span data-nid="el-interp-2280"></span>
-                        </p>
-                      </div>
-                    </article>
-                    <article data-nid="el-article-2282" class="card">
-                      <h3 data-nid="el-h3-2283" class="card-title">
-                        滚动事件
-                      </h3>
-                      <div data-nid="el-div-2285" class="scroll-box">
-                        <p data-nid="el-p-2286" class="hint">
-                          Scroll Y:
-                          <span data-nid="el-interp-2288"></span>
-                          (
-                          <span data-nid="el-interp-2291"></span>
-                          次)
-                        </p>
-                      </div>
-                    </article>
-                    <article data-nid="el-article-2294" class="card">
-                      <h3 data-nid="el-h3-2295" class="card-title">
-                        媒体与资源事件
-                      </h3>
-                      <img data-nid="el-img-2297" src alt="test" class="hidden-img" />
-                      <div data-nid="el-div-2298" class="media-box">
-                        <p data-nid="el-p-2299" class="hint">
-                          媒体状态:
-                          <span data-nid="el-interp-2301"></span>
-                        </p>
-                      </div>
-                    </article>
-                    <article data-nid="el-article-2303" class="card">
-                      <h3 data-nid="el-h3-2304" class="card-title">
-                        动画与过渡事件
-                      </h3>
-                      <div data-nid="el-div-2306" class="anim-box">
-                        <p data-nid="el-p-2307" class="hint">
-                          动画状态:
-                          <span data-nid="el-interp-2309"></span>
-                        </p>
-                      </div>
-                    </article>
-                    <article data-nid="el-article-2311" class="card">
-                      <h3 data-nid="el-h3-2312" class="card-title">
-                        Toggle 事件
-                      </h3>
-                      <details data-nid="el-details-2314" class="details-box">
-                        <summary data-nid="el-summary-2315" class="summary">
-                          点击展开 (toggle count:
-                          <span data-nid="el-interp-2317"></span>
-                          )
-                        </summary>
-                        <p data-nid="el-p-2320" class="details-text">
-                          这是详情内容。每次展开/折叠触发 @onToggle。
-                        </p>
-                      </details>
-                    </article>
-                    <article data-nid="el-article-2322" class="card">
-                      <h3 data-nid="el-h3-2323" class="card-title">
-                        事件日志
-                      </h3>
-                      <p data-nid="el-p-2325" class="log-text">
-                        日志:
-                        <span data-nid="el-interp-2327"></span>
-                        条事件
-                      </p>
-                    </article>
-                    <article data-nid="el-article-2330" class="card">
-                      <h3 data-nid="el-h3-2331" class="card-title">
-                        HTML 语义标签
-                      </h3>
-                      <section data-nid="el-section-2333" class="tag-section">
-                        <h4 data-nid="el-h4-2334" class="tag-group">
-                          文本语义
-                        </h4>
-                        <p data-nid="el-p-2336">
-                          <b data-nid="el-b-2337">
-                            粗体 (b)
-                          </b>
-                          <strong data-nid="el-strong-2339">
-                            重要 (strong)
-                          </strong>
-                          <i data-nid="el-i-2341">
-                            斜体 (i)
-                          </i>
-                          <em data-nid="el-em-2343">
-                            强调 (em)
-                          </em>
-                          <mark data-nid="el-mark-2345">
-                            高亮 (mark)
-                          </mark>
-                          <small data-nid="el-small-2347">
-                            小字 (small)
-                          </small>
-                          <del data-nid="el-del-2349">
-                            删除 (del)
-                          </del>
-                          <ins data-nid="el-ins-2351">
-                            插入 (ins)
-                          </ins>
-                        </p>
-                        <p data-nid="el-p-2353">
-                          <code data-nid="el-code-2354">
-                            代码 (code)
-                          </code>
-                          <kbd data-nid="el-kbd-2356">
-                            按键 (kbd)
-                          </kbd>
-                          <samp data-nid="el-samp-2358">
-                            输出 (samp)
-                          </samp>
-                          <var data-nid="el-var-2360">
-                            变量 (var)
-                          </var>
-                        </p>
-                        <p data-nid="el-p-2362">
-                          <sup data-nid="el-sup-2363">
-                            上标 (sup)
-                          </sup>
-                          /
-                          <sub data-nid="el-sub-2366">
-                            下标 (sub)
-                          </sub>
-                        </p>
-                        <p data-nid="el-p-2368">
-                          <abbr data-nid="el-abbr-2369" title="HyperText Markup Language">
-                            HTML (abbr)
-                          </abbr>
-                          <dfn data-nid="el-dfn-2371">
-                            定义 (dfn)
-                          </dfn>
-                        </p>
-                        <p data-nid="el-p-2373">
-                          <q data-nid="el-q-2374">
-                            短引用 (q)
-                          </q>
-                        </p>
-                        <blockquote data-nid="el-blockquote-2376" class="blockquote">
-                          块引用 (blockquote)
-                          <cite data-nid="el-cite-2378">
-                            — 来源 (cite)
-                          </cite>
-                        </blockquote>
-                        <p data-nid="el-p-2380">
-                          <time data-nid="el-time-2381" datetime="2025-06-20">
-                            时间 (time)
-                          </time>
-                        </p>
-                        <div data-nid="el-div-2383">
-                          <address data-nid="el-address-2384">
-                            地址: contact@example.com (address)
-                          </address>
-                        </div>
-                        <p data-nid="el-p-2386">
-                          <bdi data-nid="el-bdi-2387">
-                            双向文本 (bdi)
-                          </bdi>
-                          <bdo data-nid="el-bdo-2389" dir="rtl">
-                            双向覆盖 (bdo)
-                          </bdo>
-                        </p>
-                        <p data-nid="el-p-2391">
-                          换行
-                          <wbr data-nid="el-wbr-2393" />
-                          机会 (wbr)
-                        </p>
-                      </section>
-                      <section data-nid="el-section-2395" class="tag-section">
-                        <h4 data-nid="el-h4-2396" class="tag-group">
-                          表单标签
-                        </h4>
-                        <fieldset data-nid="el-fieldset-2398" class="fieldset">
-                          <legend data-nid="el-legend-2399">
-                            分组字段 (fieldset + legend)
-                          </legend>
-                          <label data-nid="el-label-2401">
-                            搜索:
-                            <input data-nid="el-input-2403" list="options" />
-                          </label>
-                          <datalist data-nid="el-datalist-2404" id="options">
-                            <option data-nid="el-option-2405" value="Apple">
-                            </option>
-                            <option data-nid="el-option-2406" value="Banana">
-                            </option>
-                          </datalist>
-                          <select data-nid="el-select-2407" class="select">
-                            <optgroup data-nid="el-optgroup-2408" data-label="水果">
-                              <option data-nid="el-option-2409">
-                                苹果
-                              </option>
-                              <option data-nid="el-option-2411">
-                                香蕉
-                              </option>
-                            </optgroup>
-                          </select>
-                        </fieldset>
-                      </section>
-                      <section data-nid="el-section-2413" class="tag-section">
-                        <h4 data-nid="el-h4-2414" class="tag-group">
-                          媒体与嵌入
-                        </h4>
-                        <figure data-nid="el-figure-2416" class="figure">
-                          <figcaption data-nid="el-figcaption-2417">
-                            插图标题 (figure + figcaption)
-                          </figcaption>
-                          <video data-nid="el-video-2419" width="200" controls class="media">
-                            <source data-nid="el-source-2420" src="sample.mp4" type="video/mp4" />
-                          </video>
-                          <audio data-nid="el-audio-2421" controls class="media">
-                            <source data-nid="el-source-2422" src="sample.mp3" type="audio/mpeg" />
-                          </audio>
-                        </figure>
-                        <canvas data-nid="el-canvas-2423" class="canvas">
-                        </canvas>
-                        <picture data-nid="el-picture-2424">
-                          <source data-nid="el-source-2425" srcset="large.jpg" media="(min-width: 800px)" />
-                          <img data-nid="el-img-2426" src="fallback.jpg" alt="responsive" />
-                        </picture>
-                        <map data-nid="el-map-2427" name="demo-map">
-                          <area data-nid="el-area-2428" coords="0,0,50,50" shape="rect" alt="Area 1" href="#area1" />
-                        </map>
-                      </section>
-                      <section data-nid="el-section-2429" class="tag-section">
-                        <h4 data-nid="el-h4-2430" class="tag-group">
-                          度量与进度
-                        </h4>
-                        <progress data-nid="el-progress-2432" value="70" max="100" class="progress">
-                          70%
-                        </progress>
-                        <meter data-nid="el-meter-2434" value="0.6" min="0" max="1" class="meter">
-                          60%
-                        </meter>
-                      </section>
-                      <section data-nid="el-section-2436" class="tag-section">
-                        <h4 data-nid="el-h4-2437" class="tag-group">
-                          注音
-                        </h4>
-                        <ruby data-nid="el-ruby-2439">
-                          漢字
-                          <rt data-nid="el-rt-2441">
-                            かんじ
-                          </rt>
-                        </ruby>
-                      </section>
-                    </article>
-                  </main>
-                </div>
-              </div>
-              <div data-nid="el-div-2443" class="demo-full">
-                <div data-nid="el-EventDataDemo-2444" data-component="EventDataDemo">
-                  <div data-nid="el-div-2445" class="event-data-demo">
-                    <div data-nid="el-div-2446" class="mouse-tracker">
-                      <p data-nid="el-p-2447">
-                        Mouse: (
-                        <span data-nid="el-interp-2449"></span>
-                        ,
-                        <span data-nid="el-interp-2452"></span>
-                        )
-                      </p>
-                    </div>
-                    <div data-nid="el-div-2455" class="scroll-tracker">
-                      <p data-nid="el-p-2456">
-                        Scroll Y:
-                        <span data-nid="el-interp-2458"></span>
-                      </p>
-                      <p data-nid="el-p-2460">
-                        Wheel Delta:
-                        <span data-nid="el-interp-2462"></span>
-                      </p>
-                      <p data-nid="el-p-2464">
-                        Ctrl held:
-                        <span data-nid="el-interp-2466"></span>
-                      </p>
-                    </div>
-                    <input data-nid="el-input-2468" placeholder="Press a key" class="key-input" />
-                    <p data-nid="el-p-2469">
-                      Key:
-                      <span data-nid="el-interp-2471"></span>
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <div data-nid="el-div-2473" class="demo-row">
-                <div data-nid="el-div-2474" class="demo-col">
-                  <div data-nid="el-SlotDefaultDemo-2475" data-component="SlotDefaultDemo">
-                    <div data-nid="el-div-2476" class="wrapper">
-                      <h3 data-nid="el-h3-2477" class="section-title">
-                        <slot name="Default"></slot>
-                        Content (回退内容)
-                      </h3>
-                      <p data-nid="el-p-2479" class="subtitle">
-                        演示
-                        <code data-nid="el-code-2481">
-                          <slot name="name"></slot>
-                          &amp;#123; 回退内容 &amp;#125;
-                        </code>
-                        语法 + 对比有/无自定义内容
-                      </p>
-                      <div data-nid="el-div-2484" class="demo-card">
-                        <h4 data-nid="el-h4-2485" class="demo-label">
-                          ① Using Default Slot Content
-                        </h4>
-                        <p data-nid="el-p-2487" class="demo-desc">
-                          消费者
-                          <strong data-nid="el-strong-2489">
-                            没有
-                          </strong>
-                          提供插槽内容 → 组件显示
-                          <code data-nid="el-code-2492">
-                            <slot name="header"></slot>
-                            &amp;#123; ... &amp;#125;
-                          </code>
-                          中定义的默认回退。
-                        </p>
-                        <div data-nid="el-div-2495" class="demo-box">
-                          <div data-nid="el-SlotPanel-2496" data-component="SlotPanel">
-                            <div data-nid="el-div-2497" class="slot-panel">
-                              <div data-nid="el-div-2498" class="slot-section">
-                                <span data-nid="el-span-2499" class="section-label">
-                                  header slot:
-                                </span>
-                                <slot name="header"></slot>
-                              </div>
-                              <div data-nid="el-div-2501" class="slot-section main">
-                                <span data-nid="el-span-2502" class="section-label">
-                                  main slot:
-                                </span>
-                                <slot></slot>
-                              </div>
-                              <div data-nid="el-div-2504" class="slot-section">
-                                <span data-nid="el-span-2505" class="section-label">
-                                  footer slot:
-                                </span>
-                                <slot name="footer"></slot>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      <div data-nid="el-div-2507" class="demo-card">
-                        <h4 data-nid="el-h4-2508" class="demo-label">
-                          ② Overriding Default with Custom Content
-                        </h4>
-                        <p data-nid="el-p-2510" class="demo-desc">
-                          消费者
-                          <strong data-nid="el-strong-2512">
-                            提供
-                          </strong>
-                          插槽内容 → 默认回退被覆盖。
-                          <code data-nid="el-code-2515">
-                            footer
-                          </code>
-                          插槽没有默认值，若未提供则保持空白。
-                        </p>
-                        <div data-nid="el-div-2518" class="demo-box">
-                          <div data-nid="el-SlotPanel-2519" data-component="SlotPanel">
-                            <div data-nid="el-div-2520" class="slot-panel">
-                              <div data-nid="el-div-2521" class="slot-section">
-                                <span data-nid="el-span-2522" class="section-label">
-                                  header slot:
-                                </span>
-                                <slot name="header"></slot>
-                              </div>
-                              <div data-nid="el-div-2524" class="slot-section main">
-                                <span data-nid="el-span-2525" class="section-label">
-                                  main slot:
-                                </span>
-                                <slot></slot>
-                              </div>
-                              <div data-nid="el-div-2527" class="slot-section">
-                                <span data-nid="el-span-2528" class="section-label">
-                                  footer slot:
-                                </span>
-                                <slot name="footer"></slot>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      <div data-nid="el-div-2530" class="demo-card">
-                        <h4 data-nid="el-h4-2531" class="demo-label">
-                          ③ Toggle: With / Without Custom Content
-                        </h4>
-                        <p data-nid="el-p-2533" class="demo-desc">
-                          点击按钮在有/无自定义插槽内容之间切换， 观察默认回退的出现和消失。
-                        </p>
-                        <button data-nid="el-button-2535" class="toggle-btn">
-                          <span data-nid="el-interp-2536"></span>
-                        </button>
-                        <div data-nid="el-div-2538" class="demo-box toggle-area">
-                          <div data-nid="el-if-2539-b0" style="display:none">
-                            <fragment data-nid="el-fragment-2540">
-                              <div data-nid="el-SlotPanel-2541" data-component="SlotPanel">
-                                <div data-nid="el-div-2542" class="slot-panel">
-                                  <div data-nid="el-div-2543" class="slot-section">
-                                    <span data-nid="el-span-2544" class="section-label">
-                                      header slot:
-                                    </span>
-                                    <slot name="header"></slot>
-                                  </div>
-                                  <div data-nid="el-div-2546" class="slot-section main">
-                                    <span data-nid="el-span-2547" class="section-label">
-                                      main slot:
-                                    </span>
-                                    <slot></slot>
-                                  </div>
-                                  <div data-nid="el-div-2549" class="slot-section">
-                                    <span data-nid="el-span-2550" class="section-label">
-                                      footer slot:
-                                    </span>
-                                    <slot name="footer"></slot>
-                                  </div>
-                                </div>
-                              </div>
-                            </fragment>
-                          </div>
-                          <div data-nid="el-if-2539-else" style="display:none">
-                            <fragment data-nid="el-fragment-2552">
-                              <div data-nid="el-SlotPanel-2553" data-component="SlotPanel">
-                                <div data-nid="el-div-2554" class="slot-panel">
-                                  <div data-nid="el-div-2555" class="slot-section">
-                                    <span data-nid="el-span-2556" class="section-label">
-                                      header slot:
-                                    </span>
-                                    <slot name="header"></slot>
-                                  </div>
-                                  <div data-nid="el-div-2558" class="slot-section main">
-                                    <span data-nid="el-span-2559" class="section-label">
-                                      main slot:
-                                    </span>
-                                    <slot></slot>
-                                  </div>
-                                  <div data-nid="el-div-2561" class="slot-section">
-                                    <span data-nid="el-span-2562" class="section-label">
-                                      footer slot:
-                                    </span>
-                                    <slot name="footer"></slot>
-                                  </div>
-                                </div>
-                              </div>
-                            </fragment>
-                          </div>
-                        </div>
-                      </div>
-                      <div data-nid="el-div-2564" class="tech-note">
-                        <h4 data-nid="el-h4-2565" class="note-title">
-                          💡
-                          <slot name="默认内容语义"></slot>
-                        </h4>
-                        <ul data-nid="el-ul-2567" class="note-list">
-                          <li data-nid="el-li-2568">
-                            如果消费者
-                            <strong data-nid="el-strong-2570">
-                              没有
-                            </strong>
-                            为命名的
-                            <code data-nid="el-code-2573">
-                              <slot></slot>
-                            </code>
-                            提供内容，显示
-                            <code data-nid="el-code-2575">
-                              &amp;#123; 回退内容 &amp;#125;
-                            </code>
-                          </li>
-                          <li data-nid="el-li-2577">
-                            如果消费者
-                            <strong data-nid="el-strong-2579">
-                              有
-                            </strong>
-                            提供内容，默认回退被完全替换
-                          </li>
-                          <li data-nid="el-li-2582">
-                            不带默认值的
-                            <code data-nid="el-code-2584">
-                              <slot name="name"></slot>
-                            </code>
-                            （无
-                            <code data-nid="el-code-2586">
-                            </code>
-                            体）在无内容时渲染空白
-                          </li>
-                          <li data-nid="el-li-2588">
-                            匿名插槽
-                            <code data-nid="el-code-2590">
-                              <slot></slot>
-                            </code>
-                            同样支持默认回退
-                          </li>
-                          <li data-nid="el-li-2592">
-                            回退内容可以是任意 OmniLang view 模板（元素、文本、插值、条件等）
-                          </li>
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div data-nid="el-div-2594" class="demo-col">
-                  <div data-nid="el-EmitKeywordDemo-2595" data-component="EmitKeywordDemo">
-                    <div data-nid="el-div-2596" class="Card">
-                      <h3 data-nid="el-h3-2597" class="CardTitle">
-                        emit Keyword vs Function Call
-                      </h3>
-                      <p data-nid="el-p-2599" class="Hint">
-                        对比
-                        <code data-nid="el-code-2601">
-                          emit eventName(value)
-                        </code>
-                        与
-                        <code data-nid="el-code-2604">
-                          eventName(value)
-                        </code>
-                        两种事件触发语法
-                      </p>
-                      <div data-nid="el-div-2607" class="side-by-side">
-                        <div data-nid="el-div-2608" class="child-column">
-                          <h4 data-nid="el-h4-2609" class="column-label">
-                            Emit Child
-                          </h4>
-                          <div data-nid="el-EmitChild-2611" data-component="EmitChild">
-                            <div data-nid="el-div-2612" class="emit-child">
-                              <h4 data-nid="el-h4-2613" class="child-title">
-                                EmitChild
-                              </h4>
-                              <p data-nid="el-p-2615" class="child-desc">
-                                内部分发计数:
-                                <strong data-nid="el-strong-2617">
-                                  <span data-nid="el-interp-2618"></span>
-                                </strong>
-                              </p>
-                              <div data-nid="el-div-2620" class="btn-row">
-                                <button data-nid="el-button-2621" class="Button primary sm">
-                                  emit onEmitClick
-                                </button>
-                                <button data-nid="el-button-2623" class="func-btn">
-                                  onFuncClick()
-                                </button>
-                              </div>
-                              <p data-nid="el-p-2625" class="child-hint">
-                                上方按钮分别用
-                                <code data-nid="el-code-2627">
-                                  emit eventName(value)
-                                </code>
-                                和
-                                <code data-nid="el-code-2630">
-                                  eventName(value)
-                                </code>
-                                触发
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      <div data-nid="el-div-2633" class="log-section">
-                        <div data-nid="el-div-2634" class="log-column">
-                          <h4 data-nid="el-h4-2635" class="log-title">
-                            emit 触发记录
-                          </h4>
-                          <div data-nid="el-div-2637" class="log-box">
-                            <div data-nid="el-if-2638-b0" style="display:none">
-                              <fragment data-nid="el-fragment-2639">
-                                <p data-nid="el-p-2640" class="log-empty">
-                                  暂无 emit 事件
-                                </p>
-                              </fragment>
-                            </div>
-                            <template data-nid="el-for-2642-tpl">
-                                <div data-nid="el-div-2644" class="log-entry">
-                                  <span data-nid="el-span-2645" class="log-badge emit">
-                                    emit
-                                  </span>
-                                  <span data-nid="el-span-2647" class="log-msg">
-                                    <span data-nid="el-interp-2648"></span>
-                                  </span>
-                                </div>
-</template>
-                            <template data-nid="el-for-2642-ctr" data-for-container></template>
-                          </div>
-                        </div>
-                        <div data-nid="el-div-2650" class="log-column">
-                          <h4 data-nid="el-h4-2651" class="log-title">
-                            函数调用触发记录
-                          </h4>
-                          <div data-nid="el-div-2653" class="log-box">
-                            <div data-nid="el-if-2654-b0" style="display:none">
-                              <fragment data-nid="el-fragment-2655">
-                                <p data-nid="el-p-2656" class="log-empty">
-                                  暂无 function 事件
-                                </p>
-                              </fragment>
-                            </div>
-                            <template data-nid="el-for-2658-tpl">
-                                <div data-nid="el-div-2660" class="log-entry">
-                                  <span data-nid="el-span-2661" class="log-badge func">
-                                    function
-                                  </span>
-                                  <span data-nid="el-span-2663" class="log-msg">
-                                    <span data-nid="el-interp-2664"></span>
-                                  </span>
-                                </div>
-</template>
-                            <template data-nid="el-for-2658-ctr" data-for-container></template>
-                          </div>
-                        </div>
-                      </div>
-                      <div data-nid="el-div-2666" class="tech-note">
-                        <h4 data-nid="el-h4-2667" class="note-title">
-                          💡 emit 关键字说明
-                        </h4>
-                        <ul data-nid="el-ul-2669" class="note-list">
-                          <li data-nid="el-li-2670">
-                            <code data-nid="el-code-2671">
-                              emit eventName(value)
-                            </code>
-                            与
-                            <code data-nid="el-code-2674">
-                              eventName(value)
-                            </code>
-                            在语义上
-                            <strong data-nid="el-strong-2677">
-                              完全等价
-                            </strong>
-                          </li>
-                          <li data-nid="el-li-2679">
-                            <code data-nid="el-code-2680">
-                              emit
-                            </code>
-                            关键字更明确地表达了&quot;这是一个事件发射&quot;的意图
-                          </li>
-                          <li data-nid="el-li-2683">
-                            函数调用语法更简洁，适合在回调中快速触发
-                          </li>
-                          <li data-nid="el-li-2685">
-                            两者在编译器中都生成相同的代码
-                          </li>
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div data-nid="el-div-2687" class="demo-full">
-                <div data-nid="el-EmitEventDemo-2688" data-component="EmitEventDemo">
-                  <div data-nid="el-div-2689" class="Card">
-                    <h3 data-nid="el-h3-2690" class="CardTitle">
-                      事件流演示
-                    </h3>
-                    <p data-nid="el-p-2692" class="Hint">
-                      event 声明 · @onAction 绑定 · 可选事件 event? · 父→子→父回调链
-                    </p>
-                    <div data-nid="el-div-2694" class="event-grid">
-                      <div data-nid="el-EmitEventChild-2695" data-component="EmitEventChild">
-                        <div data-nid="el-div-2696" class="child-box">
-                          <strong data-nid="el-strong-2697">
-                            <span data-nid="el-interp-2698"></span>
-                          </strong>
-                          <p data-nid="el-p-2700">
-                            Clicks:
-                            <span data-nid="el-interp-2702"></span>
-                          </p>
-                          <button data-nid="el-button-2704" class="Button primary sm">
-                            Send Action
-                          </button>
-                          <button data-nid="el-button-2706" class="Button ghost sm">
-                            Send Count
-                          </button>
-                        </div>
-                      </div>
-                      <div data-nid="el-EmitEventChild-2708" data-component="EmitEventChild">
-                        <div data-nid="el-div-2709" class="child-box">
-                          <strong data-nid="el-strong-2710">
-                            <span data-nid="el-interp-2711"></span>
-                          </strong>
-                          <p data-nid="el-p-2713">
-                            Clicks:
-                            <span data-nid="el-interp-2715"></span>
-                          </p>
-                          <button data-nid="el-button-2717" class="Button primary sm">
-                            Send Action
-                          </button>
-                          <button data-nid="el-button-2719" class="Button ghost sm">
-                            Send Count
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                    <div data-nid="el-div-2721" class="log-section">
-                      <div data-nid="el-div-2722" class="log-header">
-                        <strong data-nid="el-strong-2723">
-                          Event Log（
-                          <span data-nid="el-interp-2725"></span>
-                          entries）
-                        </strong>
-                        <button data-nid="el-button-2728" class="Button ghost sm">
-                          Clear
-                        </button>
-                      </div>
-                      <div data-nid="el-div-2730" class="log-list">
-                        <template data-nid="el-for-2731-tpl">
-                            <p data-nid="el-p-2733" class="log-entry">
-                              <span data-nid="el-interp-2734"></span>
-                            </p>
-</template>
-                        <template data-nid="el-for-2731-ctr" data-for-container></template>
-                        <template data-nid="el-for-2731-empty">
-                            <p data-nid="el-p-2737" class="Hint">
-                              No events yet — click buttons above
-                            </p>
-</template>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </section>
-          </fragment>
-        </div>
-        <div data-nid="el-if-2739-b0" style="display:none">
-          <fragment data-nid="el-fragment-2740">
-            <section data-nid="el-section-2741" class="demo-section">
-              <div data-nid="el-div-2742" class="demo-row">
-                <div data-nid="el-div-2743" class="demo-col">
-                  <div data-nid="el-InlineStoreDemo-2744" data-component="InlineStoreDemo">
-                    <div data-nid="el-div-2745" class="container">
-                      <h3 data-nid="el-h3-2746">
+              <div data-nid="el-div-1957" class="Row">
+                <div data-nid="el-div-1958" class="Col">
+                  <div data-nid="el-InlineStoreDemo-1959" data-component="InlineStoreDemo">
+                    <div data-nid="el-div-1960" class="Container">
+                      <h3 data-nid="el-h3-1961" class="CardTitle">
                         Inline Store Demo
                       </h3>
-                      <p data-nid="el-p-2748">
+                      <p data-nid="el-p-1963">
                         Items:
-                        <span data-nid="el-interp-2750"></span>
+                        <span data-nid="el-interp-1965"></span>
                       </p>
-                      <p data-nid="el-p-2752">
+                      <p data-nid="el-p-1967">
                         Summary:
-                        <span data-nid="el-interp-2754"></span>
+                        <span data-nid="el-interp-1969"></span>
                       </p>
-                      <p data-nid="el-p-2756">
+                      <p data-nid="el-p-1971">
                         Total:
-                        <span data-nid="el-interp-2758"></span>
+                        <span data-nid="el-interp-1973"></span>
                       </p>
-                      <button data-nid="el-button-2760">
-                        Add Apple
-                      </button>
-                      <button data-nid="el-button-2762">
-                        Remove
-                      </button>
-                      <p data-nid="el-p-2764">
-                        <span data-nid="el-interp-2765"></span>
+                      <div data-nid="el-div-1975" class="Row">
+                        <button data-nid="el-button-1976" class="Button primary sm">
+                          Add Apple
+                        </button>
+                        <button data-nid="el-button-1978" class="Button danger sm">
+                          Remove
+                        </button>
+                      </div>
+                      <p data-nid="el-p-1980" class="Hint">
+                        <span data-nid="el-interp-1981"></span>
                       </p>
                     </div>
                   </div>
                 </div>
-                <div data-nid="el-div-2767" class="demo-col">
-                  <div data-nid="el-NullishDemo-2768" data-component="NullishDemo">
-                    <div data-nid="el-div-2769">
-                      <span data-nid="el-interp-2770"></span>
+                <div data-nid="el-div-1983" class="Col">
+                  <div data-nid="el-ComputedFnFormDemo-1984" data-component="ComputedFnFormDemo">
+                    <div data-nid="el-div-1985" class="container">
+                      <h3 data-nid="el-h3-1986" class="title">
+                        Computed Function Form Demo
+                      </h3>
+                      <p data-nid="el-p-1988" class="subtitle">
+                        演示 computed name() → Type
+                        <span data-nid="el-interp-1990"></span>
+                        函数式写法
+                      </p>
+                      <div data-nid="el-div-1993" class="card">
+                        <h4 data-nid="el-h4-1994" class="label">
+                          Simple form: computed simple: String = expr
+                        </h4>
+                        <p data-nid="el-p-1996" class="value">
+                          <span data-nid="el-interp-1997"></span>
+                        </p>
+                      </div>
+                      <div data-nid="el-div-1999" class="card">
+                        <h4 data-nid="el-h4-2000" class="label">
+                          Function form: computed fullName() → String
+                          <span data-nid="el-interp-2002"></span>
+                        </h4>
+                        <p data-nid="el-p-2004" class="value">
+                          <span data-nid="el-interp-2005"></span>
+                        </p>
+                      </div>
+                      <div data-nid="el-div-2007" class="btn-row">
+                        <button data-nid="el-button-2008" class="btn">
+                          Clear Last Name
+                        </button>
+                        <button data-nid="el-button-2010" class="btn">
+                          Set &quot;San&quot;
+                        </button>
+                      </div>
+                      <div data-nid="el-div-2012" class="info">
+                        <p data-nid="el-p-2013" class="small">
+                          Calls:
+                          <span data-nid="el-interp-2015"></span>
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-              <div data-nid="el-div-2772" class="demo-full">
-                <div data-nid="el-StringLiteralsDemo-2773" data-component="StringLiteralsDemo">
-                  <div data-nid="el-div-2774" class="container">
-                    <h3 data-nid="el-h3-2775" class="title">
+            </section>
+          </div>
+        </fragment>
+      </div>
+      <div data-nid="el-if-2017-b0" style="display:none">
+        <fragment data-nid="el-fragment-2018">
+          <div data-nid="el-LanguagePage-2019" data-component="LanguagePage">
+            <section data-nid="el-section-2020" class="DemoSection">
+              <div data-nid="el-div-2021" class="Row">
+                <div data-nid="el-div-2022" class="Col">
+                  <div data-nid="el-InlineStoreDemo-2023" data-component="InlineStoreDemo">
+                    <div data-nid="el-div-2024" class="Container">
+                      <h3 data-nid="el-h3-2025" class="CardTitle">
+                        Inline Store Demo
+                      </h3>
+                      <p data-nid="el-p-2027">
+                        Items:
+                        <span data-nid="el-interp-2029"></span>
+                      </p>
+                      <p data-nid="el-p-2031">
+                        Summary:
+                        <span data-nid="el-interp-2033"></span>
+                      </p>
+                      <p data-nid="el-p-2035">
+                        Total:
+                        <span data-nid="el-interp-2037"></span>
+                      </p>
+                      <div data-nid="el-div-2039" class="Row">
+                        <button data-nid="el-button-2040" class="Button primary sm">
+                          Add Apple
+                        </button>
+                        <button data-nid="el-button-2042" class="Button danger sm">
+                          Remove
+                        </button>
+                      </div>
+                      <p data-nid="el-p-2044" class="Hint">
+                        <span data-nid="el-interp-2045"></span>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div data-nid="el-div-2047" class="Col">
+                  <div data-nid="el-NullishDemo-2048" data-component="NullishDemo">
+                    <div data-nid="el-div-2049">
+                      <span data-nid="el-interp-2050"></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div data-nid="el-div-2052" class="DemoFull">
+                <div data-nid="el-StringLiteralsDemo-2053" data-component="StringLiteralsDemo">
+                  <div data-nid="el-div-2054" class="container">
+                    <h3 data-nid="el-h3-2055" class="title">
                       字符串字面量演示
                     </h3>
-                    <p data-nid="el-p-2777" class="subtitle">
+                    <p data-nid="el-p-2057" class="subtitle">
                       反引号字符串 · 单引号字符串
                     </p>
-                    <div data-nid="el-div-2779" class="card">
-                      <h4 data-nid="el-h4-2780" class="label">
+                    <div data-nid="el-div-2059" class="card">
+                      <h4 data-nid="el-h4-2060" class="label">
                         反引号字符串
                       </h4>
-                      <p data-nid="el-p-2782" class="value">
+                      <p data-nid="el-p-2062" class="value">
                         signal = \`{&quot;Hello \\&quot;OmniView\\&quot; world&quot;}\`
                       </p>
-                      <p data-nid="el-p-2784" class="result">
+                      <p data-nid="el-p-2064" class="result">
                         结果:
-                        <span data-nid="el-interp-2786"></span>
+                        <span data-nid="el-interp-2066"></span>
                       </p>
                     </div>
-                    <div data-nid="el-div-2788" class="card">
-                      <h4 data-nid="el-h4-2789" class="label">
+                    <div data-nid="el-div-2068" class="card">
+                      <h4 data-nid="el-h4-2069" class="label">
                         单引号字符串
                       </h4>
-                      <p data-nid="el-p-2791" class="result">
+                      <p data-nid="el-p-2071" class="result">
                         结果:
-                        <span data-nid="el-interp-2793"></span>
+                        <span data-nid="el-interp-2073"></span>
                       </p>
                     </div>
-                    <div data-nid="el-div-2795" class="card">
-                      <h4 data-nid="el-h4-2796" class="label">
+                    <div data-nid="el-div-2075" class="card">
+                      <h4 data-nid="el-h4-2076" class="label">
                         混合字符串
                       </h4>
-                      <p data-nid="el-p-2798" class="result">
+                      <p data-nid="el-p-2078" class="result">
                         结果:
-                        <span data-nid="el-interp-2800"></span>
+                        <span data-nid="el-interp-2080"></span>
                       </p>
                     </div>
-                    <div data-nid="el-div-2802" class="card">
-                      <h4 data-nid="el-h4-2803" class="label">
+                    <div data-nid="el-div-2082" class="card">
+                      <h4 data-nid="el-h4-2083" class="label">
                         模板字符串插值
-                        <span data-nid="el-interp-2805"></span>
+                        <span data-nid="el-interp-2085"></span>
                       </h4>
-                      <p data-nid="el-p-2807" class="value">
+                      <p data-nid="el-p-2087" class="value">
                         buildGreeting(&quot;Alice&quot;, 30) -&gt; &quot;{buildGreeting(&quot;Alice&quot;, 30)}&quot;
                       </p>
-                      <p data-nid="el-p-2809" class="value">
+                      <p data-nid="el-p-2089" class="value">
                         dynamic:
-                        <span data-nid="el-interp-2811"></span>
+                        <span data-nid="el-interp-2091"></span>
                       </p>
-                      <button data-nid="el-button-2813" class="btn-sm">
+                      <button data-nid="el-button-2093" class="btn-sm">
                         Update
                       </button>
                     </div>
                   </div>
                 </div>
               </div>
-              <div data-nid="el-div-2815" class="demo-row">
-                <div data-nid="el-div-2816" class="demo-col">
-                  <div data-nid="el-TypeSystemDemo-2817" data-component="TypeSystemDemo">
-                    <div data-nid="el-div-2818" class="container">
-                      <h3 data-nid="el-h3-2819" class="title">
+              <div data-nid="el-div-2095" class="Row">
+                <div data-nid="el-div-2096" class="Col">
+                  <div data-nid="el-TypeSystemDemo-2097" data-component="TypeSystemDemo">
+                    <div data-nid="el-div-2098" class="container">
+                      <h3 data-nid="el-h3-2099" class="title">
                         类型系统全覆盖
                       </h3>
-                      <p data-nid="el-p-2821" class="subtitle">
+                      <p data-nid="el-p-2101" class="subtitle">
                         i8 · i16 · i64 · u8 · u16 · u32 · u64 · f32 · isize · usize · Void
                       </p>
-                      <div data-nid="el-div-2823" class="section">
-                        <h4 data-nid="el-h4-2824" class="section-title">
+                      <div data-nid="el-div-2103" class="section">
+                        <h4 data-nid="el-h4-2104" class="section-title">
                           有符号整数
                         </h4>
-                        <ul data-nid="el-ul-2826" class="list">
-                          <li data-nid="el-li-2827" class="item">
-                            <code data-nid="el-code-2828" class="code">
+                        <ul data-nid="el-ul-2106" class="list">
+                          <li data-nid="el-li-2107" class="item">
+                            <code data-nid="el-code-2108" class="code">
                               i8
                             </code>
                             max =
-                            <span data-nid="el-interp-2831"></span>
+                            <span data-nid="el-interp-2111"></span>
                           </li>
-                          <li data-nid="el-li-2833" class="item">
-                            <code data-nid="el-code-2834" class="code">
+                          <li data-nid="el-li-2113" class="item">
+                            <code data-nid="el-code-2114" class="code">
                               i16
                             </code>
                             max =
-                            <span data-nid="el-interp-2837"></span>
+                            <span data-nid="el-interp-2117"></span>
                           </li>
-                          <li data-nid="el-li-2839" class="item">
-                            <code data-nid="el-code-2840" class="code">
+                          <li data-nid="el-li-2119" class="item">
+                            <code data-nid="el-code-2120" class="code">
                               i64
                             </code>
                             max =
-                            <span data-nid="el-interp-2843"></span>
+                            <span data-nid="el-interp-2123"></span>
                           </li>
-                          <li data-nid="el-li-2845" class="item">
-                            <code data-nid="el-code-2846" class="code">
+                          <li data-nid="el-li-2125" class="item">
+                            <code data-nid="el-code-2126" class="code">
                               isize
                             </code>
                             =
-                            <span data-nid="el-interp-2849"></span>
+                            <span data-nid="el-interp-2129"></span>
                           </li>
                         </ul>
                       </div>
-                      <div data-nid="el-div-2851" class="section">
-                        <h4 data-nid="el-h4-2852" class="section-title">
+                      <div data-nid="el-div-2131" class="section">
+                        <h4 data-nid="el-h4-2132" class="section-title">
                           无符号整数
                         </h4>
-                        <ul data-nid="el-ul-2854" class="list">
-                          <li data-nid="el-li-2855" class="item">
-                            <code data-nid="el-code-2856" class="code">
+                        <ul data-nid="el-ul-2134" class="list">
+                          <li data-nid="el-li-2135" class="item">
+                            <code data-nid="el-code-2136" class="code">
                               u8
                             </code>
                             max =
-                            <span data-nid="el-interp-2859"></span>
+                            <span data-nid="el-interp-2139"></span>
                           </li>
-                          <li data-nid="el-li-2861" class="item">
-                            <code data-nid="el-code-2862" class="code">
+                          <li data-nid="el-li-2141" class="item">
+                            <code data-nid="el-code-2142" class="code">
                               u16
                             </code>
                             max =
-                            <span data-nid="el-interp-2865"></span>
+                            <span data-nid="el-interp-2145"></span>
                           </li>
-                          <li data-nid="el-li-2867" class="item">
-                            <code data-nid="el-code-2868" class="code">
+                          <li data-nid="el-li-2147" class="item">
+                            <code data-nid="el-code-2148" class="code">
                               u32
                             </code>
                             max =
-                            <span data-nid="el-interp-2871"></span>
+                            <span data-nid="el-interp-2151"></span>
                           </li>
-                          <li data-nid="el-li-2873" class="item">
-                            <code data-nid="el-code-2874" class="code">
+                          <li data-nid="el-li-2153" class="item">
+                            <code data-nid="el-code-2154" class="code">
                               u64
                             </code>
                             max =
-                            <span data-nid="el-interp-2877"></span>
+                            <span data-nid="el-interp-2157"></span>
                           </li>
-                          <li data-nid="el-li-2879" class="item">
-                            <code data-nid="el-code-2880" class="code">
+                          <li data-nid="el-li-2159" class="item">
+                            <code data-nid="el-code-2160" class="code">
                               usize
                             </code>
                             =
-                            <span data-nid="el-interp-2883"></span>
+                            <span data-nid="el-interp-2163"></span>
                           </li>
                         </ul>
                       </div>
-                      <div data-nid="el-div-2885" class="section">
-                        <h4 data-nid="el-h4-2886" class="section-title">
+                      <div data-nid="el-div-2165" class="section">
+                        <h4 data-nid="el-h4-2166" class="section-title">
                           浮点类型
                         </h4>
-                        <ul data-nid="el-ul-2888" class="list">
-                          <li data-nid="el-li-2889" class="item">
-                            <code data-nid="el-code-2890" class="code">
+                        <ul data-nid="el-ul-2168" class="list">
+                          <li data-nid="el-li-2169" class="item">
+                            <code data-nid="el-code-2170" class="code">
                               f32
                             </code>
                             =
-                            <span data-nid="el-interp-2893"></span>
+                            <span data-nid="el-interp-2173"></span>
                           </li>
                         </ul>
                       </div>
-                      <div data-nid="el-div-2895" class="summary-box">
-                        <p data-nid="el-p-2896" class="summary-text">
+                      <div data-nid="el-div-2175" class="summary-box">
+                        <p data-nid="el-p-2176" class="summary-text">
                           综合:
-                          <span data-nid="el-interp-2898"></span>
+                          <span data-nid="el-interp-2178"></span>
                         </p>
                       </div>
                     </div>
                   </div>
                 </div>
-                <div data-nid="el-div-2900" class="demo-col">
-                  <div data-nid="el-ViewAttributesDemo-2901" data-component="ViewAttributesDemo">
-                    <div data-nid="el-div-2902" class="container">
-                      <h3 data-nid="el-h3-2903" class="title">
+                <div data-nid="el-div-2180" class="Col">
+                  <div data-nid="el-ViewAttributesDemo-2181" data-component="ViewAttributesDemo">
+                    <div data-nid="el-div-2182" class="container">
+                      <h3 data-nid="el-h3-2183" class="title">
                         视图属性演示
                       </h3>
-                      <p data-nid="el-p-2905" class="subtitle">
+                      <p data-nid="el-p-2185" class="subtitle">
                         testId · class:string · bind:checked
                       </p>
-                      <div data-nid="el-div-2907" class="card">
-                        <h4 data-nid="el-h4-2908" class="label">
+                      <div data-nid="el-div-2187" class="card">
+                        <h4 data-nid="el-h4-2188" class="label">
                           testId 属性标记
                         </h4>
-                        <div data-nid="el-div-2910" data-testid="attr-demo-container" class="info-box">
-                          <p data-nid="el-p-2911" class="info-text">
+                        <div data-nid="el-div-2190" data-testid="attr-demo-container" class="info-box">
+                          <p data-nid="el-p-2191" class="info-text">
                             此 div 使用 testId 属性标记，用于测试定位
                           </p>
                         </div>
                       </div>
-                      <div data-nid="el-div-2913" class="card">
-                        <h4 data-nid="el-h4-2914" class="label">
+                      <div data-nid="el-div-2193" class="card">
+                        <h4 data-nid="el-h4-2194" class="label">
                           bind:checked 复选框绑定
                         </h4>
-                        <label data-nid="el-label-2916" class="checkbox-label">
-                          <input data-nid="el-input-2917" type="checkbox" data-testid="agree-checkbox" />
-                          <span data-nid="el-span-2918">
+                        <label data-nid="el-label-2196" class="checkbox-label">
+                          <input data-nid="el-input-2197" type="checkbox" data-testid="agree-checkbox" />
+                          <span data-nid="el-span-2198">
                             同意条款:
-                            <span data-nid="el-interp-2920"></span>
+                            <span data-nid="el-interp-2200"></span>
                           </span>
                         </label>
                       </div>
-                      <div data-nid="el-div-2922" class="card">
-                        <h4 data-nid="el-h4-2923" class="label">
+                      <div data-nid="el-div-2202" class="card">
+                        <h4 data-nid="el-h4-2203" class="label">
                           bind:value 文本输入
                         </h4>
-                        <textarea data-nid="el-textarea-2925" placeholder="输入文本..." class="rich-input">
+                        <textarea data-nid="el-textarea-2205" placeholder="输入文本..." class="rich-input">
                         </textarea>
-                        <p data-nid="el-p-2926" class="preview">
+                        <p data-nid="el-p-2206" class="preview">
                           预览:
-                          <span data-nid="el-interp-2928"></span>
+                          <span data-nid="el-interp-2208"></span>
                         </p>
                       </div>
-                      <div data-nid="el-div-2930" class="card">
-                        <h4 data-nid="el-h4-2931" class="label">
+                      <div data-nid="el-div-2210" class="card">
+                        <h4 data-nid="el-h4-2211" class="label">
                           class:&quot;string&quot; 字面量绑定
                         </h4>
-                        <div data-nid="el-div-2933" class="bg-blue-100 border border-blue-300 rounded-lg p-3 mb-2">
-                          <p data-nid="el-p-2934" class="info-text">
+                        <div data-nid="el-div-2213" class="bg-blue-100 border border-blue-300 rounded-lg p-3 mb-2">
+                          <p data-nid="el-p-2214" class="info-text">
                             此 div 使用 class: &quot;bg-blue-100 ...&quot; 字符串字面量
                           </p>
                         </div>
-                        <div data-nid="el-div-2936" class="bg-green-100 border border-green-300 rounded-lg p-3 mb-2">
-                          <p data-nid="el-p-2937" class="info-text">
+                        <div data-nid="el-div-2216" class="bg-green-100 border border-green-300 rounded-lg p-3 mb-2">
+                          <p data-nid="el-p-2217" class="info-text">
                             此 div 使用 class: &quot;bg-green-100 ...&quot; 字符串字面量
                           </p>
                         </div>
-                        <div data-nid="el-div-2939" class="bg-amber-100 border border-amber-300 rounded-lg p-3">
-                          <p data-nid="el-p-2940" class="info-text">
+                        <div data-nid="el-div-2219" class="bg-amber-100 border border-amber-300 rounded-lg p-3">
+                          <p data-nid="el-p-2220" class="info-text">
                             字符串字面量 class 适用于无对应 style 规则的工具类
                           </p>
                         </div>
@@ -7917,109 +6714,109 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                   </div>
                 </div>
               </div>
-              <div data-nid="el-div-2942" class="demo-row">
-                <div data-nid="el-div-2943" class="demo-col">
-                  <div data-nid="el-ComputedFnFormDemo-2944" data-component="ComputedFnFormDemo">
-                    <div data-nid="el-div-2945" class="container">
-                      <h3 data-nid="el-h3-2946" class="title">
+              <div data-nid="el-div-2222" class="Row">
+                <div data-nid="el-div-2223" class="Col">
+                  <div data-nid="el-ComputedFnFormDemo-2224" data-component="ComputedFnFormDemo">
+                    <div data-nid="el-div-2225" class="container">
+                      <h3 data-nid="el-h3-2226" class="title">
                         Computed Function Form Demo
                       </h3>
-                      <p data-nid="el-p-2948" class="subtitle">
+                      <p data-nid="el-p-2228" class="subtitle">
                         演示 computed name() → Type
-                        <span data-nid="el-interp-2950"></span>
+                        <span data-nid="el-interp-2230"></span>
                         函数式写法
                       </p>
-                      <div data-nid="el-div-2953" class="card">
-                        <h4 data-nid="el-h4-2954" class="label">
+                      <div data-nid="el-div-2233" class="card">
+                        <h4 data-nid="el-h4-2234" class="label">
                           Simple form: computed simple: String = expr
                         </h4>
-                        <p data-nid="el-p-2956" class="value">
-                          <span data-nid="el-interp-2957"></span>
+                        <p data-nid="el-p-2236" class="value">
+                          <span data-nid="el-interp-2237"></span>
                         </p>
                       </div>
-                      <div data-nid="el-div-2959" class="card">
-                        <h4 data-nid="el-h4-2960" class="label">
+                      <div data-nid="el-div-2239" class="card">
+                        <h4 data-nid="el-h4-2240" class="label">
                           Function form: computed fullName() → String
-                          <span data-nid="el-interp-2962"></span>
+                          <span data-nid="el-interp-2242"></span>
                         </h4>
-                        <p data-nid="el-p-2964" class="value">
-                          <span data-nid="el-interp-2965"></span>
+                        <p data-nid="el-p-2244" class="value">
+                          <span data-nid="el-interp-2245"></span>
                         </p>
                       </div>
-                      <div data-nid="el-div-2967" class="btn-row">
-                        <button data-nid="el-button-2968" class="btn">
+                      <div data-nid="el-div-2247" class="btn-row">
+                        <button data-nid="el-button-2248" class="btn">
                           Clear Last Name
                         </button>
-                        <button data-nid="el-button-2970" class="btn">
+                        <button data-nid="el-button-2250" class="btn">
                           Set &quot;San&quot;
                         </button>
                       </div>
-                      <div data-nid="el-div-2972" class="info">
-                        <p data-nid="el-p-2973" class="small">
+                      <div data-nid="el-div-2252" class="info">
+                        <p data-nid="el-p-2253" class="small">
                           Calls:
-                          <span data-nid="el-interp-2975"></span>
+                          <span data-nid="el-interp-2255"></span>
                         </p>
                       </div>
                     </div>
                   </div>
                 </div>
-                <div data-nid="el-div-2977" class="demo-col">
-                  <div data-nid="el-OptionalChainDemo-2978" data-component="OptionalChainDemo">
-                    <div data-nid="el-div-2979" class="container">
-                      <h3 data-nid="el-h3-2980" class="title">
+                <div data-nid="el-div-2257" class="Col">
+                  <div data-nid="el-OptionalChainDemo-2258" data-component="OptionalChainDemo">
+                    <div data-nid="el-div-2259" class="container">
+                      <h3 data-nid="el-h3-2260" class="title">
                         Optional Chain ( ?. ) Demo
                       </h3>
-                      <p data-nid="el-p-2982" class="subtitle">
+                      <p data-nid="el-p-2262" class="subtitle">
                         演示 ?. 可选链 和 ?? 空值合并运算符
                       </p>
-                      <div data-nid="el-div-2984" class="card">
-                        <p data-nid="el-p-2985" class="label">
+                      <div data-nid="el-div-2264" class="card">
+                        <p data-nid="el-p-2265" class="label">
                           user?.len() ?? 0 →
-                          <span data-nid="el-interp-2987"></span>
+                          <span data-nid="el-interp-2267"></span>
                         </p>
-                        <p data-nid="el-p-2989" class="label">
+                        <p data-nid="el-p-2269" class="label">
                           user ?? &quot;Guest&quot; →
-                          <span data-nid="el-interp-2991"></span>
+                          <span data-nid="el-interp-2271"></span>
                         </p>
                       </div>
-                      <div data-nid="el-div-2993" class="btn-row">
-                        <button data-nid="el-button-2994" class="btn">
+                      <div data-nid="el-div-2273" class="btn-row">
+                        <button data-nid="el-button-2274" class="btn">
                           Set null → test ?.
                         </button>
-                        <button data-nid="el-button-2996" class="btn">
+                        <button data-nid="el-button-2276" class="btn">
                           Set &quot;Bob&quot;
                         </button>
-                        <button data-nid="el-button-2998" class="btn-outline">
+                        <button data-nid="el-button-2278" class="btn-outline">
                           Toggle Details
                         </button>
                       </div>
-                      <div data-nid="el-if-3000-b0" style="display:none">
-                        <fragment data-nid="el-fragment-3001">
-                          <div data-nid="el-div-3002" class="card">
-                            <p data-nid="el-p-3003">
+                      <div data-nid="el-if-2280-b0" style="display:none">
+                        <fragment data-nid="el-fragment-2281">
+                          <div data-nid="el-div-2282" class="card">
+                            <p data-nid="el-p-2283">
                               user is:
-                              <span data-nid="el-interp-3005"></span>
+                              <span data-nid="el-interp-2285"></span>
                             </p>
-                            <p data-nid="el-p-3007">
+                            <p data-nid="el-p-2287">
                               length via ?.:
-                              <span data-nid="el-interp-3009"></span>
+                              <span data-nid="el-interp-2289"></span>
                             </p>
                           </div>
                         </fragment>
                       </div>
-                      <div data-nid="el-if-3000-b1" style="display:none">
-                        <fragment data-nid="el-fragment-3011">
-                          <div data-nid="el-div-3012" class="card">
-                            <p data-nid="el-p-3013">
+                      <div data-nid="el-if-2280-b1" style="display:none">
+                        <fragment data-nid="el-fragment-2291">
+                          <div data-nid="el-div-2292" class="card">
+                            <p data-nid="el-p-2293">
                               Click &quot;Toggle Details&quot; to expand
                             </p>
                           </div>
                         </fragment>
                       </div>
-                      <div data-nid="el-if-3000-else" style="display:none">
-                        <fragment data-nid="el-fragment-3015">
-                          <div data-nid="el-div-3016" class="card">
-                            <p data-nid="el-p-3017">
+                      <div data-nid="el-if-2280-else" style="display:none">
+                        <fragment data-nid="el-fragment-2295">
+                          <div data-nid="el-div-2296" class="card">
+                            <p data-nid="el-p-2297">
                               No user set
                             </p>
                           </div>
@@ -8028,1051 +6825,994 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                     </div>
                   </div>
                 </div>
-              </div>
-              <div data-nid="el-div-3019" class="demo-full">
-                <div data-nid="el-StylePseudoDemo-3020" data-component="StylePseudoDemo">
-                  <div data-nid="el-div-3021" class="container">
-                    <h3 data-nid="el-h3-3022" class="title">
-                      CSS Pseudo-Classes Demo
-                    </h3>
-                    <p data-nid="el-p-3024" class="subtitle">
-                      演示 :hover :focus :active 伪类
-                    </p>
-                    <div data-nid="el-div-3026" class="card">
-                      <h4 data-nid="el-h4-3027" class="label">
-                        伪类按钮
-                      </h4>
-                      <button data-nid="el-button-3029" class="btn-hover">
-                        Hover me (:hover)
-                      </button>
-                      <button data-nid="el-button-3031" class="btn-focus">
-                        Focus me (:focus) x
-                        <span data-nid="el-interp-3033"></span>
-                      </button>
-                      <button data-nid="el-button-3035" class="btn-active">
-                        Press me (:active)
-                      </button>
-                    </div>
-                    <div data-nid="el-div-3037" class="card">
-                      <h4 data-nid="el-h4-3038" class="label">
-                        伪类输入框
-                      </h4>
-                      <input data-nid="el-input-3040" placeholder="Focus to see :focus style" class="input-focus" />
-                    </div>
-                    <div data-nid="el-div-3041" class="card">
-                      <h4 data-nid="el-h4-3042" class="label">
-                        组合伪类
-                      </h4>
-                      <div data-nid="el-div-3044" class="card-hover">
-                        Hover this card (:hover)
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </section>
-          </fragment>
-        </div>
-        <div data-nid="el-if-3046-b0" style="display:none">
-          <fragment data-nid="el-fragment-3047">
-            <section data-nid="el-section-3048" class="demo-section">
-              <div data-nid="el-div-3049" class="demo-full">
-                <div data-nid="el-SettingsPage-3050" data-component="SettingsPage">
-                  <div data-nid="el-div-3051" class="settings-page">
-                    <header data-nid="el-header-3052" class="page-header">
-                      <h2 data-nid="el-h2-3053" class="page-title">
-                        Settings
-                      </h2>
-                      <p data-nid="el-p-3055" class="page-subtitle">
-                        Customize your experience
-                      </p>
-                    </header>
-                    <section data-nid="el-section-3057" class="Section">
-                      <h3 data-nid="el-h3-3058" class="section-title">
-                        Appearance
-                      </h3>
-                      <div data-nid="el-ThemeSwitcher-3060" data-component="ThemeSwitcher">
-                        <div data-nid="el-div-3061" class="Card">
-                          <div data-nid="el-div-3062" class="indicator-row">
-                            <div data-nid="el-div-3063" class="mode-indicator">
-                              <span data-nid="el-span-3064" class="mode-label">
-                                <span data-nid="el-interp-3065"></span>
-                              </span>
-                            </div>
-                            <p data-nid="el-p-3067" class="toggle-info">
-                              Toggled
-                              <span data-nid="el-interp-3069"></span>
-                              times
-                            </p>
-                          </div>
-                          <button data-nid="el-button-3072" class="toggle-btn">
-                            <span data-nid="el-interp-3073"></span>
-                          </button>
-                          <div data-nid="el-div-3075" class="palette">
-                            <p data-nid="el-p-3076" class="palette-label">
-                              Current palette:
-                            </p>
-                            <div data-nid="el-div-3078" class="swatches">
-                              <span data-nid="el-span-3079" class="swatch">
-                                BG
-                              </span>
-                              <span data-nid="el-span-3081" class="swatch">
-                                TX
-                              </span>
-                              <span data-nid="el-span-3083" class="swatch" style="color: white">
-                                PR
-                              </span>
-                              <span data-nid="el-span-3085" class="swatch">
-                                BD
-                              </span>
-                              <span data-nid="el-span-3087" class="swatch">
-                                MU
-                              </span>
-                            </div>
-                          </div>
-                          <div data-nid="el-div-3089" class="quick-actions">
-                            <button data-nid="el-button-3090" class="Button ghost sm">
-                              Light
-                            </button>
-                            <button data-nid="el-button-3092" class="Button ghost sm" style="background: #1f2937; color: #f9fafb">
-                              Dark
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </section>
-                    <section data-nid="el-section-3094" class="Section">
-                      <h3 data-nid="el-h3-3095" class="section-title">
-                        Theme Colors
-                      </h3>
-                      <div data-nid="el-div-3097" class="swatch-grid">
-                        <template data-nid="el-for-3098-tpl">
-                            <div data-nid="el-div-3100" class="swatch-item">
-                              <div data-nid="el-div-3101" class="swatch-box">
-                              </div>
-                              <span data-nid="el-span-3102" class="swatch-label">
-                                <span data-nid="el-interp-3103"></span>
-                              </span>
-                            </div>
-</template>
-                        <template data-nid="el-for-3098-ctr" data-for-container></template>
-                      </div>
-                    </section>
-                    <section data-nid="el-section-3105" class="Section">
-                      <div data-nid="el-div-3106" class="about-header">
-                        <h3 data-nid="el-h3-3107" class="section-title">
-                          About
-                        </h3>
-                        <span data-nid="el-span-3109" class="about-arrow">
-                          <span data-nid="el-interp-3110"></span>
-                        </span>
-                      </div>
-                      <div data-nid="el-if-3112-b0" style="display:none">
-                        <fragment data-nid="el-fragment-3113">
-                          <div data-nid="el-div-3114" class="about-content">
-                            <p data-nid="el-p-3115" class="about-text">
-                              OmniView Learn — a teaching project demonstrating the full feature set of the OmniView UI framework.
-                            </p>
-                            <div data-nid="el-div-3117" class="about-meta">
-                              <span data-nid="el-span-3118" class="meta-item">
-                                Version: 1.0.0
-                              </span>
-                              <span data-nid="el-span-3120" class="meta-item">
-                                Framework: OmniView v0.1.0
-                              </span>
-                              <span data-nid="el-span-3122" class="meta-item">
-                                Theme:
-                                <span data-nid="el-interp-3124"></span>
-                                Mode
-                              </span>
-                            </div>
-                            <p data-nid="el-p-3127" class="about-footer">
-                              Built with OmniLang — the language that compiles to every framework.
-                            </p>
-                          </div>
-                        </fragment>
-                      </div>
-                    </section>
-                    <footer data-nid="el-footer-3129" class="page-footer">
-                      <span data-nid="el-span-3130" class="footer-text">
-                        Current:
-                        <span data-nid="el-interp-3132"></span>
-                        mode | Toggles:
-                        <span data-nid="el-interp-3135"></span>
-                      </span>
-                    </footer>
-                  </div>
-                </div>
-              </div>
-            </section>
-          </fragment>
-        </div>
-        <div data-nid="el-if-3137-b0" style="display:none">
-          <fragment data-nid="el-fragment-3138">
-            <section data-nid="el-section-3139" class="demo-section">
-              <div data-nid="el-div-3140" class="demo-row">
-                <div data-nid="el-div-3141" class="demo-col">
-                  <div data-nid="el-TernaryExprDemo-3142" data-component="TernaryExprDemo">
-                    <div data-nid="el-div-3143" class="container">
-                      <h3 data-nid="el-h3-3144" class="title">
+                <div data-nid="el-div-2299" class="Col">
+                  <div data-nid="el-TernaryExprDemo-2300" data-component="TernaryExprDemo">
+                    <div data-nid="el-div-2301" class="container">
+                      <h3 data-nid="el-h3-2302" class="title">
                         Ternary ( ? : ) 三元表达式 Demo
                       </h3>
-                      <p data-nid="el-p-3146" class="subtitle">
+                      <p data-nid="el-p-2304" class="subtitle">
                         演示 cond ? then : else 运算符
                       </p>
-                      <div data-nid="el-div-3148" class="card">
-                        <h4 data-nid="el-h4-3149" class="label">
+                      <div data-nid="el-div-2306" class="card">
+                        <h4 data-nid="el-h4-2307" class="label">
                           数值判定: count =
-                          <span data-nid="el-interp-3151"></span>
+                          <span data-nid="el-interp-2309"></span>
                         </h4>
-                        <p data-nid="el-p-3153" class="value-text">
+                        <p data-nid="el-p-2311" class="value-text">
                           结果:
-                          <span data-nid="el-interp-3155"></span>
+                          <span data-nid="el-interp-2313"></span>
                         </p>
-                        <p data-nid="el-p-3157" class="value-text">
+                        <p data-nid="el-p-2315" class="value-text">
                           直接内联:
-                          <span data-nid="el-interp-3159"></span>
+                          <span data-nid="el-interp-2317"></span>
                         </p>
-                        <div data-nid="el-div-3161" class="btn-row">
-                          <button data-nid="el-button-3162" class="btn-inc">
+                        <div data-nid="el-div-2319" class="btn-row">
+                          <button data-nid="el-button-2320" class="btn-inc">
                             count + 1
                           </button>
-                          <button data-nid="el-button-3164" class="btn-dec">
+                          <button data-nid="el-button-2322" class="btn-dec">
                             count - 1
                           </button>
                         </div>
                       </div>
-                      <div data-nid="el-div-3166" class="card">
-                        <h4 data-nid="el-h4-3167" class="label">
+                      <div data-nid="el-div-2324" class="card">
+                        <h4 data-nid="el-h4-2325" class="label">
                           成绩判定: score =
-                          <span data-nid="el-interp-3169"></span>
+                          <span data-nid="el-interp-2327"></span>
                         </h4>
-                        <p data-nid="el-p-3171" class="value-text">
+                        <p data-nid="el-p-2329" class="value-text">
                           等级:
-                          <span data-nid="el-interp-3173"></span>
+                          <span data-nid="el-interp-2331"></span>
                         </p>
-                        <div data-nid="el-div-3175" class="btn-row">
-                          <button data-nid="el-button-3176" class="btn-small">
+                        <div data-nid="el-div-2333" class="btn-row">
+                          <button data-nid="el-button-2334" class="btn-small">
                             95 → A
                           </button>
-                          <button data-nid="el-button-3178" class="btn-small">
+                          <button data-nid="el-button-2336" class="btn-small">
                             85 → B
                           </button>
-                          <button data-nid="el-button-3180" class="btn-small">
+                          <button data-nid="el-button-2338" class="btn-small">
                             72 → C
                           </button>
-                          <button data-nid="el-button-3182" class="btn-small">
+                          <button data-nid="el-button-2340" class="btn-small">
                             55 → F
                           </button>
                         </div>
                       </div>
-                      <p data-nid="el-p-3184" class="note">
+                      <p data-nid="el-p-2342" class="note">
                         三元 ? : 是 if-expr 的紧凑形式，用于值上下文
                       </p>
                     </div>
                   </div>
                 </div>
-                <div data-nid="el-div-3186" class="demo-col">
-                  <div data-nid="el-BlockExprDemo-3187" data-component="BlockExprDemo">
-                    <div data-nid="el-div-3188" class="container">
-                      <h3 data-nid="el-h3-3189" class="title">
+                <div data-nid="el-div-2344" class="Col">
+                  <div data-nid="el-BlockExprDemo-2345" data-component="BlockExprDemo">
+                    <div data-nid="el-div-2346" class="container">
+                      <h3 data-nid="el-h3-2347" class="title">
                         Block Expression Demo
                       </h3>
-                      <p data-nid="el-p-3191" class="subtitle">
+                      <p data-nid="el-p-2349" class="subtitle">
                         演示
                         {;}
                         块表达式
                       </p>
-                      <div data-nid="el-div-3195" class="card">
-                        <h4 data-nid="el-h4-3196" class="label">
+                      <div data-nid="el-div-2353" class="card">
+                        <h4 data-nid="el-h4-2354" class="label">
                           输入值: a=
-                          <span data-nid="el-interp-3198"></span>
+                          <span data-nid="el-interp-2356"></span>
                           , b=
-                          <span data-nid="el-interp-3201"></span>
+                          <span data-nid="el-interp-2359"></span>
                         </h4>
-                        <div data-nid="el-div-3203" class="btn-row">
-                          <button data-nid="el-button-3204" class="btn">
+                        <div data-nid="el-div-2361" class="btn-row">
+                          <button data-nid="el-button-2362" class="btn">
                             a + 5
                           </button>
-                          <button data-nid="el-button-3206" class="btn">
+                          <button data-nid="el-button-2364" class="btn">
                             b + 5
                           </button>
-                          <button data-nid="el-button-3208" class="btn-outline">
+                          <button data-nid="el-button-2366" class="btn-outline">
                             Reset
                           </button>
                         </div>
                       </div>
-                      <div data-nid="el-div-3210" class="card">
-                        <h4 data-nid="el-h4-3211" class="label">
+                      <div data-nid="el-div-2368" class="card">
+                        <h4 data-nid="el-h4-2369" class="label">
                           块表达式 computed: calculation
                         </h4>
-                        <p data-nid="el-p-3213" class="value-text">
-                          <span data-nid="el-interp-3214"></span>
+                        <p data-nid="el-p-2371" class="value-text">
+                          <span data-nid="el-interp-2372"></span>
                         </p>
                       </div>
-                      <div data-nid="el-div-3216" class="card">
-                        <h4 data-nid="el-h4-3217" class="label">
+                      <div data-nid="el-div-2374" class="card">
+                        <h4 data-nid="el-h4-2375" class="label">
                           块表达式 computed: total =
                           {+,}
                         </h4>
-                        <p data-nid="el-p-3220" class="value-text">
+                        <p data-nid="el-p-2378" class="value-text">
                           total =
-                          <span data-nid="el-interp-3222"></span>
+                          <span data-nid="el-interp-2380"></span>
                         </p>
                       </div>
-                      <div data-nid="el-div-3224" class="card">
-                        <h4 data-nid="el-h4-3225" class="label">
+                      <div data-nid="el-div-2382" class="card">
+                        <h4 data-nid="el-h4-2383" class="label">
                           对比：普通 computed: simpleSum
                         </h4>
-                        <p data-nid="el-p-3227" class="value-text">
+                        <p data-nid="el-p-2385" class="value-text">
                           simpleSum = a + b =
-                          <span data-nid="el-interp-3229"></span>
+                          <span data-nid="el-interp-2387"></span>
                         </p>
                       </div>
-                      <p data-nid="el-p-3231" class="note">
+                      <p data-nid="el-p-2389" class="note">
                         块表达式允许在值上下文中声明临时变量，最后一行表达式即为块的值
                       </p>
                     </div>
                   </div>
                 </div>
               </div>
-              <div data-nid="el-div-3233" class="demo-full">
-                <div data-nid="el-ForDirectiveKeyDemo-3234" data-component="ForDirectiveKeyDemo">
-                  <div data-nid="el-div-3235">
-                    <h3 data-nid="el-h3-3236">
+              <div data-nid="el-div-2391" class="DemoFull">
+                <div data-nid="el-ForDirectiveKeyDemo-2392" data-component="ForDirectiveKeyDemo">
+                  <div data-nid="el-div-2393">
+                    <h3 data-nid="el-h3-2394">
                       @forkey=exprDemo
                     </h3>
-                    <p data-nid="el-p-3238">
+                    <p data-nid="el-p-2396">
                       演示
                       @foriteminiterablekey=expr用法
                     </p>
-                    <ul data-nid="el-ul-3241">
-                      <template data-nid="el-for-3242-tpl">
-                          <li data-nid="el-li-3244">
-                            <span data-nid="el-interp-3245"></span>
+                    <ul data-nid="el-ul-2399">
+                      <template data-nid="el-for-2400-tpl">
+                          <li data-nid="el-li-2402">
+                            <span data-nid="el-interp-2403"></span>
                           </li>
 </template>
-                      <template data-nid="el-for-3242-ctr" data-for-container></template>
+                      <template data-nid="el-for-2400-ctr" data-for-container></template>
                     </ul>
                   </div>
                 </div>
               </div>
-              <div data-nid="el-div-3247" class="demo-full">
-                <div data-nid="el-AdvancedPseudoDemo-3248" data-component="AdvancedPseudoDemo">
-                  <div data-nid="el-div-3249" class="container">
-                    <h3 data-nid="el-h3-3250" class="title">
-                      Advanced CSS Selectors Demo
-                    </h3>
-                    <p data-nid="el-p-3252" class="subtitle">
-                      演示 .class1.class2 组合选择器和 .class1.class2:hover 伪类链接
-                    </p>
-                    <div data-nid="el-div-3254" class="card">
-                      <h4 data-nid="el-h4-3255" class="label">
-                        组合选择器 .activeCard.cardActive
-                      </h4>
-                      <div data-nid="el-div-3257" class="activeCard cardActive">
-                        <p data-nid="el-p-3258">
-                          Toggle me to see .activeCard.cardActive style
-                        </p>
-                      </div>
-                      <button data-nid="el-button-3260" class="btn-outline">
-                        Toggle Active (
-                        <span data-nid="el-interp-3262"></span>
-                        )
-                      </button>
-                    </div>
-                    <div data-nid="el-div-3265" class="card">
-                      <h4 data-nid="el-h4-3266" class="label">
-                        组合选择器 + 伪类: .darkBtn:hover, .darkBtn:focus, .darkBtn:active
-                      </h4>
-                      <div data-nid="el-div-3268" class="btn-row">
-                        <button data-nid="el-button-3269" class="btn-dark">
-                          Dark Variant
-                        </button>
-                        <button data-nid="el-button-3271" class="btn-outline">
-                          Reset
-                        </button>
-                      </div>
-                      <p data-nid="el-p-3273" class="note">
-                        .darkBtn:hover .darkBtn:focus .darkBtn:active —— 三态组合伪类
+              <div data-nid="el-div-2405" class="Row">
+                <div data-nid="el-div-2406" class="Col">
+                  <div data-nid="el-StylePseudoDemo-2407" data-component="StylePseudoDemo">
+                    <div data-nid="el-div-2408" class="container">
+                      <h3 data-nid="el-h3-2409" class="title">
+                        CSS Pseudo-Classes Demo
+                      </h3>
+                      <p data-nid="el-p-2411" class="subtitle">
+                        演示 :hover :focus :active 伪类
                       </p>
-                    </div>
-                    <div data-nid="el-div-3275" class="card">
-                      <h4 data-nid="el-h4-3276" class="label">
-                        多组合 + 多伪类: .panel-highlight:hover, .panel-highlight:focus
-                      </h4>
-                      <div data-nid="el-div-3278" class="panel-highlight">
-                        <p data-nid="el-p-3279">
-                          Hover or Focus this panel
-                        </p>
-                        <input data-nid="el-input-3281" placeholder="Tab to focus me" class="panel-input" />
+                      <div data-nid="el-div-2413" class="card">
+                        <h4 data-nid="el-h4-2414" class="label">
+                          伪类按钮
+                        </h4>
+                        <button data-nid="el-button-2416" class="btn-hover">
+                          Hover me (:hover)
+                        </button>
+                        <button data-nid="el-button-2418" class="btn-focus">
+                          Focus me (:focus) x
+                          <span data-nid="el-interp-2420"></span>
+                        </button>
+                        <button data-nid="el-button-2422" class="btn-active">
+                          Press me (:active)
+                        </button>
+                      </div>
+                      <div data-nid="el-div-2424" class="card">
+                        <h4 data-nid="el-h4-2425" class="label">
+                          伪类输入框
+                        </h4>
+                        <input data-nid="el-input-2427" placeholder="Focus to see :focus style" class="input-focus" />
+                      </div>
+                      <div data-nid="el-div-2428" class="card">
+                        <h4 data-nid="el-h4-2429" class="label">
+                          组合伪类
+                        </h4>
+                        <div data-nid="el-div-2431" class="card-hover">
+                          Hover this card (:hover)
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-              <div data-nid="el-div-3282" class="demo-full">
-                <div data-nid="el-StepsStartDemo-3283" data-component="StepsStartDemo">
-                  <div data-nid="el-div-3284" class="container">
-                    <h3 data-nid="el-h3-3285" class="title">
-                      Steps Easing: direction=start Demo
-                    </h3>
-                    <p data-nid="el-p-3287" class="subtitle">
-                      演示 steps(count, direction: start) 步进缓动
-                    </p>
-                    <div data-nid="el-div-3289" class="card">
-                      <h4 data-nid="el-h4-3290" class="label">
-                        steps(2, start) — 2 步, 从首帧开始
-                      </h4>
-                      <div data-nid="el-div-3292" class="step-box" data-enter="stepCount2">
-                        <p data-nid="el-p-3293">
-                          2 steps (start)
+                <div data-nid="el-div-2433" class="Col">
+                  <div data-nid="el-AdvancedPseudoDemo-2434" data-component="AdvancedPseudoDemo">
+                    <div data-nid="el-div-2435" class="container">
+                      <h3 data-nid="el-h3-2436" class="title">
+                        Advanced CSS Selectors Demo
+                      </h3>
+                      <p data-nid="el-p-2438" class="subtitle">
+                        演示 .class1.class2 组合选择器和 .class1.class2:hover 伪类链接
+                      </p>
+                      <div data-nid="el-div-2440" class="card">
+                        <h4 data-nid="el-h4-2441" class="label">
+                          组合选择器 .activeCard.cardActive
+                        </h4>
+                        <div data-nid="el-div-2443" class="activeCard">
+                          <p data-nid="el-p-2444">
+                            Toggle me to see .activeCard.cardActive style
+                          </p>
+                        </div>
+                        <button data-nid="el-button-2446" class="btn-outline">
+                          Toggle Active (
+                          <span data-nid="el-interp-2448"></span>
+                          )
+                        </button>
+                      </div>
+                      <div data-nid="el-div-2451" class="card">
+                        <h4 data-nid="el-h4-2452" class="label">
+                          组合选择器 + 伪类: .darkBtn:hover, .darkBtn:focus, .darkBtn:active
+                        </h4>
+                        <div data-nid="el-div-2454" class="btn-row">
+                          <button data-nid="el-button-2455" class="btn-dark">
+                            Dark Variant
+                          </button>
+                          <button data-nid="el-button-2457" class="btn-outline">
+                            Reset
+                          </button>
+                        </div>
+                        <p data-nid="el-p-2459" class="note">
+                          .darkBtn:hover .darkBtn:focus .darkBtn:active —— 三态组合伪类
                         </p>
                       </div>
-                    </div>
-                    <div data-nid="el-div-3295" class="demo-row">
-                      <div data-nid="el-div-3296" class="demo-col">
-                        <h4 data-nid="el-h4-3297" class="label">
-                          steps(4, start) — 从首帧
+                      <div data-nid="el-div-2461" class="card">
+                        <h4 data-nid="el-h4-2462" class="label">
+                          多组合 + 多伪类: .panel-highlight:hover, .panel-highlight:focus
                         </h4>
-                        <div data-nid="el-div-3299" class="step-box" data-enter="stepCount4Start">
-                          <p data-nid="el-p-3300">
-                            4 steps start
+                        <div data-nid="el-div-2464" class="panel-highlight">
+                          <p data-nid="el-p-2465">
+                            Hover or Focus this panel
                           </p>
-                        </div>
-                      </div>
-                      <div data-nid="el-div-3302" class="demo-col">
-                        <h4 data-nid="el-h4-3303" class="label">
-                          steps(4, end) — 从尾帧 (对比)
-                        </h4>
-                        <div data-nid="el-div-3305" class="step-box-alt" data-enter="stepCount4End">
-                          <p data-nid="el-p-3306">
-                            4 steps end
-                          </p>
+                          <input data-nid="el-input-2467" placeholder="Tab to focus me" class="panel-input" />
                         </div>
                       </div>
                     </div>
-                    <div data-nid="el-div-3308" class="card">
-                      <h4 data-nid="el-h4-3309" class="label">
-                        steps(8, start) + loop — 8 步循环
-                      </h4>
-                      <div data-nid="el-div-3311" class="step-box-wide" data-enter="stepCount8">
-                        <p data-nid="el-p-3312">
-                          8 steps start + loop
-                        </p>
-                      </div>
-                    </div>
-                    <p data-nid="el-p-3314" class="note">
-                      direction: start 表示每步的起始位置在段首；direction: end 在段尾
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <div data-nid="el-div-3316" class="demo-full">
-                <div data-nid="el-PathTimelineDemo-3317" data-component="PathTimelineDemo">
-                  <div data-nid="el-div-3318" class="container">
-                    <h3 data-nid="el-h3-3319" class="title">
-                      Path Timeline Demo
-                    </h3>
-                    <p data-nid="el-p-3321" class="subtitle">
-                      演示  direction item 中的 path + pathRotate
-                    </p>
-                    <div data-nid="el-div-3323" class="card">
-                      <h4 data-nid="el-h4-3324" class="label">
-                        flyPath: 两个球沿贝塞尔路径运动
-                      </h4>
-                      <div data-nid="el-div-3326" class="track">
-                        <div data-nid="el-div-3327" class="ball ball-blue" data-timeline="flyPath">
-                          <p data-nid="el-p-3328">
-                            球 1
-                          </p>
-                        </div>
-                        <div data-nid="el-div-3330" class="ball ball-green" data-timeline="flyPath">
-                          <p data-nid="el-p-3331">
-                            球 2
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                    <div data-nid="el-div-3333" class="card">
-                      <h4 data-nid="el-h4-3334" class="label">
-                        bouncePath: 回弹路径 (pathRotate: true)
-                      </h4>
-                      <div data-nid="el-div-3336" class="track">
-                        <div data-nid="el-div-3337" class="ball ball-pink" data-timeline="bouncePath">
-                          <p data-nid="el-p-3338">
-                            球
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                    <p data-nid="el-p-3340" class="note">
-                      path 定义 SVG 运动路径；pathRotate: true 使元素沿路径方向旋转
-                    </p>
                   </div>
                 </div>
               </div>
             </section>
-          </fragment>
-        </div>
+          </div>
+        </fragment>
       </div>
-      <footer data-nid="el-footer-3342" class="footer">
-        <p data-nid="el-p-3343" class="footer-text">
-          OmniView 教学项目 · 74+ 源文件 · omnic run
-        </p>
-      </footer>
+      <div data-nid="el-if-2468-b0" style="display:none">
+        <fragment data-nid="el-fragment-2469">
+          <div data-nid="el-ElementRefDemo-2470" data-component="ElementRefDemo">
+            <div data-nid="el-div-2471" class="Container">
+              <h3 data-nid="el-h3-2472" class="CardTitle">
+                Element Reference System
+              </h3>
+              <p data-nid="el-p-2474" class="Subtitle">
+                ref · @ref · style · .focus() · .scrollTo() · .measure()
+              </p>
+              <h4 data-nid="el-h4-2476" class="SectionTitle">
+                焦点管理 (.focus / .blur)
+              </h4>
+              <div data-nid="el-div-2478" class="demo-row">
+                <input data-nid="el-input-2479" placeholder="ref-bound input" class="ref-input" />
+                <button data-nid="el-button-2480" class="Button primary sm">
+                  Focus
+                </button>
+                <button data-nid="el-button-2482" class="Button ghost sm">
+                  Blur
+                </button>
+                <span data-nid="el-span-2484" class="status-text">
+                  Status:
+                  <span data-nid="el-interp-2486"></span>
+                </span>
+              </div>
+              <h4 data-nid="el-h4-2488" class="SectionTitle">
+                滚动控制 (scroll-y 绑定 + .scrollBy)
+              </h4>
+              <div data-nid="el-div-2490" class="scroll-box">
+                <p data-nid="el-p-2491" class="scroll-item">
+                  Item 1 — 滚动演示区域
+                </p>
+                <p data-nid="el-p-2493" class="scroll-item">
+                  Item 2 — 使用 scroll-y 绑定跳转
+                </p>
+                <p data-nid="el-p-2495" class="scroll-item">
+                  Item 3 — 使用 .scrollBy() 增量
+                </p>
+                <p data-nid="el-p-2497" class="scroll-item">
+                  Item 4 — Element Ref API
+                </p>
+                <p data-nid="el-p-2499" class="scroll-item">
+                  Item 5 — ADR-36 / ADR-38
+                </p>
+                <p data-nid="el-p-2501" class="scroll-item">
+                  Item 6 — 底部
+                </p>
+              </div>
+              <div data-nid="el-div-2503" class="Row">
+                <button data-nid="el-button-2504" class="Button ghost sm">
+                  Scroll To Top
+                </button>
+                <button data-nid="el-button-2506" class="Button ghost sm">
+                  Scroll To Bottom
+                </button>
+                <button data-nid="el-button-2508" class="Button ghost sm">
+                  ScrollBy +100px
+                </button>
+                <span data-nid="el-span-2510" class="status-text">
+                  Pos:
+                  <span data-nid="el-interp-2512"></span>
+                </span>
+              </div>
+              <h4 data-nid="el-h4-2514" class="SectionTitle">
+                位置查询 (.measure)
+              </h4>
+              <div data-nid="el-div-2516" class="rect-box">
+                <p data-nid="el-p-2517">
+                  Query Box — click &quot;Query Rect&quot; to read position
+                </p>
+              </div>
+              <div data-nid="el-div-2519" class="Row">
+                <button data-nid="el-button-2520" class="Button ghost sm">
+                  Query Rect
+                </button>
+                <span data-nid="el-span-2522" class="status-text">
+                  <span data-nid="el-interp-2523"></span>
+                </span>
+              </div>
+              <h4 data-nid="el-h4-2525" class="SectionTitle">
+                尺寸查询 + 样式绑定 (.measure / style 绑定)
+              </h4>
+              <div data-nid="el-div-2527" class="demo-row">
+                <div data-nid="el-div-2528" class="size-box">
+                  <p data-nid="el-p-2529">
+                    resize via style binding
+                  </p>
+                </div>
+                <button data-nid="el-button-2531" class="Button primary sm">
+                  Query Size
+                </button>
+                <button data-nid="el-button-2533" class="Button accent sm">
+                  Expand
+                </button>
+                <button data-nid="el-button-2535" class="Button ghost sm">
+                  Reset
+                </button>
+                <span data-nid="el-span-2537" class="status-text">
+                  Width:
+                  <span data-nid="el-interp-2539"></span>
+                  · 实测:
+                  <span data-nid="el-interp-2542"></span>
+                  px
+                </span>
+              </div>
+              <h4 data-nid="el-h4-2545" class="SectionTitle">
+                多 ref 联动 (.value)
+              </h4>
+              <div data-nid="el-div-2547" class="demo-row">
+                <input data-nid="el-input-2548" placeholder="Type here..." class="ref-input" />
+                <span data-nid="el-span-2549" class="mirror-text">
+                  Mirror:
+                  <span data-nid="el-interp-2551"></span>
+                </span>
+              </div>
+              <h4 data-nid="el-h4-2553" class="SectionTitle">
+                高频拖拽 (@drag-horizontal)
+              </h4>
+              <p data-nid="el-p-2555" class="Hint">
+                范围约束待重新实现（当前拖动无位移），仅演示触发器与 motion 的接线
+              </p>
+              <div data-nid="el-div-2557" class="Row">
+                <div data-nid="el-div-2558" class="drag-box" data-drag-horizontal="dragX300">
+                  <p data-nid="el-p-2559">
+                    ↔ Drag me
+                  </p>
+                </div>
+              </div>
+              <h4 data-nid="el-h4-2561" class="SectionTitle">
+                拖拽方向与范围变体
+              </h4>
+              <p data-nid="el-p-2563" class="Hint">
+                约束/弹性等子属性已按 semantic-level DSL 移除（解析器无对应 token， 待重新实现）；下方演示水平/垂直方向的触发器与 motion 接线。
+              </p>
+              <div data-nid="el-div-2565" class="constraints-row">
+                <div data-nid="el-div-2566" class="drag-demo-box" data-drag-horizontal="dragX150">
+                  <p data-nid="el-p-2567">
+                    ↔ 水平 150px
+                  </p>
+                </div>
+                <div data-nid="el-div-2569" class="drag-demo-box" data-drag-vertical="dragY100">
+                  <p data-nid="el-p-2570">
+                    ↕ 垂直 100px
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </fragment>
+      </div>
+      <div data-nid="el-if-2572-b0" style="display:none">
+        <fragment data-nid="el-fragment-2573">
+          <div data-nid="el-DynamicTokens-2574" data-component="DynamicTokens">
+            <div data-nid="el-div-2575" class="page">
+              <div data-nid="el-div-2576" class="Banner">
+                <h1 data-nid="el-h1-2577" class="BannerTitle">
+                  Dynamic Design Tokens
+                </h1>
+                <p data-nid="el-p-2579" class="BannerSubtitle">
+                  Phase 1 Compile-time Constants · Phase 2 Runtime Signals · ADR-47 and ADR-49
+                </p>
+              </div>
+              <div data-nid="el-div-2581" class="Container">
+                <h3 data-nid="el-h3-2582" class="CardTitle">
+                  Phase 1: Compile-time Constant References
+                </h3>
+                <p data-nid="el-p-2584" class="Subtitle">
+                  Const values from other files can be used as token values. The compiler resolves them at build time with zero runtime cost.
+                </p>
+                <h4 data-nid="el-h4-2586" class="SectionTitle">
+                  Live Preview
+                </h4>
+                <div data-nid="el-div-2588" class="preview-row">
+                  <div data-nid="el-div-2589" class="demo-box">
+                    <span data-nid="el-span-2590" class="demo-label">
+                      radius var
+                    </span>
+                  </div>
+                  <div data-nid="el-div-2592" class="demo-shadow">
+                    <span data-nid="el-span-2593" class="demo-label">
+                      shadow var
+                    </span>
+                  </div>
+                  <div data-nid="el-div-2595" class="demo-spacer" style="width: var(--constSpacing)">
+                  </div>
+                </div>
+                <p data-nid="el-p-2596" class="Hint">
+                  These CSS vars are baked into :root at compile time. No JS needed.
+                </p>
+              </div>
+              <div data-nid="el-div-2598" class="Container">
+                <h3 data-nid="el-h3-2599" class="CardTitle">
+                  Phase 2: Runtime Signal References
+                </h3>
+                <p data-nid="el-p-2601" class="Subtitle">
+                  Store signals can be referenced in token values. The compiler generates a bridge that updates CSS when signals change.
+                </p>
+                <h4 data-nid="el-h4-2603" class="SectionTitle">
+                  Interactive Demo
+                </h4>
+                <p data-nid="el-p-2605" class="hint-text">
+                  Click a preset button to change the preview card in real-time.
+                </p>
+                <div data-nid="el-div-2607" class="preset-row">
+                  <button data-nid="el-button-2608" class="presetBtn">
+                    Indigo
+                  </button>
+                  <button data-nid="el-button-2610" class="presetBtn">
+                    Emerald
+                  </button>
+                  <button data-nid="el-button-2612" class="presetBtn">
+                    Crimson
+                  </button>
+                  <button data-nid="el-button-2614" class="presetBtn">
+                    Amber
+                  </button>
+                </div>
+                <div data-nid="el-div-2616" class="dyn-card" style="background: var(--dynBg); border: 2px solid var(--dynColor); border-radius: var(--constRadius)">
+                  <div data-nid="el-div-2617" class="dyn-swatch" style="background: var(--dynColor)">
+                  </div>
+                  <div data-nid="el-div-2618" class="dyn-info">
+                    <span data-nid="el-span-2619" class="dyn-label">
+                      Preset
+                    </span>
+                    <span data-nid="el-span-2621" class="dyn-value" style="color: var(--dynColor)">
+                      <span data-nid="el-interp-2622"></span>
+                    </span>
+                    <span data-nid="el-span-2624" class="dyn-label">
+                      Switches
+                    </span>
+                    <span data-nid="el-span-2626" class="dyn-count" style="color: var(--dynAccent)">
+                      <span data-nid="el-interp-2627"></span>
+                    </span>
+                    <span data-nid="el-span-2629" class="dyn-sig" style="color: var(--dynColor)">
+                      liveColor:
+                      <span data-nid="el-interp-2631"></span>
+                    </span>
+                  </div>
+                </div>
+                <p data-nid="el-p-2633" class="Hint">
+                  Colors come from CSS variables set via documentElement.style.setProperty.
+                </p>
+              </div>
+              <div data-nid="el-div-2635" class="Container">
+                <h3 data-nid="el-h3-2636" class="CardTitle">
+                  How It Works
+                </h3>
+                <div data-nid="el-div-2638" class="pipeline-grid">
+                  <div data-nid="el-div-2639" class="pipe-step">
+                    <h4 data-nid="el-h4-2640" class="pipe-title">
+                      Parser
+                    </h4>
+                    <p data-nid="el-p-2642" class="pipe-desc">
+                      Expression-first detection for token values.
+                    </p>
+                  </div>
+                  <div data-nid="el-div-2644" class="pipe-step">
+                    <h4 data-nid="el-h4-2645" class="pipe-title">
+                      Semantic
+                    </h4>
+                    <p data-nid="el-p-2647" class="pipe-desc">
+                      Reference resolution and type validation.
+                    </p>
+                  </div>
+                  <div data-nid="el-div-2649" class="pipe-step">
+                    <h4 data-nid="el-h4-2650" class="pipe-title">
+                      IR Lowering
+                    </h4>
+                    <p data-nid="el-p-2652" class="pipe-desc">
+                      Static tokens go to CSS, dynamic to JS bridge.
+                    </p>
+                  </div>
+                  <div data-nid="el-div-2654" class="pipe-step">
+                    <h4 data-nid="el-h4-2655" class="pipe-title">
+                      Codegen
+                    </h4>
+                    <p data-nid="el-p-2657" class="pipe-desc">
+                      CSS for static tokens, JS effect for dynamic.
+                    </p>
+                  </div>
+                </div>
+                <div data-nid="el-div-2659" class="rules-box">
+                  <h4 data-nid="el-h4-2660" class="rules-title">
+                    Key Rules
+                  </h4>
+                  <ul data-nid="el-ul-2662" class="rules-list">
+                    <li data-nid="el-li-2663">
+                      Dynamic tokens cannot have theme overrides.
+                    </li>
+                    <li data-nid="el-li-2665">
+                      Priority: setProperty then data-theme then :root.
+                    </li>
+                    <li data-nid="el-li-2667">
+                      Type must match: String for Color, int for Duration.
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </fragment>
+      </div>
+      <div data-nid="el-if-2669-b0" style="display:none">
+        <fragment data-nid="el-fragment-2670">
+          <div data-nid="el-CompilerPage-2671" data-component="CompilerPage">
+            <section data-nid="el-section-2672" class="DemoSection">
+              <div data-nid="el-div-2673" class="DemoFull">
+                <div data-nid="el-DataFetching-2674" data-component="DataFetching">
+                  <div data-nid="el-div-2675" class="Container">
+                    <h3 data-nid="el-h3-2676" class="CardTitle">
+                      HTTP GET Demo
+                    </h3>
+                    <p data-nid="el-p-2678" class="Subtitle">
+                      async action + await http_get + json_parse + match
+                    </p>
+                    <div data-nid="el-div-2680" class="controls">
+                      <input data-nid="el-input-2681" class="url-input" />
+                      <button data-nid="el-button-2682" class="Button primary md">
+                        Load
+                      </button>
+                      <button data-nid="el-button-2684" class="Button accent md">
+                        API
+                      </button>
+                      <button data-nid="el-button-2686" class="Button ghost md">
+                        Reset
+                      </button>
+                    </div>
+                    <div data-nid="el-if-2688-b0" style="display:none">
+                      <fragment data-nid="el-fragment-2689">
+                        <div data-nid="el-div-2690" class="status-box loading-box">
+                          <p data-nid="el-p-2691" class="loading-text">
+                            Loading data...
+                          </p>
+                        </div>
+                      </fragment>
+                    </div>
+                    <div data-nid="el-if-2688-b1" style="display:none">
+                      <fragment data-nid="el-fragment-2693">
+                        <div data-nid="el-div-2694" class="status-box success-box">
+                          <p data-nid="el-p-2695" class="Label">
+                            Response:
+                          </p>
+                          <pre data-nid="el-pre-2697" class="result">
+                            <span data-nid="el-interp-2698"></span>
+                          </pre>
+                        </div>
+                      </fragment>
+                    </div>
+                    <div data-nid="el-if-2688-b2" style="display:none">
+                      <fragment data-nid="el-fragment-2700">
+                        <div data-nid="el-div-2701" class="status-box error-box">
+                          <p data-nid="el-p-2702" class="Label">
+                            Error:
+                          </p>
+                          <p data-nid="el-p-2704" class="error-text">
+                            <span data-nid="el-interp-2705"></span>
+                          </p>
+                        </div>
+                      </fragment>
+                    </div>
+                    <div data-nid="el-if-2688-else" style="display:none">
+                      <fragment data-nid="el-fragment-2707">
+                        <div data-nid="el-div-2708" class="status-box idle-box">
+                          <p data-nid="el-p-2709" class="idle-text">
+                            Click Load for direct fetch, API to use api.omni
+                          </p>
+                        </div>
+                      </fragment>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div data-nid="el-div-2711" class="DemoFull">
+                <div data-nid="el-DataSubmit-2712" data-component="DataSubmit">
+                  <div data-nid="el-div-2713" class="data-submit">
+                    <h3 data-nid="el-h3-2714" class="title">
+                      HTTP POST Demo
+                    </h3>
+                    <p data-nid="el-p-2716" class="desc">
+                      json_stringify + http_post + await + match status
+                    </p>
+                    <div data-nid="el-div-2718" class="form">
+                      <label data-nid="el-label-2719" class="field-label">
+                        Title
+                      </label>
+                      <input data-nid="el-input-2721" placeholder="Enter title..." class="field-input" />
+                      <label data-nid="el-label-2722" class="field-label">
+                        Body
+                      </label>
+                      <textarea data-nid="el-textarea-2724" placeholder="Enter body..." rows="3" class="field-textarea">
+                      </textarea>
+                      <div data-nid="el-div-2725" class="btn-row">
+                        <button data-nid="el-button-2726" class="btn-submit">
+                          Submit
+                        </button>
+                        <button data-nid="el-button-2728" class="btn-reset">
+                          Reset
+                        </button>
+                      </div>
+                    </div>
+                    <div data-nid="el-if-2730-b0" style="display:none">
+                      <fragment data-nid="el-fragment-2731">
+                        <div data-nid="el-div-2732" class="status-box loading-box">
+                          <p data-nid="el-p-2733" class="loading-text">
+                            Submitting...
+                          </p>
+                        </div>
+                      </fragment>
+                    </div>
+                    <div data-nid="el-if-2730-b1" style="display:none">
+                      <fragment data-nid="el-fragment-2735">
+                        <div data-nid="el-div-2736" class="status-box success-box">
+                          <p data-nid="el-p-2737" class="label">
+                            Server Response:
+                          </p>
+                          <pre data-nid="el-pre-2739" class="result">
+                            <span data-nid="el-interp-2740"></span>
+                          </pre>
+                        </div>
+                      </fragment>
+                    </div>
+                    <div data-nid="el-if-2730-b2" style="display:none">
+                      <fragment data-nid="el-fragment-2742">
+                        <div data-nid="el-div-2743" class="status-box error-box">
+                          <p data-nid="el-p-2744" class="label">
+                            Error:
+                          </p>
+                          <p data-nid="el-p-2746" class="error-text">
+                            <span data-nid="el-interp-2747"></span>
+                          </p>
+                        </div>
+                      </fragment>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div data-nid="el-div-2749" class="DemoFull">
+                <div data-nid="el-UserSettings-2750" data-component="UserSettings">
+                  <div data-nid="el-div-2751" class="user-settings">
+                    <h3 data-nid="el-h3-2752" class="title">
+                      Storage Demo
+                    </h3>
+                    <p data-nid="el-p-2754" class="desc">
+                      storage get/set + json parse/stringify + mount
+                    </p>
+                    <div data-nid="el-div-2756" class="form">
+                      <label data-nid="el-label-2757" class="field-label">
+                        Username
+                      </label>
+                      <input data-nid="el-input-2759" placeholder="Your name..." class="field-input" />
+                      <div data-nid="el-div-2760" class="btn-row">
+                        <button data-nid="el-button-2761" class="btn-save">
+                          Save
+                        </button>
+                        <button data-nid="el-button-2763" class="btn-clear">
+                          Clear
+                        </button>
+                      </div>
+                    </div>
+                    <div data-nid="el-div-2765" class="info-bar">
+                      <p data-nid="el-p-2766" class="info-text">
+                        <span data-nid="el-interp-2767"></span>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </fragment>
+      </div>
     </div>
+    <footer data-nid="el-footer-2769" class="Footer">
+      <p data-nid="el-p-2770" class="FooterText">
+        OmniView 能力展示 · 9 domains · 4 themes · omnic run
+      </p>
+    </footer>
   </div>
 </div>
 `;
 
 
 /// ── Event Bindings & Reactive Effects ──
-function __ononPress_el_button_010() {
-  App_switchTab("home");
-}
-{ const el = __omni_el("el-button-010"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_010({}); }); }
-__omni_effect(() => { const el = __omni_el("el-button-010"); if (el) el.classList.toggle("tabActive", !!(App_isActive("home"))); });
+__omni_effect(() => { const el = __omni_el("el-interp-008"); if (el) try { el.textContent = String(ThemeStore_modeLabel.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+const TabBar_activeTab_el_TabBar_010 = __omni_signal("TabBar_activeTab_el_TabBar_010", "overview");
 function __ononPress_el_button_012() {
-  App_switchTab("todo");
+  TabBar_onSwitch("overview");
 }
-{ const el = __omni_el("el-button-012"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_012({}); }); }
-__omni_effect(() => { const el = __omni_el("el-button-012"); if (el) el.classList.toggle("tabActive", !!(App_isActive("todo"))); });
+{ const el = __omni_el("el-button-012"); if (el) el.addEventListener("click", (e) => { try {   __ononPress_el_button_012({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-button-012"); if (el) el.classList.toggle("tabActive", !!(TabBar_isActive("overview"))); });
 function __ononPress_el_button_014() {
-  App_switchTab("interactive");
+  TabBar_onSwitch("ui");
 }
-{ const el = __omni_el("el-button-014"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_014({}); }); }
-__omni_effect(() => { const el = __omni_el("el-button-014"); if (el) el.classList.toggle("tabActive", !!(App_isActive("interactive"))); });
+{ const el = __omni_el("el-button-014"); if (el) el.addEventListener("click", (e) => { try {   __ononPress_el_button_014({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-button-014"); if (el) el.classList.toggle("tabActive", !!(TabBar_isActive("ui"))); });
 function __ononPress_el_button_016() {
-  App_switchTab("compiler");
+  TabBar_onSwitch("motion");
 }
-{ const el = __omni_el("el-button-016"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_016({}); }); }
-__omni_effect(() => { const el = __omni_el("el-button-016"); if (el) el.classList.toggle("tabActive", !!(App_isActive("compiler"))); });
+{ const el = __omni_el("el-button-016"); if (el) el.addEventListener("click", (e) => { try {   __ononPress_el_button_016({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-button-016"); if (el) el.classList.toggle("tabActive", !!(TabBar_isActive("motion"))); });
 function __ononPress_el_button_018() {
-  App_switchTab("motion");
+  TabBar_onSwitch("design");
 }
-{ const el = __omni_el("el-button-018"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_018({}); }); }
-__omni_effect(() => { const el = __omni_el("el-button-018"); if (el) el.classList.toggle("tabActive", !!(App_isActive("motion"))); });
+{ const el = __omni_el("el-button-018"); if (el) el.addEventListener("click", (e) => { try {   __ononPress_el_button_018({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-button-018"); if (el) el.classList.toggle("tabActive", !!(TabBar_isActive("design"))); });
 function __ononPress_el_button_020() {
-  App_switchTab("css");
+  TabBar_onSwitch("state");
 }
-{ const el = __omni_el("el-button-020"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_020({}); }); }
-__omni_effect(() => { const el = __omni_el("el-button-020"); if (el) el.classList.toggle("tabActive", !!(App_isActive("css"))); });
+{ const el = __omni_el("el-button-020"); if (el) el.addEventListener("click", (e) => { try {   __ononPress_el_button_020({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-button-020"); if (el) el.classList.toggle("tabActive", !!(TabBar_isActive("state"))); });
 function __ononPress_el_button_022() {
-  App_switchTab("events");
+  TabBar_onSwitch("language");
 }
-{ const el = __omni_el("el-button-022"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_022({}); }); }
-__omni_effect(() => { const el = __omni_el("el-button-022"); if (el) el.classList.toggle("tabActive", !!(App_isActive("events"))); });
+{ const el = __omni_el("el-button-022"); if (el) el.addEventListener("click", (e) => { try {   __ononPress_el_button_022({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-button-022"); if (el) el.classList.toggle("tabActive", !!(TabBar_isActive("language"))); });
 function __ononPress_el_button_024() {
-  App_switchTab("language");
+  TabBar_onSwitch("ref");
 }
-{ const el = __omni_el("el-button-024"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_024({}); }); }
-__omni_effect(() => { const el = __omni_el("el-button-024"); if (el) el.classList.toggle("tabActive", !!(App_isActive("language"))); });
+{ const el = __omni_el("el-button-024"); if (el) el.addEventListener("click", (e) => { try {   __ononPress_el_button_024({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-button-024"); if (el) el.classList.toggle("tabActive", !!(TabBar_isActive("ref"))); });
 function __ononPress_el_button_026() {
-  App_switchTab("settings");
+  TabBar_onSwitch("compiler");
 }
-{ const el = __omni_el("el-button-026"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_026({}); }); }
-__omni_effect(() => { const el = __omni_el("el-button-026"); if (el) el.classList.toggle("tabActive", !!(App_isActive("settings"))); });
+{ const el = __omni_el("el-button-026"); if (el) el.addEventListener("click", (e) => { try {   __ononPress_el_button_026({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-button-026"); if (el) el.classList.toggle("tabActive", !!(TabBar_isActive("compiler"))); });
 function __ononPress_el_button_028() {
-  App_switchTab("supplement");
+  TabBar_onSwitch("tokens");
 }
-{ const el = __omni_el("el-button-028"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_028({}); }); }
-__omni_effect(() => { const el = __omni_el("el-button-028"); if (el) el.classList.toggle("tabActive", !!(App_isActive("supplement"))); });
-__omni_effect(() => { const el = __omni_el("el-interp-042"); if (el) try { el.textContent = String(Dashboard_totalItems.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-045"); if (el) try { el.textContent = String(Dashboard_lastUpdated.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-{ const el = __omni_el("el-button-047"); if (el) el.addEventListener("click", (e) => {   Dashboard_refresh({}); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-059"); if (el) try { el.textContent = String(StatsPanel_total.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-065"); if (el) try { el.textContent = String(StatsPanel_total.value > 0 ? "有" : "无"); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-070"); if (el) try { el.textContent = String(StatsPanel_total.value === 0 ? "开始添加第一个待办事项" : "已添加 " + format_count(StatsPanel_total.value) + " 个事项"); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { __omni_subs.get("StatsPanel_total").set(Dashboard_totalItems.value); });
-__omni_effect(() => { const el = __omni_el("el-interp-079"); if (el) try { el.textContent = String(StatsDashboard_MAX_ITEMS.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-086"); if (el) try { el.textContent = String(StatsDashboard_counter.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-089"); if (el) try { el.textContent = String(StatsDashboard_getModStatus()); } catch(e) { __omni_reportError("interpolation:text", e); } });
-{ const el = __omni_el("el-button-093"); if (el) el.addEventListener("click", (e) => {   StatsDashboard_addFive({}); }); }
-{ const el = __omni_el("el-button-095"); if (el) el.addEventListener("click", (e) => {   StatsDashboard_subThree({}); }); }
-{ const el = __omni_el("el-button-097"); if (el) el.addEventListener("click", (e) => {   StatsDashboard_double({}); }); }
-{ const el = __omni_el("el-button-099"); if (el) el.addEventListener("click", (e) => {   StatsDashboard_halve({}); }); }
-{ const el = __omni_el("el-button-101"); if (el) el.addEventListener("click", (e) => {   StatsDashboard_modThree({}); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-106"); if (el) try { el.textContent = String(Math.abs(StatsDashboard_counter.value)); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-109"); if (el) try { el.textContent = String(Math.sqrt(StatsDashboard_counter.value)); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-114"); if (el) try { el.textContent = String(StatsDashboard_randomValue.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-117"); if (el) try { el.textContent = String(Math.ceil(StatsDashboard_randomValue.value * 100)); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-120"); if (el) try { el.textContent = String(Math.floor(StatsDashboard_randomValue.value * 100)); } catch(e) { __omni_reportError("interpolation:text", e); } });
-{ const el = __omni_el("el-button-122"); if (el) el.addEventListener("click", (e) => {   StatsDashboard_rollDice({}); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-127"); if (el) try { el.textContent = String(StatsDashboard_getFirst()); } catch(e) { __omni_reportError("interpolation:text", e); } });
-{ const el = __omni_el("el-button-131"); if (el) el.addEventListener("click", (e) => {   StatsDashboard_removeContainer({}); }); }
-
-/// ── @if conditional el-if-129 ──
-__omni_effect(() => {
-  const _nids = ["el-if-129-b0"];
-  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { window.playBranchEnters(e); } } }); };
-  if (!StatsDashboard_removed.value) { _show("el-if-129-b0"); }
-  else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = "none"; }); }
-});
-__omni_effect(() => { const el = __omni_el("el-interp-142"); if (el) try { el.textContent = String(Counter_count.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-146"); if (el) try { el.textContent = String(Counter_doubled.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-149"); if (el) try { el.textContent = String(Counter_label.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-{ const el = __omni_el("el-button-152"); if (el) el.addEventListener("click", (e) => {   Counter_dec({}); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-156"); if (el) try { el.textContent = String(Counter_step.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-{ const el = __omni_el("el-button-158"); if (el) el.addEventListener("click", (e) => {   Counter_inc({}); }); }
-function __ononPress_el_button_161() {
-  __omni_subs.get("Counter_step").set(1);
+{ const el = __omni_el("el-button-028"); if (el) el.addEventListener("click", (e) => { try {   __ononPress_el_button_028({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-button-028"); if (el) el.classList.toggle("tabActive", !!(TabBar_isActive("tokens"))); });
+__omni_effect(() => { __omni_subs.get("TabBar_activeTab_el_TabBar_010").set(App_activeTab.value); });
+{ const el = __omni_el("el-TabBar-010"); if (el) el.addEventListener("switch", (e) => { try {   App_switchTab(e.detail); } catch(err) { __omni_reportError("error:event:switch", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-037"); if (el) try { el.textContent = String("\\u{1F680}"); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+const CapabilityCard_title_el_CapabilityCard_043 = __omni_signal("CapabilityCard_title_el_CapabilityCard_043", "");
+const CapabilityCard_tabName_el_CapabilityCard_043 = __omni_signal("CapabilityCard_tabName_el_CapabilityCard_043", "");
+const CapabilityCard_icon_el_CapabilityCard_043 = __omni_signal("CapabilityCard_icon_el_CapabilityCard_043", "🔧");
+const CapabilityCard_description_el_CapabilityCard_043 = __omni_signal("CapabilityCard_description_el_CapabilityCard_043", "");
+function __ononPress_el_div_044() {
+  Overview_onNavigate(CapabilityCard_tabName_el_CapabilityCard_043.value);
 }
-{ const el = __omni_el("el-button-161"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_161({}); }); }
-function __ononPress_el_button_163() {
-  __omni_subs.get("Counter_step").set(5);
+{ const el = __omni_el("el-div-044"); if (el) el.addEventListener("click", (e) => { try {   __ononPress_el_div_044({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-046"); if (el) try { el.textContent = String(CapabilityCard_icon_el_CapabilityCard_043.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-049"); if (el) try { el.textContent = String(CapabilityCard_title_el_CapabilityCard_043.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-052"); if (el) try { el.textContent = String(CapabilityCard_description_el_CapabilityCard_043.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { __omni_subs.get("CapabilityCard_title_el_CapabilityCard_043").set("UI Components"); });
+__omni_effect(() => { __omni_subs.get("CapabilityCard_tabName_el_CapabilityCard_043").set("ui"); });
+__omni_effect(() => { __omni_subs.get("CapabilityCard_icon_el_CapabilityCard_043").set("🎨"); });
+__omni_effect(() => { __omni_subs.get("CapabilityCard_description_el_CapabilityCard_043").set("Forms, modals, tables, todo app, notifications, slots, @for rendering"); });
+{ const el = __omni_el("el-CapabilityCard-043"); if (el) el.addEventListener("navigate", (e) => { try {   Overview_onNavigate(e.detail); } catch(err) { __omni_reportError("error:event:navigate", err); } }); }
+const CapabilityCard_title_el_CapabilityCard_056 = __omni_signal("CapabilityCard_title_el_CapabilityCard_056", "");
+const CapabilityCard_tabName_el_CapabilityCard_056 = __omni_signal("CapabilityCard_tabName_el_CapabilityCard_056", "");
+const CapabilityCard_icon_el_CapabilityCard_056 = __omni_signal("CapabilityCard_icon_el_CapabilityCard_056", "🔧");
+const CapabilityCard_description_el_CapabilityCard_056 = __omni_signal("CapabilityCard_description_el_CapabilityCard_056", "");
+function __ononPress_el_div_057() {
+  Overview_onNavigate(CapabilityCard_tabName_el_CapabilityCard_056.value);
 }
-{ const el = __omni_el("el-button-163"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_163({}); }); }
-function __ononPress_el_button_165() {
-  __omni_subs.get("Counter_step").set(10);
+{ const el = __omni_el("el-div-057"); if (el) el.addEventListener("click", (e) => { try {   __ononPress_el_div_057({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-059"); if (el) try { el.textContent = String(CapabilityCard_icon_el_CapabilityCard_056.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-062"); if (el) try { el.textContent = String(CapabilityCard_title_el_CapabilityCard_056.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-065"); if (el) try { el.textContent = String(CapabilityCard_description_el_CapabilityCard_056.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { __omni_subs.get("CapabilityCard_title_el_CapabilityCard_056").set("Motion & Animation"); });
+__omni_effect(() => { __omni_subs.get("CapabilityCard_tabName_el_CapabilityCard_056").set("motion"); });
+__omni_effect(() => { __omni_subs.get("CapabilityCard_icon_el_CapabilityCard_056").set("🎬"); });
+__omni_effect(() => { __omni_subs.get("CapabilityCard_description_el_CapabilityCard_056").set("Keyframes, easing, triggers, drag-and-drop, element refs, 60fps DOM"); });
+{ const el = __omni_el("el-CapabilityCard-056"); if (el) el.addEventListener("navigate", (e) => { try {   Overview_onNavigate(e.detail); } catch(err) { __omni_reportError("error:event:navigate", err); } }); }
+const CapabilityCard_title_el_CapabilityCard_069 = __omni_signal("CapabilityCard_title_el_CapabilityCard_069", "");
+const CapabilityCard_tabName_el_CapabilityCard_069 = __omni_signal("CapabilityCard_tabName_el_CapabilityCard_069", "");
+const CapabilityCard_icon_el_CapabilityCard_069 = __omni_signal("CapabilityCard_icon_el_CapabilityCard_069", "🔧");
+const CapabilityCard_description_el_CapabilityCard_069 = __omni_signal("CapabilityCard_description_el_CapabilityCard_069", "");
+function __ononPress_el_div_070() {
+  Overview_onNavigate(CapabilityCard_tabName_el_CapabilityCard_069.value);
 }
-{ const el = __omni_el("el-button-165"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_165({}); }); }
-{ const el = __omni_el("el-button-167"); if (el) el.addEventListener("click", (e) => {   Counter_reset({}); }); }
-{ const el = __omni_el("el-input-173"); if (el) el.addEventListener("blur", (e) => {   FeatureCard_handleBlur({}); }); }
-{ const el = __omni_el("el-input-173"); if (el) el.addEventListener("focus", (e) => {   FeatureCard_handleFocus({}); }); }
-let _guard_value_el_input_173 = false;
-{ const el = __omni_el("el-input-173"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_173) { __omni_subs.get("FeatureCard_status").set(e.target.value); } }); }
-__omni_effect(() => { const el = __omni_el("el-input-173"); if (el) { _guard_value_el_input_173 = true; el.value = __omni_subs.get("FeatureCard_status").value; _guard_value_el_input_173 = false; } });
-
-/// ── @if conditional el-if-174 ──
-__omni_effect(() => {
-  const _nids = ["el-if-174-b0", "el-if-174-b1", "el-if-174-b2", "el-if-174-else"];
-  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { window.playBranchEnters(e); } } }); };
-  if (FeatureCard_status.value === "focused") { _show("el-if-174-b0"); }
-  else if (FeatureCard_status.value === "blurred") { _show("el-if-174-b1"); }
-  else if (FeatureCard_status.value === "idle") { _show("el-if-174-b2"); }
-  else { _show("el-if-174-else"); }
-});
-__omni_effect(() => { const el = __omni_el("el-interp-189"); if (el) try { el.textContent = String(FeatureCard_getOriginX()); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-192"); if (el) try { el.textContent = String(FeatureCard_focusCount.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-{ const el = __omni_el("el-button-194"); if (el) el.addEventListener("click", (e) => {   FeatureCard_reset({}); }); }
-{ const el = __omni_el("el-div-199"); if (el) el.addEventListener("click", (e) => {   FeatureList_toggle({}); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-202"); if (el) try { el.textContent = String((FeatureList_features.value || []).length); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-206"); if (el) try { el.textContent = String(FeatureList_isOpen.value ? "^" : "v"); } catch(e) { __omni_reportError("interpolation:text", e); } });
-
-/// ── @for f in ... ──
-__omni_effect(() => {
-  const data = FeatureList_features.value;
-  const tpl = __omni_el("el-for-211-tpl");
-  const ctr = __omni_el("el-for-211-ctr");
-  if (!tpl || !ctr) return;
-  const parent = tpl.parentNode;
-  if (!parent) return;
-  // Clear existing rendered items
-  while (tpl.nextElementSibling && tpl.nextElementSibling !== ctr) {
-    parent.removeChild(tpl.nextElementSibling);
-  }
-  if (!data || data.length === 0) {
-    // Clone empty state template and insert before container marker
-    const emptyEl = __omni_el("el-for-211-empty");
-    if (emptyEl && emptyEl.content && emptyEl.content.firstElementChild) {
-      const emptyClone = emptyEl.content.firstElementChild.cloneNode(true);
-      emptyClone.setAttribute('data-for-empty', 'true');
-      parent.insertBefore(emptyClone, ctr);
-    }
-    return;
-  }
-  data.forEach((f, _idx) => {
-    var __root = tpl.content.firstElementChild;
-    var __cloneItem = function() {
-      if (!__root) return null;
-      if (__root.tagName === 'FRAGMENT') {
-        var __f = document.createDocumentFragment();
-        for (var __i = 0; __i < __root.children.length; __i++) __f.appendChild(__root.children[__i].cloneNode(true));
-        return __f;
-      }
-      return __root.cloneNode(true);
-    };
-    var clone = null;
-    clone = __cloneItem();
-    if (!clone) return;
-    // Mark first element with data-for-item
-    if (clone.nodeType === 11) { if (clone.firstElementChild) clone.firstElementChild.setAttribute('data-for-item', _idx); }
-    else { clone.setAttribute('data-for-item', _idx); }
-    // Pre-compiled text bindings
-    (function() {
-      var _el = clone.querySelector('[data-nid="el-interp-214"]');
-      if (_el) try { _el.textContent = String(f); } catch(e) { __omni_reportError("for:text", e); }
-    })();
-    // Initialize per-instance state for @for component instances
-    var _stateEls = [];
-    if (clone.matches && clone.matches('[data-for-state-names]')) _stateEls.push(clone);
-    clone.querySelectorAll('[data-for-state-names]').forEach(function(el) { _stateEls.push(el); });
-    _stateEls.forEach(function(_fc) {
-      if (!_fc.__omniState) {
-        _fc.__omniState = {};
-        var _snStr = _fc.getAttribute('data-for-state-names');
-        if (_snStr) {
-          _snStr.split(',').forEach(function(_sn) {
-            if (_sn) {
-              var _cn = _fc.getAttribute('data-component');
-              var _sig = __omni_subs.get(_cn + '_' + _sn);
-              if (_sig) _fc.__omniState[_sn] = _sig._default != null ? _sig._default : _sig.peek();
-            }
-          });
-        }
-      }
-    });
-    parent.insertBefore(clone, ctr);
-  });
-  // Pre-compiled rebind function: __omni_rebind_FeatureList_f
-  function __omni_rebind_FeatureList_f(comp) {
-    var _el = comp.querySelector('[data-nid="el-interp-214"]');
-    if (_el) try { _el.textContent = String(f); } catch(e) { __omni_reportError("for:rebind", e); }
-  }
-});
-
-/// ── @if conditional el-if-208 ──
-__omni_effect(() => {
-  const _nids = ["el-if-208-b0"];
-  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { window.playBranchEnters(e); } } }); };
-  if (FeatureList_isOpen.value) { _show("el-if-208-b0"); }
-  else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = "none"; }); }
-});
+{ const el = __omni_el("el-div-070"); if (el) el.addEventListener("click", (e) => { try {   __ononPress_el_div_070({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-072"); if (el) try { el.textContent = String(CapabilityCard_icon_el_CapabilityCard_069.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-075"); if (el) try { el.textContent = String(CapabilityCard_title_el_CapabilityCard_069.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-078"); if (el) try { el.textContent = String(CapabilityCard_description_el_CapabilityCard_069.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { __omni_subs.get("CapabilityCard_title_el_CapabilityCard_069").set("Design & Theme"); });
+__omni_effect(() => { __omni_subs.get("CapabilityCard_tabName_el_CapabilityCard_069").set("design"); });
+__omni_effect(() => { __omni_subs.get("CapabilityCard_icon_el_CapabilityCard_069").set("💅"); });
+__omni_effect(() => { __omni_subs.get("CapabilityCard_description_el_CapabilityCard_069").set("4 themes · N-theme @themes directive · CSS cascade · design tokens · variants"); });
+{ const el = __omni_el("el-CapabilityCard-069"); if (el) el.addEventListener("navigate", (e) => { try {   Overview_onNavigate(e.detail); } catch(err) { __omni_reportError("error:event:navigate", err); } }); }
+const CapabilityCard_title_el_CapabilityCard_082 = __omni_signal("CapabilityCard_title_el_CapabilityCard_082", "");
+const CapabilityCard_tabName_el_CapabilityCard_082 = __omni_signal("CapabilityCard_tabName_el_CapabilityCard_082", "");
+const CapabilityCard_icon_el_CapabilityCard_082 = __omni_signal("CapabilityCard_icon_el_CapabilityCard_082", "🔧");
+const CapabilityCard_description_el_CapabilityCard_082 = __omni_signal("CapabilityCard_description_el_CapabilityCard_082", "");
+function __ononPress_el_div_083() {
+  Overview_onNavigate(CapabilityCard_tabName_el_CapabilityCard_082.value);
+}
+{ const el = __omni_el("el-div-083"); if (el) el.addEventListener("click", (e) => { try {   __ononPress_el_div_083({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-085"); if (el) try { el.textContent = String(CapabilityCard_icon_el_CapabilityCard_082.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-088"); if (el) try { el.textContent = String(CapabilityCard_title_el_CapabilityCard_082.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-091"); if (el) try { el.textContent = String(CapabilityCard_description_el_CapabilityCard_082.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { __omni_subs.get("CapabilityCard_title_el_CapabilityCard_082").set("State & Signals"); });
+__omni_effect(() => { __omni_subs.get("CapabilityCard_tabName_el_CapabilityCard_082").set("state"); });
+__omni_effect(() => { __omni_subs.get("CapabilityCard_icon_el_CapabilityCard_082").set("⚡"); });
+__omni_effect(() => { __omni_subs.get("CapabilityCard_description_el_CapabilityCard_082").set("Signal reactivity, computed, @effect, stores (global/inline), bind:value"); });
+{ const el = __omni_el("el-CapabilityCard-082"); if (el) el.addEventListener("navigate", (e) => { try {   Overview_onNavigate(e.detail); } catch(err) { __omni_reportError("error:event:navigate", err); } }); }
+const CapabilityCard_title_el_CapabilityCard_095 = __omni_signal("CapabilityCard_title_el_CapabilityCard_095", "");
+const CapabilityCard_tabName_el_CapabilityCard_095 = __omni_signal("CapabilityCard_tabName_el_CapabilityCard_095", "");
+const CapabilityCard_icon_el_CapabilityCard_095 = __omni_signal("CapabilityCard_icon_el_CapabilityCard_095", "🔧");
+const CapabilityCard_description_el_CapabilityCard_095 = __omni_signal("CapabilityCard_description_el_CapabilityCard_095", "");
+function __ononPress_el_div_096() {
+  Overview_onNavigate(CapabilityCard_tabName_el_CapabilityCard_095.value);
+}
+{ const el = __omni_el("el-div-096"); if (el) el.addEventListener("click", (e) => { try {   __ononPress_el_div_096({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-098"); if (el) try { el.textContent = String(CapabilityCard_icon_el_CapabilityCard_095.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-101"); if (el) try { el.textContent = String(CapabilityCard_title_el_CapabilityCard_095.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-104"); if (el) try { el.textContent = String(CapabilityCard_description_el_CapabilityCard_095.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { __omni_subs.get("CapabilityCard_title_el_CapabilityCard_095").set("Language Features"); });
+__omni_effect(() => { __omni_subs.get("CapabilityCard_tabName_el_CapabilityCard_095").set("language"); });
+__omni_effect(() => { __omni_subs.get("CapabilityCard_icon_el_CapabilityCard_095").set("🔤"); });
+__omni_effect(() => { __omni_subs.get("CapabilityCard_description_el_CapabilityCard_095").set("Nullish, optional chaining, ternary, block expressions, type system, style pseudos"); });
+{ const el = __omni_el("el-CapabilityCard-095"); if (el) el.addEventListener("navigate", (e) => { try {   Overview_onNavigate(e.detail); } catch(err) { __omni_reportError("error:event:navigate", err); } }); }
+const CapabilityCard_title_el_CapabilityCard_108 = __omni_signal("CapabilityCard_title_el_CapabilityCard_108", "");
+const CapabilityCard_tabName_el_CapabilityCard_108 = __omni_signal("CapabilityCard_tabName_el_CapabilityCard_108", "");
+const CapabilityCard_icon_el_CapabilityCard_108 = __omni_signal("CapabilityCard_icon_el_CapabilityCard_108", "🔧");
+const CapabilityCard_description_el_CapabilityCard_108 = __omni_signal("CapabilityCard_description_el_CapabilityCard_108", "");
+function __ononPress_el_div_109() {
+  Overview_onNavigate(CapabilityCard_tabName_el_CapabilityCard_108.value);
+}
+{ const el = __omni_el("el-div-109"); if (el) el.addEventListener("click", (e) => { try {   __ononPress_el_div_109({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-111"); if (el) try { el.textContent = String(CapabilityCard_icon_el_CapabilityCard_108.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-114"); if (el) try { el.textContent = String(CapabilityCard_title_el_CapabilityCard_108.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-117"); if (el) try { el.textContent = String(CapabilityCard_description_el_CapabilityCard_108.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { __omni_subs.get("CapabilityCard_title_el_CapabilityCard_108").set("Element Ref"); });
+__omni_effect(() => { __omni_subs.get("CapabilityCard_tabName_el_CapabilityCard_108").set("ref"); });
+__omni_effect(() => { __omni_subs.get("CapabilityCard_icon_el_CapabilityCard_108").set("🔗"); });
+__omni_effect(() => { __omni_subs.get("CapabilityCard_description_el_CapabilityCard_108").set("Direct DOM access, .focus(), .scrollTo(), .getBoundingClientRect(), high-frequency drag"); });
+{ const el = __omni_el("el-CapabilityCard-108"); if (el) el.addEventListener("navigate", (e) => { try {   Overview_onNavigate(e.detail); } catch(err) { __omni_reportError("error:event:navigate", err); } }); }
+const CapabilityCard_title_el_CapabilityCard_121 = __omni_signal("CapabilityCard_title_el_CapabilityCard_121", "");
+const CapabilityCard_tabName_el_CapabilityCard_121 = __omni_signal("CapabilityCard_tabName_el_CapabilityCard_121", "");
+const CapabilityCard_icon_el_CapabilityCard_121 = __omni_signal("CapabilityCard_icon_el_CapabilityCard_121", "🔧");
+const CapabilityCard_description_el_CapabilityCard_121 = __omni_signal("CapabilityCard_description_el_CapabilityCard_121", "");
+function __ononPress_el_div_122() {
+  Overview_onNavigate(CapabilityCard_tabName_el_CapabilityCard_121.value);
+}
+{ const el = __omni_el("el-div-122"); if (el) el.addEventListener("click", (e) => { try {   __ononPress_el_div_122({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-124"); if (el) try { el.textContent = String(CapabilityCard_icon_el_CapabilityCard_121.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-127"); if (el) try { el.textContent = String(CapabilityCard_title_el_CapabilityCard_121.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-130"); if (el) try { el.textContent = String(CapabilityCard_description_el_CapabilityCard_121.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { __omni_subs.get("CapabilityCard_title_el_CapabilityCard_121").set("Compiler Features"); });
+__omni_effect(() => { __omni_subs.get("CapabilityCard_tabName_el_CapabilityCard_121").set("compiler"); });
+__omni_effect(() => { __omni_subs.get("CapabilityCard_icon_el_CapabilityCard_121").set("⚙️"); });
+__omni_effect(() => { __omni_subs.get("CapabilityCard_description_el_CapabilityCard_121").set("HTTP fetch, data submit, error handling, async patterns, user settings"); });
+{ const el = __omni_el("el-CapabilityCard-121"); if (el) el.addEventListener("navigate", (e) => { try {   Overview_onNavigate(e.detail); } catch(err) { __omni_reportError("error:event:navigate", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-152"); if (el) try { el.textContent = String(ThemeStore_toggleCount.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+{ const el = __omni_el("el-Overview-033"); if (el) el.addEventListener("navigate", (e) => { try {   App_switchTab(e.detail); } catch(err) { __omni_reportError("error:event:navigate", err); } }); }
 
 /// ── @if conditional el-if-031 ──
 __omni_effect(() => {
   const _nids = ["el-if-031-b0"];
-  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { window.playBranchEnters(e); } } }); };
-  if (App_activeTab.value === "home") { _show("el-if-031-b0"); }
+  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { e.querySelectorAll('[data-nid]').forEach(function(c) { var a = __omni_animations.get(c.getAttribute('data-nid') + '_enter'); if (a) { a.cancel(); a.play(); } }); } else { e.querySelectorAll('[data-nid]').forEach(function(c) { __omni_cleanupElement(c.getAttribute('data-nid')); }); } } }); };
+  if (App_activeTab.value === "overview") { _show("el-if-031-b0"); }
   else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = "none"; }); }
 });
-__omni_effect(() => { const el = __omni_el("el-interp-229"); if (el) try { el.textContent = String(TodoStore_totalCount.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-232"); if (el) try { el.textContent = String(TodoStore_filterStatus.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-236"); if (el) try { el.textContent = String(TodoPage_pageLoadCount.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-function __ononChange_el_input_242() {
-  __omni_subs.get("FilterBar_changeCount").set(FilterBar_changeCount.value + 1);
-  if (FilterBar_searchText.value === "") {
-  TodoStore_setFilter("all");
-  } else {
-  TodoStore_setFilter("urgent");
-  }
-}
-{ const el = __omni_el("el-input-242"); if (el) el.addEventListener("input", (e) => {   __ononChange_el_input_242({}); }); }
-let _guard_value_el_input_242 = false;
-{ const el = __omni_el("el-input-242"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_242) { __omni_subs.get("FilterBar_searchText").set(e.target.value); } }); }
-__omni_effect(() => { const el = __omni_el("el-input-242"); if (el) { _guard_value_el_input_242 = true; el.value = __omni_subs.get("FilterBar_searchText").value; _guard_value_el_input_242 = false; } });
-function __ononPress_el_button_243() {
-  __omni_subs.get("FilterBar_searchText").set("");
-  TodoStore_setFilter("all");
-}
-{ const el = __omni_el("el-button-243"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_243({}); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-247"); if (el) try { el.textContent = String(FilterBar_searchText.value === "" ? "Showing all " + String(TodoStore_totalCount.value) + " items" : "Filter: " + FilterBar_searchText.value + " (" + String(TodoStore_totalCount.value) + " total)"); } catch(e) { __omni_reportError("interpolation:text", e); } });
-{ const el = __omni_el("el-button-249"); if (el) el.addEventListener("click", (e) => {   FilterBar_handleSortToggle({}); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-251"); if (el) try { el.textContent = String(FilterBar_sortLabel.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-function __ononPress_el_button_253() {
-  TodoStore_fetchReminders();
-}
-{ const el = __omni_el("el-button-253"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_253({}); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-258"); if (el) try { el.textContent = String(TodoStore_totalCount.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-261"); if (el) try { el.textContent = String(TodoStore_filterStatus.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-264"); if (el) try { el.textContent = String(FilterBar_changeCount.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-268"); if (el) try { el.textContent = String(TodoStore_lastAction.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-272"); if (el) try { el.textContent = String((FilterBar_filteredFrameworks.value).length); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-275"); if (el) try { el.textContent = String((FilterBar_demoFrameworks.value).length); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-283"); if (el) try { el.textContent = String((TodoList_items.value || []).length); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-input-288"); if (el) el.setAttribute('placeholder', AddTodo_hint.value); });
-let _guard_value_el_input_288 = false;
-{ const el = __omni_el("el-input-288"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_288) { __omni_subs.get("AddTodo_input").set(e.target.value); } }); }
-__omni_effect(() => { const el = __omni_el("el-input-288"); if (el) { _guard_value_el_input_288 = true; el.value = __omni_subs.get("AddTodo_input").value; _guard_value_el_input_288 = false; } });
-{ const el = __omni_el("el-button-289"); if (el) el.addEventListener("click", (e) => {   AddTodo_handleAdd({}); }); }
-function __ononPress_el_button_291() {
-  __omni_subs.get("AddTodo_input").set("");
-}
-{ const el = __omni_el("el-button-291"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_291({}); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-295"); if (el) try { el.textContent = String((AddTodo_input.value || []).length); } catch(e) { __omni_reportError("interpolation:text", e); } });
-{ const el = __omni_el("el-AddTodo-285"); if (el) el.addEventListener("add", (e) => {   TodoList_handleAdd(e.detail); }); }
+__omni_effect(() => { const el = __omni_el("el-interp-167"); if (el) try { el.textContent = String(ValidationInput_getDefaultMessage()); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+let _guard_value_el_input_170 = false;
+{ const el = __omni_el("el-input-170"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_170) { __omni_subs.get("ValidationInput_input").set(e.target.value); } }); }
+__omni_effect(() => { const el = __omni_el("el-input-170"); if (el) { _guard_value_el_input_170 = true; el.value = __omni_subs.get("ValidationInput_input").value; _guard_value_el_input_170 = false; } });
+{ const el = __omni_el("el-button-171"); if (el) el.addEventListener("click", (e) => { try {   ValidationInput_handleValidate({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-172"); if (el) try { el.textContent = String(ValidationInput_isProcessing.value ? "..." : "Validate"); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+{ const el = __omni_el("el-button-174"); if (el) el.addEventListener("click", (e) => { try {   ValidationInput_handleClear({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-179"); if (el) try { el.textContent = String(ValidationInput_getStatusLabel()); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-182"); if (el) try { el.textContent = String(ValidationInput_result.value === "" ? "-" : ValidationInput_result.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-186"); if (el) try { el.textContent = String((ValidationInput_input.value || []).length); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-189"); if (el) try { el.textContent = String(ValidationInput_countEvenPositions(ValidationInput_input.value)); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-203"); if (el) try { el.textContent = String(Timer_count.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-208"); if (el) try { el.textContent = String(Timer_interval.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-211"); if (el) try { el.textContent = String(Timer_running.value ? "Running" : "Stopped"); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+{ const el = __omni_el("el-button-214"); if (el) el.addEventListener("click", (e) => { try {   Timer_start({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+{ const el = __omni_el("el-button-216"); if (el) el.addEventListener("click", (e) => { try {   Timer_stop({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+{ const el = __omni_el("el-button-218"); if (el) el.addEventListener("click", (e) => { try {   Timer_tick({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+{ const el = __omni_el("el-button-220"); if (el) el.addEventListener("click", (e) => { try {   Timer_reset({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+{ const el = __omni_el("el-button-223"); if (el) el.addEventListener("click", (e) => { try {   Timer_faster({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+{ const el = __omni_el("el-button-225"); if (el) el.addEventListener("click", (e) => { try {   Timer_slower({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+{ const el = __omni_el("el-button-231"); if (el) el.addEventListener("click", (e) => { try {   Modal_open({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-235"); if (el) try { el.textContent = String(Modal_lastAction.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-238"); if (el) try { el.textContent = String(Modal_isHovering.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+{ const el = __omni_el("el-div-242"); if (el) el.addEventListener("click", (e) => { try {   Modal_handleOverlayClick({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+{ const el = __omni_el("el-div-243"); if (el) el.addEventListener("mouseenter", (e) => { try {   Modal_handleMouseEnter({}); } catch(err) { __omni_reportError("error:event:mouseenter", err); } }); }
+{ const el = __omni_el("el-div-243"); if (el) el.addEventListener("mouseleave", (e) => { try {   Modal_handleMouseLeave({}); } catch(err) { __omni_reportError("error:event:mouseleave", err); } }); }
+{ const el = __omni_el("el-div-243"); if (el) el.addEventListener("keydown", (e) => { try {   Modal_handleKeyDown({ key: e.key ?? "" }); } catch(err) { __omni_reportError("error:event:keydown", err); } }); }
+{ const el = __omni_el("el-button-247"); if (el) el.addEventListener("click", (e) => { try {   Modal_close({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+{ const el = __omni_el("el-button-255"); if (el) el.addEventListener("click", (e) => { try {   Modal_close({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+{ const el = __omni_el("el-button-257"); if (el) el.addEventListener("click", (e) => { try {   Modal_close({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-div-243"); if (el) el.classList.toggle("hover", !!(Modal_isHovering.value)); });
+__omni_effect(() => { const el = __omni_el("el-div-242"); if (el) el.classList.toggle("visible", !!(Modal_isOpen.value)); });
+__omni_effect(() => { const el = __omni_el("el-div-242"); if (el) el.classList.toggle("hidden", !!(!Modal_isOpen.value)); });
 
-/// ── @for item in ... ──
+/// ── @if conditional el-if-240 ──
 __omni_effect(() => {
-  const data = TodoList_items.value;
-  const tpl = __omni_el("el-for-299-tpl");
-  const ctr = __omni_el("el-for-299-ctr");
-  if (!tpl || !ctr) return;
-  const parent = tpl.parentNode;
-  if (!parent) return;
-  // Clear existing rendered items
-  while (tpl.nextElementSibling && tpl.nextElementSibling !== ctr) {
-    parent.removeChild(tpl.nextElementSibling);
-  }
-  if (!data || data.length === 0) {
-    // Clone empty state template and insert before container marker
-    const emptyEl = __omni_el("el-for-299-empty");
-    if (emptyEl && emptyEl.content && emptyEl.content.firstElementChild) {
-      const emptyClone = emptyEl.content.firstElementChild.cloneNode(true);
-      emptyClone.setAttribute('data-for-empty', 'true');
-      parent.insertBefore(emptyClone, ctr);
-    }
-    return;
-  }
-  data.forEach((item, _idx) => {
-    var __root = tpl.content.firstElementChild;
-    var __cloneItem = function() {
-      if (!__root) return null;
-      if (__root.tagName === 'FRAGMENT') {
-        var __f = document.createDocumentFragment();
-        for (var __i = 0; __i < __root.children.length; __i++) __f.appendChild(__root.children[__i].cloneNode(true));
-        return __f;
-      }
-      return __root.cloneNode(true);
-    };
-    var clone = null;
-    clone = __cloneItem();
-    if (!clone) return;
-    // Mark first element with data-for-item
-    if (clone.nodeType === 11) { if (clone.firstElementChild) clone.firstElementChild.setAttribute('data-for-item', _idx); }
-    else { clone.setAttribute('data-for-item', _idx); }
-    // Pre-compiled text bindings
-    (function() {
-      var _el = clone.querySelector('[data-nid="el-interp-304"]');
-      if (_el) try { _el.textContent = String(item.text); } catch(e) { __omni_reportError("for:text", e); }
-    })();
-    // Initialize per-instance state for @for component instances
-    var _stateEls = [];
-    if (clone.matches && clone.matches('[data-for-state-names]')) _stateEls.push(clone);
-    clone.querySelectorAll('[data-for-state-names]').forEach(function(el) { _stateEls.push(el); });
-    _stateEls.forEach(function(_fc) {
-      if (!_fc.__omniState) {
-        _fc.__omniState = {};
-        var _snStr = _fc.getAttribute('data-for-state-names');
-        if (_snStr) {
-          _snStr.split(',').forEach(function(_sn) {
-            if (_sn) {
-              var _cn = _fc.getAttribute('data-component');
-              var _sig = __omni_subs.get(_cn + '_' + _sn);
-              if (_sig) _fc.__omniState[_sn] = _sig._default != null ? _sig._default : _sig.peek();
-            }
-          });
-        }
-      }
-    });
-    parent.insertBefore(clone, ctr);
-  });
-  if (!ctr.dataset.forEventsAttached) {
-    ctr.dataset.forEventsAttached = 'true';
-    const _eventKinds = {
-    };
-    function _extractEvent(kind, e) {
-      switch (kind) {
-        default: return {};
-      }
-    }
-    const _forHandle = (e) => {
-      const t = e.target.closest('[data-event-' + e.type + ']');
-      if (!t) return;
-      const attr = t.getAttribute('data-event-' + e.type);
-      if (!attr) return;
-      if (e.type === 'submit') e.preventDefault();
-      if (attr.startsWith('fn:')) {
-        const fn = __omni_forHandlers[attr.slice(3)];
-        // Before calling fn, restore per-instance state to global signal
-        // so the fn handler operates on the correct per-instance value
-        const _forComp = t.closest('[data-for-state-names]');
-        if (_forComp && _forComp.__omniState) {
-          var _stateNames = _forComp.getAttribute('data-for-state-names');
-          if (_stateNames) {
-            _stateNames.split(',').forEach(function(_sname) {
-              if (_sname && _sname in _forComp.__omniState) {
-                var _compName = _forComp.getAttribute('data-component');
-                var _sig = __omni_subs.get(_compName + '_' + _sname);
-                if (_sig) _sig.set(_forComp.__omniState[_sname]);
-              }
-            });
-          }
-        }
-        if (typeof fn === 'function') fn(_extractEvent(_eventKinds[e.type] || '', e));
-        // Sync global signals back to element-scoped state for @for component instances
-        if (_forComp) {
-          if (!_forComp.__omniState) _forComp.__omniState = {};
-          var _stateNames = _forComp.getAttribute('data-for-state-names');
-          if (_stateNames) {
-            _stateNames.split(',').forEach(function(_sname) {
-              if (_sname) {
-                var _compName = _forComp.getAttribute('data-component');
-                var _sig = __omni_subs.get(_compName + '_' + _sname);
-                if (_sig) _forComp.__omniState[_sname] = _sig.peek();
-              }
-            });
-          }
-          // Re-evaluate text bindings from element-scoped state (pre-compiled)
-          if (typeof __omni_rebind_TodoList_item === 'function') __omni_rebind_TodoList_item(_forComp);
-        }
-      } else if (attr.startsWith('store:')) {
-        const fn = __omni_forHandlers[attr.slice(6)];
-        if (typeof fn === 'function') fn();
-      }
-    };
-    ['delete'].forEach(function(evt) {
-      parent.addEventListener(evt, _forHandle);
-    });
-  }
-  // Pre-compiled rebind function: __omni_rebind_TodoList_item
-  function __omni_rebind_TodoList_item(comp) {
-    var _el = comp.querySelector('[data-nid="el-interp-304"]');
-    if (_el) try { _el.textContent = String(item.text); } catch(e) { __omni_reportError("for:rebind", e); }
-  }
-});
-__omni_effect(() => { __omni_subs.get("TodoList_items").set(TodoStore_items.value); });
-function __ononAdd_el_TodoList_278(text) {
-  TodoStore_add(text);
-}
-{ const el = __omni_el("el-TodoList-278"); if (el) el.addEventListener("add", (e) => {   __ononAdd_el_TodoList_278(e.detail); }); }
-function __ononDelete_el_TodoList_278(index) {
-  TodoStore_remove();
-}
-{ const el = __omni_el("el-TodoList-278"); if (el) el.addEventListener("delete", (e) => {   __ononDelete_el_TodoList_278(e.detail); }); }
-function __ononPress_el_button_311() {
-  TodoStore_clear();
-}
-{ const el = __omni_el("el-button-311"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_311({}); }); }
-function __ononPress_el_button_313() {
-  TodoStore_fetchReminders();
-}
-{ const el = __omni_el("el-button-313"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_313({}); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-317"); if (el) try { el.textContent = String(TodoStore_lastAction.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-
-/// ── @if conditional el-if-219 ──
-__omni_effect(() => {
-  const _nids = ["el-if-219-b0"];
-  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { window.playBranchEnters(e); } } }); };
-  if (App_activeTab.value === "todo") { _show("el-if-219-b0"); }
+  const _nids = ["el-if-240-b0"];
+  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { e.querySelectorAll('[data-nid]').forEach(function(c) { var a = __omni_animations.get(c.getAttribute('data-nid') + '_enter'); if (a) { a.cancel(); a.play(); } }); } else { e.querySelectorAll('[data-nid]').forEach(function(c) { __omni_cleanupElement(c.getAttribute('data-nid')); }); } } }); };
+  if (Modal_isOpen.value) { _show("el-if-240-b0"); }
   else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = "none"; }); }
 });
-let _guard_value_el_input_330 = false;
-{ const el = __omni_el("el-input-330"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_330) { __omni_subs.get("DataFetching_url").set(e.target.value); } }); }
-__omni_effect(() => { const el = __omni_el("el-input-330"); if (el) { _guard_value_el_input_330 = true; el.value = __omni_subs.get("DataFetching_url").value; _guard_value_el_input_330 = false; } });
-{ const el = __omni_el("el-button-331"); if (el) el.addEventListener("click", (e) => {   DataFetching_loadData({}); }); }
-{ const el = __omni_el("el-button-333"); if (el) el.addEventListener("click", (e) => {   DataFetching_loadViaApi({}); }); }
-{ const el = __omni_el("el-button-335"); if (el) el.addEventListener("click", (e) => {   DataFetching_reset({}); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-347"); if (el) try { el.textContent = String(DataFetching_resultText.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-354"); if (el) try { el.textContent = String(DataFetching_errorMsg.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-
-/// ── @if conditional el-if-337 ──
-__omni_effect(() => {
-  const _nids = ["el-if-337-b0", "el-if-337-b1", "el-if-337-b2", "el-if-337-else"];
-  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { window.playBranchEnters(e); } } }); };
-  if (DataFetching_status.value === "loading") { _show("el-if-337-b0"); }
-  else if (DataFetching_status.value === "success") { _show("el-if-337-b1"); }
-  else if (DataFetching_status.value === "error") { _show("el-if-337-b2"); }
-  else { _show("el-if-337-else"); }
-});
-let _guard_value_el_input_370 = false;
-{ const el = __omni_el("el-input-370"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_370) { __omni_subs.get("DataSubmit_title").set(e.target.value); } }); }
-__omni_effect(() => { const el = __omni_el("el-input-370"); if (el) { _guard_value_el_input_370 = true; el.value = __omni_subs.get("DataSubmit_title").value; _guard_value_el_input_370 = false; } });
-let _guard_value_el_textarea_373 = false;
-{ const el = __omni_el("el-textarea-373"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_textarea_373) { __omni_subs.get("DataSubmit_body").set(e.target.value); } }); }
-__omni_effect(() => { const el = __omni_el("el-textarea-373"); if (el) { _guard_value_el_textarea_373 = true; el.value = __omni_subs.get("DataSubmit_body").value; _guard_value_el_textarea_373 = false; } });
-{ const el = __omni_el("el-button-375"); if (el) el.addEventListener("click", (e) => {   DataSubmit_submitForm({}); }); }
-{ const el = __omni_el("el-button-377"); if (el) el.addEventListener("click", (e) => {   DataSubmit_reset({}); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-389"); if (el) try { el.textContent = String(DataSubmit_responseText.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-396"); if (el) try { el.textContent = String(DataSubmit_responseText.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-
-/// ── @if conditional el-if-379 ──
-__omni_effect(() => {
-  const _nids = ["el-if-379-b0", "el-if-379-b1", "el-if-379-b2"];
-  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { window.playBranchEnters(e); } } }); };
-  if (DataSubmit_submitStatus.value === "loading") { _show("el-if-379-b0"); }
-  else if (DataSubmit_submitStatus.value === "success") { _show("el-if-379-b1"); }
-  else if (DataSubmit_submitStatus.value === "error") { _show("el-if-379-b2"); }
-  else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = "none"; }); }
-});
-let _guard_value_el_input_408 = false;
-{ const el = __omni_el("el-input-408"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_408) { __omni_subs.get("UserSettings_username").set(e.target.value); } }); }
-__omni_effect(() => { const el = __omni_el("el-input-408"); if (el) { _guard_value_el_input_408 = true; el.value = __omni_subs.get("UserSettings_username").value; _guard_value_el_input_408 = false; } });
-{ const el = __omni_el("el-button-410"); if (el) el.addEventListener("click", (e) => {   UserSettings_saveSettings({}); }); }
-{ const el = __omni_el("el-button-412"); if (el) el.addEventListener("click", (e) => {   UserSettings_clearSettings({}); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-416"); if (el) try { el.textContent = String(UserSettings_savedText.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-
-/// ── @if conditional el-if-319 ──
-__omni_effect(() => {
-  const _nids = ["el-if-319-b0"];
-  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { window.playBranchEnters(e); } } }); };
-  if (App_activeTab.value === "compiler") { _show("el-if-319-b0"); }
-  else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = "none"; }); }
-});
-__omni_effect(() => { const el = __omni_el("el-interp-428"); if (el) try { el.textContent = String(ValidationInput_getDefaultMessage()); } catch(e) { __omni_reportError("interpolation:text", e); } });
-let _guard_value_el_input_431 = false;
-{ const el = __omni_el("el-input-431"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_431) { __omni_subs.get("ValidationInput_input").set(e.target.value); } }); }
-__omni_effect(() => { const el = __omni_el("el-input-431"); if (el) { _guard_value_el_input_431 = true; el.value = __omni_subs.get("ValidationInput_input").value; _guard_value_el_input_431 = false; } });
-{ const el = __omni_el("el-button-432"); if (el) el.addEventListener("click", (e) => {   ValidationInput_handleValidate({}); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-433"); if (el) try { el.textContent = String(ValidationInput_isProcessing.value ? "..." : "Validate"); } catch(e) { __omni_reportError("interpolation:text", e); } });
-{ const el = __omni_el("el-button-435"); if (el) el.addEventListener("click", (e) => {   ValidationInput_handleClear({}); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-440"); if (el) try { el.textContent = String(ValidationInput_getStatusLabel()); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-443"); if (el) try { el.textContent = String(ValidationInput_result.value === "" ? "-" : ValidationInput_result.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-447"); if (el) try { el.textContent = String((ValidationInput_input.value || []).length); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-450"); if (el) try { el.textContent = String(ValidationInput_countEvenPositions(ValidationInput_input.value)); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-464"); if (el) try { el.textContent = String(Timer_count.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-469"); if (el) try { el.textContent = String(Timer_interval.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-472"); if (el) try { el.textContent = String(Timer_running.value ? "Running" : "Stopped"); } catch(e) { __omni_reportError("interpolation:text", e); } });
-{ const el = __omni_el("el-button-475"); if (el) el.addEventListener("click", (e) => {   Timer_start({}); }); }
-{ const el = __omni_el("el-button-477"); if (el) el.addEventListener("click", (e) => {   Timer_stop({}); }); }
-{ const el = __omni_el("el-button-479"); if (el) el.addEventListener("click", (e) => {   Timer_tick({}); }); }
-{ const el = __omni_el("el-button-481"); if (el) el.addEventListener("click", (e) => {   Timer_reset({}); }); }
-{ const el = __omni_el("el-button-484"); if (el) el.addEventListener("click", (e) => {   Timer_faster({}); }); }
-{ const el = __omni_el("el-button-486"); if (el) el.addEventListener("click", (e) => {   Timer_slower({}); }); }
-{ const el = __omni_el("el-button-492"); if (el) el.addEventListener("click", (e) => {   Modal_open({}); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-496"); if (el) try { el.textContent = String(Modal_lastAction.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-499"); if (el) try { el.textContent = String(Modal_isHovering.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-{ const el = __omni_el("el-div-503"); if (el) el.addEventListener("click", (e) => {   Modal_handleOverlayClick({}); }); }
-{ const el = __omni_el("el-div-504"); if (el) el.addEventListener("mouseenter", (e) => {   Modal_handleMouseEnter({}); }); }
-{ const el = __omni_el("el-div-504"); if (el) el.addEventListener("mouseleave", (e) => {   Modal_handleMouseLeave({}); }); }
-{ const el = __omni_el("el-div-504"); if (el) el.addEventListener("keydown", (e) => {   Modal_handleKeyDown({ key: e.key ?? "" }); }); }
-{ const el = __omni_el("el-button-508"); if (el) el.addEventListener("click", (e) => {   Modal_close({}); }); }
-{ const el = __omni_el("el-button-516"); if (el) el.addEventListener("click", (e) => {   Modal_close({}); }); }
-{ const el = __omni_el("el-button-518"); if (el) el.addEventListener("click", (e) => {   Modal_close({}); }); }
-__omni_effect(() => { const el = __omni_el("el-div-504"); if (el) el.classList.toggle("hover", !!(Modal_isHovering.value)); });
-__omni_effect(() => { const el = __omni_el("el-div-503"); if (el) el.classList.toggle("visible", !!(Modal_isOpen.value)); });
-__omni_effect(() => { const el = __omni_el("el-div-503"); if (el) el.classList.toggle("hidden", !!(!Modal_isOpen.value)); });
-
-/// ── @if conditional el-if-501 ──
-__omni_effect(() => {
-  const _nids = ["el-if-501-b0"];
-  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { window.playBranchEnters(e); } } }); };
-  if (Modal_isOpen.value) { _show("el-if-501-b0"); }
-  else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = "none"; }); }
-});
-function __ononPress_el_button_524() {
+function __ononPress_el_button_263() {
   TabPanel_switchTo("home");
 }
-{ const el = __omni_el("el-button-524"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_524({}); }); }
-__omni_effect(() => { const el = __omni_el("el-button-524"); if (el) el.classList.toggle("active", !!(TabPanel_isActive("home"))); });
-function __ononPress_el_button_526() {
+{ const el = __omni_el("el-button-263"); if (el) el.addEventListener("click", (e) => { try {   __ononPress_el_button_263({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-button-263"); if (el) el.classList.toggle("active", !!(TabPanel_isActive("home"))); });
+function __ononPress_el_button_265() {
   TabPanel_switchTo("about");
 }
-{ const el = __omni_el("el-button-526"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_526({}); }); }
-__omni_effect(() => { const el = __omni_el("el-button-526"); if (el) el.classList.toggle("active", !!(TabPanel_isActive("about"))); });
-function __ononPress_el_button_528() {
+{ const el = __omni_el("el-button-265"); if (el) el.addEventListener("click", (e) => { try {   __ononPress_el_button_265({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-button-265"); if (el) el.classList.toggle("active", !!(TabPanel_isActive("about"))); });
+function __ononPress_el_button_267() {
   TabPanel_switchTo("settings");
 }
-{ const el = __omni_el("el-button-528"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_528({}); }); }
-__omni_effect(() => { const el = __omni_el("el-button-528"); if (el) el.classList.toggle("active", !!(TabPanel_isActive("settings"))); });
-__omni_effect(() => { const el = __omni_el("el-div-532"); if (el) el.style.borderLeft="5px solid " + TabPanel_activeStyle.value; });
-__omni_effect(() => { const el = __omni_el("el-div-541"); if (el) el.style.borderLeft="5px solid " + TabPanel_activeStyle.value; });
-__omni_effect(() => { const el = __omni_el("el-div-549"); if (el) el.style.borderLeft="5px solid " + TabPanel_activeStyle.value; });
-__omni_effect(() => { const el = __omni_el("el-interp-554"); if (el) try { el.textContent = String(TabPanel_activeTab.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-div-557"); if (el) el.style.borderLeft="5px solid " + TabPanel_activeStyle.value; });
+{ const el = __omni_el("el-button-267"); if (el) el.addEventListener("click", (e) => { try {   __ononPress_el_button_267({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-button-267"); if (el) el.classList.toggle("active", !!(TabPanel_isActive("settings"))); });
+__omni_effect(() => { const el = __omni_el("el-div-271"); if (el) el.style.borderLeft=__omni_sanitizeCss("5px solid " + TabPanel_activeStyle.value); });
+__omni_effect(() => { const el = __omni_el("el-div-280"); if (el) el.style.borderLeft=__omni_sanitizeCss("5px solid " + TabPanel_activeStyle.value); });
+__omni_effect(() => { const el = __omni_el("el-div-288"); if (el) el.style.borderLeft=__omni_sanitizeCss("5px solid " + TabPanel_activeStyle.value); });
+__omni_effect(() => { const el = __omni_el("el-interp-293"); if (el) try { el.textContent = String(TabPanel_activeTab.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-div-296"); if (el) el.style.borderLeft=__omni_sanitizeCss("5px solid " + TabPanel_activeStyle.value); });
 
-/// ── @if conditional el-if-530 ──
+/// ── @if conditional el-if-269 ──
 __omni_effect(() => {
-  const _nids = ["el-if-530-b0", "el-if-530-b1", "el-if-530-b2", "el-if-530-else"];
-  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { window.playBranchEnters(e); } } }); };
-  if (TabPanel_activeTab.value === "home") { _show("el-if-530-b0"); }
-  else if (TabPanel_activeTab.value === "about") { _show("el-if-530-b1"); }
-  else if (TabPanel_activeTab.value === "settings") { _show("el-if-530-b2"); }
-  else { _show("el-if-530-else"); }
+  const _nids = ["el-if-269-b0", "el-if-269-b1", "el-if-269-b2", "el-if-269-else"];
+  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { e.querySelectorAll('[data-nid]').forEach(function(c) { var a = __omni_animations.get(c.getAttribute('data-nid') + '_enter'); if (a) { a.cancel(); a.play(); } }); } else { e.querySelectorAll('[data-nid]').forEach(function(c) { __omni_cleanupElement(c.getAttribute('data-nid')); }); } } }); };
+  if (TabPanel_activeTab.value === "home") { _show("el-if-269-b0"); }
+  else if (TabPanel_activeTab.value === "about") { _show("el-if-269-b1"); }
+  else if (TabPanel_activeTab.value === "settings") { _show("el-if-269-b2"); }
+  else { _show("el-if-269-else"); }
 });
-__omni_effect(() => { const el = __omni_el("el-interp-571"); if (el) try { el.textContent = String(DataTable_scrollCount.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-575"); if (el) try { el.textContent = String(DataTable_getSortIcon()); } catch(e) { __omni_reportError("interpolation:text", e); } });
-{ const el = __omni_el("el-button-577"); if (el) el.addEventListener("click", (e) => {   DataTable_toggleSort({}); }); }
-{ const el = __omni_el("el-button-579"); if (el) el.addEventListener("click", (e) => {   DataTable_handleScroll({}); }); }
-{ const el = __omni_el("el-div-581"); if (el) el.addEventListener("scroll", (e) => {   DataTable_handleScroll({}); }); }
-__omni_effect(() => { const el = __omni_el("el-span-608"); if (el) el.style.color=DataTable_getScoreColor({"$signal":"row_score"}); });
+__omni_effect(() => { const el = __omni_el("el-interp-310"); if (el) try { el.textContent = String(DataTable_scrollCount.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-314"); if (el) try { el.textContent = String(DataTable_getSortIcon()); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+{ const el = __omni_el("el-button-316"); if (el) el.addEventListener("click", (e) => { try {   DataTable_toggleSort({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+{ const el = __omni_el("el-button-318"); if (el) el.addEventListener("click", (e) => { try {   DataTable_handleScroll({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+{ const el = __omni_el("el-div-320"); if (el) el.addEventListener("scroll", (e) => { try {   DataTable_handleScroll({}); } catch(err) { __omni_reportError("error:event:scroll", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-span-343"); if (el) el.classList.toggle("active", !!(row.status === "Active")); });
+__omni_effect(() => { const el = __omni_el("el-span-343"); if (el) el.classList.toggle("inactive", !!(row.status === "Inactive")); });
+__omni_effect(() => { const el = __omni_el("el-span-347"); if (el) el.style.color=__omni_sanitizeCss(DataTable_getScoreColor({"$signal":"row_score"})); });
 
 /// ── @for row in ... ──
 __omni_effect(() => {
   const data = DataTable_rows.value;
-  const tpl = __omni_el("el-for-594-tpl");
-  const ctr = __omni_el("el-for-594-ctr");
+  const tpl = __omni_el("el-for-333-tpl");
+  const ctr = __omni_el("el-for-333-ctr");
   if (!tpl || !ctr) return;
   const parent = tpl.parentNode;
   if (!parent) return;
@@ -9082,7 +7822,7 @@ __omni_effect(() => {
   }
   if (!data || data.length === 0) {
     // Clone empty state template and insert before container marker
-    const emptyEl = __omni_el("el-for-594-empty");
+    const emptyEl = __omni_el("el-for-333-empty");
     if (emptyEl && emptyEl.content && emptyEl.content.firstElementChild) {
       const emptyClone = emptyEl.content.firstElementChild.cloneNode(true);
       emptyClone.setAttribute('data-for-empty', 'true');
@@ -9090,6 +7830,7 @@ __omni_effect(() => {
     }
     return;
   }
+  var frag = document.createDocumentFragment();
   data.forEach((row, _idx) => {
     var __root = tpl.content.firstElementChild;
     var __cloneItem = function() {
@@ -9107,16 +7848,38 @@ __omni_effect(() => {
     // Mark first element with data-for-item
     if (clone.nodeType === 11) { if (clone.firstElementChild) clone.firstElementChild.setAttribute('data-for-item', _idx); }
     else { clone.setAttribute('data-for-item', _idx); }
+    // Assign unique nids per clone for motion trigger isolation
+    (function assignUniqueNids(el, idx) {
+      var nid = el.getAttribute('data-nid');
+      if (nid) {
+        var uniqueNid = nid + '_' + idx;
+        el.setAttribute('data-nid', uniqueNid);
+      }
+      el.querySelectorAll('[data-nid]').forEach(function(child) {
+        var childNid = child.getAttribute('data-nid');
+        if (childNid) {
+          child.setAttribute('data-nid', childNid + '_' + idx);
+        }
+      });
+    })(clone, _idx);
+    var _elCache = new Map();
+    (function cacheElements(el) {
+      var nid = el.getAttribute('data-nid');
+      if (nid) _elCache.set(nid, el);
+      el.querySelectorAll('[data-nid]').forEach(function(child) {
+        _elCache.set(child.getAttribute('data-nid'), child);
+      });
+    })(clone);
     // Pre-compiled text bindings
     (function() {
-      var _el = clone.querySelector('[data-nid="el-interp-598"]');
-      if (_el) try { _el.textContent = String(row.id); } catch(e) { __omni_reportError("for:text", e); }
-      var _el = clone.querySelector('[data-nid="el-interp-601"]');
-      if (_el) try { _el.textContent = String(row.name); } catch(e) { __omni_reportError("for:text", e); }
-      var _el = clone.querySelector('[data-nid="el-interp-605"]');
-      if (_el) try { _el.textContent = String(row.status); } catch(e) { __omni_reportError("for:text", e); }
-      var _el = clone.querySelector('[data-nid="el-interp-609"]');
-      if (_el) try { _el.textContent = String(row.score); } catch(e) { __omni_reportError("for:text", e); }
+      var _unid = "el-interp-337_" + _idx; var _el = _elCache.get(_unid); if (!_el) { _el = clone.querySelector('[data-nid="' + _unid + '"]'); if (_el) _elCache.set(_unid, _el); }
+      if (_el) try { _el.textContent = String(row.id); } catch(e) { __omni_reportError("warn:for:text", e); }
+      var _unid = "el-interp-340_" + _idx; var _el = _elCache.get(_unid); if (!_el) { _el = clone.querySelector('[data-nid="' + _unid + '"]'); if (_el) _elCache.set(_unid, _el); }
+      if (_el) try { _el.textContent = String(row.name); } catch(e) { __omni_reportError("warn:for:text", e); }
+      var _unid = "el-interp-344_" + _idx; var _el = _elCache.get(_unid); if (!_el) { _el = clone.querySelector('[data-nid="' + _unid + '"]'); if (_el) _elCache.set(_unid, _el); }
+      if (_el) try { _el.textContent = String(row.status); } catch(e) { __omni_reportError("warn:for:text", e); }
+      var _unid = "el-interp-348_" + _idx; var _el = _elCache.get(_unid); if (!_el) { _el = clone.querySelector('[data-nid="' + _unid + '"]'); if (_el) _elCache.set(_unid, _el); }
+      if (_el) try { _el.textContent = String(row.score); } catch(e) { __omni_reportError("warn:for:text", e); }
     })();
     // Initialize per-instance state for @for component instances
     var _stateEls = [];
@@ -9139,135 +7902,256 @@ __omni_effect(() => {
     });
     // Pre-compiled class bindings
     (function() {
-      var _el = clone.querySelector('[data-nid="el-span-604"]');
-      if (_el) try { _el.classList.toggle("active", !!(row.status === "Active")); } catch(e) { __omni_reportError("for:class", e); }
-      var _el = clone.querySelector('[data-nid="el-span-604"]');
-      if (_el) try { _el.classList.toggle("inactive", !!(row.status === "Inactive")); } catch(e) { __omni_reportError("for:class", e); }
+      var _unid = "el-span-343_" + _idx; var _el = _elCache.get(_unid); if (!_el) { _el = clone.querySelector('[data-nid="' + _unid + '"]'); if (_el) _elCache.set(_unid, _el); }
+      if (_el) try { _el.classList.toggle("active", !!(row.status === "Active")); } catch(e) { __omni_reportError("warn:for:class", e); }
+      var _unid = "el-span-343_" + _idx; var _el = _elCache.get(_unid); if (!_el) { _el = clone.querySelector('[data-nid="' + _unid + '"]'); if (_el) _elCache.set(_unid, _el); }
+      if (_el) try { _el.classList.toggle("inactive", !!(row.status === "Inactive")); } catch(e) { __omni_reportError("warn:for:class", e); }
     })();
-    parent.insertBefore(clone, ctr);
+    frag.appendChild(clone);
   });
+  parent.insertBefore(frag, ctr);
   // Pre-compiled rebind function: __omni_rebind_DataTable_row
   function __omni_rebind_DataTable_row(comp) {
-    var _el = comp.querySelector('[data-nid="el-interp-598"]');
-    if (_el) try { _el.textContent = String(row.id); } catch(e) { __omni_reportError("for:rebind", e); }
-    var _el = comp.querySelector('[data-nid="el-interp-601"]');
-    if (_el) try { _el.textContent = String(row.name); } catch(e) { __omni_reportError("for:rebind", e); }
-    var _el = comp.querySelector('[data-nid="el-interp-605"]');
-    if (_el) try { _el.textContent = String(row.status); } catch(e) { __omni_reportError("for:rebind", e); }
-    var _el = comp.querySelector('[data-nid="el-interp-609"]');
-    if (_el) try { _el.textContent = String(row.score); } catch(e) { __omni_reportError("for:rebind", e); }
+    var _el = comp.querySelector('[data-nid^="el-interp-337_"]') || comp.querySelector('[data-nid="el-interp-337"]');
+    if (_el) try { _el.textContent = String(row.id); } catch(e) { __omni_reportError("warn:for:rebind", e); }
+    var _el = comp.querySelector('[data-nid^="el-interp-340_"]') || comp.querySelector('[data-nid="el-interp-340"]');
+    if (_el) try { _el.textContent = String(row.name); } catch(e) { __omni_reportError("warn:for:rebind", e); }
+    var _el = comp.querySelector('[data-nid^="el-interp-344_"]') || comp.querySelector('[data-nid="el-interp-344"]');
+    if (_el) try { _el.textContent = String(row.status); } catch(e) { __omni_reportError("warn:for:rebind", e); }
+    var _el = comp.querySelector('[data-nid^="el-interp-348_"]') || comp.querySelector('[data-nid="el-interp-348"]');
+    if (_el) try { _el.textContent = String(row.score); } catch(e) { __omni_reportError("warn:for:rebind", e); }
   }
 });
-__omni_effect(() => { const el = __omni_el("el-interp-622"); if (el) try { el.textContent = String((DataTable_rows.value).length); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-627"); if (el) try { el.textContent = String((DataTable_getActiveRows()).length); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-632"); if (el) try { el.textContent = String(DataTable_scrollCount.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-641"); if (el) try { el.textContent = String(DataTable_getGradeForScore(95)); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-646"); if (el) try { el.textContent = String(DataTable_getGradeForScore(72)); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-651"); if (el) try { el.textContent = String(DataTable_getGradeForScore(59)); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-656"); if (el) try { el.textContent = String(DataTable_getBonusTotal()); } catch(e) { __omni_reportError("interpolation:text", e); } });
-{ const el = __omni_el("el-form-668"); if (el) el.addEventListener("submit", (e) => {   e.preventDefault(); FormPage_handleSubmit({}); }); }
-{ const el = __omni_el("el-input-672"); if (el) el.addEventListener("blur", (e) => {   FormPage_handleNameBlur({}); }); }
-{ const el = __omni_el("el-input-672"); if (el) el.addEventListener("focus", (e) => {   FormPage_handleNameFocus({}); }); }
-{ const el = __omni_el("el-input-672"); if (el) el.addEventListener("input", (e) => {   FormPage_handleNameChange({}); }); }
-let _guard_value_el_input_672 = false;
-{ const el = __omni_el("el-input-672"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_672) { __omni_subs.get("FormPage_name").set(e.target.value); } }); }
-__omni_effect(() => { const el = __omni_el("el-input-672"); if (el) { _guard_value_el_input_672 = true; el.value = __omni_subs.get("FormPage_name").value; _guard_value_el_input_672 = false; } });
-__omni_effect(() => { const el = __omni_el("el-interp-676"); if (el) try { el.textContent = String(FormPage_nameError.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-361"); if (el) try { el.textContent = String((DataTable_rows.value).length); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-366"); if (el) try { el.textContent = String((DataTable_getActiveRows()).length); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-371"); if (el) try { el.textContent = String(DataTable_scrollCount.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-380"); if (el) try { el.textContent = String(DataTable_getGradeForScore(95)); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-385"); if (el) try { el.textContent = String(DataTable_getGradeForScore(72)); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-390"); if (el) try { el.textContent = String(DataTable_getGradeForScore(59)); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-395"); if (el) try { el.textContent = String(DataTable_getBonusTotal()); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+{ const el = __omni_el("el-button-475"); if (el) el.addEventListener("click", (e) => { try {   SlotDefaultDemo_toggleContent({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-476"); if (el) try { el.textContent = String(SlotDefaultDemo_useCustomContent.value ? "Reset to Defaults" : "Provide Custom Content"); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
 
-/// ── @if conditional el-if-673 ──
+/// ── @if conditional el-if-479 ──
 __omni_effect(() => {
-  const _nids = ["el-if-673-b0"];
-  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { window.playBranchEnters(e); } } }); };
-  if (FormPage_nameError.value !== "") { _show("el-if-673-b0"); }
+  const _nids = ["el-if-479-b0", "el-if-479-else"];
+  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { e.querySelectorAll('[data-nid]').forEach(function(c) { var a = __omni_animations.get(c.getAttribute('data-nid') + '_enter'); if (a) { a.cancel(); a.play(); } }); } else { e.querySelectorAll('[data-nid]').forEach(function(c) { __omni_cleanupElement(c.getAttribute('data-nid')); }); } } }); };
+  if (SlotDefaultDemo_useCustomContent.value) { _show("el-if-479-b0"); }
+  else { _show("el-if-479-else"); }
+});
+function __ononInput_el_input_555() {
+  EventsDemo_addLog("input");
+}
+{ const el = __omni_el("el-input-555"); if (el) el.addEventListener("input", (e) => { try {   __ononInput_el_input_555({}); } catch(err) { __omni_reportError("error:event:input", err); } }); }
+function __ononPaste_el_input_555() {
+  EventsDemo_addLog("paste");
+}
+{ const el = __omni_el("el-input-555"); if (el) el.addEventListener("paste", (e) => { try {   __ononPaste_el_input_555({}); } catch(err) { __omni_reportError("error:event:paste", err); } }); }
+function __ononCopy_el_input_555() {
+  EventsDemo_addLog("copy");
+}
+{ const el = __omni_el("el-input-555"); if (el) el.addEventListener("copy", (e) => { try {   __ononCopy_el_input_555({}); } catch(err) { __omni_reportError("error:event:copy", err); } }); }
+function __ononKeyUp_el_input_555() {
+  EventsDemo_addLog("keyup");
+}
+{ const el = __omni_el("el-input-555"); if (el) el.addEventListener("keyup", (e) => { try {   __ononKeyUp_el_input_555({}); } catch(err) { __omni_reportError("error:event:keyup", err); } }); }
+function __ononCut_el_input_555() {
+  EventsDemo_addLog("cut");
+}
+{ const el = __omni_el("el-input-555"); if (el) el.addEventListener("cut", (e) => { try {   __ononCut_el_input_555({}); } catch(err) { __omni_reportError("error:event:cut", err); } }); }
+function __ononDoubleClick_el_div_559() {
+  EventsDemo_addLog("double-click");
+}
+{ const el = __omni_el("el-div-559"); if (el) el.addEventListener("doubleclick", (e) => { try {   __ononDoubleClick_el_div_559({}); } catch(err) { __omni_reportError("error:event:doubleclick", err); } }); }
+function __ononContextMenu_el_div_559() {
+  EventsDemo_addLog("context-menu");
+}
+{ const el = __omni_el("el-div-559"); if (el) el.addEventListener("contextmenu", (e) => { try {   __ononContextMenu_el_div_559({}); } catch(err) { __omni_reportError("error:event:contextmenu", err); } }); }
+function __ononDragOver_el_div_565() {
+  __omni_subs.get("EventsDemo_dragStatus").set("dragover");
+}
+{ const el = __omni_el("el-div-565"); if (el) el.addEventListener("dragover", (e) => { try {   __ononDragOver_el_div_565(e.detail); } catch(err) { __omni_reportError("error:event:dragover", err); } }); }
+function __ononDragEnd_el_div_565() {
+  __omni_subs.get("EventsDemo_dragStatus").set("ended");
+}
+{ const el = __omni_el("el-div-565"); if (el) el.addEventListener("dragend", (e) => { try {   __ononDragEnd_el_div_565({}); } catch(err) { __omni_reportError("error:event:dragend", err); } }); }
+function __ononDrop_el_div_565() {
+  __omni_subs.get("EventsDemo_dragStatus").set("dropped");
+}
+{ const el = __omni_el("el-div-565"); if (el) el.addEventListener("drop", (e) => { try {   __ononDrop_el_div_565({}); } catch(err) { __omni_reportError("error:event:drop", err); } }); }
+function __ononDragStart_el_div_565() {
+  __omni_subs.get("EventsDemo_dragStatus").set("dragging");
+}
+{ const el = __omni_el("el-div-565"); if (el) el.addEventListener("dragstart", (e) => { try {   __ononDragStart_el_div_565({}); } catch(err) { __omni_reportError("error:event:dragstart", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-568"); if (el) try { el.textContent = String(EventsDemo_dragStatus.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+function __ononTouchEnd_el_div_573() {
+  EventsDemo_addLog("touchend");
+}
+{ const el = __omni_el("el-div-573"); if (el) el.addEventListener("touchend", (e) => { try {   __ononTouchEnd_el_div_573({}); } catch(err) { __omni_reportError("error:event:touchend", err); } }); }
+function __ononTouchStart_el_div_573() {
+  EventsDemo_addLog("touchstart");
+}
+{ const el = __omni_el("el-div-573"); if (el) el.addEventListener("touchstart", (e) => { try {   __ononTouchStart_el_div_573({}); } catch(err) { __omni_reportError("error:event:touchstart", err); } }); }
+function __ononTouchMove_el_div_573() {
+  EventsDemo_addLog("touchmove");
+}
+{ const el = __omni_el("el-div-573"); if (el) el.addEventListener("touchmove", (e) => { try {   __ononTouchMove_el_div_573({}); } catch(err) { __omni_reportError("error:event:touchmove", err); } }); }
+{ const el = __omni_el("el-div-579"); if (el) el.addEventListener("wheel", (e) => { try {   EventsDemo_handleWheel({ deltaY: e.deltaY ?? 0 }); } catch(err) { __omni_reportError("error:event:wheel", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-582"); if (el) try { el.textContent = String(EventsDemo_wheelCount.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-585"); if (el) try { el.textContent = String(EventsDemo_deltaY.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+{ const el = __omni_el("el-div-590"); if (el) el.addEventListener("scroll", (e) => { try {   EventsDemo_handleScroll({ y: e.target?.scrollTop ?? 0 }); } catch(err) { __omni_reportError("error:event:scroll", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-593"); if (el) try { el.textContent = String(EventsDemo_scrollY.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-596"); if (el) try { el.textContent = String(EventsDemo_scrollCount.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+function __ononLoad_el_img_602() {
+  EventsDemo_addLog("img-loaded");
+}
+{ const el = __omni_el("el-img-602"); if (el) el.addEventListener("load", (e) => { try {   __ononLoad_el_img_602({}); } catch(err) { __omni_reportError("error:event:load", err); } }); }
+function __ononError_el_img_602() {
+  EventsDemo_addLog("img-error");
+}
+{ const el = __omni_el("el-img-602"); if (el) el.addEventListener("error", (e) => { try {   __ononError_el_img_602({}); } catch(err) { __omni_reportError("error:event:error", err); } }); }
+function __ononPause_el_div_603() {
+  __omni_subs.get("EventsDemo_mediaStatus").set("paused");
+}
+{ const el = __omni_el("el-div-603"); if (el) el.addEventListener("pause", (e) => { try {   __ononPause_el_div_603({}); } catch(err) { __omni_reportError("error:event:pause", err); } }); }
+function __ononEnded_el_div_603() {
+  __omni_subs.get("EventsDemo_mediaStatus").set("ended");
+}
+{ const el = __omni_el("el-div-603"); if (el) el.addEventListener("ended", (e) => { try {   __ononEnded_el_div_603({}); } catch(err) { __omni_reportError("error:event:ended", err); } }); }
+function __ononPlay_el_div_603() {
+  __omni_subs.get("EventsDemo_mediaStatus").set("playing");
+}
+{ const el = __omni_el("el-div-603"); if (el) el.addEventListener("play", (e) => { try {   __ononPlay_el_div_603({}); } catch(err) { __omni_reportError("error:event:play", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-606"); if (el) try { el.textContent = String(EventsDemo_mediaStatus.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+function __ononAnimationEnd_el_div_611() {
+  __omni_subs.get("EventsDemo_animStatus").set("anim-end");
+}
+{ const el = __omni_el("el-div-611"); if (el) el.addEventListener("animationend", (e) => { try {   __ononAnimationEnd_el_div_611({}); } catch(err) { __omni_reportError("error:event:animationend", err); } }); }
+function __ononAnimationIteration_el_div_611() {
+  __omni_subs.get("EventsDemo_animStatus").set("anim-iter");
+}
+{ const el = __omni_el("el-div-611"); if (el) el.addEventListener("animationiteration", (e) => { try {   __ononAnimationIteration_el_div_611({}); } catch(err) { __omni_reportError("error:event:animationiteration", err); } }); }
+function __ononAnimationStart_el_div_611() {
+  __omni_subs.get("EventsDemo_animStatus").set("anim-start");
+}
+{ const el = __omni_el("el-div-611"); if (el) el.addEventListener("animationstart", (e) => { try {   __ononAnimationStart_el_div_611({}); } catch(err) { __omni_reportError("error:event:animationstart", err); } }); }
+function __ononTransitionEnd_el_div_611() {
+  __omni_subs.get("EventsDemo_animStatus").set("trans-end");
+}
+{ const el = __omni_el("el-div-611"); if (el) el.addEventListener("transitionend", (e) => { try {   __ononTransitionEnd_el_div_611({}); } catch(err) { __omni_reportError("error:event:transitionend", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-614"); if (el) try { el.textContent = String(EventsDemo_animStatus.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+function __ononToggle_el_details_619() {
+  __omni_subs.get("EventsDemo_toggleCount").set(EventsDemo_toggleCount.value + 1);
+}
+{ const el = __omni_el("el-details-619"); if (el) el.addEventListener("toggle", (e) => { try {   __ononToggle_el_details_619({}); } catch(err) { __omni_reportError("error:event:toggle", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-622"); if (el) try { el.textContent = String(EventsDemo_toggleCount.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-632"); if (el) try { el.textContent = String((EventsDemo_eventLog.value || []).length); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+let _guard_value_el_input_708 = false;
+{ const el = __omni_el("el-input-708"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_708) { __omni_subs.get("EventsDemo_dragStatus").set(e.target.value); } }); }
+__omni_effect(() => { const el = __omni_el("el-input-708"); if (el) { _guard_value_el_input_708 = true; el.value = __omni_subs.get("EventsDemo_dragStatus").value; _guard_value_el_input_708 = false; } });
+{ const el = __omni_el("el-form-753"); if (el) el.addEventListener("submit", (e) => { try {   e.preventDefault(); FormPage_handleSubmit({}); } catch(err) { __omni_reportError("error:event:submit", err); } }); }
+{ const el = __omni_el("el-input-757"); if (el) el.addEventListener("blur", (e) => { try {   FormPage_handleNameBlur({}); } catch(err) { __omni_reportError("error:event:blur", err); } }); }
+{ const el = __omni_el("el-input-757"); if (el) el.addEventListener("focus", (e) => { try {   FormPage_handleNameFocus({}); } catch(err) { __omni_reportError("error:event:focus", err); } }); }
+{ const el = __omni_el("el-input-757"); if (el) el.addEventListener("input", (e) => { try {   FormPage_handleNameChange({}); } catch(err) { __omni_reportError("error:event:input", err); } }); }
+let _guard_value_el_input_757 = false;
+{ const el = __omni_el("el-input-757"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_757) { __omni_subs.get("FormPage_name").set(e.target.value); } }); }
+__omni_effect(() => { const el = __omni_el("el-input-757"); if (el) { _guard_value_el_input_757 = true; el.value = __omni_subs.get("FormPage_name").value; _guard_value_el_input_757 = false; } });
+__omni_effect(() => { const el = __omni_el("el-interp-761"); if (el) try { el.textContent = String(FormPage_nameError.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+
+/// ── @if conditional el-if-758 ──
+__omni_effect(() => {
+  const _nids = ["el-if-758-b0"];
+  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { e.querySelectorAll('[data-nid]').forEach(function(c) { var a = __omni_animations.get(c.getAttribute('data-nid') + '_enter'); if (a) { a.cancel(); a.play(); } }); } else { e.querySelectorAll('[data-nid]').forEach(function(c) { __omni_cleanupElement(c.getAttribute('data-nid')); }); } } }); };
+  if (FormPage_nameError.value !== "") { _show("el-if-758-b0"); }
   else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = "none"; }); }
 });
-{ const el = __omni_el("el-input-681"); if (el) el.addEventListener("blur", (e) => {   FormPage_handleEmailBlur({}); }); }
-{ const el = __omni_el("el-input-681"); if (el) el.addEventListener("focus", (e) => {   FormPage_handleEmailFocus({}); }); }
-{ const el = __omni_el("el-input-681"); if (el) el.addEventListener("input", (e) => {   FormPage_handleEmailChange({}); }); }
-let _guard_value_el_input_681 = false;
-{ const el = __omni_el("el-input-681"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_681) { __omni_subs.get("FormPage_email").set(e.target.value); } }); }
-__omni_effect(() => { const el = __omni_el("el-input-681"); if (el) { _guard_value_el_input_681 = true; el.value = __omni_subs.get("FormPage_email").value; _guard_value_el_input_681 = false; } });
-__omni_effect(() => { const el = __omni_el("el-interp-685"); if (el) try { el.textContent = String(FormPage_emailError.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
+{ const el = __omni_el("el-input-766"); if (el) el.addEventListener("blur", (e) => { try {   FormPage_handleEmailBlur({}); } catch(err) { __omni_reportError("error:event:blur", err); } }); }
+{ const el = __omni_el("el-input-766"); if (el) el.addEventListener("focus", (e) => { try {   FormPage_handleEmailFocus({}); } catch(err) { __omni_reportError("error:event:focus", err); } }); }
+{ const el = __omni_el("el-input-766"); if (el) el.addEventListener("input", (e) => { try {   FormPage_handleEmailChange({}); } catch(err) { __omni_reportError("error:event:input", err); } }); }
+let _guard_value_el_input_766 = false;
+{ const el = __omni_el("el-input-766"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_766) { __omni_subs.get("FormPage_email").set(e.target.value); } }); }
+__omni_effect(() => { const el = __omni_el("el-input-766"); if (el) { _guard_value_el_input_766 = true; el.value = __omni_subs.get("FormPage_email").value; _guard_value_el_input_766 = false; } });
+__omni_effect(() => { const el = __omni_el("el-interp-770"); if (el) try { el.textContent = String(FormPage_emailError.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
 
-/// ── @if conditional el-if-682 ──
+/// ── @if conditional el-if-767 ──
 __omni_effect(() => {
-  const _nids = ["el-if-682-b0"];
-  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { window.playBranchEnters(e); } } }); };
-  if (FormPage_emailError.value !== "") { _show("el-if-682-b0"); }
+  const _nids = ["el-if-767-b0"];
+  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { e.querySelectorAll('[data-nid]').forEach(function(c) { var a = __omni_animations.get(c.getAttribute('data-nid') + '_enter'); if (a) { a.cancel(); a.play(); } }); } else { e.querySelectorAll('[data-nid]').forEach(function(c) { __omni_cleanupElement(c.getAttribute('data-nid')); }); } } }); };
+  if (FormPage_emailError.value !== "") { _show("el-if-767-b0"); }
   else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = "none"; }); }
 });
-{ const el = __omni_el("el-textarea-690"); if (el) el.addEventListener("scroll", (e) => {   FormPage_handleScroll({}); }); }
-{ const el = __omni_el("el-textarea-690"); if (el) el.addEventListener("input", (e) => {   FormPage_handleMessageChange({}); }); }
-let _guard_value_el_textarea_690 = false;
-{ const el = __omni_el("el-textarea-690"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_textarea_690) { __omni_subs.get("FormPage_message").set(e.target.value); } }); }
-__omni_effect(() => { const el = __omni_el("el-textarea-690"); if (el) { _guard_value_el_textarea_690 = true; el.value = __omni_subs.get("FormPage_message").value; _guard_value_el_textarea_690 = false; } });
-let _guard_value_el_input_694 = false;
-{ const el = __omni_el("el-input-694"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_694) { __omni_subs.get("FormPage_name").set(e.target.value); } }); }
-__omni_effect(() => { const el = __omni_el("el-input-694"); if (el) { _guard_value_el_input_694 = true; el.value = __omni_subs.get("FormPage_name").value; _guard_value_el_input_694 = false; } });
-{ const el = __omni_el("el-div-699"); if (el) el.addEventListener("scroll", (e) => {   FormPage_handleScroll({}); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-702"); if (el) try { el.textContent = String(FormPage_scrollPos.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-717"); if (el) try { el.textContent = String(FormPage_getStatusText()); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-p-716"); if (el) el.classList.toggle("success", !!(FormPage_submitted.value)); });
-__omni_effect(() => { const el = __omni_el("el-interp-725"); if (el) try { el.textContent = String(FormPage_getTrimmedMessage()); } catch(e) { __omni_reportError("interpolation:text", e); } });
+{ const el = __omni_el("el-textarea-775"); if (el) el.addEventListener("scroll", (e) => { try {   FormPage_handleScroll({}); } catch(err) { __omni_reportError("error:event:scroll", err); } }); }
+{ const el = __omni_el("el-textarea-775"); if (el) el.addEventListener("input", (e) => { try {   FormPage_handleMessageChange({}); } catch(err) { __omni_reportError("error:event:input", err); } }); }
+let _guard_value_el_textarea_775 = false;
+{ const el = __omni_el("el-textarea-775"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_textarea_775) { __omni_subs.get("FormPage_message").set(e.target.value); } }); }
+__omni_effect(() => { const el = __omni_el("el-textarea-775"); if (el) { _guard_value_el_textarea_775 = true; el.value = __omni_subs.get("FormPage_message").value; _guard_value_el_textarea_775 = false; } });
+let _guard_value_el_input_779 = false;
+{ const el = __omni_el("el-input-779"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_779) { __omni_subs.get("FormPage_name").set(e.target.value); } }); }
+__omni_effect(() => { const el = __omni_el("el-input-779"); if (el) { _guard_value_el_input_779 = true; el.value = __omni_subs.get("FormPage_name").value; _guard_value_el_input_779 = false; } });
+{ const el = __omni_el("el-div-784"); if (el) el.addEventListener("scroll", (e) => { try {   FormPage_handleScroll({}); } catch(err) { __omni_reportError("error:event:scroll", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-787"); if (el) try { el.textContent = String(FormPage_scrollPos.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-802"); if (el) try { el.textContent = String(FormPage_getStatusText()); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-p-801"); if (el) el.classList.toggle("success", !!(FormPage_submitted.value)); });
+__omni_effect(() => { const el = __omni_el("el-interp-810"); if (el) try { el.textContent = String(FormPage_getTrimmedMessage()); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
 
-/// ── @if conditional el-if-719 ──
+/// ── @if conditional el-if-804 ──
 __omni_effect(() => {
-  const _nids = ["el-if-719-b0"];
-  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { window.playBranchEnters(e); } } }); };
-  if (FormPage_message.value !== "") { _show("el-if-719-b0"); }
+  const _nids = ["el-if-804-b0"];
+  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { e.querySelectorAll('[data-nid]').forEach(function(c) { var a = __omni_animations.get(c.getAttribute('data-nid') + '_enter'); if (a) { a.cancel(); a.play(); } }); } else { e.querySelectorAll('[data-nid]').forEach(function(c) { __omni_cleanupElement(c.getAttribute('data-nid')); }); } } }); };
+  if (FormPage_message.value !== "") { _show("el-if-804-b0"); }
   else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = "none"; }); }
 });
-{ const el = __omni_el("el-button-730"); if (el) el.addEventListener("click", (e) => {   FormPage_handleReset({}); }); }
-{ const el = __omni_el("el-button-733"); if (el) el.addEventListener("click", (e) => {   FormPage_handleSubmit({}); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-734"); if (el) try { el.textContent = String(FormPage_isFormValid() ? "Form is valid" : "Form incomplete"); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-741"); if (el) try { el.textContent = String(FormPage_focusField.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
+{ const el = __omni_el("el-button-815"); if (el) el.addEventListener("click", (e) => { try {   FormPage_handleReset({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+{ const el = __omni_el("el-button-818"); if (el) el.addEventListener("click", (e) => { try {   FormPage_handleSubmit({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-819"); if (el) try { el.textContent = String(FormPage_isFormValid() ? "Form is valid" : "Form incomplete"); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-826"); if (el) try { el.textContent = String(FormPage_focusField.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
 
-/// ── @if conditional el-if-736 ──
+/// ── @if conditional el-if-821 ──
 __omni_effect(() => {
-  const _nids = ["el-if-736-b0"];
-  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { window.playBranchEnters(e); } } }); };
-  if (FormPage_focusField.value !== "") { _show("el-if-736-b0"); }
+  const _nids = ["el-if-821-b0"];
+  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { e.querySelectorAll('[data-nid]').forEach(function(c) { var a = __omni_animations.get(c.getAttribute('data-nid') + '_enter'); if (a) { a.cancel(); a.play(); } }); } else { e.querySelectorAll('[data-nid]').forEach(function(c) { __omni_cleanupElement(c.getAttribute('data-nid')); }); } } }); };
+  if (FormPage_focusField.value !== "") { _show("el-if-821-b0"); }
   else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = "none"; }); }
 });
 
-/// ── @if conditional el-if-749 ──
+/// ── @if conditional el-if-834 ──
 __omni_effect(() => {
-  const _nids = ["el-if-749-b0"];
-  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { window.playBranchEnters(e); } } }); };
-  if (NotificationsPanel_badgeVisible.value) { _show("el-if-749-b0"); }
+  const _nids = ["el-if-834-b0"];
+  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { e.querySelectorAll('[data-nid]').forEach(function(c) { var a = __omni_animations.get(c.getAttribute('data-nid') + '_enter'); if (a) { a.cancel(); a.play(); } }); } else { e.querySelectorAll('[data-nid]').forEach(function(c) { __omni_cleanupElement(c.getAttribute('data-nid')); }); } } }); };
+  if (NotificationsPanel_badgeVisible.value) { _show("el-if-834-b0"); }
   else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = "none"; }); }
 });
-function __ononPress_el_button_754() {
+function __ononPress_el_button_839() {
   NotificationStore_add("Notification " + String(NotificationStore_unreadCount.value));
 }
-{ const el = __omni_el("el-button-754"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_754({}); }); }
-function __ononPress_el_button_756() {
+{ const el = __omni_el("el-button-839"); if (el) el.addEventListener("click", (e) => { try {   __ononPress_el_button_839({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+function __ononPress_el_button_841() {
   NotificationStore_removeLast();
 }
-{ const el = __omni_el("el-button-756"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_756({}); }); }
-function __ononPress_el_button_758() {
+{ const el = __omni_el("el-button-841"); if (el) el.addEventListener("click", (e) => { try {   __ononPress_el_button_841({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+function __ononPress_el_button_843() {
   NotificationStore_clear();
   __omni_subs.get("NotificationsPanel_badgeVisible").set(false);
 }
-{ const el = __omni_el("el-button-758"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_758({}); }); }
+{ const el = __omni_el("el-button-843"); if (el) el.addEventListener("click", (e) => { try {   __ononPress_el_button_843({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
 
-/// ── @if conditional el-if-762 ──
+/// ── @if conditional el-if-847 ──
 __omni_effect(() => {
-  const _nids = ["el-if-762-b0"];
-  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { window.playBranchEnters(e); } } }); };
-  if (NotificationStore_unreadCount.value === 0) { _show("el-if-762-b0"); }
+  const _nids = ["el-if-847-b0"];
+  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { e.querySelectorAll('[data-nid]').forEach(function(c) { var a = __omni_animations.get(c.getAttribute('data-nid') + '_enter'); if (a) { a.cancel(); a.play(); } }); } else { e.querySelectorAll('[data-nid]').forEach(function(c) { __omni_cleanupElement(c.getAttribute('data-nid')); }); } } }); };
+  if (NotificationStore_unreadCount.value === 0) { _show("el-if-847-b0"); }
   else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = "none"; }); }
 });
-function __ononPress_el_div_768() {
+function __ononPress_el_div_853() {
   __omni_subs.get("NotificationsPanel_badgeVisible").set(false);
 }
-__omni_forHandlers["__ononPress_el_div_768"] = __ononPress_el_div_768;
+__omni_forHandlers["__ononPress_el_div_853"] = __ononPress_el_div_853;
 
 /// ── @for item in ... ──
 __omni_effect(() => {
   const data = NotificationStore_notifications.value;
-  const tpl = __omni_el("el-for-766-tpl");
-  const ctr = __omni_el("el-for-766-ctr");
+  const tpl = __omni_el("el-for-851-tpl");
+  const ctr = __omni_el("el-for-851-ctr");
   if (!tpl || !ctr) return;
   const parent = tpl.parentNode;
   if (!parent) return;
@@ -9276,6 +8160,7 @@ __omni_effect(() => {
     parent.removeChild(tpl.nextElementSibling);
   }
   if (!data || data.length === 0) return;
+  var frag = document.createDocumentFragment();
   data.forEach((item, _idx) => {
     var __root = tpl.content.firstElementChild;
     var __cloneItem = function() {
@@ -9293,10 +8178,32 @@ __omni_effect(() => {
     // Mark first element with data-for-item
     if (clone.nodeType === 11) { if (clone.firstElementChild) clone.firstElementChild.setAttribute('data-for-item', _idx); }
     else { clone.setAttribute('data-for-item', _idx); }
+    // Assign unique nids per clone for motion trigger isolation
+    (function assignUniqueNids(el, idx) {
+      var nid = el.getAttribute('data-nid');
+      if (nid) {
+        var uniqueNid = nid + '_' + idx;
+        el.setAttribute('data-nid', uniqueNid);
+      }
+      el.querySelectorAll('[data-nid]').forEach(function(child) {
+        var childNid = child.getAttribute('data-nid');
+        if (childNid) {
+          child.setAttribute('data-nid', childNid + '_' + idx);
+        }
+      });
+    })(clone, _idx);
+    var _elCache = new Map();
+    (function cacheElements(el) {
+      var nid = el.getAttribute('data-nid');
+      if (nid) _elCache.set(nid, el);
+      el.querySelectorAll('[data-nid]').forEach(function(child) {
+        _elCache.set(child.getAttribute('data-nid'), child);
+      });
+    })(clone);
     // Pre-compiled text bindings
     (function() {
-      var _el = clone.querySelector('[data-nid="el-interp-771"]');
-      if (_el) try { _el.textContent = String(item); } catch(e) { __omni_reportError("for:text", e); }
+      var _unid = "el-interp-856_" + _idx; var _el = _elCache.get(_unid); if (!_el) { _el = clone.querySelector('[data-nid="' + _unid + '"]'); if (_el) _elCache.set(_unid, _el); }
+      if (_el) try { _el.textContent = String(item); } catch(e) { __omni_reportError("warn:for:text", e); }
     })();
     // Initialize per-instance state for @for component instances
     var _stateEls = [];
@@ -9317,8 +8224,9 @@ __omni_effect(() => {
         }
       }
     });
-    parent.insertBefore(clone, ctr);
+    frag.appendChild(clone);
   });
+  parent.insertBefore(frag, ctr);
   if (!ctr.dataset.forEventsAttached) {
     ctr.dataset.forEventsAttached = 'true';
     const _eventKinds = {
@@ -9327,7 +8235,7 @@ __omni_effect(() => {
     function _extractEvent(kind, e) {
       switch (kind) {
         case 'PointerEvent':
-          return { x: e.clientX ?? 0, y: e.clientY ?? 0, button: e.button ?? 0, pressure: e.pressure ?? 0, tiltX: e.tiltX ?? 0, tiltY: e.tiltY ?? 0, pointerType: e.pointerType ?? "", alt: e.altKey ?? false, ctrl: e.ctrlKey ?? false, shift: e.shiftKey ?? false, meta: e.metaKey ?? false };
+          return {};
         default: return {};
       }
     }
@@ -9336,9 +8244,12 @@ __omni_effect(() => {
       if (!t) return;
       const attr = t.getAttribute('data-event-' + e.type);
       if (!attr) return;
-      if (e.type === 'submit') e.preventDefault();
+      const _flags = attr.includes('|') ? attr.split('|').slice(1) : [];
+      if (_flags.includes('pd')) e.preventDefault();
+      if (_flags.includes('sp')) e.stopPropagation();
       if (attr.startsWith('fn:')) {
-        const fn = __omni_forHandlers[attr.slice(3)];
+        const fnKey = attr.includes('|') ? attr.slice(3, attr.indexOf('|')) : attr.slice(3);
+        const fn = __omni_forHandlers[fnKey];
         // Before calling fn, restore per-instance state to global signal
         // so the fn handler operates on the correct per-instance value
         const _forComp = t.closest('[data-for-state-names]');
@@ -9382,138 +8293,408 @@ __omni_effect(() => {
   }
   // Pre-compiled rebind function: __omni_rebind_NotificationsPanel_item
   function __omni_rebind_NotificationsPanel_item(comp) {
-    var _el = comp.querySelector('[data-nid="el-interp-771"]');
-    if (_el) try { _el.textContent = String(item); } catch(e) { __omni_reportError("for:rebind", e); }
+    var _el = comp.querySelector('[data-nid^="el-interp-856_"]') || comp.querySelector('[data-nid="el-interp-856"]');
+    if (_el) try { _el.textContent = String(item); } catch(e) { __omni_reportError("warn:for:rebind", e); }
   }
 });
-__omni_effect(() => { const el = __omni_el("el-interp-776"); if (el) try { el.textContent = String(NotificationStore_unreadCount.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-861"); if (el) try { el.textContent = String(NotificationStore_unreadCount.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-872"); if (el) try { el.textContent = String("{fnName(args)}"); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+function __ononClick_el_button_875() {
+  EventShorthand_greet("World");
+}
+{ const el = __omni_el("el-button-875"); if (el) el.addEventListener("click", (e) => { try {   __ononClick_el_button_875({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+function __ononClick_el_button_877() {
+  EventShorthand_farewell("World");
+}
+{ const el = __omni_el("el-button-877"); if (el) el.addEventListener("click", (e) => { try {   __ononClick_el_button_877({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-882"); if (el) try { el.textContent = String("{store.action}"); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+function __ononPress_el_button_885() {
+  NotificationStore_add("Hello from shorthand");
+}
+{ const el = __omni_el("el-button-885"); if (el) el.addEventListener("click", (e) => { try {   __ononPress_el_button_885({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+function __ononPress_el_button_887() {
+  NotificationStore_clear;
+}
+{ const el = __omni_el("el-button-887"); if (el) el.addEventListener("click", (e) => { try {   __ononPress_el_button_887({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+function __ononPress_el_button_893() {
+  __omni_subs.get("EventShorthand_msg").set("onPress");
+}
+{ const el = __omni_el("el-button-893"); if (el) el.addEventListener("click", (e) => { try {   __ononPress_el_button_893({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+function __ononPress_el_button_895() {
+  __omni_subs.get("EventShorthand_msg").set("@onPress");
+}
+{ const el = __omni_el("el-button-895"); if (el) el.addEventListener("click", (e) => { try {   __ononPress_el_button_895({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-899"); if (el) try { el.textContent = String(EventShorthand_msg.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-903"); if (el) try { el.textContent = String(EventShorthand_count.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-907"); if (el) try { el.textContent = String(NotificationStore_unreadCount.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+{ const el = __omni_el("el-button-909"); if (el) el.addEventListener("click", (e) => { try {   EventShorthand_reset({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-input-918"); if (el) try { el.setAttribute('placeholder', AddTodo_hint.value); } catch(e) { __omni_reportError("error:bind:attr:placeholder", e); } });
+let _guard_value_el_input_918 = false;
+{ const el = __omni_el("el-input-918"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_918) { __omni_subs.get("AddTodo_input").set(e.target.value); } }); }
+__omni_effect(() => { const el = __omni_el("el-input-918"); if (el) { _guard_value_el_input_918 = true; el.value = __omni_subs.get("AddTodo_input").value; _guard_value_el_input_918 = false; } });
+{ const el = __omni_el("el-button-919"); if (el) el.addEventListener("click", (e) => { try {   AddTodo_handleAdd({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+function __ononPress_el_button_921() {
+  __omni_subs.get("AddTodo_input").set("");
+}
+{ const el = __omni_el("el-button-921"); if (el) el.addEventListener("click", (e) => { try {   __ononPress_el_button_921({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-925"); if (el) try { el.textContent = String((AddTodo_input.value || []).length); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+function __ononChange_el_input_931() {
+  __omni_subs.get("FilterBar_changeCount").set(FilterBar_changeCount.value + 1);
+  if (FilterBar_searchText.value === "") {
+  TodoStore_setFilter("all");
+  } else {
+  TodoStore_setFilter("urgent");
+  }
+}
+{ const el = __omni_el("el-input-931"); if (el) el.addEventListener("input", (e) => { try {   __ononChange_el_input_931({}); } catch(err) { __omni_reportError("error:event:input", err); } }); }
+let _guard_value_el_input_931 = false;
+{ const el = __omni_el("el-input-931"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_931) { __omni_subs.get("FilterBar_searchText").set(e.target.value); } }); }
+__omni_effect(() => { const el = __omni_el("el-input-931"); if (el) { _guard_value_el_input_931 = true; el.value = __omni_subs.get("FilterBar_searchText").value; _guard_value_el_input_931 = false; } });
+function __ononPress_el_button_932() {
+  __omni_subs.get("FilterBar_searchText").set("");
+  TodoStore_setFilter("all");
+}
+{ const el = __omni_el("el-button-932"); if (el) el.addEventListener("click", (e) => { try {   __ononPress_el_button_932({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-936"); if (el) try { el.textContent = String(FilterBar_searchText.value === "" ? "Showing all " + String(TodoStore_totalCount.value) + " items" : "Filter: " + FilterBar_searchText.value + " (" + String(TodoStore_totalCount.value) + " total)"); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+{ const el = __omni_el("el-button-938"); if (el) el.addEventListener("click", (e) => { try {   FilterBar_handleSortToggle({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-940"); if (el) try { el.textContent = String(FilterBar_sortLabel.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+function __ononPress_el_button_942() {
+  TodoStore_fetchReminders();
+}
+{ const el = __omni_el("el-button-942"); if (el) el.addEventListener("click", (e) => { try {   __ononPress_el_button_942({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-947"); if (el) try { el.textContent = String(TodoStore_totalCount.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-950"); if (el) try { el.textContent = String(TodoStore_filterStatus.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-953"); if (el) try { el.textContent = String(FilterBar_changeCount.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-957"); if (el) try { el.textContent = String(TodoStore_lastAction.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-961"); if (el) try { el.textContent = String((FilterBar_filteredFrameworks.value).length); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-964"); if (el) try { el.textContent = String((FilterBar_demoFrameworks.value).length); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+const TodoList_items_el_TodoList_967 = __omni_signal("TodoList_items_el_TodoList_967", []);
+__omni_effect(() => { const el = __omni_el("el-interp-972"); if (el) try { el.textContent = String((TodoList_items_el_TodoList_967.value || []).length); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-input-977"); if (el) try { el.setAttribute('placeholder', AddTodo_hint.value); } catch(e) { __omni_reportError("error:bind:attr:placeholder", e); } });
+let _guard_value_el_input_977 = false;
+{ const el = __omni_el("el-input-977"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_977) { __omni_subs.get("AddTodo_input").set(e.target.value); } }); }
+__omni_effect(() => { const el = __omni_el("el-input-977"); if (el) { _guard_value_el_input_977 = true; el.value = __omni_subs.get("AddTodo_input").value; _guard_value_el_input_977 = false; } });
+{ const el = __omni_el("el-button-978"); if (el) el.addEventListener("click", (e) => { try {   AddTodo_handleAdd({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+function __ononPress_el_button_980() {
+  __omni_subs.get("AddTodo_input").set("");
+}
+{ const el = __omni_el("el-button-980"); if (el) el.addEventListener("click", (e) => { try {   __ononPress_el_button_980({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-984"); if (el) try { el.textContent = String((AddTodo_input.value || []).length); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+{ const el = __omni_el("el-AddTodo-974"); if (el) el.addEventListener("add", (e) => { try {   TodoList_handleAdd(e.detail); } catch(err) { __omni_reportError("error:event:add", err); } }); }
 
-/// ── @if conditional el-if-418 ──
+/// ── @for item in ... ──
 __omni_effect(() => {
-  const _nids = ["el-if-418-b0"];
-  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { window.playBranchEnters(e); } } }); };
-  if (App_activeTab.value === "interactive") { _show("el-if-418-b0"); }
+  const data = TodoList_items_el_TodoList_967.value;
+  const tpl = __omni_el("el-for-988-tpl");
+  const ctr = __omni_el("el-for-988-ctr");
+  if (!tpl || !ctr) return;
+  const parent = tpl.parentNode;
+  if (!parent) return;
+  // Clear existing rendered items
+  while (tpl.nextElementSibling && tpl.nextElementSibling !== ctr) {
+    parent.removeChild(tpl.nextElementSibling);
+  }
+  if (!data || data.length === 0) {
+    // Clone empty state template and insert before container marker
+    const emptyEl = __omni_el("el-for-988-empty");
+    if (emptyEl && emptyEl.content && emptyEl.content.firstElementChild) {
+      const emptyClone = emptyEl.content.firstElementChild.cloneNode(true);
+      emptyClone.setAttribute('data-for-empty', 'true');
+      parent.insertBefore(emptyClone, ctr);
+    }
+    return;
+  }
+  var frag = document.createDocumentFragment();
+  data.forEach((item, _idx) => {
+    var __root = tpl.content.firstElementChild;
+    var __cloneItem = function() {
+      if (!__root) return null;
+      if (__root.tagName === 'FRAGMENT') {
+        var __f = document.createDocumentFragment();
+        for (var __i = 0; __i < __root.children.length; __i++) __f.appendChild(__root.children[__i].cloneNode(true));
+        return __f;
+      }
+      return __root.cloneNode(true);
+    };
+    var clone = null;
+    clone = __cloneItem();
+    if (!clone) return;
+    // Mark first element with data-for-item
+    if (clone.nodeType === 11) { if (clone.firstElementChild) clone.firstElementChild.setAttribute('data-for-item', _idx); }
+    else { clone.setAttribute('data-for-item', _idx); }
+    // Assign unique nids per clone for motion trigger isolation
+    (function assignUniqueNids(el, idx) {
+      var nid = el.getAttribute('data-nid');
+      if (nid) {
+        var uniqueNid = nid + '_' + idx;
+        el.setAttribute('data-nid', uniqueNid);
+      }
+      el.querySelectorAll('[data-nid]').forEach(function(child) {
+        var childNid = child.getAttribute('data-nid');
+        if (childNid) {
+          child.setAttribute('data-nid', childNid + '_' + idx);
+        }
+      });
+    })(clone, _idx);
+    var _elCache = new Map();
+    (function cacheElements(el) {
+      var nid = el.getAttribute('data-nid');
+      if (nid) _elCache.set(nid, el);
+      el.querySelectorAll('[data-nid]').forEach(function(child) {
+        _elCache.set(child.getAttribute('data-nid'), child);
+      });
+    })(clone);
+    // Pre-compiled text bindings
+    (function() {
+      var _unid = "el-interp-993_" + _idx; var _el = _elCache.get(_unid); if (!_el) { _el = clone.querySelector('[data-nid="' + _unid + '"]'); if (_el) _elCache.set(_unid, _el); }
+      if (_el) try { _el.textContent = String(item.text); } catch(e) { __omni_reportError("warn:for:text", e); }
+    })();
+    // Initialize per-instance state for @for component instances
+    var _stateEls = [];
+    if (clone.matches && clone.matches('[data-for-state-names]')) _stateEls.push(clone);
+    clone.querySelectorAll('[data-for-state-names]').forEach(function(el) { _stateEls.push(el); });
+    _stateEls.forEach(function(_fc) {
+      if (!_fc.__omniState) {
+        _fc.__omniState = {};
+        var _snStr = _fc.getAttribute('data-for-state-names');
+        if (_snStr) {
+          _snStr.split(',').forEach(function(_sn) {
+            if (_sn) {
+              var _cn = _fc.getAttribute('data-component');
+              var _sig = __omni_subs.get(_cn + '_' + _sn);
+              if (_sig) _fc.__omniState[_sn] = _sig._default != null ? _sig._default : _sig.peek();
+            }
+          });
+        }
+      }
+    });
+    frag.appendChild(clone);
+  });
+  parent.insertBefore(frag, ctr);
+  if (!ctr.dataset.forEventsAttached) {
+    ctr.dataset.forEventsAttached = 'true';
+    const _eventKinds = {
+    };
+    function _extractEvent(kind, e) {
+      switch (kind) {
+        default: return {};
+      }
+    }
+    const _forHandle = (e) => {
+      const t = e.target.closest('[data-event-' + e.type + ']');
+      if (!t) return;
+      const attr = t.getAttribute('data-event-' + e.type);
+      if (!attr) return;
+      const _flags = attr.includes('|') ? attr.split('|').slice(1) : [];
+      if (_flags.includes('pd')) e.preventDefault();
+      if (_flags.includes('sp')) e.stopPropagation();
+      if (attr.startsWith('fn:')) {
+        const fnKey = attr.includes('|') ? attr.slice(3, attr.indexOf('|')) : attr.slice(3);
+        const fn = __omni_forHandlers[fnKey];
+        // Before calling fn, restore per-instance state to global signal
+        // so the fn handler operates on the correct per-instance value
+        const _forComp = t.closest('[data-for-state-names]');
+        if (_forComp && _forComp.__omniState) {
+          var _stateNames = _forComp.getAttribute('data-for-state-names');
+          if (_stateNames) {
+            _stateNames.split(',').forEach(function(_sname) {
+              if (_sname && _sname in _forComp.__omniState) {
+                var _compName = _forComp.getAttribute('data-component');
+                var _sig = __omni_subs.get(_compName + '_' + _sname);
+                if (_sig) _sig.set(_forComp.__omniState[_sname]);
+              }
+            });
+          }
+        }
+        if (typeof fn === 'function') fn(_extractEvent(_eventKinds[e.type] || '', e));
+        // Sync global signals back to element-scoped state for @for component instances
+        if (_forComp) {
+          if (!_forComp.__omniState) _forComp.__omniState = {};
+          var _stateNames = _forComp.getAttribute('data-for-state-names');
+          if (_stateNames) {
+            _stateNames.split(',').forEach(function(_sname) {
+              if (_sname) {
+                var _compName = _forComp.getAttribute('data-component');
+                var _sig = __omni_subs.get(_compName + '_' + _sname);
+                if (_sig) _forComp.__omniState[_sname] = _sig.peek();
+              }
+            });
+          }
+          // Re-evaluate text bindings from element-scoped state (pre-compiled)
+          if (typeof __omni_rebind_TodoList_item === 'function') __omni_rebind_TodoList_item(_forComp);
+        }
+      } else if (attr.startsWith('store:')) {
+        const fn = __omni_forHandlers[attr.slice(6)];
+        if (typeof fn === 'function') fn();
+      }
+    };
+    ['delete'].forEach(function(evt) {
+      parent.addEventListener(evt, _forHandle);
+    });
+  }
+  // Pre-compiled rebind function: __omni_rebind_TodoList_item
+  function __omni_rebind_TodoList_item(comp) {
+    var _el = comp.querySelector('[data-nid^="el-interp-993_"]') || comp.querySelector('[data-nid="el-interp-993"]');
+    if (_el) try { _el.textContent = String(item.text); } catch(e) { __omni_reportError("warn:for:rebind", e); }
+  }
+});
+__omni_effect(() => { const el = __omni_el("el-interp-1007"); if (el) try { el.textContent = String(StatsDashboard_MAX_ITEMS.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-1014"); if (el) try { el.textContent = String(StatsDashboard_counter.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-1017"); if (el) try { el.textContent = String(StatsDashboard_getModStatus()); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+{ const el = __omni_el("el-button-1021"); if (el) el.addEventListener("click", (e) => { try {   StatsDashboard_addFive({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+{ const el = __omni_el("el-button-1023"); if (el) el.addEventListener("click", (e) => { try {   StatsDashboard_subThree({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+{ const el = __omni_el("el-button-1025"); if (el) el.addEventListener("click", (e) => { try {   StatsDashboard_double({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+{ const el = __omni_el("el-button-1027"); if (el) el.addEventListener("click", (e) => { try {   StatsDashboard_halve({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+{ const el = __omni_el("el-button-1029"); if (el) el.addEventListener("click", (e) => { try {   StatsDashboard_modThree({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-1034"); if (el) try { el.textContent = String(Math.abs(StatsDashboard_counter.value)); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-1037"); if (el) try { el.textContent = String(Math.sqrt(StatsDashboard_counter.value)); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-1042"); if (el) try { el.textContent = String(StatsDashboard_randomValue.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-1045"); if (el) try { el.textContent = String(Math.ceil(StatsDashboard_randomValue.value * 100)); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-1048"); if (el) try { el.textContent = String(Math.floor(StatsDashboard_randomValue.value * 100)); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+{ const el = __omni_el("el-button-1050"); if (el) el.addEventListener("click", (e) => { try {   StatsDashboard_rollDice({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-1055"); if (el) try { el.textContent = String(StatsDashboard_getFirst()); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+{ const el = __omni_el("el-button-1059"); if (el) el.addEventListener("click", (e) => { try {   StatsDashboard_removeContainer({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+
+/// ── @if conditional el-if-1057 ──
+__omni_effect(() => {
+  const _nids = ["el-if-1057-b0"];
+  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { e.querySelectorAll('[data-nid]').forEach(function(c) { var a = __omni_animations.get(c.getAttribute('data-nid') + '_enter'); if (a) { a.cancel(); a.play(); } }); } else { e.querySelectorAll('[data-nid]').forEach(function(c) { __omni_cleanupElement(c.getAttribute('data-nid')); }); } } }); };
+  if (!StatsDashboard_removed.value) { _show("el-if-1057-b0"); }
   else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = "none"; }); }
 });
-__omni_effect(() => { const el = __omni_el("el-interp-789"); if (el) try { el.textContent = String(MotionDemo_count.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-{ const el = __omni_el("el-button-791"); if (el) el.addEventListener("click", (e) => {   MotionDemo_toggleModal(e.detail); }); }
+
+/// ── @if conditional el-if-156 ──
+__omni_effect(() => {
+  const _nids = ["el-if-156-b0"];
+  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { e.querySelectorAll('[data-nid]').forEach(function(c) { var a = __omni_animations.get(c.getAttribute('data-nid') + '_enter'); if (a) { a.cancel(); a.play(); } }); } else { e.querySelectorAll('[data-nid]').forEach(function(c) { __omni_cleanupElement(c.getAttribute('data-nid')); }); } } }); };
+  if (App_activeTab.value === "ui") { _show("el-if-156-b0"); }
+  else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = "none"; }); }
+});
+__omni_effect(() => { const el = __omni_el("el-interp-1072"); if (el) try { el.textContent = String(MotionDemo_count.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+{ const el = __omni_el("el-button-1074"); if (el) el.addEventListener("click", (e) => { try {   MotionDemo_toggleModal(e.detail); } catch(err) { __omni_reportError("error:event:click", err); } }); }
 // @press trigger
 (function() {
-  const el = __omni_el("el-button-791");
+  const el = __omni_el("el-button-1074");
   if (el) {
-   const config = { trigger: "press" };
-   const player = __omni_motion_scalePress(el, config);
-   __omni_animations.set("el-button-791_press", player);
-   el.addEventListener("mousedown", function() { __omni_getAnimation("el-button-791", "press")?.play(); });
-   el.addEventListener("mouseup", function() { __omni_getAnimation("el-button-791", "press")?.reverse(); });
+   const anim = __omni_motion_scalePress(el, { trigger: "press" });
+   if (!__omni_animations.has("el-button-1074")) __omni_animations.set("el-button-1074", new Map());
+   __omni_animations.get("el-button-1074").set("press", anim);
+   el.addEventListener("mousedown", function() { __omni_animations.get("el-button-1074")?.get("press")?.play(); });
+   el.addEventListener("mouseup", function() { __omni_animations.get("el-button-1074")?.get("press")?.reverse(); });
   }
 })();
 // @hover trigger
 (function() {
-  const el = __omni_el("el-button-791");
+  const el = __omni_el("el-button-1074");
   if (el) {
-   const config = { trigger: "hover" };
-   const player = __omni_motion_pulse(el, config);
-   __omni_animations.set("el-button-791_hover", player);
-   el.addEventListener("mouseenter", function() { __omni_getAnimation("el-button-791", "hover")?.play(); });
-   el.addEventListener("mouseleave", function() { __omni_getAnimation("el-button-791", "hover")?.reverse(); });
+   const anim = __omni_motion_pulse(el, { trigger: "hover" });
+   if (!__omni_animations.has("el-button-1074")) __omni_animations.set("el-button-1074", new Map());
+   __omni_animations.get("el-button-1074").set("hover", anim);
+   el.addEventListener("mouseenter", function() { __omni_animations.get("el-button-1074")?.get("hover")?.play(); });
+   el.addEventListener("mouseleave", function() { __omni_animations.get("el-button-1074")?.get("hover")?.reverse(); });
   }
 })();
 
-/// ── @if conditional el-if-793 ──
+/// ── @if conditional el-if-1076 ──
 __omni_effect(() => {
-  const _nids = ["el-if-793-b0"];
-  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { window.playBranchEnters(e); } } }); };
-  if (MotionDemo_isOpen.value) { _show("el-if-793-b0"); }
+  const _nids = ["el-if-1076-b0"];
+  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { e.querySelectorAll('[data-nid]').forEach(function(c) { var a = __omni_animations.get(c.getAttribute('data-nid') + '_enter'); if (a) { a.cancel(); a.play(); } }); } else { e.querySelectorAll('[data-nid]').forEach(function(c) { __omni_cleanupElement(c.getAttribute('data-nid')); }); } } }); };
+  if (MotionDemo_isOpen.value) { _show("el-if-1076-b0"); }
   else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = "none"; }); }
 });
-{ const el = __omni_el("el-button-798"); if (el) el.addEventListener("click", (e) => {   MotionDemo_addItem(e.detail); }); }
+{ const el = __omni_el("el-button-1081"); if (el) el.addEventListener("click", (e) => { try {   MotionDemo_addItem(e.detail); } catch(err) { __omni_reportError("error:event:click", err); } }); }
 // @press trigger
 (function() {
-  const el = __omni_el("el-button-798");
+  const el = __omni_el("el-button-1081");
   if (el) {
-   const config = { trigger: "press" };
-   const player = __omni_motion_scalePress(el, config);
-   __omni_animations.set("el-button-798_press", player);
-   el.addEventListener("mousedown", function() { __omni_getAnimation("el-button-798", "press")?.play(); });
-   el.addEventListener("mouseup", function() { __omni_getAnimation("el-button-798", "press")?.reverse(); });
+   const anim = __omni_motion_scalePress(el, { trigger: "press" });
+   if (!__omni_animations.has("el-button-1081")) __omni_animations.set("el-button-1081", new Map());
+   __omni_animations.get("el-button-1081").set("press", anim);
+   el.addEventListener("mousedown", function() { __omni_animations.get("el-button-1081")?.get("press")?.play(); });
+   el.addEventListener("mouseup", function() { __omni_animations.get("el-button-1081")?.get("press")?.reverse(); });
   }
 })();
-{ const el = __omni_el("el-button-800"); if (el) el.addEventListener("click", (e) => {   MotionDemo_removeItem(e.detail); }); }
+{ const el = __omni_el("el-button-1083"); if (el) el.addEventListener("click", (e) => { try {   MotionDemo_removeItem(e.detail); } catch(err) { __omni_reportError("error:event:click", err); } }); }
 // @press trigger
 (function() {
-  const el = __omni_el("el-button-800");
+  const el = __omni_el("el-button-1083");
   if (el) {
-   const config = { trigger: "press" };
-   const player = __omni_motion_scalePress(el, config);
-   __omni_animations.set("el-button-800_press", player);
-   el.addEventListener("mousedown", function() { __omni_getAnimation("el-button-800", "press")?.play(); });
-   el.addEventListener("mouseup", function() { __omni_getAnimation("el-button-800", "press")?.reverse(); });
+   const anim = __omni_motion_scalePress(el, { trigger: "press" });
+   if (!__omni_animations.has("el-button-1083")) __omni_animations.set("el-button-1083", new Map());
+   __omni_animations.get("el-button-1083").set("press", anim);
+   el.addEventListener("mousedown", function() { __omni_animations.get("el-button-1083")?.get("press")?.play(); });
+   el.addEventListener("mouseup", function() { __omni_animations.get("el-button-1083")?.get("press")?.reverse(); });
   }
 })();
-var __omni_states_el_div_802 = {
-  "pressed": { to: { "opacity": "0.8", "transform": "scale(0.95)" }, over: 100, ease: "ease-out" },
-  "hover": { to: { "opacity": "1", "transform": "scale(1.05)" }, over: 150, ease: "ease-out" },
-  "idle": { to: { "opacity": "1", "transform": "scale(1)" }, over: 150, ease: "ease-out" },
-};
-{ const el = __omni_el("el-button-843"); if (el) el.addEventListener("click", (e) => {   EasingFunctionsDemo_toggleAll(e.detail); }); }
-// @press trigger
-(function() {
-  const el = __omni_el("el-button-843");
-  if (el) {
-   const config = { trigger: "press" };
-   const player = __omni_motion_springStiff(el, config);
-   __omni_animations.set("el-button-843_press", player);
-   el.addEventListener("mousedown", function() { __omni_getAnimation("el-button-843", "press")?.play(); });
-   el.addEventListener("mouseup", function() { __omni_getAnimation("el-button-843", "press")?.reverse(); });
-  }
-})();
-__omni_effect(() => { const el = __omni_el("el-interp-844"); if (el) try { el.textContent = String(EasingFunctionsDemo_playAll.value ? "Reset" : "Play All Animations"); } catch(e) { __omni_reportError("interpolation:text", e); } });
-{ const el = __omni_el("el-button-1006"); if (el) el.addEventListener("click", (e) => {   AnimPropertiesDemo_toggleAll(e.detail); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-1007"); if (el) try { el.textContent = String(AnimPropertiesDemo_playAll.value ? "Reset" : "Play All Animations"); } catch(e) { __omni_reportError("interpolation:text", e); } });
 // @hover trigger
 (function() {
-  const el = __omni_el("el-button-1142");
+  const el = __omni_el("el-div-1085");
   if (el) {
-   const config = { trigger: "hover" };
-   const player = __omni_motion_unbounce(el, config);
-   __omni_animations.set("el-button-1142_hover", player);
-   el.addEventListener("mouseenter", function() { __omni_getAnimation("el-button-1142", "hover")?.play(); });
-   el.addEventListener("mouseleave", function() { __omni_getAnimation("el-button-1142", "hover")?.reverse(); });
+   const anim = __omni_motion_pulse(el, { trigger: "hover" });
+   if (!__omni_animations.has("el-div-1085")) __omni_animations.set("el-div-1085", new Map());
+   __omni_animations.get("el-div-1085").set("hover", anim);
+   el.addEventListener("mouseenter", function() { __omni_animations.get("el-div-1085")?.get("hover")?.play(); });
+   el.addEventListener("mouseleave", function() { __omni_animations.get("el-div-1085")?.get("hover")?.reverse(); });
   }
 })();
-// @unhover trigger
+// @press trigger
 (function() {
-  const el = __omni_el("el-button-1142");
+  const el = __omni_el("el-div-1085");
   if (el) {
-   const config = { trigger: "unhover" };
-   const player = __omni_motion_unbounce(el, config);
-   __omni_animations.set("el-button-1142_unhover", player);
+   const anim = __omni_motion_scalePress(el, { trigger: "press" });
+   if (!__omni_animations.has("el-div-1085")) __omni_animations.set("el-div-1085", new Map());
+   __omni_animations.get("el-div-1085").set("press", anim);
+   el.addEventListener("mousedown", function() { __omni_animations.get("el-div-1085")?.get("press")?.play(); });
+   el.addEventListener("mouseup", function() { __omni_animations.get("el-div-1085")?.get("press")?.reverse(); });
+  }
+})();
+{ const el = __omni_el("el-button-1096"); if (el) el.addEventListener("click", (e) => { try {   KeyframeAnimationDemo_toggleTriggers({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-1097"); if (el) try { el.textContent = String(KeyframeAnimationDemo_playTriggers.value ? "Reset Triggers" : "Play All Triggers"); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+// @hover trigger
+(function() {
+  const el = __omni_el("el-div-1104");
+  if (el) {
+   const anim = __omni_motion_hoverScale(el, { trigger: "hover" });
+   if (!__omni_animations.has("el-div-1104")) __omni_animations.set("el-div-1104", new Map());
+   __omni_animations.get("el-div-1104").set("hover", anim);
+   el.addEventListener("mouseenter", function() { __omni_animations.get("el-div-1104")?.get("hover")?.play(); });
+   el.addEventListener("mouseleave", function() { __omni_animations.get("el-div-1104")?.get("hover")?.reverse(); });
+  }
+})();
+// @press trigger
+(function() {
+  const el = __omni_el("el-div-1108");
+  if (el) {
+   const anim = __omni_motion_pressShrink(el, { trigger: "press" });
+   if (!__omni_animations.has("el-div-1108")) __omni_animations.set("el-div-1108", new Map());
+   __omni_animations.get("el-div-1108").set("press", anim);
+   el.addEventListener("mousedown", function() { __omni_animations.get("el-div-1108")?.get("press")?.play(); });
+   el.addEventListener("mouseup", function() { __omni_animations.get("el-div-1108")?.get("press")?.reverse(); });
   }
 })();
 // @focus trigger
 (function() {
-  const el = __omni_el("el-input-1147");
+  const el = __omni_el("el-button-1117");
   if (el) {
-   const config = { trigger: "focus" };
-   const player = __omni_motion_focusGlow(el, config);
-   __omni_animations.set("el-input-1147_focus", player);
-   el.addEventListener("focus", function() { __omni_getAnimation("el-input-1147", "focus")?.play(); });
-   el.addEventListener("blur", function() { __omni_getAnimation("el-input-1147", "focus")?.reverse(); });
+   const anim = __omni_motion_focusGlow(el, { trigger: "focus" });
+   if (!__omni_animations.has("el-button-1117")) __omni_animations.set("el-button-1117", new Map());
+   __omni_animations.get("el-button-1117").set("focus", anim);
+   el.addEventListener("focusin", function() { __omni_animations.get("el-button-1117")?.get("focus")?.play(); });
+   el.addEventListener("focusout", function() { __omni_animations.get("el-button-1117")?.get("focus")?.reverse(); });
   }
 })();
 // @in-view trigger
 (function() {
-  const el = __omni_el("el-div-1157");
+  const el = __omni_el("el-div-1119");
   if (!el) return;
-  const config = { trigger: "inView" };
-  const player = __omni_motion_slideInView(el, config);
-  __omni_animations.set("el-div-1157_inView", player);
+  const anim = __omni_motion_inViewSlide(el, { trigger: "inView" });
+  if (!__omni_animations.has("el-div-1119")) __omni_animations.set("el-div-1119", new Map());
+  __omni_animations.get("el-div-1119").set("inView", anim);
   const threshold = 0;
   const observer = new IntersectionObserver((entries) => {
    entries.forEach(entry => {
     if (entry.isIntersecting) {
-     player.play();
+     anim.play();
      if (true) {
       observer.disconnect();
      }
@@ -9521,77 +8702,76 @@ __omni_effect(() => { const el = __omni_el("el-interp-1007"); if (el) try { el.t
    });
   }, { threshold: threshold });
   observer.observe(el);
-  __omni_inview_observers = __omni_inview_observers || [];
-  __omni_inview_observers.push(observer);
+  window.__omni_inview_observers = window.__omni_inview_observers || [];
+  __omni_inview_observers.push({ nid: "el-div-1119", observer: observer });
 })();
-// @in-view trigger
-(function() {
-  const el = __omni_el("el-div-1160");
-  if (!el) return;
-  const config = { trigger: "inView" };
-  const player = __omni_motion_slideInView(el, config);
-  __omni_animations.set("el-div-1160_inView", player);
-  const threshold = 0.5;
-  const observer = new IntersectionObserver((entries) => {
-   entries.forEach(entry => {
-    if (entry.isIntersecting) {
-     player.play();
-     if (false) {
-      observer.disconnect();
-     }
+/// ─── Shared scroll handler — single listener for all @scroll triggers
+var __omni_scrollElements = [];
+var __omni_scrollHandler = null;
+function __omni_ensureScrollHandler() {
+  if (__omni_scrollHandler) return;
+  __omni_scrollHandler = function() {
+   __omni_scrollElements.forEach(function(entry) {
+    var el = entry.el;
+    var anim = entry.anim;
+    var dur = entry.dur;
+    var target = Omni.scrollProgress(el, entry.startCfg, entry.endCfg);
+    if (entry.scrubDelay > 0) {
+     entry.currentProgress += (target - entry.currentProgress) * Math.min(1, 16.67 / (entry.scrubDelay * 1000));
+     anim.currentTime = entry.currentProgress * dur;
+    } else {
+     entry.currentProgress = target;
+     anim.currentTime = target * dur;
     }
    });
-  }, { threshold: threshold });
-  observer.observe(el);
-  __omni_inview_observers = __omni_inview_observers || [];
-  __omni_inview_observers.push(observer);
-})();
+  };
+  window.addEventListener('scroll', __omni_scrollHandler, { passive: true });
+}
+function __omni_scrollRemoveEntry(nid) {
+  var el = __omni_el(nid);
+  if (!el || !__omni_scrollElements) return;
+  __omni_scrollElements = __omni_scrollElements.filter(function(entry) {
+   return entry.el !== el;
+  });
+}
+
 // @scroll trigger
 (function() {
-  const el = __omni_el("el-div-1166");
+  const el = __omni_el("el-div-1123");
   if (!el) return;
-  const config = { trigger: "scroll" };
-  const player = __omni_motion_scrollFade(el, config);
-  __omni_animations.set("el-div-1166_scroll", player);
-  player.pause();
-  const startCfg = "top 80%";
-  const endCfg = "bottom 20%";
-  const scrubDelay = 0.5;
-  function computeProgress() {
-   const rect = el.getBoundingClientRect();
-   const vh = window.innerHeight;
-   const startPos = __omni_parseScrollTrigger(startCfg, el, vh);
-   const endPos = __omni_parseScrollTrigger(endCfg, el, vh);
-   const raw = (window.scrollY - startPos) / (endPos - startPos);
-   return Math.max(0, Math.min(1, raw));
-  }
-  let currentProgress = 0;
-  window.addEventListener('scroll', () => {
-   const target = computeProgress();
-   if (scrubDelay > 0) {
-    currentProgress += (target - currentProgress) * Math.min(1, 16.67 / (scrubDelay * 1000));
-   } else {
-    currentProgress = target;
-   }
-   player.seek(currentProgress);
-  }, { passive: true });
-  player.seek(computeProgress());
+  const anim = __omni_motion_scrollProgress(el, { trigger: "scroll" });
+  if (!__omni_animations.has("el-div-1123")) __omni_animations.set("el-div-1123", new Map());
+  __omni_animations.get("el-div-1123").set("scroll", anim);
+  anim.pause();
+  const dur = anim.effect?.getTiming()?.duration || 300;
+  __omni_scrollElements.push({
+   el,
+   anim,
+   dur,
+   startCfg: "top 80%",
+   endCfg: "bottom 20%",
+   scrubDelay: 0,
+   currentProgress: 0,
+  });
+  __omni_ensureScrollHandler();
+  anim.currentTime = Omni.scrollProgress(el, "top 80%", "bottom 20%") * dur;
 })();
 // @drag-x trigger
 (function() {
-  const el = __omni_el("el-div-1172");
+  const el = __omni_el("el-div-1127");
   if (!el) return;
-  const config = { trigger: "dragHorizontal" };
-  const player = __omni_motion_dragSlide(el, config);
-  __omni_animations.set("el-div-1172_dragHorizontal", player);
-  player.pause();
+  const anim = __omni_motion_dragSlideX(el, { trigger: "dragHorizontal" });
+  if (!__omni_animations.has("el-div-1127")) __omni_animations.set("el-div-1127", new Map());
+  __omni_animations.get("el-div-1127").set("dragHorizontal", anim);
+  anim.pause();
+  const dur = anim.effect?.getTiming()?.duration || 300;
   let startPos = 0, currentDelta = 0;
   let isDragging = false;
   let lastMoveTime = 0, lastMovePos = 0;
   let velocity = 0;
-  const constraints = "left:0 right:300";
-  const elastic = 0.2;
-  const threshold = 30;
+  const constraints = "";
+  const elastic = 0;
+  const threshold = 0;
   const velocityMax = 2000;
   function parseConstraint(cfg) {
    if (!cfg) return { min: -Infinity, max: Infinity };
@@ -9648,33 +8828,34 @@ __omni_effect(() => { const el = __omni_el("el-interp-1007"); if (el) try { el.t
    }
    currentDelta = raw;
    const progress = Math.abs(constrained) / maxExtent;
-   player.seek(Math.min(1, progress));
+   anim.currentTime = Math.min(1, progress) * dur;
   });
   el.addEventListener('pointerup', (e) => {
    isDragging = false;
    el.releasePointerCapture(e.pointerId);
    const progress = Math.abs(currentDelta) / maxExtent;
    if (progress >= threshold && maxExtent > 0) {
-    player.play();
+    anim.play();
    } else {
-    player.reverse();
+    anim.reverse();
    }
   });
 })();
 // @drag-y trigger
 (function() {
-  const el = __omni_el("el-div-1175");
+  const el = __omni_el("el-div-1132");
   if (!el) return;
-  const config = { trigger: "dragVertical" };
-  const player = __omni_motion_dragSlide(el, config);
-  __omni_animations.set("el-div-1175_dragVertical", player);
-  player.pause();
+  const anim = __omni_motion_dragSlideY(el, { trigger: "dragVertical" });
+  if (!__omni_animations.has("el-div-1132")) __omni_animations.set("el-div-1132", new Map());
+  __omni_animations.get("el-div-1132").set("dragVertical", anim);
+  anim.pause();
+  const dur = anim.effect?.getTiming()?.duration || 300;
   let startPos = 0, currentDelta = 0;
   let isDragging = false;
   let lastMoveTime = 0, lastMovePos = 0;
   let velocity = 0;
-  const constraints = "top:0 bottom:200";
-  const elastic = 0.3;
+  const constraints = "";
+  const elastic = 0;
   const threshold = 0;
   const velocityMax = 2000;
   function parseConstraint(cfg) {
@@ -9732,499 +8913,348 @@ __omni_effect(() => { const el = __omni_el("el-interp-1007"); if (el) try { el.t
    }
    currentDelta = raw;
    const progress = Math.abs(constrained) / maxExtent;
-   player.seek(Math.min(1, progress));
+   anim.currentTime = Math.min(1, progress) * dur;
   });
   el.addEventListener('pointerup', (e) => {
    isDragging = false;
    el.releasePointerCapture(e.pointerId);
    const progress = Math.abs(currentDelta) / maxExtent;
    if (progress >= threshold && maxExtent > 0) {
-    player.play();
+    anim.play();
    } else {
-    player.reverse();
+    anim.reverse();
    }
   });
 })();
-__omni_effect(() => { const el = __omni_el("el-interp-1200"); if (el) try { el.textContent = String(MotionCallbackDemo_enterCount.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-1206"); if (el) try { el.textContent = String(MotionCallbackDemo_completeCount.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-1212"); if (el) try { el.textContent = String(MotionCallbackDemo_pulseRepeatCount.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-1218"); if (el) try { el.textContent = String(MotionCallbackDemo_lastEvent.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-{ const el = __omni_el("el-div-1235"); if (el) el.addEventListener("click", (e) => {   MotionCallbackDemo_handleEnterStart({}); }); }
-{ const el = __omni_el("el-div-1235"); if (el) el.addEventListener("click", (e) => { if (el.offsetParent !== null) { var p = __omni_motion_trackedEnter(el, {}); __omni_animations.set("el-div-1235_click", p); p.play(); } }); }
-__omni_effect(() => { const el = __omni_el("el-interp-1239"); if (el) try { el.textContent = String(MotionCallbackDemo_isPlaying.value ? "Animating..." : "Click me"); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-1247"); if (el) try { el.textContent = String(MotionCallbackDemo_enterCount.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-1254"); if (el) try { el.textContent = String(MotionCallbackDemo_completeCount.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-1268"); if (el) try { el.textContent = String(MotionCallbackDemo_isPulsing.value ? "●" : "○"); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-1272"); if (el) try { el.textContent = String(MotionCallbackDemo_pulseRepeatCount.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-1281"); if (el) try { el.textContent = String(MotionCallbackDemo_pulseRepeatCount.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-{ const el = __omni_el("el-div-1300"); if (el) el.addEventListener("click", (e) => {   MotionCallbackDemo_handleInterrupt({}); }); }
-{ const el = __omni_el("el-div-1300"); if (el) el.addEventListener("click", (e) => { if (el.offsetParent !== null) { var p = __omni_motion_interruptWithCallback(el, {}); __omni_animations.set("el-div-1300_click", p); p.play(); } }); }
-__omni_effect(() => { const el = __omni_el("el-interp-1311"); if (el) try { el.textContent = String(MotionCallbackDemo_lastEvent.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-function __ononPress_el_button_1367() {
-  TimelinePositionDemo_switchDemo("position");
+{ const el = __omni_el("el-button-1139"); if (el) el.addEventListener("click", (e) => { try {   KeyframeAnimationDemo_togglePlayback({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-1140"); if (el) try { el.textContent = String(KeyframeAnimationDemo_playPlayback.value ? "Reset" : "Play Playback Props"); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+{ const el = __omni_el("el-button-1215"); if (el) el.addEventListener("click", (e) => { try {   EasingFunctionsDemo_toggleAll(e.detail); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+// @press trigger
+(function() {
+  const el = __omni_el("el-button-1215");
+  if (el) {
+   const anim = __omni_motion_backOutMove(el, { trigger: "press" });
+   if (!__omni_animations.has("el-button-1215")) __omni_animations.set("el-button-1215", new Map());
+   __omni_animations.get("el-button-1215").set("press", anim);
+   el.addEventListener("mousedown", function() { __omni_animations.get("el-button-1215")?.get("press")?.play(); });
+   el.addEventListener("mouseup", function() { __omni_animations.get("el-button-1215")?.get("press")?.reverse(); });
+  }
+})();
+__omni_effect(() => { const el = __omni_el("el-interp-1216"); if (el) try { el.textContent = String(EasingFunctionsDemo_playAll.value ? "Reset" : "Play All Animations"); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+{ const el = __omni_el("el-button-1358"); if (el) el.addEventListener("click", (e) => { try {   AnimPropertiesDemo_toggleAll(e.detail); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-1359"); if (el) try { el.textContent = String(AnimPropertiesDemo_playAll.value ? "Reset" : "Play All Animations"); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+// @in-view trigger
+(function() {
+  const el = __omni_el("el-div-1460");
+  if (!el) return;
+  const anim = __omni_motion_slideInView(el, { trigger: "inView" });
+  if (!__omni_animations.has("el-div-1460")) __omni_animations.set("el-div-1460", new Map());
+  __omni_animations.get("el-div-1460").set("inView", anim);
+  const threshold = 0;
+  const observer = new IntersectionObserver((entries) => {
+   entries.forEach(entry => {
+    if (entry.isIntersecting) {
+     anim.play();
+     if (true) {
+      observer.disconnect();
+     }
+    }
+   });
+  }, { threshold: threshold });
+  observer.observe(el);
+  window.__omni_inview_observers = window.__omni_inview_observers || [];
+  __omni_inview_observers.push({ nid: "el-div-1460", observer: observer });
+})();
+// @scroll trigger
+(function() {
+  const el = __omni_el("el-div-1466");
+  if (!el) return;
+  const anim = __omni_motion_scrollFade(el, { trigger: "scroll" });
+  if (!__omni_animations.has("el-div-1466")) __omni_animations.set("el-div-1466", new Map());
+  __omni_animations.get("el-div-1466").set("scroll", anim);
+  anim.pause();
+  const dur = anim.effect?.getTiming()?.duration || 300;
+  __omni_scrollElements.push({
+   el,
+   anim,
+   dur,
+   startCfg: "top 80%",
+   endCfg: "bottom 20%",
+   scrubDelay: 0,
+   currentProgress: 0,
+  });
+  __omni_ensureScrollHandler();
+  anim.currentTime = Omni.scrollProgress(el, "top 80%", "bottom 20%") * dur;
+})();
+// @focus trigger
+(function() {
+  const el = __omni_el("el-input-1472");
+  if (el) {
+   const anim = __omni_motion_slideInView(el, { trigger: "focus" });
+   if (!__omni_animations.has("el-input-1472")) __omni_animations.set("el-input-1472", new Map());
+   __omni_animations.get("el-input-1472").set("focus", anim);
+   el.addEventListener("focusin", function() { __omni_animations.get("el-input-1472")?.get("focus")?.play(); });
+   el.addEventListener("focusout", function() { __omni_animations.get("el-input-1472")?.get("focus")?.reverse(); });
+  }
+})();
+// @drag-x trigger
+(function() {
+  const el = __omni_el("el-div-1478");
+  if (!el) return;
+  const anim = __omni_motion_dragSlide(el, { trigger: "dragHorizontal" });
+  if (!__omni_animations.has("el-div-1478")) __omni_animations.set("el-div-1478", new Map());
+  __omni_animations.get("el-div-1478").set("dragHorizontal", anim);
+  anim.pause();
+  const dur = anim.effect?.getTiming()?.duration || 300;
+  let startPos = 0, currentDelta = 0;
+  let isDragging = false;
+  let lastMoveTime = 0, lastMovePos = 0;
+  let velocity = 0;
+  const constraints = "";
+  const elastic = 0;
+  const threshold = 0;
+  const velocityMax = 2000;
+  function parseConstraint(cfg) {
+   if (!cfg) return { min: -Infinity, max: Infinity };
+   if (cfg === 'parent') {
+    const parent = el.parentElement;
+    if (!parent) return { min: -Infinity, max: Infinity };
+    const elRect = el.getBoundingClientRect();
+    const parentRect = parent.getBoundingClientRect();
+    return { min: 0, max: parentRect.width - elRect.width };
+   }
+   if (cfg.startsWith('ref:')) {
+    const refId = cfg.slice(4);
+    const refEl = __omni_el(refId);
+    if (!refEl) return { min: -Infinity, max: Infinity };
+    const elRect = el.getBoundingClientRect();
+    const refRect = refEl.getBoundingClientRect();
+    return { min: 0, max: refRect.width - elRect.width };
+   }
+   const parts = cfg.split(' ');
+   let min = -Infinity, max = Infinity;
+   parts.forEach(p => {
+    const [key, val] = p.split(':');
+    if (key === 'left') min = parseFloat(val) || 0;
+    if (key === 'right') max = parseFloat(val) || Infinity;
+   });
+   return { min, max };
+  }
+  const constraint = parseConstraint(constraints);
+  const maxExtent = Math.abs(constraint.max - constraint.min) || 1;
+  el.addEventListener('pointerdown', (e) => {
+   isDragging = true;
+   startPos = e.clientX;
+   currentDelta = 0;
+   el.setPointerCapture(e.pointerId);
+  });
+  el.addEventListener('pointermove', (e) => {
+   if (!isDragging) return;
+   const now = performance.now();
+   const raw = e.clientX - startPos;
+   if (lastMoveTime > 0) {
+    const dt = now - lastMoveTime;
+    const dp = Math.abs(raw - lastMovePos);
+    if (dt > 0) velocity = Math.min(velocityMax, dp / dt * 1000);
+   }
+   lastMoveTime = now;
+   lastMovePos = raw;
+   let constrained = raw;
+   if (raw < constraint.min) {
+    const overshoot = constraint.min - raw;
+    constrained = constraint.min - overshoot * (1 - elastic);
+   } else if (raw > constraint.max) {
+    const overshoot = raw - constraint.max;
+    constrained = constraint.max + overshoot * (1 - elastic);
+   }
+   currentDelta = raw;
+   const progress = Math.abs(constrained) / maxExtent;
+   anim.currentTime = Math.min(1, progress) * dur;
+  });
+  el.addEventListener('pointerup', (e) => {
+   isDragging = false;
+   el.releasePointerCapture(e.pointerId);
+   const progress = Math.abs(currentDelta) / maxExtent;
+   if (progress >= threshold && maxExtent > 0) {
+    anim.play();
+   } else {
+    anim.reverse();
+   }
+  });
+})();
+// @drag-y trigger
+(function() {
+  const el = __omni_el("el-div-1481");
+  if (!el) return;
+  const anim = __omni_motion_dragSlide(el, { trigger: "dragVertical" });
+  if (!__omni_animations.has("el-div-1481")) __omni_animations.set("el-div-1481", new Map());
+  __omni_animations.get("el-div-1481").set("dragVertical", anim);
+  anim.pause();
+  const dur = anim.effect?.getTiming()?.duration || 300;
+  let startPos = 0, currentDelta = 0;
+  let isDragging = false;
+  let lastMoveTime = 0, lastMovePos = 0;
+  let velocity = 0;
+  const constraints = "";
+  const elastic = 0;
+  const threshold = 0;
+  const velocityMax = 2000;
+  function parseConstraint(cfg) {
+   if (!cfg) return { min: -Infinity, max: Infinity };
+   if (cfg === 'parent') {
+    const parent = el.parentElement;
+    if (!parent) return { min: -Infinity, max: Infinity };
+    const elRect = el.getBoundingClientRect();
+    const parentRect = parent.getBoundingClientRect();
+    return { min: 0, max: parentRect.height - elRect.height };
+   }
+   if (cfg.startsWith('ref:')) {
+    const refId = cfg.slice(4);
+    const refEl = __omni_el(refId);
+    if (!refEl) return { min: -Infinity, max: Infinity };
+    const elRect = el.getBoundingClientRect();
+    const refRect = refEl.getBoundingClientRect();
+    return { min: 0, max: refRect.height - elRect.height };
+   }
+   const parts = cfg.split(' ');
+   let min = -Infinity, max = Infinity;
+   parts.forEach(p => {
+    const [key, val] = p.split(':');
+    if (key === 'top') min = parseFloat(val) || 0;
+    if (key === 'bottom') max = parseFloat(val) || Infinity;
+   });
+   return { min, max };
+  }
+  const constraint = parseConstraint(constraints);
+  const maxExtent = Math.abs(constraint.max - constraint.min) || 1;
+  el.addEventListener('pointerdown', (e) => {
+   isDragging = true;
+   startPos = e.clientY;
+   currentDelta = 0;
+   el.setPointerCapture(e.pointerId);
+  });
+  el.addEventListener('pointermove', (e) => {
+   if (!isDragging) return;
+   const now = performance.now();
+   const raw = e.clientY - startPos;
+   if (lastMoveTime > 0) {
+    const dt = now - lastMoveTime;
+    const dp = Math.abs(raw - lastMovePos);
+    if (dt > 0) velocity = Math.min(velocityMax, dp / dt * 1000);
+   }
+   lastMoveTime = now;
+   lastMovePos = raw;
+   let constrained = raw;
+   if (raw < constraint.min) {
+    const overshoot = constraint.min - raw;
+    constrained = constraint.min - overshoot * (1 - elastic);
+   } else if (raw > constraint.max) {
+    const overshoot = raw - constraint.max;
+    constrained = constraint.max + overshoot * (1 - elastic);
+   }
+   currentDelta = raw;
+   const progress = Math.abs(constrained) / maxExtent;
+   anim.currentTime = Math.min(1, progress) * dur;
+  });
+  el.addEventListener('pointerup', (e) => {
+   isDragging = false;
+   el.releasePointerCapture(e.pointerId);
+   const progress = Math.abs(currentDelta) / maxExtent;
+   if (progress >= threshold && maxExtent > 0) {
+    anim.play();
+   } else {
+    anim.reverse();
+   }
+  });
+})();
+
+/// ── @if conditional el-if-1061 ──
+__omni_effect(() => {
+  const _nids = ["el-if-1061-b0"];
+  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { e.querySelectorAll('[data-nid]').forEach(function(c) { var a = __omni_animations.get(c.getAttribute('data-nid') + '_enter'); if (a) { a.cancel(); a.play(); } }); } else { e.querySelectorAll('[data-nid]').forEach(function(c) { __omni_cleanupElement(c.getAttribute('data-nid')); }); } } }); };
+  if (App_activeTab.value === "motion") { _show("el-if-1061-b0"); }
+  else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = "none"; }); }
+});
+function __ononPress_el_div_1495() {
+  ThemeSwitcher_selectTheme("light");
 }
-{ const el = __omni_el("el-button-1367"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_1367({}); }); }
-function __ononPress_el_button_1369() {
-  TimelinePositionDemo_switchDemo("simple");
+{ const el = __omni_el("el-div-1495"); if (el) el.addEventListener("click", (e) => { try {   __ononPress_el_div_1495({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-div-1495"); if (el) el.classList.toggle("active", !!(ThemeSwitcher_isActive("light"))); });
+function __ononPress_el_div_1504() {
+  ThemeSwitcher_selectTheme("dark");
 }
-{ const el = __omni_el("el-button-1369"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_1369({}); }); }
-{ const el = __omni_el("el-button-1373"); if (el) el.addEventListener("click", (e) => {   TimelinePositionDemo_replayCount({}); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-1375"); if (el) try { el.textContent = String(TimelinePositionDemo_playCount.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-
-/// ── @if conditional el-if-1378 ──
-__omni_effect(() => {
-  const _nids = ["el-if-1378-b0"];
-  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { window.playBranchEnters(e); } } }); };
-  if (TimelinePositionDemo_activeDemo.value === "position") { _show("el-if-1378-b0"); }
-  else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = "none"; }); }
-});
-
-/// ── @if conditional el-if-1400 ──
-__omni_effect(() => {
-  const _nids = ["el-if-1400-b0"];
-  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { window.playBranchEnters(e); } } }); };
-  if (TimelinePositionDemo_activeDemo.value === "simple") { _show("el-if-1400-b0"); }
-  else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = "none"; }); }
-});
-{ const el = __omni_el("el-button-1594"); if (el) el.addEventListener("click", (e) => {   PlaybackAdvancedDemo_toggleDirFill(e.detail); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-1595"); if (el) try { el.textContent = String(PlaybackAdvancedDemo_playDirFill.value ? "Reset" : "Play Direction & Fill"); } catch(e) { __omni_reportError("interpolation:text", e); } });
-{ const el = __omni_el("el-button-1650"); if (el) el.addEventListener("click", (e) => {   HeroTransitionDemo_toggle({}); }); }
-
-/// ── @if conditional el-if-1652 ──
-__omni_effect(() => {
-  const _nids = ["el-if-1652-b0", "el-if-1652-else"];
-  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { window.playBranchEnters(e); } } }); };
-  if (HeroTransitionDemo_isExpanded.value) { _show("el-if-1652-b0"); }
-  else { _show("el-if-1652-else"); }
-});
-{ const el = __omni_el("el-button-1682"); if (el) el.addEventListener("click", (e) => {   ComponentSpecialsDemo_toggle(e.detail); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-1683"); if (el) try { el.textContent = String(ComponentSpecialsDemo_showPanel.value ? "Hide Panel" : "Show Panel"); } catch(e) { __omni_reportError("interpolation:text", e); } });
-
-/// ── @if conditional el-if-1685 ──
-__omni_effect(() => {
-  const _nids = ["el-if-1685-b0"];
-  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { window.playBranchEnters(e); } } }); };
-  if (ComponentSpecialsDemo_showPanel.value) { _show("el-if-1685-b0"); }
-  else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = "none"; }); }
-});
-{ const el = __omni_el("el-button-1696"); if (el) el.addEventListener("click", (e) => {   ComponentSpecialsDemo_openSlot(e.detail); }); }
-{ const el = __omni_el("el-button-1705"); if (el) el.addEventListener("click", (e) => {   SlotContainer_onClose({ x: e.clientX ?? 0, y: e.clientY ?? 0, button: e.button ?? 0, pressure: e.pressure ?? 0, tiltX: e.tiltX ?? 0, tiltY: e.tiltY ?? 0, pointerType: e.pointerType ?? "", alt: e.altKey ?? false, ctrl: e.ctrlKey ?? false, shift: e.shiftKey ?? false, meta: e.metaKey ?? false }); }); }
-{ const el = __omni_el("el-SlotContainer-1700"); if (el) el.addEventListener("close", (e) => {   ComponentSpecialsDemo_closeSlot(e.detail); }); }
-
-/// ── @if conditional el-if-1698 ──
-__omni_effect(() => {
-  const _nids = ["el-if-1698-b0"];
-  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { window.playBranchEnters(e); } } }); };
-  if (ComponentSpecialsDemo_slotVisible.value) { _show("el-if-1698-b0"); }
-  else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = "none"; }); }
-});
-{ const el = __omni_el("el-button-1720"); if (el) el.addEventListener("click", (e) => {   ComponentSpecialsDemo_advancePct(e.detail); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-1722"); if (el) try { el.textContent = String(String(ComponentSpecialsDemo_progressPct.value)); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-1728"); if (el) try { el.textContent = String(String(ComponentSpecialsDemo_progressPct.value)); } catch(e) { __omni_reportError("interpolation:text", e); } });
-
-/// ── @if conditional el-if-779 ──
-__omni_effect(() => {
-  const _nids = ["el-if-779-b0"];
-  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { window.playBranchEnters(e); } } }); };
-  if (App_activeTab.value === "motion") { _show("el-if-779-b0"); }
-  else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = "none"; }); }
-});
-__omni_effect(() => { const el = __omni_el("el-div-1891"); if (el) el.style.setProperty("--accent",CssVarsDemo_accentColor.value); });
-__omni_effect(() => { const el = __omni_el("el-div-1891"); if (el) el.style.border="2px solid " + CssVarsDemo_accentColor.value; });
-__omni_effect(() => { const el = __omni_el("el-interp-1895"); if (el) try { el.textContent = String(CssVarsDemo_accentColor.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-div-1898"); if (el) el.style.background=CssVarsDemo_accentColor.value; });
-__omni_effect(() => { const el = __omni_el("el-interp-1900"); if (el) try { el.textContent = String(CssVarsDemo_accentColor.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-{ const el = __omni_el("el-button-1902"); if (el) el.addEventListener("click", (e) => {   CssVarsDemo_cycleAccent({}); }); }
-__omni_effect(() => { const el = __omni_el("el-div-1921"); if (el) el.style.setProperty("--accent-h",CssVarsDemo_accentHue.value); });
-__omni_effect(() => { const el = __omni_el("el-interp-1926"); if (el) try { el.textContent = String(CssVarsDemo_accentHue.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-div-2016"); if (el) el.style.setProperty("--theme-bg",ThemeStore_currentBg.value); });
-__omni_effect(() => { const el = __omni_el("el-div-2016"); if (el) el.style.setProperty("--theme-border",ThemeStore_currentBorder.value); });
-__omni_effect(() => { const el = __omni_el("el-div-2016"); if (el) el.style.setProperty("--theme-border-w",ThemeCssVarsDemo_borderWidth.value); });
-__omni_effect(() => { const el = __omni_el("el-div-2016"); if (el) el.style.setProperty("--theme-muted",ThemeStore_currentMuted.value); });
-__omni_effect(() => { const el = __omni_el("el-div-2016"); if (el) el.style.setProperty("--theme-primary",ThemeStore_currentPrimary.value); });
-__omni_effect(() => { const el = __omni_el("el-div-2016"); if (el) el.style.setProperty("--theme-scale",ThemeCssVarsDemo_boxScale.value); });
-__omni_effect(() => { const el = __omni_el("el-div-2016"); if (el) el.style.setProperty("--theme-text",ThemeStore_currentText.value); });
-{ const el = __omni_el("el-button-2042"); if (el) el.addEventListener("click", (e) => {   ThemeCssVarsDemo_toggleBorder({}); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-2044"); if (el) try { el.textContent = String(ThemeCssVarsDemo_borderWidth.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-2047"); if (el) try { el.textContent = String(ThemeCssVarsDemo_borderWidth.value === 2 ? 4 : 2); } catch(e) { __omni_reportError("interpolation:text", e); } });
-{ const el = __omni_el("el-button-2060"); if (el) el.addEventListener("click", (e) => {   ThemeCssVarsDemo_toggleScale({}); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-2062"); if (el) try { el.textContent = String(ThemeCssVarsDemo_boxScale.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-function __ononPress_el_button_2082() {
+{ const el = __omni_el("el-div-1504"); if (el) el.addEventListener("click", (e) => { try {   __ononPress_el_div_1504({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-div-1504"); if (el) el.classList.toggle("active", !!(ThemeSwitcher_isActive("dark"))); });
+function __ononPress_el_div_1513() {
+  ThemeSwitcher_selectTheme("sepia");
+}
+{ const el = __omni_el("el-div-1513"); if (el) el.addEventListener("click", (e) => { try {   __ononPress_el_div_1513({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-div-1513"); if (el) el.classList.toggle("active", !!(ThemeSwitcher_isActive("sepia"))); });
+function __ononPress_el_div_1522() {
+  ThemeSwitcher_selectTheme("highContrast");
+}
+{ const el = __omni_el("el-div-1522"); if (el) el.addEventListener("click", (e) => { try {   __ononPress_el_div_1522({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-div-1522"); if (el) el.classList.toggle("active", !!(ThemeSwitcher_isActive("highContrast"))); });
+__omni_effect(() => { const el = __omni_el("el-interp-1534"); if (el) try { el.textContent = String(ThemeStore_modeLabel.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-1538"); if (el) try { el.textContent = String(ThemeStore_toggleCount.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-div-1754"); if (el) el.style.setProperty("--theme-border-w",__omni_sanitizeCss(ThemeCssVarsDemo_borderWidth.value)); });
+__omni_effect(() => { const el = __omni_el("el-div-1754"); if (el) el.style.setProperty("--theme-scale",__omni_sanitizeCss(ThemeCssVarsDemo_boxScale.value)); });
+{ const el = __omni_el("el-button-1780"); if (el) el.addEventListener("click", (e) => { try {   ThemeCssVarsDemo_toggleBorder({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-1782"); if (el) try { el.textContent = String(ThemeCssVarsDemo_borderWidth.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-1785"); if (el) try { el.textContent = String(ThemeCssVarsDemo_borderWidth.value === 2 ? 4 : 2); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+{ const el = __omni_el("el-button-1798"); if (el) el.addEventListener("click", (e) => { try {   ThemeCssVarsDemo_toggleScale({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-1800"); if (el) try { el.textContent = String(ThemeCssVarsDemo_boxScale.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+function __ononPress_el_button_1820() {
   ThemeStore_toggle();
 }
-{ const el = __omni_el("el-button-2082"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_2082({}); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-2084"); if (el) try { el.textContent = String(ThemeStore_nextLabel.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-2090"); if (el) try { el.textContent = String(ThemeStore_modeLabel.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-2093"); if (el) try { el.textContent = String(ThemeStore_toggleCount.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
+{ const el = __omni_el("el-button-1820"); if (el) el.addEventListener("click", (e) => { try {   __ononPress_el_button_1820({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-1824"); if (el) try { el.textContent = String(ThemeStore_modeLabel.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-1827"); if (el) try { el.textContent = String(ThemeStore_toggleCount.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
 
-/// ── @if conditional el-if-1731 ──
+/// ── @if conditional el-if-1484 ──
 __omni_effect(() => {
-  const _nids = ["el-if-1731-b0"];
-  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { window.playBranchEnters(e); } } }); };
-  if (App_activeTab.value === "css") { _show("el-if-1731-b0"); }
+  const _nids = ["el-if-1484-b0"];
+  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { e.querySelectorAll('[data-nid]').forEach(function(c) { var a = __omni_animations.get(c.getAttribute('data-nid') + '_enter'); if (a) { a.cancel(); a.play(); } }); } else { e.querySelectorAll('[data-nid]').forEach(function(c) { __omni_cleanupElement(c.getAttribute('data-nid')); }); } } }); };
+  if (App_activeTab.value === "design") { _show("el-if-1484-b0"); }
   else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = "none"; }); }
 });
-__omni_effect(() => { const el = __omni_el("el-interp-2139"); if (el) try { el.textContent = String("{fnName(args)}"); } catch(e) { __omni_reportError("interpolation:text", e); } });
-function __ononClick_el_button_2142() {
-  EventShorthand_greet("World");
-}
-{ const el = __omni_el("el-button-2142"); if (el) el.addEventListener("click", (e) => {   __ononClick_el_button_2142({}); }); }
-function __ononClick_el_button_2144() {
-  EventShorthand_farewell("World");
-}
-{ const el = __omni_el("el-button-2144"); if (el) el.addEventListener("click", (e) => {   __ononClick_el_button_2144({}); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-2149"); if (el) try { el.textContent = String("{store.action}"); } catch(e) { __omni_reportError("interpolation:text", e); } });
-function __ononPress_el_button_2152() {
-  NotificationStore_add("Hello from shorthand");
-}
-{ const el = __omni_el("el-button-2152"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_2152({}); }); }
-function __ononPress_el_button_2154() {
-  NotificationStore_clear;
-}
-{ const el = __omni_el("el-button-2154"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_2154({}); }); }
-function __ononPress_el_button_2160() {
-  __omni_subs.get("EventShorthand_msg").set("onPress");
-}
-{ const el = __omni_el("el-button-2160"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_2160({}); }); }
-function __ononPress_el_button_2162() {
-  __omni_subs.get("EventShorthand_msg").set("@onPress");
-}
-{ const el = __omni_el("el-button-2162"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_2162({}); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-2166"); if (el) try { el.textContent = String(EventShorthand_msg.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-2170"); if (el) try { el.textContent = String(EventShorthand_count.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-2174"); if (el) try { el.textContent = String(NotificationStore_unreadCount.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-{ const el = __omni_el("el-button-2176"); if (el) el.addEventListener("click", (e) => {   EventShorthand_reset({}); }); }
-{ const el = __omni_el("el-a-2188"); if (el) el.addEventListener("click", (e) => {   FormControlsDemo_handleLinkClick({}); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-2190"); if (el) try { el.textContent = String(FormControlsDemo_linkClicked.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-{ const el = __omni_el("el-select-2196"); if (el) el.addEventListener("input", (e) => {   FormControlsDemo_handleSelect({}); }); }
-let _guard_value_el_select_2196 = false;
-{ const el = __omni_el("el-select-2196"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_select_2196) { __omni_subs.get("FormControlsDemo_selected").set(e.target.value); } }); }
-__omni_effect(() => { const el = __omni_el("el-select-2196"); if (el) { _guard_value_el_select_2196 = true; el.value = __omni_subs.get("FormControlsDemo_selected").value; _guard_value_el_select_2196 = false; } });
-__omni_effect(() => { const el = __omni_el("el-interp-2205"); if (el) try { el.textContent = String(FormControlsDemo_selected.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-input-2211"); if (el) el.checked = !!(FormControlsDemo_agreed.value); });
-{ const el = __omni_el("el-input-2211"); if (el) el.addEventListener("input", (e) => {   FormControlsDemo_handleAgree({}); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-2216"); if (el) try { el.textContent = String(FormControlsDemo_agreed.value ? "Checked" : "Unchecked"); } catch(e) { __omni_reportError("interpolation:text", e); } });
-{ const el = __omni_el("el-input-2221"); if (el) el.addEventListener("input", (e) => {   FormControlsDemo_handleAgeChange({}); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-2224"); if (el) try { el.textContent = String(FormControlsDemo_age.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-{ const el = __omni_el("el-input-2229"); if (el) el.addEventListener("input", (e) => {   FormControlsDemo_handleRangeChange({}); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-2232"); if (el) try { el.textContent = String(FormControlsDemo_rangeVal.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-2237"); if (el) try { el.textContent = String(FormControlsDemo_statusText.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-function __ononInput_el_input_2250() {
-  EventsDemo_addLog("input");
-}
-{ const el = __omni_el("el-input-2250"); if (el) el.addEventListener("input", (e) => {   __ononInput_el_input_2250({}); }); }
-function __ononPaste_el_input_2250() {
-  EventsDemo_addLog("paste");
-}
-{ const el = __omni_el("el-input-2250"); if (el) el.addEventListener("paste", (e) => {   __ononPaste_el_input_2250({}); }); }
-function __ononCopy_el_input_2250() {
-  EventsDemo_addLog("copy");
-}
-{ const el = __omni_el("el-input-2250"); if (el) el.addEventListener("copy", (e) => {   __ononCopy_el_input_2250({}); }); }
-function __ononKeyUp_el_input_2250() {
-  EventsDemo_addLog("keyup");
-}
-{ const el = __omni_el("el-input-2250"); if (el) el.addEventListener("keyup", (e) => {   __ononKeyUp_el_input_2250({}); }); }
-function __ononCut_el_input_2250() {
-  EventsDemo_addLog("cut");
-}
-{ const el = __omni_el("el-input-2250"); if (el) el.addEventListener("cut", (e) => {   __ononCut_el_input_2250({}); }); }
-let _guard_value_el_input_2250 = false;
-{ const el = __omni_el("el-input-2250"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_2250) { __omni_subs.get("EventsDemo_dragStatus").set(e.target.value); } }); }
-__omni_effect(() => { const el = __omni_el("el-input-2250"); if (el) { _guard_value_el_input_2250 = true; el.value = __omni_subs.get("EventsDemo_dragStatus").value; _guard_value_el_input_2250 = false; } });
-function __ononDoubleClick_el_div_2254() {
-  EventsDemo_addLog("double-click");
-}
-{ const el = __omni_el("el-div-2254"); if (el) el.addEventListener("doubleclick", (e) => {   __ononDoubleClick_el_div_2254({}); }); }
-function __ononContextMenu_el_div_2254() {
-  EventsDemo_addLog("context-menu");
-}
-{ const el = __omni_el("el-div-2254"); if (el) el.addEventListener("contextmenu", (e) => {   __ononContextMenu_el_div_2254({}); }); }
-function __ononDragOver_el_div_2260() {
-  __omni_subs.get("EventsDemo_dragStatus").set("dragover");
-}
-{ const el = __omni_el("el-div-2260"); if (el) el.addEventListener("dragover", (e) => {   __ononDragOver_el_div_2260(e.detail); }); }
-function __ononDragEnd_el_div_2260() {
-  __omni_subs.get("EventsDemo_dragStatus").set("ended");
-}
-{ const el = __omni_el("el-div-2260"); if (el) el.addEventListener("dragend", (e) => {   __ononDragEnd_el_div_2260({}); }); }
-function __ononDrop_el_div_2260() {
-  __omni_subs.get("EventsDemo_dragStatus").set("dropped");
-}
-{ const el = __omni_el("el-div-2260"); if (el) el.addEventListener("drop", (e) => {   __ononDrop_el_div_2260({}); }); }
-function __ononDragStart_el_div_2260() {
-  __omni_subs.get("EventsDemo_dragStatus").set("dragging");
-}
-{ const el = __omni_el("el-div-2260"); if (el) el.addEventListener("dragstart", (e) => {   __ononDragStart_el_div_2260({}); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-2263"); if (el) try { el.textContent = String(EventsDemo_dragStatus.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-function __ononTouchEnd_el_div_2268() {
-  EventsDemo_addLog("touchend");
-}
-{ const el = __omni_el("el-div-2268"); if (el) el.addEventListener("touchend", (e) => {   __ononTouchEnd_el_div_2268({}); }); }
-function __ononTouchStart_el_div_2268() {
-  EventsDemo_addLog("touchstart");
-}
-{ const el = __omni_el("el-div-2268"); if (el) el.addEventListener("touchstart", (e) => {   __ononTouchStart_el_div_2268({}); }); }
-function __ononTouchMove_el_div_2268() {
-  EventsDemo_addLog("touchmove");
-}
-{ const el = __omni_el("el-div-2268"); if (el) el.addEventListener("touchmove", (e) => {   __ononTouchMove_el_div_2268({}); }); }
-{ const el = __omni_el("el-div-2274"); if (el) el.addEventListener("wheel", (e) => {   EventsDemo_handleWheel({ deltaY: e.deltaY ?? 0 }); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-2277"); if (el) try { el.textContent = String(EventsDemo_wheelCount.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-2280"); if (el) try { el.textContent = String(EventsDemo_deltaY.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-{ const el = __omni_el("el-div-2285"); if (el) el.addEventListener("scroll", (e) => {   EventsDemo_handleScroll({ y: e.target?.scrollTop ?? 0 }); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-2288"); if (el) try { el.textContent = String(EventsDemo_scrollY.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-2291"); if (el) try { el.textContent = String(EventsDemo_scrollCount.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-function __ononLoad_el_img_2297() {
-  EventsDemo_addLog("img-loaded");
-}
-{ const el = __omni_el("el-img-2297"); if (el) el.addEventListener("load", (e) => {   __ononLoad_el_img_2297({}); }); }
-function __ononError_el_img_2297() {
-  EventsDemo_addLog("img-error");
-}
-{ const el = __omni_el("el-img-2297"); if (el) el.addEventListener("error", (e) => {   __ononError_el_img_2297({}); }); }
-function __ononPause_el_div_2298() {
-  __omni_subs.get("EventsDemo_mediaStatus").set("paused");
-}
-{ const el = __omni_el("el-div-2298"); if (el) el.addEventListener("pause", (e) => {   __ononPause_el_div_2298({}); }); }
-function __ononEnded_el_div_2298() {
-  __omni_subs.get("EventsDemo_mediaStatus").set("ended");
-}
-{ const el = __omni_el("el-div-2298"); if (el) el.addEventListener("ended", (e) => {   __ononEnded_el_div_2298({}); }); }
-function __ononPlay_el_div_2298() {
-  __omni_subs.get("EventsDemo_mediaStatus").set("playing");
-}
-{ const el = __omni_el("el-div-2298"); if (el) el.addEventListener("play", (e) => {   __ononPlay_el_div_2298({}); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-2301"); if (el) try { el.textContent = String(EventsDemo_mediaStatus.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-function __ononAnimationEnd_el_div_2306() {
-  __omni_subs.get("EventsDemo_animStatus").set("anim-end");
-}
-{ const el = __omni_el("el-div-2306"); if (el) el.addEventListener("animationend", (e) => {   __ononAnimationEnd_el_div_2306({}); }); }
-function __ononAnimationIteration_el_div_2306() {
-  __omni_subs.get("EventsDemo_animStatus").set("anim-iter");
-}
-{ const el = __omni_el("el-div-2306"); if (el) el.addEventListener("animationiteration", (e) => {   __ononAnimationIteration_el_div_2306({}); }); }
-function __ononAnimationStart_el_div_2306() {
-  __omni_subs.get("EventsDemo_animStatus").set("anim-start");
-}
-{ const el = __omni_el("el-div-2306"); if (el) el.addEventListener("animationstart", (e) => {   __ononAnimationStart_el_div_2306({}); }); }
-function __ononTransitionEnd_el_div_2306() {
-  __omni_subs.get("EventsDemo_animStatus").set("trans-end");
-}
-{ const el = __omni_el("el-div-2306"); if (el) el.addEventListener("transitionend", (e) => {   __ononTransitionEnd_el_div_2306({}); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-2309"); if (el) try { el.textContent = String(EventsDemo_animStatus.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-function __ononToggle_el_details_2314() {
-  __omni_subs.get("EventsDemo_toggleCount").set(EventsDemo_toggleCount.value + 1);
-}
-{ const el = __omni_el("el-details-2314"); if (el) el.addEventListener("toggle", (e) => {   __ononToggle_el_details_2314({}); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-2317"); if (el) try { el.textContent = String(EventsDemo_toggleCount.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-2327"); if (el) try { el.textContent = String((EventsDemo_eventLog.value || []).length); } catch(e) { __omni_reportError("interpolation:text", e); } });
-let _guard_value_el_input_2403 = false;
-{ const el = __omni_el("el-input-2403"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_2403) { __omni_subs.get("EventsDemo_mediaStatus").set(e.target.value); } }); }
-__omni_effect(() => { const el = __omni_el("el-input-2403"); if (el) { _guard_value_el_input_2403 = true; el.value = __omni_subs.get("EventsDemo_mediaStatus").value; _guard_value_el_input_2403 = false; } });
-{ const el = __omni_el("el-div-2445"); if (el) el.addEventListener("scroll", (e) => {   EventDataDemo_handleScroll({ y: e.target?.scrollTop ?? 0 }); }); }
-{ const el = __omni_el("el-div-2446"); if (el) el.addEventListener("mousemove", (e) => {   EventDataDemo_handleMouseMove({ x: e.clientX ?? 0, y: e.clientY ?? 0 }); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-2449"); if (el) try { el.textContent = String(EventDataDemo_mouseX.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-2452"); if (el) try { el.textContent = String(EventDataDemo_mouseY.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-{ const el = __omni_el("el-div-2455"); if (el) el.addEventListener("wheel", (e) => {   EventDataDemo_handleWheel({ deltaY: e.deltaY ?? 0, ctrl: e.ctrlKey ?? false }); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-2458"); if (el) try { el.textContent = String(EventDataDemo_scrollY.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-2462"); if (el) try { el.textContent = String(EventDataDemo_wheelDelta.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-2466"); if (el) try { el.textContent = String(EventDataDemo_ctrlHeld.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-{ const el = __omni_el("el-input-2468"); if (el) el.addEventListener("keydown", (e) => {   EventDataDemo_handleKeyDown({ key: e.key ?? "", ctrl: e.ctrlKey ?? false }); }); }
-let _guard_value_el_input_2468 = false;
-{ const el = __omni_el("el-input-2468"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_2468) { __omni_subs.get("EventDataDemo_keyPressed").set(e.target.value); } }); }
-__omni_effect(() => { const el = __omni_el("el-input-2468"); if (el) { _guard_value_el_input_2468 = true; el.value = __omni_subs.get("EventDataDemo_keyPressed").value; _guard_value_el_input_2468 = false; } });
-__omni_effect(() => { const el = __omni_el("el-interp-2471"); if (el) try { el.textContent = String(EventDataDemo_keyPressed.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-{ const el = __omni_el("el-button-2535"); if (el) el.addEventListener("click", (e) => {   SlotDefaultDemo_toggleContent({}); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-2536"); if (el) try { el.textContent = String(SlotDefaultDemo_useCustomContent.value ? "Reset to Defaults" : "Provide Custom Content"); } catch(e) { __omni_reportError("interpolation:text", e); } });
-
-/// ── @if conditional el-if-2539 ──
-__omni_effect(() => {
-  const _nids = ["el-if-2539-b0", "el-if-2539-else"];
-  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { window.playBranchEnters(e); } } }); };
-  if (SlotDefaultDemo_useCustomContent.value) { _show("el-if-2539-b0"); }
-  else { _show("el-if-2539-else"); }
-});
-__omni_effect(() => { const el = __omni_el("el-interp-2618"); if (el) try { el.textContent = String(EmitChild_count.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-{ const el = __omni_el("el-button-2621"); if (el) el.addEventListener("click", (e) => {   EmitChild_handleEmit({}); }); }
-{ const el = __omni_el("el-button-2623"); if (el) el.addEventListener("click", (e) => {   EmitChild_handleFunc({}); }); }
-{ const el = __omni_el("el-EmitChild-2611"); if (el) el.addEventListener("funcclick", (e) => {   EmitKeywordDemo_recordFunc(e.detail); }); }
-{ const el = __omni_el("el-EmitChild-2611"); if (el) el.addEventListener("emitclick", (e) => {   EmitKeywordDemo_recordEmit(e.detail); }); }
-
-/// ── @if conditional el-if-2638 ──
-__omni_effect(() => {
-  const _nids = ["el-if-2638-b0"];
-  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { window.playBranchEnters(e); } } }); };
-  if ((EmitKeywordDemo_emitLog.value || []).length === 0) { _show("el-if-2638-b0"); }
-  else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = "none"; }); }
-});
+__omni_effect(() => { const el = __omni_el("el-interp-1852"); if (el) try { el.textContent = String(SignalPatternsDemo_count.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-1856"); if (el) try { el.textContent = String(SignalPatternsDemo_doubleCount.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-1859"); if (el) try { el.textContent = String(SignalPatternsDemo_isEven.value ? "Even" : "Odd"); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+{ const el = __omni_el("el-button-1862"); if (el) el.addEventListener("click", (e) => { try {   SignalPatternsDemo_inc({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+{ const el = __omni_el("el-button-1864"); if (el) el.addEventListener("click", (e) => { try {   SignalPatternsDemo_dec({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+{ const el = __omni_el("el-button-1866"); if (el) el.addEventListener("click", (e) => { try {   SignalPatternsDemo_resetCounter({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+let _guard_value_el_input_1874 = false;
+{ const el = __omni_el("el-input-1874"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_1874) { __omni_subs.get("SignalPatternsDemo_name").set(e.target.value); } }); }
+__omni_effect(() => { const el = __omni_el("el-input-1874"); if (el) { _guard_value_el_input_1874 = true; el.value = __omni_subs.get("SignalPatternsDemo_name").value; _guard_value_el_input_1874 = false; } });
+let _guard_value_el_input_1878 = false;
+{ const el = __omni_el("el-input-1878"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_1878) { __omni_subs.get("SignalPatternsDemo_email").set(e.target.value); } }); }
+__omni_effect(() => { const el = __omni_el("el-input-1878"); if (el) { _guard_value_el_input_1878 = true; el.value = __omni_subs.get("SignalPatternsDemo_email").value; _guard_value_el_input_1878 = false; } });
+__omni_effect(() => { const el = __omni_el("el-interp-1881"); if (el) try { el.textContent = String(SignalPatternsDemo_isValid.value ? "✅ Valid" : "❌ Fill both fields"); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-1888"); if (el) try { el.textContent = String(SignalPatternsDemo_totalItems.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+{ const el = __omni_el("el-button-1892"); if (el) el.addEventListener("click", (e) => { try {   SignalPatternsDemo_addItem({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+{ const el = __omni_el("el-button-1894"); if (el) el.addEventListener("click", (e) => { try {   SignalPatternsDemo_removeLast({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
 
 /// ── @for item in ... ──
 __omni_effect(() => {
-  const data = EmitKeywordDemo_emitLog.value;
-  const tpl = __omni_el("el-for-2642-tpl");
-  const ctr = __omni_el("el-for-2642-ctr");
+  const data = SignalPatternsDemo_items.value;
+  const tpl = __omni_el("el-for-1897-tpl");
+  const ctr = __omni_el("el-for-1897-ctr");
   if (!tpl || !ctr) return;
   const parent = tpl.parentNode;
   if (!parent) return;
+  Omni.flipBefore(parent);
   // Clear existing rendered items
   while (tpl.nextElementSibling && tpl.nextElementSibling !== ctr) {
     parent.removeChild(tpl.nextElementSibling);
   }
-  if (!data || data.length === 0) return;
-  data.forEach((item, _idx) => {
-    var __root = tpl.content.firstElementChild;
-    var __cloneItem = function() {
-      if (!__root) return null;
-      if (__root.tagName === 'FRAGMENT') {
-        var __f = document.createDocumentFragment();
-        for (var __i = 0; __i < __root.children.length; __i++) __f.appendChild(__root.children[__i].cloneNode(true));
-        return __f;
-      }
-      return __root.cloneNode(true);
-    };
-    var clone = null;
-    clone = __cloneItem();
-    if (!clone) return;
-    // Mark first element with data-for-item
-    if (clone.nodeType === 11) { if (clone.firstElementChild) clone.firstElementChild.setAttribute('data-for-item', _idx); }
-    else { clone.setAttribute('data-for-item', _idx); }
-    // Pre-compiled text bindings
-    (function() {
-      var _el = clone.querySelector('[data-nid="el-interp-2648"]');
-      if (_el) try { _el.textContent = String(item); } catch(e) { __omni_reportError("for:text", e); }
-    })();
-    // Initialize per-instance state for @for component instances
-    var _stateEls = [];
-    if (clone.matches && clone.matches('[data-for-state-names]')) _stateEls.push(clone);
-    clone.querySelectorAll('[data-for-state-names]').forEach(function(el) { _stateEls.push(el); });
-    _stateEls.forEach(function(_fc) {
-      if (!_fc.__omniState) {
-        _fc.__omniState = {};
-        var _snStr = _fc.getAttribute('data-for-state-names');
-        if (_snStr) {
-          _snStr.split(',').forEach(function(_sn) {
-            if (_sn) {
-              var _cn = _fc.getAttribute('data-component');
-              var _sig = __omni_subs.get(_cn + '_' + _sn);
-              if (_sig) _fc.__omniState[_sn] = _sig._default != null ? _sig._default : _sig.peek();
-            }
-          });
-        }
-      }
-    });
-    parent.insertBefore(clone, ctr);
-  });
-  // Pre-compiled rebind function: __omni_rebind_EmitKeywordDemo_item
-  function __omni_rebind_EmitKeywordDemo_item(comp) {
-    var _el = comp.querySelector('[data-nid="el-interp-2648"]');
-    if (_el) try { _el.textContent = String(item); } catch(e) { __omni_reportError("for:rebind", e); }
-  }
-});
-
-/// ── @if conditional el-if-2654 ──
-__omni_effect(() => {
-  const _nids = ["el-if-2654-b0"];
-  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { window.playBranchEnters(e); } } }); };
-  if ((EmitKeywordDemo_funcLog.value || []).length === 0) { _show("el-if-2654-b0"); }
-  else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = "none"; }); }
-});
-
-/// ── @for item in ... ──
-__omni_effect(() => {
-  const data = EmitKeywordDemo_funcLog.value;
-  const tpl = __omni_el("el-for-2658-tpl");
-  const ctr = __omni_el("el-for-2658-ctr");
-  if (!tpl || !ctr) return;
-  const parent = tpl.parentNode;
-  if (!parent) return;
-  // Clear existing rendered items
-  while (tpl.nextElementSibling && tpl.nextElementSibling !== ctr) {
-    parent.removeChild(tpl.nextElementSibling);
-  }
-  if (!data || data.length === 0) return;
-  data.forEach((item, _idx) => {
-    var __root = tpl.content.firstElementChild;
-    var __cloneItem = function() {
-      if (!__root) return null;
-      if (__root.tagName === 'FRAGMENT') {
-        var __f = document.createDocumentFragment();
-        for (var __i = 0; __i < __root.children.length; __i++) __f.appendChild(__root.children[__i].cloneNode(true));
-        return __f;
-      }
-      return __root.cloneNode(true);
-    };
-    var clone = null;
-    clone = __cloneItem();
-    if (!clone) return;
-    // Mark first element with data-for-item
-    if (clone.nodeType === 11) { if (clone.firstElementChild) clone.firstElementChild.setAttribute('data-for-item', _idx); }
-    else { clone.setAttribute('data-for-item', _idx); }
-    // Pre-compiled text bindings
-    (function() {
-      var _el = clone.querySelector('[data-nid="el-interp-2664"]');
-      if (_el) try { _el.textContent = String(item); } catch(e) { __omni_reportError("for:text", e); }
-    })();
-    // Initialize per-instance state for @for component instances
-    var _stateEls = [];
-    if (clone.matches && clone.matches('[data-for-state-names]')) _stateEls.push(clone);
-    clone.querySelectorAll('[data-for-state-names]').forEach(function(el) { _stateEls.push(el); });
-    _stateEls.forEach(function(_fc) {
-      if (!_fc.__omniState) {
-        _fc.__omniState = {};
-        var _snStr = _fc.getAttribute('data-for-state-names');
-        if (_snStr) {
-          _snStr.split(',').forEach(function(_sn) {
-            if (_sn) {
-              var _cn = _fc.getAttribute('data-component');
-              var _sig = __omni_subs.get(_cn + '_' + _sn);
-              if (_sig) _fc.__omniState[_sn] = _sig._default != null ? _sig._default : _sig.peek();
-            }
-          });
-        }
-      }
-    });
-    parent.insertBefore(clone, ctr);
-  });
-  // Pre-compiled rebind function: __omni_rebind_EmitKeywordDemo_item
-  function __omni_rebind_EmitKeywordDemo_item(comp) {
-    var _el = comp.querySelector('[data-nid="el-interp-2664"]');
-    if (_el) try { _el.textContent = String(item); } catch(e) { __omni_reportError("for:rebind", e); }
-  }
-});
-__omni_effect(() => { const el = __omni_el("el-interp-2698"); if (el) try { el.textContent = String(EmitEventChild_label.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-2702"); if (el) try { el.textContent = String(EmitEventChild_clickCount.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-{ const el = __omni_el("el-button-2704"); if (el) el.addEventListener("click", (e) => {   EmitEventChild_doAction({}); }); }
-{ const el = __omni_el("el-button-2706"); if (el) el.addEventListener("click", (e) => {   EmitEventChild_incrementParent({}); }); }
-__omni_effect(() => { __omni_subs.get("EmitEventChild_label").set("Sender A"); });
-{ const el = __omni_el("el-EmitEventChild-2695"); if (el) el.addEventListener("action", (e) => {   EmitEventDemo_onChildAction(e.detail); }); }
-{ const el = __omni_el("el-EmitEventChild-2695"); if (el) el.addEventListener("optionalack", (e) => {   EmitEventDemo_onOptionalAck(e.detail); }); }
-{ const el = __omni_el("el-EmitEventChild-2695"); if (el) el.addEventListener("count", (e) => {   EmitEventDemo_onChildCount(e.detail); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-2711"); if (el) try { el.textContent = String(EmitEventChild_label.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-2715"); if (el) try { el.textContent = String(EmitEventChild_clickCount.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-{ const el = __omni_el("el-button-2717"); if (el) el.addEventListener("click", (e) => {   EmitEventChild_doAction({}); }); }
-{ const el = __omni_el("el-button-2719"); if (el) el.addEventListener("click", (e) => {   EmitEventChild_incrementParent({}); }); }
-__omni_effect(() => { __omni_subs.get("EmitEventChild_label").set("Sender B"); });
-{ const el = __omni_el("el-EmitEventChild-2708"); if (el) el.addEventListener("action", (e) => {   EmitEventDemo_onChildAction(e.detail); }); }
-{ const el = __omni_el("el-EmitEventChild-2708"); if (el) el.addEventListener("count", (e) => {   EmitEventDemo_onChildCount(e.detail); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-2725"); if (el) try { el.textContent = String(String((EmitEventDemo_messages.value || []).length)); } catch(e) { __omni_reportError("interpolation:text", e); } });
-{ const el = __omni_el("el-button-2728"); if (el) el.addEventListener("click", (e) => {   EmitEventDemo_clearLog({}); }); }
-
-/// ── @for msg in ... ──
-__omni_effect(() => {
-  const data = EmitEventDemo_messages.value;
-  const tpl = __omni_el("el-for-2731-tpl");
-  const ctr = __omni_el("el-for-2731-ctr");
-  if (!tpl || !ctr) return;
-  const parent = tpl.parentNode;
-  if (!parent) return;
-  // Clear existing rendered items
-  while (tpl.nextElementSibling && tpl.nextElementSibling !== ctr) {
-    parent.removeChild(tpl.nextElementSibling);
-  }
+  const _forKeys = ctr._forKeys || (ctr._forKeys = new Map());
+  const keyFn = (item) => { try { return String(item); } catch(e) { __omni_reportError("error:list:key", e); return null; } };
+  const oldKeys = new Set(_forKeys.keys());
+  const newKeys = new Set();
   if (!data || data.length === 0) {
     // Clone empty state template and insert before container marker
-    const emptyEl = __omni_el("el-for-2731-empty");
+    const emptyEl = __omni_el("el-for-1897-empty");
     if (emptyEl && emptyEl.content && emptyEl.content.firstElementChild) {
       const emptyClone = emptyEl.content.firstElementChild.cloneNode(true);
       emptyClone.setAttribute('data-for-empty', 'true');
@@ -10232,315 +9262,7 @@ __omni_effect(() => {
     }
     return;
   }
-  data.forEach((msg, _idx) => {
-    var __root = tpl.content.firstElementChild;
-    var __cloneItem = function() {
-      if (!__root) return null;
-      if (__root.tagName === 'FRAGMENT') {
-        var __f = document.createDocumentFragment();
-        for (var __i = 0; __i < __root.children.length; __i++) __f.appendChild(__root.children[__i].cloneNode(true));
-        return __f;
-      }
-      return __root.cloneNode(true);
-    };
-    var clone = null;
-    clone = __cloneItem();
-    if (!clone) return;
-    // Mark first element with data-for-item
-    if (clone.nodeType === 11) { if (clone.firstElementChild) clone.firstElementChild.setAttribute('data-for-item', _idx); }
-    else { clone.setAttribute('data-for-item', _idx); }
-    // Pre-compiled text bindings
-    (function() {
-      var _el = clone.querySelector('[data-nid="el-interp-2734"]');
-      if (_el) try { _el.textContent = String(msg); } catch(e) { __omni_reportError("for:text", e); }
-    })();
-    // Initialize per-instance state for @for component instances
-    var _stateEls = [];
-    if (clone.matches && clone.matches('[data-for-state-names]')) _stateEls.push(clone);
-    clone.querySelectorAll('[data-for-state-names]').forEach(function(el) { _stateEls.push(el); });
-    _stateEls.forEach(function(_fc) {
-      if (!_fc.__omniState) {
-        _fc.__omniState = {};
-        var _snStr = _fc.getAttribute('data-for-state-names');
-        if (_snStr) {
-          _snStr.split(',').forEach(function(_sn) {
-            if (_sn) {
-              var _cn = _fc.getAttribute('data-component');
-              var _sig = __omni_subs.get(_cn + '_' + _sn);
-              if (_sig) _fc.__omniState[_sn] = _sig._default != null ? _sig._default : _sig.peek();
-            }
-          });
-        }
-      }
-    });
-    parent.insertBefore(clone, ctr);
-  });
-  // Pre-compiled rebind function: __omni_rebind_EmitEventDemo_msg
-  function __omni_rebind_EmitEventDemo_msg(comp) {
-    var _el = comp.querySelector('[data-nid="el-interp-2734"]');
-    if (_el) try { _el.textContent = String(msg); } catch(e) { __omni_reportError("for:rebind", e); }
-  }
-});
-
-/// ── @if conditional el-if-2127 ──
-__omni_effect(() => {
-  const _nids = ["el-if-2127-b0"];
-  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { window.playBranchEnters(e); } } }); };
-  if (App_activeTab.value === "events") { _show("el-if-2127-b0"); }
-  else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = "none"; }); }
-});
-__omni_effect(() => { const el = __omni_el("el-interp-2750"); if (el) try { el.textContent = String(InlineStoreDemo_itemCount.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-2754"); if (el) try { el.textContent = String(InlineStoreDemo_summary.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-2758"); if (el) try { el.textContent = String(InlineStoreDemo_totalPrice.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-{ const el = __omni_el("el-button-2760"); if (el) el.addEventListener("click", (e) => {   InlineStoreDemo_addApple({}); }); }
-{ const el = __omni_el("el-button-2762"); if (el) el.addEventListener("click", (e) => {   InlineStoreDemo_remove({}); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-2765"); if (el) try { el.textContent = String(InlineStoreDemo_log.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-2770"); if (el) try { el.textContent = String(NullishDemo_displayName.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-2786"); if (el) try { el.textContent = String(StringLiteralsDemo_backtickResult.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-2793"); if (el) try { el.textContent = String(StringLiteralsDemo_singleQuoteResult.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-2800"); if (el) try { el.textContent = String(StringLiteralsDemo_mixed.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-2805"); if (el) try { el.textContent = String("`${expr}`"); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-2811"); if (el) try { el.textContent = String(StringLiteralsDemo_interpolated.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-{ const el = __omni_el("el-button-2813"); if (el) el.addEventListener("click", (e) => {   StringLiteralsDemo_updateTemplate({}); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-2831"); if (el) try { el.textContent = String(demo_i8()); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-2837"); if (el) try { el.textContent = String(demo_i16()); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-2843"); if (el) try { el.textContent = String(demo_i64()); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-2849"); if (el) try { el.textContent = String(demo_isize()); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-2859"); if (el) try { el.textContent = String(demo_u8()); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-2865"); if (el) try { el.textContent = String(demo_u16()); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-2871"); if (el) try { el.textContent = String(demo_u32()); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-2877"); if (el) try { el.textContent = String(demo_u64()); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-2883"); if (el) try { el.textContent = String(demo_usize()); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-2893"); if (el) try { el.textContent = String(demo_f32()); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-2898"); if (el) try { el.textContent = String(TypeSystemDemo_summary.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-let _guard_checked_el_input_2917 = false;
-{ const el = __omni_el("el-input-2917"); if (el) el.addEventListener("change", (e) => { if (!_guard_checked_el_input_2917) { __omni_subs.get("ViewAttributesDemo_isChecked").set(e.target.checked); } }); }
-__omni_effect(() => { const el = __omni_el("el-input-2917"); if (el) { _guard_checked_el_input_2917 = true; el.checked = __omni_subs.get("ViewAttributesDemo_isChecked").value; _guard_checked_el_input_2917 = false; } });
-__omni_effect(() => { const el = __omni_el("el-interp-2920"); if (el) try { el.textContent = String(String(ViewAttributesDemo_isChecked.value)); } catch(e) { __omni_reportError("interpolation:text", e); } });
-let _guard_value_el_textarea_2925 = false;
-{ const el = __omni_el("el-textarea-2925"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_textarea_2925) { __omni_subs.get("ViewAttributesDemo_richText").set(e.target.value); } }); }
-__omni_effect(() => { const el = __omni_el("el-textarea-2925"); if (el) { _guard_value_el_textarea_2925 = true; el.value = __omni_subs.get("ViewAttributesDemo_richText").value; _guard_value_el_textarea_2925 = false; } });
-__omni_effect(() => { const el = __omni_el("el-interp-2928"); if (el) try { el.textContent = String(ViewAttributesDemo_richText.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-2950"); if (el) try { el.textContent = String("{ }"); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-2957"); if (el) try { el.textContent = String(ComputedFnFormDemo_simple.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-2962"); if (el) try { el.textContent = String("{...}"); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-2965"); if (el) try { el.textContent = String(ComputedFnFormDemo_fullName.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-{ const el = __omni_el("el-button-2968"); if (el) el.addEventListener("click", (e) => {   ComputedFnFormDemo_clearLast({}); }); }
-{ const el = __omni_el("el-button-2970"); if (el) el.addEventListener("click", (e) => {   ComputedFnFormDemo_setLast({}); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-2975"); if (el) try { el.textContent = String(ComputedFnFormDemo_counter.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-2987"); if (el) try { el.textContent = String(OptionalChainDemo_nameLen.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-2991"); if (el) try { el.textContent = String(OptionalChainDemo_displayName.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-{ const el = __omni_el("el-button-2994"); if (el) el.addEventListener("click", (e) => {   OptionalChainDemo_clearUser({}); }); }
-{ const el = __omni_el("el-button-2996"); if (el) el.addEventListener("click", (e) => {   OptionalChainDemo_setUser({}); }); }
-{ const el = __omni_el("el-button-2998"); if (el) el.addEventListener("click", (e) => {   OptionalChainDemo_toggle({}); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-3005"); if (el) try { el.textContent = String(OptionalChainDemo_displayName.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-3009"); if (el) try { el.textContent = String(OptionalChainDemo_nameLen.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-
-/// ── @if conditional el-if-3000 ──
-__omni_effect(() => {
-  const _nids = ["el-if-3000-b0", "el-if-3000-b1", "el-if-3000-else"];
-  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { window.playBranchEnters(e); } } }); };
-  if (OptionalChainDemo_showDetails.value) { _show("el-if-3000-b0"); }
-  else if (!OptionalChainDemo_showDetails.value && OptionalChainDemo_user.value !== null) { _show("el-if-3000-b1"); }
-  else { _show("el-if-3000-else"); }
-});
-{ const el = __omni_el("el-button-3031"); if (el) el.addEventListener("click", (e) => {   StylePseudoDemo_increment({}); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-3033"); if (el) try { el.textContent = String(StylePseudoDemo_clicked.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-{ const el = __omni_el("el-button-3035"); if (el) el.addEventListener("click", (e) => {   StylePseudoDemo_increment({}); }); }
-
-/// ── @if conditional el-if-2739 ──
-__omni_effect(() => {
-  const _nids = ["el-if-2739-b0"];
-  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { window.playBranchEnters(e); } } }); };
-  if (App_activeTab.value === "language") { _show("el-if-2739-b0"); }
-  else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = "none"; }); }
-});
-__omni_effect(() => { const el = __omni_el("el-div-3051"); if (el) el.style.background=ThemeStore_currentBg.value; });
-__omni_effect(() => { const el = __omni_el("el-div-3051"); if (el) el.style.color=ThemeStore_currentText.value; });
-__omni_effect(() => { const el = __omni_el("el-p-3055"); if (el) el.style.color=ThemeStore_currentText.value; });
-__omni_effect(() => { const el = __omni_el("el-h3-3058"); if (el) el.style.color=ThemeStore_currentPrimary.value; });
-__omni_effect(() => { const el = __omni_el("el-div-3063"); if (el) el.style.background=ThemeStore_currentBg.value; });
-__omni_effect(() => { const el = __omni_el("el-div-3063"); if (el) el.style.border="2px solid " + ThemeStore_currentBorder.value; });
-__omni_effect(() => { const el = __omni_el("el-span-3064"); if (el) el.style.color=ThemeStore_currentText.value; });
-__omni_effect(() => { const el = __omni_el("el-interp-3065"); if (el) try { el.textContent = String(ThemeStore_modeLabel.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-3069"); if (el) try { el.textContent = String(ThemeStore_toggleCount.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-button-3072"); if (el) el.style.background=ThemeStore_currentPrimary.value; });
-__omni_effect(() => { const el = __omni_el("el-button-3072"); if (el) el.style.color=ThemeStore_currentBg.value; });
-function __ononPress_el_button_3072() {
-  ThemeStore_toggle();
-}
-{ const el = __omni_el("el-button-3072"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_3072({}); }); }
-function __ononMouseEnter_el_button_3072() {
-  __omni_subs.get("ThemeSwitcher_isHovered").set(true);
-}
-{ const el = __omni_el("el-button-3072"); if (el) el.addEventListener("mouseenter", (e) => {   __ononMouseEnter_el_button_3072({}); }); }
-function __ononMouseLeave_el_button_3072() {
-  __omni_subs.get("ThemeSwitcher_isHovered").set(false);
-}
-{ const el = __omni_el("el-button-3072"); if (el) el.addEventListener("mouseleave", (e) => {   __ononMouseLeave_el_button_3072({}); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-3073"); if (el) try { el.textContent = String(ThemeSwitcher_buttonLabel.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-div-3075"); if (el) el.style.background=ThemeStore_currentMuted.value; });
-__omni_effect(() => { const el = __omni_el("el-p-3076"); if (el) el.style.color=ThemeStore_currentText.value; });
-__omni_effect(() => { const el = __omni_el("el-span-3079"); if (el) el.style.background=ThemeStore_currentBg.value; });
-__omni_effect(() => { const el = __omni_el("el-span-3079"); if (el) el.style.border="1px solid " + ThemeStore_currentBorder.value; });
-__omni_effect(() => { const el = __omni_el("el-span-3081"); if (el) el.style.background=ThemeStore_currentText.value; });
-__omni_effect(() => { const el = __omni_el("el-span-3081"); if (el) el.style.color=ThemeStore_currentBg.value; });
-__omni_effect(() => { const el = __omni_el("el-span-3083"); if (el) el.style.background=ThemeStore_currentPrimary.value; });
-__omni_effect(() => { const el = __omni_el("el-span-3085"); if (el) el.style.background=ThemeStore_currentBorder.value; });
-__omni_effect(() => { const el = __omni_el("el-span-3087"); if (el) el.style.background=ThemeStore_currentMuted.value; });
-__omni_effect(() => { const el = __omni_el("el-span-3087"); if (el) el.style.color=ThemeStore_currentText.value; });
-function __ononPress_el_button_3090() {
-  ThemeStore_setMode("light");
-}
-{ const el = __omni_el("el-button-3090"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_3090({}); }); }
-function __ononPress_el_button_3092() {
-  ThemeStore_setMode("dark");
-}
-{ const el = __omni_el("el-button-3092"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_3092({}); }); }
-__omni_effect(() => { const el = __omni_el("el-h3-3095"); if (el) el.style.color=ThemeStore_currentPrimary.value; });
-__omni_effect(() => { const el = __omni_el("el-span-3102"); if (el) el.style.color=ThemeStore_currentText.value; });
-
-/// ── @for color in ... ──
-__omni_effect(() => {
-  const data = SettingsPage_themeColors.value;
-  const tpl = __omni_el("el-for-3098-tpl");
-  const ctr = __omni_el("el-for-3098-ctr");
-  if (!tpl || !ctr) return;
-  const parent = tpl.parentNode;
-  if (!parent) return;
-  // Clear existing rendered items
-  while (tpl.nextElementSibling && tpl.nextElementSibling !== ctr) {
-    parent.removeChild(tpl.nextElementSibling);
-  }
-  if (!data || data.length === 0) return;
-  data.forEach((color, _idx) => {
-    var __root = tpl.content.firstElementChild;
-    var __cloneItem = function() {
-      if (!__root) return null;
-      if (__root.tagName === 'FRAGMENT') {
-        var __f = document.createDocumentFragment();
-        for (var __i = 0; __i < __root.children.length; __i++) __f.appendChild(__root.children[__i].cloneNode(true));
-        return __f;
-      }
-      return __root.cloneNode(true);
-    };
-    var clone = null;
-    clone = __cloneItem();
-    if (!clone) return;
-    // Mark first element with data-for-item
-    if (clone.nodeType === 11) { if (clone.firstElementChild) clone.firstElementChild.setAttribute('data-for-item', _idx); }
-    else { clone.setAttribute('data-for-item', _idx); }
-    // Pre-compiled text bindings
-    (function() {
-      var _el = clone.querySelector('[data-nid="el-interp-3103"]');
-      if (_el) try { _el.textContent = String(color); } catch(e) { __omni_reportError("for:text", e); }
-    })();
-    // Initialize per-instance state for @for component instances
-    var _stateEls = [];
-    if (clone.matches && clone.matches('[data-for-state-names]')) _stateEls.push(clone);
-    clone.querySelectorAll('[data-for-state-names]').forEach(function(el) { _stateEls.push(el); });
-    _stateEls.forEach(function(_fc) {
-      if (!_fc.__omniState) {
-        _fc.__omniState = {};
-        var _snStr = _fc.getAttribute('data-for-state-names');
-        if (_snStr) {
-          _snStr.split(',').forEach(function(_sn) {
-            if (_sn) {
-              var _cn = _fc.getAttribute('data-component');
-              var _sig = __omni_subs.get(_cn + '_' + _sn);
-              if (_sig) _fc.__omniState[_sn] = _sig._default != null ? _sig._default : _sig.peek();
-            }
-          });
-        }
-      }
-    });
-    parent.insertBefore(clone, ctr);
-  });
-  // Pre-compiled rebind function: __omni_rebind_SettingsPage_color
-  function __omni_rebind_SettingsPage_color(comp) {
-    var _el = comp.querySelector('[data-nid="el-interp-3103"]');
-    if (_el) try { _el.textContent = String(color); } catch(e) { __omni_reportError("for:rebind", e); }
-  }
-});
-{ const el = __omni_el("el-div-3106"); if (el) el.addEventListener("click", (e) => {   SettingsPage_toggleAbout({}); }); }
-__omni_effect(() => { const el = __omni_el("el-h3-3107"); if (el) el.style.color=ThemeStore_currentPrimary.value; });
-__omni_effect(() => { const el = __omni_el("el-interp-3110"); if (el) try { el.textContent = String(SettingsPage_aboutExpanded.value ? "^" : "v"); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-div-3114"); if (el) el.style.background=ThemeStore_currentMuted.value; });
-__omni_effect(() => { const el = __omni_el("el-p-3115"); if (el) el.style.color=ThemeStore_currentText.value; });
-__omni_effect(() => { const el = __omni_el("el-span-3118"); if (el) el.style.color=ThemeStore_currentText.value; });
-__omni_effect(() => { const el = __omni_el("el-span-3120"); if (el) el.style.color=ThemeStore_currentText.value; });
-__omni_effect(() => { const el = __omni_el("el-span-3122"); if (el) el.style.color=ThemeStore_currentText.value; });
-__omni_effect(() => { const el = __omni_el("el-interp-3124"); if (el) try { el.textContent = String(ThemeStore_modeLabel.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-p-3127"); if (el) el.style.color=ThemeStore_currentText.value; });
-
-/// ── @if conditional el-if-3112 ──
-__omni_effect(() => {
-  const _nids = ["el-if-3112-b0"];
-  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { window.playBranchEnters(e); } } }); };
-  if (SettingsPage_aboutExpanded.value) { _show("el-if-3112-b0"); }
-  else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = "none"; }); }
-});
-__omni_effect(() => { const el = __omni_el("el-span-3130"); if (el) el.style.color=ThemeStore_currentText.value; });
-__omni_effect(() => { const el = __omni_el("el-interp-3132"); if (el) try { el.textContent = String(ThemeStore_modeLabel.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-3135"); if (el) try { el.textContent = String(ThemeStore_toggleCount.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-
-/// ── @if conditional el-if-3046 ──
-__omni_effect(() => {
-  const _nids = ["el-if-3046-b0"];
-  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { window.playBranchEnters(e); } } }); };
-  if (App_activeTab.value === "settings") { _show("el-if-3046-b0"); }
-  else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = "none"; }); }
-});
-__omni_effect(() => { const el = __omni_el("el-interp-3151"); if (el) try { el.textContent = String(TernaryExprDemo_count.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-3155"); if (el) try { el.textContent = String(TernaryExprDemo_label.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-3159"); if (el) try { el.textContent = String(TernaryExprDemo_count.value > 0 ? "正数哦" : "非正数哦"); } catch(e) { __omni_reportError("interpolation:text", e); } });
-{ const el = __omni_el("el-button-3162"); if (el) el.addEventListener("click", (e) => {   TernaryExprDemo_inc({}); }); }
-{ const el = __omni_el("el-button-3164"); if (el) el.addEventListener("click", (e) => {   TernaryExprDemo_dec({}); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-3169"); if (el) try { el.textContent = String(TernaryExprDemo_score.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-3173"); if (el) try { el.textContent = String(TernaryExprDemo_grade.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-function __ononPress_el_button_3176() {
-  TernaryExprDemo_setScore(95);
-}
-{ const el = __omni_el("el-button-3176"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_3176({}); }); }
-function __ononPress_el_button_3178() {
-  TernaryExprDemo_setScore(85);
-}
-{ const el = __omni_el("el-button-3178"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_3178({}); }); }
-function __ononPress_el_button_3180() {
-  TernaryExprDemo_setScore(72);
-}
-{ const el = __omni_el("el-button-3180"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_3180({}); }); }
-function __ononPress_el_button_3182() {
-  TernaryExprDemo_setScore(55);
-}
-{ const el = __omni_el("el-button-3182"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_3182({}); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-3198"); if (el) try { el.textContent = String(BlockExprDemo_a.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-3201"); if (el) try { el.textContent = String(BlockExprDemo_b.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-{ const el = __omni_el("el-button-3204"); if (el) el.addEventListener("click", (e) => {   BlockExprDemo_incA({}); }); }
-{ const el = __omni_el("el-button-3206"); if (el) el.addEventListener("click", (e) => {   BlockExprDemo_incB({}); }); }
-{ const el = __omni_el("el-button-3208"); if (el) el.addEventListener("click", (e) => {   BlockExprDemo_reset({}); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-3214"); if (el) try { el.textContent = String(BlockExprDemo_calculation.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-3222"); if (el) try { el.textContent = String(BlockExprDemo_total.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-__omni_effect(() => { const el = __omni_el("el-interp-3229"); if (el) try { el.textContent = String(BlockExprDemo_simpleSum.value); } catch(e) { __omni_reportError("interpolation:text", e); } });
-
-/// ── @for item in ... ──
-__omni_effect(() => {
-  const data = ForDirectiveKeyDemo_items.value;
-  const tpl = __omni_el("el-for-3242-tpl");
-  const ctr = __omni_el("el-for-3242-ctr");
-  if (!tpl || !ctr) return;
-  const parent = tpl.parentNode;
-  if (!parent) return;
-  // Clear existing rendered items
-  while (tpl.nextElementSibling && tpl.nextElementSibling !== ctr) {
-    parent.removeChild(tpl.nextElementSibling);
-  }
-  const _forKeys = ctr._forKeys || (ctr._forKeys = new Map());
-  const keyFn = (item) => { try { return String(item); } catch(e) { __omni_reportError("list:key", e); return null; } };
-  const oldKeys = new Set(_forKeys.keys());
-  const newKeys = new Set();
-  if (!data || data.length === 0) return;
-  // __omni_flip_before for FLIP animations
+  var frag = document.createDocumentFragment();
   data.forEach((item, _idx) => {
     var __root = tpl.content.firstElementChild;
     var __cloneItem = function() {
@@ -10565,10 +9287,32 @@ __omni_effect(() => {
     // Mark first element with data-for-item
     if (clone.nodeType === 11) { if (clone.firstElementChild) clone.firstElementChild.setAttribute('data-for-item', _idx); }
     else { clone.setAttribute('data-for-item', _idx); }
+    // Assign unique nids per clone for motion trigger isolation
+    (function assignUniqueNids(el, idx) {
+      var nid = el.getAttribute('data-nid');
+      if (nid) {
+        var uniqueNid = nid + '_' + idx;
+        el.setAttribute('data-nid', uniqueNid);
+      }
+      el.querySelectorAll('[data-nid]').forEach(function(child) {
+        var childNid = child.getAttribute('data-nid');
+        if (childNid) {
+          child.setAttribute('data-nid', childNid + '_' + idx);
+        }
+      });
+    })(clone, _idx);
+    var _elCache = new Map();
+    (function cacheElements(el) {
+      var nid = el.getAttribute('data-nid');
+      if (nid) _elCache.set(nid, el);
+      el.querySelectorAll('[data-nid]').forEach(function(child) {
+        _elCache.set(child.getAttribute('data-nid'), child);
+      });
+    })(clone);
     // Pre-compiled text bindings
     (function() {
-      var _el = clone.querySelector('[data-nid="el-interp-3245"]');
-      if (_el) try { _el.textContent = String(item); } catch(e) { __omni_reportError("for:text", e); }
+      var _unid = "el-interp-1900_" + _idx; var _el = _elCache.get(_unid); if (!_el) { _el = clone.querySelector('[data-nid="' + _unid + '"]'); if (_el) _elCache.set(_unid, _el); }
+      if (_el) try { _el.textContent = String(item); } catch(e) { __omni_reportError("warn:for:text", e); }
     })();
     // Initialize per-instance state for @for component instances
     var _stateEls = [];
@@ -10589,8 +9333,9 @@ __omni_effect(() => {
         }
       }
     });
-    if (isNew) { parent.insertBefore(clone, ctr); }
+    if (isNew) { frag.appendChild(clone); }
   });
+  parent.insertBefore(frag, ctr);
   // Remove items whose keys disappeared (play @leave then remove)
   oldKeys.forEach(key => {
     if (!newKeys.has(key)) {
@@ -10598,11 +9343,11 @@ __omni_effect(() => {
       if (el) {
         const leavingNid = el.getAttribute('data-nid');
         if (leavingNid) {
-          const player = __omni_getAnimation(leavingNid, 'leave');
+          const player = __omni_animations.get(leavingNid + '_leave');
           if (player) {
-            player.play().then(() => { el.remove(); _forKeys.delete(key); });
+            player.play().then(() => { __omni_cleanupElement(leavingNid); el.remove(); _forKeys.delete(key); });
           } else {
-            el.remove(); _forKeys.delete(key);
+            __omni_cleanupElement(leavingNid); el.remove(); _forKeys.delete(key);
           }
         } else {
           el.remove(); _forKeys.delete(key);
@@ -10610,52 +9355,717 @@ __omni_effect(() => {
       }
     }
   });
-  // Pre-compiled rebind function: __omni_rebind_ForDirectiveKeyDemo_item
-  function __omni_rebind_ForDirectiveKeyDemo_item(comp) {
-    var _el = comp.querySelector('[data-nid="el-interp-3245"]');
-    if (_el) try { _el.textContent = String(item); } catch(e) { __omni_reportError("for:rebind", e); }
+  Omni.flipAfter(parent);
+  // Pre-compiled rebind function: __omni_rebind_SignalPatternsDemo_item
+  function __omni_rebind_SignalPatternsDemo_item(comp) {
+    var _el = comp.querySelector('[data-nid^="el-interp-1900_"]') || comp.querySelector('[data-nid="el-interp-1900"]');
+    if (_el) try { _el.textContent = String(item); } catch(e) { __omni_reportError("warn:for:rebind", e); }
   }
 });
-__omni_effect(() => { const el = __omni_el("el-div-3257"); if (el) el.classList.toggle("cardActive", !!(AdvancedPseudoDemo_isActive.value)); });
-{ const el = __omni_el("el-button-3260"); if (el) el.addEventListener("click", (e) => {   AdvancedPseudoDemo_toggle({}); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-3262"); if (el) try { el.textContent = String(AdvancedPseudoDemo_isActive.value ? "ON" : "OFF"); } catch(e) { __omni_reportError("interpolation:text", e); } });
-{ const el = __omni_el("el-button-3269"); if (el) el.addEventListener("click", (e) => {   AdvancedPseudoDemo_setDark({}); }); }
-{ const el = __omni_el("el-button-3271"); if (el) el.addEventListener("click", (e) => {   AdvancedPseudoDemo_setDefault({}); }); }
-let _guard_value_el_input_3281 = false;
-{ const el = __omni_el("el-input-3281"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_3281) { __omni_subs.get("AdvancedPseudoDemo_variant").set(e.target.value); } }); }
-__omni_effect(() => { const el = __omni_el("el-input-3281"); if (el) { _guard_value_el_input_3281 = true; el.value = __omni_subs.get("AdvancedPseudoDemo_variant").value; _guard_value_el_input_3281 = false; } });
+{ const el = __omni_el("el-button-1908"); if (el) el.addEventListener("click", (e) => { try {   SignalPatternsDemo_togglePanel({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-1909"); if (el) try { el.textContent = String(SignalPatternsDemo_showPanel.value ? "Hide Panel" : "Show Panel"); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
 
-/// ── @if conditional el-if-3137 ──
+/// ── @if conditional el-if-1911 ──
+var _current_el_if_1911 = null;
 __omni_effect(() => {
-  const _nids = ["el-if-3137-b0"];
-  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { window.playBranchEnters(e); } } }); };
-  if (App_activeTab.value === "supplement") { _show("el-if-3137-b0"); }
+  const _nids = ["el-if-1911-b0"];
+  const _hideAll = (except) => { _nids.forEach(id => { const e = __omni_el(id); if (e && id !== except) e.style.display = "none"; }); };
+  const _showNow = (nid) => { const e = __omni_el(nid); if (e) e.style.display = "block"; _hideAll(nid); _current_el_if_1911 = nid; };
+  const _transition = (newNid) => {
+   const oldNid = _current_el_if_1911;
+   if (oldNid === newNid) return;
+   if (!oldNid) { _showNow(newNid); return; }
+   // Play @leave on old branch, then show new
+   const leaveAnim = __omni_animations.get(oldNid + "_leave");
+   if (leaveAnim) {
+    leaveAnim.play();
+    // Wait for leave animation to complete
+    function _onLeaveDone() {
+     // Cleanup old branch animations
+     const oldEl = __omni_el(oldNid);
+     if (oldEl) {
+      oldEl.querySelectorAll('[data-nid]').forEach(function(c) {
+       __omni_cleanupElement(c.getAttribute('data-nid'));
+      });
+     }
+     _showNow(newNid);
+     // Trigger @enter on new branch
+     const enterAnim = __omni_animations.get(newNid + "_enter");
+     if (enterAnim && enterAnim.playState !== "paused") enterAnim.play();
+    }
+    if (leaveAnim.finished) {
+     leaveAnim.finished.then(_onLeaveDone);
+    } else {
+     const checkComplete = setInterval(() => {
+      if (leaveAnim.playState === "finished" || leaveAnim.playState === "idle") {
+       clearInterval(checkComplete);
+       _onLeaveDone();
+      }
+     }, 16);
+    }
+   } else {
+    // Cleanup old branch animations
+    const oldEl = __omni_el(oldNid);
+    if (oldEl) {
+     oldEl.querySelectorAll('[data-nid]').forEach(function(c) {
+      __omni_cleanupElement(c.getAttribute('data-nid'));
+     });
+    }
+    _showNow(newNid);
+   }
+  };
+  if (SignalPatternsDemo_showPanel.value) { _transition("el-if-1911-b0"); }
+  else { _hideAll(null); _current_el_if_1911 = null; }
+});
+{ const el = __omni_el("el-button-1919"); if (el) el.addEventListener("click", (e) => { try {   SignalPatternsDemo_toggleSlot({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-1920"); if (el) try { el.textContent = String(SignalPatternsDemo_showSlot.value ? "Close Slot Demo" : "Open Slot Demo"); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-1937"); if (el) try { el.textContent = String(SignalPatternsDemo_count.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+{ const el = __omni_el("el-button-1942"); if (el) el.addEventListener("click", (e) => { try {   SlotBox_toggleSlot({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+{ const el = __omni_el("el-button-1944"); if (el) el.addEventListener("click", (e) => { try {   SlotBox_onClose({ x: e.clientX ?? 0, y: e.clientY ?? 0, button: e.button ?? 0, pressure: e.pressure ?? 0, tiltX: e.tiltX ?? 0, tiltY: e.tiltY ?? 0, pointerType: e.pointerType ?? "", alt: e.altKey ?? false, ctrl: e.ctrlKey ?? false, shift: e.shiftKey ?? false, meta: e.metaKey ?? false }); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+{ const el = __omni_el("el-SlotBox-1924"); if (el) el.addEventListener("close", (e) => { try {   SignalPatternsDemo_toggleSlot(e.detail); } catch(err) { __omni_reportError("error:event:close", err); } }); }
+
+/// ── @if conditional el-if-1922 ──
+__omni_effect(() => {
+  const _nids = ["el-if-1922-b0"];
+  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { e.querySelectorAll('[data-nid]').forEach(function(c) { var a = __omni_animations.get(c.getAttribute('data-nid') + '_enter'); if (a) { a.cancel(); a.play(); } }); } else { e.querySelectorAll('[data-nid]').forEach(function(c) { __omni_cleanupElement(c.getAttribute('data-nid')); }); } } }); };
+  if (SignalPatternsDemo_showSlot.value) { _show("el-if-1922-b0"); }
+  else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = "none"; }); }
+});
+__omni_effect(() => { const el = __omni_el("el-interp-1951"); if (el) try { el.textContent = String(SignalPatternsDemo_mountTime.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-1955"); if (el) try { el.textContent = String(SignalPatternsDemo_effectCount.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-1965"); if (el) try { el.textContent = String(InlineStoreDemo_itemCount.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-1969"); if (el) try { el.textContent = String(InlineStoreDemo_summary.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-1973"); if (el) try { el.textContent = String(InlineStoreDemo_totalPrice.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+{ const el = __omni_el("el-button-1976"); if (el) el.addEventListener("click", (e) => { try {   InlineStoreDemo_addApple({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+{ const el = __omni_el("el-button-1978"); if (el) el.addEventListener("click", (e) => { try {   InlineStoreDemo_remove({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-1981"); if (el) try { el.textContent = String(InlineStoreDemo_log.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-1990"); if (el) try { el.textContent = String("{ }"); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-1997"); if (el) try { el.textContent = String(ComputedFnFormDemo_simple.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-2002"); if (el) try { el.textContent = String("{...}"); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-2005"); if (el) try { el.textContent = String(fullName()); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+{ const el = __omni_el("el-button-2008"); if (el) el.addEventListener("click", (e) => { try {   ComputedFnFormDemo_clearLast({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+{ const el = __omni_el("el-button-2010"); if (el) el.addEventListener("click", (e) => { try {   ComputedFnFormDemo_setLast({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-2015"); if (el) try { el.textContent = String(ComputedFnFormDemo_counter.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+
+/// ── @if conditional el-if-1837 ──
+__omni_effect(() => {
+  const _nids = ["el-if-1837-b0"];
+  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { e.querySelectorAll('[data-nid]').forEach(function(c) { var a = __omni_animations.get(c.getAttribute('data-nid') + '_enter'); if (a) { a.cancel(); a.play(); } }); } else { e.querySelectorAll('[data-nid]').forEach(function(c) { __omni_cleanupElement(c.getAttribute('data-nid')); }); } } }); };
+  if (App_activeTab.value === "state") { _show("el-if-1837-b0"); }
+  else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = "none"; }); }
+});
+__omni_effect(() => { const el = __omni_el("el-interp-2029"); if (el) try { el.textContent = String(InlineStoreDemo_itemCount.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-2033"); if (el) try { el.textContent = String(InlineStoreDemo_summary.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-2037"); if (el) try { el.textContent = String(InlineStoreDemo_totalPrice.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+{ const el = __omni_el("el-button-2040"); if (el) el.addEventListener("click", (e) => { try {   InlineStoreDemo_addApple({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+{ const el = __omni_el("el-button-2042"); if (el) el.addEventListener("click", (e) => { try {   InlineStoreDemo_remove({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-2045"); if (el) try { el.textContent = String(InlineStoreDemo_log.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-2050"); if (el) try { el.textContent = String(NullishDemo_displayName.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-2066"); if (el) try { el.textContent = String(StringLiteralsDemo_backtickResult.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-2073"); if (el) try { el.textContent = String(StringLiteralsDemo_singleQuoteResult.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-2080"); if (el) try { el.textContent = String(StringLiteralsDemo_mixed.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-2085"); if (el) try { el.textContent = String("`${expr}`"); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-2091"); if (el) try { el.textContent = String(StringLiteralsDemo_interpolated.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+{ const el = __omni_el("el-button-2093"); if (el) el.addEventListener("click", (e) => { try {   StringLiteralsDemo_updateTemplate({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-2111"); if (el) try { el.textContent = String(demo_i8()); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-2117"); if (el) try { el.textContent = String(demo_i16()); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-2123"); if (el) try { el.textContent = String(demo_i64()); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-2129"); if (el) try { el.textContent = String(demo_isize()); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-2139"); if (el) try { el.textContent = String(demo_u8()); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-2145"); if (el) try { el.textContent = String(demo_u16()); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-2151"); if (el) try { el.textContent = String(demo_u32()); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-2157"); if (el) try { el.textContent = String(demo_u64()); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-2163"); if (el) try { el.textContent = String(demo_usize()); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-2173"); if (el) try { el.textContent = String(demo_f32()); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-2178"); if (el) try { el.textContent = String(TypeSystemDemo_summary.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+let _guard_checked_el_input_2197 = false;
+{ const el = __omni_el("el-input-2197"); if (el) el.addEventListener("change", (e) => { if (!_guard_checked_el_input_2197) { __omni_subs.get("ViewAttributesDemo_isChecked").set(e.target.checked); } }); }
+__omni_effect(() => { const el = __omni_el("el-input-2197"); if (el) { _guard_checked_el_input_2197 = true; el.checked = __omni_subs.get("ViewAttributesDemo_isChecked").value; _guard_checked_el_input_2197 = false; } });
+__omni_effect(() => { const el = __omni_el("el-interp-2200"); if (el) try { el.textContent = String(String(ViewAttributesDemo_isChecked.value)); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+let _guard_value_el_textarea_2205 = false;
+{ const el = __omni_el("el-textarea-2205"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_textarea_2205) { __omni_subs.get("ViewAttributesDemo_richText").set(e.target.value); } }); }
+__omni_effect(() => { const el = __omni_el("el-textarea-2205"); if (el) { _guard_value_el_textarea_2205 = true; el.value = __omni_subs.get("ViewAttributesDemo_richText").value; _guard_value_el_textarea_2205 = false; } });
+__omni_effect(() => { const el = __omni_el("el-interp-2208"); if (el) try { el.textContent = String(ViewAttributesDemo_richText.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-2230"); if (el) try { el.textContent = String("{ }"); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-2237"); if (el) try { el.textContent = String(ComputedFnFormDemo_simple.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-2242"); if (el) try { el.textContent = String("{...}"); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-2245"); if (el) try { el.textContent = String(fullName()); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+{ const el = __omni_el("el-button-2248"); if (el) el.addEventListener("click", (e) => { try {   ComputedFnFormDemo_clearLast({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+{ const el = __omni_el("el-button-2250"); if (el) el.addEventListener("click", (e) => { try {   ComputedFnFormDemo_setLast({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-2255"); if (el) try { el.textContent = String(ComputedFnFormDemo_counter.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-2267"); if (el) try { el.textContent = String(OptionalChainDemo_nameLen.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-2271"); if (el) try { el.textContent = String(OptionalChainDemo_displayName.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+{ const el = __omni_el("el-button-2274"); if (el) el.addEventListener("click", (e) => { try {   OptionalChainDemo_clearUser({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+{ const el = __omni_el("el-button-2276"); if (el) el.addEventListener("click", (e) => { try {   OptionalChainDemo_setUser({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+{ const el = __omni_el("el-button-2278"); if (el) el.addEventListener("click", (e) => { try {   OptionalChainDemo_toggle({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-2285"); if (el) try { el.textContent = String(OptionalChainDemo_displayName.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-2289"); if (el) try { el.textContent = String(OptionalChainDemo_nameLen.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+
+/// ── @if conditional el-if-2280 ──
+__omni_effect(() => {
+  const _nids = ["el-if-2280-b0", "el-if-2280-b1", "el-if-2280-else"];
+  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { e.querySelectorAll('[data-nid]').forEach(function(c) { var a = __omni_animations.get(c.getAttribute('data-nid') + '_enter'); if (a) { a.cancel(); a.play(); } }); } else { e.querySelectorAll('[data-nid]').forEach(function(c) { __omni_cleanupElement(c.getAttribute('data-nid')); }); } } }); };
+  if (OptionalChainDemo_showDetails.value) { _show("el-if-2280-b0"); }
+  else if (!OptionalChainDemo_showDetails.value && OptionalChainDemo_user.value !== null) { _show("el-if-2280-b1"); }
+  else { _show("el-if-2280-else"); }
+});
+__omni_effect(() => { const el = __omni_el("el-interp-2309"); if (el) try { el.textContent = String(TernaryExprDemo_count.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-2313"); if (el) try { el.textContent = String(TernaryExprDemo_label.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-2317"); if (el) try { el.textContent = String(TernaryExprDemo_count.value > 0 ? "正数哦" : "非正数哦"); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+{ const el = __omni_el("el-button-2320"); if (el) el.addEventListener("click", (e) => { try {   TernaryExprDemo_inc({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+{ const el = __omni_el("el-button-2322"); if (el) el.addEventListener("click", (e) => { try {   TernaryExprDemo_dec({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-2327"); if (el) try { el.textContent = String(TernaryExprDemo_score.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-2331"); if (el) try { el.textContent = String(TernaryExprDemo_grade.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+function __ononPress_el_button_2334() {
+  TernaryExprDemo_setScore(95);
+}
+{ const el = __omni_el("el-button-2334"); if (el) el.addEventListener("click", (e) => { try {   __ononPress_el_button_2334({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+function __ononPress_el_button_2336() {
+  TernaryExprDemo_setScore(85);
+}
+{ const el = __omni_el("el-button-2336"); if (el) el.addEventListener("click", (e) => { try {   __ononPress_el_button_2336({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+function __ononPress_el_button_2338() {
+  TernaryExprDemo_setScore(72);
+}
+{ const el = __omni_el("el-button-2338"); if (el) el.addEventListener("click", (e) => { try {   __ononPress_el_button_2338({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+function __ononPress_el_button_2340() {
+  TernaryExprDemo_setScore(55);
+}
+{ const el = __omni_el("el-button-2340"); if (el) el.addEventListener("click", (e) => { try {   __ononPress_el_button_2340({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-2356"); if (el) try { el.textContent = String(BlockExprDemo_a.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-2359"); if (el) try { el.textContent = String(BlockExprDemo_b.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+{ const el = __omni_el("el-button-2362"); if (el) el.addEventListener("click", (e) => { try {   BlockExprDemo_incA({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+{ const el = __omni_el("el-button-2364"); if (el) el.addEventListener("click", (e) => { try {   BlockExprDemo_incB({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+{ const el = __omni_el("el-button-2366"); if (el) el.addEventListener("click", (e) => { try {   BlockExprDemo_reset({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-2372"); if (el) try { el.textContent = String(BlockExprDemo_calculation.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-2380"); if (el) try { el.textContent = String(BlockExprDemo_total.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-2387"); if (el) try { el.textContent = String(BlockExprDemo_simpleSum.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+
+/// ── @for item in ... ──
+__omni_effect(() => {
+  const data = ForDirectiveKeyDemo_items.value;
+  const tpl = __omni_el("el-for-2400-tpl");
+  const ctr = __omni_el("el-for-2400-ctr");
+  if (!tpl || !ctr) return;
+  const parent = tpl.parentNode;
+  if (!parent) return;
+  Omni.flipBefore(parent);
+  // Clear existing rendered items
+  while (tpl.nextElementSibling && tpl.nextElementSibling !== ctr) {
+    parent.removeChild(tpl.nextElementSibling);
+  }
+  const _forKeys = ctr._forKeys || (ctr._forKeys = new Map());
+  const keyFn = (item) => { try { return String(item); } catch(e) { __omni_reportError("error:list:key", e); return null; } };
+  const oldKeys = new Set(_forKeys.keys());
+  const newKeys = new Set();
+  if (!data || data.length === 0) return;
+  var frag = document.createDocumentFragment();
+  data.forEach((item, _idx) => {
+    var __root = tpl.content.firstElementChild;
+    var __cloneItem = function() {
+      if (!__root) return null;
+      if (__root.tagName === 'FRAGMENT') {
+        var __f = document.createDocumentFragment();
+        for (var __i = 0; __i < __root.children.length; __i++) __f.appendChild(__root.children[__i].cloneNode(true));
+        return __f;
+      }
+      return __root.cloneNode(true);
+    };
+    var clone = null;
+    const _key = keyFn(item);
+    if (_key != null) newKeys.add(_key);
+    clone = _key != null ? _forKeys.get(_key) : null;
+    const isNew = !clone;
+    if (isNew) {
+      clone = __cloneItem();
+      if (clone && _key != null) { _forKeys.set(_key, clone); if (clone.nodeType === 1) clone.setAttribute('data-for-key', _key); }
+    }
+    if (!clone) return;
+    // Mark first element with data-for-item
+    if (clone.nodeType === 11) { if (clone.firstElementChild) clone.firstElementChild.setAttribute('data-for-item', _idx); }
+    else { clone.setAttribute('data-for-item', _idx); }
+    // Assign unique nids per clone for motion trigger isolation
+    (function assignUniqueNids(el, idx) {
+      var nid = el.getAttribute('data-nid');
+      if (nid) {
+        var uniqueNid = nid + '_' + idx;
+        el.setAttribute('data-nid', uniqueNid);
+      }
+      el.querySelectorAll('[data-nid]').forEach(function(child) {
+        var childNid = child.getAttribute('data-nid');
+        if (childNid) {
+          child.setAttribute('data-nid', childNid + '_' + idx);
+        }
+      });
+    })(clone, _idx);
+    var _elCache = new Map();
+    (function cacheElements(el) {
+      var nid = el.getAttribute('data-nid');
+      if (nid) _elCache.set(nid, el);
+      el.querySelectorAll('[data-nid]').forEach(function(child) {
+        _elCache.set(child.getAttribute('data-nid'), child);
+      });
+    })(clone);
+    // Pre-compiled text bindings
+    (function() {
+      var _unid = "el-interp-2403_" + _idx; var _el = _elCache.get(_unid); if (!_el) { _el = clone.querySelector('[data-nid="' + _unid + '"]'); if (_el) _elCache.set(_unid, _el); }
+      if (_el) try { _el.textContent = String(item); } catch(e) { __omni_reportError("warn:for:text", e); }
+    })();
+    // Initialize per-instance state for @for component instances
+    var _stateEls = [];
+    if (clone.matches && clone.matches('[data-for-state-names]')) _stateEls.push(clone);
+    clone.querySelectorAll('[data-for-state-names]').forEach(function(el) { _stateEls.push(el); });
+    _stateEls.forEach(function(_fc) {
+      if (!_fc.__omniState) {
+        _fc.__omniState = {};
+        var _snStr = _fc.getAttribute('data-for-state-names');
+        if (_snStr) {
+          _snStr.split(',').forEach(function(_sn) {
+            if (_sn) {
+              var _cn = _fc.getAttribute('data-component');
+              var _sig = __omni_subs.get(_cn + '_' + _sn);
+              if (_sig) _fc.__omniState[_sn] = _sig._default != null ? _sig._default : _sig.peek();
+            }
+          });
+        }
+      }
+    });
+    if (isNew) { frag.appendChild(clone); }
+  });
+  parent.insertBefore(frag, ctr);
+  // Remove items whose keys disappeared (play @leave then remove)
+  oldKeys.forEach(key => {
+    if (!newKeys.has(key)) {
+      const el = _forKeys.get(key);
+      if (el) {
+        const leavingNid = el.getAttribute('data-nid');
+        if (leavingNid) {
+          const player = __omni_animations.get(leavingNid + '_leave');
+          if (player) {
+            player.play().then(() => { __omni_cleanupElement(leavingNid); el.remove(); _forKeys.delete(key); });
+          } else {
+            __omni_cleanupElement(leavingNid); el.remove(); _forKeys.delete(key);
+          }
+        } else {
+          el.remove(); _forKeys.delete(key);
+        }
+      }
+    }
+  });
+  Omni.flipAfter(parent);
+  // Pre-compiled rebind function: __omni_rebind_ForDirectiveKeyDemo_item
+  function __omni_rebind_ForDirectiveKeyDemo_item(comp) {
+    var _el = comp.querySelector('[data-nid^="el-interp-2403_"]') || comp.querySelector('[data-nid="el-interp-2403"]');
+    if (_el) try { _el.textContent = String(item); } catch(e) { __omni_reportError("warn:for:rebind", e); }
+  }
+});
+{ const el = __omni_el("el-button-2418"); if (el) el.addEventListener("click", (e) => { try {   StylePseudoDemo_increment({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-2420"); if (el) try { el.textContent = String(StylePseudoDemo_clicked.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+{ const el = __omni_el("el-button-2422"); if (el) el.addEventListener("click", (e) => { try {   StylePseudoDemo_increment({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-div-2443"); if (el) el.classList.toggle("cardActive", !!(AdvancedPseudoDemo_isActive.value)); });
+{ const el = __omni_el("el-button-2446"); if (el) el.addEventListener("click", (e) => { try {   AdvancedPseudoDemo_toggle({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-2448"); if (el) try { el.textContent = String(AdvancedPseudoDemo_isActive.value ? "ON" : "OFF"); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+{ const el = __omni_el("el-button-2455"); if (el) el.addEventListener("click", (e) => { try {   AdvancedPseudoDemo_setDark({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+{ const el = __omni_el("el-button-2457"); if (el) el.addEventListener("click", (e) => { try {   AdvancedPseudoDemo_setDefault({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+let _guard_value_el_input_2467 = false;
+{ const el = __omni_el("el-input-2467"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_2467) { __omni_subs.get("AdvancedPseudoDemo_variant").set(e.target.value); } }); }
+__omni_effect(() => { const el = __omni_el("el-input-2467"); if (el) { _guard_value_el_input_2467 = true; el.value = __omni_subs.get("AdvancedPseudoDemo_variant").value; _guard_value_el_input_2467 = false; } });
+
+/// ── @if conditional el-if-2017 ──
+__omni_effect(() => {
+  const _nids = ["el-if-2017-b0"];
+  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { e.querySelectorAll('[data-nid]').forEach(function(c) { var a = __omni_animations.get(c.getAttribute('data-nid') + '_enter'); if (a) { a.cancel(); a.play(); } }); } else { e.querySelectorAll('[data-nid]').forEach(function(c) { __omni_cleanupElement(c.getAttribute('data-nid')); }); } } }); };
+  if (App_activeTab.value === "language") { _show("el-if-2017-b0"); }
+  else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = "none"; }); }
+});
+function __ononInput_el_input_2479() {
+}
+{ const el = __omni_el("el-input-2479"); if (el) el.addEventListener("input", (e) => { try {   __ononInput_el_input_2479({}); } catch(err) { __omni_reportError("error:event:input", err); } }); }
+{ const el = __omni_el("el-button-2480"); if (el) el.addEventListener("click", (e) => { try {   ElementRefDemo_focusInput({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+{ const el = __omni_el("el-button-2482"); if (el) el.addEventListener("click", (e) => { try {   ElementRefDemo_blurInput({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-2486"); if (el) try { el.textContent = String(ElementRefDemo_focusStatus.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-div-2490"); if (el) { el.scrollTop = ElementRefDemo_scrollTarget.value; } });
+{ const el = __omni_el("el-button-2504"); if (el) el.addEventListener("click", (e) => { try {   ElementRefDemo_scrollToTop({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+{ const el = __omni_el("el-button-2506"); if (el) el.addEventListener("click", (e) => { try {   ElementRefDemo_scrollToBottom({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+{ const el = __omni_el("el-button-2508"); if (el) el.addEventListener("click", (e) => { try {   ElementRefDemo_scrollByDown({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-2512"); if (el) try { el.textContent = String(ElementRefDemo_scrollPos.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+{ const el = __omni_el("el-button-2520"); if (el) el.addEventListener("click", (e) => { try {   ElementRefDemo_queryRect({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-2523"); if (el) try { el.textContent = String(ElementRefDemo_rectInfo.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-div-2528"); if (el) el.style.height=__omni_sanitizeCss(ElementRefDemo_boxHeightPx.value); });
+__omni_effect(() => { const el = __omni_el("el-div-2528"); if (el) el.style.width=__omni_sanitizeCss(ElementRefDemo_boxWidthPx.value); });
+{ const el = __omni_el("el-button-2531"); if (el) el.addEventListener("click", (e) => { try {   ElementRefDemo_querySize({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+{ const el = __omni_el("el-button-2533"); if (el) el.addEventListener("click", (e) => { try {   ElementRefDemo_expandBox({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+{ const el = __omni_el("el-button-2535"); if (el) el.addEventListener("click", (e) => { try {   ElementRefDemo_resetBox({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-2539"); if (el) try { el.textContent = String(ElementRefDemo_boxWidthPx.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-2542"); if (el) try { el.textContent = String(ElementRefDemo_boxWidth.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+{ const el = __omni_el("el-input-2548"); if (el) el.addEventListener("input", (e) => { try {   ElementRefDemo_syncMirror({}); } catch(err) { __omni_reportError("error:event:input", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-2551"); if (el) try { el.textContent = String(ElementRefDemo_mirrorText.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+// @drag-x trigger
+(function() {
+  const el = __omni_el("el-div-2558");
+  if (!el) return;
+  const anim = __omni_motion_dragX300(el, { trigger: "dragHorizontal" });
+  if (!__omni_animations.has("el-div-2558")) __omni_animations.set("el-div-2558", new Map());
+  __omni_animations.get("el-div-2558").set("dragHorizontal", anim);
+  anim.pause();
+  const dur = anim.effect?.getTiming()?.duration || 300;
+  let startPos = 0, currentDelta = 0;
+  let isDragging = false;
+  let lastMoveTime = 0, lastMovePos = 0;
+  let velocity = 0;
+  const constraints = "";
+  const elastic = 0;
+  const threshold = 0;
+  const velocityMax = 2000;
+  function parseConstraint(cfg) {
+   if (!cfg) return { min: -Infinity, max: Infinity };
+   if (cfg === 'parent') {
+    const parent = el.parentElement;
+    if (!parent) return { min: -Infinity, max: Infinity };
+    const elRect = el.getBoundingClientRect();
+    const parentRect = parent.getBoundingClientRect();
+    return { min: 0, max: parentRect.width - elRect.width };
+   }
+   if (cfg.startsWith('ref:')) {
+    const refId = cfg.slice(4);
+    const refEl = __omni_el(refId);
+    if (!refEl) return { min: -Infinity, max: Infinity };
+    const elRect = el.getBoundingClientRect();
+    const refRect = refEl.getBoundingClientRect();
+    return { min: 0, max: refRect.width - elRect.width };
+   }
+   const parts = cfg.split(' ');
+   let min = -Infinity, max = Infinity;
+   parts.forEach(p => {
+    const [key, val] = p.split(':');
+    if (key === 'left') min = parseFloat(val) || 0;
+    if (key === 'right') max = parseFloat(val) || Infinity;
+   });
+   return { min, max };
+  }
+  const constraint = parseConstraint(constraints);
+  const maxExtent = Math.abs(constraint.max - constraint.min) || 1;
+  el.addEventListener('pointerdown', (e) => {
+   isDragging = true;
+   startPos = e.clientX;
+   currentDelta = 0;
+   el.setPointerCapture(e.pointerId);
+  });
+  el.addEventListener('pointermove', (e) => {
+   if (!isDragging) return;
+   const now = performance.now();
+   const raw = e.clientX - startPos;
+   if (lastMoveTime > 0) {
+    const dt = now - lastMoveTime;
+    const dp = Math.abs(raw - lastMovePos);
+    if (dt > 0) velocity = Math.min(velocityMax, dp / dt * 1000);
+   }
+   lastMoveTime = now;
+   lastMovePos = raw;
+   let constrained = raw;
+   if (raw < constraint.min) {
+    const overshoot = constraint.min - raw;
+    constrained = constraint.min - overshoot * (1 - elastic);
+   } else if (raw > constraint.max) {
+    const overshoot = raw - constraint.max;
+    constrained = constraint.max + overshoot * (1 - elastic);
+   }
+   currentDelta = raw;
+   const progress = Math.abs(constrained) / maxExtent;
+   anim.currentTime = Math.min(1, progress) * dur;
+  });
+  el.addEventListener('pointerup', (e) => {
+   isDragging = false;
+   el.releasePointerCapture(e.pointerId);
+   const progress = Math.abs(currentDelta) / maxExtent;
+   if (progress >= threshold && maxExtent > 0) {
+    anim.play();
+   } else {
+    anim.reverse();
+   }
+  });
+})();
+// @drag-x trigger
+(function() {
+  const el = __omni_el("el-div-2566");
+  if (!el) return;
+  const anim = __omni_motion_dragX150(el, { trigger: "dragHorizontal" });
+  if (!__omni_animations.has("el-div-2566")) __omni_animations.set("el-div-2566", new Map());
+  __omni_animations.get("el-div-2566").set("dragHorizontal", anim);
+  anim.pause();
+  const dur = anim.effect?.getTiming()?.duration || 300;
+  let startPos = 0, currentDelta = 0;
+  let isDragging = false;
+  let lastMoveTime = 0, lastMovePos = 0;
+  let velocity = 0;
+  const constraints = "";
+  const elastic = 0;
+  const threshold = 0;
+  const velocityMax = 2000;
+  function parseConstraint(cfg) {
+   if (!cfg) return { min: -Infinity, max: Infinity };
+   if (cfg === 'parent') {
+    const parent = el.parentElement;
+    if (!parent) return { min: -Infinity, max: Infinity };
+    const elRect = el.getBoundingClientRect();
+    const parentRect = parent.getBoundingClientRect();
+    return { min: 0, max: parentRect.width - elRect.width };
+   }
+   if (cfg.startsWith('ref:')) {
+    const refId = cfg.slice(4);
+    const refEl = __omni_el(refId);
+    if (!refEl) return { min: -Infinity, max: Infinity };
+    const elRect = el.getBoundingClientRect();
+    const refRect = refEl.getBoundingClientRect();
+    return { min: 0, max: refRect.width - elRect.width };
+   }
+   const parts = cfg.split(' ');
+   let min = -Infinity, max = Infinity;
+   parts.forEach(p => {
+    const [key, val] = p.split(':');
+    if (key === 'left') min = parseFloat(val) || 0;
+    if (key === 'right') max = parseFloat(val) || Infinity;
+   });
+   return { min, max };
+  }
+  const constraint = parseConstraint(constraints);
+  const maxExtent = Math.abs(constraint.max - constraint.min) || 1;
+  el.addEventListener('pointerdown', (e) => {
+   isDragging = true;
+   startPos = e.clientX;
+   currentDelta = 0;
+   el.setPointerCapture(e.pointerId);
+  });
+  el.addEventListener('pointermove', (e) => {
+   if (!isDragging) return;
+   const now = performance.now();
+   const raw = e.clientX - startPos;
+   if (lastMoveTime > 0) {
+    const dt = now - lastMoveTime;
+    const dp = Math.abs(raw - lastMovePos);
+    if (dt > 0) velocity = Math.min(velocityMax, dp / dt * 1000);
+   }
+   lastMoveTime = now;
+   lastMovePos = raw;
+   let constrained = raw;
+   if (raw < constraint.min) {
+    const overshoot = constraint.min - raw;
+    constrained = constraint.min - overshoot * (1 - elastic);
+   } else if (raw > constraint.max) {
+    const overshoot = raw - constraint.max;
+    constrained = constraint.max + overshoot * (1 - elastic);
+   }
+   currentDelta = raw;
+   const progress = Math.abs(constrained) / maxExtent;
+   anim.currentTime = Math.min(1, progress) * dur;
+  });
+  el.addEventListener('pointerup', (e) => {
+   isDragging = false;
+   el.releasePointerCapture(e.pointerId);
+   const progress = Math.abs(currentDelta) / maxExtent;
+   if (progress >= threshold && maxExtent > 0) {
+    anim.play();
+   } else {
+    anim.reverse();
+   }
+  });
+})();
+// @drag-y trigger
+(function() {
+  const el = __omni_el("el-div-2569");
+  if (!el) return;
+  const anim = __omni_motion_dragY100(el, { trigger: "dragVertical" });
+  if (!__omni_animations.has("el-div-2569")) __omni_animations.set("el-div-2569", new Map());
+  __omni_animations.get("el-div-2569").set("dragVertical", anim);
+  anim.pause();
+  const dur = anim.effect?.getTiming()?.duration || 300;
+  let startPos = 0, currentDelta = 0;
+  let isDragging = false;
+  let lastMoveTime = 0, lastMovePos = 0;
+  let velocity = 0;
+  const constraints = "";
+  const elastic = 0;
+  const threshold = 0;
+  const velocityMax = 2000;
+  function parseConstraint(cfg) {
+   if (!cfg) return { min: -Infinity, max: Infinity };
+   if (cfg === 'parent') {
+    const parent = el.parentElement;
+    if (!parent) return { min: -Infinity, max: Infinity };
+    const elRect = el.getBoundingClientRect();
+    const parentRect = parent.getBoundingClientRect();
+    return { min: 0, max: parentRect.height - elRect.height };
+   }
+   if (cfg.startsWith('ref:')) {
+    const refId = cfg.slice(4);
+    const refEl = __omni_el(refId);
+    if (!refEl) return { min: -Infinity, max: Infinity };
+    const elRect = el.getBoundingClientRect();
+    const refRect = refEl.getBoundingClientRect();
+    return { min: 0, max: refRect.height - elRect.height };
+   }
+   const parts = cfg.split(' ');
+   let min = -Infinity, max = Infinity;
+   parts.forEach(p => {
+    const [key, val] = p.split(':');
+    if (key === 'top') min = parseFloat(val) || 0;
+    if (key === 'bottom') max = parseFloat(val) || Infinity;
+   });
+   return { min, max };
+  }
+  const constraint = parseConstraint(constraints);
+  const maxExtent = Math.abs(constraint.max - constraint.min) || 1;
+  el.addEventListener('pointerdown', (e) => {
+   isDragging = true;
+   startPos = e.clientY;
+   currentDelta = 0;
+   el.setPointerCapture(e.pointerId);
+  });
+  el.addEventListener('pointermove', (e) => {
+   if (!isDragging) return;
+   const now = performance.now();
+   const raw = e.clientY - startPos;
+   if (lastMoveTime > 0) {
+    const dt = now - lastMoveTime;
+    const dp = Math.abs(raw - lastMovePos);
+    if (dt > 0) velocity = Math.min(velocityMax, dp / dt * 1000);
+   }
+   lastMoveTime = now;
+   lastMovePos = raw;
+   let constrained = raw;
+   if (raw < constraint.min) {
+    const overshoot = constraint.min - raw;
+    constrained = constraint.min - overshoot * (1 - elastic);
+   } else if (raw > constraint.max) {
+    const overshoot = raw - constraint.max;
+    constrained = constraint.max + overshoot * (1 - elastic);
+   }
+   currentDelta = raw;
+   const progress = Math.abs(constrained) / maxExtent;
+   anim.currentTime = Math.min(1, progress) * dur;
+  });
+  el.addEventListener('pointerup', (e) => {
+   isDragging = false;
+   el.releasePointerCapture(e.pointerId);
+   const progress = Math.abs(currentDelta) / maxExtent;
+   if (progress >= threshold && maxExtent > 0) {
+    anim.play();
+   } else {
+    anim.reverse();
+   }
+  });
+})();
+
+/// ── @if conditional el-if-2468 ──
+__omni_effect(() => {
+  const _nids = ["el-if-2468-b0"];
+  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { e.querySelectorAll('[data-nid]').forEach(function(c) { var a = __omni_animations.get(c.getAttribute('data-nid') + '_enter'); if (a) { a.cancel(); a.play(); } }); } else { e.querySelectorAll('[data-nid]').forEach(function(c) { __omni_cleanupElement(c.getAttribute('data-nid')); }); } } }); };
+  if (App_activeTab.value === "ref") { _show("el-if-2468-b0"); }
+  else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = "none"; }); }
+});
+{ const el = __omni_el("el-button-2608"); if (el) el.addEventListener("click", (e) => { try {   DynamicTokens_setIndigo({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-button-2608"); if (el) el.classList.toggle("active", !!(DynamicTokens_isPreset("indigo"))); });
+{ const el = __omni_el("el-button-2610"); if (el) el.addEventListener("click", (e) => { try {   DynamicTokens_setEmerald({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-button-2610"); if (el) el.classList.toggle("active", !!(DynamicTokens_isPreset("emerald"))); });
+{ const el = __omni_el("el-button-2612"); if (el) el.addEventListener("click", (e) => { try {   DynamicTokens_setCrimson({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-button-2612"); if (el) el.classList.toggle("active", !!(DynamicTokens_isPreset("crimson"))); });
+{ const el = __omni_el("el-button-2614"); if (el) el.addEventListener("click", (e) => { try {   DynamicTokens_setAmber({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-button-2614"); if (el) el.classList.toggle("active", !!(DynamicTokens_isPreset("amber"))); });
+__omni_effect(() => { const el = __omni_el("el-interp-2622"); if (el) try { el.textContent = String(DynamicTokenStore_presetName.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-2627"); if (el) try { el.textContent = String(DynamicTokenStore_switchCount.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-2631"); if (el) try { el.textContent = String(DynamicTokenStore_liveColor.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+
+/// ── @if conditional el-if-2572 ──
+__omni_effect(() => {
+  const _nids = ["el-if-2572-b0"];
+  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { e.querySelectorAll('[data-nid]').forEach(function(c) { var a = __omni_animations.get(c.getAttribute('data-nid') + '_enter'); if (a) { a.cancel(); a.play(); } }); } else { e.querySelectorAll('[data-nid]').forEach(function(c) { __omni_cleanupElement(c.getAttribute('data-nid')); }); } } }); };
+  if (App_activeTab.value === "tokens") { _show("el-if-2572-b0"); }
+  else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = "none"; }); }
+});
+let _guard_value_el_input_2681 = false;
+{ const el = __omni_el("el-input-2681"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_2681) { __omni_subs.get("DataFetching_url").set(e.target.value); } }); }
+__omni_effect(() => { const el = __omni_el("el-input-2681"); if (el) { _guard_value_el_input_2681 = true; el.value = __omni_subs.get("DataFetching_url").value; _guard_value_el_input_2681 = false; } });
+{ const el = __omni_el("el-button-2682"); if (el) el.addEventListener("click", (e) => { try {   DataFetching_loadData({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+{ const el = __omni_el("el-button-2684"); if (el) el.addEventListener("click", (e) => { try {   DataFetching_loadViaApi({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+{ const el = __omni_el("el-button-2686"); if (el) el.addEventListener("click", (e) => { try {   DataFetching_reset({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-2698"); if (el) try { el.textContent = String(DataFetching_resultText.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-2705"); if (el) try { el.textContent = String(DataFetching_errorMsg.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+
+/// ── @if conditional el-if-2688 ──
+__omni_effect(() => {
+  const _nids = ["el-if-2688-b0", "el-if-2688-b1", "el-if-2688-b2", "el-if-2688-else"];
+  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { e.querySelectorAll('[data-nid]').forEach(function(c) { var a = __omni_animations.get(c.getAttribute('data-nid') + '_enter'); if (a) { a.cancel(); a.play(); } }); } else { e.querySelectorAll('[data-nid]').forEach(function(c) { __omni_cleanupElement(c.getAttribute('data-nid')); }); } } }); };
+  if (DataFetching_status.value === "loading") { _show("el-if-2688-b0"); }
+  else if (DataFetching_status.value === "success") { _show("el-if-2688-b1"); }
+  else if (DataFetching_status.value === "error") { _show("el-if-2688-b2"); }
+  else { _show("el-if-2688-else"); }
+});
+let _guard_value_el_input_2721 = false;
+{ const el = __omni_el("el-input-2721"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_2721) { __omni_subs.get("DataSubmit_title").set(e.target.value); } }); }
+__omni_effect(() => { const el = __omni_el("el-input-2721"); if (el) { _guard_value_el_input_2721 = true; el.value = __omni_subs.get("DataSubmit_title").value; _guard_value_el_input_2721 = false; } });
+let _guard_value_el_textarea_2724 = false;
+{ const el = __omni_el("el-textarea-2724"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_textarea_2724) { __omni_subs.get("DataSubmit_body").set(e.target.value); } }); }
+__omni_effect(() => { const el = __omni_el("el-textarea-2724"); if (el) { _guard_value_el_textarea_2724 = true; el.value = __omni_subs.get("DataSubmit_body").value; _guard_value_el_textarea_2724 = false; } });
+{ const el = __omni_el("el-button-2726"); if (el) el.addEventListener("click", (e) => { try {   DataSubmit_submitForm({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+{ const el = __omni_el("el-button-2728"); if (el) el.addEventListener("click", (e) => { try {   DataSubmit_reset({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-2740"); if (el) try { el.textContent = String(DataSubmit_responseText.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+__omni_effect(() => { const el = __omni_el("el-interp-2747"); if (el) try { el.textContent = String(DataSubmit_responseText.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+
+/// ── @if conditional el-if-2730 ──
+__omni_effect(() => {
+  const _nids = ["el-if-2730-b0", "el-if-2730-b1", "el-if-2730-b2"];
+  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { e.querySelectorAll('[data-nid]').forEach(function(c) { var a = __omni_animations.get(c.getAttribute('data-nid') + '_enter'); if (a) { a.cancel(); a.play(); } }); } else { e.querySelectorAll('[data-nid]').forEach(function(c) { __omni_cleanupElement(c.getAttribute('data-nid')); }); } } }); };
+  if (DataSubmit_submitStatus.value === "loading") { _show("el-if-2730-b0"); }
+  else if (DataSubmit_submitStatus.value === "success") { _show("el-if-2730-b1"); }
+  else if (DataSubmit_submitStatus.value === "error") { _show("el-if-2730-b2"); }
+  else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = "none"; }); }
+});
+let _guard_value_el_input_2759 = false;
+{ const el = __omni_el("el-input-2759"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_2759) { __omni_subs.get("UserSettings_username").set(e.target.value); } }); }
+__omni_effect(() => { const el = __omni_el("el-input-2759"); if (el) { _guard_value_el_input_2759 = true; el.value = __omni_subs.get("UserSettings_username").value; _guard_value_el_input_2759 = false; } });
+{ const el = __omni_el("el-button-2761"); if (el) el.addEventListener("click", (e) => { try {   UserSettings_saveSettings({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+{ const el = __omni_el("el-button-2763"); if (el) el.addEventListener("click", (e) => { try {   UserSettings_clearSettings({}); } catch(err) { __omni_reportError("error:event:click", err); } }); }
+__omni_effect(() => { const el = __omni_el("el-interp-2767"); if (el) try { el.textContent = String(UserSettings_savedText.value); } catch(e) { __omni_reportError("warn:interpolation:text", e); } });
+
+/// ── @if conditional el-if-2669 ──
+__omni_effect(() => {
+  const _nids = ["el-if-2669-b0"];
+  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? "block" : "none"; if (id === nid) { e.querySelectorAll('[data-nid]').forEach(function(c) { var a = __omni_animations.get(c.getAttribute('data-nid') + '_enter'); if (a) { a.cancel(); a.play(); } }); } else { e.querySelectorAll('[data-nid]').forEach(function(c) { __omni_cleanupElement(c.getAttribute('data-nid')); }); } } }); };
+  if (App_activeTab.value === "compiler") { _show("el-if-2669-b0"); }
   else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = "none"; }); }
 });
 
 /// ── Mount Lifecycle ──
-__omni_motion_connectorDemo(null, {});
-__omni_motion_pageEnter(null, {});
-__omni_motion_positionDemo(null, {});
-__omni_motion_simpleThenWith(null, {});
-__omni_motion_flyPath(null, {});
-__omni_motion_bouncePath(null, {});
 // @mount TypeSystemDemo
   TypeSystemDemo_loadSummary();
-// @mount TodoPage
-  __omni_subs.get("TodoPage_pageLoadCount").set(TodoPage_pageLoadCount.value + 1);
-// @effect TodoPage
-__omni_effect(() => {
-  console.log("Total items: " + String(TodoStore_totalCount.value));
-});
+// @mount SignalPatternsDemo
+  __omni_subs.get("SignalPatternsDemo_mountTime").set("mounted!");
+// @effect SignalPatternsDemo
+(function() {
+  var __c = [];
+  __c.push(__omni_effect(() => {
+  __omni_subs.get("SignalPatternsDemo_effectCount").set(SignalPatternsDemo_effectCount.value + 1);
+}));
+  var _p = window.__omni_unmount_SignalPatternsDemo;
+window.__omni_unmount_SignalPatternsDemo = _p
+   ? function() { _p(); __c.forEach(function(f){f();}); }
+   : function() { __c.forEach(function(f){f();}); };
+})();
 // @mount AddTodo
   console.log("AddTodo mounted");
 // @effect AddTodo
-__omni_effect(() => {
+(function() {
+  var __c = [];
+  __c.push(__omni_effect(() => {
   if ((AddTodo_input.value || []).length > 20) {
   console.log("输入较长：" + String((AddTodo_input.value || []).length) + " 字符");
   }
-});
+}));
+  var _p = window.__omni_unmount_AddTodo;
+window.__omni_unmount_AddTodo = _p
+   ? function() { _p(); __c.forEach(function(f){f();}); }
+   : function() { __c.forEach(function(f){f();}); };
+})();
 // @mount UserSettings
   let raw = localStorage.getItem("user-settings");
   if (raw !== "") {
@@ -10670,918 +10080,600 @@ __omni_effect(() => {
   __omni_subs.get("UserSettings_savedText").set("No saved settings found");
   }
 // @effect UserSettings
-__omni_effect(() => {
+(function() {
+  var __c = [];
+  __c.push(__omni_effect(() => {
   UserSettings_saveSettings();
-});
+}));
+  var _p = window.__omni_unmount_UserSettings;
+window.__omni_unmount_UserSettings = _p
+   ? function() { _p(); __c.forEach(function(f){f();}); }
+   : function() { __c.forEach(function(f){f();}); };
+})();
 // @mount DataTable
   DataTable_initRows();
 // @effect NotificationsPanel
-__omni_effect(() => {
+(function() {
+  var __c = [];
+  __c.push(__omni_effect(() => {
   if (NotificationStore_unreadCount.value > 0) {
   __omni_subs.get("NotificationsPanel_badgeVisible").set(true);
   }
-});
-// @enter trigger
-(function() {
-  const el = __omni_el("el-h1-785");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_fadeInUp(el, config);
-   __omni_animations.set("el-h1-785_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
+}));
+  var _p = window.__omni_unmount_NotificationsPanel;
+window.__omni_unmount_NotificationsPanel = _p
+   ? function() { _p(); __c.forEach(function(f){f();}); }
+   : function() { __c.forEach(function(f){f();}); };
 })();
 // @enter trigger
 (function() {
-  const el = __omni_el("el-div-795");
+  const el = __omni_el("el-h1-1068");
   if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_fadeInUp(el, config);
-   __omni_animations.set("el-div-795_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @leave trigger
-(function() {
-  const el = __omni_el("el-div-795");
-  if (el) {
-   const config = { trigger: "leave" };
-   __omni_createAnimation("el-div-795", config);
-  }
-})();
-// states: reserved (idle/hover/pressed)
-(function() {
-  const el = __omni_el("el-div-802");
-  if (!el) return;
-  let _state = "idle";
-  function _transition(state) {
-   if (state === _state) return;
-   const targets = __omni_states_el_div_802[state];
-   if (!targets) return;
-   const from = {};
-   for (const k of Object.keys(targets.to)) from[k] = getComputedStyle(el).getPropertyValue(k);
-   el.animate([from, targets.to], {
-    duration: targets.over || 150,
-    easing: targets.ease || "ease-out",
-    fill: "forwards"
-   });
-   _state = state;
-  }
-  el.addEventListener("mouseenter", () => _transition("hover"));
-  el.addEventListener("mouseleave", () => _transition("idle"));
-  el.addEventListener("mousedown", () => _transition("pressed"));
-  el.addEventListener("mouseup", () => _transition("hover"));
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-812");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_fillDemo(el, config);
-   __omni_animations.set("el-div-812_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-815");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_delayedEntrance(el, config);
-   __omni_animations.set("el-div-815_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-818");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_slowSpin(el, config);
-   __omni_animations.set("el-div-818_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-821");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_interruptDemo(el, config);
-   __omni_animations.set("el-div-821_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-824");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_accessibleAnim(el, config);
-   __omni_animations.set("el-div-824_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-827");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_staggeredList(el, config);
-   __omni_animations.set("el-div-827_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-830");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_pathAnim(el, config);
-   __omni_animations.set("el-div-830_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-833");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_multiStopColor(el, config);
-   __omni_animations.set("el-div-833_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-849");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_easeInMove(el, config);
-   __omni_animations.set("el-div-849_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-854");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_power1InMove(el, config);
-   __omni_animations.set("el-div-854_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-859");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_power1OutMove(el, config);
-   __omni_animations.set("el-div-859_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-864");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_power1InOutMove(el, config);
-   __omni_animations.set("el-div-864_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-869");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_power2InMove(el, config);
-   __omni_animations.set("el-div-869_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-874");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_power2InOutMove(el, config);
-   __omni_animations.set("el-div-874_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-879");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_power3InMove(el, config);
-   __omni_animations.set("el-div-879_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-884");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_power3InOutMove(el, config);
-   __omni_animations.set("el-div-884_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-889");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_power4InMove(el, config);
-   __omni_animations.set("el-div-889_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-894");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_power4OutMove(el, config);
-   __omni_animations.set("el-div-894_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-899");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_power4InOutMove(el, config);
-   __omni_animations.set("el-div-899_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-907");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_backInMove(el, config);
-   __omni_animations.set("el-div-907_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-912");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_backOutMove(el, config);
-   __omni_animations.set("el-div-912_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-917");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_backInOutMove(el, config);
-   __omni_animations.set("el-div-917_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-922");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_backOutIntensity(el, config);
-   __omni_animations.set("el-div-922_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-930");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_bounceInMove(el, config);
-   __omni_animations.set("el-div-930_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-935");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_bounceOutMove(el, config);
-   __omni_animations.set("el-div-935_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-940");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_bounceInOutMove(el, config);
-   __omni_animations.set("el-div-940_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-948");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_elasticInMove(el, config);
-   __omni_animations.set("el-div-948_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-953");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_elasticOutMove(el, config);
-   __omni_animations.set("el-div-953_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-958");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_elasticInOutMove(el, config);
-   __omni_animations.set("el-div-958_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-963");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_elasticCustomMove(el, config);
-   __omni_animations.set("el-div-963_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-971");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_springDefault(el, config);
-   __omni_animations.set("el-div-971_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-976");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_springBouncy(el, config);
-   __omni_animations.set("el-div-976_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-981");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_springStiff(el, config);
-   __omni_animations.set("el-div-981_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-989");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_cubicCustom(el, config);
-   __omni_animations.set("el-div-989_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-994");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_stepsDemo(el, config);
-   __omni_animations.set("el-div-994_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-1012");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_scaleXDemo(el, config);
-   __omni_animations.set("el-div-1012_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-1017");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_scaleYDemo(el, config);
-   __omni_animations.set("el-div-1017_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-1022");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_rotateXDemo(el, config);
-   __omni_animations.set("el-div-1022_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-1027");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_rotateYDemo(el, config);
-   __omni_animations.set("el-div-1027_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-1032");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_rotateZDemo(el, config);
-   __omni_animations.set("el-div-1032_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-1037");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_skewXDemo(el, config);
-   __omni_animations.set("el-div-1037_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-1042");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_skewYDemo(el, config);
-   __omni_animations.set("el-div-1042_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-1050");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_blurDemo(el, config);
-   __omni_animations.set("el-div-1050_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-1055");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_brightnessDemo(el, config);
-   __omni_animations.set("el-div-1055_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-1060");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_contrastDemo(el, config);
-   __omni_animations.set("el-div-1060_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-1065");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_saturateDemo(el, config);
-   __omni_animations.set("el-div-1065_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-1070");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_hueRotateDemo(el, config);
-   __omni_animations.set("el-div-1070_enter", player);
-   if (el.offsetParent !== null) player.play();
+   const anim = __omni_motion_fadeInUp(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-h1-1068")) __omni_animations.set("el-h1-1068", new Map());
+   __omni_animations.get("el-h1-1068").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
   }
 })();
 // @enter trigger
 (function() {
   const el = __omni_el("el-div-1078");
   if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_bgColorDemo(el, config);
-   __omni_animations.set("el-div-1078_enter", player);
-   if (el.offsetParent !== null) player.play();
+   const anim = __omni_motion_fadeInUp(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1078")) __omni_animations.set("el-div-1078", new Map());
+   __omni_animations.get("el-div-1078").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
   }
 })();
 // @enter trigger
 (function() {
-  const el = __omni_el("el-div-1083");
+  const el = __omni_el("el-div-1100");
   if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_textColorDemo(el, config);
-   __omni_animations.set("el-div-1083_enter", player);
-   if (el.offsetParent !== null) player.play();
+   const anim = __omni_motion_enterFadeUp(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1100")) __omni_animations.set("el-div-1100", new Map());
+   __omni_animations.get("el-div-1100").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
   }
 })();
 // @enter trigger
 (function() {
-  const el = __omni_el("el-div-1091");
+  const el = __omni_el("el-div-1143");
   if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_widthDemo(el, config);
-   __omni_animations.set("el-div-1091_enter", player);
-   if (el.offsetParent !== null) player.play();
+   const anim = __omni_motion_spinLoop(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1143")) __omni_animations.set("el-div-1143", new Map());
+   __omni_animations.get("el-div-1143").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
   }
 })();
 // @enter trigger
 (function() {
-  const el = __omni_el("el-div-1096");
+  const el = __omni_el("el-div-1148");
   if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_heightDemo(el, config);
-   __omni_animations.set("el-div-1096_enter", player);
-   if (el.offsetParent !== null) player.play();
+   const anim = __omni_motion_dirAlternate(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1148")) __omni_animations.set("el-div-1148", new Map());
+   __omni_animations.get("el-div-1148").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
   }
 })();
 // @enter trigger
 (function() {
-  const el = __omni_el("el-div-1101");
+  const el = __omni_el("el-div-1153");
   if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_spacingDemo(el, config);
-   __omni_animations.set("el-div-1101_enter", player);
-   if (el.offsetParent !== null) player.play();
+   const anim = __omni_motion_dirAltReverse(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1153")) __omni_animations.set("el-div-1153", new Map());
+   __omni_animations.get("el-div-1153").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
   }
 })();
 // @enter trigger
 (function() {
-  const el = __omni_el("el-div-1109");
+  const el = __omni_el("el-div-1158");
   if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_fontSizeDemo(el, config);
-   __omni_animations.set("el-div-1109_enter", player);
-   if (el.offsetParent !== null) player.play();
+   const anim = __omni_motion_fillForwards(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1158")) __omni_animations.set("el-div-1158", new Map());
+   __omni_animations.get("el-div-1158").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
   }
 })();
 // @enter trigger
 (function() {
-  const el = __omni_el("el-div-1114");
+  const el = __omni_el("el-div-1163");
   if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_letterSpacingDemo(el, config);
-   __omni_animations.set("el-div-1114_enter", player);
-   if (el.offsetParent !== null) player.play();
+   const anim = __omni_motion_fillBackwards(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1163")) __omni_animations.set("el-div-1163", new Map());
+   __omni_animations.get("el-div-1163").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
   }
 })();
 // @enter trigger
 (function() {
-  const el = __omni_el("el-div-1122");
+  const el = __omni_el("el-div-1168");
   if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_borderWidthDemo(el, config);
-   __omni_animations.set("el-div-1122_enter", player);
-   if (el.offsetParent !== null) player.play();
+   const anim = __omni_motion_fillBoth(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1168")) __omni_animations.set("el-div-1168", new Map());
+   __omni_animations.get("el-div-1168").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
   }
 })();
 // @enter trigger
 (function() {
-  const el = __omni_el("el-div-1127");
+  const el = __omni_el("el-div-1173");
   if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_topLeftDemo(el, config);
-   __omni_animations.set("el-div-1127_enter", player);
-   if (el.offsetParent !== null) player.play();
+   const anim = __omni_motion_delayedEntrance(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1173")) __omni_animations.set("el-div-1173", new Map());
+   __omni_animations.get("el-div-1173").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
   }
 })();
-// @animate trigger
+// @enter trigger
 (function() {
-  const el = __omni_el("el-div-1151");
+  const el = __omni_el("el-div-1181");
   if (el) {
-   const config = { trigger: "animate" };
-   const player = __omni_motion_autoSpin(el, config);
-   __omni_animations.set("el-div-1151_animate", player);
-   player.play();
+   const anim = __omni_motion_enterFadeUp(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1181")) __omni_animations.set("el-div-1181", new Map());
+   __omni_animations.get("el-div-1181").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
+  }
+})();
+// @enter trigger
+(function() {
+  const el = __omni_el("el-div-1186");
+  if (el) {
+   const anim = __omni_motion_cubicDemo(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1186")) __omni_animations.set("el-div-1186", new Map());
+   __omni_animations.get("el-div-1186").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
+  }
+})();
+// @enter trigger
+(function() {
+  const el = __omni_el("el-div-1191");
+  if (el) {
+   const anim = __omni_motion_backEaseDemo(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1191")) __omni_animations.set("el-div-1191", new Map());
+   __omni_animations.get("el-div-1191").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
+  }
+})();
+// @enter trigger
+(function() {
+  const el = __omni_el("el-div-1196");
+  if (el) {
+   const anim = __omni_motion_elasticEaseDemo(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1196")) __omni_animations.set("el-div-1196", new Map());
+   __omni_animations.get("el-div-1196").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
+  }
+})();
+// @enter trigger
+(function() {
+  const el = __omni_el("el-div-1203");
+  if (el) {
+   const anim = __omni_motion_multiStopDemo(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1203")) __omni_animations.set("el-div-1203", new Map());
+   __omni_animations.get("el-div-1203").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
+  }
+})();
+// @enter trigger
+(function() {
+  const el = __omni_el("el-div-1221");
+  if (el) {
+   const anim = __omni_motion_easeInMove(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1221")) __omni_animations.set("el-div-1221", new Map());
+   __omni_animations.get("el-div-1221").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
+  }
+})();
+// @enter trigger
+(function() {
+  const el = __omni_el("el-div-1226");
+  if (el) {
+   const anim = __omni_motion_power1InMove(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1226")) __omni_animations.set("el-div-1226", new Map());
+   __omni_animations.get("el-div-1226").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
+  }
+})();
+// @enter trigger
+(function() {
+  const el = __omni_el("el-div-1231");
+  if (el) {
+   const anim = __omni_motion_power1OutMove(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1231")) __omni_animations.set("el-div-1231", new Map());
+   __omni_animations.get("el-div-1231").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
+  }
+})();
+// @enter trigger
+(function() {
+  const el = __omni_el("el-div-1236");
+  if (el) {
+   const anim = __omni_motion_power1InOutMove(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1236")) __omni_animations.set("el-div-1236", new Map());
+   __omni_animations.get("el-div-1236").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
+  }
+})();
+// @enter trigger
+(function() {
+  const el = __omni_el("el-div-1241");
+  if (el) {
+   const anim = __omni_motion_power2InMove(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1241")) __omni_animations.set("el-div-1241", new Map());
+   __omni_animations.get("el-div-1241").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
+  }
+})();
+// @enter trigger
+(function() {
+  const el = __omni_el("el-div-1246");
+  if (el) {
+   const anim = __omni_motion_power2InOutMove(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1246")) __omni_animations.set("el-div-1246", new Map());
+   __omni_animations.get("el-div-1246").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
+  }
+})();
+// @enter trigger
+(function() {
+  const el = __omni_el("el-div-1251");
+  if (el) {
+   const anim = __omni_motion_power3InMove(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1251")) __omni_animations.set("el-div-1251", new Map());
+   __omni_animations.get("el-div-1251").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
+  }
+})();
+// @enter trigger
+(function() {
+  const el = __omni_el("el-div-1256");
+  if (el) {
+   const anim = __omni_motion_power3InOutMove(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1256")) __omni_animations.set("el-div-1256", new Map());
+   __omni_animations.get("el-div-1256").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
+  }
+})();
+// @enter trigger
+(function() {
+  const el = __omni_el("el-div-1261");
+  if (el) {
+   const anim = __omni_motion_power4InMove(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1261")) __omni_animations.set("el-div-1261", new Map());
+   __omni_animations.get("el-div-1261").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
   }
 })();
 // @enter trigger
 (function() {
   const el = __omni_el("el-div-1266");
   if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_pulseWithCallback(el, config);
-   __omni_animations.set("el-div-1266_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @timeline trigger
-(function() {
-  const el = __omni_el("el-div-1380");
-  if (el) {
-   const config = { trigger: "timeline" };
-   const player = __omni_motion_positionDemo(el, config);
-   __omni_animations.set("el-div-1380_timeline", player);
-  }
-})();
-// @timeline trigger
-(function() {
-  const el = __omni_el("el-div-1402");
-  if (el) {
-   const config = { trigger: "timeline" };
-   const player = __omni_motion_simpleThenWith(el, config);
-   __omni_animations.set("el-div-1402_timeline", player);
+   const anim = __omni_motion_power4OutMove(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1266")) __omni_animations.set("el-div-1266", new Map());
+   __omni_animations.get("el-div-1266").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
   }
 })();
 // @enter trigger
 (function() {
-  const el = __omni_el("el-div-1511");
+  const el = __omni_el("el-div-1271");
   if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_staggerStart(el, config);
-   __omni_animations.set("el-div-1511_enter", player);
-   if (el.offsetParent !== null) player.play();
+   const anim = __omni_motion_power4InOutMove(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1271")) __omni_animations.set("el-div-1271", new Map());
+   __omni_animations.get("el-div-1271").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
   }
 })();
 // @enter trigger
 (function() {
-  const el = __omni_el("el-div-1525");
+  const el = __omni_el("el-div-1279");
   if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_staggerEnd(el, config);
-   __omni_animations.set("el-div-1525_enter", player);
-   if (el.offsetParent !== null) player.play();
+   const anim = __omni_motion_backInMove(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1279")) __omni_animations.set("el-div-1279", new Map());
+   __omni_animations.get("el-div-1279").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
   }
 })();
 // @enter trigger
 (function() {
-  const el = __omni_el("el-div-1539");
+  const el = __omni_el("el-div-1284");
   if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_staggerEdges(el, config);
-   __omni_animations.set("el-div-1539_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @timeline trigger
-(function() {
-  const el = __omni_el("el-div-1552");
-  if (el) {
-   const config = { trigger: "timeline" };
-   const player = __omni_motion_connectorDemo(el, config);
-   __omni_animations.set("el-div-1552_timeline", player);
-  }
-})();
-// @timeline trigger
-(function() {
-  const el = __omni_el("el-div-1567");
-  if (el) {
-   const config = { trigger: "timeline" };
-   const player = __omni_motion_pageEnter(el, config);
-   __omni_animations.set("el-div-1567_timeline", player);
-  }
-})();
-// @timeline trigger
-(function() {
-  const el = __omni_el("el-div-1572");
-  if (el) {
-   const config = { trigger: "timeline" };
-   const player = __omni_motion_pageEnter(el, config);
-   __omni_animations.set("el-div-1572_timeline", player);
-  }
-})();
-// @timeline trigger
-(function() {
-  const el = __omni_el("el-div-1577");
-  if (el) {
-   const config = { trigger: "timeline" };
-   const player = __omni_motion_pageEnter(el, config);
-   __omni_animations.set("el-div-1577_timeline", player);
-  }
-})();
-// @timeline trigger
-(function() {
-  const el = __omni_el("el-div-1582");
-  if (el) {
-   const config = { trigger: "timeline" };
-   const player = __omni_motion_pageEnter(el, config);
-   __omni_animations.set("el-div-1582_timeline", player);
+   const anim = __omni_motion_backOutMove(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1284")) __omni_animations.set("el-div-1284", new Map());
+   __omni_animations.get("el-div-1284").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
   }
 })();
 // @enter trigger
 (function() {
-  const el = __omni_el("el-div-1600");
+  const el = __omni_el("el-div-1289");
   if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_dirReverse(el, config);
-   __omni_animations.set("el-div-1600_enter", player);
-   if (el.offsetParent !== null) player.play();
+   const anim = __omni_motion_backInOutMove(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1289")) __omni_animations.set("el-div-1289", new Map());
+   __omni_animations.get("el-div-1289").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
   }
 })();
 // @enter trigger
 (function() {
-  const el = __omni_el("el-div-1605");
+  const el = __omni_el("el-div-1297");
   if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_dirAltReverse(el, config);
-   __omni_animations.set("el-div-1605_enter", player);
-   if (el.offsetParent !== null) player.play();
+   const anim = __omni_motion_bounceInMove(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1297")) __omni_animations.set("el-div-1297", new Map());
+   __omni_animations.get("el-div-1297").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
   }
 })();
 // @enter trigger
 (function() {
-  const el = __omni_el("el-div-1613");
+  const el = __omni_el("el-div-1302");
   if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_fillBackwards(el, config);
-   __omni_animations.set("el-div-1613_enter", player);
-   if (el.offsetParent !== null) player.play();
+   const anim = __omni_motion_bounceOutMove(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1302")) __omni_animations.set("el-div-1302", new Map());
+   __omni_animations.get("el-div-1302").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
   }
 })();
 // @enter trigger
 (function() {
-  const el = __omni_el("el-div-1618");
+  const el = __omni_el("el-div-1307");
   if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_fillBoth(el, config);
-   __omni_animations.set("el-div-1618_enter", player);
-   if (el.offsetParent !== null) player.play();
+   const anim = __omni_motion_bounceInOutMove(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1307")) __omni_animations.set("el-div-1307", new Map());
+   __omni_animations.get("el-div-1307").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
   }
 })();
-// @animate trigger
+// @enter trigger
 (function() {
-  const el = __omni_el("el-div-1626");
+  const el = __omni_el("el-div-1315");
   if (el) {
-   const config = { trigger: "animate" };
-   const player = __omni_motion_intStop(el, config);
-   __omni_animations.set("el-div-1626_animate", player);
-   player.play();
+   const anim = __omni_motion_elasticInMove(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1315")) __omni_animations.set("el-div-1315", new Map());
+   __omni_animations.get("el-div-1315").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
   }
 })();
-// @animate trigger
+// @enter trigger
 (function() {
-  const el = __omni_el("el-div-1631");
+  const el = __omni_el("el-div-1320");
   if (el) {
-   const config = { trigger: "animate" };
-   const player = __omni_motion_intComplete(el, config);
-   __omni_animations.set("el-div-1631_animate", player);
-   player.play();
+   const anim = __omni_motion_elasticOutMove(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1320")) __omni_animations.set("el-div-1320", new Map());
+   __omni_animations.get("el-div-1320").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
   }
 })();
-// @animate trigger
+// @enter trigger
 (function() {
-  const el = __omni_el("el-div-1636");
+  const el = __omni_el("el-div-1325");
   if (el) {
-   const config = { trigger: "animate" };
-   const player = __omni_motion_intReplace(el, config);
-   __omni_animations.set("el-div-1636_animate", player);
-   player.play();
+   const anim = __omni_motion_elasticInOutMove(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1325")) __omni_animations.set("el-div-1325", new Map());
+   __omni_animations.get("el-div-1325").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
   }
 })();
-// @paused override
+// @enter trigger
 (function() {
-  var _paused = Boolean(!HeroTransitionDemo_isExpanded.value);
-  __omni_animations.forEach((player, key) => {
-   if (key.startsWith("el-div-1661_")) {
-    if (_paused) { player.pause(); } else { player.resume(); }
-   }
-  });
+  const el = __omni_el("el-div-1333");
+  if (el) {
+   const anim = __omni_motion_stepsEndMove(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1333")) __omni_animations.set("el-div-1333", new Map());
+   __omni_animations.get("el-div-1333").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
+  }
 })();
-// @driven-by binding
-__omni_effect(() => {
-  const progress = Math.max(0, Math.min(1, Number(HeroTransitionDemo_progress.value)));
-  __omni_animations.forEach((player, key) => {
-   if (key.startsWith("el-div-1664_")) {
-    player.seek(progress);
-   }
-  });
+// @enter trigger
+(function() {
+  const el = __omni_el("el-div-1338");
+  if (el) {
+   const anim = __omni_motion_stepsStartMove(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1338")) __omni_animations.set("el-div-1338", new Map());
+   __omni_animations.get("el-div-1338").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
+  }
+})();
+// @enter trigger
+(function() {
+  const el = __omni_el("el-div-1346");
+  if (el) {
+   const anim = __omni_motion_cubicCustom(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1346")) __omni_animations.set("el-div-1346", new Map());
+   __omni_animations.get("el-div-1346").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
+  }
+})();
+// @enter trigger
+(function() {
+  const el = __omni_el("el-div-1364");
+  if (el) {
+   const anim = __omni_motion_scaleXDemo(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1364")) __omni_animations.set("el-div-1364", new Map());
+   __omni_animations.get("el-div-1364").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
+  }
+})();
+// @enter trigger
+(function() {
+  const el = __omni_el("el-div-1369");
+  if (el) {
+   const anim = __omni_motion_scaleYDemo(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1369")) __omni_animations.set("el-div-1369", new Map());
+   __omni_animations.get("el-div-1369").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
+  }
+})();
+// @enter trigger
+(function() {
+  const el = __omni_el("el-div-1374");
+  if (el) {
+   const anim = __omni_motion_scalePulseDemo(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1374")) __omni_animations.set("el-div-1374", new Map());
+   __omni_animations.get("el-div-1374").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
+  }
+})();
+// @enter trigger
+(function() {
+  const el = __omni_el("el-div-1379");
+  if (el) {
+   const anim = __omni_motion_rotateXDemo(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1379")) __omni_animations.set("el-div-1379", new Map());
+   __omni_animations.get("el-div-1379").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
+  }
+})();
+// @enter trigger
+(function() {
+  const el = __omni_el("el-div-1384");
+  if (el) {
+   const anim = __omni_motion_rotateYDemo(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1384")) __omni_animations.set("el-div-1384", new Map());
+   __omni_animations.get("el-div-1384").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
+  }
+})();
+// @enter trigger
+(function() {
+  const el = __omni_el("el-div-1389");
+  if (el) {
+   const anim = __omni_motion_rotateZDemo(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1389")) __omni_animations.set("el-div-1389", new Map());
+   __omni_animations.get("el-div-1389").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
+  }
+})();
+// @enter trigger
+(function() {
+  const el = __omni_el("el-div-1394");
+  if (el) {
+   const anim = __omni_motion_rotateDemo(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1394")) __omni_animations.set("el-div-1394", new Map());
+   __omni_animations.get("el-div-1394").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
+  }
+})();
+// @enter trigger
+(function() {
+  const el = __omni_el("el-div-1399");
+  if (el) {
+   const anim = __omni_motion_skewXDemo(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1399")) __omni_animations.set("el-div-1399", new Map());
+   __omni_animations.get("el-div-1399").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
+  }
+})();
+// @enter trigger
+(function() {
+  const el = __omni_el("el-div-1404");
+  if (el) {
+   const anim = __omni_motion_skewYDemo(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1404")) __omni_animations.set("el-div-1404", new Map());
+   __omni_animations.get("el-div-1404").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
+  }
+})();
+// @enter trigger
+(function() {
+  const el = __omni_el("el-div-1412");
+  if (el) {
+   const anim = __omni_motion_translateDemo(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1412")) __omni_animations.set("el-div-1412", new Map());
+   __omni_animations.get("el-div-1412").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
+  }
+})();
+// @enter trigger
+(function() {
+  const el = __omni_el("el-div-1417");
+  if (el) {
+   const anim = __omni_motion_translateZDemo(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1417")) __omni_animations.set("el-div-1417", new Map());
+   __omni_animations.get("el-div-1417").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
+  }
+})();
+// @enter trigger
+(function() {
+  const el = __omni_el("el-div-1425");
+  if (el) {
+   const anim = __omni_motion_opacityPulseDemo(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1425")) __omni_animations.set("el-div-1425", new Map());
+   __omni_animations.get("el-div-1425").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
+  }
+})();
+// @enter trigger
+(function() {
+  const el = __omni_el("el-div-1430");
+  if (el) {
+   const anim = __omni_motion_bgColorDemo(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1430")) __omni_animations.set("el-div-1430", new Map());
+   __omni_animations.get("el-div-1430").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
+  }
+})();
+// @enter trigger
+(function() {
+  const el = __omni_el("el-div-1435");
+  if (el) {
+   const anim = __omni_motion_textColorDemo(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1435")) __omni_animations.set("el-div-1435", new Map());
+   __omni_animations.get("el-div-1435").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
+  }
+})();
+// @enter trigger
+(function() {
+  const el = __omni_el("el-div-1440");
+  if (el) {
+   const anim = __omni_motion_widthDemo(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1440")) __omni_animations.set("el-div-1440", new Map());
+   __omni_animations.get("el-div-1440").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
+  }
+})();
+// @enter trigger
+(function() {
+  const el = __omni_el("el-div-1445");
+  if (el) {
+   const anim = __omni_motion_heightDemo(el, { trigger: "enter" });
+   if (!__omni_animations.has("el-div-1445")) __omni_animations.set("el-div-1445", new Map());
+   __omni_animations.get("el-div-1445").set("enter", anim);
+   if (el.offsetParent !== null) anim.play();
+  }
+})();
+// @enter replay
+__omni_effect(function __omni_enter_replay_AnimPropertiesDemo() {
+  AnimPropertiesDemo_playAll.value;
+  (function() { var el = __omni_el("el-div-1364"); if (el) { var _old = __omni_animations.get("el-div-1364_enter"); if (_old) _old.cancel(); var p = __omni_motion_scaleXDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-1364_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1369"); if (el) { var _old = __omni_animations.get("el-div-1369_enter"); if (_old) _old.cancel(); var p = __omni_motion_scaleYDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-1369_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1374"); if (el) { var _old = __omni_animations.get("el-div-1374_enter"); if (_old) _old.cancel(); var p = __omni_motion_scalePulseDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-1374_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1379"); if (el) { var _old = __omni_animations.get("el-div-1379_enter"); if (_old) _old.cancel(); var p = __omni_motion_rotateXDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-1379_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1384"); if (el) { var _old = __omni_animations.get("el-div-1384_enter"); if (_old) _old.cancel(); var p = __omni_motion_rotateYDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-1384_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1389"); if (el) { var _old = __omni_animations.get("el-div-1389_enter"); if (_old) _old.cancel(); var p = __omni_motion_rotateZDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-1389_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1394"); if (el) { var _old = __omni_animations.get("el-div-1394_enter"); if (_old) _old.cancel(); var p = __omni_motion_rotateDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-1394_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1399"); if (el) { var _old = __omni_animations.get("el-div-1399_enter"); if (_old) _old.cancel(); var p = __omni_motion_skewXDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-1399_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1404"); if (el) { var _old = __omni_animations.get("el-div-1404_enter"); if (_old) _old.cancel(); var p = __omni_motion_skewYDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-1404_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1412"); if (el) { var _old = __omni_animations.get("el-div-1412_enter"); if (_old) _old.cancel(); var p = __omni_motion_translateDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-1412_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1417"); if (el) { var _old = __omni_animations.get("el-div-1417_enter"); if (_old) _old.cancel(); var p = __omni_motion_translateZDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-1417_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1425"); if (el) { var _old = __omni_animations.get("el-div-1425_enter"); if (_old) _old.cancel(); var p = __omni_motion_opacityPulseDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-1425_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1430"); if (el) { var _old = __omni_animations.get("el-div-1430_enter"); if (_old) _old.cancel(); var p = __omni_motion_bgColorDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-1430_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1435"); if (el) { var _old = __omni_animations.get("el-div-1435_enter"); if (_old) _old.cancel(); var p = __omni_motion_textColorDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-1435_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1440"); if (el) { var _old = __omni_animations.get("el-div-1440_enter"); if (_old) _old.cancel(); var p = __omni_motion_widthDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-1440_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1445"); if (el) { var _old = __omni_animations.get("el-div-1445_enter"); if (_old) _old.cancel(); var p = __omni_motion_heightDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-1445_enter", p); if (el.offsetParent !== null) p.play(); } })()
 });
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-1687");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_fadeEnter(el, config);
-   __omni_animations.set("el-div-1687_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @leave trigger
-(function() {
-  const el = __omni_el("el-div-1687");
-  if (el) {
-   const config = { trigger: "leave" };
-   __omni_createAnimation("el-div-1687", config);
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-3292");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_stepCount2(el, config);
-   __omni_animations.set("el-div-3292_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-3299");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_stepCount4Start(el, config);
-   __omni_animations.set("el-div-3299_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-3305");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_stepCount4End(el, config);
-   __omni_animations.set("el-div-3305_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @enter trigger
-(function() {
-  const el = __omni_el("el-div-3311");
-  if (el) {
-   const config = { trigger: "enter" };
-   const player = __omni_motion_stepCount8(el, config);
-   __omni_animations.set("el-div-3311_enter", player);
-   if (el.offsetParent !== null) player.play();
-  }
-})();
-// @timeline trigger
-(function() {
-  const el = __omni_el("el-div-3327");
-  if (el) {
-   const config = { trigger: "timeline" };
-   const player = __omni_motion_flyPath(el, config);
-   __omni_animations.set("el-div-3327_timeline", player);
-  }
-})();
-// @timeline trigger
-(function() {
-  const el = __omni_el("el-div-3330");
-  if (el) {
-   const config = { trigger: "timeline" };
-   const player = __omni_motion_flyPath(el, config);
-   __omni_animations.set("el-div-3330_timeline", player);
-  }
-})();
-// @timeline trigger
-(function() {
-  const el = __omni_el("el-div-3337");
-  if (el) {
-   const config = { trigger: "timeline" };
-   const player = __omni_motion_bouncePath(el, config);
-   __omni_animations.set("el-div-3337_timeline", player);
-  }
-})();
-// @enter replay (watches all signals)
-__omni_effect(function __omni_enter_replay() {
-  AnimPropertiesDemo_playAll.value; ComponentSpecialsDemo_showPanel.value; ComponentSpecialsDemo_slotVisible.value; ComponentSpecialsDemo_progressPct.value; ComponentSpecialsDemo_counter.value; BlockExprDemo_a.value; BlockExprDemo_b.value; TypeSystemDemo_summary.value; MotionDemo_count.value; MotionDemo_isOpen.value; MotionTriggersDemo_isHovered.value; MotionTriggersDemo_isFocused.value; MotionTriggersDemo_dragX.value; CssVarsDemo_accentColor.value; CssVarsDemo_accentHue.value; CssVarsDemo_themeMode.value; TimelinePositionDemo_activeDemo.value; TimelinePositionDemo_playCount.value; EventDataDemo_scrollY.value; EventDataDemo_keyPressed.value; EventDataDemo_mouseX.value; EventDataDemo_mouseY.value; EventDataDemo_wheelDelta.value; EventDataDemo_ctrlHeld.value; DataSubmit_title.value; DataSubmit_body.value; DataSubmit_submitStatus.value; DataSubmit_responseText.value; HeroTransitionDemo_isExpanded.value; HeroTransitionDemo_progress.value; StylePseudoDemo_clicked.value; StringLiteralsDemo_backtickResult.value; StringLiteralsDemo_singleQuoteResult.value; StringLiteralsDemo_mixed.value; StringLiteralsDemo_userName.value; StringLiteralsDemo_version.value; StringLiteralsDemo_interpolated.value; SlotDefaultDemo_useCustomContent.value; TabPanel_activeTab.value; DataFetching_status.value; DataFetching_resultText.value; DataFetching_errorMsg.value; DataFetching_url.value; DataFetching_apiDemoText.value; EventShorthand_msg.value; EventShorthand_count.value; SettingsPage_themeColors.value; SettingsPage_aboutExpanded.value; ThemeSwitcher_isHovered.value; AdvancedPseudoDemo_isActive.value; AdvancedPseudoDemo_variant.value; FormControlsDemo_selected.value; FormControlsDemo_agreed.value; FormControlsDemo_age.value; FormControlsDemo_rangeVal.value; FormControlsDemo_linkClicked.value; FormControlsDemo_statusText.value; TodoPage_pageLoadCount.value; Modal_isOpen.value; Modal_isHovering.value; Modal_lastAction.value; AddTodo_input.value; ComputedFnFormDemo_firstName.value; ComputedFnFormDemo_lastName.value; ComputedFnFormDemo_counter.value; UserSettings_username.value; UserSettings_fontSize.value; UserSettings_autoSave.value; UserSettings_savedText.value; InlineStoreDemo_items.value; InlineStoreDemo_totalPrice.value; InlineStoreDemo_log.value; TernaryExprDemo_count.value; TernaryExprDemo_score.value; FeatureList_isOpen.value; FeatureList_features.value; EasingFunctionsDemo_playAll.value; StatsDashboard_MAX_ITEMS.value; StatsDashboard_$iconUrl.value; StatsDashboard_$apiBase.value; StatsDashboard_counter.value; StatsDashboard_removed.value; StatsDashboard_randomValue.value; PlaybackAdvancedDemo_playDirFill.value; EmitEventDemo_messages.value; EmitEventDemo_totalCount.value; ValidationInput_input.value; ValidationInput_result.value; ValidationInput_isProcessing.value; Timer_count.value; Timer_running.value; Timer_interval.value; EmitChild_count.value; Counter_count.value; Counter_step.value; SimpleApp_count.value; DataTable_scrollCount.value; DataTable_rows.value; DataTable_sortAsc.value; FormPage_name.value; FormPage_email.value; FormPage_message.value; FormPage_nameError.value; FormPage_emailError.value; FormPage_submitted.value; FormPage_scrollPos.value; FormPage_focusField.value; MotionPlaybackDemo_play.value; FeatureCard_status.value; FeatureCard_focusCount.value; NotificationsPanel_badgeVisible.value; ForDirectiveKeyDemo_items.value; FilterBar_searchText.value; FilterBar_sortAsc.value; FilterBar_changeCount.value; FilterBar_demoFrameworks.value; EmitEventChild_clickCount.value; ViewAttributesDemo_isChecked.value; ViewAttributesDemo_richText.value; Dashboard_totalItems.value; Dashboard_lastUpdated.value; Constants_APP_NAME.value; Constants_APP_VERSION.value; Constants_logoUrl.value; Constants_apiBase.value; NullishDemo_inputName.value; ThemeCssVarsDemo_boxScale.value; ThemeCssVarsDemo_borderWidth.value; EmitKeywordDemo_emitLog.value; EmitKeywordDemo_funcLog.value; EventsDemo_eventLog.value; EventsDemo_dragStatus.value; EventsDemo_wheelCount.value; EventsDemo_mediaStatus.value; EventsDemo_animStatus.value; EventsDemo_toggleCount.value; EventsDemo_scrollY.value; EventsDemo_scrollCount.value; EventsDemo_deltaY.value; MotionCallbackDemo_enterCount.value; MotionCallbackDemo_completeCount.value; MotionCallbackDemo_repeatCount.value; MotionCallbackDemo_lastEvent.value; MotionCallbackDemo_isPlaying.value; MotionCallbackDemo_isPulsing.value; MotionCallbackDemo_pulseRepeatCount.value; App_completionRate.value; App_activeTab.value; OptionalChainDemo_user.value; OptionalChainDemo_showDetails.value;
-  (function() { var el = __omni_el("el-h1-785"); if (el) { var _old = __omni_animations.get("el-h1-785_enter"); if (_old) _old.kill(); var p = __omni_motion_fadeInUp(el, {trigger: "enter"}); __omni_animations.set("el-h1-785_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-795"); if (el) { var _old = __omni_animations.get("el-div-795_enter"); if (_old) _old.kill(); var p = __omni_motion_fadeInUp(el, {trigger: "enter"}); __omni_animations.set("el-div-795_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-812"); if (el) { var _old = __omni_animations.get("el-div-812_enter"); if (_old) _old.kill(); var p = __omni_motion_fillDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-812_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-815"); if (el) { var _old = __omni_animations.get("el-div-815_enter"); if (_old) _old.kill(); var p = __omni_motion_delayedEntrance(el, {trigger: "enter"}); __omni_animations.set("el-div-815_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-818"); if (el) { var _old = __omni_animations.get("el-div-818_enter"); if (_old) _old.kill(); var p = __omni_motion_slowSpin(el, {trigger: "enter"}); __omni_animations.set("el-div-818_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-821"); if (el) { var _old = __omni_animations.get("el-div-821_enter"); if (_old) _old.kill(); var p = __omni_motion_interruptDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-821_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-824"); if (el) { var _old = __omni_animations.get("el-div-824_enter"); if (_old) _old.kill(); var p = __omni_motion_accessibleAnim(el, {trigger: "enter"}); __omni_animations.set("el-div-824_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-827"); if (el) { var _old = __omni_animations.get("el-div-827_enter"); if (_old) _old.kill(); var p = __omni_motion_staggeredList(el, {trigger: "enter"}); __omni_animations.set("el-div-827_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-830"); if (el) { var _old = __omni_animations.get("el-div-830_enter"); if (_old) _old.kill(); var p = __omni_motion_pathAnim(el, {trigger: "enter"}); __omni_animations.set("el-div-830_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-833"); if (el) { var _old = __omni_animations.get("el-div-833_enter"); if (_old) _old.kill(); var p = __omni_motion_multiStopColor(el, {trigger: "enter"}); __omni_animations.set("el-div-833_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-849"); if (el) { var _old = __omni_animations.get("el-div-849_enter"); if (_old) _old.kill(); var p = __omni_motion_easeInMove(el, {trigger: "enter"}); __omni_animations.set("el-div-849_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-854"); if (el) { var _old = __omni_animations.get("el-div-854_enter"); if (_old) _old.kill(); var p = __omni_motion_power1InMove(el, {trigger: "enter"}); __omni_animations.set("el-div-854_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-859"); if (el) { var _old = __omni_animations.get("el-div-859_enter"); if (_old) _old.kill(); var p = __omni_motion_power1OutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-859_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-864"); if (el) { var _old = __omni_animations.get("el-div-864_enter"); if (_old) _old.kill(); var p = __omni_motion_power1InOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-864_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-869"); if (el) { var _old = __omni_animations.get("el-div-869_enter"); if (_old) _old.kill(); var p = __omni_motion_power2InMove(el, {trigger: "enter"}); __omni_animations.set("el-div-869_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-874"); if (el) { var _old = __omni_animations.get("el-div-874_enter"); if (_old) _old.kill(); var p = __omni_motion_power2InOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-874_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-879"); if (el) { var _old = __omni_animations.get("el-div-879_enter"); if (_old) _old.kill(); var p = __omni_motion_power3InMove(el, {trigger: "enter"}); __omni_animations.set("el-div-879_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-884"); if (el) { var _old = __omni_animations.get("el-div-884_enter"); if (_old) _old.kill(); var p = __omni_motion_power3InOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-884_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-889"); if (el) { var _old = __omni_animations.get("el-div-889_enter"); if (_old) _old.kill(); var p = __omni_motion_power4InMove(el, {trigger: "enter"}); __omni_animations.set("el-div-889_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-894"); if (el) { var _old = __omni_animations.get("el-div-894_enter"); if (_old) _old.kill(); var p = __omni_motion_power4OutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-894_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-899"); if (el) { var _old = __omni_animations.get("el-div-899_enter"); if (_old) _old.kill(); var p = __omni_motion_power4InOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-899_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-907"); if (el) { var _old = __omni_animations.get("el-div-907_enter"); if (_old) _old.kill(); var p = __omni_motion_backInMove(el, {trigger: "enter"}); __omni_animations.set("el-div-907_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-912"); if (el) { var _old = __omni_animations.get("el-div-912_enter"); if (_old) _old.kill(); var p = __omni_motion_backOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-912_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-917"); if (el) { var _old = __omni_animations.get("el-div-917_enter"); if (_old) _old.kill(); var p = __omni_motion_backInOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-917_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-922"); if (el) { var _old = __omni_animations.get("el-div-922_enter"); if (_old) _old.kill(); var p = __omni_motion_backOutIntensity(el, {trigger: "enter"}); __omni_animations.set("el-div-922_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-930"); if (el) { var _old = __omni_animations.get("el-div-930_enter"); if (_old) _old.kill(); var p = __omni_motion_bounceInMove(el, {trigger: "enter"}); __omni_animations.set("el-div-930_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-935"); if (el) { var _old = __omni_animations.get("el-div-935_enter"); if (_old) _old.kill(); var p = __omni_motion_bounceOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-935_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-940"); if (el) { var _old = __omni_animations.get("el-div-940_enter"); if (_old) _old.kill(); var p = __omni_motion_bounceInOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-940_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-948"); if (el) { var _old = __omni_animations.get("el-div-948_enter"); if (_old) _old.kill(); var p = __omni_motion_elasticInMove(el, {trigger: "enter"}); __omni_animations.set("el-div-948_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-953"); if (el) { var _old = __omni_animations.get("el-div-953_enter"); if (_old) _old.kill(); var p = __omni_motion_elasticOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-953_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-958"); if (el) { var _old = __omni_animations.get("el-div-958_enter"); if (_old) _old.kill(); var p = __omni_motion_elasticInOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-958_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-963"); if (el) { var _old = __omni_animations.get("el-div-963_enter"); if (_old) _old.kill(); var p = __omni_motion_elasticCustomMove(el, {trigger: "enter"}); __omni_animations.set("el-div-963_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-971"); if (el) { var _old = __omni_animations.get("el-div-971_enter"); if (_old) _old.kill(); var p = __omni_motion_springDefault(el, {trigger: "enter"}); __omni_animations.set("el-div-971_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-976"); if (el) { var _old = __omni_animations.get("el-div-976_enter"); if (_old) _old.kill(); var p = __omni_motion_springBouncy(el, {trigger: "enter"}); __omni_animations.set("el-div-976_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-981"); if (el) { var _old = __omni_animations.get("el-div-981_enter"); if (_old) _old.kill(); var p = __omni_motion_springStiff(el, {trigger: "enter"}); __omni_animations.set("el-div-981_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-989"); if (el) { var _old = __omni_animations.get("el-div-989_enter"); if (_old) _old.kill(); var p = __omni_motion_cubicCustom(el, {trigger: "enter"}); __omni_animations.set("el-div-989_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-994"); if (el) { var _old = __omni_animations.get("el-div-994_enter"); if (_old) _old.kill(); var p = __omni_motion_stepsDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-994_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1012"); if (el) { var _old = __omni_animations.get("el-div-1012_enter"); if (_old) _old.kill(); var p = __omni_motion_scaleXDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-1012_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1017"); if (el) { var _old = __omni_animations.get("el-div-1017_enter"); if (_old) _old.kill(); var p = __omni_motion_scaleYDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-1017_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1022"); if (el) { var _old = __omni_animations.get("el-div-1022_enter"); if (_old) _old.kill(); var p = __omni_motion_rotateXDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-1022_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1027"); if (el) { var _old = __omni_animations.get("el-div-1027_enter"); if (_old) _old.kill(); var p = __omni_motion_rotateYDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-1027_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1032"); if (el) { var _old = __omni_animations.get("el-div-1032_enter"); if (_old) _old.kill(); var p = __omni_motion_rotateZDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-1032_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1037"); if (el) { var _old = __omni_animations.get("el-div-1037_enter"); if (_old) _old.kill(); var p = __omni_motion_skewXDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-1037_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1042"); if (el) { var _old = __omni_animations.get("el-div-1042_enter"); if (_old) _old.kill(); var p = __omni_motion_skewYDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-1042_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1050"); if (el) { var _old = __omni_animations.get("el-div-1050_enter"); if (_old) _old.kill(); var p = __omni_motion_blurDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-1050_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1055"); if (el) { var _old = __omni_animations.get("el-div-1055_enter"); if (_old) _old.kill(); var p = __omni_motion_brightnessDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-1055_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1060"); if (el) { var _old = __omni_animations.get("el-div-1060_enter"); if (_old) _old.kill(); var p = __omni_motion_contrastDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-1060_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1065"); if (el) { var _old = __omni_animations.get("el-div-1065_enter"); if (_old) _old.kill(); var p = __omni_motion_saturateDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-1065_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1070"); if (el) { var _old = __omni_animations.get("el-div-1070_enter"); if (_old) _old.kill(); var p = __omni_motion_hueRotateDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-1070_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1078"); if (el) { var _old = __omni_animations.get("el-div-1078_enter"); if (_old) _old.kill(); var p = __omni_motion_bgColorDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-1078_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1083"); if (el) { var _old = __omni_animations.get("el-div-1083_enter"); if (_old) _old.kill(); var p = __omni_motion_textColorDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-1083_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1091"); if (el) { var _old = __omni_animations.get("el-div-1091_enter"); if (_old) _old.kill(); var p = __omni_motion_widthDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-1091_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1096"); if (el) { var _old = __omni_animations.get("el-div-1096_enter"); if (_old) _old.kill(); var p = __omni_motion_heightDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-1096_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1101"); if (el) { var _old = __omni_animations.get("el-div-1101_enter"); if (_old) _old.kill(); var p = __omni_motion_spacingDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-1101_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1109"); if (el) { var _old = __omni_animations.get("el-div-1109_enter"); if (_old) _old.kill(); var p = __omni_motion_fontSizeDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-1109_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1114"); if (el) { var _old = __omni_animations.get("el-div-1114_enter"); if (_old) _old.kill(); var p = __omni_motion_letterSpacingDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-1114_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1122"); if (el) { var _old = __omni_animations.get("el-div-1122_enter"); if (_old) _old.kill(); var p = __omni_motion_borderWidthDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-1122_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1127"); if (el) { var _old = __omni_animations.get("el-div-1127_enter"); if (_old) _old.kill(); var p = __omni_motion_topLeftDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-1127_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1266"); if (el) { var _old = __omni_animations.get("el-div-1266_enter"); if (_old) _old.kill(); var p = __omni_motion_pulseWithCallback(el, {trigger: "enter"}); __omni_animations.set("el-div-1266_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1380"); if (el) { var _old = __omni_animations.get("el-div-1380_timeline"); if (_old) _old.kill(); var p = __omni_motion_positionDemo(el, {trigger: "timeline"}); __omni_animations.set("el-div-1380_timeline", p); } })(); (function() { var el = __omni_el("el-div-1402"); if (el) { var _old = __omni_animations.get("el-div-1402_timeline"); if (_old) _old.kill(); var p = __omni_motion_simpleThenWith(el, {trigger: "timeline"}); __omni_animations.set("el-div-1402_timeline", p); } })(); (function() { var el = __omni_el("el-div-1511"); if (el) { var _old = __omni_animations.get("el-div-1511_enter"); if (_old) _old.kill(); var p = __omni_motion_staggerStart(el, {trigger: "enter"}); __omni_animations.set("el-div-1511_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1525"); if (el) { var _old = __omni_animations.get("el-div-1525_enter"); if (_old) _old.kill(); var p = __omni_motion_staggerEnd(el, {trigger: "enter"}); __omni_animations.set("el-div-1525_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1539"); if (el) { var _old = __omni_animations.get("el-div-1539_enter"); if (_old) _old.kill(); var p = __omni_motion_staggerEdges(el, {trigger: "enter"}); __omni_animations.set("el-div-1539_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1552"); if (el) { var _old = __omni_animations.get("el-div-1552_timeline"); if (_old) _old.kill(); var p = __omni_motion_connectorDemo(el, {trigger: "timeline"}); __omni_animations.set("el-div-1552_timeline", p); } })(); (function() { var el = __omni_el("el-div-1567"); if (el) { var _old = __omni_animations.get("el-div-1567_timeline"); if (_old) _old.kill(); var p = __omni_motion_pageEnter(el, {trigger: "timeline"}); __omni_animations.set("el-div-1567_timeline", p); } })(); (function() { var el = __omni_el("el-div-1572"); if (el) { var _old = __omni_animations.get("el-div-1572_timeline"); if (_old) _old.kill(); var p = __omni_motion_pageEnter(el, {trigger: "timeline"}); __omni_animations.set("el-div-1572_timeline", p); } })(); (function() { var el = __omni_el("el-div-1577"); if (el) { var _old = __omni_animations.get("el-div-1577_timeline"); if (_old) _old.kill(); var p = __omni_motion_pageEnter(el, {trigger: "timeline"}); __omni_animations.set("el-div-1577_timeline", p); } })(); (function() { var el = __omni_el("el-div-1582"); if (el) { var _old = __omni_animations.get("el-div-1582_timeline"); if (_old) _old.kill(); var p = __omni_motion_pageEnter(el, {trigger: "timeline"}); __omni_animations.set("el-div-1582_timeline", p); } })(); (function() { var el = __omni_el("el-div-1600"); if (el) { var _old = __omni_animations.get("el-div-1600_enter"); if (_old) _old.kill(); var p = __omni_motion_dirReverse(el, {trigger: "enter"}); __omni_animations.set("el-div-1600_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1605"); if (el) { var _old = __omni_animations.get("el-div-1605_enter"); if (_old) _old.kill(); var p = __omni_motion_dirAltReverse(el, {trigger: "enter"}); __omni_animations.set("el-div-1605_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1613"); if (el) { var _old = __omni_animations.get("el-div-1613_enter"); if (_old) _old.kill(); var p = __omni_motion_fillBackwards(el, {trigger: "enter"}); __omni_animations.set("el-div-1613_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1618"); if (el) { var _old = __omni_animations.get("el-div-1618_enter"); if (_old) _old.kill(); var p = __omni_motion_fillBoth(el, {trigger: "enter"}); __omni_animations.set("el-div-1618_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1687"); if (el) { var _old = __omni_animations.get("el-div-1687_enter"); if (_old) _old.kill(); var p = __omni_motion_fadeEnter(el, {trigger: "enter"}); __omni_animations.set("el-div-1687_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-3292"); if (el) { var _old = __omni_animations.get("el-div-3292_enter"); if (_old) _old.kill(); var p = __omni_motion_stepCount2(el, {trigger: "enter"}); __omni_animations.set("el-div-3292_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-3299"); if (el) { var _old = __omni_animations.get("el-div-3299_enter"); if (_old) _old.kill(); var p = __omni_motion_stepCount4Start(el, {trigger: "enter"}); __omni_animations.set("el-div-3299_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-3305"); if (el) { var _old = __omni_animations.get("el-div-3305_enter"); if (_old) _old.kill(); var p = __omni_motion_stepCount4End(el, {trigger: "enter"}); __omni_animations.set("el-div-3305_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-3311"); if (el) { var _old = __omni_animations.get("el-div-3311_enter"); if (_old) _old.kill(); var p = __omni_motion_stepCount8(el, {trigger: "enter"}); __omni_animations.set("el-div-3311_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-3327"); if (el) { var _old = __omni_animations.get("el-div-3327_timeline"); if (_old) _old.kill(); var p = __omni_motion_flyPath(el, {trigger: "timeline"}); __omni_animations.set("el-div-3327_timeline", p); } })(); (function() { var el = __omni_el("el-div-3330"); if (el) { var _old = __omni_animations.get("el-div-3330_timeline"); if (_old) _old.kill(); var p = __omni_motion_flyPath(el, {trigger: "timeline"}); __omni_animations.set("el-div-3330_timeline", p); } })(); (function() { var el = __omni_el("el-div-3337"); if (el) { var _old = __omni_animations.get("el-div-3337_timeline"); if (_old) _old.kill(); var p = __omni_motion_bouncePath(el, {trigger: "timeline"}); __omni_animations.set("el-div-3337_timeline", p); } })()
+// @enter replay
+__omni_effect(function __omni_enter_replay_KeyframeAnimationDemo() {
+  KeyframeAnimationDemo_playTriggers.value; KeyframeAnimationDemo_playPlayback.value;
+  (function() { var el = __omni_el("el-div-1100"); if (el) { var _old = __omni_animations.get("el-div-1100_enter"); if (_old) _old.cancel(); var p = __omni_motion_enterFadeUp(el, {trigger: "enter"}); __omni_animations.set("el-div-1100_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1143"); if (el) { var _old = __omni_animations.get("el-div-1143_enter"); if (_old) _old.cancel(); var p = __omni_motion_spinLoop(el, {trigger: "enter"}); __omni_animations.set("el-div-1143_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1148"); if (el) { var _old = __omni_animations.get("el-div-1148_enter"); if (_old) _old.cancel(); var p = __omni_motion_dirAlternate(el, {trigger: "enter"}); __omni_animations.set("el-div-1148_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1153"); if (el) { var _old = __omni_animations.get("el-div-1153_enter"); if (_old) _old.cancel(); var p = __omni_motion_dirAltReverse(el, {trigger: "enter"}); __omni_animations.set("el-div-1153_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1158"); if (el) { var _old = __omni_animations.get("el-div-1158_enter"); if (_old) _old.cancel(); var p = __omni_motion_fillForwards(el, {trigger: "enter"}); __omni_animations.set("el-div-1158_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1163"); if (el) { var _old = __omni_animations.get("el-div-1163_enter"); if (_old) _old.cancel(); var p = __omni_motion_fillBackwards(el, {trigger: "enter"}); __omni_animations.set("el-div-1163_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1168"); if (el) { var _old = __omni_animations.get("el-div-1168_enter"); if (_old) _old.cancel(); var p = __omni_motion_fillBoth(el, {trigger: "enter"}); __omni_animations.set("el-div-1168_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1173"); if (el) { var _old = __omni_animations.get("el-div-1173_enter"); if (_old) _old.cancel(); var p = __omni_motion_delayedEntrance(el, {trigger: "enter"}); __omni_animations.set("el-div-1173_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1181"); if (el) { var _old = __omni_animations.get("el-div-1181_enter"); if (_old) _old.cancel(); var p = __omni_motion_enterFadeUp(el, {trigger: "enter"}); __omni_animations.set("el-div-1181_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1186"); if (el) { var _old = __omni_animations.get("el-div-1186_enter"); if (_old) _old.cancel(); var p = __omni_motion_cubicDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-1186_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1191"); if (el) { var _old = __omni_animations.get("el-div-1191_enter"); if (_old) _old.cancel(); var p = __omni_motion_backEaseDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-1191_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1196"); if (el) { var _old = __omni_animations.get("el-div-1196_enter"); if (_old) _old.cancel(); var p = __omni_motion_elasticEaseDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-1196_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1203"); if (el) { var _old = __omni_animations.get("el-div-1203_enter"); if (_old) _old.cancel(); var p = __omni_motion_multiStopDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-1203_enter", p); if (el.offsetParent !== null) p.play(); } })()
 });
+// @enter replay
+__omni_effect(function __omni_enter_replay_MotionDemo() {
+  MotionDemo_count.value; MotionDemo_isOpen.value;
+  (function() { var el = __omni_el("el-h1-1068"); if (el) { var _old = __omni_animations.get("el-h1-1068_enter"); if (_old) _old.cancel(); var p = __omni_motion_fadeInUp(el, {trigger: "enter"}); __omni_animations.set("el-h1-1068_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1078"); if (el) { var _old = __omni_animations.get("el-div-1078_enter"); if (_old) _old.cancel(); var p = __omni_motion_fadeInUp(el, {trigger: "enter"}); __omni_animations.set("el-div-1078_enter", p); if (el.offsetParent !== null) p.play(); } })()
+});
+// @enter replay
+__omni_effect(function __omni_enter_replay_EasingFunctionsDemo() {
+  EasingFunctionsDemo_playAll.value;
+  (function() { var el = __omni_el("el-div-1221"); if (el) { var _old = __omni_animations.get("el-div-1221_enter"); if (_old) _old.cancel(); var p = __omni_motion_easeInMove(el, {trigger: "enter"}); __omni_animations.set("el-div-1221_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1226"); if (el) { var _old = __omni_animations.get("el-div-1226_enter"); if (_old) _old.cancel(); var p = __omni_motion_power1InMove(el, {trigger: "enter"}); __omni_animations.set("el-div-1226_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1231"); if (el) { var _old = __omni_animations.get("el-div-1231_enter"); if (_old) _old.cancel(); var p = __omni_motion_power1OutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-1231_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1236"); if (el) { var _old = __omni_animations.get("el-div-1236_enter"); if (_old) _old.cancel(); var p = __omni_motion_power1InOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-1236_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1241"); if (el) { var _old = __omni_animations.get("el-div-1241_enter"); if (_old) _old.cancel(); var p = __omni_motion_power2InMove(el, {trigger: "enter"}); __omni_animations.set("el-div-1241_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1246"); if (el) { var _old = __omni_animations.get("el-div-1246_enter"); if (_old) _old.cancel(); var p = __omni_motion_power2InOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-1246_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1251"); if (el) { var _old = __omni_animations.get("el-div-1251_enter"); if (_old) _old.cancel(); var p = __omni_motion_power3InMove(el, {trigger: "enter"}); __omni_animations.set("el-div-1251_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1256"); if (el) { var _old = __omni_animations.get("el-div-1256_enter"); if (_old) _old.cancel(); var p = __omni_motion_power3InOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-1256_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1261"); if (el) { var _old = __omni_animations.get("el-div-1261_enter"); if (_old) _old.cancel(); var p = __omni_motion_power4InMove(el, {trigger: "enter"}); __omni_animations.set("el-div-1261_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1266"); if (el) { var _old = __omni_animations.get("el-div-1266_enter"); if (_old) _old.cancel(); var p = __omni_motion_power4OutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-1266_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1271"); if (el) { var _old = __omni_animations.get("el-div-1271_enter"); if (_old) _old.cancel(); var p = __omni_motion_power4InOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-1271_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1279"); if (el) { var _old = __omni_animations.get("el-div-1279_enter"); if (_old) _old.cancel(); var p = __omni_motion_backInMove(el, {trigger: "enter"}); __omni_animations.set("el-div-1279_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1284"); if (el) { var _old = __omni_animations.get("el-div-1284_enter"); if (_old) _old.cancel(); var p = __omni_motion_backOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-1284_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1289"); if (el) { var _old = __omni_animations.get("el-div-1289_enter"); if (_old) _old.cancel(); var p = __omni_motion_backInOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-1289_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1297"); if (el) { var _old = __omni_animations.get("el-div-1297_enter"); if (_old) _old.cancel(); var p = __omni_motion_bounceInMove(el, {trigger: "enter"}); __omni_animations.set("el-div-1297_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1302"); if (el) { var _old = __omni_animations.get("el-div-1302_enter"); if (_old) _old.cancel(); var p = __omni_motion_bounceOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-1302_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1307"); if (el) { var _old = __omni_animations.get("el-div-1307_enter"); if (_old) _old.cancel(); var p = __omni_motion_bounceInOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-1307_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1315"); if (el) { var _old = __omni_animations.get("el-div-1315_enter"); if (_old) _old.cancel(); var p = __omni_motion_elasticInMove(el, {trigger: "enter"}); __omni_animations.set("el-div-1315_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1320"); if (el) { var _old = __omni_animations.get("el-div-1320_enter"); if (_old) _old.cancel(); var p = __omni_motion_elasticOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-1320_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1325"); if (el) { var _old = __omni_animations.get("el-div-1325_enter"); if (_old) _old.cancel(); var p = __omni_motion_elasticInOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-1325_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1333"); if (el) { var _old = __omni_animations.get("el-div-1333_enter"); if (_old) _old.cancel(); var p = __omni_motion_stepsEndMove(el, {trigger: "enter"}); __omni_animations.set("el-div-1333_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1338"); if (el) { var _old = __omni_animations.get("el-div-1338_enter"); if (_old) _old.cancel(); var p = __omni_motion_stepsStartMove(el, {trigger: "enter"}); __omni_animations.set("el-div-1338_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1346"); if (el) { var _old = __omni_animations.get("el-div-1346_enter"); if (_old) _old.cancel(); var p = __omni_motion_cubicCustom(el, {trigger: "enter"}); __omni_animations.set("el-div-1346_enter", p); if (el.offsetParent !== null) p.play(); } })()
+});
+// ── Theme mode sync: ThemeStore_mode ↔ __omni_theme ──
+        (function() {
+          // 1. Init: respect saved/preferred theme from __omni_theme.init()
+          if (ThemeStore_mode.value !== __omni_theme.current) {
+            __omni_subs.get("ThemeStore_mode").set(__omni_theme.current);
+          }
+          // 2. Reactive: store mode changes propagate to __omni_theme
+          __omni_effect(function () { __omni_theme.set(ThemeStore_mode.value); });
+        })();
+
 
 })();

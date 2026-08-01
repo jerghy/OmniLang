@@ -1,0 +1,91 @@
+// Timer.omni - async fn, optional event, @unmount cleanup
+
+import omniview;
+import { LearnDesign } from "../design";
+import { console_log, console_warn, console_error } from "std/console";
+
+async fn delay(ms: i32) -> i32 {
+    return ms;
+}
+
+component Timer {
+    signal count: i32 = 0;
+    signal running: bool = false;
+    signal interval: i32 = 1000;
+
+    // optional event - parent may or may not handle
+    event onTick: i32?;
+    event onComplete: String?;
+
+    fn start() {
+        running = true;
+        count = 0;
+        console_log("Timer started");
+    }
+
+    fn stop() {
+        running = false;
+        console_log("Timer stopped");
+    }
+
+    fn reset() {
+        count = 0;
+        running = false;
+    }
+
+    fn tick() {
+        if running {
+            count = count + 1;
+            // emit optional tick event
+            onTick(count);
+            if count >= 10 {
+                running = false;
+                onComplete("Timer finished after 10 ticks");
+            }
+        }
+    }
+
+    fn faster() {
+        if interval > 100 {
+            interval = interval - 100;
+        }
+    }
+
+    fn slower() {
+        interval = interval + 100;
+    }
+
+    // @unmount cleanup
+    @unmount {
+        running = false;
+        console_log("Timer unmounted, final count: " + count.to_string());
+    }
+
+    view {
+        <div class: LearnDesign.Card>
+            <h3 class: title>Timer Demo</h3>
+            <p class: count-text>Count: {count} / 10</p>
+            <p class: info>Interval: {interval}ms | Status: {if running { "Running" } else { "Stopped" }}</p>
+
+            <div class: btn-row>
+                <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={start}>Start</button>
+                <button variant: LearnDesign.Button(color=accent, size=sm) @onPress={stop}>Stop</button>
+                <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={tick}>Tick</button>
+                <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={reset}>Reset</button>
+            </div>
+            <div class: btn-row>
+                <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={faster}>Faster</button>
+                <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={slower}>Slower</button>
+            </div>
+        </div>
+    }
+    style {
+        // 计时器特有的数字显示和布局
+        .title { font-size: 18px; margin-bottom: 12px; color: #222; }
+        .count-text { font-size: 36px; font-weight: bold; color: #6366f1; margin-bottom: 8px; }
+        .info { font-size: 14px; color: #666; margin-bottom: 12px; }
+        .btn-row { display: flex; gap: 8px; margin-bottom: 8px; }
+        // .timer / .btn-start / .btn-stop / .btn-tick / .btn-reset / .btn-sm
+        // 已由 LearnDesign.Card / Button 变体提供
+    }
+}

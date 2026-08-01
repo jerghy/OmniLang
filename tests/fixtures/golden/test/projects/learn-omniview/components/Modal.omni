@@ -1,0 +1,96 @@
+// Modal.omni - @slot header/body/footer (body-level declarations + {name} interpolation),
+// @onKeyDown (Escape), @onMouseEnter/@onMouseLeave
+// Demonstrates slot projection, keyboard events, and mouse hover tracking
+
+import omniview;
+import { LearnDesign } from "../design";
+
+component Modal {
+    // Body-level slot declarations (ADR-053 D5): consumers project via
+    // named props (header={<.../>}) or slot="name" children (back-compat).
+    @slot header
+    @slot body
+    @slot footer
+
+    signal isOpen: bool = false;
+    signal isHovering: bool = false;
+    signal lastAction: String = "";
+
+    fn open() { isOpen = true; lastAction = "opened"; }
+    fn close() { isOpen = false; lastAction = "closed"; }
+    fn handleKeyDown(e) { if e.key == "Escape" { close() } }
+    fn handleMouseEnter() { isHovering = true; }
+    fn handleMouseLeave() { isHovering = false; }
+    fn handleOverlayClick() { close(); }
+
+    fn getOverlayClass() -> String {
+        if isOpen { return "overlay visible"; }
+        return "overlay hidden";
+    }
+
+    fn getModalClass() -> String {
+        if isHovering { return "modal-content hover"; }
+        return "modal-content";
+    }
+
+    view {
+        <div class: container>
+            <button variant: LearnDesign.Button(color=primary, size=lg) @onPress={open}>Open Modal</button>
+            <p class: status-text>Status: {lastAction} | Hover: {isHovering}</p>
+
+            @if isOpen {
+                <!-- Overlay with keyboard and mouse event handling -->
+                <div
+                    class: { overlay: true, visible: isOpen, hidden: !isOpen }
+                    @onPress={handleOverlayClick}
+                >
+                    <div
+                        class: { modalcontent: true, hover: isHovering }
+                        @onKeyDown={handleKeyDown}
+                        @onMouseEnter={handleMouseEnter}
+                        @onMouseLeave={handleMouseLeave}
+                    >
+                        <!-- Named slot: header interpolation (title + close stay as static chrome) -->
+                        <div class: modal-header>
+                            {header}
+                            <h3 class: modal-title>Modal Title</h3>
+                            <button class: close-btn @onPress={close}>X</button>
+                        </div>
+
+                        <!-- Named slot: body -->
+                        <div class: modal-body>
+                            {body}
+                            <p class: modal-text>Modal content goes here.</p>
+                            <p class: hint-text>Press Escape or click overlay to close</p>
+                        </div>
+
+                        <!-- Named slot: footer -->
+                        <div class: modal-footer>
+                            {footer}
+                            <button variant: LearnDesign.Button(color=ghost, size=md) @onPress={close}>Cancel</button>
+                            <button variant: LearnDesign.Button(color=primary, size=md) @onPress={close}>Confirm</button>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    style {
+        // 模态框特有的弹窗布局和覆盖层
+        .container { padding: 16px 0; }
+        .status-text { font-size: 13px; color: #9ca3af; margin-top: 8px; }
+        .overlay { background: #808080; display: flex; align-items: center; justify-content: center; padding: 40px; }
+        .visible { }
+        .hidden { display: none; }
+        .modalcontent { background: white; border-radius: 12px; padding: 24px; width: 400px; max-width: 90vw; }
+        .hover { background: #f9fafb; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .modal-title { font-size: 20px; color: #1f2937; margin: 0; }
+        .close-btn { padding: 6px 12px; background: #f3f4f6; border: 1px solid #d4d4d8; border-radius: 6px; font-size: 16px; cursor: pointer; color: #6b7280; }
+        .modal-body { margin-bottom: 20px; }
+        .modal-text { font-size: 15px; color: #374151; margin: 0 0 8px 0; }
+        .hint-text { font-size: 12px; color: #9ca3af; margin: 0; }
+        .modal-footer { display: flex; justify-content: flex-end; gap: 8px; }
+        // .trigger-btn / .cancel-btn / .confirm-btn 已由 LearnDesign.Button 变体提供
+    }
+}

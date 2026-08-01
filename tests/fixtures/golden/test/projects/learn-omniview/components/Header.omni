@@ -1,0 +1,19 @@
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  Header.omni —— Design 为第一公民，零 style 块                  ║
+// ║  演示：引用 LearnDesign 设计类替代组件级样式                     ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+import omniview;
+import { LearnDesign } from "../design";
+import { ThemeStore } from "../stores/ThemeStore";
+
+component Header {
+    @store ThemeStore;
+
+    view {
+        <header class: LearnDesign.Banner>
+            <h1 class: LearnDesign.BannerTitle>OmniView Capability Showcase</h1>
+            <p class: LearnDesign.BannerSubtitle>7 domains · 4 themes · 60+ source files · {ThemeStore.modeLabel}</p>
+        </header>
+    }
+}
