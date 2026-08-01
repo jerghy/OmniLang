@@ -9,8 +9,14 @@
 // ║     · 现状：fn 类型在 React 降级为 any、Flutter 为 dynamic，            ║
 // ║       签名（参数个数/返回类型）暂不校验                                 ║
 // ║                                                                      ║
-// ║  ② match 表达式广度（标签联合 + 字面量臂 + 通配符）                     ║
-// ║     · match 支持：字面量臂、_ 通配、标签联合臂 { field } 解构           ║
+// ║  ② match 表达式（标签联合臂 + 通配符——仅演示可工作子集）             ║
+// ║     · 可工作：_ 通配、标签联合臂 { field } 解构                       ║
+// ║       （React/OmniView 运行正确；Flutter 见下方 ⚠ 状态）              ║
+// ║     · 已知代码生成缺口（另行追踪，不在本演示展示）：                   ║
+// ║       a. 字面量臂 0 => ...：JS 目标生成 _v._variant === 0 分派，       ║
+// ║          对原始值永远不匹配（运行时不命中）                           ║
+// ║       b. Flutter 不发射本地标签联合类型（如 Rating 类），且字面量臂    ║
+// ║          生成 switch (n._variant) —— 生成的 Dart 无法编译              ║
 // ║     · 不支持：臂内 if 守卫（guard）、模式中的 | 联合（1 | 2 =>）        ║
 // ║                                                                      ║
 // ║  ③ 语法状态速查（诚实标注，避免把无效果语法当功能展示）                  ║
@@ -80,14 +86,11 @@ component MatchBreadthDemo {
         };
     }
 
-    // 字面量臂 + 通配符（注意：臂内暂不支持 1 | 2 联合模式）
-    fn count_name(n: i32) -> String {
-        return match n {
-            0 => "zero",
-            1 => "one",
-            _ => "many",
-        };
-    }
+    // 说明：字面量臂（0 => ...）在 JS 目标生成 _v._variant 分派，
+    // 对原始值永不匹配（运行时不命中），Flutter 生成 switch (n._variant)
+    // 无法编译——均为既有代码生成缺口（另行追踪），故此处不演示字面量臂。
+    // 仅演示可工作子集：标签联合臂 { field } 解构 + _ 通配。
+    // 注意：臂内暂不支持 1 | 2 联合模式与 if 守卫。
 
     view {
         <div class: match-card>
@@ -95,8 +98,6 @@ component MatchBreadthDemo {
             <div class: btn-row>
                 <button class: act-btn alt @onPress={() => { result = describe(Star { level: 5 }); }}>Star {"{}"} level: 5 {"{}"}</button>
                 <button class: act-btn alt @onPress={() => { result = describe(Blank); }}>Blank</button>
-                <button class: act-btn alt @onPress={() => { result = count_name(0); }}>count 0</button>
-                <button class: act-btn alt @onPress={() => { result = count_name(7); }}>count 7</button>
             </div>
             <p class: match-out>match 结果: <strong>{result}</strong></p>
         </div>
@@ -129,7 +130,7 @@ component AdvancedTypesDemo {
     view {
         <div class: wrapper>
             <h3 class: section-title>类型系统进阶</h3>
-            <p class: subtitle>fn 函数类型 · match 表达式广度 · 语法状态速查</p>
+            <p class: subtitle>fn 函数类型 · match 表达式（标签联合）· 语法状态速查</p>
 
             <div class: demo-card>
                 <h4 class: demo-label>① 函数类型 fn(String) -> String</h4>
@@ -145,10 +146,10 @@ component AdvancedTypesDemo {
             </div>
 
             <div class: demo-card>
-                <h4 class: demo-label>② match 表达式广度</h4>
+                <h4 class: demo-label>② match 表达式</h4>
                 <p class: demo-desc>
-                    标签联合臂（<code>Star {"{"} level {"}"}</code> 解构）、
-                    字面量臂、<code>_</code> 通配符。
+                    标签联合臂（<code>Star {"{"} level {"}"}</code> 解构）+ <code>_</code> 通配符
+                    （React / OmniView 运行正确；Flutter 状态见下）。
                 </p>
                 <div class: demo-box>
                     <MatchBreadthDemo />
@@ -164,6 +165,7 @@ component AdvancedTypesDemo {
                     <li>泛型：类型实参（Array、Map 形式）可用；泛型声明 fn foo / component Bar 的类型参数尚未支持（完整说明见文件头注释）</li>
                     <li>{"$signal"} / {"$concat"} / {"$call"}：这是 lowering 写入 style JSON 的<strong>内部标记</strong>（见 ir/lower/expr.rs），不是用户可写的源码语法</li>
                     <li>match 暂不支持：臂内 <code>if</code> 守卫、模式联合（1 | 2）</li>
+                    <li><strong>⚠ match 已知代码生成缺口（另行追踪，此处不演示）</strong>：a. 字面量臂（<code>0 =></code> 形式）在 JS 目标生成 <code>_v._variant === 0</code> 分派，对原始值运行时不命中；b. Flutter 不发射本地标签联合类型（Rating 类缺失），且字面量臂生成 <code>switch (n._variant)</code> —— 生成的 Dart 无法编译。本演示仅保留 React / OmniView 可工作的标签联合臂 + 通配符</li>
                 </ul>
             </div>
         </div>
