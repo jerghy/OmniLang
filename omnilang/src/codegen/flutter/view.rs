@@ -237,7 +237,11 @@ pub(crate) fn build_component_slot_map(
 ) -> FxHashMap<String, FxHashSet<String>> {
     let mut map: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
     for (name, comp) in component_map {
-        let mut slots: FxHashSet<String> = FxHashSet::default();
+        let mut slots: FxHashSet<String> = comp
+            .slots
+            .iter()
+            .map(|s| s.name.clone().unwrap_or_else(|| "children".to_string()))
+            .collect();
         if let Some(ref view) = comp.view {
             let mut acc: Vec<(Option<String>, Option<TypeIR>)> = Vec::new();
             collect_view_slots(view, component_map, &mut acc);
@@ -248,6 +252,86 @@ pub(crate) fn build_component_slot_map(
         map.insert(name.to_string(), slots);
     }
     map
+}
+
+/// ADR-053 D5: body-level `@slot name { fallback }` declarations surface in
+/// the view as `{name}` interpolations. Convert those interpolations into
+/// `ViewTree::Slot` nodes carrying the declaration's fallback so the slot
+/// rendering (`widget.name ?? fallback`) applies uniformly. Back-compat:
+/// view-level `@slot` directives are already `ViewTree::Slot` nodes and
+/// pass through untouched.
+///
+/// An interpolation whose name collides with a prop, signal, computed, or
+/// fn is left alone — the semantic layer warns on the collision and the
+/// existing declaration wins (mirrors the slot-param collision guard in
+/// `mod.rs`).
+pub(crate) fn materialize_slot_fallbacks(view: &ViewTree, comp: &ComponentIR) -> ViewTree {
+    let excluded: FxHashSet<&str> = comp
+        .props
+        .keys()
+        .map(String::as_str)
+        .chain(comp.signals.iter().map(|s| s.name.as_str()))
+        .chain(comp.computeds.iter().map(|c| c.name.as_str()))
+        .chain(comp.fns.iter().map(|f| f.name.as_str()))
+        .collect();
+    let mut slots: FxHashMap<&str, &SlotDeclIR> = FxHashMap::default();
+    for decl in &comp.slots {
+        slots
+            .entry(decl.name.as_deref().unwrap_or("children"))
+            .or_insert(decl);
+    }
+    fn go(
+        node: &ViewTree,
+        excluded: &FxHashSet<&str>,
+        slots: &FxHashMap<&str, &SlotDeclIR>,
+    ) -> ViewTree {
+        match node {
+            ViewTree::Interpolation(expr) => {
+                if let ExprIR::IdentifierExpr { name, .. } = expr.as_ref() {
+                    if let Some(decl) = slots.get(name.as_str()) {
+                        if !excluded.contains(name.as_str()) {
+                            return (*decl).clone().into_view_tree();
+                        }
+                    }
+                }
+                ViewTree::Interpolation(expr.clone())
+            }
+            ViewTree::Element(el) => {
+                let children = el.children.iter().map(|c| go(c, excluded, slots)).collect();
+                ViewTree::Element(Box::new(ElementIR {
+                    children,
+                    ..*el.clone()
+                }))
+            }
+            ViewTree::Conditional(cond) => {
+                let branches = cond
+                    .branches
+                    .iter()
+                    .map(|b| ConditionalBranch {
+                        body: b.body.as_ref().map(|v| go(v, excluded, slots)),
+                        ..b.clone()
+                    })
+                    .collect();
+                ViewTree::Conditional(Box::new(ConditionalIntent {
+                    branches,
+                    fallback: cond.fallback.as_ref().map(|v| go(v, excluded, slots)),
+                    transition_mode: cond.transition_mode.clone(),
+                }))
+            }
+            ViewTree::ListRendering(list) => {
+                ViewTree::ListRendering(Box::new(ListRenderingIntent {
+                    body: list.body.as_ref().map(|v| go(v, excluded, slots)),
+                    empty_body: list.empty_body.as_ref().map(|v| go(v, excluded, slots)),
+                    ..*list.clone()
+                }))
+            }
+            ViewTree::Fragment(children) => {
+                ViewTree::Fragment(children.iter().map(|c| go(c, excluded, slots)).collect())
+            }
+            other => other.clone(),
+        }
+    }
+    go(view, &excluded, &slots)
 }
 
 /// Strip CSS units from a value string and return a Dart-compatible numeric literal.

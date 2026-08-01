@@ -20,7 +20,7 @@ impl ReactCodegen {
     pub(super) fn gen_jsx_return(
         &self,
         w: &mut CodeWriter,
-        comp: &ComponentIR,
+        view: Option<&ViewTree>,
         component_map: &FxHashMap<&str, &ComponentIR>,
         design_ctx: &crate::codegen::react::design::DesignCtx,
         signal_names: &FxHashSet<String>,
@@ -32,7 +32,12 @@ impl ReactCodegen {
     ) {
         w.emit("return (");
         w.indent();
-        if let Some(view) = &comp.view {
+        // `view` is the caller's materialized view: body-level `@slot`
+        // declarations (ADR-053 D5) have already been converted into
+        // `ViewTree::Slot` nodes carrying their fallbacks, so the slot
+        // rendering below emits `{name ?? (fallback)}` like view-level
+        // slots.
+        if let Some(view) = view {
             // gen_branch_body_tsx wraps multi-element roots in a React
             // fragment (`<>...</>`) so the emitted JSX has one parent
             // element — sibling roots would not compile (TS2657).
@@ -225,6 +230,104 @@ pub(crate) fn collect_view_slots(
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
     }
+}
+
+/// All slot declarations of a component: body-level `@slot` declarations
+/// (ADR-053 D5) first, then view-level `@slot` directives (back-compat).
+/// Consumer-side projections are not declarations and stay excluded.
+pub(crate) fn component_declared_slots(
+    comp: &ComponentIR,
+    component_map: &FxHashMap<&str, &ComponentIR>,
+) -> Vec<(Option<String>, Option<TypeIR>)> {
+    let mut acc: Vec<(Option<String>, Option<TypeIR>)> = comp
+        .slots
+        .iter()
+        .map(|s| (s.name.clone(), s.type_constraint.clone()))
+        .collect();
+    if let Some(ref view) = comp.view {
+        collect_view_slots(view, component_map, &mut acc);
+    }
+    acc
+}
+
+/// ADR-053 D5: body-level `@slot name { fallback }` declarations surface in
+/// the view as `{name}` interpolations. Convert those interpolations into
+/// `ViewTree::Slot` nodes carrying the declaration's fallback so the slot
+/// rendering (`{name ?? (fallback)}`) and projection machinery applies
+/// uniformly. Back-compat: view-level `@slot` directives are already
+/// `ViewTree::Slot` nodes and pass through untouched.
+///
+/// An interpolation whose name collides with a prop, signal, computed, or
+/// fn is left alone — the semantic layer warns on the collision and the
+/// existing declaration wins (mirrors the slot-prop collision guards in
+/// `imports.rs` / `mod.rs`).
+pub(super) fn materialize_slot_fallbacks(view: &ViewTree, comp: &ComponentIR) -> ViewTree {
+    let excluded: FxHashSet<&str> = comp
+        .props
+        .keys()
+        .map(String::as_str)
+        .chain(comp.signals.iter().map(|s| s.name.as_str()))
+        .chain(comp.computeds.iter().map(|c| c.name.as_str()))
+        .chain(comp.fns.iter().map(|f| f.name.as_str()))
+        .collect();
+    let mut slots: FxHashMap<&str, &SlotDeclIR> = FxHashMap::default();
+    for decl in &comp.slots {
+        slots
+            .entry(decl.name.as_deref().unwrap_or("children"))
+            .or_insert(decl);
+    }
+    fn go(
+        node: &ViewTree,
+        excluded: &FxHashSet<&str>,
+        slots: &FxHashMap<&str, &SlotDeclIR>,
+    ) -> ViewTree {
+        match node {
+            ViewTree::Interpolation(expr) => {
+                if let ExprIR::IdentifierExpr { name, .. } = expr.as_ref() {
+                    if let Some(decl) = slots.get(name.as_str()) {
+                        if !excluded.contains(name.as_str()) {
+                            return (*decl).clone().into_view_tree();
+                        }
+                    }
+                }
+                ViewTree::Interpolation(expr.clone())
+            }
+            ViewTree::Element(el) => {
+                let children = el.children.iter().map(|c| go(c, excluded, slots)).collect();
+                ViewTree::Element(Box::new(ElementIR {
+                    children,
+                    ..*el.clone()
+                }))
+            }
+            ViewTree::Conditional(cond) => {
+                let branches = cond
+                    .branches
+                    .iter()
+                    .map(|b| ConditionalBranch {
+                        body: b.body.as_ref().map(|v| go(v, excluded, slots)),
+                        ..b.clone()
+                    })
+                    .collect();
+                ViewTree::Conditional(Box::new(ConditionalIntent {
+                    branches,
+                    fallback: cond.fallback.as_ref().map(|v| go(v, excluded, slots)),
+                    transition_mode: cond.transition_mode.clone(),
+                }))
+            }
+            ViewTree::ListRendering(list) => {
+                ViewTree::ListRendering(Box::new(ListRenderingIntent {
+                    body: list.body.as_ref().map(|v| go(v, excluded, slots)),
+                    empty_body: list.empty_body.as_ref().map(|v| go(v, excluded, slots)),
+                    ..*list.clone()
+                }))
+            }
+            ViewTree::Fragment(children) => {
+                ViewTree::Fragment(children.iter().map(|c| go(c, excluded, slots)).collect())
+            }
+            other => other.clone(),
+        }
+    }
+    go(view, &excluded, &slots)
 }
 
 /// Collect all identifier references from a ViewTree.

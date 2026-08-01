@@ -67,21 +67,22 @@ pub(super) fn collect_component_imports(
     }
 
     // ── Slot props — typed as ReactNode in the Props interface, so the
-    // named type import must exist whenever the view declares any slot. ──
+    // named type import must exist whenever the view declares any slot
+    // (body-level declarations or view-level directives). ──
     let mut hooks = hooks.to_vec();
-    if comp
-        .view
-        .as_ref()
-        .is_some_and(|v| jsx::view_has_slots(v, component_map))
+    if (!comp.slots.is_empty()
+        || comp
+            .view
+            .as_ref()
+            .is_some_and(|v| jsx::view_has_slots(v, component_map)))
         && !hooks.iter().any(|h| h == "ReactNode")
     {
         hooks.push("ReactNode".to_string());
     }
-    // Slot declarations (consumer-side projections are excluded).
-    let mut slot_infos: Vec<(Option<String>, Option<TypeIR>)> = Vec::new();
-    if let Some(ref view) = comp.view {
-        jsx::collect_view_slots(view, component_map, &mut slot_infos);
-    }
+    // Slot declarations — body-level `@slot` declarations (ADR-053 D5)
+    // first, then view-level directives (consumer-side projections are
+    // excluded).
+    let slot_infos = jsx::component_declared_slots(comp, component_map);
 
     // ── Child component imports ─────────────────────────────
     let child_comps: FxHashSet<String> = if let Some(ref view) = comp.view {
@@ -170,10 +171,18 @@ impl ComponentImports {
             // Dedup guards against parser artifacts where the literal text
             // "@slot …" inside view content is parsed as a directive.
             let mut emitted_slot_props: FxHashSet<String> = FxHashSet::default();
+            let slot_collides: FxHashSet<&str> = comp
+                .signals
+                .iter()
+                .map(|s| s.name.as_str())
+                .chain(comp.computeds.iter().map(|c| c.name.as_str()))
+                .chain(comp.fns.iter().map(|f| f.name.as_str()))
+                .collect();
             for (slot_name, type_constraint) in &self.slot_infos {
                 let slot_prop = slot_name.as_deref().unwrap_or("children");
                 if comp.props.contains_key(slot_prop)
                     || comp.events.iter().any(|e| e.name == slot_prop)
+                    || slot_collides.contains(slot_prop)
                     || !emitted_slot_props.insert(slot_prop.to_string())
                 {
                     continue;

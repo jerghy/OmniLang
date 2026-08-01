@@ -295,8 +295,12 @@ impl OmniViewGenerator {
         // child component views are inlined during root's view generation)
         if is_root {
             if let Some(ref view) = comp.view {
+                // Body-level `@slot` declarations (ADR-053 D5) surface as
+                // `{name}` interpolations — materialize them into
+                // `ViewTree::Slot` nodes for uniform fallback rendering.
+                let view = super::component_html::materialize_slot_fallbacks(view, comp);
                 self.scope.emitting_root_view = true;
-                self.emit_view(view);
+                self.emit_view(&view);
                 self.scope.emitting_root_view = false;
             }
         }

@@ -2716,3 +2716,144 @@ component Consumer {
         content
     );
 }
+
+/// Test: ADR-053 D5 body-level `@slot` declarations become destructured
+/// props (`children` for the unnamed slot, same-named props for named
+/// slots) and their `{name}` interpolations render with the declared
+/// fallback — `{header ?? (fallback)}`, mirroring view-level slots.
+#[test]
+fn body_slot_declarations_destructure_and_render_with_fallback() {
+    let source = r#"
+component Modal {
+    @slot header { <h4>Default header</h4> }
+    @slot { <p>Default body</p> }
+    view {
+        <div>
+            {header}
+            {children}
+        </div>
+    }
+}
+"#;
+    let output = compile_react(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        content.contains("export function Modal({ header, children }: ModalProps)"),
+        "Expected body slots destructured as props, got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("header?: ReactNode;") && content.contains("children?: ReactNode;"),
+        "Expected slot props in the Props interface, got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("{header ?? (") && content.contains("{children ?? ("),
+        "Expected fallback-wrapped slot renders, got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("Default header") && content.contains("Default body"),
+        "Expected declared fallbacks in output, got:\n{}",
+        content
+    );
+}
+
+/// Test: a body-level `@slot name: Type` declaration types the prop with the
+/// constraint (`footer?: string`); the interpolation renders the bare prop.
+#[test]
+fn body_slot_type_constraint_types_prop() {
+    let source = r#"
+component Badge {
+    @slot footer: String
+    view {
+        <div>{footer}</div>
+    }
+}
+"#;
+    let output = compile_react(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        content.contains("footer?: string"),
+        "Expected string-typed slot prop from body type constraint, got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("{footer}"),
+        "Expected bare slot interpolation render, got:\n{}",
+        content
+    );
+}
+
+/// Test: consumer named-prop projection (`header={<div/>}`, ADR-053 D5)
+/// projects into the body-declared slot prop of the child component, and a
+/// bare instantiation keeps the declared fallbacks.
+#[test]
+fn consumer_named_prop_projects_into_body_declared_slot() {
+    let source = r#"
+component Modal {
+    @slot header { <h4>Default header</h4> }
+    @slot { <p>Default body</p> }
+    view {
+        <div>
+            {header}
+            {children}
+        </div>
+    }
+}
+
+component App {
+    view {
+        <Modal header={<div>Custom title</div>}>
+            <p>Custom body</p>
+        </Modal>
+        <Modal />
+    }
+}
+"#;
+    let output = compile_react(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    let app: String = output
+        .files
+        .iter()
+        .filter(|(path, _)| path.contains("App.tsx"))
+        .map(|(_, c)| c.clone())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        app.contains("header={<div>"),
+        "Expected named-prop projection in consumer JSX, got:\n{}",
+        app
+    );
+    assert!(
+        app.contains("Custom title") && app.contains("Custom body"),
+        "Expected projected content, got:\n{}",
+        app
+    );
+    assert!(
+        app.contains("<Modal />"),
+        "Expected bare instantiation to keep declared fallbacks, got:\n{}",
+        app
+    );
+    // The consumer must not declare slots itself.
+    assert!(
+        !app.contains("interface AppProps"),
+        "Consumer must not gain a Props interface from projections, got:\n{}",
+        app
+    );
+}

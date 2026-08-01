@@ -4875,3 +4875,106 @@ component SearchBox {
     assert!(content.contains("_fieldFocus.dispose();"));
     assert!(content.contains("_fieldText.dispose();"));
 }
+
+/// ADR-053 D5: body-level `@slot` declarations become `Widget?` constructor
+/// params and their `{name}` interpolations render `widget.name ?? fallback`
+/// — mirroring view-level slots.
+#[test]
+fn body_slot_declarations_emit_widget_params_with_fallback() {
+    let source = r#"
+component Modal {
+    @slot header { <h4>Default header</h4> }
+    @slot { <p>Default body</p> }
+    view {
+        <div>
+            {header}
+            {children}
+        </div>
+    }
+}
+"#;
+    let output = compile_flutter(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        content.contains("this.header,") && content.contains("this.children,"),
+        "Expected body slots as constructor params, got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("final Widget? header;") && content.contains("final Widget? children;"),
+        "Expected Widget? slot fields, got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("widget.header ??") && content.contains("widget.children ??"),
+        "Expected fallback-wrapped slot renders, got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("Default header") && content.contains("Default body"),
+        "Expected declared fallbacks in output, got:\n{}",
+        content
+    );
+}
+
+/// ADR-053 D5: consumer named-prop projection (`header={<div/>}`) projects
+/// into the body-declared slot param; a bare instantiation keeps the
+/// declared fallbacks.
+#[test]
+fn consumer_named_prop_projects_into_body_declared_slot() {
+    let source = r#"
+component Modal {
+    @slot header { <h4>Default header</h4> }
+    @slot { <p>Default body</p> }
+    view {
+        <div>
+            {header}
+            {children}
+        </div>
+    }
+}
+
+component App {
+    view {
+        <Modal header={<div>Custom title</div>}>
+            <p>Custom body</p>
+        </Modal>
+        <Modal />
+    }
+}
+"#;
+    let output = compile_flutter(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    let app: String = output
+        .files
+        .iter()
+        .filter(|(path, _)| path.contains("App.dart"))
+        .map(|(_, c)| c.clone())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        app.contains("header: "),
+        "Expected named-prop projection in consumer, got:\n{}",
+        app
+    );
+    assert!(
+        app.contains("Custom title") && app.contains("Custom body"),
+        "Expected projected content, got:\n{}",
+        app
+    );
+    assert!(
+        app.contains("Modal()"),
+        "Expected bare instantiation to keep declared fallbacks, got:\n{}",
+        app
+    );
+}

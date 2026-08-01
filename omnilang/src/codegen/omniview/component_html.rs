@@ -2,6 +2,8 @@ use super::scope::ComponentScope;
 use super::utils::map_event;
 use super::OmniViewGenerator;
 use crate::ir::*;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use std::fmt::Write;
 use std::sync::Arc;
 
@@ -161,16 +163,26 @@ impl OmniViewGenerator {
                     } else {
                         String::new()
                     };
+                // ADR-053 D5: body-level `@slot` declarations surface in the
+                // view as `{name}` interpolations — materialize them into
+                // `ViewTree::Slot` nodes (carrying the declared fallback) so
+                // slot projection and fallback rendering below work
+                // uniformly with view-level slots.
+                let child_view = materialize_slot_fallbacks(child_view, &child_comp);
                 // Fast path: no slot children → borrow the view tree directly, avoid
                 // O(n) deep clone. inject_slot_children with empty input is a semantic
                 // no-op (slots stay as-is, no slot replacement happens) but still
                 // performs recursive ElementIR cloning. Only clone children vector when
                 // slots are present.
                 let child_html = if el.children.is_empty() {
-                    self.view_to_html(child_view, indent + 1)
+                    self.view_to_html(&child_view, indent + 1)
                 } else {
                     let slot_children: Vec<ViewTree> = el.children.clone();
-                    let child_view_owned = inject_slot_children(child_view.clone(), &slot_children);
+                    let child_view_owned = inject_slot_children(
+                        child_view.clone(),
+                        &slot_children,
+                        &self.name_resolver.component_map,
+                    );
                     self.view_to_html(&child_view_owned, indent + 1)
                 };
 
@@ -247,12 +259,102 @@ impl OmniViewGenerator {
     }
 }
 
+/// ADR-053 D5: body-level `@slot name { fallback }` declarations surface in
+/// the view as `{name}` interpolations. Convert those interpolations into
+/// `ViewTree::Slot` nodes (carrying the declaration's fallback) so slot
+/// injection and `<slot>` fallback rendering apply uniformly with
+/// view-level slots. Back-compat: view-level `@slot` directives are already
+/// `ViewTree::Slot` nodes and pass through untouched.
+///
+/// An interpolation whose name collides with a prop, signal, computed, or
+/// fn is left alone — the semantic layer warns on the collision and the
+/// existing declaration wins.
+pub(super) fn materialize_slot_fallbacks(view: &ViewTree, comp: &ComponentIR) -> ViewTree {
+    let excluded: FxHashSet<&str> = comp
+        .props
+        .keys()
+        .map(String::as_str)
+        .chain(comp.signals.iter().map(|s| s.name.as_str()))
+        .chain(comp.computeds.iter().map(|c| c.name.as_str()))
+        .chain(comp.fns.iter().map(|f| f.name.as_str()))
+        .collect();
+    let mut slots: FxHashMap<&str, &SlotDeclIR> = FxHashMap::default();
+    for decl in &comp.slots {
+        slots
+            .entry(decl.name.as_deref().unwrap_or("children"))
+            .or_insert(decl);
+    }
+    fn go(
+        node: &ViewTree,
+        excluded: &FxHashSet<&str>,
+        slots: &FxHashMap<&str, &SlotDeclIR>,
+    ) -> ViewTree {
+        match node {
+            ViewTree::Interpolation(expr) => {
+                if let ExprIR::IdentifierExpr { name, .. } = expr.as_ref() {
+                    if let Some(decl) = slots.get(name.as_str()) {
+                        if !excluded.contains(name.as_str()) {
+                            return (*decl).clone().into_view_tree();
+                        }
+                    }
+                }
+                ViewTree::Interpolation(expr.clone())
+            }
+            ViewTree::Element(el) => {
+                let children = el.children.iter().map(|c| go(c, excluded, slots)).collect();
+                ViewTree::Element(Box::new(ElementIR {
+                    children,
+                    ..*el.clone()
+                }))
+            }
+            ViewTree::Conditional(cond) => {
+                let branches = cond
+                    .branches
+                    .iter()
+                    .map(|b| ConditionalBranch {
+                        body: b.body.as_ref().map(|v| go(v, excluded, slots)),
+                        ..b.clone()
+                    })
+                    .collect();
+                ViewTree::Conditional(Box::new(ConditionalIntent {
+                    branches,
+                    fallback: cond.fallback.as_ref().map(|v| go(v, excluded, slots)),
+                    transition_mode: cond.transition_mode.clone(),
+                }))
+            }
+            ViewTree::ListRendering(list) => {
+                ViewTree::ListRendering(Box::new(ListRenderingIntent {
+                    body: list.body.as_ref().map(|v| go(v, excluded, slots)),
+                    empty_body: list.empty_body.as_ref().map(|v| go(v, excluded, slots)),
+                    ..*list.clone()
+                }))
+            }
+            ViewTree::Fragment(children) => {
+                ViewTree::Fragment(children.iter().map(|c| go(c, excluded, slots)).collect())
+            }
+            other => other.clone(),
+        }
+    }
+    go(view, &excluded, &slots)
+}
+
 /// Recursively maps parent children into <slot> elements in the view tree.
 /// Top-level children go to the default (unnamed) slot; children with
-/// slot="name" attributes go to named slots.
-fn inject_slot_children(view: ViewTree, slot_children: &[ViewTree]) -> ViewTree {
+/// slot="name" attributes — or consumer-position `@slot name { ... }` /
+/// `name={<.../>}` projections (both `ViewTree::Slot` children) — go to
+/// named slots. Children of a nested component instantiation are that
+/// component's own projections, not slot positions of this view — their
+/// injection happens when the nested component is inlined.
+fn inject_slot_children(
+    view: ViewTree,
+    slot_children: &[ViewTree],
+    component_map: &FxHashMap<String, Arc<ComponentIR>>,
+) -> ViewTree {
     match view {
-        ViewTree::Slot { name: ref slot_name, .. } => {
+        ViewTree::Slot {
+            name: ref slot_name,
+            ..
+        } => {
             if let Some(name) = slot_name.as_deref() {
                 let named: Vec<ViewTree> = slot_children
                     .iter()
@@ -278,10 +380,15 @@ fn inject_slot_children(view: ViewTree, slot_children: &[ViewTree]) -> ViewTree 
             }
         }
         ViewTree::Element(el) => {
+            if component_map.contains_key(el.tag.as_str()) {
+                // Children of a nested component instantiation are ITS slot
+                // projections, handled when that component is inlined.
+                return ViewTree::Element(el);
+            }
             let new_children: Vec<ViewTree> = el
                 .children
                 .iter()
-                .map(|c| inject_slot_children(c.clone(), slot_children))
+                .map(|c| inject_slot_children(c.clone(), slot_children, component_map))
                 .collect();
             ViewTree::Element(Box::new(ElementIR {
                 children: new_children,
@@ -293,13 +400,15 @@ fn inject_slot_children(view: ViewTree, slot_children: &[ViewTree]) -> ViewTree 
                 .branches
                 .into_iter()
                 .map(|b| ConditionalBranch {
-                    body: b.body.map(|v| inject_slot_children(v, slot_children)),
+                    body: b
+                        .body
+                        .map(|v| inject_slot_children(v, slot_children, component_map)),
                     ..b
                 })
                 .collect();
             let fallback = cond
                 .fallback
-                .map(|v| inject_slot_children(v, slot_children));
+                .map(|v| inject_slot_children(v, slot_children, component_map));
             ViewTree::Conditional(Box::new(ConditionalIntent {
                 branches: new_branches,
                 fallback,
@@ -322,6 +431,9 @@ fn has_slot_attr(child: &ViewTree, slot_name: &str) -> bool {
             })
             .map(|s| s == slot_name)
             .unwrap_or(false),
+        // Consumer-position `@slot name { ... }` / `name={<.../>}`
+        // projections (ADR-053 D5) are ViewTree::Slot children.
+        ViewTree::Slot { name, .. } => name.as_deref() == Some(slot_name),
         _ => false,
     }
 }
@@ -329,6 +441,7 @@ fn has_slot_attr(child: &ViewTree, slot_name: &str) -> bool {
 fn has_any_slot_attr(child: &ViewTree) -> bool {
     match child {
         ViewTree::Element(el) => el.props.contains_key("slot"),
+        ViewTree::Slot { name: Some(_), .. } => true,
         _ => false,
     }
 }
@@ -349,6 +462,11 @@ fn strip_slot_prop(view: &ViewTree) -> ViewTree {
                 view.clone()
             }
         }
+        // A consumer-position `@slot name { ... }` / `name={<.../>}`
+        // projection (ADR-053 D5) is a ViewTree::Slot whose fallback IS the
+        // projected content — unwrap it so the content renders directly in
+        // the slot position (mirrors the React/Flutter backends).
+        ViewTree::Slot { fallback, .. } => ViewTree::Fragment(fallback.clone()),
         other => other.clone(),
     }
 }
