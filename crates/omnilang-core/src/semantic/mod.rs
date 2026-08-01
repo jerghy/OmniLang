@@ -140,7 +140,8 @@ mod tests {
     }
 
     /// Parse several sources into one multi-module program and analyze it —
-    /// mirrors how `omnic` builds a `Program` from cross-file imports.
+    /// models the multi-file scenario. Production `omnic` analyses each
+    /// entry file independently — merging modules is test-only.
     fn analyze_multi(sources: &[(&str, &str)]) -> SemanticResult {
         let mut modules = FxHashMap::default();
         for (name, source) in sources {
@@ -393,6 +394,35 @@ mod tests {
                 .iter()
                 .any(|d| d.message.contains("slot forwarding")),
             "normal usage of an imported component must not warn, got: {:?}",
+            result.diagnostics
+        );
+    }
+
+    #[test]
+    fn analyze_slot_forwarding_type_only_import_not_treated_as_component() {
+        // Only `ImportStmt::Named` names join the component-name set —
+        // a type-only import (`import type { Card }`) used as a tag with
+        // `{slot}` children must not warn (the tag is not a component
+        // instantiation).
+        let result = analyze_multi(&[
+            (
+                "Card.omni",
+                "import omniview;
+                 component Card { @slot header { <h5>Card default</h5> } view { <div>{header}</div> } }",
+            ),
+            (
+                "Modal.omni",
+                "import omniview;
+                 import type { Card } from \"./Card.omni\";
+                 component Modal { @slot header { <h4>Modal default</h4> } view { <Card>{header}</Card> } }",
+            ),
+        ]);
+        assert!(
+            !result
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains("slot forwarding")),
+            "type-only import must not count as a component tag, got: {:?}",
             result.diagnostics
         );
     }
