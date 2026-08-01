@@ -2,11 +2,17 @@
 // ║  KeyframeAnimationDemo.omni — 全触发器 + 播放属性 + 缓动     ║
 // ║                                                              ║
 // ║  覆盖 ADR-032 保留的全部 14 项动画功能：                     ║
-// ║    7 触发器: @enter @hover @press @inView @scroll            ║
-// ║              @dragHorizontal @dragVertical                    ║
-// ║    5 播放属性: Loop Direction Fill Delay Paused              ║
-// ║    4 缓动变体: Named CubicBezier Back Elastic                ║
+// ║    7 触发器: @enter @hover @press @in-view @scroll           ║
+// ║              @drag-horizontal @drag-vertical                 ║
+// ║    5 播放属性: Loop Direction Fill Delay Paused             ║
+// ║    4 缓动变体: Named CubicBezier Back Elastic               ║
 // ║    多停靠关键帧（百分比）                                     ║
+// ║                                                              ║
+// ║  注：触发器子属性（@in-view-once/@in-view-threshold/         ║
+// ║  @scroll-start/@scroll-end/@scroll-scrub/@drag-constraints/ ║
+// ║  @drag-elastic/@drag-scrub/@drag-momentum）与元素级          ║
+// ║  @paused 属性已按 semantic-level DSL 规范移除，              ║
+// ║  待独立属性重新实现后恢复。                                   ║
 // ╚══════════════════════════════════════════════════════════════╝
 
 import omniview;
@@ -18,55 +24,63 @@ import { LearnDesign } from "../design";
 
 // ── @enter 入场动画 ──
 @motion enterFadeUp {
-    from { opacity: 0, y: 20 }
-    to   { opacity: 1, y: 0 }
-    over 500 ease power2Out
+    from { opacity: 0, translateY: 20 }
+    to   { opacity: 1, translateY: 0 }
+    over: 500ms
+    easing: power2-out
 }
 
 // ── @hover 悬停动画 ──
 @motion hoverScale {
     to { scale: 1.05 }
-    over 200 ease easeOut
+    over: 200ms
+    easing: ease-out
 }
 
 // ── @press 按压动画 ──
 @motion pressShrink {
     to { scale: 0.95 }
-    over 100 ease easeOut
+    over: 100ms
+    easing: ease-out
 }
 
-// ── @inView 滚动入视（带子属性） ──
+// ── @in-view 滚动入视 ──
 @motion inViewSlide {
-    from { opacity: 0, y: 30 }
-    to   { opacity: 1, y: 0 }
-    over 600 ease power2Out
+    from { opacity: 0, translateY: 30 }
+    to   { opacity: 1, translateY: 0 }
+    over: 600ms
+    easing: power2-out
 }
 
 // ── @scroll 滚动驱动 ──
 @motion scrollProgress {
     from { opacity: 0.3, scale: 0.95 }
     to   { opacity: 1, scale: 1 }
-    over 500 ease easeOut
+    over: 500ms
+    easing: ease-out
 }
 
-// ── @dragHorizontal 水平拖拽 ──
+// ── @drag-horizontal 水平拖拽 ──
 @motion dragSlideX {
-    from { x: 0 }
-    to   { x: 100 }
-    over 300 ease power2Out
+    from { translateX: 0 }
+    to   { translateX: 100 }
+    over: 300ms
+    easing: power2-out
 }
 
-// ── @dragVertical 垂直拖拽 ──
+// ── @drag-vertical 垂直拖拽 ──
 @motion dragSlideY {
-    from { y: 0 }
-    to   { y: 60 }
-    over 300 ease power2Out
+    from { translateY: 0 }
+    to   { translateY: 60 }
+    over: 300ms
+    easing: power2-out
 }
 
 // ── Loop（循环） ──
 @motion spinLoop {
     to { rotate: 360 }
-    over 2000 ease linear
+    over: 2000ms
+    easing: linear
     loop
 }
 
@@ -74,29 +88,33 @@ import { LearnDesign } from "../design";
 @motion dirAlternate {
     from { scale: 1 }
     to   { scale: 1.3 }
-    over 800 ease power2Out
+    over: 800ms
+    easing: power2-out
     direction alternate
 }
 
 @motion dirAltReverse {
     from { scale: 1 }
     to   { scale: 1.4 }
-    over 800 ease power2Out
+    over: 800ms
+    easing: power2-out
     direction alternateReverse
 }
 
 // ── Fill（填充） ──
 @motion fillForwards {
-    from { x: -20, opacity: 0 }
-    to   { x: 0, opacity: 1 }
-    over 1000 ease power2Out
+    from { translateX: -20, opacity: 0 }
+    to   { translateX: 0, opacity: 1 }
+    over: 1000ms
+    easing: power2-out
     fill forwards
 }
 
 @motion fillBackwards {
     from { opacity: 0 }
     to   { opacity: 1 }
-    over 600 ease power2Out
+    over: 600ms
+    easing: power2-out
     delay 500
     fill backwards
 }
@@ -104,56 +122,63 @@ import { LearnDesign } from "../design";
 @motion fillBoth {
     from { scale: 0.8, opacity: 0 }
     to   { scale: 1.2, opacity: 1 }
-    over 600 ease power2Out
+    over: 600ms
+    easing: power2-out
     delay 300
     fill both
 }
 
 // ── Delay（延迟） ──
 @motion delayedEntrance {
-    from { y: 20, opacity: 0 }
-    to   { y: 0, opacity: 1 }
-    over 400 ease power2Out
+    from { translateY: 20, opacity: 0 }
+    to   { translateY: 0, opacity: 1 }
+    over: 400ms
+    easing: power2-out
     delay 500
 }
 
-// ── Paused（暂停） ──
+// ── Paused（暂停，播放属性） ──
 @motion pausedAnim {
-    from { x: 0 }
-    to   { x: 180 }
-    over 800 ease power2Out
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 800ms
+    easing: power2-out
     paused
 }
 
 // ── CubicBezier 缓动 ──
 @motion cubicDemo {
-    from { x: 0 }
-    to   { x: 180 }
-    over 800 ease cubic(x1: 0.68, y1: -0.55, x2: 0.27, y2: 1.55)
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 800ms
+    easing: cubic(x1: 0.68, y1: -0.55, x2: 0.27, y2: 1.55)
 }
 
 // ── Back 缓动（named-only） ──
 @motion backEaseDemo {
-    from { x: 0 }
-    to   { x: 180 }
-    over 800 ease backOut
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 800ms
+    easing: back-out
 }
 
 // ── Elastic 缓动（named-only） ──
 @motion elasticEaseDemo {
-    from { x: 0 }
-    to   { x: 180 }
-    over 1200 ease elasticOut
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 1200ms
+    easing: elastic-out
 }
 
 // ── 多停靠关键帧（百分比） ──
 @motion multiStopDemo {
-    0%   { opacity: 0, scale: 0.5, background: "#6366f1" }
+    0%   { opacity: 0, scale: 0.5, backgroundColor: "#6366f1" }
     25%  { opacity: 0.5, scale: 0.8 }
-    50%  { opacity: 1, scale: 1.2, background: "#10b981" }
+    50%  { opacity: 1, scale: 1.2, backgroundColor: "#10b981" }
     75%  { opacity: 1, scale: 1.05 }
-    100% { opacity: 1, scale: 1, background: "#f59e0b" }
-    over 1200 ease easeInOut
+    100% { opacity: 1, scale: 1, backgroundColor: "#f59e0b" }
+    over: 1200ms
+    easing: ease-in-out
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -162,11 +187,9 @@ import { LearnDesign } from "../design";
 component KeyframeAnimationDemo {
     signal playTriggers: bool = false;
     signal playPlayback: bool = false;
-    signal isPaused: bool = false;
 
     fn toggleTriggers() { playTriggers = !playTriggers; }
     fn togglePlayback() { playPlayback = !playPlayback; }
-    fn togglePaused() { isPaused = !isPaused; }
 
     view {
         <div class: LearnDesign.Container>
@@ -198,42 +221,27 @@ component KeyframeAnimationDemo {
                     <p>按压缩小 0.95x</p>
                 </div>
 
-                <!-- @inView + 子属性 -->
-                <div class: card @inView={inViewSlide}
-                     @in-view-once={true}
-                     @in-view-threshold={0.5}>
-                    <strong>@inView</strong>
-                    <p>进入视口触发 (once, threshold 0.5)</p>
+                <!-- @in-view（子属性 @in-view-once/@in-view-threshold 已移除，待重新实现） -->
+                <div class: card @in-view={inViewSlide}>
+                    <strong>@in-view</strong>
+                    <p>进入视口触发</p>
                 </div>
 
-                <!-- @scroll + 子属性 -->
-                <div class: "card scroll-area"
-                     @scroll={scrollProgress}
-                     @scroll-start="top 80%"
-                     @scroll-end="bottom 20%"
-                     @scroll-scrub={0.5}>
+                <!-- @scroll（子属性 @scroll-start/@scroll-end/@scroll-scrub 已移除，待重新实现） -->
+                <div class: "card scroll-area" @scroll={scrollProgress}>
                     <strong>@scroll</strong>
-                    <p>滚动驱动 (scrub 0.5)</p>
+                    <p>滚动驱动</p>
                 </div>
 
-                <!-- @dragHorizontal + 子属性 -->
-                <div class: card
-                     @dragHorizontal={dragSlideX}
-                     @drag-constraints="left:0 right:250"
-                     @drag-elastic={0.2}
-                     @drag-scrub={true}
-                     @drag-momentum={0.95}>
-                    <strong>@dragHorizontal</strong>
+                <!-- @drag-horizontal（子属性 @drag-constraints/@drag-elastic/@drag-scrub/@drag-momentum 已移除，待重新实现） -->
+                <div class: card @drag-horizontal={dragSlideX}>
+                    <strong>@drag-horizontal</strong>
                     <p>水平拖拽 →</p>
                 </div>
 
-                <!-- @dragVertical + 子属性 -->
-                <div class: card
-                     @dragVertical={dragSlideY}
-                     @drag-constraints="top:0 bottom:120"
-                     @drag-elastic={0.3}
-                     @drag-scrub={true}>
-                    <strong>@dragVertical</strong>
+                <!-- @drag-vertical（子属性 @drag-constraints/@drag-elastic/@drag-scrub 已移除，待重新实现） -->
+                <div class: card @drag-vertical={dragSlideY}>
+                    <strong>@drag-vertical</strong>
                     <p>垂直拖拽 ↓</p>
                 </div>
             </div>
@@ -307,15 +315,9 @@ component KeyframeAnimationDemo {
                 <p>5 个停靠点 · 颜色渐变 · 缩放循环</p>
             </div>
 
-            <!-- ═══ @paused 属性 ═══ -->
-            <h4 class: LearnDesign.SectionTitle>@paused 元素属性</h4>
-            <div class: "card multi-stop" @enter={spinLoop} @paused={isPaused}>
-                <strong>@paused={isPaused}</strong>
-                <p>Loop 旋转 · 点击按钮暂停/恢复</p>
-            </div>
-            <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={togglePaused}>
-                {if isPaused { "▶ Resume" } else { "⏸ Pause" }}
-            </button>
+            <!-- ═══ 元素级 @paused 属性已移除 ═══
+                 按 semantic-level DSL 规范，@paused={expr} 元素属性已被移除
+                 （条件渲染可替代该语义）；播放属性 paused 保留在 @motion 体内。 -->
         </div>
     }
 

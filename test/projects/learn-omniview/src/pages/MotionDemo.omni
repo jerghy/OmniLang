@@ -2,29 +2,29 @@ import omniview;
 import { LearnDesign } from "../design";
 
 @motion fadeInUp {
-  from { opacity: 0, y: 20 }
-  to   { opacity: 1, y: 0 }
-  over 400
-  ease easeOut
+  from { opacity: 0, translateY: 20 }
+  to   { opacity: 1, translateY: 0 }
+  over: 400ms
+  easing: ease-out
 }
 
 @motion scalePress {
   to { scale: 0.95 }
-  over 100
-  ease easeOut
+  over: 100ms
+  easing: ease-out
 }
 
 @motion listItem {
-  from { opacity: 0, x: -20 }
-  to   { opacity: 1, x: 0 }
-  over 300
-  ease power2Out
+  from { opacity: 0, translateX: -20 }
+  to   { opacity: 1, translateX: 0 }
+  over: 300ms
+  easing: power2-out
 }
 
 @motion pulse {
   to { scale: 1.05 }
-  over 800
-  ease easeInOut
+  over: 800ms
+  easing: ease-in-out
   direction alternate
   loop
 }

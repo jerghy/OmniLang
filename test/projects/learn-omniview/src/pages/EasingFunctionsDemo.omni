@@ -1,12 +1,14 @@
 // ╔══════════════════════════════════════════════════════════════════════╗
 // ║  EasingFunctionsDemo — 缓动全家桶覆盖（20 种缓动）                  ║
 // ║                                                                    ║
-// ║  Power 组：   easeIn, power1In/Out/InOut, power2In/InOut,          ║
-// ║               power3In/InOut, power4In/Out/InOut                   ║
-// ║  Back 组：    backIn/Out/InOut (named-only)                        ║
-// ║  Bounce 组：  bounceIn/Out/InOut                                   ║
-// ║  Elastic 组： elasticIn/Out/InOut (named-only)                     ║
+// ║  Power 组：   ease-in, power1-in/out/in-out, power2-in/in-out,    ║
+// ║               power3-in/in-out, power4-in/out/in-out              ║
+// ║  Back 组：    back-in/out/in-out (named-only)                      ║
+// ║  Bounce 组：  bounce-in/out/in-out                                 ║
+// ║  Elastic 组： elastic-in/out/in-out (named-only)                   ║
 // ║  Custom 组：  cubic(x1,y1,x2,y2)                                   ║
+// ║  Steps 组：   steps(count, direction) — 仅位置参数                 ║
+// ║               steps(6, end) / steps(6, start)                     ║
 // ╚══════════════════════════════════════════════════════════════════════╝
 import omniview;
 
@@ -26,9 +28,9 @@ import omniview;
 // ║                                                            ║
 // ║  **Expected:**                                             ║
 // ║  - 20 cards rendered, each with @enter motion data attr.   ║
-// ║  - easeIn card has @enter={easeInMove} (ease easeIn).      ║
-// ║  - power4InOut card has @enter={power4InOutMove} (ease     ║
-// ║    power4InOut).                                           ║
+// ║  - easeIn card has @enter={easeInMove} (easing: ease-in).  ║
+// ║  - power4InOut card has @enter={power4InOutMove} (easing:  ║
+// ║    power4-in-out).                                         ║
 // ║  - cubicCustom card uses cubic(x1,y1,x2,y2).              ║
 // ║  - "Play All Animations" button rendered and clickable.    ║
 // ╚══════════════════════════════════════════════════════════════╝
@@ -38,21 +40,24 @@ import omniview;
 // ══════════════════════════════════════════════════════════════════════
 
 @motion power1InMove {
-    from { x: 0 }
-    to   { x: 180 }
-    over 800 ease power1In
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 800ms
+    easing: power1-in
 }
 
 @motion power1OutMove {
-    from { x: 0 }
-    to   { x: 180 }
-    over 800 ease power1Out
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 800ms
+    easing: power1-out
 }
 
 @motion power1InOutMove {
-    from { x: 0 }
-    to   { x: 180 }
-    over 800 ease power1InOut
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 800ms
+    easing: power1-in-out
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -60,15 +65,17 @@ import omniview;
 // ══════════════════════════════════════════════════════════════════════
 
 @motion power2InMove {
-    from { x: 0 }
-    to   { x: 180 }
-    over 800 ease power2In
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 800ms
+    easing: power2-in
 }
 
 @motion power2InOutMove {
-    from { x: 0 }
-    to   { x: 180 }
-    over 800 ease power2InOut
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 800ms
+    easing: power2-in-out
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -76,15 +83,17 @@ import omniview;
 // ══════════════════════════════════════════════════════════════════════
 
 @motion power3InMove {
-    from { x: 0 }
-    to   { x: 180 }
-    over 800 ease power3In
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 800ms
+    easing: power3-in
 }
 
 @motion power3InOutMove {
-    from { x: 0 }
-    to   { x: 180 }
-    over 800 ease power3InOut
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 800ms
+    easing: power3-in-out
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -92,28 +101,32 @@ import omniview;
 // ══════════════════════════════════════════════════════════════════════
 
 @motion power4InMove {
-    from { x: 0 }
-    to   { x: 180 }
-    over 800 ease power4In
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 800ms
+    easing: power4-in
 }
 
 @motion power4OutMove {
-    from { x: 0 }
-    to   { x: 180 }
-    over 800 ease power4Out
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 800ms
+    easing: power4-out
 }
 
 @motion power4InOutMove {
-    from { x: 0 }
-    to   { x: 180 }
-    over 800 ease power4InOut
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 800ms
+    easing: power4-in-out
 }
 
 // ── base easeIn（最简单） ───────────────────────────────────
 @motion easeInMove {
-    from { x: 0 }
-    to   { x: 180 }
-    over 800 ease easeIn
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 800ms
+    easing: ease-in
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -121,21 +134,24 @@ import omniview;
 // ══════════════════════════════════════════════════════════════════════
 
 @motion backInMove {
-    from { x: 0 }
-    to   { x: 180 }
-    over 800 ease backIn
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 800ms
+    easing: back-in
 }
 
 @motion backOutMove {
-    from { x: 0 }
-    to   { x: 180 }
-    over 800 ease backOut
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 800ms
+    easing: back-out
 }
 
 @motion backInOutMove {
-    from { x: 0 }
-    to   { x: 180 }
-    over 800 ease backInOut
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 800ms
+    easing: back-in-out
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -143,21 +159,24 @@ import omniview;
 // ══════════════════════════════════════════════════════════════════════
 
 @motion bounceInMove {
-    from { x: 0 }
-    to   { x: 180 }
-    over 1000 ease bounceIn
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 1000ms
+    easing: bounce-in
 }
 
 @motion bounceOutMove {
-    from { x: 0 }
-    to   { x: 180 }
-    over 1000 ease bounceOut
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 1000ms
+    easing: bounce-out
 }
 
 @motion bounceInOutMove {
-    from { x: 0 }
-    to   { x: 180 }
-    over 1000 ease bounceInOut
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 1000ms
+    easing: bounce-in-out
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -165,21 +184,24 @@ import omniview;
 // ══════════════════════════════════════════════════════════════════════
 
 @motion elasticInMove {
-    from { x: 0 }
-    to   { x: 180 }
-    over 1200 ease elasticIn
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 1200ms
+    easing: elastic-in
 }
 
 @motion elasticOutMove {
-    from { x: 0 }
-    to   { x: 180 }
-    over 1200 ease elasticOut
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 1200ms
+    easing: elastic-out
 }
 
 @motion elasticInOutMove {
-    from { x: 0 }
-    to   { x: 180 }
-    over 1200 ease elasticInOut
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 1200ms
+    easing: elastic-in-out
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -187,9 +209,10 @@ import omniview;
 // ══════════════════════════════════════════════════════════════════════
 
 @motion cubicCustom {
-    from { x: 0 }
-    to   { x: 180 }
-    over 800 ease cubic(x1: 0.68, y1: -0.55, x2: 0.27, y2: 1.55)
+    from { translateX: 0 }
+    to   { translateX: 180 }
+    over: 800ms
+    easing: cubic(x1: 0.68, y1: -0.55, x2: 0.27, y2: 1.55)
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -209,43 +232,43 @@ component EasingFunctionsDemo {
             </button>
 
             <!-- ═══ Power 组 ═══ -->
-            <h4 class: group-title>Power 曲线（easeIn · power1 · power2 · power3 · power4）</h4>
+            <h4 class: group-title>Power 曲线（ease-in · power1 · power2 · power3 · power4）</h4>
             <div class: grid>
-                <div class: card @enter={easeInMove}><strong>easeIn</strong><p>三次方加速</p></div>
-                <div class: card @enter={power1InMove}><strong>power1In</strong><p>二次方入</p></div>
-                <div class: card @enter={power1OutMove}><strong>power1Out</strong><p>二次方出</p></div>
-                <div class: card @enter={power1InOutMove}><strong>power1InOut</strong><p>二次方出入</p></div>
-                <div class: card @enter={power2InMove}><strong>power2In</strong><p>三次方入</p></div>
-                <div class: card @enter={power2InOutMove}><strong>power2InOut</strong><p>三次方出入</p></div>
-                <div class: card @enter={power3InMove}><strong>power3In</strong><p>四次方入</p></div>
-                <div class: card @enter={power3InOutMove}><strong>power3InOut</strong><p>四次方出入</p></div>
-                <div class: card @enter={power4InMove}><strong>power4In</strong><p>五次方入</p></div>
-                <div class: card @enter={power4OutMove}><strong>power4Out</strong><p>五次方出</p></div>
-                <div class: card @enter={power4InOutMove}><strong>power4InOut</strong><p>五次方出入</p></div>
+                <div class: card @enter={easeInMove}><strong>ease-in</strong><p>三次方加速</p></div>
+                <div class: card @enter={power1InMove}><strong>power1-in</strong><p>二次方入</p></div>
+                <div class: card @enter={power1OutMove}><strong>power1-out</strong><p>二次方出</p></div>
+                <div class: card @enter={power1InOutMove}><strong>power1-in-out</strong><p>二次方出入</p></div>
+                <div class: card @enter={power2InMove}><strong>power2-in</strong><p>三次方入</p></div>
+                <div class: card @enter={power2InOutMove}><strong>power2-in-out</strong><p>三次方出入</p></div>
+                <div class: card @enter={power3InMove}><strong>power3-in</strong><p>四次方入</p></div>
+                <div class: card @enter={power3InOutMove}><strong>power3-in-out</strong><p>四次方出入</p></div>
+                <div class: card @enter={power4InMove}><strong>power4-in</strong><p>五次方入</p></div>
+                <div class: card @enter={power4OutMove}><strong>power4-out</strong><p>五次方出</p></div>
+                <div class: card @enter={power4InOutMove}><strong>power4-in-out</strong><p>五次方出入</p></div>
             </div>
 
             <!-- ═══ Back 组 ═══ -->
             <h4 class: group-title>Back 弹回（named-only）</h4>
             <div class: grid>
-                <div class: card @enter={backInMove}><strong>backIn</strong><p>回弹入</p></div>
-                <div class: card @enter={backOutMove}><strong>backOut</strong><p>回弹出</p></div>
-                <div class: card @enter={backInOutMove}><strong>backInOut</strong><p>回弹出入</p></div>
+                <div class: card @enter={backInMove}><strong>back-in</strong><p>回弹入</p></div>
+                <div class: card @enter={backOutMove}><strong>back-out</strong><p>回弹出</p></div>
+                <div class: card @enter={backInOutMove}><strong>back-in-out</strong><p>回弹出入</p></div>
             </div>
 
             <!-- ═══ Bounce 组 ═══ -->
             <h4 class: group-title>Bounce 弹跳</h4>
             <div class: grid>
-                <div class: card @enter={bounceInMove}><strong>bounceIn</strong><p>弹跳入</p></div>
-                <div class: card @enter={bounceOutMove}><strong>bounceOut</strong><p>弹跳出</p></div>
-                <div class: card @enter={bounceInOutMove}><strong>bounceInOut</strong><p>弹跳出入</p></div>
+                <div class: card @enter={bounceInMove}><strong>bounce-in</strong><p>弹跳入</p></div>
+                <div class: card @enter={bounceOutMove}><strong>bounce-out</strong><p>弹跳出</p></div>
+                <div class: card @enter={bounceInOutMove}><strong>bounce-in-out</strong><p>弹跳出入</p></div>
             </div>
 
             <!-- ═══ Elastic 组 ═══ -->
             <h4 class: group-title>Elastic 弹性（named-only）</h4>
             <div class: grid>
-                <div class: card @enter={elasticInMove}><strong>elasticIn</strong><p>弹性入</p></div>
-                <div class: card @enter={elasticOutMove}><strong>elasticOut</strong><p>弹性出</p></div>
-                <div class: card @enter={elasticInOutMove}><strong>elasticInOut</strong><p>弹性出入</p></div>
+                <div class: card @enter={elasticInMove}><strong>elastic-in</strong><p>弹性入</p></div>
+                <div class: card @enter={elasticOutMove}><strong>elastic-out</strong><p>弹性出</p></div>
+                <div class: card @enter={elasticInOutMove}><strong>elastic-in-out</strong><p>弹性出入</p></div>
             </div>
 
             <!-- ═══ Custom 组 ═══ -->
