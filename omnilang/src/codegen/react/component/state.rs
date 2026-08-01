@@ -495,6 +495,14 @@ fn collect_view_read_signals_inner(node: &ViewTree, acc: &mut FxHashSet<String>)
             for binding_expr in el.semantic_bindings.values() {
                 collect_expr_identifiers(binding_expr, acc);
             }
+            // Inline style bindings (style: { width: sig, ... }) read their
+            // signals inside the emitted JSX style object — collect them so
+            // a signal referenced only there still gets a useState hook (it
+            // would otherwise be emitted undeclared, throwing a
+            // ReferenceError on first render).
+            if let Some(ref style_json) = el.inline_style {
+                collect_inline_style_signals(style_json, acc);
+            }
             for child in &el.children {
                 collect_view_read_signals_inner(child, acc);
             }
@@ -537,6 +545,30 @@ fn collect_view_read_signals_inner(node: &ViewTree, acc: &mut FxHashSet<String>)
         }
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
+    }
+}
+
+/// Collect signal names referenced from an inline-style value
+/// (`style: { prop: expr }` lowers to JSON with `{"$signal": "name"}`
+/// markers plus `$concat` / `$call` / `$signal_concat` nesting). The names
+/// are the emitted JS variable names — bare signals use their source name,
+/// store fields the `Store_field` form — matching `format_style_value_expr`.
+fn collect_inline_style_signals(val: &serde_json::Value, acc: &mut FxHashSet<String>) {
+    match val {
+        serde_json::Value::Object(obj) => {
+            if let Some(sig_name) = obj.get("$signal").and_then(|v| v.as_str()) {
+                acc.insert(sig_name.to_string());
+            }
+            for v in obj.values() {
+                collect_inline_style_signals(v, acc);
+            }
+        }
+        serde_json::Value::Array(items) => {
+            for item in items {
+                collect_inline_style_signals(item, acc);
+            }
+        }
+        _ => {}
     }
 }
 

@@ -305,6 +305,16 @@ fn assert_refs_react(files: &FxHashMap<String, String>) {
     assert_contains(files, "SearchBox.tsx", "inputRef.current.value = query");
     // The focus={isFocused} semantic binding drives focus()/blur().
     assert_contains(files, "SearchBox.tsx", "inputRef.current?.focus()");
+    // A signal read ONLY inside style: { ... } must still get a state hook —
+    // inline-style reads are collected for the useState decision (regression:
+    // boxColor used to be emitted without a declaration, throwing a
+    // ReferenceError on first render).
+    assert_contains(
+        files,
+        "SearchBox.tsx",
+        "const [boxColor, setBoxColor] = useState(\"red\");",
+    );
+    assert_contains(files, "SearchBox.tsx", "color: boxColor");
 }
 
 fn assert_refs_flutter(files: &FxHashMap<String, String>) {
