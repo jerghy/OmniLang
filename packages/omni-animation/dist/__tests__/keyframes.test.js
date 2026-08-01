@@ -26,6 +26,14 @@ describe('buildProperties', () => {
         const result = buildProperties({ translateX: 10, y: 20 });
         expect(result.transform).toBe('translateX(10px) translateY(20px)');
     });
+    it('coerces translateZ string values to px (length-only property)', () => {
+        // translateZ accepts lengths only — % strings are coerced via parseFloat,
+        // numeric strings keep their value in px.
+        const pct = buildProperties({ translateZ: '50%' });
+        expect(pct.transform).toBe('translateZ(50px)');
+        const str = buildProperties({ translateZ: '10' });
+        expect(str.transform).toBe('translateZ(10px)');
+    });
 });
 describe('buildKeyframes', () => {
     it('builds WAAPI-compatible keyframes', () => {
