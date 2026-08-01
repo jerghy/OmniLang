@@ -645,7 +645,11 @@ pub(super) fn token_text(kind: &TokenKind) -> String {
         TokenKind::Hash => "#".into(),
         TokenKind::Dollar => "$".into(),
         TokenKind::Percent => "%".into(),
-        TokenKind::IfMode => "if_mode".into(),
+        // IfMode lexes from both "if_mode" (motion-block keyword, keywords.rs)
+        // and "@if-mode" (the documented view spelling, keywords.rs). View text
+        // uses the @-form, so render "@if-mode"; the bare "if_mode" ident form
+        // only appears in @motion expressions, which never reach token_text.
+        TokenKind::IfMode => "@if-mode".into(),
         TokenKind::Semicolon => ";".into(),
         TokenKind::Eq => "=".into(),
         TokenKind::PlusEq => "+=".into(),

@@ -1969,26 +1969,6 @@ mod roundtrip_tests {
     }
 
     #[test]
-    fn view_text_else_and_empty_not_truncated() {
-        // @else / @empty are directive continuation keywords; as literal text
-        // inside an element they must not silently truncate the children.
-        for (src, kw) in [
-            ("component App { view { <p>a @else b</p> } }", "@else"),
-            ("component App { view { <p>a @empty b</p> } }", "@empty"),
-        ] {
-            let children = view_children(src);
-            assert_eq!(children.len(), 1, "top-level children truncated at {kw}");
-            match &children[0] {
-                ViewNode::Element(el) => {
-                    assert_eq!(el.children.len(), 1, "element children truncated at {kw}");
-                    assert!(matches!(&el.children[0], ViewNode::Text(s) if s.contains(kw)));
-                }
-                _ => panic!("expected Element"),
-            }
-        }
-    }
-
-    #[test]
     fn view_text_trigger_words_not_dropped() {
         // Other trigger keywords in text must keep their literal @-spelling
         // (token_text fallback must not collapse them to empty strings).
@@ -2000,6 +1980,51 @@ mod roundtrip_tests {
                 assert!(matches!(&el.children[0], ViewNode::Text(s) if s.contains("@hover")));
             }
             _ => panic!("expected Element"),
+        }
+    }
+
+    #[test]
+    fn view_text_all_at_keywords_exact_spellings() {
+        // Every @-keyword accepted as text must render its exact literal
+        // spelling with no truncation and no dropped words. Exact-equality
+        // assertions lock token_text against lexer/keyword drift (e.g. IfMode
+        // silently rendering "if_mode" instead of "@if-mode").
+        let spellings = [
+            "@enter",
+            "@hover",
+            "@press",
+            "@focus",
+            "@in-view",
+            "@scroll",
+            "@drag-horizontal",
+            "@drag-vertical",
+            "@hero",
+            "@store",
+            "@motion",
+            "@native",
+            "@fallback",
+            "@error",
+            "@mount",
+            "@unmount",
+            "@effect",
+            "@else",
+            "@empty",
+            "@if-mode",
+        ];
+        for kw in spellings {
+            let src = format!("component App {{ view {{ <p>a {kw} b</p> }} }}");
+            let children = view_children(&src);
+            assert_eq!(children.len(), 1, "top-level children truncated at {kw}");
+            match &children[0] {
+                ViewNode::Element(el) => {
+                    assert_eq!(el.children.len(), 1, "element children truncated at {kw}");
+                    assert!(
+                        matches!(&el.children[0], ViewNode::Text(s) if s == &format!("a {kw} b")),
+                        "text rendering mismatch for {kw}"
+                    );
+                }
+                _ => panic!("expected Element for {kw}"),
+            }
         }
     }
 }
