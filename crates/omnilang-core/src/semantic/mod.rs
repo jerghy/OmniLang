@@ -54,9 +54,10 @@ pub struct SemanticAnalyzer {
     dependencies: FxHashMap<String, Vec<String>>,
     /// True when resolving a view template interpolation {expr}
     resolving_interpolation: bool,
-    /// Component names declared in the current module — element tags
-    /// matching one of these are component instantiations (their children
-    /// are consumer-side projections, not this component's own content).
+    /// Component names known in the current module (declared locally or
+    /// imported) — element tags matching one of these are component
+    /// instantiations (their children are consumer-side projections, not
+    /// this component's own content).
     module_component_names: FxHashSet<String>,
     /// Set to `Some(component_tag)` while resolving the children of a
     /// component instantiation — used to detect unsupported slot
@@ -128,13 +129,33 @@ mod tests {
     use crate::error::DiagnosticKind;
     use crate::lexer::tokenize;
     use crate::lexer::Span;
-    use crate::parser::ast::{DesignDef, Expr, Module, TokenDef, TokenType, TokenValue};
+    use crate::parser::ast::{DesignDef, Expr, Module, Program, TokenDef, TokenType, TokenValue};
     use crate::parser::parse;
+    use rustc_hash::FxHashMap;
 
     fn analyze_source(source: &str) -> SemanticResult {
         let tokens = tokenize(source);
         let (program, _) = parse(tokens, source);
         analyze(&program)
+    }
+
+    /// Parse several sources into one multi-module program and analyze it —
+    /// mirrors how `omnic` builds a `Program` from cross-file imports.
+    fn analyze_multi(sources: &[(&str, &str)]) -> SemanticResult {
+        let mut modules = FxHashMap::default();
+        for (name, source) in sources {
+            let tokens = tokenize(source);
+            let (program, errors) = parse(tokens, source);
+            assert!(
+                errors.is_empty(),
+                "unexpected parse errors in {name}: {:?}",
+                errors
+            );
+            for (_, module) in program.modules {
+                modules.insert((*name).to_string(), module);
+            }
+        }
+        analyze(&Program { modules })
     }
 
     #[test]
@@ -305,6 +326,73 @@ mod tests {
                 .iter()
                 .any(|d| d.message.contains("slot forwarding")),
             "normal slot usage must not warn, got: {:?}",
+            result.diagnostics
+        );
+    }
+
+    #[test]
+    fn analyze_slot_forwarding_across_imported_component_warns() {
+        // Deferral #21: `module_component_names` must include imported names.
+        // `<Card>{header}</Card>` in file2 forwards file2's slot into an
+        // imported component — previously Card wasn't in the module-local
+        // name set and the forwarding silently escaped detection.
+        let result = analyze_multi(&[
+            (
+                "Card.omni",
+                "import omniview;
+                 component Card { @slot header { <h5>Card default</h5> } view { <div>{header}</div> } }",
+            ),
+            (
+                "Modal.omni",
+                "import omniview;
+                 import { Card } from \"./Card.omni\";
+                 component Modal { @slot header { <h4>Modal default</h4> } view { <Card>{header}</Card> } }",
+            ),
+        ]);
+        let forwarding: Vec<_> = result
+            .diagnostics
+            .iter()
+            .filter(|d| d.message.contains("slot forwarding"))
+            .collect();
+        assert_eq!(
+            forwarding.len(),
+            1,
+            "expected exactly one slot-forwarding warning across files, got: {:?}",
+            result.diagnostics
+        );
+        assert!(
+            forwarding
+                .iter()
+                .all(|d| d.severity == crate::error::Severity::Warning),
+            "slot forwarding must be a warning, got: {:?}",
+            result.diagnostics
+        );
+    }
+
+    #[test]
+    fn analyze_slot_forwarding_imported_component_no_warning_for_normal_usage() {
+        // Imported component used without forwarding (plain children,
+        // named-prop projection) must not warn.
+        let result = analyze_multi(&[
+            (
+                "Card.omni",
+                "import omniview;
+                 component Card { @slot header { <h5>Card default</h5> } view { <div>{header}</div> } }",
+            ),
+            (
+                "App.omni",
+                "import omniview;
+                 import { Card } from \"./Card.omni\";
+                 component App { @slot header { <h4>App default</h4> } \
+                 view { <Card>plain children</Card> <Card header={<div>Title</div>} /> } }",
+            ),
+        ]);
+        assert!(
+            !result
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains("slot forwarding")),
+            "normal usage of an imported component must not warn, got: {:?}",
             result.diagnostics
         );
     }

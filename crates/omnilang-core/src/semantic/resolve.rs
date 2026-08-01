@@ -156,11 +156,19 @@ impl SemanticAnalyzer {
     pub(super) fn resolve_and_validate_module(&mut self, module: &Module) {
         // Component tags known in this module — element tags matching one of
         // these are component instantiations (slot-forwarding detection).
+        // Imported names are included so cross-file component references
+        // (`import { Modal } from "./Modal.omni"` + `<Modal>{slot}</Modal>`)
+        // don't escape the check (deferral #21).
         self.module_component_names = module
             .components
             .iter()
             .map(|c| c.name.clone())
             .collect();
+        for import in &module.imports {
+            if let ImportStmt::Named(ni) = import {
+                self.module_component_names.extend(ni.names.iter().cloned());
+            }
+        }
         self.inside_component_children = None;
         for comp in &module.components {
             // Find the component scope by name
