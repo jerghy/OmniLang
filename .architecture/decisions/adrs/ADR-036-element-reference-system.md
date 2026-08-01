@@ -7,7 +7,9 @@
 
 ## Status
 
-Accepted
+Superseded by [ADR-052](ADR-052-semantic-level-dsl-cross-target-codegen.md) / [ADR-053](ADR-053-semantic-level-dsl-syntax-formalization-and-implementation.md)（2026-08-01，见 [ADR-054](ADR-054-omniview-semantic-dsl-era-design-philosophy.md)）
+
+> 旧 ref 机制（`ref.style.*`/`getBoundingClientRect`/`offsetWidth` 等 DOM 形状 API）被 RefOpIR 11 语义 ops + RefBinding（focus/scroll-x/y/value）+ `style:{...}` 绑定取代；非法 API 现在产生带迁移提示的编译错误。原文保留作历史参考。
 
 ## Context
 

@@ -2,7 +2,9 @@
 
 ## Status
 
-Implemented
+Superseded by [ADR-052](ADR-052-semantic-level-dsl-cross-target-codegen.md)（2026-08-01，见 [ADR-054](ADR-054-omniview-semantic-dsl-era-design-philosophy.md)）
+
+> React 动画重写（native refs + WAAPI、8 触发器、无 DOM 扫描）取代了 useEffect 依赖数组机制；其「避免依赖膨胀」的意图保留在新实现中。原文保留作历史参考。
 
 ## Context
 

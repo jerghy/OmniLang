@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted
+Superseded by [ADR-052](ADR-052-semantic-level-dsl-cross-target-codegen.md) / [ADR-053](ADR-053-semantic-level-dsl-syntax-formalization-and-implementation.md)（2026-08-01，见 [ADR-054](ADR-054-omniview-semantic-dsl-era-design-philosophy.md)）
+
+> 动画范围界定（33→14 功能）被 17 属性白名单 + 8 触发器（@focus 回归）+ 4 播放属性（paused 删除）+ steps 位置参数取代；其「范围界定方法论」仍作历史参考。实现结果（2026-07-29）保留原文。
 
 ## Implementation Results
 

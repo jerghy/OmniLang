@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted (Phase 1 Complete, Phase 2 Deferred)
+Superseded by [ADR-052](ADR-052-semantic-level-dsl-cross-target-codegen.md) / [ADR-053](ADR-053-semantic-level-dsl-syntax-formalization-and-implementation.md)（2026-08-01，见 [ADR-054](ADR-054-omniview-semantic-dsl-era-design-philosophy.md)）
+
+> v2 细化的缓存修正/@for 诊断等精神保留，但 ref 的语义形态被 ADR-052 全面重定义为语义 ops；Phase 2 内容不再适用。原文保留作历史参考。
 
 ## Context
 
