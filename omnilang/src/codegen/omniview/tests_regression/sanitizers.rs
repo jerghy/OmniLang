@@ -133,6 +133,7 @@ fn design_block_css_values_are_sanitized() {
         store_refs: vec![],
         refs: vec![],
         events: vec![],
+        slots: vec![],
         view: None,
         styles: vec![],
         source_span: None,

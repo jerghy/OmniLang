@@ -939,6 +939,13 @@ impl SemanticAnalyzer {
                 ElementProp::RefBinding { signal, .. } => {
                     self.resolve_expr_refs(signal, vctx);
                 }
+                // Named slot projection content (ADR-053 D5) is a view
+                // subtree — resolve references inside it like children.
+                ElementProp::SlotContent { content, .. } => {
+                    for node in content {
+                        self.resolve_view_node_refs(node, vctx);
+                    }
+                }
                 ElementProp::Bind { .. }
                 | ElementProp::TestId(_)
                 | ElementProp::Ref(_)

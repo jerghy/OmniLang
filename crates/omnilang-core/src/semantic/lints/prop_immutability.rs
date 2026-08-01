@@ -158,6 +158,7 @@ mod tests {
                     }],
                     actions: vec![],
                     getters: vec![],
+                    slots: vec![],
                     view: None,
                     styles: vec![],
                     span: span.clone(),

@@ -248,6 +248,7 @@ mod tests {
             fns: vec![],
             store_refs: vec![],
             events: vec![],
+            slots: vec![],
             styles: vec![],
             source_span: None,
         }

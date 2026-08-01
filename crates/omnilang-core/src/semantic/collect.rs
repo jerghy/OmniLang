@@ -109,6 +109,24 @@ impl SemanticAnalyzer {
                 });
             }
 
+            // Body-level slot declarations (ADR-053 D5) register their names
+            // as symbols so `{header}` interpolations resolve to a typed
+            // symbol instead of relying on interpolation suppression.
+            // Duplicate slot names surface as E0002 warnings via
+            // declare_or_warn. The unnamed (`@slot default`) slot has no
+            // name to register.
+            for slot in &comp.slots {
+                if let Some(ref name) = slot.name {
+                    self.declare_or_warn(Symbol {
+                        name: name.clone(),
+                        kind: SymbolKind::Slot,
+                        type_ann: slot.type_constraint.as_ref().map(type_to_string),
+                        mutable: false,
+                        declared_at: 0,
+                    });
+                }
+            }
+
             self.symbols.pop_scope(); // component scope
 
             // Collect computed dependencies (merged from former Pass 3)

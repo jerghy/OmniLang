@@ -287,6 +287,7 @@ mod tests {
                     fns: vec![],
                     actions: vec![],
                     getters: vec![],
+                    slots: vec![],
                     view: Some(ViewBlock {
                         children: vec![ViewNode::Text("hello".into())],
                     }),
@@ -358,6 +359,7 @@ mod tests {
                     }],
                     actions: vec![],
                     getters: vec![],
+                    slots: vec![],
                     view: Some(ViewBlock {
                         children: vec![ViewNode::Text("hello".into())],
                     }),

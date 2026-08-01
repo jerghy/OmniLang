@@ -219,29 +219,59 @@ pub(super) fn lower_view_node(
             default_content,
             type_constraint,
         } => {
-            let fallback = default_content
-                .as_ref()
-                .map(|nodes| {
-                    nodes
-                        .iter()
-                        .map(|n| {
-                            lower_view_node(n, string_signals, sig_idx, variant_map, semantics, fns)
-                        })
-                        .collect()
-                })
-                .unwrap_or_default();
-            let (tc, dp) = if let Some(tc) = type_constraint {
-                (Some(lower_type(tc)), Some(name.clone().unwrap_or_default()))
-            } else {
-                (None, None)
+            let shape = SlotDeclShape {
+                name,
+                default_content,
+                type_constraint,
             };
-            ViewTree::Slot {
-                name: name.clone(),
-                fallback,
-                type_constraint: tc,
-                data_param: dp,
-            }
+            lower_slot_common(&shape, string_signals, sig_idx, variant_map, semantics, fns)
+                .into_view_tree()
         }
+    }
+}
+
+/// Shared slot declaration shape passed to `lower_slot_common` — used by
+/// both view-level `@slot` directives (`ViewNode::SlotDirective`) and
+/// component body slot declarations (`SlotDecl`), ADR-053 D5.
+pub(super) struct SlotDeclShape<'a> {
+    pub name: &'a Option<String>,
+    pub default_content: &'a Option<Vec<ViewNode>>,
+    pub type_constraint: &'a Option<TypeAnnotation>,
+}
+
+/// Lower the shared slot declaration shape (name + fallback + type
+/// constraint) into `SlotDeclIR`.
+pub(super) fn lower_slot_common(
+    slot: &SlotDeclShape,
+    string_signals: &[String],
+    sig_idx: Option<&Cell<usize>>,
+    variant_map: &FxHashMap<String, String>,
+    semantics: &mut SemanticResult,
+    fns: &[FunctionIR],
+) -> SlotDeclIR {
+    let fallback = slot
+        .default_content
+        .as_ref()
+        .map(|nodes| {
+            nodes
+                .iter()
+                .map(|n| lower_view_node(n, string_signals, sig_idx, variant_map, semantics, fns))
+                .collect()
+        })
+        .unwrap_or_default();
+    let (tc, dp) = if let Some(tc) = slot.type_constraint {
+        (
+            Some(lower_type(tc)),
+            Some(slot.name.clone().unwrap_or_default()),
+        )
+    } else {
+        (None, None)
+    };
+    SlotDeclIR {
+        name: slot.name.clone(),
+        fallback,
+        type_constraint: tc,
+        data_param: dp,
     }
 }
 
@@ -282,6 +312,11 @@ fn lower_element(
     let drag_velocity_max: Option<ExprIR> = None;
     let mut ref_binding: Option<String> = None;
     let mut semantic_bindings: Option<FxHashMap<String, ExprIR>> = None;
+    // Named slot projections (ADR-053 D5): `header={<div/>}` on a component
+    // call lowers to `ViewTree::Slot { name: Some(name), fallback: content }`
+    // inserted into the element's children — codegen consumes the projection
+    // from the consumer position exactly like a view-level `@slot name {...}`.
+    let mut slot_projections: Vec<ViewTree> = Vec::new();
 
     for prop in &el.props {
         match prop {
@@ -529,10 +564,28 @@ fn lower_element(
                     source_span: None,
                 });
             } // Deleted sub-attribute ElementProps (@paused, in-view once/repeat/
-              // threshold, scroll start/end/scrub, drag constraints/elastic/scrub/
-              // momentum/threshold/velocity-max) no longer exist — they are parsed
-              // as regular ident-based attrs per semantic-level DSL spec §3.2 and
-              // will be lowered again once the new attr syntax lands (Tasks 0.3-0.4).
+            // threshold, scroll start/end/scrub, drag constraints/elastic/scrub/
+            // momentum/threshold/velocity-max) no longer exist — they are parsed
+            // as regular ident-based attrs per semantic-level DSL spec §3.2 and
+            // will be lowered again once the new attr syntax lands (Tasks 0.3-0.4).
+            // Named slot projection: <Modal header={<div>Title</div>} />
+            // The projected content is the fallback of the consumer-position
+            // ViewTree::Slot (the parent will override the declaration's
+            // fallback by slot name).
+            ElementProp::SlotContent { name, content } => {
+                let fallback = content
+                    .iter()
+                    .map(|n| {
+                        lower_view_node(n, string_signals, sig_idx, variant_map, semantics, fns)
+                    })
+                    .collect();
+                slot_projections.push(ViewTree::Slot {
+                    name: Some(name.clone()),
+                    fallback,
+                    type_constraint: None,
+                    data_param: None,
+                });
+            }
         }
     }
 
@@ -576,11 +629,14 @@ fn lower_element(
         }
     }
 
-    let children: Vec<ViewTree> = el
+    let mut children: Vec<ViewTree> = el
         .children
         .iter()
         .map(|c| lower_view_node(c, string_signals, sig_idx, variant_map, semantics, fns))
         .collect();
+    // Slot projections are appended after regular children — codegen looks
+    // them up by slot name, so relative order does not affect projection.
+    children.extend(slot_projections);
 
     ViewTree::Element(Box::new(ElementIR {
         tag: el.tag.clone(),

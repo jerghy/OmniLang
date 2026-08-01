@@ -59,6 +59,7 @@ fn computed_references_prop_with_default() {
         store_refs: vec![],
         refs: vec![],
         events: vec![],
+        slots: vec![],
         view: None,
         styles: vec![],
         source_span: None,

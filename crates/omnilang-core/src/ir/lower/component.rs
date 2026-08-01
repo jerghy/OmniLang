@@ -4,7 +4,7 @@
 
 use super::expr::lower_expr;
 use super::stmt::lower_block;
-use super::view::lower_view_block;
+use super::view::{lower_slot_common, lower_view_block, SlotDeclShape};
 use crate::ir::logic::*;
 use crate::ir::types::*;
 use crate::parser::ast::*;
@@ -165,6 +165,21 @@ pub(super) fn lower_component(
         }
     };
 
+    // Body-level slot declarations (ADR-053 D5) lower through the same
+    // shared logic as view-level `@slot` directives.
+    let slots: Vec<SlotDeclIR> = comp
+        .slots
+        .iter()
+        .map(|s| {
+            let shape = SlotDeclShape {
+                name: &s.name,
+                default_content: &s.default_content,
+                type_constraint: &s.type_constraint,
+            };
+            lower_slot_common(&shape, &input_signals, None, variant_map, semantics, &fns)
+        })
+        .collect();
+
     let view = comp
         .view
         .as_ref()
@@ -261,6 +276,7 @@ pub(super) fn lower_component(
                 param_type: type_ann_to_ts(&e.type_ann),
             })
             .collect(),
+        slots,
         view,
         styles,
         source_span: Some(comp.span),

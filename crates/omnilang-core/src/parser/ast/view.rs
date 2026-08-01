@@ -23,9 +23,25 @@ pub struct ComponentDef {
     pub actions: Vec<ActionDef>,
     pub getters: Vec<GetterDecl>,
     pub motions: Vec<MotionDef>,
+    /// Component body slot declarations (`@slot name { fallback }`),
+    /// ADR-053 D5 — slots moved from inline view declarations to the body.
+    pub slots: Vec<SlotDecl>,
     pub view: Option<ViewBlock>,
     pub styles: Vec<StyleRule>,
     pub span: Span,
+}
+
+/// A body-level slot declaration: `@slot name: Type { fallback }`.
+/// Mirrors the fields of `ViewNode::SlotDirective` so both forms lower
+/// through the same shared logic.
+#[derive(Debug, Clone, Serialize)]
+pub struct SlotDecl {
+    /// Slot name — `None` for the default/unnamed slot (`@slot default`).
+    pub name: Option<String>,
+    /// Fallback content rendered when the parent provides nothing for this slot.
+    pub default_content: Option<Vec<ViewNode>>,
+    /// Optional type constraint: `@slot name: Type`.
+    pub type_constraint: Option<TypeAnnotation>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -144,6 +160,13 @@ pub enum ElementProp {
         design_name: String,
         variant_name: String,
         dimension_values: Vec<(String, String)>,
+    },
+    /// Named slot projection (ADR-053 D5): `header={<div>Title</div>}` on a
+    /// component call. The `<` after `{` discriminates slot content from a
+    /// regular `{expr}` prop value.
+    SlotContent {
+        name: String,
+        content: Vec<ViewNode>,
     },
     Style {
         entries: Vec<(String, Expr)>,

@@ -813,6 +813,38 @@ pub struct EventDeclIR {
     pub param_type: String,
 }
 
+/// A component body slot declaration (`@slot name { fallback }`), ADR-053 D5.
+/// Mirrors the fields of `ViewTree::Slot` so a declaration can be turned into
+/// a `ViewTree::Slot` (for the component's own view) via `into_view_tree()`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct SlotDeclIR {
+    /// Slot name — `None` for the default/unnamed slot.
+    pub name: Option<String>,
+    /// Fallback content rendered when the parent provides no content
+    /// for this slot.
+    pub fallback: Vec<ViewTree>,
+    /// Optional type constraint declared in the source (`@slot name: Type`).
+    pub type_constraint: Option<TypeIR>,
+    /// Data variable name derived from the slot name when a type
+    /// constraint is present.
+    pub data_param: Option<String>,
+}
+
+impl SlotDeclIR {
+    /// Convert this declaration into a `ViewTree::Slot` placeholder — used
+    /// when the declaration needs to participate in view-tree lowering
+    /// (e.g. inline-motion hoisting walks slot fallbacks).
+    #[must_use]
+    pub fn into_view_tree(self) -> ViewTree {
+        ViewTree::Slot {
+            name: self.name,
+            fallback: self.fallback,
+            type_constraint: self.type_constraint,
+            data_param: self.data_param,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ComponentIR {
     pub name: String,
@@ -835,6 +867,10 @@ pub struct ComponentIR {
     /// Component event declarations with their TypeScript parameter types.
     #[serde(default)]
     pub events: Vec<EventDeclIR>,
+    /// Component body slot declarations (`@slot name { fallback }`),
+    /// ADR-053 D5.
+    #[serde(default)]
+    pub slots: Vec<SlotDeclIR>,
     pub view: Option<ViewTree>,
     pub styles: Vec<StyleRuleIR>,
     /// Source location in .omni file

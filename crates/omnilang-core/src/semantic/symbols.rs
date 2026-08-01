@@ -28,6 +28,9 @@ pub enum SymbolKind {
     Param,
     /// Module-level const declaration — `const NAME = <expr>;`
     Const,
+    /// Component body slot declaration (ADR-053 D5) — `@slot name { ... }`.
+    /// The name is interpolation-able in the view: `{header}`.
+    Slot,
     Unknown,
 }
 

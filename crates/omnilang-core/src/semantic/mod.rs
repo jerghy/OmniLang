@@ -140,6 +140,80 @@ mod tests {
     }
 
     #[test]
+    fn analyze_body_slot_symbols_registered() {
+        // {header} in the view resolves to the body-level slot symbol
+        // (SymbolKind::Slot) — no E0001 "Undeclared variable".
+        let result = analyze_source(
+            "component Modal { @slot header { <h4>x</h4> } view { <div>{header}</div> } }",
+        );
+        let errors: Vec<_> = result
+            .diagnostics
+            .iter()
+            .filter(|d| d.severity == crate::error::Severity::Error)
+            .collect();
+        assert!(errors.is_empty(), "expected no errors, got: {:?}", errors);
+        // The slot symbol must exist in the component scope with kind Slot
+        let scope_idx = result
+            .symbols
+            .find_scope_by_name("component:Modal")
+            .expect("component scope should exist");
+        let slot_sym = result
+            .symbols
+            .get_scope(scope_idx)
+            .and_then(|s| s.symbols.get("header"))
+            .expect("slot symbol 'header' should be registered");
+        assert_eq!(slot_sym.kind, SymbolKind::Slot);
+    }
+
+    #[test]
+    fn analyze_body_slot_type_constraint_becomes_symbol_type() {
+        let result =
+            analyze_source("component Modal { @slot footer: String view { <div>{footer}</div> } }");
+        let scope_idx = result
+            .symbols
+            .find_scope_by_name("component:Modal")
+            .expect("component scope should exist");
+        let slot_sym = result
+            .symbols
+            .get_scope(scope_idx)
+            .and_then(|s| s.symbols.get("footer"))
+            .expect("slot symbol 'footer' should be registered");
+        assert_eq!(slot_sym.type_ann.as_deref(), Some("String"));
+    }
+
+    #[test]
+    fn analyze_duplicate_body_slots_warn() {
+        let result =
+            analyze_source("component Modal { @slot header @slot header view { <div/> } }");
+        assert!(
+            result.diagnostics.iter().any(|d| {
+                d.severity == crate::error::Severity::Warning
+                    && d.message.contains("Duplicate declaration")
+            }),
+            "expected duplicate-slot warning, got: {:?}",
+            result.diagnostics
+        );
+    }
+
+    #[test]
+    fn analyze_slot_interpolation_undeclared_still_suppressed() {
+        // Back-compat: an interpolation referencing a name that is NOT a
+        // declared slot stays suppressed (view-level @slot / interpolation
+        // behavior unchanged).
+        let result = analyze_source("component Modal { view { <div>{children}</div> } }");
+        let errors: Vec<_> = result
+            .diagnostics
+            .iter()
+            .filter(|d| d.severity == crate::error::Severity::Error)
+            .collect();
+        assert!(
+            errors.is_empty(),
+            "interpolation suppression must remain, got: {:?}",
+            errors
+        );
+    }
+
+    #[test]
     fn analyze_if_mode_fade_wait_none_accepted() {
         // Parser and semantic whitelist must agree: "fade", "wait", "none"
         // are the only valid transition modes (regression: semantic used to

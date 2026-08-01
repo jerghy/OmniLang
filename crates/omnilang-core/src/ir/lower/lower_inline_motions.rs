@@ -28,6 +28,13 @@ pub(super) fn lower_inline_motions(module: &mut ModuleIR) {
         if let Some(ref mut view) = component.view {
             walk_and_lower_inline_motions(view, &mut counter, &mut new_motions);
         }
+        // Body-level slot fallbacks (ADR-053 D5) may contain inline motion
+        // triggers too — hoist them so codegen sees only named motions.
+        for slot in &mut component.slots {
+            for child in &mut slot.fallback {
+                walk_and_lower_inline_motions(child, &mut counter, &mut new_motions);
+            }
+        }
     }
     module.motions.extend(new_motions);
 }

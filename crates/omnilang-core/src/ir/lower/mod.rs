@@ -1869,6 +1869,147 @@ component Card {
     }
 
     // ═══════════════════════════════════════════════════════
+    // Component body slots (ADR-053 D5)
+    // ═══════════════════════════════════════════════════════
+
+    #[test]
+    fn lower_component_body_slots() {
+        let source = r#"
+import omniview;
+component Modal {
+    @slot header { <h4>Default header</h4> }
+    @slot default
+    view {
+        <div>{header}</div>
+    }
+}
+"#;
+        let comp = lower_first_component(source);
+        assert_eq!(comp.slots.len(), 2, "two body-level slots expected");
+
+        let header = &comp.slots[0];
+        assert_eq!(header.name.as_deref(), Some("header"));
+        assert_eq!(
+            header.fallback.len(),
+            1,
+            "fallback content must be preserved"
+        );
+        match &header.fallback[0] {
+            ViewTree::Element(el) => assert_eq!(el.tag, "h4"),
+            other => panic!("expected Element fallback, got {:?}", other),
+        }
+        assert!(header.type_constraint.is_none());
+        assert!(header.data_param.is_none());
+
+        let default_slot = &comp.slots[1];
+        assert!(
+            default_slot.name.is_none(),
+            "`@slot default` must lower to the unnamed slot"
+        );
+        assert!(default_slot.fallback.is_empty());
+    }
+
+    #[test]
+    fn lower_component_body_slots_type_constraint_and_data_param() {
+        let source = r#"
+import omniview;
+component Modal {
+    @slot footer: String { <p>Default footer</p> }
+    view {
+        <div>{footer}</div>
+    }
+}
+"#;
+        let comp = lower_first_component(source);
+        assert_eq!(comp.slots.len(), 1);
+        let slot = &comp.slots[0];
+        assert_eq!(slot.name.as_deref(), Some("footer"));
+        assert_eq!(
+            slot.type_constraint.as_ref().map(|t| t.kind.as_str()),
+            Some("string"),
+            "type constraint must be lowered"
+        );
+        assert_eq!(
+            slot.data_param.as_deref(),
+            Some("footer"),
+            "data_param derives from the slot name"
+        );
+    }
+
+    #[test]
+    fn lower_consumer_named_prop_slot() {
+        let source = r#"
+import omniview;
+component App {
+    view {
+        <Modal header={<div>Title</div>}>content</Modal>
+    }
+}
+"#;
+        let comp = lower_first_component(source);
+        let view = comp.view.expect("should have view");
+        match &view {
+            ViewTree::Element(el) => {
+                assert_eq!(el.tag, "Modal");
+                assert_eq!(
+                    el.children.len(),
+                    2,
+                    "default children + named slot projection expected"
+                );
+                // Default children first
+                match &el.children[0] {
+                    ViewTree::Text(t) => assert_eq!(t, "content"),
+                    other => panic!("expected Text child, got {:?}", other),
+                }
+                // Named slot projection as ViewTree::Slot
+                match &el.children[1] {
+                    ViewTree::Slot {
+                        name,
+                        fallback,
+                        type_constraint,
+                        data_param,
+                    } => {
+                        assert_eq!(name.as_deref(), Some("header"));
+                        assert_eq!(fallback.len(), 1, "projected content must be preserved");
+                        match &fallback[0] {
+                            ViewTree::Element(p) => assert_eq!(p.tag, "div"),
+                            other => panic!("expected Element, got {:?}", other),
+                        }
+                        assert!(type_constraint.is_none());
+                        assert!(data_param.is_none());
+                    }
+                    other => panic!("expected Slot child, got {:?}", other),
+                }
+            }
+            other => panic!("expected Element, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn lower_consumer_named_prop_slot_multiple_nodes() {
+        let source = r#"
+import omniview;
+component App {
+    view {
+        <Modal header={<div>a</div><div>b</div>} />
+    }
+}
+"#;
+        let comp = lower_first_component(source);
+        let view = comp.view.expect("should have view");
+        match &view {
+            ViewTree::Element(el) => match &el.children[0] {
+                ViewTree::Slot { name, fallback, .. } => {
+                    assert_eq!(name.as_deref(), Some("header"));
+                    assert_eq!(fallback.len(), 2, "all sibling nodes must be projected");
+                }
+                other => panic!("expected Slot child, got {:?}", other),
+            },
+            other => panic!("expected Element, got {:?}", other),
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════
     // Comprehensive integration test
     // ═══════════════════════════════════════════════════════
 

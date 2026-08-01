@@ -197,6 +197,13 @@ pub fn eliminate_dead_computeds(comp: &mut ComponentIR) {
     if let Some(ref view) = comp.view {
         collect_idents_from_view(view, &mut used);
     }
+    // Body-level slot fallbacks (ADR-053 D5) may reference computeds —
+    // collect their idents so they are not eliminated as dead.
+    for slot in &comp.slots {
+        for child in &slot.fallback {
+            collect_idents_from_view_exprs(child, &mut used);
+        }
+    }
 
     // Walk component-level fields that can reference computed properties
     for expr in comp.prop_defaults.values() {
