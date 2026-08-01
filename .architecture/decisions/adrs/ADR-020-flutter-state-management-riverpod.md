@@ -6,6 +6,16 @@ Implemented
 
 > **✅ 2026-07-31 更新**（ADR-052）：Riverpod 迁移已完成。当前使用 Riverpod **3.0**（最新稳定版 3.3.2）的 `Notifier<T>` + `NotifierProvider` API，替代了原有的 `ChangeNotifier` + `StateProvider`（2.x）。`StateProvider` 和 `StateNotifierProvider` 在 Riverpod 3.0 中已废弃移至 `legacy.dart`。本 ADR 的选型决策被验证为正确——Riverpod 3.0 的 `Notifier` 模型确实更适合代码生成。参见 [[ADR-052]]。
 
+> **✅ 2026-08-01 实施记录**（35 任务计划 Phase 5 + 8.2）：迁移已全部落地——
+> - **store 生成**：`Notifier<T>` + `NotifierProvider`，`ref.watch`/`ref.read` 访问 signal/getter，action 为 Notifier method
+> - **refs**：`@ref` 生成 `GlobalKey` + 按需 controller（`omnilang/src/codegen/flutter/ref.rs`）
+> - **slots**：body 级 `@slot` 声明 + 消费者命名属性（ADR-053 D5）
+> - **动画**：`AnimationController` + `TweenSequence` 多 stop keyframe
+> - **design**：`ThemeData`/`ThemeExtension` 映射（design gate 移除，ADR-052）
+> - **CI 门禁**（Task 8.2）：`generated_code_validation` 对生成的 store 文件运行 `dart analyze`（无 Dart 工具链时优雅 SKIP）
+>
+> **已知缺口**：Flutter **widget** 代码生成仍存在 6 处不可编译问题，`dart analyze` 门禁目前仅覆盖 store 文件——见 `.architecture/deferrals.md` #17。
+
 ## Context
 
 OmniLang 的 Flutter 代码生成目标当前使用 Dart 原生 `ChangeNotifier` 管理 store 状态：
@@ -130,10 +140,10 @@ OmniLang 的 Flutter 代码生成目标当前使用 Dart 原生 `ChangeNotifier`
 ## Validation
 
 **Acceptance Criteria**:
-- [ ] Flutter store 代码生成输出有效的 Riverpod Dart 代码
-- [ ] 所有现有 Flutter 测试通过（更新后）
-- [ ] `cargo test -p omnilang` 全绿
-- [ ] 生成的代码可通过 `dart analyze` 静态检查
+- [x] Flutter store 代码生成输出有效的 Riverpod Dart 代码
+- [x] 所有现有 Flutter 测试通过（更新后）
+- [x] `cargo test -p omnilang` 全绿
+- [ ] 生成的代码可通过 `dart analyze` 静态检查 — ⚠️ 部分达成：仅 store 文件通过门禁；widget codegen 6 处不可编译问题未修复（见 deferrals #17）
 
 ## References
 

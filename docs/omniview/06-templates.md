@@ -61,11 +61,11 @@ PascalCase 标签引用其他组件——编译时视图会被内联展开：
 
 ### 传递插槽内容
 
+消费者通过**命名属性**传入插槽内容（ADR-053 D5），匿名内容直接作为子节点：
+
 ```omni
-<Modal>
-    @slot header { <h2>Title</h2> }
-    @slot { <p>Body content</p> }
-    @slot footer { <button @onPress={confirm}>OK</button> }
+<Modal header={<h2>Title</h2>} footer={<button @onPress={confirm}>OK</button>}>
+    <p>Body content</p>
 </Modal>
 ```
 
@@ -125,10 +125,12 @@ PascalCase 标签引用其他组件——编译时视图会被内联展开：
 ### 动态属性
 
 ```omni
-<input value={inputText} placeholder={hintText} />
+<input @ref={inputBox} value={inputText} placeholder={hintText} />
 <button disabled={isLoading}>Submit</button>
 <a href={dynamicUrl}>Link</a>
 ```
+
+`value={signal}` 是语义绑定（双向值绑定），元素必须同时有 `@ref={name}`（ADR-053 D2）；`bind:value` 双向绑定见下文。
 
 ### 布尔属性
 
@@ -158,37 +160,23 @@ PascalCase 标签引用其他组件——编译时视图会被内联展开：
 <div @enter={fadeInUp}>...</div>
 <button @press={scalePress} @hover={pulse}>Click</button>
 
-<!-- @inView + 子属性 -->
-<div @inView={slideIn}
-     @in-view-once={true}
-     @in-view-threshold={0.5}>...</div>
+<!-- @focus 聚焦 -->
+<button @focus={focusGlow}>Focus me</button>
 
-<!-- @scroll + 子属性 -->
-<div @scroll={scrollFade}
-     @scroll-start="top 80%"
-     @scroll-end="bottom 20%"
-     @scroll-scrub={0.5}>...</div>
+<!-- @in-view 滚动入视 -->
+<div @in-view={slideIn}>...</div>
 
-<!-- @dragHorizontal / @dragVertical + 拖拽子属性 -->
-<div @dragHorizontal={dragSlide}
-     @drag-constraints="left:0 right:300"
-     @drag-elastic={0.2}
-     @drag-scrub={true}
-     @drag-momentum={0.95}>...</div>
+<!-- @scroll 滚动驱动 -->
+<div @scroll={scrollFade}>...</div>
 
-<div @dragVertical={dragSlideY}
-     @drag-constraints="top:0 bottom:120">...</div>
+<!-- @drag-horizontal / @drag-vertical 拖拽触发器 -->
+<div @drag-horizontal={dragSlide}>...</div>
+<div @drag-vertical={dragSlideY}>...</div>
 ```
+
+> 注：触发器子属性（`@in-view-once`、`@scroll-start`、`@drag-constraints`、`@drag-elastic` 等）与元素级 `@paused` 已按 semantic-level DSL 规范移除（ADR-053）；运行时暂停/恢复请用条件渲染。
 
 详见 [11-运动与动画](11-motion-animation.md)。
-
-### @paused 运行时控制
-
-```omni
-<div @enter={spinLoop} @paused={isPaused}>...</div>
-```
-
-signal 为 `true` 时暂停动画，`false` 时恢复。详见 [11-运动与动画](11-motion-animation.md)。
 
 ### ref: / @ref={} DOM 引用
 
@@ -234,17 +222,17 @@ signal 为 `true` 时暂停动画，`false` 时恢复。详见 [11-运动与动�
 }
 ```
 
-**过渡模式**：`mode="sync"` 使入场/离场动画同步：
+**过渡模式**：`mode: "fade"` 使新旧内容同时淡入淡出：
 
 ```omni
-@if isOpen mode="sync" {
-    <div @enter={fadeIn} @leave={fadeOut}>Content</div>
+@if isOpen mode: "fade" {
+    <div @enter={fadeIn}>Content</div>
 }
 ```
 
-`mode="wait"` 等待旧内容的离场动画完成后再插入新内容：
+`mode: "wait"` 等待旧内容的离场动画完成后再插入新内容：
 ```omni
-@if showPanel mode="wait" {
+@if showPanel mode: "wait" {
     <div class: panel>
         <p>旧内容的离开动画完成后新内容才插入</p>
     </div>
@@ -268,6 +256,8 @@ signal 为 `true` 时暂停动画，`false` 时恢复。详见 [11-运动与动�
 
 ### @slot
 
+组件体的顶部声明插槽（ADR-053 D5，位于 component body，非 view 内）：
+
 ```omni
 <!-- 组件定义中 -->
 @slot              <!-- 匿名插槽 -->
@@ -277,11 +267,11 @@ signal 为 `true` 时暂停动画，`false` 时恢复。详见 [11-运动与动�
 @slot header {
     <span>Default Header</span>
 }
+```
 
-<!-- 消费者使用时 -->
-<Panel>
-    @slot header { <div>Custom</div> }
-</Panel>
+消费者通过命名属性传入（匿名内容直接作为子节点）：
+```omni
+<Panel header={<div>Custom</div>}>Body content</Panel>
 ```
 
 ## emit 关键字
@@ -312,7 +302,6 @@ component Child {
 | 双向绑定 | `bind:prop={s}` | `bind:value={name}` |
 | 事件 | `@onEvent={fn}` | `@onPress={handle}` |
 | 动画 | `@trigger={m}` | `@enter={fadeIn}` |
-| 动画运行时控制 | `@paused={s}` | `@paused={isPaused}` |
 | 引用（简写） | `ref: name` | `ref: myInput` |
 | 引用（事件风格） | `@ref={name}` | `@ref={myInput}` |
 | 测试 ID | `testId="v"` | `testId="btn-save"` |
