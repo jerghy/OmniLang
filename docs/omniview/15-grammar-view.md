@@ -634,7 +634,7 @@ component Button {
     }
 
     view {
-        <button class="base {variant}">
+        <button class: base {variant == "primary" ? "primary" : "secondary"}>
             {label}
         </button>
     }
@@ -684,14 +684,41 @@ StyleValuePart ::=
   | Dimension(f64, String)
 ```
 
-### 5.4 Dynamic Style Classes
+### 5.4 Class Attribute (`class:` forms)
 
-In view templates, classes can include dynamic expressions via `{expr}`:
+Dynamic class binding uses the `class:` prefix forms — the `{expr}` groups
+below are only recognized after `class:`, not inside a plain `class="..."`
+string attribute:
+
 ```
-<button class="base {variant} {isActive ? "active" : ""}">
+class_prop ::= 'class:' class_list                     // space-separated names
+             | 'class:' '{' (class_key ':' expr (',' class_key ':' expr)*)? '}'
+             | 'class:' <design_name> '.' <class_name>
+             | 'class:' class_list '{' expr '}'        // combined static + dynamic
+
+class_list ::= <ident> ('-' <ident> | '-' <int_literal>)*
+             ( ' ' <ident> ('-' <ident> | '-' <int_literal>)* )*
 ```
 
-The `class` attribute recognizes space-separated tokens where `{...}` groups are evaluated as expressions.
+Four forms:
+
+- **Static names** — space-separated: `class: base primary`
+- **Dynamic map** — `{ key: expr }` pairs, expr is a boolean gate:
+  `class: { active: isActive, disabled: isLocked }`
+- **Design class reference** — `class: LearnDesign.Card`
+- **Combined** — static names plus one `{expr}` whose result is appended:
+  `class: tab-btn {if activeTab == "tab1" { "active" } else { "" }}`
+
+```
+<button class: base {variant == "primary" ? "primary" : "secondary"}>
+<button class: { active: isActive, disabled: isLocked }>
+<div class: LearnDesign.Card>
+<div class: tab-btn {if activeTab == "tab1" { "active" } else { "" }}>
+```
+
+A plain `class="container"` (HTML attribute form) is still accepted as a
+static string prop; use the `class:` forms for dynamic and design-system
+classes (see `10-design-system.md`).
 
 ---
 
@@ -702,7 +729,8 @@ The `class` attribute recognizes space-separated tokens where `{...}` groups are
 ```
 design_def ::= 'design' <ident> '{' design_body '}'
 
-design_body ::= (token_def | class_def | variant_def)*
+design_body ::= (themes_directive | default_theme_directive
+               | token_def | class_def | variant_def)*
 ```
 
 The design block body is parsed as a raw string (not token-by-token). A dedicated sub-parser (`parse_design_body`) processes the body string.
@@ -738,38 +766,143 @@ design AppDesign {
 }
 ```
 
-### 6.3 Token Usage (via $ prefix)
+### 6.3 Token Usage (`token(...)` refs)
 
-Tokens are referenced in style blocks and props using `$` prefix:
+Tokens are referenced inside `design` classes and variants with the
+`token(name)` call form — either a bare `token(name)` value or a mixed
+value concatenating string literals with `token(...)` parts:
+
 ```
-.base {
-    background-color: $color-primary
-    padding: $size-md
-    font-family: $font-base
+design_value ::= 'token' '(' <ident> ')'                  // token(primary)
+               | <string_literal>                         // "16px"
+               | mixed                                    // "1px solid " token(border)
+```
+
+```
+design AppDesign {
+    token primary: color = "#6366f1";
+    token border: color = "#d4d4d8";
+
+    class Card {
+        background: token(primary);                   // bare token ref
+        border: "1px solid " token(border);           // mixed literal + token ref
+    }
 }
 ```
+
+`token(name)` resolves to `var(--name)` at lowering (tokens are emitted as
+`:root { --name: value }` CSS custom properties). In **component** `style`
+blocks and inline styles, tokens are referenced directly as CSS variables
+(`var(--name)`) — the `token()` form is design-block-only:
+
+```
+style {
+    .card {
+        background: "var(--surface)"
+    }
+}
+```
+
+> The `$name` prefix form is **not** part of the language — `$` reference
+> syntax is only considered for a future language version (parser
+> `design.rs`). Use `token(name)` in design blocks and `var(--name)`
+> elsewhere. See `09-styling.md` and `10-design-system.md` for usage guides.
 
 ### 6.4 Class Definition
 
 ```
-class_def ::= 'class' <ident> '{' (style_property)* '}'    // deferred — partial support
+class_def ::= 'class' <ident> '{' (design_property | pseudo_state)* '}'
+
+design_property ::= <property_name> ':' design_value ';'
+
+pseudo_state ::= '&:' <ident> '{' design_property* '}'    // &:hover, &:focus
+               | '&::' <ident> '{' design_property* '}'   // &::before (pseudo-element)
 ```
+
+Fully implemented — reusable CSS rules defined inside `design` blocks.
+Values are string literals, CSS keywords, or `token(name)` references
+(§6.3); pseudo-states nest under `&:` (pseudo-class, stored as `"hover"`)
+or `&::` (pseudo-element, stored as `"::before"`):
+
+```
+design AppDesign {
+    class Card {
+        background: token(surface);
+        border: "1px solid " token(border);
+        &:hover {
+            box-shadow: "0 4px 12px rgba(0,0,0,0.08)";
+        }
+    }
+}
+```
+
+Used in views via `class: DesignName.ClassName` (§5.4). See
+`10-design-system.md` §2 for the full guide.
 
 ### 6.5 Variant Definition
 
 ```
-variant_def ::= 'variant' <ident> '{' variant_values '}'   // deferred — partial support
+variant_def ::= 'variant' <ident> '{' variant_body '}'
+
+variant_body ::= (dim_def | default_block | base_block | branch)*
+
+dim_def       ::= '@dim' <ident> ':' <ident> ('|' <ident>)* ';'
+default_block ::= '@default' '{' (<ident> ':' <ident> ';')* '}'
+base_block    ::= 'base' '{' design_property* '}'
+branch        ::= <dim_name> '.' <value_name> '{' design_property* '}'
 ```
 
-Part of the design token system. Full class and variant parsing is deferred to Tasks A3/A4.
+Fully implemented — multi-dimension parameterized component styles:
+`@dim` declares a dimension and its allowed values, `@default` sets the
+fallback value per dimension, `base` holds styles shared by all variants,
+and `dim.value` blocks override styles for a specific dimension value:
+
+```
+variant Button {
+    @dim color: primary | danger | ghost;
+    @dim size: sm | md | lg;
+    @default { color: primary; size: md; }
+    base {
+        border: none;
+        border-radius: token(radiusMd);
+    }
+    color.primary { background: token(primary); color: white; }
+    size.md { padding: "8px 16px"; font-size: "14px"; }
+}
+```
+
+Applied in views via `variant: DesignName.VariantName(dim=val, ...)` (§2.3).
+See `10-design-system.md` §3 for the full guide.
 
 ### 6.6 Theme Definition
 
 ```
-theme_def ::= 'theme' <ident> '{' (style_property)* '}'    // reserved keyword, limited parsing
+themes_directive        ::= '@themes' <ident> (',' <ident>)* ';'
+default_theme_directive ::= '@default-theme' <ident> ';'
 
-// Theme IR data was removed from ModuleIR in v5 (zero consumers across 9 backends).
-// Parser keyword and AST ThemeDef are retained for future use.
+theme_def ::= 'theme' <ident> '{' (style_property)* '}'    // reserved keyword, limited parsing
+```
+
+`@themes` declares the design system's theme names; `@default-theme` sets the
+initial theme (used when no `data-theme` attribute is present). Token
+definitions provide per-theme value overrides keyed by theme name (§6.2):
+
+```
+design AppDesign {
+    @themes light, dark;
+    @default-theme light;
+
+    token primary: color = "#6366f1" dark "#a5b4fc";
+}
+```
+
+> The `theme` keyword remains reserved with limited parsing (AST `ThemeDef`
+> retained for future use — Theme IR data was removed from ModuleIR in v5,
+> zero consumers across 9 backends). Use the `@themes` / `@default-theme`
+> directives for theme declaration.
+
+```
+ThemeDef ::= { name: String, entries: Vec<ThemeEntry> }   // reserved — limited parsing
 ```
 
 ### 6.7 Design AST Types
@@ -777,12 +910,36 @@ theme_def ::= 'theme' <ident> '{' (style_property)* '}'    // reserved keyword, 
 ```
 DesignDef ::= {
     name: String,
-    tokens: Vec<DesignToken>,
-    classes: Vec<DesignClass>,
-    variants: Vec<DesignVariant>,
+    tokens: Vec<TokenDef>,
+    classes: Vec<DesignClassDef>,
+    variants: Vec<VariantDef>,
+    themes: Vec<String>,               // @themes list
+    default_theme: Option<String>,     // @default-theme
 }
 
-ThemeDef ::= { name: String, entries: Vec<ThemeEntry> }
+TokenDef ::= { name: String, token_type: TokenType,
+               value: TokenValue, theme_values: Vec<(String, TokenValue)> }
+
+TokenValue ::= Literal(String) | Variable(String) | Expression(Expr)
+
+DesignClassDef ::= { name: String, properties: Vec<DesignProperty>,
+                     pseudo_states: Vec<PseudoState> }
+
+DesignProperty ::= { name: String, value: DesignValue }
+
+DesignValue ::= Literal(String) | TokenRef(String) | Mixed(Vec<DesignValuePart>)
+
+PseudoState ::= { pseudo: String,        // "hover" (pseudo-class) | "::before" (pseudo-element)
+                  properties: Vec<DesignProperty> }
+
+VariantDef ::= { name: String, dimensions: Vec<VariantDimension>,
+                 defaults: Vec<(String, String)>, base: Vec<DesignProperty>,
+                 branches: Vec<VariantBranch> }
+
+VariantDimension ::= { name: String, values: Vec<String> }
+
+VariantBranch ::= { dimension: String, value: String,
+                    properties: Vec<DesignProperty> }
 ```
 
 ---
@@ -977,6 +1134,8 @@ When `{expr}` parsing fails inside views, the parser collects all tokens up to t
 | `@unmount` | Component | `@unmount { ... }` |
 | `@effect` | Component | `@effect (deps)? { ... }` |
 | `@motion` | Top-level, Component | `@motion name { from ... to ... }` |
+| `@themes` | Design | `@themes light, dark;` |
+| `@default-theme` | Design | `@default-theme light;` |
 
 > Removed per ADR-053: `@timeline`, `@hero`, `@heroTransition`.
 

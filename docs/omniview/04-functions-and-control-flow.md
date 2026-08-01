@@ -53,7 +53,7 @@ component DataFetcher {
     signal data: String = "";
     signal loading: bool = false;
 
-    fn loadData() async {
+    async fn loadData() {
         loading = true;
         let raw = await http_get("https://api.example.com/data");
         data = raw;

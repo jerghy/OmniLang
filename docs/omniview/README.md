@@ -33,7 +33,7 @@ OmniView 是 OmniLang 语言的 UI 框架层，用于构建响应式 Web 应用�
 
 | 文件 | 内容 |
 |------|------|
-| [11-运动与动画](11-motion-animation.md) | `@motion`、7 触发器、缓动函数、播放控制、拖拽/滚动/视口子属性 |
+| [11-运动与动画](11-motion-animation.md) | `@motion`、8 触发器、缓动函数、播放控制 |
 | [12-标准库参考](12-standard-library.md) | `std/*` 全部 7 个模块 + 内置方法 |
 | [13-项目结构与模块](13-project-structure.md) | 文件组织、`import`/`export`、`pub` 可见性、模块系统 |
 
