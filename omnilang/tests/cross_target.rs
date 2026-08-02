@@ -259,11 +259,7 @@ component EventFields {
         assert!(
             output.errors.is_empty(),
             "{target_name}: fixture must compile without errors: {:?}",
-            output
-                .errors
-                .iter()
-                .map(|e| &e.message)
-                .collect::<Vec<_>>()
+            output.errors.iter().map(|e| &e.message).collect::<Vec<_>>()
         );
         let event_warnings: Vec<&String> = output
             .warnings
@@ -416,5 +412,110 @@ fn cross_target_parity_features() {
         "{} cross-target parity failures:\n{}",
         failures.len(),
         failures.join("\n"),
+    );
+}
+
+/// Task 5.2 semantic set: borderRadius/fontSize must animate on all three
+/// targets — WAAPI native (React), BorderRadiusTween + TextStyle(fontSize:)
+/// (Flutter), runtime CSS transition (OmniView). The generated output is
+/// checked for each target's mapping shape, not just error-free compilation.
+#[test]
+fn border_radius_font_size_animate_across_targets() {
+    let source = r#"
+import omniview;
+
+@motion soften {
+    from { borderRadius: 8 }
+    to   { borderRadius: 16 }
+    over: 300ms
+    easing: ease-out
+}
+
+@motion growText {
+    from { fontSize: 12 }
+    to   { fontSize: 16 }
+    over: 300ms
+    easing: ease-out
+}
+
+component RoundedCard {
+    view {
+        <div class: card @hover={soften}>
+            Hover me
+        </div>
+        <p @hover={growText}>
+            Read me
+        </p>
+    }
+}
+"#;
+    let has = |output: &omnilang::codegen::CompileOutput, needle: &str| -> bool {
+        output.files.iter().any(|f| f.content.contains(needle))
+    };
+
+    // ── React: WAAPI keyframes with unit-bearing length values.
+    let react = compile_source(source, Target::React);
+    assert!(
+        react.errors.is_empty(),
+        "React compilation failed: {:?}",
+        react.errors
+    );
+    assert!(
+        has(&react, "borderRadius:\"8px\"") && has(&react, "borderRadius:\"16px\""),
+        "React must emit borderRadius keyframes with px units: {:?}",
+        react.files.iter().map(|f| &f.content).collect::<Vec<_>>()
+    );
+    assert!(
+        has(&react, "fontSize:\"12px\"") && has(&react, "fontSize:\"16px\""),
+        "React must emit fontSize keyframes with px units: {:?}",
+        react.files.iter().map(|f| &f.content).collect::<Vec<_>>()
+    );
+
+    // ── Flutter: BorderRadiusTween + TextStyle(fontSize:) via
+    // DefaultTextStyle (the color-family wrapper pattern).
+    #[cfg(feature = "codegen-flutter")]
+    {
+        let flutter = compile_source(source, Target::Flutter);
+        assert!(
+            flutter.errors.is_empty(),
+            "Flutter compilation failed: {:?}",
+            flutter.errors
+        );
+        assert!(
+            has(&flutter, "BorderRadiusTween(begin: BorderRadius.all(Radius.circular(8.0)), end: BorderRadius.all(Radius.circular(16.0)))"),
+            "Flutter must emit a BorderRadiusTween for borderRadius: {:?}",
+            flutter.files.iter().map(|f| &f.content).collect::<Vec<_>>()
+        );
+        assert!(
+            has(&flutter, "TextStyle(fontSize: _growTextFontSize.value)"),
+            "Flutter must apply fontSize through TextStyle(fontSize: ...): {:?}",
+            flutter.files.iter().map(|f| &f.content).collect::<Vec<_>>()
+        );
+        assert!(
+            has(
+                &flutter,
+                "late final Animation<BorderRadius?> _softenBorderRadius;"
+            ),
+            "Flutter field for borderRadius must be Animation<BorderRadius?>: {:?}",
+            flutter.files.iter().map(|f| &f.content).collect::<Vec<_>>()
+        );
+    }
+
+    // ── OmniView: keyframe properties pass through to the runtime, which
+    // maps them onto CSS transitions (px suffix applied at runtime).
+    let omniview = compile_source(source, Target::OmniView);
+    assert!(
+        omniview.errors.is_empty(),
+        "OmniView compilation failed: {:?}",
+        omniview.errors
+    );
+    assert!(
+        has(&omniview, "\"borderRadius\"") && has(&omniview, "\"fontSize\""),
+        "OmniView must pass borderRadius/fontSize keyframes to the runtime: {:?}",
+        omniview
+            .files
+            .iter()
+            .map(|f| &f.content)
+            .collect::<Vec<_>>()
     );
 }

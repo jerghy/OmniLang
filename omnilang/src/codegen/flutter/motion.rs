@@ -39,6 +39,8 @@ pub(crate) fn extract_keyframe_properties(kf: &KeyframeIR) -> Vec<String> {
 /// Anything outside this set is skipped with a warning (see
 /// [`prop_flutter_diagnostic`]) — the cross-target feature floor covers the
 /// core transform/opacity/color family; skews are flagged separately.
+/// `borderRadius`/`fontSize` (Task 5.2) animate via `BorderRadiusTween`
+/// (Flutter SDK class) and `TextStyle(fontSize: ...)` respectively.
 pub(crate) fn is_supported_motion_prop(prop: &str) -> bool {
     matches!(
         prop,
@@ -51,6 +53,8 @@ pub(crate) fn is_supported_motion_prop(prop: &str) -> bool {
             | "color"
             | "width"
             | "height"
+            | "borderRadius"
+            | "fontSize"
     )
 }
 
@@ -67,10 +71,14 @@ pub(crate) fn flutter_motion_properties(kf: &KeyframeIR) -> Vec<String> {
 /// the per-property `Animation<T>` and how stop values are formatted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum MotionPropKind {
-    /// Numeric scalar (opacity, scale, translate, rotate, width, height).
+    /// Numeric scalar (opacity, scale, translate, rotate, width, height,
+    /// fontSize).
     Numeric,
     /// CSS color (backgroundColor, color) — `Color` literal values.
     Color,
+    /// Length radius (borderRadius) — `BorderRadius.all(Radius.circular(...))`
+    /// literal values animated through the Flutter SDK's `BorderRadiusTween`.
+    BorderRadius,
     /// Anything else — formatted as a Dart expression, animated as double.
     Other,
 }
@@ -78,9 +86,9 @@ pub(crate) enum MotionPropKind {
 pub(crate) fn motion_prop_kind(prop: &str) -> MotionPropKind {
     match prop {
         "backgroundColor" | "color" => MotionPropKind::Color,
-        "opacity" | "scale" | "translateX" | "translateY" | "rotate" | "width" | "height" => {
-            MotionPropKind::Numeric
-        }
+        "borderRadius" => MotionPropKind::BorderRadius,
+        "opacity" | "scale" | "translateX" | "translateY" | "rotate" | "width" | "height"
+        | "fontSize" => MotionPropKind::Numeric,
         _ => MotionPropKind::Other,
     }
 }
@@ -89,6 +97,7 @@ pub(crate) fn motion_prop_kind(prop: &str) -> MotionPropKind {
 pub(crate) fn prop_anim_type(prop: &str) -> &'static str {
     match motion_prop_kind(prop) {
         MotionPropKind::Color => "Color",
+        MotionPropKind::BorderRadius => "BorderRadius?",
         _ => "double",
     }
 }
@@ -118,8 +127,35 @@ fn format_double_literal(f: f64) -> String {
 ///   (`"20px"`, `"45deg"`, `"50%"`) → bare numbers; anything else falls
 ///   back to the generic expression formatter.
 /// - Color: CSS color strings (`#ff0000`, `rgb(...)`) → `Color(...)`.
+/// - BorderRadius: lengths → `BorderRadius.all(Radius.circular(...))` (the
+///   `BorderRadiusTween` value shape); non-literal expressions are wrapped
+///   in the circular constructor (a borderRadius stop value is a radius
+///   length — mirroring how `rotate` wraps expressions).
 pub(crate) fn format_stop_value(prop: &str, value: &ExprIR) -> String {
     match motion_prop_kind(prop) {
+        MotionPropKind::BorderRadius => {
+            let radius = match value {
+                ExprIR::LiteralExpr {
+                    value: serde_json::Value::Number(n),
+                } => n.as_f64().map(format_double_literal),
+                ExprIR::LiteralExpr {
+                    value: serde_json::Value::String(s),
+                } => {
+                    // Unit-bearing string literals ("16px"/"16") strip px —
+                    // BorderRadius circular radii are unitless doubles.
+                    let bare = s.trim().trim_end_matches("px");
+                    bare.parse::<f64>().ok().map(format_double_literal)
+                }
+                _ => None,
+            };
+            match radius {
+                Some(r) => format!("BorderRadius.all(Radius.circular({r}))"),
+                None => format!(
+                    "BorderRadius.all(Radius.circular({}))",
+                    format_expr_ir_flutter(value)
+                ),
+            }
+        }
         MotionPropKind::Color => match value {
             ExprIR::LiteralExpr {
                 value: serde_json::Value::String(s),
@@ -162,9 +198,21 @@ pub(crate) fn format_stop_value(prop: &str, value: &ExprIR) -> String {
 fn natural_boundary_defaults(prop: &str) -> (&'static str, &'static str) {
     match motion_prop_kind(prop) {
         MotionPropKind::Color => ("Color(0x00000000)", "Color(0xFFFFFFFF)"),
+        MotionPropKind::BorderRadius => ("BorderRadius.zero", "BorderRadius.zero"),
         MotionPropKind::Numeric if matches!(prop, "opacity" | "scale") => ("1.0", "1.0"),
-        MotionPropKind::Numeric => ("0.0", "0.0"), // translate*/rotate/width/height
+        MotionPropKind::Numeric => ("0.0", "0.0"), // translate*/rotate/width/height/fontSize
         MotionPropKind::Other => ("0.0", "1.0"),
+    }
+}
+
+/// Tween constructor for a property: `BorderRadiusTween` (Flutter SDK tween
+/// over `BorderRadius?`, lerped via `BorderRadius.lerp`) for borderRadius,
+/// generic `Tween<T>` for everything else.
+fn prop_tween_ctor(prop: &str, type_ann: &str) -> String {
+    if prop == "borderRadius" {
+        "BorderRadiusTween".to_string()
+    } else {
+        format!("Tween<{type_ann}>")
     }
 }
 
@@ -228,20 +276,20 @@ pub(crate) fn build_prop_tween_expr(kf: &KeyframeIR, prop: &str, reverse: bool) 
         points.reverse();
     }
 
+    let ctor = prop_tween_ctor(prop, type_ann);
+
     if points.len() == 2 {
-        return format!(
-            "Tween<{type_ann}>(begin: {}, end: {})",
-            points[0].1, points[1].1
-        );
+        return format!("{ctor}(begin: {}, end: {})", points[0].1, points[1].1);
     }
 
     // 3+ points → weight-proportional TweenSequence. When reversed the
-    // positions descend, so spans use abs().
+    // positions descend, so spans use abs(). borderRadius keeps its
+    // BorderRadiusTween items (a BorderRadiusTween IS a Tween<BorderRadius?>).
     let mut items: Vec<String> = Vec::new();
     for pair in points.windows(2) {
         let weight = ((pair[1].0 - pair[0].0).abs() * 100.0).round().max(1.0) as u32;
         items.push(format!(
-            "TweenSequenceItem(tween: Tween<{type_ann}>(begin: {}, end: {}), weight: {})",
+            "TweenSequenceItem(tween: {ctor}(begin: {}, end: {}), weight: {})",
             pair[0].1, pair[1].1, weight
         ));
     }
@@ -350,6 +398,10 @@ pub(crate) fn easing_flutter_diagnostic(
 /// - `skewX`/`skewY`: no stable Flutter transform constructor (the Flutter
 ///   SDK has no `Transform.skew`) — skipped.
 /// - anything else outside the supported set: skipped.
+///
+/// `borderRadius`/`fontSize` (Task 5.2) are first-class: `BorderRadiusTween`
+/// is a Flutter SDK class and fontSize applies through `TextStyle`, so no
+/// diagnostic is emitted for them.
 pub(crate) fn prop_flutter_diagnostic(motion_name: &str, prop: &str) -> Option<String> {
     match prop {
         "width" | "height" => Some(format!(
@@ -368,10 +420,22 @@ pub(crate) fn prop_flutter_diagnostic(motion_name: &str, prop: &str) -> Option<S
     }
 }
 
+/// The AnimatedBuilder closure's `child` parameter is `Widget?`, but
+/// `DefaultTextStyle.child` is a required non-nullable `Widget` — coalesce
+/// the innermost text-style child so the generated code type-checks.
+fn text_style_child_arg(body: &str) -> &str {
+    if body == "child" {
+        "child ?? const SizedBox.shrink()"
+    } else {
+        body
+    }
+}
+
 /// Build the AnimatedBuilder `builder` body expression for a motion.
 /// Inspects keyframe properties to determine what widget wrappers to use,
 /// nesting per-property wrappers (Opacity, Transform.scale, Transform.translate,
-/// Transform.rotate, Container, DefaultTextStyle, SizedBox).
+/// Transform.rotate, Container, DefaultTextStyle, SizedBox; borderRadius and
+/// fontSize join the Container/DefaultTextStyle families — Task 5.2).
 ///
 /// The wrappers are gated on the motion's `_{motion}Active` flag: while
 /// inactive the element keeps its natural style. This is what lets
@@ -447,13 +511,37 @@ pub(crate) fn build_animated_builder_body(motion: &MotionIntent, motion_name: &s
         );
     }
 
-    // color → DefaultTextStyle (text color; rebuilt every frame by the
-    // AnimatedBuilder, so no AnimatedDefaultTextStyle controller needed)
-    if has("color") {
+    // borderRadius → Container with BoxDecoration (corner radius of a
+    // rounded surface — BorderRadiusTween interpolation)
+    if has("borderRadius") {
         body = format!(
-            "DefaultTextStyle(style: TextStyle(color: {}.value), child: {})",
-            prop_anim_field(motion_name, "color"),
+            "Container(decoration: BoxDecoration(borderRadius: {}.value), child: {})",
+            prop_anim_field(motion_name, "borderRadius"),
             body
+        );
+    }
+
+    // color → DefaultTextStyle (text color; rebuilt every frame by the
+    // AnimatedBuilder, so no AnimatedDefaultTextStyle controller needed).
+    // DefaultTextStyle.child is a required non-nullable Widget, unlike the
+    // builder closure's nullable `child` param — coalesce when the text-style
+    // wrapper sits at the innermost nesting level.
+    if has("color") {
+        let child_arg = text_style_child_arg(&body);
+        body = format!(
+            "DefaultTextStyle(style: TextStyle(color: {}.value), child: {child_arg})",
+            prop_anim_field(motion_name, "color"),
+        );
+    }
+
+    // fontSize → DefaultTextStyle (text size; the per-property Tween<double>
+    // is the TextStyle.lerp equivalent for the size axis — same wrapper as
+    // the color property)
+    if has("fontSize") {
+        let child_arg = text_style_child_arg(&body);
+        body = format!(
+            "DefaultTextStyle(style: TextStyle(fontSize: {}.value), child: {child_arg})",
+            prop_anim_field(motion_name, "fontSize"),
         );
     }
 

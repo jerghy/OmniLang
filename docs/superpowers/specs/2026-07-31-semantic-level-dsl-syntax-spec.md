@@ -240,7 +240,8 @@ semantic_anim_prop ::= 'opacity' | 'scale' | 'scaleX' | 'scaleY'
                      | 'skewX' | 'skewY'
                      | 'backgroundColor' | 'color'
                      | 'width' | 'height'        // diagnostic in Flutter
-// 17 属性白名单（ADR-053 D3）；白名单外属性在解析期报错
+                     | 'borderRadius' | 'fontSize'   // v2：三目标已验证（语义集，Task 5.2）
+// 19 属性白名单（ADR-053 D3，语义集 v1 + v2 新增 borderRadius/fontSize）；白名单外属性在解析期报错
 
 stop_ease ::= 'ease' (':' easing_expr)?       // per-stop easing（关键字为 ease，冒号可选）
 

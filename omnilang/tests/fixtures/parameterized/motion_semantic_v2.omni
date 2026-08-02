@@ -1,0 +1,35 @@
+// motion_semantic_v2.omni — semantic whitelist v2 additions (Task 5.2):
+// borderRadius/fontSize join the 19-item semantic set. Both are animatable
+// on all three targets: WAAPI native (React), BorderRadiusTween +
+// TextStyle(fontSize:) (Flutter), runtime CSS transition (OmniView).
+//
+// This fixture is auto-enumerated by the tsc and dart analyze gates in
+// tests/generated_code_validation.rs, so it validates the generated output
+// of both properties on React (tsc) and Flutter (dart analyze).
+
+import omniview;
+
+@motion soften {
+    from { borderRadius: 8 }
+    to   { borderRadius: 16 }
+    over: 300ms
+    easing: ease-out
+}
+
+@motion growText {
+    from { fontSize: 12 }
+    to   { fontSize: 16 }
+    over: 300ms
+    easing: ease-out
+}
+
+component MotionSemanticV2 {
+    view {
+        <div class: card @hover={soften}>
+            Hover me — radius 8px → 16px
+        </div>
+        <p @hover={growText}>
+            Hover me — text 12px → 16px
+        </p>
+    }
+}

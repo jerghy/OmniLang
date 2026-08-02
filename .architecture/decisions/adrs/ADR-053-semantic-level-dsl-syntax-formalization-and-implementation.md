@@ -55,7 +55,7 @@ The parser recognizes semantic binding attribute names (`focus`, `scroll-x`, `sc
 
 **Deleted DOM APIs**: `ref.style.*`, `ref.innerHTML`, `ref.addEventListener`, `ref.querySelector`, `ref.classList`, `ref.parentElement`, `ref.textContent`, `ref.offsetWidth`/`offsetHeight`, `ref.getBoundingClientRect`. All had zero `.omni` usage outside `ElementRefDemo.omni` (which is migrated per the plan).
 
-### D3: Animation property whitelist — 16 semantic properties
+### D3: Animation property whitelist — 19 semantic properties
 
 Keyframe properties are restricted to a platform-independent semantic set:
 
@@ -65,12 +65,13 @@ translateX, translateY, translateZ,
 rotate, rotateX, rotateY, rotateZ,
 skewX, skewY,
 backgroundColor, color,
-width, height
+width, height,
+borderRadius, fontSize        // v2 (2026-08-03): 已实现
 ```
 
 The parser rejects non-whitelist properties at parse time with a clear error message. CSS custom properties (`--*`) are allowed as passthrough for CSS-based targets only.
 
-Rationale: Arbitrary CSS properties (blur, brightness, borderWidth, fontSize, etc.) have no cross-platform equivalents. A whitelist ensures that keyframe definitions are valid on all targets. Properties without Flutter equivalents (width/height, rotateX/Y/Z, skewX/Y, translateZ) emit target-specific diagnostics (warning for perf-impacting, error for unsupported).
+Rationale: The whitelist is a **semantic set v1** — a curated list of properties whose animatability has been verified on all three targets — not a claim that arbitrary CSS properties are in scope. The v1 rationale's example was factually wrong: `fontSize`/`borderRadius` are first-class animatable on all three targets (WAAPI native keyframes, Flutter `BorderRadiusTween` / `TextStyle.lerp`, OmniView runtime CSS transition) and are **implemented in v2** (Task 5.2 of the semantic-syntax-v2 plan). Properties that genuinely lack cross-platform equivalents (blur, brightness, borderWidth, top, left, etc.) remain rejected at parse time. Properties without faithful Flutter equivalents (width/height, rotateX/Y/Z, skewX/Y, translateZ) emit target-specific diagnostics (warning for perf-impacting, error for unsupported).
 
 ### D4: Animation triggers — native platform refs, no DOM scanning
 

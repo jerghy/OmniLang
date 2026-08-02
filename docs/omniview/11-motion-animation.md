@@ -3,7 +3,7 @@
 OmniView 提供声明式动画系统：`@motion` 定义补间动画参数，通过 8 个触发器绑定到元素。
 
 **ADR-032 范围界定**：OmniView 动画系统保留 14 项核心功能，移除 19 项（`@timeline`、`states:{}`、Hero、stagger、回调等）。
-**ADR-052/053 语义级 DSL**（2026-08-01 同步）：动画语法更新为冒号形式（`over:`/`easing:`）、17 属性语义白名单、8 触发器（kebab-case）；触发器子属性与 `@paused` 已移除。本文档仅覆盖保留功能。
+**ADR-052/053 语义级 DSL**（2026-08-01 同步）：动画语法更新为冒号形式（`over:`/`easing:`）、17 属性语义白名单、8 触发器（kebab-case）；触发器子属性与 `@paused` 已移除。本文档仅覆盖保留功能。**v2（2026-08-03，Task 5.2）**：白名单扩展为 19 项语义集（新增 `borderRadius`/`fontSize`，三目标均已验证并实现）。
 
 ## @motion 运动定义
 
@@ -34,16 +34,19 @@ OmniView 提供声明式动画系统：`@motion` 定义补间动画参数，通�
 
 支持任意百分比停靠点（0%–100%），未用的中间帧由浏览器自动插值。
 
-### 可动画属性（17 个语义属性白名单，ADR-053 D3）
+### 可动画属性（19 个语义属性白名单，ADR-053 D3 + Task 5.2）
+
+白名单是**语义集**：每个属性的可动画性都已在三个目标（WAAPI / Flutter / OmniView runtime）上验证。v1 的 17 项基础上，v2 新增 `borderRadius`/`fontSize`（Flutter 映射：`BorderRadiusTween` / `TextStyle(fontSize:)`，即 `TextStyle.lerp` 的等价实现）。
 
 | 类别 | 属性 |
 |------|------|
 | **变换**（12） | `scale` `scaleX` `scaleY` `translateX` `translateY` `translateZ` `rotate` `rotateX` `rotateY` `rotateZ` `skewX` `skewY` |
 | **颜色**（2） | `backgroundColor` `color` |
 | **尺寸**（2） | `width` `height`（Flutter 目标：warning，布局属性性能差） |
+| **圆角/字号**（2，v2） | `borderRadius` `fontSize` |
 | **基础**（1） | `opacity` |
 
-> 非白名单属性（`blur`、`brightness`、`fontSize`、`borderWidth`、`top`、`left` 等）在解析期报错（ADR-053 D3）；CSS 自定义属性 `--*` 仅对 CSS 目标透传。
+> 非白名单属性（`blur`、`brightness`、`borderWidth`、`top`、`left` 等）在解析期报错（ADR-053 D3）；CSS 自定义属性 `--*` 仅对 CSS 目标透传。`borderRadius`/`fontSize` 的取值按长度处理（数字或 `"Npx"` 字符串）。
 
 ### 播放控制（4 属性）
 

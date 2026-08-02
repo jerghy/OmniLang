@@ -5,7 +5,12 @@ use crate::parser::stmt::keyword_as_ident_name;
 use crate::parser::Parser;
 
 /// Whitelist of animation properties allowed in keyframe stops (semantic DSL).
-/// Properties are independent transform/visual primitives rather than raw CSS.
+///
+/// This is a semantic set (v2, Task 5.2): every property's animatability has
+/// been verified on all three targets — not a list of "what happens to be
+/// implemented". `borderRadius`/`fontSize` joined in v2 (WAAPI native,
+/// `BorderRadiusTween`/`TextStyle.lerp` on Flutter, runtime CSS transition
+/// on OmniView). Properties outside the set are rejected at parse time.
 const SEMANTIC_ANIM_PROPS: &[&str] = &[
     "opacity",
     "scale",
@@ -24,6 +29,8 @@ const SEMANTIC_ANIM_PROPS: &[&str] = &[
     "color",
     "width",
     "height",
+    "borderRadius",
+    "fontSize",
 ];
 
 impl<'a> Parser<'a> {
@@ -428,7 +435,10 @@ mod tests {
             "@motion fadeIn { from { opacity: 0 } to { opacity: 1 } over: 300ms, easing: linear, loop }",
         );
         assert!(matches!(kf.easing, Some(EasingExpr::Named(ref n)) if n == "linear"));
-        assert!(matches!(kf.playback[0], PlaybackProp::Loop(LoopValue::Infinite)));
+        assert!(matches!(
+            kf.playback[0],
+            PlaybackProp::Loop(LoopValue::Infinite)
+        ));
     }
 
     #[test]
@@ -453,8 +463,24 @@ mod tests {
     }
 
     #[test]
+    fn motion_whitelist_accepts_border_radius_and_font_size() {
+        // v2 semantic set (Task 5.2): borderRadius/fontSize join the 19-item
+        // whitelist — both are animatable on all three targets.
+        let kf = keyframe_body(
+            "@motion soften { from { borderRadius: 8 } to { borderRadius: 16, fontSize: 12 } over: 300ms }",
+        );
+        assert_eq!(kf.stops[0].properties[0].0, "borderRadius");
+        assert_eq!(kf.stops[1].properties[0].0, "borderRadius");
+        assert_eq!(kf.stops[1].properties[1].0, "fontSize");
+
+        let kf = keyframe_body("@motion grow { from { fontSize: 12 } to { fontSize: 16 } }");
+        assert_eq!(kf.stops[0].properties[0].0, "fontSize");
+    }
+
+    #[test]
     fn motion_whitelist_rejects_unknown_prop() {
-        let source = "@motion a { from { opacity: 0 } to { opacity: 1, boxShadow: \"0 0 4px #000\" } }";
+        let source =
+            "@motion a { from { opacity: 0 } to { opacity: 1, boxShadow: \"0 0 4px #000\" } }";
         let tokens = tokenize(source);
         let (_program, errors) = parse(tokens, source);
         assert!(
@@ -486,27 +512,40 @@ mod tests {
 
     #[test]
     fn motion_steps_easing_positional() {
-        let kf = keyframe_body("@motion a { from { opacity: 0 } to { opacity: 1 } easing: steps(6, end) }");
-        assert!(matches!(kf.easing, Some(EasingExpr::Steps { count: 6, ref direction }) if direction == "end"));
+        let kf = keyframe_body(
+            "@motion a { from { opacity: 0 } to { opacity: 1 } easing: steps(6, end) }",
+        );
+        assert!(
+            matches!(kf.easing, Some(EasingExpr::Steps { count: 6, ref direction }) if direction == "end")
+        );
     }
 
     #[test]
     fn motion_easing_camelcase_normalized() {
         // Transition period: camelCase accepted and normalized to kebab-case.
-        let kf = keyframe_body("@motion a { from { opacity: 0 } to { opacity: 1 } easing: easeOut }");
+        let kf =
+            keyframe_body("@motion a { from { opacity: 0 } to { opacity: 1 } easing: easeOut }");
         assert!(matches!(kf.easing, Some(EasingExpr::Named(ref n)) if n == "ease-out"));
 
         // power2Out maps to the closest semantic equivalent.
-        let kf = keyframe_body("@motion b { from { opacity: 0 } to { opacity: 1 } easing: power2Out }");
+        let kf =
+            keyframe_body("@motion b { from { opacity: 0 } to { opacity: 1 } easing: power2Out }");
         assert!(matches!(kf.easing, Some(EasingExpr::Named(ref n)) if n == "ease-out"));
     }
 
     #[test]
     fn motion_easing_back_directions() {
-        let kf = keyframe_body("@motion a { from { opacity: 0 } to { opacity: 1 } easing: back-in-out }");
-        assert!(matches!(kf.easing, Some(EasingExpr::Back { ref direction }) if direction == "inout"));
-        let kf = keyframe_body("@motion b { from { opacity: 0 } to { opacity: 1 } easing: backOut }");
-        assert!(matches!(kf.easing, Some(EasingExpr::Back { ref direction }) if direction == "out"));
+        let kf = keyframe_body(
+            "@motion a { from { opacity: 0 } to { opacity: 1 } easing: back-in-out }",
+        );
+        assert!(
+            matches!(kf.easing, Some(EasingExpr::Back { ref direction }) if direction == "inout")
+        );
+        let kf =
+            keyframe_body("@motion b { from { opacity: 0 } to { opacity: 1 } easing: backOut }");
+        assert!(
+            matches!(kf.easing, Some(EasingExpr::Back { ref direction }) if direction == "out")
+        );
     }
 
     #[test]
@@ -523,7 +562,9 @@ mod tests {
 
     #[test]
     fn motion_bounce_kebab_accepted() {
-        let kf = keyframe_body("@motion a { from { opacity: 0 } to { opacity: 1 } easing: bounce-in-out }");
+        let kf = keyframe_body(
+            "@motion a { from { opacity: 0 } to { opacity: 1 } easing: bounce-in-out }",
+        );
         assert!(matches!(kf.easing, Some(EasingExpr::Named(ref n)) if n == "bounce-in-out"));
     }
 }

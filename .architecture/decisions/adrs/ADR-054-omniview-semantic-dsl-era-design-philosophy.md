@@ -29,7 +29,7 @@ ADR-052（三层语义架构 + 24-item feature floor）与 ADR-053（BNF 语法�
 
 ### 设计理念（5 原则）
 
-1. **语义原语优先（Semantic Primitives）**：语言暴露平台无关的语义原语——8 触发器（`@enter/@hover/@press/@focus/@in-view/@scroll/@drag-horizontal/@drag-vertical`）、17 属性动画白名单（opacity/scale*/translate*/rotate*/skew*/backgroundColor/color/width/height + `--*` 透传）、11 个 RefOp（focus/blur/scrollTo/scrollBy/select/setSelectionRange/measure/capturePointer/releasePointer/value）、4 个语义绑定（focus/scroll-x/scroll-y/value）、body 级 `@slot` 声明 + 命名 props 消费。平台映射全部收敛在 codegen 层。
+1. **语义原语优先（Semantic Primitives）**：语言暴露平台无关的语义原语——8 触发器（`@enter/@hover/@press/@focus/@in-view/@scroll/@drag-horizontal/@drag-vertical`）、19 属性动画白名单（opacity/scale*/translate*/rotate*/skew*/backgroundColor/color/width/height/borderRadius/fontSize + `--*` 透传；v2 Task 5.2 新增 borderRadius/fontSize）、11 个 RefOp（focus/blur/scrollTo/scrollBy/select/setSelectionRange/measure/capturePointer/releasePointer/value）、4 个语义绑定（focus/scroll-x/scroll-y/value）、body 级 `@slot` 声明 + 命名 props 消费。平台映射全部收敛在 codegen 层。
 
 2. **跨目标对等 floor（ADR-021 重定义）**：24-item floor 内的功能在三 P0 后端（OmniView/React/Flutter）产生行为等价的输出；floor 外不支持的功能产生**硬诊断**（编译错误/警告），而非静默降级。已实现的诊断机制：`@hero` 显式错误 + 迁移提示、slot 转发 E0006 警告（含跨文件）、store get/set 塌缩守卫、非字面量 keyframe extent → None + 警告。
 

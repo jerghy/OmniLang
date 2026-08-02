@@ -47,6 +47,14 @@ const TRANSFORM_PROPS: [&str; 12] = [
     "skewY",
 ];
 
+/// Length-valued CSS properties that need a "px" unit when the stop value is
+/// a bare number. WAAPI keyframe values must be valid CSS values for their
+/// property — a bare number is not a valid length (Chrome leniently treats
+/// numbers as px, Firefox/Safari reject the keyframe). The OmniView runtime
+/// applies the same rule for its PX_PROPS set. Semantic-set additions from
+/// Task 5.2; width/height keep their legacy emission.
+const PX_SUFFIX_PROPS: [&str; 2] = ["borderRadius", "fontSize"];
+
 /// Format keyframe stops into WAAPI `Keyframe[]` format.
 ///
 /// Each stop becomes a flat keyframe object: `{offset, opacity, transform}`
@@ -104,7 +112,16 @@ fn format_waapi_stop(stop: &KeyframeStopIR) -> String {
     }
     plain_pairs.sort_by(|a, b| a.0.cmp(b.0));
     for (prop, value) in plain_pairs {
-        let val_str = expr::format_expr_ir_tsx(value, &FxHashSet::default());
+        let mut val_str = expr::format_expr_ir_tsx(value, &FxHashSet::default());
+        // Length properties: bare numbers need a px unit to be valid CSS
+        // keyframe values (borderRadius/fontSize, Task 5.2 semantic set).
+        // String literals already carry their unit; expressions are emitted
+        // as-is (their runtime value must be a CSS string or number).
+        if PX_SUFFIX_PROPS.contains(&prop.as_str()) {
+            if let Some(num) = literal_number_string(value) {
+                val_str = format!("\"{num}px\"");
+            }
+        }
         entries.push(format!("{}:{}", prop, val_str));
     }
 

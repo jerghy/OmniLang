@@ -2688,6 +2688,69 @@ fn test_build_prop_tween_expr_color() {
 }
 
 #[test]
+fn test_build_prop_tween_expr_border_radius() {
+    // borderRadius → BorderRadiusTween (Flutter SDK tween over
+    // BorderRadius?, lerped via BorderRadius.lerp) — Task 5.2 semantic set.
+    let kf = test_keyframe(&[
+        (0.0, &[("borderRadius", serde_json::json!(8))]),
+        (1.0, &[("borderRadius", serde_json::json!(16))]),
+    ]);
+    assert_eq!(
+        build_prop_tween_expr(&kf, "borderRadius", false),
+        "BorderRadiusTween(begin: BorderRadius.all(Radius.circular(8.0)), \
+         end: BorderRadius.all(Radius.circular(16.0)))"
+    );
+    // Unit-bearing string values strip the px unit.
+    let kf = test_keyframe(&[
+        (0.0, &[("borderRadius", serde_json::json!("8px"))]),
+        (1.0, &[("borderRadius", serde_json::json!("16px"))]),
+    ]);
+    assert_eq!(
+        build_prop_tween_expr(&kf, "borderRadius", false),
+        "BorderRadiusTween(begin: BorderRadius.all(Radius.circular(8.0)), \
+         end: BorderRadius.all(Radius.circular(16.0)))"
+    );
+    // 3 stops → TweenSequence of BorderRadiusTween items.
+    let kf = test_keyframe(&[
+        (0.0, &[("borderRadius", serde_json::json!(0))]),
+        (0.5, &[("borderRadius", serde_json::json!(8))]),
+        (1.0, &[("borderRadius", serde_json::json!(16))]),
+    ]);
+    assert_eq!(
+        build_prop_tween_expr(&kf, "borderRadius", false),
+        "TweenSequence<BorderRadius?>([TweenSequenceItem(tween: \
+         BorderRadiusTween(begin: BorderRadius.all(Radius.circular(0.0)), \
+         end: BorderRadius.all(Radius.circular(8.0))), weight: 50), \
+         TweenSequenceItem(tween: BorderRadiusTween(begin: \
+         BorderRadius.all(Radius.circular(8.0)), end: \
+         BorderRadius.all(Radius.circular(16.0))), weight: 50)])"
+    );
+}
+
+#[test]
+fn test_build_prop_tween_expr_font_size() {
+    // fontSize → Tween<double> applied through TextStyle(fontSize: ...) —
+    // the per-property equivalent of TextStyle.lerp (Task 5.2).
+    let kf = test_keyframe(&[
+        (0.0, &[("fontSize", serde_json::json!(12))]),
+        (1.0, &[("fontSize", serde_json::json!(16))]),
+    ]);
+    assert_eq!(
+        build_prop_tween_expr(&kf, "fontSize", false),
+        "Tween<double>(begin: 12.0, end: 16.0)"
+    );
+    // Unit-bearing string values strip the px unit.
+    let kf = test_keyframe(&[
+        (0.0, &[("fontSize", serde_json::json!("12px"))]),
+        (1.0, &[("fontSize", serde_json::json!("16px"))]),
+    ]);
+    assert_eq!(
+        build_prop_tween_expr(&kf, "fontSize", false),
+        "Tween<double>(begin: 12.0, end: 16.0)"
+    );
+}
+
+#[test]
 fn test_build_prop_tween_expr_per_property_isolation() {
     // A property present at only two of three stops interpolates over its own
     // span — other properties' extra stops don't affect it.
@@ -3067,6 +3130,75 @@ fn test_build_animated_builder_body_color_and_size() {
         body.contains("SizedBox(width: _tintWidth.value"),
         "width wrapper: {}",
         body
+    );
+}
+
+#[test]
+fn test_build_animated_builder_body_border_radius_and_font_size() {
+    // Task 5.2 semantic set: borderRadius → Container with BoxDecoration,
+    // fontSize → DefaultTextStyle (text-style family, same wrapper as color).
+    let motion = MotionIntent {
+        name: "soften".into(),
+        body: test_keyframe(&[
+            (
+                0.0,
+                &[
+                    ("borderRadius", serde_json::json!(8)),
+                    ("fontSize", serde_json::json!(12)),
+                ],
+            ),
+            (
+                1.0,
+                &[
+                    ("borderRadius", serde_json::json!(16)),
+                    ("fontSize", serde_json::json!(16)),
+                ],
+            ),
+        ]),
+        source_span: None,
+    };
+    let body = build_animated_builder_body(&motion, "soften");
+    assert!(
+        body.contains(
+            "Container(decoration: BoxDecoration(borderRadius: _softenBorderRadius.value"
+        ),
+        "borderRadius wrapper: {}",
+        body
+    );
+    assert!(
+        body.contains("DefaultTextStyle(style: TextStyle(fontSize: _softenFontSize.value"),
+        "fontSize wrapper: {}",
+        body
+    );
+    assert!(
+        body.contains("_softenActive ?"),
+        "wrappers gated on the active flag: {}",
+        body
+    );
+    // Field types: BorderRadius? (BorderRadiusTween) / double (Tween<double>).
+    assert_eq!(prop_anim_type("borderRadius"), "BorderRadius?");
+    assert_eq!(prop_anim_type("fontSize"), "double");
+    assert!(is_supported_motion_prop("borderRadius"));
+    assert!(is_supported_motion_prop("fontSize"));
+    assert!(prop_flutter_diagnostic("soften", "borderRadius").is_none());
+    assert!(prop_flutter_diagnostic("soften", "fontSize").is_none());
+
+    // fontSize alone → DefaultTextStyle must coalesce the builder's nullable
+    // `child` (DefaultTextStyle.child is a required non-nullable Widget) —
+    // the dart analyze gate catches this in generated output.
+    let motion = MotionIntent {
+        name: "growText".into(),
+        body: test_keyframe(&[
+            (0.0, &[("fontSize", serde_json::json!(12))]),
+            (1.0, &[("fontSize", serde_json::json!(16))]),
+        ]),
+        source_span: None,
+    };
+    let body = build_animated_builder_body(&motion, "growText");
+    assert_eq!(
+        body,
+        "_growTextActive ? DefaultTextStyle(style: TextStyle(fontSize: _growTextFontSize.value), \
+         child: child ?? const SizedBox.shrink()) : child ?? const SizedBox.shrink()"
     );
 }
 
