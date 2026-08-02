@@ -5549,6 +5549,146 @@ fn test_a11y_unmappable_role_warns_and_comments() {
     );
 }
 
+/// a11y block (design doc 域 10): `label` + `alt` on a NON-image element
+/// used to emit TWO `label:` args into one `Semantics(...)` call —
+/// duplicate named argument, invalid Dart. `label` wins (it IS the
+/// accessible name); `alt` (image-specific intent on a non-image element)
+/// warns on the T2.4 warnings channel and is dropped.
+#[test]
+fn test_a11y_label_alt_collision_non_image_dedupes() {
+    let codegen = FlutterCodegen;
+    let el = ElementIR {
+        tag: "div".to_string(),
+        a11y: Some(A11yIR {
+            label: Some("Close".into()),
+            role: None,
+            hidden: None,
+            live: None,
+            alt: Some(ExprIR::LiteralExpr {
+                value: serde_json::json!("close icon"),
+            }),
+        }),
+        children: vec![],
+        props: FxHashMap::default(),
+        bindings: FxHashMap::default(),
+        events: FxHashMap::default(),
+        style_classes: None,
+        inline_style: None,
+        construction_kind: ConstructionKind::Normal,
+        class_map_bindings: FxHashMap::default(),
+        source_span: None,
+        motion: None,
+        scroll: None,
+        drag: None,
+        ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
+    };
+    let view = ViewTree::Element(Box::new(el));
+    let comp = ref_component("A11yDemo", &[], vec![], vec![], Some(view));
+    let mut components = FxHashMap::default();
+    components.insert("A11yDemo".into(), comp);
+    let ir = make_ir(components);
+    let comp_ref = ir
+        .modules
+        .get("main")
+        .unwrap()
+        .components
+        .get("A11yDemo")
+        .unwrap();
+    let component_map = build_component_map(&ir);
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let (dart, warnings, errors) =
+        codegen.gen_component_dart("A11yDemo", comp_ref, &ir, &component_map, &component_slots);
+    assert!(errors.is_empty(), "unexpected errors: {:?}", errors);
+    // Exactly ONE label: arg in the Semantics call — the label wins.
+    assert_eq!(
+        dart.matches("label: 'Close'").count(),
+        1,
+        "label must win over alt — exactly one label: arg (duplicate named \
+         args are invalid Dart); got:
+{}",
+        dart
+    );
+    assert!(
+        !dart.contains("close icon"),
+        "alt must not leak into the Semantics call; got:
+{}",
+        dart
+    );
+    assert!(
+        warnings
+            .iter()
+            .any(|w| w.contains("alt 仅对 img 元素生效")),
+        "alt-on-non-image with a label present must warn on the T2.4 \
+         warnings channel; got: {:?}",
+        warnings
+    );
+}
+
+/// a11y block (design doc 域 10): `alt` ALONE on a non-image element keeps
+/// the documented degradation to the accessible-name `label` (no warning —
+/// image alt text IS the accessible name; no information is lost).
+#[test]
+fn test_a11y_alt_alone_non_image_degrades_to_label() {
+    let codegen = FlutterCodegen;
+    let el = ElementIR {
+        tag: "div".to_string(),
+        a11y: Some(A11yIR {
+            label: None,
+            role: None,
+            hidden: None,
+            live: None,
+            alt: Some(ExprIR::LiteralExpr {
+                value: serde_json::json!("close icon"),
+            }),
+        }),
+        children: vec![],
+        props: FxHashMap::default(),
+        bindings: FxHashMap::default(),
+        events: FxHashMap::default(),
+        style_classes: None,
+        inline_style: None,
+        construction_kind: ConstructionKind::Normal,
+        class_map_bindings: FxHashMap::default(),
+        source_span: None,
+        motion: None,
+        scroll: None,
+        drag: None,
+        ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
+    };
+    let view = ViewTree::Element(Box::new(el));
+    let comp = ref_component("A11yDemo", &[], vec![], vec![], Some(view));
+    let mut components = FxHashMap::default();
+    components.insert("A11yDemo".into(), comp);
+    let ir = make_ir(components);
+    let comp_ref = ir
+        .modules
+        .get("main")
+        .unwrap()
+        .components
+        .get("A11yDemo")
+        .unwrap();
+    let component_map = build_component_map(&ir);
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let (dart, warnings, errors) =
+        codegen.gen_component_dart("A11yDemo", comp_ref, &ir, &component_map, &component_slots);
+    assert!(errors.is_empty(), "unexpected errors: {:?}", errors);
+    assert!(
+        dart.contains("Semantics(label: 'close icon'"),
+        "alt alone on a non-image element degrades to the accessible-name \
+         label; got:
+{}",
+        dart
+    );
+    assert!(
+        warnings.is_empty(),
+        "alt alone on a non-image element must not warn (documented \
+         degradation); got: {:?}",
+        warnings
+    );
+}
+
 /// Design D2: `bind:value` (ElementIR.bindings) on a ref'd text field is the
 /// sole two-way form — it must install the guarded controller listener (user
 /// edits → setState write-back) and the `_syncSemanticBindings` re-apply,

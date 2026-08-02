@@ -1128,7 +1128,7 @@ a11y_entry    ::= 'label' ':' string               (* 至少一项；空块 = �
 | `role` | `role="..."` | 语义角色子集 → `Semantics(button: true)` 等 flags；不可映射 → warning + 生成注释 | `role="..."` 透传 |
 | `hidden` | `aria-hidden={expr}`（动态） | `ExcludeSemantics(excluding: expr, child: ...)` | `aria-hidden` 透传（动态 → `__omni_effect` setAttribute） |
 | `live` | `aria-live="polite"` | `Semantics(liveRegion: true)` | `aria-live="polite"` 透传 |
-| `alt` | `alt="..."` / `alt={expr}` | img → `Image.network(semanticLabel:)`；其余 → `Semantics(label:)` | `alt` 透传（动态同 hidden） |
+| `alt` | `alt="..."` / `alt={expr}` | img → `Image.network(semanticLabel:)`；其余 → `Semantics(label:)`（与 `label` 同时出现时 `label` 优先 + warning，见 §11.6） | `alt` 透传（动态同 hidden） |
 
 **Flutter role 子集**：`button`/`textField`/`link`/`checkbox`/`radio`/`image`
 → 对应 `Semantics` flag；子集外角色 → warnings 通道
@@ -1166,6 +1166,7 @@ ExcludeSemantics(
 | 未知 a11y 键 | 全部 | error | 「未知 a11y 键：'…'」 |
 | a11y 块用于组件标签 | OmniView | warning | 内联组件无 aria-* 包裹机制 |
 | `role` 不在 Flutter 子集 | Flutter | warning | T2.4 warnings 通道 + `/* a11y: … */` 生成注释 |
+| `label` + `alt` 同时出现（非 img 元素） | Flutter | warning | 「alt 仅对 img 元素生效」— `label` 优先（即可访问名称），`alt` 忽略（两者都会映射为 `label:`，重复命名参数 = 非法 Dart） |
 
 > **实现状态（2026-08-03，Task 4.5）**：parser（`ElementProp::A11y`/
 > `A11ySpec`）、IR（`ElementIR.a11y: Option<A11yIR>`）、语义

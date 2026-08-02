@@ -739,7 +739,21 @@ fn wrap_a11y(el: &ElementIR, inner: String, ctx: &mut ViewContext) -> String {
         // (format_element); everywhere else it degrades to the accessible
         // name — no information is lost.
         if !matches!(tag_to_flutter_widget(&el.tag), "Image.network") {
-            semantics_args.push(format!("label: {}", ctx.format_expr(alt)));
+            if a11y.label.is_some() {
+                // `label` + `alt` on a non-image element: both would emit
+                // `label:` into the SAME Semantics(...) call — duplicate
+                // named argument, invalid Dart. Prefer `label` (it IS the
+                // accessible name); `alt` is image-specific intent on a
+                // non-image element, so it warns and is dropped (honest
+                // degradation — never a silent drop).
+                ctx.warnings.push(
+                    "[flutter] a11y alt 仅对 img 元素生效（当前元素非图像）；\
+                     与 a11y label 同时出现，alt 被忽略（label 已提供可访问名称）"
+                        .into(),
+                );
+            } else {
+                semantics_args.push(format!("label: {}", ctx.format_expr(alt)));
+            }
         }
     }
 
