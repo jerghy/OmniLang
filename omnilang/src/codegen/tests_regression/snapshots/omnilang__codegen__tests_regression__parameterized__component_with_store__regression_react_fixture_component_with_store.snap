@@ -1,5 +1,6 @@
 ---
 source: omnilang/src/codegen/tests_regression/parameterized.rs
+assertion_line: 129
 expression: "& super :: super :: format_output(& output)"
 ---
 === CounterWithStore.tsx ===
@@ -8,14 +9,15 @@ expression: "& super :: super :: format_output(& output)"
 import { useAppStore } from './useAppStore';
 
 export function CounterWithStore() {
-    const AppStore = useAppStore();
+    const count = useAppStore((s) => s.count);
+    const increment = useAppStore((s) => s.increment);
 
     return (
         <div
-            onClick={() => { AppStore.increment(); }}
+            onClick={() => { increment(); }}
         >
             {'Count: '}
-            {AppStore.count}
+            {count}
         </div>
     );
 }

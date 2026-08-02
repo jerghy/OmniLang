@@ -12,7 +12,7 @@ use rustc_hash::FxHashSet;
 use super::super::capitalize_first;
 use super::component::jsx::component_declared_slots;
 use super::design::DesignCtx;
-use super::expr::{format_expr_ir_tsx, generate_statement_tsx};
+use super::expr::{format_expr_ir_tsx_renamed, generate_statement_tsx};
 use super::utils::{emit_event_object_react, to_jsx_attr, to_react_event, to_react_tag};
 use crate::codegen::sanitize::is_dangerous_url;
 use std::fmt::Write;
@@ -44,6 +44,7 @@ pub(super) fn gen_view_node_tsx(
     store_signal_owners: &FxHashMap<String, String>,
     motion_names: &FxHashSet<String>,
     ref_names: &FxHashSet<String>,
+    store_field_renames: &FxHashMap<String, String>,
     motion_counter: &mut usize,
 ) {
     match node {
@@ -63,6 +64,7 @@ pub(super) fn gen_view_node_tsx(
                         store_signal_owners,
                         motion_names,
                         ref_names,
+                        store_field_renames,
                         motion_counter,
                     );
                 }
@@ -91,7 +93,7 @@ pub(super) fn gen_view_node_tsx(
                 }
                 let mut comp_attrs: Vec<String> = Vec::new();
                 for (prop_name, prop_value) in &el.props {
-                    let js_val = format_expr_ir_tsx(prop_value, ref_names);
+                    let js_val = format_expr_ir_tsx_renamed(prop_value, ref_names, store_field_renames);
                     comp_attrs.push(format!("{}={{{}}}", prop_name, js_val));
                 }
                 for (event_name, handler) in &el.events {
@@ -107,13 +109,19 @@ pub(super) fn gen_view_node_tsx(
                                 store_signal_owners,
                                 params,
                                 ref_names,
+                                store_field_renames,
                             );
                             comp_attrs.push(format!("{}={{{}}}", jsx_event, handler_str));
                         }
                         EventHandlerIR::StoreAction { r#ref, .. } => {
-                            // Use full qualified ref (e.g. "NotificationStore.clear")
-                            // so store methods are called through their hook object
-                            comp_attrs.push(format!("{}={{() => {{ {}(); }}}}", jsx_event, r#ref));
+                            // Call through the action slice when the store is
+                            // subscribed per field (T3.3), otherwise through
+                            // the store hook object.
+                            let action_ref = store_field_renames
+                                .get(r#ref)
+                                .cloned()
+                                .unwrap_or_else(|| r#ref.clone());
+                            comp_attrs.push(format!("{}={{() => {{ {}(); }}}}", jsx_event, action_ref));
                         }
                     }
                 }
@@ -146,6 +154,7 @@ pub(super) fn gen_view_node_tsx(
                         store_signal_owners,
                         motion_names,
                         ref_names,
+                        store_field_renames,
                         motion_counter,
                     );
                     let child_jsx = child_w.into_string();
@@ -170,6 +179,7 @@ pub(super) fn gen_view_node_tsx(
                             store_signal_owners,
                             motion_names,
                             ref_names,
+                            store_field_renames,
                             motion_counter,
                         );
                     }
@@ -256,7 +266,8 @@ pub(super) fn gen_view_node_tsx(
                         }
                     }
                     _ => {
-                        let jsx_val = format_expr_ir_tsx(prop_value, ref_names);
+                        let jsx_val =
+                            format_expr_ir_tsx_renamed(prop_value, ref_names, store_field_renames);
                         attrs.push(format!("{}={{{}}}", jsx_attr, jsx_val));
                     }
                 }
@@ -266,7 +277,11 @@ pub(super) fn gen_view_node_tsx(
             let mut binding_events_map: FxHashMap<String, String> = FxHashMap::default();
             for (bind_name, signal_ref) in &el.bindings {
                 let jsx_attr = to_jsx_attr(bind_name);
-                attrs.push(format!("{}={{{}}}", jsx_attr, signal_ref.name));
+                let read_name = store_field_renames
+                    .get(&signal_ref.name)
+                    .cloned()
+                    .unwrap_or_else(|| signal_ref.name.clone());
+                attrs.push(format!("{}={{{}}}", jsx_attr, read_name));
                 match bind_name.as_str() {
                     "value" | "checked" => {
                         // The write-back goes through the SAME mutation
@@ -397,6 +412,7 @@ pub(super) fn gen_view_node_tsx(
                                     signal_names,
                                     store_signal_owners,
                                     ref_names,
+                                    store_field_renames,
                                 );
                             }
                             let content = merged_hw.into_string();
@@ -426,6 +442,7 @@ pub(super) fn gen_view_node_tsx(
                                         signal_names,
                                         store_signal_owners,
                                         ref_names,
+                                        store_field_renames,
                                     );
                                 }
                                 let content = merged_hw.into_string();
@@ -447,23 +464,30 @@ pub(super) fn gen_view_node_tsx(
                                     store_signal_owners,
                                     params,
                                     ref_names,
+                                    store_field_renames,
                                 );
                                 attrs.push(format!("{}={{{}}}", react_event, handler_str));
                             }
                         }
                     }
                     EventHandlerIR::StoreAction { r#ref, .. } => {
-                        // Use full qualified ref (e.g. "NotificationStore.clear")
+                        // Call through the action slice when the store is
+                        // subscribed per field (T3.3), otherwise through the
+                        // store hook object.
+                        let action_ref = store_field_renames
+                            .get(r#ref)
+                            .cloned()
+                            .unwrap_or_else(|| r#ref.clone());
                         if let Some(setter_call) = binding_events_map.remove(&react_event) {
                             attrs.push(format!(
                                 "{}={{(e) => {{ {}; {}(); }}}}",
-                                react_event, setter_call, r#ref
+                                react_event, setter_call, action_ref
                             ));
                         } else {
                             attrs.push(format!(
                                 "{react_event}={{() => {{ {action_ref}(); }}}}",
                                 react_event = react_event,
-                                action_ref = r#ref
+                                action_ref = action_ref
                             ));
                         }
                     }
@@ -526,7 +550,7 @@ pub(super) fn gen_view_node_tsx(
                             // skip — class not applied
                         }
                         _ => {
-                            let cond = format_expr_ir_tsx(expr, ref_names);
+                            let cond = format_expr_ir_tsx_renamed(expr, ref_names, store_field_renames);
                             let class_ref = design_ctx.format_class_ref(cls);
                             dynamic_parts.push(format!("${{{cond} ? {class_ref} : ''}}"));
                         }
@@ -649,6 +673,7 @@ pub(super) fn gen_view_node_tsx(
                     store_signal_owners,
                     motion_names,
                     ref_names,
+                    store_field_renames,
                     motion_counter,
                 );
             }
@@ -686,6 +711,7 @@ pub(super) fn gen_view_node_tsx(
                         store_signal_owners,
                         motion_names,
                         ref_names,
+                        store_field_renames,
                         motion_counter,
                     );
                     emit_fade_branch_close(w, is_fade);
@@ -697,7 +723,8 @@ pub(super) fn gen_view_node_tsx(
             if branches.len() == 1 && fallback.is_none() {
                 w.emit("{");
                 w.indent();
-                let cond_str = format_expr_ir_tsx(&branches[0].condition, ref_names);
+                let cond_str =
+                    format_expr_ir_tsx_renamed(&branches[0].condition, ref_names, store_field_renames);
                 w.emit_fmt(format_args!("{} && (", cond_str));
                 w.indent();
                 emit_fade_branch_open(w, is_fade, "0");
@@ -711,6 +738,7 @@ pub(super) fn gen_view_node_tsx(
                         store_signal_owners,
                         motion_names,
                         ref_names,
+                        store_field_renames,
                         motion_counter,
                     );
                 }
@@ -735,7 +763,8 @@ pub(super) fn gen_view_node_tsx(
                 .unwrap_or_else(|| unreachable!("branches is non-empty — the empty case returned above"));
 
             // First branch: `cond ? ( body )`
-            let cond_str = format_expr_ir_tsx(&first_branch.condition, ref_names);
+            let cond_str =
+                format_expr_ir_tsx_renamed(&first_branch.condition, ref_names, store_field_renames);
             w.emit_fmt(format_args!("{} ? (", cond_str));
             w.indent();
             emit_fade_branch_open(w, is_fade, "0");
@@ -749,6 +778,7 @@ pub(super) fn gen_view_node_tsx(
                     store_signal_owners,
                     motion_names,
                     ref_names,
+                    store_field_renames,
                     motion_counter,
                 );
             }
@@ -759,7 +789,8 @@ pub(super) fn gen_view_node_tsx(
             for (i, branch) in rest.iter().enumerate() {
                 w.emit(") : (");
                 w.indent();
-                let cond_str = format_expr_ir_tsx(&branch.condition, ref_names);
+                let cond_str =
+                    format_expr_ir_tsx_renamed(&branch.condition, ref_names, store_field_renames);
                 w.emit_fmt(format_args!("{} ? (", cond_str));
                 w.indent();
                 emit_fade_branch_open(w, is_fade, &(i + 1).to_string());
@@ -773,6 +804,7 @@ pub(super) fn gen_view_node_tsx(
                         store_signal_owners,
                         motion_names,
                         ref_names,
+                        store_field_renames,
                         motion_counter,
                     );
                 }
@@ -794,6 +826,7 @@ pub(super) fn gen_view_node_tsx(
                     store_signal_owners,
                     motion_names,
                     ref_names,
+                    store_field_renames,
                     motion_counter,
                 );
                 emit_fade_branch_close(w, is_fade);
@@ -811,10 +844,14 @@ pub(super) fn gen_view_node_tsx(
             w.emit("}");
         }
         ViewTree::ListRendering(list) => {
-            let iterable_str = format_expr_ir_tsx(&list.iterable, ref_names);
+            let iterable_str =
+                format_expr_ir_tsx_renamed(&list.iterable, ref_names, store_field_renames);
             let item_name = &list.item_binding.name;
             let key_attr = if let Some(ref ke) = list.key_expr {
-                format!(" key={{{}}}", format_expr_ir_tsx(ke, ref_names))
+                format!(
+                    " key={{{}}}",
+                    format_expr_ir_tsx_renamed(ke, ref_names, store_field_renames)
+                )
             } else {
                 // Use item identity as key to avoid index-as-key anti-pattern.
                 // String() wraps so React gets a consistent key for objects
@@ -839,6 +876,7 @@ pub(super) fn gen_view_node_tsx(
                         store_signal_owners,
                         motion_names,
                         ref_names,
+                        store_field_renames,
                         motion_counter,
                     );
                 }
@@ -868,6 +906,7 @@ pub(super) fn gen_view_node_tsx(
                     store_signal_owners,
                     motion_names,
                     ref_names,
+                    store_field_renames,
                     motion_counter,
                 );
             }
@@ -909,7 +948,7 @@ pub(super) fn gen_view_node_tsx(
             w.emit_fmt(format_args!("{{'{}'}}", escaped));
         }
         ViewTree::Interpolation(expr) => {
-            let js_expr = format_expr_ir_tsx(expr, ref_names);
+            let js_expr = format_expr_ir_tsx_renamed(expr, ref_names, store_field_renames);
             w.emit_fmt(format_args!("{{{}}}", js_expr));
         }
         ViewTree::Fragment(children) => {
@@ -923,6 +962,7 @@ pub(super) fn gen_view_node_tsx(
                     store_signal_owners,
                     motion_names,
                     ref_names,
+                    store_field_renames,
                     motion_counter,
                 );
             }
@@ -949,6 +989,7 @@ pub(super) fn gen_view_node_tsx(
                     store_signal_owners,
                     motion_names,
                     ref_names,
+                    store_field_renames,
                     motion_counter,
                 );
                 w.dedent();
@@ -979,6 +1020,7 @@ pub(super) fn gen_branch_body_tsx(
     store_signal_owners: &FxHashMap<String, String>,
     motion_names: &FxHashSet<String>,
     ref_names: &FxHashSet<String>,
+    store_field_renames: &FxHashMap<String, String>,
     motion_counter: &mut usize,
 ) {
     let is_multi = match body {
@@ -1001,6 +1043,7 @@ pub(super) fn gen_branch_body_tsx(
         store_signal_owners,
         motion_names,
         ref_names,
+        store_field_renames,
         motion_counter,
     );
     if is_multi {
@@ -1069,6 +1112,7 @@ fn gen_consumer_child_tsx(
     store_signal_owners: &FxHashMap<String, String>,
     motion_names: &FxHashSet<String>,
     ref_names: &FxHashSet<String>,
+    store_field_renames: &FxHashMap<String, String>,
     motion_counter: &mut usize,
 ) {
     match child {
@@ -1082,6 +1126,7 @@ fn gen_consumer_child_tsx(
                 store_signal_owners,
                 motion_names,
                 ref_names,
+                store_field_renames,
                 motion_counter,
             );
         }
@@ -1095,6 +1140,7 @@ fn gen_consumer_child_tsx(
                 store_signal_owners,
                 motion_names,
                 ref_names,
+                store_field_renames,
                 motion_counter,
             );
         }
@@ -1127,6 +1173,7 @@ fn format_inline_handler(
     store_signal_owners: &FxHashMap<String, String>,
     params: &[String],
     ref_names: &FxHashSet<String>,
+    store_field_renames: &FxHashMap<String, String>,
 ) -> String {
     // Generate the body content first to check which params are actually used
     let mut body_w = CodeWriter::new();
@@ -1137,6 +1184,7 @@ fn format_inline_handler(
             signal_names,
             store_signal_owners,
             ref_names,
+            store_field_renames,
         );
     }
     let body_content = body_w.into_string();
@@ -1170,7 +1218,14 @@ fn format_inline_handler(
         use_writer: false,
     };
     build_inline_handler(body, &config, |w, s| {
-        generate_statement_tsx(w, s, signal_names, store_signal_owners, ref_names)
+        generate_statement_tsx(
+            w,
+            s,
+            signal_names,
+            store_signal_owners,
+            ref_names,
+            store_field_renames,
+        )
     })
 }
 

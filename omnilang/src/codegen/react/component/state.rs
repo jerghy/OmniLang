@@ -937,12 +937,20 @@ pub(super) fn gen_semantic_binding_effects(
     view: Option<&ViewTree>,
     store_signal_map: &FxHashMap<String, String>,
     ref_names: &FxHashSet<String>,
+    store_field_renames: &FxHashMap<String, String>,
 ) {
     let Some(ref view) = view else {
         return;
     };
     let mut emitted = false;
-    walk_semantic_binding_effects(w, view, store_signal_map, ref_names, &mut emitted);
+    walk_semantic_binding_effects(
+        w,
+        view,
+        store_signal_map,
+        ref_names,
+        store_field_renames,
+        &mut emitted,
+    );
 }
 
 fn walk_semantic_binding_effects(
@@ -950,6 +958,7 @@ fn walk_semantic_binding_effects(
     node: &ViewTree,
     store_signal_map: &FxHashMap<String, String>,
     ref_names: &FxHashSet<String>,
+    store_field_renames: &FxHashMap<String, String>,
     emitted: &mut bool,
 ) {
     match node {
@@ -962,40 +971,90 @@ fn walk_semantic_binding_effects(
                         &el.semantic_bindings,
                         store_signal_map,
                         ref_names,
+                        store_field_renames,
                         emitted,
                     );
                 }
             }
             for child in &el.children {
-                walk_semantic_binding_effects(w, child, store_signal_map, ref_names, emitted);
+                walk_semantic_binding_effects(
+                    w,
+                    child,
+                    store_signal_map,
+                    ref_names,
+                    store_field_renames,
+                    emitted,
+                );
             }
         }
         ViewTree::Conditional(cond) => {
             for branch in &cond.branches {
                 if let Some(ref body) = branch.body {
-                    walk_semantic_binding_effects(w, body, store_signal_map, ref_names, emitted);
+                    walk_semantic_binding_effects(
+                        w,
+                        body,
+                        store_signal_map,
+                        ref_names,
+                        store_field_renames,
+                        emitted,
+                    );
                 }
             }
             if let Some(ref fb) = cond.fallback {
-                walk_semantic_binding_effects(w, fb, store_signal_map, ref_names, emitted);
+                walk_semantic_binding_effects(
+                    w,
+                    fb,
+                    store_signal_map,
+                    ref_names,
+                    store_field_renames,
+                    emitted,
+                );
             }
         }
         ViewTree::ListRendering(list) => {
             if let Some(ref body) = list.body {
-                walk_semantic_binding_effects(w, body, store_signal_map, ref_names, emitted);
+                walk_semantic_binding_effects(
+                    w,
+                    body,
+                    store_signal_map,
+                    ref_names,
+                    store_field_renames,
+                    emitted,
+                );
             }
             if let Some(ref empty_body) = list.empty_body {
-                walk_semantic_binding_effects(w, empty_body, store_signal_map, ref_names, emitted);
+                walk_semantic_binding_effects(
+                    w,
+                    empty_body,
+                    store_signal_map,
+                    ref_names,
+                    store_field_renames,
+                    emitted,
+                );
             }
         }
         ViewTree::Fragment(children) => {
             for child in children {
-                walk_semantic_binding_effects(w, child, store_signal_map, ref_names, emitted);
+                walk_semantic_binding_effects(
+                    w,
+                    child,
+                    store_signal_map,
+                    ref_names,
+                    store_field_renames,
+                    emitted,
+                );
             }
         }
         ViewTree::Slot { fallback, .. } => {
             for child in fallback {
-                walk_semantic_binding_effects(w, child, store_signal_map, ref_names, emitted);
+                walk_semantic_binding_effects(
+                    w,
+                    child,
+                    store_signal_map,
+                    ref_names,
+                    store_field_renames,
+                    emitted,
+                );
             }
         }
         ViewTree::Text(_) | ViewTree::Interpolation(_) => {}
@@ -1011,12 +1070,13 @@ fn emit_element_binding_effects(
     bindings: &FxHashMap<String, ExprIR>,
     store_signal_map: &FxHashMap<String, String>,
     ref_names: &FxHashSet<String>,
+    store_field_renames: &FxHashMap<String, String>,
     emitted: &mut bool,
 ) {
     let base = format!("{}Ref.current", ref_name);
     for (kind, expr) in bindings {
-        let val = expr::format_expr_ir_tsx(expr, ref_names);
-        let deps_str = semantic_binding_deps(expr, store_signal_map);
+        let val = expr::format_expr_ir_tsx_renamed(expr, ref_names, store_field_renames);
+        let deps_str = semantic_binding_deps(expr, store_signal_map, store_field_renames);
         if !*emitted {
             w.emit("");
             *emitted = true;
@@ -1067,28 +1127,40 @@ fn emit_element_binding_effects(
 
 /// Collect the dependency list for a semantic binding effect.
 ///
-/// - A qualified store signal (`CounterStore.text`) depends on the exact
-///   expression the effect body reads (`CounterStore.text`), not on the store
-///   hook object — Zustand re-renders with a fresh object on every change,
-///   so depending on the root would re-fire the effect on unrelated updates.
+/// - A store field read (`CounterStore.text`) depends on the exact value the
+///   effect body reads: the slice local (`text`, T3.3) when the store is
+///   subscribed per field, otherwise the qualified expression
+///   (`CounterStore.text`) — never the store hook object, which is recreated
+///   on every store write and would re-fire the effect on unrelated updates.
 /// - A bare signal depends on its own name (resolved through the store
 ///   signal map for future-proofing); anything else falls back to collecting
 ///   identifiers, sorted for deterministic output.
-fn semantic_binding_deps(expr: &ExprIR, store_signal_map: &FxHashMap<String, String>) -> String {
+fn semantic_binding_deps(
+    expr: &ExprIR,
+    store_signal_map: &FxHashMap<String, String>,
+    store_field_renames: &FxHashMap<String, String>,
+) -> String {
     if let ExprIR::FieldAccessExpr { object, field } = expr {
         if let ExprIR::IdentifierExpr { name, .. } = object.as_ref() {
-            return format!("{}.{}", name, field);
+            return store_field_renames
+                .get(&format!("{}.{}", name, field))
+                .cloned()
+                .unwrap_or_else(|| format!("{}.{}", name, field));
         }
     }
     let mut ids: Vec<String> = Vec::new();
     let mut acc = FxHashSet::default();
     collect_expr_identifiers(expr, &mut acc);
     for id in acc {
+        let qualified = store_signal_map
+            .get(&id)
+            .cloned()
+            .unwrap_or_else(|| id.clone());
         ids.push(
-            store_signal_map
-                .get(&id)
+            store_field_renames
+                .get(&qualified)
                 .cloned()
-                .unwrap_or_else(|| id.clone()),
+                .unwrap_or(qualified),
         );
     }
     ids.sort();

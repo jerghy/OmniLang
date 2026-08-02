@@ -123,6 +123,29 @@ pub trait FormatExpr {
         format!("{obj}.{method}({})", args.join(", "))
     }
 
+    /// Field access expression: `obj.field`.
+    /// Separate hook so backends can redirect store field reads (`Store.x`)
+    /// to slice-selector locals (React T3.3) without touching the dispatch.
+    fn format_field_access(&self, obj: &str, field: &str) -> String {
+        format!("{}.{}", obj, field)
+    }
+
+    /// Store field access: read (`Store.items`) or action call
+    /// (`Store.add(args)`). Backends that subscribe per field (React T3.3)
+    /// override this to emit the slice local instead of the qualified name.
+    fn format_store_field_access(
+        &self,
+        store_alias: &str,
+        field_name: &str,
+        args: &[String],
+    ) -> String {
+        if args.is_empty() {
+            format!("{store_alias}.{field_name}")
+        } else {
+            format!("{store_alias}.{field_name}({})", args.join(", "))
+        }
+    }
+
     /// Unary operator expression.
     fn format_unary_op(&self, op: &str, operand: &str) -> String {
         let op_str = match op {
@@ -277,7 +300,7 @@ pub trait FormatExpr {
                         }
                     }
                 }
-                format!("{}.{field}", self.format_expr(object))
+                self.format_field_access(&self.format_expr(object), field)
             }
             ExprIR::OptionalChainExpr { object, field, .. } => {
                 self.format_optional_chain(&self.format_expr(object), field)
@@ -312,13 +335,7 @@ pub trait FormatExpr {
                 call_args,
             } => {
                 let args: Vec<String> = call_args.iter().map(|a| self.format_expr(a)).collect();
-                if args.is_empty() {
-                    // Field/getter access — no parens needed (Dart/Rust property syntax)
-                    format!("{store_alias}.{field_name}")
-                } else {
-                    // Action call with arguments — emit parens with args
-                    format!("{store_alias}.{field_name}({})", args.join(", "))
-                }
+                self.format_store_field_access(store_alias, field_name, &args)
             }
             ExprIR::ArrayExpr { elements } => {
                 let items: Vec<String> = elements.iter().map(|e| self.format_expr(e)).collect();

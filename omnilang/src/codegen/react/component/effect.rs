@@ -12,6 +12,7 @@ use rustc_hash::FxHashSet;
 impl ReactCodegen {
     /// Generate useEffect calls for @effect declarations and lifecycle hooks
     /// (@mount, @unmount, @effect).
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn gen_effects(
         &self,
         w: &mut CodeWriter,
@@ -20,18 +21,26 @@ impl ReactCodegen {
         store_signal_owners: &FxHashMap<String, String>,
         signal_names: &FxHashSet<String>,
         ref_names: &FxHashSet<String>,
+        store_field_renames: &FxHashMap<String, String>,
     ) {
         // Effects (useEffect) — wrap in async IIFE if body contains await
         for effect in &comp.effects {
-            // Resolve store signal deps to qualified names (e.g., "notifications" → "NotificationStore.notifications")
+            // Resolve store signal deps to their emitted variable names:
+            // a slice-subscribed store field deps on the slice local
+            // (`[notes]`, T3.3); otherwise the qualified name
+            // (`NotificationStore.notifications`) or the bare name.
             let deps: Vec<String> = effect
                 .deps
                 .iter()
                 .map(|d| {
-                    store_signal_map
+                    let qualified = store_signal_map
                         .get(d)
                         .cloned()
-                        .unwrap_or_else(|| d.clone())
+                        .unwrap_or_else(|| d.clone());
+                    store_field_renames
+                        .get(&qualified)
+                        .cloned()
+                        .unwrap_or(qualified)
                 })
                 .collect();
             let deps_str = deps.join(", ");
@@ -48,6 +57,7 @@ impl ReactCodegen {
                         signal_names,
                         store_signal_owners,
                         ref_names,
+                        store_field_renames,
                     );
                 }
                 w.dedent();
@@ -64,6 +74,7 @@ impl ReactCodegen {
                         signal_names,
                         store_signal_owners,
                         ref_names,
+                        store_field_renames,
                     );
                 }
                 w.dedent();
@@ -88,6 +99,7 @@ impl ReactCodegen {
                                 signal_names,
                                 store_signal_owners,
                                 ref_names,
+                                store_field_renames,
                             );
                         }
                         w.dedent();
@@ -104,6 +116,7 @@ impl ReactCodegen {
                                 signal_names,
                                 store_signal_owners,
                                 ref_names,
+                                store_field_renames,
                             );
                         }
                         w.dedent();
@@ -127,6 +140,7 @@ impl ReactCodegen {
                             signal_names,
                             store_signal_owners,
                             ref_names,
+                            store_field_renames,
                         );
                     }
                     if body_has_await {
@@ -152,6 +166,7 @@ impl ReactCodegen {
                                 signal_names,
                                 store_signal_owners,
                                 ref_names,
+                                store_field_renames,
                             );
                         }
                         w.dedent();
@@ -168,6 +183,7 @@ impl ReactCodegen {
                                 signal_names,
                                 store_signal_owners,
                                 ref_names,
+                                store_field_renames,
                             );
                         }
                         w.dedent();

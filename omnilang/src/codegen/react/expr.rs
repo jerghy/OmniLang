@@ -120,7 +120,44 @@ impl FormatExpr for ReactFormatExpr {
     }
 
     fn format_method_call(&self, obj: &str, method: &str, args: &[String]) -> String {
+        // Store action call through a slice selector: `TodoStore.add(x)` →
+        // `add(x)` when the store-field rename map carries that field.
+        // The obj string is the formatted receiver — for unrenamed store
+        // refs it is exactly the store alias, matching the dotted rename key.
+        if let Some(local) = store_field_rename(&self.renames, obj, method) {
+            return format!("{}({})", local, args.join(", "));
+        }
         translate_method_call(obj, method, args)
+    }
+
+    /// Store reads/actions formatted through the shared dispatch — when the
+    /// store is subscribed per field, emit the slice local instead of the
+    /// qualified `Store.field` name (Task 3.3, perf HIGH-1/H2).
+    fn format_store_field_access(
+        &self,
+        store_alias: &str,
+        field_name: &str,
+        args: &[String],
+    ) -> String {
+        if let Some(local) = store_field_rename(&self.renames, store_alias, field_name) {
+            if args.is_empty() {
+                return local;
+            }
+            return format!("{}({})", local, args.join(", "));
+        }
+        if args.is_empty() {
+            format!("{store_alias}.{field_name}")
+        } else {
+            format!("{store_alias}.{field_name}({})", args.join(", "))
+        }
+    }
+
+    /// `Store.field` reads → slice local (`items` instead of `TodoStore.items`).
+    fn format_field_access(&self, obj: &str, field: &str) -> String {
+        if let Some(local) = store_field_rename(&self.renames, obj, field) {
+            return local;
+        }
+        format!("{}.{}", obj, field)
     }
 
     /// Semantic ref ops map to native DOM APIs on `nameRef.current`
@@ -466,12 +503,15 @@ impl ReactStmtFormatter {
     }
 }
 
+/// Statement generation with store-field renames (`"Store.field"` → slice
+/// local, Task 3.3) applied at expression level (reads and action calls).
 pub(super) fn generate_statement_tsx(
     w: &mut CodeWriter,
     stmt: &StatementIR,
     signal_names: &FxHashSet<String>,
     store_signal_owners: &FxHashMap<String, String>,
     ref_names: &FxHashSet<String>,
+    renames: &FxHashMap<String, String>,
 ) {
     // Intercept array_push / array_pop calls on signals — these should
     // be emitted as setter/setState-based mutations, not pure expressions.
@@ -528,7 +568,7 @@ pub(super) fn generate_statement_tsx(
     let fmt = ReactStmtFormatter {
         expr: ReactFormatExpr {
             ref_names: ref_names.clone(),
-            renames: FxHashMap::default(),
+            renames: renames.clone(),
         },
         signal_names: signal_names.clone(),
         store_signal_owners: store_signal_owners.clone(),
@@ -544,10 +584,24 @@ pub(super) fn format_expr_ir_tsx(expr: &ExprIR, ref_names: &FxHashSet<String>) -
     format_expr_ir_tsx_renamed(expr, ref_names, &FxHashMap::default())
 }
 
+/// Look up a store-field rename: key `"{store}.{field}"` → slice local name.
+/// Returns `Some(local)` when the store is subscribed per field (Task 3.3);
+/// `None` keeps the qualified `Store.field` form (whole-store mode).
+fn store_field_rename(
+    renames: &FxHashMap<String, String>,
+    store: &str,
+    field: &str,
+) -> Option<String> {
+    renames.get(&format!("{store}.{field}")).cloned()
+}
+
 /// Format an expression with an identifier rename map (used inside Zustand
 /// store action bodies and getter accessors — C8). Renaming happens at the
 /// AST identifier level, so string literals and object keys are never
 /// corrupted (HIGH #2) and list/object literals are covered (CRITICAL).
+///
+/// The same map carries store-field renames (dotted `"Store.field"` keys →
+/// slice local names, Task 3.3) for component codegen.
 pub(super) fn format_expr_ir_tsx_renamed(
     expr: &ExprIR,
     ref_names: &FxHashSet<String>,
@@ -560,6 +614,13 @@ pub(super) fn format_expr_ir_tsx_renamed(
         }
         .format_identifier(name),
         ExprIR::FieldAccessExpr { object, field } => {
+            // Store field read on a bare store ref (`TodoStore.items`) →
+            // slice local, when subscribed per field.
+            if let ExprIR::IdentifierExpr { name, .. } = object.as_ref() {
+                if let Some(local) = store_field_rename(renames, name, field) {
+                    return local;
+                }
+            }
             let obj_str = format_expr_ir_tsx_renamed(object, ref_names, renames);
             format!("{}.{}", obj_str, field)
         }
@@ -569,6 +630,17 @@ pub(super) fn format_expr_ir_tsx_renamed(
             args,
             ..
         } => {
+            // Store action call on a bare store ref (`TodoStore.add(x)`) →
+            // action slice call `add(x)`, when subscribed per field.
+            if let ExprIR::IdentifierExpr { name, .. } = object.as_ref() {
+                if let Some(local) = store_field_rename(renames, name, method) {
+                    let args_str: Vec<String> = args
+                        .iter()
+                        .map(|a| format_expr_ir_tsx_renamed(a, ref_names, renames))
+                        .collect();
+                    return format!("{}({})", local, args_str.join(", "));
+                }
+            }
             let obj_str = format_expr_ir_tsx_renamed(object, ref_names, renames);
             let args_str: Vec<String> = args
                 .iter()

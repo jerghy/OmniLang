@@ -9,6 +9,7 @@ pub(super) mod imports;
 pub(super) mod jsx;
 pub(super) mod motion_effects;
 pub(super) mod state;
+pub(super) mod store_slices;
 
 use super::expr;
 use super::{escape_js_ident, CodeWriter, ReactCodegen};
@@ -170,6 +171,11 @@ impl ReactCodegen {
         // ── Store-related computation ──
         let all_stores = ir.all_stores();
         let used_store_signals = state::collect_used_store_signals(comp);
+        // T3.3: per-store referenced fields (reads + action calls), from all
+        // component bodies. Covers the IR forms the identifier collectors
+        // miss (StoreFieldAccessExpr aliases, bind:value names, StoreAction
+        // refs) so used_store_refs and the slice plan agree.
+        let comp_store_field_refs = store_slices::collect_component_store_field_refs(comp, view);
 
         let local_names: FxHashSet<String> = comp
             .signals
@@ -181,7 +187,9 @@ impl ReactCodegen {
 
         let mut used_store_refs: FxHashSet<String> = FxHashSet::default();
         for store_ref in &comp.store_refs {
-            if used_store_signals.contains(store_ref.as_str()) {
+            if used_store_signals.contains(store_ref.as_str())
+                || comp_store_field_refs.contains_key(store_ref.as_str())
+            {
                 used_store_refs.insert(store_ref.clone());
                 continue;
             }
@@ -325,6 +333,30 @@ impl ReactCodegen {
             .iter()
             .filter(|f| used_fn_names.contains(&f.name))
             .collect();
+
+        // ── T3.3: store slice subscription plan ──
+        // Decide per store between per-field slice selectors and the
+        // whole-store object (collision/shadowing fallback), and build the
+        // `"Store.field" → slice local` rename map threaded through every
+        // read/action emission site below.
+        let lib_fn_refs: Vec<&FunctionIR> = lib_fns.iter().map(|f| **f).collect();
+        let lib_store_field_refs = store_slices::collect_lib_fn_store_field_refs(&lib_fn_refs);
+        let mut store_field_refs = comp_store_field_refs;
+        for (store, fields) in lib_store_field_refs {
+            store_field_refs.entry(store).or_default().extend(fields);
+        }
+        let shadowing_names =
+            store_slices::collect_shadowing_names(comp, view, &lib_fn_refs);
+        let motion_stores =
+            store_slices::motion_whole_store_stores(view, ir, component_map);
+        let (store_field_renames, slice_fields) = store_slices::build_slice_plan(
+            comp,
+            &store_field_refs,
+            &shadowing_names,
+            &motion_stores,
+            &all_stores,
+        );
+
         for fun in &lib_fns {
             let param_names: Vec<(String, bool)> = fun
                 .params
@@ -353,6 +385,7 @@ impl ReactCodegen {
                     &FxHashSet::default(),
                     &store_signal_owners,
                     &ref_names,
+                    &store_field_renames,
                 );
             }
             let mut body_str = body_w.into_string();
@@ -429,14 +462,23 @@ impl ReactCodegen {
         }
         w.indent();
 
-        // Store hooks — only for stores whose signals are actually used
+        // Store hooks — per-field slice selectors by default (T3.3,
+        // perf HIGH-1/H2): `const items = useTodoStore((s) => s.items);`
+        // so a store write only re-renders the components that read the
+        // changed field. Stores with name collisions / inner-scope capture
+        // keep the whole-store object (`const TodoStore = useTodoStore();`)
+        // — their reads stay qualified and unambiguous.
         for store_ref in &comp.store_refs {
             if !used_store_refs.contains(store_ref.as_str()) {
                 continue;
             }
-            if ir.has_store(store_ref.as_str()) {
-                let hook_name = format!("use{}", store_ref);
-                w.emit_fmt(format_args!("const {} = {}();", store_ref, hook_name));
+            if let Some(store) = all_stores.get(store_ref.as_str()) {
+                if let Some(fields) = slice_fields.get(store_ref.as_str()) {
+                    store_slices::emit_store_slices(&mut w, store_ref, store, fields);
+                } else {
+                    let hook_name = format!("use{}", store_ref);
+                    w.emit_fmt(format_args!("const {} = {}();", store_ref, hook_name));
+                }
             }
         }
 
@@ -459,8 +501,15 @@ impl ReactCodegen {
             &store_signal_owners,
             &signal_names,
             &ref_names,
+            &store_field_renames,
         );
-        state::gen_semantic_binding_effects(&mut w, view, &store_signal_map, &ref_names);
+        state::gen_semantic_binding_effects(
+            &mut w,
+            view,
+            &store_signal_map,
+            &ref_names,
+            &store_field_renames,
+        );
 
         // Computed values (useMemo / useCallback)
         let mut known_signal_names: Vec<String> =
@@ -474,6 +523,7 @@ impl ReactCodegen {
             &signal_names,
             &store_signal_owners,
             &ref_names,
+            &store_field_renames,
         );
 
         // Component-local function declarations
@@ -485,6 +535,7 @@ impl ReactCodegen {
             &store_signal_owners,
             &fn_names,
             &ref_names,
+            &store_field_renames,
         );
 
         // Motion animation effects — per-ref native effects (all triggers)
@@ -507,6 +558,7 @@ impl ReactCodegen {
             &motion_names,
             name,
             &ref_names,
+            &store_field_renames,
             &mut motion_counter,
         );
         w.dedent();

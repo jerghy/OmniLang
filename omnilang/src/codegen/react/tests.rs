@@ -317,6 +317,7 @@ fn test_tsx_stmt_let() {
         &FxHashSet::default(),
         &FxHashMap::default(),
         &FxHashSet::default(),
+        &FxHashMap::default(),
     );
     assert_eq!(w.into_string(), "const x = 42;\n");
 }
@@ -336,6 +337,7 @@ fn test_tsx_stmt_return() {
         &FxHashSet::default(),
         &FxHashMap::default(),
         &FxHashSet::default(),
+        &FxHashMap::default(),
     );
     assert_eq!(w.into_string(), "return result;\n");
 }
@@ -361,6 +363,7 @@ fn test_tsx_stmt_mutation_increment_local() {
         &FxHashSet::default(),
         &FxHashMap::default(),
         &FxHashSet::default(),
+        &FxHashMap::default(),
     );
     assert_eq!(w.into_string(), "count = count + 1;\n");
 }
@@ -388,6 +391,7 @@ fn test_tsx_stmt_mutation_increment_signal() {
         &sig_names,
         &FxHashMap::default(),
         &FxHashSet::default(),
+        &FxHashMap::default(),
     );
     assert_eq!(w.into_string(), "setCount(prev => prev + 1);\n");
 }
@@ -414,6 +418,7 @@ fn test_tsx_stmt_mutation_assign_local() {
         &FxHashSet::default(),
         &FxHashMap::default(),
         &FxHashSet::default(),
+        &FxHashMap::default(),
     );
     assert_eq!(w.into_string(), "name = \"alice\";\n");
 }
@@ -442,6 +447,7 @@ fn test_tsx_stmt_mutation_assign_store() {
         &FxHashSet::default(),
         &FxHashMap::default(),
         &FxHashSet::default(),
+        &FxHashMap::default(),
     );
     assert_eq!(w.into_string(), "name = \"alice\";\n");
 }
@@ -472,6 +478,7 @@ fn test_tsx_stmt_if() {
         &FxHashSet::default(),
         &FxHashMap::default(),
         &FxHashSet::default(),
+        &FxHashMap::default(),
     );
     let out = w.into_string();
     assert!(out.contains("if (cond) {"));
@@ -2555,16 +2562,22 @@ component StoreBinding {
         .cloned()
         .collect::<Vec<_>>()
         .join("\n");
-    // The store hook must be generated for the qualified binding.
+    // T3.3: the store is subscribed per field — the binding read uses the
+    // slice local, not a whole-store hook object.
     assert!(
-        content.contains("const CartStore = useCartStore();"),
-        "store hook must be generated for a store-backed binding. Got:\n{}",
+        content.contains("const text = useCartStore((s) => s.text);"),
+        "store-backed binding must subscribe via slice selector. Got:\n{}",
         content
     );
-    // Read side: value={CartStore.text} through the hook object.
     assert!(
-        content.contains("value={CartStore.text}"),
-        "bind:value must emit the qualified store read. Got:\n{}",
+        !content.contains("const CartStore = useCartStore();"),
+        "no whole-store hook for a store-backed binding. Got:\n{}",
+        content
+    );
+    // Read side: value={text} through the slice local.
+    assert!(
+        content.contains("value={text}"),
+        "bind:value must emit the slice-local read. Got:\n{}",
         content
     );
     // Write side: the Zustand setState mutation machinery, like store
@@ -3630,5 +3643,363 @@ component Modal {
         content.contains("View fallback"),
         "the view-level slot keeps its own fallback, got:\n{}",
         content
+    );
+}
+
+// ═══════════════════════════════════════════════════════════
+// Task 3.3: slice-selector store subscription (perf HIGH-1/H2)
+// ═══════════════════════════════════════════════════════════
+
+/// Module-level store + a component that reads fields, calls actions and
+/// computes over store fields — the canonical T3.3 fixture.
+const STORE_SLICE_STORE_SRC: &str = r#"
+store TodoStore {
+    signal items: Array<String> = [];
+    getter totalCount: i32 = items.len();
+    action add(text: String) { }
+}
+"#;
+
+const STORE_SLICE_COMP_SRC: &str = r#"
+import { TodoStore } from "./store";
+
+component TodoView {
+    @store TodoStore;
+    computed filtered: i32 = TodoStore.totalCount + 0;
+    fn doAdd() {
+        TodoStore.add("x");
+    }
+    view {
+        <p>{TodoStore.items.len()}</p>
+        <p>{filtered}</p>
+        <button @onClick={doAdd}>add</button>
+    }
+}
+"#;
+
+/// Compile a store + component pair to React, returning the joined output.
+fn compile_react_store_pair(store_src: &str, comp_src: &str) -> String {
+    let mut sources = FxHashMap::default();
+    sources.insert("store.omni".to_string(), store_src.to_string());
+    sources.insert("main.omni".to_string(), comp_src.to_string());
+    let pm = crate::path_mapping::derive_path_mapping(&sources);
+    let result = crate::compile_multi_internal(
+        sources,
+        crate::codegen::Target::React,
+        pm,
+        false,
+        false,
+        None,
+    );
+    assert!(
+        result.success,
+        "store pair must compile. Errors: {:?}",
+        result.errors
+    );
+    result
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+#[test]
+fn react_store_reads_use_slice_selectors() {
+    let content = compile_react_store_pair(STORE_SLICE_STORE_SRC, STORE_SLICE_COMP_SRC);
+    // Per-field slice selectors replace the whole-store hook subscription.
+    assert!(
+        content.contains("const items = useTodoStore((s) => s.items);"),
+        "signal field must subscribe via slice selector. Got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("const totalCount = useTodoStore((s) => s.totalCount);"),
+        "getter field must subscribe via slice selector. Got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("const add = useTodoStore((s) => s.add);"),
+        "action field must subscribe via slice selector. Got:\n{}",
+        content
+    );
+    assert!(
+        !content.contains("const TodoStore = useTodoStore()"),
+        "no whole-store subscription may be emitted. Got:\n{}",
+        content
+    );
+    // Read sites are rewritten to the slice locals.
+    assert!(
+        content.contains("{items.length}"),
+        "view read must use the slice local. Got:\n{}",
+        content
+    );
+    assert!(
+        !content.contains("TodoStore.items"),
+        "qualified signal read must be rewritten. Got:\n{}",
+        content
+    );
+    assert!(
+        !content.contains("TodoStore.totalCount"),
+        "qualified getter read must be rewritten. Got:\n{}",
+        content
+    );
+    // Action calls still work — through the action slice.
+    assert!(
+        content.contains("add(\"x\");"),
+        "action call must go through the action slice. Got:\n{}",
+        content
+    );
+    assert!(
+        !content.contains("TodoStore.add"),
+        "qualified action call must be rewritten. Got:\n{}",
+        content
+    );
+    // useMemo deps are the slice values, never the store object.
+    assert!(
+        content.contains("}, [totalCount]);"),
+        "computed deps must reference the slice local. Got:\n{}",
+        content
+    );
+    assert!(
+        !content.contains("[TodoStore]"),
+        "computed deps must not depend on the whole store object. Got:\n{}",
+        content
+    );
+}
+
+#[test]
+fn react_store_slice_view_handler_and_effect_deps() {
+    let store_src = r#"
+store NoteStore {
+    signal notes: Array<String> = [];
+    action clear() { }
+}
+"#;
+    let comp_src = r#"
+import { NoteStore } from "./store";
+
+component NoteView {
+    @store NoteStore;
+    @effect(notes) {
+        let n = NoteStore.notes.len();
+    }
+    view {
+        <button @onClick={NoteStore.clear}>clear</button>
+        <p>{NoteStore.notes.len()}</p>
+    }
+}
+"#;
+    let content = compile_react_store_pair(store_src, comp_src);
+    // Handler action calls (inline-handler form) are rewritten to the
+    // action slice; the qualified name may never survive.
+    assert!(
+        content.contains("clear();"),
+        "handler action must call the action slice. Got:\n{}",
+        content
+    );
+    assert!(
+        !content.contains("NoteStore.clear"),
+        "qualified handler action must be rewritten. Got:\n{}",
+        content
+    );
+    // Effect deps resolve through the slice local, not the qualified name.
+    assert!(
+        content.contains("}, [notes]);"),
+        "effect deps must reference the slice local. Got:\n{}",
+        content
+    );
+    assert!(
+        !content.contains("[NoteStore]"),
+        "effect deps must not depend on the whole store. Got:\n{}",
+        content
+    );
+}
+
+#[test]
+fn react_store_whole_store_fallback_on_local_collision() {
+    // A component signal named like a store field must NOT be shadowed by
+    // the slice local — the store falls back to the whole-store object and
+    // qualified reads stay qualified (identical to pre-T3.3 behavior).
+    let store_src = r#"
+store CartStore {
+    signal items: Array<String> = [];
+}
+"#;
+    let comp_src = r#"
+import { CartStore } from "./store";
+
+component CartView {
+    @store CartStore;
+    signal items: i32 = 0;
+    view {
+        <p>{CartStore.items.len()}</p>
+        <p>{items}</p>
+    }
+}
+"#;
+    let content = compile_react_store_pair(store_src, comp_src);
+    assert!(
+        content.contains("const CartStore = useCartStore();"),
+        "colliding store keeps the whole-store object. Got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("{CartStore.items.length}"),
+        "qualified read preserved on collision. Got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("const items = 0;"),
+        "component signal untouched. Got:\n{}",
+        content
+    );
+}
+
+/// Direct-IR fixture: StoreFieldAccessExpr reads + StoreAction handlers
+/// (the semantic-normalized forms) must also emit slice selectors.
+#[test]
+fn react_store_field_access_expr_uses_slice_selectors() {
+    let codegen = ReactCodegen::default();
+    let store = StoreIR {
+        name: "AppStore".into(),
+        signals: vec![(
+            "count".into(),
+            TypeIR {
+                kind: "i32".into(),
+                type_args: vec![],
+                is_nullable: false,
+            },
+        )]
+        .into_iter()
+        .collect::<FxHashMap<_, _>>(),
+        signal_defaults: vec![("count".into(), serde_json::json!(0))]
+            .into_iter()
+            .collect::<FxHashMap<_, _>>(),
+        getters: FxHashMap::default(),
+        actions: vec![FunctionIR {
+            name: "increment".into(),
+            visibility: Visibility::Public,
+            params: vec![],
+            return_type: None,
+            body: BlockIR {
+                statements: vec![StatementIR::MutationStmt {
+                    intent: Some(MutationIntent::Increment {
+                        target: SignalRefIR {
+                            name: "count".into(),
+                        },
+                        amount: Some(Box::new(ExprIR::LiteralExpr {
+                            value: serde_json::json!(1),
+                        })),
+                    }),
+                }],
+            },
+            is_async: false,
+            source_span: None,
+        }],
+        ..Default::default()
+    };
+    let comp = ComponentIR {
+        name: "CounterWithStore".into(),
+        props: FxHashMap::default(),
+        prop_defaults: FxHashMap::default(),
+        signals: vec![],
+        computeds: vec![],
+        effects: vec![],
+        lifecycles: vec![],
+        fns: vec![],
+        store_refs: vec!["AppStore".into()],
+        refs: vec![],
+        events: vec![],
+        view: Some(ViewTree::Element(Box::new(ElementIR {
+            tag: "div".into(),
+            props: FxHashMap::default(),
+            bindings: FxHashMap::default(),
+            events: FxHashMap::from_iter([(
+                "onClick".into(),
+                EventHandlerIR::StoreAction {
+                    r#ref: "AppStore.increment".into(),
+                },
+            )]),
+            style_classes: None,
+            inline_style: None,
+            children: vec![
+                ViewTree::Text("Count: ".into()),
+                ViewTree::Interpolation(Box::new(ExprIR::StoreFieldAccessExpr {
+                    store_alias: "AppStore".into(),
+                    field_name: "count".into(),
+                    call_args: vec![],
+                })),
+            ],
+            class_map_bindings: FxHashMap::default(),
+            motion: None,
+            scroll: None,
+            drag: None,
+            ref_binding: None,
+            semantic_bindings: FxHashMap::default(),
+            construction_kind: ConstructionKind::Static,
+            source_span: None,
+        }))),
+        styles: vec![],
+        ..Default::default()
+    };
+    let ir = IRProgram {
+        version: "0.1".into(),
+        modules: vec![(
+            "main".to_string(),
+            ModuleIR {
+                name: "main".to_string(),
+                components: vec![("CounterWithStore".into(), comp)]
+                    .into_iter()
+                    .collect::<FxHashMap<_, _>>(),
+                stores: vec![("AppStore".into(), store)]
+                    .into_iter()
+                    .collect::<FxHashMap<_, _>>(),
+                ..Default::default()
+            },
+        )]
+        .into_iter()
+        .collect::<FxHashMap<_, _>>(),
+        source_map: FxHashMap::default(),
+        stdlib_imports: Default::default(),
+        source_span: None,
+        motion_index: FxHashMap::default(),
+    };
+    let sources = vec![("main.omni".into(), "".into())]
+        .into_iter()
+        .collect::<FxHashMap<_, _>>();
+    let output = codegen.generate(&ir, &sources);
+    assert!(output.errors.is_empty());
+    let tsx = output
+        .files
+        .iter()
+        .find(|f| f.path == "CounterWithStore.tsx")
+        .unwrap()
+        .content
+        .clone();
+    assert!(
+        tsx.contains("const count = useAppStore((s) => s.count);"),
+        "StoreFieldAccessExpr reads must subscribe via slice selector. Got:\n{}",
+        tsx
+    );
+    assert!(
+        tsx.contains("const increment = useAppStore((s) => s.increment);"),
+        "StoreAction refs must subscribe via action slice. Got:\n{}",
+        tsx
+    );
+    assert!(
+        !tsx.contains("const AppStore = useAppStore()"),
+        "no whole-store subscription. Got:\n{}",
+        tsx
+    );
+    assert!(
+        tsx.contains("{count}"),
+        "StoreFieldAccessExpr read must be rewritten to the slice local. Got:\n{}",
+        tsx
+    );
+    assert!(
+        tsx.contains("onClick={() => { increment(); }}"),
+        "StoreAction handler must call the action slice. Got:\n{}",
+        tsx
     );
 }

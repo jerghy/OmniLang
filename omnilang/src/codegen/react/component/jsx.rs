@@ -28,6 +28,7 @@ impl ReactCodegen {
         motion_names: &FxHashSet<String>,
         name: &str,
         ref_names: &FxHashSet<String>,
+        store_field_renames: &FxHashMap<String, String>,
         motion_counter: &mut usize,
     ) {
         w.emit("return (");
@@ -50,6 +51,7 @@ impl ReactCodegen {
                 store_signal_owners,
                 motion_names,
                 ref_names,
+                store_field_renames,
                 motion_counter,
             );
         } else {
