@@ -409,8 +409,13 @@ motion swipeCard {
 |------|------|-------|---------|
 | `constraints: [min, max]` | 拖拽范围限制 | pointer events + clamp | `GestureDetector.onPanUpdate` + clamp |
 | `elastic: N` | 超出范围时的弹性系数 | 超出时 progress = clamped + easing | 同 |
-| `velocity_max: N` | 释放后惯性滚动最大速度 | pointerup + velocity calc + decay | `GestureDetector.onPanEnd` + `velocity.pixelsPerSecond` |
+| `velocity_max: N` | 拖拽期间速度跟踪上限（px/s 截断） | pointermove 中 `velocity = min(velocityMax, dp/dt*1000)` | `_onDragUpdate` 中同样截断 |
 | `threshold: N` | 吸附阈值 | progress 超过 threshold 吸附到最近端点 | 同 |
+
+> ⚠️ 诚实降级（ADR-054）：释放后惯性 decay 在三个目标上均**未实现**——
+> `velocity_max` 仅作为拖拽期间速度跟踪器的上限被消费（三目标一致），
+> 释放行为统一为 threshold 吸附（play/reverse）。此前的「pointerup +
+> velocity calc + decay」描述不实，已修正。
 
 ### 3.8 内联动画体 → 命名动画（IR lowering）
 

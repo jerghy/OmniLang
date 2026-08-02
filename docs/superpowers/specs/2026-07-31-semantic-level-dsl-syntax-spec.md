@@ -355,11 +355,16 @@ component AnimatedCard {
 | `@scroll start:`/`end:` | 数字滚动映射区间 | `const startPos = N; const endPos = M;` → `progress = (scrollY - N) / (M - N)` | `_OmniScrollDrivenWidget(start: N, end: M)`（类型化 `double?` 字段） |
 | `@scroll scrub: true` | 平滑系数（布尔 true = 1s） | `scrub > 0` 指数平滑 | `_OmniScrollDrivenWidget(scrub:)` 指数平滑 |
 | `@drag-* constraints: [min, max]` | 拖拽范围限制 + 弹性回弹 | `const constraints = [min, max]`（运行时 clamp + `(1 - elastic)` 回弹） | `_OmniDragWidget(constraintsMin: min, constraintsMax: max)` |
-| `@drag-* elastic:`/`threshold:`/`velocity_max:` | 弹性系数 / 吸附阈值 / 最大惯性速度 | 生成数值常量 | 类型化构造参数 |
+| `@drag-* elastic:`/`threshold:` | 弹性系数 / 吸附阈值 | 生成数值常量 | 类型化构造参数 |
+| `@drag-* velocity_max:` | 拖拽期间速度跟踪上限（px/s 截断） | `velocity = min(velocityMax, dp/dt*1000)`（pointermove） | `_OmniDragWidget(velocityMax:)` + `_onDragUpdate` 截断 |
 
 > 缺省行为：`@scroll` 无 `start`/`end` 回落视口相对字符串配置（`"top 80%"` →
 > `"bottom 20%"`）；`@drag-*` 无 `constraints` 回落关键帧范围推导
 > （`maxExtent`），无可用范围时带编译器警告。
+>
+> ⚠️ 诚实降级（ADR-054）：释放后惯性 decay 在三个目标上均**未实现**——
+> `velocity_max` 仅作为拖拽期间速度跟踪器的上限被消费（三目标一致），
+> 释放行为统一为 threshold 吸附（play/reverse）。
 
 ### 3.5 Keyframe 属性 → 平台映射
 

@@ -35,6 +35,7 @@ export function MotionDrag() {
         const constraints = [-100, 100];
         const elastic = 0.5;
         const threshold = 0.3;
+        const velocityMax = 500;
         const parseConstraint = (cfg) => {
             if (!cfg) return { min: -Infinity, max: Infinity };
             if (Array.isArray(cfg)) return { min: cfg[0], max: cfg[1] };
@@ -57,15 +58,28 @@ export function MotionDrag() {
         const constraint = parseConstraint(constraints);
         const maxExtent = Math.abs(constraint.max - constraint.min) || 1;
         let startPos = 0, currentDelta = 0, isDragging = false;
+        let lastMoveTime = 0, lastMovePos = 0, velocity = 0;
         const onPointerDown = (e) => {
             isDragging = true;
             startPos = axis === 'x' ? e.clientX : e.clientY;
             currentDelta = 0;
+            lastMoveTime = 0;
+            lastMovePos = 0;
+            velocity = 0;
             el.setPointerCapture(e.pointerId);
         };
         const onPointerMove = (e) => {
             if (!isDragging) return;
             const raw = (axis === 'x' ? e.clientX : e.clientY) - startPos;
+            // velocity_max: track drag velocity (px/s) capped at velocityMax
+            const now = performance.now();
+            if (lastMoveTime > 0) {
+                const dt = now - lastMoveTime;
+                const dp = Math.abs(raw - lastMovePos);
+                if (dt > 0) velocity = Math.min(velocityMax, dp / dt * 1000);
+            }
+            lastMoveTime = now;
+            lastMovePos = raw;
             let constrained = raw;
             if (raw < constraint.min) {
                 constrained = constraint.min - (constraint.min - raw) * (1 - elastic);
@@ -111,6 +125,7 @@ export function MotionDrag() {
         const constraints = [0, 150];
         const elastic = 0.2;
         const threshold = 0;
+        const velocityMax = 2000;
         const parseConstraint = (cfg) => {
             if (!cfg) return { min: -Infinity, max: Infinity };
             if (Array.isArray(cfg)) return { min: cfg[0], max: cfg[1] };
@@ -133,15 +148,28 @@ export function MotionDrag() {
         const constraint = parseConstraint(constraints);
         const maxExtent = Math.abs(constraint.max - constraint.min) || 1;
         let startPos = 0, currentDelta = 0, isDragging = false;
+        let lastMoveTime = 0, lastMovePos = 0, velocity = 0;
         const onPointerDown = (e) => {
             isDragging = true;
             startPos = axis === 'x' ? e.clientX : e.clientY;
             currentDelta = 0;
+            lastMoveTime = 0;
+            lastMovePos = 0;
+            velocity = 0;
             el.setPointerCapture(e.pointerId);
         };
         const onPointerMove = (e) => {
             if (!isDragging) return;
             const raw = (axis === 'x' ? e.clientX : e.clientY) - startPos;
+            // velocity_max: track drag velocity (px/s) capped at velocityMax
+            const now = performance.now();
+            if (lastMoveTime > 0) {
+                const dt = now - lastMoveTime;
+                const dp = Math.abs(raw - lastMovePos);
+                if (dt > 0) velocity = Math.min(velocityMax, dp / dt * 1000);
+            }
+            lastMoveTime = now;
+            lastMovePos = raw;
             let constrained = raw;
             if (raw < constraint.min) {
                 constrained = constraint.min - (constraint.min - raw) * (1 - elastic);
@@ -186,6 +214,7 @@ export function MotionDrag() {
         const constraints = "";
         const elastic = 0;
         const threshold = 0;
+        const velocityMax = 2000;
         const parseConstraint = (cfg) => {
             if (!cfg) return { min: -Infinity, max: Infinity };
             if (Array.isArray(cfg)) return { min: cfg[0], max: cfg[1] };
@@ -209,15 +238,28 @@ export function MotionDrag() {
         // no constraints — maxExtent 300px derived from the motion's keyframe range
         const maxExtent = 300;
         let startPos = 0, currentDelta = 0, isDragging = false;
+        let lastMoveTime = 0, lastMovePos = 0, velocity = 0;
         const onPointerDown = (e) => {
             isDragging = true;
             startPos = axis === 'x' ? e.clientX : e.clientY;
             currentDelta = 0;
+            lastMoveTime = 0;
+            lastMovePos = 0;
+            velocity = 0;
             el.setPointerCapture(e.pointerId);
         };
         const onPointerMove = (e) => {
             if (!isDragging) return;
             const raw = (axis === 'x' ? e.clientX : e.clientY) - startPos;
+            // velocity_max: track drag velocity (px/s) capped at velocityMax
+            const now = performance.now();
+            if (lastMoveTime > 0) {
+                const dt = now - lastMoveTime;
+                const dp = Math.abs(raw - lastMovePos);
+                if (dt > 0) velocity = Math.min(velocityMax, dp / dt * 1000);
+            }
+            lastMoveTime = now;
+            lastMovePos = raw;
             let constrained = raw;
             if (raw < constraint.min) {
                 constrained = constraint.min - (constraint.min - raw) * (1 - elastic);

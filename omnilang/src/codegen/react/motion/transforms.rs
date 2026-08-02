@@ -249,7 +249,7 @@ pub(super) fn emit_drag_effect_tsx(
     // motion's own keyframe range (the distance the animation travels in the
     // drag axis), so the element follows its animation instead of dividing
     // by Infinity (deferral #19).
-    let (constraints_pair, elastic_expr, threshold_expr, _velocity_expr) = match &trigger.kind {
+    let (constraints_pair, elastic_expr, threshold_expr, velocity_expr) = match &trigger.kind {
         TriggerKind::DragHorizontal {
             constraints,
             elastic,
@@ -282,6 +282,10 @@ pub(super) fn emit_drag_effect_tsx(
     );
     let threshold_js = threshold_expr.map_or_else(
         || "0".to_string(),
+        |e| expr::format_expr_ir_tsx(e, &FxHashSet::default()),
+    );
+    let velocity_max_js = velocity_expr.map_or_else(
+        || "2000".to_string(),
         |e| expr::format_expr_ir_tsx(e, &FxHashSet::default()),
     );
 
@@ -317,6 +321,11 @@ pub(super) fn emit_drag_effect_tsx(
     }
     w.emit_fmt(format_args!("const elastic = {};", elastic_js));
     w.emit_fmt(format_args!("const threshold = {};", threshold_js));
+    // v1 velocity_max (Task 5.1): cap for the drag-velocity tracker (px/s),
+    // mirroring the OmniView drag tracker. Inertia decay after release is
+    // not implemented on any target (honest degradation, ADR-054) — the
+    // velocity is tracked and clamped during the drag only.
+    w.emit_fmt(format_args!("const velocityMax = {};", velocity_max_js));
     w.emit("const parseConstraint = (cfg) => {");
     w.indent();
     w.emit("if (!cfg) return { min: -Infinity, max: Infinity };");
@@ -365,11 +374,15 @@ pub(super) fn emit_drag_effect_tsx(
         w.emit("const maxExtent = Number.POSITIVE_INFINITY;");
     }
     w.emit("let startPos = 0, currentDelta = 0, isDragging = false;");
+    w.emit("let lastMoveTime = 0, lastMovePos = 0, velocity = 0;");
     w.emit("const onPointerDown = (e) => {");
     w.indent();
     w.emit("isDragging = true;");
     w.emit("startPos = axis === 'x' ? e.clientX : e.clientY;");
     w.emit("currentDelta = 0;");
+    w.emit("lastMoveTime = 0;");
+    w.emit("lastMovePos = 0;");
+    w.emit("velocity = 0;");
     w.emit("el.setPointerCapture(e.pointerId);");
     w.dedent();
     w.emit("};");
@@ -377,6 +390,17 @@ pub(super) fn emit_drag_effect_tsx(
     w.indent();
     w.emit("if (!isDragging) return;");
     w.emit("const raw = (axis === 'x' ? e.clientX : e.clientY) - startPos;");
+    w.emit("// velocity_max: track drag velocity (px/s) capped at velocityMax");
+    w.emit("const now = performance.now();");
+    w.emit("if (lastMoveTime > 0) {");
+    w.indent();
+    w.emit("const dt = now - lastMoveTime;");
+    w.emit("const dp = Math.abs(raw - lastMovePos);");
+    w.emit("if (dt > 0) velocity = Math.min(velocityMax, dp / dt * 1000);");
+    w.dedent();
+    w.emit("}");
+    w.emit("lastMoveTime = now;");
+    w.emit("lastMovePos = raw;");
     w.emit("let constrained = raw;");
     w.emit("if (raw < constraint.min) {");
     w.indent();

@@ -8,6 +8,7 @@ use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 use std::collections::HashMap;
 use std::fmt::Write;
+use std::process::Command;
 
 // ── Helper tests ──────────────────────────────────────────
 
@@ -6594,6 +6595,18 @@ fn drag_trigger_passes_typed_constraints_to_widget() {
         out.contains("final double? constraintsMin;"),
         "widget must accept typed nullable constraintsMin"
     );
+    assert!(
+        out.contains("velocityMax: 500,"),
+        "velocity_max must flow into the widget constructor, got:
+{}",
+        &out[..out.len().min(1200)]
+    );
+    assert!(
+        out.contains("_velocity = (dp / dt * 1000).clamp(0.0, widget.velocityMax);"),
+        "widget must track drag velocity clamped at velocityMax, got:
+{}",
+        &out[..out.len().min(1200)]
+    );
 }
 
 #[test]
@@ -6620,5 +6633,137 @@ fn scroll_without_params_omits_typed_args() {
         "no typed start/end args when sub-params absent, got:
 {}",
         &out[..out.len().min(800)]
+    );
+}
+
+/// Review fix (fix round 1/5, HIGH): the numeric @scroll path must map
+/// progress from the SCROLL OFFSET alone — the previous emitted computation
+/// summed the viewport-relative elementTop into the document-relative
+/// scrollOffset, producing a constant "document position" that never changed
+/// while scrolling (a silent no-op). This test extracts the numeric branch
+/// VERBATIM from the generated Dart and executes it under `dart run`,
+/// driving scroll offsets 0/500/2000 against a 0→1000 range and asserting
+/// progress 0.0/0.5/1.0. Skips when the Dart SDK is unavailable.
+#[test]
+fn flutter_scroll_numeric_progress_changes_with_scroll_offset() {
+    let result = compile_flutter(
+        "@motion fadeScroll { from { opacity: 0.3 } to { opacity: 1 } over: 500ms }\n\
+         component Test {\n\
+             view {\n\
+                 <div @scroll start: 0 end: 1000 ={fadeScroll}>scroll me</div>\n\
+             }\n\
+         }",
+    )
+    .expect("scroll fixture must compile");
+    let out = result
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    // Extract the emitted numeric branch verbatim: from the typedStart
+    // declaration through the first `progress = raw.clamp(0.0, 1.0);`
+    // (the if-block closes with a brace we append — the emitted ` else {`
+    // legacy branch is excluded).
+    let marker = "final double? typedStart = widget.start;";
+    let start_idx = out
+        .find(marker)
+        .unwrap_or_else(|| panic!("numeric branch marker not found in output:\n{}", out));
+    let fragment_start = &out[start_idx..];
+    let end_idx = fragment_start
+        .find("progress = raw.clamp(0.0, 1.0);")
+        .expect("progress assignment not found in numeric branch")
+        + "progress = raw.clamp(0.0, 1.0);".len();
+    // The emitted numeric branch declares `double progress;` locally — the
+    // harness provides the accumulator at top level so the driver can
+    // observe it; the bare declaration carries no computation.
+    let fragment = fragment_start[..end_idx]
+        .lines()
+        .filter(|l| l.trim() != "double progress;")
+        .collect::<Vec<_>>()
+        .join(
+            "
+",
+        );
+    let fragment = format!(
+        "{}
+}}",
+        fragment
+    );
+
+    let script = format!(
+        "class WidgetStub {{\n\
+         \x20 final double? start;\n\
+         \x20 final double? end;\n\
+         \x20 const WidgetStub(this.start, this.end);\n\
+         }}\n\
+         class ScrollPos {{\n\
+         \x20 final double? pixels;\n\
+         \x20 const ScrollPos(this.pixels);\n\
+         }}\n\
+         WidgetStub widget = const WidgetStub(0, 1000);\n\
+         ScrollPos? _scrollPosition;\n\
+         double progress = 0;\n\
+         \n\
+         void updateProgress() {{\n\
+         {fragment}\n\
+         }}\n\
+         \n\
+         void main() {{\n\
+         \x20 _scrollPosition = const ScrollPos(0); updateProgress(); print('p0=$progress');\n\
+         \x20 _scrollPosition = const ScrollPos(500); updateProgress(); print('p500=$progress');\n\
+         \x20 _scrollPosition = const ScrollPos(2000); updateProgress(); print('p2000=$progress');\n\
+         }}\n"
+    );
+
+    // Locate a usable `dart` (the gate falls back to `cmd /C dart` on
+    // Windows where only dart.bat exists).
+    let mut dart_cmd = Command::new("dart");
+    let mut use_cmd_fallback = false;
+    if dart_cmd.arg("--version").output().is_err() {
+        #[cfg(windows)]
+        {
+            if Command::new("cmd")
+                .args(["/C", "dart", "--version"])
+                .output()
+                .is_ok_and(|o| o.status.success())
+            {
+                use_cmd_fallback = true;
+            }
+        }
+    }
+    if !use_cmd_fallback && dart_cmd.arg("--version").output().is_err() {
+        eprintln!("SKIP: dart not found on PATH — cannot execute the emitted progress computation");
+        return;
+    }
+
+    let script_dir = std::env::temp_dir().join("omni_flutter_scroll_check");
+    let _ = std::fs::create_dir_all(&script_dir);
+    let script_path = script_dir.join("check.dart");
+    std::fs::write(&script_path, &script).expect("write dart check script");
+    let mut run = if use_cmd_fallback {
+        let mut cmd = Command::new("cmd");
+        cmd.arg("/C").arg("dart").arg("run").arg(&script_path);
+        cmd
+    } else {
+        let mut cmd = Command::new("dart");
+        cmd.arg("run").arg(&script_path);
+        cmd
+    };
+    let output = run.output().expect("failed to execute dart run");
+    let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+    assert!(
+        output.status.success(),
+        "dart run failed:\nstdout: {}\nstderr: {}\nscript:\n{}",
+        stdout,
+        stderr,
+        script
+    );
+    assert!(
+        stdout.contains("p0=0.0") && stdout.contains("p500=0.5") && stdout.contains("p2000=1.0"),
+        "progress must move with the scroll offset (0→0.0, 500→0.5, 2000→1.0), got:\n{}",
+        stdout
     );
 }

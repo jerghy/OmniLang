@@ -505,6 +505,18 @@ component Test {
         &output[..output.len().min(800)]
     );
     assert!(
+        output.contains("const velocityMax = 500;"),
+        "velocity_max must be wired into the velocity tracker, got partial:
+{}",
+        &output[..output.len().min(800)]
+    );
+    assert!(
+        output.contains("velocity = Math.min(velocityMax, dp / dt * 1000);"),
+        "velocity tracker must clamp at velocityMax, got partial:
+{}",
+        &output[..output.len().min(800)]
+    );
+    assert!(
         output.contains("const maxExtent = Math.abs(constraint.max - constraint.min) || 1;"),
         "constraints must drive maxExtent (no keyframe derivation), got partial:
 {}",

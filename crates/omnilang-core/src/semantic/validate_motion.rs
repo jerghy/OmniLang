@@ -225,11 +225,13 @@ impl SemanticAnalyzer {
     }
 
     /// Validate the v1 control dimensions of `@scroll` / `@drag-*` triggers
-    /// (Task 5.1, v2 BNF): `start`/`end` must be numbers and come in pairs,
-    /// `scrub` must be a bool, `constraints` must be `[min, max]` numbers
-    /// with min < max, and `elastic`/`threshold`/`velocity_max` must be
-    /// non-negative numbers. Errors are hard diagnostics in Chinese per the
-    /// v2 policy — never parse-and-ignore.
+    /// (Task 5.1, v2 BNF): `start`/`end` must be numbers, come in pairs, and
+    /// form a strictly increasing range (`start < end` — an inverted or
+    /// zero-width range would divide by zero on React/OmniView and silently
+    /// no-op on Flutter); `scrub` must be a bool; `constraints` must be
+    /// `[min, max]` numbers with min < max; `elastic`/`threshold`/
+    /// `velocity_max` must be non-negative numbers. Errors are hard
+    /// diagnostics in Chinese per the v2 policy — never parse-and-ignore.
     fn validate_trigger_params(&mut self, trigger: &MotionTrigger) {
         let span = trigger_expr_span(&trigger.motion_expr);
         match &trigger.trigger {
@@ -250,6 +252,22 @@ impl SemanticAnalyzer {
                                 &span,
                             ));
                         }
+                    }
+                }
+                // start == end (or inverted) would divide by zero / invert the
+                // mapping on React/OmniView and silently no-op on Flutter —
+                // require a strictly increasing range, mirroring the drag
+                // constraints min < max check.
+                if let (Some(s), Some(e)) = (start, end) {
+                    if is_number_literal_expr(s)
+                        && is_number_literal_expr(e)
+                        && number_literal_value(s) >= number_literal_value(e)
+                    {
+                        self.diagnostics.push(Diagnostic::error(
+                            DiagnosticKind::E0006,
+                            "「start」必须小于「end」（滚动映射区间）",
+                            &span,
+                        ));
                     }
                 }
                 if let Some(e) = scrub {
@@ -660,6 +678,36 @@ mod trigger_param_validation_tests {
         assert!(
             d.iter().any(|e| e.message.contains("scrub」必须是布尔值")),
             "numeric scrub must be diagnosed, got: {:?}",
+            d
+        );
+    }
+
+    #[test]
+    fn scroll_start_equal_end_is_error() {
+        // Zero-width range → division by zero (NaN progress) on React/OmniView
+        // and a silent no-op on Flutter — must be a hard error.
+        let d = diags(&wrap(
+            "@scroll start: 1000 end: 1000 ={m}",
+            "from { opacity: 0 } to { opacity: 1 }",
+        ));
+        assert!(
+            d.iter()
+                .any(|e| e.message.contains("「start」必须小于「end」")),
+            "start == end must be diagnosed, got: {:?}",
+            d
+        );
+    }
+
+    #[test]
+    fn scroll_inverted_range_is_error() {
+        let d = diags(&wrap(
+            "@scroll start: 1000 end: 0 ={m}",
+            "from { opacity: 0 } to { opacity: 1 }",
+        ));
+        assert!(
+            d.iter()
+                .any(|e| e.message.contains("「start」必须小于「end」")),
+            "inverted range must be diagnosed, got: {:?}",
             d
         );
     }
