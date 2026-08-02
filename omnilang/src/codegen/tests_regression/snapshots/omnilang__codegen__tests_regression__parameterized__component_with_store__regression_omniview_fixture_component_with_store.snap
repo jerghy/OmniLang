@@ -188,83 +188,6 @@ function __omni_sanitizeUrl(url) {
   return str;
 }
 
-function __omni_normalizeCssEscapes(value) {
-  // Normalize CSS hex escape sequences like \6a (→j) before pattern matching
-  // to prevent attackers from bypassing keyword-based sanitizers.
-  var result = '';
-  var i = 0;
-  var len = value.length;
-  while (i < len) {
-    var ch = value.charAt(i);
-    if (ch === '\\') {
-      i++;
-      var hex = '';
-      while (i < len && hex.length < 6 && /^[0-9a-fA-F]$/.test(value.charAt(i))) {
-        hex += value.charAt(i);
-        i++;
-      }
-      if (hex.length > 0) {
-        // Consume optional trailing space (CSS spec)
-        if (i < len && value.charAt(i) === ' ') {
-          i++;
-        }
-        var code = parseInt(hex, 16);
-        // String.fromCodePoint throws RangeError for code points > 0x10FFFF
-        // and surrogates (0xD800-0xDFFF). Skip these — they cannot represent
-        // valid characters and preserving the raw escape is safer than crashing.
-        // Matches Rust behavior: char::from_u32(code) returns None for these.
-        if (!isNaN(code) && code <= 0x10FFFF && !(code >= 0xD800 && code <= 0xDFFF)) {
-          result += String.fromCodePoint(code);
-          continue;
-        }
-      }
-      // Not a valid hex escape, preserve backslash and next char
-      result += '\\';
-      if (i < len) {
-        result += value.charAt(i);
-        i++;
-      }
-    } else {
-      result += ch;
-      i++;
-    }
-  }
-  return result;
-}
-
-function __omni_sanitizeCss(value) {
-  var str = String(value);
-  // Strip CR, LF, TAB before any pattern matching — browsers strip these
-  // characters during CSS tokenization (CSS Syntax §4.3.7), so
-  // "jav\r\nascript:" would be normalized by the browser to "javascript:".
-  // This mirrors the same normalization in __omni_sanitizeUrl.
-  str = str.replace(/[\r\n\t]/g, '');
-  // Normalize CSS hex escapes before checking for dangerous patterns
-  str = __omni_normalizeCssEscapes(str);
-  var lower = str.toLowerCase();
-  // Block protocol-level injection patterns
-  if (lower.indexOf('javascript:') >= 0 || lower.indexOf('expression(') >= 0 ||
-      lower.indexOf('-moz-binding') >= 0 ||
-      lower.indexOf('data:text/html') >= 0 || lower.indexOf('@import') >= 0 ||
-      lower.indexOf('vbscript:') >= 0 || lower.indexOf('document.') >= 0 ||
-      lower.indexOf('window.') >= 0) {
-    return '';
-  }
-  // Allow url() only with safe schemes. url() is needed for
-  // background-image and other standard CSS resource loading.
-  // Block url() containing javascript: or vbscript: schemes.
-  // The outer block already catches standalone javascript:/vbscript:,
-  // but they could appear inside a url() value after stripping.
-  var urlIdx = lower.indexOf('url(');
-  if (urlIdx >= 0) {
-    var afterUrl = lower.substring(urlIdx);
-    if (afterUrl.indexOf('javascript:') >= 0 || afterUrl.indexOf('vbscript:') >= 0) {
-      return '';
-    }
-  }
-  return str;
-}
-
 function __omni_el(nid) {
   var cache = __omni_el._cache || (__omni_el._cache = {});
   var el = cache[nid];
@@ -319,6 +242,87 @@ function __omni_el(nid) {
 	}
 /// ─── End Signal Runtime ────────────────────────────
 
+function __omni_normalizeCssEscapes(value) {
+  // Normalize CSS hex escape sequences like \6a (→j) before pattern matching
+  // to prevent attackers from bypassing keyword-based sanitizers.
+  var result = '';
+  var i = 0;
+  var len = value.length;
+  while (i < len) {
+    var ch = value.charAt(i);
+    if (ch === '\\') {
+      i++;
+      var hex = '';
+      while (i < len && hex.length < 6 && /^[0-9a-fA-F]$/.test(value.charAt(i))) {
+        hex += value.charAt(i);
+        i++;
+      }
+      if (hex.length > 0) {
+        // Consume optional trailing space (CSS spec)
+        if (i < len && value.charAt(i) === ' ') {
+          i++;
+        }
+        var code = parseInt(hex, 16);
+        // String.fromCodePoint throws RangeError for code points > 0x10FFFF
+        // and surrogates (0xD800-0xDFFF). Skip these — they cannot represent
+        // valid characters and preserving the raw escape is safer than crashing.
+        // Matches Rust behavior: char::from_u32(code) returns None for these.
+        if (!isNaN(code) && code <= 0x10FFFF && !(code >= 0xD800 && code <= 0xDFFF)) {
+          result += String.fromCodePoint(code);
+          continue;
+        }
+      }
+      // Not a valid hex escape, preserve backslash and next char
+      result += '\\';
+      if (i < len) {
+        result += value.charAt(i);
+        i++;
+      }
+    } else {
+      result += ch;
+      i++;
+    }
+  }
+  return result;
+}
+
+function __omni_sanitizeCss(value) {
+  var str = String(value);
+  // Strip CR, LF, TAB before any pattern matching — browsers strip these
+  // characters during CSS tokenization (CSS Syntax §4.3.7), so
+  // "jav\r\nascript:" would be normalized by the browser to "javascript:".
+  // This mirrors the same normalization in __omni_sanitizeUrl.
+  str = str.replace(/[\r\n\t]/g, '');
+  // Normalize CSS hex escapes before checking for dangerous patterns
+  str = __omni_normalizeCssEscapes(str);
+  // Strip again: escapes decode AFTER the pre-strip, so \a produces a
+  // literal LF (\d a CR, \9 a TAB) here. Without this second strip,
+  // "java\ascript:" — decoded to "java\nscript:" — would bypass the
+  // keyword checks below. Mirrors sanitize_css_value in sanitize.rs.
+  str = str.replace(/[\r\n\t]/g, '');
+  var lower = str.toLowerCase();
+  // Block protocol-level injection patterns
+  if (lower.indexOf('javascript:') >= 0 || lower.indexOf('expression(') >= 0 ||
+      lower.indexOf('-moz-binding') >= 0 ||
+      lower.indexOf('data:text/html') >= 0 || lower.indexOf('@import') >= 0 ||
+      lower.indexOf('vbscript:') >= 0 || lower.indexOf('document.') >= 0 ||
+      lower.indexOf('window.') >= 0) {
+    return '';
+  }
+  // Allow url() only with safe schemes. url() is needed for
+  // background-image and other standard CSS resource loading.
+  // Block url() containing javascript: or vbscript: schemes.
+  // The outer block already catches standalone javascript:/vbscript:,
+  // but they could appear inside a url() value after stripping.
+  var urlIdx = lower.indexOf('url(');
+  if (urlIdx >= 0) {
+    var afterUrl = lower.substring(urlIdx);
+    if (afterUrl.indexOf('javascript:') >= 0 || afterUrl.indexOf('vbscript:') >= 0) {
+      return '';
+    }
+  }
+  return str;
+}
 const AppStore_count = __omni_signal("AppStore_count", 0);
 function AppStore_increment() {
   __omni_subs.get("AppStore_count").set(__omni_subs.get("AppStore_count").value + 1);

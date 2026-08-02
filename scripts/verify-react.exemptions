@@ -43,3 +43,4 @@
 *	@typescript-eslint/no-unused-vars	T1.6	12x generated unused identifiers (_b/_i)
 *	@typescript-eslint/no-explicit-any	T1.6	1x generated any annotation (FnFormatter)
 *	no-control-regex	T1.6	2x generated regex with control chars (StdLibShowcase)
+*	no-var	T3.2	10x shared sanitizer helper in useDesignTokens.ts — one ES5 body (var) serves both the OmniView runtime (ES5 constraint) and React .ts output; single-source drift fix

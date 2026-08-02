@@ -68,6 +68,13 @@ pub fn sanitize_css_value(value: &str) -> String {
     let value = value.replace(&['\r', '\n', '\t'][..], "");
     // Normalize CSS escape sequences to prevent bypasses
     let normalized = normalize_css_escapes(&value);
+    // Strip again: escapes decode AFTER the pre-strip, so `\a` produces a
+    // literal LF (`\d` a CR, `\9` a TAB) here. Without this second strip,
+    // "java\ascript:" — decoded to "java\nscript:" — would slip past the
+    // keyword checks below. The returned value keeps the raw escapes so
+    // legitimate CSS like `content: "\a"` survives; only the CHECK sees the
+    // decoded-and-stripped form (which is exactly what a browser tokenizes).
+    let normalized = normalized.replace(&['\r', '\n', '\t'][..], "");
     let lower = normalized.to_lowercase();
 
     if lower.contains("javascript:")
@@ -210,7 +217,65 @@ pub fn sanitize_js_ident(name: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::is_dangerous_url;
+    use super::{is_dangerous_url, sanitize_css_value};
+
+    #[test]
+    fn test_sanitize_css_value_blocks_hex_escape_bypass() {
+        // Hex-escaped "javascript:" — the payload that pierced the React
+        // runtime copy before the single-source helper (task 3.2).
+        assert_eq!(
+            sanitize_css_value(r"\6a\61\76\61\73\63\72\69\70\74\3a alert(1)"),
+            "",
+            "hex-escaped javascript: must be blocked"
+        );
+        // Hex-escaped javascript: inside url()
+        assert_eq!(
+            sanitize_css_value(r"url(\6a\61\76\61\73\63\72\69\70\74\3a alert(1))"),
+            "",
+            "hex-escaped javascript: inside url() must be blocked"
+        );
+    }
+
+    #[test]
+    fn test_sanitize_css_value_blocks_escape_decoded_whitespace() {
+        // Review LOW: `\a` decodes to LF (`\d` to CR, `\9` to TAB) AFTER the
+        // pre-strip, so the post-normalize strip must catch it or
+        // "java\ascript:" (decoded "java\nscript:") bypasses the keywords.
+        assert_eq!(
+            sanitize_css_value(r"url(java\ascript:alert(1))"),
+            "",
+            "\\a-decoded LF in url() javascript: must be blocked"
+        );
+        assert_eq!(
+            sanitize_css_value(r"url(java\dscript:alert(1))"),
+            "",
+            "\\d-decoded CR in url() javascript: must be blocked"
+        );
+        assert_eq!(
+            sanitize_css_value(r"url(java\9script:alert(1))"),
+            "",
+            "\\9-decoded TAB in url() javascript: must be blocked"
+        );
+        // Plain (non-url) escape-decoded newline must also be blocked
+        assert_eq!(
+            sanitize_css_value(r"java\ascript:alert(1)"),
+            "",
+            "\\a-decoded LF in plain javascript: must be blocked"
+        );
+        // Legitimate escapes must survive in the RETURNED value (compile-time
+        // output keeps the raw escape so browsers decode it — e.g. the common
+        // `content: "\a"` newline escape must not be destroyed).
+        assert_eq!(
+            sanitize_css_value(r#"content: "\a""#),
+            r#"content: "\a""#,
+            "legitimate \\a content escape must be preserved in the return"
+        );
+        assert_eq!(
+            sanitize_css_value(r"background\2d color: red"),
+            r"background\2d color: red",
+            "legitimate safe hex escape must be preserved in the return"
+        );
+    }
 
     #[test]
     fn test_is_dangerous_url() {

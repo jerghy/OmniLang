@@ -370,32 +370,25 @@ fn emit_use_design_tokens(designs: &[&DesignIR], ir: &IRProgram) -> Option<Strin
     Some(w.into_string())
 }
 
-/// Emit the module-local `sanitizeCss` helper mirroring the OmniView runtime
-/// sanitizer (`__omni_sanitizeCss`): strips CR/LF/TAB and blocks protocol
-/// injection patterns so store-driven token values cannot inject CSS.
+/// Emit the module-local `sanitizeCss` + `normalizeCssEscapes` helpers from
+/// the SHARED sanitizer emitter (single source of truth with the OmniView
+/// runtime `__omni_sanitizeCss`, task 3.2): hex-escape normalization,
+/// CR/LF/TAB pre/post-strip, the full keyword block (including
+/// `data:text/html`, `document.`, `window.`) and the url() context checks,
+/// so store-driven token values cannot inject CSS. See
+/// `crate::codegen::shared::sanitize`.
 fn emit_sanitize_css(w: &mut CodeWriter) {
-    w.emit("// Strip dangerous CSS sequences from runtime values (mirrors the OmniView");
-    w.emit("// runtime sanitizer) so store-driven token values cannot inject CSS.");
-    w.emit("function sanitizeCss(value: unknown): string {");
-    w.indent();
-    w.emit("const str = String(value ?? '').replace(/[\\r\\n\\t]/g, '');");
-    w.emit("const lower = str.toLowerCase();");
-    w.emit("if (");
-    w.indent();
-    w.emit("lower.includes('javascript:') ||");
-    w.emit("lower.includes('expression(') ||");
-    w.emit("lower.includes('-moz-binding') ||");
-    w.emit("lower.includes('@import') ||");
-    w.emit("lower.includes('vbscript:')");
-    w.dedent();
-    w.emit(") {");
-    w.indent();
-    w.emit("return '';");
-    w.dedent();
-    w.emit("}");
-    w.emit("return str;");
-    w.dedent();
-    w.emit("}");
+    w.emit("// Strip dangerous CSS sequences from runtime values (shared sanitizer");
+    w.emit("// emitter — identical logic to the OmniView runtime __omni_sanitizeCss)");
+    w.emit("// so store-driven token values cannot inject CSS.");
+    let helpers = crate::codegen::shared::sanitize::sanitize_css_helpers_js(
+        "sanitizeCss",
+        "normalizeCssEscapes",
+        true,
+    );
+    for line in helpers.lines() {
+        w.emit(line);
+    }
 }
 
 /// Emit `useThemeStore.ts` — a Zustand store for theme switching.
@@ -894,6 +887,26 @@ mod tests {
             content.contains("function sanitizeCss(value: unknown): string {"),
             "sanitizer must be emitted"
         );
+        // The React helper must come from the SHARED sanitizer emitter — the
+        // full keyword block + hex-escape normalization + url() context
+        // checks (the copies drifted before task 3.2).
+        assert!(
+            content.contains("function normalizeCssEscapes(value: string): string {"),
+            "shared helper must emit the normalize function. Got:\n{}",
+            content
+        );
+        assert!(
+            content.contains("str = normalizeCssEscapes(str);"),
+            "sanitizeCss must normalize hex escapes. Got:\n{}",
+            content
+        );
+        for needle in ["data:text/html", "document.", "window.", "afterUrl"] {
+            assert!(
+                content.contains(needle),
+                "React sanitizer must contain {needle:?} (drift fix). Got:\n{}",
+                content
+            );
+        }
     }
 
     #[test]
