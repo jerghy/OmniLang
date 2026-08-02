@@ -4003,3 +4003,167 @@ fn react_store_field_access_expr_uses_slice_selectors() {
         tsx
     );
 }
+
+// ═══════════════════════════════════════════════════════════
+// Task 3.3 review fixes: MEDIUM-1 + LOW-1/3/4 regression coverage
+// ═══════════════════════════════════════════════════════════
+
+/// MEDIUM-1: `array_push(list, TodoStore.field)` — the pushed item must go
+/// through the store-field renames (`TodoStore.totalCount` → `totalCount`),
+/// never emit an undeclared qualified reference. The interception fires on
+/// bare signal names (component signals here; the shared item-formatting
+/// line is the same for the store setState branch).
+#[test]
+fn react_store_array_push_item_uses_slice_renames() {
+    let store_src = r#"
+store PushStore {
+    signal items: Array<String> = [];
+    getter totalCount: i32 = items.len();
+}
+"#;
+    let comp_src = r#"
+import { PushStore } from "./store";
+import { array_push } from "std/array";
+
+component PushView {
+    @store PushStore;
+    signal local: Array<String> = [];
+    fn doPush() {
+        array_push(local, PushStore.totalCount.to_string());
+    }
+    view {
+        <p>{PushStore.items.len()}</p>
+        <p>{local.len()}</p>
+        <button @onClick={doPush}>push</button>
+    }
+}
+"#;
+    let content = compile_react_store_pair(store_src, comp_src);
+    assert!(
+        content.contains("setLocal(prev => [...prev, totalCount.toString()]);"),
+        "array_push item must reference the slice local. Got:\n{}",
+        content
+    );
+    assert!(
+        !content.contains("PushStore.totalCount"),
+        "no qualified store reference may survive in the push item. Got:\n{}",
+        content
+    );
+}
+
+/// LOW-1: a component signal initialized from a store field must use the
+/// slice local in the emitted initializer.
+#[test]
+fn react_store_signal_initializer_uses_slice_renames() {
+    let store_src = r#"
+store InitStore {
+    signal base: i32 = 10;
+}
+"#;
+    let comp_src = r#"
+import { InitStore } from "./store";
+
+component InitView {
+    @store InitStore;
+    signal copy: i32 = InitStore.base + 1;
+    view {
+        <p>{copy}</p>
+        <p>{InitStore.base}</p>
+    }
+}
+"#;
+    let content = compile_react_store_pair(store_src, comp_src);
+    assert!(
+        content.contains("const copy = base + 1;"),
+        "signal initializer must reference the slice local. Got:\n{}",
+        content
+    );
+    assert!(
+        !content.contains("InitStore.base"),
+        "no qualified store reference may survive in the initializer. Got:\n{}",
+        content
+    );
+}
+
+/// LOW-3: a BARE store-alias reference (`let s = TodoStore;`) forces the
+/// whole-store object — the alias must stay declared and usable.
+#[test]
+fn react_store_bare_alias_keeps_whole_store() {
+    let store_src = r#"
+store AliasStore {
+    signal items: Array<String> = [];
+}
+"#;
+    let comp_src = r#"
+import { AliasStore } from "./store";
+
+component AliasView {
+    @store AliasStore;
+    fn getLen() {
+        let s = AliasStore;
+    }
+    view {
+        <p>{AliasStore.items.len()}</p>
+        <button @onClick={getLen}>go</button>
+    }
+}
+"#;
+    let content = compile_react_store_pair(store_src, comp_src);
+    assert!(
+        content.contains("const AliasStore = useAliasStore();"),
+        "bare store-alias usage keeps the whole-store object. Got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("const s = AliasStore;"),
+        "bare alias reference must stay qualified. Got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("{AliasStore.items.length}"),
+        "qualified reads preserved with the whole-store object. Got:\n{}",
+        content
+    );
+}
+
+/// LOW-4: library functions are emitted at MODULE scope — neither the slice
+/// locals nor a whole-store const exist there, so their store references
+/// keep the pre-T3.3 qualified output (pre-existing limitation, unchanged).
+#[test]
+fn react_store_lib_fn_keeps_qualified_output() {
+    let store_src = r#"
+store LibStore {
+    signal items: Array<String> = [];
+    getter totalCount: i32 = items.len();
+}
+"#;
+    let comp_src = r#"
+import { LibStore } from "./store";
+pub fn describeCount() -> i32 {
+    return LibStore.totalCount;
+}
+component LibView {
+    @store LibStore;
+    view {
+        <p>{describeCount()}</p>
+        <p>{LibStore.items.len()}</p>
+    }
+}
+"#;
+    let content = compile_react_store_pair(store_src, comp_src);
+    assert!(
+        content.contains("return LibStore.totalCount;"),
+        "lib fn body must keep the qualified store read (module scope). Got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("const items = useLibStore((s) => s.items);"),
+        "the component itself still slices. Got:\n{}",
+        content
+    );
+    assert!(
+        !content.contains("return totalCount;"),
+        "lib fn must NOT reference a component-scope slice local. Got:\n{}",
+        content
+    );
+}

@@ -55,55 +55,57 @@ impl SliceFields {
 ///   - `EventHandlerIR::StoreAction { r#ref: "Store.action" }` — view
 ///     handler shorthand
 ///   - `el.bindings` names — `bind:value={Store.field}` read side
+///
+/// Also returns the set of BARE store-alias identifier references (`let s =
+/// TodoStore;`) — a store referenced as a value (not via a field) must keep
+/// the whole-store object, since slice locals only cover individual fields
+/// (review LOW-3).
+///
+/// Library functions are intentionally NOT scanned (review LOW-4): they are
+/// emitted at module scope where the component's slice locals (and the
+/// whole-store const) are out of scope, so store references inside them
+/// cannot be satisfied by either subscription form — T3.3 keeps their
+/// pre-existing (qualified) output untouched.
 pub(super) fn collect_component_store_field_refs(
     comp: &ComponentIR,
     view: Option<&ViewTree>,
-) -> FxHashMap<String, FxHashSet<String>> {
+) -> (FxHashMap<String, FxHashSet<String>>, FxHashSet<String>) {
     let mut acc: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let mut bare: FxHashSet<String> = FxHashSet::default();
 
     if let Some(view) = view {
-        collect_view_store_field_refs(view, &mut acc);
+        collect_view_store_field_refs(view, &mut acc, &mut bare);
     }
     for computed in &comp.computeds {
-        collect_expr_store_field_refs(&computed.body, &mut acc);
+        collect_expr_store_field_refs(&computed.body, &mut acc, &mut bare);
     }
     for effect in &comp.effects {
         for stmt in &effect.body.statements {
-            collect_stmt_store_field_refs(stmt, &mut acc);
+            collect_stmt_store_field_refs(stmt, &mut acc, &mut bare);
         }
     }
     for lc in &comp.lifecycles {
         for stmt in &lc.body.statements {
-            collect_stmt_store_field_refs(stmt, &mut acc);
+            collect_stmt_store_field_refs(stmt, &mut acc, &mut bare);
         }
     }
     for fun in &comp.fns {
         for stmt in &fun.body.statements {
-            collect_stmt_store_field_refs(stmt, &mut acc);
+            collect_stmt_store_field_refs(stmt, &mut acc, &mut bare);
         }
     }
-    acc
+    (acc, bare)
 }
 
-/// Store references inside library functions actually emitted for this
-/// component (transitive closure already computed by the caller).
-pub(super) fn collect_lib_fn_store_field_refs(
-    lib_fns: &[&FunctionIR],
-) -> FxHashMap<String, FxHashSet<String>> {
-    let mut acc: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
-    for fun in lib_fns {
-        for stmt in &fun.body.statements {
-            collect_stmt_store_field_refs(stmt, &mut acc);
-        }
-    }
-    acc
-}
-
-fn collect_view_store_field_refs(node: &ViewTree, acc: &mut FxHashMap<String, FxHashSet<String>>) {
+fn collect_view_store_field_refs(
+    node: &ViewTree,
+    acc: &mut FxHashMap<String, FxHashSet<String>>,
+    bare: &mut FxHashSet<String>,
+) {
     match node {
         ViewTree::Element(el) => {
             for val in el.props.values() {
-                collect_expr_store_field_refs(val, acc);
+                collect_expr_store_field_refs(val, acc, bare);
             }
             // bind:value read side — `Store.field` names are emitted
             // verbatim as JSX values (view.rs) and must be sliced too.
@@ -115,10 +117,10 @@ fn collect_view_store_field_refs(node: &ViewTree, acc: &mut FxHashMap<String, Fx
                 }
             }
             for binding in el.class_map_bindings.values() {
-                collect_expr_store_field_refs(binding, acc);
+                collect_expr_store_field_refs(binding, acc, bare);
             }
             for binding_expr in el.semantic_bindings.values() {
-                collect_expr_store_field_refs(binding_expr, acc);
+                collect_expr_store_field_refs(binding_expr, acc, bare);
             }
             for handler in el.events.values() {
                 match handler {
@@ -144,44 +146,44 @@ fn collect_view_store_field_refs(node: &ViewTree, acc: &mut FxHashMap<String, Fx
                     }
                     EventHandlerIR::InlineFn { body, .. } => {
                         for stmt in &body.statements {
-                            collect_stmt_store_field_refs(stmt, acc);
+                            collect_stmt_store_field_refs(stmt, acc, bare);
                         }
                     }
                 }
             }
             for child in &el.children {
-                collect_view_store_field_refs(child, acc);
+                collect_view_store_field_refs(child, acc, bare);
             }
         }
         ViewTree::Conditional(cond) => {
             for branch in &cond.branches {
-                collect_expr_store_field_refs(&branch.condition, acc);
+                collect_expr_store_field_refs(&branch.condition, acc, bare);
                 if let Some(ref body) = branch.body {
-                    collect_view_store_field_refs(body, acc);
+                    collect_view_store_field_refs(body, acc, bare);
                 }
             }
             if let Some(ref fb) = cond.fallback {
-                collect_view_store_field_refs(fb, acc);
+                collect_view_store_field_refs(fb, acc, bare);
             }
         }
         ViewTree::ListRendering(list) => {
-            collect_expr_store_field_refs(&list.iterable, acc);
+            collect_expr_store_field_refs(&list.iterable, acc, bare);
             if let Some(ref body) = list.body {
-                collect_view_store_field_refs(body, acc);
+                collect_view_store_field_refs(body, acc, bare);
             }
             if let Some(ref empty_body) = list.empty_body {
-                collect_view_store_field_refs(empty_body, acc);
+                collect_view_store_field_refs(empty_body, acc, bare);
             }
         }
-        ViewTree::Interpolation(expr) => collect_expr_store_field_refs(expr, acc),
+        ViewTree::Interpolation(expr) => collect_expr_store_field_refs(expr, acc, bare),
         ViewTree::Slot { fallback, .. } => {
             for child in fallback {
-                collect_view_store_field_refs(child, acc);
+                collect_view_store_field_refs(child, acc, bare);
             }
         }
         ViewTree::Fragment(children) => {
             for child in children {
-                collect_view_store_field_refs(child, acc);
+                collect_view_store_field_refs(child, acc, bare);
             }
         }
         ViewTree::Text(_) => {}
@@ -197,7 +199,6 @@ fn collect_view_store_field_refs(node: &ViewTree, acc: &mut FxHashMap<String, Fx
 pub(super) fn collect_shadowing_names(
     comp: &ComponentIR,
     view: Option<&ViewTree>,
-    lib_fns: &[&FunctionIR],
 ) -> FxHashSet<String> {
     let mut acc: FxHashSet<String> = FxHashSet::default();
     // Component-level declarations.
@@ -226,16 +227,11 @@ pub(super) fn collect_shadowing_names(
     if let Some(view) = view {
         collect_view_shadowing_names(view, &mut acc);
     }
-    // Fn params and inner-scope declarations.
+    // Fn params and inner-scope declarations. Library functions are NOT
+    // scanned (review LOW-4): they are emitted at module scope, outside the
+    // component, so their params/bodies cannot capture the component's
+    // slice locals.
     for fun in &comp.fns {
-        for p in &fun.params {
-            acc.insert(p.name.clone());
-        }
-        for stmt in &fun.body.statements {
-            collect_stmt_shadowing_names(stmt, &mut acc);
-        }
-    }
-    for fun in lib_fns {
         for p in &fun.params {
             acc.insert(p.name.clone());
         }
@@ -571,14 +567,23 @@ fn collect_ref_op_shadowing_names(op: &RefOpIR, acc: &mut FxHashSet<String>) {
     }
 }
 
-/// Collect store → referenced-field map from an expression tree.
-fn collect_expr_store_field_refs(expr: &ExprIR, acc: &mut FxHashMap<String, FxHashSet<String>>) {
+/// Collect store → referenced-field map from an expression tree. Field and
+/// method receivers are consumed by their parent arms (never recursed into),
+/// so any IdentifierExpr reached by the walker is a BARE reference (review
+/// LOW-3).
+fn collect_expr_store_field_refs(
+    expr: &ExprIR,
+    acc: &mut FxHashMap<String, FxHashSet<String>>,
+    bare: &mut FxHashSet<String>,
+) {
     match expr {
         ExprIR::FieldAccessExpr { object, field } => {
-            if let ExprIR::IdentifierExpr { name, .. } = object.as_ref() {
-                acc.entry(name.clone()).or_default().insert(field.clone());
+            match object.as_ref() {
+                ExprIR::IdentifierExpr { name, .. } => {
+                    acc.entry(name.clone()).or_default().insert(field.clone());
+                }
+                _ => collect_expr_store_field_refs(object, acc, bare),
             }
-            collect_expr_store_field_refs(object, acc);
         }
         ExprIR::MethodCallExpr {
             object,
@@ -586,12 +591,14 @@ fn collect_expr_store_field_refs(expr: &ExprIR, acc: &mut FxHashMap<String, FxHa
             args,
             ..
         } => {
-            if let ExprIR::IdentifierExpr { name, .. } = object.as_ref() {
-                acc.entry(name.clone()).or_default().insert(method.clone());
+            match object.as_ref() {
+                ExprIR::IdentifierExpr { name, .. } => {
+                    acc.entry(name.clone()).or_default().insert(method.clone());
+                }
+                _ => collect_expr_store_field_refs(object, acc, bare),
             }
-            collect_expr_store_field_refs(object, acc);
             for arg in args {
-                collect_expr_store_field_refs(arg, acc);
+                collect_expr_store_field_refs(arg, acc, bare);
             }
         }
         ExprIR::StoreFieldAccessExpr {
@@ -603,99 +610,106 @@ fn collect_expr_store_field_refs(expr: &ExprIR, acc: &mut FxHashMap<String, FxHa
                 .or_default()
                 .insert(field_name.clone());
             for arg in call_args {
-                collect_expr_store_field_refs(arg, acc);
+                collect_expr_store_field_refs(arg, acc, bare);
             }
         }
         ExprIR::BinaryOpExpr { left, right, .. } => {
-            collect_expr_store_field_refs(left, acc);
-            collect_expr_store_field_refs(right, acc);
+            collect_expr_store_field_refs(left, acc, bare);
+            collect_expr_store_field_refs(right, acc, bare);
         }
-        ExprIR::UnaryOpExpr { operand, .. } => collect_expr_store_field_refs(operand, acc),
+        ExprIR::UnaryOpExpr { operand, .. } => collect_expr_store_field_refs(operand, acc, bare),
         ExprIR::TernaryIR {
             cond,
             then_expr,
             else_expr,
         } => {
-            collect_expr_store_field_refs(cond, acc);
-            collect_expr_store_field_refs(then_expr, acc);
-            collect_expr_store_field_refs(else_expr, acc);
+            collect_expr_store_field_refs(cond, acc, bare);
+            collect_expr_store_field_refs(then_expr, acc, bare);
+            collect_expr_store_field_refs(else_expr, acc, bare);
         }
         ExprIR::CallExpr { args, .. } => {
             for arg in args {
-                collect_expr_store_field_refs(arg, acc);
+                collect_expr_store_field_refs(arg, acc, bare);
             }
         }
         ExprIR::IndexExpr { object, index } => {
-            collect_expr_store_field_refs(object, acc);
-            collect_expr_store_field_refs(index, acc);
+            collect_expr_store_field_refs(object, acc, bare);
+            collect_expr_store_field_refs(index, acc, bare);
         }
         ExprIR::ArrayExpr { elements } => {
             for e in elements {
-                collect_expr_store_field_refs(e, acc);
+                collect_expr_store_field_refs(e, acc, bare);
             }
         }
         ExprIR::MapExpr { entries } => {
             for (k, v) in entries {
-                collect_expr_store_field_refs(k, acc);
-                collect_expr_store_field_refs(v, acc);
+                collect_expr_store_field_refs(k, acc, bare);
+                collect_expr_store_field_refs(v, acc, bare);
             }
         }
-        ExprIR::ClosureExpr { body, .. } => collect_expr_store_field_refs(body, acc),
+        ExprIR::ClosureExpr { body, .. } => collect_expr_store_field_refs(body, acc, bare),
         ExprIR::BlockExpr { statements, tail } => {
             for stmt in statements {
-                collect_stmt_store_field_refs(stmt, acc);
+                collect_stmt_store_field_refs(stmt, acc, bare);
             }
-            collect_expr_store_field_refs(tail, acc);
+            collect_expr_store_field_refs(tail, acc, bare);
         }
         ExprIR::MatchExpr { matched, arms } => {
-            collect_expr_store_field_refs(matched, acc);
+            collect_expr_store_field_refs(matched, acc, bare);
             for arm in arms {
                 for stmt in &arm.body.statements {
-                    collect_stmt_store_field_refs(stmt, acc);
+                    collect_stmt_store_field_refs(stmt, acc, bare);
                 }
             }
         }
         ExprIR::VariantLiteral { fields, .. } | ExprIR::StructExpr { fields, .. } => {
             for (_, v) in fields {
-                collect_expr_store_field_refs(v, acc);
+                collect_expr_store_field_refs(v, acc, bare);
             }
         }
-        ExprIR::SpreadExpr { operand } => collect_expr_store_field_refs(operand, acc),
-        ExprIR::AwaitExpr { operand } => collect_expr_store_field_refs(operand, acc),
+        ExprIR::SpreadExpr { operand } => collect_expr_store_field_refs(operand, acc, bare),
+        ExprIR::AwaitExpr { operand } => collect_expr_store_field_refs(operand, acc, bare),
         ExprIR::ArrayMethod {
             subject, predicate, ..
         } => {
-            collect_expr_store_field_refs(subject, acc);
-            collect_expr_store_field_refs(predicate, acc);
+            collect_expr_store_field_refs(subject, acc, bare);
+            collect_expr_store_field_refs(predicate, acc, bare);
         }
-        ExprIR::RefOpExpr { op, .. } => collect_ref_op_store_field_refs(op, acc),
-        ExprIR::IdentifierExpr { .. } | ExprIR::LiteralExpr { .. } => {}
+        ExprIR::RefOpExpr { op, .. } => collect_ref_op_store_field_refs(op, acc, bare),
+        ExprIR::IdentifierExpr { name, .. } => {
+            bare.insert(name.clone());
+        }
+        ExprIR::LiteralExpr { .. } => {}
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown ExprIR variant — update codegen for new variant"),
     }
 }
 
-fn collect_ref_op_store_field_refs(op: &RefOpIR, acc: &mut FxHashMap<String, FxHashSet<String>>) {
+fn collect_ref_op_store_field_refs(
+    op: &RefOpIR,
+    acc: &mut FxHashMap<String, FxHashSet<String>>,
+    bare: &mut FxHashSet<String>,
+) {
     match op {
         RefOpIR::ScrollTo { x, y } => {
             if let Some(x) = x {
-                collect_expr_store_field_refs(x, acc);
+                collect_expr_store_field_refs(x, acc, bare);
             }
             if let Some(y) = y {
-                collect_expr_store_field_refs(y, acc);
+                collect_expr_store_field_refs(y, acc, bare);
             }
         }
         RefOpIR::ScrollBy { dx, dy } => {
             if let Some(dx) = dx {
-                collect_expr_store_field_refs(dx, acc);
+                collect_expr_store_field_refs(dx, acc, bare);
             }
             if let Some(dy) = dy {
-                collect_expr_store_field_refs(dy, acc);
+                collect_expr_store_field_refs(dy, acc, bare);
             }
         }
         RefOpIR::SetSelection { start, end } => {
-            collect_expr_store_field_refs(start, acc);
-            collect_expr_store_field_refs(end, acc);
+            collect_expr_store_field_refs(start, acc, bare);
+            collect_expr_store_field_refs(end, acc, bare);
         }
         RefOpIR::Focus
         | RefOpIR::Blur
@@ -713,17 +727,18 @@ fn collect_ref_op_store_field_refs(op: &RefOpIR, acc: &mut FxHashMap<String, FxH
 fn collect_stmt_store_field_refs(
     stmt: &StatementIR,
     acc: &mut FxHashMap<String, FxHashSet<String>>,
+    bare: &mut FxHashSet<String>,
 ) {
     match stmt {
-        StatementIR::ExprStmtIR { expr } => collect_expr_store_field_refs(expr, acc),
+        StatementIR::ExprStmtIR { expr } => collect_expr_store_field_refs(expr, acc, bare),
         StatementIR::LetStmtIR { value, .. } => {
             if let Some(ref v) = value {
-                collect_expr_store_field_refs(v, acc);
+                collect_expr_store_field_refs(v, acc, bare);
             }
         }
         StatementIR::ReturnStmtIR { value } => {
             if let Some(ref v) = value {
-                collect_expr_store_field_refs(v, acc);
+                collect_expr_store_field_refs(v, acc, bare);
             }
         }
         StatementIR::IfStmtIR {
@@ -732,45 +747,45 @@ fn collect_stmt_store_field_refs(
             else_ifs,
             else_body,
         } => {
-            collect_expr_store_field_refs(condition, acc);
+            collect_expr_store_field_refs(condition, acc, bare);
             for s in &then_body.statements {
-                collect_stmt_store_field_refs(s, acc);
+                collect_stmt_store_field_refs(s, acc, bare);
             }
             for (cond, body) in else_ifs {
-                collect_expr_store_field_refs(cond, acc);
+                collect_expr_store_field_refs(cond, acc, bare);
                 for s in &body.statements {
-                    collect_stmt_store_field_refs(s, acc);
+                    collect_stmt_store_field_refs(s, acc, bare);
                 }
             }
             if let Some(ref eb) = else_body {
                 for s in &eb.statements {
-                    collect_stmt_store_field_refs(s, acc);
+                    collect_stmt_store_field_refs(s, acc, bare);
                 }
             }
         }
         StatementIR::WhileStmtIR { condition, body } => {
-            collect_expr_store_field_refs(condition, acc);
+            collect_expr_store_field_refs(condition, acc, bare);
             for s in &body.statements {
-                collect_stmt_store_field_refs(s, acc);
+                collect_stmt_store_field_refs(s, acc, bare);
             }
         }
         StatementIR::ForInStmtIR { iterable, body, .. } => {
-            collect_expr_store_field_refs(iterable, acc);
+            collect_expr_store_field_refs(iterable, acc, bare);
             for s in &body.statements {
-                collect_stmt_store_field_refs(s, acc);
+                collect_stmt_store_field_refs(s, acc, bare);
             }
         }
         StatementIR::BlockStmtIR { body } => {
             for s in &body.statements {
-                collect_stmt_store_field_refs(s, acc);
+                collect_stmt_store_field_refs(s, acc, bare);
             }
         }
         StatementIR::MutationStmt { intent } => {
             if let Some(intent) = intent {
-                collect_mutation_store_field_refs(intent, acc);
+                collect_mutation_store_field_refs(intent, acc, bare);
             }
         }
-        StatementIR::ThrowStmtIR { expr } => collect_expr_store_field_refs(expr, acc),
+        StatementIR::ThrowStmtIR { expr } => collect_expr_store_field_refs(expr, acc, bare),
         StatementIR::TryCatchStmtIR {
             try_body,
             catch_body,
@@ -778,22 +793,22 @@ fn collect_stmt_store_field_refs(
             ..
         } => {
             for s in &try_body.statements {
-                collect_stmt_store_field_refs(s, acc);
+                collect_stmt_store_field_refs(s, acc, bare);
             }
             if let Some(ref cb) = catch_body {
                 for s in &cb.statements {
-                    collect_stmt_store_field_refs(s, acc);
+                    collect_stmt_store_field_refs(s, acc, bare);
                 }
             }
             if let Some(ref fb) = finally_body {
                 for s in &fb.statements {
-                    collect_stmt_store_field_refs(s, acc);
+                    collect_stmt_store_field_refs(s, acc, bare);
                 }
             }
         }
         StatementIR::EventEmitStmtIR { args, .. } => {
             for arg in args {
-                collect_expr_store_field_refs(arg, acc);
+                collect_expr_store_field_refs(arg, acc, bare);
             }
         }
         StatementIR::BreakStmtIR | StatementIR::ContinueStmtIR => {}
@@ -805,6 +820,7 @@ fn collect_stmt_store_field_refs(
 fn collect_mutation_store_field_refs(
     intent: &MutationIntent,
     acc: &mut FxHashMap<String, FxHashSet<String>>,
+    bare: &mut FxHashSet<String>,
 ) {
     let expr = match intent {
         MutationIntent::DirectAssign { value, .. } => value.as_deref(),
@@ -819,7 +835,7 @@ fn collect_mutation_store_field_refs(
         _ => None,
     };
     if let Some(e) = expr {
-        collect_expr_store_field_refs(e, acc);
+        collect_expr_store_field_refs(e, acc, bare);
     }
 }
 
@@ -841,14 +857,17 @@ pub(super) fn motion_whole_store_stores(
         motion_bodies.insert(m.name.clone(), m.body.clone());
     }
     let mut acc: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
-    let scan_body = |body: &MotionBodyIR, acc: &mut FxHashMap<String, FxHashSet<String>>| {
-        collect_expr_store_field_refs(&body.over, acc);
+    let mut bare: FxHashSet<String> = FxHashSet::default();
+    let scan_body = |body: &MotionBodyIR,
+                     acc: &mut FxHashMap<String, FxHashSet<String>>,
+                     bare: &mut FxHashSet<String>| {
+        collect_expr_store_field_refs(&body.over, acc, bare);
         if let Some(ref delay) = body.playback.delay {
-            collect_expr_store_field_refs(delay, acc);
+            collect_expr_store_field_refs(delay, acc, bare);
         }
         for stop in &body.stops {
             for val in stop.properties.values() {
-                collect_expr_store_field_refs(val, acc);
+                collect_expr_store_field_refs(val, acc, bare);
             }
         }
     };
@@ -857,25 +876,25 @@ pub(super) fn motion_whole_store_stores(
         if let Some(behavior) = behavior {
             for trigger in &behavior.triggers {
                 if let Some(body) = super::super::motion::resolve_def(trigger, &motion_bodies) {
-                    scan_body(body, &mut acc);
+                    scan_body(body, &mut acc, &mut bare);
                 }
             }
             if let Some(e) = &behavior.in_view_threshold {
-                collect_expr_store_field_refs(e, &mut acc);
+                collect_expr_store_field_refs(e, &mut acc, &mut bare);
             }
         }
         if let Some(scrub) = el.scroll.as_ref().and_then(|s| s.scrub.as_ref()) {
-            collect_expr_store_field_refs(scrub, &mut acc);
+            collect_expr_store_field_refs(scrub, &mut acc, &mut bare);
         }
         if let Some(drag) = &el.drag {
             if let Some(e) = &drag.elastic {
-                collect_expr_store_field_refs(e, &mut acc);
+                collect_expr_store_field_refs(e, &mut acc, &mut bare);
             }
             if let Some(e) = &drag.threshold {
-                collect_expr_store_field_refs(e, &mut acc);
+                collect_expr_store_field_refs(e, &mut acc, &mut bare);
             }
             if let Some(e) = &drag.velocity_max {
-                collect_expr_store_field_refs(e, &mut acc);
+                collect_expr_store_field_refs(e, &mut acc, &mut bare);
             }
         }
     });
@@ -890,6 +909,7 @@ pub(super) fn build_slice_plan(
     comp: &ComponentIR,
     store_field_refs: &FxHashMap<String, FxHashSet<String>>,
     shadowing_names: &FxHashSet<String>,
+    bare_store_refs: &FxHashSet<String>,
     motion_stores: &FxHashSet<String>,
     all_stores: &FxHashMap<&str, &StoreIR>,
 ) -> (FxHashMap<String, String>, FxHashMap<String, SliceFields>) {
@@ -958,7 +978,14 @@ pub(super) fn build_slice_plan(
                 break;
             }
         }
-        if unknown || slice.is_empty() || motion_stores.contains(store_ref.as_str()) {
+        // A BARE store-alias reference (`let s = TodoStore;` — review
+        // LOW-3) needs the whole-store object; slice locals only cover
+        // individual fields.
+        if unknown
+            || slice.is_empty()
+            || bare_store_refs.contains(store_ref.as_str())
+            || motion_stores.contains(store_ref.as_str())
+        {
             continue;
         }
         // A field name already claimed by another store's slice would

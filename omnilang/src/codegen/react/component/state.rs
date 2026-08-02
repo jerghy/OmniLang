@@ -25,12 +25,20 @@ impl ReactCodegen {
         read_signals: &FxHashSet<String>,
         mutated_signals: &FxHashSet<String>,
         fn_names: &FxHashSet<String>,
+        store_field_renames: &FxHashMap<String, String>,
     ) {
         for state in &comp.signals {
             if !read_signals.contains(&state.name) {
                 continue;
             }
-            let init_val = expr::format_expr_ir_tsx(&state.initial_value, &FxHashSet::default());
+            // A signal initializer may read a store field
+            // (`signal x: i32 = TodoStore.count;`) — the emitted initializer
+            // must reference the slice local (review LOW-1).
+            let init_val = expr::format_expr_ir_tsx_renamed(
+                &state.initial_value,
+                &FxHashSet::default(),
+                store_field_renames,
+            );
             if mutated_signals.contains(&state.name) {
                 let setter_base = format!("set{}", capitalize_first(&state.name));
                 let setter = if fn_names.contains(&setter_base) {

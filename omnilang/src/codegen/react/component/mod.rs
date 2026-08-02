@@ -174,8 +174,11 @@ impl ReactCodegen {
         // T3.3: per-store referenced fields (reads + action calls), from all
         // component bodies. Covers the IR forms the identifier collectors
         // miss (StoreFieldAccessExpr aliases, bind:value names, StoreAction
-        // refs) so used_store_refs and the slice plan agree.
-        let comp_store_field_refs = store_slices::collect_component_store_field_refs(comp, view);
+        // refs) so used_store_refs and the slice plan agree. Also returns
+        // BARE store-alias identifier references (review LOW-3) — a store
+        // referenced as a value keeps the whole-store object.
+        let (comp_store_field_refs, bare_store_refs) =
+            store_slices::collect_component_store_field_refs(comp, view);
 
         let local_names: FxHashSet<String> = comp
             .signals
@@ -339,20 +342,18 @@ impl ReactCodegen {
         // whole-store object (collision/shadowing fallback), and build the
         // `"Store.field" → slice local` rename map threaded through every
         // read/action emission site below.
-        let lib_fn_refs: Vec<&FunctionIR> = lib_fns.iter().map(|f| **f).collect();
-        let lib_store_field_refs = store_slices::collect_lib_fn_store_field_refs(&lib_fn_refs);
-        let mut store_field_refs = comp_store_field_refs;
-        for (store, fields) in lib_store_field_refs {
-            store_field_refs.entry(store).or_default().extend(fields);
-        }
-        let shadowing_names =
-            store_slices::collect_shadowing_names(comp, view, &lib_fn_refs);
+        // Library functions are intentionally excluded (review LOW-4): they
+        // are emitted at module scope, where neither the slice locals nor a
+        // whole-store const exist, so their store references keep the
+        // pre-existing (qualified) output.
+        let shadowing_names = store_slices::collect_shadowing_names(comp, view);
         let motion_stores =
             store_slices::motion_whole_store_stores(view, ir, component_map);
         let (store_field_renames, slice_fields) = store_slices::build_slice_plan(
             comp,
-            &store_field_refs,
+            &comp_store_field_refs,
             &shadowing_names,
+            &bare_store_refs,
             &motion_stores,
             &all_stores,
         );
@@ -379,13 +380,16 @@ impl ReactCodegen {
             let mut body_w = crate::codegen::CodeWriter::new();
             body_w.indent();
             for stmt in &fun.body.statements {
+                // No store-field renames here: lib fns are module-scope and
+                // the slice locals (or whole-store const) live inside the
+                // component — qualified output kept (review LOW-4).
                 expr::generate_statement_tsx(
                     &mut body_w,
                     stmt,
                     &FxHashSet::default(),
                     &store_signal_owners,
                     &ref_names,
-                    &store_field_renames,
+                    &FxHashMap::default(),
                 );
             }
             let mut body_str = body_w.into_string();
@@ -492,7 +496,14 @@ impl ReactCodegen {
 
         // State hooks + effects
         let fn_names: FxHashSet<String> = comp.fns.iter().map(|f| f.name.clone()).collect();
-        self.gen_state_hooks(&mut w, comp, &read_signals, &mutated_signals, &fn_names);
+        self.gen_state_hooks(
+            &mut w,
+            comp,
+            &read_signals,
+            &mutated_signals,
+            &fn_names,
+            &store_field_renames,
+        );
         state::gen_ref_hooks(&mut w, comp, &ref_tags, &motion_internal_refs);
         self.gen_effects(
             &mut w,

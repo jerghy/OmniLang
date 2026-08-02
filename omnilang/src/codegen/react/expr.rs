@@ -529,9 +529,14 @@ pub(super) fn generate_statement_tsx(
                 {
                     match name.as_str() {
                         "array_push" => {
+                            // The pushed item is an expression in the current
+                            // scope — it must go through the store-field
+                            // rename path too (`array_push(items,
+                            // TodoStore.totalCount)` on a sliced store → the
+                            // item becomes the slice local, review MEDIUM-1).
                             let item = args
                                 .get(1)
-                                .map(|e| format_expr_ir_tsx(e, ref_names))
+                                .map(|e| format_expr_ir_tsx_renamed(e, ref_names, renames))
                                 .unwrap_or_else(|| "undefined".into());
                             if let Some(owner) = store_signal_owners.get(target_name.as_str()) {
                                 w.emit_fmt(format_args!(
